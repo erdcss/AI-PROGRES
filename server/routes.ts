@@ -1,10 +1,9 @@
-import { ProductAttribute, type ProductAttributes } from "@shared/schema";
 import { z } from "zod";
 import type { Express } from "express";
 import { createServer } from "http";
 import { storage } from "./storage";
 import * as cheerio from "cheerio";
-import { urlSchema, type InsertProduct } from "@shared/schema";
+import { type InsertProduct } from "@shared/schema";
 import { TrendyolScrapingError, ProductDataError, handleError } from "./errors";
 import fetch from "node-fetch";
 import { createObjectCsvWriter } from 'csv-writer';
@@ -579,7 +578,8 @@ function generateProductTags(product: InsertProduct, categoryConfig: any): strin
   return Array.from(allTags);
 }
 
-const urlSchema = z.object({
+// URL doğrulama şeması
+const productUrlSchema = z.object({
   url: z.string().transform(val => {
     if (!val.startsWith('http')) {
       return 'https://www.' + val.replace(/^www\./, '');
@@ -594,7 +594,7 @@ export async function registerRoutes(app: Express) {
   app.post("/api/scrape", async (req, res) => {
     try {
       debug("Scrape isteği alındı");
-      const { url } = urlSchema.parse(req.body);
+      const { url } = productUrlSchema.parse(req.body);
 
       storage.reset();
 
