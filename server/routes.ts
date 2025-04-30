@@ -28,6 +28,7 @@ async function fetchProductPage(url: string): Promise<cheerio.CheerioAPI> {
 
     debug(`Fetching URL: ${url}`);
 
+    // @ts-ignore - node-fetch tiplemesi farklı olduğu için
     const response = await fetch(url, {
       headers: {
         'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/122.0.0.0 Safari/537.36',
@@ -44,6 +45,7 @@ async function fetchProductPage(url: string): Promise<cheerio.CheerioAPI> {
         'Origin': 'https://www.trendyol.com',
         'Connection': 'keep-alive'
       },
+      // @ts-ignore - node-fetch tiplemesi farklı olduğu için
       follow: 10,
       redirect: 'follow',
       timeout: 30000
@@ -135,6 +137,7 @@ function extractCategories($: cheerio.CheerioAPI): { categories: string[], fullP
     const scriptContent = $(element).html() || '';
     if (scriptContent.includes('window.__PRODUCT_DETAIL_APP_INITIAL_STATE__')) {
       try {
+        // @ts-ignore - s flag desteği için
         const match = scriptContent.match(/window\.__PRODUCT_DETAIL_APP_INITIAL_STATE__\s*=\s*({.*?});/s);
         if (match) {
           const data = JSON.parse(match[1]);
@@ -226,6 +229,7 @@ async function scrapeProduct(url: string): Promise<InsertProduct> {
       const content = $(element).html() || '';
       if (content.includes('window.__PRODUCT_DETAIL_APP_INITIAL_STATE__')) {
         try {
+          // @ts-ignore - s flag desteği için
           const match = content.match(/window\.__PRODUCT_DETAIL_APP_INITIAL_STATE__\s*=\s*({.*?});/s);
           if (match) {
             return JSON.parse(match[1]);
@@ -361,7 +365,8 @@ async function scrapeProduct(url: string): Promise<InsertProduct> {
     if (productData.product) {
       // Renk bilgisini al
       if (productData.product.color) {
-        const colors = productData.product.color.split(',').map(c => c.split('-')[0].trim());
+        // @ts-ignore - Tip belirtilmediği için
+        const colors = productData.product.color.split(',').map((c: string) => c.split('-')[0].trim());
         variants.colors = colors;
         debug(`Renkler bulundu: ${colors.join(', ')}`);
       }
@@ -451,7 +456,6 @@ async function scrapeProduct(url: string): Promise<InsertProduct> {
       variants,
       attributes,
       categories: categoryInfo.categories,
-      fullCategoryPath: categoryInfo.fullPath,
       tags: categoryInfo.categories
     };
 
