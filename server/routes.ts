@@ -437,6 +437,10 @@ async function scrapeProduct(url: string): Promise<InsertProduct> {
       debug(`Stok bilgileri: ${JSON.stringify(stockInfo, null, 2)}`);
     }
 
+    // Kategori konfigürasyonunu al
+    const categoryConfig = getCategoryConfig(categoryInfo.categories);
+    
+    // Ürün nesnesini oluştur
     const product: InsertProduct = {
       url,
       title,
@@ -622,6 +626,10 @@ export async function registerRoutes(app: Express) {
 
       const categoryConfig = getCategoryConfig(product.categories);
       const categoryPath = parseCategoryPath(product.categories);
+      
+      // Otomatik etiketler oluştur
+      const productTags = generateProductTags(product, categoryConfig);
+      debug(`Oluşturulan etiketler: ${productTags.join(', ')}`);
 
       // Handle oluştur (URL'den)
       const handle = product.title
@@ -656,7 +664,7 @@ export async function registerRoutes(app: Express) {
         product_category: categoryConfig.shopifyCategory,
         custom_category: categoryPath,
         type: product.categories[product.categories.length - 1] || 'Giyim',
-        tags: product.tags?.join(', ') || '',
+        tags: productTags.join(', '),
         published: 'TRUE',
         option1_name: '',
         option1_value: '',

@@ -502,6 +502,21 @@ export default function Home() {
                       <span className="text-gray-400">Shopify Kategori:</span>
                     </div>
                     <div className="font-medium">{categoryConfig.shopifyCategory}</div>
+                    
+                    <div className="flex items-center gap-2 pt-2 border-t border-gray-700 mt-2">
+                      <Package className="h-3 w-3 text-primary" />
+                      <span className="text-gray-400">Oluşturulan Etiketler:</span>
+                    </div>
+                    <div className="flex flex-wrap gap-1 mt-1">
+                      {Array.isArray(product.tags) ? 
+                        product.tags.map((tag: string, idx: number) => (
+                          <span key={idx} className="text-xs bg-gray-800 px-2 py-1 rounded-full">
+                            {tag}
+                          </span>
+                        )) : 
+                        <span className="text-xs text-gray-500">Etiket oluşturulmadı</span>
+                      }
+                    </div>
                   </div>
 
                 </CardContent>
