@@ -254,8 +254,21 @@ export default function Home() {
             >
               <Card className="bg-gray-900 border-gray-800">
                 <CardContent className="p-4 space-y-4">
-                  <div className="text-xs text-gray-400 mb-2">
-                    {product.fullCategoryPath ? product.fullCategoryPath.join(" / ") : ["Trendyol", ...product.categories].join(" / ")}
+                  <div className="flex justify-between items-center">
+                    <div className="text-xs text-gray-400">
+                      {product.fullCategoryPath ? product.fullCategoryPath.join(" / ") : ["Trendyol", ...product.categories].join(" / ")}
+                    </div>
+                    
+                    <Button
+                      onClick={() => exportMutation.mutate()}
+                      disabled={exportMutation.isPending}
+                      className="py-1 px-3 text-xs"
+                    >
+                      {exportMutation.isPending ? (
+                        <Loader2 className="mr-2 h-3 w-3 animate-spin" />
+                      ) : null}
+                      Shopify CSV'sine Aktar
+                    </Button>
                   </div>
 
                   <div className="space-y-3 border-b border-gray-800 pb-4">
@@ -491,16 +504,6 @@ export default function Home() {
                     <div className="font-medium">{categoryConfig.shopifyCategory}</div>
                   </div>
 
-                  <Button
-                    onClick={() => exportMutation.mutate()}
-                    disabled={exportMutation.isPending}
-                    className="w-full py-2 text-sm mt-4"
-                  >
-                    {exportMutation.isPending ? (
-                      <Loader2 className="mr-2 h-4 w-4 animate-spin" />
-                    ) : null}
-                    Shopify CSV'sine Aktar
-                  </Button>
                 </CardContent>
               </Card>
             </motion.div>

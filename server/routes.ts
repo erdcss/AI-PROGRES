@@ -473,6 +473,108 @@ function parseCategoryPath(categories: string[]): string {
     .join(' > ');
 }
 
+// Ürün için otomatik etiketler oluşturan fonksiyon
+function generateProductTags(product: InsertProduct, categoryConfig: any): string[] {
+  const allTags: Set<string> = new Set();
+  const title = product.title.toLowerCase();
+  const categories = product.categories.map(c => c.toLowerCase());
+  const joinedCategories = categories.join(' ');
+  
+  // Kategori tabanlı etiketler
+  for (const category of categories) {
+    // Her kategoriyi bir etiket olarak ekle, boşlukları kaldır
+    if (category) {
+      allTags.add(`#${category.replace(/\s+/g, '')}`);
+    }
+  }
+  
+  // Ana Kategori Etiketleri - Bunlar Shopify'da koleksiyonlara ekleme için
+  if (joinedCategories.includes('kadın')) {
+    allTags.add('#kadın');
+  }
+  
+  if (joinedCategories.includes('erkek')) {
+    allTags.add('#erkek');
+  }
+  
+  if (joinedCategories.includes('çocuk') || joinedCategories.includes('cocuk')) {
+    allTags.add('#çocuk');
+  }
+  
+  // Ürün Tür Etiketleri
+  if (joinedCategories.includes('giyim') || 
+      joinedCategories.includes('elbise') || 
+      joinedCategories.includes('pantolon') || 
+      joinedCategories.includes('gömlek')) {
+    allTags.add('#giyim');
+  }
+  
+  if (joinedCategories.includes('aksesuar') || 
+      joinedCategories.includes('takı') || 
+      joinedCategories.includes('saat')) {
+    allTags.add('#aksesuar');
+  }
+  
+  if (joinedCategories.includes('ayakkabı') || 
+      joinedCategories.includes('bot') || 
+      joinedCategories.includes('çizme')) {
+    allTags.add('#ayakkabı');
+  }
+  
+  if (joinedCategories.includes('çanta') || 
+      joinedCategories.includes('cüzdan')) {
+    allTags.add('#çanta');
+  }
+  
+  if (joinedCategories.includes('elektronik') || 
+      joinedCategories.includes('telefon') || 
+      joinedCategories.includes('bilgisayar')) {
+    allTags.add('#elektronik');
+  }
+  
+  if (joinedCategories.includes('ev') || 
+      joinedCategories.includes('mobilya') || 
+      joinedCategories.includes('dekorasyon')) {
+    allTags.add('#evyaşam');
+  }
+  
+  if (joinedCategories.includes('kozmetik') || 
+      joinedCategories.includes('makyaj') || 
+      joinedCategories.includes('parfüm') ||
+      joinedCategories.includes('cilt bakım')) {
+    allTags.add('#kozmetik');
+    allTags.add('#kişiselbakım');
+  }
+  
+  // Özel ürün tipleri için
+  if (title.includes('saç maşası') || 
+      (title.includes('saç') && title.includes('maşa'))) {
+    allTags.add('#kadın');
+    allTags.add('#kişiselbakımürünleri');
+    allTags.add('#saçbakımürünleri');
+    allTags.add('#saçmaşası');
+  }
+  
+  if ((title.includes('telefon') && title.includes('kılıf')) || 
+      title.includes('telefon kılıfı')) {
+    allTags.add('#telefon');
+    allTags.add('#telefonaksesuarları');
+    allTags.add('#telefonkılıfları');
+  }
+  
+  // Ana Shopify kategorisi için etiket
+  if (categoryConfig && categoryConfig.shopifyCategory) {
+    const shopifyCategories = categoryConfig.shopifyCategory.split(' > ');
+    for (const cat of shopifyCategories) {
+      if (cat && cat !== 'Other') {
+        allTags.add(`#${cat.toLowerCase().replace(/\s+/g, '')}`);
+      }
+    }
+  }
+  
+  return Array.from(allTags);
+}
+
 const urlSchema = z.object({
   url: z.string().transform(val => {
     if (!val.startsWith('http')) {

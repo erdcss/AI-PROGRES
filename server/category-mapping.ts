@@ -112,6 +112,52 @@ export const categoryMapping: CategoryMapping = {
     attributes: ["Marka", "Model", "Özellikler"],
     inventoryTracking: true
   },
+  
+  // Telefon Aksesuar
+  "telefon aksesuarları": {
+    shopifyCategory: "Electronics > Cell Phone Accessories",
+    variantConfig: {
+      colorLabel: "Renk",
+      defaultStock: 25,
+      hasVariants: true
+    },
+    attributes: ["Uyumlu Marka", "Uyumlu Model", "Malzeme"],
+    inventoryTracking: true
+  },
+  
+  // Telefon Bileşenleri
+  "telefon bileşenleri": {
+    shopifyCategory: "Electronics > Electronics Components",
+    variantConfig: {
+      defaultStock: 20,
+      hasVariants: false
+    },
+    attributes: ["Uyumlu Model", "Garanti Süresi", "Orijinallik"],
+    inventoryTracking: true
+  },
+  
+  // Hırdavat
+  "hırdavat": {
+    shopifyCategory: "Hardware > Building Materials",
+    variantConfig: {
+      defaultStock: 40,
+      hasVariants: false
+    },
+    attributes: ["Materyal", "Kullanım Alanı", "Ebat"],
+    inventoryTracking: true
+  },
+  
+  // Mobilya
+  "mobilya": {
+    shopifyCategory: "Home & Garden > Furniture",
+    variantConfig: {
+      colorLabel: "Renk",
+      defaultStock: 15,
+      hasVariants: true
+    },
+    attributes: ["Malzeme", "Boyut", "Ürün Özellikleri"],
+    inventoryTracking: true
+  },
 
   // Varsayılan kategori
   "diğer": {
@@ -141,12 +187,51 @@ export function getCategoryConfig(categories: string[]): z.infer<typeof Category
       .replace(/ç/g, 'c')
   );
 
+  // Kategorilerin birleştirilmiş halini oluştur - arama yaparken kolaylık sağlar
+  const joinedCategories = normalizedCategories.join(' ');
+
   // Özel kategorileri kontrol et
   if (normalizedCategories.some(c => c.includes('saat'))) {
     if (normalizedCategories.some(c => c.includes('akilli') || c.includes('smart'))) {
       return categoryMapping['akıllı saat'];
     }
     return categoryMapping['saat'];
+  }
+
+  // Telefon aksesuarları ve bileşenleri kontrolü
+  if (joinedCategories.includes('telefon') && 
+      (joinedCategories.includes('aksesuar') || 
+       joinedCategories.includes('kilif') || 
+       joinedCategories.includes('koruyucu') || 
+       joinedCategories.includes('sarj') || 
+       joinedCategories.includes('kablo'))) {
+    return categoryMapping['telefon aksesuarları'];
+  }
+
+  if (joinedCategories.includes('telefon') && 
+      (joinedCategories.includes('parca') || 
+       joinedCategories.includes('bilesen') || 
+       joinedCategories.includes('komponent') || 
+       joinedCategories.includes('yedek') || 
+       joinedCategories.includes('batarya'))) {
+    return categoryMapping['telefon bileşenleri'];
+  }
+
+  // Hırdavat ve Mobilya kategorileri
+  if (joinedCategories.includes('hirdavat') || 
+      joinedCategories.includes('yapi malzeme') || 
+      joinedCategories.includes('el alet') || 
+      joinedCategories.includes('vida') || 
+      joinedCategories.includes('civata')) {
+    return categoryMapping['hırdavat'];
+  }
+
+  if (joinedCategories.includes('mobilya') || 
+      joinedCategories.includes('koltuk') || 
+      joinedCategories.includes('masa') || 
+      joinedCategories.includes('sandalye') || 
+      joinedCategories.includes('dolap')) {
+    return categoryMapping['mobilya'];
   }
 
   // Diğer kategori kontrolleri
@@ -160,6 +245,8 @@ export function getCategoryConfig(categories: string[]): z.infer<typeof Category
     if (category.includes('kadin')) return categoryMapping['kadın'];
     if (category.includes('elektronik')) return categoryMapping['elektronik'];
   }
+
+  // Ürün başlığı ve özelliklerinden kategori belirleme için düşünülecek özellikler eklenebilir
 
   // Varsayılan kategori
   return categoryMapping['diğer'];
