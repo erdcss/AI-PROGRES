@@ -455,8 +455,12 @@ async function scrapeProduct(url: string): Promise<InsertProduct> {
       variants,
       attributes,
       categories: categoryInfo.categories,
-      tags: categoryInfo.categories
+      tags: []
     };
+    
+    // Etiketleri oluştur ve ürüne ekle
+    product.tags = generateProductTags(product, categoryConfig);
+    debug(`Oluşturulan etiketler: ${product.tags.join(', ')}`);
 
     return product;
 
@@ -737,9 +741,7 @@ export async function registerRoutes(app: Express) {
       
       // Kategori ayarlarını al ve etiketleri oluştur
       const categoryConfig = getCategoryConfig(product.categories);
-      product.tags = generateProductTags(product, categoryConfig);
-      debug(`Oluşturulan etiketler: ${product.tags.join(', ')}`);
-      
+      // Ürün başarıyla çekildi, kaydediliyor
       debug("Ürün başarıyla çekildi, kaydediliyor");
       const saved = await storage.saveProduct(product);
 
