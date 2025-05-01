@@ -513,6 +513,8 @@ export default function Home() {
                           // Özel kategori formatını algıla
                           const isCategory = tag.startsWith('_');
                           const isSubcategory = tag.includes(' ) ');
+                          const isAttributeTag = tag.startsWith('@');
+                          const isLegacyTag = tag.startsWith('#');
                           
                           // Etiket stilini belirle
                           let tagClass = "text-xs px-2 py-1 rounded-full mr-1 mb-1 inline-block";
@@ -521,7 +523,9 @@ export default function Home() {
                             tagClass += " bg-blue-700"; // Ana kategori (mavi)
                           } else if (isCategory && isSubcategory) {
                             tagClass += " bg-green-700"; // Alt kategori (yeşil)
-                          } else if (tag.startsWith('#')) {
+                          } else if (isAttributeTag) {
+                            tagClass += " bg-amber-700"; // Özellik etiketi (turuncu/amber)
+                          } else if (isLegacyTag) {
                             tagClass += " bg-purple-700"; // Otomatik etiket (mor)
                           } else {
                             tagClass += " bg-gray-800"; // Normal etiket
@@ -531,7 +535,15 @@ export default function Home() {
                             <span 
                               key={idx} 
                               className={tagClass}
-                              title={isCategory ? "Kategori" : "Etiket"}
+                              title={
+                                isCategory 
+                                  ? (isSubcategory ? "Alt Kategori" : "Ana Kategori") 
+                                  : isAttributeTag 
+                                    ? "Ürün Özelliği" 
+                                    : isLegacyTag 
+                                      ? "Otomatik Etiket" 
+                                      : "Etiket"
+                              }
                             >
                               {tag}
                             </span>

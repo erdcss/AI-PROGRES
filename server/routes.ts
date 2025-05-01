@@ -47,8 +47,7 @@ async function fetchProductPage(url: string): Promise<cheerio.CheerioAPI> {
       },
       // @ts-ignore - node-fetch tiplemesi farklı olduğu için
       follow: 10,
-      redirect: 'follow',
-      timeout: 30000
+      redirect: 'follow'
     });
 
     if (!response.ok) {
@@ -480,6 +479,85 @@ function parseCategoryPath(categories: string[]): string {
     .join(' > ');
 }
 
+// Ürün özelliklerinden anahtar kelimeleri çıkaran yardımcı fonksiyon
+function extractKeywordsFromAttributes(attributes: Record<string, string>): string[] {
+  const keywords: Set<string> = new Set();
+  
+  // Özellik isimlerinden ve değerlerinden anahtar kelimeleri çıkar
+  for (const [key, value] of Object.entries(attributes)) {
+    if (!key || !value) continue;
+    
+    const lowerKey = key.toLowerCase();
+    const lowerValue = value.toLowerCase();
+    
+    // Önemli özellikler
+    if (lowerKey.includes('renk') || lowerKey.includes('color')) {
+      keywords.add(value.trim());
+    }
+    
+    if (lowerKey.includes('materyal') || lowerKey.includes('malzeme') || lowerKey.includes('material')) {
+      keywords.add(value.trim());
+    }
+    
+    if (lowerKey.includes('marka') || lowerKey.includes('brand')) {
+      keywords.add(value.trim());
+    }
+    
+    // Elektronik ürünler için
+    if (lowerKey.includes('güç') || lowerKey.includes('watt') || lowerKey.includes('power')) {
+      keywords.add(`${value.trim()} güç`);
+    }
+    
+    // Kapasiteler
+    if (lowerKey.includes('kapasite') || lowerKey.includes('capacity')) {
+      keywords.add(`${value.trim()} kapasite`);
+    }
+    
+    // Boyutlar
+    if (lowerKey.includes('boyut') || lowerKey.includes('ölçü') || lowerKey.includes('size')) {
+      keywords.add(value.trim());
+    }
+  }
+  
+  return Array.from(keywords);
+}
+
+// Ürün başlığından anahtar kelimeleri çıkaran yardımcı fonksiyon
+function extractKeywordsFromTitle(title: string): string[] {
+  const keywords: Set<string> = new Set();
+  
+  // Yaygın elektrikli ev aletleri
+  const commonAppliances = [
+    'blender', 'mikser', 'rondo', 'robot', 'tost makinesi', 'çay makinesi', 
+    'kahve makinesi', 'su ısıtıcı', 'kettle', 'ütü', 'saç kurutma', 'fön', 
+    'epilasyon', 'traş makinesi', 'elektrikli süpürge', 'süpürge', 'aspiratör',
+    'fryer', 'fritöz', 'airfryer'
+  ];
+  
+  // Ortak özellikleri kontrol et
+  const lowerTitle = title.toLowerCase();
+  
+  for (const appliance of commonAppliances) {
+    if (lowerTitle.includes(appliance)) {
+      keywords.add(appliance);
+    }
+  }
+  
+  // Popüler teknoloji kelimeleri
+  const techKeywords = [
+    'kablosuz', 'şarjlı', 'akıllı', 'bluetooth', 'wifi', 'led', 
+    'dokunmatik', 'otomatik', 'dijital', 'set', 'takım'
+  ];
+  
+  for (const keyword of techKeywords) {
+    if (lowerTitle.includes(keyword)) {
+      keywords.add(keyword);
+    }
+  }
+  
+  return Array.from(keywords);
+}
+
 // Ürün için otomatik etiketler oluşturan fonksiyon
 function generateProductTags(product: InsertProduct, categoryConfig: any): string[] {
   const allTags: Set<string> = new Set();
@@ -514,6 +592,18 @@ function generateProductTags(product: InsertProduct, categoryConfig: any): strin
     if (category) {
       allTags.add(`#${category.replace(/\s+/g, '')}`);
     }
+  }
+  
+  // Ürün özelliklerinden otomatik anahtar kelimeler çıkar
+  const attributeKeywords = extractKeywordsFromAttributes(product.attributes);
+  for (const keyword of attributeKeywords) {
+    allTags.add(`@${keyword.replace(/\s+/g, '_')}`);
+  }
+  
+  // Ürün başlığından otomatik anahtar kelimeler çıkar
+  const titleKeywords = extractKeywordsFromTitle(product.title);
+  for (const keyword of titleKeywords) {
+    allTags.add(`@${keyword.replace(/\s+/g, '_')}`);
   }
   
   // Ana Kategori Etiketleri - Bunlar Shopify'da koleksiyonlara ekleme için
