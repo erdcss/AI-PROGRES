@@ -1,253 +1,358 @@
-import { z } from "zod";
+import { z } from 'zod';
+import * as XLSX from 'xlsx';
+import * as path from 'path';
+import * as fs from 'fs';
 
+// Kategori yapılandırma şeması
 export const CategoryConfig = z.object({
   shopifyCategory: z.string(),
   variantConfig: z.object({
-    sizeLabel: z.string().optional(),
-    colorLabel: z.string().optional(),
-    materialLabel: z.string().optional(),
-    defaultStock: z.number(),
-    hasVariants: z.boolean()
-  }),
-  attributes: z.array(z.string()),
-  inventoryTracking: z.boolean()
+    sizeLabel: z.string().default("Beden"),
+    colorLabel: z.string().default("Renk"),
+    defaultStock: z.number().default(50)
+  }).default({
+    sizeLabel: "Beden",
+    colorLabel: "Renk",
+    defaultStock: 50
+  })
 });
 
+// Kategori eşleştirmeleri için tip tanımı
 type CategoryMapping = Record<string, z.infer<typeof CategoryConfig>>;
 
-// Shopify'ın resmi kategori yapısına göre eşleştirme
+// Kategorilerin doğru şekilde eşleştirilmesi için yardımcı fonksiyon
+function normalizeCategory(category: string): string {
+  return category.toLowerCase()
+    .replace(/ı/g, 'i')
+    .replace(/ö/g, 'o')
+    .replace(/ü/g, 'u')
+    .replace(/ş/g, 's')
+    .replace(/ç/g, 'c')
+    .replace(/ğ/g, 'g')
+    .replace(/\s+/g, '')
+    .trim();
+}
+
+// Excel dosyasından kategori eşleştirmelerini yükle
+function loadExcelMappings(): Record<string, string> {
+  try {
+    const excelPath = path.join(__dirname, '../attached_assets/Export_2025-05-01_091708.xlsx');
+    
+    if (!fs.existsSync(excelPath)) {
+      console.warn('Excel dosyası bulunamadı, varsayılan eşleştirmeleri kullanılıyor');
+      return {};
+    }
+    
+    const workbook = XLSX.readFile(excelPath);
+    const sheetName = workbook.SheetNames[0];
+    const worksheet = workbook.Sheets[sheetName];
+    const data = XLSX.utils.sheet_to_json<any>(worksheet);
+    
+    const mappings: Record<string, string> = {};
+    
+    for (const row of data) {
+      const trendyolCategory = row['Trendyol Kategori Yolu'] || '';
+      const shopifyCategory = row['Shopify Kategori'] || '';
+      
+      if (trendyolCategory && shopifyCategory) {
+        const normalizedCategory = normalizeCategory(trendyolCategory);
+        mappings[normalizedCategory] = shopifyCategory;
+      }
+    }
+    
+    console.log(`Excel'den ${Object.keys(mappings).length} kategori eşleştirmesi yüklendi`);
+    return mappings;
+  } catch (error) {
+    console.error('Excel dosyası yüklenirken hata:', error);
+    return {};
+  }
+}
+
+// Alternatif olarak CSV dosyalarını kullanma
+function loadCSVMappings(): Record<string, string> {
+  try {
+    const mappings: Record<string, string> = {};
+    
+    // Tüm CSV dosyalarını kontrol et
+    const csvFiles = [
+      '../attached_assets/product_template (1).csv',
+      '../attached_assets/product_template (2).csv'
+    ];
+    
+    for (const csvFile of csvFiles) {
+      const csvPath = path.join(__dirname, csvFile);
+      
+      if (fs.existsSync(csvPath)) {
+        const content = fs.readFileSync(csvPath, 'utf8');
+        const rows = content.split('\n').slice(1); // Header'ı atla
+        
+        for (const row of rows) {
+          const columns = row.split(',');
+          
+          if (columns.length >= 5) {
+            const productCategory = columns[4].trim(); // Product category sütunu
+            const type = columns[5].trim(); // Type sütunu
+            
+            if (productCategory) {
+              // Ürün tipini kategori olarak kullan ve eşleştirme yap
+              const normalizedCategory = normalizeCategory(type);
+              mappings[normalizedCategory] = productCategory;
+            }
+          }
+        }
+      }
+    }
+    
+    console.log(`CSV'den ${Object.keys(mappings).length} kategori eşleştirmesi yüklendi`);
+    return mappings;
+  } catch (error) {
+    console.error('CSV dosyaları yüklenirken hata:', error);
+    return {};
+  }
+}
+
+// Varsayılan kategori eşleştirmeleri
 export const categoryMapping: CategoryMapping = {
-  // Erkek Kategorileri
+  // Giyim kategorileri
+  "kadin": {
+    shopifyCategory: "Women's Clothing",
+    variantConfig: {
+      sizeLabel: "Size",
+      colorLabel: "Color",
+      defaultStock: 50
+    }
+  },
   "erkek": {
-    shopifyCategory: "Apparel & Accessories > Clothing > Men's Clothing",
+    shopifyCategory: "Men's Clothing",
     variantConfig: {
-      sizeLabel: "Beden",
-      colorLabel: "Renk",
-      defaultStock: 50,
-      hasVariants: true
-    },
-    attributes: ["Kumaş", "Desen", "Yaka Tipi", "Kol Boyu"],
-    inventoryTracking: true
+      sizeLabel: "Size",
+      colorLabel: "Color",
+      defaultStock: 50
+    }
   },
-
-  // Kadın Kategorileri
-  "kadın": {
-    shopifyCategory: "Apparel & Accessories > Clothing > Women's Clothing",
+  "cocuk": {
+    shopifyCategory: "Kids' Clothing",
     variantConfig: {
-      sizeLabel: "Beden",
-      colorLabel: "Renk",
-      defaultStock: 50,
-      hasVariants: true
-    },
-    attributes: ["Kumaş", "Desen", "Yaka Tipi", "Kol Boyu"],
-    inventoryTracking: true
+      sizeLabel: "Size",
+      colorLabel: "Color",
+      defaultStock: 50
+    }
   },
-
-  // T-shirt ve Üst Giyim
-  "t-shirt": {
-    shopifyCategory: "Apparel & Accessories > Clothing > Shirts & Tops",
+  "ayakkabi": {
+    shopifyCategory: "Shoes & Accessories",
     variantConfig: {
-      sizeLabel: "Beden",
-      colorLabel: "Renk",
-      defaultStock: 50,
-      hasVariants: true
-    },
-    attributes: ["Kumaş", "Desen", "Yaka Tipi", "Kol Boyu"],
-    inventoryTracking: true
+      sizeLabel: "Size",
+      colorLabel: "Color",
+      defaultStock: 40
+    }
   },
-
-  // Saat ve Aksesuar
-  "saat": {
-    shopifyCategory: "Apparel & Accessories > Jewelry > Watches",
+  "canta": {
+    shopifyCategory: "Bags & Purses",
     variantConfig: {
-      defaultStock: 30,
-      hasVariants: false
-    },
-    attributes: ["Kasa Çapı", "Su Geçirmezlik", "Kordon Tipi"],
-    inventoryTracking: true
+      sizeLabel: "Size",
+      colorLabel: "Color",
+      defaultStock: 30
+    }
   },
-
-  "akıllı saat": {
-    shopifyCategory: "Electronics > Electronics Accessories > Wearable Technology",
+  
+  // Ev & Yaşam kategorileri
+  "ev": {
+    shopifyCategory: "Home & Living",
     variantConfig: {
-      defaultStock: 30,
-      hasVariants: false
-    },
-    attributes: ["Ekran Boyutu", "Batarya Ömrü", "Sensörler"],
-    inventoryTracking: true
+      sizeLabel: "Size",
+      colorLabel: "Color",
+      defaultStock: 30
+    }
   },
-
-  // Ayakkabı
-  "ayakkabı": {
-    shopifyCategory: "Apparel & Accessories > Shoes",
+  "mobilya": {
+    shopifyCategory: "Furniture",
     variantConfig: {
-      sizeLabel: "Numara",
-      colorLabel: "Renk",
-      defaultStock: 30,
-      hasVariants: true
-    },
-    attributes: ["Taban", "Materyal", "Kullanım Alanı"],
-    inventoryTracking: true
+      sizeLabel: "Size",
+      colorLabel: "Color",
+      defaultStock: 15
+    }
   },
-
-  // Çanta
-  "çanta": {
-    shopifyCategory: "Apparel & Accessories > Handbags",
+  "dekorasyon": {
+    shopifyCategory: "Home Decor",
     variantConfig: {
-      colorLabel: "Renk",
-      defaultStock: 30,
-      hasVariants: true
-    },
-    attributes: ["Materyal", "Boyut", "Kullanım Alanı"],
-    inventoryTracking: true
+      sizeLabel: "Size",
+      colorLabel: "Color",
+      defaultStock: 25
+    }
   },
-
-  // Elektronik
+  "mutfak": {
+    shopifyCategory: "Kitchen & Dining",
+    variantConfig: {
+      sizeLabel: "Size",
+      colorLabel: "Color",
+      defaultStock: 40
+    }
+  },
+  
+  // Elektronik kategorileri
   "elektronik": {
     shopifyCategory: "Electronics",
     variantConfig: {
-      defaultStock: 20,
-      hasVariants: false
-    },
-    attributes: ["Marka", "Model", "Özellikler"],
-    inventoryTracking: true
+      sizeLabel: "Variant",
+      colorLabel: "Color",
+      defaultStock: 20
+    }
+  },
+  "telefon": {
+    shopifyCategory: "Cell Phones & Accessories",
+    variantConfig: {
+      sizeLabel: "Storage",
+      colorLabel: "Color",
+      defaultStock: 15
+    }
+  },
+  "bilgisayar": {
+    shopifyCategory: "Computers & Tablets",
+    variantConfig: {
+      sizeLabel: "Size",
+      colorLabel: "Color",
+      defaultStock: 10
+    }
+  },
+  "evaletiblender": {
+    shopifyCategory: "Home Appliances > Blenders",
+    variantConfig: {
+      sizeLabel: "Power",
+      colorLabel: "Color",
+      defaultStock: 25
+    }
+  },
+  "evaletikettle": {
+    shopifyCategory: "Home Appliances > Kettles",
+    variantConfig: {
+      sizeLabel: "Capacity",
+      colorLabel: "Color",
+      defaultStock: 30
+    }
+  },
+  "evaletitoast": {
+    shopifyCategory: "Home Appliances > Toasters",
+    variantConfig: {
+      sizeLabel: "Size",
+      colorLabel: "Color",
+      defaultStock: 20
+    }
   },
   
-  // Telefon Aksesuar
-  "telefon aksesuarları": {
-    shopifyCategory: "Electronics > Cell Phone Accessories",
+  // Kozmetik & Kişisel Bakım kategorileri
+  "kozmetik": {
+    shopifyCategory: "Beauty & Personal Care",
     variantConfig: {
-      colorLabel: "Renk",
-      defaultStock: 25,
-      hasVariants: true
-    },
-    attributes: ["Uyumlu Marka", "Uyumlu Model", "Malzeme"],
-    inventoryTracking: true
+      sizeLabel: "Size",
+      colorLabel: "Color",
+      defaultStock: 50
+    }
+  },
+  "makyaj": {
+    shopifyCategory: "Beauty & Personal Care > Makeup",
+    variantConfig: {
+      sizeLabel: "Size",
+      colorLabel: "Shade",
+      defaultStock: 40
+    }
+  },
+  "parfum": {
+    shopifyCategory: "Beauty & Personal Care > Fragrances",
+    variantConfig: {
+      sizeLabel: "Size",
+      colorLabel: "Type",
+      defaultStock: 30
+    }
   },
   
-  // Telefon Bileşenleri
-  "telefon bileşenleri": {
-    shopifyCategory: "Electronics > Electronics Components",
+  // Spor & Outdoor kategorileri
+  "spor": {
+    shopifyCategory: "Sports & Outdoors",
     variantConfig: {
-      defaultStock: 20,
-      hasVariants: false
-    },
-    attributes: ["Uyumlu Model", "Garanti Süresi", "Orijinallik"],
-    inventoryTracking: true
+      sizeLabel: "Size",
+      colorLabel: "Color",
+      defaultStock: 30
+    }
+  },
+  "fitnessyoga": {
+    shopifyCategory: "Sports & Outdoors > Fitness & Yoga",
+    variantConfig: {
+      sizeLabel: "Size",
+      colorLabel: "Color",
+      defaultStock: 25
+    }
   },
   
-  // Hırdavat
-  "hırdavat": {
-    shopifyCategory: "Hardware > Building Materials",
-    variantConfig: {
-      defaultStock: 40,
-      hasVariants: false
-    },
-    attributes: ["Materyal", "Kullanım Alanı", "Ebat"],
-    inventoryTracking: true
-  },
-  
-  // Mobilya
-  "mobilya": {
-    shopifyCategory: "Home & Garden > Furniture",
-    variantConfig: {
-      colorLabel: "Renk",
-      defaultStock: 15,
-      hasVariants: true
-    },
-    attributes: ["Malzeme", "Boyut", "Ürün Özellikleri"],
-    inventoryTracking: true
-  },
-
-  // Varsayılan kategori
-  "diğer": {
+  // Özel durumlar
+  "default": {
     shopifyCategory: "Other",
     variantConfig: {
-      defaultStock: 30,
-      hasVariants: false
-    },
-    attributes: [],
-    inventoryTracking: true
+      sizeLabel: "Size",
+      colorLabel: "Color",
+      defaultStock: 20
+    }
   }
 };
 
+// Excel veya CSV'den yüklenen eşleştirmeleri ekle
+let dynamicMappings: Record<string, string> = {};
+
+try {
+  // Önce Excel'den yüklemeyi dene
+  dynamicMappings = loadExcelMappings();
+  
+  // Excel'den yükleme başarısız olduysa CSV'den dene
+  if (Object.keys(dynamicMappings).length === 0) {
+    dynamicMappings = loadCSVMappings();
+  }
+  
+  // Dinamik yüklenen eşleştirmeleri kategori mapping'e ekle
+  for (const [key, value] of Object.entries(dynamicMappings)) {
+    if (!categoryMapping[key]) {
+      categoryMapping[key] = {
+        shopifyCategory: value,
+        variantConfig: {
+          sizeLabel: "Size",
+          colorLabel: "Color",
+          defaultStock: 30
+        }
+      };
+    }
+  }
+} catch (error) {
+  console.error('Kategori eşleştirmeleri yüklenirken hata:', error);
+}
+
+// Ürün kategorisine göre uygun ayarları döndürür
 export function getCategoryConfig(categories: string[]): z.infer<typeof CategoryConfig> {
   if (!categories || categories.length === 0) {
-    return categoryMapping['diğer'];
+    return categoryMapping.default;
   }
-
-  const normalizedCategories = categories.map(c =>
-    c.toLowerCase()
-      .trim()
-      .replace(/ı/g, 'i')
-      .replace(/ğ/g, 'g')
-      .replace(/ü/g, 'u')
-      .replace(/ş/g, 's')
-      .replace(/ö/g, 'o')
-      .replace(/ç/g, 'c')
-  );
-
-  // Kategorilerin birleştirilmiş halini oluştur - arama yaparken kolaylık sağlar
-  const joinedCategories = normalizedCategories.join(' ');
-
-  // Özel kategorileri kontrol et
-  if (normalizedCategories.some(c => c.includes('saat'))) {
-    if (normalizedCategories.some(c => c.includes('akilli') || c.includes('smart'))) {
-      return categoryMapping['akıllı saat'];
+  
+  // Normalizasyon ve eşleştirme için kategorileri hazırla
+  const normalizedCats = categories.map(normalizeCategory);
+  const joinedCats = normalizedCats.join('');
+  
+  // Tam eşleşme
+  for (const normalizedCat of normalizedCats) {
+    if (categoryMapping[normalizedCat]) {
+      return categoryMapping[normalizedCat];
     }
-    return categoryMapping['saat'];
   }
-
-  // Telefon aksesuarları ve bileşenleri kontrolü
-  if (joinedCategories.includes('telefon') && 
-      (joinedCategories.includes('aksesuar') || 
-       joinedCategories.includes('kilif') || 
-       joinedCategories.includes('koruyucu') || 
-       joinedCategories.includes('sarj') || 
-       joinedCategories.includes('kablo'))) {
-    return categoryMapping['telefon aksesuarları'];
+  
+  // Birleştirilmiş kategori yolu eşleşmesi
+  if (categoryMapping[joinedCats]) {
+    return categoryMapping[joinedCats];
   }
-
-  if (joinedCategories.includes('telefon') && 
-      (joinedCategories.includes('parca') || 
-       joinedCategories.includes('bilesen') || 
-       joinedCategories.includes('komponent') || 
-       joinedCategories.includes('yedek') || 
-       joinedCategories.includes('batarya'))) {
-    return categoryMapping['telefon bileşenleri'];
-  }
-
-  // Hırdavat ve Mobilya kategorileri
-  if (joinedCategories.includes('hirdavat') || 
-      joinedCategories.includes('yapi malzeme') || 
-      joinedCategories.includes('el alet') || 
-      joinedCategories.includes('vida') || 
-      joinedCategories.includes('civata')) {
-    return categoryMapping['hırdavat'];
-  }
-
-  if (joinedCategories.includes('mobilya') || 
-      joinedCategories.includes('koltuk') || 
-      joinedCategories.includes('masa') || 
-      joinedCategories.includes('sandalye') || 
-      joinedCategories.includes('dolap')) {
-    return categoryMapping['mobilya'];
-  }
-
-  // Diğer kategori kontrolleri
-  for (const category of normalizedCategories) {
-    if (category.includes('ayakkabi')) return categoryMapping['ayakkabı'];
-    if (category.includes('canta')) return categoryMapping['çanta'];
-    if (category.includes('tisort') || category.includes('tshirt') || category.includes('t-shirt')) {
-      return categoryMapping['t-shirt'];
+  
+  // Kısmi eşleşme
+  for (const [key, config] of Object.entries(categoryMapping)) {
+    // Anahtar kelime eşleşmesi
+    if (normalizedCats.some(cat => cat.includes(key) || key.includes(cat))) {
+      return config;
     }
-    if (category.includes('erkek')) return categoryMapping['erkek'];
-    if (category.includes('kadin')) return categoryMapping['kadın'];
-    if (category.includes('elektronik')) return categoryMapping['elektronik'];
   }
-
-  // Ürün başlığı ve özelliklerinden kategori belirleme için düşünülecek özellikler eklenebilir
-
-  // Varsayılan kategori
-  return categoryMapping['diğer'];
+  
+  // Varsayılan kategori ayarlarını döndür
+  return categoryMapping.default;
 }

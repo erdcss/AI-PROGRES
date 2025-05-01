@@ -515,6 +515,7 @@ export default function Home() {
                           const isSubcategory = tag.includes(' ) ');
                           const isAttributeTag = tag.startsWith('@');
                           const isLegacyTag = tag.startsWith('#');
+                          const isShopifyCategory = tag.startsWith('$');
                           
                           // Etiket stilini belirle
                           let tagClass = "text-xs px-2 py-1 rounded-full mr-1 mb-1 inline-block";
@@ -523,6 +524,8 @@ export default function Home() {
                             tagClass += " bg-blue-700"; // Ana kategori (mavi)
                           } else if (isCategory && isSubcategory) {
                             tagClass += " bg-green-700"; // Alt kategori (yeşil)
+                          } else if (isShopifyCategory) {
+                            tagClass += " bg-pink-700"; // Shopify kategori (pembe)
                           } else if (isAttributeTag) {
                             tagClass += " bg-amber-700"; // Özellik etiketi (turuncu/amber)
                           } else if (isLegacyTag) {

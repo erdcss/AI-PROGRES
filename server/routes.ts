@@ -565,7 +565,7 @@ function generateProductTags(product: InsertProduct, categoryConfig: any): strin
   const categories = product.categories.map(c => c.toLowerCase());
   const joinedCategories = categories.join(' ');
   
-  // Kategori tabanlı etiketler - Parantezli formatta ekle
+  // Kategori zincirini oluştur (Trendyol hiyerarşisi)
   if (categories.length > 0) {
     // Kategori zincirini oluştur
     let categoryChain = "";
@@ -583,24 +583,43 @@ function generateProductTags(product: InsertProduct, categoryConfig: any): strin
       }
     }
     
-    // Tam kategori yolunu da ekle (geriye dönük uyumluluk için)
+    // Eski biçimdeki kategori yolunu da ekle (geriye dönük uyumluluk için)
     allTags.add(`${categories.join(' > ')}`);
   }
   
-  // Eski kategoriler için uyumluluk sağla
+  // Shopify kategorilerini de ekle - Excel dosyasından eşleştirme
+  if (categoryConfig && categoryConfig.shopifyCategory) {
+    const shopifyCategories = categoryConfig.shopifyCategory.split(' > ');
+    
+    // Ana Shopify kategorisi
+    if (shopifyCategories.length > 0) {
+      allTags.add(`$${shopifyCategories[0]}`);
+    }
+    
+    // Shopify alt kategorileri
+    if (shopifyCategories.length > 1) {
+      let shopifyCategoryChain = `$${shopifyCategories[0]}`;
+      for (let i = 1; i < shopifyCategories.length; i++) {
+        shopifyCategoryChain += ` > ${shopifyCategories[i]}`;
+        allTags.add(shopifyCategoryChain);
+      }
+    }
+  }
+  
+  // Eski kategoriler için uyumluluk sağla (# ile)
   for (const category of categories) {
     if (category) {
       allTags.add(`#${category.replace(/\s+/g, '')}`);
     }
   }
   
-  // Ürün özelliklerinden otomatik anahtar kelimeler çıkar
+  // Ürün özelliklerinden otomatik anahtar kelimeler çıkar (@ ile)
   const attributeKeywords = extractKeywordsFromAttributes(product.attributes);
   for (const keyword of attributeKeywords) {
     allTags.add(`@${keyword.replace(/\s+/g, '_')}`);
   }
   
-  // Ürün başlığından otomatik anahtar kelimeler çıkar
+  // Ürün başlığından otomatik anahtar kelimeler çıkar (@ ile)
   const titleKeywords = extractKeywordsFromTitle(product.title);
   for (const keyword of titleKeywords) {
     allTags.add(`@${keyword.replace(/\s+/g, '_')}`);
