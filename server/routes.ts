@@ -169,7 +169,7 @@ function extractCategories($: cheerio.CheerioAPI): { categories: string[], fullP
   // Tüm breadcrumb içeriğini de sakla
   let fullBreadcrumb = "";
   
-  $('.breadcrumb-wrapper .breadcrumb li').each((_, el) => {
+  $('.breadcrumb-wrapper .breadcrumb li, .breadcrumb li').each((_, el) => {
     const category = $(el).text().trim();
     if (category && !category.includes('>') && category !== 'Anasayfa') {
       if (category !== 'Trendyol') {
@@ -185,6 +185,8 @@ function extractCategories($: cheerio.CheerioAPI): { categories: string[], fullP
       }
     }
   });
+  
+  debug(`Breadcrumb yolu (tam): ${fullBreadcrumb}`);
   
   // Tam breadcrumb'ı breadcrumbFullPath'e ekle
   if (fullBreadcrumb) {
@@ -208,19 +210,61 @@ function extractCategories($: cheerio.CheerioAPI): { categories: string[], fullP
     }
   }
 
-  // Alternatif kategori çekme yöntemi
+  // Alternatif kategori çekme yöntemi - daha geniş selektor kullan
   if (categories.length === 0) {
-    $('.product-container .product-detail-container [data-tracker-id="Category Info"]').each((_, el) => {
+    $('.product-container .product-detail-container [data-tracker-id="Category Info"], .breadcrumb li, div[class*="breadcrumb"], div[class*="Breadcrumb"]').each((_, el) => {
       const category = $(el).text().trim();
-      if (category) {
-        const parts = category.split('>').map(part => part.trim());
-        categories.push(...parts);
-        fullPath.push(...parts);
+      if (category && category !== 'Anasayfa' && category !== 'Trendyol' && !category.includes('>')) {
+        categories.push(category);
+        fullPath.push(category);
       }
     });
     debug(`Ürün detayından kategoriler alındı: ${categories.join(', ')}`);
   }
+  
+  // Microdata / JSON-LD'den kategori çekmeyi dene
+  if (categories.length === 0) {
+    $('script[type="application/ld+json"]').each((_, el) => {
+      try {
+        const data = JSON.parse($(el).html() || '{}');
+        if (data.itemListElement) {
+          const breadcrumbs = data.itemListElement;
+          for (const item of breadcrumbs) {
+            if (item.item && item.item.name && item.item.name !== 'Anasayfa' && item.item.name !== 'Trendyol') {
+              categories.push(item.item.name);
+              fullPath.push(item.item.name);
+            }
+          }
+        }
+      } catch (error) {
+        debug(`JSON-LD parse hatası: ${error}`);
+      }
+    });
+    if (categories.length > 0) {
+      debug(`JSON-LD'den kategoriler alındı: ${categories.join(', ')}`);
+    }
+  }
 
+  // Sayfanın meta etiketlerinden kategori bilgisi çek
+  if (categories.length === 0) {
+    $('meta[property="og:title"], meta[name="twitter:title"], meta[name="keywords"], meta[name="description"]').each((_, el) => {
+      const content = $(el).attr('content') || '';
+      if (content) {
+        // Özel kategoriler için regex
+        const categoryMatches = content.match(/(?:Elektronik|Giyim|Ayakkabı|Çanta|Aksesuar|Kozmetik|Mobilya|Ev|Oyuncak|Spor|Kitap)/gi);
+        if (categoryMatches && categoryMatches.length > 0) {
+          for (const match of categoryMatches) {
+            if (!categories.includes(match)) {
+              categories.push(match);
+              fullPath.push(match);
+            }
+          }
+          debug(`Meta etiketlerinden kategoriler alındı: ${categoryMatches.join(', ')}`);
+        }
+      }
+    });
+  }
+  
   // Son çare: Sayfa başlığından kategori çıkarımı
   if (categories.length === 0) {
     const pageTitle = $('title').text().trim();
@@ -324,7 +368,49 @@ async function scrapeProduct(url: string): Promise<InsertProduct> {
     debug(`İşlenmiş fiyat: ${finalPrice} (baz: ${basePrice})`);
 
     // Kategori bilgisini güncelle
-    const categoryInfo = extractCategories($);
+    let categoryInfo = extractCategories($);
+    
+    // Eğer kategori hala bulunamadıysa productData'dan doğrudan çekmeyi dene
+    if (categoryInfo.categories.length === 1 && categoryInfo.categories[0] === 'Diğer') {
+      try {
+        if (productData.product.category && productData.product.category.hierarchy) {
+          const hierarchy = productData.product.category.hierarchy;
+          const categories: string[] = [];
+          const fullPath: string[] = [];
+          
+          debug(`Ürün JSON state'inden kategori hiyerarşisi bulundu`);
+          
+          // Kategori hiyerarşisini düzleştirme
+          if (Array.isArray(hierarchy)) {
+            hierarchy.forEach((cat: any) => {
+              if (cat.name) {
+                categories.push(cat.name);
+                fullPath.push(cat.name);
+              }
+            });
+          } else if (typeof hierarchy === 'object') {
+            // Nesne olarak sunulmuş kategori hiyerarşisi
+            for (const key in hierarchy) {
+              if (Object.prototype.hasOwnProperty.call(hierarchy, key) && hierarchy[key].name) {
+                categories.push(hierarchy[key].name);
+                fullPath.push(hierarchy[key].name);
+              }
+            }
+          }
+          
+          if (categories.length > 0) {
+            categoryInfo = {
+              categories,
+              fullPath,
+              breadcrumbPath: [`Trendyol > ${categories.join(' > ')}`]
+            };
+            debug(`JSON state'den çekilen kategoriler: ${categories.join(' > ')}`);
+          }
+        }
+      } catch (error) {
+        debug(`State parse hatası: ${error}`);
+      }
+    }
 
     // Görselleri al
     const images = new Set<string>();
@@ -605,18 +691,47 @@ function generateProductTags(product: InsertProduct, categoryConfig: any): strin
   const categories = product.categories.map(c => c.toLowerCase());
   const joinedCategories = categories.join(' ');
   
-  // Trendyol breadcrumb'dan alınan tam kategori yolunu ekle
-  if (product.url) {
-    try {
-      const $ = cheerio.load(`<div>${product.url}</div>`);
-      const breadcrumbPath = extractCategories($).breadcrumbPath;
-      if (breadcrumbPath && breadcrumbPath.length > 0) {
-        for (const path of breadcrumbPath) {
-          allTags.add(`B> ${path}`);
-        }
+  // Trendyol etiket kategori ve breadcrumb bilgilerini ekle
+  debug(`Ürün kategorileri: ${product.categories.join(', ')}`);
+  
+  // Ürünün ana kategorisini ekle
+  if (product.categories && product.categories.length > 0) {
+    // Her kategori seviyesi için breadcrumb etiketleri oluştur
+    for (let i = 0; i < product.categories.length; i++) {
+      const category = product.categories[i];
+      if (category) {
+        // B-1, B-2, B-3 şeklinde tekil etiketler
+        allTags.add(`B-${i+1}> ${category}`);
+        
+        // B> B-1 > B-2 > B-3 şeklinde zincir etiketler
+        const chain = product.categories.slice(0, i + 1).join(' > ');
+        allTags.add(`B> ${chain}`);
       }
-    } catch (error) {
-      debug(`Breadcrumb çekilirken hata oluştu: ${error}`);
+    }
+    
+    // Tüm breadcrumb'ı da tek etiket olarak ekle
+    allTags.add(`B> ${product.categories.join(' > ')}`);
+    
+    // Arzum > Elektronik > Elektrikli Ev Aletleri > Yiyecek Hazırlama > Kişisel Blender gibi tam yolu ekle
+    if (product.categories.length >= 4) {
+      // Marka (0) > Ana Kategori (1) > Alt Kategori (2) > Alt Alt Kategori (3) formatında
+      const brandCategory = product.categories[0]; // örn: Arzum
+      const mainCategory = product.categories[1]; // örn: Elektronik
+      const subCategory = product.categories[2]; // örn: Elektrikli Ev Aletleri
+      const productType = product.categories[3]; // örn: Yiyecek Hazırlama
+      
+      // Marka özel kategori etiketleri
+      allTags.add(`${brandCategory}`);
+      allTags.add(`${brandCategory} ${mainCategory}`);
+      
+      // Ana kategori ve alt kategoriler
+      allTags.add(`${mainCategory}`);
+      allTags.add(`${mainCategory} > ${subCategory}`);
+      
+      // Ürün tipi kategorisi
+      if (productType) {
+        allTags.add(`${productType}`);
+      }
     }
   }
   
