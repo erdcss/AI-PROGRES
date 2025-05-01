@@ -487,9 +487,24 @@ function generateProductTags(product: InsertProduct, categoryConfig: any): strin
   const categories = product.categories.map(c => c.toLowerCase());
   const joinedCategories = categories.join(' ');
   
-  // Kategori tabanlı etiketler
+  // Kategori tabanlı etiketler - Üst ve alt kategorileri sıralı bir şekilde ekle
+  if (categories.length > 0) {
+    // Üst kategoriyi mutlaka ekle
+    allTags.add(`#üstkategori:${categories[0].replace(/\s+/g, '')}`);
+    
+    // Alt kategorileri sıralı şekilde ekle
+    for (let i = 1; i < categories.length; i++) {
+      if (categories[i]) {
+        allTags.add(`#altkategori${i}:${categories[i].replace(/\s+/g, '')}`);
+      }
+    }
+    
+    // Tam kategori yolunu da ekle
+    allTags.add(`#kategoriyolu:${categories.join('-').replace(/\s+/g, '_')}`);
+  }
+  
+  // Eski kategoriler için uyumluluk sağla
   for (const category of categories) {
-    // Her kategoriyi bir etiket olarak ekle, boşlukları kaldır
     if (category) {
       allTags.add(`#${category.replace(/\s+/g, '')}`);
     }
