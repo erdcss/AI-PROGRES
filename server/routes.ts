@@ -1031,7 +1031,7 @@ export async function registerRoutes(app: Express) {
         handle,
         title: productToExport.title,
         body: generateProductBody(productToExport.description, productToExport.attributes),
-        vendor: productToExport.categories[0] || 'Trendyol',
+        vendor: 'turmarkt', // Tüm ürünler için sabit satıcı adı
         product_category: categoryConfig.shopifyCategory || 'Apparel & Accessories > Clothing',
         type: productToExport.categories[productToExport.categories.length - 1] || 'Giyim',
         tags: productTags.join(', '),
@@ -1135,7 +1135,7 @@ export async function registerRoutes(app: Express) {
           handle,
           title: productToExport.title,
           body: generateProductBody(productToExport.description, productToExport.attributes),
-          vendor: productToExport.categories[0] || 'Trendyol',
+          vendor: 'turmarkt', // Tüm ürünler için sabit satıcı adı
           product_category: categoryConfig.shopifyCategory || 'Apparel & Accessories > Clothing',
           type: productToExport.categories[productToExport.categories.length - 1] || 'Giyim',
           tags: productTags.join(', '),
