@@ -600,10 +600,14 @@ async function scrapeProduct(url: string): Promise<InsertProduct> {
 }
 
 function parseCategoryPath(categories: string[]): string {
-  return categories
+  // Sadeleştirilmiş kategori yolu (en fazla 3 kategori alınır)
+  const maxCategories = Math.min(categories.length, 3);
+  const selectedCategories = categories.slice(0, maxCategories);
+  
+  return selectedCategories
     .map(cat => cat.trim())
     .filter(cat => cat && !cat.includes('>'))
-    .join(' > ');
+    .join(' ) ');
 }
 
 // Ürün özelliklerinden anahtar kelimeleri çıkaran yardımcı fonksiyon
