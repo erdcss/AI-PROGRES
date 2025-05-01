@@ -127,9 +127,10 @@ function normalizeImageUrl(url: string): string {
 }
 
 // Kategori parse fonksiyonunu geliştir
-function extractCategories($: cheerio.CheerioAPI): { categories: string[], fullPath: string[] } {
+function extractCategories($: cheerio.CheerioAPI): { categories: string[], fullPath: string[], breadcrumbPath: string[] } {
   const categories: string[] = [];
   const fullPath: string[] = [];
+  const breadcrumbFullPath: string[] = [];
 
   // JavaScript state'den detaylı kategori yolunu al
   $('script').each((_, element) => {
@@ -161,16 +162,50 @@ function extractCategories($: cheerio.CheerioAPI): { categories: string[], fullP
     }
   });
 
-  // Eğer state'den kategori bulunamazsa breadcrumb'dan al
-  if (categories.length === 0) {
-    $('.breadcrumb-wrapper .breadcrumb li').each((_, el) => {
-      const category = $(el).text().trim();
-      if (category && !category.includes('>') && category !== 'Anasayfa') {
-        categories.push(category);
-        fullPath.push(category);
+  // Breadcrumb'dan tam kategori yolunu al
+  const breadcrumbCategories: string[] = [];
+  const breadcrumbPath: string[] = [];
+  
+  // Tüm breadcrumb içeriğini de sakla
+  let fullBreadcrumb = "";
+  
+  $('.breadcrumb-wrapper .breadcrumb li').each((_, el) => {
+    const category = $(el).text().trim();
+    if (category && !category.includes('>') && category !== 'Anasayfa') {
+      if (category !== 'Trendyol') {
+        breadcrumbCategories.push(category);
+        breadcrumbPath.push(category);
       }
-    });
-    debug(`Breadcrumb'dan kategoriler alındı: ${categories.join(', ')}`);
+      
+      // Tam breadcrumb zincirini de oluştur
+      if (fullBreadcrumb === "") {
+        fullBreadcrumb = category;
+      } else {
+        fullBreadcrumb += ` > ${category}`;
+      }
+    }
+  });
+  
+  // Tam breadcrumb'ı breadcrumbFullPath'e ekle
+  if (fullBreadcrumb) {
+    breadcrumbFullPath.push(fullBreadcrumb);
+  }
+  
+  if (breadcrumbCategories.length > 0) {
+    debug(`Breadcrumb'dan kategoriler alındı: ${breadcrumbCategories.join(' > ')}`);
+    debug(`Tam breadcrumb yolu: ${fullBreadcrumb}`);
+    
+    if (categories.length === 0) {
+      categories.push(...breadcrumbCategories);
+      fullPath.push(...breadcrumbPath);
+    } else {
+      // Breadcrumb kategorileri ayrıca fullPath'e ekle
+      for (const cat of breadcrumbCategories) {
+        if (!fullPath.includes(cat)) {
+          fullPath.push(cat);
+        }
+      }
+    }
   }
 
   // Alternatif kategori çekme yöntemi
@@ -213,7 +248,8 @@ function extractCategories($: cheerio.CheerioAPI): { categories: string[], fullP
 
   return {
     categories: categories.length > 0 ? categories : ['Diğer'],
-    fullPath: fullPath.length > 0 ? fullPath : ['Diğer']
+    fullPath: fullPath.length > 0 ? fullPath : ['Diğer'],
+    breadcrumbPath: breadcrumbFullPath.length > 0 ? breadcrumbFullPath : []
   };
 }
 
@@ -568,6 +604,21 @@ function generateProductTags(product: InsertProduct, categoryConfig: any): strin
   const title = product.title.toLowerCase();
   const categories = product.categories.map(c => c.toLowerCase());
   const joinedCategories = categories.join(' ');
+  
+  // Trendyol breadcrumb'dan alınan tam kategori yolunu ekle
+  if (product.url) {
+    try {
+      const $ = cheerio.load(`<div>${product.url}</div>`);
+      const breadcrumbPath = extractCategories($).breadcrumbPath;
+      if (breadcrumbPath && breadcrumbPath.length > 0) {
+        for (const path of breadcrumbPath) {
+          allTags.add(`B> ${path}`);
+        }
+      }
+    } catch (error) {
+      debug(`Breadcrumb çekilirken hata oluştu: ${error}`);
+    }
+  }
   
   // Kategori zincirini oluştur (Trendyol hiyerarşisi)
   if (categories.length > 0) {
