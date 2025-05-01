@@ -716,80 +716,66 @@ function extractKeywordsFromTitle(title: string): string[] {
 
 // Ürün için otomatik etiketler oluşturan fonksiyon
 function generateProductTags(product: InsertProduct, categoryConfig: any): string[] {
-  const title = product.title.toLowerCase();
   let tags: string[] = [];
+  const MAX_TAG_LENGTH = 20;
   
-  // Kategori filtreleme - Trendyol, Anasayfa, marka isimleri ve websitelerini çıkar
+  // Trendyol sayfasından breadcrumb'ları çekip kullan
+  // Breadcrumb kategorilerini filtrele
   const filteredCategories = product.categories
     .filter(cat => {
       const lowercaseCat = cat.toLowerCase();
-      // Marka ve site isimlerini çıkar
-      if (lowercaseCat === 'trendyol' || 
-          lowercaseCat === 'anasayfa' ||
-          lowercaseCat === 'philips' ||
-          lowercaseCat === 'tefal' ||
-          lowercaseCat === 'osg' ||
-          lowercaseCat.includes('com')) {
-        return false;
-      }
-      return true;
+      return !(
+        lowercaseCat === 'trendyol' || 
+        lowercaseCat === 'anasayfa' ||
+        lowercaseCat === 'philips' ||
+        lowercaseCat === 'tefal' ||
+        lowercaseCat === 'osg' ||
+        lowercaseCat.includes('com')
+      );
     })
     .map(cat => cat.trim());
   
   debug(`Filtrelenmiş kategori listesi: ${filteredCategories.join(', ')}`);
   
-  // Gerçek kategori etiketleri oluştur
+  // Breadcrumb'ı kullanarak etiketleri oluştur
   if (filteredCategories.length > 0) {
-    // Ters sıralı - en spesifik sonuncu kategoriden başlayarak genel kategorilere doğru
-    const reversedCategories = [...filteredCategories].reverse();
-    
-    // Tüm etiketler için maksimum uzunluk kontrolü - yazı taşmasını engelle
-    const MAX_TAG_LENGTH = 20;
-    
-    // Öncelikle spesifik kategorileri belirle
-    // Not: Her bir kategoriyi ayrı bir etiket olarak ekliyoruz - join ile birleştirmeden önce
-    
-    // 1. Etiket: Ürün ne? - En spesifik etiket (ör: "saç kremi", "kettle", "kamera koruyucu")
-    if (title.includes('kamera') && title.includes('koruyucu')) {
-      tags.push('kamerakoruyucu');
-    } else if (title.includes('telefon') && title.includes('kılıf')) {
-      tags.push('telefonkılıfı');
-    } else if (reversedCategories.length > 0) {
-      // En spesifik ürün kategorisi (son kategori)
-      const specificItem = reversedCategories[0]
-        .replace(/\s+/g, '')  // Boşlukları kaldır
-        .substring(0, MAX_TAG_LENGTH);  // Maksimum uzunluğa kısıtla
-      
-      if (specificItem) {
-        tags.push(specificItem);
-      }
-    }
-    
-    // 2. Etiket: Orta kategori
-    if (reversedCategories.length > 1) {
-      const midCategory = reversedCategories[1]
+    // 1. Etiket: Üst kategori (breadcrumb'ın ilk öğesi)
+    if (filteredCategories.length > 0) {
+      const ustKategori = filteredCategories[0]
         .replace(/\s+/g, '')
         .substring(0, MAX_TAG_LENGTH);
       
-      if (midCategory && !tags.includes(midCategory)) {
-        tags.push(midCategory);
+      if (ustKategori) {
+        tags.push(ustKategori);
       }
     }
     
-    // 3. Etiket: Ana kategori
-    if (reversedCategories.length > 2) {
-      const mainCategory = reversedCategories[2]
+    // 2. Etiket: Alt kategori (breadcrumb'ın ikinci öğesi)
+    if (filteredCategories.length > 1) {
+      const altKategori = filteredCategories[1]
         .replace(/\s+/g, '')
         .substring(0, MAX_TAG_LENGTH);
       
-      if (mainCategory && !tags.includes(mainCategory)) {
-        tags.push(mainCategory);
+      if (altKategori && !tags.includes(altKategori)) {
+        tags.push(altKategori);
       }
     }
     
-    // Yeterli etiket yoksa, tamamlayalım
+    // 3. Etiket: Ürün tipi (breadcrumb'ın son öğesi)
+    if (filteredCategories.length > 2) {
+      const urunTipi = filteredCategories[filteredCategories.length - 1]
+        .replace(/\s+/g, '')
+        .substring(0, MAX_TAG_LENGTH);
+      
+      // Sadece daha önceden eklenmemişse ekle
+      if (urunTipi && !tags.includes(urunTipi)) {
+        tags.push(urunTipi);
+      }
+    }
+    
+    // Eğer yeterli etiket yoksa, eksikleri tamamla
     if (tags.length < 3) {
-      // Renk özelliğini kullan
+      // Renk bilgisini kullan
       for (const [key, value] of Object.entries(product.attributes)) {
         if (!key || !value) continue;
         
@@ -806,10 +792,11 @@ function generateProductTags(product: InsertProduct, categoryConfig: any): strin
         }
       }
       
-      // Hala 3'ten az ise diğer kategorileri kullan
-      if (tags.length < 3) {
-        for (let i = 3; i < reversedCategories.length && tags.length < 3; i++) {
-          const categoryTag = reversedCategories[i]
+      // Hala 3'e ulaşamadıysak, diğer filtrelenmiş kategorileri ekle
+      for (let i = 2; i < filteredCategories.length - 1 && tags.length < 3; i++) {
+        // Son öğeyi yukarıda zaten ekledik, burada atlıyoruz
+        if (i !== filteredCategories.length - 1) {
+          const categoryTag = filteredCategories[i]
             .replace(/\s+/g, '')
             .substring(0, MAX_TAG_LENGTH);
             
@@ -821,7 +808,10 @@ function generateProductTags(product: InsertProduct, categoryConfig: any): strin
     }
   }
   
-  // En fazla 3 etiket dönecek şekilde kısıtla
+  // Debug - etiketi logla
+  debug(`Oluşturulan etiketler: ${tags.join(', ')}`);
+  
+  // Maksimum 3 etiket
   return tags.slice(0, 3);
 }
 
