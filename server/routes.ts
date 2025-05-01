@@ -716,77 +716,58 @@ function extractKeywordsFromTitle(title: string): string[] {
 
 // Ürün için otomatik etiketler oluşturan fonksiyon
 function generateProductTags(product: InsertProduct, categoryConfig: any): string[] {
-  // Kategori ve özellikleri alıp potansiyel etiketleri oluştur
-  // Sonra sadece en önemli 3 etiketi seçeceğiz
-  const potentialTags: string[] = [];
-  const title = product.title.toLowerCase();
-  const categories = product.categories.map(c => c.toLowerCase());
+  // Direkt kategori yolunu alıp sadece 3 etiket oluşturalım
+  // Etiketi birleşik yazım olarak dönüştürecek (boşluk olmadan)
+  let tags: string[] = [];
   
-  // Ürünün kategorilerini logla
-  debug(`Ürün kategorileri: ${product.categories.join(', ')}`);
+  // Trendyol sayfasındaki tüm breadcrumb'ları incele ve filtrele
+  const filteredCategories = product.categories
+    .filter(cat => cat !== 'Trendyol' && cat !== 'Anasayfa')
+    .map(cat => cat.trim());
   
-  // Ana kategoriler için etiketler (birleşik yazım)
-  if (categories.length > 0) {
-    const mainCategory = categories[0].replace(/\s+/g, '');
-    potentialTags.push(mainCategory);
+  debug(`Filtrelenmiş kategori listesi: ${filteredCategories.join(', ')}`);
+  
+  // Eğer kategori varsa, ilk 3 kategoriyi seçelim (OSG, Elektronik, Telefon gibi)
+  if (filteredCategories.length > 0) {
+    // En fazla 3 kategoriye indir
+    const maxCategories = Math.min(filteredCategories.length, 3);
     
-    if (categories.length > 1) {
-      const subCategory = categories[1].replace(/\s+/g, '');
-      potentialTags.push(subCategory);
+    // Her bir kategoriyi birleşik yazımla (boşluk olmadan) etiket olarak ekle
+    for (let i = 0; i < maxCategories; i++) {
+      const categoryTag = filteredCategories[i].replace(/\s+/g, '');
+      tags.push(categoryTag);
+    }
+  }
+  
+  // Eğer hala 3'ten az etiket varsa, önemli ürün özelliklerinden ekleyelim
+  if (tags.length < 3) {
+    // Ürün rengini bul
+    for (const [key, value] of Object.entries(product.attributes)) {
+      if (!key || !value) continue;
       
-      // Ana ürün kategorisi (boşluksuz birleşik)
-      if (categories.length > 2) {
-        const productType = categories[2].replace(/\s+/g, '');
-        potentialTags.push(productType);
+      const lowerKey = key.toLowerCase();
+      if (lowerKey.includes('renk') || lowerKey.includes('color')) {
+        const colorTag = value.replace(/\s+/g, '');
+        if (!tags.includes(colorTag)) {
+          tags.push(colorTag);
+          if (tags.length >= 3) break;
+        }
       }
     }
   }
   
-  // Ürün özellikleri (renk, marka gibi) - birleşik yazım
-  for (const [key, value] of Object.entries(product.attributes)) {
-    if (!key || !value) continue;
-    
-    const lowerKey = key.toLowerCase();
-    const formattedValue = value.replace(/\s+/g, '');
-    
-    if (lowerKey.includes('renk') || lowerKey.includes('color')) {
-      potentialTags.push(formattedValue);
-    }
-    
-    if (lowerKey.includes('marka') || lowerKey.includes('brand')) {
-      potentialTags.push(formattedValue);
+  // Hala dolduramadıysak, ürün başlığından bir anahtar kelime ekle
+  if (tags.length < 3) {
+    const title = product.title.toLowerCase();
+    if (title.includes('telefon') && title.includes('kılıf')) {
+      tags.push('telefonkılıfı');
+    } else if (title.includes('kamera') && title.includes('koruyucu')) {
+      tags.push('kamerakoruyucu');
     }
   }
   
-  // Özel durumlar için etiketler
-  const joinedCategories = categories.join(' ');
-  
-  if (joinedCategories.includes('kadın')) {
-    potentialTags.push('kadın');
-  } else if (joinedCategories.includes('erkek')) {
-    potentialTags.push('erkek');
-  } else if (joinedCategories.includes('çocuk') || joinedCategories.includes('cocuk')) {
-    potentialTags.push('çocuk');
-  }
-  
-  if (joinedCategories.includes('elektronik')) {
-    potentialTags.push('elektronik');
-  } else if (joinedCategories.includes('kozmetik')) {
-    potentialTags.push('kozmetik');
-  } else if (joinedCategories.includes('giyim')) {
-    potentialTags.push('giyim');
-  }
-  
-  // Ürün türü özel etiketleri
-  if (title.includes('telefon') && title.includes('kılıf')) {
-    potentialTags.push('telefonkılıfı');
-  }
-  
-  // En önemli 3 etiketi seç (duplicate'leri kaldırıp)
-  const uniqueTags = Array.from(new Set(potentialTags));
-  
-  // Etiket sayısını 3'e indir
-  return uniqueTags.slice(0, 3);
+  // Duplicate'leri kaldırıp sadece 3 etiket dön
+  return Array.from(new Set(tags)).slice(0, 3);
 }
 
 // URL doğrulama şeması
