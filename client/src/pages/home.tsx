@@ -509,11 +509,34 @@ export default function Home() {
                     </div>
                     <div className="flex flex-wrap gap-1 mt-1">
                       {Array.isArray(product.tags) ? 
-                        product.tags.map((tag: string, idx: number) => (
-                          <span key={idx} className="text-xs bg-gray-800 px-2 py-1 rounded-full">
-                            {tag}
-                          </span>
-                        )) : 
+                        product.tags.map((tag: string, idx: number) => {
+                          // Özel kategori formatını algıla
+                          const isCategory = tag.startsWith('_');
+                          const isSubcategory = tag.includes(' ) ');
+                          
+                          // Etiket stilini belirle
+                          let tagClass = "text-xs px-2 py-1 rounded-full mr-1 mb-1 inline-block";
+                          
+                          if (isCategory && !isSubcategory) {
+                            tagClass += " bg-blue-700"; // Ana kategori (mavi)
+                          } else if (isCategory && isSubcategory) {
+                            tagClass += " bg-green-700"; // Alt kategori (yeşil)
+                          } else if (tag.startsWith('#')) {
+                            tagClass += " bg-purple-700"; // Otomatik etiket (mor)
+                          } else {
+                            tagClass += " bg-gray-800"; // Normal etiket
+                          }
+                          
+                          return (
+                            <span 
+                              key={idx} 
+                              className={tagClass}
+                              title={isCategory ? "Kategori" : "Etiket"}
+                            >
+                              {tag}
+                            </span>
+                          );
+                        }) : 
                         <span className="text-xs text-gray-500">Etiket oluşturulmadı</span>
                       }
                     </div>

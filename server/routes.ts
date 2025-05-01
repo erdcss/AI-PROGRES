@@ -487,20 +487,26 @@ function generateProductTags(product: InsertProduct, categoryConfig: any): strin
   const categories = product.categories.map(c => c.toLowerCase());
   const joinedCategories = categories.join(' ');
   
-  // Kategori tabanlı etiketler - Üst ve alt kategorileri sıralı bir şekilde ekle
+  // Kategori tabanlı etiketler - Parantezli formatta ekle
   if (categories.length > 0) {
-    // Üst kategoriyi mutlaka ekle
-    allTags.add(`#üstkategori:${categories[0].replace(/\s+/g, '')}`);
-    
-    // Alt kategorileri sıralı şekilde ekle
-    for (let i = 1; i < categories.length; i++) {
+    // Kategori zincirini oluştur
+    let categoryChain = "";
+    for (let i = 0; i < categories.length; i++) {
       if (categories[i]) {
-        allTags.add(`#altkategori${i}:${categories[i].replace(/\s+/g, '')}`);
+        // İlk kategori için _ ekle, diğerleri için ) ekle
+        if (i === 0) {
+          categoryChain = `_ ${categories[i].trim()}`;
+        } else {
+          categoryChain += ` ) ${categories[i].trim()}`;
+        }
+        
+        // Her kategori zincirini ekle
+        allTags.add(categoryChain);
       }
     }
     
-    // Tam kategori yolunu da ekle
-    allTags.add(`#kategoriyolu:${categories.join('-').replace(/\s+/g, '_')}`);
+    // Tam kategori yolunu da ekle (geriye dönük uyumluluk için)
+    allTags.add(`${categories.join(' > ')}`);
   }
   
   // Eski kategoriler için uyumluluk sağla
