@@ -237,22 +237,22 @@ export default function Home() {
 
           <form onSubmit={onSubmit} className="space-y-4">
             <div className="relative">
-              <Input
-                placeholder="Trendyol ürün URL'sini girin..."
-                {...form.register("url")}
-                className="text-xs p-4 bg-gray-900 border-gray-800 rounded-lg w-full truncate pr-16" 
-              />
               {form.watch("url") && (
                 <Button
                   type="button"
                   variant="ghost"
                   size="icon"
-                  className="absolute right-10 top-1/2 transform -translate-y-1/2 h-7 w-7"
+                  className="absolute left-1 top-1/2 transform -translate-y-1/2 h-7 w-7 z-10"
                   onClick={() => form.setValue("url", "")}
                 >
                   <XCircle className="h-3.5 w-3.5" />
                 </Button>
               )}
+              <Input
+                placeholder="Trendyol ürün URL'sini girin..."
+                {...form.register("url")}
+                className={`text-xs p-4 bg-gray-900 border-gray-800 rounded-lg w-full truncate pr-12 ${form.watch("url") ? "pl-10" : ""}`}
+              />
               <Button
                 type="submit"
                 className="absolute right-2 top-1/2 transform -translate-y-1/2"

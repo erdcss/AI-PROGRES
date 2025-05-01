@@ -619,14 +619,39 @@ function extractKeywordsFromAttributes(attributes: Record<string, string>): stri
     // Önemli özellikler
     if (lowerKey.includes('renk') || lowerKey.includes('color')) {
       keywords.add(value.trim());
+      keywords.add(`${value.trim()}_renk`);
     }
     
     if (lowerKey.includes('materyal') || lowerKey.includes('malzeme') || lowerKey.includes('material')) {
       keywords.add(value.trim());
+      keywords.add(`${value.trim()}_malzeme`);
     }
     
     if (lowerKey.includes('marka') || lowerKey.includes('brand')) {
       keywords.add(value.trim());
+      keywords.add(`${value.trim()}_marka`);
+    }
+    
+    // Elektronik ürün özellikleri
+    if (lowerKey.includes('güç') || lowerKey.includes('watt') || lowerKey.includes('power')) {
+      keywords.add(value.trim());
+      
+      // Watt değeri varsa ekle
+      const wattMatch = lowerValue.match(/(\d+)\s*w/i);
+      if (wattMatch && wattMatch[1]) {
+        const watt = parseInt(wattMatch[1]);
+        if (watt <= 500) {
+          keywords.add('500W_ve_altı');
+        } else if (watt <= 1000) {
+          keywords.add('500-1000W');
+        } else if (watt <= 1500) {
+          keywords.add('1000-1500W');
+        } else if (watt <= 2000) {
+          keywords.add('1500-2000W');
+        } else {
+          keywords.add('2000W_ve_üstü');
+        }
+      }
     }
     
     // Elektronik ürünler için
