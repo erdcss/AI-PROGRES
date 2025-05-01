@@ -717,70 +717,23 @@ function generateProductTags(product: InsertProduct, categoryConfig: any): strin
   const categories = product.categories.map(c => c.toLowerCase());
   const joinedCategories = categories.join(' ');
   
-  // Trendyol etiket kategori ve breadcrumb bilgilerini ekle
+  // Ürünün kategorilerini logla
   debug(`Ürün kategorileri: ${product.categories.join(', ')}`);
   
-  // Ürünün ana kategorisini ekle
+  // Sadeleştirilmiş etiket yapısı - En fazla 3 derinlikte kategori yolu
   if (product.categories && product.categories.length > 0) {
-    // Her kategori seviyesi için breadcrumb etiketleri oluştur
-    for (let i = 0; i < product.categories.length; i++) {
-      const category = product.categories[i];
-      if (category) {
-        // B-1, B-2, B-3 şeklinde tekil etiketler
-        allTags.add(`B-${i+1}> ${category}`);
-        
-        // B> B-1 > B-2 > B-3 şeklinde zincir etiketler
-        const chain = product.categories.slice(0, i + 1).join(' > ');
-        allTags.add(`B> ${chain}`);
-      }
-    }
+    // Maksimum 3 kategoriyi al
+    const maxCategories = Math.min(product.categories.length, 3);
+    const selectedCategories = product.categories.slice(0, maxCategories);
     
-    // Tüm breadcrumb'ı da tek etiket olarak ekle
-    allTags.add(`B> ${product.categories.join(' > ')}`);
+    // Ana kategori yolunu ekle (örn: "kadın ) kozmetik ) el kremi")
+    const categoryPath = selectedCategories.join(' ) ');
+    allTags.add(categoryPath);
     
-    // Arzum > Elektronik > Elektrikli Ev Aletleri > Yiyecek Hazırlama > Kişisel Blender gibi tam yolu ekle
-    if (product.categories.length >= 4) {
-      // Marka (0) > Ana Kategori (1) > Alt Kategori (2) > Alt Alt Kategori (3) formatında
-      const brandCategory = product.categories[0]; // örn: Arzum
-      const mainCategory = product.categories[1]; // örn: Elektronik
-      const subCategory = product.categories[2]; // örn: Elektrikli Ev Aletleri
-      const productType = product.categories[3]; // örn: Yiyecek Hazırlama
-      
-      // Marka özel kategori etiketleri
-      allTags.add(`${brandCategory}`);
-      allTags.add(`${brandCategory} ${mainCategory}`);
-      
-      // Ana kategori ve alt kategoriler
-      allTags.add(`${mainCategory}`);
-      allTags.add(`${mainCategory} > ${subCategory}`);
-      
-      // Ürün tipi kategorisi
-      if (productType) {
-        allTags.add(`${productType}`);
-      }
+    // Tekil kategorileri de ekle
+    for (let i = 0; i < maxCategories; i++) {
+      allTags.add(selectedCategories[i]);
     }
-  }
-  
-  // Kategori zincirini oluştur (Trendyol hiyerarşisi)
-  if (categories.length > 0) {
-    // Kategori zincirini oluştur
-    let categoryChain = "";
-    for (let i = 0; i < categories.length; i++) {
-      if (categories[i]) {
-        // İlk kategori için _ ekle, diğerleri için ) ekle
-        if (i === 0) {
-          categoryChain = `_ ${categories[i].trim()}`;
-        } else {
-          categoryChain += ` ) ${categories[i].trim()}`;
-        }
-        
-        // Her kategori zincirini ekle
-        allTags.add(categoryChain);
-      }
-    }
-    
-    // Eski biçimdeki kategori yolunu da ekle (geriye dönük uyumluluk için)
-    allTags.add(`${categories.join(' > ')}`);
   }
   
   // Shopify kategorilerini de ekle - Excel dosyasından eşleştirme
