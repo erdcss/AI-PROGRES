@@ -922,25 +922,45 @@ export async function registerRoutes(app: Express) {
 
   app.post("/api/export", async (req, res) => {
     try {
+      debug("CSV export isteği alındı");
       const { product } = req.body;
+      
       if (!product) {
-        throw new Error("Ürün verisi bulunamadı");
+        debug("Ürün verisi bulunamadı, depodaki son ürünü al");
+        // Eğer req.body'den alınamazsa, depodan al
+        const history = storage.getHistory();
+        if (history.length > 0) {
+          const lastUrl = history[0];
+          const storedProduct = await storage.getProduct(lastUrl);
+          if (storedProduct) {
+            debug(`Depodan en son ürün alındı: ${storedProduct.title}`);
+            req.body.product = storedProduct;
+          } else {
+            throw new Error("Depolanan ürün bulunamadı, lütfen önce bir ürün çekin");
+          }
+        } else {
+          throw new Error("Hiç ürün çekilmemiş, lütfen önce bir ürün çekin");
+        }
       }
-
+      
+      // Ürün nesnesini tekrar al (eğer depoda değişklik olduysa)
+      const { product: productToExport } = req.body;
+      
       // Ürün verilerini kontrol et
-      if (!product.title || !product.price) {
+      if (!productToExport || !productToExport.title || !productToExport.price) {
         throw new Error("Gerekli ürün bilgileri eksik");
       }
 
-      const categoryConfig = getCategoryConfig(product.categories);
-      const categoryPath = parseCategoryPath(product.categories);
+      // productToExport kullan (product yerine)
+      const categoryConfig = getCategoryConfig(productToExport.categories);
+      const categoryPath = parseCategoryPath(productToExport.categories);
       
       // Otomatik etiketler oluştur
-      const productTags = generateProductTags(product, categoryConfig);
+      const productTags = generateProductTags(productToExport, categoryConfig);
       debug(`Oluşturulan etiketler: ${productTags.join(', ')}`);
 
       // Handle oluştur (URL'den)
-      const handle = product.title
+      const handle = productToExport.title
         .toLowerCase()
         .replace(/[^a-z0-9]+/g, '-')
         .replace(/-+/g, '-')
@@ -966,12 +986,12 @@ export async function registerRoutes(app: Express) {
       // Ana ürün bilgileri
       const baseProduct = {
         handle,
-        title: product.title,
-        body: generateProductBody(product.description, product.attributes),
-        vendor: product.categories[0] || 'Trendyol',
+        title: productToExport.title,
+        body: generateProductBody(productToExport.description, productToExport.attributes),
+        vendor: productToExport.categories[0] || 'Trendyol',
         product_category: categoryConfig.shopifyCategory,
         custom_category: categoryPath,
-        type: product.categories[product.categories.length - 1] || 'Giyim',
+        type: productToExport.categories[productToExport.categories.length - 1] || 'Giyim',
         tags: productTags.join(', '),
         published: 'TRUE',
         option1_name: '',
@@ -989,7 +1009,7 @@ export async function registerRoutes(app: Express) {
         image_position: ''
       };
 
-      const variants = product.variants || {};
+      const variants = productToExport.variants || {};
       const hasVariants = variants.sizes?.length > 0 || variants.colors?.length > 0;
 
       if (hasVariants) {
@@ -1007,7 +1027,7 @@ export async function registerRoutes(app: Express) {
               option1_value: size,
               option2_value: color || '',
               variant_sku: `${handle}-${size}${color ? `-${color}` : ''}`,
-              variant_price: product.price,
+              variant_price: productToExport.price,
               variant_inventory_quantity: categoryConfig.variantConfig.defaultStock || 50
             };
             csvRows.push(variant);
@@ -1018,26 +1038,26 @@ export async function registerRoutes(app: Express) {
         csvRows.push({
           ...baseProduct,
           variant_sku: handle,
-          variant_price: product.price,
+          variant_price: productToExport.price,
           variant_inventory_quantity: categoryConfig.variantConfig.defaultStock || 50
         });
       }
 
       // Görselleri ekle
-      if (product.images && product.images.length > 0 && csvRows.length > 0) {
+      if (productToExport.images && productToExport.images.length > 0 && csvRows.length > 0) {
         // İlk görsel ana ürün varyantı için
         const firstRow = {
           ...csvRows[0],
-          image_src: product.images[0],
+          image_src: productToExport.images[0],
           image_position: '1'
         };
         csvRows[0] = firstRow;
 
         // Diğer görseller için yeni satırlar
-        for (let i = 1; i < product.images.length; i++) {
+        for (let i = 1; i < productToExport.images.length; i++) {
           csvRows.push({
             handle,
-            image_src: product.images[i],
+            image_src: productToExport.images[i],
             image_position: (i + 1).toString()
           });
         }
