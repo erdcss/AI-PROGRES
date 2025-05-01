@@ -719,14 +719,17 @@ function generateProductTags(product: InsertProduct, categoryConfig: any): strin
   const title = product.title.toLowerCase();
   let tags: string[] = [];
   
-  // Kategori filtreleme - Trendyol, Anasayfa, ve marka isimlerini çıkar
+  // Kategori filtreleme - Trendyol, Anasayfa, marka isimleri ve websitelerini çıkar
   const filteredCategories = product.categories
     .filter(cat => {
       const lowercaseCat = cat.toLowerCase();
       // Marka ve site isimlerini çıkar
       if (lowercaseCat === 'trendyol' || 
-          lowercaseCat === 'anasayfa' || 
-          product.brand?.toLowerCase() === lowercaseCat) {
+          lowercaseCat === 'anasayfa' ||
+          lowercaseCat === 'philips' ||
+          lowercaseCat === 'tefal' ||
+          lowercaseCat === 'osg' ||
+          lowercaseCat.includes('com')) {
         return false;
       }
       return true;
@@ -741,79 +744,72 @@ function generateProductTags(product: InsertProduct, categoryConfig: any): strin
     const reversedCategories = [...filteredCategories].reverse();
     
     // Tüm etiketler için maksimum uzunluk kontrolü - yazı taşmasını engelle
-    const MAX_TAG_LENGTH = 30;
+    const MAX_TAG_LENGTH = 20;
+    
+    // Öncelikle spesifik kategorileri belirle
+    // Not: Her bir kategoriyi ayrı bir etiket olarak ekliyoruz - join ile birleştirmeden önce
     
     // 1. Etiket: Ürün ne? - En spesifik etiket (ör: "saç kremi", "kettle", "kamera koruyucu")
-    let specificItem = '';
-    
     if (title.includes('kamera') && title.includes('koruyucu')) {
-      specificItem = 'kamerakoruyucu';
+      tags.push('kamerakoruyucu');
     } else if (title.includes('telefon') && title.includes('kılıf')) {
-      specificItem = 'telefonkılıfı';
+      tags.push('telefonkılıfı');
     } else if (reversedCategories.length > 0) {
-      // İlk etiket - en spesifik ürün kategorisi (son kategori)
-      specificItem = reversedCategories[0]
+      // En spesifik ürün kategorisi (son kategori)
+      const specificItem = reversedCategories[0]
         .replace(/\s+/g, '')  // Boşlukları kaldır
         .substring(0, MAX_TAG_LENGTH);  // Maksimum uzunluğa kısıtla
+      
+      if (specificItem) {
+        tags.push(specificItem);
+      }
     }
     
-    if (specificItem) {
-      tags.push(specificItem);
-    }
-    
-    // 2. Etiket: Üst kategori (ör: "kozmetik", "mutfak", "telefon aksesuarları")
-    // Ürünün bir üst kategorisi
+    // 2. Etiket: Orta kategori
     if (reversedCategories.length > 1) {
       const midCategory = reversedCategories[1]
         .replace(/\s+/g, '')
         .substring(0, MAX_TAG_LENGTH);
       
-      // Sadece daha önce eklemediysek ekle (duplike engelle)
       if (midCategory && !tags.includes(midCategory)) {
         tags.push(midCategory);
       }
     }
     
-    // 3. Etiket: Ana kategori (ör: "kadın", "ev aletleri", "elektronik")
-    // En genel kategori
+    // 3. Etiket: Ana kategori
     if (reversedCategories.length > 2) {
       const mainCategory = reversedCategories[2]
         .replace(/\s+/g, '')
         .substring(0, MAX_TAG_LENGTH);
       
-      // Sadece daha önce eklemediysek ekle
       if (mainCategory && !tags.includes(mainCategory)) {
         tags.push(mainCategory);
       }
     }
     
-    // Eğer yeteri kadar kategori yoksa, ürün özelliklerinden doldur
+    // Yeterli etiket yoksa, tamamlayalım
     if (tags.length < 3) {
-      // Ürün özelliklerinden (renk gibi) etiket ekle
-      const attributes = Object.entries(product.attributes);
-      if (attributes.length > 0) {
-        for (const [key, value] of attributes) {
-          if (!key || !value) continue;
-          
-          const lowerKey = key.toLowerCase();
-          // Renk gibi önemli özellikleri etiket olarak ekle
-          if (lowerKey.includes('renk') || lowerKey.includes('color')) {
-            const colorTag = value
-              .replace(/\s+/g, '')
-              .substring(0, MAX_TAG_LENGTH);
-              
-            if (!tags.includes(colorTag)) {
-              tags.push(colorTag);
-              if (tags.length >= 3) break;
-            }
+      // Renk özelliğini kullan
+      for (const [key, value] of Object.entries(product.attributes)) {
+        if (!key || !value) continue;
+        
+        const lowerKey = key.toLowerCase();
+        if (lowerKey.includes('renk') || lowerKey.includes('color')) {
+          const colorTag = value
+            .replace(/\s+/g, '')
+            .substring(0, MAX_TAG_LENGTH);
+            
+          if (!tags.includes(colorTag)) {
+            tags.push(colorTag);
+            if (tags.length >= 3) break;
           }
         }
       }
       
-      // Hâlâ 3 etiket dolmadıysa, filtrelenmiş kategorilerden sırayla ekle
+      // Hala 3'ten az ise diğer kategorileri kullan
       if (tags.length < 3) {
-        for (let i = 0; i < filteredCategories.length && tags.length < 3; i++) {
-          const categoryTag = filteredCategories[i]
+        for (let i = 3; i < reversedCategories.length && tags.length < 3; i++) {
+          const categoryTag = reversedCategories[i]
             .replace(/\s+/g, '')
             .substring(0, MAX_TAG_LENGTH);
             
@@ -825,8 +821,8 @@ function generateProductTags(product: InsertProduct, categoryConfig: any): strin
     }
   }
   
-  // Duplicate'leri kaldır ve maksimum 3 etiket dön
-  return Array.from(new Set(tags)).slice(0, 3);
+  // En fazla 3 etiket dönecek şekilde kısıtla
+  return tags.slice(0, 3);
 }
 
 // URL doğrulama şeması
@@ -955,7 +951,7 @@ export async function registerRoutes(app: Express) {
         vendor: 'turmarkt', // Tüm ürünler için sabit satıcı adı
         product_category: categoryConfig.shopifyCategory || 'Apparel & Accessories > Clothing',
         type: productToExport.categories[productToExport.categories.length - 1] || 'Giyim',
-        tags: productTags.join(', '),
+        tags: productTags.join(','),
         published: 'TRUE',
         option1_name: '',
         option1_value: '',
@@ -1059,7 +1055,7 @@ export async function registerRoutes(app: Express) {
           vendor: 'turmarkt', // Tüm ürünler için sabit satıcı adı
           product_category: categoryConfig.shopifyCategory || 'Apparel & Accessories > Clothing',
           type: productToExport.categories[productToExport.categories.length - 1] || 'Giyim',
-          tags: productTags.join(', '),
+          tags: productTags.join(','),
           published: 'TRUE',
           option1_name: 'Title',
           option1_value: 'Default Title',
