@@ -716,57 +716,85 @@ function extractKeywordsFromTitle(title: string): string[] {
 
 // Ürün için otomatik etiketler oluşturan fonksiyon
 function generateProductTags(product: InsertProduct, categoryConfig: any): string[] {
-  // Direkt kategori yolunu alıp sadece 3 etiket oluşturalım
-  // Etiketi birleşik yazım olarak dönüştürecek (boşluk olmadan)
+  const title = product.title.toLowerCase();
   let tags: string[] = [];
   
-  // Trendyol sayfasındaki tüm breadcrumb'ları incele ve filtrele
+  // Trendyol sayfasındaki breadcrumb'ları filtrele
   const filteredCategories = product.categories
     .filter(cat => cat !== 'Trendyol' && cat !== 'Anasayfa')
     .map(cat => cat.trim());
   
   debug(`Filtrelenmiş kategori listesi: ${filteredCategories.join(', ')}`);
   
-  // Eğer kategori varsa, ilk 3 kategoriyi seçelim (OSG, Elektronik, Telefon gibi)
+  // En spesifik ürün ne olduğunu belirle (en detaylı kategori) - son kategori
   if (filteredCategories.length > 0) {
-    // En fazla 3 kategoriye indir
-    const maxCategories = Math.min(filteredCategories.length, 3);
+    // Kategorileri tersine çevir: spesifik ürün tipinden genel kategorilere
+    const reversedCategories = [...filteredCategories].reverse();
     
-    // Her bir kategoriyi birleşik yazımla (boşluk olmadan) etiket olarak ekle
-    for (let i = 0; i < maxCategories; i++) {
-      const categoryTag = filteredCategories[i].replace(/\s+/g, '');
-      tags.push(categoryTag);
+    // 1. Etiket: Ürün ne? - En spesifik etiket (ör: "saç kremi", "kettle", "kamera koruyucu")
+    let specificItem = '';
+    
+    // Önce başlığa ve son kategori adına bakarak ürün tipini belirleme
+    if (title.includes('kamera') && title.includes('koruyucu')) {
+      specificItem = 'kamerakoruyucu';
+    } else if (title.includes('telefon') && title.includes('kılıf')) {
+      specificItem = 'telefonkılıfı';
+    } else if (reversedCategories.length > 0) {
+      // İlk etiket - en spesifik ürün kategorisi (son kategori)
+      specificItem = reversedCategories[0].replace(/\s+/g, '');
     }
-  }
-  
-  // Eğer hala 3'ten az etiket varsa, önemli ürün özelliklerinden ekleyelim
-  if (tags.length < 3) {
-    // Ürün rengini bul
-    for (const [key, value] of Object.entries(product.attributes)) {
-      if (!key || !value) continue;
+    
+    if (specificItem) {
+      tags.push(specificItem);
+    }
+    
+    // 2. Etiket: Üst kategori (ör: "kozmetik", "mutfak", "telefon aksesuarları")
+    // Ürünün bir üst kategorisi (varsa)
+    if (reversedCategories.length > 1) {
+      const midCategory = reversedCategories[1].replace(/\s+/g, '');
+      tags.push(midCategory);
+    }
+    
+    // 3. Etiket: Ana kategori (ör: "kadın", "ev aletleri", "elektronik")
+    // En genel kategori (genellikle ilk kategorilerden biri)
+    if (reversedCategories.length > 2) {
+      const mainCategory = reversedCategories[2].replace(/\s+/g, '');
+      tags.push(mainCategory);
+    }
+    
+    // Eğer yeteri kadar kategori yoksa, başka etiketlerle tamamla
+    if (tags.length < 3) {
+      // Ürün özelliklerini kullan
+      const attributes = Object.entries(product.attributes);
+      if (attributes.length > 0) {
+        for (const [key, value] of attributes) {
+          if (!key || !value) continue;
+          
+          const lowerKey = key.toLowerCase();
+          if (lowerKey.includes('renk') || lowerKey.includes('color')) {
+            const colorTag = value.replace(/\s+/g, '');
+            if (!tags.includes(colorTag)) {
+              tags.push(colorTag);
+              if (tags.length >= 3) break;
+            }
+          }
+        }
+      }
       
-      const lowerKey = key.toLowerCase();
-      if (lowerKey.includes('renk') || lowerKey.includes('color')) {
-        const colorTag = value.replace(/\s+/g, '');
-        if (!tags.includes(colorTag)) {
-          tags.push(colorTag);
-          if (tags.length >= 3) break;
+      // Hala eksikse, markaları ve diğer kategorileri kullan
+      if (tags.length < 3 && filteredCategories.length > 0) {
+        for (const cat of filteredCategories) {
+          const categoryTag = cat.replace(/\s+/g, '');
+          if (!tags.includes(categoryTag)) {
+            tags.push(categoryTag);
+            if (tags.length >= 3) break;
+          }
         }
       }
     }
   }
   
-  // Hala dolduramadıysak, ürün başlığından bir anahtar kelime ekle
-  if (tags.length < 3) {
-    const title = product.title.toLowerCase();
-    if (title.includes('telefon') && title.includes('kılıf')) {
-      tags.push('telefonkılıfı');
-    } else if (title.includes('kamera') && title.includes('koruyucu')) {
-      tags.push('kamerakoruyucu');
-    }
-  }
-  
-  // Duplicate'leri kaldırıp sadece 3 etiket dön
+  // Duplicate'leri kaldır ve maksimum 3 etiket dön
   return Array.from(new Set(tags)).slice(0, 3);
 }
 
