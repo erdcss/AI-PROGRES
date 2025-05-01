@@ -716,153 +716,77 @@ function extractKeywordsFromTitle(title: string): string[] {
 
 // Ürün için otomatik etiketler oluşturan fonksiyon
 function generateProductTags(product: InsertProduct, categoryConfig: any): string[] {
-  const allTags: Set<string> = new Set();
+  // Kategori ve özellikleri alıp potansiyel etiketleri oluştur
+  // Sonra sadece en önemli 3 etiketi seçeceğiz
+  const potentialTags: string[] = [];
   const title = product.title.toLowerCase();
   const categories = product.categories.map(c => c.toLowerCase());
-  const joinedCategories = categories.join(' ');
   
   // Ürünün kategorilerini logla
   debug(`Ürün kategorileri: ${product.categories.join(', ')}`);
   
-  // Sadeleştirilmiş etiket yapısı - En fazla 3 derinlikte kategori yolu
-  if (product.categories && product.categories.length > 0) {
-    // Maksimum 3 kategoriyi al
-    const maxCategories = Math.min(product.categories.length, 3);
-    const selectedCategories = product.categories.slice(0, maxCategories);
+  // Ana kategoriler için etiketler (birleşik yazım)
+  if (categories.length > 0) {
+    const mainCategory = categories[0].replace(/\s+/g, '');
+    potentialTags.push(mainCategory);
     
-    // Ana kategori yolunu ekle (örn: "kadın ) kozmetik ) el kremi")
-    const categoryPath = selectedCategories.join(' ) ');
-    allTags.add(categoryPath);
-    
-    // Tekil kategorileri de ekle
-    for (let i = 0; i < maxCategories; i++) {
-      allTags.add(selectedCategories[i]);
-    }
-  }
-  
-  // Shopify kategorilerini de ekle - Excel dosyasından eşleştirme
-  if (categoryConfig && categoryConfig.shopifyCategory) {
-    const shopifyCategories = categoryConfig.shopifyCategory.split(' > ');
-    
-    // Ana Shopify kategorisi
-    if (shopifyCategories.length > 0) {
-      allTags.add(`$${shopifyCategories[0]}`);
-    }
-    
-    // Shopify alt kategorileri
-    if (shopifyCategories.length > 1) {
-      let shopifyCategoryChain = `$${shopifyCategories[0]}`;
-      for (let i = 1; i < shopifyCategories.length; i++) {
-        shopifyCategoryChain += ` > ${shopifyCategories[i]}`;
-        allTags.add(shopifyCategoryChain);
+    if (categories.length > 1) {
+      const subCategory = categories[1].replace(/\s+/g, '');
+      potentialTags.push(subCategory);
+      
+      // Ana ürün kategorisi (boşluksuz birleşik)
+      if (categories.length > 2) {
+        const productType = categories[2].replace(/\s+/g, '');
+        potentialTags.push(productType);
       }
     }
   }
   
-  // Eski kategoriler için uyumluluk sağla (# ile)
-  for (const category of categories) {
-    if (category) {
-      allTags.add(`#${category.replace(/\s+/g, '')}`);
+  // Ürün özellikleri (renk, marka gibi) - birleşik yazım
+  for (const [key, value] of Object.entries(product.attributes)) {
+    if (!key || !value) continue;
+    
+    const lowerKey = key.toLowerCase();
+    const formattedValue = value.replace(/\s+/g, '');
+    
+    if (lowerKey.includes('renk') || lowerKey.includes('color')) {
+      potentialTags.push(formattedValue);
+    }
+    
+    if (lowerKey.includes('marka') || lowerKey.includes('brand')) {
+      potentialTags.push(formattedValue);
     }
   }
   
-  // Ürün özelliklerinden otomatik anahtar kelimeler çıkar (@ ile)
-  const attributeKeywords = extractKeywordsFromAttributes(product.attributes);
-  for (const keyword of attributeKeywords) {
-    allTags.add(`@${keyword.replace(/\s+/g, '_')}`);
-  }
+  // Özel durumlar için etiketler
+  const joinedCategories = categories.join(' ');
   
-  // Ürün başlığından otomatik anahtar kelimeler çıkar (@ ile)
-  const titleKeywords = extractKeywordsFromTitle(product.title);
-  for (const keyword of titleKeywords) {
-    allTags.add(`@${keyword.replace(/\s+/g, '_')}`);
-  }
-  
-  // Ana Kategori Etiketleri - Bunlar Shopify'da koleksiyonlara ekleme için
   if (joinedCategories.includes('kadın')) {
-    allTags.add('#kadın');
+    potentialTags.push('kadın');
+  } else if (joinedCategories.includes('erkek')) {
+    potentialTags.push('erkek');
+  } else if (joinedCategories.includes('çocuk') || joinedCategories.includes('cocuk')) {
+    potentialTags.push('çocuk');
   }
   
-  if (joinedCategories.includes('erkek')) {
-    allTags.add('#erkek');
+  if (joinedCategories.includes('elektronik')) {
+    potentialTags.push('elektronik');
+  } else if (joinedCategories.includes('kozmetik')) {
+    potentialTags.push('kozmetik');
+  } else if (joinedCategories.includes('giyim')) {
+    potentialTags.push('giyim');
   }
   
-  if (joinedCategories.includes('çocuk') || joinedCategories.includes('cocuk')) {
-    allTags.add('#çocuk');
+  // Ürün türü özel etiketleri
+  if (title.includes('telefon') && title.includes('kılıf')) {
+    potentialTags.push('telefonkılıfı');
   }
   
-  // Ürün Tür Etiketleri
-  if (joinedCategories.includes('giyim') || 
-      joinedCategories.includes('elbise') || 
-      joinedCategories.includes('pantolon') || 
-      joinedCategories.includes('gömlek')) {
-    allTags.add('#giyim');
-  }
+  // En önemli 3 etiketi seç (duplicate'leri kaldırıp)
+  const uniqueTags = Array.from(new Set(potentialTags));
   
-  if (joinedCategories.includes('aksesuar') || 
-      joinedCategories.includes('takı') || 
-      joinedCategories.includes('saat')) {
-    allTags.add('#aksesuar');
-  }
-  
-  if (joinedCategories.includes('ayakkabı') || 
-      joinedCategories.includes('bot') || 
-      joinedCategories.includes('çizme')) {
-    allTags.add('#ayakkabı');
-  }
-  
-  if (joinedCategories.includes('çanta') || 
-      joinedCategories.includes('cüzdan')) {
-    allTags.add('#çanta');
-  }
-  
-  if (joinedCategories.includes('elektronik') || 
-      joinedCategories.includes('telefon') || 
-      joinedCategories.includes('bilgisayar')) {
-    allTags.add('#elektronik');
-  }
-  
-  if (joinedCategories.includes('ev') || 
-      joinedCategories.includes('mobilya') || 
-      joinedCategories.includes('dekorasyon')) {
-    allTags.add('#evyaşam');
-  }
-  
-  if (joinedCategories.includes('kozmetik') || 
-      joinedCategories.includes('makyaj') || 
-      joinedCategories.includes('parfüm') ||
-      joinedCategories.includes('cilt bakım')) {
-    allTags.add('#kozmetik');
-    allTags.add('#kişiselbakım');
-  }
-  
-  // Özel ürün tipleri için
-  if (title.includes('saç maşası') || 
-      (title.includes('saç') && title.includes('maşa'))) {
-    allTags.add('#kadın');
-    allTags.add('#kişiselbakımürünleri');
-    allTags.add('#saçbakımürünleri');
-    allTags.add('#saçmaşası');
-  }
-  
-  if ((title.includes('telefon') && title.includes('kılıf')) || 
-      title.includes('telefon kılıfı')) {
-    allTags.add('#telefon');
-    allTags.add('#telefonaksesuarları');
-    allTags.add('#telefonkılıfları');
-  }
-  
-  // Ana Shopify kategorisi için etiket
-  if (categoryConfig && categoryConfig.shopifyCategory) {
-    const shopifyCategories = categoryConfig.shopifyCategory.split(' > ');
-    for (const cat of shopifyCategories) {
-      if (cat && cat !== 'Other') {
-        allTags.add(`#${cat.toLowerCase().replace(/\s+/g, '')}`);
-      }
-    }
-  }
-  
-  return Array.from(allTags);
+  // Etiket sayısını 3'e indir
+  return uniqueTags.slice(0, 3);
 }
 
 // URL doğrulama şeması
