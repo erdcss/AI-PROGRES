@@ -1278,8 +1278,15 @@ export async function registerRoutes(app: Express) {
         // CSV dosyasını oluşum durumunu kontrol et
         const csvPath = join(tmpdir(), 'shopify_products.csv');
         
-        // CSV dosyasının boyutunu ve içeriğini kontrol et
-        debug(`CSV yazıldı: ${csvPath}`);
+        // CSV dosyasının boyutunu ve içeriğini kontrol et - hata ayıklama
+        const fs = require('fs');
+        const fileSize = fs.statSync(csvPath).size;
+        debug(`CSV yazıldı: ${csvPath}, boyut: ${fileSize} byte`);
+        
+        if (fileSize < 1000) {
+          const content = fs.readFileSync(csvPath, 'utf-8').substring(0, 200);
+          debug(`CSV içeriği (ilk 200 karakter): ${content}...`);
+        }
         
         // CSV dosyasını gönder
         res.download(csvPath, 'shopify_products.csv', (err) => {
@@ -1289,9 +1296,9 @@ export async function registerRoutes(app: Express) {
           }
           debug("CSV indirme başarılı");
         });
-      } catch (csvError) {
+      } catch (csvError: any) { // Type assertion to fix TypeScript error
         debug("CSV yazma hatası:", csvError);
-        return res.status(500).json({ message: "CSV oluşturma hatası: " + csvError.message });
+        return res.status(500).json({ message: "CSV oluşturma hatası: " + (csvError.message || "Bilinmeyen hata") });
       }
 
     } catch (error: any) {
