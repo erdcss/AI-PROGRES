@@ -126,7 +126,19 @@ export default function Home() {
 
   const exportMutation = useMutation({
     mutationFn: async () => {
-      const res = await apiRequest("POST", "/api/export", { product, categoryConfig });
+      if (!product) {
+        throw new Error("Önce bir ürün çekmelisiniz");
+      }
+      
+      // Export isteğine ürün bilgilerini eklediğimizden emin olalım
+      console.log("CSV dışa aktarma isteği gönderiliyor", { product });
+      
+      const res = await apiRequest("POST", "/api/export", { 
+        product: product, 
+        url: product.url,
+        categoryConfig 
+      });
+      
       if (!res.ok) {
         const data = await res.json();
         throw new Error(data.message);
