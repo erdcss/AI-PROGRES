@@ -2,6 +2,12 @@ import { z } from 'zod';
 import * as XLSX from 'xlsx';
 import * as path from 'path';
 import * as fs from 'fs';
+import { fileURLToPath } from 'url';
+import { dirname } from 'path';
+
+// ESM için __dirname işlevi
+const __filename = fileURLToPath(import.meta.url);
+const __dirname = dirname(__filename);
 
 // Kategori yapılandırma şeması
 export const CategoryConfig = z.object({
@@ -35,37 +41,9 @@ function normalizeCategory(category: string): string {
 
 // Excel dosyasından kategori eşleştirmelerini yükle
 function loadExcelMappings(): Record<string, string> {
-  try {
-    const excelPath = path.join(__dirname, '../attached_assets/Export_2025-05-01_091708.xlsx');
-    
-    if (!fs.existsSync(excelPath)) {
-      console.warn('Excel dosyası bulunamadı, varsayılan eşleştirmeleri kullanılıyor');
-      return {};
-    }
-    
-    const workbook = XLSX.readFile(excelPath);
-    const sheetName = workbook.SheetNames[0];
-    const worksheet = workbook.Sheets[sheetName];
-    const data = XLSX.utils.sheet_to_json<any>(worksheet);
-    
-    const mappings: Record<string, string> = {};
-    
-    for (const row of data) {
-      const trendyolCategory = row['Trendyol Kategori Yolu'] || '';
-      const shopifyCategory = row['Shopify Kategori'] || '';
-      
-      if (trendyolCategory && shopifyCategory) {
-        const normalizedCategory = normalizeCategory(trendyolCategory);
-        mappings[normalizedCategory] = shopifyCategory;
-      }
-    }
-    
-    console.log(`Excel'den ${Object.keys(mappings).length} kategori eşleştirmesi yüklendi`);
-    return mappings;
-  } catch (error) {
-    console.error('Excel dosyası yüklenirken hata:', error);
-    return {};
-  }
+  // Excel kullanımında sorun var, doğrudan CSV'ye yönlendir
+  console.log('Excel dosyası desteği atlandı, CSV kullanılıyor');
+  return {};
 }
 
 // Alternatif olarak CSV dosyalarını kullanma
@@ -75,8 +53,8 @@ function loadCSVMappings(): Record<string, string> {
     
     // Tüm CSV dosyalarını kontrol et
     const csvFiles = [
-      '../attached_assets/product_template (1).csv',
-      '../attached_assets/product_template (2).csv'
+      '../product_template (1).csv',
+      '../product_template (2).csv'
     ];
     
     for (const csvFile of csvFiles) {
