@@ -983,12 +983,13 @@ export async function registerRoutes(app: Express) {
         return html;
       };
 
-      // Ana ürün bilgileri - Shopify uyumlu
+      // Ana ürün bilgileri - Shopify'dan alınan örnek dosyaya göre
       const baseProduct = {
         handle,
         title: productToExport.title,
         body: generateProductBody(productToExport.description, productToExport.attributes),
         vendor: productToExport.categories[0] || 'Trendyol',
+        product_category: categoryConfig.shopifyCategory || 'Apparel & Accessories > Clothing',
         type: productToExport.categories[productToExport.categories.length - 1] || 'Giyim',
         tags: productTags.join(', '),
         published: 'TRUE',
@@ -1001,16 +1002,38 @@ export async function registerRoutes(app: Express) {
         variant_sku: '',
         variant_grams: '500', // 0.5kg = 500 gram
         variant_inventory_tracker: 'shopify',
+        variant_inventory_qty: categoryConfig.variantConfig?.defaultStock || 50,
         variant_inventory_policy: 'deny',
-        variant_inventory_quantity: categoryConfig.variantConfig?.defaultStock || 50,
+        variant_fulfillment_service: 'manual',
         variant_price: '',
         variant_compare_at_price: productToExport.basePrice, // İndirimli fiyat için
         variant_requires_shipping: 'TRUE',
         variant_taxable: 'TRUE',
-        variant_weight_unit: 'kg',
-        status: 'active', // Status değerini 'active' olarak ayarla
+        variant_barcode: '',
         image_src: '',
-        image_position: ''
+        image_position: '',
+        image_alt_text: productToExport.title || '',
+        gift_card: 'FALSE',
+        seo_title: productToExport.title || '',
+        seo_description: productToExport.description || '',
+        google_shopping_metafields: categoryConfig.shopifyCategory || '',
+        google_shopping_age_group: '',
+        google_shopping_gender: '',
+        google_shopping_mpn: '',
+        google_shopping_adwords_grouping: '',
+        google_shopping_adwords_labels: '',
+        google_shopping_condition: 'New',
+        google_shopping_custom_product: '',
+        google_shopping_custom_label_0: '',
+        google_shopping_custom_label_1: '',
+        google_shopping_custom_label_2: '',
+        google_shopping_custom_label_3: '',
+        google_shopping_custom_label_4: '',
+        variant_image: '',
+        variant_weight_unit: 'g',
+        variant_tax_code: '',
+        cost_per_item: '',
+        status: 'active' // Status değerini 'active' olarak ayarla
       };
 
       const variants = productToExport.variants || {};
@@ -1023,7 +1046,7 @@ export async function registerRoutes(app: Express) {
         if (sizes.length > 0) baseProduct.option1_name = categoryConfig.variantConfig.sizeLabel || 'Beden';
         if (colors.length > 0) baseProduct.option2_name = categoryConfig.variantConfig.colorLabel || 'Renk';
 
-        // Her beden için bir varyant oluştur
+        // Her beden için bir varyant oluştur - Shopify formatına uygun
         for (const size of sizes) {
           for (const color of colors.length > 0 ? colors : [null]) {
             const variant = {
@@ -1032,18 +1055,20 @@ export async function registerRoutes(app: Express) {
               option2_value: color || '',
               variant_sku: `${handle}-${size}${color ? `-${color}` : ''}`,
               variant_price: productToExport.price,
-              variant_inventory_quantity: categoryConfig.variantConfig.defaultStock || 50
+              variant_inventory_qty: categoryConfig.variantConfig.defaultStock || 50
             };
             csvRows.push(variant);
           }
         }
       } else {
-        // Varyantsız ürün için tek bir satır
+        // Varyantsız ürün için tek bir satır - Shopify formatına uygun
         csvRows.push({
           ...baseProduct,
+          option1_name: 'Title', // Tek varyantlı ürünler için gerekli
+          option1_value: 'Default Title', // Tek varyantlı ürünler için gerekli
           variant_sku: handle,
           variant_price: productToExport.price,
-          variant_inventory_quantity: categoryConfig.variantConfig.defaultStock || 50
+          variant_inventory_qty: categoryConfig.variantConfig.defaultStock || 50
         });
       }
 
@@ -1057,42 +1082,65 @@ export async function registerRoutes(app: Express) {
         };
         csvRows[0] = firstRow;
 
-        // Diğer görseller için yeni satırlar
+        // Diğer görseller için yeni satırlar - Tam Shopify formatına uygun
         for (let i = 1; i < productToExport.images.length; i++) {
-          // Shopify için sadece minimum gerekli alanları içeren bir satır
+          // Shopify gerçek CSV örneğine göre, ek görseller için sadece handle ve görsel bilgileri
           const imageLine = {
             handle, // Handle mutlaka eklenmeli
-            title: '', // Ana satır için boş bırak
-            body: '', // Ana satır için boş bırak
-            vendor: '', // Ana satır için boş bırak
-            type: '', // Ana satır için boş bırak
-            tags: '', // Ana satır için boş bırak
-            published: '', // Ana satır için boş bırak
-            option1_name: '', // Ana satır için boş bırak
-            option1_value: '', // Ana satır için boş bırak
-            option2_name: '', // Ana satır için boş bırak
-            option2_value: '', // Ana satır için boş bırak
-            option3_name: '', // Ana satır için boş bırak
-            option3_value: '', // Ana satır için boş bırak
-            variant_sku: '', // Ana satır için boş bırak
-            variant_grams: '', // Ana satır için boş bırak
-            variant_inventory_tracker: '', // Ana satır için boş bırak
-            variant_inventory_policy: '', // Ana satır için boş bırak
-            variant_inventory_quantity: '', // Ana satır için boş bırak
-            variant_price: '', // Ana satır için boş bırak
-            variant_compare_at_price: '', // Ana satır için boş bırak
-            variant_requires_shipping: '', // Ana satır için boş bırak
-            variant_taxable: '', // Ana satır için boş bırak
-            variant_weight_unit: '', // Ana satır için boş bırak
+            title: '',
+            body: '',
+            vendor: '',
+            product_category: '',
+            type: '',
+            tags: '',
+            published: '',
+            option1_name: '',
+            option1_value: '',
+            option2_name: '',
+            option2_value: '',
+            option3_name: '',
+            option3_value: '',
+            variant_sku: '',
+            variant_grams: '',
+            variant_inventory_tracker: '',
+            variant_inventory_qty: '',
+            variant_inventory_policy: '',
+            variant_fulfillment_service: '',
+            variant_price: '',
+            variant_compare_at_price: '',
+            variant_requires_shipping: '',
+            variant_taxable: '',
+            variant_barcode: '',
             image_src: productToExport.images[i],
             image_position: (i + 1).toString(),
-            status: '' // Ana satır için boş bırak
+            image_alt_text: `${productToExport.title} - Görsel ${i + 1}`,
+            gift_card: '',
+            seo_title: '',
+            seo_description: '',
+            google_shopping_metafields: '',
+            google_shopping_age_group: '',
+            google_shopping_gender: '',
+            google_shopping_mpn: '',
+            google_shopping_adwords_grouping: '',
+            google_shopping_adwords_labels: '',
+            google_shopping_condition: '',
+            google_shopping_custom_product: '',
+            google_shopping_custom_label_0: '',
+            google_shopping_custom_label_1: '',
+            google_shopping_custom_label_2: '',
+            google_shopping_custom_label_3: '',
+            google_shopping_custom_label_4: '',
+            variant_image: '',
+            variant_weight_unit: '',
+            variant_tax_code: '',
+            cost_per_item: '',
+            status: ''
           };
           csvRows.push(imageLine);
         }
       }
 
-      // CSV başlıklarını oluştur - Tam Shopify formatı
+      // CSV başlıklarını oluştur - Shopify'dan alınan örnek dosyaya göre
       const csvWriter = createObjectCsvWriter({
         path: join(tmpdir(), 'shopify_products.csv'),
         header: [
@@ -1100,6 +1148,7 @@ export async function registerRoutes(app: Express) {
           { id: 'title', title: 'Title' },
           { id: 'body', title: 'Body (HTML)' },
           { id: 'vendor', title: 'Vendor' },
+          { id: 'product_category', title: 'Product Category' },
           { id: 'type', title: 'Type' },
           { id: 'tags', title: 'Tags' },
           { id: 'published', title: 'Published' },
@@ -1107,20 +1156,42 @@ export async function registerRoutes(app: Express) {
           { id: 'option1_value', title: 'Option1 Value' },
           { id: 'option2_name', title: 'Option2 Name' },
           { id: 'option2_value', title: 'Option2 Value' },
-          { id: 'option3_name', title: 'Option3 Name' }, // Shopify'ın beklediği bir sütun
-          { id: 'option3_value', title: 'Option3 Value' }, // Shopify'ın beklediği bir sütun
+          { id: 'option3_name', title: 'Option3 Name' },
+          { id: 'option3_value', title: 'Option3 Value' },
           { id: 'variant_sku', title: 'Variant SKU' },
-          { id: 'variant_grams', title: 'Variant Grams' }, // Shopify'ın beklediği bir sütun
-          { id: 'variant_inventory_tracker', title: 'Variant Inventory Tracker' }, // Shopify
+          { id: 'variant_grams', title: 'Variant Grams' },
+          { id: 'variant_inventory_tracker', title: 'Variant Inventory Tracker' },
+          { id: 'variant_inventory_qty', title: 'Variant Inventory Qty' },
           { id: 'variant_inventory_policy', title: 'Variant Inventory Policy' },
-          { id: 'variant_inventory_quantity', title: 'Variant Inventory Quantity' },
+          { id: 'variant_fulfillment_service', title: 'Variant Fulfillment Service' },
           { id: 'variant_price', title: 'Variant Price' },
-          { id: 'variant_compare_at_price', title: 'Variant Compare At Price' }, // Shopify
-          { id: 'variant_requires_shipping', title: 'Variant Requires Shipping' }, // Shopify
-          { id: 'variant_taxable', title: 'Variant Taxable' }, // Shopify
-          { id: 'variant_weight_unit', title: 'Variant Weight Unit' },
+          { id: 'variant_compare_at_price', title: 'Variant Compare At Price' },
+          { id: 'variant_requires_shipping', title: 'Variant Requires Shipping' },
+          { id: 'variant_taxable', title: 'Variant Taxable' },
+          { id: 'variant_barcode', title: 'Variant Barcode' },
           { id: 'image_src', title: 'Image Src' },
           { id: 'image_position', title: 'Image Position' },
+          { id: 'image_alt_text', title: 'Image Alt Text' },
+          { id: 'gift_card', title: 'Gift Card' },
+          { id: 'seo_title', title: 'SEO Title' },
+          { id: 'seo_description', title: 'SEO Description' },
+          { id: 'google_shopping_metafields', title: 'Google Shopping / Google Product Category' },
+          { id: 'google_shopping_age_group', title: 'Google Shopping / Age Group' },
+          { id: 'google_shopping_gender', title: 'Google Shopping / Gender' },
+          { id: 'google_shopping_mpn', title: 'Google Shopping / MPN' },
+          { id: 'google_shopping_adwords_grouping', title: 'Google Shopping / Adwords Grouping' },
+          { id: 'google_shopping_adwords_labels', title: 'Google Shopping / Adwords Labels' },
+          { id: 'google_shopping_condition', title: 'Google Shopping / Condition' },
+          { id: 'google_shopping_custom_product', title: 'Google Shopping / Custom Product' },
+          { id: 'google_shopping_custom_label_0', title: 'Google Shopping / Custom Label 0' },
+          { id: 'google_shopping_custom_label_1', title: 'Google Shopping / Custom Label 1' },
+          { id: 'google_shopping_custom_label_2', title: 'Google Shopping / Custom Label 2' },
+          { id: 'google_shopping_custom_label_3', title: 'Google Shopping / Custom Label 3' },
+          { id: 'google_shopping_custom_label_4', title: 'Google Shopping / Custom Label 4' },
+          { id: 'variant_image', title: 'Variant Image' },
+          { id: 'variant_weight_unit', title: 'Variant Weight Unit' },
+          { id: 'variant_tax_code', title: 'Variant Tax Code' },
+          { id: 'cost_per_item', title: 'Cost per item' },
           { id: 'status', title: 'Status' }
         ]
       });
