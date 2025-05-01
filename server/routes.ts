@@ -734,6 +734,12 @@ export async function registerRoutes(app: Express) {
 
       debug("Ürün verileri çekiliyor");
       const product = await scrapeProduct(url);
+      
+      // Kategori ayarlarını al ve etiketleri oluştur
+      const categoryConfig = getCategoryConfig(product.categories);
+      product.tags = generateProductTags(product, categoryConfig);
+      debug(`Oluşturulan etiketler: ${product.tags.join(', ')}`);
+      
       debug("Ürün başarıyla çekildi, kaydediliyor");
       const saved = await storage.saveProduct(product);
 
