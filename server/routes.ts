@@ -10,6 +10,7 @@ import { createObjectCsvWriter } from 'csv-writer';
 import { getCategoryConfig } from './category-mapping';
 import { tmpdir } from 'os';
 import { join } from 'path';
+import * as fs from 'fs';
 
 function debug(message: string, ...args: any[]) {
   console.log(`[DEBUG] ${message}`, ...args);
@@ -1303,15 +1304,8 @@ export async function registerRoutes(app: Express) {
         // CSV dosyasını oluşum durumunu kontrol et
         const csvPath = join(tmpdir(), 'shopify_products.csv');
         
-        // CSV dosyasının boyutunu ve içeriğini kontrol et - hata ayıklama
-        const fs = require('fs');
-        const fileSize = fs.statSync(csvPath).size;
-        debug(`CSV yazıldı: ${csvPath}, boyut: ${fileSize} byte`);
-        
-        if (fileSize < 1000) {
-          const content = fs.readFileSync(csvPath, 'utf-8').substring(0, 200);
-          debug(`CSV içeriği (ilk 200 karakter): ${content}...`);
-        }
+        // CSV dosyasının yazıldığı bilgisini logla
+        debug(`CSV yazıldı: ${csvPath}`);
         
         // CSV dosyasını gönder
         res.download(csvPath, 'shopify_products.csv', (err) => {
