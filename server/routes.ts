@@ -923,32 +923,49 @@ export async function registerRoutes(app: Express) {
   app.post("/api/export", async (req, res) => {
     try {
       debug("CSV export isteği alındı");
-      const { product } = req.body;
       
-      if (!product) {
-        debug("Ürün verisi bulunamadı, depodaki son ürünü al");
-        // Eğer req.body'den alınamazsa, depodan al
+      let productToExport = null;
+      
+      // Önce request body'den ürün bilgisini almayı dene
+      if (req.body.product && req.body.product.title) {
+        debug("İstek ile gönderilen ürün bilgisi kullanılıyor");
+        productToExport = req.body.product;
+      } 
+      // İstek ile ürün gönderilmediyse ve URL varsa, URL'ye göre ürünü al
+      else if (req.body.url) {
+        debug(`URL'ye göre ürün alınıyor: ${req.body.url}`);
+        productToExport = await storage.getProduct(req.body.url);
+      }
+      // Son olarak geçmişten son URL'yi kullan
+      else {
+        debug("İstek içinde ürün bilgisi bulunamadı, depodan son ürün alınıyor");
         const history = storage.getHistory();
         if (history.length > 0) {
           const lastUrl = history[0];
-          const storedProduct = await storage.getProduct(lastUrl);
-          if (storedProduct) {
-            debug(`Depodan en son ürün alındı: ${storedProduct.title}`);
-            req.body.product = storedProduct;
-          } else {
-            throw new Error("Depolanan ürün bulunamadı, lütfen önce bir ürün çekin");
-          }
-        } else {
-          throw new Error("Hiç ürün çekilmemiş, lütfen önce bir ürün çekin");
+          debug(`Son URL'den ürün alınıyor: ${lastUrl}`);
+          productToExport = await storage.getProduct(lastUrl);
         }
       }
       
-      // Ürün nesnesini tekrar al (eğer depoda değişklik olduysa)
-      const { product: productToExport } = req.body;
+      // Hala ürün bulunamadıysa hata döndür
+      if (!productToExport) {
+        debug("Hiçbir ürün bulunamadı");
+        return res.status(404).json({ 
+          message: "Ürün bulunamadı. Lütfen önce bir ürün çekin (Ürünü Getir butonuna tıklayın)." 
+        });
+      }
       
       // Ürün verilerini kontrol et
-      if (!productToExport || !productToExport.title || !productToExport.price) {
-        throw new Error("Gerekli ürün bilgileri eksik");
+      if (!productToExport.title || !productToExport.price) {
+        debug("Ürün verileri eksik", productToExport);
+        return res.status(400).json({ 
+          message: "Ürün bilgileri eksik. Lütfen tekrar ürün çekin." 
+        });
+      }
+      
+      debug(`Dışa aktarılacak ürün: ${productToExport.title}`);
+      if (productToExport.categories) {
+        debug(`Ürün kategorileri: ${productToExport.categories.join(', ')}`);
       }
 
       // productToExport kullan (product yerine)
@@ -1039,12 +1056,19 @@ export async function registerRoutes(app: Express) {
       const variants = productToExport.variants || {};
       const hasVariants = variants.sizes?.length > 0 || variants.colors?.length > 0;
 
+      // Hata ayıklama için varyant sayısını kaydet
+      debug(`Varyant kontrol: ${hasVariants ? 'Varyantlar var' : 'Varyant yok'}`);
+      if (variants.sizes) debug(`Beden sayısı: ${variants.sizes.length}`);
+      if (variants.colors) debug(`Renk sayısı: ${variants.colors.length}`);
+      
       if (hasVariants) {
         const sizes = variants.sizes || [];
         const colors = variants.colors || [];
 
-        if (sizes.length > 0) baseProduct.option1_name = categoryConfig.variantConfig.sizeLabel || 'Beden';
-        if (colors.length > 0) baseProduct.option2_name = categoryConfig.variantConfig.colorLabel || 'Renk';
+        debug(`Varyantlar: ${sizes.length} beden, ${colors.length} renk`);
+
+        if (sizes.length > 0) baseProduct.option1_name = categoryConfig.variantConfig?.sizeLabel || 'Beden';
+        if (colors.length > 0) baseProduct.option2_name = categoryConfig.variantConfig?.colorLabel || 'Renk';
 
         // Her beden için bir varyant oluştur - Shopify formatına uygun
         for (const size of sizes) {
@@ -1055,21 +1079,65 @@ export async function registerRoutes(app: Express) {
               option2_value: color || '',
               variant_sku: `${handle}-${size}${color ? `-${color}` : ''}`,
               variant_price: productToExport.price,
-              variant_inventory_qty: categoryConfig.variantConfig.defaultStock || 50
+              variant_inventory_qty: categoryConfig.variantConfig?.defaultStock || 50
             };
             csvRows.push(variant);
+            debug(`Varyant satırı eklendi: ${size} ${color || '-'}`);
           }
         }
       } else {
         // Varyantsız ürün için tek bir satır - Shopify formatına uygun
-        csvRows.push({
+        const defaultVariant = {
           ...baseProduct,
           option1_name: 'Title', // Tek varyantlı ürünler için gerekli
           option1_value: 'Default Title', // Tek varyantlı ürünler için gerekli
           variant_sku: handle,
           variant_price: productToExport.price,
-          variant_inventory_qty: categoryConfig.variantConfig.defaultStock || 50
-        });
+          variant_inventory_qty: categoryConfig.variantConfig?.defaultStock || 50
+        };
+        csvRows.push(defaultVariant);
+        debug(`Tek varyant satırı eklendi: ${handle}`);
+      }
+      
+      debug(`CSV satır sayısı (görseller hariç): ${csvRows.length}`);
+      
+      // CSV satırlarının var olup olmadığını kontrol et
+      if (csvRows.length === 0) {
+        debug("CSV satırları oluşturulamadı, manuel olarak ekle");
+        // Son çare: Her durumda en azından bir satır olmasını sağla
+        const manualRow = {
+          handle,
+          title: productToExport.title,
+          body: generateProductBody(productToExport.description, productToExport.attributes),
+          vendor: productToExport.categories[0] || 'Trendyol',
+          product_category: categoryConfig.shopifyCategory || 'Apparel & Accessories > Clothing',
+          type: productToExport.categories[productToExport.categories.length - 1] || 'Giyim',
+          tags: productTags.join(', '),
+          published: 'TRUE',
+          option1_name: 'Title',
+          option1_value: 'Default Title',
+          option2_name: '',
+          option2_value: '',
+          option3_name: '',
+          option3_value: '',
+          variant_sku: handle,
+          variant_grams: '500',
+          variant_inventory_tracker: 'shopify',
+          variant_inventory_qty: 50,
+          variant_inventory_policy: 'deny',
+          variant_fulfillment_service: 'manual',
+          variant_price: productToExport.price,
+          variant_compare_at_price: '',
+          variant_requires_shipping: 'TRUE',
+          variant_taxable: 'TRUE',
+          variant_barcode: '',
+          image_src: productToExport.images && productToExport.images.length > 0 ? productToExport.images[0] : '',
+          image_position: productToExport.images && productToExport.images.length > 0 ? '1' : '',
+          image_alt_text: productToExport.title,
+          status: 'active'
+        };
+        csvRows.push(manualRow);
+        debug("Manuel satır eklendi");
       }
 
       // Görselleri ekle
@@ -1196,11 +1264,35 @@ export async function registerRoutes(app: Express) {
         ]
       });
 
-      // CSV dosyasını yaz
-      await csvWriter.writeRecords(csvRows);
-
-      // CSV dosyasını gönder
-      res.download(join(tmpdir(), 'shopify_products.csv'), 'shopify_products.csv');
+      // Son kontrol
+      debug(`CSV yazılıyor: ${csvRows.length} satır oluşturuldu`);
+      
+      if (csvRows.length === 0) {
+        return res.status(400).json({ message: "CSV satırları oluşturulamadı, lütfen tekrar ürün çekin." });
+      }
+      
+      try {
+        // CSV dosyasını yaz
+        await csvWriter.writeRecords(csvRows);
+        
+        // CSV dosyasını oluşum durumunu kontrol et
+        const csvPath = join(tmpdir(), 'shopify_products.csv');
+        
+        // CSV dosyasının boyutunu ve içeriğini kontrol et
+        debug(`CSV yazıldı: ${csvPath}`);
+        
+        // CSV dosyasını gönder
+        res.download(csvPath, 'shopify_products.csv', (err) => {
+          if (err) {
+            debug("CSV indirme hatası:", err);
+            return res.status(500).json({ message: "CSV indirme hatası: " + err.message });
+          }
+          debug("CSV indirme başarılı");
+        });
+      } catch (csvError) {
+        debug("CSV yazma hatası:", csvError);
+        return res.status(500).json({ message: "CSV oluşturma hatası: " + csvError.message });
+      }
 
     } catch (error: any) {
       debug("CSV export hatası");
