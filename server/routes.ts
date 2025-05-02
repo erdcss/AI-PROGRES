@@ -365,8 +365,8 @@ async function scrapeProduct(url: string): Promise<InsertProduct> {
     }
 
     const basePrice = price;
-    const finalPrice = (basePrice * 1.15).toFixed(2);
-    debug(`İşlenmiş fiyat: ${finalPrice} (baz: ${basePrice})`);
+    const finalPrice = (basePrice * 1.10).toFixed(2);
+    debug(`İşlenmiş fiyat: ${finalPrice} (baz: ${basePrice}, kar marjı: %10)`);
 
     // Kategori bilgisini güncelle
     let categoryInfo = extractCategories($);
