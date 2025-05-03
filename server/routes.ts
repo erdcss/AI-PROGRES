@@ -789,6 +789,18 @@ function generateProductTags(product: InsertProduct, categoryConfig: any): strin
   
   debug(`Filtrelenmiş kategori listesi: ${filteredCategories.join(', ')}`);
   
+  // Shopify uyumluluğu için T-shirt etiketleri
+  const titleLower = (product.title || '').toLowerCase();
+  const isTshirt = titleLower.includes('tişört') || 
+                  titleLower.includes('t-shirt') || 
+                  titleLower.includes('t shirt');
+  
+  if (isTshirt) {
+    tags.push('T-Shirts');
+    tags.push('Apparel');
+    tags.push('Clothing');
+  }
+  
   // Breadcrumb'ı kullanarak etiketleri oluştur
   if (filteredCategories.length > 0) {
     // 1. Etiket: Üst kategori (breadcrumb'ın ilk öğesi)
@@ -797,7 +809,7 @@ function generateProductTags(product: InsertProduct, categoryConfig: any): strin
         .replace(/\s+/g, '')
         .substring(0, MAX_TAG_LENGTH);
       
-      if (ustKategori) {
+      if (ustKategori && !tags.includes(ustKategori)) {
         tags.push(ustKategori);
       }
     }
@@ -839,13 +851,13 @@ function generateProductTags(product: InsertProduct, categoryConfig: any): strin
             
           if (!tags.includes(colorTag)) {
             tags.push(colorTag);
-            if (tags.length >= 3) break;
+            if (tags.length >= 5) break;
           }
         }
       }
       
       // Hala 3'e ulaşamadıysak, diğer filtrelenmiş kategorileri ekle
-      for (let i = 2; i < filteredCategories.length - 1 && tags.length < 3; i++) {
+      for (let i = 2; i < filteredCategories.length - 1 && tags.length < 5; i++) {
         // Son öğeyi yukarıda zaten ekledik, burada atlıyoruz
         if (i !== filteredCategories.length - 1) {
           const categoryTag = filteredCategories[i]
