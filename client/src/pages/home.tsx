@@ -229,7 +229,7 @@ export default function Home() {
         >
           <div className="text-center mb-6">
             <Package className="w-10 h-10 mx-auto mb-3 text-primary" />
-            <h1 className="text-2xl font-bold mb-2">Trendyol Ürün Aktarıcı</h1>
+            <h1 className="text-2xl font-bold mb-2">Ürün Aktarıcı</h1>
             <p className="text-sm text-gray-400">Ürün verilerini Shopify'a uyumlu formata dönüştürün</p>
             <p className="text-xs text-gray-500 mt-2">ERDEM ÇALIŞGAN tarafından geliştirilmiştir</p>
           </div>
@@ -270,7 +270,7 @@ export default function Home() {
                 </Button>
               )}
               <Input
-                placeholder="Trendyol ürün URL'sini girin..."
+                placeholder="Ürün URL'sini girin..."
                 {...form.register("url")}
                 className={`text-xs p-4 bg-gray-900 border-gray-800 rounded-lg w-full truncate pr-12 ${form.watch("url") ? "pl-10" : ""}`}
               />
@@ -300,7 +300,7 @@ export default function Home() {
                 <CardContent className="p-4 space-y-4">
                   <div className="flex justify-between items-center">
                     <div className="text-xs text-gray-400">
-                      {product.fullCategoryPath ? product.fullCategoryPath.join(" / ") : ["Trendyol", ...product.categories].join(" / ")}
+                      {product.fullCategoryPath ? product.fullCategoryPath.join(" / ") : ["Ana Kategori", ...product.categories].join(" / ")}
                     </div>
                     
                     <Button
@@ -491,7 +491,7 @@ export default function Home() {
                                   <th className="text-left p-2">Price</th>
                                   <th className="text-left p-2">Images</th>
                                   <th className="text-left p-2">Shopify Category</th>
-                                  <th className="text-left p-2">Trendyol Category</th>
+                                  <th className="text-left p-2">Kaynak Kategori</th>
                                 </tr>
                               </thead>
                               <tbody>
@@ -499,7 +499,7 @@ export default function Home() {
                                   <td className="p-2">{product?.title?.toLowerCase().replace(/\s+/g, '-')}</td>
                                   <td className="p-2">{product?.title}</td>
                                   <td className="p-2">{product?.description || '-'}</td>
-                                  <td className="p-2">{product?.categories[0] || 'Trendyol'}</td>
+                                  <td className="p-2">turmarkt</td>
                                   <td className="p-2">{product?.price} TL</td>
                                   <td className="p-2">
                                     {product?.images?.length || 0} görsel
@@ -533,7 +533,7 @@ export default function Home() {
                   <div className="mt-2 px-3 py-2 text-xs bg-gray-800/50 rounded-md space-y-2">
                     <div className="flex items-center gap-2">
                       <Package className="h-3 w-3 text-primary" />
-                      <span className="text-gray-400">Trendyol Kategori:</span>
+                      <span className="text-gray-400">Kaynak Kategori:</span>
                     </div>
                     <div className="font-medium text-xs">
                       {product.fullCategoryPath ? 
