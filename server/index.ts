@@ -3,10 +3,8 @@ import { registerRoutes } from "./routes";
 import { setupVite, serveStatic, log } from "./vite";
 import * as pathModule from "path";
 import { fileURLToPath } from 'url';
-import * as http from 'http';
 
 console.log("Uygulama başlatılıyor...");
-console.log("NODE_ENV:", process.env.NODE_ENV || "development");
 
 const app = express();
 app.use(express.json());
@@ -26,15 +24,14 @@ app.get('/', (req, res) => {
 app.get('/webview', (req, res) => {
   res.send(`
     <!DOCTYPE html>
-    <html lang="tr">
+    <html lang="en">
       <head>
         <meta charset="UTF-8" />
         <meta name="viewport" content="width=device-width, initial-scale=1.0" />
         <title>Ürün Çekme Uygulaması</title>
         <style>
-          @import url('https://fonts.googleapis.com/css2?family=Roboto:wght@400;700&display=swap');
           body { 
-            font-family: 'Roboto', Arial, sans-serif; 
+            font-family: Arial, sans-serif; 
             background-color: #121212; 
             color: white;
             display: flex;
@@ -47,23 +44,13 @@ app.get('/webview', (req, res) => {
             text-align: center;
             padding: 2rem;
           }
-          h1 { 
-            color: #bb86fc;
-            font-size: 2.4rem;
-            margin-bottom: 1.5rem;
-          }
-          p { 
-            margin: 0.7rem 0;
-            font-size: 1.1rem;
-          }
+          h1 { color: #bb86fc; }
+          p { margin: 1rem 0; }
           a { 
-            color: #00ff99; 
+            color: #03dac6; 
             text-decoration: none; 
           }
-          a:hover { 
-            color: #4ecca3;
-            text-decoration: underline; 
-          }
+          a:hover { text-decoration: underline; }
         </style>
       </head>
       <body>
@@ -74,26 +61,6 @@ app.get('/webview', (req, res) => {
           <p>Ürün API URL: <a href="/api/product">/api/product</a></p>
           <p>Geçmiş API URL: <a href="/api/history">/api/history</a></p>
         </div>
-        <script>
-          // Sayfa yüklendiğinde bir efekt ekleyelim
-          document.addEventListener('DOMContentLoaded', function() {
-            const heading = document.querySelector('h1');
-            heading.style.opacity = '0';
-            
-            setTimeout(() => {
-              heading.style.transition = 'opacity 0.8s ease-in-out';
-              heading.style.opacity = '1';
-            }, 100);
-            
-            // Link renklerini değiştiren efekt
-            const links = document.querySelectorAll('a');
-            links.forEach(link => {
-              link.addEventListener('mouseover', () => {
-                link.style.transition = 'color 0.3s ease';
-              });
-            });
-          });
-        </script>
       </body>
     </html>
   `);
@@ -150,32 +117,17 @@ app.use((req, res, next) => {
     serveStatic(app);
   }
 
-  // Production port for deployment
-  const productionPort = 3000;
-  
-  // Start the main server on port 3000 for deployment
+  // Serving the app on port 5000
+  // this serves both the API and the client.
+  // Port 5000 is expected by the Replit workflow
+  const port = 5000; // Portu 5000 olarak ayarlıyoruz
   server.listen({
-    port: productionPort,
+    port,
     host: "0.0.0.0",
     reusePort: true,
   }, () => {
-    log(`serving on port ${productionPort}`);
-    console.log(`Server is running at http://localhost:${productionPort}`);
+    log(`serving on port ${port}`);
+    console.log(`Server is running at http://localhost:${port}`);
     console.log(`Please visit /webview to see the application!`);
-    
-    // Check if we're in development mode (not production) to start a duplicate server on port 5000
-    if (process.env.NODE_ENV !== 'production') {
-      // Create a new HTTP server for Replit development environment
-      const devServer = http.createServer((req: http.IncomingMessage, res: http.ServerResponse) => {
-        // Redirect all requests from port 5000 to our actual server on port 3000
-        res.writeHead(302, { 'Location': `http://localhost:${productionPort}${req.url || ''}` });
-        res.end();
-      });
-      
-      // Listen on port 5000 to satisfy the Replit workflow checker
-      devServer.listen(5000, '0.0.0.0', () => {
-        console.log(`Development proxy server running on port 5000 -> redirecting to port ${productionPort}`);
-      });
-    }
   });
 })();
