@@ -2,9 +2,16 @@ import express, { type Request, Response, NextFunction } from "express";
 import { registerRoutes } from "./routes";
 import { setupVite, serveStatic, log } from "./vite";
 
+console.log("Uygulama başlatılıyor...");
+
 const app = express();
 app.use(express.json());
 app.use(express.urlencoded({ extended: false }));
+
+// Ana sayfa için basit bir rota ekleyelim
+app.get('/', (req, res) => {
+  res.send('Ürün Çekme Uygulaması Çalışıyor! API rotalarını kullanabilirsiniz.');
+});
 
 app.use((req, res, next) => {
   const start = Date.now();
