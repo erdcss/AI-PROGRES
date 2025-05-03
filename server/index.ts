@@ -26,14 +26,15 @@ app.get('/', (req, res) => {
 app.get('/webview', (req, res) => {
   res.send(`
     <!DOCTYPE html>
-    <html lang="en">
+    <html lang="tr">
       <head>
         <meta charset="UTF-8" />
         <meta name="viewport" content="width=device-width, initial-scale=1.0" />
         <title>Ürün Çekme Uygulaması</title>
         <style>
+          @import url('https://fonts.googleapis.com/css2?family=Roboto:wght@400;700&display=swap');
           body { 
-            font-family: Arial, sans-serif; 
+            font-family: 'Roboto', Arial, sans-serif; 
             background-color: #121212; 
             color: white;
             display: flex;
@@ -46,13 +47,23 @@ app.get('/webview', (req, res) => {
             text-align: center;
             padding: 2rem;
           }
-          h1 { color: #bb86fc; }
-          p { margin: 1rem 0; }
+          h1 { 
+            color: #bb86fc;
+            font-size: 2.4rem;
+            margin-bottom: 1.5rem;
+          }
+          p { 
+            margin: 0.7rem 0;
+            font-size: 1.1rem;
+          }
           a { 
-            color: #03dac6; 
+            color: #00ff99; 
             text-decoration: none; 
           }
-          a:hover { text-decoration: underline; }
+          a:hover { 
+            color: #4ecca3;
+            text-decoration: underline; 
+          }
         </style>
       </head>
       <body>
@@ -63,6 +74,26 @@ app.get('/webview', (req, res) => {
           <p>Ürün API URL: <a href="/api/product">/api/product</a></p>
           <p>Geçmiş API URL: <a href="/api/history">/api/history</a></p>
         </div>
+        <script>
+          // Sayfa yüklendiğinde bir efekt ekleyelim
+          document.addEventListener('DOMContentLoaded', function() {
+            const heading = document.querySelector('h1');
+            heading.style.opacity = '0';
+            
+            setTimeout(() => {
+              heading.style.transition = 'opacity 0.8s ease-in-out';
+              heading.style.opacity = '1';
+            }, 100);
+            
+            // Link renklerini değiştiren efekt
+            const links = document.querySelectorAll('a');
+            links.forEach(link => {
+              link.addEventListener('mouseover', () => {
+                link.style.transition = 'color 0.3s ease';
+              });
+            });
+          });
+        </script>
       </body>
     </html>
   `);
