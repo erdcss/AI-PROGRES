@@ -220,6 +220,7 @@ export default function Home() {
             <h1 className="text-2xl font-bold mb-2">Ürün Aktarıcı</h1>
             <p className="text-sm text-gray-400">Ürün verilerini Shopify'a uyumlu formata dönüştürün</p>
             <p className="text-xs text-gray-500 mt-2">ERDEM ÇALIŞGAN tarafından geliştirilmiştir</p>
+            <p className="text-xs text-gray-600 mt-1">Versiyon 0.13.1001</p>
           </div>
 
           {error && (

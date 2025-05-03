@@ -89,30 +89,40 @@ async function fetchProductPage(url: string): Promise<cheerio.CheerioAPI> {
 }
 
 function normalizeImageUrl(url: string): string {
+  // Varsayılan görsel URL'si - eğer tüm kontroller başarısız olursa kullanılacak
+  const DEFAULT_IMAGE_URL = "https://cdn.dsmcdn.com/assets/product/media/images/no-image-v2.png";
+  
   try {
     // Boş URL kontrolü
     if (!url || typeof url !== 'string' || url.trim() === '') {
-      debug(`Boş URL geçildi`);
-      return '';
+      debug(`Boş URL geçildi, varsayılan görsel kullanılıyor`);
+      return DEFAULT_IMAGE_URL;
     }
     
+    // URL'den parametreleri temizle
     url = url.split('?')[0];
 
     // Geçersiz URL'leri kontrol et
     if (url.match(/\.(mp4|webm|ogg|mov)$/i)) {
       debug(`Video dosyası filtrelendi: ${url}`);
-      return '';
+      return DEFAULT_IMAGE_URL;
     }
 
     // URL'nin desteklenen bir resim formatı olup olmadığını kontrol et
-    if (!url.match(/\.(jpg|jpeg|png|webp)$/i)) {
+    if (!url.match(/\.(jpg|jpeg|png|webp|gif|svg)$/i)) {
       // .jpg ekle - bazı URL'ler uzantı içermiyor
       if (!url.includes('.')) {
         url += '.jpg';
         debug(`URL'ye .jpg uzantısı eklendi: ${url}`);
       } else {
-        debug(`Desteklenmeyen dosya formatı: ${url}`);
-        return '';
+        // Uzantısı olmayan ama nokta içeren URL'ler için de .jpg ekle
+        if (!url.split('.').pop()?.match(/jpg|jpeg|png|webp|gif|svg/i)) {
+          url += '.jpg';
+          debug(`URL'ye .jpg uzantısı eklendi (nokta içeriyordu): ${url}`);
+        } else {
+          debug(`Desteklenmeyen dosya formatı: ${url}`);
+          return DEFAULT_IMAGE_URL;
+        }
       }
     }
 
@@ -136,12 +146,19 @@ function normalizeImageUrl(url: string): string {
     if (!url.includes('_org_zoom')) {
       url = url.replace(/\.(jpg|jpeg|png|webp)$/, '_org_zoom.$1');
     }
-
-    debug(`Normalize edilmiş görsel URL: ${url}`);
-    return url;
+    
+    // Son bir URL kontrolü yap
+    try {
+      new URL(url);
+      debug(`Normalize edilmiş görsel URL: ${url}`);
+      return url;
+    } catch (urlError) {
+      debug(`Geçersiz URL oluşturuldu, varsayılan görsel kullanılıyor: ${url}`);
+      return DEFAULT_IMAGE_URL;
+    }
   } catch (error: any) {
-    debug(`URL normalizasyon hatası: ${error.message}`);
-    return '';
+    debug(`URL normalizasyon hatası: ${error.message}, varsayılan görsel kullanılıyor`);
+    return DEFAULT_IMAGE_URL;
   }
 }
 
