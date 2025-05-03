@@ -1024,16 +1024,16 @@ export async function registerRoutes(app: Express) {
         variant_inventory_tracker: 'shopify',
         variant_inventory_qty: categoryConfig.variantConfig?.defaultStock || 50,
         variant_inventory_policy: 'deny',
-        variant_fulfillment_service: 'manual',
+        variant_fulfillment_service: 'manual', // Zorunlu alan
         variant_price: productToExport.price, // Fiyat alanını açıkça belirle
         variant_compare_at_price: '', // Compare at price değil normal fiyat kullan
-        variant_requires_shipping: 'true',
-        variant_taxable: 'true',
+        variant_requires_shipping: 'true', // Boolean değer küçük harfle
+        variant_taxable: 'true', // Boolean değer küçük harfle
         variant_barcode: '',
         image_src: '',
         image_position: '',
         image_alt_text: productToExport.title || '',
-        gift_card: 'false',
+        gift_card: 'false', // Boolean değer küçük harfle
         seo_title: productToExport.title || '',
         seo_description: productToExport.description || '',
         google_shopping_metafields: categoryConfig.shopifyCategory || '',
@@ -1228,6 +1228,11 @@ export async function registerRoutes(app: Express) {
               processed += '.jpg';
             }
             
+            // CDN URL'lerini HTTP yerine HTTPS olarak ayarla
+            if (processed.startsWith('http://') && processed.includes('cdn.')) {
+              processed = processed.replace('http://', 'https://');
+            }
+            
             return processed;
           })
           // Görsel sayısını sınırla
@@ -1307,11 +1312,28 @@ export async function registerRoutes(app: Express) {
           });
         }
         
-        // Son kontrol - boş görsel URL'lerini varsayılan ile değiştir
+        // Son kontrol - boş görsel URL'lerini varsayılan ile değiştir ve boolean değerleri kontrol et
         csvRows.forEach((row: any) => {
+          // Görsel URL kontrol
           if (!row.image_src || row.image_src.trim() === '') {
             row.image_src = DEFAULT_IMAGE_URL;
           }
+          
+          // Boolean değerleri küçük harfe çevir - Shopify'ın beklediği format
+          if (row.published === 'TRUE') row.published = 'true';
+          if (row.published === 'FALSE') row.published = 'false';
+          
+          if (row.variant_requires_shipping === 'TRUE') row.variant_requires_shipping = 'true';
+          if (row.variant_requires_shipping === 'FALSE') row.variant_requires_shipping = 'false';
+          
+          if (row.variant_taxable === 'TRUE') row.variant_taxable = 'true';
+          if (row.variant_taxable === 'FALSE') row.variant_taxable = 'false';
+          
+          if (row.gift_card === 'TRUE') row.gift_card = 'true';
+          if (row.gift_card === 'FALSE') row.gift_card = 'false';
+          
+          // Variant Fulfillment Service alanı zorunlu olarak 'manual' olmalı
+          row.variant_fulfillment_service = 'manual';
         });
         
         debug(`CSV görsel ekleme tamamlandı: ${productImages.length} görsel eklendi`);
