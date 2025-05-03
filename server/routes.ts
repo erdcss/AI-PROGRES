@@ -12,6 +12,11 @@ import { tmpdir } from 'os';
 import { join } from 'path';
 import * as fs from 'fs';
 
+// Uygulama sabitleri ve yapılandırmaları
+const DEFAULT_IMAGE_URL = "https://cdn.dsmcdn.com/assets/product/media/images/no-image-v2.png"; // Varsayılan görsel URL
+const MAX_IMAGES = 8; // Shopify'a eklenecek maksimum görsel sayısı
+const APP_VERSION = "0.13.1002"; // Yeni sürüm numarası (CSV görsel iyileştirmeleri)
+
 function debug(message: string, ...args: any[]) {
   console.log(`[DEBUG] ${message}`, ...args);
 }
@@ -89,8 +94,7 @@ async function fetchProductPage(url: string): Promise<cheerio.CheerioAPI> {
 }
 
 function normalizeImageUrl(url: string): string {
-  // Varsayılan görsel URL'si - eğer tüm kontroller başarısız olursa kullanılacak
-  const DEFAULT_IMAGE_URL = "https://cdn.dsmcdn.com/assets/product/media/images/no-image-v2.png";
+  // Global değişkeni kullan - bu fonksiyon içinde tekrar tanımlamaya gerek yok
   
   try {
     // Boş URL kontrolü
@@ -1091,13 +1095,17 @@ export async function registerRoutes(app: Express) {
       if (csvRows.length === 0) {
         debug("CSV satırları oluşturulamadı, manuel olarak ekle");
         // Son çare: Her durumda en azından bir satır olmasını sağla
+        const DEFAULT_IMAGE_URL = "https://cdn.dsmcdn.com/assets/product/media/images/no-image-v2.png";
+        
         const manualRow = {
           handle,
-          title: productToExport.title,
+          title: productToExport.title || "Ürün",
           body: generateProductBody(productToExport.description, productToExport.attributes),
           vendor: 'turmarkt', // Tüm ürünler için sabit satıcı adı
           product_category: categoryConfig.shopifyCategory || 'Apparel & Accessories > Clothing',
-          type: productToExport.categories[productToExport.categories.length - 1] || 'Giyim',
+          type: productToExport.categories && productToExport.categories.length > 0 
+            ? productToExport.categories[productToExport.categories.length - 1] 
+            : 'Giyim',
           tags: productTags.join(','),
           published: 'TRUE',
           option1_name: 'Title',
@@ -1112,65 +1120,86 @@ export async function registerRoutes(app: Express) {
           variant_inventory_qty: 50,
           variant_inventory_policy: 'deny',
           variant_fulfillment_service: 'manual',
-          variant_price: productToExport.price,
+          variant_price: productToExport.price || "0",
           variant_compare_at_price: '',
           variant_requires_shipping: 'TRUE',
           variant_taxable: 'TRUE',
           variant_barcode: '',
-          image_src: "https://cdn.dsmcdn.com/assets/product/media/images/no-image-v2.png", // Varsayılan görsel her zaman ekleniyor
+          image_src: DEFAULT_IMAGE_URL,
           image_position: "1",
-          image_alt_text: productToExport.title,
+          image_alt_text: (productToExport.title || "Ürün"),
+          gift_card: 'FALSE',
           status: 'active'
         };
+        
         csvRows.push(manualRow);
-        debug("Manuel satır eklendi");
+        debug("Manuel satır eklendi, varsayılan görsel kullanıldı");
       }
 
-      // Görselleri filtreleme - geçersiz URL'leri temizle
+      // ******************************************
+      // ** GÖRSEL İŞLEME - CSV için görsel URL'lerini hazırla **
+      // ******************************************
+      
+      // MAX_IMAGES sabiti yukarıda tanımlandı
+      
+      // CSV için görsellerimizi hazırlayalım
+      debug(`Görsel işleme başlıyor: ${productToExport.images ? productToExport.images.length : 0} adet görsel var`);
+      
+      // Görsel URL'lerini işle ve geçerli olanları filtrele
       let validImages: string[] = [];
-      if (productToExport.images && productToExport.images.length > 0) {
-        // Her bir görsel URL'sini kontrol et - boş veya geçersiz URL'leri filtrele
-        validImages = productToExport.images.filter((url: string) => {
-          // Boş URL kontrolü
-          if (!url || url.trim() === '') {
-            debug(`Boş URL bulundu ve filtrelendi`);
-            return false;
-          }
-          
-          try {
-            // URL formatı kontrolü
-            new URL(url);
-            return true;
-          } catch(e) {
-            debug(`Geçersiz URL filtrelendi: ${url}`);
-            return false;
-          }
-        });
-        
-        debug(`Geçerli URL sayısı: ${validImages.length}, toplam: ${productToExport.images.length}`);
+      
+      if (productToExport.images && Array.isArray(productToExport.images)) {
+        validImages = productToExport.images
+          // Boş ve geçersiz URL'leri filtrele
+          .filter((url: string) => {
+            if (!url || typeof url !== 'string' || url.trim() === '') {
+              return false;
+            }
+            
+            try {
+              new URL(url);
+              return true;
+            } catch (e) {
+              debug(`Geçersiz URL: ${url}`);
+              return false;
+            }
+          })
+          // URL'leri normalize et
+          .map((url: string) => {
+            let processed = url.trim();
+            
+            // Görsel uzantısı ekle - bazı URL'ler uzantısız olabiliyor
+            if (!processed.match(/\.(jpg|jpeg|png|webp|gif|svg)$/i)) {
+              processed += '.jpg';
+            }
+            
+            return processed;
+          })
+          // Görsel sayısını sınırla
+          .slice(0, MAX_IMAGES);
       }
       
-      // Görseller var ve en az bir geçerli görsel bulundu
-      if (validImages.length > 0 && csvRows.length > 0) {
-        // En az bir geçerli görsel var - ilk görsel ana ürün varyantı için
-        const firstRow = {
+      debug(`Geçerli görsel sayısı: ${validImages.length}`);
+      
+      // En az bir görsel olduğundan emin ol
+      const productImages = validImages.length > 0 
+        ? validImages 
+        : [DEFAULT_IMAGE_URL];
+      
+      // İlk satıra ana görseli ekle
+      if (csvRows.length > 0) {
+        csvRows[0] = {
           ...csvRows[0],
-          image_src: validImages[0],
+          image_src: productImages[0],
           image_position: '1'
         };
-        csvRows[0] = firstRow;
-
-        // Diğer görseller için yeni satırlar - Tam Shopify formatına uygun
-        for (let i = 1; i < validImages.length; i++) {
-          // URL'nin boş olmadığını kontrol et
-          if (!validImages[i] || validImages[i].trim() === '') {
-            debug(`${i+1}. görsel URL'si boş, atlanıyor`);
-            continue;
-          }
+        
+        // Diğer görseller için ek satırlar ekle
+        for (let i = 1; i < productImages.length; i++) {
+          if (!productImages[i]) continue;
           
-          // Shopify gerçek CSV örneğine göre, ek görseller için sadece handle ve görsel bilgileri
-          const imageLine = {
-            handle, // Handle mutlaka eklenmeli
+          csvRows.push({
+            handle, // Handle hep sabit olmalı
             title: '',
             body: '',
             vendor: '',
@@ -1195,9 +1224,9 @@ export async function registerRoutes(app: Express) {
             variant_requires_shipping: '',
             variant_taxable: '',
             variant_barcode: '',
-            image_src: validImages[i],
+            image_src: productImages[i],
             image_position: (i + 1).toString(),
-            image_alt_text: `${productToExport.title} - Görsel ${i + 1}`,
+            image_alt_text: `${productToExport.title || 'Ürün'} - Görsel ${i + 1}`,
             gift_card: '',
             seo_title: '',
             seo_description: '',
@@ -1219,21 +1248,17 @@ export async function registerRoutes(app: Express) {
             variant_tax_code: '',
             cost_per_item: '',
             status: ''
-          };
-          
-          csvRows.push(imageLine);
+          });
         }
-      } else if (csvRows.length > 0) {
-        // Hiç geçerli görsel bulunamadı - varsayılan bir görsel ekle
-        debug(`Hiç geçerli görsel bulunamadı, varsayılan görsel kullanılıyor`);
-        const defaultImageUrl = "https://cdn.dsmcdn.com/assets/product/media/images/no-image-v2.png";
         
-        // CSV'nin ilk satırına varsayılan görseli ekle
-        csvRows[0] = {
-          ...csvRows[0],
-          image_src: defaultImageUrl,
-          image_position: '1'
-        };
+        // Son kontrol - boş görsel URL'lerini varsayılan ile değiştir
+        csvRows.forEach((row: any) => {
+          if (!row.image_src || row.image_src.trim() === '') {
+            row.image_src = DEFAULT_IMAGE_URL;
+          }
+        });
+        
+        debug(`CSV görsel ekleme tamamlandı: ${productImages.length} görsel eklendi`);
       }
 
       // CSV başlıklarını oluştur - Shopify'dan alınan örnek dosyaya göre
