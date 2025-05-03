@@ -15,56 +15,8 @@ app.get('/api', (req, res) => {
   res.send('Ürün Çekme Uygulaması API Çalışıyor! API rotalarını kullanabilirsiniz.');
 });
 
-// Ana sayfayı Replit WebView'a yönlendirelim
-app.get('/', (req, res) => {
-  res.redirect('/webview');
-});
-
-// '/webview' rotasını ekleyelim
-app.get('/webview', (req, res) => {
-  res.send(`
-    <!DOCTYPE html>
-    <html lang="en">
-      <head>
-        <meta charset="UTF-8" />
-        <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-        <title>Ürün Çekme Uygulaması</title>
-        <style>
-          body { 
-            font-family: Arial, sans-serif; 
-            background-color: #121212; 
-            color: white;
-            display: flex;
-            justify-content: center;
-            align-items: center;
-            height: 100vh;
-            margin: 0;
-          }
-          .container {
-            text-align: center;
-            padding: 2rem;
-          }
-          h1 { color: #bb86fc; }
-          p { margin: 1rem 0; }
-          a { 
-            color: #03dac6; 
-            text-decoration: none; 
-          }
-          a:hover { text-decoration: underline; }
-        </style>
-      </head>
-      <body>
-        <div class="container">
-          <h1>Ürün Çekme Uygulaması</h1>
-          <p>Uygulama başarıyla çalışıyor!</p>
-          <p>API URL'si: <a href="/api">/api</a></p>
-          <p>Ürün API URL: <a href="/api/product">/api/product</a></p>
-          <p>Geçmiş API URL: <a href="/api/history">/api/history</a></p>
-        </div>
-      </body>
-    </html>
-  `);
-});
+// Vite geliştirme ortamında React uygulamasını kullan
+// Rotaları Vite ve setupVite tarafından yönetilecek şekilde bırakalım
 
 app.use((req, res, next) => {
   const start = Date.now();
@@ -128,6 +80,6 @@ app.use((req, res, next) => {
   }, () => {
     log(`serving on port ${port}`);
     console.log(`Server is running at http://localhost:${port}`);
-    console.log(`Please visit /webview to see the application!`);
+    console.log(`Please visit the application at http://localhost:${port}`);
   });
 })();
