@@ -1100,8 +1100,8 @@ export async function registerRoutes(app: Express) {
           variant_requires_shipping: 'TRUE',
           variant_taxable: 'TRUE',
           variant_barcode: '',
-          image_src: productToExport.images && productToExport.images.length > 0 ? productToExport.images[0] : '',
-          image_position: productToExport.images && productToExport.images.length > 0 ? '1' : '',
+          image_src: "https://cdn.dsmcdn.com/assets/product/media/images/no-image-v2.png", // Varsayılan görsel her zaman ekleniyor
+          image_position: "1",
           image_alt_text: productToExport.title,
           status: 'active'
         };
@@ -1109,18 +1109,48 @@ export async function registerRoutes(app: Express) {
         debug("Manuel satır eklendi");
       }
 
-      // Görselleri ekle
-      if (productToExport.images && productToExport.images.length > 0 && csvRows.length > 0) {
-        // İlk görsel ana ürün varyantı için
+      // Görselleri filtreleme - geçersiz URL'leri temizle
+      let validImages: string[] = [];
+      if (productToExport.images && productToExport.images.length > 0) {
+        // Her bir görsel URL'sini kontrol et - boş veya geçersiz URL'leri filtrele
+        validImages = productToExport.images.filter((url: string) => {
+          // Boş URL kontrolü
+          if (!url || url.trim() === '') {
+            debug(`Boş URL bulundu ve filtrelendi`);
+            return false;
+          }
+          
+          try {
+            // URL formatı kontrolü
+            new URL(url);
+            return true;
+          } catch(e) {
+            debug(`Geçersiz URL filtrelendi: ${url}`);
+            return false;
+          }
+        });
+        
+        debug(`Geçerli URL sayısı: ${validImages.length}, toplam: ${productToExport.images.length}`);
+      }
+      
+      // Görseller var ve en az bir geçerli görsel bulundu
+      if (validImages.length > 0 && csvRows.length > 0) {
+        // En az bir geçerli görsel var - ilk görsel ana ürün varyantı için
         const firstRow = {
           ...csvRows[0],
-          image_src: productToExport.images[0],
+          image_src: validImages[0],
           image_position: '1'
         };
         csvRows[0] = firstRow;
 
         // Diğer görseller için yeni satırlar - Tam Shopify formatına uygun
-        for (let i = 1; i < productToExport.images.length; i++) {
+        for (let i = 1; i < validImages.length; i++) {
+          // URL'nin boş olmadığını kontrol et
+          if (!validImages[i] || validImages[i].trim() === '') {
+            debug(`${i+1}. görsel URL'si boş, atlanıyor`);
+            continue;
+          }
+          
           // Shopify gerçek CSV örneğine göre, ek görseller için sadece handle ve görsel bilgileri
           const imageLine = {
             handle, // Handle mutlaka eklenmeli
@@ -1148,7 +1178,7 @@ export async function registerRoutes(app: Express) {
             variant_requires_shipping: '',
             variant_taxable: '',
             variant_barcode: '',
-            image_src: productToExport.images[i],
+            image_src: validImages[i],
             image_position: (i + 1).toString(),
             image_alt_text: `${productToExport.title} - Görsel ${i + 1}`,
             gift_card: '',
@@ -1173,8 +1203,20 @@ export async function registerRoutes(app: Express) {
             cost_per_item: '',
             status: ''
           };
+          
           csvRows.push(imageLine);
         }
+      } else if (csvRows.length > 0) {
+        // Hiç geçerli görsel bulunamadı - varsayılan bir görsel ekle
+        debug(`Hiç geçerli görsel bulunamadı, varsayılan görsel kullanılıyor`);
+        const defaultImageUrl = "https://cdn.dsmcdn.com/assets/product/media/images/no-image-v2.png";
+        
+        // CSV'nin ilk satırına varsayılan görseli ekle
+        csvRows[0] = {
+          ...csvRows[0],
+          image_src: defaultImageUrl,
+          image_position: '1'
+        };
       }
 
       // CSV başlıklarını oluştur - Shopify'dan alınan örnek dosyaya göre
