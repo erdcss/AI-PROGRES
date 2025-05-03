@@ -15,7 +15,7 @@ import * as fs from 'fs';
 // Uygulama sabitleri ve yapılandırmaları
 const DEFAULT_IMAGE_URL = "https://cdn.dsmcdn.com/assets/product/media/images/no-image-v2.png"; // Varsayılan görsel URL
 const MAX_IMAGES = 8; // Shopify'a eklenecek maksimum görsel sayısı
-const APP_VERSION = "0.13.1005"; // Yeni sürüm numarası (Shopify seçenek değeri düzeltmesi geliştirildi)
+const APP_VERSION = "0.13.1006"; // Yeni sürüm numarası (Shopify inventory policy ve fulfillment hatası düzeltmesi)
 const MAX_TAG_LENGTH = 50; // Etiketlerin maksimum uzunluğu
 
 function debug(message: string, ...args: any[]) {
@@ -1000,7 +1000,7 @@ export async function registerRoutes(app: Express) {
         product_category: categoryConfig.shopifyCategory || 'Apparel & Accessories > Clothing',
         type: productToExport.categories[productToExport.categories.length - 1] || 'Giyim',
         tags: productTags.join(','),
-        published: 'TRUE', // Her zaman yayınlanmış olmalı
+        published: 'true', // Her zaman yayınlanmış olmalı - true olarak değiştirildi (küçük harf)
         option1_name: 'Title', // Varsayılan olarak en az bir seçenek gerekiyor
         option1_value: 'Default Title', // Varsayılan değer
         option2_name: '',
@@ -1015,13 +1015,13 @@ export async function registerRoutes(app: Express) {
         variant_fulfillment_service: 'manual',
         variant_price: productToExport.price, // Fiyat alanını açıkça belirle
         variant_compare_at_price: '', // Compare at price değil normal fiyat kullan
-        variant_requires_shipping: 'TRUE',
-        variant_taxable: 'TRUE',
+        variant_requires_shipping: 'true',
+        variant_taxable: 'true',
         variant_barcode: '',
         image_src: '',
         image_position: '',
         image_alt_text: productToExport.title || '',
-        gift_card: 'FALSE',
+        gift_card: 'false',
         seo_title: productToExport.title || '',
         seo_description: productToExport.description || '',
         google_shopping_metafields: categoryConfig.shopifyCategory || '',
@@ -1068,10 +1068,14 @@ export async function registerRoutes(app: Express) {
               for (const color of colors) {
                 const variant = {
                   ...baseProduct,
+                  option1_name: categoryConfig.variantConfig?.sizeLabel || 'Beden',
                   option1_value: size,
+                  option2_name: categoryConfig.variantConfig?.colorLabel || 'Renk',
                   option2_value: color || '',
                   variant_sku: `${handle}-${size}${color ? `-${color}` : ''}`,
                   variant_price: productToExport.price,
+                  variant_inventory_policy: 'deny', // Shopify için gerekli
+                  variant_fulfillment_service: 'manual', // Shopify için gerekli
                   variant_inventory_qty: categoryConfig.variantConfig?.defaultStock || 50,
                   status: 'active'
                 };
@@ -1081,9 +1085,12 @@ export async function registerRoutes(app: Express) {
             } else {
               const variant = {
                 ...baseProduct,
+                option1_name: categoryConfig.variantConfig?.sizeLabel || 'Beden',
                 option1_value: size,
                 variant_sku: `${handle}-${size}`,
                 variant_price: productToExport.price,
+                variant_inventory_policy: 'deny', // Shopify için gerekli
+                variant_fulfillment_service: 'manual', // Shopify için gerekli
                 variant_inventory_qty: categoryConfig.variantConfig?.defaultStock || 50,
                 status: 'active'
               };
@@ -1099,6 +1106,8 @@ export async function registerRoutes(app: Express) {
               option1_value: color,
               variant_sku: `${handle}-${color}`,
               variant_price: productToExport.price,
+              variant_inventory_policy: 'deny', // Shopify için gerekli
+              variant_fulfillment_service: 'manual', // Shopify için gerekli
               variant_inventory_qty: categoryConfig.variantConfig?.defaultStock || 50,
               status: 'active'
             };
@@ -1114,6 +1123,8 @@ export async function registerRoutes(app: Express) {
           option1_value: 'Default Title', // Tek varyantlı ürünler için gerekli
           variant_sku: handle,
           variant_price: productToExport.price,
+          variant_inventory_policy: 'deny', // Shopify için gerekli
+          variant_fulfillment_service: 'manual', // Shopify için gerekli
           variant_inventory_qty: categoryConfig.variantConfig?.defaultStock || 50,
           status: 'active' // Aktif durumda olduğunu belirt
         };
@@ -1139,7 +1150,7 @@ export async function registerRoutes(app: Express) {
             ? productToExport.categories[productToExport.categories.length - 1] 
             : 'Giyim',
           tags: productTags.join(','),
-          published: 'TRUE',
+          published: 'true',
           option1_name: 'Title',
           option1_value: 'Default Title',
           option2_name: '',
@@ -1154,13 +1165,13 @@ export async function registerRoutes(app: Express) {
           variant_fulfillment_service: 'manual',
           variant_price: productToExport.price || "0",
           variant_compare_at_price: '',
-          variant_requires_shipping: 'TRUE',
-          variant_taxable: 'TRUE',
+          variant_requires_shipping: 'true',
+          variant_taxable: 'true',
           variant_barcode: '',
           image_src: DEFAULT_IMAGE_URL,
           image_position: "1",
           image_alt_text: (productToExport.title || "Ürün"),
-          gift_card: 'FALSE',
+          gift_card: 'false',
           status: 'active'
         };
         
@@ -1239,7 +1250,7 @@ export async function registerRoutes(app: Express) {
             product_category: '',
             type: '',
             tags: '',
-            published: 'TRUE', // Görsellerin de yayınlanması gerekiyor
+            published: 'true', // Görsellerin de yayınlanması gerekiyor
             option1_name: 'Title', // Ana ürünle aynı seçenek adı olmalı
             option1_value: 'Default Title', // Ana ürünle aynı seçenek değeri olmalı
             option2_name: '',
@@ -1250,8 +1261,8 @@ export async function registerRoutes(app: Express) {
             variant_grams: '',
             variant_inventory_tracker: '',
             variant_inventory_qty: '',
-            variant_inventory_policy: '',
-            variant_fulfillment_service: '',
+            variant_inventory_policy: 'deny', // Shopify için 'deny' değeri gerekli
+            variant_fulfillment_service: 'manual', // Shopify için 'manual' değeri gerekli
             variant_price: '',
             variant_compare_at_price: '',
             variant_requires_shipping: '',

@@ -93,7 +93,7 @@ function loadCSVMappings(): Record<string, string> {
 export const categoryMapping: CategoryMapping = {
   // Giyim kategorileri
   "kadin": {
-    shopifyCategory: "Women's Clothing",
+    shopifyCategory: "Apparel & Accessories > Clothing > Women's Clothing",
     variantConfig: {
       sizeLabel: "Size",
       colorLabel: "Color",
@@ -101,7 +101,7 @@ export const categoryMapping: CategoryMapping = {
     }
   },
   "erkek": {
-    shopifyCategory: "Men's Clothing",
+    shopifyCategory: "Apparel & Accessories > Clothing > Men's Clothing",
     variantConfig: {
       sizeLabel: "Size",
       colorLabel: "Color",
@@ -109,7 +109,7 @@ export const categoryMapping: CategoryMapping = {
     }
   },
   "cocuk": {
-    shopifyCategory: "Kids' Clothing",
+    shopifyCategory: "Apparel & Accessories > Clothing > Baby & Toddler Clothing",
     variantConfig: {
       sizeLabel: "Size",
       colorLabel: "Color",
@@ -117,7 +117,7 @@ export const categoryMapping: CategoryMapping = {
     }
   },
   "ayakkabi": {
-    shopifyCategory: "Shoes & Accessories",
+    shopifyCategory: "Apparel & Accessories > Shoes",
     variantConfig: {
       sizeLabel: "Size",
       colorLabel: "Color",
@@ -125,7 +125,7 @@ export const categoryMapping: CategoryMapping = {
     }
   },
   "canta": {
-    shopifyCategory: "Bags & Purses",
+    shopifyCategory: "Apparel & Accessories > Handbags, Wallets & Cases > Handbags",
     variantConfig: {
       sizeLabel: "Size",
       colorLabel: "Color",
@@ -135,7 +135,7 @@ export const categoryMapping: CategoryMapping = {
   
   // Ev & Yaşam kategorileri
   "ev": {
-    shopifyCategory: "Home & Living",
+    shopifyCategory: "Home & Garden",
     variantConfig: {
       sizeLabel: "Size",
       colorLabel: "Color",
@@ -143,7 +143,7 @@ export const categoryMapping: CategoryMapping = {
     }
   },
   "mobilya": {
-    shopifyCategory: "Furniture",
+    shopifyCategory: "Furniture > Home Furniture",
     variantConfig: {
       sizeLabel: "Size",
       colorLabel: "Color",
@@ -151,7 +151,7 @@ export const categoryMapping: CategoryMapping = {
     }
   },
   "dekorasyon": {
-    shopifyCategory: "Home Decor",
+    shopifyCategory: "Home & Garden > Home Decor",
     variantConfig: {
       sizeLabel: "Size",
       colorLabel: "Color",
@@ -159,7 +159,7 @@ export const categoryMapping: CategoryMapping = {
     }
   },
   "mutfak": {
-    shopifyCategory: "Kitchen & Dining",
+    shopifyCategory: "Home & Garden > Kitchen & Dining",
     variantConfig: {
       sizeLabel: "Size",
       colorLabel: "Color",
@@ -169,7 +169,7 @@ export const categoryMapping: CategoryMapping = {
   
   // Elektronik kategorileri
   "elektronik": {
-    shopifyCategory: "Electronics",
+    shopifyCategory: "Electronics > Electronics Accessories",
     variantConfig: {
       sizeLabel: "Variant",
       colorLabel: "Color",
@@ -177,7 +177,7 @@ export const categoryMapping: CategoryMapping = {
     }
   },
   "telefon": {
-    shopifyCategory: "Cell Phones & Accessories",
+    shopifyCategory: "Electronics > Communications > Mobile Phones",
     variantConfig: {
       sizeLabel: "Storage",
       colorLabel: "Color",
@@ -185,7 +185,7 @@ export const categoryMapping: CategoryMapping = {
     }
   },
   "bilgisayar": {
-    shopifyCategory: "Computers & Tablets",
+    shopifyCategory: "Electronics > Computers > Laptops",
     variantConfig: {
       sizeLabel: "Size",
       colorLabel: "Color",
@@ -193,7 +193,7 @@ export const categoryMapping: CategoryMapping = {
     }
   },
   "evaletiblender": {
-    shopifyCategory: "Home Appliances > Blenders",
+    shopifyCategory: "Home & Garden > Kitchen & Dining > Small Kitchen Appliances > Blenders",
     variantConfig: {
       sizeLabel: "Power",
       colorLabel: "Color",
@@ -201,7 +201,7 @@ export const categoryMapping: CategoryMapping = {
     }
   },
   "evaletikettle": {
-    shopifyCategory: "Home Appliances > Kettles",
+    shopifyCategory: "Home & Garden > Kitchen & Dining > Small Kitchen Appliances > Electric Kettles",
     variantConfig: {
       sizeLabel: "Capacity",
       colorLabel: "Color",
@@ -209,7 +209,7 @@ export const categoryMapping: CategoryMapping = {
     }
   },
   "evaletitoast": {
-    shopifyCategory: "Home Appliances > Toasters",
+    shopifyCategory: "Home & Garden > Kitchen & Dining > Small Kitchen Appliances > Toasters",
     variantConfig: {
       sizeLabel: "Size",
       colorLabel: "Color",
@@ -219,7 +219,7 @@ export const categoryMapping: CategoryMapping = {
   
   // Kozmetik & Kişisel Bakım kategorileri
   "kozmetik": {
-    shopifyCategory: "Beauty & Personal Care",
+    shopifyCategory: "Health & Beauty > Personal Care",
     variantConfig: {
       sizeLabel: "Size",
       colorLabel: "Color",
@@ -227,7 +227,7 @@ export const categoryMapping: CategoryMapping = {
     }
   },
   "makyaj": {
-    shopifyCategory: "Beauty & Personal Care > Makeup",
+    shopifyCategory: "Health & Beauty > Personal Care > Cosmetics",
     variantConfig: {
       sizeLabel: "Size",
       colorLabel: "Shade",
@@ -235,7 +235,7 @@ export const categoryMapping: CategoryMapping = {
     }
   },
   "parfum": {
-    shopifyCategory: "Beauty & Personal Care > Fragrances",
+    shopifyCategory: "Health & Beauty > Personal Care > Fragrances",
     variantConfig: {
       sizeLabel: "Size",
       colorLabel: "Type",
@@ -245,7 +245,7 @@ export const categoryMapping: CategoryMapping = {
   
   // Spor & Outdoor kategorileri
   "spor": {
-    shopifyCategory: "Sports & Outdoors",
+    shopifyCategory: "Sporting Goods",
     variantConfig: {
       sizeLabel: "Size",
       colorLabel: "Color",
@@ -253,7 +253,7 @@ export const categoryMapping: CategoryMapping = {
     }
   },
   "fitnessyoga": {
-    shopifyCategory: "Sports & Outdoors > Fitness & Yoga",
+    shopifyCategory: "Sporting Goods > Exercise & Fitness",
     variantConfig: {
       sizeLabel: "Size",
       colorLabel: "Color",
@@ -261,9 +261,39 @@ export const categoryMapping: CategoryMapping = {
     }
   },
   
+  // Tişört için özel kategori
+  "tisort": {
+    shopifyCategory: "Apparel & Accessories > Clothing > Clothing Tops > T-Shirts",
+    variantConfig: {
+      sizeLabel: "Size",
+      colorLabel: "Color",
+      defaultStock: 50
+    }
+  },
+  
+  // Giyim > T-shirt
+  "giyimtshirt": {
+    shopifyCategory: "Apparel & Accessories > Clothing > Clothing Tops > T-Shirts",
+    variantConfig: {
+      sizeLabel: "Size",
+      colorLabel: "Color",
+      defaultStock: 50
+    }
+  },
+  
+  // Mavi T-shirt - özel kategori
+  "mavitisort": {
+    shopifyCategory: "Apparel & Accessories > Clothing > Clothing Tops > T-Shirts", 
+    variantConfig: {
+      sizeLabel: "Size",
+      colorLabel: "Color",
+      defaultStock: 50
+    }
+  },
+  
   // Özel durumlar
   "default": {
-    shopifyCategory: "Other",
+    shopifyCategory: "Apparel & Accessories > Clothing",
     variantConfig: {
       sizeLabel: "Size",
       colorLabel: "Color",
