@@ -1214,14 +1214,27 @@ export async function registerRoutes(app: Express) {
         // CSV dosyasının yazıldığı bilgisini logla
         debug(`CSV yazıldı: ${csvPath}`);
         
-        // CSV dosyasını gönder
-        res.download(csvPath, 'shopify_products.csv', (err) => {
-          if (err) {
-            debug("CSV indirme hatası:", err);
-            return res.status(500).json({ message: "CSV indirme hatası: " + err.message });
-          }
-          debug("CSV indirme başarılı");
-        });
+        try {
+          // CSV dosyasını oku
+          const csvData = fs.readFileSync(csvPath, 'utf8');
+          
+          // CSV dosyasını gönder
+          res.setHeader('Content-Type', 'text/csv; charset=utf-8');
+          res.setHeader('Content-Disposition', 'attachment; filename=shopify_products.csv');
+          res.send(csvData);
+          debug("CSV indirme başarılı (doğrudan dosya içeriği gönderildi)");
+        } catch (readError) {
+          debug("CSV okuma hatası:", readError);
+          
+          // Okuma hatası olursa klasik download() fonksiyonunu kullan
+          res.download(csvPath, 'shopify_products.csv', (err) => {
+            if (err) {
+              debug("CSV indirme hatası:", err);
+              return res.status(500).json({ message: "CSV indirme hatası: " + err.message });
+            }
+            debug("CSV indirme başarılı (download metodu)");
+          });
+        }
       } catch (csvError: any) { // Type assertion to fix TypeScript error
         debug("CSV yazma hatası:", csvError);
         return res.status(500).json({ message: "CSV oluşturma hatası: " + (csvError.message || "Bilinmeyen hata") });

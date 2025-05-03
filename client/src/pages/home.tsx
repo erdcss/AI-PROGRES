@@ -133,30 +133,51 @@ export default function Home() {
       // Export isteğine ürün bilgilerini eklediğimizden emin olalım
       console.log("CSV dışa aktarma isteği gönderiliyor", { product });
       
-      const res = await apiRequest("POST", "/api/export", { 
-        product: product, 
-        url: product.url,
-        categoryConfig 
+      // Doğrudan fetch kullanarak indirme isteği gönderelim
+      const res = await fetch("/api/export", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ 
+          product: product, 
+          url: product.url,
+          categoryConfig 
+        }),
+        credentials: "include"
       });
       
       if (!res.ok) {
-        const data = await res.json();
-        throw new Error(data.message);
+        const errorText = await res.text();
+        try {
+          const errorJson = JSON.parse(errorText);
+          throw new Error(errorJson.message || "CSV indirme hatası");
+        } catch (e) {
+          throw new Error("CSV indirme hatası: " + errorText);
+        }
       }
+      
       return res.blob();
     },
     onSuccess: (blob) => {
+      // BLOB türünü kontrol et
+      console.log("Alınan BLOB türü:", blob.type);
+      
       const url = window.URL.createObjectURL(blob);
       const a = document.createElement('a');
+      a.style.display = 'none';
       a.href = url;
-      a.download = 'products.csv';
+      a.download = 'shopify_products.csv';
+      document.body.appendChild(a);
       a.click();
+      window.URL.revokeObjectURL(url);
+      document.body.removeChild(a);
+      
       toast({
         title: "Başarılı",
         description: "CSV dosyası başarıyla indirildi"
       });
     },
     onError: (error: Error) => {
+      console.error("CSV indirme hatası:", error);
       toast({
         title: "Hata",
         description: error.message,
