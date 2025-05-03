@@ -90,31 +90,49 @@ async function fetchProductPage(url: string): Promise<cheerio.CheerioAPI> {
 
 function normalizeImageUrl(url: string): string {
   try {
+    // Boş URL kontrolü
+    if (!url || typeof url !== 'string' || url.trim() === '') {
+      debug(`Boş URL geçildi`);
+      return '';
+    }
+    
     url = url.split('?')[0];
 
+    // Geçersiz URL'leri kontrol et
     if (url.match(/\.(mp4|webm|ogg|mov)$/i)) {
       debug(`Video dosyası filtrelendi: ${url}`);
       return '';
     }
 
+    // URL'nin desteklenen bir resim formatı olup olmadığını kontrol et
     if (!url.match(/\.(jpg|jpeg|png|webp)$/i)) {
-      debug(`Desteklenmeyen dosya formatı: ${url}`);
-      return '';
+      // .jpg ekle - bazı URL'ler uzantı içermiyor
+      if (!url.includes('.')) {
+        url += '.jpg';
+        debug(`URL'ye .jpg uzantısı eklendi: ${url}`);
+      } else {
+        debug(`Desteklenmeyen dosya formatı: ${url}`);
+        return '';
+      }
     }
 
+    // Trendyol'un Görsel CDN URL'lerini düzelt
     if (url.includes('/ty')) {
       url = `https://cdn.dsmcdn.com${url}`;
     }
 
+    // URL protokolünü düzelt
     if (url.startsWith('//')) {
       url = 'https:' + url;
     } else if (!url.startsWith('http')) {
       url = 'https://' + url;
     }
 
+    // Boyut parametrelerini kaldır
     url = url.replace(/\/mnresize\/\d+\/\d+\//, '/');
     url = url.replace(/_\d+x\d+/, '');
 
+    // Yüksek kaliteli sürüm için _org_zoom eklentisini ekle
     if (!url.includes('_org_zoom')) {
       url = url.replace(/\.(jpg|jpeg|png|webp)$/, '_org_zoom.$1');
     }
@@ -417,8 +435,20 @@ async function scrapeProduct(url: string): Promise<InsertProduct> {
     const images = new Set<string>();
     if (productData.product.images) {
       productData.product.images.forEach((img: any) => {
-        const imgUrl = normalizeImageUrl(typeof img === 'string' ? img : img.url);
-        if (imgUrl) images.add(imgUrl);
+        if (!img) return; // Null kontrolü
+        
+        let imgUrl = '';
+        if (typeof img === 'string') {
+          imgUrl = img;
+        } else if (typeof img === 'object' && img.url) {
+          imgUrl = img.url;
+        }
+        
+        // URL'leri kontrol et ve temizle
+        if (imgUrl && typeof imgUrl === 'string') {
+          const normalizedUrl = normalizeImageUrl(imgUrl);
+          if (normalizedUrl) images.add(normalizedUrl);
+        }
       });
     }
 
