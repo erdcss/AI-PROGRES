@@ -15,7 +15,8 @@ import * as fs from 'fs';
 // Uygulama sabitleri ve yapılandırmaları
 const DEFAULT_IMAGE_URL = "https://cdn.dsmcdn.com/assets/product/media/images/no-image-v2.png"; // Varsayılan görsel URL
 const MAX_IMAGES = 8; // Shopify'a eklenecek maksimum görsel sayısı
-const APP_VERSION = "0.13.1002"; // Yeni sürüm numarası (CSV görsel iyileştirmeleri)
+const APP_VERSION = "0.13.1005"; // Yeni sürüm numarası (Shopify seçenek değeri düzeltmesi geliştirildi)
+const MAX_TAG_LENGTH = 50; // Etiketlerin maksimum uzunluğu
 
 function debug(message: string, ...args: any[]) {
   console.log(`[DEBUG] ${message}`, ...args);
@@ -999,21 +1000,21 @@ export async function registerRoutes(app: Express) {
         product_category: categoryConfig.shopifyCategory || 'Apparel & Accessories > Clothing',
         type: productToExport.categories[productToExport.categories.length - 1] || 'Giyim',
         tags: productTags.join(','),
-        published: 'TRUE',
-        option1_name: '',
-        option1_value: '',
+        published: 'TRUE', // Her zaman yayınlanmış olmalı
+        option1_name: 'Title', // Varsayılan olarak en az bir seçenek gerekiyor
+        option1_value: 'Default Title', // Varsayılan değer
         option2_name: '',
         option2_value: '',
         option3_name: '',
         option3_value: '',
-        variant_sku: '',
+        variant_sku: handle, // Varsayılan SKU
         variant_grams: '500', // 0.5kg = 500 gram
         variant_inventory_tracker: 'shopify',
         variant_inventory_qty: categoryConfig.variantConfig?.defaultStock || 50,
         variant_inventory_policy: 'deny',
         variant_fulfillment_service: 'manual',
-        variant_price: '',
-        variant_compare_at_price: productToExport.basePrice, // İndirimli fiyat için
+        variant_price: productToExport.price, // Fiyat alanını açıkça belirle
+        variant_compare_at_price: '', // Compare at price değil normal fiyat kullan
         variant_requires_shipping: 'TRUE',
         variant_taxable: 'TRUE',
         variant_barcode: '',
@@ -1061,18 +1062,48 @@ export async function registerRoutes(app: Express) {
         if (colors.length > 0) baseProduct.option2_name = categoryConfig.variantConfig?.colorLabel || 'Renk';
 
         // Her beden için bir varyant oluştur - Shopify formatına uygun
-        for (const size of sizes) {
-          for (const color of colors.length > 0 ? colors : [null]) {
+        if (sizes.length > 0) {
+          for (const size of sizes) {
+            if (colors.length > 0) {
+              for (const color of colors) {
+                const variant = {
+                  ...baseProduct,
+                  option1_value: size,
+                  option2_value: color || '',
+                  variant_sku: `${handle}-${size}${color ? `-${color}` : ''}`,
+                  variant_price: productToExport.price,
+                  variant_inventory_qty: categoryConfig.variantConfig?.defaultStock || 50,
+                  status: 'active'
+                };
+                csvRows.push(variant);
+                debug(`Varyant satırı eklendi: ${size} ${color || '-'}`);
+              }
+            } else {
+              const variant = {
+                ...baseProduct,
+                option1_value: size,
+                variant_sku: `${handle}-${size}`,
+                variant_price: productToExport.price,
+                variant_inventory_qty: categoryConfig.variantConfig?.defaultStock || 50,
+                status: 'active'
+              };
+              csvRows.push(variant);
+              debug(`Beden varyantı eklendi: ${size}`);
+            }
+          }
+        } else if (colors.length > 0) {
+          for (const color of colors) {
             const variant = {
               ...baseProduct,
-              option1_value: size,
-              option2_value: color || '',
-              variant_sku: `${handle}-${size}${color ? `-${color}` : ''}`,
+              option1_name: categoryConfig.variantConfig?.colorLabel || 'Renk',
+              option1_value: color,
+              variant_sku: `${handle}-${color}`,
               variant_price: productToExport.price,
-              variant_inventory_qty: categoryConfig.variantConfig?.defaultStock || 50
+              variant_inventory_qty: categoryConfig.variantConfig?.defaultStock || 50,
+              status: 'active'
             };
             csvRows.push(variant);
-            debug(`Varyant satırı eklendi: ${size} ${color || '-'}`);
+            debug(`Renk varyantı eklendi: ${color}`);
           }
         }
       } else {
@@ -1083,7 +1114,8 @@ export async function registerRoutes(app: Express) {
           option1_value: 'Default Title', // Tek varyantlı ürünler için gerekli
           variant_sku: handle,
           variant_price: productToExport.price,
-          variant_inventory_qty: categoryConfig.variantConfig?.defaultStock || 50
+          variant_inventory_qty: categoryConfig.variantConfig?.defaultStock || 50,
+          status: 'active' // Aktif durumda olduğunu belirt
         };
         csvRows.push(defaultVariant);
         debug(`Tek varyant satırı eklendi: ${handle}`);
@@ -1198,17 +1230,18 @@ export async function registerRoutes(app: Express) {
         for (let i = 1; i < productImages.length; i++) {
           if (!productImages[i]) continue;
           
+          // Shopify için görsel formatı - yalnızca handle ve görsel bilgilerini içerir
           csvRows.push({
             handle, // Handle hep sabit olmalı
-            title: '',
-            body: '',
+            title: '', // Boş kalmalı
+            body: '', // Boş kalmalı
             vendor: '',
             product_category: '',
             type: '',
             tags: '',
-            published: '',
-            option1_name: '',
-            option1_value: '',
+            published: 'TRUE', // Görsellerin de yayınlanması gerekiyor
+            option1_name: 'Title', // Ana ürünle aynı seçenek adı olmalı
+            option1_value: 'Default Title', // Ana ürünle aynı seçenek değeri olmalı
             option2_name: '',
             option2_value: '',
             option3_name: '',
@@ -1247,7 +1280,7 @@ export async function registerRoutes(app: Express) {
             variant_weight_unit: '',
             variant_tax_code: '',
             cost_per_item: '',
-            status: ''
+            status: 'active' // Görsel satırlarının da aktif olması gerekiyor
           });
         }
         

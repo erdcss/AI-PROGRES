@@ -33,8 +33,8 @@ import {
 } from "@/components/ui/alert";
 import { ScrollArea } from "@/components/ui/scroll-area";
 
-// Uygulama sürüm numarası - CSV iyileştirmeleri ile arttırıldı
-const APP_VERSION = "0.13.1002";
+// Uygulama sürüm numarası - Shopify seçenek değeri hatası düzeltmesi ile arttırıldı
+const APP_VERSION = "0.13.1004";
 
 const getCategoryConfig = (categories: string[] | undefined) => {
     if (!categories || categories.length === 0) {
@@ -223,7 +223,7 @@ export default function Home() {
             <h1 className="text-2xl font-bold mb-2">Ürün Aktarıcı</h1>
             <p className="text-sm text-gray-400">Ürün verilerini Shopify'a uyumlu formata dönüştürün</p>
             <p className="text-xs text-gray-500 mt-2">ERDEM ÇALIŞGAN tarafından geliştirilmiştir</p>
-            <p className="text-xs text-gray-600 mt-1">Versiyon 0.13.1002</p>
+            <p className="text-xs text-gray-600 mt-1">Versiyon 0.13.1005</p>
           </div>
 
           {error && (
