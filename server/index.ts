@@ -1,6 +1,8 @@
 import express, { type Request, Response, NextFunction } from "express";
 import { registerRoutes } from "./routes";
 import { setupVite, serveStatic, log } from "./vite";
+import * as pathModule from "path";
+import { fileURLToPath } from 'url';
 
 console.log("Uygulama başlatılıyor...");
 
@@ -8,14 +10,65 @@ const app = express();
 app.use(express.json());
 app.use(express.urlencoded({ extended: false }));
 
-// Ana sayfa için basit bir rota ekleyelim
+// API kök dizini için bilgi mesajı
+app.get('/api', (req, res) => {
+  res.send('Ürün Çekme Uygulaması API Çalışıyor! API rotalarını kullanabilirsiniz.');
+});
+
+// Ana sayfayı Replit WebView'a yönlendirelim
 app.get('/', (req, res) => {
-  res.send('Ürün Çekme Uygulaması Çalışıyor! API rotalarını kullanabilirsiniz.');
+  res.redirect('/webview');
+});
+
+// '/webview' rotasını ekleyelim
+app.get('/webview', (req, res) => {
+  res.send(`
+    <!DOCTYPE html>
+    <html lang="en">
+      <head>
+        <meta charset="UTF-8" />
+        <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+        <title>Ürün Çekme Uygulaması</title>
+        <style>
+          body { 
+            font-family: Arial, sans-serif; 
+            background-color: #121212; 
+            color: white;
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            height: 100vh;
+            margin: 0;
+          }
+          .container {
+            text-align: center;
+            padding: 2rem;
+          }
+          h1 { color: #bb86fc; }
+          p { margin: 1rem 0; }
+          a { 
+            color: #03dac6; 
+            text-decoration: none; 
+          }
+          a:hover { text-decoration: underline; }
+        </style>
+      </head>
+      <body>
+        <div class="container">
+          <h1>Ürün Çekme Uygulaması</h1>
+          <p>Uygulama başarıyla çalışıyor!</p>
+          <p>API URL'si: <a href="/api">/api</a></p>
+          <p>Ürün API URL: <a href="/api/product">/api/product</a></p>
+          <p>Geçmiş API URL: <a href="/api/history">/api/history</a></p>
+        </div>
+      </body>
+    </html>
+  `);
 });
 
 app.use((req, res, next) => {
   const start = Date.now();
-  const path = req.path;
+  const reqPath = req.path;
   let capturedJsonResponse: Record<string, any> | undefined = undefined;
 
   const originalResJson = res.json;
@@ -26,8 +79,8 @@ app.use((req, res, next) => {
 
   res.on("finish", () => {
     const duration = Date.now() - start;
-    if (path.startsWith("/api")) {
-      let logLine = `${req.method} ${path} ${res.statusCode} in ${duration}ms`;
+    if (reqPath.startsWith("/api")) {
+      let logLine = `${req.method} ${reqPath} ${res.statusCode} in ${duration}ms`;
       if (capturedJsonResponse) {
         logLine += ` :: ${JSON.stringify(capturedJsonResponse)}`;
       }
@@ -64,10 +117,10 @@ app.use((req, res, next) => {
     serveStatic(app);
   }
 
-  // Serving the app on port 3000
+  // Serving the app on port 5000
   // this serves both the API and the client.
-  // This matches the .replit config.
-  const port = 3000; // Portu 3000 olarak ayarlıyoruz
+  // Port 5000 is expected by the Replit workflow
+  const port = 5000; // Portu 5000 olarak ayarlıyoruz
   server.listen({
     port,
     host: "0.0.0.0",
