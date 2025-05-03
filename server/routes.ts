@@ -853,19 +853,25 @@ export async function registerRoutes(app: Express) {
     }
   });
 
-  app.post("/api/export", async (req, res) => {
+  app.all("/api/export", async (req, res) => {
     try {
       debug("CSV export isteği alındı");
       
       let productToExport = null;
       
-      // Önce request body'den ürün bilgisini almayı dene
-      if (req.body.product && req.body.product.title) {
+      // URL parametresi varsa önce onu kontrol et (GET isteği için)
+      if (req.query.url) {
+        const url = req.query.url as string;
+        debug(`Query URL parametresine göre ürün alınıyor: ${url}`);
+        productToExport = await storage.getProduct(url);
+      }
+      // Önce request body'den ürün bilgisini almayı dene (POST isteği için)
+      else if (req.body?.product && req.body.product.title) {
         debug("İstek ile gönderilen ürün bilgisi kullanılıyor");
         productToExport = req.body.product;
       } 
-      // İstek ile ürün gönderilmediyse ve URL varsa, URL'ye göre ürünü al
-      else if (req.body.url) {
+      // İstek ile ürün gönderilmediyse ve body.url varsa, URL'ye göre ürünü al
+      else if (req.body?.url) {
         debug(`URL'ye göre ürün alınıyor: ${req.body.url}`);
         productToExport = await storage.getProduct(req.body.url);
       }
@@ -1215,24 +1221,47 @@ export async function registerRoutes(app: Express) {
         debug(`CSV yazıldı: ${csvPath}`);
         
         try {
+          // Dosya adı oluşturma - timestamp ekleyerek benzersiz olmasını sağla
+          const timestamp = new Date().toISOString().replace(/[:.]/g, '-');
+          const safeTitle = productToExport.title
+            ? productToExport.title.toLowerCase().replace(/[^a-z0-9]+/g, '-').substring(0, 30)
+            : 'product';
+          const filename = `shopify_${safeTitle}_${timestamp}.csv`;
+          
           // CSV dosyasını oku
           const csvData = fs.readFileSync(csvPath, 'utf8');
           
+          // Tarayıcı önbelleğini devre dışı bırak
+          res.setHeader('Cache-Control', 'no-cache, no-store, must-revalidate');
+          res.setHeader('Pragma', 'no-cache');
+          res.setHeader('Expires', '0');
+          
           // CSV dosyasını gönder
           res.setHeader('Content-Type', 'text/csv; charset=utf-8');
-          res.setHeader('Content-Disposition', 'attachment; filename=shopify_products.csv');
-          res.send(csvData);
-          debug("CSV indirme başarılı (doğrudan dosya içeriği gönderildi)");
+          res.setHeader('Content-Disposition', `attachment; filename="${filename}"`);
+          res.status(200).send(csvData);
+          debug(`CSV indirme başarılı: ${filename}`);
         } catch (readError) {
           debug("CSV okuma hatası:", readError);
           
           // Okuma hatası olursa klasik download() fonksiyonunu kullan
-          res.download(csvPath, 'shopify_products.csv', (err) => {
+          const timestamp = new Date().toISOString().replace(/[:.]/g, '-');
+          const safeTitle = productToExport.title
+            ? productToExport.title.toLowerCase().replace(/[^a-z0-9]+/g, '-').substring(0, 30)
+            : 'product';
+          const filename = `shopify_${safeTitle}_${timestamp}.csv`;
+          
+          // Tarayıcı önbelleğini devre dışı bırak
+          res.setHeader('Cache-Control', 'no-cache, no-store, must-revalidate');
+          res.setHeader('Pragma', 'no-cache');
+          res.setHeader('Expires', '0');
+          
+          res.download(csvPath, filename, (err) => {
             if (err) {
               debug("CSV indirme hatası:", err);
               return res.status(500).json({ message: "CSV indirme hatası: " + err.message });
             }
-            debug("CSV indirme başarılı (download metodu)");
+            debug(`CSV indirme başarılı (download metodu): ${filename}`);
           });
         }
       } catch (csvError: any) { // Type assertion to fix TypeScript error

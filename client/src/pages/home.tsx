@@ -124,60 +124,48 @@ export default function Home() {
     }
   });
 
+  const handleExportClick = () => {
+    if (!product) {
+      toast({
+        title: "Hata",
+        description: "Önce bir ürün çekmelisiniz",
+        variant: "destructive"
+      });
+      return;
+    }
+    
+    // CSV dışa aktarma isteği için URL oluştur
+    toast({
+      title: "Dışa aktarma başlatılıyor",
+      description: "CSV dosyası hazırlanıyor..."
+    });
+    
+    // CSV dosyasını doğrudan indirmek için bir download link oluştur
+    const fileName = `shopify_products_${Date.now()}.csv`;
+    const exportUrl = `/api/export?url=${encodeURIComponent(product.url)}`;
+    
+    // Download için etiket oluştur ve tıkla
+    const downloadLink = document.createElement('a');
+    downloadLink.href = exportUrl;
+    downloadLink.download = fileName;
+    downloadLink.target = '_blank'; // Yeni sekmede aç
+    document.body.appendChild(downloadLink);
+    downloadLink.click();
+    document.body.removeChild(downloadLink);
+  };
+  
+  // Eski export mutation - bu artık kullanılmıyor ama referans için saklıyoruz
   const exportMutation = useMutation({
     mutationFn: async () => {
       if (!product) {
         throw new Error("Önce bir ürün çekmelisiniz");
       }
-      
-      // Export isteğine ürün bilgilerini eklediğimizden emin olalım
-      console.log("CSV dışa aktarma isteği gönderiliyor", { product });
-      
-      // Doğrudan fetch kullanarak indirme isteği gönderelim
-      const res = await fetch("/api/export", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ 
-          product: product, 
-          url: product.url,
-          categoryConfig 
-        }),
-        credentials: "include"
-      });
-      
-      if (!res.ok) {
-        const errorText = await res.text();
-        try {
-          const errorJson = JSON.parse(errorText);
-          throw new Error(errorJson.message || "CSV indirme hatası");
-        } catch (e) {
-          throw new Error("CSV indirme hatası: " + errorText);
-        }
-      }
-      
-      return res.blob();
+      return new Blob([''], {type: 'text/csv'});
     },
-    onSuccess: (blob) => {
-      // BLOB türünü kontrol et
-      console.log("Alınan BLOB türü:", blob.type);
-      
-      const url = window.URL.createObjectURL(blob);
-      const a = document.createElement('a');
-      a.style.display = 'none';
-      a.href = url;
-      a.download = 'shopify_products.csv';
-      document.body.appendChild(a);
-      a.click();
-      window.URL.revokeObjectURL(url);
-      document.body.removeChild(a);
-      
-      toast({
-        title: "Başarılı",
-        description: "CSV dosyası başarıyla indirildi"
-      });
+    onSuccess: () => {
+      // Artık bu fonksiyon doğrudan çağrılmıyor, handleExportClick kullanılıyor
     },
     onError: (error: Error) => {
-      console.error("CSV indirme hatası:", error);
       toast({
         title: "Hata",
         description: error.message,
@@ -304,7 +292,7 @@ export default function Home() {
                     </div>
                     
                     <Button
-                      onClick={() => exportMutation.mutate()}
+                      onClick={handleExportClick}
                       disabled={exportMutation.isPending}
                       className="py-1 px-3 text-xs"
                     >
