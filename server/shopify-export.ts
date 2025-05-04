@@ -1,0 +1,410 @@
+import { Product } from "@shared/schema";
+import { createObjectCsvWriter } from "csv-writer";
+import { tmpdir } from "os";
+import { join } from "path";
+import fs from "fs";
+
+/**
+ * Bu dosya Shopify uyumlu CSV oluşturmak için tasarlanmıştır
+ * Shopify'ın kesin CSV formatını kullanır
+ */
+
+export function generateShopifyCSV(
+  product: Product,
+  variants: { 
+    sizes?: string[], 
+    colors?: string[] 
+  } = {},
+  outputPath: string = join(tmpdir(), 'shopify_products.csv')
+): Promise<string> {
+  return new Promise(async (resolve, reject) => {
+    try {
+      // Shopify'ın tam başlık listesini kullan
+      const csvWriter = createObjectCsvWriter({
+        path: outputPath,
+        header: [
+          { id: 'title', title: 'Title' },
+          { id: 'handle', title: 'URL handle' },
+          { id: 'body_html', title: 'Description' },
+          { id: 'vendor', title: 'Vendor' },
+          { id: 'product_category', title: 'Product category' },
+          { id: 'type', title: 'Type' },
+          { id: 'tags', title: 'Tags' },
+          { id: 'published', title: 'Published on online store' },
+          { id: 'status', title: 'Status' },
+          { id: 'sku', title: 'SKU' },
+          { id: 'barcode', title: 'Barcode' },
+          { id: 'option1_name', title: 'Option1 name' },
+          { id: 'option1_value', title: 'Option1 value' },
+          { id: 'option2_name', title: 'Option2 name' },
+          { id: 'option2_value', title: 'Option2 value' },
+          { id: 'option3_name', title: 'Option3 name' },
+          { id: 'option3_value', title: 'Option3 value' },
+          { id: 'price', title: 'Price' },
+          { id: 'intl_price', title: 'Price / International' },
+          { id: 'compare_at_price', title: 'Compare-at price' },
+          { id: 'intl_compare_at_price', title: 'Compare-at price / International' },
+          { id: 'cost_per_item', title: 'Cost per item' },
+          { id: 'taxable', title: 'Charge tax' },
+          { id: 'tax_code', title: 'Tax code' },
+          { id: 'inventory_tracker', title: 'Inventory tracker' },
+          { id: 'inventory_quantity', title: 'Inventory quantity' },
+          { id: 'inventory_policy', title: 'Continue selling when out of stock' },
+          { id: 'weight', title: 'Weight value (grams)' },
+          { id: 'weight_unit', title: 'Weight unit for display' },
+          { id: 'requires_shipping', title: 'Requires shipping' },
+          { id: 'fulfillment_service', title: 'Fulfillment service' },
+          { id: 'image_src', title: 'Product image URL' },
+          { id: 'image_position', title: 'Image position' },
+          { id: 'image_alt_text', title: 'Image alt text' },
+          { id: 'variant_image', title: 'Variant image URL' },
+          { id: 'gift_card', title: 'Gift card' },
+          { id: 'seo_title', title: 'SEO title' },
+          { id: 'seo_description', title: 'SEO description' },
+          { id: 'google_product_category', title: 'Google Shopping / Google product category' },
+          { id: 'gender', title: 'Google Shopping / Gender' },
+          { id: 'age_group', title: 'Google Shopping / Age group' },
+          { id: 'mpn', title: 'Google Shopping / MPN' },
+          { id: 'adwords_grouping', title: 'Google Shopping / AdWords Grouping' },
+          { id: 'adwords_labels', title: 'Google Shopping / AdWords labels' },
+          { id: 'condition', title: 'Google Shopping / Condition' },
+          { id: 'custom_product', title: 'Google Shopping / Custom product' },
+          { id: 'custom_label_0', title: 'Google Shopping / Custom label 0' },
+          { id: 'custom_label_1', title: 'Google Shopping / Custom label 1' },
+          { id: 'custom_label_2', title: 'Google Shopping / Custom label 2' },
+          { id: 'custom_label_3', title: 'Google Shopping / Custom label 3' },
+          { id: 'custom_label_4', title: 'Google Shopping / Custom label 4' }
+        ]
+      });
+
+      // CSV satırlarını oluştur
+      const csvRows: any[] = [];
+      
+      // Handle oluştur (URL-uyumlu slug)
+      const handle = product.title
+          .toLowerCase()
+          .replace(/[^a-z0-9]+/g, '-')
+          .replace(/-+/g, '-')
+          .replace(/^-|-$/g, '');
+      
+      // Body HTML oluştur
+      const generateBodyHTML = () => {
+        let html = product.description ? `<p>${product.description}</p>\n\n` : '';
+        
+        if (product.attributes && Object.keys(product.attributes).length > 0) {
+          html += `<h3>Ürün Özellikleri</h3>\n<ul>`;
+          for (const [key, value] of Object.entries(product.attributes)) {
+            html += `\n  <li><strong>${key}:</strong> ${value}</li>`;
+          }
+          html += '\n</ul>';
+        }
+        return html;
+      };
+      
+      // Etiketleri oluştur
+      const tags = product.categories 
+        ? product.categories
+            .filter(cat => cat && typeof cat === 'string')
+            .map(cat => cat.replace(/\s+/g, ''))
+            .join(',')
+        : '';
+        
+      // Ayakkabı/terlik veya mutfak ürünü kontrolü
+      const isShoeProduct = product.categories ? product.categories.some((cat: string) => 
+        cat.toLowerCase().includes('ayakkabı') || 
+        cat.toLowerCase().includes('shoe') || 
+        cat.toLowerCase().includes('terlik') || 
+        cat.toLowerCase().includes('sandalet') ||
+        cat.toLowerCase().includes('bot') ||
+        cat.toLowerCase().includes('çizme')
+      ) : false;
+      
+      const isKitchenProduct = product.categories ? product.categories.some((cat: string) => 
+        cat.toLowerCase().includes('mutfak') || 
+        cat.toLowerCase().includes('kitchen') || 
+        cat.toLowerCase().includes('saklama')
+      ) : false;
+      
+      // Varyantları belirle
+      const sizes = variants.sizes || [];
+      const colors = variants.colors || [];
+      const hasVariants = sizes.length > 0 || colors.length > 0;
+      
+      // Ana ürün satırı
+      if (hasVariants) {
+        // Varyantlı ürün
+        if (sizes.length > 0) {
+          // Beden varyantları var
+          
+          if (colors.length > 0) {
+            // Hem beden hem renk varyantları
+            let row = {
+              title: product.title,
+              handle: handle,
+              body_html: generateBodyHTML(),
+              vendor: 'turmarkt',
+              product_category: 'Apparel & Accessories > Clothing',
+              type: product.categories && product.categories.length > 0 
+                ? product.categories[product.categories.length - 1] 
+                : 'Giyim',
+              tags: tags,
+              published: 'TRUE',
+              status: 'active',
+              sku: `${handle}-${sizes[0]}-${colors[0]}`,
+              barcode: '',
+              option1_name: 'Size',
+              option1_value: sizes[0],
+              option2_name: 'Color',
+              option2_value: colors[0],
+              option3_name: '',
+              option3_value: '',
+              price: product.price,
+              inventory_tracker: 'shopify',
+              inventory_quantity: '50', 
+              inventory_policy: 'deny',
+              weight: '500',
+              weight_unit: 'g',
+              requires_shipping: 'TRUE',
+              taxable: 'TRUE',
+              fulfillment_service: 'manual',
+              image_src: product.images && product.images.length > 0 ? product.images[0] : '',
+              image_position: '1',
+              image_alt_text: product.title,
+              gift_card: 'FALSE'
+            };
+            csvRows.push(row);
+            
+            // Diğer varyantlar
+            let counter = 1;
+            for (const size of sizes) {
+              for (const color of colors) {
+                if (counter === 1) {
+                  counter++;
+                  continue; // İlk varyantı atla, zaten ekledik
+                }
+                
+                csvRows.push({
+                  handle: handle,
+                  option1_value: size,
+                  option2_value: color,
+                  sku: `${handle}-${size}-${color}`,
+                  price: product.price,
+                  inventory_tracker: 'shopify',
+                  inventory_quantity: '50', 
+                  inventory_policy: 'deny',
+                  requires_shipping: 'TRUE',
+                  taxable: 'TRUE',
+                  fulfillment_service: 'manual'
+                });
+                counter++;
+              }
+            }
+          } else {
+            // Sadece beden varyantları
+            let row = {
+              title: product.title,
+              handle: handle,
+              body_html: generateBodyHTML(),
+              vendor: 'turmarkt',
+              product_category: 'Apparel & Accessories > Clothing',
+              type: product.categories && product.categories.length > 0 
+                ? product.categories[product.categories.length - 1] 
+                : 'Giyim',
+              tags: tags,
+              published: 'TRUE',
+              status: 'active',
+              sku: `${handle}-${sizes[0]}`,
+              barcode: '',
+              option1_name: 'Size',
+              option1_value: sizes[0],
+              option2_name: '',
+              option2_value: '',
+              option3_name: '',
+              option3_value: '',
+              price: product.price,
+              inventory_tracker: 'shopify',
+              inventory_quantity: '50',
+              inventory_policy: 'deny',
+              weight: '500',
+              weight_unit: 'g',
+              requires_shipping: 'TRUE',
+              taxable: 'TRUE',
+              fulfillment_service: 'manual',
+              image_src: product.images && product.images.length > 0 ? product.images[0] : '',
+              image_position: '1',
+              image_alt_text: product.title,
+              gift_card: 'FALSE'
+            };
+            csvRows.push(row);
+            
+            // Diğer beden varyantları
+            for (let i = 1; i < sizes.length; i++) {
+              csvRows.push({
+                handle: handle,
+                option1_value: sizes[i],
+                sku: `${handle}-${sizes[i]}`,
+                price: product.price,
+                inventory_tracker: 'shopify',
+                inventory_quantity: '50',
+                inventory_policy: 'deny',
+                requires_shipping: 'TRUE',
+                taxable: 'TRUE',
+                fulfillment_service: 'manual'
+              });
+            }
+          }
+        } else if (colors.length > 0) {
+          // Sadece renk varyantları
+          if ((isKitchenProduct || isShoeProduct) && colors.length === 1) {
+            // Tek renkli özel ürünler için Title/Default Title formatı
+            let row = {
+              title: product.title,
+              handle: handle,
+              body_html: generateBodyHTML(),
+              vendor: 'turmarkt',
+              product_category: 'Apparel & Accessories > Clothing',
+              type: product.categories && product.categories.length > 0 
+                ? product.categories[product.categories.length - 1] 
+                : 'Giyim',
+              tags: tags,
+              published: 'TRUE',
+              status: 'active',
+              sku: handle,
+              barcode: '',
+              option1_name: 'Title',
+              option1_value: 'Default Title',
+              option2_name: '',
+              option2_value: '',
+              option3_name: '',
+              option3_value: '',
+              price: product.price,
+              inventory_tracker: 'shopify',
+              inventory_quantity: '50',
+              inventory_policy: 'deny',
+              weight: '500',
+              weight_unit: 'g',
+              requires_shipping: 'TRUE',
+              taxable: 'TRUE',
+              fulfillment_service: 'manual',
+              image_src: product.images && product.images.length > 0 ? product.images[0] : '',
+              image_position: '1',
+              image_alt_text: product.title,
+              gift_card: 'FALSE'
+            };
+            csvRows.push(row);
+          } else {
+            // Çok renkli ürünler
+            let row = {
+              title: product.title,
+              handle: handle,
+              body_html: generateBodyHTML(),
+              vendor: 'turmarkt',
+              product_category: 'Apparel & Accessories > Clothing',
+              type: product.categories && product.categories.length > 0 
+                ? product.categories[product.categories.length - 1] 
+                : 'Giyim',
+              tags: tags,
+              published: 'TRUE',
+              status: 'active',
+              sku: `${handle}-${colors[0]}`,
+              barcode: '',
+              option1_name: 'Color',
+              option1_value: colors[0],
+              option2_name: '',
+              option2_value: '',
+              option3_name: '',
+              option3_value: '',
+              price: product.price,
+              inventory_tracker: 'shopify',
+              inventory_quantity: '50',
+              inventory_policy: 'deny',
+              weight: '500',
+              weight_unit: 'g',
+              requires_shipping: 'TRUE',
+              taxable: 'TRUE',
+              fulfillment_service: 'manual',
+              image_src: product.images && product.images.length > 0 ? product.images[0] : '',
+              image_position: '1',
+              image_alt_text: product.title,
+              gift_card: 'FALSE'
+            };
+            csvRows.push(row);
+            
+            // Diğer renk varyantları
+            for (let i = 1; i < colors.length; i++) {
+              csvRows.push({
+                handle: handle,
+                option1_value: colors[i],
+                sku: `${handle}-${colors[i]}`,
+                price: product.price,
+                inventory_tracker: 'shopify',
+                inventory_quantity: '50',
+                inventory_policy: 'deny',
+                requires_shipping: 'TRUE',
+                taxable: 'TRUE',
+                fulfillment_service: 'manual'
+              });
+            }
+          }
+        }
+      } else {
+        // Varyantı olmayan temel ürün
+        let row = {
+          title: product.title,
+          handle: handle,
+          body_html: generateBodyHTML(),
+          vendor: 'turmarkt',
+          product_category: 'Apparel & Accessories > Clothing',
+          type: product.categories && product.categories.length > 0 
+            ? product.categories[product.categories.length - 1] 
+            : 'Giyim',
+          tags: tags,
+          published: 'TRUE',
+          status: 'active',
+          sku: handle,
+          barcode: '',
+          option1_name: 'Title',
+          option1_value: 'Default Title',
+          option2_name: '',
+          option2_value: '',
+          option3_name: '',
+          option3_value: '',
+          price: product.price,
+          inventory_tracker: 'shopify',
+          inventory_quantity: '50',
+          inventory_policy: 'deny',
+          weight: '500',
+          weight_unit: 'g',
+          requires_shipping: 'TRUE',
+          taxable: 'TRUE',
+          fulfillment_service: 'manual',
+          image_src: product.images && product.images.length > 0 ? product.images[0] : '',
+          image_position: '1',
+          image_alt_text: product.title,
+          gift_card: 'FALSE'
+        };
+        csvRows.push(row);
+      }
+      
+      // Diğer görseller için satırlar ekle
+      if (product.images && product.images.length > 1) {
+        const MAX_IMAGES = 8;
+        for (let i = 1; i < Math.min(product.images.length, MAX_IMAGES); i++) {
+          csvRows.push({
+            handle: handle,
+            image_src: product.images[i],
+            image_position: (i + 1).toString(),
+            image_alt_text: `${product.title} - Image ${i + 1}`
+          });
+        }
+      }
+      
+      // CSV'yi yaz
+      await csvWriter.writeRecords(csvRows);
+      resolve(outputPath);
+    } catch (error) {
+      console.error('CSV oluşturma hatası:', error);
+      reject(error);
+    }
+  });
+}

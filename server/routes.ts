@@ -1069,62 +1069,225 @@ export async function registerRoutes(app: Express) {
         const colors = variants.colors || [];
 
         debug(`Varyantlar: ${sizes.length} beden, ${colors.length} renk`);
-
-        if (sizes.length > 0) baseProduct.option1_name = categoryConfig.variantConfig?.sizeLabel || 'Beden';
-        if (colors.length > 0) baseProduct.option2_name = categoryConfig.variantConfig?.colorLabel || 'Renk';
-
-        // Her beden için bir varyant oluştur - Shopify formatına uygun
+        
+        // Ürün türüne göre özel kontrol
+        // Ürün kategorilerinde belirli anahtar kelimeleri arayalım
+        const isKitchenProduct = productToExport.categories.some((cat: string) => 
+          cat.toLowerCase().includes('mutfak') || 
+          cat.toLowerCase().includes('kitchen') || 
+          cat.toLowerCase().includes('saklama')
+        );
+        
+        // Ayakkabı/terlik ürün kontolü
+        const isShoeProduct = productToExport.categories.some((cat: string) => 
+          cat.toLowerCase().includes('ayakkabı') || 
+          cat.toLowerCase().includes('shoe') || 
+          cat.toLowerCase().includes('terlik') || 
+          cat.toLowerCase().includes('sandalet') || 
+          cat.toLowerCase().includes('bot') || 
+          cat.toLowerCase().includes('çizme')
+        );
+        
+        // Shopify'ın beklediği standart İngilizce adlar kullan
+        // Seçenek adlarını tüm ürünler için standartlaştır
         if (sizes.length > 0) {
+          baseProduct.option1_name = 'Size'; // Şart: Tüm ürünlerde Size olmalı (Shopify standardı)
+        }
+        
+        if (colors.length > 0) {
+          // Sadece bir renk varsa ve tek varyant olacaksa Title/Default Title kullan
+          if (colors.length === 1 && sizes.length === 0 && (isKitchenProduct || isShoeProduct)) {
+            baseProduct.option1_name = 'Title';
+          } else {
+            // Eğer Size varsa Color ikinci seçenek olmalı
+            baseProduct.option2_name = 'Color'; // Şart: Tüm ürünlerde Color olmalı (Shopify standardı)
+          }
+        }
+
+        // Her ürün türü için şablona tam olarak uyan varyantlar oluştur
+        
+        // 1. Beden ve renk varyantları (örn. ayakkabılar, giysiler)
+        if (sizes.length > 0 && colors.length > 0) {
+          // İlk satır - ürün bilgileri
+          const firstVariant = {
+            ...baseProduct,
+            option1_name: 'Size',
+            option1_value: sizes[0],
+            option2_name: 'Color',
+            option2_value: colors[0],
+            variant_sku: `${handle}-${sizes[0]}-${colors[0]}`,
+            variant_price: productToExport.price,
+            variant_inventory_policy: 'deny',
+            variant_fulfillment_service: 'manual',
+            variant_inventory_qty: categoryConfig.variantConfig?.defaultStock || 50,
+            status: 'active'
+          };
+          csvRows.push(firstVariant);
+          debug(`İlk varyant satırı eklendi: ${sizes[0]} ${colors[0]}`);
+          
+          // Diğer varyant satırları - sadece gerekli bilgiler
+          let counter = 1;
           for (const size of sizes) {
-            if (colors.length > 0) {
-              for (const color of colors) {
-                const variant = {
-                  ...baseProduct,
-                  option1_name: categoryConfig.variantConfig?.sizeLabel || 'Beden',
-                  option1_value: size,
-                  option2_name: categoryConfig.variantConfig?.colorLabel || 'Renk',
-                  option2_value: color || '',
-                  variant_sku: `${handle}-${size}${color ? `-${color}` : ''}`,
-                  variant_price: productToExport.price,
-                  variant_inventory_policy: 'deny', // Shopify için gerekli
-                  variant_fulfillment_service: 'manual', // Shopify için gerekli
-                  variant_inventory_qty: categoryConfig.variantConfig?.defaultStock || 50,
-                  status: 'active'
-                };
-                csvRows.push(variant);
-                debug(`Varyant satırı eklendi: ${size} ${color || '-'}`);
+            for (const color of colors) {
+              // İlk varyantı atla, zaten ekledik
+              if (counter === 1) {
+                counter++;
+                continue;
               }
-            } else {
+              
               const variant = {
-                ...baseProduct,
-                option1_name: categoryConfig.variantConfig?.sizeLabel || 'Beden',
+                handle,
+                title: '',
+                body: '',
+                vendor: '',
+                product_category: '',
+                type: '',
+                tags: '',
+                published: '',
+                option1_name: 'Size',
                 option1_value: size,
-                variant_sku: `${handle}-${size}`,
-                variant_price: productToExport.price,
-                variant_inventory_policy: 'deny', // Shopify için gerekli
-                variant_fulfillment_service: 'manual', // Shopify için gerekli
+                option2_name: 'Color',
+                option2_value: color,
+                option3_name: '',
+                option3_value: '',
+                variant_sku: `${handle}-${size}-${color}`,
+                variant_grams: '',
+                variant_inventory_tracker: 'shopify',
                 variant_inventory_qty: categoryConfig.variantConfig?.defaultStock || 50,
+                variant_inventory_policy: 'deny',
+                variant_fulfillment_service: 'manual',
+                variant_price: productToExport.price,
+                variant_compare_at_price: '',
+                variant_requires_shipping: 'true',
+                variant_taxable: 'true',
+                variant_barcode: '',
                 status: 'active'
               };
               csvRows.push(variant);
-              debug(`Beden varyantı eklendi: ${size}`);
+              debug(`Varyant satırı eklendi: ${size} ${color}`);
+              counter++;
             }
           }
-        } else if (colors.length > 0) {
-          for (const color of colors) {
+        }
+        // 2. Sadece beden varyantları (örn. tek renkli ürünler)
+        else if (sizes.length > 0 && colors.length === 0) {
+          // İlk satır - ürün bilgileri
+          const firstVariant = {
+            ...baseProduct,
+            option1_name: 'Size',
+            option1_value: sizes[0],
+            variant_sku: `${handle}-${sizes[0]}`,
+            variant_price: productToExport.price,
+            variant_inventory_policy: 'deny',
+            variant_fulfillment_service: 'manual',
+            variant_inventory_qty: categoryConfig.variantConfig?.defaultStock || 50,
+            status: 'active'
+          };
+          csvRows.push(firstVariant);
+          debug(`İlk beden varyantı eklendi: ${sizes[0]}`);
+          
+          // Diğer varyant satırları - sadece gerekli bilgiler
+          for (let i = 1; i < sizes.length; i++) {
+            const variant = {
+              handle,
+              title: '',
+              body: '',
+              vendor: '',
+              product_category: '',
+              type: '',
+              tags: '',
+              published: '',
+              option1_name: 'Size',
+              option1_value: sizes[i],
+              option2_name: '',
+              option2_value: '',
+              option3_name: '',
+              option3_value: '',
+              variant_sku: `${handle}-${sizes[i]}`,
+              variant_grams: '',
+              variant_inventory_tracker: 'shopify',
+              variant_inventory_qty: categoryConfig.variantConfig?.defaultStock || 50,
+              variant_inventory_policy: 'deny',
+              variant_fulfillment_service: 'manual',
+              variant_price: productToExport.price,
+              variant_compare_at_price: '',
+              variant_requires_shipping: 'true',
+              variant_taxable: 'true',
+              variant_barcode: '',
+              status: 'active'
+            };
+            csvRows.push(variant);
+            debug(`Beden varyantı eklendi: ${sizes[i]}`);
+          }
+        }
+        // 3. Sadece renk varyantları (örn. bazı ev/mutfak ürünleri)
+        else if (sizes.length === 0 && colors.length > 0) {
+          // 3.1 Özel ürünler için tek varyant (Title/Default Title)
+          if ((isKitchenProduct || isShoeProduct) && colors.length === 1) {
             const variant = {
               ...baseProduct,
-              option1_name: categoryConfig.variantConfig?.colorLabel || 'Renk',
-              option1_value: color,
-              variant_sku: `${handle}-${color}`,
+              option1_name: 'Title',
+              option1_value: 'Default Title',
+              variant_sku: handle,
               variant_price: productToExport.price,
-              variant_inventory_policy: 'deny', // Shopify için gerekli
-              variant_fulfillment_service: 'manual', // Shopify için gerekli
+              variant_inventory_policy: 'deny',
+              variant_fulfillment_service: 'manual',
               variant_inventory_qty: categoryConfig.variantConfig?.defaultStock || 50,
               status: 'active'
             };
             csvRows.push(variant);
-            debug(`Renk varyantı eklendi: ${color}`);
+            debug(`Tekli ürün varyantı eklendi: Default Title`);
+          }
+          // 3.2 Çok renkli özel ürünler
+          else {
+            // İlk satır - ürün bilgileri
+            const firstVariant = {
+              ...baseProduct,
+              option1_name: 'Color',
+              option1_value: colors[0],
+              variant_sku: `${handle}-${colors[0]}`,
+              variant_price: productToExport.price,
+              variant_inventory_policy: 'deny',
+              variant_fulfillment_service: 'manual',
+              variant_inventory_qty: categoryConfig.variantConfig?.defaultStock || 50,
+              status: 'active'
+            };
+            csvRows.push(firstVariant);
+            debug(`İlk renk varyantı eklendi: ${colors[0]}`);
+            
+            // Diğer varyant satırları - sadece gerekli bilgiler
+            for (let i = 1; i < colors.length; i++) {
+              const variant = {
+                handle,
+                title: '',
+                body: '',
+                vendor: '',
+                product_category: '',
+                type: '',
+                tags: '',
+                published: '',
+                option1_name: 'Color',
+                option1_value: colors[i],
+                option2_name: '',
+                option2_value: '',
+                option3_name: '',
+                option3_value: '',
+                variant_sku: `${handle}-${colors[i]}`,
+                variant_grams: '',
+                variant_inventory_tracker: 'shopify',
+                variant_inventory_qty: categoryConfig.variantConfig?.defaultStock || 50,
+                variant_inventory_policy: 'deny',
+                variant_fulfillment_service: 'manual',
+                variant_price: productToExport.price,
+                variant_compare_at_price: '',
+                variant_requires_shipping: 'true',
+                variant_taxable: 'true',
+                variant_barcode: '',
+                status: 'active'
+              };
+              csvRows.push(variant);
+              debug(`Renk varyantı eklendi: ${colors[i]}`);
+            }
           }
         }
       } else {
@@ -1339,59 +1502,61 @@ export async function registerRoutes(app: Express) {
         debug(`CSV görsel ekleme tamamlandı: ${productImages.length} görsel eklendi`);
       }
 
-      // CSV başlıklarını oluştur - Shopify'dan alınan örnek dosyaya göre
+      // CSV başlıklarını oluştur - TAM Shopify.com örnek dosyasından alınan başlıklarla
       const csvWriter = createObjectCsvWriter({
         path: join(tmpdir(), 'shopify_products.csv'),
         header: [
-          { id: 'handle', title: 'Handle' },
           { id: 'title', title: 'Title' },
-          { id: 'body', title: 'Body (HTML)' },
+          { id: 'handle', title: 'URL handle' },
+          { id: 'body', title: 'Description' },
           { id: 'vendor', title: 'Vendor' },
-          { id: 'product_category', title: 'Product Category' },
+          { id: 'product_category', title: 'Product category' },
           { id: 'type', title: 'Type' },
           { id: 'tags', title: 'Tags' },
-          { id: 'published', title: 'Published' },
-          { id: 'option1_name', title: 'Option1 Name' },
-          { id: 'option1_value', title: 'Option1 Value' },
-          { id: 'option2_name', title: 'Option2 Name' },
-          { id: 'option2_value', title: 'Option2 Value' },
-          { id: 'option3_name', title: 'Option3 Name' },
-          { id: 'option3_value', title: 'Option3 Value' },
-          { id: 'variant_sku', title: 'Variant SKU' },
-          { id: 'variant_grams', title: 'Variant Grams' },
-          { id: 'variant_inventory_tracker', title: 'Variant Inventory Tracker' },
-          { id: 'variant_inventory_qty', title: 'Variant Inventory Qty' },
-          { id: 'variant_inventory_policy', title: 'Variant Inventory Policy' },
-          { id: 'variant_fulfillment_service', title: 'Variant Fulfillment Service' },
-          { id: 'variant_price', title: 'Variant Price' },
-          { id: 'variant_compare_at_price', title: 'Variant Compare At Price' },
-          { id: 'variant_requires_shipping', title: 'Variant Requires Shipping' },
-          { id: 'variant_taxable', title: 'Variant Taxable' },
-          { id: 'variant_barcode', title: 'Variant Barcode' },
-          { id: 'image_src', title: 'Image Src' },
-          { id: 'image_position', title: 'Image Position' },
-          { id: 'image_alt_text', title: 'Image Alt Text' },
-          { id: 'gift_card', title: 'Gift Card' },
-          { id: 'seo_title', title: 'SEO Title' },
-          { id: 'seo_description', title: 'SEO Description' },
-          { id: 'google_shopping_metafields', title: 'Google Shopping / Google Product Category' },
-          { id: 'google_shopping_age_group', title: 'Google Shopping / Age Group' },
-          { id: 'google_shopping_gender', title: 'Google Shopping / Gender' },
-          { id: 'google_shopping_mpn', title: 'Google Shopping / MPN' },
-          { id: 'google_shopping_adwords_grouping', title: 'Google Shopping / Adwords Grouping' },
-          { id: 'google_shopping_adwords_labels', title: 'Google Shopping / Adwords Labels' },
-          { id: 'google_shopping_condition', title: 'Google Shopping / Condition' },
-          { id: 'google_shopping_custom_product', title: 'Google Shopping / Custom Product' },
-          { id: 'google_shopping_custom_label_0', title: 'Google Shopping / Custom Label 0' },
-          { id: 'google_shopping_custom_label_1', title: 'Google Shopping / Custom Label 1' },
-          { id: 'google_shopping_custom_label_2', title: 'Google Shopping / Custom Label 2' },
-          { id: 'google_shopping_custom_label_3', title: 'Google Shopping / Custom Label 3' },
-          { id: 'google_shopping_custom_label_4', title: 'Google Shopping / Custom Label 4' },
-          { id: 'variant_image', title: 'Variant Image' },
-          { id: 'variant_weight_unit', title: 'Variant Weight Unit' },
-          { id: 'variant_tax_code', title: 'Variant Tax Code' },
+          { id: 'published', title: 'Published on online store' },
+          { id: 'status', title: 'Status' },
+          { id: 'variant_sku', title: 'SKU' },
+          { id: 'variant_barcode', title: 'Barcode' },
+          { id: 'option1_name', title: 'Option1 name' },
+          { id: 'option1_value', title: 'Option1 value' },
+          { id: 'option2_name', title: 'Option2 name' },
+          { id: 'option2_value', title: 'Option2 value' },
+          { id: 'option3_name', title: 'Option3 name' },
+          { id: 'option3_value', title: 'Option3 value' },
+          { id: 'variant_price', title: 'Price' },
+          { id: 'intl_price', title: 'Price / International' },
+          { id: 'variant_compare_at_price', title: 'Compare-at price' },
+          { id: 'intl_compare_at_price', title: 'Compare-at price / International' },
           { id: 'cost_per_item', title: 'Cost per item' },
-          { id: 'status', title: 'Status' }
+          { id: 'variant_taxable', title: 'Charge tax' },
+          { id: 'tax_code', title: 'Tax code' },
+          { id: 'variant_inventory_tracker', title: 'Inventory tracker' },
+          { id: 'variant_inventory_qty', title: 'Inventory quantity' },
+          { id: 'variant_inventory_policy', title: 'Continue selling when out of stock' },
+          { id: 'variant_grams', title: 'Weight value (grams)' },
+          { id: 'variant_weight_unit', title: 'Weight unit for display' },
+          { id: 'variant_requires_shipping', title: 'Requires shipping' },
+          { id: 'variant_fulfillment_service', title: 'Fulfillment service' },
+          { id: 'image_src', title: 'Product image URL' },
+          { id: 'image_position', title: 'Image position' },
+          { id: 'image_alt_text', title: 'Image alt text' },
+          { id: 'variant_image', title: 'Variant image URL' },
+          { id: 'gift_card', title: 'Gift card' },
+          { id: 'seo_title', title: 'SEO title' },
+          { id: 'seo_description', title: 'SEO description' },
+          { id: 'google_shopping_metafields', title: 'Google Shopping / Google product category' },
+          { id: 'google_shopping_gender', title: 'Google Shopping / Gender' },
+          { id: 'google_shopping_age_group', title: 'Google Shopping / Age group' },
+          { id: 'google_shopping_mpn', title: 'Google Shopping / MPN' },
+          { id: 'google_shopping_adwords_grouping', title: 'Google Shopping / AdWords Grouping' },
+          { id: 'google_shopping_adwords_labels', title: 'Google Shopping / AdWords labels' },
+          { id: 'google_shopping_condition', title: 'Google Shopping / Condition' },
+          { id: 'google_shopping_custom_product', title: 'Google Shopping / Custom product' },
+          { id: 'google_shopping_custom_label_0', title: 'Google Shopping / Custom label 0' },
+          { id: 'google_shopping_custom_label_1', title: 'Google Shopping / Custom label 1' },
+          { id: 'google_shopping_custom_label_2', title: 'Google Shopping / Custom label 2' },
+          { id: 'google_shopping_custom_label_3', title: 'Google Shopping / Custom label 3' },
+          { id: 'google_shopping_custom_label_4', title: 'Google Shopping / Custom label 4' }
         ]
       });
 
