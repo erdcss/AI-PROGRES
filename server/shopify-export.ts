@@ -30,6 +30,14 @@ export function generateShopifyCSV(
     // ÖNEMLİ: Tüm Boolean alanlar BÜYÜK HARF olmalı
     row.published = 'TRUE';
     
+    // Shopify'da varyant ayarları için kritik değişiklikler
+    row.variant_inventory_policy = 'deny'; // Şart
+    row.variant_fulfillment_service = 'manual'; // Şart
+    
+    // Temel envanter ve durum ayarları
+    row.inventory_policy = 'deny';
+    row.fulfillment_service = 'manual';
+    
     // Shopify gösterimi için mutlaka olması gereken alanlar
     if (!row.handle && row.title) {
       row.handle = row.title
@@ -44,19 +52,30 @@ export function generateShopifyCSV(
       row.product_category = 'Apparel & Accessories';
     }
     
-    // Envanter politikası kontrolü - "deny" olmalı
-    if (row.inventory_policy === undefined || row.inventory_policy === '') {
-      row.inventory_policy = 'deny';
-    }
+    // Envanter alanlarını düzenle (yakın zamandaki Shopify değişiklikleri)
+    row.variant_inventory_qty = row.inventory_quantity || '50';
+    row.variant_inventory_tracker = row.inventory_tracker || 'shopify';
     
-    // Boolean alanları BÜYÜK HARF yap
-    // Variant tabanlı eski alanlar
+    // Alan eşleştirmeleri - aynı verinin farklı sürümleri için
+    // Fiyat alanlarını düzenle - bazı Shopify sürümleri variant_price bazıları price kullanıyor
+    row.variant_price = row.price || row.variant_price || '';
+    row.price = row.variant_price || row.price || '';
+    
+    // SKU alanını düzenle
+    row.variant_sku = row.sku || row.variant_sku || '';
+    row.sku = row.variant_sku || row.sku || '';
+    
+    // Boolean alanları büyük harfe çevir (Shopify'ın gerektirdiği format)
+    if (row.published === 'true') row.published = 'TRUE';
+    if (row.published === 'false') row.published = 'FALSE';
+    
+    // Variant tabanlı Boolean alanlar
     if (row.variant_requires_shipping === 'true') row.variant_requires_shipping = 'TRUE';
     if (row.variant_requires_shipping === 'false') row.variant_requires_shipping = 'FALSE';
     if (row.variant_taxable === 'true') row.variant_taxable = 'TRUE';
     if (row.variant_taxable === 'false') row.variant_taxable = 'FALSE';
     
-    // Yeni alan adları (doğru formatlar)
+    // Doğrudan Boolean alanlar
     if (row.requires_shipping === 'true') row.requires_shipping = 'TRUE';
     if (row.requires_shipping === 'false') row.requires_shipping = 'FALSE';
     if (row.taxable === 'true') row.taxable = 'TRUE';
@@ -79,12 +98,20 @@ export function generateShopifyCSV(
       row.variant_taxable = row.taxable;
     }
     
-    // Varsayılan değerler
+    // Varsayılan değerler - Shopify'da gerekli olan temel alanlar
+    if (!row.status) row.status = 'active';
     if (!row.requires_shipping) row.requires_shipping = 'TRUE';
+    if (!row.variant_requires_shipping) row.variant_requires_shipping = 'TRUE';
     if (!row.taxable) row.taxable = 'TRUE';
+    if (!row.variant_taxable) row.variant_taxable = 'TRUE';
     if (!row.gift_card) row.gift_card = 'FALSE';
     if (!row.inventory_tracker) row.inventory_tracker = 'shopify';
+    if (!row.variant_inventory_tracker) row.variant_inventory_tracker = 'shopify';
     if (!row.published) row.published = 'TRUE';
+    
+    // Option değerlerini kontrol et - Shopify boş olanlara izin vermiyor
+    if (row.option1_name === '') row.option1_name = 'Title';
+    if (row.option1_value === '') row.option1_value = 'Default Title';
     
     return row;
   };
