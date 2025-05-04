@@ -811,6 +811,10 @@ function extractKeywordsFromTitle(title: string): string[] {
 function generateProductTags(product: InsertProduct, categoryConfig: any): string[] {
   let tags: string[] = [];
   const MAX_TAG_LENGTH = 20;
+  const MAX_TAGS = 3; // Maksimum etiket sayısı
+  
+  // Ana kategori listesi - kullanıcı isteğine göre belirlendi
+  const MAIN_CATEGORIES = ['ERKEK', 'KADIN', 'ANNE&ÇOCUK', 'EV&YAŞAM', 'SUPERMARKET', 'KOZMETİK', 'AYAKKABI&ÇANTA', 'ELEKTRONİK'];
   
   // Trendyol sayfasından breadcrumb'ları çekip kullan
   // Breadcrumb kategorilerini filtrele
@@ -842,37 +846,83 @@ function generateProductTags(product: InsertProduct, categoryConfig: any): strin
     tags.push('Clothing');
   }
   
-  // Breadcrumb'ı kullanarak etiketleri oluştur
+  // Etiket 1: Ana kategori (ERKEK, KADIN, vs.) belirle
   if (filteredCategories.length > 0) {
-    // 1. Etiket: Üst kategori (breadcrumb'ın ilk öğesi)
-    if (filteredCategories.length > 0) {
-      const ustKategori = filteredCategories[0]
-        .replace(/\s+/g, '')
-        .substring(0, MAX_TAG_LENGTH);
+    // Ana kategori etiketini bul
+    let mainCategoryFound = false;
+    
+    for (const category of filteredCategories) {
+      const upperCategory = category.toUpperCase();
       
-      if (ustKategori && !tags.includes(ustKategori)) {
-        tags.push(ustKategori);
+      // Ana kategori listesini kontrol et ve eşleşeni bul
+      for (const mainCat of MAIN_CATEGORIES) {
+        if (upperCategory.includes(mainCat) || 
+            mainCat.includes(upperCategory.split(' ')[0])) {
+          // Ana kategoriyi ekle
+          tags = [mainCat]; // İlk etiket olarak belirle
+          mainCategoryFound = true;
+          break;
+        }
+      }
+      if (mainCategoryFound) break;
+    }
+    
+    // Ana kategori bulunamadıysa, tahmini bir kategori kullan
+    if (!mainCategoryFound) {
+      // Ürün başlığı ve kategorilere göre analiz et
+      const titleAndCats = product.title + ' ' + filteredCategories.join(' ');
+      const upperText = titleAndCats.toUpperCase();
+      
+      if (upperText.includes('ERKEK')) {
+        tags = ['ERKEK'];
+      } else if (upperText.includes('KADIN')) {
+        tags = ['KADIN']; 
+      } else if (upperText.includes('ÇOCUK') || upperText.includes('BEBEK')) {
+        tags = ['ANNE&ÇOCUK'];
+      } else if (upperText.includes('EV') || upperText.includes('MUTFAK') || 
+                upperText.includes('DEKOR')) {
+        tags = ['EV&YAŞAM'];
+      } else if (upperText.includes('AYAKKABI') || upperText.includes('ÇANTA')) {
+        tags = ['AYAKKABI&ÇANTA'];
+      } else if (upperText.includes('KOZMETİK') || upperText.includes('MAKYAJ') || 
+                upperText.includes('BAKIM')) {
+        tags = ['KOZMETİK']; 
+      } else if (upperText.includes('ELEKTRONİK') || upperText.includes('TELEFON') || 
+                upperText.includes('BİLGİSAYAR')) {
+        tags = ['ELEKTRONİK'];
+      } else if (upperText.includes('MARKET') || upperText.includes('GIDA')) {
+        tags = ['SUPERMARKET'];
+      } else {
+        // Varsayılan olarak ilk kategori
+        tags = [filteredCategories[0].toUpperCase()];
       }
     }
     
-    // 2. Etiket: Alt kategori (breadcrumb'ın ikinci öğesi)
+    // Etiket 2: Alt kategori (breadcrumb'ın ikinci öğesi)
     if (filteredCategories.length > 1) {
-      const altKategori = filteredCategories[1]
-        .replace(/\s+/g, '')
-        .substring(0, MAX_TAG_LENGTH);
+      const altKategori = filteredCategories[1].toUpperCase();
       
       if (altKategori && !tags.includes(altKategori)) {
         tags.push(altKategori);
       }
     }
     
-    // 3. Etiket: Ürün tipi (breadcrumb'ın son öğesi)
-    if (filteredCategories.length > 2) {
-      const urunTipi = filteredCategories[filteredCategories.length - 1]
-        .replace(/\s+/g, '')
-        .substring(0, MAX_TAG_LENGTH);
+    // Etiket 3: Renk veya ürün tipi
+    // Öncelikle varyantta renk varsa, ilk rengi kullan
+    if (product.variants && 
+        typeof product.variants === 'object' && 
+        'colors' in product.variants && 
+        Array.isArray(product.variants.colors) && 
+        product.variants.colors.length > 0) {
+      const renk = product.variants.colors[0].toUpperCase();
+      if (!tags.includes(renk)) {
+        tags.push(renk);
+      }
+    } 
+    // Renk yoksa ve kategoride 3 veya daha fazla öğe varsa, son öğeyi kullan
+    else if (filteredCategories.length > 2) {
+      const urunTipi = filteredCategories[filteredCategories.length - 1].toUpperCase();
       
-      // Sadece daha önceden eklenmemişse ekle
       if (urunTipi && !tags.includes(urunTipi)) {
         tags.push(urunTipi);
       }
@@ -1020,8 +1070,19 @@ export async function registerRoutes(app: Express) {
       const productTags = generateProductTags(productToExport, categoryConfig);
       debug(`Oluşturulan etiketler: ${productTags.join(', ')}`);
 
-      // Handle oluştur (URL'den)
-      const handle = productToExport.title
+      // Handle oluştur (URL'den) - Türkçe karakter desteği ile
+      const turkishToEnglish = (text: string) => {
+        const charMap = {
+          'ç': 'c', 'ğ': 'g', 'ı': 'i', 'İ': 'i', 'ö': 'o', 'ş': 's', 'ü': 'u',
+          'Ç': 'c', 'Ğ': 'g', 'I': 'i', 'Ö': 'o', 'Ş': 's', 'Ü': 'u',
+          'â': 'a', 'ê': 'e', 'î': 'i', 'ô': 'o', 'û': 'u',
+          'Â': 'a', 'Ê': 'e', 'Î': 'i', 'Ô': 'o', 'Û': 'u'
+        };
+        
+        return text.replace(/[çğıİöşüÇĞIÖŞÜâêîôûÂÊÎÔÛ]/g, match => charMap[match as keyof typeof charMap] || match);
+      };
+      
+      const handle = turkishToEnglish(productToExport.title)
         .toLowerCase()
         .replace(/[^a-z0-9]+/g, '-')
         .replace(/-+/g, '-')
@@ -1048,33 +1109,35 @@ export async function registerRoutes(app: Express) {
       const baseProduct = {
         handle,
         title: productToExport.title,
-        body: generateProductBody(productToExport.description, productToExport.attributes),
+        body_html: generateProductBody(productToExport.description, productToExport.attributes), // Düzeltildi: body -> body_html
         vendor: 'turmarkt', // Tüm ürünler için sabit satıcı adı
         product_category: categoryConfig.shopifyCategory || 'Apparel & Accessories > Clothing',
         type: productToExport.categories[productToExport.categories.length - 1] || 'Giyim',
         tags: productTags.join(','),
-        published: 'true', // Her zaman yayınlanmış olmalı - true olarak değiştirildi (küçük harf)
+        published: 'TRUE', // Boolean değer BÜYÜK HARFLE olmalı - Shopify talebi
+        status: 'active', // Status değeri active olmalı
         option1_name: 'Title', // Varsayılan olarak en az bir seçenek gerekiyor
         option1_value: 'Default Title', // Varsayılan değer
         option2_name: '',
         option2_value: '',
         option3_name: '',
         option3_value: '',
-        variant_sku: handle, // Varsayılan SKU
-        variant_grams: '500', // 0.5kg = 500 gram
-        variant_inventory_tracker: 'shopify',
-        variant_inventory_qty: categoryConfig.variantConfig?.defaultStock || 50,
-        variant_inventory_policy: 'deny',
-        variant_fulfillment_service: 'manual', // Zorunlu alan
-        variant_price: productToExport.price, // Fiyat alanını açıkça belirle
-        variant_compare_at_price: '', // Compare at price değil normal fiyat kullan
-        variant_requires_shipping: 'true', // Boolean değer küçük harfle
-        variant_taxable: 'true', // Boolean değer küçük harfle
-        variant_barcode: '',
-        image_src: '',
-        image_position: '',
+        sku: handle, // Düzeltildi: variant_sku -> sku
+        grams: '500', // Düzeltildi: variant_grams -> grams
+        inventory_tracker: 'shopify', // Düzeltildi: variant_inventory_tracker -> inventory_tracker
+        inventory_qty: categoryConfig.variantConfig?.defaultStock || 50, // Düzeltildi: variant_inventory_qty -> inventory_qty
+        inventory_policy: 'deny', // Düzeltildi: variant_inventory_policy -> inventory_policy
+        fulfillment_service: 'manual', // Düzeltildi: variant_fulfillment_service -> fulfillment_service
+        price: productToExport.price, // Düzeltildi: variant_price -> price
+        compare_at_price: '', // Düzeltildi: variant_compare_at_price -> compare_at_price
+        requires_shipping: 'TRUE', // Düzeltildi: Boolean değer BÜYÜK HARFLE olmalı
+        taxable: 'TRUE', // Düzeltildi: Boolean değer BÜYÜK HARFLE olmalı
+        barcode: '', // Düzeltildi: variant_barcode -> barcode
+        image_src: productToExport.images && productToExport.images.length > 0 ? productToExport.images[0] : '', // İlk görseli ekle
+        image_position: '1', // Resim sırası ekle
         image_alt_text: productToExport.title || '',
-        gift_card: 'false', // Boolean değer küçük harfle
+        variant_image: '',
+        gift_card: 'FALSE', // Düzeltildi: Boolean değer BÜYÜK HARFLE olmalı
         seo_title: productToExport.title || '',
         seo_description: productToExport.description || '',
         google_shopping_metafields: categoryConfig.shopifyCategory || '',
@@ -1090,11 +1153,9 @@ export async function registerRoutes(app: Express) {
         google_shopping_custom_label_2: '',
         google_shopping_custom_label_3: '',
         google_shopping_custom_label_4: '',
-        variant_image: '',
-        variant_weight_unit: 'g',
-        variant_tax_code: '',
-        cost_per_item: '',
-        status: 'active' // Status değerini 'active' olarak ayarla
+        weight_unit: 'g', // Düzeltildi: variant_weight_unit -> weight_unit
+        tax_code: '', // Düzeltildi: variant_tax_code -> tax_code
+        cost_per_item: ''
       };
 
       const variants = productToExport.variants || {};
