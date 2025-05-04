@@ -11,7 +11,7 @@ const __dirname = dirname(__filename);
 
 // Kategori yapılandırma şeması
 export const CategoryConfig = z.object({
-  shopifyCategory: z.string(),
+  shopifyCategory: z.string().default('Apparel & Accessories > Clothing'),
   variantConfig: z.object({
     sizeLabel: z.string().default("Beden"),
     colorLabel: z.string().default("Renk"),

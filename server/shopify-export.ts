@@ -22,7 +22,7 @@ export function generateShopifyCSV(
     variants: { sizes: variants.sizes?.length || 0, colors: variants.colors?.length || 0 }
   });
   
-  // Shopify görüntüleme sorunu düzeltme: https://community.shopify.com/c/technical-q-a/why-my-imported-products-do-not-show-in-shopify/m-p/
+  // Shopify görüntüleme sorunu düzeltme: Gerekli alanların doğru formatları
   const fixShopifyVisibility = (row: any) => {
     // Status alanının "active" olması şart
     row.status = 'active';

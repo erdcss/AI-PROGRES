@@ -29,20 +29,19 @@ function cleanPrice(price: string): number {
 }
 
 async function fetchProductPage(url: string): Promise<cheerio.CheerioAPI> {
-  // Trendyol bot koruması için geliştirmeler
+  // Trendyol bot koruması için geliştirilmiş stealth modu
   const userAgents = [
     'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/123.0.0.0 Safari/537.36',
-    'Mozilla/5.0 (Windows NT 10.0; Win64; x64; rv:123.0) Gecko/20100101 Firefox/123.0',
+    'Mozilla/5.0 (Windows NT 10.0; Win64; x64; rv:124.0) Gecko/20100101 Firefox/124.0',
     'Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/605.1.15 (KHTML, like Gecko) Version/17.0 Safari/605.1.15',
     'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/123.0.0.0 Safari/537.36 Edg/123.0.0.0',
-    'Mozilla/5.0 (X11; Linux x86_64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/123.0.0.0 Safari/537.36',
-    'Mozilla/5.0 (iPhone; CPU iPhone OS 17_0 like Mac OS X) AppleWebKit/605.1.15 (KHTML, like Gecko) CriOS/123.0.0.0 Mobile/15E148 Safari/604.1',
+    'Mozilla/5.0 (iPhone; CPU iPhone OS 17_4_1 like Mac OS X) AppleWebKit/605.1.15 (KHTML, like Gecko) Version/17.4 Mobile/15E148 Safari/604.1',
   ];
   
   const randomUserAgent = userAgents[Math.floor(Math.random() * userAgents.length)];
   
   // Rastgele gecikme ekleyerek doğal kullanıcı davranışı simülasyonu
-  const delay = Math.floor(Math.random() * 1000) + 500; // 500-1500ms arası rastgele bekleme
+  const delay = Math.floor(Math.random() * 1500) + 1000; // 1000-2500ms arası rastgele bekleme (daha uzun)
   
   try {
     // URL'yi normalize et
@@ -56,12 +55,17 @@ async function fetchProductPage(url: string): Promise<cheerio.CheerioAPI> {
     
     // Bot korumasını atlatmak için rastgele gecikme ekle
     await new Promise(resolve => setTimeout(resolve, delay));
+    
+    // Trendyol için geçerli görünen session ID ve visitor ID oluştur
+    const sessionId = Math.random().toString(36).substring(2, 15);
+    const visitorId = Math.random().toString(36).substring(2, 22);
+    const cookieValue = `_gcl_au=1.1.${Math.floor(Math.random() * 1000000000)}.${Math.floor(Date.now() / 1000)}; sid=${sessionId}; vid=${visitorId}`;
 
     // @ts-ignore - node-fetch tiplemesi farklı olduğu için
     const response = await fetch(url, {
       headers: {
         'User-Agent': randomUserAgent,
-        'Accept': 'text/html,application/xhtml+xml,application/xml;q=0.9,image/avif,image/webp,*/*;q=0.8',
+        'Accept': 'text/html,application/xhtml+xml,application/xml;q=0.9,image/avif,image/webp,image/apng,*/*;q=0.8,application/signed-exchange;v=b3;q=0.7',
         'Accept-Language': 'tr-TR,tr;q=0.9,en-US;q=0.8,en;q=0.7',
         'Cache-Control': 'no-cache',
         'Pragma': 'no-cache',
@@ -70,9 +74,13 @@ async function fetchProductPage(url: string): Promise<cheerio.CheerioAPI> {
         'Sec-Fetch-Site': 'none',
         'Sec-Fetch-User': '?1',
         'Upgrade-Insecure-Requests': '1',
-        'Referer': 'https://www.google.com/',
+        'Referer': 'https://www.google.com.tr/',
         'Connection': 'keep-alive',
-        'Cookie': '' // Boş cookie başlığı 
+        'Cookie': cookieValue,
+        'DNT': '1',
+        'Sec-CH-UA': '"Chromium";v="123", "Google Chrome";v="123"', 
+        'Sec-CH-UA-Mobile': '?0',
+        'Sec-CH-UA-Platform': '"Windows"'
       },
       // @ts-ignore - node-fetch tiplemesi farklı olduğu için
       follow: 10,
@@ -1111,7 +1119,7 @@ export async function registerRoutes(app: Express) {
         title: productToExport.title,
         body_html: generateProductBody(productToExport.description, productToExport.attributes), // Düzeltildi: body -> body_html
         vendor: 'turmarkt', // Tüm ürünler için sabit satıcı adı
-        product_category: categoryConfig.shopifyCategory || 'Apparel & Accessories > Clothing',
+        product_category: 'Apparel & Accessories > Clothing',
         type: productToExport.categories[productToExport.categories.length - 1] || 'Giyim',
         tags: productTags.join(','),
         published: 'TRUE', // Boolean değer BÜYÜK HARFLE olmalı - Shopify talebi
@@ -1140,7 +1148,7 @@ export async function registerRoutes(app: Express) {
         gift_card: 'FALSE', // Düzeltildi: Boolean değer BÜYÜK HARFLE olmalı
         seo_title: productToExport.title || '',
         seo_description: productToExport.description || '',
-        google_shopping_metafields: categoryConfig.shopifyCategory || '',
+        google_shopping_metafields: 'Apparel & Accessories > Clothing',
         google_shopping_age_group: '',
         google_shopping_gender: '',
         google_shopping_mpn: '',
