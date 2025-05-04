@@ -4,8 +4,117 @@ import { QueryClientProvider } from "@tanstack/react-query";
 import { Toaster } from "@/components/ui/toaster";
 import NotFound from "@/pages/not-found";
 import Home from "@/pages/home";
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import { UrlHistory } from "@/components/UrlHistory";
+import { Card, CardContent, CardDescription, CardFooter, CardHeader, CardTitle } from "@/components/ui/card";
+import { Input } from "@/components/ui/input";
+import { Button } from "@/components/ui/button";
+import { Label } from "@/components/ui/label";
+import { Lock, ShieldCheck, AlertCircle } from "lucide-react";
+
+// Login component with password protection
+function LoginScreen({ onLogin }: { onLogin: () => void }) {
+  const [password, setPassword] = useState("");
+  const [error, setError] = useState(false);
+  const [num1, setNum1] = useState(Math.floor(Math.random() * 10));
+  const [num2, setNum2] = useState(Math.floor(Math.random() * 10));
+  const [sum, setSum] = useState("");
+  const [captchaError, setCaptchaError] = useState(false);
+  
+  const correctPassword = "4434";
+  
+  const handleLogin = () => {
+    if (password === correctPassword) {
+      // Check captcha
+      if (parseInt(sum) === num1 + num2) {
+        setCaptchaError(false);
+        onLogin();
+      } else {
+        setCaptchaError(true);
+        // Generate new numbers
+        setNum1(Math.floor(Math.random() * 10));
+        setNum2(Math.floor(Math.random() * 10));
+        setSum("");
+      }
+    } else {
+      setError(true);
+      setTimeout(() => setError(false), 2000);
+    }
+  };
+  
+  const handleKeyDown = (e: React.KeyboardEvent) => {
+    if (e.key === "Enter") {
+      handleLogin();
+    }
+  };
+  
+  return (
+    <div className="flex items-center justify-center min-h-screen bg-gradient-to-b from-slate-900 to-slate-800">
+      <Card className="w-[380px] shadow-xl border-slate-700">
+        <CardHeader className="space-y-1">
+          <CardTitle className="text-2xl text-center">
+            <div className="flex items-center justify-center gap-2">
+              <Lock className="h-6 w-6 text-blue-500" />
+              <span>Veri Transfer Programı</span>
+            </div>
+          </CardTitle>
+          <CardDescription className="text-center">
+            Lütfen şifreyi girin
+          </CardDescription>
+        </CardHeader>
+        <CardContent className="space-y-4">
+          <div className="space-y-2">
+            <Label htmlFor="password">Şifre</Label>
+            <Input
+              id="password"
+              type="password"
+              value={password}
+              onChange={(e) => setPassword(e.target.value)}
+              onKeyDown={handleKeyDown}
+              className={error ? "border-red-500" : ""}
+              placeholder="••••"
+            />
+            {error && (
+              <div className="text-sm text-red-500 flex items-center gap-1 animate-pulse">
+                <AlertCircle className="h-4 w-4" />
+                <span>Hatalı şifre</span>
+              </div>
+            )}
+          </div>
+          
+          <div className="space-y-2">
+            <Label htmlFor="captcha">Güvenlik sorusu: {num1} + {num2} = ?</Label>
+            <Input
+              id="captcha"
+              type="text"
+              value={sum}
+              onChange={(e) => setSum(e.target.value)}
+              onKeyDown={handleKeyDown}
+              className={captchaError ? "border-red-500" : ""}
+              placeholder="Lütfen toplamı yazın"
+            />
+            {captchaError && (
+              <div className="text-sm text-red-500 flex items-center gap-1 animate-pulse">
+                <AlertCircle className="h-4 w-4" />
+                <span>Hatalı toplama</span>
+              </div>
+            )}
+          </div>
+        </CardContent>
+        <CardFooter>
+          <Button 
+            onClick={handleLogin} 
+            className="w-full" 
+            variant="default"
+          >
+            <ShieldCheck className="mr-2 h-4 w-4" />
+            Giriş Yap
+          </Button>
+        </CardFooter>
+      </Card>
+    </div>
+  );
+}
 
 function Router() {
   return (
@@ -32,6 +141,41 @@ function Router() {
 }
 
 function App() {
+  const [isLoggedIn, setIsLoggedIn] = useState(false);
+  
+  // Uygulama kapanıp açıldığında yeniden giriş istensin
+  useEffect(() => {
+    // Oturum durumunu zamanla sıfırla (opsiyonel)
+    const checkInterval = setInterval(() => {
+      const lastLogin = localStorage.getItem('lastLogin');
+      if (lastLogin) {
+        // 30 dakika sonra oturumu sonlandır
+        const lastLoginTime = parseInt(lastLogin);
+        const thirtyMinutes = 30 * 60 * 1000;
+        if (Date.now() - lastLoginTime > thirtyMinutes) {
+          setIsLoggedIn(false);
+          localStorage.removeItem('lastLogin');
+        }
+      }
+    }, 60000); // Her dakika kontrol et
+    
+    return () => clearInterval(checkInterval);
+  }, []);
+  
+  const handleLogin = () => {
+    setIsLoggedIn(true);
+    localStorage.setItem('lastLogin', Date.now().toString());
+  };
+  
+  if (!isLoggedIn) {
+    return (
+      <QueryClientProvider client={queryClient}>
+        <LoginScreen onLogin={handleLogin} />
+        <Toaster />
+      </QueryClientProvider>
+    );
+  }
+  
   return (
     <QueryClientProvider client={queryClient}>
       <Router />

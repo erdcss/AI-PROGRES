@@ -509,8 +509,23 @@ export function generateShopifyCSV(
       
       // Tüm satırları BÜYÜK HARF boolean değerleriyle düzelt
       const processedRows = csvRows.map(row => {
+        // SHOPIFY 2024 FORMAT ÖZELLİKLERİ - MUTLAKA GEREKLİ
+        
+        // Vendor ve marka bilgisi - kritik
+        row.vendor = 'turmarkt';
+        
+        // Temel ürün statüsü
+        row.status = 'active';
+        row.published_scope = 'web';  // Bu alan Shopify'da gerekli
+        
         // ÖNEMLİ: Shopify için boolean alanlar BÜYÜK HARF olmalı
         row.published = row.published === 'true' ? 'TRUE' : (row.published === 'false' ? 'FALSE' : row.published || 'TRUE');
+        
+        // Option alanları - Shopify'da her ürün için bir option gerekli 
+        if (!row.option1_name && !row.option1_value) {
+          row.option1_name = 'Title';
+          row.option1_value = 'Default Title';
+        }
         
         // Variant alanları
         if (row.variant_requires_shipping === 'true') row.variant_requires_shipping = 'TRUE';
@@ -526,13 +541,30 @@ export function generateShopifyCSV(
         if (row.gift_card === 'true') row.gift_card = 'TRUE';
         if (row.gift_card === 'false') row.gift_card = 'FALSE';
         
+        // Boolean değerleri uygun formata zorla
+        if (!row.requires_shipping) row.requires_shipping = 'TRUE';
+        if (!row.taxable) row.taxable = 'TRUE';
+        if (!row.gift_card) row.gift_card = 'FALSE';
+        
+        // Variant ayarları
+        row.variant_inventory_policy = 'deny';
+        row.variant_fulfillment_service = 'manual';
+        row.variant_inventory_management = 'shopify';
+        
+        // Fiyat ve stok düzenlemeleri
+        if (row.inventory_quantity === undefined || row.inventory_quantity === '') {
+          row.inventory_quantity = '50'; // Varsayılan stok miktarı
+        }
+        
         return row;
       });
       
       // Değerleri kontrol için son hali logla
       console.log("SON HALİ >> İlk satır published:", processedRows[0]?.published,
                  "İlk satır requires_shipping:", processedRows[0]?.requires_shipping,
-                 "İlk satır taxable:", processedRows[0]?.taxable);
+                 "İlk satır taxable:", processedRows[0]?.taxable, 
+                 "İlk satır option1_name:", processedRows[0]?.option1_name,
+                 "İlk satır option1_value:", processedRows[0]?.option1_value);
       
       // CSV'yi yaz
       await csvWriter.writeRecords(processedRows);
