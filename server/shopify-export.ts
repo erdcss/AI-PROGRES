@@ -27,7 +27,7 @@ export function generateShopifyCSV(
     // Status alanının "active" olması şart
     row.status = 'active';
     
-    // Published alanını "TRUE" olarak ayarla
+    // ÖNEMLİ: Tüm Boolean alanlar BÜYÜK HARF olmalı
     row.published = 'TRUE';
     
     // Shopify gösterimi için mutlaka olması gereken alanlar
@@ -49,11 +49,42 @@ export function generateShopifyCSV(
       row.inventory_policy = 'deny';
     }
     
-    // Ek alan kontrolleri
-    row.variant_requires_shipping = 'TRUE';
-    row.variant_taxable = 'TRUE';
-    row.gift_card = 'FALSE';
-    row.variant_inventory_tracker = 'shopify';
+    // Boolean alanları BÜYÜK HARF yap
+    // Variant tabanlı eski alanlar
+    if (row.variant_requires_shipping === 'true') row.variant_requires_shipping = 'TRUE';
+    if (row.variant_requires_shipping === 'false') row.variant_requires_shipping = 'FALSE';
+    if (row.variant_taxable === 'true') row.variant_taxable = 'TRUE';
+    if (row.variant_taxable === 'false') row.variant_taxable = 'FALSE';
+    
+    // Yeni alan adları (doğru formatlar)
+    if (row.requires_shipping === 'true') row.requires_shipping = 'TRUE';
+    if (row.requires_shipping === 'false') row.requires_shipping = 'FALSE';
+    if (row.taxable === 'true') row.taxable = 'TRUE';
+    if (row.taxable === 'false') row.taxable = 'FALSE';
+    if (row.gift_card === 'true') row.gift_card = 'TRUE';
+    if (row.gift_card === 'false') row.gift_card = 'FALSE';
+
+    // Karşılıklı alan aktarımları (uyumluluk için)
+    if (!row.requires_shipping && row.variant_requires_shipping) {
+      row.requires_shipping = row.variant_requires_shipping;
+    }
+    if (!row.variant_requires_shipping && row.requires_shipping) {
+      row.variant_requires_shipping = row.requires_shipping;
+    }
+    
+    if (!row.taxable && row.variant_taxable) {
+      row.taxable = row.variant_taxable;
+    }
+    if (!row.variant_taxable && row.taxable) {
+      row.variant_taxable = row.taxable;
+    }
+    
+    // Varsayılan değerler
+    if (!row.requires_shipping) row.requires_shipping = 'TRUE';
+    if (!row.taxable) row.taxable = 'TRUE';
+    if (!row.gift_card) row.gift_card = 'FALSE';
+    if (!row.inventory_tracker) row.inventory_tracker = 'shopify';
+    if (!row.published) row.published = 'TRUE';
     
     return row;
   };
@@ -449,8 +480,35 @@ export function generateShopifyCSV(
                   "İlk satır status:", csvRows[0]?.status,
                   "İlk satır published:", csvRows[0]?.published);
       
+      // Tüm satırları BÜYÜK HARF boolean değerleriyle düzelt
+      const processedRows = csvRows.map(row => {
+        // ÖNEMLİ: Shopify için boolean alanlar BÜYÜK HARF olmalı
+        row.published = row.published === 'true' ? 'TRUE' : (row.published === 'false' ? 'FALSE' : row.published || 'TRUE');
+        
+        // Variant alanları
+        if (row.variant_requires_shipping === 'true') row.variant_requires_shipping = 'TRUE';
+        if (row.variant_requires_shipping === 'false') row.variant_requires_shipping = 'FALSE';
+        if (row.variant_taxable === 'true') row.variant_taxable = 'TRUE';
+        if (row.variant_taxable === 'false') row.variant_taxable = 'FALSE';
+        
+        // Standart alanlar
+        if (row.requires_shipping === 'true') row.requires_shipping = 'TRUE';
+        if (row.requires_shipping === 'false') row.requires_shipping = 'FALSE';
+        if (row.taxable === 'true') row.taxable = 'TRUE';
+        if (row.taxable === 'false') row.taxable = 'FALSE';
+        if (row.gift_card === 'true') row.gift_card = 'TRUE';
+        if (row.gift_card === 'false') row.gift_card = 'FALSE';
+        
+        return row;
+      });
+      
+      // Değerleri kontrol için son hali logla
+      console.log("SON HALİ >> İlk satır published:", processedRows[0]?.published,
+                 "İlk satır requires_shipping:", processedRows[0]?.requires_shipping,
+                 "İlk satır taxable:", processedRows[0]?.taxable);
+      
       // CSV'yi yaz
-      await csvWriter.writeRecords(csvRows);
+      await csvWriter.writeRecords(processedRows);
       resolve(outputPath);
     } catch (error) {
       console.error('CSV oluşturma hatası:', error);

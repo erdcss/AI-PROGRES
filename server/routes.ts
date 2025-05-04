@@ -1584,18 +1584,24 @@ export async function registerRoutes(app: Express) {
             row.image_src = DEFAULT_IMAGE_URL;
           }
           
-          // Boolean değerleri küçük harfe çevir - Shopify'ın beklediği format
-          if (row.published === 'TRUE') row.published = 'true';
-          if (row.published === 'FALSE') row.published = 'false';
+          // Boolean değerleri BÜYÜK HARFE çevir - Shopify'ın beklediği format
+          if (row.published === 'true') row.published = 'TRUE';
+          if (row.published === 'false') row.published = 'FALSE';
+          if (!row.published) row.published = 'TRUE'; // Varsayılan olarak TRUE olsun
           
-          if (row.variant_requires_shipping === 'TRUE') row.variant_requires_shipping = 'true';
-          if (row.variant_requires_shipping === 'FALSE') row.variant_requires_shipping = 'false';
+          if (row.variant_requires_shipping === 'true') row.variant_requires_shipping = 'TRUE';
+          if (row.variant_requires_shipping === 'false') row.variant_requires_shipping = 'FALSE';
+          if (row.requires_shipping === 'true') row.requires_shipping = 'TRUE';
+          if (row.requires_shipping === 'false') row.requires_shipping = 'FALSE';
           
-          if (row.variant_taxable === 'TRUE') row.variant_taxable = 'true';
-          if (row.variant_taxable === 'FALSE') row.variant_taxable = 'false';
+          if (row.variant_taxable === 'true') row.variant_taxable = 'TRUE';
+          if (row.variant_taxable === 'false') row.variant_taxable = 'FALSE';
+          if (row.taxable === 'true') row.taxable = 'TRUE';
+          if (row.taxable === 'false') row.taxable = 'FALSE';
           
-          if (row.gift_card === 'TRUE') row.gift_card = 'true';
-          if (row.gift_card === 'FALSE') row.gift_card = 'false';
+          if (row.gift_card === 'true') row.gift_card = 'TRUE';
+          if (row.gift_card === 'false') row.gift_card = 'FALSE';
+          if (!row.gift_card) row.gift_card = 'FALSE'; // Varsayılan olarak FALSE olsun
           
           // Variant Fulfillment Service alanı zorunlu olarak 'manual' olmalı
           row.variant_fulfillment_service = 'manual';
@@ -1610,7 +1616,7 @@ export async function registerRoutes(app: Express) {
         header: [
           { id: 'title', title: 'Title' },
           { id: 'handle', title: 'URL handle' },
-          { id: 'body', title: 'Description' },
+          { id: 'body_html', title: 'Description' },
           { id: 'vendor', title: 'Vendor' },
           { id: 'product_category', title: 'Product category' },
           { id: 'type', title: 'Type' },
