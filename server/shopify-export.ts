@@ -17,6 +17,46 @@ export function generateShopifyCSV(
   } = {},
   outputPath: string = join(tmpdir(), 'shopify_products.csv')
 ): Promise<string> {
+  console.log('Generating Shopify CSV:', { 
+    productName: product.title,
+    variants: { sizes: variants.sizes?.length || 0, colors: variants.colors?.length || 0 }
+  });
+  
+  // Shopify görüntüleme sorunu düzeltme: https://community.shopify.com/c/technical-q-a/why-my-imported-products-do-not-show-in-shopify/m-p/
+  const fixShopifyVisibility = (row: any) => {
+    // Status alanının "active" olması şart
+    row.status = 'active';
+    
+    // Published alanını "TRUE" olarak ayarla
+    row.published = 'TRUE';
+    
+    // Shopify gösterimi için mutlaka olması gereken alanlar
+    if (!row.handle && row.title) {
+      row.handle = row.title
+        .toLowerCase()
+        .replace(/[^a-z0-9]+/g, '-')
+        .replace(/-+/g, '-')
+        .replace(/^-|-$/g, '');
+    }
+    
+    // Shopify kategori alanı için ek kontrol
+    if (!row.product_category) {
+      row.product_category = 'Apparel & Accessories';
+    }
+    
+    // Envanter politikası kontrolü - "deny" olmalı
+    if (row.inventory_policy === undefined || row.inventory_policy === '') {
+      row.inventory_policy = 'deny';
+    }
+    
+    // Ek alan kontrolleri
+    row.variant_requires_shipping = 'TRUE';
+    row.variant_taxable = 'TRUE';
+    row.gift_card = 'FALSE';
+    row.variant_inventory_tracker = 'shopify';
+    
+    return row;
+  };
   return new Promise(async (resolve, reject) => {
     try {
       // Shopify'ın tam başlık listesini kullan
@@ -30,7 +70,7 @@ export function generateShopifyCSV(
           { id: 'product_category', title: 'Product category' },
           { id: 'type', title: 'Type' },
           { id: 'tags', title: 'Tags' },
-          { id: 'published', title: 'Published on online store' },
+          { id: 'published', title: 'Published on online store' }, // Shopify 2023/2024 formatında bu şekilde
           { id: 'status', title: 'Status' },
           { id: 'sku', title: 'SKU' },
           { id: 'barcode', title: 'Barcode' },
@@ -398,6 +438,16 @@ export function generateShopifyCSV(
           });
         }
       }
+      
+      // Tüm CSV satırlarına visibility düzeltmelerini uygula
+      const updatedRows = csvRows.map(row => fixShopifyVisibility(row));
+      csvRows.length = 0;
+      updatedRows.forEach(row => csvRows.push(row));
+      
+      // CSV içeriğini debug
+      console.log("CSV satırları oluşturuldu:", csvRows.length, 
+                  "İlk satır status:", csvRows[0]?.status,
+                  "İlk satır published:", csvRows[0]?.published);
       
       // CSV'yi yaz
       await csvWriter.writeRecords(csvRows);

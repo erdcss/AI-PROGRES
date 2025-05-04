@@ -11,12 +11,14 @@ import { getCategoryConfig } from './category-mapping';
 import { tmpdir } from 'os';
 import { join } from 'path';
 import * as fs from 'fs';
+import { scrapeProductWithPuppeteer } from './puppeteer-scraper';
 
 // Uygulama sabitleri ve yapılandırmaları
 const DEFAULT_IMAGE_URL = "https://cdn.dsmcdn.com/assets/product/media/images/no-image-v2.png"; // Varsayılan görsel URL
 const MAX_IMAGES = 8; // Shopify'a eklenecek maksimum görsel sayısı
-const APP_VERSION = "0.13.1006"; // Yeni sürüm numarası (Shopify inventory policy ve fulfillment hatası düzeltmesi)
+const APP_VERSION = "0.13.1008"; // Yeni sürüm numarası (Puppeteer entegrasyonu, Shopify düzeltmeleri ve bot koruma iyileştirmeleri)
 const MAX_TAG_LENGTH = 50; // Etiketlerin maksimum uzunluğu
+const USE_PUPPETEER = true; // Puppeteer kullanımını etkinleştir veya devre dışı bırak
 
 function debug(message: string, ...args: any[]) {
   console.log(`[DEBUG] ${message}`, ...args);
@@ -27,6 +29,21 @@ function cleanPrice(price: string): number {
 }
 
 async function fetchProductPage(url: string): Promise<cheerio.CheerioAPI> {
+  // Trendyol bot koruması için geliştirmeler
+  const userAgents = [
+    'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/123.0.0.0 Safari/537.36',
+    'Mozilla/5.0 (Windows NT 10.0; Win64; x64; rv:123.0) Gecko/20100101 Firefox/123.0',
+    'Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/605.1.15 (KHTML, like Gecko) Version/17.0 Safari/605.1.15',
+    'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/123.0.0.0 Safari/537.36 Edg/123.0.0.0',
+    'Mozilla/5.0 (X11; Linux x86_64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/123.0.0.0 Safari/537.36',
+    'Mozilla/5.0 (iPhone; CPU iPhone OS 17_0 like Mac OS X) AppleWebKit/605.1.15 (KHTML, like Gecko) CriOS/123.0.0.0 Mobile/15E148 Safari/604.1',
+  ];
+  
+  const randomUserAgent = userAgents[Math.floor(Math.random() * userAgents.length)];
+  
+  // Rastgele gecikme ekleyerek doğal kullanıcı davranışı simülasyonu
+  const delay = Math.floor(Math.random() * 1000) + 500; // 500-1500ms arası rastgele bekleme
+  
   try {
     // URL'yi normalize et
     if (!url.startsWith('http')) {
@@ -34,23 +51,28 @@ async function fetchProductPage(url: string): Promise<cheerio.CheerioAPI> {
     }
 
     debug(`Fetching URL: ${url}`);
+    debug(`Kullanılan User-Agent: ${randomUserAgent}`);
+    debug(`İstek öncesi bekleme: ${delay}ms`);
+    
+    // Bot korumasını atlatmak için rastgele gecikme ekle
+    await new Promise(resolve => setTimeout(resolve, delay));
 
     // @ts-ignore - node-fetch tiplemesi farklı olduğu için
     const response = await fetch(url, {
       headers: {
-        'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/122.0.0.0 Safari/537.36',
+        'User-Agent': randomUserAgent,
         'Accept': 'text/html,application/xhtml+xml,application/xml;q=0.9,image/avif,image/webp,*/*;q=0.8',
         'Accept-Language': 'tr-TR,tr;q=0.9,en-US;q=0.8,en;q=0.7',
         'Cache-Control': 'no-cache',
         'Pragma': 'no-cache',
         'Sec-Fetch-Dest': 'document',
         'Sec-Fetch-Mode': 'navigate',
-        'Sec-Fetch-Site': 'cross-site',
+        'Sec-Fetch-Site': 'none',
         'Sec-Fetch-User': '?1',
         'Upgrade-Insecure-Requests': '1',
-        'Referer': 'https://www.trendyol.com/',
-        'Origin': 'https://www.trendyol.com',
-        'Connection': 'keep-alive'
+        'Referer': 'https://www.google.com/',
+        'Connection': 'keep-alive',
+        'Cookie': '' // Boş cookie başlığı 
       },
       // @ts-ignore - node-fetch tiplemesi farklı olduğu için
       follow: 10,
@@ -342,7 +364,26 @@ async function scrapeProduct(url: string): Promise<InsertProduct> {
   debug("Scraping başlatıldı");
 
   try {
-    const $ = await fetchProductPage(url);
+    let $;
+    
+    // USE_PUPPETEER true ise Puppeteer ile scraping, değilse Cheerio ile
+    if (USE_PUPPETEER) {
+      debug("Puppeteer ile scraping kullanılıyor");
+      try {
+        // Puppeteer ile HTML içeriğini al
+        const html = await scrapeProductWithPuppeteer(url);
+        // HTML içeriğini Cheerio ile analiz et
+        $ = cheerio.load(html);
+        debug("Puppeteer ile içerik başarıyla alındı");
+      } catch (error) {
+        const puppeteerError = error as Error;
+        debug(`Puppeteer hatası: ${puppeteerError.message}, Cheerio'ya düşüyor`);
+        $ = await fetchProductPage(url); // Fallback to normal fetch
+      }
+    } else {
+      // Normal fetch ile sayfayı yükle
+      $ = await fetchProductPage(url);
+    }
 
     // Ürün verilerini parse et
     const productData = $('script').map((_, element) => {
