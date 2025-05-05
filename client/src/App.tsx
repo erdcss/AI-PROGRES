@@ -20,6 +20,8 @@ function LoginScreen({ onLogin }: { onLogin: () => void }) {
   const [num2, setNum2] = useState(Math.floor(Math.random() * 10));
   const [sum, setSum] = useState("");
   const [captchaError, setCaptchaError] = useState(false);
+  const [success, setSuccess] = useState(false);
+  const [countdown, setCountdown] = useState(5);
   
   const correctPassword = "4434";
   
@@ -28,7 +30,21 @@ function LoginScreen({ onLogin }: { onLogin: () => void }) {
       // Check captcha
       if (parseInt(sum) === num1 + num2) {
         setCaptchaError(false);
-        onLogin();
+        setSuccess(true);
+        
+        // Başlat geri sayım
+        let count = 5;
+        setCountdown(count);
+        
+        const timer = setInterval(() => {
+          count--;
+          setCountdown(count);
+          
+          if (count <= 0) {
+            clearInterval(timer);
+            onLogin();
+          }
+        }, 1000);
       } else {
         setCaptchaError(true);
         // Generate new numbers
@@ -59,58 +75,75 @@ function LoginScreen({ onLogin }: { onLogin: () => void }) {
             </div>
           </CardTitle>
           <CardDescription className="text-center">
-            Lütfen şifreyi girin
+            {success ? 
+              <span className="text-green-500 font-bold animate-pulse">
+                Şifre doğru, sistem aktif ediliyor... ({countdown}s)
+              </span>
+             : 
+              "Lütfen şifreyi girin"
+            }
           </CardDescription>
         </CardHeader>
-        <CardContent className="space-y-4">
-          <div className="space-y-2">
-            <Label htmlFor="password">Şifre</Label>
-            <Input
-              id="password"
-              type="password"
-              value={password}
-              onChange={(e) => setPassword(e.target.value)}
-              onKeyDown={handleKeyDown}
-              className={error ? "border-red-500" : ""}
-              placeholder="••••"
-            />
-            {error && (
-              <div className="text-sm text-red-500 flex items-center gap-1 animate-pulse">
-                <AlertCircle className="h-4 w-4" />
-                <span>Hatalı şifre</span>
+        {!success && (
+          <>
+            <CardContent className="space-y-4">
+              <div className="space-y-2">
+                <Label htmlFor="password">Şifre</Label>
+                <Input
+                  id="password"
+                  type="password"
+                  value={password}
+                  onChange={(e) => setPassword(e.target.value)}
+                  onKeyDown={handleKeyDown}
+                  className={error ? "border-red-500" : ""}
+                  placeholder="••••"
+                />
+                {error && (
+                  <div className="text-sm text-red-500 flex items-center gap-1 animate-pulse">
+                    <AlertCircle className="h-4 w-4" />
+                    <span>Hatalı şifre</span>
+                  </div>
+                )}
               </div>
-            )}
-          </div>
-          
-          <div className="space-y-2">
-            <Label htmlFor="captcha">Güvenlik sorusu: {num1} + {num2} = ?</Label>
-            <Input
-              id="captcha"
-              type="text"
-              value={sum}
-              onChange={(e) => setSum(e.target.value)}
-              onKeyDown={handleKeyDown}
-              className={captchaError ? "border-red-500" : ""}
-              placeholder="Lütfen toplamı yazın"
-            />
-            {captchaError && (
-              <div className="text-sm text-red-500 flex items-center gap-1 animate-pulse">
-                <AlertCircle className="h-4 w-4" />
-                <span>Hatalı toplama</span>
+              
+              <div className="space-y-2">
+                <Label htmlFor="captcha">Güvenlik sorusu: {num1} + {num2} = ?</Label>
+                <Input
+                  id="captcha"
+                  type="text"
+                  value={sum}
+                  onChange={(e) => setSum(e.target.value)}
+                  onKeyDown={handleKeyDown}
+                  className={captchaError ? "border-red-500" : ""}
+                  placeholder="Lütfen toplamı yazın"
+                />
+                {captchaError && (
+                  <div className="text-sm text-red-500 flex items-center gap-1 animate-pulse">
+                    <AlertCircle className="h-4 w-4" />
+                    <span>Hatalı toplama</span>
+                  </div>
+                )}
               </div>
-            )}
-          </div>
-        </CardContent>
-        <CardFooter>
-          <Button 
-            onClick={handleLogin} 
-            className="w-full" 
-            variant="default"
-          >
-            <ShieldCheck className="mr-2 h-4 w-4" />
-            Giriş Yap
-          </Button>
-        </CardFooter>
+            </CardContent>
+            <CardFooter>
+              <Button 
+                onClick={handleLogin} 
+                className="w-full" 
+                variant="default"
+              >
+                <ShieldCheck className="mr-2 h-4 w-4" />
+                Giriş Yap
+              </Button>
+            </CardFooter>
+          </>
+        )}
+        {success && (
+          <CardContent className="py-6">
+            <div className="flex items-center justify-center">
+              <div className="h-12 w-12 rounded-full border-4 border-t-blue-500 border-b-blue-600 border-r-transparent border-l-transparent animate-spin"></div>
+            </div>
+          </CardContent>
+        )}
       </Card>
     </div>
   );
