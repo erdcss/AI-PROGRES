@@ -30,6 +30,9 @@ export function generateShopifyCSV(
     // ÖNEMLİ: Tüm Boolean alanlar BÜYÜK HARF olmalı
     row.published = 'TRUE';
     
+    // Published scope alanı kritik - Shopify 2023/2024 gerekliliği
+    row.published_scope = 'web';  // Bu alan Shopify'da gerekli
+    
     // Shopify'da varyant ayarları için kritik değişiklikler
     row.variant_inventory_policy = 'deny'; // Şart
     row.variant_fulfillment_service = 'manual'; // Şart
@@ -129,6 +132,7 @@ export function generateShopifyCSV(
           { id: 'type', title: 'Type' },
           { id: 'tags', title: 'Tags' },
           { id: 'published', title: 'Published on online store' }, // Shopify 2023/2024 formatında bu şekilde
+          { id: 'published_scope', title: 'Published scope' }, // Shopify 2023/2024 gerekli alan
           { id: 'status', title: 'Status' },
           { id: 'sku', title: 'SKU' },
           { id: 'barcode', title: 'Barcode' },
