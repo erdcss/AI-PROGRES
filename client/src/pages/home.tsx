@@ -255,7 +255,7 @@ export default function Home() {
                   type="button"
                   variant="ghost"
                   size="icon"
-                  className="absolute left-1 top-1/2 transform -translate-y-1/2 h-7 w-7 z-10"
+                  className="absolute left-1 top-1/2 transform -translate-y-1/2 h-7 w-7 z-10 bg-[#0f3e6c] hover:bg-[#1a4d7c] text-white border-none"
                   onClick={() => form.setValue("url", "")}
                 >
                   <XCircle className="h-3.5 w-3.5" />
