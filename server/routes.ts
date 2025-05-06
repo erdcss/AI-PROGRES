@@ -1126,7 +1126,29 @@ export async function registerRoutes(app: Express) {
         });
       }
       
-      debug(`Dışa aktarılacak ürün: ${productToExport.title}`);
+      // Ürün veri yapısını kontrol et ve gerekli alanları eksiksiz olduğundan emin ol
+      try {
+        if (!productToExport.url) {
+          const urlParam = req.query.url as string || req.body?.url || '';
+          productToExport.url = urlParam;
+        }
+        
+        if (!productToExport.attributes) {
+          productToExport.attributes = {};
+        }
+        
+        debug(`Dışa aktarılacak ürün: ${productToExport.title}`);
+        debug(`Ürün özellikleri sayısı: ${Object.keys(productToExport.attributes).length}`);
+        
+        // Görsel URL'lerini kontrol et
+        if (!productToExport.images || productToExport.images.length === 0) {
+          debug("UYARI: Ürün görseli bulunamadı");
+        } else {
+          debug(`Görsel sayısı: ${productToExport.images.length}`);
+        }
+      } catch (error) {
+        debug("Ürün veri kontrolü sırasında hata:", error);
+      }
       if (productToExport.categories) {
         debug(`Ürün kategorileri: ${productToExport.categories.join(', ')}`);
       }
