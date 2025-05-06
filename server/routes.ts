@@ -878,165 +878,128 @@ function extractKeywordsFromTitle(title: string): string[] {
 
 // Ürün için otomatik etiketler oluşturan fonksiyon
 function generateProductTags(product: InsertProduct, categoryConfig: any): string[] {
-  let tags: string[] = [];
-  const MAX_TAG_LENGTH = 20;
-  const MAX_TAGS = 3; // Maksimum etiket sayısı
-  
-  // Ana kategori listesi - kullanıcı isteğine göre belirlendi
+  // Sabitler
+  const MAX_TAG_LENGTH = 20; // Maksimum etiket uzunluğu
+  const MAX_TAGS = 3;        // Maksimum etiket sayısı
   const MAIN_CATEGORIES = ['ERKEK', 'KADIN', 'ANNE&ÇOCUK', 'EV&YAŞAM', 'SUPERMARKET', 'KOZMETİK', 'AYAKKABI&ÇANTA', 'ELEKTRONİK'];
   
-  // Trendyol sayfasından breadcrumb'ları çekip kullan
-  // Breadcrumb kategorilerini filtrele
+  let tags: string[] = [];
+  
+  // Trendyol ve diğer istenmeyen kelimeleri filtrele
   const filteredCategories = product.categories
     .filter(cat => {
       const lowercaseCat = cat.toLowerCase();
       return !(
-        lowercaseCat === 'trendyol' || 
+        lowercaseCat.includes('trendyol') || 
         lowercaseCat === 'anasayfa' ||
+        lowercaseCat.includes('com') ||
         lowercaseCat === 'philips' ||
         lowercaseCat === 'tefal' ||
-        lowercaseCat === 'osg' ||
-        lowercaseCat.includes('com')
-      );
+        lowercaseCat === 'osg')
     })
-    .map(cat => cat.trim());
+    .map(cat => {
+      // Her kategoriyi temizle (boşlukları kaldır, max uzunluğa kısalt)
+      return cat.trim().substring(0, MAX_TAG_LENGTH);
+    });
   
+  // Filtrelenmiş kategorileri debug için logla
   debug(`Filtrelenmiş kategori listesi: ${filteredCategories.join(', ')}`);
   
-  // Shopify uyumluluğu için T-shirt etiketleri
-  const titleLower = (product.title || '').toLowerCase();
-  const isTshirt = titleLower.includes('tişört') || 
-                  titleLower.includes('t-shirt') || 
-                  titleLower.includes('t shirt');
+  // Etiket 1: Ana kategori (ERKEK, KADIN, vs.)
+  let mainCategory = "";
   
-  if (isTshirt) {
-    tags.push('T-Shirts');
-    tags.push('Apparel');
-    tags.push('Clothing');
-  }
-  
-  // Etiket 1: Ana kategori (ERKEK, KADIN, vs.) belirle
+  // Ana kategori etiketini belirle
   if (filteredCategories.length > 0) {
-    // Ana kategori etiketini bul
-    let mainCategoryFound = false;
-    
+    // Ana kategori tespiti için öncelikle ürünün kategorilerinde ara
     for (const category of filteredCategories) {
       const upperCategory = category.toUpperCase();
       
-      // Ana kategori listesini kontrol et ve eşleşeni bul
       for (const mainCat of MAIN_CATEGORIES) {
-        if (upperCategory.includes(mainCat) || 
-            mainCat.includes(upperCategory.split(' ')[0])) {
-          // Ana kategoriyi ekle
-          tags = [mainCat]; // İlk etiket olarak belirle
-          mainCategoryFound = true;
+        if (upperCategory.includes(mainCat)) {
+          mainCategory = mainCat;
           break;
         }
       }
-      if (mainCategoryFound) break;
+      if (mainCategory) break;
     }
     
-    // Ana kategori bulunamadıysa, tahmini bir kategori kullan
-    if (!mainCategoryFound) {
-      // Ürün başlığı ve kategorilere göre analiz et
-      const titleAndCats = product.title + ' ' + filteredCategories.join(' ');
-      const upperText = titleAndCats.toUpperCase();
+    // Ana kategori bulunamadıysa, ürün başlığından tahmin et
+    if (!mainCategory) {
+      const upperTitle = product.title.toUpperCase();
       
-      if (upperText.includes('ERKEK')) {
-        tags = ['ERKEK'];
-      } else if (upperText.includes('KADIN')) {
-        tags = ['KADIN']; 
-      } else if (upperText.includes('ÇOCUK') || upperText.includes('BEBEK')) {
-        tags = ['ANNE&ÇOCUK'];
-      } else if (upperText.includes('EV') || upperText.includes('MUTFAK') || 
-                upperText.includes('DEKOR')) {
-        tags = ['EV&YAŞAM'];
-      } else if (upperText.includes('AYAKKABI') || upperText.includes('ÇANTA')) {
-        tags = ['AYAKKABI&ÇANTA'];
-      } else if (upperText.includes('KOZMETİK') || upperText.includes('MAKYAJ') || 
-                upperText.includes('BAKIM')) {
-        tags = ['KOZMETİK']; 
-      } else if (upperText.includes('ELEKTRONİK') || upperText.includes('TELEFON') || 
-                upperText.includes('BİLGİSAYAR')) {
-        tags = ['ELEKTRONİK'];
-      } else if (upperText.includes('MARKET') || upperText.includes('GIDA')) {
-        tags = ['SUPERMARKET'];
-      } else {
-        // Varsayılan olarak ilk kategori
-        tags = [filteredCategories[0].toUpperCase()];
+      for (const mainCat of MAIN_CATEGORIES) {
+        if (upperTitle.includes(mainCat)) {
+          mainCategory = mainCat;
+          break;
+        }
       }
     }
     
-    // Etiket 2: Alt kategori (breadcrumb'ın ikinci öğesi)
+    // Hala bulunamadıysa, varsayılan olarak ilk kategoriyi kullan
+    if (!mainCategory && filteredCategories.length > 0) {
+      // İlk kategoriyi kısalt (20 karakterden fazla olmasın)
+      mainCategory = filteredCategories[0].toUpperCase().substring(0, MAX_TAG_LENGTH);
+    }
+    
+    // Ana kategoriyi ekle
+    if (mainCategory) {
+      tags.push(mainCategory);
+    }
+    
+    // Etiket 2: İkinci kategori (varsa)
     if (filteredCategories.length > 1) {
-      const altKategori = filteredCategories[1].toUpperCase();
-      
-      if (altKategori && !tags.includes(altKategori)) {
-        tags.push(altKategori);
+      const secondCategory = filteredCategories[1].toUpperCase().substring(0, MAX_TAG_LENGTH);
+      if (secondCategory && secondCategory !== mainCategory) {
+        tags.push(secondCategory);
       }
     }
     
-    // Etiket 3: Renk veya ürün tipi
-    // Öncelikle varyantta renk varsa, ilk rengi kullan
+    // Etiket 3: Ürün özelliği (renk öncelikli)
+    // Önce renk varyantı varsa onu kullan
+    let thirdTag = "";
+    
     if (product.variants && 
         typeof product.variants === 'object' && 
         'colors' in product.variants && 
         Array.isArray(product.variants.colors) && 
         product.variants.colors.length > 0) {
-      const renk = product.variants.colors[0].toUpperCase();
-      if (!tags.includes(renk)) {
-        tags.push(renk);
-      }
-    } 
-    // Renk yoksa ve kategoride 3 veya daha fazla öğe varsa, son öğeyi kullan
-    else if (filteredCategories.length > 2) {
-      const urunTipi = filteredCategories[filteredCategories.length - 1].toUpperCase();
       
-      if (urunTipi && !tags.includes(urunTipi)) {
-        tags.push(urunTipi);
-      }
+      thirdTag = product.variants.colors[0].toUpperCase().substring(0, MAX_TAG_LENGTH);
     }
-    
-    // Eğer yeterli etiket yoksa, eksikleri tamamla
-    if (tags.length < 3) {
-      // Renk bilgisini kullan
+    // Renk yoksa, özelliklerden renk bilgisini ara
+    else if (product.attributes) {
       for (const [key, value] of Object.entries(product.attributes)) {
         if (!key || !value) continue;
         
         const lowerKey = key.toLowerCase();
         if (lowerKey.includes('renk') || lowerKey.includes('color')) {
-          const colorTag = value
-            .replace(/\s+/g, '')
-            .substring(0, MAX_TAG_LENGTH);
-            
-          if (!tags.includes(colorTag)) {
-            tags.push(colorTag);
-            if (tags.length >= 5) break;
-          }
-        }
-      }
-      
-      // Hala 3'e ulaşamadıysak, diğer filtrelenmiş kategorileri ekle
-      for (let i = 2; i < filteredCategories.length - 1 && tags.length < 5; i++) {
-        // Son öğeyi yukarıda zaten ekledik, burada atlıyoruz
-        if (i !== filteredCategories.length - 1) {
-          const categoryTag = filteredCategories[i]
-            .replace(/\s+/g, '')
-            .substring(0, MAX_TAG_LENGTH);
-            
-          if (!tags.includes(categoryTag)) {
-            tags.push(categoryTag);
-          }
+          thirdTag = value.toUpperCase().substring(0, MAX_TAG_LENGTH);
+          break;
         }
       }
     }
+    
+    // Hala üçüncü etiket bulunamadıysa ve yeterli kategori varsa, son kategoriyi kullan
+    if (!thirdTag && filteredCategories.length > 2) {
+      thirdTag = filteredCategories[filteredCategories.length - 1].toUpperCase().substring(0, MAX_TAG_LENGTH);
+    }
+    
+    // Üçüncü etiketi ekle (eğer ana ve ikinci kategoriden farklıysa)
+    if (thirdTag && thirdTag !== mainCategory && !tags.includes(thirdTag)) {
+      tags.push(thirdTag);
+    }
   }
   
-  // Debug - etiketi logla
-  debug(`Oluşturulan etiketler: ${tags.join(', ')}`);
+  // Son kontrol: Tüm etiketlerin maksimum 20 karakter olduğundan emin ol
+  tags = tags.map(tag => tag.substring(0, MAX_TAG_LENGTH));
   
   // Maksimum 3 etiket
-  return tags.slice(0, 3);
+  const finalTags = tags.slice(0, MAX_TAGS);
+  
+  // Debug - oluşturulan etiketleri logla
+  debug(`Oluşturulan etiketler: ${finalTags.join(', ')}`);
+  
+  return finalTags;
 }
 
 // URL doğrulama şeması

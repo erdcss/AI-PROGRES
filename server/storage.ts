@@ -21,7 +21,11 @@ export class MemStorage implements IStorage {
 
   async saveProduct(insertProduct: InsertProduct): Promise<Product> {
     const id = this.currentId++;
-    const product: Product = { ...insertProduct, id };
+    
+    // Video alanı için undefined değerini null olarak ayarla (type hatası gidermek için)
+    const videoValue = insertProduct.video === undefined ? null : insertProduct.video;
+    
+    const product: Product = { ...insertProduct, id, video: videoValue };
     
     // URL'yi normalize et - parametrelerin bir kısmını kaldır
     const normalizedUrl = this.normalizeUrl(product.url);
