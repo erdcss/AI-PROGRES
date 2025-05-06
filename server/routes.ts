@@ -402,7 +402,7 @@ async function scrapeProduct(url: string): Promise<InsertProduct> {
     }
 
     // Ürün verilerini parse et
-    const productData = $('script').map((_, element) => {
+    let productData = $('script').map((_, element) => {
       const content = $(element).html() || '';
       if (content.includes('window.__PRODUCT_DETAIL_APP_INITIAL_STATE__')) {
         try {
@@ -532,7 +532,7 @@ async function scrapeProduct(url: string): Promise<InsertProduct> {
           } else if (typeof hierarchy === 'object') {
             // Nesne olarak sunulmuş kategori hiyerarşisi
             for (const key in hierarchy) {
-              if (Object.prototype.hasOwnProperty.call(hierarchy, key) && hierarchy[key].name) {
+              if (Object.prototype.hasOwnProperty.call(hierarchy, key) && hierarchy[key]?.name) {
                 categories.push(hierarchy[key].name);
                 fullPath.push(hierarchy[key].name);
               }
@@ -540,6 +540,7 @@ async function scrapeProduct(url: string): Promise<InsertProduct> {
           }
           
           if (categories.length > 0) {
+            // let kullandığımız için yeni değerleri atayabiliriz
             categoryInfo = {
               categories,
               fullPath,
@@ -547,11 +548,20 @@ async function scrapeProduct(url: string): Promise<InsertProduct> {
             };
             debug(`JSON state'den çekilen kategoriler: ${categories.join(' > ')}`);
           }
+        } else {
+          // Kategori bulunamadı, en azından ürün adını kategori olarak kullan
+          categoryInfo.categories.push(productName);
+          categoryInfo.fullPath.push(productName);
+          debug(`Kategori bulunamadı, ürün adı kullanıldı: ${productName}`);
         }
       } catch (error) {
         debug(`State parse hatası: ${error}`);
       }
     }
+    
+    debug(`Filtrelenmiş kategori listesi: ${categoryInfo.categories.join('')}`);
+    debug(`Breadcrumb yolu (tam): ${categoryInfo.breadcrumbPath.join(', ')}`);
+    
 
     // Görselleri al
     const images = new Set<string>();

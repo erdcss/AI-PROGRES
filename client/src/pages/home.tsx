@@ -24,7 +24,8 @@ import {
   XCircle,
   AlertCircle,
   RefreshCcw,
-  Image as ImageIcon
+  Image as ImageIcon,
+  Clipboard
 } from "lucide-react";
 import {
   Alert,
@@ -76,6 +77,26 @@ export default function Home() {
 
   const updateUrl = (url: string) => {
     form.setValue("url", url);
+  };
+  
+  // Panodan URL yapıştırma fonksiyonu
+  const handlePaste = async () => {
+    try {
+      const text = await navigator.clipboard.readText();
+      if (text) {
+        form.setValue("url", text);
+        toast({
+          title: "URL yapıştırıldı",
+          description: "Panodaki URL başarıyla yapıştırıldı"
+        });
+      }
+    } catch (error) {
+      toast({
+        title: "Yapıştırma hatası",
+        description: "Panodaki veri alınamadı. Tarayıcı izinlerini kontrol edin.",
+        variant: "destructive"
+      });
+    }
   };
 
   const getErrorSolution = (status?: number, details?: string) => {
@@ -250,6 +271,7 @@ export default function Home() {
 
           <form onSubmit={onSubmit} className="space-y-4">
             <div className="relative">
+              {/* Silme butonu */}
               {form.watch("url") && (
                 <Button
                   type="button"
@@ -261,10 +283,21 @@ export default function Home() {
                   <XCircle className="h-3.5 w-3.5" />
                 </Button>
               )}
+              
+              {/* Yapıştır butonu */}
+              <Button
+                type="button"
+                variant="ghost"
+                size="icon"
+                className="absolute left-[40px] top-1/2 transform -translate-y-1/2 h-7 w-7 z-10 bg-[#0f3e6c] hover:bg-[#1a4d7c] text-white border-none"
+                onClick={handlePaste}
+              >
+                <Clipboard className="h-3.5 w-3.5" />
+              </Button>
               <Input
                 placeholder="Ürün URL'sini girin..."
                 {...form.register("url")}
-                className={`text-xs p-4 bg-gray-900 border-gray-800 rounded-lg w-full truncate pr-12 ${form.watch("url") ? "pl-10" : ""}`}
+                className={`text-xs p-4 bg-gray-900 border-gray-800 rounded-lg w-full truncate pr-12 pl-[80px]`}
               />
               <Button
                 type="submit"
