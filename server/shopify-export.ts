@@ -707,13 +707,14 @@ export function generateShopifyCSV(
         
         // Temel ürün statüsü - Shopify 2024 gereksinimleri
         row.status = 'active';
-        // Eski alanları kaldır
-        delete row.published_scope;
-        delete row.published_at;
         
-        // ÖNEMLİ: Shopify için boolean alanlar BÜYÜK HARF olmalı
-        // Published alanları kritik - mutlaka TRUE olmalı yoksa ürünler taslak modda kalıyor
-        row.published = 'TRUE';
+        // ÖNEMLİ: Shopify 2024'te Kullanılan Yeni Alan İsimleri
+        row.published = 'TRUE'; // Ana boolean - BÜYÜK HARF olmalı
+        row.published_at = new Date().toISOString(); // Şu anki tarih/saat
+        
+        // Shopify 2024'te Online Store Visibility için ek alan
+        row.published_scope = 'web';
+        row.published_on_online_store = 'TRUE';
         
         // Option alanları - Shopify'da her ürün için en az bir option gerekli (zorunlu alan)
         if (!row.option1_name || !row.option1_value) {
