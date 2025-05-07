@@ -1754,37 +1754,39 @@ export async function registerRoutes(app: Express) {
         for (let i = 1; i < productImages.length; i++) {
           if (!productImages[i]) continue;
           
-          // Shopify için görsel formatı - yalnızca handle ve görsel bilgilerini içerir
+          // Shopify için görsel formatı - ZORUNLU ALANLAR MUTLAKA DOLDURULMALI
           csvRows.push({
             handle, // Handle hep sabit olmalı
             title: '', // Boş kalmalı
             body: '', // Boş kalmalı
-            vendor: '',
+            vendor: 'turmarkt', // Zorunlu alan - ilk satırla aynı değer
             product_category: '',
             type: '',
             tags: '',
-            published: 'true', // Görsellerin de yayınlanması gerekiyor
-            option1_name: 'Title', // Ana ürünle aynı seçenek adı olmalı
-            option1_value: 'Default Title', // Ana ürünle aynı seçenek değeri olmalı
-            option2_name: '',
-            option2_value: '',
-            option3_name: '',
-            option3_value: '',
-            variant_sku: '',
-            variant_grams: '',
-            variant_inventory_tracker: '',
-            variant_inventory_qty: '',
+            published: 'TRUE', // Görsellerin de yayınlanması gerekiyor
+            // ZORUNLU: Her satırda option name/value değerleri olmalı
+            option1_name: csvRows[0].option1_name || 'Title', // İlk satırdaki seçenek adıyla aynı olmalı
+            option1_value: csvRows[0].option1_value || 'Default Title', // İlk satırdaki seçenek değeriyle aynı olmalı
+            option2_name: csvRows[0].option2_name || '',
+            option2_value: csvRows[0].option2_value || '',
+            option3_name: csvRows[0].option3_name || '',
+            option3_value: csvRows[0].option3_value || '',
+            // ZORUNLU: Her satırda variant_sku ve variant_price olmalı
+            variant_sku: csvRows[0].variant_sku || handle, // İlk satırla aynı SKU
+            variant_grams: '500',
+            variant_inventory_tracker: 'shopify',
+            variant_inventory_qty: '50',
             variant_inventory_policy: 'deny', // Shopify için 'deny' değeri gerekli
             variant_fulfillment_service: 'manual', // Shopify için 'manual' değeri gerekli
-            variant_price: '',
+            variant_price: csvRows[0].variant_price || productToExport.price, // ZORUNLU: İlk satırla aynı fiyat
             variant_compare_at_price: '',
-            variant_requires_shipping: '',
-            variant_taxable: '',
+            variant_requires_shipping: 'TRUE',
+            variant_taxable: 'TRUE',
             variant_barcode: '',
             image_src: productImages[i],
             image_position: (i + 1).toString(),
             image_alt_text: `${productToExport.title || 'Ürün'} - Görsel ${i + 1}`,
-            gift_card: '',
+            gift_card: 'FALSE',
             seo_title: '',
             seo_description: '',
             google_shopping_metafields: '',
@@ -1801,7 +1803,7 @@ export async function registerRoutes(app: Express) {
             google_shopping_custom_label_3: '',
             google_shopping_custom_label_4: '',
             variant_image: '',
-            variant_weight_unit: '',
+            variant_weight_unit: 'g',
             variant_tax_code: '',
             cost_per_item: '',
             status: 'active' // Görsel satırlarının da aktif olması gerekiyor
@@ -1834,8 +1836,27 @@ export async function registerRoutes(app: Express) {
           if (row.gift_card === 'false') row.gift_card = 'FALSE';
           if (!row.gift_card) row.gift_card = 'FALSE'; // Varsayılan olarak FALSE olsun
           
+          // Her satır için zorunlu alanları kontrol et ve doldur
+          if (!row.option1_name) {
+            row.option1_name = csvRows[0].option1_name || 'Title';
+          }
+          if (!row.option1_value) {
+            row.option1_value = row.option1_name === 'Title' ? 'Default Title' : (csvRows[0].option1_value || 'Default');
+          }
+          if (!row.variant_sku) {
+            row.variant_sku = csvRows[0].variant_sku || handle;
+          }
+          if (!row.variant_price) {
+            row.variant_price = csvRows[0].variant_price || productToExport.price.toString();
+          }
+          if (!row.vendor) {
+            row.vendor = 'turmarkt';
+          }
+          
           // Variant Fulfillment Service alanı zorunlu olarak 'manual' olmalı
           row.variant_fulfillment_service = 'manual';
+          // Variant Inventory Policy alanı zorunlu olarak 'deny' olmalı
+          row.variant_inventory_policy = 'deny';
         });
         
         debug(`CSV görsel ekleme tamamlandı: ${productImages.length} görsel eklendi`);
