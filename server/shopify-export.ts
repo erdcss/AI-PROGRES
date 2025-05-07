@@ -39,6 +39,57 @@ export function generateShopifyCSV(
       .replace(/Ü/g, 'U');
   };
   
+  // CSV veri kalitesini doğrula ve gerekli düzeltmeleri yap
+  function validateCSVRow(row: any, isFirstRow: boolean = false): boolean {
+    // Temel veri doğrulama - boş veya null kontrolü
+    if (!row || typeof row !== 'object') {
+      return false;
+    }
+    
+    // Handle kontrolü (birincil anahtar)
+    if (!row.handle) {
+      console.log("HATA: Handle eksik, satır geçersiz");
+      return false;
+    }
+    
+    // Ana ürün satırında olması gereken alanlar
+    if (isFirstRow) {
+      if (!row.title) {
+        console.log("HATA: Ana ürün Title alanı eksik");
+        return false;
+      }
+      
+      if (!row.vendor) {
+        row.vendor = 'turmarkt';
+      }
+      
+      // Option alanı kontrolü
+      if (!row.option1_name || !row.option1_value) {
+        row.option1_name = 'Title';
+        row.option1_value = 'Default Title';
+      }
+    }
+    
+    // Yayınlama durumu kontrolü
+    if (!row.published) {
+      row.published = 'TRUE';
+    } else if (row.published.toLowerCase() === 'true') {
+      row.published = 'TRUE'; // Büyük harfe dönüştür
+    }
+    
+    // Diğer gerekli alanları doldur
+    if (!row.published_on_online_store) {
+      row.published_on_online_store = 'TRUE';
+    }
+    
+    if (!row.status) {
+      row.status = 'active';
+    }
+    
+    // Veri uygun
+    return true;
+  }
+  
   // Benzersiz handle oluşturma (slug)
   const createUniqueHandle = (title: string): string => {
     // Önce Türkçe karakterleri değiştir
@@ -716,13 +767,122 @@ export function generateShopifyCSV(
         }
       }
       
+      // Alan adlarını Shopify uyumlu şekilde yeniden eşleştir
+      // ÖNEMLİ: Shopify, alan adlarının birebir uymasını bekler (büyük/küçük harf ve boşluklara duyarlı)
+      const mappedRows = processedRows.map(row => {
+        const newRow: any = {};
+        
+        // Field mapping - eski alanları yeni alanlara eşleştir
+        // Diğer veri kaynakları için birebir Shopify formatına çevirme:
+        if (row.url_handle !== undefined) {
+          newRow.handle = row.url_handle; // URL handle -> Handle
+          delete row.url_handle;
+        }
+        
+        if (row.description !== undefined) {
+          newRow.body_html = row.description; // Description -> Body (HTML)
+          delete row.description;
+        }
+        
+        if (row.option1_name !== undefined || row['option1 name'] !== undefined) {
+          newRow.option1_name = row.option1_name || row['option1 name']; // option1 name -> Option1 Name
+          delete row.option1_name;
+          delete row['option1 name'];
+        }
+        
+        if (row.option1_value !== undefined || row['option1 value'] !== undefined) {
+          newRow.option1_value = row.option1_value || row['option1 value']; // option1 value -> Option1 Value
+          delete row.option1_value;
+          delete row['option1 value'];
+        }
+        
+        if (row.price !== undefined) {
+          newRow.variant_price = row.price; // Price -> Variant Price
+          delete row.price;
+        }
+        
+        // Tüm orijinal alanları kopyala
+        Object.entries(row).forEach(([key, value]) => {
+          // Anahtar zaten işlenmediyse, birebir kopyala
+          if (newRow[key] === undefined) {
+            newRow[key] = value;
+          }
+        });
+        
+        return newRow;
+      });
+      
+      // Boş satırları ve geçersiz verileri filtrele
+      // ÖNEMLİ: Shoify'a yüklenmeden önce tüm boş satırları temizle
+      const filteredRows = mappedRows.filter(row => {
+        // 1. Hiç bir değer içermeyen satırları tamamen filtrele
+        const hasValues = Object.values(row).some(value => 
+          value !== undefined && value !== null && value !== '');
+        
+        if (!hasValues) {
+          console.log("UYARI: Tamamen boş satır filtrelendi");
+          return false;
+        }
+        
+        // 2. İlk satır için tüm kritik alanları kontrol et
+        if (row === mappedRows[0]) {
+          // İlk satır için handle, title, vendor zorunlu
+          if (!row.handle || !row.title || !row.vendor) {
+            console.log("UYARI: Ana ürün satırında eksik alanlar var, düzeltiliyor");
+            if (!row.handle) row.handle = createUniqueHandle(row.title || `product-${Date.now()}`);
+            if (!row.title) row.title = product.title || "Ürün";
+            if (!row.vendor) row.vendor = "turmarkt";
+          }
+          
+          // İlk satırda option1_name ve option1_value zorunlu
+          if (!row.option1_name || !row.option1_value) {
+            row.option1_name = 'Title';
+            row.option1_value = 'Default Title';
+          }
+          
+          // Diğer kritik alanları doldur (ürünü gizlememek için)
+          row.published = 'TRUE';
+          row.published_on_online_store = 'TRUE';
+          row.published_scope = 'web';
+          row.published_at = row.published_at || new Date().toISOString();
+          row.status = 'active';
+          
+        } else {
+          // Diğer satırlar (görseller, varyantlar) için
+          
+          // 2. Handle eksikse filtrele
+          if (!row.handle) {
+            console.log("UYARI: Handle değeri eksik olan satır filtrelendi");
+            return false;
+          }
+          
+          // Varyant veya görsel satırları için gerekli alanlar
+          if (row.image_src || row.image_position) {
+            // Görsel satırı, gerekli alanları ekle
+            row.published = 'TRUE';
+          } else {
+            // Varyant satırı, Option kontrolü yap
+            if (!row.option1_name || !row.option1_value) {
+              // Eksik option verileri içeren satır gördük, tamamlayalım
+              row.option1_name = 'Title';
+              row.option1_value = 'Default Title';
+            }
+          }
+        }
+        
+        // Bu satırı kabul et
+        return true;
+      });
+      
+      console.log(`Filtreleme sonrası: ${processedRows.length} satırdan ${filteredRows.length} satır kaldı`);
+      
       // Tam CSV uyumluluğu için hata ayıklama
-      const dataCheck = JSON.stringify(processedRows[0]).substring(0, 150);
+      const dataCheck = JSON.stringify(filteredRows[0]).substring(0, 150);
       console.log("CSV VERİ KONTROLÜ: ", dataCheck);
       
-      // CSV'yi yaz
-      await csvWriter.writeRecords(processedRows);
-      console.log(`CSV başarıyla oluşturuldu: ${outputPath} (${processedRows.length} satır)`);
+      // CSV'yi yaz - sadece filtrelenmiş satırları kullan
+      await csvWriter.writeRecords(filteredRows);
+      console.log(`CSV başarıyla oluşturuldu: ${outputPath} (${filteredRows.length} satır)`);
       resolve(outputPath);
     } catch (error) {
       console.error('CSV oluşturma hatası:', error);
