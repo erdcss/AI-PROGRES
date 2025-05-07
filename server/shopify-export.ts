@@ -17,6 +17,10 @@ export function generateShopifyCSV(
   } = {},
   outputPath: string = join(tmpdir(), 'shopify_products.csv')
 ): Promise<string> {
+  console.log("============================================");
+  console.log("SHOPIFY CSV GENERATOR ÇİFT DOĞRULAMA KONTROLÜ");
+  console.log("Shopify'a ürün yüklenme problemini çözüyoruz");
+  console.log("============================================");
   console.log('Generating Shopify CSV:', { 
     productName: product.title,
     variants: { sizes: variants.sizes?.length || 0, colors: variants.colors?.length || 0 }
@@ -851,6 +855,9 @@ export function generateShopifyCSV(
           'type': 'Type',                              // Type
           'tags': 'Tags',                              // Tags
           'published': 'Published',                    // Published (örnek CSV'de Published)
+          'published_at': 'Published At',              // Published At
+          'published_scope': 'Published Scope',        // Published Scope
+          'template_suffix': 'Template Suffix',        // Template Suffix
           'status': 'Status',                          // Status
           'variant_sku': 'Variant SKU',                // Variant SKU
           'variant_barcode': 'Variant Barcode',        // Variant Barcode
@@ -888,7 +895,6 @@ export function generateShopifyCSV(
           'price': 'Variant Price',                    // Price -> Variant Price
           'sku': 'Variant SKU',                        // SKU -> Variant SKU
           'product_image_url': 'Image Src',            // Product image URL -> Image Src
-          'published_on_online_store': 'Published',     // Published on online store -> Published
           
           // Varyant alanları
           'weight': 'Variant Grams',                   // weight -> Variant Grams
