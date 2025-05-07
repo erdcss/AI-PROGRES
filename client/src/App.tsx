@@ -14,7 +14,6 @@ import { Lock, ShieldCheck, AlertCircle } from "lucide-react";
 
 // Login component with password protection
 function LoginScreen({ onLogin }: { onLogin: () => void }) {
-  const [username, setUsername] = useState("");
   const [password, setPassword] = useState("");
   const [error, setError] = useState(false);
   const [num1, setNum1] = useState(Math.floor(Math.random() * 10));
@@ -23,29 +22,17 @@ function LoginScreen({ onLogin }: { onLogin: () => void }) {
   const [captchaError, setCaptchaError] = useState(false);
   const [success, setSuccess] = useState(false);
   const [countdown, setCountdown] = useState(5);
-  const [loggedInUser, setLoggedInUser] = useState("");
   
-  // Kullanıcı bilgileri
-  const users = {
-    "Oğuz Aslan": "4434",
-    "Erdem Çalışgan": "953151"
-  };
-  
-  // Kullanıcı seçildiğinde username state'ini güncelle
-  const handleUserSelect = (e: React.ChangeEvent<HTMLSelectElement>) => {
-    setUsername(e.target.value);
-    setError(false);
-  };
+  // Sabit şifre (4434)
+  const CORRECT_PASSWORD = "4434";
   
   const handleLogin = () => {
-    const correctPassword = users[username as keyof typeof users];
-    
-    if (correctPassword && password === correctPassword) {
+    // Sadece şifre kontrolü yap (Kullanıcı seçimi yok)
+    if (password === CORRECT_PASSWORD) {
       // Check captcha
       if (parseInt(sum) === num1 + num2) {
         setCaptchaError(false);
         setSuccess(true);
-        setLoggedInUser(username);
         
         // Başlat geri sayım
         let count = 5;
@@ -57,8 +44,7 @@ function LoginScreen({ onLogin }: { onLogin: () => void }) {
           
           if (count <= 0) {
             clearInterval(timer);
-            // Kullanıcı adını localStorage'a kaydet
-            localStorage.setItem('currentUser', username);
+            // Giriş tamamlandı
             onLogin();
           }
         }, 1000);
@@ -94,34 +80,16 @@ function LoginScreen({ onLogin }: { onLogin: () => void }) {
           <CardDescription className="text-center">
             {success ? 
               <span className="text-green-500 font-bold animate-pulse">
-                {loggedInUser} için giriş başarılı, sistem aktif ediliyor... ({countdown}s)
+                Giriş başarılı, sistem aktif ediliyor... ({countdown}s)
               </span>
              : 
-              "Lütfen kullanıcı adı ve şifrenizi girin"
+              "Lütfen şifrenizi girin (4434)"
             }
           </CardDescription>
         </CardHeader>
         {!success && (
           <>
             <CardContent className="space-y-4">
-              <div className="space-y-2">
-                <Label htmlFor="username">Kullanıcı Seçin</Label>
-                <select
-                  id="username"
-                  value={username}
-                  onChange={handleUserSelect}
-                  onKeyDown={handleKeyDown}
-                  className={`w-full rounded-md border ${error ? "border-red-500" : "border-input"} px-3 py-2 text-sm ring-offset-background transition-colors focus:outline-none focus:ring-2 focus:ring-ring focus:ring-offset-2 bg-background`}
-                >
-                  <option value="">Kullanıcı seçin</option>
-                  {Object.keys(users).map((user) => (
-                    <option key={user} value={user}>
-                      {user}
-                    </option>
-                  ))}
-                </select>
-              </div>
-              
               <div className="space-y-2">
                 <Label htmlFor="password">Şifre</Label>
                 <Input
@@ -132,11 +100,12 @@ function LoginScreen({ onLogin }: { onLogin: () => void }) {
                   onKeyDown={handleKeyDown}
                   className={error ? "border-red-500" : ""}
                   placeholder="••••"
+                  autoFocus
                 />
                 {error && (
                   <div className="text-sm text-red-500 flex items-center gap-1 animate-pulse">
                     <AlertCircle className="h-4 w-4" />
-                    <span>Hatalı kullanıcı adı veya şifre</span>
+                    <span>Hatalı şifre</span>
                   </div>
                 )}
               </div>
@@ -233,12 +202,6 @@ function App() {
   const handleLogin = () => {
     setIsLoggedIn(true);
     localStorage.setItem('lastLogin', Date.now().toString());
-    
-    // Kullanıcı bilgisini görüntüle
-    const currentUser = localStorage.getItem('currentUser');
-    if (currentUser) {
-      console.log(`Giriş yapan kullanıcı: ${currentUser}`);
-    }
   };
   
   if (!isLoggedIn) {

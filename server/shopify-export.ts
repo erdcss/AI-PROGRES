@@ -772,36 +772,64 @@ export function generateShopifyCSV(
       const mappedRows = processedRows.map(row => {
         const newRow: any = {};
         
-        // Field mapping - eski alanları yeni alanlara eşleştir
-        // Diğer veri kaynakları için birebir Shopify formatına çevirme:
-        if (row.url_handle !== undefined) {
-          newRow.handle = row.url_handle; // URL handle -> Handle
-          delete row.url_handle;
-        }
+        // SHOPIFY FORMAT EŞLEŞTİRME TABLOSU - birebir aynı olmalı
+        const fieldMapping: Record<string, string> = {
+          // Shopify ana alanları (tam olarak olması gereken şekilde)
+          'handle': 'handle',                          // Handle - Zorunlu
+          'title': 'title',                            // Title - Zorunlu
+          'body_html': 'body_html',                    // Body (HTML)  
+          'vendor': 'vendor',                          // Vendor - Zorunlu
+          'type': 'type',                              // Type
+          'tags': 'tags',                              // Tags
+          'published': 'published',                    // Published
+          'option1_name': 'option1_name',              // Option1 Name - Zorunlu
+          'option1_value': 'option1_value',            // Option1 Value - Zorunlu
+          'option2_name': 'option2_name',              // Option2 Name
+          'option2_value': 'option2_value',            // Option2 Value
+          'option3_name': 'option3_name',              // Option3 Name
+          'option3_value': 'option3_value',            // Option3 Value
+          'variant_sku': 'variant_sku',                // Variant SKU
+          'variant_price': 'variant_price',            // Variant Price - Zorunlu
+          'image_src': 'image_src',                    // Image Src
+          'image_alt_text': 'image_alt_text',          // Image Alt Text
+          'image_position': 'image_position',          // Image Position
+          
+          // Alternatif alan adları (uyumluluk için)
+          'url_handle': 'handle',                      // URL handle -> Handle
+          'description': 'body_html',                  // Description -> Body (HTML)
+          'option1 name': 'option1_name',              // option1 name -> Option1 Name
+          'option1 value': 'option1_value',            // option1 value -> Option1 Value
+          'price': 'variant_price',                    // Price -> Variant Price
+          'sku': 'variant_sku',                        // SKU -> Variant SKU
+          'product_image_url': 'image_src',            // Product image URL -> Image Src
+          'product category': 'product_category',      // product category -> Product Category
+          'product_category': 'product_category',      // product_category
+          'image alt text': 'image_alt_text',          // image alt text -> Image Alt Text
+          'image position': 'image_position',          // image position -> Image Position
+          'seo title': 'seo_title',                    // seo title -> SEO Title
+          'seo description': 'seo_description',        // seo description -> SEO Description
+          
+          // Varyant alanları
+          'variant weight': 'variant_grams',           // variant weight -> Variant Grams
+          'variant_weight': 'variant_grams',           // variant_weight -> Variant Grams
+          'weight': 'variant_grams',                   // weight -> Variant Grams
+          'weight_unit': 'variant_weight_unit',        // weight_unit -> Variant Weight Unit
+          'inventory_quantity': 'variant_inventory_qty',     // inventory_quantity -> Variant Inventory Qty
+          'inventory_tracker': 'variant_inventory_tracker',  // inventory_tracker -> Variant Inventory Tracker
+          'inventory_policy': 'variant_inventory_policy',    // inventory_policy -> Variant Inventory Policy
+          'fulfillment_service': 'variant_fulfillment_service' // fulfillment_service -> Variant Fulfillment Service
+        };
         
-        if (row.description !== undefined) {
-          newRow.body_html = row.description; // Description -> Body (HTML)
-          delete row.description;
-        }
+        // Tüm bilinen alan eşleştirmelerini uygula
+        Object.entries(row).forEach(([oldKey, value]) => {
+          if (fieldMapping[oldKey]) {
+            const newKey = fieldMapping[oldKey];
+            newRow[newKey] = value;
+            delete row[oldKey];
+          }
+        });
         
-        if (row.option1_name !== undefined || row['option1 name'] !== undefined) {
-          newRow.option1_name = row.option1_name || row['option1 name']; // option1 name -> Option1 Name
-          delete row.option1_name;
-          delete row['option1 name'];
-        }
-        
-        if (row.option1_value !== undefined || row['option1 value'] !== undefined) {
-          newRow.option1_value = row.option1_value || row['option1 value']; // option1 value -> Option1 Value
-          delete row.option1_value;
-          delete row['option1 value'];
-        }
-        
-        if (row.price !== undefined) {
-          newRow.variant_price = row.price; // Price -> Variant Price
-          delete row.price;
-        }
-        
-        // Tüm orijinal alanları kopyala
+        // Kalan tüm orijinal alanları kopyala
         Object.entries(row).forEach(([key, value]) => {
           // Anahtar zaten işlenmediyse, birebir kopyala
           if (newRow[key] === undefined) {
