@@ -22,32 +22,75 @@ export function generateShopifyCSV(
     variants: { sizes: variants.sizes?.length || 0, colors: variants.colors?.length || 0 }
   });
   
+  // Türkçe karakterleri İngilizce karşılıklarına çeviren yardımcı fonksiyon
+  const turkishToEnglish = (text: string): string => {
+    return text
+      .replace(/ç/g, 'c')
+      .replace(/Ç/g, 'C')
+      .replace(/ğ/g, 'g')
+      .replace(/Ğ/g, 'G')
+      .replace(/ı/g, 'i')
+      .replace(/İ/g, 'I')
+      .replace(/ö/g, 'o')
+      .replace(/Ö/g, 'O')
+      .replace(/ş/g, 's')
+      .replace(/Ş/g, 'S')
+      .replace(/ü/g, 'u')
+      .replace(/Ü/g, 'U');
+  };
+  
+  // Benzersiz handle oluşturma (slug)
+  const createUniqueHandle = (title: string): string => {
+    // Önce Türkçe karakterleri değiştir
+    const normalized = turkishToEnglish(title);
+    
+    // Sadece alfanümerik karakterlere izin ver, diğerlerini tire ile değiştir
+    return normalized
+      .toLowerCase()
+      .replace(/[^a-z0-9]+/g, '-')
+      .replace(/-+/g, '-')      // Ardışık tireleri tek tireye dönüştür
+      .replace(/^-|-$/g, '')    // Başta ve sonda tire varsa kaldır
+      .substring(0, 60);        // Maksimum 60 karakter (Shopify sınırı)
+  };
+  
   // Shopify görüntüleme sorunu düzeltme: Gerekli alanların doğru formatları
   const fixShopifyVisibility = (row: any) => {
-    // Status alanının "active" olması şart
+    // 1. ÖNEMLİ: Zorunlu alanların varlığını kontrol et
+    if (!row.title) {
+      console.error("HATA: Ürün başlığı eksik!");
+      row.title = product.title || "Ürün Başlığı";
+    }
+    
+    if (!row.vendor) {
+      row.vendor = "turmarkt";
+    }
+    
+    // 2. Status alanının "active" olması şart (status değil durum değil)
     row.status = 'active';
     
-    // ÖNEMLİ: Tüm Boolean alanlar BÜYÜK HARF olmalı
+    // 3. ÖNEMLİ: Tüm Boolean alanlar BÜYÜK HARF olmalı
     row.published = 'TRUE';
+    row.published_on_online_store = 'TRUE'; // Önemli: Online mağazada yayınlanma durumu
     
-    // Published scope alanı kritik - Shopify 2023/2024 gerekliliği
+    // 4. Published scope alanı kritik - Shopify 2023/2024 gerekliliği
     row.published_scope = 'web';  // Bu alan Shopify'da gerekli
     
-    // Shopify'da varyant ayarları için kritik değişiklikler
+    // 5. Shopify'da varyant ayarları için kritik değişiklikler
     row.variant_inventory_policy = 'deny'; // Şart
     row.variant_fulfillment_service = 'manual'; // Şart
     
-    // Temel envanter ve durum ayarları
+    // 6. Temel envanter ve durum ayarları
     row.inventory_policy = 'deny';
     row.fulfillment_service = 'manual';
     
-    // Shopify gösterimi için mutlaka olması gereken alanlar
-    if (!row.handle && row.title) {
-      row.handle = row.title
-        .toLowerCase()
-        .replace(/[^a-z0-9]+/g, '-')
-        .replace(/-+/g, '-')
-        .replace(/^-|-$/g, '');
+    // 7. Handle alanı - Shopify için kritik önem taşır
+    if (!row.handle) {
+      if (row.title) {
+        row.handle = createUniqueHandle(row.title);
+      } else {
+        // Yedek handle oluştur
+        row.handle = `product-${Date.now()}-${Math.floor(Math.random() * 1000)}`;
+      }
     }
     
     // Shopify kategori alanı için ek kontrol
@@ -133,6 +176,7 @@ export function generateShopifyCSV(
           { id: 'type', title: 'Type' },
           { id: 'tags', title: 'Tags' },
           { id: 'published', title: 'Published' },
+          { id: 'published_on_online_store', title: 'Published on Online Store (Values: TRUE/FALSE)' },
           { id: 'option1_name', title: 'Option1 Name' },
           { id: 'option1_value', title: 'Option1 Value' },
           { id: 'option2_name', title: 'Option2 Name' },
@@ -169,11 +213,7 @@ export function generateShopifyCSV(
       const csvRows: any[] = [];
       
       // Handle oluştur (URL-uyumlu slug)
-      const handle = product.title
-          .toLowerCase()
-          .replace(/[^a-z0-9]+/g, '-')
-          .replace(/-+/g, '-')
-          .replace(/^-|-$/g, '');
+      const handle = createUniqueHandle(product.title);
       
       // Body HTML oluştur
       const generateBodyHTML = () => {

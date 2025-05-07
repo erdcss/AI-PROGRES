@@ -61,6 +61,74 @@ async function fetchProductPage(url: string): Promise<cheerio.CheerioAPI> {
     const visitorId = Math.random().toString(36).substring(2, 22);
     const cookieValue = `_gcl_au=1.1.${Math.floor(Math.random() * 1000000000)}.${Math.floor(Date.now() / 1000)}; sid=${sessionId}; vid=${visitorId}`;
 
+    // Trendyol'un mobil API'sini kullanmayı deneyelim
+    // Ürün ID'sini URL'den çıkaralım
+    const productIdMatch = url.match(/p-(\d+)/);
+    if (productIdMatch && productIdMatch[1]) {
+      const productId = productIdMatch[1];
+      try {
+        // Mobil API endpoint'i
+        const apiUrl = `https://public.trendyol.com/discovery-web-productgw-service/api/productDetail/${productId}`;
+        
+        debug(`Mobil API kullanılıyor: ${apiUrl}`);
+        
+        // @ts-ignore - node-fetch tiplemesi farklı olduğu için
+        const apiResponse = await fetch(apiUrl, {
+          headers: {
+            'User-Agent': randomUserAgent,
+            'Accept': 'application/json',
+            'Accept-Language': 'tr-TR,tr;q=0.9,en-US;q=0.8,en;q=0.7',
+            'Cache-Control': 'no-cache',
+            'Pragma': 'no-cache',
+            'Referer': url,
+            'Origin': 'https://www.trendyol.com',
+            'X-Application-Id': 'WebBrowser',
+            'Sec-Fetch-Dest': 'empty',
+            'Sec-Fetch-Mode': 'cors',
+            'Sec-Fetch-Site': 'same-site',
+            'Connection': 'keep-alive',
+            'Cookie': cookieValue
+          }
+        });
+        
+        if (apiResponse.ok) {
+          const data = await apiResponse.json() as Record<string, any>;
+          if (data && data.result) {
+            debug('API isteği başarılı, veri alındı');
+            // API yanıtını HTML'e dönüştür
+            const productData = data.result as Record<string, any>;
+            
+            // Temel HTML şablonu oluştur
+            const htmlTemplate = `
+              <html>
+                <head>
+                  <title>${productData.name || 'Ürün'}</title>
+                  <script type="application/ld+json">${JSON.stringify(productData)}</script>
+                </head>
+                <body>
+                  <h1 class="product-name">${productData.name || ''}</h1>
+                  <div class="product-description">${productData.description || ''}</div>
+                  <div class="product-price">${productData.price?.salePrice || productData.price?.originalPrice || ''}</div>
+                  <div class="images-container">
+                    ${(productData.images || []).map((img: any) => `<img src="${img.url || ''}" alt="${productData.name || 'Ürün'}" />`).join('')}
+                  </div>
+                </body>
+              </html>
+            `;
+            
+            // HTML'i Cheerio ile yükle
+            return cheerio.load(htmlTemplate);
+          }
+        }
+        
+        debug('API isteği başarısız oldu, normal HTML isteğine dönülüyor');
+      } catch (apiError: any) {
+        debug(`API hatası: ${apiError?.message || 'Bilinmeyen hata'}`);
+        debug('Normal HTML isteğine dönülüyor');
+      }
+    }
+    
+    // Normal HTML isteği
     // @ts-ignore - node-fetch tiplemesi farklı olduğu için
     const response = await fetch(url, {
       headers: {
@@ -905,6 +973,38 @@ function generateProductTags(product: InsertProduct, categoryConfig: any): strin
   const MAX_TAGS = 3;        // Maksimum etiket sayısı
   const MAIN_CATEGORIES = ['ERKEK', 'KADIN', 'ANNE&ÇOCUK', 'EV&YAŞAM', 'SUPERMARKET', 'KOZMETİK', 'AYAKKABI&ÇANTA', 'ELEKTRONİK'];
   
+  // Renk etiketleri - Türkçe & İngilizce
+  const COLOR_KEYWORDS = [
+    'BEYAZ', 'SİYAH', 'MAVİ', 'KIRMIZI', 'YEŞİL', 'SARI', 'TURUNCU', 'MOR', 'PEMBE',
+    'GRİ', 'KAHVE', 'LACİVERT', 'BORDO', 'TURKUAZ', 'GÜMÜŞ', 'ALTIN', 'BEJ', 'LİLA',
+    'MINT', 'PUDRA', 'MERCAN', 'HAKİ', 'WHITE', 'BLACK', 'BLUE', 'RED', 'GREEN',
+    'YELLOW', 'ORANGE', 'PURPLE', 'PINK', 'GREY', 'GRAY', 'BROWN', 'NAVY', 'BURGUNDY',
+    'TURQUOISE', 'SILVER', 'GOLD', 'BEIGE', 'LILAC', 'CORAL', 'KHAKI'
+  ];
+  
+  // Materyal/Malzeme etiketleri
+  const MATERIAL_KEYWORDS = [
+    'PAMUK', 'PAMUKLU', 'KETEN', 'AKRILIK', 'POLİESTER', 'YÜN', 'DERİ', 'SÜET',
+    'KADIFE', 'İPEK', 'SATEN', 'AHŞAP', 'METAL', 'CAM', 'SERAMİK', 'PLASTİK',
+    'SİLİKON', 'TAŞ', 'MERMER', 'COTTON', 'LINEN', 'ACRYLIC', 'POLYESTER', 'WOOL',
+    'LEATHER', 'SUEDE', 'VELVET', 'SILK', 'SATIN', 'WOODEN', 'METALLIC', 'GLASS',
+    'CERAMIC', 'PLASTIC', 'SILICON', 'STONE', 'MARBLE'
+  ];
+  
+  // Özellik etiketleri
+  const FEATURE_KEYWORDS = [
+    'SU GEÇİRMEZ', 'ANTİBAKTERİYEL', 'ORGANİK', 'EL YAPIMI', 'KALICI', 'DOĞAL',
+    'KORUYUCU', 'DÜZENLEYİCİ', 'ÇEVRE DOSTU', 'GERİ DÖNÜŞÜMLÜ', 'ENERJİ TASARRUFLU',
+    'WATERPROOF', 'ANTIBACTERIAL', 'ORGANIC', 'HANDMADE', 'LONGWEAR', 'NATURAL',
+    'PROTECTIVE', 'ORGANIZING', 'ECO-FRIENDLY', 'RECYCLED', 'ENERGY-SAVING'
+  ];
+  
+  // Mevsim/sezon etiketleri
+  const SEASON_KEYWORDS = [
+    'YAZ', 'KIŞ', 'BAHAR', 'SONBAHAR', 'MEVSİMLİK', 'SUMMER', 'WINTER', 'SPRING',
+    'AUTUMN', 'FALL', 'SEASONAL'
+  ];
+  
   let tags: string[] = [];
   
   // Trendyol ve diğer istenmeyen kelimeleri filtrele
@@ -925,7 +1025,7 @@ function generateProductTags(product: InsertProduct, categoryConfig: any): strin
     });
   
   // Filtrelenmiş kategorileri debug için logla
-  debug(`Filtrelenmiş kategori listesi: ${filteredCategories.join(', ')}`);
+  debug(`Filtrelenmiş kategori listesi: ${filteredCategories.join('')}`);
   
   // Etiket 1: Ana kategori (ERKEK, KADIN, vs.)
   let mainCategory = "";
@@ -967,48 +1067,64 @@ function generateProductTags(product: InsertProduct, categoryConfig: any): strin
     if (mainCategory) {
       tags.push(mainCategory);
     }
-    
-    // Etiket 2: İkinci kategori (varsa)
-    if (filteredCategories.length > 1) {
-      const secondCategory = filteredCategories[1].toUpperCase().substring(0, MAX_TAG_LENGTH);
-      if (secondCategory && secondCategory !== mainCategory) {
-        tags.push(secondCategory);
+  }
+  
+  // Başlıktan ve açıklamadan dinamik etiketler çıkar
+  const titleAndDescription = `${product.title} ${product.description || ''}`.toUpperCase();
+  
+  // Renk arama
+  let colorFound = false;
+  for (const color of COLOR_KEYWORDS) {
+    if (titleAndDescription.includes(color)) {
+      tags.push(color);
+      colorFound = true;
+      break; // Sadece bir renk etiketi yeterli
+    }
+  }
+  
+  // Malzeme arama (renk bulunamadıysa)
+  if (!colorFound) {
+    for (const material of MATERIAL_KEYWORDS) {
+      if (titleAndDescription.includes(material)) {
+        tags.push(material);
+        break; // Sadece bir malzeme etiketi yeterli
       }
     }
-    
-    // Etiket 3: Ürün özelliği (renk öncelikli)
-    // Önce renk varyantı varsa onu kullan
-    let thirdTag = "";
-    
-    if (product.variants && 
-        typeof product.variants === 'object' && 
-        'colors' in product.variants && 
-        Array.isArray(product.variants.colors) && 
-        product.variants.colors.length > 0) {
-      
-      thirdTag = product.variants.colors[0].toUpperCase().substring(0, MAX_TAG_LENGTH);
+  }
+  
+  // Eğer yeterli etiket yoksa, alt kategori ekle
+  if (tags.length < 2 && filteredCategories.length > 1) {
+    const secondCategory = filteredCategories[1].toUpperCase().substring(0, MAX_TAG_LENGTH);
+    if (secondCategory && secondCategory !== mainCategory && !tags.includes(secondCategory)) {
+      tags.push(secondCategory);
     }
-    // Renk yoksa, özelliklerden renk bilgisini ara
-    else if (product.attributes) {
-      for (const [key, value] of Object.entries(product.attributes)) {
-        if (!key || !value) continue;
-        
-        const lowerKey = key.toLowerCase();
-        if (lowerKey.includes('renk') || lowerKey.includes('color')) {
-          thirdTag = value.toUpperCase().substring(0, MAX_TAG_LENGTH);
-          break;
-        }
+  }
+  
+  // Hala yer varsa, özellik etiketi ekle
+  if (tags.length < MAX_TAGS) {
+    for (const feature of FEATURE_KEYWORDS) {
+      if (titleAndDescription.includes(feature) && !tags.includes(feature)) {
+        tags.push(feature);
+        break;
       }
     }
-    
-    // Hala üçüncü etiket bulunamadıysa ve yeterli kategori varsa, son kategoriyi kullan
-    if (!thirdTag && filteredCategories.length > 2) {
-      thirdTag = filteredCategories[filteredCategories.length - 1].toUpperCase().substring(0, MAX_TAG_LENGTH);
+  }
+  
+  // Mevsim/sezon etiketi ekle (hala yer varsa)
+  if (tags.length < MAX_TAGS) {
+    for (const season of SEASON_KEYWORDS) {
+      if (titleAndDescription.includes(season) && !tags.includes(season)) {
+        tags.push(season);
+        break;
+      }
     }
-    
-    // Üçüncü etiketi ekle (eğer ana ve ikinci kategoriden farklıysa)
-    if (thirdTag && thirdTag !== mainCategory && !tags.includes(thirdTag)) {
-      tags.push(thirdTag);
+  }
+  
+  // Eğer yeterli etiket yoksa ve kategorilerde yeterli bilgi varsa, son kategoriyi ekle
+  if (tags.length < MAX_TAGS && filteredCategories.length > 2) {
+    const lastCategory = filteredCategories[filteredCategories.length - 1].toUpperCase().substring(0, MAX_TAG_LENGTH);
+    if (lastCategory && !tags.includes(lastCategory)) {
+      tags.push(lastCategory);
     }
   }
   
