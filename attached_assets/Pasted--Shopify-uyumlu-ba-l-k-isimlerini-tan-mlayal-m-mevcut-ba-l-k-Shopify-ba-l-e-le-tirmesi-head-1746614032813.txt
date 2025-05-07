@@ -1,0 +1,103 @@
+# Shopify uyumlu başlık isimlerini tanımlayalım (mevcut başlık → Shopify başlığı eşleştirmesi)
+header_map = {
+    'URL handle': 'Handle',
+    'Description': 'Body (HTML)',
+    'Option1 name': 'Option1 Name',
+    'Option1 value': 'Option1 Value',
+    'Option2 name': 'Option2 Name',
+    'Option2 value': 'Option2 Value',
+    'Option3 name': 'Option3 Name',
+    'Option3 value': 'Option3 Value',
+    'Price': 'Variant Price',
+    'SKU': 'Variant SKU',
+    'Barcode': 'Variant Barcode',
+    'Compare-at price': 'Variant Compare At Price',
+    'Cost per item': 'Variant Cost',
+    'Charge tax': 'Variant Taxable',
+    'Tax code': 'Variant Tax Code',
+    'Inventory tracker': 'Variant Inventory Tracker',
+    'Inventory quantity': 'Variant Inventory Qty',
+    'Continue selling when out of stock': 'Variant Inventory Policy',
+    'Weight value (grams)': 'Variant Grams',
+    'Weight unit for display': 'Variant Weight Unit',
+    'Requires shipping': 'Variant Requires Shipping',
+    'Fulfillment service': 'Variant Fulfillment Service',
+    'Product image URL': 'Image Src',
+    'Variant image URL': 'Variant Image',
+    'Gift card': 'Gift Card',
+    'Published on online store': 'Published'
+}
+
+# Mevcut CSV dosyasını oku
+csv_dosya_path = "/mnt/data/shopify_bioxcin-keratin-argan-onar-c-s_2025-05-07T10-31-36-385Z.csv"
+df = pd.read_csv(csv_dosya_path, encoding='utf-8')
+
+# Başlıkları Shopify başlıklarıyla değiştir
+df.rename(columns=header_map, inplace=True)
+
+# Shopify şablonundaki tüm başlıklar (Shopify’ın beklediği kolonlar)
+shopify_required_headers = [
+    'Handle',
+    'Title',
+    'Body (HTML)',
+    'Vendor',
+    'Product Category',
+    'Type',
+    'Tags',
+    'Published',
+    'Status',
+    'Variant SKU',
+    'Variant Barcode',
+    'Option1 Name',
+    'Option1 Value',
+    'Option2 Name',
+    'Option2 Value',
+    'Option3 Name',
+    'Option3 Value',
+    'Variant Price',
+    'Variant Compare At Price',
+    'Variant Cost',
+    'Variant Taxable',
+    'Variant Tax Code',
+    'Variant Inventory Tracker',
+    'Variant Inventory Qty',
+    'Variant Inventory Policy',
+    'Variant Requires Shipping',
+    'Variant Fulfillment Service',
+    'Variant Weight Unit',
+    'Variant Grams',
+    'Image Src',
+    'Image Position',
+    'Image Alt Text',
+    'Variant Image',
+    'Gift Card',
+    'SEO Title',
+    'SEO Description',
+    'Google Shopping / Google Product Category',
+    'Google Shopping / Gender',
+    'Google Shopping / Age Group',
+    'Google Shopping / MPN',
+    'Google Shopping / AdWords Grouping',
+    'Google Shopping / AdWords labels',
+    'Google Shopping / Condition',
+    'Google Shopping / Custom Product',
+    'Google Shopping / Custom Label 0',
+    'Google Shopping / Custom Label 1',
+    'Google Shopping / Custom Label 2',
+    'Google Shopping / Custom Label 3',
+    'Google Shopping / Custom Label 4'
+]
+
+# Eksik başlıkları ekle (boş sütun olarak)
+for header in shopify_required_headers:
+    if header not in df.columns:
+        df[header] = ""
+
+# Shopify başlık sırasına göre yeniden sırala
+df = df[shopify_required_headers]
+
+# Düzeltilmiş CSV dosyasını kaydet
+output_path = "/mnt/data/shopify_fixed_output.csv"
+df.to_csv(output_path, index=False)
+
+output_path
