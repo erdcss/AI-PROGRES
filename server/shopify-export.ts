@@ -455,8 +455,9 @@ export function generateShopifyCSV(
           }
         } else if (colors.length > 0) {
           // Sadece renk varyantları
-          if ((isKitchenProduct || isShoeProduct) && colors.length === 1) {
-            // Tek renkli özel ürünler için Title/Default Title formatı
+          // Tek renk varyantlı veya özel ürün türleri için standartlaştırılmış format
+          if (colors.length === 1) {
+            // Tek renkli ürünler için Title/Default Title formatı - tüm ürün türleri için geçerli
             let row = {
               handle: handle,
               title: product.title,
@@ -465,8 +466,8 @@ export function generateShopifyCSV(
               product_category: 'Apparel & Accessories > Clothing',
               type: product.categories && product.categories.length > 0 
                 ? product.categories[product.categories.length - 1] 
-                : 'Giyim',
-              tags: product.tags,
+                : 'Elektronik',
+              tags: product.tags || '',
               published: 'TRUE',
               status: 'active',
               variant_sku: handle,
