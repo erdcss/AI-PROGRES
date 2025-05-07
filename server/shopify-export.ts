@@ -220,7 +220,7 @@ export function generateShopifyCSV(
       const csvWriter = createObjectCsvWriter({
         path: outputPath,
         header: [
-          // Shopify'ın beklediği tam başlık formatı (2025 şablonu - product_template (5).csv)
+          // Shopify'ın beklediği tam başlık formatı (kullanıcı tarafından verilen)
           { id: 'handle', title: 'Handle' },
           { id: 'title', title: 'Title' },
           { id: 'body_html', title: 'Body (HTML)' },
@@ -794,32 +794,30 @@ export function generateShopifyCSV(
           'type': 'type',                              // Type
           'tags': 'tags',                              // Tags
           'published': 'published',                    // Published
-          'option1_name': 'option1_name',              // Option1 Name - Zorunlu
-          'option1_value': 'option1_value',            // Option1 Value - Zorunlu
+          'option1_name': 'Option1 Name',              // Option1 Name - Zorunlu
+          'option1_value': 'Option1 Value',            // Option1 Value - Zorunlu
           'option2_name': 'option2_name',              // Option2 Name
           'option2_value': 'option2_value',            // Option2 Value
           'option3_name': 'option3_name',              // Option3 Name
           'option3_value': 'option3_value',            // Option3 Value
-          'variant_sku': 'variant_sku',                // Variant SKU
-          'variant_price': 'variant_price',            // Variant Price - Zorunlu
-          'image_src': 'image_src',                    // Image Src
+          'variant_sku': 'Variant SKU',                // Variant SKU
+          'variant_price': 'Variant Price',            // Variant Price - Zorunlu
+          'image_src': 'Image Src',                    // Image Src
           'image_alt_text': 'image_alt_text',          // Image Alt Text
           'image_position': 'image_position',          // Image Position
+          'product_category': 'Product Category',      // Product Category
+          'seo_title': 'SEO Title',                    // SEO Title
+          'seo_description': 'SEO Description',        // SEO Description
           
-          // Alternatif alan adları (uyumluluk için)
-          'url_handle': 'handle',                      // URL handle -> Handle
-          'description': 'body_html',                  // Description -> Body (HTML)
-          'option1 name': 'option1_name',              // option1 name -> Option1 Name
-          'option1 value': 'option1_value',            // option1 value -> Option1 Value
-          'price': 'variant_price',                    // Price -> Variant Price
-          'sku': 'variant_sku',                        // SKU -> Variant SKU
-          'product_image_url': 'image_src',            // Product image URL -> Image Src
-          'product category': 'product_category',      // product category -> Product Category
-          'product_category': 'product_category',      // product_category
-          'image alt text': 'image_alt_text',          // image alt text -> Image Alt Text
-          'image position': 'image_position',          // image position -> Image Position
-          'seo title': 'seo_title',                    // seo title -> SEO Title
-          'seo description': 'seo_description',        // seo description -> SEO Description
+          // Alternatif alan adları (uyumluluk için - kullanıcı beklentileri)
+          'url_handle': 'Handle',                      // URL handle -> Handle 
+          'description': 'Body (HTML)',                // Description -> Body (HTML)
+          'option1 name': 'Option1 Name',              // option1 name -> Option1 Name
+          'option1 value': 'Option1 Value',            // option1 value -> Option1 Value
+          'price': 'Variant Price',                    // Price -> Variant Price
+          'sku': 'Variant SKU',                        // SKU -> Variant SKU
+          'product_image_url': 'Image Src',            // Product image URL -> Image Src
+          'published_on_online_store': 'Published',    // Published on online store -> Published
           
           // Varyant alanları
           'variant weight': 'variant_grams',           // variant weight -> Variant Grams
