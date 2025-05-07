@@ -584,6 +584,28 @@ async function scrapeProduct(url: string): Promise<InsertProduct> {
       });
     }
 
+    // Yedek görsel kontrolü - eğer hala görsel yoksa yedek görsel ekle
+    if (images.size === 0) {
+      // Ürün sayfasındaki tüm img elemanlarını kontrol et
+      $('img').each((_, el) => {
+        let imgSrc = $(el).attr('src') || '';
+        // Minimum boyut kontrolü (küçük ikonları filtrele)
+        if (imgSrc && !imgSrc.includes('icon') && !imgSrc.includes('logo')) {
+          const normalizedUrl = normalizeImageUrl(imgSrc);
+          if (normalizedUrl) {
+            images.add(normalizedUrl);
+            debug(`Yedek görsel bulundu: ${normalizedUrl}`);
+          }
+        }
+      });
+    }
+    
+    // Yine de görsel bulunamadıysa varsayılan görsel ekle
+    if (images.size === 0) {
+      images.add(DEFAULT_IMAGE_URL);
+      debug(`Görsel bulunamadı, varsayılan görsel kullanılıyor: ${DEFAULT_IMAGE_URL}`);
+    }
+    
     const uniqueImages = Array.from(images).filter((url, index) => {
       try {
         new URL(url);

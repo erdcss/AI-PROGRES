@@ -120,15 +120,16 @@ export function generateShopifyCSV(
   };
   return new Promise(async (resolve, reject) => {
     try {
-      // Shopify'ın 2024 güncel CSV formatını kullan (örnek product_template.csv şablonundan)
+      // Shopify'ın kesin istediği format (2024 şablonu)
+      // ÖNEMLİ: Başlık isimleri ve sıralaması kritik önem taşır
       const csvWriter = createObjectCsvWriter({
         path: outputPath,
         header: [
+          // Shopify'ın beklediği tam başlık formatı (birebir aynı olmalı!)
           { id: 'handle', title: 'Handle' },
           { id: 'title', title: 'Title' },
           { id: 'body_html', title: 'Body (HTML)' },
           { id: 'vendor', title: 'Vendor' },
-          { id: 'product_category', title: 'Product Category' },
           { id: 'type', title: 'Type' },
           { id: 'tags', title: 'Tags' },
           { id: 'published', title: 'Published' },
@@ -152,23 +153,12 @@ export function generateShopifyCSV(
           { id: 'image_src', title: 'Image Src' },
           { id: 'image_position', title: 'Image Position' },
           { id: 'image_alt_text', title: 'Image Alt Text' },
-          { id: 'gift_card', title: 'Gift Card' },
-          { id: 'seo_title', title: 'SEO Title' },
-          { id: 'seo_description', title: 'SEO Description' },
-          { id: 'google_shopping_metafields', title: 'Google Shopping / Google Product Category' },
-          { id: 'google_shopping_gender', title: 'Google Shopping / Gender' },
-          { id: 'google_shopping_age_group', title: 'Google Shopping / Age Group' },
-          { id: 'google_shopping_mpn', title: 'Google Shopping / MPN' },
-          { id: 'google_shopping_condition', title: 'Google Shopping / Condition' },
-          { id: 'google_shopping_custom_product', title: 'Google Shopping / Custom Product' },
           { id: 'variant_image', title: 'Variant Image' },
           { id: 'variant_weight_unit', title: 'Variant Weight Unit' },
           { id: 'variant_tax_code', title: 'Variant Tax Code' },
           { id: 'cost_per_item', title: 'Cost per item' },
-          { id: 'included_usa', title: 'Included / United States' },
-          { id: 'price_usa', title: 'Price / United States' },
-          { id: 'compare_price_usa', title: 'Compare At Price / United States' },
-          { id: 'included_intl', title: 'Included / International' },
+          { id: 'price_usa', title: 'Price / USA' },
+          { id: 'compare_price_usa', title: 'Compare At Price / USA' },
           { id: 'price_intl', title: 'Price / International' },
           { id: 'compare_price_intl', title: 'Compare At Price / International' },
           { id: 'status', title: 'Status' }
@@ -342,14 +332,16 @@ export function generateShopifyCSV(
               csvRows.push({
                 handle: handle,
                 option1_value: sizes[i],
-                sku: `${handle}-${sizes[i]}`,
-                price: product.price,
-                inventory_tracker: 'shopify',
-                inventory_quantity: '50',
-                inventory_policy: 'deny',
-                requires_shipping: 'TRUE',
-                taxable: 'TRUE',
-                fulfillment_service: 'manual'
+                variant_sku: `${handle}-${sizes[i]}`,
+                variant_price: product.price,
+                variant_inventory_tracker: 'shopify',
+                variant_inventory_qty: '50',
+                variant_inventory_policy: 'deny',
+                variant_requires_shipping: 'TRUE',
+                variant_taxable: 'TRUE',
+                variant_fulfillment_service: 'manual',
+                variant_grams: '500',
+                variant_weight_unit: 'g'
               });
             }
           }
@@ -439,37 +431,44 @@ export function generateShopifyCSV(
               csvRows.push({
                 handle: handle,
                 option1_value: colors[i],
-                sku: `${handle}-${colors[i]}`,
-                price: product.price,
-                inventory_tracker: 'shopify',
-                inventory_quantity: '50',
-                inventory_policy: 'deny',
-                requires_shipping: 'TRUE',
-                taxable: 'TRUE',
-                fulfillment_service: 'manual'
+                variant_sku: `${handle}-${colors[i]}`,
+                variant_price: product.price,
+                variant_inventory_tracker: 'shopify',
+                variant_inventory_qty: '50',
+                variant_inventory_policy: 'deny',
+                variant_requires_shipping: 'TRUE',
+                variant_taxable: 'TRUE',
+                variant_fulfillment_service: 'manual',
+                variant_grams: '500',
+                variant_weight_unit: 'g'
               });
             }
           }
         }
       } else {
-        // Varyantı olmayan temel ürün - Shopify şablonuna uygun format
+        // Varyantı olmayan temel ürün - Shopify şablonunda Title/Default Title zorunlu
+        // ÖNEMLİ: option1_name ve option1_value yoksa, ürün Shopify'da görünmez!
         let row = {
           handle: handle,
           title: product.title,
           body_html: generateBodyHTML(),
           vendor: 'turmarkt',
-          product_category: 'Apparel & Accessories > Clothing',
           type: product.categories && product.categories.length > 0 
             ? product.categories[product.categories.length - 1] 
             : 'Giyim',
-          tags: product.tags,
+          tags: product.tags || '',
           published: 'TRUE',
+          status: 'active',
+          
+          // ZORUNLU: Her ürün için en az bir option gerekli
           option1_name: 'Title',
           option1_value: 'Default Title',
           option2_name: '',
           option2_value: '',
           option3_name: '',
           option3_value: '',
+          
+          // Varyant alanları
           variant_sku: handle,
           variant_grams: '500',
           variant_inventory_tracker: 'shopify',
@@ -481,13 +480,20 @@ export function generateShopifyCSV(
           variant_requires_shipping: 'TRUE',
           variant_taxable: 'TRUE',
           variant_barcode: '',
-          image_src: product.images && product.images.length > 0 ? product.images[0] : '',
+          
+          // Görsel alanları - URL'yi doğru formata dönüştür
+          image_src: product.images && product.images.length > 0 
+            ? (product.images[0].startsWith('http') 
+               ? product.images[0] 
+               : 'https://' + product.images[0].replace(/^\/\//, ''))
+            : '',
           image_position: '1',
           image_alt_text: product.title,
+          
+          // Diğer alanlar
           gift_card: 'FALSE',
           seo_title: product.title,
-          seo_description: '',
-          status: 'active'
+          seo_description: ''
         };
         csvRows.push(row);
       }
@@ -496,9 +502,21 @@ export function generateShopifyCSV(
       if (product.images && product.images.length > 1) {
         const MAX_IMAGES = 8;
         for (let i = 1; i < Math.min(product.images.length, MAX_IMAGES); i++) {
+          // Görsel URL'lerini doğru formata dönüştür
+          let imageUrl = product.images[i];
+          
+          // HTTP protokolünü kontrol et
+          if (!imageUrl.startsWith('http')) {
+            imageUrl = 'https://' + imageUrl.replace(/^\/\//, '');
+          }
+          
           csvRows.push({
             handle: handle,
-            image_src: product.images[i],
+            published: 'TRUE', // Görsellerin de published=TRUE olması gerekiyor
+            option1_name: 'Title', // Her satır için option gerekli
+            option1_value: 'Default Title',
+            // Shopify 2024 formatına uygun alanlar
+            image_src: imageUrl,
             image_position: (i + 1).toString(),
             image_alt_text: `${product.title} - Image ${i + 1}`
           });
@@ -527,10 +545,11 @@ export function generateShopifyCSV(
         row.published_scope = 'web';  // Bu alan Shopify'da gerekli
         
         // ÖNEMLİ: Shopify için boolean alanlar BÜYÜK HARF olmalı
-        row.published = row.published === 'true' ? 'TRUE' : (row.published === 'false' ? 'FALSE' : row.published || 'TRUE');
+        // Published alanı kritik - mutlaka TRUE olmalı yoksa ürünler taslak modda kalıyor
+        row.published = 'TRUE';
         
-        // Option alanları - Shopify'da her ürün için bir option gerekli 
-        if (!row.option1_name && !row.option1_value) {
+        // Option alanları - Shopify'da her ürün için en az bir option gerekli (zorunlu alan)
+        if (!row.option1_name || !row.option1_value) {
           row.option1_name = 'Title';
           row.option1_value = 'Default Title';
         }
