@@ -317,15 +317,69 @@ export function generateShopifyCSV(
         cat.toLowerCase().includes('saklama')
       ) : false;
       
+      // Elektronik ürün türleri
+      const isElectronicProduct = product.categories ? product.categories.some((cat: string) => 
+        cat.toLowerCase().includes('elektronik') || 
+        cat.toLowerCase().includes('dijital') ||
+        cat.toLowerCase().includes('tartı') ||
+        cat.toLowerCase().includes('baskül') ||
+        cat.toLowerCase().includes('cihaz') ||
+        cat.toLowerCase().includes('ölçer')
+      ) : false;
+      
       // Varyantları belirle
       const sizes = variants.sizes || [];
       const colors = variants.colors || [];
-      const hasVariants = sizes.length > 0 || colors.length > 0;
+      // Elektronik ürünler için renk varyantı kullanma - daha uyumlu Title/Default Title formatı kullan
+      const hasVariants = sizes.length > 0 || (colors.length > 0 && !isElectronicProduct);
       
       // Ana ürün satırı
       if (hasVariants) {
-        // Varyantlı ürün
-        if (sizes.length > 0) {
+        // Varyantlı ürün veya elektronik ürün kontrol
+        // Elektronik ürünler için Title/Default Title formatına zorla
+        if (isElectronicProduct) {
+          // Elektronik ürün için standart Title/Default Title formatı
+          let row = {
+            handle: handle,
+            title: product.title,
+            body_html: generateBodyHTML(),
+            vendor: 'turmarkt',
+            product_category: 'Electronics & Accessories',
+            type: product.categories && product.categories.length > 0 
+              ? product.categories[product.categories.length - 1] 
+              : 'Elektronik',
+            tags: product.tags || '',
+            published: 'TRUE',
+            status: 'active',
+            variant_sku: handle,
+            variant_barcode: '',
+            option1_name: 'Title',
+            option1_value: 'Default Title',
+            option2_name: '',
+            option2_value: '',
+            option3_name: '',
+            option3_value: '',
+            variant_price: product.price,
+            variant_compare_at_price: '',
+            variant_grams: '500',
+            variant_weight_unit: 'g',
+            variant_inventory_tracker: 'shopify',
+            variant_inventory_qty: '50',
+            variant_inventory_policy: 'deny',
+            variant_fulfillment_service: 'manual',
+            variant_requires_shipping: 'TRUE',
+            variant_taxable: 'TRUE',
+            image_src: product.images && product.images.length > 0 ? product.images[0] : '',
+            image_position: '1',
+            image_alt_text: product.title,
+            variant_image: '',
+            gift_card: 'FALSE',
+            seo_title: product.title,
+            seo_description: ''
+          };
+          csvRows.push(row);
+        }
+        else if (sizes.length > 0) {
           // Beden varyantları var
           
           if (colors.length > 0) {
@@ -566,7 +620,7 @@ export function generateShopifyCSV(
           vendor: 'turmarkt',
           type: product.categories && product.categories.length > 0 
             ? product.categories[product.categories.length - 1] 
-            : 'Giyim',
+            : (isElectronicProduct ? 'Elektronik' : 'Giyim'),
           tags: product.tags || '',
           published: 'TRUE',
           status: 'active',

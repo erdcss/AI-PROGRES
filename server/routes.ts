@@ -1382,13 +1382,31 @@ export async function registerRoutes(app: Express) {
           cat.toLowerCase().includes('çizme')
         );
         
+        // Elektronik ürün kontrolü
+        const isElectronicProduct = productToExport.categories.some((cat: string) => 
+          cat.toLowerCase().includes('elektronik') || 
+          cat.toLowerCase().includes('dijital') ||
+          cat.toLowerCase().includes('tartı') ||
+          cat.toLowerCase().includes('baskül') ||
+          cat.toLowerCase().includes('cihaz') ||
+          cat.toLowerCase().includes('ölçer')
+        );
+        
         // Shopify'ın beklediği standart İngilizce adlar kullan
         // Seçenek adlarını tüm ürünler için standartlaştır
         if (sizes.length > 0) {
           baseProduct.option1_name = 'Size'; // Şart: Tüm ürünlerde Size olmalı (Shopify standardı)
         }
         
-        if (colors.length > 0) {
+        // Elektronik ürünler için özel durum
+        if (isElectronicProduct) {
+          // Elektronik ürünler için her zaman Title/Default Title formatı kullan
+          baseProduct.option1_name = 'Title';
+          // Diğer seçenekleri temizle
+          baseProduct.option2_name = '';
+          baseProduct.option3_name = '';
+        }
+        else if (colors.length > 0) {
           // Sadece bir renk varsa ve tek varyant olacaksa Title/Default Title kullan
           if (colors.length === 1 && sizes.length === 0 && (isKitchenProduct || isShoeProduct)) {
             baseProduct.option1_name = 'Title';
@@ -1513,6 +1531,27 @@ export async function registerRoutes(app: Express) {
             csvRows.push(variant);
             debug(`Beden varyantı eklendi: ${sizes[i]}`);
           }
+        }
+        // Elektronik ürün özel durumu
+        else if (isElectronicProduct) {
+          // Elektronik ürünler için her zaman Title/Default Title kullan
+          const variant = {
+            ...baseProduct,
+            option1_name: 'Title',
+            option1_value: 'Default Title',
+            option2_name: '',
+            option2_value: '',
+            option3_name: '',
+            option3_value: '',
+            variant_sku: handle,
+            variant_price: productToExport.price,
+            variant_inventory_policy: 'deny',
+            variant_fulfillment_service: 'manual',
+            variant_inventory_qty: categoryConfig.variantConfig?.defaultStock || 50,
+            status: 'active'
+          };
+          csvRows.push(variant);
+          debug(`Elektronik ürün varyantı eklendi: Default Title`);
         }
         // 3. Sadece renk varyantları (örn. bazı ev/mutfak ürünleri)
         else if (sizes.length === 0 && colors.length > 0) {
