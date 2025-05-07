@@ -83,7 +83,7 @@ function LoginScreen({ onLogin }: { onLogin: () => void }) {
                 Giriş başarılı, sistem aktif ediliyor... ({countdown}s)
               </span>
              : 
-              "Lütfen şifrenizi girin (4434)"
+              "Lütfen şifrenizi girin"
             }
           </CardDescription>
         </CardHeader>
