@@ -72,8 +72,9 @@ export function generateShopifyCSV(
     row.published = 'TRUE';
     row.published_on_online_store = 'TRUE'; // Önemli: Online mağazada yayınlanma durumu
     
-    // 4. Published scope alanı kritik - Shopify 2023/2024 gerekliliği
+    // 4. Published tarih ve kapsamı - Shopify 2024 gerekliliği
     row.published_scope = 'web';  // Bu alan Shopify'da gerekli
+    row.published_at = new Date().toISOString(); // Şu anki tarih/saat
     
     // 5. Shopify'da varyant ayarları için kritik değişiklikler
     row.variant_inventory_policy = 'deny'; // Şart
@@ -176,6 +177,8 @@ export function generateShopifyCSV(
           { id: 'type', title: 'Type' },
           { id: 'tags', title: 'Tags' },
           { id: 'published', title: 'Published' },
+          { id: 'published_scope', title: 'Published Scope' },
+          { id: 'published_at', title: 'Published At' },
           { id: 'published_on_online_store', title: 'Published on Online Store (Values: TRUE/FALSE)' },
           { id: 'option1_name', title: 'Option1 Name' },
           { id: 'option1_value', title: 'Option1 Value' },
@@ -580,13 +583,19 @@ export function generateShopifyCSV(
         // Vendor ve marka bilgisi - kritik
         row.vendor = 'turmarkt';
         
-        // Temel ürün statüsü
+        // Temel ürün statüsü - Shopify 2024 gereksinimleri
         row.status = 'active';
-        row.published_scope = 'web';  // Bu alan Shopify'da gerekli
+        row.published_scope = 'web';
+        
+        // Yayın tarihi ekle (kritik alan)
+        if (!row.published_at) {
+          row.published_at = new Date().toISOString();
+        }
         
         // ÖNEMLİ: Shopify için boolean alanlar BÜYÜK HARF olmalı
-        // Published alanı kritik - mutlaka TRUE olmalı yoksa ürünler taslak modda kalıyor
+        // Published alanları kritik - mutlaka TRUE olmalı yoksa ürünler taslak modda kalıyor
         row.published = 'TRUE';
+        row.published_on_online_store = 'TRUE';
         
         // Option alanları - Shopify'da her ürün için en az bir option gerekli (zorunlu alan)
         if (!row.option1_name || !row.option1_value) {
