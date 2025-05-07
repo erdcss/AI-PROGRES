@@ -220,17 +220,15 @@ export function generateShopifyCSV(
       const csvWriter = createObjectCsvWriter({
         path: outputPath,
         header: [
-          // Shopify'ın beklediği tam başlık formatı (birebir aynı olmalı!)
+          // Shopify'ın beklediği tam başlık formatı (2025 şablonu - product_template (5).csv)
           { id: 'handle', title: 'Handle' },
           { id: 'title', title: 'Title' },
           { id: 'body_html', title: 'Body (HTML)' },
           { id: 'vendor', title: 'Vendor' },
+          { id: 'product_category', title: 'Product Category' },
           { id: 'type', title: 'Type' },
           { id: 'tags', title: 'Tags' },
           { id: 'published', title: 'Published' },
-          { id: 'published_scope', title: 'Published Scope' },
-          { id: 'published_at', title: 'Published At' },
-          { id: 'published_on_online_store', title: 'Published on Online Store (Values: TRUE/FALSE)' },
           { id: 'option1_name', title: 'Option1 Name' },
           { id: 'option1_value', title: 'Option1 Value' },
           { id: 'option2_name', title: 'Option2 Name' },
@@ -251,14 +249,26 @@ export function generateShopifyCSV(
           { id: 'image_src', title: 'Image Src' },
           { id: 'image_position', title: 'Image Position' },
           { id: 'image_alt_text', title: 'Image Alt Text' },
+          { id: 'gift_card', title: 'Gift Card' },
+          { id: 'seo_title', title: 'SEO Title' },
+          { id: 'seo_description', title: 'SEO Description' },
+          { id: 'google_product_category', title: 'Google Shopping / Google Product Category' },
+          { id: 'gender', title: 'Google Shopping / Gender' },
+          { id: 'age_group', title: 'Google Shopping / Age Group' },
+          { id: 'mpn', title: 'Google Shopping / MPN' },
+          { id: 'adwords_grouping', title: 'Google Shopping / AdWords Grouping' },
+          { id: 'adwords_labels', title: 'Google Shopping / AdWords Labels' },
+          { id: 'condition', title: 'Google Shopping / Condition' },
+          { id: 'custom_product', title: 'Google Shopping / Custom Product' },
+          { id: 'custom_label_0', title: 'Google Shopping / Custom Label 0' },
+          { id: 'custom_label_1', title: 'Google Shopping / Custom Label 1' },
+          { id: 'custom_label_2', title: 'Google Shopping / Custom Label 2' },
+          { id: 'custom_label_3', title: 'Google Shopping / Custom Label 3' },
+          { id: 'custom_label_4', title: 'Google Shopping / Custom Label 4' },
           { id: 'variant_image', title: 'Variant Image' },
           { id: 'variant_weight_unit', title: 'Variant Weight Unit' },
           { id: 'variant_tax_code', title: 'Variant Tax Code' },
           { id: 'cost_per_item', title: 'Cost per item' },
-          { id: 'price_usa', title: 'Price / USA' },
-          { id: 'compare_price_usa', title: 'Compare At Price / USA' },
-          { id: 'price_intl', title: 'Price / International' },
-          { id: 'compare_price_intl', title: 'Compare At Price / International' },
           { id: 'status', title: 'Status' }
         ]
       });
@@ -378,7 +388,9 @@ export function generateShopifyCSV(
                   variant_taxable: 'TRUE',
                   variant_fulfillment_service: 'manual',
                   variant_grams: '500',
-                  variant_weight_unit: 'g'
+                  variant_weight_unit: 'g',
+                  published: 'TRUE',
+                  published_on_online_store: 'TRUE'
                 });
                 counter++;
               }
@@ -435,7 +447,9 @@ export function generateShopifyCSV(
                 variant_taxable: 'TRUE',
                 variant_fulfillment_service: 'manual',
                 variant_grams: '500',
-                variant_weight_unit: 'g'
+                variant_weight_unit: 'g',
+                published: 'TRUE',
+                published_on_online_store: 'TRUE'
               });
             }
           }
@@ -534,7 +548,9 @@ export function generateShopifyCSV(
                 variant_taxable: 'TRUE',
                 variant_fulfillment_service: 'manual',
                 variant_grams: '500',
-                variant_weight_unit: 'g'
+                variant_weight_unit: 'g',
+                published: 'TRUE',
+                published_on_online_store: 'TRUE'
               });
             }
           }
@@ -636,17 +652,13 @@ export function generateShopifyCSV(
         
         // Temel ürün statüsü - Shopify 2024 gereksinimleri
         row.status = 'active';
-        row.published_scope = 'web';
-        
-        // Yayın tarihi ekle (kritik alan)
-        if (!row.published_at) {
-          row.published_at = new Date().toISOString();
-        }
+        // Eski alanları kaldır
+        delete row.published_scope;
+        delete row.published_at;
         
         // ÖNEMLİ: Shopify için boolean alanlar BÜYÜK HARF olmalı
         // Published alanları kritik - mutlaka TRUE olmalı yoksa ürünler taslak modda kalıyor
         row.published = 'TRUE';
-        row.published_on_online_store = 'TRUE';
         
         // Option alanları - Shopify'da her ürün için en az bir option gerekli (zorunlu alan)
         if (!row.option1_name || !row.option1_value) {
@@ -870,9 +882,6 @@ export function generateShopifyCSV(
           
           // Diğer kritik alanları doldur (ürünü gizlememek için)
           row.published = 'TRUE';
-          row.published_on_online_store = 'TRUE';
-          row.published_scope = 'web';
-          row.published_at = row.published_at || new Date().toISOString();
           row.status = 'active';
           
         } else {
