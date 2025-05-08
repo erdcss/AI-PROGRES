@@ -1274,11 +1274,24 @@ export async function registerRoutes(app: Express) {
         return text.replace(/[çğıİöşüÇĞIÖŞÜâêîôûÂÊÎÔÛ]/g, match => charMap[match as keyof typeof charMap] || match);
       };
       
-      const handle = turkishToEnglish(productToExport.title)
+      // Handle oluştur - Shopify yardım dökümanına uygun format
+      // Ref: https://help.shopify.com/en/manual/products/import-export/common-import-issues
+      let handle = turkishToEnglish(productToExport.title)
         .toLowerCase()
-        .replace(/[^a-z0-9]+/g, '-')
-        .replace(/-+/g, '-')
-        .replace(/^-|-$/g, '');
+        .trim()
+        .replace(/[^a-z0-9]+/g, '-') // Tüm uyumsuz karakterleri tire ile değiştir
+        .replace(/-+/g, '-')         // Ardışık tireleri tek tireye indir
+        .replace(/^-|-$/g, '');      // Baş ve sondaki tireleri kaldır
+        
+      // Handle boşsa veya çok kısaysa güçlendir
+      if (!handle || handle.length < 3) {
+        handle = `product-${Date.now().toString().substring(8)}`;
+      }
+      
+      // Shopify 40 karakter sınırı (emniyetli olalım)
+      if (handle.length > 35) {
+        handle = handle.substring(0, 35);
+      }
 
       const csvRows = [];
 
@@ -1911,29 +1924,55 @@ export async function registerRoutes(app: Express) {
           );
           
         // SHOPIFY DÜZELTME 2024: Tüm kritik alanları kontrol et - SHOPIFY 2024 FORMAT
+        // SHOPIFY BELGELEME: https://help.shopify.com/en/manual/products/import-export/common-import-issues
         csvRows.forEach((row: any, index: number) => {
-          // GÖRSEL SATIRI KONTROL: Sadece ilk satırda Title/Default Title olmalı
-          // Görsel içeren satırlarda option değerleri olmamalı (Shopify 2024 gerekliliği)
-          if (index === 0) {
-            // Sadece ilk ana ürün satırı için bu değerleri ayarla
+          // İlk satırda varyant bilgileri olmalı mı kontrol et
+          const isFirstVariant = index === 0;
+          const hasImageSrc = !!row.image_src;
+          
+          // GÖRSEL SATIRI ve VARYANT SATIRI ANALİZİ
+          if (isFirstVariant) {
+            // İlk satır (ana ürün satırı) için varyant bilgileri ZORUNLU
             if (!row.option1_name) row.option1_name = 'Title';
             if (!row.option1_value) row.option1_value = 'Default Title';
             
-            // Fiyat ve SKU sadece ilk satırda gerekli
+            // Fiyat ve SKU sadece ilk varyant satırında gerekli
             if (!row.variant_price) row.variant_price = productToExport.price;
             if (!row.variant_sku) row.variant_sku = handle;
-          } else {
-            // Görsel satırlarında bu alanları KALDIR - Shopify 2024 gereksinimi
+            
+            // Diğer zorunlu varyant alanları
+            row.variant_inventory_policy = 'deny';
+            row.variant_fulfillment_service = 'manual';
+            row.variant_requires_shipping = 'TRUE';
+            row.variant_taxable = 'TRUE';
+            row.variant_inventory_tracker = 'shopify';
+            row.variant_inventory_qty = categoryConfig.variantConfig?.defaultStock || 50;
+          } 
+          // GÖRSEL SATIRI - Görsel içeren satırlardan TÜM varyant bilgilerini kaldır
+          else if (hasImageSrc) {
+            // GÖRSELLİ SATIRLAR - Shopify 2024 için GÖRSEL SATIRI DÜZENLEMESİ
+            // BU ALANLAR OLMAMALI - "Default Title varyasyonu zaten var" HATASI ÇÖZÜMÜ
             delete row.option1_name;
             delete row.option1_value;
-            delete row.variant_price;
+            delete row.option2_name;
+            delete row.option2_value;
+            delete row.option3_name;
+            delete row.option3_value;
+            
             delete row.variant_sku;
-            delete row.variant_inventory_qty;
+            delete row.variant_grams;
             delete row.variant_inventory_tracker;
+            delete row.variant_inventory_qty;
             delete row.variant_inventory_policy;
             delete row.variant_fulfillment_service;
+            delete row.variant_price;
+            delete row.variant_compare_at_price;
             delete row.variant_requires_shipping;
             delete row.variant_taxable;
+            delete row.variant_barcode;
+            delete row.variant_image;
+            delete row.variant_weight_unit;
+            delete row.variant_tax_code;
           }
           
           // Boolean değerleri düzelt - MUTLAKA BÜYÜK HARF
@@ -1974,17 +2013,7 @@ export async function registerRoutes(app: Express) {
             row.custom_product_type = productToExport.categories[productToExport.categories.length - 1];
           }
           
-          // Shopify için diğer zorunlu alanlar (2024 format)
-          // Sadece ilk satırda (ürün satırı) varyant bilgileri olmalı
-          if (index === 0) {
-            // Varyant bilgileri sadece ilk satırda
-            if (!row.variant_inventory_policy) row.variant_inventory_policy = 'deny';
-            if (!row.variant_fulfillment_service) row.variant_fulfillment_service = 'manual';
-            if (!row.variant_requires_shipping) row.variant_requires_shipping = 'TRUE';
-            if (!row.variant_taxable) row.variant_taxable = 'TRUE';
-            if (!row.variant_inventory_tracker) row.variant_inventory_tracker = 'shopify';
-            if (!row.variant_inventory_qty) row.variant_inventory_qty = '50';
-          }
+          // Bu bölüm artık üstte düzgün şekilde uygulanıyor - kodun tekrarlanması hatayı artırabilir
           
           // Tüm satırlarda olması gereken ortak alanlar
           if (!row.gift_card) row.gift_card = 'FALSE';
