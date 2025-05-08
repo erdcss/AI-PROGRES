@@ -1940,7 +1940,7 @@ export async function registerRoutes(app: Express) {
       }
       
       try {
-        // SHOPIFY DÜZELTME: Bu satır eklendi - tüm satırları kontrol et ve fixed option fields
+        // SHOPIFY DÜZELTME 2024: Tüm kritik alanları kontrol et
         csvRows.forEach(row => {
           // Temel varyant bilgilerini doldur - HER SATIR için
           if (!row.option1_name) row.option1_name = 'Title';
@@ -1952,16 +1952,33 @@ export async function registerRoutes(app: Express) {
           
           // Boolean değerleri düzelt
           if (row.published === 'true') row.published = 'TRUE';
+          if (row.published === 'false') row.published = 'FALSE';
           if (row.published_on_online_store === 'true') row.published_on_online_store = 'TRUE';
+          if (row.published_on_online_store === 'false') row.published_on_online_store = 'FALSE';
           
-          // Kritik yayın durumu - Shopify'da olmalı
+          // ZORUNLU: Kritik alan "Status" her satırda mutlaka olmalı, aksi halde ürün yüklenmez
+          row.status = 'active'; // "active", "draft" veya "archived" olabilir
           row.published = 'TRUE';
-          row.status = 'active';
           
           // Vendor mutlaka olmalı
           row.vendor = 'turmarkt';
           
-          // Tarih bilgisi ekliyoruz - Shopify'ın gereksinimi
+          // "Standard Product Type" - Shopify kategorileri için gerekli
+          if (!row.standard_product_type && productToExport.categories && productToExport.categories.length > 0) {
+            // Elektronik kategorisi kontrolü
+            if (isElectronicProduct) {
+              row.standard_product_type = 'Electronics';
+            } else {
+              row.standard_product_type = 'Apparel & Accessories > Clothing';
+            }
+          }
+          
+          // "Custom Product Type" - mağaza özel kategori
+          if (!row.custom_product_type && productToExport.categories && productToExport.categories.length > 0) {
+            row.custom_product_type = productToExport.categories[productToExport.categories.length - 1];
+          }
+          
+          // Tarih bilgisi ekliyoruz - Shopify'ın kesin gereksinimi
           row.published_at = new Date().toISOString();
         });
         
