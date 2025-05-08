@@ -571,6 +571,107 @@ async function scrapeProduct(url: string): Promise<InsertProduct> {
         .replace(/(.+?)\s+\1/gi, '$1')  // Remove duplicate phrases
         .replace(/\s*,\s*$/, '')  // Remove trailing comma
         .trim();
+        
+      // Özel başlık temizleme işlemleri (hatalı birleşmeler için)
+      // Trendyol'dan gelen ürün isimlerinde sık karşılaşılan sorunları düzeltelim
+      
+      // İlk olarak, HTML içeriğinden doğru ürün adını almaya çalışalım
+      // Trendyol'un HTML'inden gerçek ürün adını ayrıştır
+      const rawProductName = productData.product.name || productName;
+      
+      // Eğer ürün adını doğrudan alabilirsek, daha iyi temizleme yapabiliriz
+      debug(`Original product name from raw HTML: ${rawProductName}`);
+      
+      // Yaygın kelimeler arasındaki sorunları düzelt - özellikle Trendyol'da birleşik yazılabilenler
+      const commonWords = [
+        "Kulaklık", "Karışık", "Renk", "Kılıf", "Çanta", "Hediyeli", "Uyumlu", "Kapak", 
+        "Kablosuz", "Bluetooth", "Android", "Telefon", "Şarj", "Kapaklı", "Kablo",
+        "Kutu", "Cihaz", "Set", "Takım", "Stereo", "Mikrofon"
+      ];
+      
+      // Özel kelime temizliği yapalım - yaygın problemleri düzeltelim
+      const fixMappings: Record<string, string> = {
+        // Boşluk sorunları
+        "Kablo suz": "Kablosuz",
+        "Ren kKılıf": "Renk Kılıf", 
+        "Renk ılıf": "Renk Kılıf",
+        "Ren k Kılıf": "Renk Kılıf",
+        "K kılıf": "Kılıf",
+        
+        // Çok görülen boşluk sorunları
+        " K ": " ",  // Tekil K harfi temizliği
+        "Renkk": "Renk",
+        "Ren k": "Renk",
+        "kK": "k K",
+        
+        // Birleşik kelimeler 
+        "RenkKılıf": "Renk Kılıf",
+        "KarışıkRenk": "Karışık Renk",
+        
+        // Harf kayıpları
+        "Kulaklı ": "Kulaklık ",
+        "Kulaklı": "Kulaklık",
+        "Kulaklık arışık": "Kulaklık Karışık",
+        "arışık": "Karışık",
+        "ılıf": "Kılıf",
+        
+        // Gereksiz marka bilgileri
+        "Bilinmeyen Mar ka ": "",
+        "Bilinmeyen Marka ": "",
+        "Marka ": ""
+      };
+      
+      // Başlık içindeki özel problemleri önce düzeltelim
+      for (const [problem, fix] of Object.entries(fixMappings)) {
+        title = title.replace(new RegExp(problem, 'gi'), fix);
+      }
+      
+      // Ön temizleme - temel boşluk ve karakter düzeltmeleri
+      title = title
+        // Kelimeler arasında bir karakter eksik olma durumunu düzelt
+        .replace(/([a-zışğüöçâîû])([A-ZİŞĞÜÖÇÂÎÛ])/g, '$1 $2')
+        // Yumuşak g/ğ sorununu düzelt
+        .replace(/([a-zışüöçâîû])ğ/gi, '$1 ğ')
+        // K harfi özellikle sorun oluşturduğundan onu düzelt
+        .replace(/([a-zışğüöçâîû])k([aıoueiöüğ])/gi, '$1 k$2')
+        // Harf kayıplarını düzelt
+        .replace(/\bılıf\b/gi, "Kılıf") 
+        .replace(/\barışık\b/gi, "Karışık")
+        .replace(/\bulaklık\b/gi, "Kulaklık")
+        .replace(/\bediyeli\b/gi, "Hediyeli");
+      
+      // Boşlukları normalleştir
+      title = title.replace(/\s+/g, ' ').trim();
+      
+      // Ortak kelimeleri içeren sorunları özel olarak düzelt
+      for (const word of commonWords) {
+        const lowerWord = word.toLowerCase();
+        
+        // Bu metni karakter bazlı kontrol ederek, içinde geçen her türlü birleşik hali düzelt
+        // Örneğin "kulaklıkkılıf" -> "kulaklık kılıf"
+        
+        // Kelimenin başını kontrol et
+        const startRegex = new RegExp(`\\b${lowerWord}([a-zışğüöçâîû])`, 'gi');
+        title = title.replace(startRegex, `${word} $1`);
+        
+        // Kelimenin sonunu kontrol et - "arışık" gibi sorunlar için
+        // Örnekler: "kulaklıkarışık" => "kulaklık karışık", "karışıkrenk" => "karışık renk"
+        const endRegex = new RegExp(`([a-zışğüöçâîû])${lowerWord}\\b`, 'gi');
+        title = title.replace(endRegex, `$1 ${lowerWord}`);
+        
+        // Kelime ortada ise
+        const midRegex = new RegExp(`([a-zışğüöçâîû])${lowerWord}([a-zışğüöçâîû])`, 'gi');
+        title = title.replace(midRegex, `$1 ${lowerWord} $2`);
+      }
+      
+      // İlave düzeltmeler - yan yana kapital harflerden oluşan sorunlar için 
+      // Örnek: "RenkKılıf" -> "Renk Kılıf"
+      title = title.replace(/([A-ZİŞĞÜÖÇÂÎÛ])([A-ZİŞĞÜÖÇÂÎÛ][a-zışğüöçâîû]+)/g, '$1 $2');
+       
+      // Son boşluk normalizasyonu
+      title = title.replace(/\s+/g, ' ').trim();
+      
+      debug(`Başlık temizlendi: ${title}`);
     } else {
       throw new ProductDataError("Ürün başlığı oluşturulamadı", "title");
     }
@@ -1193,9 +1294,74 @@ export async function registerRoutes(app: Express) {
     }
   });
 
-  app.all("/api/export", async (req, res) => {
+  // Basitleştirilmiş başlık temizleme fonksiyonu - doğrudan bilinen hatalara odaklanır
+  function routerCleanProductTitle(title: string): string {
+    if (!title) return title;
+    
+    debug(`Başlık temizleme başlıyor: "${title}"`);
+    
+    // Önce boşlukları normalleştir
+    title = title.replace(/\s+/g, ' ').trim();
+    
+    // ÖRNEK: "Barbanti Mobile Pro Ios Android Uyumlu Kablo suz Bluetooth Kulaklık k Karışık Renk K kılıf Hediyeli"
+    
+    // Doğrudan düzeltme - Kablo suz -> Kablosuz
+    title = title.replace(/Kablo\s+suz/g, 'Kablosuz');
+    
+    // Doğrudan düzeltme - Kulaklık k -> Kulaklık
+    title = title.replace(/Kulaklık\s+k\b/g, 'Kulaklık');
+    
+    // Doğrudan düzeltme - K kılıf -> Kılıf
+    title = title.replace(/K\s+kılıf/g, 'Kılıf');
+    title = title.replace(/k\s+kılıf/g, 'Kılıf');
+    
+    // Doğrudan düzeltme - Karışık Renk K -> Karışık Renk
+    title = title.replace(/Karışık\s+Renk\s+K\b/g, 'Karışık Renk');
+    
+    // Doğrudan düzeltme - H Hediyeli -> Hediyeli
+    title = title.replace(/H\s+Hediyeli/g, 'Hediyeli');
+    
+    // Doğrudan düzeltme - RenKılıf -> Renk Kılıf
+    title = title.replace(/RenKılıf/g, 'Renk Kılıf');
+    
+    // Yazım hataları
+    title = title.replace(/\bulaklı\b/g, 'Kulaklık');
+    title = title.replace(/\bulaklık\b/g, 'Kulaklık');
+    title = title.replace(/\barışık\b/g, 'Karışık');
+    
+    // Türkçe karakterlerle ilgili sorunlar düzeltilir
+    title = title.replace(/İsı/g, 'Isı');
+    
+    // Özel kelime dizisi düzeltmelerini uygula
+    const wordFixes = [
+      // Regex sabit kelimeler kullanarak güvenilir düzeltme
+      [/Kablosuz Bluetooth Kulaklık k Karışık Renk K kılıf/g, 'Kablosuz Bluetooth Kulaklık Karışık Renk Kılıf'],
+      [/Pro Ios Android Uyumlu Kablosuz Bluetooth ulaklıK/g, 'Pro Ios Android Uyumlu Kablosuz Bluetooth Kulaklık'],
+      [/Karışık RenKılıf/g, 'Karışık Renk Kılıf']
+    ];
+    
+    // Kesin düzeltmeleri uygula
+    for (const [pattern, replacement] of wordFixes) {
+      title = title.replace(pattern, replacement);
+    }
+    
+    // Son temizlik - Tek kalan K harfleri dışında boşluk normalizasyonu
+    title = title.replace(/\s+/g, ' ').trim();
+    
+    // Tek kalan harfleri temizle
+    title = title.replace(/\s[kK]\s/g, ' ');
+    title = title.replace(/\s[kK](?=[A-ZİŞĞÜÖÇa-zışğüöç])/g, ' ');
+    
+    debug(`Başlık temizleme tamamlandı: "${title}"`);
+    
+    return title;
+  }
+
+  // CSV Export Endpoint - Shopify uyumlu dışa aktarım yapılır
+  app.all("/api/export/:id?", async (req, res) => {
     try {
       debug("CSV export isteği alındı");
+      debug(`Request path: ${req.path}, params: ${JSON.stringify(req.params)}`);
       
       let productToExport = null;
       
@@ -1269,6 +1435,9 @@ export async function registerRoutes(app: Express) {
         debug(`Ürün kategorileri: ${productToExport.categories.join(', ')}`);
       }
 
+      // Başlığı temizle
+      productToExport.title = routerCleanProductTitle(productToExport.title);
+      
       // productToExport kullan (product yerine)
       const categoryConfig = getCategoryConfig(productToExport.categories);
       const categoryPath = parseCategoryPath(productToExport.categories);
@@ -2059,10 +2228,17 @@ export async function registerRoutes(app: Express) {
           res.setHeader('Pragma', 'no-cache');
           res.setHeader('Expires', '0');
           
-          // CSV dosyasını gönder
-          res.setHeader('Content-Type', 'text/csv; charset=utf-8');
+          // CSV dosyasını gönder - TAMAMEN CSV formatında!
+          res.setHeader('Content-Type', 'text/csv');
           res.setHeader('Content-Disposition', `attachment; filename="${filename}"`);
-          res.status(200).send(csvData);
+          
+          // Express JSON middleware'ini bypass et
+          res.status(200);
+          // JSON kullanmıyoruz!
+          res.type('csv');
+          // CSV verilerini gönder
+          return res.send(csvData);
+          
           debug(`CSV indirme başarılı: ${filename}`);
         } catch (readError) {
           debug("CSV okuma hatası:", readError);

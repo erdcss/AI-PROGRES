@@ -17,6 +17,107 @@ export function generateShopifyCSV(
   } = {},
   outputPath: string = join(tmpdir(), 'shopify_products.csv')
 ): Promise<string> {
+  /**
+   * Shopify için ürün başlıklarını temizler ve optimize eder
+   * 
+   * Üç aşamalı temizleme:
+   * 1. Düzensiz boşlukları ve yapısal sorunları düzeltir
+   * 2. Trendyol'dan gelen yaygın hatalı kelime biçimlerini düzeltir
+   * 3. Basit ve doğru tümceler oluşturur
+   */
+  function cleanProductTitle(title: string): string {
+    if (!title) return title;
+    
+    console.log("Düzeltme öncesi başlık:", title);
+    
+    // Aşama 1: Temel boşluk düzeltmeleri
+    title = title.replace(/\s+/g, ' ').trim();
+    
+    // Aşama 2: Karakter bazlı boşluk düzeltmeleri
+    // Küçük harften büyük harfe geçişte boşluk ekle
+    title = title.replace(/([a-zışğüöçâîû])([A-ZİŞĞÜÖÇÂÎÛ])/g, '$1 $2');
+    
+    // Aşama 3: Yaygın hatalı kelime biçimlerini düzelt
+    // Çok görülen sorunlu kelimeler ayrı ayrı düzeltilir
+    const wordFixes: Record<string, string> = {
+      // Genel Sorunlar
+      "Kulaklıkarışık": "Kulaklık Karışık",
+      "karışıkrenk": "Karışık Renk", 
+      "renkılıf": "Renk Kılıf",
+      "Renkilıf": "Renk Kılıf",
+      "Renkılıf": "Renk Kılıf",
+      "RenkKılıf": "Renk Kılıf",
+      "Ren kKılıf": "Renk Kılıf",
+      "Kablo suz": "Kablosuz",
+      
+      // Çok görülen boşluk sorunları
+      " K ": " ",
+      "K kılıf": "Kılıf",
+      "k Karışık": "Karışık",
+      "k kılıf": "Kılıf",
+      "Renkk": "Renk",
+      "Ren k": "Renk",
+      "kK": "k K",
+      
+      // Eksik Harfler
+      "arışık": "Karışık",
+      "ılıf": "Kılıf",
+      "ediyeli": "Hediyeli",
+      "Kulaklı ": "Kulaklık ",
+      "Kulaklı": "Kulaklık",
+      
+      // Gereksiz marka bilgileri
+      "Bilinmeyen Mar ka ": "",
+      "Bilinmeyen Marka ": "",
+      "Marka ": ""
+    };
+    
+    // Her bir problemi düzelt
+    for (const [wrong, correct] of Object.entries(wordFixes)) {
+      title = title.replace(new RegExp(wrong, 'gi'), correct);
+    }
+    
+    // Aşama 4: Kelime arası boşluk sorunlarını gider 
+    // "AKelime" -> "A Kelime" şeklinde dönüştürür
+    title = title.replace(/([A-ZİŞĞÜÖÇÂÎÛ])([A-ZİŞĞÜÖÇÂÎÛ][a-zışğüöçâîû]+)/g, '$1 $2');
+    
+    // Son aşama: Özel kelime parçalarını tek tek düzelt
+    // Örneğin: "Renk Kılıf" yapıları için
+    title = title
+      .replace(/\bRen\s+k\b/gi, "Renk")
+      .replace(/\bK\s+kılıf\b/gi, "Kılıf")
+      .replace(/\s+K\s+/gi, " ")
+      .replace(/\bKulaklı\b/gi, "Kulaklık")
+      // Tek başına K harfi sorunları
+      .replace(/\s[kK]\s/g, " ")
+      .replace(/\s[kK](?=[A-Za-zışğüöçâîûİŞĞÜÖÇÂÎÛ])/g, " ");
+    
+    // Türkçe'ye özgü yaygın ürün kelimelerini kontrol et
+    const turkishCommonWords = [
+      "Kulaklık", "Kılıf", "Karışık", "Kablosuz", "Telefon", "Hediyeli",
+      "Renk", "Android", "Uyumlu", "Bluetooth", "Stereo", "Set"
+    ];
+    
+    // Türkçe terimleri düzgün ara boşlukla ayır
+    turkishCommonWords.forEach(word => {
+      // Önce "word" kelimesi kendisi değil, başka bir kelimeyle bitişikse, onları ayır
+      const pattern = new RegExp(`${word}([a-zışğüöçâîûA-ZİŞĞÜÖÇÂÎÛ])`, 'g');
+      title = title.replace(pattern, `${word} $1`);
+      
+      // Başka bir kelime "word" kelimesiyle birleşikse, onları da ayır
+      const pattern2 = new RegExp(`([a-zışğüöçâîûA-ZİŞĞÜÖÇÂÎÛ])${word}`, 'g');
+      title = title.replace(pattern2, `$1 ${word}`);
+    });
+    
+    // Son boşluk temizliği ve normalizasyon
+    title = title.replace(/\s+/g, ' ').trim();
+    
+    console.log("Düzeltme sonrası başlık:", title);
+    
+    return title;
+  }
+  
+  product.title = cleanProductTitle(product.title);
   console.log("============================================");
   console.log("SHOPIFY CSV GENERATOR ÇİFT DOĞRULAMA KONTROLÜ");
   console.log("Shopify'a ürün yüklenme problemini çözüyoruz");
