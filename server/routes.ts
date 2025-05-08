@@ -1940,6 +1940,17 @@ export async function registerRoutes(app: Express) {
       }
       
       try {
+        // Elektronik ürün olup olmadığını kontrol et
+        const isElectronicProduct = productToExport.categories && 
+          productToExport.categories.some(cat => 
+            cat.toLowerCase().includes('elektronik') || 
+            cat.toLowerCase().includes('dijital') || 
+            cat.toLowerCase().includes('cihaz') || 
+            cat.toLowerCase().includes('tartı') || 
+            cat.toLowerCase().includes('baskül') || 
+            cat.toLowerCase().includes('ölçer')
+          );
+          
         // SHOPIFY DÜZELTME 2024: Tüm kritik alanları kontrol et
         csvRows.forEach(row => {
           // Temel varyant bilgilerini doldur - HER SATIR için
