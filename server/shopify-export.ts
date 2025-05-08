@@ -224,7 +224,7 @@ export function generateShopifyCSV(
       const csvWriter = createObjectCsvWriter({
         path: outputPath,
         header: [
-          // 2024 SHOPIFY IMPORT FORMAT
+          // 2024 SHOPIFY IMPORT FORMAT - KESIN SHOPIFY BAŞLIK SIRASI
           { id: 'handle', title: 'Handle' },
           { id: 'title', title: 'Title' },
           { id: 'body_html', title: 'Body (HTML)' },
@@ -233,6 +233,10 @@ export function generateShopifyCSV(
           { id: 'custom_product_type', title: 'Custom Product Type' },
           { id: 'tags', title: 'Tags' },
           { id: 'published', title: 'Published' },
+          { id: 'status', title: 'Status' },
+          { id: 'published_at', title: 'Published At' },
+          { id: 'published_scope', title: 'Published Scope' },
+          { id: 'template_suffix', title: 'Template Suffix' },
           { id: 'option1_name', title: 'Option1 Name' },
           { id: 'option1_value', title: 'Option1 Value' },
           { id: 'option2_name', title: 'Option2 Name' },
@@ -272,8 +276,7 @@ export function generateShopifyCSV(
           { id: 'variant_image', title: 'Variant Image' },
           { id: 'variant_weight_unit', title: 'Variant Weight Unit' },
           { id: 'variant_tax_code', title: 'Variant Tax Code' },
-          { id: 'cost_per_item', title: 'Cost per item' },
-          { id: 'status', title: 'Status' }
+          { id: 'cost_per_item', title: 'Cost per item' }
         ]
       });
 

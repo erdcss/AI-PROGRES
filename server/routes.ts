@@ -1942,7 +1942,7 @@ export async function registerRoutes(app: Express) {
       try {
         // Elektronik ürün olup olmadığını kontrol et
         const isElectronicProduct = productToExport.categories && 
-          productToExport.categories.some(cat => 
+          productToExport.categories.some((cat: string) => 
             cat.toLowerCase().includes('elektronik') || 
             cat.toLowerCase().includes('dijital') || 
             cat.toLowerCase().includes('cihaz') || 
@@ -1951,8 +1951,8 @@ export async function registerRoutes(app: Express) {
             cat.toLowerCase().includes('ölçer')
           );
           
-        // SHOPIFY DÜZELTME 2024: Tüm kritik alanları kontrol et
-        csvRows.forEach(row => {
+        // SHOPIFY DÜZELTME 2024: Tüm kritik alanları kontrol et - SHOPIFY 2024 FORMAT
+        csvRows.forEach((row: any) => {
           // Temel varyant bilgilerini doldur - HER SATIR için
           if (!row.option1_name) row.option1_name = 'Title';
           if (!row.option1_value) row.option1_value = 'Default Title';
@@ -1961,11 +1961,17 @@ export async function registerRoutes(app: Express) {
           if (!row.variant_price) row.variant_price = productToExport.price;
           if (!row.variant_sku) row.variant_sku = handle;
           
-          // Boolean değerleri düzelt
+          // Boolean değerleri düzelt - MUTLAKA BÜYÜK HARF
           if (row.published === 'true') row.published = 'TRUE';
           if (row.published === 'false') row.published = 'FALSE';
-          if (row.published_on_online_store === 'true') row.published_on_online_store = 'TRUE';
-          if (row.published_on_online_store === 'false') row.published_on_online_store = 'FALSE';
+          
+          // Diğer Boolean kontrollerini ekle
+          if (row.variant_requires_shipping === 'true') row.variant_requires_shipping = 'TRUE';
+          if (row.variant_requires_shipping === 'false') row.variant_requires_shipping = 'FALSE';
+          if (row.variant_taxable === 'true') row.variant_taxable = 'TRUE';
+          if (row.variant_taxable === 'false') row.variant_taxable = 'FALSE';
+          if (row.gift_card === 'true') row.gift_card = 'TRUE';
+          if (row.gift_card === 'false') row.gift_card = 'FALSE';
           
           // ZORUNLU: Kritik alan "Status" her satırda mutlaka olmalı, aksi halde ürün yüklenmez
           row.status = 'active'; // "active", "draft" veya "archived" olabilir
@@ -1974,7 +1980,11 @@ export async function registerRoutes(app: Express) {
           // Vendor mutlaka olmalı
           row.vendor = 'turmarkt';
           
-          // "Standard Product Type" - Shopify kategorileri için gerekli
+          // Zorunlu "Published Scope" ve "Published At" alanları (Shopify 2024 gerekliliği)
+          row.published_scope = 'web';
+          row.published_at = new Date().toISOString();
+          
+          // "Standard Product Type" - Shopify kategorileri için gerekli (2024 format)
           if (!row.standard_product_type && productToExport.categories && productToExport.categories.length > 0) {
             // Elektronik kategorisi kontrolü
             if (isElectronicProduct) {
@@ -1984,13 +1994,19 @@ export async function registerRoutes(app: Express) {
             }
           }
           
-          // "Custom Product Type" - mağaza özel kategori
+          // "Custom Product Type" - mağaza özel kategori (2024 format)
           if (!row.custom_product_type && productToExport.categories && productToExport.categories.length > 0) {
             row.custom_product_type = productToExport.categories[productToExport.categories.length - 1];
           }
           
-          // Tarih bilgisi ekliyoruz - Shopify'ın kesin gereksinimi
-          row.published_at = new Date().toISOString();
+          // Shopify için diğer zorunlu alanlar (2024 format)
+          if (!row.variant_inventory_policy) row.variant_inventory_policy = 'deny';
+          if (!row.variant_fulfillment_service) row.variant_fulfillment_service = 'manual';
+          if (!row.variant_requires_shipping) row.variant_requires_shipping = 'TRUE';
+          if (!row.variant_taxable) row.variant_taxable = 'TRUE';
+          if (!row.variant_inventory_tracker) row.variant_inventory_tracker = 'shopify';
+          if (!row.variant_inventory_qty) row.variant_inventory_qty = '50';
+          if (!row.gift_card) row.gift_card = 'FALSE';
         });
         
         // CSV dosyasını yaz
