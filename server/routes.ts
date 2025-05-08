@@ -1754,35 +1754,14 @@ export async function registerRoutes(app: Express) {
         for (let i = 1; i < productImages.length; i++) {
           if (!productImages[i]) continue;
           
-          // Shopify için görsel formatı - ZORUNLU ALANLAR MUTLAKA DOLDURULMALI
+          // Shopify 2024 için görsel formatı - SADECE GEREKLİ ALANLAR DOLDURULMALI
+          // DÜZELTME: "Default Title" hatası durumunda görsel satırlarında varyant bilgileri olmamalı
           csvRows.push({
-            handle, // Handle hep sabit olmalı
-            title: '', // Boş kalmalı
-            body: '', // Boş kalmalı
-            vendor: 'turmarkt', // Zorunlu alan - ilk satırla aynı değer
-            product_category: '',
-            type: '',
-            tags: '',
+            handle, // Handle hep sabit olmalı - TEK ZORUNLU ALAN
+            status: 'active', // Her satır için ZORUNLU
             published: 'TRUE', // Görsellerin de yayınlanması gerekiyor
-            // ZORUNLU: Her satırda option name/value değerleri olmalı
-            option1_name: csvRows[0].option1_name || 'Title', // İlk satırdaki seçenek adıyla aynı olmalı
-            option1_value: csvRows[0].option1_value || 'Default Title', // İlk satırdaki seçenek değeriyle aynı olmalı
-            option2_name: csvRows[0].option2_name || '',
-            option2_value: csvRows[0].option2_value || '',
-            option3_name: csvRows[0].option3_name || '',
-            option3_value: csvRows[0].option3_value || '',
-            // ZORUNLU: Her satırda variant_sku ve variant_price olmalı
-            variant_sku: csvRows[0].variant_sku || handle, // İlk satırla aynı SKU
-            variant_grams: '500',
-            variant_inventory_tracker: 'shopify',
-            variant_inventory_qty: '50',
-            variant_inventory_policy: 'deny', // Shopify için 'deny' değeri gerekli
-            variant_fulfillment_service: 'manual', // Shopify için 'manual' değeri gerekli
-            variant_price: csvRows[0].variant_price || productToExport.price, // ZORUNLU: İlk satırla aynı fiyat
-            variant_compare_at_price: '',
-            variant_requires_shipping: 'TRUE',
-            variant_taxable: 'TRUE',
-            variant_barcode: '',
+            // GÖRSEL BİLGİLERİ - SHOPIFY 2024 DÜZELTME
+            // DİKKAT: "Default Title" hatası için görsel satırlarından VARYANT alanlarını kaldırdık
             image_src: productImages[i],
             image_position: (i + 1).toString(),
             image_alt_text: `${productToExport.title || 'Ürün'} - Görsel ${i + 1}`,
