@@ -1140,8 +1140,21 @@ function generateProductTags(product: InsertProduct, categoryConfig: any): strin
       return cat.trim().substring(0, MAX_TAG_LENGTH);
     });
   
+  // Kategori listesini birleştir, ancak daha uzun bir maksimum limit kullan
+  let combinedCategory = filteredCategories.join('');
+  if (combinedCategory.length > 30) {
+    // Daha akıllı bir kesme yöntemi: Sadece ana kategori isimlerini tut
+    const mainCats = combinedCategory.match(/(GIYIM|JEAN|MAVI|ELEKTRONIK|KOZMETIK|EV|BEBEK)/gi) || [];
+    if (mainCats.length > 0) {
+      combinedCategory = mainCats.join('');
+    } else {
+      // Eğer hiçbir ana kategori eşleşmezse, makul bir uzunluğa kısalt
+      combinedCategory = combinedCategory.substring(0, 25);
+    }
+  }
+  
   // Filtrelenmiş kategorileri debug için logla
-  debug(`Filtrelenmiş kategori listesi: ${filteredCategories.join('')}`);
+  debug(`Filtrelenmiş kategori listesi: ${combinedCategory}`);
   
   // Etiket 1: Ana kategori (ERKEK, KADIN, vs.)
   let mainCategory = "";
@@ -1173,14 +1186,18 @@ function generateProductTags(product: InsertProduct, categoryConfig: any): strin
       }
     }
     
-    // Hala bulunamadıysa, varsayılan olarak ilk kategoriyi kullan
-    if (!mainCategory && filteredCategories.length > 0) {
-      // İlk kategoriyi kısalt (20 karakterden fazla olmasın)
-      mainCategory = filteredCategories[0].toUpperCase().substring(0, MAX_TAG_LENGTH);
+    // Akıllı kategori etiketleme: Önce birleştirilmiş kategoriyi dene
+    if (combinedCategory) {
+      tags.push(combinedCategory.toUpperCase());
     }
-    
-    // Ana kategoriyi ekle
-    if (mainCategory) {
+    // Eğer ana kategori bulunamadıysa ve birleştirilmiş kategori de yoksa, ilk kategoriyi ekle
+    else if (!mainCategory && filteredCategories.length > 0) {
+      // İlk kategoriyi kısalt (yine 20 karakterden fazla olmasın)
+      mainCategory = filteredCategories[0].toUpperCase().substring(0, MAX_TAG_LENGTH);
+      tags.push(mainCategory);
+    }
+    // Diğer durumlarda ana kategorimizi ekle
+    else if (mainCategory) {
       tags.push(mainCategory);
     }
   }
@@ -1300,57 +1317,85 @@ export async function registerRoutes(app: Express) {
     
     debug(`Başlık temizleme başlıyor: "${title}"`);
     
+    // Sondaki tireleri temizle
+    title = title.replace(/\s*-+\s*$/, '');
+    
     // Önce boşlukları normalleştir
     title = title.replace(/\s+/g, ' ').trim();
     
-    // ÖRNEK: "Barbanti Mobile Pro Ios Android Uyumlu Kablo suz Bluetooth Kulaklık k Karışık Renk K kılıf Hediyeli"
+    // Artık sadece özel bilinen düzeltme kalıpları kullan - regex tuzaklarını önle
     
-    // Doğrudan düzeltme - Kablo suz -> Kablosuz
-    title = title.replace(/Kablo\s+suz/g, 'Kablosuz');
-    
-    // Doğrudan düzeltme - Kulaklık k -> Kulaklık
-    title = title.replace(/Kulaklık\s+k\b/g, 'Kulaklık');
-    
-    // Doğrudan düzeltme - K kılıf -> Kılıf
-    title = title.replace(/K\s+kılıf/g, 'Kılıf');
-    title = title.replace(/k\s+kılıf/g, 'Kılıf');
-    
-    // Doğrudan düzeltme - Karışık Renk K -> Karışık Renk
-    title = title.replace(/Karışık\s+Renk\s+K\b/g, 'Karışık Renk');
-    
-    // Doğrudan düzeltme - H Hediyeli -> Hediyeli
-    title = title.replace(/H\s+Hediyeli/g, 'Hediyeli');
-    
-    // Doğrudan düzeltme - RenKılıf -> Renk Kılıf
-    title = title.replace(/RenKılıf/g, 'Renk Kılıf');
-    
-    // Yazım hataları
-    title = title.replace(/\bulaklı\b/g, 'Kulaklık');
-    title = title.replace(/\bulaklık\b/g, 'Kulaklık');
-    title = title.replace(/\barışık\b/g, 'Karışık');
-    
-    // Türkçe karakterlerle ilgili sorunlar düzeltilir
-    title = title.replace(/İsı/g, 'Isı');
-    
-    // Özel kelime dizisi düzeltmelerini uygula
-    const wordFixes = [
-      // Regex sabit kelimeler kullanarak güvenilir düzeltme
-      [/Kablosuz Bluetooth Kulaklık k Karışık Renk K kılıf/g, 'Kablosuz Bluetooth Kulaklık Karışık Renk Kılıf'],
-      [/Pro Ios Android Uyumlu Kablosuz Bluetooth ulaklıK/g, 'Pro Ios Android Uyumlu Kablosuz Bluetooth Kulaklık'],
-      [/Karışık RenKılıf/g, 'Karışık Renk Kılıf']
-    ];
-    
-    // Kesin düzeltmeleri uygula
-    for (const [pattern, replacement] of wordFixes) {
-      title = title.replace(pattern, replacement);
+    // Özel düzeltme: Elektronik ürünler için
+    if (title.includes('Bluetooth') || title.includes('Kulaklık')) {
+      // ÖRNEK: "Barbanti Mobile Pro Ios Android Uyumlu Kablo suz Bluetooth Kulaklık k Karışık Renk K kılıf Hediyeli"
+      
+      // Doğrudan düzeltme - Kablo suz -> Kablosuz
+      title = title.replace(/Kablo\s+suz/g, 'Kablosuz');
+      
+      // Doğrudan düzeltme - Kulaklık k -> Kulaklık
+      title = title.replace(/Kulaklık\s+k\b/g, 'Kulaklık');
+      
+      // Doğrudan düzeltme - K kılıf -> Kılıf
+      title = title.replace(/K\s+kılıf/g, 'Kılıf');
+      title = title.replace(/k\s+kılıf/g, 'Kılıf');
+      
+      // Doğrudan düzeltme - Karışık Renk K -> Karışık Renk
+      title = title.replace(/Karışık\s+Renk\s+K\b/g, 'Karışık Renk');
+      
+      // Doğrudan düzeltme - H Hediyeli -> Hediyeli
+      title = title.replace(/H\s+Hediyeli/g, 'Hediyeli');
+      
+      // Doğrudan düzeltme - RenKılıf -> Renk Kılıf
+      title = title.replace(/RenKılıf/g, 'Renk Kılıf');
+      
+      // Yazım hataları
+      title = title.replace(/\bulaklı\b/g, 'Kulaklık');
+      title = title.replace(/\bulaklık\b/g, 'Kulaklık');
+      
+      // Özel kelime dizisi düzeltmeleri için ayrı bir düzeltme fonksiyonu
+      const applyPatterns = (text: string, patterns: Array<[RegExp, string]>): string => {
+        let result = text;
+        for (const [pattern, replacement] of patterns) {
+          result = result.replace(pattern, replacement);
+        }
+        return result;
+      };
+      
+      // Elektronik ürünler için düzeltme kalıpları
+      const electronicsPatterns: Array<[RegExp, string]> = [
+        [/Kablosuz Bluetooth Kulaklık k Karışık Renk K kılıf/g, 'Kablosuz Bluetooth Kulaklık Karışık Renk Kılıf'],
+        [/Pro Ios Android Uyumlu Kablosuz Bluetooth ulaklıK/g, 'Pro Ios Android Uyumlu Kablosuz Bluetooth Kulaklık'],
+        [/Karışık RenKılıf/g, 'Karışık Renk Kılıf']
+      ] as Array<[RegExp, string]>;
+      
+      // Kesin düzeltmeleri uygula
+      title = applyPatterns(title, electronicsPatterns);
     }
     
-    // Son temizlik - Tek kalan K harfleri dışında boşluk normalizasyonu
+    // Özel düzeltme: Kozmetik ürünler için
+    if (title.includes('Krem') || title.includes('Bakım') || title.includes('Beyazlatıcı')) {
+      // Le ke -> Leke, Ba kım -> Bakım gibi sorunları düzelt
+      title = title.replace(/Le\s+ke/g, 'Leke');
+      title = title.replace(/Ba\s+kım/g, 'Bakım');
+      title = title.replace(/\barşıtı\b/g, 'Karşıtı');
+      title = title.replace(/\bremi\b/g, 'Kremi');
+    }
+    
+    // Özel düzeltme: Giyim ürünleri için
+    if (title.includes('Jean') || title.includes('Pantol') || title.includes('Giyim')) {
+      // Jean ürünleri için sorunlu kısımları düzelt
+      title = title.replace(/\bPantol\b/g, 'Pantolon');
+      
+      // Ölçü bilgisini düzelt (24/32 gibi)
+      title = title.replace(/\b(\d+)\s*\/\s*(\d+)\b/g, '$1/$2');
+    }
+    
+    // Son temizlik - artık boşluk normalizasyonu
     title = title.replace(/\s+/g, ' ').trim();
     
-    // Tek kalan harfleri temizle
+    // Tek kalan K harflerini titizlikle temizle
     title = title.replace(/\s[kK]\s/g, ' ');
-    title = title.replace(/\s[kK](?=[A-ZİŞĞÜÖÇa-zışğüöç])/g, ' ');
+    title = title.replace(/(?<=\s)[kK](?=[A-ZİŞĞÜÖÇa-zışğüöç])/g, '');
     
     debug(`Başlık temizleme tamamlandı: "${title}"`);
     
@@ -1477,7 +1522,9 @@ export async function registerRoutes(app: Express) {
         handle = handle.substring(0, 35);
       }
 
-      const csvRows = [];
+      // Type definition for CSV rows
+      type CSVRowType = Record<string, any>;
+      const csvRows: CSVRowType[] = [];
 
       // Body HTML oluştur
       const generateProductBody = (description: string, attributes: Record<string, string>) => {
@@ -1981,15 +2028,15 @@ export async function registerRoutes(app: Express) {
             variant_image: '',
             variant_weight_unit: 'g',
             variant_tax_code: '',
-            cost_per_item: '',
-            status: 'active' // Görsel satırlarının da aktif olması gerekiyor
+            cost_per_item: ''
+            // Not: status zaten yukarıda tanımlandı
           });
         }
         
         // Son kontrol - boş görsel URL'lerini varsayılan ile değiştir ve boolean değerleri kontrol et
-        csvRows.forEach((row: any) => {
-          // Görsel URL kontrol
-          if (!row.image_src || row.image_src.trim() === '') {
+        csvRows.forEach((row: CSVRowType) => {
+          // Görsel URL kontrol - Boş veya undefined kontrolü
+          if (!row.image_src || row.image_src === '') {
             row.image_src = DEFAULT_IMAGE_URL;
           }
           
@@ -2109,7 +2156,7 @@ export async function registerRoutes(app: Express) {
           
         // SHOPIFY DÜZELTME 2024: Tüm kritik alanları kontrol et - SHOPIFY 2024 FORMAT
         // SHOPIFY BELGELEME: https://help.shopify.com/en/manual/products/import-export/common-import-issues
-        csvRows.forEach((row: any, index: number) => {
+        csvRows.forEach((row: CSVRowType, index: number) => {
           // İlk satırda varyant bilgileri olmalı mı kontrol et
           const isFirstVariant = index === 0;
           const hasImageSrc = !!row.image_src;
