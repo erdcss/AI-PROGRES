@@ -1841,73 +1841,53 @@ export async function registerRoutes(app: Express) {
         debug(`CSV görsel ekleme tamamlandı: ${productImages.length} görsel eklendi`);
       }
 
-      // CSV başlıklarını oluştur - TAM Shopify.com 2024 örnek dosyasından alınan başlıklarla
+      // CSV başlıklarını oluştur - GÜNCEL Shopify.com 2024 örnek dosyasından alınan başlıklarla
       const csvWriter = createObjectCsvWriter({
         path: join(tmpdir(), 'shopify_products.csv'),
         header: [
-          // 2024 SHOPIFY IMPORT FORMAT
-          { id: 'handle', title: 'Handle' },
-          { id: 'title', title: 'Title' },
+          // 2024 SHOPIFY IMPORT FORMAT - GÜNCELLENMIŞ FORMATLAR
+          { id: 'handle', title: 'Handle' },                         // ZORUNLU
+          { id: 'title', title: 'Title' },                           // ZORUNLU
           { id: 'body_html', title: 'Body (HTML)' },
-          { id: 'vendor', title: 'Vendor' },
+          { id: 'vendor', title: 'Vendor' },                         // ZORUNLU
           { id: 'standard_product_type', title: 'Standard Product Type' },
           { id: 'custom_product_type', title: 'Custom Product Type' },
           { id: 'tags', title: 'Tags' },
-          { id: 'published', title: 'Published' },
-          { id: 'option1_name', title: 'Option1 Name' },
-          { id: 'option1_value', title: 'Option1 Value' },
+          { id: 'published', title: 'Published' },                   // ZORUNLU
+          { id: 'option1_name', title: 'Option1 Name' },             // ZORUNLU: İlk ürün satırında
+          { id: 'option1_value', title: 'Option1 Value' },           // ZORUNLU: İlk ürün satırında
           { id: 'option2_name', title: 'Option2 Name' },
           { id: 'option2_value', title: 'Option2 Value' },
           { id: 'option3_name', title: 'Option3 Name' },
           { id: 'option3_value', title: 'Option3 Value' },
-          { id: 'variant_sku', title: 'Variant SKU' },
+          { id: 'variant_sku', title: 'Variant SKU' },               // ZORUNLU: İlk ürün satırında
           { id: 'variant_grams', title: 'Variant Grams' },
           { id: 'variant_inventory_tracker', title: 'Variant Inventory Tracker' },
           { id: 'variant_inventory_qty', title: 'Variant Inventory Qty' },
           { id: 'variant_inventory_policy', title: 'Variant Inventory Policy' },
           { id: 'variant_fulfillment_service', title: 'Variant Fulfillment Service' },
-          { id: 'variant_price', title: 'Variant Price' },
+          { id: 'variant_price', title: 'Variant Price' },           // ZORUNLU: İlk ürün satırında
           { id: 'variant_compare_at_price', title: 'Variant Compare At Price' },
           { id: 'variant_requires_shipping', title: 'Variant Requires Shipping' },
           { id: 'variant_taxable', title: 'Variant Taxable' },
           { id: 'variant_barcode', title: 'Variant Barcode' },
-          { id: 'image_src', title: 'Image Src' },
+          { id: 'image_src', title: 'Image Src' },                   // ZORUNLU: Görsel satırlarında
           { id: 'image_position', title: 'Image Position' },
           { id: 'image_alt_text', title: 'Image Alt Text' },
           { id: 'gift_card', title: 'Gift Card' },
           { id: 'seo_title', title: 'SEO Title' },
           { id: 'seo_description', title: 'SEO Description' },
-          { id: 'google_shopping_metafields', title: 'Google Shopping / Google Product Category' },
-          { id: 'google_shopping_gender', title: 'Google Shopping / Gender' },
-          { id: 'google_shopping_age_group', title: 'Google Shopping / Age Group' },
           { id: 'google_shopping_mpn', title: 'Google Shopping / MPN' },
-          { id: 'google_shopping_adwords_grouping', title: 'Google Shopping / AdWords Grouping' },
-          { id: 'google_shopping_adwords_labels', title: 'Google Shopping / AdWords Labels' },
-          { id: 'google_shopping_condition', title: 'Google Shopping / Condition' },
-          { id: 'google_shopping_custom_product', title: 'Google Shopping / Custom Product' },
-          { id: 'google_shopping_custom_label_0', title: 'Google Shopping / Custom Label 0' },
-          { id: 'google_shopping_custom_label_1', title: 'Google Shopping / Custom Label 1' },
-          { id: 'google_shopping_custom_label_2', title: 'Google Shopping / Custom Label 2' },
-          { id: 'google_shopping_custom_label_3', title: 'Google Shopping / Custom Label 3' },
-          { id: 'google_shopping_custom_label_4', title: 'Google Shopping / Custom Label 4' },
+          { id: 'google_shopping_age_group', title: 'Google Shopping / Age Group' },
+          { id: 'google_shopping_gender', title: 'Google Shopping / Gender' },
+          { id: 'google_shopping_product_category', title: 'Google Shopping / Google Product Category' },
           { id: 'variant_image', title: 'Variant Image' },
           { id: 'variant_weight_unit', title: 'Variant Weight Unit' },
           { id: 'variant_tax_code', title: 'Variant Tax Code' },
           { id: 'cost_per_item', title: 'Cost per item' },
-          { id: 'status', title: 'Status' },
-          { id: 'google_shopping_metafields', title: 'Google Shopping / Google Product Category' },
-          { id: 'google_shopping_gender', title: 'Google Shopping / Gender' },
-          { id: 'google_shopping_age_group', title: 'Google Shopping / Age Group' },
-          { id: 'google_shopping_mpn', title: 'Google Shopping / MPN' },
-          { id: 'google_shopping_adwords_grouping', title: 'Google Shopping / AdWords Grouping' },
-          { id: 'google_shopping_adwords_labels', title: 'Google Shopping / AdWords Labels' },
-          { id: 'google_shopping_condition', title: 'Google Shopping / Condition' },
-          { id: 'google_shopping_custom_product', title: 'Google Shopping / Custom Product' },
-          { id: 'google_shopping_custom_label_0', title: 'Google Shopping / Custom Label 0' },
-          { id: 'google_shopping_custom_label_1', title: 'Google Shopping / Custom Label 1' },
-          { id: 'google_shopping_custom_label_2', title: 'Google Shopping / Custom Label 2' },
-          { id: 'google_shopping_custom_label_3', title: 'Google Shopping / Custom Label 3' },
-          { id: 'google_shopping_custom_label_4', title: 'Google Shopping / Custom Label 4' }
+          { id: 'status', title: 'Status' },                         // ZORUNLU
+          { id: 'published_scope', title: 'Published Scope' },       // ZORUNLU
+          { id: 'published_at', title: 'Published At' }              // ZORUNLU
         ]
       });
 
@@ -1931,14 +1911,30 @@ export async function registerRoutes(app: Express) {
           );
           
         // SHOPIFY DÜZELTME 2024: Tüm kritik alanları kontrol et - SHOPIFY 2024 FORMAT
-        csvRows.forEach((row: any) => {
-          // Temel varyant bilgilerini doldur - HER SATIR için
-          if (!row.option1_name) row.option1_name = 'Title';
-          if (!row.option1_value) row.option1_value = 'Default Title';
-          
-          // Fiyat ve SKU her satırda olmalı
-          if (!row.variant_price) row.variant_price = productToExport.price;
-          if (!row.variant_sku) row.variant_sku = handle;
+        csvRows.forEach((row: any, index: number) => {
+          // GÖRSEL SATIRI KONTROL: Sadece ilk satırda Title/Default Title olmalı
+          // Görsel içeren satırlarda option değerleri olmamalı (Shopify 2024 gerekliliği)
+          if (index === 0) {
+            // Sadece ilk ana ürün satırı için bu değerleri ayarla
+            if (!row.option1_name) row.option1_name = 'Title';
+            if (!row.option1_value) row.option1_value = 'Default Title';
+            
+            // Fiyat ve SKU sadece ilk satırda gerekli
+            if (!row.variant_price) row.variant_price = productToExport.price;
+            if (!row.variant_sku) row.variant_sku = handle;
+          } else {
+            // Görsel satırlarında bu alanları KALDIR - Shopify 2024 gereksinimi
+            delete row.option1_name;
+            delete row.option1_value;
+            delete row.variant_price;
+            delete row.variant_sku;
+            delete row.variant_inventory_qty;
+            delete row.variant_inventory_tracker;
+            delete row.variant_inventory_policy;
+            delete row.variant_fulfillment_service;
+            delete row.variant_requires_shipping;
+            delete row.variant_taxable;
+          }
           
           // Boolean değerleri düzelt - MUTLAKA BÜYÜK HARF
           if (row.published === 'true') row.published = 'TRUE';
@@ -1979,12 +1975,18 @@ export async function registerRoutes(app: Express) {
           }
           
           // Shopify için diğer zorunlu alanlar (2024 format)
-          if (!row.variant_inventory_policy) row.variant_inventory_policy = 'deny';
-          if (!row.variant_fulfillment_service) row.variant_fulfillment_service = 'manual';
-          if (!row.variant_requires_shipping) row.variant_requires_shipping = 'TRUE';
-          if (!row.variant_taxable) row.variant_taxable = 'TRUE';
-          if (!row.variant_inventory_tracker) row.variant_inventory_tracker = 'shopify';
-          if (!row.variant_inventory_qty) row.variant_inventory_qty = '50';
+          // Sadece ilk satırda (ürün satırı) varyant bilgileri olmalı
+          if (index === 0) {
+            // Varyant bilgileri sadece ilk satırda
+            if (!row.variant_inventory_policy) row.variant_inventory_policy = 'deny';
+            if (!row.variant_fulfillment_service) row.variant_fulfillment_service = 'manual';
+            if (!row.variant_requires_shipping) row.variant_requires_shipping = 'TRUE';
+            if (!row.variant_taxable) row.variant_taxable = 'TRUE';
+            if (!row.variant_inventory_tracker) row.variant_inventory_tracker = 'shopify';
+            if (!row.variant_inventory_qty) row.variant_inventory_qty = '50';
+          }
+          
+          // Tüm satırlarda olması gereken ortak alanlar
           if (!row.gift_card) row.gift_card = 'FALSE';
         });
         
