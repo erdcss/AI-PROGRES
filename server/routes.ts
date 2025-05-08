@@ -14,7 +14,8 @@ import * as fs from 'fs';
 import { scrapeProductWithPuppeteer } from './puppeteer-scraper';
 
 // Uygulama sabitleri ve yapılandırmaları
-const DEFAULT_IMAGE_URL = "https://cdn.dsmcdn.com/assets/product/media/images/no-image-v2.png"; // Varsayılan görsel URL
+// Shopify'ın erişebileceği, kalıcı ve güvenilir bir varsayılan görsel URL'si
+const DEFAULT_IMAGE_URL = "https://cdn.shopify.com/s/files/1/0533/2089/files/placeholder-images-image_large.png"; // Shopify'ın kendi varsayılan görseli
 const MAX_IMAGES = 8; // Shopify'a eklenecek maksimum görsel sayısı
 const APP_VERSION = "0.13.1008"; // Yeni sürüm numarası (Puppeteer entegrasyonu, Shopify düzeltmeleri ve bot koruma iyileştirmeleri)
 const MAX_TAG_LENGTH = 50; // Etiketlerin maksimum uzunluğu
