@@ -212,6 +212,21 @@ function normalizeImageUrl(url: string): string {
     
     // URL'den parametreleri temizle
     url = url.split('?')[0];
+    
+    // DÜZELTME: Bazı URL'lerde duplike domain sorunu var (https://cdn.dsmcdn.comhttps://cdn.dsmcdn.com)
+    // Bu sorunu düzeltelim
+    if (url.includes('https://cdn.dsmcdn.comhttps://')) {
+      url = url.replace('https://cdn.dsmcdn.comhttps://', 'https://');
+    }
+    
+    // Placeholder görsel kontrolü - Shopify'da hata verebilir
+    if (url.includes('product-detail-placeholder') || 
+        url.includes('placeholder_') || 
+        url.includes('kamera-emoji') ||
+        url.includes('EnCokSatan')) {
+      debug(`Yedek görsel bulundu: ${url}`);
+      return DEFAULT_IMAGE_URL;
+    }
 
     // Geçersiz URL'leri kontrol et
     if (url.match(/\.(mp4|webm|ogg|mov)$/i)) {
