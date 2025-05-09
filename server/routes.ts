@@ -68,88 +68,151 @@ async function fetchProductPage(url: string): Promise<cheerio.CheerioAPI> {
     if (productIdMatch && productIdMatch[1]) {
       const productId = productIdMatch[1];
       try {
-        // Mobil API endpoint'i
-        const apiUrl = `https://public.trendyol.com/discovery-web-productgw-service/api/productDetail/${productId}`;
+        // NOT: API endpoint URL güncellenebilir - Trendyol bunu sık sık değiştirebilir
+        // Yeni mobil API endpoint'i (m.trendyol.com API'yi kullanıyor)
+        const mobileUrl = `https://m.trendyol.com/mweb/product/${productId}`;
         
-        debug(`Mobil API kullanılıyor: ${apiUrl}`);
+        debug(`Mobil site URL kullanılıyor: ${mobileUrl}`);
         
         // @ts-ignore - node-fetch tiplemesi farklı olduğu için
-        const apiResponse = await fetch(apiUrl, {
+        const mobileResponse = await fetch(mobileUrl, {
           headers: {
-            'User-Agent': randomUserAgent,
-            'Accept': 'application/json',
-            'Accept-Language': 'tr-TR,tr;q=0.9,en-US;q=0.8,en;q=0.7',
+            'User-Agent': 'Mozilla/5.0 (iPhone; CPU iPhone OS 16_6_1 like Mac OS X) AppleWebKit/605.1.15 (KHTML, like Gecko) Version/16.6 Mobile/15E148 Safari/604.1',
+            'Accept': 'text/html,application/xhtml+xml,application/xml;q=0.9,*/*;q=0.8',
+            'Accept-Language': 'tr-TR,tr;q=0.9',
             'Cache-Control': 'no-cache',
             'Pragma': 'no-cache',
-            'Referer': url,
-            'Origin': 'https://www.trendyol.com',
-            'X-Application-Id': 'WebBrowser',
-            'Sec-Fetch-Dest': 'empty',
-            'Sec-Fetch-Mode': 'cors',
-            'Sec-Fetch-Site': 'same-site',
+            'Referer': 'https://www.google.com/',
             'Connection': 'keep-alive',
-            'Cookie': cookieValue
+            'Cookie': cookieValue,
+            'Upgrade-Insecure-Requests': '1',
+            'Sec-Fetch-Dest': 'document',
+            'Sec-Fetch-Mode': 'navigate',
+            'Sec-Fetch-Site': 'none',
+            'Sec-Fetch-User': '?1'
           }
         });
         
-        if (apiResponse.ok) {
-          const data = await apiResponse.json() as Record<string, any>;
-          if (data && data.result) {
-            debug('API isteği başarılı, veri alındı');
-            // API yanıtını HTML'e dönüştür
-            const productData = data.result as Record<string, any>;
+        // Mobil site başarılıysa işle
+        if (mobileResponse.ok) {
+          const mobileHtml = await mobileResponse.text();
+          
+          if (mobileHtml && mobileHtml.length > 5000) {
+            debug('Mobil site yanıtı başarılı, veri alındı');
             
-            // Temel HTML şablonu oluştur
-            const htmlTemplate = `
-              <html>
-                <head>
-                  <title>${productData.name || 'Ürün'}</title>
-                  <script type="application/ld+json">${JSON.stringify(productData)}</script>
-                </head>
-                <body>
-                  <h1 class="product-name">${productData.name || ''}</h1>
-                  <div class="product-description">${productData.description || ''}</div>
-                  <div class="product-price">${productData.price?.salePrice || productData.price?.originalPrice || ''}</div>
-                  <div class="images-container">
-                    ${(productData.images || []).map((img: any) => `<img src="${img.url || ''}" alt="${productData.name || 'Ürün'}" />`).join('')}
-                  </div>
-                </body>
-              </html>
-            `;
-            
-            // HTML'i Cheerio ile yükle
-            return cheerio.load(htmlTemplate);
+            // Mobil HTML'i Cheerio ile yükle
+            return cheerio.load(mobileHtml);
           }
         }
+      
+        // Eğer mobil site başarısız olursa, eski API endpoint'ini deneyelim
+        const apiUrl = `https://public.trendyol.com/discovery-web-productgw-service/api/productDetail/${productId}`;
         
-        debug('API isteği başarısız oldu, normal HTML isteğine dönülüyor');
+        debug(`Eski API kullanılıyor: ${apiUrl}`);
+        
+        try {
+          // @ts-ignore - node-fetch tiplemesi farklı olduğu için
+          const apiResponse = await fetch(apiUrl, {
+            headers: {
+              'User-Agent': randomUserAgent,
+              'Accept': 'application/json',
+              'Accept-Language': 'tr-TR,tr;q=0.9,en-US;q=0.8,en;q=0.7',
+              'Cache-Control': 'no-cache',
+              'Pragma': 'no-cache',
+              'Referer': url,
+              'Origin': 'https://www.trendyol.com',
+              'X-Application-Id': 'WebBrowser',
+              'Sec-Fetch-Dest': 'empty',
+              'Sec-Fetch-Mode': 'cors',
+              'Sec-Fetch-Site': 'same-site',
+              'Connection': 'keep-alive',
+              'Cookie': cookieValue
+            }
+          });
+          
+          if (apiResponse.ok) {
+            const data = await apiResponse.json() as Record<string, any>;
+            if (data && data.result) {
+              debug('API isteği başarılı, veri alındı');
+              // API yanıtını HTML'e dönüştür
+              const productData = data.result as Record<string, any>;
+              
+              // Temel HTML şablonu oluştur
+              const htmlTemplate = `
+                <html>
+                  <head>
+                    <title>${productData.name || 'Ürün'}</title>
+                    <script type="application/ld+json">${JSON.stringify(productData)}</script>
+                  </head>
+                  <body>
+                    <h1 class="product-name">${productData.name || ''}</h1>
+                    <div class="product-description">${productData.description || ''}</div>
+                    <div class="product-price">${productData.price?.salePrice || productData.price?.originalPrice || ''}</div>
+                    <div class="images-container">
+                      ${(productData.images || []).map((img: any) => `<img src="${img.url || ''}" alt="${productData.name || 'Ürün'}" />`).join('')}
+                    </div>
+                  </body>
+                </html>
+              `;
+              
+              // HTML'i Cheerio ile yükle
+              return cheerio.load(htmlTemplate);
+            }
+          }
+        } catch (innerApiError: any) {
+          debug(`İç API hatası: ${innerApiError?.message || 'Bilinmeyen hata'}`);
+        }
+        
+        debug('Tüm API istekleri başarısız oldu, normal HTML isteğine dönülüyor');
       } catch (apiError: any) {
         debug(`API hatası: ${apiError?.message || 'Bilinmeyen hata'}`);
         debug('Normal HTML isteğine dönülüyor');
       }
     }
     
-    // Normal HTML isteği
+    // Alternatif tarayıcı seçeneği (rotasyon yapmak için)
+    const browsers = [
+      {
+        userAgent: 'Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/605.1.15 (KHTML, like Gecko) Version/17.0 Safari/605.1.15',
+        referer: 'https://www.google.com/search?q=trendyol+%C3%BCr%C3%BCnler',
+        mobile: false
+      },
+      {
+        userAgent: 'Mozilla/5.0 (iPhone; CPU iPhone OS 17_4_1 like Mac OS X) AppleWebKit/605.1.15 (KHTML, like Gecko) Version/17.4 Mobile/15E148 Safari/604.1',
+        referer: 'https://www.google.com/search?q=trendyol',
+        mobile: true
+      },
+      {
+        userAgent: 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/122.0.0.0 Safari/537.36',
+        referer: 'https://yandex.com/search/?text=trendyol',
+        mobile: false
+      }
+    ];
+    
+    // Rastgele bir tarayıcı seç
+    const browser = browsers[Math.floor(Math.random() * browsers.length)];
+    debug(`Seçilen tarayıcı: ${browser.userAgent}, ${browser.mobile ? 'Mobil' : 'Masaüstü'}`);
+    
+    // Akıllı User-Agent rotasyonu
     // @ts-ignore - node-fetch tiplemesi farklı olduğu için
     const response = await fetch(url, {
       headers: {
-        'User-Agent': randomUserAgent,
+        'User-Agent': browser.userAgent,
         'Accept': 'text/html,application/xhtml+xml,application/xml;q=0.9,image/avif,image/webp,image/apng,*/*;q=0.8,application/signed-exchange;v=b3;q=0.7',
         'Accept-Language': 'tr-TR,tr;q=0.9,en-US;q=0.8,en;q=0.7',
         'Cache-Control': 'no-cache',
         'Pragma': 'no-cache',
         'Sec-Fetch-Dest': 'document',
         'Sec-Fetch-Mode': 'navigate',
-        'Sec-Fetch-Site': 'none',
+        'Sec-Fetch-Site': 'cross-site',
         'Sec-Fetch-User': '?1',
         'Upgrade-Insecure-Requests': '1',
-        'Referer': 'https://www.google.com.tr/',
+        'Referer': browser.referer,
         'Connection': 'keep-alive',
         'Cookie': cookieValue,
         'DNT': '1',
-        'Sec-CH-UA': '"Chromium";v="123", "Google Chrome";v="123"', 
-        'Sec-CH-UA-Mobile': '?0',
-        'Sec-CH-UA-Platform': '"Windows"'
+        'Sec-CH-UA-Mobile': browser.mobile ? '?1' : '?0',
+        'Sec-CH-UA-Platform': browser.mobile ? '"iOS"' : '"Windows"'
       },
       // @ts-ignore - node-fetch tiplemesi farklı olduğu için
       follow: 10,
