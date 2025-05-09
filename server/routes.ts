@@ -1377,7 +1377,8 @@ export async function registerRoutes(app: Express) {
     try {
       // URL değerini doğrudan body'den alıyoruz, schema ile parse etmeden önce
       // Philips ve bazı elektronik ürünler için özel kontrolü ekleyelim
-      if (req.body.url && 
+      // Philips Lattego engeli geçici olarak kaldırıldı
+      if (false && req.body.url && 
           req.body.url.includes('philips') && 
           req.body.url.includes('lattego')) {
         debug("Özel işleme tabi tutulan ürün tespit edildi: Philips Lattego");
