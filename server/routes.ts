@@ -30,13 +30,14 @@ function cleanPrice(price: string): number {
 }
 
 async function fetchProductPage(url: string): Promise<cheerio.CheerioAPI> {
-  // Trendyol bot koruması için geliştirilmiş stealth modu
+  // Trendyol bot koruması için geliştirilmiş stealth modu - Mobil tarayıcılara odaklanın
   const userAgents = [
-    'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/123.0.0.0 Safari/537.36',
-    'Mozilla/5.0 (Windows NT 10.0; Win64; x64; rv:124.0) Gecko/20100101 Firefox/124.0',
-    'Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/605.1.15 (KHTML, like Gecko) Version/17.0 Safari/605.1.15',
-    'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/123.0.0.0 Safari/537.36 Edg/123.0.0.0',
-    'Mozilla/5.0 (iPhone; CPU iPhone OS 17_4_1 like Mac OS X) AppleWebKit/605.1.15 (KHTML, like Gecko) Version/17.4 Mobile/15E148 Safari/604.1',
+    // Mobil kullanıcı ajanları - bot korumasına karşı daha etkilidir
+    'Mozilla/5.0 (iPhone; CPU iPhone OS 17_5 like Mac OS X) AppleWebKit/605.1.15 (KHTML, like Gecko) CriOS/124.0.6367.83 Mobile/15E148 Safari/604.1',
+    'Mozilla/5.0 (iPhone; CPU iPhone OS 17_5 like Mac OS X) AppleWebKit/605.1.15 (KHTML, like Gecko) Version/17.5 Mobile/15E148 Safari/604.1',
+    'Mozilla/5.0 (Linux; Android 14; SM-S918B) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/124.0.6367.95 Mobile Safari/537.36',
+    'Mozilla/5.0 (iPad; CPU OS 17_5 like Mac OS X) AppleWebKit/605.1.15 (KHTML, like Gecko) Version/17.5 Mobile/15E148 Safari/604.1',
+    'Mozilla/5.0 (Android 14; Mobile; rv:124.0) Gecko/124.0 Firefox/124.0',
   ];
   
   const randomUserAgent = userAgents[Math.floor(Math.random() * userAgents.length)];
@@ -548,10 +549,64 @@ async function scrapeProduct(url: string): Promise<InsertProduct> {
   try {
     let $;
     
-    // Puppeteer'ı aktifleştir, özel durumlar için kullan
-    const USE_PUPPETEER = true; // Puppeteer aktif
+    // Trendyol URL'sinde ürün ID'sini bul
+    const productIdMatch = url.match(/p-(\d+)/);
+    const productId = productIdMatch ? productIdMatch[1] : null;
     
-    if (url.includes('philips') || url.includes('espresso') || url.includes('kahve') || url.toLowerCase().includes('makine')) {
+    // Ürün tipini belirle - özel işlem gerektiren ürünler için
+    const isPhilipsLattego = url.toLowerCase().includes('philips') && 
+                           (url.toLowerCase().includes('lattego') || 
+                            url.toLowerCase().includes('espresso') || 
+                            url.toLowerCase().includes('kahve'));
+                            
+    const isElectronicProduct = url.toLowerCase().includes('elektronik') || 
+                               url.toLowerCase().includes('philips') ||
+                               url.toLowerCase().includes('dyson') ||
+                               url.toLowerCase().includes('makine') ||
+                               url.toLowerCase().includes('robot');
+                               
+    const useAdvancedStrategy = isPhilipsLattego || isElectronicProduct;
+    
+    // Önce mobil web (mweb) API'yi dene - en güvenilir ve anti-bot çalışan yöntem
+    if (productId && useAdvancedStrategy) {
+      debug("Gelişmiş mobil API stratejisi kullanılıyor");
+      try {
+        const mwebUrl = `https://m.trendyol.com/mweb/product/${productId}`;
+        debug(`Mobil mweb endpoint kullanılıyor: ${mwebUrl}`);
+        
+        const mobileUserAgent = 'Mozilla/5.0 (iPhone; CPU iPhone OS 17_5 like Mac OS X) AppleWebKit/605.1.15 (KHTML, like Gecko) CriOS/124.0.6367.83 Mobile/15E148 Safari/604.1';
+        
+        const mwebResponse = await fetch(mwebUrl, {
+          headers: {
+            'User-Agent': mobileUserAgent,
+            'Accept': 'text/html,application/xhtml+xml,application/xml;q=0.9,*/*;q=0.8',
+            'Accept-Language': 'tr-TR,tr;q=0.9,en-US;q=0.8,en;q=0.7',
+            'Cache-Control': 'no-cache',
+            'Referer': 'https://www.google.com/search?q=trendyol+philips',
+            'Pragma': 'no-cache'
+          }
+        });
+        
+        if (mwebResponse.ok) {
+          const mwebHtml = await mwebResponse.text();
+          if (mwebHtml && mwebHtml.length > 5000) {
+            debug("Mobil API stratejisi başarılı");
+            $ = cheerio.load(mwebHtml);
+            debug("Mobil API ile içerik başarıyla alındı");
+          } else {
+            throw new Error("Mobil API içeriği yetersiz");
+          }
+        } else {
+          throw new Error(`Mobil API hatası: ${mwebResponse.status}`);
+        }
+      } catch (error) {
+        debug(`Mobil API hatası: ${(error as Error).message}, alternatif stratejilere düşülüyor`);
+        // Diğer stratejilere düş
+      }
+    }
+    
+    // Mobil API ile içerik alınamadıysa ve özel ürünse, Puppeteer kullan
+    if (!$ && useAdvancedStrategy) {
       debug("Puppeteer ile scraping kullanılıyor");
       try {
         // Puppeteer ile HTML içeriğini al
@@ -562,11 +617,14 @@ async function scrapeProduct(url: string): Promise<InsertProduct> {
       } catch (error) {
         const puppeteerError = error as Error;
         debug(`Puppeteer hatası: ${puppeteerError.message}, Cheerio'ya düşüyor`);
-        $ = await fetchProductPage(url); // Fallback to normal fetch
+        // Son çare: Normal fetch ile dene 
       }
-    } else {
-      // Normal fetch ile sayfayı yükle
-      $ = await fetchProductPage(url);
+    }
+    
+    // Hiçbir özel strateji işe yaramadıysa, normal fetch kullan
+    if (!$) {
+      debug("Normal fetch stratejisi kullanılıyor");
+      $ = await fetchProductPage(url); // Fallback to normal fetch
     }
 
     // Ürün verilerini parse et
@@ -1376,22 +1434,7 @@ export async function registerRoutes(app: Express) {
     
     try {
       // URL değerini doğrudan body'den alıyoruz, schema ile parse etmeden önce
-      // Philips ve bazı elektronik ürünler için özel kontrolü ekleyelim
-      // Philips Lattego engeli geçici olarak kaldırıldı
-      if (false && req.body.url && 
-          req.body.url.includes('philips') && 
-          req.body.url.includes('lattego')) {
-        debug("Özel işleme tabi tutulan ürün tespit edildi: Philips Lattego");
-        res.status(400).json({
-          message: "Bu ürün türü şu anda desteklenmiyor",
-          details: {
-            status: 400,
-            statusText: "Not Supported",
-            details: "Philips Lattego gibi karmaşık elektronik ürünler henüz tam olarak desteklenmiyor. Lütfen farklı bir ürün deneyin."
-          }
-        });
-        return;
-      }
+      // Philips Lattego artık destekleniyor (geliştirilmiş mobil API çözümü)
       
       // URL'yi schema ile parse et
       const { url } = productUrlSchema.parse(req.body);

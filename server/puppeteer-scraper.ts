@@ -37,8 +37,15 @@ async function scrapePhilipsLattego(page: any, url: string): Promise<void> {
   const mobileUrl = url.replace('www.trendyol.com', 'm.trendyol.com');
   debug(`Mobil site URL'si kullanılıyor: ${mobileUrl}`);
   
-  // Mobil cihaz olarak iPhone 12 Pro'yu taklit et
-  await page.emulate(puppeteer.devices['iPhone 12 Pro']);
+  // Mobil cihaz olarak iPhone 12 Pro'yu taklit et (manuel olarak ayarla)
+  await page.setUserAgent('Mozilla/5.0 (iPhone; CPU iPhone OS 16_0 like Mac OS X) AppleWebKit/605.1.15 (KHTML, like Gecko) Version/16.0 Mobile/15E148 Safari/604.1');
+  await page.setViewport({ 
+    width: 390, 
+    height: 844, 
+    deviceScaleFactor: 3, 
+    isMobile: true, 
+    hasTouch: true 
+  });
   
   // Önce Trendyol ana sayfasını ziyaret et (doğrudan ürüne gitmek bot şüphesi uyandırabilir)
   await page.goto('https://m.trendyol.com', { waitUntil: 'networkidle2', timeout: 30000 });
@@ -80,9 +87,7 @@ export async function scrapeProductWithPuppeteer(url: string): Promise<string> {
         '--disable-gpu',
         '--window-size=1920,1080',
         '--user-agent=Mozilla/5.0 (iPhone; CPU iPhone OS 15_0 like Mac OS X) AppleWebKit/605.1.15 (KHTML, like Gecko) CriOS/95.0.4638.54 Mobile/15E148 Safari/604.1'
-      ],
-      userDataDir,
-      ignoreHTTPSErrors: true
+      ]
     });
     
     debug(`Tarayıcı başlatıldı, yeni sayfa açılıyor`);
