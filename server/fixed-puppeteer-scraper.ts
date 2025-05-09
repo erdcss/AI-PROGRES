@@ -137,44 +137,15 @@ export async function scrapeProductWithPuppeteer(url: string): Promise<string> {
                            url.includes('espresso') || 
                            url.includes('kahve'));
     
-    // Tarayıcıyı başlat - Daha fazla komut satırı argümanı ve yeni Puppeteer için 'headless: "new"'
+    // Tarayıcıyı başlat
     browser = await puppeteer.launch({
-      headless: "new",
-      executablePath: process.env.PUPPETEER_EXECUTABLE_PATH,
-      ignoreDefaultArgs: ['--disable-extensions'],
+      headless: true,
       args: [
         '--no-sandbox',
         '--disable-setuid-sandbox',
         '--disable-dev-shm-usage',
         '--disable-accelerated-2d-canvas',
         '--disable-gpu',
-        '--disable-gl-drawing-for-tests',
-        '--mute-audio',
-        '--hide-scrollbars',
-        '--disable-web-security',
-        '--disable-translate',
-        '--disable-extensions',
-        '--disable-features=TranslateUI,BlinkGenPropertyTrees',
-        '--disable-threaded-animation',
-        '--disable-threaded-scrolling',
-        '--disable-background-networking',
-        '--disable-breakpad',
-        '--disable-client-side-phishing-detection',
-        '--disable-component-extensions-with-background-pages',
-        '--disable-default-apps',
-        '--disable-domain-reliability',
-        '--disable-features=site-per-process,TranslateUI,BlinkGenPropertyTrees',
-        '--disable-hang-monitor',
-        '--disable-infobars',
-        '--disable-notifications',
-        '--disable-offer-store-unmasked-wallet-cards',
-        '--disable-popup-blocking',
-        '--disable-print-preview',
-        '--disable-prompt-on-repost',
-        '--disable-speech-api',
-        '--disable-sync',
-        '--no-default-browser-check',
-        '--no-first-run',
         '--window-size=1920,1080',
         '--user-agent=Mozilla/5.0 (iPhone; CPU iPhone OS 15_0 like Mac OS X) AppleWebKit/605.1.15 (KHTML, like Gecko) CriOS/95.0.4638.54 Mobile/15E148 Safari/604.1'
       ]
