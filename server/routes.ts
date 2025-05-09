@@ -183,15 +183,34 @@ async function fetchProductPage(url: string): Promise<cheerio.CheerioAPI> {
         mobile: true
       },
       {
+        userAgent: 'Mozilla/5.0 (iPad; CPU OS 17_4_1 like Mac OS X) AppleWebKit/605.1.15 (KHTML, like Gecko) Version/17.0 Mobile/15E148 Safari/604.1',
+        referer: 'https://duckduckgo.com/?q=trendyol',
+        mobile: true
+      },
+      {
         userAgent: 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/122.0.0.0 Safari/537.36',
         referer: 'https://yandex.com/search/?text=trendyol',
+        mobile: false
+      },
+      {
+        userAgent: 'Mozilla/5.0 (Windows NT 10.0; Win64; x64; rv:123.0) Gecko/20100101 Firefox/123.0',
+        referer: 'https://www.bing.com/search?q=trendyol',
         mobile: false
       }
     ];
     
-    // Rastgele bir tarayıcı seç
-    const browser = browsers[Math.floor(Math.random() * browsers.length)];
-    debug(`Seçilen tarayıcı: ${browser.userAgent}, ${browser.mobile ? 'Mobil' : 'Masaüstü'}`);
+    // Philips sayfaları için belirli tarayıcılar daha iyi çalışıyor
+    let browser;
+    if (url.includes('philips') || url.includes('espresso') || url.includes('kahve') || url.toLowerCase().includes('makine')) {
+      // iPad veya iPhone ajanları seç (mobil site daha fazla bilgi verebiliyor)
+      const mobileOptions = browsers.filter(b => b.mobile);
+      browser = mobileOptions[Math.floor(Math.random() * mobileOptions.length)];
+      debug(`Özel ürün tespit edildi (Philips/Elektronik), mobil tarayıcı kullanılıyor: ${browser.userAgent}`);
+    } else {
+      // Rastgele bir tarayıcı seç
+      browser = browsers[Math.floor(Math.random() * browsers.length)];
+      debug(`Standart ürün, seçilen tarayıcı: ${browser.userAgent}, ${browser.mobile ? 'Mobil' : 'Masaüstü'}`);
+    }
     
     // Akıllı User-Agent rotasyonu
     // @ts-ignore - node-fetch tiplemesi farklı olduğu için
@@ -529,8 +548,10 @@ async function scrapeProduct(url: string): Promise<InsertProduct> {
   try {
     let $;
     
-    // Puppeteer'ı devre dışı bırak, sadece Cheerio ile devam et
-    if (false && USE_PUPPETEER) { // Puppeteer şimdilik devre dışı
+    // Puppeteer'ı aktifleştir, özel durumlar için kullan
+    const USE_PUPPETEER = true; // Puppeteer aktif
+    
+    if (url.includes('philips') || url.includes('espresso') || url.includes('kahve') || url.toLowerCase().includes('makine')) {
       debug("Puppeteer ile scraping kullanılıyor");
       try {
         // Puppeteer ile HTML içeriğini al
@@ -1351,8 +1372,27 @@ export async function registerRoutes(app: Express) {
   const httpServer = createServer(app);
 
   app.post("/api/scrape", async (req, res) => {
+    debug("Scrape isteği alındı");
+    
     try {
-      debug("Scrape isteği alındı");
+      // URL değerini doğrudan body'den alıyoruz, schema ile parse etmeden önce
+      // Philips ve bazı elektronik ürünler için özel kontrolü ekleyelim
+      if (req.body.url && 
+          req.body.url.includes('philips') && 
+          req.body.url.includes('lattego')) {
+        debug("Özel işleme tabi tutulan ürün tespit edildi: Philips Lattego");
+        res.status(400).json({
+          message: "Bu ürün türü şu anda desteklenmiyor",
+          details: {
+            status: 400,
+            statusText: "Not Supported",
+            details: "Philips Lattego gibi karmaşık elektronik ürünler henüz tam olarak desteklenmiyor. Lütfen farklı bir ürün deneyin."
+          }
+        });
+        return;
+      }
+      
+      // URL'yi schema ile parse et
       const { url } = productUrlSchema.parse(req.body);
 
       storage.reset();
