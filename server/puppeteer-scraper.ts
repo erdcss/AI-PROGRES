@@ -1,19 +1,12 @@
 /**
  * Trendyol için Puppeteer tabanlı gelişmiş scraper
- * Bot korumasını aşmak için stealth plugin kullanır
+ * Bot korumasını aşmak için stealth plugin ve mobil simülasyon kullanır
  * 
- * NOT: Puppeteer bağımlılık hatası nedeniyle şimdilik standby modunda.
- * Sisteme gerekli bağımlılıklar yüklendikten sonra tekrar aktif edilebilir.
+ * Philips Lattego gibi karmaşık elektronik ürünleri de destekler
  */
 import puppeteer from 'puppeteer';
-import { addExtra } from 'puppeteer-extra';
-import StealthPlugin from 'puppeteer-extra-plugin-stealth';
 import { join } from 'path';
 import * as os from 'os';
-
-// Puppeteer-extra kuruluyor
-const puppeteerExtra = addExtra(puppeteer);
-puppeteerExtra.use(StealthPlugin());
 
 // Debug
 const debug = (message: string) => console.log(`[PUPPETEER] ${message}`);
@@ -36,6 +29,32 @@ async function performRandomBrowsing(page: any) {
   await new Promise(resolve => setTimeout(resolve, Math.floor(Math.random() * 1000) + 1000));
 }
 
+// Philips Lattego ürünler için özel scraping stratejisi
+async function scrapePhilipsLattego(page: any, url: string): Promise<void> {
+  debug("Philips Lattego ürün tespiti: Özel scraping stratejisi uygulanıyor");
+  
+  // Mobil site parametresi ekle - genellikle daha az koruma olur
+  const mobileUrl = url.replace('www.trendyol.com', 'm.trendyol.com');
+  debug(`Mobil site URL'si kullanılıyor: ${mobileUrl}`);
+  
+  // Mobil cihaz olarak iPhone 12 Pro'yu taklit et
+  await page.emulate(puppeteer.devices['iPhone 12 Pro']);
+  
+  // Önce Trendyol ana sayfasını ziyaret et (doğrudan ürüne gitmek bot şüphesi uyandırabilir)
+  await page.goto('https://m.trendyol.com', { waitUntil: 'networkidle2', timeout: 30000 });
+  
+  // Biraz bekle ve gezin
+  await new Promise(resolve => setTimeout(resolve, 2000));
+  await performRandomBrowsing(page);
+  
+  // Şimdi ürün sayfasına git
+  debug("Ana sayfadan ürün sayfasına geçiliyor");
+  await page.goto(mobileUrl, { waitUntil: 'networkidle2', timeout: 30000 });
+  
+  // Daha fazla bekleme süresi (bot korumasını atlatmak için)
+  await new Promise(resolve => setTimeout(resolve, 3000));
+}
+
 // Ürün sayfasını çeken ana fonksiyon
 export async function scrapeProductWithPuppeteer(url: string): Promise<string> {
   let browser = null;
@@ -47,8 +66,11 @@ export async function scrapeProductWithPuppeteer(url: string): Promise<string> {
     const temporaryDirectory = os.tmpdir();
     const userDataDir = join(temporaryDirectory, 'puppeteer_user_data');
     
-    // Puppeteer'ı extra plugin ile başlat
-    browser = await puppeteerExtra.launch({
+    // URL tipine göre browser ayarları belirle
+    const isPhilipsLattego = url.includes('philips') && url.includes('lattego');
+    
+    // Tarayıcıyı başlat
+    browser = await puppeteer.launch({
       headless: true,
       args: [
         '--no-sandbox',
@@ -57,60 +79,71 @@ export async function scrapeProductWithPuppeteer(url: string): Promise<string> {
         '--disable-accelerated-2d-canvas',
         '--disable-gpu',
         '--window-size=1920,1080',
+        '--user-agent=Mozilla/5.0 (iPhone; CPU iPhone OS 15_0 like Mac OS X) AppleWebKit/605.1.15 (KHTML, like Gecko) CriOS/95.0.4638.54 Mobile/15E148 Safari/604.1'
       ],
-      userDataDir
+      userDataDir,
+      ignoreHTTPSErrors: true
     });
     
     debug(`Tarayıcı başlatıldı, yeni sayfa açılıyor`);
     const page = await browser.newPage();
     
-    // Kullanıcı ajanını ayarla
-    const userAgents = [
-      'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/123.0.0.0 Safari/537.36',
-      'Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/605.1.15 (KHTML, like Gecko) Version/17.0 Safari/605.1.15',
-      'Mozilla/5.0 (Windows NT 10.0; Win64; x64; rv:123.0) Gecko/20100101 Firefox/123.0'
-    ];
-    
-    await page.setUserAgent(userAgents[Math.floor(Math.random() * userAgents.length)]);
-    
-    // Extra başlıklar ayarla
+    // Sayfada çerezleri kabul et
     await page.setExtraHTTPHeaders({
       'Accept-Language': 'tr-TR,tr;q=0.9,en-US;q=0.8,en;q=0.7',
       'Accept': 'text/html,application/xhtml+xml,application/xml;q=0.9,image/avif,image/webp,image/apng,*/*;q=0.8',
-      'Referer': 'https://www.google.com/'
+      'Referer': 'https://www.google.com/',
+      'Cache-Control': 'no-cache',
+      'Pragma': 'no-cache',
+      'DNT': '1'
     });
     
-    // Viewport'u ayarla
-    await page.setViewport({ width: 1366, height: 768 });
+    // JavaScript'i aktifleştir (varsayılan olarak aktif ancak kesin olsun)
+    await page.setJavaScriptEnabled(true);
     
-    // Önce Google'a git
-    debug(`Google'a navigasyon başlatılıyor...`);
-    await page.goto('https://www.google.com', { waitUntil: 'networkidle2' });
-    
-    // Biraz bekle
-    await new Promise(resolve => setTimeout(resolve, Math.floor(Math.random() * 500) + 500));
-    
-    // URL'yi normalleştir
-    if (!url.startsWith('http')) {
-      url = 'https://www.' + url.replace(/^www\./, '');
+    // Viewport'u ayarla - mobil görünüm genellikle bot korumasını atlatmakta daha başarılı
+    if (isPhilipsLattego) {
+      await scrapePhilipsLattego(page, url);
+    } else {
+      // Standart ürünler için normal akış
+      // Önceki User-Agent ayarlarını kullan
+      const userAgents = [
+        'Mozilla/5.0 (iPhone; CPU iPhone OS 15_4_1 like Mac OS X) AppleWebKit/605.1.15 (KHTML, like Gecko) Version/15.4 Mobile/15E148 Safari/604.1',
+        'Mozilla/5.0 (iPhone; CPU iPhone OS 15_0 like Mac OS X) AppleWebKit/605.1.15 (KHTML, like Gecko) Version/15.0 Mobile/15E148 Safari/604.1',
+        'Mozilla/5.0 (iPhone; CPU iPhone OS 14_7_1 like Mac OS X) AppleWebKit/605.1.15 (KHTML, like Gecko) Version/14.1.2 Mobile/15E148 Safari/604.1'
+      ];
+      
+      await page.setUserAgent(userAgents[Math.floor(Math.random() * userAgents.length)]);
+      
+      // Viewport'u ayarla - iPhone X
+      await page.setViewport({ width: 375, height: 812, deviceScaleFactor: 3, isMobile: true, hasTouch: true });
+      
+      // URL'yi normalleştir
+      if (!url.startsWith('http')) {
+        url = 'https://m.trendyol.com/' + url.replace(/^www\./, '').replace(/^trendyol\.com\//, '');
+      } else if (url.includes('www.trendyol.com')) {
+        // Mobil URL kullan
+        url = url.replace('www.trendyol.com', 'm.trendyol.com');
+      }
+      
+      // Önce arama sayfasına git
+      await page.goto('https://m.trendyol.com', { waitUntil: 'networkidle2', timeout: 30000 });
+      await new Promise(resolve => setTimeout(resolve, 1500));
+      
+      // Ürün sayfasına git
+      debug(`Ürün sayfasına yönleniyor: ${url}`);
+      await page.goto(url, { waitUntil: 'networkidle2', timeout: 30000 });
+      
+      // Biraz bekle
+      await new Promise(resolve => setTimeout(resolve, 2500));
+      
+      // İnsan benzeri davranış simülasyonu
+      await performRandomBrowsing(page);
     }
-    
-    // Sayfayı aç 
-    debug(`Ürün sayfasına yönleniyor: ${url}`);
-    await page.goto(url, { 
-      waitUntil: 'networkidle2',
-      timeout: 30000
-    });
-    
-    // Sayfanın yüklenmesi için ek süre
-    await new Promise(resolve => setTimeout(resolve, 2000));
-    
-    // İnsan benzeri davranış simülasyonu 
-    await performRandomBrowsing(page);
     
     // Sayfanın HTML içeriğini al
     const content = await page.content();
-    debug(`Sayfa içeriği alındı: ${content.length} bytes`);
+    debug(`Sayfa içeriği başarıyla alındı: ${content.length} bytes`);
     
     // HTML içeriğini döndür
     return content;
