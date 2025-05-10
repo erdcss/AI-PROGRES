@@ -357,7 +357,7 @@ export default function Home() {
                 <CardContent className="p-4 space-y-4">
                   <div className="flex justify-between items-center">
                     <div className="text-xs text-gray-400">
-                      {product.fullCategoryPath ? product.fullCategoryPath.join(" / ") : ["Ana Kategori", ...product.categories].join(" / ")}
+                      {product.category ? product.category.replace(/>/g, "/") : "Ana Kategori"}
                     </div>
                     
                     <Button

@@ -603,12 +603,13 @@ export async function registerRoutes(app: Express): Promise<Server> {
       }
       
       // CSV'yi oluştur
-      const csvContent = generateShopifyCSV(product);
       const timestamp = new Date().getTime();
       const exportFilePath = join(EXPORT_DIR, `shopify_export_${timestamp}.csv`);
       
-      writeFileSync(exportFilePath, csvContent);
+      // generateShopifyCSV promises kullanıyor, await ile bekleyelim
+      await generateShopifyCSV(product, {}, exportFilePath);
       
+      // Başarılı yanıt döndür
       return res.status(200).json({
         exportUrl: `/exports/shopify_export_${timestamp}.csv`,
         fileName: `shopify_export_${timestamp}.csv`

@@ -16,7 +16,7 @@ export function generateShopifyCSV(
     colors?: string[] 
   } = {},
   outputPath: string = join(tmpdir(), 'shopify_products.csv')
-): string {
+): Promise<string> {
   /**
    * Shopify için ürün başlıklarını temizler ve optimize eder
    * 
@@ -88,14 +88,14 @@ export function generateShopifyCSV(
       .replace(/\bK\s+kılıf\b/gi, "Kılıf")
       .replace(/\s+K\s+/gi, " ")
       .replace(/\bKulaklı\b/gi, "Kulaklık")
-      // Tek başına K harfi sorunları
-      .replace(/\s[kK]\s/g, " ")
-      .replace(/\s[kK](?=[A-Za-zışğüöçâîûİŞĞÜÖÇÂÎÛ])/g, " ");
+      // Tek başına K harfi sorunları - Kadın gibi önemli kelimeleri koruyalım
+      .replace(/\s[kK]\s/g, " ");
     
     // Türkçe'ye özgü yaygın ürün kelimelerini kontrol et
     const turkishCommonWords = [
       "Kulaklık", "Kılıf", "Karışık", "Kablosuz", "Telefon", "Hediyeli",
-      "Renk", "Android", "Uyumlu", "Bluetooth", "Stereo", "Set"
+      "Renk", "Android", "Uyumlu", "Bluetooth", "Stereo", "Set",
+      "Kadın", "Erkek", "Çocuk", "Unisex", "Sneaker", "Spor", "Ayakkabı"
     ];
     
     // Türkçe terimleri düzgün ara boşlukla ayır
@@ -243,9 +243,14 @@ export function generateShopifyCSV(
     // 7. Handle alanı - Shopify için kritik önem taşır
     if (!row.handle) {
       if (row.title) {
-        row.handle = createUniqueHandle(row.title);
+        // Başlıktan düzgün bir handle oluştur
+        const cleanTitle = row.title.trim();
+        row.handle = createUniqueHandle(cleanTitle);
+      } else if (product && product.title) {
+        // Başlık yoksa ana ürün başlığını kullan
+        row.handle = createUniqueHandle(product.title);
       } else {
-        // Yedek handle oluştur
+        // Son çare olarak timestamp kullan
         row.handle = `product-${Date.now()}-${Math.floor(Math.random() * 1000)}`;
       }
     }
@@ -402,37 +407,38 @@ export function generateShopifyCSV(
       };
       
       // Etiketleri oluştur
-      const tags = product.categories 
-        ? product.categories
+      const categoryArray = product.category ? product.category.split('>').map(cat => cat.trim()) : [];
+      const tags = categoryArray.length > 0 
+        ? categoryArray
             .filter(cat => cat && typeof cat === 'string')
             .map(cat => cat.replace(/\s+/g, ''))
             .join(',')
         : '';
         
       // Ayakkabı/terlik veya mutfak ürünü kontrolü
-      const isShoeProduct = product.categories ? product.categories.some((cat: string) => 
-        cat.toLowerCase().includes('ayakkabı') || 
-        cat.toLowerCase().includes('shoe') || 
-        cat.toLowerCase().includes('terlik') || 
-        cat.toLowerCase().includes('sandalet') ||
-        cat.toLowerCase().includes('bot') ||
-        cat.toLowerCase().includes('çizme')
-      ) : false;
+      const isShoeProduct = product.category ? 
+        product.category.toLowerCase().includes('ayakkabı') || 
+        product.category.toLowerCase().includes('shoe') || 
+        product.category.toLowerCase().includes('terlik') || 
+        product.category.toLowerCase().includes('sandalet') ||
+        product.category.toLowerCase().includes('bot') ||
+        product.category.toLowerCase().includes('çizme')
+      : false;
       
-      const isKitchenProduct = product.categories ? product.categories.some((cat: string) => 
-        cat.toLowerCase().includes('mutfak') || 
-        cat.toLowerCase().includes('kitchen') || 
-        cat.toLowerCase().includes('saklama')
-      ) : false;
+      const isKitchenProduct = product.category ? 
+        product.category.toLowerCase().includes('mutfak') || 
+        product.category.toLowerCase().includes('kitchen') || 
+        product.category.toLowerCase().includes('saklama')
+      : false;
       
       // Elektronik ürün türleri
-      const isElectronicProduct = product.categories ? product.categories.some((cat: string) => 
-        cat.toLowerCase().includes('elektronik') || 
-        cat.toLowerCase().includes('dijital') ||
-        cat.toLowerCase().includes('tartı') ||
-        cat.toLowerCase().includes('baskül') ||
-        cat.toLowerCase().includes('cihaz') ||
-        cat.toLowerCase().includes('ölçer')
+      const isElectronicProduct = product.category ? (
+        product.category.toLowerCase().includes('elektronik') || 
+        product.category.toLowerCase().includes('dijital') ||
+        product.category.toLowerCase().includes('tartı') ||
+        product.category.toLowerCase().includes('baskül') ||
+        product.category.toLowerCase().includes('cihaz') ||
+        product.category.toLowerCase().includes('ölçer')
       ) : false;
       
       // Varyantları belirle
@@ -453,8 +459,8 @@ export function generateShopifyCSV(
             body_html: generateBodyHTML(),
             vendor: 'turmarkt',
             product_category: 'Electronics & Accessories',
-            type: product.categories && product.categories.length > 0 
-              ? product.categories[product.categories.length - 1] 
+            type: product.category ? 
+              product.category.split('>').pop()?.trim() || 'Elektronik'
               : 'Elektronik',
             tags: product.tags || '',
             published: 'TRUE',
@@ -726,8 +732,8 @@ export function generateShopifyCSV(
           title: product.title,
           body_html: generateBodyHTML(),
           vendor: 'turmarkt',
-          type: product.categories && product.categories.length > 0 
-            ? product.categories[product.categories.length - 1] 
+          type: product.category ? 
+            product.category.split('>').pop()?.trim() || 'Giyim'
             : (isElectronicProduct ? 'Elektronik' : 'Giyim'),
           tags: product.tags || '',
           published: 'TRUE',
