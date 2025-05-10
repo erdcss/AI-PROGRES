@@ -158,24 +158,56 @@ export default function Home() {
       return;
     }
     
+    // CSV dosya yolu kontrolü
+    if (!product.preview || !product.preview.csvPath) {
+      toast({
+        title: "Hata",
+        description: "CSV dosyası bulunamadı",
+        variant: "destructive"
+      });
+      return;
+    }
+    
     // CSV dışa aktarma isteği için URL oluştur
     toast({
       title: "Dışa aktarma başlatılıyor",
       description: "CSV dosyası hazırlanıyor..."
     });
     
-    // CSV dosyasını doğrudan indirmek için bir download link oluştur
+    // CSV dosya adını al
     const fileName = `shopify_products_${Date.now()}.csv`;
-    const exportUrl = `/api/export?url=${encodeURIComponent(product.url)}`;
+    const csvFilename = product.preview.csvPath.split('/').pop();
     
-    // Download için etiket oluştur ve tıkla
-    const downloadLink = document.createElement('a');
-    downloadLink.href = exportUrl;
-    downloadLink.download = fileName;
-    downloadLink.target = '_blank'; // Yeni sekmede aç
-    document.body.appendChild(downloadLink);
-    downloadLink.click();
-    document.body.removeChild(downloadLink);
+    // Önce önizleme yap
+    fetch(`/api/csv-preview/${csvFilename}`)
+      .then(response => {
+        if (response.ok) {
+          return response.json();
+        }
+        throw new Error('CSV önizleme başarısız oldu');
+      })
+      .then(previewData => {
+        toast({
+          title: "CSV dosyası hazır",
+          description: `${previewData.totalRows} ürün satırı içeriyor`
+        });
+        
+        // Dosya indirme
+        const downloadLink = document.createElement('a');
+        downloadLink.href = product.preview.csvPath; // Doğrudan dosya yolunu kullan
+        downloadLink.download = fileName;
+        document.body.appendChild(downloadLink);
+        downloadLink.click();
+        document.body.removeChild(downloadLink);
+      })
+      .catch(error => {
+        console.error('CSV önizleme hatası:', error);
+        toast({
+          title: "CSV önizleme hatası",
+          description: error.message || "CSV dosyası oluşturulamadı",
+          variant: "destructive"
+        });
+      });
   };
   
   // Eski export mutation - bu artık kullanılmıyor ama referans için saklıyoruz
@@ -345,6 +377,14 @@ export default function Home() {
                     <div className="flex items-baseline gap-2">
                       <span className="text-base font-bold">{product.price} TL</span>
                     </div>
+                    
+                    {product.preview && product.preview.shopifyReady && (
+                      <div className="mt-2 bg-green-900/30 p-2 rounded-md">
+                        <span className="text-xs text-green-400">
+                          ✓ Shopify CSV oluşturuldu ve dışa aktarıma hazır
+                        </span>
+                      </div>
+                    )}
                   </div>
 
                   <div className="space-y-2">

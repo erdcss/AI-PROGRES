@@ -25,7 +25,23 @@ export class MemStorage implements IStorage {
     // Video alanı için undefined değerini null olarak ayarla (type hatası gidermek için)
     const videoValue = insertProduct.video === undefined ? null : insertProduct.video;
     
-    const product: Product = { ...insertProduct, id, video: videoValue };
+    // Null olmaması gereken alanlar için varsayılan değerler belirle
+    const basePrice = insertProduct.basePrice || "0";
+    const category = insertProduct.category || "Other";
+    const subcategory = insertProduct.subcategory || "";
+    const productType = insertProduct.productType || "";
+    const tags = Array.isArray(insertProduct.tags) ? insertProduct.tags : ["turmarkt"];
+    
+    const product: Product = { 
+      ...insertProduct, 
+      id, 
+      video: videoValue,
+      basePrice,
+      category,
+      subcategory,
+      productType,
+      tags
+    };
     
     // URL'yi normalize et - parametrelerin bir kısmını kaldır
     const normalizedUrl = this.normalizeUrl(product.url);

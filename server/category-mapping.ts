@@ -332,35 +332,106 @@ try {
 }
 
 // Ürün kategorisine göre uygun ayarları döndürür
-export function getCategoryConfig(categories: string[]): z.infer<typeof CategoryConfig> {
+export function getCategoryConfig(categories: string[]): {
+  shopifyCategory: string;
+  mainCategory: string;
+  subCategory: string;
+  productType: string;
+  tags: string[];
+  variantConfig: {
+    sizeLabel: string;
+    colorLabel: string;
+    defaultStock: number;
+  }
+} {
   if (!categories || categories.length === 0) {
-    return categoryMapping.default;
+    return {
+      ...categoryMapping.default,
+      mainCategory: "Apparel",
+      subCategory: "Clothing",
+      productType: "General",
+      tags: ["Apparel", "Clothing", "turmarkt"]
+    };
   }
   
   // Normalizasyon ve eşleştirme için kategorileri hazırla
   const normalizedCats = categories.map(normalizeCategory);
   const joinedCats = normalizedCats.join('');
   
+  // Shopify kategori bilgisini elde et
+  let categoryInfo;
+  
   // Tam eşleşme
   for (const normalizedCat of normalizedCats) {
     if (categoryMapping[normalizedCat]) {
-      return categoryMapping[normalizedCat];
+      categoryInfo = categoryMapping[normalizedCat];
+      break;
     }
   }
   
   // Birleştirilmiş kategori yolu eşleşmesi
-  if (categoryMapping[joinedCats]) {
-    return categoryMapping[joinedCats];
+  if (!categoryInfo && categoryMapping[joinedCats]) {
+    categoryInfo = categoryMapping[joinedCats];
   }
   
   // Kısmi eşleşme
-  for (const [key, config] of Object.entries(categoryMapping)) {
-    // Anahtar kelime eşleşmesi
-    if (normalizedCats.some(cat => cat.includes(key) || key.includes(cat))) {
-      return config;
+  if (!categoryInfo) {
+    for (const [key, config] of Object.entries(categoryMapping)) {
+      // Anahtar kelime eşleşmesi
+      if (normalizedCats.some(cat => cat.includes(key) || key.includes(cat))) {
+        categoryInfo = config;
+        break;
+      }
     }
   }
   
-  // Varsayılan kategori ayarlarını döndür
-  return categoryMapping.default;
+  // Hiçbir eşleşme bulunamadıysa varsayılanı kullan
+  if (!categoryInfo) {
+    categoryInfo = categoryMapping.default;
+  }
+  
+  // Etiketleri ve kategorileri oluştur
+  // Maksimum 3 etikete izin ver: ana kategori, alt kategori, ürün tipi
+  const shopifyCategoryParts = categoryInfo.shopifyCategory.split(' > ');
+  const mainCategory = shopifyCategoryParts[0] || "Other";
+  const subCategory = shopifyCategoryParts[1] || "";
+  const productType = shopifyCategoryParts[2] || "";
+  
+  // Trendyol'u etiketlerden temizle
+  const cleanedCategories = categories.map(cat => 
+    cat.replace(/trendyol|trend|yol/gi, '').trim()
+  ).filter(cat => cat.length > 0 && cat.length <= 20);
+  
+  // Etiketleri hazırla
+  const tags = ["turmarkt"]; // Her zaman satıcı etiketi ekle
+  
+  // Ana kategoriyi ekle
+  if (mainCategory && !tags.includes(mainCategory)) {
+    tags.push(mainCategory);
+  }
+  
+  // Alt kategoriyi ekle
+  if (subCategory && !tags.includes(subCategory)) {
+    tags.push(subCategory);
+  }
+  
+  // Ürün tipini veya son kategoriyi ekle
+  if (productType && !tags.includes(productType)) {
+    tags.push(productType);
+  }
+  
+  // Kullanıcı kategorilerinden eklemeler yap
+  for (const cat of cleanedCategories) {
+    if (tags.length < 5 && cat.length <= 20 && !tags.includes(cat)) {
+      tags.push(cat);
+    }
+  }
+  
+  return {
+    ...categoryInfo,
+    mainCategory,
+    subCategory,
+    productType,
+    tags: tags.slice(0, 5) // Maksimum 5 etiket
+  };
 }
