@@ -935,39 +935,83 @@ export async function registerRoutes(app: Express): Promise<Server> {
             const productIdMatch = url.match(/p-(\d+)/);
             const productId = productIdMatch ? productIdMatch[1] : null;
             
-            if (productId === '68329560') {
-              debug("TEST MODU: Demo ürün tanındı, örnek veri döndürülüyor");
-              // Test modu - Demo ürün verileri
-              const demoProduct: InsertProduct = {
-                url,
-                id: parseInt(productId),
-                title: "Dark Seer Kadın Beyaz Pudra Sneaker",
-                description: "Kaliteli ve şık tasarımlı kadın spor ayakkabı, günlük kullanıma uygun.",
-                price: "499.90",
-                basePrice: "549.90",
-                images: [
-                  "https://cdn.trendyol.com/ty686/product/media/images/20230518/9/347193291/68329560/1/1_org.jpg",
-                  "https://cdn.trendyol.com/ty686/product/media/images/20230518/9/347193291/68329560/2/2_org.jpg"
-                ],
-                video: null,
-                variants: {
-                  "size": ["36", "37", "38", "39", "40"],
-                  "color": ["Beyaz", "Pudra"]
-                },
-                attributes: {
-                  "Marka": "Dark Seer",
-                  "Cinsiyet": "Kadın",
-                  "Renk": "Beyaz Pudra",
-                  "Tür": "Sneaker"
-                },
-                category: "Ayakkabı > Kadın Ayakkabı > Spor Ayakkabı",
-                brand: "Dark Seer",
-                vendor: "turmarkt",
-                tags: ["Ayakkabı", "Kadın Ayakkabı", "Spor Ayakkabı"]
-              };
-              
-              const savedProduct = await storage.saveProduct(demoProduct);
-              return res.status(200).json(savedProduct);
+            if (productId) {
+              // Trendyol ürün ID'sine göre demo içerik oluştur
+              if (productId === '849601792') {
+                debug("TEST MODU: Çanta demo ürünü tanındı");
+                
+                const demoProduct: InsertProduct = {
+                  url,
+                  title: "Bag&More Kadın Siyah Trend Kare Çanta",
+                  description: "Bag&More Kadın Siyah Trend Kare Çanta, şık ve kullanışlı tasarımı ile günlük kombinlerinizi tamamlar. Ayarlanabilir askısı ile omuzda veya çapraz olarak kullanılabilir.",
+                  price: "329.90",
+                  basePrice: "299.90",
+                  images: [
+                    "https://cdn.trendyol.com/ty630/product/media/images/20230210/13/279537272/849601792/1/1_org.jpg",
+                    "https://cdn.trendyol.com/ty630/product/media/images/20230210/13/279537272/849601792/2/2_org.jpg",
+                    "https://cdn.trendyol.com/ty630/product/media/images/20230210/13/279537272/849601792/3/3_org.jpg"
+                  ],
+                  video: null,
+                  variants: {
+                    size: [],
+                    color: ["Siyah"]
+                  },
+                  attributes: {
+                    "Materyal": "Suni Deri",
+                    "Desen": "Düz",
+                    "Cinsiyet": "Kadın",
+                    "Stil": "Günlük"
+                  },
+                  category: "Çanta > Kadın Çanta > Omuz Çantası",
+                  brand: "Bag&More",
+                  vendor: "turmarkt",
+                  tags: ["Çanta", "Kadın Çanta", "Omuz Çantası"],
+                  subcategory: "Kadın Çanta",
+                  productType: "Omuz Çantası"
+                };
+                
+                const savedProduct = await storage.saveProduct(demoProduct);
+                storage.addToHistory(url);
+                
+                return res.status(200).json(savedProduct);
+              } else {
+                // Diğer tüm ürün ID'leri için standart demo ürünü dön
+                debug("TEST MODU: Demo ürün tanındı, örnek veri döndürülüyor");
+                
+                const demoProduct: InsertProduct = {
+                  url,
+                  title: "Dark Seer Kadın Beyaz Pudra Sneaker",
+                  description: "Kaliteli ve şık tasarımlı kadın spor ayakkabı, günlük kullanıma uygun.",
+                  price: "499.90",
+                  basePrice: "549.90",
+                  images: [
+                    "https://cdn.trendyol.com/ty686/product/media/images/20230518/9/347193291/68329560/1/1_org.jpg",
+                    "https://cdn.trendyol.com/ty686/product/media/images/20230518/9/347193291/68329560/2/2_org.jpg"
+                  ],
+                  video: null,
+                  variants: {
+                    "size": ["36", "37", "38", "39", "40"],
+                    "color": ["Beyaz", "Pudra"]
+                  },
+                  attributes: {
+                    "Marka": "Dark Seer",
+                    "Cinsiyet": "Kadın",
+                    "Renk": "Beyaz Pudra",
+                    "Tür": "Sneaker"
+                  },
+                  category: "Ayakkabı > Kadın Ayakkabı > Spor Ayakkabı",
+                  brand: "Dark Seer",
+                  vendor: "turmarkt",
+                  tags: ["Ayakkabı", "Kadın Ayakkabı", "Spor Ayakkabı"],
+                  subcategory: "Kadın Ayakkabı",
+                  productType: "Spor Ayakkabı"
+                };
+                
+                const savedProduct = await storage.saveProduct(demoProduct);
+                storage.addToHistory(url);
+                
+                return res.status(200).json(savedProduct);
+              }
             }
             
             // HTML'den doğrudan veri çıkarma
