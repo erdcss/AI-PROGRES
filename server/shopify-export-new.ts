@@ -787,7 +787,14 @@ export function generateShopifyCSV(
           'google_shopping_custom_label_4': 'Google Shopping / Custom Label 4',
           'variant_image': 'Variant Image',            // Variant Image
           'variant_weight_unit': 'Variant Weight Unit',  // Variant Weight Unit
-          // Removed duplicate properties
+          'variant_grams': 'Variant Grams',            // Variant Grams
+          'image_src': 'Image Src',                    // Image Src
+          'image_position': 'Image Position',          // Image Position
+          'image_alt_text': 'Image Alt Text',          // Image Alt Text
+          'variant_image': 'Variant Image',            // Variant Image
+          'gift_card': 'Gift Card',                    // Gift Card
+          'seo_title': 'SEO Title',                    // SEO Title
+          'seo_description': 'SEO Description',        // SEO Description
           
           // Alternatif alan adları (uyumluluk için)
           'url_handle': 'Handle',                      // URL handle -> Handle 
@@ -878,86 +885,13 @@ export function generateShopifyCSV(
       
       console.log(`Filtreleme sonrası: ${processedRows.length} satırdan ${filteredRows.length} satır kaldı`);
       
-      // Daha detaylı hata ayıklama
-      console.log("FİLTRELENEN SATIRLAR:", JSON.stringify(filteredRows.map(r => {
-        // Sadece önemli alanları göster
-        return {
-          handle: r.Handle,
-          title: r.Title,
-          option1_name: r['Option1 Name'],
-          option1_value: r['Option1 Value']
-        };
-      })));
-      
       // Tam CSV uyumluluğu için hata ayıklama
       const dataCheck = JSON.stringify(filteredRows[0]).substring(0, 150);
       console.log("CSV VERİ KONTROLÜ: ", dataCheck);
       
-      // Alanları standartlaştır - büyük/küçük harf ve farklı yazım tarzı sorunlarını çöz
-      const standardizedRows = filteredRows.map((row, index) => {
-        // Tüm veriyi tek bir formata dönüştür
-        const newRow: Record<string, any> = {};
-        
-        // Shopify'ın beklediği format için temel alanları doldur
-        newRow.Handle = row.Handle || row.handle || handle;
-        newRow.Title = row.Title || row.title || product.title;
-        newRow['Body (HTML)'] = row['Body (HTML)'] || row.body_html || `<p>${product.description}</p>`;
-        newRow.Vendor = row.Vendor || row.vendor || 'turmarkt';
-        newRow.Tags = row.Tags || row.tags || product.tags.join(', ');
-        
-        // Ürün tipi
-        newRow['Custom Product Type'] = row['Custom Product Type'] || row.custom_product_type || product.category;
-        
-        // Durum bilgileri
-        newRow.Published = row.Published || row.published || 'TRUE';
-        newRow.Status = row.Status || row.status || 'active';
-        
-        // Varyant bilgileri
-        newRow['Option1 Name'] = row['Option1 Name'] || row.option1_name || 'Size';
-        newRow['Option1 Value'] = row['Option1 Value'] || row.option1_value || 'Default';
-        
-        // İlk satır için (ana ürün), tüm renk varyantlarını da ekle
-        if (index === 0 && product.variants && product.variants.color) {
-          newRow['Option2 Name'] = 'Color';
-          newRow['Option2 Value'] = product.variants.color[0] || 'Default';
-        }
-        
-        // Fiyat ve envanter bilgileri
-        newRow['Variant Price'] = row['Variant Price'] || row.variant_price || product.price;
-        newRow['Variant Compare At Price'] = row['Variant Compare At Price'] || row.variant_compare_at_price || product.basePrice;
-        newRow['Variant Inventory Qty'] = row['Variant Inventory Qty'] || row.variant_inventory_qty || '50';
-        newRow['Variant Inventory Tracker'] = row['Variant Inventory Tracker'] || row.variant_inventory_tracker || 'shopify';
-        newRow['Variant Inventory Policy'] = row['Variant Inventory Policy'] || row.variant_inventory_policy || 'deny';
-        newRow['Variant Requires Shipping'] = row['Variant Requires Shipping'] || row.variant_requires_shipping || 'TRUE';
-        newRow['Variant Taxable'] = row['Variant Taxable'] || row.variant_taxable || 'TRUE';
-        
-        // İlk ürün için resimleri ekle
-        if (index === 0 && product.images && product.images.length > 0) {
-          newRow['Image Src'] = product.images[0];
-          newRow['Image Position'] = 1;
-          newRow['Image Alt Text'] = product.title;
-        }
-        
-        // Orijinal satırdaki diğer tüm alanları kopyala (yukarıda eklenmemişse)
-        Object.keys(row).forEach(key => {
-          if (newRow[key] === undefined && row[key] !== undefined) {
-            newRow[key] = row[key];
-          }
-        });
-        
-        return newRow;
-      });
-      
-      // Detaylı hata ayıklama için bir örnek satır göster
-      if (standardizedRows.length > 0) {
-        console.log("STANDARTLAŞTIRILMIŞ SATIR ÖRNEĞİ:", Object.keys(standardizedRows[0]).slice(0, 5).join(", "));
-      }
-      
-      console.log(`CSV'ye yazılacak: ${standardizedRows.length} satır`);
-      
-      // CSV'yi yaz - standartlaştırılmış satırları kullan
-      await csvWriter.writeRecords(standardizedRows);
-      console.log(`CSV başarıyla oluşturuldu: ${outputPath} (${standardizedRows.length} satır)`);
+      // CSV'yi yaz - sadece filtrelenmiş satırları kullan
+      await csvWriter.writeRecords(filteredRows);
+      console.log(`CSV başarıyla oluşturuldu: ${outputPath} (${filteredRows.length} satır)`);
       resolve(outputPath);
     } catch (error) {
       console.error('CSV oluşturma hatası:', error);

@@ -1,9 +1,5 @@
 export class TrendyolScrapingError extends Error {
-  constructor(message: string, public details?: {
-    status: number;
-    statusText: string;
-    details?: string;
-  }) {
+  constructor(message: string, public details?: any) {
     super(message);
     this.name = 'TrendyolScrapingError';
   }

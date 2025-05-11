@@ -20,6 +20,7 @@ export const products = pgTable("products", {
   subcategory: text("subcategory").default(""),      // Alt kategori
   productType: text("product_type").default(""),     // Ürün tipi/türü
   tags: text("tags").array().default([]),            // Etiketler
+  brand: text("brand").default(""),                  // Marka adı
   vendor: text("vendor").default("turmarkt")         // Vendor/Satıcı ismi
 });
 

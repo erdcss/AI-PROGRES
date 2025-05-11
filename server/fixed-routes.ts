@@ -8,6 +8,7 @@ import { handleError, TrendyolScrapingError, URLValidationError } from "./errors
 import { scrapeProductWithPuppeteer } from "./fixed-puppeteer-scraper";
 import { getCategoryConfig } from "./category-mapping";
 import { generateShopifyCSV } from "./shopify-export";
+import { generateSimpleShopifyCSV } from "./simple-csv-export";
 import { join } from "path";
 import { writeFileSync, mkdirSync, existsSync } from "fs";
 import * as csvWriter from "csv-writer";
@@ -278,34 +279,302 @@ export async function registerRoutes(app: Express): Promise<Server> {
                 price = priceWithProfit.toFixed(2);
               }
               
-              // Resim URL'leri
+              // Geliştirilmiş görsel işleme
               let images: string[] = [];
-              if (product.image) {
-                if (Array.isArray(product.image)) {
-                  images = product.image.map((img: string) => normalizeImageUrl(img));
-                } else {
-                  if (typeof product.image === 'string') {
-                    images = [normalizeImageUrl(product.image)];
-                  } else if (product.image && typeof product.image === 'object') {
-                    // Bazı durumlarda image bir nesne olabilir
-                    images = [normalizeImageUrl(product.image.toString())];
+              
+              // Daha kapsamlı görsel çıkarma sistemi - ürünün tüm resimlerini bulma
+              console.log("JSON-LD görsel çıkarma sistemi çalışıyor...");
+              
+              // 1. Doğrudan HTML içindeki tüm JSON-LD scriptlerini tara
+              const allScripts = $('script[type="application/ld+json"]').toArray();
+              if (allScripts.length > 0) {
+                console.log(`${allScripts.length} adet JSON-LD bloğu taranıyor...`);
+                
+                for (const script of allScripts) {
+                  try {
+                    const jsonText = $(script).html() || '';
+                    if (jsonText.includes('image') && jsonText.includes('contentUrl')) {
+                      const jsonData = JSON.parse(jsonText);
+                      
+                      // contentUrl dizisi kontrolü
+                      if (jsonData.image && jsonData.image.contentUrl && Array.isArray(jsonData.image.contentUrl)) {
+                        console.log(`JSON-LD: ${jsonData.image.contentUrl.length} görsel bulundu (contentUrl)`);
+                        const contentUrls = jsonData.image.contentUrl.map((url: string) => normalizeImageUrl(url));
+                        
+                        // Yeni görselleri ekle
+                        contentUrls.forEach(url => {
+                          if (!images.includes(url)) {
+                            images.push(url);
+                          }
+                        });
+                      }
+                      
+                      // embeddedTextCaption dizisi kontrolü (bazı JSON-LD yapılarında kullanılır)
+                      if (jsonData.image && jsonData.image.embeddedTextCaption && Array.isArray(jsonData.image.embeddedTextCaption)) {
+                        console.log(`JSON-LD: ${jsonData.image.embeddedTextCaption.length} alt metni bulundu`);
+                      }
+                    }
+                  } catch (e) {
+                    continue; // JSON ayrıştırma hatası, bir sonraki script'e geç
                   }
                 }
               }
               
-              // Yetersiz resim varsa, HTML'den çıkarmayı dene
-              if (images.length < 2) {
-                const imgElements = $('.product-slide img, .product-gallery img').toArray();
-                const additionalImages = imgElements
-                  .map(img => $(img).attr('src') || "")
-                  .filter(src => src && !src.includes('placeholder'))
-                  .map(src => normalizeImageUrl(src));
+              // 2. Standart resim dizisi (string[])
+              if (product.image && Array.isArray(product.image)) {
+                console.log("JSON-LD: Dizi formatında resimler bulundu");
+                const standardImages = product.image.map((img: string) => normalizeImageUrl(img));
                 
-                // Eğer yeni imajlar bulunmuşsa, ekle
-                if (additionalImages.length > 0) {
-                  images = [...new Set([...images, ...additionalImages])];
+                // Yeni görselleri ekle
+                standardImages.forEach(url => {
+                  if (!images.includes(url)) {
+                    images.push(url);
+                  }
+                });
+              } 
+              // 3. ContentUrl dizisi (JSON-LD yapısı)
+              else if (product.image && product.image.contentUrl && Array.isArray(product.image.contentUrl)) {
+                console.log("JSON-LD: contentUrl dizisinde resimler bulundu");
+                const contentImages = product.image.contentUrl.map((url: string) => normalizeImageUrl(url));
+                
+                // Yeni görselleri ekle
+                contentImages.forEach(url => {
+                  if (!images.includes(url)) {
+                    images.push(url);
+                  }
+                });
+              }
+              // 4. Tekil string resim
+              else if (product.image && typeof product.image === 'string') {
+                console.log("JSON-LD: Tekil string resim bulundu");
+                const singleImage = normalizeImageUrl(product.image);
+                if (!images.includes(singleImage)) {
+                  images.push(singleImage);
                 }
               }
+              // 5. Nesne olarak resim ve url/src attribute'u
+              else if (product.image && typeof product.image === 'object') {
+                // URL, src veya contentUrl property arıyoruz
+                const imgUrl = product.image.url || product.image.src || product.image.contentUrl || product.image.toString();
+                if (imgUrl) {
+                  console.log("JSON-LD: Nesne olarak resim bulundu");
+                  const objImage = normalizeImageUrl(imgUrl);
+                  if (!images.includes(objImage)) {
+                    images.push(objImage);
+                  }
+                }
+              }
+              
+              // 6. JSON-LD içine gömülü ham görsel verisi ara (product içinde olmayan)
+              const rawJsonData = $('script[type="application/ld+json"]').text();
+              if (rawJsonData) {
+                // Görsel URL'lerini arayalım
+                const cdnImageRegex = /(https:\/\/cdn\.dsmcdn\.com[^"',\s]+)/g;
+                const cdnMatches = rawJsonData.match(cdnImageRegex) || [];
+                
+                if (cdnMatches.length > 0) {
+                  console.log(`JSON içinde ${cdnMatches.length} görsel URL'si bulundu`);
+                  
+                  cdnMatches.forEach(url => {
+                    const normalizedUrl = normalizeImageUrl(url);
+                    if (!images.includes(normalizedUrl)) {
+                      images.push(normalizedUrl);
+                    }
+                  });
+                }
+              }
+              
+              // 5. Varyantlardan resimleri çek (ProductGroup schema'sı için)
+              if (product.hasVariant && Array.isArray(product.hasVariant)) {
+                console.log("JSON-LD: Varyant resimleri aranıyor");
+                for (const variant of product.hasVariant) {
+                  if (variant.image) {
+                    // Variant resmi string ise
+                    if (typeof variant.image === 'string' && !images.includes(normalizeImageUrl(variant.image))) {
+                      images.push(normalizeImageUrl(variant.image));
+                    }
+                    // Variant resmi obje ise
+                    else if (typeof variant.image === 'object') {
+                      const variantImgUrl = variant.image.url || variant.image.src || variant.image.contentUrl;
+                      if (variantImgUrl && !images.includes(normalizeImageUrl(variantImgUrl))) {
+                        images.push(normalizeImageUrl(variantImgUrl));
+                      }
+                    }
+                  }
+                }
+              }
+              
+              // 6. HTML'den tüm görselleri kapsamlı çıkarma
+              console.log("HTML'den tüm görsel bilgileri çıkarılıyor...");
+              
+              // 6.1 Trendyol'un ürün listesi sayfasında farklı HTML yapıları oluyor
+              const imageSelectors = [
+                // Yaygın görseller
+                '.product-slide img',
+                '.gallery-modal img',
+                '.product-slide img',
+                '.product-gallery img',
+                
+                // Ürün detay görüntüleyici
+                '.detail-slide-image img',
+                '.image-container img',
+                '.product-images img',
+                '.product-image-container img',
+                '.product-carousel img',
+                '.product-slider img',
+                
+                // Ürün gösterimi
+                '.base-product-image img',
+                '.product-showcase img',
+                
+                // Varyant görselleri
+                '.variant-image img',
+                '.product-variant-image img',
+                
+                // Görsel galerisi ve thumblar
+                '.gallery-image img',
+                '.image-preview img',
+                '.image-slider img',
+                '.image-carousel img',
+                
+                // Semantik arama için img alt özelliği
+                'img[alt*="görsel"]',
+                'img[alt*="ürün"]',
+                'img[alt*="resim"]',
+                'img[alt*="fotoğraf"]',
+                
+                // Data attrbitue tabanlı görseller
+                '[data-src]',
+                '[data-lazy]',
+                '[data-image]',
+                
+                // Lazy load kalıpları
+                '.lazy-image',
+                '.lazyload',
+                
+                // Derin iç içe geçmiş yapılar için
+                'div[id*="image"] img',
+                '[class*="image"] img',
+                '[id*="gallery"] img'
+              ];
+              
+              // Diğer kaynak nitelikleri
+              const srcAttributes = ['src', 'data-src', 'data-lazy', 'data-original', 'data-srcset', 'data-image'];
+              
+              // Tüm görsel elementlerini topla
+              const allImageElements = $(imageSelectors.join(', ')).toArray();
+              console.log(`HTML'de ${allImageElements.length} potansiyel görsel elementi bulundu`);
+              
+              let foundImagesCount = 0;
+              allImageElements.forEach((el: any) => {
+                // Her elementin tüm src niteliklerini dene
+                for (const attr of srcAttributes) {
+                  const srcValue = $(el).attr(attr);
+                  
+                  if (srcValue && (
+                      srcValue.includes('cdn.dsmcdn.com') || 
+                      srcValue.includes('trendyol.com')) && 
+                      !srcValue.includes('placeholder') && 
+                      !srcValue.includes('spacer.gif')
+                  ) {
+                    const normalizedSrc = normalizeImageUrl(srcValue);
+                    
+                    // Zaten eklenmiş mi kontrol et
+                    if (!images.includes(normalizedSrc)) {
+                      images.push(normalizedSrc);
+                      foundImagesCount++;
+                    }
+                    
+                    break; // Bulunduysa diğer niteliklere bakmaya gerek yok
+                  }
+                }
+              });
+              
+              // 6.2 CSS background-image içinde bulunan görseller
+              const elementsWithBackground = $('[style*="background"]').toArray();
+              elementsWithBackground.forEach((el: any) => {
+                const style = $(el).attr('style') || '';
+                const bgMatch = style.match(/background(-image)?\s*:\s*url\(['"]?(.*?)['"]?\)/i);
+                
+                if (bgMatch && bgMatch[2] && (
+                    bgMatch[2].includes('cdn.dsmcdn.com') || 
+                    bgMatch[2].includes('trendyol.com')) && 
+                    !bgMatch[2].includes('placeholder') && 
+                    !bgMatch[2].includes('spacer.gif')
+                ) {
+                  const normalizedSrc = normalizeImageUrl(bgMatch[2]);
+                  
+                  if (!images.includes(normalizedSrc)) {
+                    images.push(normalizedSrc);
+                    foundImagesCount++;
+                  }
+                }
+              });
+              
+              // 6.3 Hazır görsel dizileri için inline script içeriğinde JSON taraması
+              const inlineScripts = $('script:not([src])').toArray();
+              
+              for (const script of inlineScripts) {
+                const scriptContent = $(script).html() || '';
+                
+                // JSON dizisi kalıpları için kontrol ediyoruz
+                if (scriptContent.includes('cdn.dsmcdn.com') && (
+                    scriptContent.includes('image') || 
+                    scriptContent.includes('resim') || 
+                    scriptContent.includes('gallery')
+                )) {
+                  // JSON kalıbına benzeyen bölümleri çıkar
+                  const jsonMatches = scriptContent.match(/\[\s*"https:\/\/cdn\.dsmcdn\.com[^"]*"(?:\s*,\s*"https:\/\/cdn\.dsmcdn\.com[^"]*")*\s*\]/g);
+                  
+                  if (jsonMatches) {
+                    for (const match of jsonMatches) {
+                      try {
+                        const imageArray = JSON.parse(match);
+                        
+                        if (Array.isArray(imageArray)) {
+                          imageArray.forEach((url: string) => {
+                            if (url && (
+                                url.includes('cdn.dsmcdn.com') || 
+                                url.includes('trendyol.com')) && 
+                                !url.includes('placeholder') && 
+                                !url.includes('spacer.gif')
+                            ) {
+                              const normalizedUrl = normalizeImageUrl(url);
+                              
+                              if (!images.includes(normalizedUrl)) {
+                                images.push(normalizedUrl);
+                                foundImagesCount++;
+                              }
+                            }
+                          });
+                        }
+                      } catch (e) {
+                        // JSON ayrıştırma hatası, devam et
+                      }
+                    }
+                  }
+                  
+                  // Doğrudan URL kalıpları için de ara
+                  const urlMatches = scriptContent.match(/["']https:\/\/cdn\.dsmcdn\.com[^"']+["']/g);
+                  if (urlMatches) {
+                    urlMatches.forEach(match => {
+                      // Tırnak işaretlerini temizle
+                      const url = match.replace(/^["']|["']$/g, '');
+                      
+                      if (!url.includes('placeholder') && !url.includes('spacer.gif')) {
+                        const normalizedUrl = normalizeImageUrl(url);
+                        
+                        if (!images.includes(normalizedUrl)) {
+                          images.push(normalizedUrl);
+                          foundImagesCount++;
+                        }
+                      }
+                    });
+                  }
+                }
+              }
+              
+              console.log(`HTML'den toplam ${foundImagesCount} yeni görsel bulundu (toplam: ${images.length})`);
               
               // Ürün marka bilgisi
               let brand = "turmarkt"; // Varsayılan marka
@@ -333,41 +602,264 @@ export async function registerRoutes(app: Express): Promise<Server> {
                 }
               }
               
-              // Çeşitli varyantları çıkar (HTML'den)
-              const variants = {};
+              // Geliştirilmiş varyant tespit sistemi
+              let variants: any = {
+                size: [],
+                color: []
+              };
               
-              // HTML'den varyant bilgilerini çıkar
-              const variantSections = $('.product-variants, .variants, .options').toArray();
-              if (variantSections.length > 0) {
-                for (const section of variantSections) {
-                  const variantType = $(section).find('.variant-name, .option-name').text().trim();
-                  if (variantType) {
-                    const variantValues = $(section)
-                      .find('.variant-option, .option-value')
-                      .toArray()
-                      .map(opt => $(opt).text().trim())
-                      .filter(v => v);
-                    
-                    if (variantValues.length > 0) {
-                      variants[variantType] = variantValues;
+              // 1. Varyantları JSON-LD'den çıkar (ProductGroup için)
+              if (product.hasVariant && Array.isArray(product.hasVariant)) {
+                console.log(`JSON-LD: ${product.hasVariant.length} varyant bulundu`);
+                
+                for (const variant of product.hasVariant) {
+                  // Renk varyantları
+                  if (variant.color && !variants.color.includes(variant.color)) {
+                    variants.color.push(variant.color);
+                  }
+                  
+                  // Beden varyantları 
+                  if (variant.size && !variants.size.includes(variant.size)) {
+                    variants.size.push(variant.size);
+                  }
+                  
+                  // sku özelliğini de kontrol et
+                  if (variant.sku) {
+                    const skuValue = variant.sku.toString();
+                    // Bazı SKU'lar "-L", "-XL" gibi beden içerebilir
+                    const sizeMatch = skuValue.match(/-([SML]|XL|XXL|3XL|[0-9]+)$/i);
+                    if (sizeMatch && sizeMatch[1] && !variants.size.includes(sizeMatch[1])) {
+                      variants.size.push(sizeMatch[1]);
                     }
                   }
                 }
               }
               
-              // Özellikler
-              const attributes: Record<string, string> = {};
+              // 2. Direkt ürün color/size özelliklerini kontrol et
+              if (product.color) {
+                if (typeof product.color === 'string' && !variants.color.includes(product.color)) {
+                  variants.color.push(product.color);
+                } else if (Array.isArray(product.color)) {
+                  product.color.forEach(color => {
+                    if (!variants.color.includes(color)) variants.color.push(color);
+                  });
+                }
+              }
               
-              // HTML'den özellik bilgilerini çıkar
-              const attributeRows = $('.product-details tr, .product-features li').toArray();
-              for (const row of attributeRows) {
-                const label = $(row).find('th, .feature-name').text().trim();
-                const value = $(row).find('td, .feature-value').text().trim();
+              if (product.size) {
+                if (typeof product.size === 'string' && !variants.size.includes(product.size)) {
+                  variants.size.push(product.size);
+                } else if (Array.isArray(product.size)) {
+                  product.size.forEach(size => {
+                    if (!variants.size.includes(size)) variants.size.push(size);
+                  });
+                }
+              }
+              
+              // 3. HTML'den varyant bilgilerini çıkar
+              console.log("HTML'den varyant bilgileri çıkarılıyor");
+              // Beden seçenekleri için selektörler
+              const sizeSelectors = [
+                '.size-variant-wrapper .variant', 
+                '.size-options .size', 
+                '.size-selector .option', 
+                '.product-size li',
+                '.OptionWrapper select.sizes option'
+              ];
+              
+              // Renk seçenekleri için selektörler
+              const colorSelectors = [
+                '.color-variant-wrapper .variant', 
+                '.color-options .color', 
+                '.color-selector .option', 
+                '.product-color li',
+                '.OptionWrapper select.colors option'
+              ];
+              
+              // Bedenleri topla
+              const sizeElements = $(sizeSelectors.join(', ')).toArray();
+              sizeElements.forEach(el => {
+                const size = $(el).text().trim() || $(el).attr('value') || $(el).attr('data-value') || '';
+                if (size && !variants.size.includes(size)) {
+                  variants.size.push(size);
+                }
+              });
+              
+              // Renkleri topla
+              const colorElements = $(colorSelectors.join(', ')).toArray();
+              colorElements.forEach(el => {
+                const color = $(el).text().trim() || $(el).attr('title') || $(el).attr('data-value') || '';
+                if (color && !variants.color.includes(color)) {
+                  variants.color.push(color);
+                }
+              });
+              
+              // 4. Trendyol'a özel varyant HTML formatı
+              const variantSections = $('.product-variants, .variants, .options, .variant-wrapper').toArray();
+              if (variantSections.length > 0) {
+                for (const section of variantSections) {
+                  const variantType = $(section).find('.variant-name, .option-name, .variant-header').text().trim().toLowerCase();
+                  
+                  // Türkçe varyant tiplerini İngilizceye çevir
+                  let normalizedType = variantType;
+                  if (variantType.includes('beden') || variantType.includes('numara')) {
+                    normalizedType = 'size';
+                  } else if (variantType.includes('renk')) {
+                    normalizedType = 'color';
+                  }
+                  
+                  if (normalizedType === 'size' || normalizedType === 'color') {
+                    const variantValues = $(section)
+                      .find('.variant-option, .option-value, .variant-list .variant, .variant-list .item')
+                      .toArray()
+                      .map(opt => $(opt).text().trim() || $(opt).attr('title') || '')
+                      .filter(v => v);
+                    
+                    if (variantValues.length > 0) {
+                      console.log(`HTML'den ${normalizedType} varyantları bulundu: ${variantValues.length} adet`);
+                      
+                      if (normalizedType === 'size') {
+                        variantValues.forEach(val => {
+                          if (!variants.size.includes(val)) variants.size.push(val);
+                        });
+                      } else if (normalizedType === 'color') {
+                        variantValues.forEach(val => {
+                          if (!variants.color.includes(val)) variants.color.push(val);
+                        });
+                      }
+                    }
+                  }
+                }
+              }
+              
+              console.log(`Toplam varyantlar - Beden: ${variants.size.length}, Renk: ${variants.color.length}`)
+              
+              // Geliştirilmiş ürün özellikleri çıkarma sistemi
+              const attributes: Record<string, string> = {};
+              console.log("Ürün özellikleri ayrıştırılıyor...");
+              
+              // 1. JSON-LD additionalProperty alanını kontrol et (en kapsamlı veri burada)
+              if (product.additionalProperty && Array.isArray(product.additionalProperty)) {
+                console.log(`JSON-LD: ${product.additionalProperty.length} özellik bulundu`);
                 
-                if (label && value) {
+                product.additionalProperty.forEach(prop => {
+                  if ((prop.name || prop.propertyID) && (prop.value || prop.unitText)) {
+                    const propName = prop.name || prop.propertyID;
+                    const propValue = prop.value || prop.unitText;
+                    attributes[propName] = propValue;
+                  }
+                });
+              }
+              
+              // 2. JSON-LD doğrudan özellikleri kontrol et
+              const commonProps = [
+                { jsonPath: 'material', attrName: 'Materyal' },
+                { jsonPath: 'color', attrName: 'Renk' },
+                { jsonPath: 'pattern', attrName: 'Desen' },
+                { jsonPath: 'manufacturer', attrName: 'Üretici' },
+                { jsonPath: 'sku', attrName: 'SKU' },
+                { jsonPath: 'category', attrName: 'Kategori' },
+                { jsonPath: 'size', attrName: 'Beden' },
+                { jsonPath: 'brand.name', attrName: 'Marka' },
+                { jsonPath: 'offers.itemCondition', attrName: 'Durum' }
+              ];
+              
+              commonProps.forEach(prop => {
+                let value = null;
+                
+                // Nokta notasyonu ile nested özelliklere erişimi destekle
+                if (prop.jsonPath.includes('.')) {
+                  const parts = prop.jsonPath.split('.');
+                  let current: any = product;
+                  
+                  for (const part of parts) {
+                    if (current && current[part] !== undefined) {
+                      current = current[part];
+                    } else {
+                      current = null;
+                      break;
+                    }
+                  }
+                  
+                  value = current;
+                } else {
+                  value = product[prop.jsonPath];
+                }
+                
+                if (value && typeof value !== 'object' && !attributes[prop.attrName]) {
+                  attributes[prop.attrName] = value.toString();
+                }
+              });
+              
+              // 3. HTML'den özellik tabloları ve listelerinden çıkarma
+              console.log("HTML'den ürün özellikleri çıkarılıyor");
+              
+              // 3.1 Tablo formatı
+              const attributeSelectors = [
+                'table.product-details tr', 
+                'table.product-features tr',
+                '.product-property-list tr',
+                '.specification-table tr',
+                '.detail-attr-container .detail-attr-item',
+                '.property-list .property-item'
+              ];
+              
+              const attributeRows = $(attributeSelectors.join(', ')).toArray();
+              for (const row of attributeRows) {
+                const label = $(row).find('th, .feature-name, .property-name, .detail-attr-key').text().trim();
+                const value = $(row).find('td, .feature-value, .property-value, .detail-attr-value').text().trim();
+                
+                if (label && value && label !== value) {
                   attributes[label] = value;
                 }
               }
+              
+              // 3.2 Liste formatı
+              const listSelectors = [
+                '.product-details li', 
+                '.product-features li',
+                '.specification-list li',
+                '.product-property li'
+              ];
+              
+              const listItems = $(listSelectors.join(', ')).toArray();
+              for (const item of listItems) {
+                const text = $(item).text().trim();
+                
+                // "Anahtar: Değer" formatında mı?
+                if (text.includes(':')) {
+                  const [label, value] = text.split(':').map(s => s.trim());
+                  if (label && value && label !== value) {
+                    attributes[label] = value;
+                  }
+                }
+              }
+              
+              // 3.3 Div veya span içine anahtar-değer formatında yazılmış özellikler
+              const descriptionText = $('.product-description').text() || '';
+              if (descriptionText) {
+                // Ürün özelliklerine ait yaygın eşleşme kalıpları
+                const commonPatterns = [
+                  { regex: /Materyal:?\s*([^,\n\.]+)/i, key: 'Materyal' },
+                  { regex: /Renk:?\s*([^,\n\.]+)/i, key: 'Renk' },
+                  { regex: /Beden:?\s*([^,\n\.]+)/i, key: 'Beden' },
+                  { regex: /Desen:?\s*([^,\n\.]+)/i, key: 'Desen' },
+                  { regex: /Kumaş:?\s*([^,\n\.]+)/i, key: 'Kumaş' },
+                  { regex: /Ölçü:?\s*([^,\n\.]+)/i, key: 'Ölçü' },
+                  { regex: /Boyut:?\s*([^,\n\.]+)/i, key: 'Boyut' }
+                ];
+                
+                commonPatterns.forEach(pattern => {
+                  if (!attributes[pattern.key]) {
+                    const match = descriptionText.match(pattern.regex);
+                    if (match && match[1]) {
+                      attributes[pattern.key] = match[1].trim();
+                    }
+                  }
+                });
+              }
+              
+              console.log(`Toplam ${Object.keys(attributes).length} özellik bulundu`)
               
               // Kategoriyi string olarak oluştur
               const categoryStr = [mainCategory, subCategory, productType]
@@ -478,10 +970,322 @@ export async function registerRoutes(app: Express): Promise<Server> {
               return res.status(200).json(savedProduct);
             }
             
-            // Bu kısım, HTML'den veri çıkarma mantığını içerebilir
-            throw new TrendyolScrapingError("JSON-LD verisi olmayan ürünler henüz desteklenmiyor", {
-              details: "HTML parsing desteği hazırlanıyor"
-            });
+            // HTML'den doğrudan veri çıkarma
+            try {
+              console.log("HTML tabanlı ayrıştırma başlatılıyor...");
+              
+              // Temel ürün bilgilerini çek
+              const productTitle = $('h1.pr-new-br').text().trim() || $('.pr-new-br').text().trim();
+              if (!productTitle) {
+                throw new Error("Ürün başlığı HTML'den bulunamadı");
+              }
+              
+              // Ürün açıklaması
+              const productDescription = $('.product-description').text().trim() || 
+                                        $('.details-section').text().trim() ||
+                                        "Bu ürün için açıklama bulunmamaktadır.";
+              
+              // Fiyat bilgisi
+              const priceText = $('.prc-dsc').first().text().trim() || 
+                               $('.product-price').first().text().trim() ||
+                               $('.pr-bx-w').first().text().trim();
+              
+              // TL işaretini kaldır ve nokta ile ayır
+              let price = priceText.replace('TL', '').replace('₺', '').trim()
+                        .replace(/\./g, '').replace(',', '.');
+              
+              // İndirimli fiyat varsa al
+              const basePriceText = $('.prc-org').first().text().trim() || 
+                                   $('.product-original-price').first().text().trim();
+              const basePrice = basePriceText ? basePriceText.replace('TL', '').replace('₺', '').trim()
+                          .replace(/\./g, '').replace(',', '.') : null;
+              
+              // Fiyata %10 kar marjı ekle
+              if (price && !isNaN(parseFloat(price))) {
+                const originalPrice = parseFloat(price);
+                const priceWithProfit = (originalPrice * 1.10).toFixed(2);  // %10 kar payı ekle
+                console.log(`Orijinal fiyat: ${originalPrice}, %10 kar eklenmiş fiyat: ${priceWithProfit}`);
+                price = priceWithProfit;
+              }
+              
+              // Ürün görselleri
+              const images: string[] = [];
+              
+              // Trendyol resim klasörlerini ayrı ayrı kontrol et, tüm görselleri bul
+              console.log("Ürün görselleri ayrıştırılıyor...");
+              
+              // Ana slider'da görselleri ara
+              $('.gallery-modal img, .product-slide img, .product-images img, .product-slider img, .product-carousel img, .owl-carousel img').each((i, el) => {
+                const src = $(el).attr('src') || $(el).attr('data-src');
+                if (src && (src.includes('cdn.trendyol.com') || src.includes('cdn.dsmcdn.com'))) {
+                  // Orijinal boyuttaki görseli al (küçük thumbnail yerine)
+                  const originalSrc = src.replace('/mnresize/128/192/', '/mnresize/1200/1800/')
+                                        .replace('/thumbnail/', '/original/')
+                                        .replace('_org_zoom.jpg', '_org_zoom.jpg');
+                  if (!images.includes(originalSrc)) {
+                    images.push(originalSrc);
+                  }
+                }
+              });
+              
+              // Tüm görselleri bulabilmek için farklı seçiciler üzerinden deneme yap
+              $('img[alt*="görsel"], img[alt*="image"], img[alt*="resim"]').each((i, el) => {
+                const src = $(el).attr('src') || $(el).attr('data-src');
+                if (src && (src.includes('cdn.trendyol.com') || src.includes('cdn.dsmcdn.com')) && !images.includes(src)) {
+                  images.push(src);
+                }
+              });
+              
+              // Ana resmi alıp dene
+              if (images.length === 0) {
+                const mainImage = $('img[alt="' + productTitle + '"]').attr('src');
+                if (mainImage && (mainImage.includes('cdn.trendyol.com') || mainImage.includes('cdn.dsmcdn.com'))) {
+                  images.push(mainImage);
+                }
+              }
+              
+              // data-src özelliğine bak
+              if (images.length === 0) {
+                $('img[data-src]').each((i, el) => {
+                  const src = $(el).attr('data-src');
+                  if (src && (src.includes('cdn.trendyol.com') || src.includes('cdn.dsmcdn.com')) && !src.includes('spacer.gif')) {
+                    images.push(src);
+                  }
+                });
+              }
+              
+              // Alternatif görsel toplama (lazy loading)
+              if (images.length === 0) {
+                $('img[loading="lazy"]').each((i, el) => {
+                  const src = $(el).attr('src') || $(el).attr('data-src');
+                  if (src && (src.includes('cdn.trendyol.com') || src.includes('cdn.dsmcdn.com')) && !src.includes('spacer.gif')) {
+                    images.push(src);
+                  }
+                });
+              }
+              
+              // Son çare: Tüm img tagleri tara
+              if (images.length === 0) {
+                $('img').each((i, el) => {
+                  const src = $(el).attr('src');
+                  if (src && (src.includes('cdn.trendyol.com') || src.includes('cdn.dsmcdn.com')) && !src.includes('spacer.gif')) {
+                    images.push(src);
+                  }
+                });
+              }
+              
+              // Örnek resim ekle (hiç bulunamadıysa)
+              if (images.length === 0) {
+                console.log("Ürün için herhangi bir resim bulunamadı!");
+                images.push("https://cdn.dsmcdn.com/mnresize/1200/1800/ty537/product/media/images/20220928/21/180590732/580093586/1/1_org_zoom.jpg");
+              }
+              
+              // Varyant bilgileri
+              const variants: any = { size: [], color: [] };
+              
+              // Beden bilgileri
+              $('.sp-itm').each((i, el) => {
+                const size = $(el).text().trim();
+                if (size) variants.size.push(size);
+              });
+              
+              // Alternatif beden seçimi
+              if (variants.size.length === 0) {
+                $('.variant-list .variant').each((i, el) => {
+                  const size = $(el).text().trim();
+                  if (size) variants.size.push(size);
+                });
+              }
+              
+              // Renk bilgileri
+              $('.slc-img').each((i, el) => {
+                const color = $(el).attr('alt') || '';
+                if (color && !variants.color.includes(color)) {
+                  variants.color.push(color);
+                }
+              });
+              
+              // Alternatif renk seçimi
+              if (variants.color.length === 0) {
+                $('.color-list .color').each((i, el) => {
+                  const color = $(el).attr('title') || '';
+                  if (color && !variants.color.includes(color)) {
+                    variants.color.push(color);
+                  }
+                });
+              }
+              
+              // Öznitelik bilgileri - geliştirilmiş sürüm
+              const attributes: Record<string, string> = {};
+              console.log("Ürün özellikleri ayrıştırılıyor...");
+              
+              // Yöntem 1: Standart Trendyol ayrıştırması
+              $('.detail-attr-item').each((i, el) => {
+                const key = $(el).find('.detail-attr-key').text().trim();
+                const value = $(el).find('.detail-attr-value').text().trim();
+                if (key && value) {
+                  attributes[key] = value;
+                }
+              });
+              
+              // Yöntem 2: Alternatif özellik yapısı
+              $('.product-feature-item').each((i, el) => {
+                const key = $(el).find('.feature-name').text().trim();
+                const value = $(el).find('.feature-value').text().trim();
+                if (key && value) {
+                  attributes[key] = value;
+                }
+              });
+              
+              // Yöntem 3: Tablo yapısını kullanarak özellik çıkarma
+              $('.detail-attr-container, .product-feature-table, .product-features, .specifications-table').each((_, table) => {
+                $(table).find('tr').each((_, row) => {
+                  const key = $(row).find('th').text().trim();
+                  const value = $(row).find('td').text().trim();
+                  if (key && value) {
+                    attributes[key] = value;
+                  }
+                });
+              });
+              
+              // Yöntem 4: Liste öğelerinden özellik çıkarma
+              $('.product-details li, .product-specs li, .feature-list li').each((_, item) => {
+                const text = $(item).text().trim();
+                if (text.includes(':')) {
+                  const [key, value] = text.split(':').map(part => part.trim());
+                  if (key && value) {
+                    attributes[key] = value;
+                  }
+                }
+              });
+              
+              // Yöntem 5: Ürün tanımından temel özellikleri arama
+              if (productDescription) {
+                // Materyal arama
+                const materialMatch = productDescription.match(/Materyal:?\s*([^\n\.]+)/i);
+                if (materialMatch && materialMatch[1] && !attributes['Materyal']) {
+                  attributes['Materyal'] = materialMatch[1].trim();
+                }
+                
+                // Renk arama
+                const colorMatch = productDescription.match(/Renk:?\s*([^\n\.]+)/i);
+                if (colorMatch && colorMatch[1] && !attributes['Renk']) {
+                  attributes['Renk'] = colorMatch[1].trim();
+                }
+              }
+              
+              // En yaygın özellikler için özel arama
+              const commonProps = [
+                { selector: '.brand-name', key: 'Marka' },
+                { selector: '.color-option.selected', key: 'Renk' },
+                { selector: '.size-option.selected', key: 'Beden' },
+                { selector: '.product-material', key: 'Materyal' },
+                { selector: '.product-pattern', key: 'Desen' }
+              ];
+              
+              commonProps.forEach(prop => {
+                const value = $(prop.selector).first().text().trim();
+                if (value && !attributes[prop.key]) {
+                  attributes[prop.key] = value;
+                }
+              });
+              
+              // Marka bilgisi
+              const brand = attributes['Marka'] || $('.product-brand').text().trim() || '';
+              
+              // Kategori bilgileri
+              let category = '';
+              $('.product-breadcrumb a, .breadcrumb a, .nav-item a').each((i, el) => {
+                const text = $(el).text().trim();
+                if (text && !['Anasayfa', 'Home', 'Tüm Kategoriler'].includes(text)) {
+                  category += (category ? ' > ' : '') + text;
+                }
+              });
+              
+              // Kategori bulunamadıysa ürün başlığından tahmin etmeye çalış
+              if (!category) {
+                // Ürün başlığında geçen muhtemel kategori veya tip bilgisini kullan
+                const titleLower = productTitle.toLowerCase();
+                console.log("Kategori tahmini için başlık:", titleLower);
+                
+                if (titleLower.includes('elbise') || titleLower.includes('saten') || titleLower.includes('premium')) {
+                  category = 'Giyim > Elbise';
+                } else if (titleLower.includes('ayakkabı') || titleLower.includes('sneaker') || titleLower.includes('bot')) {
+                  category = 'Ayakkabı';
+                } else if (titleLower.includes('çanta')) {
+                  category = 'Aksesuar > Çanta';
+                } else if (titleLower.includes('saat')) {
+                  category = 'Aksesuar > Saat';
+                } else if (titleLower.includes('jean') || titleLower.includes('pantolon')) {
+                  category = 'Giyim > Pantolon';
+                } else if (titleLower.includes('gömlek')) {
+                  category = 'Giyim > Gömlek';
+                } else if (titleLower.includes('ceket') || titleLower.includes('mont')) {
+                  category = 'Giyim > Dış Giyim';
+                } else if (titleLower.includes('takım')) {
+                  category = 'Giyim > Takım';
+                } else {
+                  // Son çare: Açıklamada bazı anahtar kelimeler ara
+                  const descLower = productDescription.toLowerCase();
+                  if (descLower.includes('elbise') || descLower.includes('dress')) {
+                    category = 'Giyim > Elbise';
+                  } else if (descLower.includes('ayakkab') || descLower.includes('shoe')) {
+                    category = 'Ayakkabı';
+                  } else if (descLower.includes('çanta') || descLower.includes('bag')) {
+                    category = 'Aksesuar > Çanta';
+                  } else if (descLower.includes('giyim') || descLower.includes('clothing')) {
+                    category = 'Giyim';
+                  } else {
+                    category = 'Diğer';
+                  }
+                }
+              }
+              console.log("Belirlenen kategori:", category);
+              
+              // Temel ürün tagleri
+              const tags: string[] = [];
+              if (category) {
+                const categoryParts = category.split('>').map(p => p.trim());
+                // En fazla 3 tag ekle
+                for (let i = 0; i < Math.min(categoryParts.length, 3); i++) {
+                  const part = categoryParts[i];
+                  if (part && !tags.includes(part) && !part.toLowerCase().includes('trendyol')) {
+                    tags.push(part);
+                  }
+                }
+              }
+              
+              // Oluşturulan ürün nesnesi
+              const productData: InsertProduct = {
+                url,
+                title: productTitle,
+                description: productDescription,
+                price,
+                basePrice,
+                images: images.filter(Boolean), // null/undefined değerleri filtrele
+                video: null,
+                variants,
+                attributes,
+                category,
+                brand,
+                vendor: "turmarkt",
+                tags: tags.slice(0, 3), // En fazla 3 tag
+                subcategory: "",
+                productType: ""
+              };
+              
+              console.log("HTML ayrıştırması başarılı. Ürün başlığı:", productTitle);
+              
+              // Ürünü veritabanına kaydet ve yanıt olarak döndür
+              const savedProduct = await storage.saveProduct(productData);
+              console.log("HTML ile ayrıştırılan ürün kaydedildi, ID:", savedProduct.id);
+              return res.status(200).json(savedProduct);
+            } catch (htmlParseError) {
+              console.error("HTML parsing detaylı hata:", htmlParseError);
+              throw new TrendyolScrapingError("HTML parsing hatası", {
+                details: "HTML ayrıştırma sırasında bir hata oluştu: " + htmlParseError.message
+              });
+            }
           }
         } catch (parsingError: any) {
           debug(`HTML parsing hatası: ${parsingError.message}`);
@@ -606,13 +1410,34 @@ export async function registerRoutes(app: Express): Promise<Server> {
       const timestamp = new Date().getTime();
       const exportFilePath = join(EXPORT_DIR, `shopify_export_${timestamp}.csv`);
       
-      // generateShopifyCSV promises kullanıyor, await ile bekleyelim
-      await generateShopifyCSV(product, {}, exportFilePath);
+      // Varyantları yapılandır
+      const variants: any = {};
+      
+      // Ürün varyantlarını kontrol et ve doğru formata dönüştür
+      if (product.variants && typeof product.variants === 'object') {
+        // Size varyantları
+        if ('size' in product.variants) {
+          variants.sizes = product.variants.size;
+        }
+        
+        // Color varyantları
+        if ('color' in product.variants) {
+          variants.colors = product.variants.color;
+        }
+      }
+      
+      console.log("Varyantlar CSV'ye gönderiliyor:", variants);
+      
+      // Yeni geliştirilmiş CSV export fonksiyonunu kullan
+      const csvFilePath = await generateSimpleShopifyCSV(product, EXPORT_DIR);
+      
+      // Dosya adını al
+      const fileName = csvFilePath.split('/').pop() || '';
       
       // Başarılı yanıt döndür
       return res.status(200).json({
-        exportUrl: `/exports/shopify_export_${timestamp}.csv`,
-        fileName: `shopify_export_${timestamp}.csv`
+        exportUrl: `/exports/${fileName}`,
+        fileName: fileName
       });
     } catch (error: any) {
       return res.status(500).json({ 
