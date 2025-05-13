@@ -394,37 +394,52 @@ export default function Home() {
                     </div>
                     <ScrollArea className="h-[250px] rounded-md border border-gray-800 p-4">
                       <div className="grid grid-cols-3 md:grid-cols-4 gap-4">
-                        {product.images.map((image: string, index: number) => (
-                          <div key={index} className="relative aspect-square group">
-                            <img
-                              src={image}
-                              alt={`${product.title} - Görsel ${index + 1}`}
-                              className="w-full h-full object-cover rounded-lg transition-transform group-hover:scale-105"
-                              loading="lazy"
-                              onError={(e) => {
-                                const img = e.target as HTMLImageElement;
-                                const originalSrc = img.src;
+                        {product.images
+                          .filter((image: string) => {
+                            // Sadece resim uzantılarını filtrele (css, js vs. hariç)
+                            const isValidImage = 
+                              /\.(jpg|jpeg|png|webp|gif)($|\?)/.test(image.toLowerCase()) || 
+                              /(cdn\.trendyol\.com|cdn\.dsmcdn\.com).*\/(product\/media|products)/.test(image);
 
-                                const getCdnUrl = (url: string) => {
-                                  try {
-                                    const urlObj = new URL(url);
-                                    if (urlObj.pathname.startsWith('/ty')) {
-                                      return `https://cdn.dsmcdn.com${urlObj.pathname}`;
+                            // CSS, JS ve HTML dosyalarını filtrele
+                            const isInvalidFile = 
+                              /\.(css|js|html|php)($|\?)/.test(image.toLowerCase()) ||
+                              image.includes('sizechart') ||
+                              image.includes('main.');
+                            
+                            return isValidImage && !isInvalidFile;
+                          })
+                          .map((image: string, index: number) => (
+                            <div key={index} className="relative aspect-square group">
+                              <img
+                                src={image}
+                                alt={`${product.title} - Görsel ${index + 1}`}
+                                className="w-full h-full object-cover rounded-lg transition-transform group-hover:scale-105"
+                                loading="lazy"
+                                onError={(e) => {
+                                  const img = e.target as HTMLImageElement;
+                                  const originalSrc = img.src;
+
+                                  const getCdnUrl = (url: string) => {
+                                    try {
+                                      const urlObj = new URL(url);
+                                      if (urlObj.pathname.startsWith('/ty')) {
+                                        return `https://cdn.dsmcdn.com${urlObj.pathname}`;
+                                      }
+                                      return url;
+                                    } catch {
+                                      return url;
                                     }
-                                    return url;
-                                  } catch {
-                                    return url;
-                                  }
-                                };
+                                  };
 
-                                const loadStrategies = [
-                                  () => getCdnUrl(image),
-                                  () => image.replace('_org_zoom', ''),
-                                  () => image.replace(/\.(jpg|jpeg|png|webp)$/, '.jpg'),
-                                  () => image.replace(/\.(jpg|jpeg|png|webp)$/, '.webp'),
-                                  () => image.replace(/\/mnresize\/[^/]+\//, '/'),
-                                  () => image.replace('_org_zoom', '').replace(/\.(jpg|jpeg|png|webp)$/, '.jpg'),
-                                ];
+                                  const loadStrategies = [
+                                    () => getCdnUrl(image),
+                                    () => image.replace('_org_zoom', ''),
+                                    () => image.replace(/\.(jpg|jpeg|png|webp)$/, '.jpg'),
+                                    () => image.replace(/\.(jpg|jpeg|png|webp)$/, '.webp'),
+                                    () => image.replace(/\/mnresize\/[^/]+\//, '/'),
+                                    () => image.replace('_org_zoom', '').replace(/\.(jpg|jpeg|png|webp)$/, '.jpg'),
+                                  ];
 
                                 const tryNextStrategy = (strategyIndex = 0) => {
                                   if (strategyIndex >= loadStrategies.length) {

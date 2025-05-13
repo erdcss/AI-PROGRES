@@ -1057,11 +1057,30 @@ export async function registerRoutes(app: Express): Promise<Server> {
               
               // Trendyol resim klasörlerini ayrı ayrı kontrol et, tüm görselleri bul
               console.log("Ürün görselleri ayrıştırılıyor...");
+
+              // Geçerli resim dosyası olup olmadığını kontrol eden fonksiyon
+              const isValidImageUrl = (url: string): boolean => {
+                if (!url) return false;
+                
+                // CSS, JS, HTML dosyalarını filtrele
+                if (/\.(css|js|html|php)($|\?)/.test(url.toLowerCase())) return false;
+                if (url.includes('sizechart') || url.includes('main.')) return false;
+                
+                // Sadece CDN görsellerini al
+                const isCdnUrl = url.includes('cdn.trendyol.com') || url.includes('cdn.dsmcdn.com');
+                
+                // Ürün görseli yollarını kontrol et
+                const isProductImage = url.includes('product/media') || 
+                                      url.includes('/products/') || 
+                                      /\.(jpg|jpeg|png|webp|gif)($|\?)/.test(url.toLowerCase());
+                
+                return isCdnUrl && isProductImage;
+              };
               
               // Ana slider'da görselleri ara
               $('.gallery-modal img, .product-slide img, .product-images img, .product-slider img, .product-carousel img, .owl-carousel img').each((i, el) => {
                 const src = $(el).attr('src') || $(el).attr('data-src');
-                if (src && (src.includes('cdn.trendyol.com') || src.includes('cdn.dsmcdn.com'))) {
+                if (src && isValidImageUrl(src)) {
                   // Orijinal boyuttaki görseli al (küçük thumbnail yerine)
                   const originalSrc = src.replace('/mnresize/128/192/', '/mnresize/1200/1800/')
                                         .replace('/thumbnail/', '/original/')
@@ -1075,7 +1094,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
               // Tüm görselleri bulabilmek için farklı seçiciler üzerinden deneme yap
               $('img[alt*="görsel"], img[alt*="image"], img[alt*="resim"]').each((i, el) => {
                 const src = $(el).attr('src') || $(el).attr('data-src');
-                if (src && (src.includes('cdn.trendyol.com') || src.includes('cdn.dsmcdn.com')) && !images.includes(src)) {
+                if (src && isValidImageUrl(src) && !images.includes(src)) {
                   images.push(src);
                 }
               });
@@ -1083,7 +1102,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
               // Ana resmi alıp dene
               if (images.length === 0) {
                 const mainImage = $('img[alt="' + productTitle + '"]').attr('src');
-                if (mainImage && (mainImage.includes('cdn.trendyol.com') || mainImage.includes('cdn.dsmcdn.com'))) {
+                if (mainImage && isValidImageUrl(mainImage)) {
                   images.push(mainImage);
                 }
               }
@@ -1092,11 +1111,17 @@ export async function registerRoutes(app: Express): Promise<Server> {
               if (images.length === 0) {
                 $('img[data-src]').each((i, el) => {
                   const src = $(el).attr('data-src');
-                  if (src && (src.includes('cdn.trendyol.com') || src.includes('cdn.dsmcdn.com')) && !src.includes('spacer.gif')) {
+                  if (src && isValidImageUrl(src) && !src.includes('spacer.gif')) {
                     images.push(src);
                   }
                 });
               }
+              
+              // Görsel listesini son bir kez filtrele
+              const filteredImages = images.filter(img => isValidImageUrl(img));
+              
+              // Filtrelenmiş görselleri kullan
+              console.log(`Toplam ${images.length} görsel bulundu, ${filteredImages.length} tanesi geçerli.`);
               
               // Alternatif görsel toplama (lazy loading)
               if (images.length === 0) {
@@ -1306,7 +1331,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
                 description: productDescription,
                 price,
                 basePrice,
-                images: images.filter(Boolean), // null/undefined değerleri filtrele
+                images: filteredImages.filter(Boolean), // Filtrelenmiş ve null olmayan görselleri kullan
                 video: null,
                 variants,
                 attributes,
