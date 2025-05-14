@@ -95,9 +95,106 @@ export async function generateSimpleShopifyCSV(
     mainRow['Option2 Value'] = colors[0];
   }
 
-  // Ana ürüne görsel ekle
+  // Ana ürün görsellerini filtrele - sadece gerçek ürün görselleri kullanılsın
+  const isMainProductImage = (url: string): boolean => {
+    if (!url) return false;
+    
+    // 1. Ana ürün görsellerini belirle - daha geniş kapsamlı kontrol
+    const isHighQuality = url.includes('1_org_zoom') || 
+                         url.includes('_org_zoom') || 
+                         url.includes('original') || 
+                         url.includes('/QC/') ||
+                         url.includes('zoom.jpg');
+                          
+    // 2. Kampanya, badge ve diğer gereksiz içerikleri filtrele                      
+    const isNotPromo = !url.toLowerCase().includes('badge') &&
+                      !url.toLowerCase().includes('avantaj') &&
+                      !url.toLowerCase().includes('kampanya') &&
+                      !url.toLowerCase().includes('promo');
+    
+    // 3. Satıcı logo ve ikonlarını filtrele                  
+    const isNotSeller = !url.toLowerCase().includes('seller-store') &&
+                       !url.toLowerCase().includes('seller-badge') &&
+                       !url.toLowerCase().includes('logo');
+                       
+    // 4. CSS, JS ve diğer kaynak dosyalarını filtrele
+    const isNotResource = !url.toLowerCase().includes('.css') && 
+                         !url.toLowerCase().includes('.js') && 
+                         !url.toLowerCase().includes('.svg') &&
+                         !url.toLowerCase().includes('.html');
+                      
+    // 5. Geçerli bir görsel dosya uzantısı olmalı
+    const hasValidExtension = /\.(jpg|jpeg|png)($|\?)/.test(url.toLowerCase());
+    
+    // Ekstra minimum boyut kontrolü - küçük ikonlar olmamalı
+    const isNotSmallIcon = !url.includes('/mnresize/50/') && 
+                          !url.includes('/mnresize/128/') &&
+                          !url.includes('icon');
+    
+    return isHighQuality && isNotPromo && isNotSeller && isNotResource && hasValidExtension && isNotSmallIcon;
+  };
+  
+  // En iyi kalitede en fazla 2 görsel seç
+  let filteredImages: string[] = [];
+  
   if (product.images && product.images.length > 0) {
-    mainRow['Image Src'] = product.images[0];
+    console.log("Görsel filtreleme başlatılıyor. Toplam görsel sayısı:", product.images.length);
+    
+    // Önce ana ürün görsellerini bul
+    filteredImages = product.images
+      .filter(isMainProductImage)
+      .slice(0, 2); // Maksimum 2 görsel
+      
+    console.log(`${filteredImages.length} ana ürün görseli bulundu`);
+    
+    // Eğer ana görsel bulunamadıysa, daha esnek kriterleri dene
+    if (filteredImages.length === 0) {
+      console.log("Ana ürün görseli bulunamadı, daha geniş filtre kullanılıyor");
+      
+      // Gönderilen ürneğe özel: Saç boyası tüpleri için arama 
+      // (Resimde gördüğümüz gibi genellikle IGORA Royal ürünleri)
+      const isProductTube = (url: string) => {
+        return url.toLowerCase().includes('igora') || 
+               url.toLowerCase().includes('royal') || 
+               url.toLowerCase().includes('zoom') ||
+               url.toLowerCase().includes('product/media');
+      };
+      
+      filteredImages = product.images
+        .filter(url => {
+          // Saç boyası veya benzer ürünler için ek filtreleme
+          return isProductTube(url) && 
+                 (/\.(jpg|jpeg|png)($|\?)/.test(url.toLowerCase())) &&
+                 !url.includes('badge') &&
+                 !url.includes('avantaj');
+        })
+        .slice(0, 2); // En fazla 2 görsel
+        
+      console.log(`Alternatif filtre kullanıldı, ${filteredImages.length} görsel seçildi`);
+    }
+    
+    // Hala görsel bulunamadıysa, son çare olarak ilk birkaç jpg/png
+    if (filteredImages.length === 0) {
+      console.log("Kritik durum: Hiç ürün görseli bulunamadı, tüm jpg/png görsellerden ilki seçiliyor");
+      
+      filteredImages = product.images
+        .filter(url => /\.(jpg|jpeg|png)($|\?)/.test(url.toLowerCase()) && 
+                      !url.includes('.css') && 
+                      !url.includes('.js') && 
+                      !url.includes('badges'))
+        .slice(0, 1); // Sadece ilk görsel
+    }
+    
+    if (filteredImages.length > 0) {
+      console.log("Seçilen görsel URL:", filteredImages[0]);
+    } else {
+      console.error("UYARI: Hiçbir görsel seçilemedi!");
+    }
+  }
+  
+  // Ana ürüne görsel ekle
+  if (filteredImages.length > 0) {
+    mainRow['Image Src'] = filteredImages[0];
     mainRow['Image Position'] = '1';
     mainRow['Image Alt Text'] = product.title;
   }
@@ -137,15 +234,17 @@ export async function generateSimpleShopifyCSV(
   }
 
   // Diğer görselleri ekleyelim (ilk görsel zaten ana satırda var)
-  if (product.images && product.images.length > 1) {
-    for (let i = 1; i < product.images.length; i++) {
-      rows.push({
-        Handle: handle,
-        'Image Src': product.images[i],
-        'Image Position': (i + 1).toString(),
-        'Image Alt Text': `${product.title} - Görsel ${i + 1}`
-      });
-    }
+  // Sadece filtrelenen ana ürün görsellerini kullan
+  if (filteredImages && filteredImages.length > 1) {
+    // Sadece ikinci görseli ekle (zaten maximum 2 görsel seçmiştik)
+    rows.push({
+      Handle: handle,
+      'Image Src': filteredImages[1],
+      'Image Position': '2',
+      'Image Alt Text': `${product.title} - Görsel 2`
+    });
+    
+    console.log("İkinci ana ürün görseli CSV'ye eklendi");
   }
 
   console.log(`Toplam ${rows.length} satır CSV'ye yazılacak`);

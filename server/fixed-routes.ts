@@ -1266,10 +1266,99 @@ export async function registerRoutes(app: Express): Promise<Server> {
               };
               
               // Görsel listesini son bir kez filtrele ve temizle
-              const filteredImages = images
+              let filteredImages = images
                 .filter(img => isValidImageUrl(img))
                 .map(cleanImageUrl)
                 .filter((url, index, self) => url && self.indexOf(url) === index); // Tekrarları kaldır
+              
+              // Sadece ana ürün görsellerini al (en fazla 3 tane)
+              const isMainProductImage = (url: string): boolean => {
+                // Ana ürün görsellerini belirleme kriterleri:
+                
+                // 1. İçerisinde _org_ veya _zoom içermesi (orijinal görsel belirteci)
+                const isOriginal = url.includes('_org_') || url.includes('_zoom') || 
+                                  url.includes('original') || url.includes('zoom.jpg');
+                
+                // 2. İçerisinde "1" değeri olması (ilk görsel genellikle ana üründür)
+                const isMainSequence = url.includes('/1/1_org') || url.includes('/1_org') || 
+                                      url.includes('/1/1_zoom') || url.includes('/1_zoom');
+                                      
+                // 3. Kılavuz, açıklama vb. içermemesi
+                const isNotGuide = !url.toLowerCase().includes('guide') && 
+                                  !url.toLowerCase().includes('chart') &&
+                                  !url.toLowerCase().includes('info') &&
+                                  !url.toLowerCase().includes('sample') &&
+                                  !url.toLowerCase().includes('sizechart');
+                
+                // 4. Promosyon ve kategori etiketleri içermemesi
+                const isNotPromotional = !url.toLowerCase().includes('badge') &&
+                                        !url.toLowerCase().includes('promo') &&
+                                        !url.toLowerCase().includes('avantaj') &&
+                                        !url.toLowerCase().includes('kampanya');
+                
+                // 5. Karşılaştırma görselleri olmaması
+                const isNotComparison = !url.toLowerCase().includes('compare') &&
+                                       !url.toLowerCase().includes('comparison');
+                
+                // 6. Schema.org image contentUrl'den gelen ürün görselleri için özel durum
+                // Bu URL'ler genellikle yüksek kalite ürün görselleridir
+                const isSchemaOrgImage = url.includes('/QC/') || 
+                                        (/\/[a-zA-Z0-9]+-[a-zA-Z0-9]+-[a-zA-Z0-9]+-[a-zA-Z0-9]+\//.test(url));
+                
+                // Görsel uzantısı JPG/JPEG/PNG olmalı
+                const hasValidExtension = /\.(jpg|jpeg|png)($|\?)/.test(url.toLowerCase());
+                
+                // Ana ürün görselini belirleme:
+                // 1. Ya orijinal ve ana sıra görseli olmalı (1_org, 1_zoom)
+                // 2. Ya da schema.org'dan gelen geçerli bir ürün görseli olmalı
+                return (isOriginal && isNotGuide && isNotPromotional && isNotComparison && hasValidExtension) ||
+                       (isSchemaOrgImage && hasValidExtension);
+              };
+              
+              // Her durumda sadece ana ürün görsellerini al
+              // Kullanıcının isteği: Sadece ana ürün görselleri olsun, gerisi alınmasın
+              const mainImages = filteredImages.filter(isMainProductImage);
+              
+              console.log(`Filtrelenen görsellerden ${mainImages.length} adet ana ürün görseli bulundu`);
+              
+              // Eğer ana görsel bulunduysa, SADECE onları kullan (en fazla 3 tane)
+              if (mainImages.length > 0) {
+                console.log(`${mainImages.length} ana ürün görseli bulundu, sadece bunlar kullanılacak`);
+                // En iyi 3 görseli seç
+                filteredImages = mainImages.slice(0, 3);
+              } else {
+                // Ana görsel bulunamadıysa, alternatif yöntem olarak ilk 2 görseli kullan
+                console.log("Ana ürün görselleri belirlenemedi, alternatif filtreleme kullanılacak");
+                
+                // Alternatif filtreleme: Kampanya, badge ve küçük görselleri çıkar
+                const alternativeFiltered = filteredImages.filter(url => {
+                  return !url.toLowerCase().includes('badge') &&
+                         !url.toLowerCase().includes('avantaj') &&
+                         !url.toLowerCase().includes('kampanya') &&
+                         !url.toLowerCase().includes('promo') &&
+                         !url.toLowerCase().includes('kargo') &&
+                         !url.toLowerCase().includes('thumbnail') &&
+                         !url.toLowerCase().includes('logo') &&
+                         !url.toLowerCase().includes('icon');
+                });
+                
+                if (alternativeFiltered.length > 0) {
+                  filteredImages = alternativeFiltered.slice(0, 2);
+                } else {
+                  // Son çare olarak ilk görseli kullan
+                  filteredImages = filteredImages.slice(0, 1);
+                }
+              }
+              
+              // Kampanya görselleri (promosyon etiketleri, "avantajlı ürün", "indirim" vb.)
+              // Kesinlikle filtreleniyor - Gönderdiğiniz resimde mor "avantajlı ürün" etiketi gibi
+              filteredImages = filteredImages.filter(url => {
+                return !url.toLowerCase().includes('badge') &&
+                       !url.toLowerCase().includes('avantaj') &&
+                       !url.toLowerCase().includes('indirim') &&
+                       !url.toLowerCase().includes('kampanya') &&
+                       !url.toLowerCase().includes('promosyon');
+              });
               
               // Filtrelenmiş görselleri kullan
               console.log(`Toplam ${images.length} görsel bulundu, ${filteredImages.length} tanesi geçerli.`);
