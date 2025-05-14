@@ -1058,23 +1058,53 @@ export async function registerRoutes(app: Express): Promise<Server> {
               // Trendyol resim klasörlerini ayrı ayrı kontrol et, tüm görselleri bul
               console.log("Ürün görselleri ayrıştırılıyor...");
 
-              // Geçerli resim dosyası olup olmadığını kontrol eden fonksiyon
+              // Geçerli resim dosyası olup olmadığını kontrol eden gelişmiş fonksiyon
               const isValidImageUrl = (url: string): boolean => {
                 if (!url) return false;
                 
-                // CSS, JS, HTML dosyalarını filtrele
-                if (/\.(css|js|html|php)($|\?)/.test(url.toLowerCase())) return false;
-                if (url.includes('sizechart') || url.includes('main.')) return false;
+                // Temel filtreler: CSS, JS, HTML, PHP dosyalarını hariç tut
+                if (/\.(css|js|html|php|svg)($|\?)/.test(url.toLowerCase())) return false;
                 
-                // Sadece CDN görsellerini al
-                const isCdnUrl = url.includes('cdn.trendyol.com') || url.includes('cdn.dsmcdn.com');
+                // Özel durum filtrelemeleri
+                const excludedPatterns = [
+                  'sizechart', 'main.', 'spacer.gif', 'blank.gif', 'loading.gif',
+                  'transparent.png', 'pixel.gif', 'dummy', 'placeholder', 'spinner',
+                  'tracking', 'captcha', 'analytics', 'banner', 'advertisement',
+                  'social', 'icon', 'logo', 'button', 'ui-', 'favicon', 'avatar'
+                ];
+                
+                for (const pattern of excludedPatterns) {
+                  if (url.toLowerCase().includes(pattern)) return false;
+                }
+                
+                // Sadece CDN görsellerini al - Trendyol CDN kontrolleri
+                const cdnDomains = [
+                  'cdn.trendyol.com', 'cdn.dsmcdn.com', 
+                  'cdn.cimri.io', 'images.trendyol.com'
+                ];
+                
+                const isCdnUrl = cdnDomains.some(domain => url.includes(domain));
+                if (!isCdnUrl) return false;
                 
                 // Ürün görseli yollarını kontrol et
-                const isProductImage = url.includes('product/media') || 
-                                      url.includes('/products/') || 
-                                      /\.(jpg|jpeg|png|webp|gif)($|\?)/.test(url.toLowerCase());
+                const productImagePatterns = [
+                  'product/media', '/products/', '/product/', 
+                  'original', 'zoom', '_org_', 'images/', '/ty'
+                ];
                 
-                return isCdnUrl && isProductImage;
+                const isProductImagePath = productImagePatterns.some(pattern => url.includes(pattern));
+                
+                // Geçerli görsel uzantılarına sahip mi?
+                const hasValidExtension = /\.(jpg|jpeg|png|webp|gif)($|\?|#)/.test(url.toLowerCase());
+                
+                // Görsel ID'si içeriyor mu? (genellikle ürün görselleri ID içerir)
+                const hasImageId = /[0-9]+_[0-9]+(_org|_zoom)/.test(url);
+                
+                // URL'de "org" veya "zoom" ifadesi var mı? (orijinal görsel belirteci)
+                const isOriginalImage = url.includes('_org') || url.includes('_zoom') || url.includes('original');
+                
+                // Ürünle ilgili bir görsel mi?
+                return isCdnUrl && (isProductImagePath || hasValidExtension) && (hasImageId || isOriginalImage);
               };
               
               // Ana slider'da görselleri ara
@@ -1091,20 +1121,79 @@ export async function registerRoutes(app: Express): Promise<Server> {
                 }
               });
               
-              // Tüm görselleri bulabilmek için farklı seçiciler üzerinden deneme yap
-              $('img[alt*="görsel"], img[alt*="image"], img[alt*="resim"]').each((i, el) => {
+              // JSON-LD içindeki görselleri bul - schema.org ürün verileri
+              try {
+                // En iyi kalitede görseller genellikle schema.org yapısında bulunur
+                const schemaScript = $('script[type="application/ld+json"]').text();
+                if (schemaScript) {
+                  const schemaData = JSON.parse(schemaScript);
+                  
+                  // Fotoğraf bilgilerini bul
+                  if (schemaData && schemaData.image) {
+                    // Tekil görsel
+                    if (typeof schemaData.image === 'string' && isValidImageUrl(schemaData.image)) {
+                      images.push(schemaData.image);
+                    }
+                    // Görsel adresi contentUrl içinde
+                    else if (schemaData.image.contentUrl) {
+                      if (Array.isArray(schemaData.image.contentUrl)) {
+                        // Çoklu görsel adresleri
+                        schemaData.image.contentUrl.forEach((imgUrl: string) => {
+                          if (isValidImageUrl(imgUrl) && !images.includes(imgUrl)) {
+                            images.push(imgUrl);
+                          }
+                        });
+                      } else if (typeof schemaData.image.contentUrl === 'string') {
+                        // Tekil görsel adresi
+                        if (isValidImageUrl(schemaData.image.contentUrl)) {
+                          images.push(schemaData.image.contentUrl);
+                        }
+                      }
+                    }
+                    // Görsel dizisi
+                    else if (Array.isArray(schemaData.image)) {
+                      schemaData.image.forEach((img: any) => {
+                        if (typeof img === 'string' && isValidImageUrl(img)) {
+                          images.push(img);
+                        } else if (img.url && isValidImageUrl(img.url)) {
+                          images.push(img.url);
+                        }
+                      });
+                    }
+                  }
+                  
+                  console.log(`JSON-LD'den ${images.length} görsel bulundu`);
+                }
+              } catch (e) {
+                console.log("JSON-LD ayrıştırma hatası:", e);
+              }
+              
+              // Alt etiketli görselleri bul
+              $('img[alt*="görsel"], img[alt*="image"], img[alt*="resim"], img[alt*="ürün"]').each((i, el) => {
                 const src = $(el).attr('src') || $(el).attr('data-src');
                 if (src && isValidImageUrl(src) && !images.includes(src)) {
                   images.push(src);
                 }
               });
               
-              // Ana resmi alıp dene
+              // Ana ürün resmini bul - Genellikle ürün başlığını içeren alt etiketi vardır
               if (images.length === 0) {
+                // Ürün başlığını içeren alt etiketli görsel
                 const mainImage = $('img[alt="' + productTitle + '"]').attr('src');
                 if (mainImage && isValidImageUrl(mainImage)) {
                   images.push(mainImage);
                 }
+                
+                // Başlığın bir kısmını içeren alt etiketli görseller
+                const titleWords = productTitle.split(' ').filter(w => w.length > 3);
+                titleWords.forEach(word => {
+                  $(`img[alt*="${word}"]`).each((i, el) => {
+                    const src = $(el).attr('src');
+                    if (src && isValidImageUrl(src) && !images.includes(src)) {
+                      images.push(src);
+                    }
+                  });
+                });
               }
               
               // data-src özelliğine bak
@@ -1117,8 +1206,70 @@ export async function registerRoutes(app: Express): Promise<Server> {
                 });
               }
               
-              // Görsel listesini son bir kez filtrele
-              const filteredImages = images.filter(img => isValidImageUrl(img));
+              // URL'leri temizleyen yardımcı fonksiyon
+              const cleanImageUrl = (url: string): string => {
+                // URL boşsa boş string döndür
+                if (!url) return '';
+                
+                try {
+                  // URL'den parçaları temizle
+                  let cleanedUrl = url;
+                  
+                  // Hash ve query parametrelerini temizle
+                  if (cleanedUrl.includes('#')) {
+                    cleanedUrl = cleanedUrl.split('#')[0];
+                  }
+                  
+                  // Query parametrelerini temizle, ancak bazı CDN'ler için gerekli olanları koru
+                  if (cleanedUrl.includes('?')) {
+                    // Gerekli olmayan query parametrelerini temizle
+                    const urlParts = cleanedUrl.split('?');
+                    const base = urlParts[0];
+                    const params = new URLSearchParams(urlParts[1]);
+                    
+                    // Sadece CDN'ler için gerekli olan parametreleri tut
+                    const allowedParams = ['quality', 'width', 'height', 'fit', 'format'];
+                    const filteredParams = new URLSearchParams();
+                    
+                    for (const param of allowedParams) {
+                      if (params.has(param)) {
+                        filteredParams.append(param, params.get(param)!);
+                      }
+                    }
+                    
+                    // Eğer hiç parametre yoksa sadece base'i kullan
+                    const filteredParamsString = filteredParams.toString();
+                    cleanedUrl = filteredParamsString ? `${base}?${filteredParamsString}` : base;
+                  }
+                  
+                  // URL protokolünü düzelt
+                  if (cleanedUrl.startsWith('//')) {
+                    cleanedUrl = 'https:' + cleanedUrl;
+                  }
+                  
+                  // CDN URL'lerini düzelt
+                  if (cleanedUrl.startsWith('/ty')) {
+                    cleanedUrl = `https://cdn.dsmcdn.com${cleanedUrl}`;
+                  }
+                  
+                  // Düşük kalite görselleri yüksek kaliteye yükselt
+                  cleanedUrl = cleanedUrl.replace('/128/192/', '/1200/1800/')
+                                        .replace('/thumbnail/', '/original/')
+                                        .replace('/mnresize/400/', '/mnresize/1200/');
+                  
+                  return cleanedUrl;
+                } catch (error) {
+                  // Hata durumunda orijinal URL'yi döndür
+                  console.log("URL temizleme hatası:", error);
+                  return url;
+                }
+              };
+              
+              // Görsel listesini son bir kez filtrele ve temizle
+              const filteredImages = images
+                .filter(img => isValidImageUrl(img))
+                .map(cleanImageUrl)
+                .filter((url, index, self) => url && self.indexOf(url) === index); // Tekrarları kaldır
               
               // Filtrelenmiş görselleri kullan
               console.log(`Toplam ${images.length} görsel bulundu, ${filteredImages.length} tanesi geçerli.`);

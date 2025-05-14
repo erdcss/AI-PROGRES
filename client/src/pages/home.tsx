@@ -396,6 +396,8 @@ export default function Home() {
                       <div className="grid grid-cols-3 md:grid-cols-4 gap-4">
                         {product.images
                           .filter((image: string) => {
+                            if (!image) return false;
+                            
                             // Sadece resim uzantılarını filtrele (css, js vs. hariç)
                             const isValidImage = 
                               /\.(jpg|jpeg|png|webp|gif)($|\?)/.test(image.toLowerCase()) || 
@@ -405,78 +407,100 @@ export default function Home() {
                             const isInvalidFile = 
                               /\.(css|js|html|php)($|\?)/.test(image.toLowerCase()) ||
                               image.includes('sizechart') ||
-                              image.includes('main.');
+                              image.includes('main.') ||
+                              image.includes('spacer.gif');
                             
                             return isValidImage && !isInvalidFile;
                           })
-                          .map((image: string, index: number) => (
-                            <div key={index} className="relative aspect-square group">
-                              <img
-                                src={image}
-                                alt={`${product.title} - Görsel ${index + 1}`}
-                                className="w-full h-full object-cover rounded-lg transition-transform group-hover:scale-105"
-                                loading="lazy"
-                                onError={(e) => {
-                                  const img = e.target as HTMLImageElement;
-                                  const originalSrc = img.src;
-
-                                  const getCdnUrl = (url: string) => {
-                                    try {
-                                      const urlObj = new URL(url);
-                                      if (urlObj.pathname.startsWith('/ty')) {
-                                        return `https://cdn.dsmcdn.com${urlObj.pathname}`;
+                          .map((image: string, index: number) => {
+                            // URL'i temizle ve düzelt
+                            let cleanedImage = image;
+                            
+                            // URL'deki # işaretlerini temizle
+                            if (cleanedImage.includes('#')) {
+                              cleanedImage = cleanedImage.split('#')[0];
+                            }
+                            
+                            // URL'deki ? işaretlerini temizle
+                            if (cleanedImage.includes('?')) {
+                              cleanedImage = cleanedImage.split('?')[0];
+                            }
+                            
+                            // CDN URL'leri düzelt
+                            if (cleanedImage.startsWith('/ty')) {
+                              cleanedImage = `https://cdn.dsmcdn.com${cleanedImage}`;
+                            }
+                            
+                            return (
+                              <div key={index} className="relative aspect-square group">
+                                <img
+                                  src={cleanedImage}
+                                  alt={`${product.title} - Görsel ${index + 1}`}
+                                  className="w-full h-full object-cover rounded-lg transition-transform group-hover:scale-105"
+                                  loading="lazy"
+                                  onError={(e) => {
+                                    const img = e.target as HTMLImageElement;
+                                    
+                                    // Hata olursa sırasıyla alternatif resim formatlarını dene
+                                    const originalSrc = img.src;
+                                    const loadStrategies = [
+                                      // CDN URL'lerini düzelt
+                                      () => {
+                                        try {
+                                          const urlObj = new URL(originalSrc);
+                                          if (urlObj.pathname.startsWith('/ty')) {
+                                            return `https://cdn.dsmcdn.com${urlObj.pathname}`;
+                                          }
+                                          return originalSrc;
+                                        } catch {
+                                          return originalSrc;
+                                        }
+                                      },
+                                      // _org_zoom'u kaldır
+                                      () => originalSrc.replace('_org_zoom', ''),
+                                      // Farklı resim formatlarını dene
+                                      () => originalSrc.replace(/\.(jpg|jpeg|png|webp)$/, '.jpg'),
+                                      () => originalSrc.replace(/\.(jpg|jpeg|png|webp)$/, '.webp'),
+                                      // Resize parametrelerini kaldır
+                                      () => originalSrc.replace(/\/mnresize\/[^/]+\//, '/'),
+                                    ];
+                                  
+                                    const tryNextStrategy = (strategyIndex = 0) => {
+                                      if (strategyIndex >= loadStrategies.length) {
+                                        console.warn(`Görsel yüklenemedi: ${originalSrc}`);
+                                        img.src = `data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='100%25' height='100%25' viewBox='0 0 24 24' fill='none' stroke='%23666' stroke-width='1.5' stroke-linecap='round' stroke-linejoin='round'%3E%3Crect x='3' y='3' width='18' height='18' rx='2' ry='2' fill='%23222'/%3E%3Ccircle cx='8.5' cy='8.5' r='1.5'/%3E%3Cpolyline points='21 15 16 10 5 21'/%3E%3C/svg%3E`;
+                                        img.style.objectFit = 'contain';
+                                        return;
                                       }
-                                      return url;
-                                    } catch {
-                                      return url;
-                                    }
-                                  };
-
-                                  const loadStrategies = [
-                                    () => getCdnUrl(image),
-                                    () => image.replace('_org_zoom', ''),
-                                    () => image.replace(/\.(jpg|jpeg|png|webp)$/, '.jpg'),
-                                    () => image.replace(/\.(jpg|jpeg|png|webp)$/, '.webp'),
-                                    () => image.replace(/\/mnresize\/[^/]+\//, '/'),
-                                    () => image.replace('_org_zoom', '').replace(/\.(jpg|jpeg|png|webp)$/, '.jpg'),
-                                  ];
-
-                                const tryNextStrategy = (strategyIndex = 0) => {
-                                  if (strategyIndex >= loadStrategies.length) {
-                                    console.warn(`Görsel yüklenemedi: ${originalSrc}`);
-                                    img.src = `data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='100%25' height='100%25' viewBox='0 0 24 24' fill='none' stroke='%23666' stroke-width='1.5' stroke-linecap='round' stroke-linejoin='round'%3E%3Crect x='3' y='3' width='18' height='18' rx='2' ry='2' fill='%23222'/%3E%3Ccircle cx='8.5' cy='8.5' r='1.5'/%3E%3Cpolyline points='21 15 16 10 5 21'/%3E%3Ctext x='12' y='12' text-anchor='middle' fill='%23666' font-size='2'%3EGörsel Yüklenemedi%3C/text%3E%3C/svg%3E`;
-                                    img.style.objectFit = 'contain';
-                                    img.style.padding = '1rem';
-                                    return;
-                                  }
-
-                                  const newSrc = loadStrategies[strategyIndex]();
-                                  if (newSrc !== img.src) {
-                                    img.onerror = () => tryNextStrategy(strategyIndex + 1);
-                                    img.src = newSrc;
-                                  } else {
-                                    tryNextStrategy(strategyIndex + 1);
-                                  }
-                                };
-
-                                tryNextStrategy();
-                              }}
-                            />
-                            <div className="absolute inset-0 flex items-center justify-center bg-black/50 opacity-0 group-hover:opacity-100 transition-opacity rounded-lg">
-                              <a
-                                href={image}
-                                target="_blank"
-                                rel="noopener noreferrer"
-                                className="text-white text-xs hover:underline"
-                              >
-                                Orijinal Görsel
-                              </a>
-                            </div>
-                            <div className="absolute top-2 right-2 bg-black/70 text-white text-xs px-2 py-1 rounded-full">
-                              {index + 1}
-                            </div>
-                          </div>
-                        ))}
+                                    
+                                      const newSrc = loadStrategies[strategyIndex]();
+                                      if (newSrc !== img.src) {
+                                        img.onerror = () => tryNextStrategy(strategyIndex + 1);
+                                        img.src = newSrc;
+                                      } else {
+                                        tryNextStrategy(strategyIndex + 1);
+                                      }
+                                    };
+                                    
+                                    tryNextStrategy();
+                                  }}
+                                />
+                                <div className="absolute inset-0 flex items-center justify-center bg-black/50 opacity-0 group-hover:opacity-100 transition-opacity rounded-lg">
+                                  <a
+                                    href={cleanedImage}
+                                    target="_blank"
+                                    rel="noopener noreferrer"
+                                    className="text-white text-xs hover:underline"
+                                  >
+                                    Orijinal Görsel
+                                  </a>
+                                </div>
+                                <div className="absolute top-2 right-2 bg-black/70 text-white text-xs px-2 py-1 rounded-full">
+                                  {index + 1}
+                                </div>
+                              </div>
+                            );
+                          })}
                       </div>
                     </ScrollArea>
                   </div>

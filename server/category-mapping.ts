@@ -242,6 +242,30 @@ export const categoryMapping: CategoryMapping = {
       defaultStock: 30
     }
   },
+  "sacboyasi": {
+    shopifyCategory: "Health & Beauty > Personal Care > Hair Care > Hair Coloring",
+    variantConfig: {
+      sizeLabel: "Volume",
+      colorLabel: "Shade",
+      defaultStock: 45
+    }
+  },
+  "sacbakim": {
+    shopifyCategory: "Health & Beauty > Personal Care > Hair Care",
+    variantConfig: {
+      sizeLabel: "Volume",
+      colorLabel: "Type",
+      defaultStock: 40
+    }
+  },
+  "igora": {
+    shopifyCategory: "Health & Beauty > Personal Care > Hair Care > Hair Coloring",
+    variantConfig: {
+      sizeLabel: "Volume",
+      colorLabel: "Shade",
+      defaultStock: 35
+    }
+  },
   
   // Spor & Outdoor kategorileri
   "spor": {
@@ -391,20 +415,22 @@ export function getCategoryConfig(categories: string[]): {
   }
   
   // Etiketleri ve kategorileri oluştur
-  // Maksimum 3 etikete izin ver: ana kategori, alt kategori, ürün tipi
   const shopifyCategoryParts = categoryInfo.shopifyCategory.split(' > ');
   const mainCategory = shopifyCategoryParts[0] || "Other";
   const subCategory = shopifyCategoryParts[1] || "";
   const productType = shopifyCategoryParts[2] || "";
+  const productSubType = shopifyCategoryParts[3] || "";
   
-  // Trendyol'u etiketlerden temizle
+  // Trendyol ve diğer gereksiz kelimeleri etiketlerden temizle
   const cleanedCategories = categories.map(cat => 
-    cat.replace(/trendyol|trend|yol/gi, '').trim()
+    cat.replace(/trendyol|trend|yol|igora/gi, '').trim()
+      .replace(/\s+/g, ' ') // Fazla boşlukları temizle
   ).filter(cat => cat.length > 0 && cat.length <= 20);
   
-  // Etiketleri hazırla
-  const tags = ["turmarkt"]; // Her zaman satıcı etiketi ekle
+  // Etiketleri hazırla - Her zaman satıcı etiketi ekle
+  const tags = ["turmarkt"];
   
+  // Shopify kategori hiyerarşisine göre etiketleri sırasıyla oluştur
   // Ana kategoriyi ekle
   if (mainCategory && !tags.includes(mainCategory)) {
     tags.push(mainCategory);
@@ -415,14 +441,77 @@ export function getCategoryConfig(categories: string[]): {
     tags.push(subCategory);
   }
   
-  // Ürün tipini veya son kategoriyi ekle
+  // Ürün tipini ekle
   if (productType && !tags.includes(productType)) {
     tags.push(productType);
   }
   
+  // Ürün alt tipini ekle
+  if (productSubType && !tags.includes(productSubType)) {
+    tags.push(productSubType);
+  }
+  
+  // Ürün adından akıllı etiketler çıkarma
+  const extractTagsFromName = (name: string): string[] => {
+    const extractedTags: string[] = [];
+    
+    // İlk kelimeler markayı temsil eder
+    const nameParts = name.split(' ');
+    if (nameParts.length > 2) {
+      // Marka adını normalleştir ve ekle (ilk kelime)
+      const brandName = nameParts[0].trim();
+      if (brandName && brandName.length <= 20 && !tags.includes(brandName)) {
+        extractedTags.push(brandName);
+      }
+      
+      // Ürün tipini belirle (son 2-3 kelime genellikle ürün tipidir)
+      const productTypeFromName = nameParts.slice(-3).join(' ').trim();
+      if (productTypeFromName && productTypeFromName.length <= 20 && 
+          !tags.includes(productTypeFromName) && 
+          !extractedTags.includes(productTypeFromName)) {
+        extractedTags.push(productTypeFromName);
+      }
+      
+      // Anahtar özellikler için kontrol et
+      const keyFeatures = [
+        { keyword: "özel", tag: "Özel Seri" },
+        { keyword: "royal", tag: "Royal" },
+        { keyword: "azaltıcı", tag: "Azaltıcı" },
+        { keyword: "boyası", tag: "Boya" },
+        { keyword: "saç", tag: "Saç Ürünleri" },
+        { keyword: "krem", tag: "Krem" },
+        { keyword: "şampuan", tag: "Şampuan" },
+        { keyword: "makyaj", tag: "Makyaj" },
+        { keyword: "bakım", tag: "Bakım" },
+        { keyword: "turuncu", tag: "Turuncu Ton" },
+        { keyword: "yağ", tag: "Yağ" }
+      ];
+      
+      // Anahtar özellikleri kontrol et ve etiket olarak ekle
+      const nameLower = name.toLowerCase();
+      keyFeatures.forEach(feature => {
+        if (nameLower.includes(feature.keyword) && 
+            !tags.includes(feature.tag) && 
+            !extractedTags.includes(feature.tag)) {
+          extractedTags.push(feature.tag);
+        }
+      });
+    }
+    
+    return extractedTags;
+  };
+  
+  // Ürün adından akıllı etiketler çıkar
+  const titleTags = extractTagsFromName(categories[0] || "");
+  titleTags.forEach(tag => {
+    if (tags.length < 8 && !tags.includes(tag)) {
+      tags.push(tag);
+    }
+  });
+  
   // Kullanıcı kategorilerinden eklemeler yap
   for (const cat of cleanedCategories) {
-    if (tags.length < 5 && cat.length <= 20 && !tags.includes(cat)) {
+    if (tags.length < 8 && cat.length <= 20 && !tags.includes(cat)) {
       tags.push(cat);
     }
   }
@@ -432,6 +521,6 @@ export function getCategoryConfig(categories: string[]): {
     mainCategory,
     subCategory,
     productType,
-    tags: tags.slice(0, 5) // Maksimum 5 etiket
+    tags: tags.slice(0, 8) // Maksimum 8 etiket - daha kapsamlı etiketleme
   };
 }
