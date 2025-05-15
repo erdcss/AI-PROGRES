@@ -140,8 +140,8 @@ async function scrapePhilipsLattego(page: any, url: string): Promise<void> {
 export async function scrapeProductWithPuppeteer(url: string): Promise<string> {
   let browser = null;
   
-  // TEST MODU: Replit ortamında Chrome kurulum sorunları nedeniyle aktifleştirdik
-  const TEST_MODE = true;
+  // TEST MODU: Devre dışı bırakıldı, gerçek veri çekiliyor
+  const TEST_MODE = false;
   
   try {
     debug(`Puppeteer başlatılıyor...`);

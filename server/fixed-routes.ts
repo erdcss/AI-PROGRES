@@ -64,17 +64,18 @@ export async function registerRoutes(app: Express): Promise<Server> {
         throw new URLValidationError("Sadece Trendyol ürünleri desteklenmektedir");
       }
       
-      // TEST MODU: Belirli ürün ID'leri için test verileri
+      // URL'den ürün ID'sini çıkar (gerçek ürün çekimi için)
       const urlIdMatch = url.match(/p-(\d+)/);
       const urlProductId = urlIdMatch ? urlIdMatch[1] : null;
       
-      if (urlProductId === '68329560') {
-        debug("TEST MODU: Demo ürün ID'si tanındı (68329560), örnek veri döndürülüyor");
-        // Test modu - Demo ürün verileri
+      // TEST MODU devre dışı bırakıldı - gerçek ürün verisi çekiliyor
+      // Aşağıdaki test kodu artık çalışmayacak
+      if (false && urlProductId === '68329560') {
+        debug("TEST MODU DEVRE DIŞI: Gerçek ürün çekiliyor");
         const demoProduct: InsertProduct = {
           url,
           id: parseInt(urlProductId),
-          title: "Dark Seer Kadın Beyaz Pudra Sneaker",
+          title: "Dark Seer Kadın Beyaz Pudra Sneaker", 
           description: "Kaliteli ve şık tasarımlı kadın spor ayakkabı, günlük kullanıma uygun.",
           price: "499.90",
           basePrice: "549.90",
@@ -931,14 +932,15 @@ export async function registerRoutes(app: Express): Promise<Server> {
           } else {
             debug("JSON-LD verisi bulunamadı, standart HTML parsing yapılacak");
             
-            // TEST MODU: Ürün ID'sini kontrol et
+            // Ürün ID'sini çıkar - gerçek ürün verisi için
             const productIdMatch = url.match(/p-(\d+)/);
             const productId = productIdMatch ? productIdMatch[1] : null;
             
-            if (productId) {
-              // Trendyol ürün ID'sine göre demo içerik oluştur
-              if (productId === '849601792') {
-                debug("TEST MODU: Çanta demo ürünü tanındı");
+            // TEST MODU DEVRE DIŞI BIRAKILDI - gerçek ürün verisi işleniyor
+            if (false && productId) { 
+              // Bu kısım artık çalışmayacak (test modu devre dışı)
+              if (false && productId === '849601792') {
+                debug("TEST MODU DEVRE DIŞI: Gerçek ürün verisi işleniyor");
                 
                 const demoProduct: InsertProduct = {
                   url,
