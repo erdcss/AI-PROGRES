@@ -95,43 +95,84 @@ export async function generateSimpleShopifyCSV(
     mainRow['Option2 Value'] = colors[0];
   }
 
-  // Ana ürün görsellerini filtrele - sadece gerçek ürün görselleri kullanılsın
+  // Ana ürün görsellerini filtrele - SADECE gerçek ürün görselleri kullanılsın
+  // Trendyol'un "KARGO BEDAVA", "HIZLI TESLİMAT", vs. etiketleri kesinlikle alınmasın
   const isMainProductImage = (url: string): boolean => {
     if (!url) return false;
     
-    // 1. Ana ürün görsellerini belirle - daha geniş kapsamlı kontrol
-    const isHighQuality = url.includes('1_org_zoom') || 
-                         url.includes('_org_zoom') || 
-                         url.includes('original') || 
-                         url.includes('/QC/') ||
-                         url.includes('zoom.jpg');
-                          
-    // 2. Kampanya, badge ve diğer gereksiz içerikleri filtrele                      
-    const isNotPromo = !url.toLowerCase().includes('badge') &&
-                      !url.toLowerCase().includes('avantaj') &&
-                      !url.toLowerCase().includes('kampanya') &&
-                      !url.toLowerCase().includes('promo');
+    // 1. Ana ürün görsellerini belirle - yalnızca ürün görsellerini içerecek şekilde kontrol
+    // (JSON-LD'den gelen contentUrl veya product/media içeren resimler)
+    const isProductContentUrl = (
+      url.includes('/prod/') && 
+      url.includes('/media/images/') && 
+      url.includes('_org') || 
+      url.includes('_zoom')
+    );
     
-    // 3. Satıcı logo ve ikonlarını filtrele                  
-    const isNotSeller = !url.toLowerCase().includes('seller-store') &&
-                       !url.toLowerCase().includes('seller-badge') &&
-                       !url.toLowerCase().includes('logo');
-                       
-    // 4. CSS, JS ve diğer kaynak dosyalarını filtrele
-    const isNotResource = !url.toLowerCase().includes('.css') && 
-                         !url.toLowerCase().includes('.js') && 
-                         !url.toLowerCase().includes('.svg') &&
-                         !url.toLowerCase().includes('.html');
-                      
-    // 5. Geçerli bir görsel dosya uzantısı olmalı
-    const hasValidExtension = /\.(jpg|jpeg|png)($|\?)/.test(url.toLowerCase());
+    const isSchemaOrgImage = (
+      url.includes('/QC/') &&
+      url.includes('_org_zoom.jpg')
+    );
     
-    // Ekstra minimum boyut kontrolü - küçük ikonlar olmamalı
-    const isNotSmallIcon = !url.includes('/mnresize/50/') && 
-                          !url.includes('/mnresize/128/') &&
-                          !url.includes('icon');
+    // 2. Etiket ve promosyon resimleri kesinlikle filtreleniyor
+    const isNotPromotion = (
+      !url.toLowerCase().includes('badge') &&
+      !url.toLowerCase().includes('avantaj') &&
+      !url.toLowerCase().includes('kargo') &&
+      !url.toLowerCase().includes('bedava') &&
+      !url.toLowerCase().includes('hizli') &&
+      !url.toLowerCase().includes('teslimat') &&
+      !url.toLowerCase().includes('satici') &&
+      !url.toLowerCase().includes('en_cok_satan') &&
+      !url.toLowerCase().includes('en-cok-satan') &&
+      !url.toLowerCase().includes('kampanya') &&
+      !url.toLowerCase().includes('indirim') &&
+      !url.toLowerCase().includes('icon') &&
+      !url.toLowerCase().includes('satici') &&
+      !url.toLowerCase().includes('logo') &&
+      !url.toLowerCase().includes('basarili') &&
+      !url.toLowerCase().includes('tamamlayici')
+    );
     
-    return isHighQuality && isNotPromo && isNotSeller && isNotResource && hasValidExtension && isNotSmallIcon;
+    // 3. Satıcı ve marka ikonları, küçük görsellerini filtrele
+    const isNotSellerContent = (
+      !url.toLowerCase().includes('seller') &&
+      !url.toLowerCase().includes('store') &&
+      !url.toLowerCase().includes('resources')
+    );
+    
+    // 4. Büyük olasılıkla kaynak dosyaları filtrele
+    const isNotResourceFile = (
+      !url.toLowerCase().includes('.css') && 
+      !url.toLowerCase().includes('.js') && 
+      !url.toLowerCase().includes('.svg') &&
+      !url.toLowerCase().includes('.html') &&
+      !url.toLowerCase().includes('/web/') &&
+      !url.toLowerCase().includes('/assets/')
+    );
+    
+    // 5. Ürün görsellerinin uzantısını kontrol et (sadece belirli formatlar)
+    const hasValidExtension = /\.(jpe?g|png)($|\?)/.test(url.toLowerCase());
+    
+    // 6. Etiket, buton, icon ve diğer küçük resimleri filtrele
+    const isNotEtiketOrIcon = (
+      !url.includes('/50/50/') &&
+      !url.includes('/mnresize/50/') && 
+      !url.includes('/mnresize/128/') &&
+      !url.includes('enerjietiketi')
+    );
+    
+    // 7. Ürünle ilişkili yüksek kaliteli ve boyutlu bir görsel olmalı
+    const isHighQualityProduct = (
+      (isProductContentUrl || isSchemaOrgImage) &&
+      hasValidExtension &&
+      isNotPromotion &&
+      isNotSellerContent &&
+      isNotResourceFile &&
+      isNotEtiketOrIcon
+    );
+    
+    return isHighQualityProduct;
   };
   
   // En iyi kalitede en fazla 2 görsel seç

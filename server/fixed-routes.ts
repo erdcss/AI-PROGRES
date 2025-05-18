@@ -1208,12 +1208,27 @@ export async function registerRoutes(app: Express): Promise<Server> {
                 });
               }
               
-              // URL'leri temizleyen yardımcı fonksiyon
+              // URL'leri temizleyen ve filtreleme yapan yardımcı fonksiyon
               const cleanImageUrl = (url: string): string => {
                 // URL boşsa boş string döndür
                 if (!url) return '';
                 
                 try {
+                  // Etiket, logo ve promosyon görsellerini filtrele - tamamen engelle
+                  const blockedPatterns = [
+                    'badge', 'kargo', 'teslimat', 'bedava', 'hizli', 'satici', 'basarili', 
+                    'seller', 'store', 'logo', 'icon', 'avantaj', 'kampanya', 'indirim',
+                    'en_cok_satan', 'en-cok-satan', 'tamamlayici', '/web/', '/50/50/',
+                    'resources', 'enerjietiketi', '.svg', '.html', '.css', '.js'
+                  ];
+                  
+                  // Eğer URL engellenmiş bir kelime içeriyorsa boş string döndür
+                  for (const pattern of blockedPatterns) {
+                    if (url.toLowerCase().includes(pattern)) {
+                      return ''; // Bu URL'yi tamamen filtrele
+                    }
+                  }
+                  
                   // URL'den parçaları temizle
                   let cleanedUrl = url;
                   
@@ -1259,11 +1274,18 @@ export async function registerRoutes(app: Express): Promise<Server> {
                                         .replace('/thumbnail/', '/original/')
                                         .replace('/mnresize/400/', '/mnresize/1200/');
                   
-                  return cleanedUrl;
+                  // Sadece ürün görselleri olduğundan emin olmak için son bir kontrol
+                  const isValidProductImage = (
+                    (cleanedUrl.includes('/prod/') && cleanedUrl.includes('/media/images/')) ||
+                    (cleanedUrl.includes('/QC/') && cleanedUrl.includes('_org_zoom.jpg')) ||
+                    (cleanedUrl.includes('_org') || cleanedUrl.includes('_zoom'))
+                  ) && (/\.(jpe?g|png)($|\?)/.test(cleanedUrl.toLowerCase()));
+                  
+                  return isValidProductImage ? cleanedUrl : '';
                 } catch (error) {
-                  // Hata durumunda orijinal URL'yi döndür
+                  // Hata durumunda boş string döndür
                   console.log("URL temizleme hatası:", error);
-                  return url;
+                  return '';
                 }
               };
               
