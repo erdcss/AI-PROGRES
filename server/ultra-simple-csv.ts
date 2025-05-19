@@ -23,22 +23,48 @@ export function generateUltraSimpleCSV(product: Product, outputPath: string): st
   // Ana ürün görseli bul - sadece gerçek ürün görselleri
   let mainImage = "";
   if (product.images && product.images.length > 0) {
-    // Sadece gerçek ürün görsellerini filtrele
-    const filteredImages = product.images.filter(url => 
-      // Sadece _org_ içeren görselleri kabul et
-      (url.includes('_org_zoom.jpg') || url.includes('_org.jpg')) &&
-      // Badge, logo, css, js dosyalarını reddet
-      !url.includes('badge') && 
-      !url.includes('icon') && 
-      !url.includes('logo') &&
-      !url.includes('.css') &&
-      !url.includes('.js') &&
-      !url.includes('.png')
-    );
+    // Sadece gerçek ürün görsellerini filtrele - çok daha sıkı filtre
+    const filteredImages = product.images.filter(url => {
+      // 1. ADIM: Doğru formatta olan görselleri al (yüksek çözünürlüklü ürün görselleri)
+      const isCorrectFormat = (url.includes('_org_zoom.jpg') || url.includes('_org.jpg'));
+      
+      // 2. ADIM: Tüm yasaklı görselleri reddet
+      const isNotProhibited = (
+        !url.includes('badge') && 
+        !url.includes('icon') && 
+        !url.includes('logo') &&
+        !url.includes('.css') &&
+        !url.includes('.js') &&
+        !url.includes('.png') &&
+        !url.includes('sticker') &&
+        !url.includes('color-option')
+      );
+      
+      // 3. ADIM: Çok küçük görselleri reddet (genellikle renk/boyut seçenekleri)
+      // URL'de boyut bilgisi varsa kontrol et
+      let isLargeEnough = true;
+      if (url.includes('width=') && url.includes('height=')) {
+        const widthMatch = url.match(/width=(\d+)/);
+        const heightMatch = url.match(/height=(\d+)/);
+        
+        if (widthMatch && heightMatch) {
+          const width = parseInt(widthMatch[1]);
+          const height = parseInt(heightMatch[1]);
+          
+          // Çok küçük görsellerden kaçın (genellikle renk/boyut görselleri)
+          isLargeEnough = width > 200 && height > 200;
+        }
+      }
+      
+      return isCorrectFormat && isNotProhibited && isLargeEnough;
+    });
     
-    // Sadece ilk görseli kullan
+    // Ana görseller genellikle listenin başında olur
     if (filteredImages.length > 0) {
       mainImage = filteredImages[0];
+      console.log("SEÇİLEN ANA GÖRSEL: " + mainImage);
+    } else {
+      console.log("FİLTRELEME SONRASI GÖRSEL BULUNAMADI!");
     }
   }
 
