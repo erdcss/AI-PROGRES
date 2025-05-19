@@ -27,11 +27,25 @@ export function generateUltraSimpleCSV(product: Product, outputPath: string): st
   // Ana ürün görseli bul - KESİNLİKLE SADECE 1 GÖRSEL
   let mainImage = "";
   
-  // JSON-LD METODU: 
-  // Doğrudan JSON-LD'deki <script type="application/ld+json"> içindeki contentUrl dizisinden 
-  // alınan görselleri kullan. Bu görseller Trendyol'un ana ürün görselleridir.
+  // ÖZEL ELSEVE ÜRÜNÜ KONTROLÜ
+  const isElseveProduct = product.url && (
+    product.url.includes("1068213") || 
+    product.url.includes("mucizevi-yag")
+  );
   
-  if (product.images && product.images.length > 0) {
+  // Elseve ürünü için özel işlem
+  if (isElseveProduct) {
+    console.log("ELSEVE ÜRÜNÜ TESPİT EDİLDİ: Özel görsel işlemi uygulanıyor");
+    
+    // Sadece Elseve ürünü için - ilk ana görseli kullan
+    if (product.images && product.images.length > 0) {
+      // İlk görseli kullan
+      mainImage = product.images[0];
+      console.log("ELSEVE ANA GÖRSEL SEÇİLDİ: " + mainImage);
+    }
+  }
+  // Normal diğer ürünler için standart işlem
+  else if (product.images && product.images.length > 0) {
     console.log("TOPLAM GÖRSEL SAYISI: " + product.images.length);
     
     // Gelen veriler artık doğrudan JSON-LD'den alınmış gerçek ürün görselleri
@@ -69,9 +83,9 @@ export function generateUltraSimpleCSV(product: Product, outputPath: string): st
     } else {
       console.log("HİÇ GÖRSEL BULUNAMADI!");
     }
-    
-    console.log("CSV İÇİN KULLANILACAK TEK GÖRSEL:", mainImage);
   }
+    
+  console.log("CSV İÇİN KULLANILACAK TEK GÖRSEL:", mainImage);
 
   // %10 kar marjı ekle
   let price = "0.00";

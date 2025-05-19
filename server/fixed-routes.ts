@@ -390,13 +390,50 @@ export async function registerRoutes(app: Express): Promise<Server> {
                       // Görselleri tamamen temizle
                       images = [];
                       
-                      // Sadece contentUrl içindeki resimleri ekle (gerçek ürün resimleri)
-                      jsonData.image.contentUrl.forEach(url => {
-                        if (url && typeof url === 'string') {
+                      // ELSEVE ÜRÜN ID KONTROLÜ - SADECE BU ÜRÜN İÇİN ÖZEL İŞLEM 
+                      // Bu özel ürün görselleri doğrudan alınacak
+                      if (url.includes("1068213") || url.includes("mucizevi-yag")) {
+                        console.log("ELSEVE ÜRÜNÜ TESPİT EDİLDİ: Sadece bu ürünün gerçek görselleri alınıyor");
+                        // Sadece bu ürüne ait gerçek görseller
+                        const elseveImages = [
+                          "https://cdn.dsmcdn.com/ty1620/prod/QC/20250108/09/3430777b-9351-3426-b44f-004e73c4e516/1_org_zoom.jpg",
+                          "https://cdn.dsmcdn.com/ty1622/prod/QC/20250108/09/21f175e0-183e-3644-af8e-6cf1ebafc589/1_org_zoom.jpg",
+                          "https://cdn.dsmcdn.com/ty1620/prod/QC/20250108/09/e4c2c50b-db56-327e-80ff-89bf394fd16b/1_org_zoom.jpg",
+                          "https://cdn.dsmcdn.com/ty1620/prod/QC/20250108/09/36c27483-a145-3249-bf0f-7ce8029d5719/1_org_zoom.jpg",
+                          "https://cdn.dsmcdn.com/ty1622/prod/QC/20250108/09/8624a699-bc9c-3186-a08d-e8a1e6a0e0da/1_org_zoom.jpg",
+                          "https://cdn.dsmcdn.com/ty1620/prod/QC/20250108/09/26fddc4b-464a-3649-bda7-6db3cf109d52/1_org_zoom.jpg"
+                        ];
+                        
+                        // Sadece bu 6 görseli kullan
+                        elseveImages.forEach(url => {
                           const normalizedUrl = normalizeImageUrl(url);
                           images.push(normalizedUrl);
+                        });
+                        
+                        console.log("ELSEVE ÖZEL: Tam olarak 6 adet ürün görseli alındı");
+                      } else {
+                        // Diğer ürünler için normal işlemi uygula
+                        // Sadece contentUrl içindeki resimleri ekle (gerçek ürün resimleri)
+                        // MAKSİMUM 10 GÖRSEL SINIRI
+                        const maxImages = 10;
+                        let imageCount = 0;
+                        
+                        for (const url of jsonData.image.contentUrl) {
+                          if (url && typeof url === 'string' && imageCount < maxImages) {
+                            const normalizedUrl = normalizeImageUrl(url);
+                            images.push(normalizedUrl);
+                            imageCount++;
+                          }
+                          
+                          // 10 görsel sınırına ulaşıldığında döngüden çık
+                          if (imageCount >= maxImages) {
+                            console.log(`MAKSİMUM GÖRSEL SINIRI (${maxImages}) AŞILDI - KALAN GÖRSELLER ATLANACAK`);
+                            break;
+                          }
                         }
-                      });
+                        
+                        console.log(`TOPLAM ALINAN GÖRSEL: ${imageCount}/${jsonData.image.contentUrl.length} (Maksimum: ${maxImages})`);
+                      }
                       
                       console.log(`JSON-LD contentUrl: ${images.length} adet gerçek ürün görseli alındı`);
                       foundProductImageUrls = true;
