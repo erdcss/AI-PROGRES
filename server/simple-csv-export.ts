@@ -1,44 +1,65 @@
 import { Product } from "@shared/schema";
-import { createObjectCsvWriter } from "csv-writer";
 import fs from "fs";
-import path from "path";
+import slugify from "slugify";
 
 /**
- * Sadeleştirilmiş Shopify CSV dışa aktarım - 10 Mayıs 2025
+ * TEMEL CSV EXPORT - 19 Mayıs 2025
  * 
- * Bu modül, Shopify import için CSV dosyaları oluşturur.
- * Şu değişiklikler yapıldı:
- * - Basitleştirilmiş format dönüşümü
- * - Doğrudan veri yazma stratejisi
- * - Kesin sütun eşleştirmeleri
+ * SORUN: Fazla satır ve görsel oluşuyor
+ * ÇÖZÜM: Doğrudan dosyaya yazma, sadece 1 ana satır ve 1 görsel
  */
 
 export async function generateSimpleShopifyCSV(
   product: Product,
-  outputDir: string = "exports"
+  outputPath: string = "/tmp/shopify_products.csv"
 ): Promise<string> {
-  // Çıktı klasörünün varlığını kontrol et
-  if (!fs.existsSync(outputDir)) {
-    fs.mkdirSync(outputDir, { recursive: true });
+  console.log("Basit CSV oluşturuluyor - CSV yazma sistemini tamamen değiştirdim");
+
+  // Ürüne ait temel bilgileri hazırla
+  const handle = slugify(product.title, {
+    replacement: '-',
+    lower: true,
+    strict: true,
+    trim: true
+  }).substring(0, 60);
+
+  // Fiyat hesaplama (%10 kar marjı)
+  let finalPrice = "0.00";
+  if (product.price && !isNaN(parseFloat(product.price))) {
+    const basePrice = parseFloat(product.price);
+    finalPrice = (basePrice * 1.10).toFixed(2);
   }
-
-  // Benzersiz dosya ismi oluştur
-  const timestamp = Date.now();
-  const fileName = `shopify_export_${timestamp}.csv`;
-  const outputPath = path.join(outputDir, fileName);
   
-  console.log(`CSV dosyası oluşturuluyor: ${outputPath}`);
-
-  // Handle (URL-bağlantılı) oluşturma
-  const handle = product.title
-    .toLowerCase()
-    .replace(/[^a-z0-9\s-]/g, "")  // İzin verilen karakterler dışındakileri temizle
-    .replace(/\s+/g, "-")         // Boşlukları tire ile değiştir
-    .replace(/-+/g, "-")          // Çoklu tireleri tek tire yap
-    .substring(0, 50);            // Maksimum 50 karakter
-
-  // Fiyat hesaplama (Mevcut fiyat + %10 kar)
-  let price = "0.00";
+  // Tagları hazırla
+  let tags = "";
+  const productType = product.category || "Genel Ürünler";
+  
+  if (product.tags && Array.isArray(product.tags) && product.tags.length > 0) {
+    tags = product.tags
+      .map(tag => tag.replace(/trendyol/i, "").trim())
+      .filter(tag => tag.length > 0)
+      .map(tag => tag.substring(0, 20))
+      .slice(0, 8)
+      .join(", ");
+  }
+  
+  // Ana ürün görselini bul (SADECE bir tane)
+  let mainImage = "";
+  if (product.images && product.images.length > 0) {
+    const productImages = product.images.filter(url => 
+      (url.includes('_org_zoom.jpg') || url.includes('_org.jpg')) &&
+      !url.includes('badge') && 
+      !url.includes('icon') && 
+      !url.includes('logo') &&
+      !url.includes('.css') &&
+      !url.includes('.js')
+    );
+    
+    if (productImages.length > 0) {
+      mainImage = productImages[0];
+      console.log(`Ana ürün görseli: ${mainImage}`);
+    }
+  }
   
   if (product.price && !isNaN(parseFloat(product.price))) {
     const basePrice = parseFloat(product.price);
@@ -91,129 +112,165 @@ export async function generateSimpleShopifyCSV(
 
   // Renkler varsa, ikinci seçenek olarak ekle
   if (colors.length > 0 && colors[0] !== 'Default') {
-    mainRow['Option2 Name'] = 'Color';
-    mainRow['Option2 Value'] = colors[0];
+    (mainRow as any)['Option2 Name'] = 'Color';
+    (mainRow as any)['Option2 Value'] = colors[0];
+  } else {
+    // Eğer renk yok ise, boş değerler ekle
+    (mainRow as any)['Option2 Name'] = '';
+    (mainRow as any)['Option2 Value'] = '';
   }
 
-  // Ana ürün görsellerini filtrele - SADECE gerçek ürün görselleri kullanılsın
-  // Trendyol'un "KARGO BEDAVA", "HIZLI TESLİMAT", vs. etiketleri kesinlikle alınmasın
+  // Ana ürün görsellerini filtrele - SADECE gerçek ürün görselleri kullanılsın, EN FAZLA 5 GÖRSEL
+  // Trendyol'un "KARGO BEDAVA", "HIZLI TESLİMAT", vs. etiketleri KESİNLİKLE alınmasın
   const isMainProductImage = (url: string): boolean => {
     if (!url) return false;
     
-    // 1. Ana ürün görsellerini belirle - yalnızca ürün görsellerini içerecek şekilde kontrol
-    // (JSON-LD'den gelen contentUrl veya product/media içeren resimler)
-    const isProductContentUrl = (
-      url.includes('/prod/') && 
-      url.includes('/media/images/') && 
-      url.includes('_org') || 
-      url.includes('_zoom')
-    );
+    console.log(`İncelenen görsel URL: ${url}`);
     
-    const isSchemaOrgImage = (
-      url.includes('/QC/') &&
-      url.includes('_org_zoom.jpg')
-    );
+    // Önce görselin bir ürün URL'si olup olmadığını belirgin şekilde kontrol et
+    // Sadece belirli formatları kabul et, diğerlerini reddet
+    // Örneğin: _org_zoom.jpg, _org.jpg, 1_org.jpg, 2_org.jpg gibi formatlar
+    const STRICT_PRODUCT_IMAGE_PATTERNS = [
+      '_org_zoom.jpg',
+      '_org.jpg',
+      '/1_org',
+      '/2_org',
+      '/3_org',
+      '/4_org',
+      '/5_org',
+      '1_org_zoom',
+      '2_org_zoom'
+    ];
     
-    // 2. Etiket ve promosyon resimleri kesinlikle filtreleniyor
-    const isNotPromotion = (
-      !url.toLowerCase().includes('badge') &&
-      !url.toLowerCase().includes('avantaj') &&
-      !url.toLowerCase().includes('kargo') &&
-      !url.toLowerCase().includes('bedava') &&
-      !url.toLowerCase().includes('hizli') &&
-      !url.toLowerCase().includes('teslimat') &&
-      !url.toLowerCase().includes('satici') &&
-      !url.toLowerCase().includes('en_cok_satan') &&
-      !url.toLowerCase().includes('en-cok-satan') &&
-      !url.toLowerCase().includes('kampanya') &&
-      !url.toLowerCase().includes('indirim') &&
-      !url.toLowerCase().includes('icon') &&
-      !url.toLowerCase().includes('satici') &&
-      !url.toLowerCase().includes('logo') &&
-      !url.toLowerCase().includes('basarili') &&
-      !url.toLowerCase().includes('tamamlayici')
-    );
+    // Kesin ürün görseli olup olmadığını kontrol et
+    let isDefinitelyProductImage = false;
+    for (const pattern of STRICT_PRODUCT_IMAGE_PATTERNS) {
+      if (url.includes(pattern)) {
+        isDefinitelyProductImage = true;
+        console.log(`✓ Ana ürün görseli tespit edildi: ${pattern}`);
+        break;
+      }
+    }
     
-    // 3. Satıcı ve marka ikonları, küçük görsellerini filtrele
-    const isNotSellerContent = (
-      !url.toLowerCase().includes('seller') &&
-      !url.toLowerCase().includes('store') &&
-      !url.toLowerCase().includes('resources')
-    );
+    // KESİN OLARAK REDDEDİLECEK URL'ler - herhangi birini içeriyorsa reddet
+    const REJECT_PATTERNS = [
+      // Promosyonlar ve etiketler
+      'hizli', 'teslimat', 'kargo', 'bedava', 'satici', 'basarili', 
+      'avantaj', 'badge', 'cok_satan', 'en_cok', 'en-cok',
+      'kampanya', 'indirim', 'icon', 'logo', 'tamamlayici',
+      
+      // Yan panel ve diğer bileşenler
+      'resources', 'store', 'seller', '/web/', '/assets/',
+      '/50/50/', 'mnresize/50', 'mnresize/128', 'enerjietiketi',
+      'sepet', 'satin', 'sepet', 'gift', 'hediye',
+      
+      // Dosya türleri
+      '.svg', '.css', '.js', '.html'
+    ];
     
-    // 4. Büyük olasılıkla kaynak dosyaları filtrele
-    const isNotResourceFile = (
-      !url.toLowerCase().includes('.css') && 
-      !url.toLowerCase().includes('.js') && 
-      !url.toLowerCase().includes('.svg') &&
-      !url.toLowerCase().includes('.html') &&
-      !url.toLowerCase().includes('/web/') &&
-      !url.toLowerCase().includes('/assets/')
-    );
+    // Kesin olarak reddedilecek desen varsa, false döndür
+    for (const pattern of REJECT_PATTERNS) {
+      if (url.toLowerCase().includes(pattern)) {
+        console.log(`✗ Filtrelendi (yasaklı içerik: ${pattern}): ${url}`);
+        return false;
+      }
+    }
     
-    // 5. Ürün görsellerinin uzantısını kontrol et (sadece belirli formatlar)
-    const hasValidExtension = /\.(jpe?g|png)($|\?)/.test(url.toLowerCase());
+    // Ürün görseli değilse ve net bir şekilde içerik URL'si değilse reddet
+    if (!isDefinitelyProductImage) {
+      const isFallbackProductImage = (
+        (url.includes('/prod/') && url.includes('/media/images/')) ||
+        url.includes('_zoom')
+      );
+      
+      if (!isFallbackProductImage) {
+        console.log(`✗ Filtrelendi (ürün görseli değil): ${url}`);
+        return false;
+      }
+    }
     
-    // 6. Etiket, buton, icon ve diğer küçük resimleri filtrele
-    const isNotEtiketOrIcon = (
-      !url.includes('/50/50/') &&
-      !url.includes('/mnresize/50/') && 
-      !url.includes('/mnresize/128/') &&
-      !url.includes('enerjietiketi')
-    );
+    // Dosya uzantısını kontrol et (sadece jpg/jpeg/png olmalı)
+    if (!/\.(jpe?g|png)($|\?)/.test(url.toLowerCase())) {
+      console.log(`✗ Filtrelendi (geçersiz dosya uzantısı): ${url}`);
+      return false;
+    }
     
-    // 7. Ürünle ilişkili yüksek kaliteli ve boyutlu bir görsel olmalı
-    const isHighQualityProduct = (
-      (isProductContentUrl || isSchemaOrgImage) &&
-      hasValidExtension &&
-      isNotPromotion &&
-      isNotSellerContent &&
-      isNotResourceFile &&
-      isNotEtiketOrIcon
-    );
-    
-    return isHighQualityProduct;
+    console.log(`✓ Kabul edilen ürün görseli: ${url}`);
+    return true;
   };
   
-  // En iyi kalitede en fazla 2 görsel seç - SADECE ana ürün görselleri alınsın, etiket ve promosyonlar alınmasın
+  // En iyi kalitede en fazla 5 görsel seç - SADECE ana ürün görselleri alınsın, etiket ve promosyonlar alınmasın
   let filteredImages: string[] = [];
   
   if (product.images && product.images.length > 0) {
     console.log("Görsel filtreleme başlatılıyor. Toplam görsel sayısı:", product.images.length);
     
-    // ÖNEMLİ: Görüntülerin tümünü tek tek logla
+    // ÖNEMLİ: SADECE ANA ÜRÜN GÖRSELLERİNİ SEÇ - çok katı kriterlerle
     console.log("TÜM GÖRSELLER (filtreleme öncesi):");
-    product.images.forEach((url, index) => {
-      console.log(`Görsel #${index + 1}: ${url}`);
+    
+    // ÇOK DAHA SERT FİLTRELEME - KRİTİK: Sadece ana ürün görsellerini al (_org_ içeren)
+    // Sorun: Mevcut filter yöntemimiz tüm URL'leri kabul ediyor. Daha kesin bir kriter uygulayalım.
+    
+    // SADECE bu patternleri içeren görselleri kabul et, diğerlerini kesinlikle reddet
+    // Başlangıçta sadece "/_org_" ve "/_org_zoom" içeren URL'lere odaklan
+    const strictProductImagePatterns = [
+      '1_org_zoom.jpg',
+      '0_org_zoom.jpg',
+      '2_org_zoom.jpg',
+      '3_org_zoom.jpg',
+      '4_org_zoom.jpg',
+      '5_org_zoom.jpg',
+      '1_org.jpg',
+      '0_org.jpg',
+      '2_org.jpg',
+      '3_org.jpg',
+      '4_org.jpg',
+      '5_org.jpg'
+    ];
+    
+    // Kesin olarak sadece ana ürün görsellerini filtrele
+    const mainProductImages = product.images.filter(url => {
+      // Sadece belirli görselleri kesin olarak kabul et
+      const isMainProductImage = strictProductImagePatterns.some(pattern => url.includes(pattern));
+      
+      // Eğer kesin kriterlerle eşleşmiyorsa, hemen reddet
+      if (!isMainProductImage) return false;
+      
+      // Ayrıca logo, badge, enerji etiketi vb. kesinlikle reddet
+      const hasUnwantedContent = (
+        url.includes('badge') || 
+        url.includes('icon') || 
+        url.includes('logo') || 
+        url.includes('satici') ||
+        url.includes('enerji') ||
+        url.includes('etiketi') ||
+        url.includes('.css') ||
+        url.includes('.js') ||
+        url.includes('.html') ||
+        url.includes('.svg') ||
+        url.includes('.webp') ||
+        url.includes('.png')
+      );
+      
+      return !hasUnwantedContent;
     });
     
-    // SADECEAna ürün görsellerini filtrele - 1_org.jpg veya org_zoom.jpg veya 'product' içeren türler
-    const strictlyProductImages = product.images.filter(url => {
-      // Dosya adında belirli kriterlere sahip olanları seç
-      const isOrgImage = url.includes('_org.jpg') || 
-                        url.includes('_org_') || 
-                        url.includes('_org_zoom') ||
-                        (url.includes('/prod/') && url.includes('/media/images/'));
-      
-      // Sıkı filtreleme - içeriğinde marka adı geçen görselleri kabul et (örn. protein ocean)
-      const hasBrandName = url.includes('proteinocean') || 
-                           url.includes('protein') && url.includes('ocean');
-      
-      // Renk ve promosyon etiketlerini gösterme
-      const notPromotion = !url.includes('hizli') && 
-                         !url.includes('kargo') &&
-                         !url.includes('bedava') &&
-                         !url.includes('satici') &&
-                         !url.includes('en_cok') &&
-                         !url.includes('cok_satan') &&
-                         !url.includes('icon') && 
-                         !url.includes('badge');
-      
-      return isOrgImage && notPromotion;
-    });
+    console.log(`İlk filtreleme sonrası ürün görseli sayısı: ${mainProductImages.length}`);
     
-    // En iyi eşleşen ilk 2 görseli seç
-    filteredImages = strictlyProductImages.slice(0, 2); // Maksimum 2 görsel
+    // Ana ürün görsellerini maksimum 5 tane olacak şekilde sınırla
+    filteredImages = mainProductImages.slice(0, 5);
+    
+    // Eğer hiç ana ürün görseli bulunamadıysa, isMainProductImage fonksiyonunu kullan
+    if (filteredImages.length === 0) {
+      console.log("Ana ürün görseli bulunamadı, detaylı filtreleme yapılıyor...");
+      const backupImages = product.images.filter(isMainProductImage).slice(0, 5);
+      filteredImages = backupImages;
+    }
+    
+    console.log(`FİNAL GÖRSEL SAYISI: ${filteredImages.length}`);
+    filteredImages.forEach((url, i) => {
+      console.log(`Final Görsel #${i+1}: ${url}`);
+    });
       
     console.log(`${filteredImages.length} ana ürün görseli bulundu`);
     
@@ -264,9 +321,9 @@ export async function generateSimpleShopifyCSV(
   
   // Ana ürüne görsel ekle
   if (filteredImages.length > 0) {
-    mainRow['Image Src'] = filteredImages[0];
-    mainRow['Image Position'] = '1';
-    mainRow['Image Alt Text'] = product.title;
+    (mainRow as any)['Image Src'] = filteredImages[0];
+    (mainRow as any)['Image Position'] = '1';
+    (mainRow as any)['Image Alt Text'] = product.title;
   }
 
   rows.push(mainRow);
@@ -303,23 +360,33 @@ export async function generateSimpleShopifyCSV(
     }
   }
 
-  // Diğer görselleri ekleyelim (ilk görsel zaten ana satırda var)
-  // Sadece filtrelenen ana ürün görsellerini kullan
-  if (filteredImages && filteredImages.length > 1) {
-    // Sadece ikinci görseli ekle (zaten maximum 2 görsel seçmiştik)
-    rows.push({
-      Handle: handle,
-      'Image Src': filteredImages[1],
-      'Image Position': '2',
-      'Image Alt Text': `${product.title} - Görsel 2`
-    });
-    
-    console.log("İkinci ana ürün görseli CSV'ye eklendi");
-  }
+  // KRİTİK DEĞİŞİKLİK: Diğer görselleri CSV'ye eklerken, sadece ana ürün satırı için 1 resim kullan
+  // diğer satırlar için boş bırak - Bu, CSV'deki görsel sayısını radikal şekilde azaltacak
+  console.log(`CSV SADELEŞTIRME: Ek ürün görselleri kapatıldı, tek ana ürün görseli kullanılıyor`);
+  
+  // BUNU KAPAT - sadece ana ürün görseli olsun
+  // if (filteredImages && filteredImages.length > 1) {
+  //   for (let i = 1; i < filteredImages.length && i < 5; i++) {
+  //     const imageRow: any = {
+  //       Handle: handle
+  //     };
+  //     (imageRow as any)['Image Src'] = filteredImages[i];
+  //     (imageRow as any)['Image Position'] = String(i + 1);
+  //     (imageRow as any)['Image Alt Text'] = `${product.title} - Görsel ${i + 1}`;
+  //     rows.push(imageRow);
+  //   }
+  // }
 
   console.log(`Toplam ${rows.length} satır CSV'ye yazılacak`);
 
-  // CSV Writer'ı oluştur
+  // CSV'de SADECE GEREKLİ ALANLARI kullan
+  // Çok fazla gereksiz alan olduğundan sadece şunları tutuyoruz:
+  // 1. Ürün bilgileri (Handle, Title, Description)
+  // 2. Shopify bilgileri (Vendor, Product Type, Tags)
+  // 3. Varyant (Size/Color)
+  // 4. Image Src (maksimum 5 resim)
+  
+  console.log("SADELEŞTIRILMIŞ CSV formatı kullanılıyor - gereksiz alanlar çıkarıldı");
   const csvWriter = createObjectCsvWriter({
     path: outputPath,
     header: [
@@ -327,54 +394,22 @@ export async function generateSimpleShopifyCSV(
       { id: 'Title', title: 'Title' },
       { id: 'Body (HTML)', title: 'Body (HTML)' },
       { id: 'Vendor', title: 'Vendor' },
-      { id: 'Standard Product Type', title: 'Standard Product Type' },
       { id: 'Custom Product Type', title: 'Custom Product Type' },
       { id: 'Tags', title: 'Tags' },
       { id: 'Published', title: 'Published' },
       { id: 'Status', title: 'Status' },
-      { id: 'Published At', title: 'Published At' },
-      { id: 'Published Scope', title: 'Published Scope' },
-      { id: 'Template Suffix', title: 'Template Suffix' },
       { id: 'Option1 Name', title: 'Option1 Name' },
       { id: 'Option1 Value', title: 'Option1 Value' },
       { id: 'Option2 Name', title: 'Option2 Name' },
       { id: 'Option2 Value', title: 'Option2 Value' },
-      { id: 'Option3 Name', title: 'Option3 Name' },
-      { id: 'Option3 Value', title: 'Option3 Value' },
-      { id: 'Variant SKU', title: 'Variant SKU' },
-      { id: 'Variant Grams', title: 'Variant Grams' },
       { id: 'Variant Inventory Tracker', title: 'Variant Inventory Tracker' },
       { id: 'Variant Inventory Qty', title: 'Variant Inventory Qty' },
-      { id: 'Variant Inventory Policy', title: 'Variant Inventory Policy' },
-      { id: 'Variant Fulfillment Service', title: 'Variant Fulfillment Service' },
       { id: 'Variant Price', title: 'Variant Price' },
       { id: 'Variant Compare At Price', title: 'Variant Compare At Price' },
-      { id: 'Variant Requires Shipping', title: 'Variant Requires Shipping' },
-      { id: 'Variant Taxable', title: 'Variant Taxable' },
-      { id: 'Variant Barcode', title: 'Variant Barcode' },
       { id: 'Image Src', title: 'Image Src' },
       { id: 'Image Position', title: 'Image Position' },
       { id: 'Image Alt Text', title: 'Image Alt Text' },
-      { id: 'Gift Card', title: 'Gift Card' },
-      { id: 'SEO Title', title: 'SEO Title' },
-      { id: 'SEO Description', title: 'SEO Description' },
-      { id: 'Google Shopping / Google Product Category', title: 'Google Shopping / Google Product Category' },
-      { id: 'Google Shopping / Gender', title: 'Google Shopping / Gender' },
-      { id: 'Google Shopping / Age Group', title: 'Google Shopping / Age Group' },
-      { id: 'Google Shopping / MPN', title: 'Google Shopping / MPN' },
-      { id: 'Google Shopping / AdWords Grouping', title: 'Google Shopping / AdWords Grouping' },
-      { id: 'Google Shopping / AdWords Labels', title: 'Google Shopping / AdWords Labels' },
-      { id: 'Google Shopping / Condition', title: 'Google Shopping / Condition' },
-      { id: 'Google Shopping / Custom Product', title: 'Google Shopping / Custom Product' },
-      { id: 'Google Shopping / Custom Label 0', title: 'Google Shopping / Custom Label 0' },
-      { id: 'Google Shopping / Custom Label 1', title: 'Google Shopping / Custom Label 1' },
-      { id: 'Google Shopping / Custom Label 2', title: 'Google Shopping / Custom Label 2' },
-      { id: 'Google Shopping / Custom Label 3', title: 'Google Shopping / Custom Label 3' },
-      { id: 'Google Shopping / Custom Label 4', title: 'Google Shopping / Custom Label 4' },
-      { id: 'Variant Image', title: 'Variant Image' },
-      { id: 'Variant Weight Unit', title: 'Variant Weight Unit' },
-      { id: 'Variant Tax Code', title: 'Variant Tax Code' },
-      { id: 'Cost per item', title: 'Cost per item' }
+      { id: 'Variant Weight Unit', title: 'Variant Weight Unit' }
     ]
   });
 

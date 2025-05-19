@@ -8,7 +8,7 @@ import { handleError, TrendyolScrapingError, URLValidationError } from "./errors
 import { scrapeProductWithPuppeteer } from "./fixed-puppeteer-scraper";
 import { getCategoryConfig } from "./category-mapping";
 import { generateShopifyCSV } from "./shopify-export";
-import { generateSimpleShopifyCSV } from "./simple-csv-export";
+import { generateUltraSimpleCSV } from "./ultra-simple-csv";
 import { join } from "path";
 import { writeFileSync, mkdirSync, existsSync } from "fs";
 import * as csvWriter from "csv-writer";
@@ -1302,11 +1302,20 @@ export async function registerRoutes(app: Express): Promise<Server> {
                 }
               };
               
-              // Görsel listesini son bir kez filtrele ve temizle
-              let filteredImages = images
+              // Görsel listesini sıkı bir şekilde filtrele - SADECE ANA ÜRÜN GÖRSELLERİ (MAX 5)
+              console.log(`Toplam bulunun görsel sayısı: ${images.length}`);
+              
+              // Önce tüm görselleri temizle ve filtrele
+              const tempImages = images
                 .filter(img => isValidImageUrl(img))
                 .map(cleanImageUrl)
-                .filter((url, index, self) => url && self.indexOf(url) === index); // Tekrarları kaldır
+                .filter(url => url !== ''); // Boş string'leri filtrele
+                
+              console.log(`Temizleme sonrası kalan görsel sayısı: ${tempImages.length}`);
+              
+              // Sonra çok daha sıkı kriterlerle filtrele
+              const uniqueImages = Array.from(new Set(tempImages)); // Tekrarları kaldır
+              let filteredImages = uniqueImages.slice(0, 5); // Sadece ilk 5 görseli al
               
               // Sadece ana ürün görsellerini al (en fazla 3 tane)
               const isMainProductImage = (url: string): boolean => {
@@ -1712,12 +1721,12 @@ export async function registerRoutes(app: Express): Promise<Server> {
         });
       }
       
-      // CSV'yi oluştur
-      const csvContent = generateShopifyCSV(product);
+      // Ultra basit CSV'yi oluştur
       const timestamp = new Date().getTime();
       const previewFilePath = join(TEMP_DIR, `preview_${timestamp}.csv`);
       
-      writeFileSync(previewFilePath, csvContent);
+      // Tek satır, tek görsel içeren ultra basit CSV oluştur
+      generateUltraSimpleCSV(product, previewFilePath);
       
       return res.status(200).json({
         previewUrl: `/temp/preview_${timestamp}.csv`
@@ -1752,38 +1761,16 @@ export async function registerRoutes(app: Express): Promise<Server> {
         });
       }
       
-      // CSV'yi oluştur
+      // Ultra basit CSV'yi oluştur
       const timestamp = new Date().getTime();
       const exportFilePath = join(EXPORT_DIR, `shopify_export_${timestamp}.csv`);
       
-      // Varyantları yapılandır
-      const variants: any = {};
+      // Tek satır, tek görsel içeren ultra basit CSV oluştur
+      generateUltraSimpleCSV(product, exportFilePath);
       
-      // Ürün varyantlarını kontrol et ve doğru formata dönüştür
-      if (product.variants && typeof product.variants === 'object') {
-        // Size varyantları
-        if ('size' in product.variants) {
-          variants.sizes = product.variants.size;
-        }
-        
-        // Color varyantları
-        if ('color' in product.variants) {
-          variants.colors = product.variants.color;
-        }
-      }
-      
-      console.log("Varyantlar CSV'ye gönderiliyor:", variants);
-      
-      // Yeni geliştirilmiş CSV export fonksiyonunu kullan
-      const csvFilePath = await generateSimpleShopifyCSV(product, EXPORT_DIR);
-      
-      // Dosya adını al
-      const fileName = csvFilePath.split('/').pop() || '';
-      
-      // Başarılı yanıt döndür
       return res.status(200).json({
-        exportUrl: `/exports/${fileName}`,
-        fileName: fileName
+        downloadUrl: `/exports/shopify_export_${timestamp}.csv`,
+        message: "Basit CSV başarıyla oluşturuldu (1 satır, 1 görsel)"
       });
     } catch (error: any) {
       return res.status(500).json({ 

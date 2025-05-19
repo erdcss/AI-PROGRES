@@ -16,7 +16,7 @@ export function generateShopifyCSV(
     colors?: string[] 
   } = {},
   outputPath: string = join(tmpdir(), 'shopify_products.csv')
-): Promise<string> {
+): string {
   /**
    * Shopify için ürün başlıklarını temizler ve optimize eder
    * 
