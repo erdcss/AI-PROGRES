@@ -7,8 +7,12 @@ import slugify from "slugify";
  * 
  * Bu modül çok basit bir CSV dosyası oluşturur:
  * - Sadece 1 satır (ana ürün) 
- * - En fazla 1 ürün görseli
+ * - Kesinlikle 1 ürün görseli (ana görsel)
  * - Minimum sayıda alan
+ * 
+ * GÜÇLÜ GÖRSEL FİLTRELEME:
+ * Soruna çözüm: Seçici CSS ile sadece ana ürün görseli (#product-main-image-gallery > img:first-child)
+ * Amaç: 100'den fazla gereksiz görseli tamamen elemek
  */
 
 export function generateUltraSimpleCSV(product: Product, outputPath: string): string {
@@ -20,74 +24,53 @@ export function generateUltraSimpleCSV(product: Product, outputPath: string): st
     trim: true
   }).substring(0, 60);
 
-  // Ana ürün görseli bul - sadece gerçek ürün görselleri
+  // Ana ürün görseli bul - KESİNLİKLE SADECE 1 GÖRSEL
   let mainImage = "";
+  
+  // JSON-LD METODU: 
+  // Doğrudan JSON-LD'deki <script type="application/ld+json"> içindeki contentUrl dizisinden 
+  // alınan görselleri kullan. Bu görseller Trendyol'un ana ürün görselleridir.
+  
   if (product.images && product.images.length > 0) {
-    // Sadece gerçek ürün görsellerini filtrele - çok daha sıkı filtre
-    const filteredImages = product.images.filter(url => {
-      // KONTROL: Görsel URL'si geçerli mi?
+    console.log("TOPLAM GÖRSEL SAYISI: " + product.images.length);
+    
+    // Gelen veriler artık doğrudan JSON-LD'den alınmış gerçek ürün görselleri
+    // Hepsinin yüksek kaliteli (_org_zoom.jpg) formatında olduğundan emin ol
+    const cleanedImages = product.images.filter(url => {
       if (!url || typeof url !== 'string') return false;
       
-      // 1. ADIM: Placeholder görselleri tamamen reddet
-      if (url.includes('placeholder.jpg')) return false;
-      
-      // 2. ADIM: Sadece _org.jpg içeren görselleri kabul et (gerçek ürün görselleri)
-      const isCorrectFormat = (
+      // Sadece yüksek kaliteli ürün görselleri
+      return (
         url.includes('_org_zoom.jpg') || 
         url.includes('_org.jpg') || 
         (url.includes('.jpg') && url.includes('_org_'))
-      );
-      
-      // 3. ADIM: Tüm yasaklı görselleri reddet
-      const isNotProhibited = (
+      ) && (
+        // Gereksiz içerikleri filtrele
         !url.includes('badge') && 
         !url.includes('icon') && 
         !url.includes('logo') &&
-        !url.includes('.css') &&
-        !url.includes('.js') &&
-        !url.includes('.png') &&
-        !url.includes('sticker') &&
-        !url.includes('color-option') &&
         !url.includes('placeholder') &&
-        !url.includes('production/product-detail')
+        !url.includes('production/product-detail') &&
+        !url.includes('colors/')
       );
-      
-      // 4. ADIM: Çok küçük görselleri reddet (genellikle renk/boyut seçenekleri)
-      // URL'de boyut bilgisi varsa kontrol et
-      let isLargeEnough = true;
-      if (url.includes('width=') && url.includes('height=')) {
-        const widthMatch = url.match(/width=(\d+)/);
-        const heightMatch = url.match(/height=(\d+)/);
-        
-        if (widthMatch && heightMatch) {
-          const width = parseInt(widthMatch[1]);
-          const height = parseInt(heightMatch[1]);
-          
-          // Çok küçük görsellerden kaçın (genellikle renk/boyut görselleri)
-          isLargeEnough = width > 200 && height > 200;
-        }
-      }
-      
-      // 5. ADIM: data-lazy özniteliğini kontrol et - gerçek görsel URL'leri burada olabilir
-      // Ekran görüntüsünden gördüğüm kadarıyla, data-lazy gerçek resmi içeriyor
-      if (url.includes('data-lazy=')) {
-        const lazyMatch = url.match(/data-lazy="([^"]+)"/);
-        if (lazyMatch && lazyMatch[1]) {
-          // data-lazy URL'si _org.jpg içeriyorsa bu gerçek bir görseldir
-          return lazyMatch[1].includes('_org.jpg');
-        }
-      }
-      
-      return isCorrectFormat && isNotProhibited && isLargeEnough;
     });
     
-    // Ana görseller genellikle listenin başında olur
-    if (filteredImages.length > 0) {
-      mainImage = filteredImages[0];
+    console.log("JSON-LD GERÇEK ÜRÜN GÖRSELLERİ: " + cleanedImages.length);
+    
+    // Sadece ilk ana ürün görselini seç!
+    if (cleanedImages.length > 0) {
+      // İlk görseli seç - Trendyol'da ilk görsel ana görseldir
+      mainImage = cleanedImages[0];
       console.log("SEÇİLEN ANA GÖRSEL: " + mainImage);
+    } else if (product.images.length > 0) {
+      // Temizleme sonrası hiç görsel kalmadıysa, en azından bir görsel göster
+      mainImage = product.images[0];
+      console.log("EN AZ 1 GÖRSEL GÖSTER: " + mainImage);
     } else {
-      console.log("FİLTRELEME SONRASI GÖRSEL BULUNAMADI!");
+      console.log("HİÇ GÖRSEL BULUNAMADI!");
     }
+    
+    console.log("CSV İÇİN KULLANILACAK TEK GÖRSEL:", mainImage);
   }
 
   // %10 kar marjı ekle

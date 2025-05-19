@@ -43,11 +43,29 @@ export const csvPreviewSchema = z.object({
 export const urlSchema = z.object({
   url: z.string().refine((url) => {
     try {
-      const parsedUrl = new URL(url);
-      const isValidHost = parsedUrl.hostname === "www.trendyol.com";
-      const isProductUrl = parsedUrl.pathname.includes("/p-") || parsedUrl.pathname.includes("-p-");
+      // Daha esnek URL doğrulaması
+      const urlStr = url.trim();
+      
+      // Protokol kontrolü - protokol yoksa ekle
+      let fullUrl = urlStr;
+      if (!urlStr.startsWith('http://') && !urlStr.startsWith('https://')) {
+        fullUrl = 'https://' + urlStr;
+      }
+      
+      const parsedUrl = new URL(fullUrl);
+      
+      // Hostname kontrolü - www. olmadan da çalışsın
+      const isValidHost = parsedUrl.hostname === "www.trendyol.com" || 
+                          parsedUrl.hostname === "trendyol.com";
+      
+      // Ürün URL kontrolü - daha esnek
+      const isProductUrl = parsedUrl.pathname.includes("/p-") || 
+                          parsedUrl.pathname.includes("-p-") ||
+                          parsedUrl.pathname.match(/\/[^\/]+\/[^\/]+-p-\d+/);
+      
       return isValidHost && isProductUrl;
-    } catch {
+    } catch (e) {
+      console.error("URL parse hatası:", e);
       return false;
     }
   }, "Geçerli bir Trendyol ürün URL'si giriniz. Örnek: https://www.trendyol.com/marka/urun-adi-p-123456")

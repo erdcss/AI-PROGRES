@@ -366,23 +366,50 @@ export async function registerRoutes(app: Express): Promise<Server> {
                 }
               }
               
-              // 6. JSON-LD içine gömülü ham görsel verisi ara (product içinde olmayan)
-              const rawJsonData = $('script[type="application/ld+json"]').text();
-              if (rawJsonData) {
-                // Görsel URL'lerini arayalım
-                const cdnImageRegex = /(https:\/\/cdn\.dsmcdn\.com[^"',\s]+)/g;
-                const cdnMatches = rawJsonData.match(cdnImageRegex) || [];
+              // 6. Ana görsel tespiti - CSS seçici ile sadece ilk görseli al
+              // DOĞRUDAN JSON-LD DEN CONTENTURL GÖRSEL DİZİSİNİ AL
+              // Trendyol sayfasında JSON-LD biçiminde @type:Product içinde image.contentUrl dizisi var
+              const jsonLdScripts = $('script[type="application/ld+json"]');
+              let foundProductImageUrls = false;
+              
+              jsonLdScripts.each(function() {
+                if (foundProductImageUrls) return; // İşlem zaten tamamlandıysa çık
                 
-                if (cdnMatches.length > 0) {
-                  console.log(`JSON içinde ${cdnMatches.length} görsel URL'si bulundu`);
+                try {
+                  const jsonStr = $(this).text().trim();
+                  if (!jsonStr) return;
                   
-                  cdnMatches.forEach(url => {
-                    const normalizedUrl = normalizeImageUrl(url);
-                    if (!images.includes(normalizedUrl)) {
-                      images.push(normalizedUrl);
+                  const jsonData = JSON.parse(jsonStr);
+                  
+                  // @type: Product içindeki image.contentUrl dizisini kontrol et
+                  if (jsonData && jsonData["@type"] === "Product" && jsonData.image && jsonData.image.contentUrl) {
+                    console.log("JSON-LD'de ürün görselleri bulundu!");
+                    
+                    // contentUrl dizisindeki gerçek ürün görsellerini al
+                    if (Array.isArray(jsonData.image.contentUrl)) {
+                      // Görselleri tamamen temizle
+                      images = [];
+                      
+                      // Sadece contentUrl içindeki resimleri ekle (gerçek ürün resimleri)
+                      jsonData.image.contentUrl.forEach(url => {
+                        if (url && typeof url === 'string') {
+                          const normalizedUrl = normalizeImageUrl(url);
+                          images.push(normalizedUrl);
+                        }
+                      });
+                      
+                      console.log(`JSON-LD contentUrl: ${images.length} adet gerçek ürün görseli alındı`);
+                      foundProductImageUrls = true;
                     }
-                  });
+                  }
+                } catch (e) {
+                  console.error("JSON-LD parse hatası:", e);
                 }
+              });
+              
+              // Eğer JSON-LD'den görseller alındıysa, sadece bunları kullan
+              if (foundProductImageUrls) {
+                console.log("TÜM GÖRSELLER TEMİZLENDİ - SADECE JSON-LD'DEN ALINAN GÖRSELLER KALDI");
               }
               
               // 5. Varyantlardan resimleri çek (ProductGroup schema'sı için)
