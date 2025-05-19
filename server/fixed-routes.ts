@@ -18,6 +18,32 @@ const TEMP_DIR = "./temp";
 // Ürün verilerini kaydetmek için klasör
 const EXPORT_DIR = "./exports";
 
+// Logo ve metin etiketleri içeren görselleri filtrelemek için URL parçaları
+const BLACKLISTED_IMAGE_TERMS = [
+  'logo', 'badge', 'text-label', 'overlay', 'loreal', 'fener', 'kozmetik',
+  'seller-store', 'basarili_satici', 'hizli-satici', 'indexing-sticker',
+  'generated-logo', 'preview', 'enerjietiketi', 'authorized-seller', 'free-shipping',
+  '.svg', '.css', '.js', '.html'
+];
+
+// Logo, badge ve metin etiketleri içeren görselleri filtrele
+function isValidProductImage(url: string): boolean {
+  if (!url) return false;
+  
+  // URL'de yasaklı terimlerden biri var mı kontrol et
+  const isBlacklisted = BLACKLISTED_IMAGE_TERMS.some(term => 
+    url.toLowerCase().includes(term.toLowerCase())
+  );
+  
+  // URL içinde "org_zoom.jpg" veya "mnresize/1200" gibi gerçek ürün görseli içeriyor mu
+  const isRealProductImage = url.includes('org_zoom.jpg') || 
+                            url.includes('mnresize/1200') || 
+                            url.includes('/prod/');
+  
+  // Gerçek ürün görseli ve yasaklı terim içermeyen URL'ler için true döndür
+  return isRealProductImage && !isBlacklisted;
+}
+
 // Debug çıktıları
 function debug(message: string, ...args: any[]) {
   console.log(message, ...args);
@@ -302,10 +328,13 @@ export async function registerRoutes(app: Express): Promise<Server> {
                         console.log(`JSON-LD: ${jsonData.image.contentUrl.length} görsel bulundu (contentUrl)`);
                         const contentUrls = jsonData.image.contentUrl.map((url: string) => normalizeImageUrl(url));
                         
-                        // Yeni görselleri ekle
+                        // Yeni görselleri ekle (geçerli ürün görselleri)
                         contentUrls.forEach(url => {
-                          if (!images.includes(url)) {
+                          if (!images.includes(url) && isValidProductImage(url)) {
                             images.push(url);
+                            console.log("GEÇERLİ ÜRÜN GÖRSELİ EKLENDİ:", url);
+                          } else if (!isValidProductImage(url)) {
+                            console.log("GEÇERSİZ GÖRSEL ATLANILDI (logo/etiket/vs):", url);
                           }
                         });
                       }
@@ -467,6 +496,30 @@ export async function registerRoutes(app: Express): Promise<Server> {
                               // Daha önce eklenmiş mi kontrol et
                               if (uniqueUrls.has(normalizedUrl)) continue;
                               
+                              // Logo ve metin etiketleri içeren görselleri engelle
+                              // L'OREAL PARIS, Fenerli Kozmetik gibi metin etiketlerini içeren görselleri filtrele
+                              
+                              // HTML Element özelliklerini güvenli bir şekilde kontrol edelim
+                              const imgElement = productImages[i] as HTMLImageElement;
+                              const imgWidth = imgElement.width || 0;
+                              const imgAlt = imgElement.alt || '';
+                              const hasOverlayParent = productImages[i].closest('.image-overlay-body') !== null;
+                              
+                              const isLogoOrTextLabel = hasOverlayParent || 
+                                                      imgWidth < 300 || // Küçük logo görselleri genellikle 300px'den küçük
+                                                      imgAlt.toLowerCase().includes('logo') ||
+                                                      imgAlt.toLowerCase().includes('kozmetik') ||
+                                                      imgAlt.toLowerCase().includes('fener') ||
+                                                      imgAlt.toLowerCase().includes('l\'oreal') ||
+                                                      // URL içinde logo kelimesi geçiyor mu kontrolü
+                                                      normalizedUrl.toLowerCase().includes('logo') ||
+                                                      normalizedUrl.toLowerCase().includes('badge');
+                              
+                              if (isLogoOrTextLabel) {
+                                console.log("Logo veya metin etiketi içeren görsel atlandı:", normalizedUrl);
+                                continue;
+                              }
+                              
                               // Görsel URL'den basit bir hash oluştur
                               // Bu tam anlamıyla bir hash değil, sadece URL'nin ayırt edici kısmı
                               const urlParts = normalizedUrl.split('/');
@@ -478,8 +531,15 @@ export async function registerRoutes(app: Express): Promise<Server> {
                               // Listeye ekle ve kayıt altına al
                               seenImageHashes.add(idPart);
                               uniqueUrls.add(normalizedUrl);
-                              images.push(normalizedUrl);
-                              imageCount++;
+                              
+                              // Görsel filtrelemesini uygula
+                              if (isValidProductImage(normalizedUrl)) {
+                                images.push(normalizedUrl);
+                                imageCount++;
+                                console.log("GEÇERLİ ÜRÜN GÖRSELİ EKLENDİ:", normalizedUrl);
+                              } else {
+                                console.log("GEÇERSİZ GÖRSEL ATLANILDI (logo/etiket/vs):", normalizedUrl);
+                              }
                             }
                             
                             if (imageCount > 0) {
@@ -510,6 +570,21 @@ export async function registerRoutes(app: Express): Promise<Server> {
                             // Daha önce eklenmiş mi kontrol et
                             if (uniqueUrls.has(normalizedUrl)) continue;
                             
+                            // Logo ve metin etiketleri içeren görselleri engelle
+                            // URL içinde logo, text-label, badge gibi belirli dizeler kontrol ediliyor
+                            const isLogoOrTextLabel = normalizedUrl.includes('logo') || 
+                                                     normalizedUrl.includes('badge') ||
+                                                     normalizedUrl.includes('text-label') ||
+                                                     normalizedUrl.includes('overlay') ||
+                                                     // Bilinen logo ve satıcı görselleri kontrolü
+                                                     normalizedUrl.includes('loreal') ||
+                                                     normalizedUrl.includes('fener');
+                            
+                            if (isLogoOrTextLabel) {
+                              console.log("Logo veya metin etiketi içeren görsel atlandı:", normalizedUrl);
+                              continue;
+                            }
+                            
                             // Görsel URL'den basit bir hash oluştur
                             // Bu tam anlamıyla bir hash değil, sadece URL'nin ayırt edici kısmı
                             const urlParts = normalizedUrl.split('/');
@@ -522,8 +597,14 @@ export async function registerRoutes(app: Express): Promise<Server> {
                             // Listeye ekle ve kayıt altına al
                             seenImageHashes.add(idPart);
                             uniqueUrls.add(normalizedUrl);
-                            images.push(normalizedUrl);
-                            imageCount++;
+                            // Görsel filtrelemesi uygula
+                            if (isValidProductImage(normalizedUrl)) {
+                              images.push(normalizedUrl);
+                              imageCount++;
+                              console.log("GEÇERLİ ÜRÜN GÖRSELİ EKLENDİ:", normalizedUrl);
+                            } else {
+                              console.log("GEÇERSİZ GÖRSEL ATLANILDI (logo/etiket/vs):", normalizedUrl);
+                            }
                           }
                         }
                         

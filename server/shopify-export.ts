@@ -7,7 +7,37 @@ import fs from "fs";
 /**
  * Bu dosya Shopify uyumlu CSV oluşturmak için tasarlanmıştır
  * Shopify'ın kesin CSV formatını kullanır
+ * 
+ * LOGO/ETIKET FILTRELEME:
+ * L'OREAL gibi logolar ve Fenerli Kozmetik gibi etiketler içeren görseller filtrelenir
  */
+
+// Logo ve metin etiketleri içeren görselleri filtrelemek için URL parçaları
+const BLACKLISTED_IMAGE_TERMS = [
+  'logo', 'badge', 'text-label', 'overlay', 'loreal', 'fener', 'kozmetik',
+  'seller-store', 'basarili_satici', 'hizli-satici', 'indexing-sticker',
+  'generated-logo', 'preview', 'enerjietiketi', 'authorized-seller', 'free-shipping',
+  '.svg', '.css', '.js', '.html', 'sticker-stamp'
+];
+
+// Görsel URL'inin gerçek ürün görseli olup olmadığını kontrol et
+function isValidProductImage(url: string): boolean {
+  if (!url) return false;
+  
+  // URL'de yasaklı terimlerden biri var mı kontrol et
+  const isBlacklisted = BLACKLISTED_IMAGE_TERMS.some(term => 
+    url.toLowerCase().includes(term.toLowerCase())
+  );
+  
+  // URL içinde "org_zoom.jpg" veya "mnresize/1200" gibi gerçek ürün görseli içeriyor mu
+  const isRealProductImage = url.includes('org_zoom.jpg') || 
+                          url.includes('mnresize/1200') || 
+                          url.includes('cdn.dsmcdn.com/ty') ||
+                          url.includes('/prod/');
+  
+  // Gerçek ürün görseli ve yasaklı terim içermeyen URL'ler için true döndür
+  return isRealProductImage && !isBlacklisted;
+}
 
 export function generateShopifyCSV(
   product: Product,
@@ -17,6 +47,20 @@ export function generateShopifyCSV(
   } = {},
   outputPath: string = join(tmpdir(), 'shopify_products.csv')
 ): string {
+  // Ürün fiyatına %10 kar ekle
+  if (product.price && !isNaN(parseFloat(product.price))) {
+    const basePrice = parseFloat(product.price);
+    const priceWithProfit = (basePrice * 1.10).toFixed(2);
+    console.log(`FİYAT GÜNCELLEME: ${basePrice} TL + %10 kar = ${priceWithProfit} TL`);
+    product.price = priceWithProfit;
+  }
+  
+  // Ürün görsellerini filtrele - sadece gerçek ürün görselleri kalsın
+  if (product.images && product.images.length > 0) {
+    const originalImagesCount = product.images.length;
+    product.images = product.images.filter(img => isValidProductImage(img));
+    console.log(`GÖRSEL FİLTRELEME: ${originalImagesCount} görsel içinden ${product.images.length} gerçek ürün görseli seçildi`);
+  }
   /**
    * Shopify için ürün başlıklarını temizler ve optimize eder
    * 

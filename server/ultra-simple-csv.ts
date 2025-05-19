@@ -13,7 +13,38 @@ import slugify from "slugify";
  * GÜÇLÜ GÖRSEL FİLTRELEME:
  * Soruna çözüm: Seçici CSS ile sadece ana ürün görseli (#product-main-image-gallery > img:first-child)
  * Amaç: 100'den fazla gereksiz görseli tamamen elemek
+ * 
+ * LOGO FİLTRELEME:
+ * Logolar ve promosyon görselleri içeren URL'ler filtrelenir (L'OREAL, Fenerli Kozmetik vb.)
  */
+
+// Logo ve metin etiketleri içeren görselleri filtrelemek için URL parçaları
+const BLACKLISTED_IMAGE_TERMS = [
+  'logo', 'badge', 'text-label', 'overlay', 'loreal', 'fener', 'kozmetik',
+  'seller-store', 'basarili_satici', 'hizli-satici', 'indexing-sticker',
+  'generated-logo', 'preview', 'enerjietiketi', 'authorized-seller', 'free-shipping',
+  '.svg', '.css', '.js', '.html', 'sticker-stamp', 'web-pdp', 'web-gray', 
+  'indexing-sticker', 'statics', 'stamp', 'Assets', 'icon', 'webp', 'mweb'
+];
+
+// Görsel URL'inin gerçek ürün görseli olup olmadığını kontrol et
+function isValidProductImage(url: string): boolean {
+  if (!url) return false;
+  
+  // URL'de yasaklı terimlerden biri var mı kontrol et
+  const isBlacklisted = BLACKLISTED_IMAGE_TERMS.some(term => 
+    url.toLowerCase().includes(term.toLowerCase())
+  );
+  
+  // URL içinde "org_zoom.jpg" veya "mnresize/1200" gibi gerçek ürün görseli içeriyor mu
+  const isRealProductImage = url.includes('org_zoom.jpg') || 
+                            url.includes('mnresize/1200') || 
+                            url.includes('cdn.dsmcdn.com/ty') ||
+                            url.includes('/prod/');
+  
+  // Gerçek ürün görseli ve yasaklı terim içermeyen URL'ler için true döndür
+  return isRealProductImage && !isBlacklisted;
+}
 
 export function generateUltraSimpleCSV(product: Product, outputPath: string): string {
   // Handle oluştur
@@ -23,6 +54,24 @@ export function generateUltraSimpleCSV(product: Product, outputPath: string): st
     strict: true,
     trim: true
   }).substring(0, 60);
+  
+  // Ürün fiyatına %10 kar ekle
+  let finalPrice = "0.00";
+  if (product.price && !isNaN(parseFloat(product.price))) {
+    const basePrice = parseFloat(product.price);
+    finalPrice = (basePrice * 1.10).toFixed(2);
+    console.log(`FİYAT GÜNCELLEME: ${basePrice} TL + %10 kar = ${finalPrice} TL`);
+    product.price = finalPrice;
+  } else {
+    finalPrice = product.price || "0.00";
+  }
+  
+  // Ürün görsellerini filtrele - sadece gerçek ürün görselleri kalsın
+  if (product.images && product.images.length > 0) {
+    const originalImagesCount = product.images.length;
+    product.images = product.images.filter(img => isValidProductImage(img));
+    console.log(`GÖRSEL FİLTRELEME: ${originalImagesCount} görsel içinden ${product.images.length} gerçek ürün görseli seçildi`);
+  }
 
   // Ana ürün görseli bul - KESİNLİKLE SADECE 1 GÖRSEL
   let mainImage = "";
@@ -70,25 +119,8 @@ export function generateUltraSimpleCSV(product: Product, outputPath: string): st
     console.log("TOPLAM GÖRSEL SAYISI: " + product.images.length);
     
     // Gelen veriler artık doğrudan JSON-LD'den alınmış gerçek ürün görselleri
-    // Hepsinin yüksek kaliteli (_org_zoom.jpg) formatında olduğundan emin ol
-    const cleanedImages = product.images.filter(url => {
-      if (!url || typeof url !== 'string') return false;
-      
-      // Sadece yüksek kaliteli ürün görselleri
-      return (
-        url.includes('_org_zoom.jpg') || 
-        url.includes('_org.jpg') || 
-        (url.includes('.jpg') && url.includes('_org_'))
-      ) && (
-        // Gereksiz içerikleri filtrele
-        !url.includes('badge') && 
-        !url.includes('icon') && 
-        !url.includes('logo') &&
-        !url.includes('placeholder') &&
-        !url.includes('production/product-detail') &&
-        !url.includes('colors/')
-      );
-    });
+    // İyileştirilmiş filtreleme fonksiyonunu kullan - logo, badge vb. istenmeyen görselleri filtrele
+    const cleanedImages = product.images.filter(url => isValidProductImage(url));
     
     console.log("JSON-LD GERÇEK ÜRÜN GÖRSELLERİ: " + cleanedImages.length);
     
@@ -108,12 +140,8 @@ export function generateUltraSimpleCSV(product: Product, outputPath: string): st
     
   console.log("CSV İÇİN KULLANILACAK TEK GÖRSEL:", mainImage);
 
-  // %10 kar marjı ekle
-  let price = "0.00";
-  if (product.price && !isNaN(parseFloat(product.price))) {
-    const basePrice = parseFloat(product.price);
-    price = (basePrice * 1.10).toFixed(2);
-  }
+  // %10 kar marjı daima uygulandığı için ikinci kez eklemeye gerek yok
+  // Yukarıda zaten price değişkeni oluşturuldu ve fiyata %10 kar eklendi
   
   // Tagları hazırla - maksimum 8 tag
   let tags = "";
@@ -136,7 +164,7 @@ export function generateUltraSimpleCSV(product: Product, outputPath: string): st
     `"${tags}"`,
     "TRUE",
     "active",
-    price,
+    finalPrice,
     mainImage
   ].join(",");
 
