@@ -1,24 +1,51 @@
-import { Product } from "@shared/schema";
-import fs from "fs";
-import slugify from "slugify";
+// Test için ultra basit CSV oluşturucu (CommonJS formatı)
+const fs = require('fs');
+const path = require('path');
 
-/**
- * ULTRA BASİT CSV OLUŞTURUCU - 19 Mayıs 2025
- * 
- * Bu modül çok basit bir CSV dosyası oluşturur:
- * - Sadece 1 satır (ana ürün) 
- * - En fazla 1 ürün görseli
- * - Minimum sayıda alan
- */
+// Demo ürün verisi
+const demoProduct = {
+  id: 12345,
+  url: "https://www.trendyol.com/bershka/firfirli-mini-elbise-p-123456789",
+  title: "Bershka Fırfırlı mini elbise",
+  description: "Bershka Fırfırlı mini elbise ürün açıklaması",
+  price: "499.99",
+  brand: "Bershka",
+  basePrice: "450.00",
+  images: [
+    "https://cdn.dsmcdn.com/mnresize/1200/-/ty500/product/media/images/20230109/13/258400100/650532310/1/1_org_zoom.jpg",
+    "https://cdn.dsmcdn.com/mnresize/1200/-/ty498/product/media/images/20230109/13/258400100/650532310/2/2_org_zoom.jpg",
+    "https://cdn.dsmcdn.com/web/production/product-detail-placeholder.jpg",
+    "https://cdn.dsmcdn.com/mnresize/128/-/ty499/product/media/colors/c/C_1.jpg",
+    "https://cdn.dsmcdn.com/mnresize/128/-/ty499/product/media/colors/d/D_1.jpg",
+    "https://cdn.dsmcdn.com/mnresize/128/-/ty499/product/media/colors/e/E_1.jpg",
+    "https://cdn.dsmcdn.com/assets/sticker/logo.png",
+    "https://cdn.dsmcdn.com/mnresize/128/-/ty499/promotion/banners/badge1.jpg",
+    "https://cdn.dsmcdn.com/mnresize/500/-/ty1620/prod/QC/20250108/09/3430777b-9351-3426-b44f-004e73c4e516/1_org.jpg",
+    "https://cdn.dsmcdn.com/mnresize/500/-/ty1622/prod/QC/20250108/09/21f175e0-183e-3644-af8e-6cf1ebafc589/1_org.jpg",
+    "https://cdn.dsmcdn.com/mweb/production/product-detail-placeholder.jpg"
+  ],
+  video: null,
+  variants: [],
+  attributes: {
+    "Renk": "Siyah",
+    "Beden": "S",
+    "Materyal": "Polyester"
+  },
+  createdAt: new Date(),
+  updatedAt: new Date(),
+  tags: ["Giyim", "Elbise", "Mini", "Bershka", "Fırfırlı", "Siyah", "Kadın", "Trendyol"],
+  vendor: "turmarkt",
+};
 
-export function generateUltraSimpleCSV(product: Product, outputPath: string): string {
+// Manuel ultra basit CSV oluşturucu
+function generateUltraSimpleCSV(product, outputPath) {
   // Handle oluştur
-  const handle = slugify(product.title, {
-    replacement: '-',
-    lower: true,
-    strict: true,
-    trim: true
-  }).substring(0, 60);
+  const handle = product.title
+    .toLowerCase()
+    .replace(/[^a-z0-9]+/g, '-')
+    .replace(/-+/g, '-')
+    .replace(/^-|-$/g, '')
+    .substring(0, 60);
 
   // Ana ürün görseli bul - sadece gerçek ürün görselleri
   let mainImage = "";
@@ -68,15 +95,12 @@ export function generateUltraSimpleCSV(product: Product, outputPath: string): st
         }
       }
       
-      // 5. ADIM: data-lazy özniteliğini kontrol et - gerçek görsel URL'leri burada olabilir
-      // Ekran görüntüsünden gördüğüm kadarıyla, data-lazy gerçek resmi içeriyor
-      if (url.includes('data-lazy=')) {
-        const lazyMatch = url.match(/data-lazy="([^"]+)"/);
-        if (lazyMatch && lazyMatch[1]) {
-          // data-lazy URL'si _org.jpg içeriyorsa bu gerçek bir görseldir
-          return lazyMatch[1].includes('_org.jpg');
-        }
-      }
+      console.log(`Görsel kontrolü: ${url}`);
+      console.log(`- Doğru format: ${isCorrectFormat}`);
+      console.log(`- Yasaklı değil: ${isNotProhibited}`);
+      console.log(`- Yeterli boyut: ${isLargeEnough}`);
+      console.log(`- Sonuç: ${isCorrectFormat && isNotProhibited && isLargeEnough ? 'KABUL' : 'RED'}`);
+      console.log("--------------------");
       
       return isCorrectFormat && isNotProhibited && isLargeEnough;
     });
@@ -131,3 +155,21 @@ export function generateUltraSimpleCSV(product: Product, outputPath: string): st
   
   return outputPath;
 }
+
+// Geçici dosya oluştur
+const testDir = "./temp";
+if (!fs.existsSync(testDir)) {
+  fs.mkdirSync(testDir, { recursive: true });
+}
+
+const testFilePath = path.join(testDir, 'test_ultra_simple.csv');
+
+// Ultra basit CSV oluştur
+console.log("DEMO ÜRÜN GÖRSEL SAYISI:", demoProduct.images.length);
+
+const result = generateUltraSimpleCSV(demoProduct, testFilePath);
+
+// Sonucu göster
+console.log("\nOLUŞTURULAN CSV DOSYASI:", testFilePath);
+console.log("CSV İÇERİĞİ:");
+console.log(fs.readFileSync(testFilePath, 'utf8'));

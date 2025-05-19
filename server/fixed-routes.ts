@@ -1725,8 +1725,20 @@ export async function registerRoutes(app: Express): Promise<Server> {
       const timestamp = new Date().getTime();
       const previewFilePath = join(TEMP_DIR, `preview_${timestamp}.csv`);
       
+      // İşlem öncesi görsel sayısını loglayalım
+      console.log("CSV ÖNCESİ GÖRSEL SAYISI:", product.images.length);
+      console.log("GÖRSEL LİSTESİ:", product.images);
+      
       // Tek satır, tek görsel içeren ultra basit CSV oluştur
       generateUltraSimpleCSV(product, previewFilePath);
+      
+      // Görsel filtreleme sonuçlarını loglayalım
+      try {
+        const csvContent = require('fs').readFileSync(previewFilePath, 'utf8');
+        console.log("OLUŞTURULAN CSV İÇERİĞİ:", csvContent);
+      } catch (e) {
+        console.error("CSV içeriği okunamadı:", e);
+      }
       
       return res.status(200).json({
         previewUrl: `/temp/preview_${timestamp}.csv`
