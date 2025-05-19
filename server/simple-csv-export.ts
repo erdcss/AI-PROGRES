@@ -175,16 +175,45 @@ export async function generateSimpleShopifyCSV(
     return isHighQualityProduct;
   };
   
-  // En iyi kalitede en fazla 2 görsel seç
+  // En iyi kalitede en fazla 2 görsel seç - SADECE ana ürün görselleri alınsın, etiket ve promosyonlar alınmasın
   let filteredImages: string[] = [];
   
   if (product.images && product.images.length > 0) {
     console.log("Görsel filtreleme başlatılıyor. Toplam görsel sayısı:", product.images.length);
     
-    // Önce ana ürün görsellerini bul
-    filteredImages = product.images
-      .filter(isMainProductImage)
-      .slice(0, 2); // Maksimum 2 görsel
+    // ÖNEMLİ: Görüntülerin tümünü tek tek logla
+    console.log("TÜM GÖRSELLER (filtreleme öncesi):");
+    product.images.forEach((url, index) => {
+      console.log(`Görsel #${index + 1}: ${url}`);
+    });
+    
+    // SADECEAna ürün görsellerini filtrele - 1_org.jpg veya org_zoom.jpg veya 'product' içeren türler
+    const strictlyProductImages = product.images.filter(url => {
+      // Dosya adında belirli kriterlere sahip olanları seç
+      const isOrgImage = url.includes('_org.jpg') || 
+                        url.includes('_org_') || 
+                        url.includes('_org_zoom') ||
+                        (url.includes('/prod/') && url.includes('/media/images/'));
+      
+      // Sıkı filtreleme - içeriğinde marka adı geçen görselleri kabul et (örn. protein ocean)
+      const hasBrandName = url.includes('proteinocean') || 
+                           url.includes('protein') && url.includes('ocean');
+      
+      // Renk ve promosyon etiketlerini gösterme
+      const notPromotion = !url.includes('hizli') && 
+                         !url.includes('kargo') &&
+                         !url.includes('bedava') &&
+                         !url.includes('satici') &&
+                         !url.includes('en_cok') &&
+                         !url.includes('cok_satan') &&
+                         !url.includes('icon') && 
+                         !url.includes('badge');
+      
+      return isOrgImage && notPromotion;
+    });
+    
+    // En iyi eşleşen ilk 2 görseli seç
+    filteredImages = strictlyProductImages.slice(0, 2); // Maksimum 2 görsel
       
     console.log(`${filteredImages.length} ana ürün görseli bulundu`);
     

@@ -1214,17 +1214,47 @@ export async function registerRoutes(app: Express): Promise<Server> {
                 if (!url) return '';
                 
                 try {
-                  // Etiket, logo ve promosyon görsellerini filtrele - tamamen engelle
+                  console.log(`Görsel URL inceleniyor: ${url}`);
+                  
+                  // Öncelikli olarak sadece 'org_zoom' veya belirli formatlara sahip görselleri kabul et
+                  // Bu şekilde logo, ikon, etiket ve promosyon görsellerini tamamen eleriz
+                  const strictProductImagePatterns = [
+                    '_org_zoom.jpg',
+                    '_org.jpg',
+                    '_org_zoom',
+                    '/1_org',
+                    '/2_org',
+                    '/prod/media/images'
+                  ];
+                  
+                  // Görselin gerçekten ürün görseli olup olmadığını kontrol et
+                  let isStrictlyProductImage = false;
+                  for (const pattern of strictProductImagePatterns) {
+                    if (url.includes(pattern)) {
+                      isStrictlyProductImage = true;
+                      break;
+                    }
+                  }
+                  
+                  // Eğer bu kesinlikle bir ürün görseli değilse, filtreleme yap
+                  if (!isStrictlyProductImage) {
+                    console.log(`Görsel filtrelendi (ürün görseli değil): ${url}`);
+                    return '';
+                  }
+                  
+                  // Kesin olarak engellenmesi gereken ürün dışı içerikleri filtrele
                   const blockedPatterns = [
-                    'badge', 'kargo', 'teslimat', 'bedava', 'hizli', 'satici', 'basarili', 
-                    'seller', 'store', 'logo', 'icon', 'avantaj', 'kampanya', 'indirim',
-                    'en_cok_satan', 'en-cok-satan', 'tamamlayici', '/web/', '/50/50/',
-                    'resources', 'enerjietiketi', '.svg', '.html', '.css', '.js'
+                    'badge', 'kargo', 'bedava', 'hizli', 'teslimat', 'satici', 'seller',
+                    'basarili', 'cok_satan', 'en_cok', 'tamamlayici', 'beden', 'sepet',
+                    'logo', 'icon', 'store', 'promotion', 'campaign', 'kampanya', 
+                    'resources', 'avatar', '/50/50/', 'mnresize/50', 'mnresize/128',
+                    'adak', 'iade', 'web-pdp', '.svg', '.css', '.js', '.html'
                   ];
                   
                   // Eğer URL engellenmiş bir kelime içeriyorsa boş string döndür
                   for (const pattern of blockedPatterns) {
                     if (url.toLowerCase().includes(pattern)) {
+                      console.log(`Görsel filtrelendi (engellenen içerik: ${pattern}): ${url}`);
                       return ''; // Bu URL'yi tamamen filtrele
                     }
                   }
@@ -1237,26 +1267,9 @@ export async function registerRoutes(app: Express): Promise<Server> {
                     cleanedUrl = cleanedUrl.split('#')[0];
                   }
                   
-                  // Query parametrelerini temizle, ancak bazı CDN'ler için gerekli olanları koru
+                  // Query parametrelerini temizle
                   if (cleanedUrl.includes('?')) {
-                    // Gerekli olmayan query parametrelerini temizle
-                    const urlParts = cleanedUrl.split('?');
-                    const base = urlParts[0];
-                    const params = new URLSearchParams(urlParts[1]);
-                    
-                    // Sadece CDN'ler için gerekli olan parametreleri tut
-                    const allowedParams = ['quality', 'width', 'height', 'fit', 'format'];
-                    const filteredParams = new URLSearchParams();
-                    
-                    for (const param of allowedParams) {
-                      if (params.has(param)) {
-                        filteredParams.append(param, params.get(param)!);
-                      }
-                    }
-                    
-                    // Eğer hiç parametre yoksa sadece base'i kullan
-                    const filteredParamsString = filteredParams.toString();
-                    cleanedUrl = filteredParamsString ? `${base}?${filteredParamsString}` : base;
+                    cleanedUrl = cleanedUrl.split('?')[0];
                   }
                   
                   // URL protokolünü düzelt
@@ -1274,14 +1287,14 @@ export async function registerRoutes(app: Express): Promise<Server> {
                                         .replace('/thumbnail/', '/original/')
                                         .replace('/mnresize/400/', '/mnresize/1200/');
                   
-                  // Sadece ürün görselleri olduğundan emin olmak için son bir kontrol
-                  const isValidProductImage = (
-                    (cleanedUrl.includes('/prod/') && cleanedUrl.includes('/media/images/')) ||
-                    (cleanedUrl.includes('/QC/') && cleanedUrl.includes('_org_zoom.jpg')) ||
-                    (cleanedUrl.includes('_org') || cleanedUrl.includes('_zoom'))
-                  ) && (/\.(jpe?g|png)($|\?)/.test(cleanedUrl.toLowerCase()));
+                  // Sadece JPG/PNG uzantılı dosyaları kabul et
+                  if (!/\.(jpe?g|png)($|\?)/.test(cleanedUrl.toLowerCase())) {
+                    console.log(`Görsel filtrelendi (geçersiz dosya uzantısı): ${cleanedUrl}`);
+                    return '';
+                  }
                   
-                  return isValidProductImage ? cleanedUrl : '';
+                  console.log(`Kabul edilen ana ürün görseli: ${cleanedUrl}`);
+                  return cleanedUrl;
                 } catch (error) {
                   // Hata durumunda boş string döndür
                   console.log("URL temizleme hatası:", error);
