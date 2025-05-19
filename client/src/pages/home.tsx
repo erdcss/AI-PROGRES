@@ -390,7 +390,7 @@ export default function Home() {
                   <div className="space-y-2">
                     <div className="flex items-center gap-2 text-sm text-gray-400">
                       <ImageIcon className="w-4 h-4" />
-                      <span>Ürün Görselleri ({product.images.length})</span>
+                      <span>Ürün Görselleri ({Math.min(product.images.length, 10)})</span>
                     </div>
                     <ScrollArea className="h-[250px] rounded-md border border-gray-800 p-4">
                       <div className="grid grid-cols-3 md:grid-cols-4 gap-4">
@@ -409,9 +409,34 @@ export default function Home() {
                               image.includes('sizechart') ||
                               image.includes('main.') ||
                               image.includes('spacer.gif');
+                              
+                            // ÜRÜNLE İLGİSİZ GÖRSELLERİ FİLTRELE
+                            const isIconOrBadge = 
+                              image.includes('badge') ||
+                              image.includes('icon') ||
+                              image.includes('logo') ||
+                              image.includes('tick') ||
+                              image.includes('check') ||
+                              image.includes('marker') ||
+                              image.includes('button') ||
+                              image.includes('hizli-') ||
+                              /[0-9]+(x|X)[0-9]+/.test(image) || // Boyut bilgisi içeren küçük görüntüler
+                              image.includes('svg') ||
+                              // LOGO VE MARKA GÖRSELLER
+                              image.includes('loreal') ||
+                              image.includes('oreal') ||
+                              image.includes('paris') ||
+                              image.includes('kozmetik') ||
+                              image.includes('fenerli') ||
+                              // Leke ve ticari metin içeren fotoğrafları kaldır
+                              image.includes('text') ||
+                              image.includes('title') ||
+                              image.includes('label');
                             
-                            return isValidImage && !isInvalidFile;
+                            return isValidImage && !isInvalidFile && !isIconOrBadge;
                           })
+                          // Maksimum 10 görsel ile sınırla
+                          .slice(0, 10)
                           .map((image: string, index: number) => {
                             // URL'i temizle ve düzelt
                             let cleanedImage = image;

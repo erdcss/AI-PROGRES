@@ -37,11 +37,32 @@ export function generateUltraSimpleCSV(product: Product, outputPath: string): st
   if (isElseveProduct) {
     console.log("ELSEVE ÜRÜNÜ TESPİT EDİLDİ: Özel görsel işlemi uygulanıyor");
     
-    // Sadece Elseve ürünü için - ilk ana görseli kullan
+    // Sadece Elseve ürünü için - belirtilen özel görseli kullan
+    const specificImage = "https://cdn.dsmcdn.com/mnresize/1200/1800/ty1620/prod/QC/20250108/09/3430777b-9351-3426-b44f-004e73c4e516/1_org_zoom.jpg";
+    
+    // Öncelikle görsel listesinde belirtilen resim var mı kontrol et
+    let foundSpecificImage = false;
+    
     if (product.images && product.images.length > 0) {
-      // İlk görseli kullan
-      mainImage = product.images[0];
-      console.log("ELSEVE ANA GÖRSEL SEÇİLDİ: " + mainImage);
+      // Önce belirtilen görseli ara
+      for (const img of product.images) {
+        if (img.includes("3430777b-9351-3426-b44f-004e73c4e516")) {
+          mainImage = img;
+          foundSpecificImage = true;
+          console.log("ELSEVE İÇİN BELİRTİLEN ÖZEL GÖRSEL BULUNDU: " + mainImage);
+          break;
+        }
+      }
+      
+      // Belirtilen görsel bulunamadıysa direkt belirtilen görseli kullan
+      if (!foundSpecificImage) {
+        mainImage = specificImage;
+        console.log("ELSEVE İÇİN BELİRTİLEN ÖZEL GÖRSEL DOĞRUDAN KULLANILDI");
+      }
+    } else {
+      // Hiç görsel yoksa doğrudan belirtilen görseli kullan
+      mainImage = specificImage;
+      console.log("ELSEVE İÇİN ÖZEL GÖRSEL DOĞRUDAN KULLANILDI (Görsel listesi boş)");
     }
   }
   // Normal diğer ürünler için standart işlem
