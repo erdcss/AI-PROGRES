@@ -17,7 +17,11 @@ const BLACKLISTED_IMAGE_TERMS = [
   'logo', 'badge', 'text-label', 'overlay', 'loreal', 'fener', 'kozmetik',
   'seller-store', 'basarili_satici', 'hizli-satici', 'indexing-sticker',
   'generated-logo', 'preview', 'enerjietiketi', 'authorized-seller', 'free-shipping',
-  '.svg', '.css', '.js', '.html', 'sticker-stamp'
+  '.svg', '.css', '.js', '.html', 'sticker-stamp', 'web-pdp', 'web-gray', 
+  'indexing-sticker', 'statics', 'stamp', 'Assets', 'icon', 'webp', 'mweb',
+  'satici-store', 'sticker', 'etiket', 'kampanya', 'overlay',
+  'saticistore', 'shipping-icon', 'tick-icon', 'kalp', 'sepet', 'satanlar',
+  'cok_satanlar', 'en_cok_sepete_eklenenler', 'en_begenilenler'
 ];
 
 // Görsel URL'inin gerçek ürün görseli olup olmadığını kontrol et

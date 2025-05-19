@@ -24,7 +24,10 @@ const BLACKLISTED_IMAGE_TERMS = [
   'seller-store', 'basarili_satici', 'hizli-satici', 'indexing-sticker',
   'generated-logo', 'preview', 'enerjietiketi', 'authorized-seller', 'free-shipping',
   '.svg', '.css', '.js', '.html', 'sticker-stamp', 'web-pdp', 'web-gray', 
-  'indexing-sticker', 'statics', 'stamp', 'Assets', 'icon', 'webp', 'mweb'
+  'indexing-sticker', 'statics', 'stamp', 'Assets', 'icon', 'webp', 'mweb',
+  'satici-store', 'sticker', 'etiket', 'kampanya', 'overlay',
+  'saticistore', 'shipping-icon', 'tick-icon', 'kalp', 'sepet', 'icon', 'satanlar',
+  'cok_satanlar', 'en_cok_sepete_eklenenler', 'en_begenilenler'
 ];
 
 // Görsel URL'inin gerçek ürün görseli olup olmadığını kontrol et
@@ -66,7 +69,7 @@ export function generateUltraSimpleCSV(product: Product, outputPath: string): st
     finalPrice = product.price || "0.00";
   }
   
-  // Ürün görsellerini filtrele - sadece gerçek ürün görselleri kalsın
+  // Ürün görsellerini filtrele - sadece gerçek ürün görselleri kalsın, sınırsız sayıda
   if (product.images && product.images.length > 0) {
     const originalImagesCount = product.images.length;
     product.images = product.images.filter(img => isValidProductImage(img));

@@ -30,18 +30,28 @@ const BLACKLISTED_IMAGE_TERMS = [
 function isValidProductImage(url: string): boolean {
   if (!url) return false;
   
-  // URL'de yasaklı terimlerden biri var mı kontrol et
-  const isBlacklisted = BLACKLISTED_IMAGE_TERMS.some(term => 
-    url.toLowerCase().includes(term.toLowerCase())
-  );
+  // Daha fazla görseli filtrelemek için ek terimler eklendi
+  const blacklist = [
+    'seller-store', 'badge', 'web-pdp', 'logo', 'cok_satanlar', 'en_cok_sepete_eklenenler',
+    'en_begenilenler', 'satici-store', 'sticker', 'etiket', 'kampanya', 'overlay',
+    'saticistore', 'shipping-icon', 'tick-icon', 'kalp', 'sepet', 'icon', 'satanlar',
+    'free-shipping', 'indexing', 'kozmetik', 'fener', 'loreal', 'promosyon'
+  ];
+  
+  // Her bir kara liste terimi için kontrol et
+  for (const term of blacklist) {
+    if (url.toLowerCase().includes(term)) {
+      return false;
+    }
+  }
   
   // URL içinde "org_zoom.jpg" veya "mnresize/1200" gibi gerçek ürün görseli içeriyor mu
   const isRealProductImage = url.includes('org_zoom.jpg') || 
                             url.includes('mnresize/1200') || 
                             url.includes('/prod/');
   
-  // Gerçek ürün görseli ve yasaklı terim içermeyen URL'ler için true döndür
-  return isRealProductImage && !isBlacklisted;
+  // Sadece gerçek ürün görseli görünsün
+  return isRealProductImage;
 }
 
 // Debug çıktıları
@@ -480,7 +490,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
                             const productImages = document.querySelectorAll('img[data-testid="productImage"]');
                             console.log(`Bulunan görsel sayısı: ${productImages.length}`);
                             
-                            // Görsel sayısı sınırı yok
+                            // Görsel sayısı sınırı kaldırıldı - tüm görseller çekilecek
                             let imageCount = 0;
                             const uniqueUrls = new Set();
                             const seenImageHashes = new Set();
