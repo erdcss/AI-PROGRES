@@ -451,18 +451,35 @@ export async function registerRoutes(app: Express): Promise<Server> {
                             const productImages = document.querySelectorAll('img[data-testid="productImage"]');
                             console.log(`Bulunan görsel sayısı: ${productImages.length}`);
                             
-                            // Maksimum 10 görsel al
-                            const maxImages = 10;
+                            // Görsel sayısı sınırı yok
                             let imageCount = 0;
+                            const uniqueUrls = new Set();
+                            const seenImageHashes = new Set();
                             
-                            // Görselleri ekleme
-                            for (let i = 0; i < Math.min(productImages.length, maxImages); i++) {
+                            // Görselleri ekleme ve benzersiz olanları filtreleme
+                            for (let i = 0; i < productImages.length; i++) {
                               const imgSrc = productImages[i].getAttribute('src');
-                              if (imgSrc) {
-                                const normalizedUrl = normalizeImageUrl(imgSrc);
-                                images.push(normalizedUrl);
-                                imageCount++;
-                              }
+                              if (!imgSrc) continue;
+                              
+                              // URL'yi normalize et
+                              const normalizedUrl = normalizeImageUrl(imgSrc);
+                              
+                              // Daha önce eklenmiş mi kontrol et
+                              if (uniqueUrls.has(normalizedUrl)) continue;
+                              
+                              // Görsel URL'den basit bir hash oluştur
+                              // Bu tam anlamıyla bir hash değil, sadece URL'nin ayırt edici kısmı
+                              const urlParts = normalizedUrl.split('/');
+                              const idPart = urlParts[urlParts.length - 2]; // UUID kısmı
+                              
+                              // Aynı görsel farklı URL'lerden geliyorsa engelle
+                              if (seenImageHashes.has(idPart)) continue;
+                              
+                              // Listeye ekle ve kayıt altına al
+                              seenImageHashes.add(idPart);
+                              uniqueUrls.add(normalizedUrl);
+                              images.push(normalizedUrl);
+                              imageCount++;
                             }
                             
                             if (imageCount > 0) {
@@ -479,26 +496,38 @@ export async function registerRoutes(app: Express): Promise<Server> {
                         console.log("SEÇİCİ BULUNAMADI, contentUrl KULLANILACAK");
                         
                         // Sadece contentUrl içindeki resimleri ekle (gerçek ürün resimleri)
-                        // MAKSİMUM 10 GÖRSEL SINIRI
-                        const maxImages = 10;
+                        // Görsel sayısı sınırı değil benzersizlik kontrolü
                         let imageCount = 0;
+                        const uniqueUrls = new Set();
+                        const seenImageHashes = new Set();
                         
                         // Python örneğindekine benzer yaklaşım - JSON-LD içinden görselleri al
                         for (const url of jsonData.image.contentUrl) {
-                          if (url && typeof url === 'string' && imageCount < maxImages) {
+                          if (url && typeof url === 'string') {
+                            // URL'yi normalize et
                             const normalizedUrl = normalizeImageUrl(url);
+                            
+                            // Daha önce eklenmiş mi kontrol et
+                            if (uniqueUrls.has(normalizedUrl)) continue;
+                            
+                            // Görsel URL'den basit bir hash oluştur
+                            // Bu tam anlamıyla bir hash değil, sadece URL'nin ayırt edici kısmı
+                            const urlParts = normalizedUrl.split('/');
+                            // UUID kısmı veya ayırt edici kısım
+                            const idPart = urlParts.length > 2 ? urlParts[urlParts.length - 2] : normalizedUrl;
+                            
+                            // Aynı görsel farklı URL'lerden geliyorsa engelle
+                            if (seenImageHashes.has(idPart)) continue;
+                            
+                            // Listeye ekle ve kayıt altına al
+                            seenImageHashes.add(idPart);
+                            uniqueUrls.add(normalizedUrl);
                             images.push(normalizedUrl);
                             imageCount++;
                           }
-                          
-                          // 10 görsel sınırına ulaşıldığında döngüden çık
-                          if (imageCount >= maxImages) {
-                            console.log(`MAKSİMUM GÖRSEL SINIRI (${maxImages}) AŞILDI - KALAN GÖRSELLER ATLANACAK`);
-                            break;
-                          }
                         }
                         
-                        console.log(`TOPLAM ALINAN GÖRSEL: ${imageCount}/${jsonData.image.contentUrl.length} (Maksimum: ${maxImages})`);
+                        console.log(`TOPLAM ALINAN BENZERSİZ GÖRSEL: ${imageCount}/${jsonData.image.contentUrl.length}`);
                       }
                       
                       console.log(`JSON-LD contentUrl: ${images.length} adet gerçek ürün görseli alındı`);
