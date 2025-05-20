@@ -1638,22 +1638,22 @@ export async function registerRoutes(app: Express): Promise<Server> {
                 }
               };
               
-              // Görsel listesini sıkı bir şekilde filtrele - SADECE ANA ÜRÜN GÖRSELLERİ (MAX 5)
-              console.log(`Toplam bulunun görsel sayısı: ${images.length}`);
+              // *** TÜM GÖRSELLERİ GÖSTER - FİLTRELEME KAPATILDI ***
+              console.log(`Toplam görsel sayısı: ${images.length}`);
               
-              // Önce tüm görselleri temizle ve filtrele
+              // Temel temizleme - Yalnızca geçersiz URL'leri filtrele
               const tempImages = images
                 .filter(img => isValidImageUrl(img))
                 .map(cleanImageUrl)
-                .filter(url => url !== ''); // Boş string'leri filtrele
+                .filter(url => url !== ''); // Boş URL'leri filtrele
                 
               console.log(`Temizleme sonrası kalan görsel sayısı: ${tempImages.length}`);
+              console.log("*** TÜM GÖRSELLER GÖSTERİLİYOR - FİLTRELEME KAPATILDI ***");
+              // Tekrarları kaldır ve tüm görselleri al
+              const uniqueImages = Array.from(new Set(tempImages));
+              let filteredImages = uniqueImages; // Tüm görselleri al, sınır koyma
               
-              // Sonra çok daha sıkı kriterlerle filtrele
-              const uniqueImages = Array.from(new Set(tempImages)); // Tekrarları kaldır
-              let filteredImages = uniqueImages.slice(0, 5); // Sadece ilk 5 görseli al
-              
-              // Sadece ana ürün görsellerini al (en fazla 3 tane)
+              // FİLTRELEME KODU DEVRE DIŞI - TÜM GÖRSELLERİ AL
               const isMainProductImage = (url: string): boolean => {
                 // Ana ürün görsellerini belirleme kriterleri:
                 
