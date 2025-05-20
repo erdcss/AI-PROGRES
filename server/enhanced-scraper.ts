@@ -5,6 +5,8 @@
 
 import { scrapeProductWithPuppeteer } from "./fixed-puppeteer-scraper";
 import { getAllProductImages } from "./image-extractor";
+import { extractVariants } from "./enhanced-variant-extractor";
+import { extractAttributes } from "./enhanced-attributes-extractor";
 import * as cheerio from "cheerio";
 import { Product, InsertProduct } from "@shared/schema";
 
@@ -47,33 +49,15 @@ export async function scrapeWithEnhancedImages(url: string): Promise<InsertProdu
     price = priceWithProfit;
   }
 
-  // Ürün özellikleri
-  const attributes: Record<string, string> = {};
-  $("div.detail-attr-container li.detail-attr-item").each((_, el) => {
-    const key = $(el).find(".attr-key").text().trim();
-    const value = $(el).find(".attr-value").text().trim();
-    if (key && value) attributes[key] = value;
-  });
+  // Geliştirilmiş ürün özellikleri çıkarıcı ile tüm özellikleri çek
+  console.log(`Ürün özellikleri geliştirilmiş modül ile çekiliyor...`);
+  const attributes = extractAttributes($);
+  console.log(`Toplam ${Object.keys(attributes).length} ürün özelliği bulundu`);
 
-  // Varyantlar - beden ve renk
-  const variants = {
-    size: [] as string[],
-    color: [] as string[]
-  };
-
-  // Beden varyantları 
-  $("div.sp-itm:contains('Beden')").next().find(".v-item").each((_, el) => {
-    const size = $(el).text().trim();
-    if (size) variants.size.push(size);
-  });
-
-  // Renk varyantları
-  $(".slc-img").each((_, el) => {
-    const color = $(el).attr("alt") || "";
-    if (color && !variants.color.includes(color)) {
-      variants.color.push(color);
-    }
-  });
+  // Geliştirilmiş varyant çıkarıcı ile tüm beden ve renk seçeneklerini çek
+  console.log(`Ürün varyantları geliştirilmiş modül ile çekiliyor...`);
+  const variants = extractVariants($);
+  console.log(`Toplam ${variants.size.length} beden, ${variants.color.length} renk varyantı bulundu`);
 
   // Kategori ve marka bilgisi
   const brand = $("h1.pr-new-br a").first().text().trim() || null;
