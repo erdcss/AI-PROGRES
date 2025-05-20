@@ -3,6 +3,7 @@ import { products, type Product, type InsertProduct } from "@shared/schema";
 export interface IStorage {
   saveProduct(product: InsertProduct): Promise<Product>;
   getProduct(url: string): Promise<Product | undefined>;
+  updateProductAttributes(id: number, attributes: Record<string, string>): Promise<void>;
   reset(): void;
   addToHistory(url: string): void;
   getHistory(): string[];

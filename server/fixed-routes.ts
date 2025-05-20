@@ -188,8 +188,24 @@ export async function registerRoutes(app: Express): Promise<Server> {
                                url.toLowerCase().includes("philips/lattego");
       
       // Önbelleği kontrol et
-      const cachedProduct = await storage.getProduct(url);
+      let cachedProduct = await storage.getProduct(url);
       if (cachedProduct) {
+        // Ürün özelliklerini temizle
+        if (cachedProduct.attributes) {
+          const { cleanTrendyolAttributes } = require('./clean-attributes');
+          const cleanedAttributes = cleanTrendyolAttributes(
+            cachedProduct.attributes,
+            cachedProduct.description || ''
+          );
+          
+          // Eğer temizlenmiş özellikler elde edildiyse, bunları kullan
+          if (Object.keys(cleanedAttributes).length > 0) {
+            cachedProduct.attributes = cleanedAttributes;
+            await storage.updateProductAttributes(cachedProduct.id, cleanedAttributes);
+            debug(`Ürün özellikleri temizlendi: ${Object.keys(cleanedAttributes).length} temiz özellik`);
+          }
+        }
+        
         debug(`Ürün önbellekten alındı: ${cachedProduct.title}`);
         
         // Geçmişe ekle
