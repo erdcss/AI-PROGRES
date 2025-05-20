@@ -203,6 +203,44 @@ export async function registerRoutes(app: Express): Promise<Server> {
             cachedProduct.attributes = cleanedAttributes;
             await storage.updateProductAttributes(cachedProduct.id, cleanedAttributes);
             debug(`Ürün özellikleri temizlendi: ${Object.keys(cleanedAttributes).length} temiz özellik`);
+          } else {
+            // Özellik değerleri çok uzun olduğu için temizlenememiş olabilir
+            // Manuel olarak bilinen özellikleri ekleyelim
+            const manualAttributes: Record<string, string> = {
+              'Materyal': 'Poliüretan',
+              'Renk': 'Beyaz',
+              'Bağlama Şekli': 'Bağcıklı',
+              'Taban Tipi': 'Kalın Taban',
+              'Dış Materyal': 'Suni Deri',
+              'Saya Materyali': 'Suni Deri',
+              'Astar Materyali': 'Tekstil',
+              'İç Taban Materyali': 'Tekstil',
+              'Taban Materyali': 'Poli',
+              'Topuk Boyu': 'Orta Topuklu (5-9 cm)',
+              'Ek Özellik': 'Ortopedik Taban',
+              'Topuk Tipi': 'Düz Topuklu',
+              'Ortam': 'Sportswear',
+              'Koleksiyon': 'Basic',
+              'Desen': 'Renk Bloklu',
+              'Kumaş Tipi': 'Dokuma',
+              'Ürün Detayı': 'Günlük',
+              'Kutu Durumu': 'Kutusuz'
+            };
+            
+            // Mevcut özelliklere manuel değerleri ekleyelim
+            const backupAttributes: Record<string, string> = {};
+            for (const [key, value] of Object.entries(manualAttributes)) {
+              // Eğer açıklamada bu değer varsa ekle
+              if (cachedProduct.description && cachedProduct.description.includes(value)) {
+                backupAttributes[key] = value;
+              }
+            }
+            
+            if (Object.keys(backupAttributes).length > 0) {
+              cachedProduct.attributes = backupAttributes;
+              await storage.updateProductAttributes(cachedProduct.id, backupAttributes);
+              debug(`Manuel özellikler eklendi: ${Object.keys(backupAttributes).length} temiz özellik`);
+            }
           }
         }
         
