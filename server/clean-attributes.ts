@@ -24,6 +24,12 @@ export function cleanTrendyolAttributes(
     'Model', 'Mevsim', 'Kullanım Alanı', 'Bel Tipi', 'Kol Tipi', 'Yaka Tipi',
     'Kalıp', 'Boy', 'Kol Boyu', 'Paça', 'Kapama Tipi', 'Cep Tipi'
   ];
+  
+  // Filtrelenecek özellikler - bunları ekleme
+  const filteredAttributeKeys = [
+    'İstanbul Vergi Kimlik Numarası', 'Semt', 'Sokak', 'Ücretsiz İade Hızlı TeslimatTrendyol Müşteri DesteğiSatıcı',
+    'Adres', 'Satıcı Ünvanı', 'Vergi Kimlik Numarası', 'İletişim', 'Şehir', 'Mahalle', 'Cadde'
+  ];
 
   // Açıklamadan özellikleri çıkar
   if (description) {
@@ -109,8 +115,13 @@ export function cleanTrendyolAttributes(
     }
   }
   
-  // Mevcut temiz özellikleri ekle (uzun olanları hariç tut)
+  // Mevcut temiz özellikleri ekle (uzun olanları ve filtrelenen özellikleri hariç tut)
   for (const [key, value] of Object.entries(attributes)) {
+    // Filtrelenecek özelliklerde varsa, ekleme
+    if (filteredAttributeKeys.includes(key)) {
+      continue;
+    }
+    
     // Eğer değer çok uzunsa (muhtemelen description parçasıdır)
     if (value && value.length < 50 && !cleanAttributes[key] && attributeKeys.includes(key)) {
       cleanAttributes[key] = value;
