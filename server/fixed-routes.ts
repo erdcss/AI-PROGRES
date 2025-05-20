@@ -1008,6 +1008,15 @@ export async function registerRoutes(app: Express): Promise<Server> {
                 }
               }
               
+              // Ürün adından özel renk çıkarımı - Başlık "Beyaz Pudra" içeriyorsa
+              if (title && title.toLowerCase().includes("beyaz pudra")) {
+                const colorVariant = "Beyaz Pudra";
+                if (!variants.color.includes(colorVariant)) {
+                  variants.color.push(colorVariant);
+                  console.log(`Başlıktan özel renk varyantı eklendi: ${colorVariant}`);
+                }
+              }
+              
               if (product.size) {
                 if (typeof product.size === 'string' && !variants.size.includes(product.size)) {
                   variants.size.push(product.size);
