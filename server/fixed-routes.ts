@@ -12,6 +12,8 @@ import { generateUltraSimpleCSV } from "./ultra-simple-csv";
 import { join } from "path";
 import { writeFileSync, mkdirSync, existsSync } from "fs";
 import { registerAllImagesRoute } from "./all-images-route";
+import { registerAllImagesRoutes } from "./all-images-routes";
+import { registerDirectImageEndpoint } from "./direct-image-endpoint";
 import * as csvWriter from "csv-writer";
 
 // Geçici dosyalar için klasör
@@ -73,8 +75,10 @@ function normalizeImageUrl(url: any): string {
 }
 
 export async function registerRoutes(app: Express): Promise<Server> {
-  // Tüm görselleri çeken özel endpoint'i kaydet
+  // Tüm görselleri çeken özel endpoint'leri kaydet
   registerAllImagesRoute(app);
+  registerAllImagesRoutes(app);
+  registerDirectImageEndpoint(app);
   // Klasörleri oluştur
   if (!existsSync(TEMP_DIR)) {
     mkdirSync(TEMP_DIR, { recursive: true });
