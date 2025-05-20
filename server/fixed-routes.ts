@@ -45,10 +45,14 @@ function isValidProductImage(url: string): boolean {
     }
   }
   
-  // URL içinde "org_zoom.jpg" veya "mnresize/1200" gibi gerçek ürün görseli içeriyor mu
+  // URL içinde gerçek ürün görseli içeriyor mu kontrol et
+  // Daha fazla görsel formatını kabul et
   const isRealProductImage = url.includes('org_zoom.jpg') || 
                             url.includes('mnresize/1200') || 
-                            url.includes('/prod/');
+                            url.includes('/prod/') ||
+                            (url.includes('dsmcdn.com/ty') && url.includes('product/media/images/')) ||
+                            url.includes('_org.jpg') ||
+                            url.includes('_org_zoom');
   
   // Sadece gerçek ürün görseli görünsün
   return isRealProductImage;
