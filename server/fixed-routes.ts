@@ -1314,24 +1314,12 @@ export async function registerRoutes(app: Express): Promise<Server> {
               // Trendyol resim klasörlerini ayrı ayrı kontrol et, tüm görselleri bul
               console.log("Ürün görselleri ayrıştırılıyor...");
 
-              // Geçerli resim dosyası olup olmadığını kontrol eden gelişmiş fonksiyon
+              // Geliştirilmiş görsel filtreleme fonksiyonu - Daha fazla ürün görseli için iyileştirildi
               const isValidImageUrl = (url: string): boolean => {
                 if (!url) return false;
                 
                 // Temel filtreler: CSS, JS, HTML, PHP dosyalarını hariç tut
                 if (/\.(css|js|html|php|svg)($|\?)/.test(url.toLowerCase())) return false;
-                
-                // Özel durum filtrelemeleri
-                const excludedPatterns = [
-                  'sizechart', 'main.', 'spacer.gif', 'blank.gif', 'loading.gif',
-                  'transparent.png', 'pixel.gif', 'dummy', 'placeholder', 'spinner',
-                  'tracking', 'captcha', 'analytics', 'banner', 'advertisement',
-                  'social', 'icon', 'logo', 'button', 'ui-', 'favicon', 'avatar'
-                ];
-                
-                for (const pattern of excludedPatterns) {
-                  if (url.toLowerCase().includes(pattern)) return false;
-                }
                 
                 // Sadece CDN görsellerini al - Trendyol CDN kontrolleri
                 const cdnDomains = [
@@ -1342,10 +1330,26 @@ export async function registerRoutes(app: Express): Promise<Server> {
                 const isCdnUrl = cdnDomains.some(domain => url.includes(domain));
                 if (!isCdnUrl) return false;
                 
-                // Ürün görseli yollarını kontrol et
+                // Ürün görseli olmayan içerikleri filtrele
+                const excludedPatterns = [
+                  'sizechart', 'main.', 'spacer.gif', 'blank.gif', 'loading.gif',
+                  'transparent.png', 'pixel.gif', 'dummy', 'placeholder', 'spinner',
+                  'tracking', 'captcha', 'analytics', 'banner', 'advertisement',
+                  'cok_satanlar', 'en_cok_sepete', 'en_begenilenler', 'kampanya',
+                  'satici-store', 'badge', 'icon-', 'logo', 'button', 'ui-', 'favicon'
+                ];
+                
+                for (const pattern of excludedPatterns) {
+                  if (url.toLowerCase().includes(pattern)) return false;
+                }
+                
+                // Ürün görseli içeren yolları kontrol et - GENIŞLETILDI
                 const productImagePatterns = [
-                  'product/media', '/products/', '/product/', 
-                  'original', 'zoom', '_org_', 'images/', '/ty'
+                  '/product/media/', '/products/', '/product/', 
+                  'original', 'zoom', '_org_', 'images/', 
+                  '/ty', '/ty1', '/ty2', '/ty3', '/ty4', '/ty5', 
+                  '/ty6', '/ty7', '/ty8', '/ty9', '/prod/',
+                  '/media/'
                 ];
                 
                 const isProductImagePath = productImagePatterns.some(pattern => url.includes(pattern));
@@ -1353,14 +1357,25 @@ export async function registerRoutes(app: Express): Promise<Server> {
                 // Geçerli görsel uzantılarına sahip mi?
                 const hasValidExtension = /\.(jpg|jpeg|png|webp|gif)($|\?|#)/.test(url.toLowerCase());
                 
-                // Görsel ID'si içeriyor mu? (genellikle ürün görselleri ID içerir)
-                const hasImageId = /[0-9]+_[0-9]+(_org|_zoom)/.test(url);
+                // Daha gelişmiş görsel ID tanıma
+                const hasImageId = 
+                  /[0-9]+_[0-9]+(_org|_zoom)/.test(url) || 
+                  /\/[0-9]+\/[0-9]+\//.test(url) ||
+                  /_org\.jpg/.test(url) ||
+                  /\/[0-9]\/[0-9]_org_zoom\.jpg/.test(url);
                 
-                // URL'de "org" veya "zoom" ifadesi var mı? (orijinal görsel belirteci)
-                const isOriginalImage = url.includes('_org') || url.includes('_zoom') || url.includes('original');
+                // Trendyol tam görsel URL paternleri
+                const isTrendyolProductImage = 
+                  url.includes('/mnresize/') || 
+                  url.includes('_org_zoom') || 
+                  url.includes('_org.jpg') ||
+                  (url.includes('/ty') && url.includes('/product/media/images/')) ||
+                  (url.includes('/prod/') && url.includes('org_zoom'));
                 
-                // Ürünle ilgili bir görsel mi?
-                return isCdnUrl && (isProductImagePath || hasValidExtension) && (hasImageId || isOriginalImage);
+                // Daha fazla ürün görselini almak için genişletilmiş kontrol
+                return isCdnUrl && 
+                       hasValidExtension && 
+                       (isProductImagePath || isTrendyolProductImage || hasImageId);
               };
               
               // Ana slider'da görselleri ara
