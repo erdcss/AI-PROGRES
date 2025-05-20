@@ -11,6 +11,7 @@ import { generateShopifyCSV } from "./shopify-export";
 import { generateUltraSimpleCSV } from "./ultra-simple-csv";
 import { join } from "path";
 import { writeFileSync, mkdirSync, existsSync } from "fs";
+import { registerAllImagesRoute } from "./all-images-route";
 import * as csvWriter from "csv-writer";
 
 // Geçici dosyalar için klasör
@@ -72,6 +73,8 @@ function normalizeImageUrl(url: any): string {
 }
 
 export async function registerRoutes(app: Express): Promise<Server> {
+  // Tüm görselleri çeken özel endpoint'i kaydet
+  registerAllImagesRoute(app);
   // Klasörleri oluştur
   if (!existsSync(TEMP_DIR)) {
     mkdirSync(TEMP_DIR, { recursive: true });
