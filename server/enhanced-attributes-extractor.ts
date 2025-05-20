@@ -68,15 +68,59 @@ export function extractAttributes($: cheerio.CheerioAPI): Record<string, string>
         const jsonContent = $(script).html();
         if (!jsonContent) return;
         
-        const data = JSON.parse(jsonContent);
-        
-        // Tip 1: additionalProperty (ürün özellikleri dizisi)
-        if (data.additionalProperty && Array.isArray(data.additionalProperty)) {
-          data.additionalProperty.forEach((prop: any) => {
-            if (prop.name && prop.value && !attributes[prop.name]) {
-              attributes[prop.name] = prop.value.toString();
-            }
-          });
+        // Trendyol'un JSON-LD yapısı çeşitli olabiliyor, bu yüzden JSON içeriğini kontrol edelim
+        if (jsonContent.includes('"additionalProperty"') && 
+            (jsonContent.includes('"PropertyValue"') || jsonContent.includes('"unitText"'))) {
+          
+          console.log("JSON-LD içinde additionalProperty bulundu");
+          const data = JSON.parse(jsonContent);
+          
+          // ProductGroup tipinde veri
+          if (data["@type"] === "ProductGroup" && Array.isArray(data.additionalProperty)) {
+            console.log(`ProductGroup tipinde ${data.additionalProperty.length} özellik bulundu`);
+            
+            data.additionalProperty.forEach((prop: any) => {
+              // Özel durum - Trendyol unitText alanını kullanıyor
+              if (prop["@type"] === "PropertyValue" && prop.name && prop.unitText) {
+                attributes[prop.name] = prop.unitText;
+              } 
+              // Standart durum - value alanını kullanıyor
+              else if (prop.name && prop.value) {
+                attributes[prop.name] = prop.value.toString();
+              }
+            });
+          }
+          
+          // Product tipinde veri
+          if (data["@type"] === "Product" && Array.isArray(data.additionalProperty)) {
+            console.log(`Product tipinde ${data.additionalProperty.length} özellik bulundu`);
+            
+            data.additionalProperty.forEach((prop: any) => {
+              if (prop["@type"] === "PropertyValue" && prop.name) {
+                // Trendyol farklı alanlarda değer saklayabiliyor
+                const value = prop.value || prop.unitText || prop.propertyValue;
+                if (value) {
+                  attributes[prop.name] = value.toString();
+                }
+              }
+            });
+          }
+          
+          // Bazı ürün varyantları da özellik içerebilir
+          if (data.hasVariant && Array.isArray(data.hasVariant)) {
+            data.hasVariant.forEach((variant: any) => {
+              if (variant.additionalProperty && Array.isArray(variant.additionalProperty)) {
+                variant.additionalProperty.forEach((prop: any) => {
+                  if (prop.name && (prop.value || prop.unitText)) {
+                    const value = prop.value || prop.unitText;
+                    if (!attributes[prop.name]) {
+                      attributes[prop.name] = value.toString();
+                    }
+                  }
+                });
+              }
+            });
+          }
         }
         
         // Tip 2: Doğrudan özellikler
@@ -104,7 +148,7 @@ export function extractAttributes($: cheerio.CheerioAPI): Record<string, string>
           attributes['Beden'] = data.size;
         }
       } catch (e) {
-        // JSON parse hataları sessizce geçilir
+        console.error('JSON-LD ayrıştırma hatası:', e);
       }
     });
     
