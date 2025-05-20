@@ -15,6 +15,7 @@ import { writeFileSync, mkdirSync, existsSync } from "fs";
 import { registerAllImagesRoute } from "./all-images-route";
 import { registerAllImagesRoutes } from "./all-images-routes";
 import { registerDirectImageEndpoint } from "./direct-image-endpoint";
+import { cleanTrendyolAttributes } from "./clean-attributes";
 import * as csvWriter from "csv-writer";
 
 // Geçici dosyalar için klasör
@@ -192,7 +193,6 @@ export async function registerRoutes(app: Express): Promise<Server> {
       if (cachedProduct) {
         // Ürün özelliklerini temizle
         if (cachedProduct.attributes) {
-          const { cleanTrendyolAttributes } = require('./clean-attributes');
           const cleanedAttributes = cleanTrendyolAttributes(
             cachedProduct.attributes,
             cachedProduct.description || ''

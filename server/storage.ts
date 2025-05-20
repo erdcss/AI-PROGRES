@@ -109,6 +109,18 @@ export class MemStorage implements IStorage {
   getHistory(): string[] {
     return this.urlHistory;
   }
+  
+  async updateProductAttributes(id: number, attributes: Record<string, string>): Promise<void> {
+    // Tüm kayıtlı ürünleri kontrol et
+    for (const [url, product] of this.products.entries()) {
+      if (product.id === id) {
+        // Ürün bulunduğunda özelliklerini güncelle
+        product.attributes = attributes;
+        // Güncellenen ürünü depoya geri yaz
+        this.products.set(url, product);
+      }
+    }
+  }
 }
 
 export const storage = new MemStorage();
