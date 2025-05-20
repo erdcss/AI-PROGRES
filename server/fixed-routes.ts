@@ -1691,33 +1691,26 @@ export async function registerRoutes(app: Express): Promise<Server> {
               
               console.log(`Filtrelenen görsellerden ${mainImages.length} adet ana ürün görseli bulundu`);
               
-              // Eğer ana görsel bulunduysa, SADECE onları kullan (en fazla 3 tane)
+              // YENİ: TÜM GÖRSELLERİ KULLAN, SINIR YOK
               if (mainImages.length > 0) {
-                console.log(`${mainImages.length} ana ürün görseli bulundu, sadece bunlar kullanılacak`);
-                // En iyi 3 görseli seç
-                filteredImages = mainImages.slice(0, 3);
+                console.log(`${mainImages.length} ana ürün görseli bulundu, TÜM GÖRSELLER KULLANILACAK`);
+                // Tüm ana görselleri kullan, limit yok
+                filteredImages = mainImages;
               } else {
                 // Ana görsel bulunamadıysa, alternatif yöntem olarak ilk 2 görseli kullan
                 console.log("Ana ürün görselleri belirlenemedi, alternatif filtreleme kullanılacak");
                 
-                // Alternatif filtreleme: Kampanya, badge ve küçük görselleri çıkar
+                // YENİ: GÖRSEL FİLTRELEME TAMAMEN DEVRE DIŞI BIRAKILDI
+                // Sadece geçerli image tiplerini kontrol et, diğer sınırlamalar yok
                 const alternativeFiltered = filteredImages.filter(url => {
-                  return !url.toLowerCase().includes('badge') &&
-                         !url.toLowerCase().includes('avantaj') &&
-                         !url.toLowerCase().includes('kampanya') &&
-                         !url.toLowerCase().includes('promo') &&
-                         !url.toLowerCase().includes('kargo') &&
-                         !url.toLowerCase().includes('thumbnail') &&
-                         !url.toLowerCase().includes('logo') &&
-                         !url.toLowerCase().includes('icon');
+                  // Sadece görsel URL'si mi diye kontrol et
+                  return (url.includes('cdn.dsmcdn.com') || url.includes('cdn.trendyol.com')) &&
+                         (url.includes('.jpg') || url.includes('.jpeg') || url.includes('.png') || url.includes('.webp'));
                 });
                 
-                if (alternativeFiltered.length > 0) {
-                  filteredImages = alternativeFiltered.slice(0, 2);
-                } else {
-                  // Son çare olarak ilk görseli kullan
-                  filteredImages = filteredImages.slice(0, 1);
-                }
+                // TÜM GÖRSELLERİ KULLAN - SINIR YOK
+                console.log("FİLTRELEME DEVRE DIŞI - TÜM GÖRSELLER KULLANILACAK");
+                filteredImages = alternativeFiltered;
               }
               
               // Kampanya görselleri (promosyon etiketleri, "avantajlı ürün", "indirim" vb.)
