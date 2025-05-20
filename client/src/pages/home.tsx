@@ -33,6 +33,7 @@ import {
   AlertTitle,
 } from "@/components/ui/alert";
 import { ScrollArea } from "@/components/ui/scroll-area";
+import ProductAttributes from "@/components/ProductAttributes";
 
 // Uygulama sürüm numarası - Shopify seçenek değeri hatası düzeltmesi ile arttırıldı
 const APP_VERSION = "0.13.1004";
@@ -540,16 +541,7 @@ export default function Home() {
                           </div>
                         </AccordionTrigger>
                         <AccordionContent>
-                          <div className="bg-gray-900/50 rounded-lg p-4">
-                            <div className="grid grid-cols-1 gap-3">
-                              {Object.entries(product.attributes).map(([key, value]) => (
-                                <div key={key} className="flex items-center py-2 px-3 bg-gray-800/50 rounded-md">
-                                  <span className="text-sm text-gray-400 w-1/3">{key}</span>
-                                  <span className="text-sm text-white w-2/3">{value as string}</span>
-                                </div>
-                              ))}
-                            </div>
-                          </div>
+                          <ProductAttributes attributes={product.attributes} />
                         </AccordionContent>
                       </AccordionItem>
                       <AccordionItem value="variants" className="border-gray-800">

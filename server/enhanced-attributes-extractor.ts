@@ -112,8 +112,29 @@ export function extractAttributes($: cheerio.CheerioAPI): Record<string, string>
     // Bazen açıklama alanında key:value formatında bilgiler olabilir
     const descriptionText = $("div.detail-desc-content").text();
     if (descriptionText) {
+      // Ürün Özellikleri bölümünü ara
+      if (descriptionText.includes("Ürün Özellikleri")) {
+        console.log("Ürün açıklamasında Ürün Özellikleri bölümü bulundu");
+        
+        // Özellik isimlerini ve değerlerini bul (Genellikle "İsim Değer" formatında)
+        const propertyMatches = descriptionText.match(/([A-Za-zÇçĞğİıÖöŞşÜü\s]+)(\s+)([A-Za-zÇçĞğİıÖöŞşÜü0-9\s\-%\(\)]+)/g);
+        if (propertyMatches) {
+          propertyMatches.forEach(match => {
+            // Boşluklara göre parçalara ayır
+            const parts = match.split(/\s{2,}/); // İki veya daha fazla boşluk
+            if (parts.length >= 2) {
+              const key = parts[0].trim();
+              const value = parts[1].trim();
+              if (key && value && !attributes[key] && key !== "Ürün Özellikleri") {
+                attributes[key] = value;
+              }
+            }
+          });
+        }
+      }
+      
       // Key: Value formatındaki bilgileri bul
-      const matches = descriptionText.match(/([A-Za-zÇçĞğİıÖöŞşÜü]+)\s*:\s*([^\n,]+)/g);
+      const matches = descriptionText.match(/([A-Za-zÇçĞğİıÖöŞşÜü\s]+)\s*:\s*([^\n,]+)/g);
       if (matches) {
         matches.forEach(match => {
           const parts = match.split(':');
@@ -126,6 +147,25 @@ export function extractAttributes($: cheerio.CheerioAPI): Record<string, string>
           }
         });
       }
+    }
+    
+    // 4.1 Özel Trendyol tablo özelliklerini bul
+    // Trendyol'un HTML tablosundaki verileri doğrudan çek
+    let tableRows = $("table.detail-attr-table tr");
+    if (tableRows.length === 0) {
+      tableRows = $(".product-feature-table tr");
+    }
+    
+    if (tableRows.length > 0) {
+      console.log(`Trendyol özellik tablosunda ${tableRows.length} satır bulundu`);
+      tableRows.each((_, row) => {
+        const key = $(row).find("th").text().trim();
+        const value = $(row).find("td").text().trim();
+        
+        if (key && value && !attributes[key]) {
+          attributes[key] = value;
+        }
+      });
     }
     
     // 5. Ürün başlığından kategori bilgisi çıkarma
