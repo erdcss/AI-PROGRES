@@ -21,8 +21,36 @@ export function extractVariants($: cheerio.CheerioAPI): {
     color: [] as string[],
     hasVariants: false
   };
+  
+  console.log("Varyant çıkarma başlatıldı...");
 
   try {
+    // 0. Direkt ürün özelliklerinden ve attributes'dan renk çıkarma
+    // HTML'den özellik arama
+    const colorAttribute = $('div.detail-attr-container div.detail-attr-item:contains("Renk")').next().text().trim();
+    if (colorAttribute) {
+      console.log(`Özelliklerden renk bulundu: ${colorAttribute}`);
+      if (!variants.color.includes(colorAttribute)) {
+        variants.color.push(colorAttribute);
+        variants.hasVariants = true;
+      }
+    }
+    
+    // Ürün attributeslarında doğrudan Renk alanı arama
+    const attrNodes = $('[data-id="attribute-item"]');
+    attrNodes.each((_, node) => {
+      const attrName = $(node).find('[data-id="attribute-key"]').text().trim();
+      const attrValue = $(node).find('[data-id="attribute-value"]').text().trim();
+      
+      if (attrName === "Renk" && attrValue) {
+        console.log(`Attribute node'dan renk bulundu: ${attrValue}`);
+        if (!variants.color.includes(attrValue)) {
+          variants.color.push(attrValue);
+          variants.hasVariants = true;
+        }
+      }
+    });
+    
     // 1. Beden varyantları (Sadece Beden seçeneği olan sayfalar)
     // Yöntem 1: Standart beden ayrıştırma
     $("div.sp-itm:contains('Beden')").next().find(".v-item").each((_, el) => {
@@ -256,12 +284,33 @@ export function extractVariants($: cheerio.CheerioAPI): {
         variants.hasVariants = true;
       }
       
-      // Manuel renk ekleme - JSON LD verilerinden bildiğimiz için
-      if (title.toLowerCase().includes("kadın beyaz pudra sneaker")) {
+      // Manuel renk ekleme - Başlıktan renk bilgisini doğrudan çıkarma 
+      if (title.toLowerCase().includes("beyaz pudra")) {
         if (!variants.color.includes("Beyaz Pudra")) {
           variants.color.push("Beyaz Pudra");
           variants.hasVariants = true;
           console.log("Manuel renk eklendi: Beyaz Pudra");
+        }
+      }
+      
+      // Başlıktaki son iki kelime genellikle renk bilgisi olabilir
+      const words = title.split(' ');
+      if (words.length >= 3) {
+        // "Kadın" ve "Erkek" gibi cinsiyet belirteçlerini atlayarak renk bilgisini bulalım
+        const nonGenderWords = words.filter(w => 
+          !['kadın', 'erkek', 'unisex', 'çocuk', 'kız', 'erkek çocuk', 'kız çocuk'].includes(w.toLowerCase()));
+        
+        if (nonGenderWords.length >= 2) {
+          const possibleColor = `${nonGenderWords[nonGenderWords.length-2]} ${nonGenderWords[nonGenderWords.length-1]}`;
+          if (possibleColor.toLowerCase().includes('beyaz') || 
+              possibleColor.toLowerCase().includes('siyah') || 
+              possibleColor.toLowerCase().includes('mavi')) {
+            console.log(`Başlıktan muhtemel renk çıkarıldı: ${possibleColor}`);
+            if (!variants.color.includes(possibleColor)) {
+              variants.color.push(possibleColor);
+              variants.hasVariants = true;
+            }
+          }
         }
       }
       
