@@ -82,18 +82,71 @@ export function extractVariants($: cheerio.CheerioAPI): {
         
         const data = JSON.parse(jsonContent);
         
-        // Tip 1: hasVariant içinde
-        if (data.hasVariant && Array.isArray(data.hasVariant)) {
-          data.hasVariant.forEach((variant: any) => {
-            // Renk varyantı
-            if (variant.color && !variants.color.includes(variant.color)) {
-              variants.color.push(variant.color);
+        // ProductGroup türündeki ürünler için varyant çıkarımı
+        if (data['@type'] === 'ProductGroup') {
+          // hasVariant alanı içinde varyantlar
+          if (data.hasVariant && Array.isArray(data.hasVariant)) {
+            data.hasVariant.forEach((variant: any) => {
+              // Renk varyantı
+              if (variant.color && !variants.color.includes(variant.color)) {
+                variants.color.push(variant.color);
+                variants.hasVariants = true;
+              }
+              
+              // Beden varyantı - string ise direk alınır
+              if (typeof variant.size === 'string' && !variants.size.includes(variant.size)) {
+                variants.size.push(variant.size);
+                variants.hasVariants = true;
+              }
+              
+              // Beden varyantı - dizi ise her bir öğe ayrı ayrı alınır
+              if (Array.isArray(variant.size)) {
+                variant.size.forEach((sizeItem: string) => {
+                  if (sizeItem && !variants.size.includes(sizeItem)) {
+                    variants.size.push(sizeItem);
+                    variants.hasVariants = true;
+                  }
+                });
+              }
+            });
+          }
+        }
+        
+        // Ürün varyasyonu olan varyantlar için
+        if (data['@type'] === 'Product') {
+          // Renk varyantı
+          if (data.color && !variants.color.includes(data.color)) {
+            variants.color.push(data.color);
+            variants.hasVariants = true;
+          }
+          
+          // Beden varyantı
+          if (typeof data.size === 'string' && !variants.size.includes(data.size)) {
+            variants.size.push(data.size);
+            variants.hasVariants = true;
+          }
+          
+          // Beden varyantları dizi olarak gelmiş olabilir
+          if (Array.isArray(data.size)) {
+            data.size.forEach((sizeItem: string) => {
+              if (sizeItem && !variants.size.includes(sizeItem)) {
+                variants.size.push(sizeItem);
+                variants.hasVariants = true;
+              }
+            });
+          }
+        }
+        
+        // additionalProperty içinde varyant bilgisi
+        if (data.additionalProperty && Array.isArray(data.additionalProperty)) {
+          data.additionalProperty.forEach((prop: any) => {
+            if (prop.name === 'Renk' && prop.unitText && !variants.color.includes(prop.unitText)) {
+              variants.color.push(prop.unitText);
               variants.hasVariants = true;
             }
             
-            // Beden varyantı
-            if (variant.size && !variants.color.includes(variant.size)) {
-              variants.size.push(variant.size);
+            if (prop.name === 'Beden' && prop.unitText && !variants.size.includes(prop.unitText)) {
+              variants.size.push(prop.unitText);
               variants.hasVariants = true;
             }
           });
@@ -108,7 +161,18 @@ export function extractVariants($: cheerio.CheerioAPI): {
             variants.hasVariants = true;
           }
         }
+        
+        // variesBy ile varyant tipleri
+        if (data.variesBy && Array.isArray(data.variesBy)) {
+          if (data.variesBy.includes('https://schema.org/size')) {
+            console.log('Ürün beden varyantları içeriyor');
+          }
+          if (data.variesBy.includes('https://schema.org/color')) {
+            console.log('Ürün renk varyantları içeriyor');
+          }
+        }
       } catch (e) {
+        console.error('JSON-LD varyant çıkarma hatası:', e);
         // JSON parse hataları sessizce geçilir
       }
     });
