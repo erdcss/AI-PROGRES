@@ -1017,6 +1017,10 @@ export async function registerRoutes(app: Express): Promise<Server> {
                 }
               }
               
+              // Kontrol amaçlı log çıktısı
+              console.log(`Renk varyantları: ${JSON.stringify(variants.color)}`);
+              console.log(`Beden varyantları: ${JSON.stringify(variants.size)}`);
+              
               if (product.size) {
                 if (typeof product.size === 'string' && !variants.size.includes(product.size)) {
                   variants.size.push(product.size);
