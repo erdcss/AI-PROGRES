@@ -39,11 +39,14 @@ function isValidProductImage(url: string): boolean {
     url.toLowerCase().includes(term.toLowerCase())
   );
   
-  // URL içinde "org_zoom.jpg" veya "mnresize/1200" gibi gerçek ürün görseli içeriyor mu
+  // URL içinde gerçek ürün görseli içeriyor mu kontrol et
+  // Daha fazla görsel formatını kabul et - tüm ürün görsellerini getirmek için
   const isRealProductImage = url.includes('org_zoom.jpg') || 
                             url.includes('mnresize/1200') || 
-                            url.includes('cdn.dsmcdn.com/ty') ||
-                            url.includes('/prod/');
+                            url.includes('/prod/') ||
+                            (url.includes('dsmcdn.com/ty') && url.includes('product/media/images/')) ||
+                            url.includes('_org.jpg') ||
+                            url.includes('_org_zoom');
   
   // Gerçek ürün görseli ve yasaklı terim içermeyen URL'ler için true döndür
   return isRealProductImage && !isBlacklisted;
