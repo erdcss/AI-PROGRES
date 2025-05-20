@@ -1392,51 +1392,115 @@ export async function registerRoutes(app: Express): Promise<Server> {
                 }
               });
               
-              // JSON-LD içindeki görselleri bul - schema.org ürün verileri
+              // JSON-LD içindeki görselleri bul - schema.org ürün verileri (geliştirilmiş)
               try {
                 // En iyi kalitede görseller genellikle schema.org yapısında bulunur
-                const schemaScript = $('script[type="application/ld+json"]').text();
-                if (schemaScript) {
-                  const schemaData = JSON.parse(schemaScript);
-                  
-                  // Fotoğraf bilgilerini bul
-                  if (schemaData && schemaData.image) {
-                    // Tekil görsel
-                    if (typeof schemaData.image === 'string' && isValidImageUrl(schemaData.image)) {
-                      images.push(schemaData.image);
-                    }
-                    // Görsel adresi contentUrl içinde
-                    else if (schemaData.image.contentUrl) {
-                      if (Array.isArray(schemaData.image.contentUrl)) {
-                        // Çoklu görsel adresleri
-                        schemaData.image.contentUrl.forEach((imgUrl: string) => {
-                          if (isValidImageUrl(imgUrl) && !images.includes(imgUrl)) {
-                            images.push(imgUrl);
+                console.log("JSON-LD ayrıştırması başlıyor...");
+                const jsonLdImages: string[] = [];
+                
+                // Tüm JSON-LD scriptlerini tara
+                const schemaScripts = $('script[type="application/ld+json"]');
+                console.log(`Sayfada ${schemaScripts.length} adet JSON-LD script bulundu`);
+                
+                schemaScripts.each((_, el) => {
+                  try {
+                    const scriptContent = $(el).text();
+                    if (!scriptContent || scriptContent.trim() === '') return;
+                    
+                    const schemaData = JSON.parse(scriptContent);
+                    
+                    // 1. ProductGroup yapısı - Trendyol'un en yaygın formatı
+                    if (schemaData["@type"] === "ProductGroup") {
+                      // 1.1. Image.contentUrl dizisi (en yaygın format)
+                      if (schemaData.image && schemaData.image.contentUrl) {
+                        if (Array.isArray(schemaData.image.contentUrl)) {
+                          console.log(`JSON-LD: ${schemaData.image.contentUrl.length} adet contentUrl dizisi bulundu`);
+                          schemaData.image.contentUrl.forEach((url: string) => {
+                            if (url && !jsonLdImages.includes(url)) {
+                              jsonLdImages.push(url);
+                            }
+                          });
+                        } else if (typeof schemaData.image.contentUrl === 'string') {
+                          jsonLdImages.push(schemaData.image.contentUrl);
+                        }
+                      }
+                      
+                      // 1.2. Varyant ürünlerindeki görseller
+                      if (schemaData.hasVariant && Array.isArray(schemaData.hasVariant)) {
+                        console.log(`JSON-LD: ${schemaData.hasVariant.length} varyant bulundu`);
+                        schemaData.hasVariant.forEach((variant: any) => {
+                          if (variant.image) {
+                            if (typeof variant.image === 'string') {
+                              jsonLdImages.push(variant.image);
+                            } else if (variant.image.contentUrl) {
+                              if (typeof variant.image.contentUrl === 'string') {
+                                jsonLdImages.push(variant.image.contentUrl);
+                              }
+                            }
                           }
                         });
-                      } else if (typeof schemaData.image.contentUrl === 'string') {
-                        // Tekil görsel adresi
-                        if (isValidImageUrl(schemaData.image.contentUrl)) {
-                          images.push(schemaData.image.contentUrl);
+                      }
+                    }
+                    
+                    // 2. Product yapısı
+                    else if (schemaData["@type"] === "Product") {
+                      if (schemaData.image) {
+                        // 2.1. String formatında tek görsel
+                        if (typeof schemaData.image === 'string') {
+                          jsonLdImages.push(schemaData.image);
+                        }
+                        // 2.2. ImageObject formatında görsel
+                        else if (schemaData.image.contentUrl) {
+                          if (Array.isArray(schemaData.image.contentUrl)) {
+                            schemaData.image.contentUrl.forEach((url: string) => {
+                              if (url) jsonLdImages.push(url);
+                            });
+                          } else if (typeof schemaData.image.contentUrl === 'string') {
+                            jsonLdImages.push(schemaData.image.contentUrl);
+                          }
+                        }
+                        // 2.3. URL özelliği
+                        else if (schemaData.image.url) {
+                          jsonLdImages.push(schemaData.image.url);
+                        }
+                        // 2.4. Görsel dizisi
+                        else if (Array.isArray(schemaData.image)) {
+                          schemaData.image.forEach((img: any) => {
+                            if (typeof img === 'string') {
+                              jsonLdImages.push(img);
+                            } else if (img && img.contentUrl) {
+                              if (typeof img.contentUrl === 'string') {
+                                jsonLdImages.push(img.contentUrl);
+                              }
+                            } else if (img && img.url) {
+                              jsonLdImages.push(img.url);
+                            }
+                          });
                         }
                       }
                     }
-                    // Görsel dizisi
-                    else if (Array.isArray(schemaData.image)) {
-                      schemaData.image.forEach((img: any) => {
-                        if (typeof img === 'string' && isValidImageUrl(img)) {
-                          images.push(img);
-                        } else if (img.url && isValidImageUrl(img.url)) {
-                          images.push(img.url);
-                        }
-                      });
+                  } catch (parseError) {
+                    console.log("JSON-LD ayrıştırma hatası:", parseError);
+                  }
+                });
+                
+                // JSON-LD'den bulunan tüm görselleri ana listeye ekle
+                if (jsonLdImages.length > 0) {
+                  console.log(`JSON-LD'den toplam ${jsonLdImages.length} adet görsel bulundu`);
+                  
+                  // Filtreleme yapmadan tüm görselleri ekle
+                  for (const url of jsonLdImages) {
+                    if (!images.includes(url)) {
+                      images.push(url);
                     }
                   }
                   
-                  console.log(`JSON-LD'den ${images.length} görsel bulundu`);
+                  console.log(`Görüntü listesine ${jsonLdImages.length} JSON-LD görseli eklendi`);
+                } else {
+                  console.log("JSON-LD içinde görsel bulunamadı");
                 }
               } catch (e) {
-                console.log("JSON-LD ayrıştırma hatası:", e);
+                console.log("Ana JSON-LD ayrıştırma hatası:", e);
               }
               
               // Alt etiketli görselleri bul
