@@ -30,35 +30,19 @@ const BLACKLISTED_IMAGE_TERMS = [
 ];
 
 // Logo, badge ve metin etiketleri içeren görselleri filtrele
+// YENİ: Görsel filtreleme tamamen kaldırıldı, hepsini kabul ediyor
 function isValidProductImage(url: string): boolean {
   if (!url) return false;
   
-  // Daha fazla görseli filtrelemek için ek terimler eklendi
-  const blacklist = [
-    'seller-store', 'badge', 'web-pdp', 'logo', 'cok_satanlar', 'en_cok_sepete_eklenenler',
-    'en_begenilenler', 'satici-store', 'sticker', 'etiket', 'kampanya', 'overlay',
-    'saticistore', 'shipping-icon', 'tick-icon', 'kalp', 'sepet', 'icon', 'satanlar',
-    'free-shipping', 'indexing', 'kozmetik', 'fener', 'loreal', 'promosyon'
-  ];
+  // Görselin temel geçerliliğini kontrol et
+  // Sadece görsel olup olmadığını kontrol et, içerik filtreleme yapmadan
+  const hasImageExtension = /(\.jpg|\.jpeg|\.png|\.webp|\/jpg\/|\/jpeg\/|\/png\/|\/webp\/)/i.test(url);
+  const isTrendyolImage = url.includes('cdn.dsmcdn.com') || 
+                         url.includes('cdn.trendyol.com') || 
+                         url.includes('images.trendyol.com');
   
-  // Her bir kara liste terimi için kontrol et
-  for (const term of blacklist) {
-    if (url.toLowerCase().includes(term)) {
-      return false;
-    }
-  }
-  
-  // URL içinde gerçek ürün görseli içeriyor mu kontrol et
-  // Daha fazla görsel formatını kabul et
-  const isRealProductImage = url.includes('org_zoom.jpg') || 
-                            url.includes('mnresize/1200') || 
-                            url.includes('/prod/') ||
-                            (url.includes('dsmcdn.com/ty') && url.includes('product/media/images/')) ||
-                            url.includes('_org.jpg') ||
-                            url.includes('_org_zoom');
-  
-  // Sadece gerçek ürün görseli görünsün
-  return isRealProductImage;
+  // Sadece Trendyol'dan gelen ve resim uzantısı olan URL'leri kabul et
+  return isTrendyolImage && hasImageExtension;
 }
 
 // Debug çıktıları
