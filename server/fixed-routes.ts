@@ -8,6 +8,7 @@ import { handleError, TrendyolScrapingError, URLValidationError } from "./errors
 import { scrapeProductWithPuppeteer } from "./fixed-puppeteer-scraper";
 import { getCategoryConfig } from "./category-mapping";
 import { generateShopifyCSV } from "./shopify-export";
+import { generateEnhancedShopifyCSV } from "./enhanced-shopify-export";
 import { generateUltraSimpleCSV } from "./ultra-simple-csv";
 import { join } from "path";
 import { writeFileSync, mkdirSync, existsSync } from "fs";
@@ -70,6 +71,53 @@ export async function registerRoutes(app: Express): Promise<Server> {
   if (!existsSync(EXPORT_DIR)) {
     mkdirSync(EXPORT_DIR, { recursive: true });
   }
+  
+  // YENİ: Geliştirilmiş Shopify CSV Export API Endpoint
+  app.post('/api/export-enhanced-csv', async (req, res) => {
+    try {
+      const result = urlSchema.safeParse(req.body);
+      if (!result.success) {
+        return res.status(400).json({ 
+          message: "Geçersiz istek",
+          details: result.error.message
+        });
+      }
+      
+      const { url } = result.data;
+      
+      // Ürünü depoda bul
+      const product = await storage.getProduct(url);
+      if (!product) {
+        return res.status(404).json({ 
+          message: "Ürün bulunamadı",
+          details: "Önce ürünü taramanız gerekiyor"
+        });
+      }
+      
+      console.log(`Geliştirilmiş CSV export isteği: ${product.title}`);
+      
+      // Geliştirilmiş CSV dosyasını oluştur
+      const timestamp = Date.now();
+      const exportFilePath = join(EXPORT_DIR, `enhanced_shopify_${timestamp}.csv`);
+      
+      // Geliştirilmiş CSV export fonksiyonunu çağır
+      console.log("Geliştirilmiş CSV export başlatılıyor - Tüm görseller, özellikler ve varyantlar dahil");
+      const csvFilePath = await generateEnhancedShopifyCSV(product, exportFilePath);
+      
+      // İndirme URL'ini döndür
+      return res.status(200).json({
+        message: "Geliştirilmiş CSV başarıyla oluşturuldu",
+        downloadUrl: `/exports/enhanced_shopify_${timestamp}.csv`,
+        filePath: csvFilePath
+      });
+    } catch (error: any) {
+      const errorResponse = handleError(error);
+      return res.status(errorResponse.status).json({
+        message: errorResponse.message,
+        details: errorResponse.details
+      });
+    }
+  });
 
   // Dosyaları servis et
   app.use('/temp', express.static(TEMP_DIR));
