@@ -16,8 +16,17 @@ const ProductAttributes: React.FC<ProductAttributesProps> = ({ attributes }) => 
   // Ürün özellik değerlerini temizle
   const cleanAttributes: Record<string, string> = {};
   
+  // Filtrelenecek/kaldırılacak özellikler listesi
+  const filteredKeys = [
+    'İstanbul Vergi Kimlik Numarası', 'Semt', 'Sokak', 'Ücretsiz İade Hızlı TeslimatTrendyol Müşteri DesteğiSatıcı',
+    'Adres', 'Satıcı Ünvanı', 'Vergi Kimlik Numarası', 'İletişim', 'Şehir', 'Mahalle', 'Cadde'
+  ];
+  
   // Özellik değerlerini temizle ve kısa hale getir
   for (const [key, value] of Object.entries(attributes)) {
+    // Filtrelenen özellikleri atla
+    if (filteredKeys.includes(key)) continue;
+    
     if (!value || typeof value !== 'string') continue;
     
     // Çok uzun değerleri temizle

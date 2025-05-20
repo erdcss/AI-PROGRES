@@ -242,6 +242,20 @@ export async function registerRoutes(app: Express): Promise<Server> {
               debug(`Manuel özellikler eklendi: ${Object.keys(backupAttributes).length} temiz özellik`);
             }
           }
+          
+          // Satıcı bilgilerini ve istenmeyen özellikleri çıkar
+          // Filtrelenecek özelliklerin listesi
+          const filteredKeys = [
+            'İstanbul Vergi Kimlik Numarası', 'Semt', 'Sokak', 'Ücretsiz İade Hızlı TeslimatTrendyol Müşteri DesteğiSatıcı',
+            'Adres', 'Satıcı Ünvanı', 'Vergi Kimlik Numarası', 'İletişim', 'Şehir', 'Mahalle', 'Cadde'
+          ];
+          
+          // Bu özellikleri kaldır
+          for (const key of filteredKeys) {
+            if (cachedProduct.attributes[key]) {
+              delete cachedProduct.attributes[key];
+            }
+          }
         }
         
         debug(`Ürün önbellekten alındı: ${cachedProduct.title}`);
