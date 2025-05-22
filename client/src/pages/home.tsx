@@ -34,6 +34,7 @@ import {
 } from "@/components/ui/alert";
 import { ScrollArea } from "@/components/ui/scroll-area";
 import ProductAttributes from "@/components/ProductAttributes";
+import ProductVariants from "@/components/ProductVariants";
 
 // Uygulama sürüm numarası - Shopify seçenek değeri hatası düzeltmesi ile arttırıldı
 const APP_VERSION = "0.13.1004";
@@ -592,36 +593,17 @@ export default function Home() {
                               </div>
                             )}
                             
-                            {/* Tüm bedenleri gösteren kısım (stokta olmayan ve olan, karşılaştırma için) */}
-                            {product.variants?.sizes?.length > 0 && (
+                            {/* Yeni ProductVariants bileşeni ile stok durumu görselleştirme */}
+                            {product.variants && (
                               <div className="mt-4">
-                                <h3 className="text-sm font-medium mb-2">
-                                  {product.categories?.some((cat: string) =>
-                                    cat.toLowerCase().includes('ayakkabı') ||
-                                    cat.toLowerCase().includes('bot') ||
-                                    cat.toLowerCase().includes('çizme')
-                                  ) ? 'Tüm Numara Seçenekleri' : 'Tüm Beden Seçenekleri'}
-                                </h3>
-                                <div className="flex flex-wrap gap-2">
-                                  {product.variants.sizes.map((size: string, index: number) => {
-                                    // Stokta varsa yeşil, yoksa gri renkte göster
-                                    const isInStock = product.variants.availableSizes?.includes(size);
-                                    return (
-                                      <span
-                                        key={index}
-                                        className={`w-12 h-12 flex items-center justify-center ${
-                                          isInStock ? 'bg-green-800/40' : 'bg-gray-800/50'
-                                        } rounded-md text-sm font-medium ${
-                                          isInStock ? 'hover:bg-green-700' : 'hover:bg-gray-700'
-                                        } transition-colors ${
-                                          !isInStock ? 'line-through text-gray-400' : ''
-                                        }`}
-                                      >
-                                        {size}
-                                      </span>
-                                    );
-                                  })}
-                                </div>
+                                <ProductVariants 
+                                  variants={{
+                                    size: product.variants.size,
+                                    color: product.variants.color,
+                                    availableSizes: product.variants.availableSizes,
+                                    unavailableSizes: product.variants.unavailableSizes
+                                  }} 
+                                />
                               </div>
                             )}
                           </div>

@@ -1,12 +1,15 @@
 /**
  * Geliştirilmiş Varyant Çıkarıcı
  * Trendyol ürünlerinden beden ve renk varyantlarını daha etkili şekilde çıkarır
+ * Stokta bulunan ve bulunmayan beden varyantlarını tespit eder
  */
 
 import * as cheerio from 'cheerio';
 
 /**
  * HTML içeriğinden beden ve renk varyantlarını çıkarır
+ * Trendyol'un 2025 modern arayüzünü de destekler
+ * Stokta olan ve olmayan bedenleri ayrı ayrı tespit eder
  * @param $ Cheerio HTML içeriği
  * @returns Varyant bilgilerini içeren nesne
  */
@@ -29,6 +32,88 @@ export function extractVariants($: cheerio.CheerioAPI): {
   console.log("Varyant çıkarma başlatıldı...");
 
   try {
+      // Stokta olan ve olmayan beden tespiti yapan fonksiyon
+    const isOutOfStock = (el: any): boolean => {
+      const $el = $(el);
+      
+      // 1. Doğrudan disabled özniteliği kontrolü
+      if ($el.attr('disabled') !== undefined || $el.prop('disabled')) {
+        console.log(`Stok dışı tespit edildi: ${$el.text().trim()} - disabled özniteliği var`);
+        return true;
+      }
+      
+      // 2. CSS sınıfları ile stok durumu kontrolü
+      const negativeClasses = ['disabled', 'unavailable', 'soldout', 'out-of-stock', 'not-available', 'sold-out', 'ty-disabled'];
+      for (const cls of negativeClasses) {
+        if ($el.hasClass(cls)) {
+          console.log(`Stok dışı tespit edildi: ${$el.text().trim()} - ${cls} sınıfı var`);
+          return true;
+        }
+      }
+      
+      // 3. Modern Trendyol UI (2025) - SVG ikonları kontrolü
+      // Stok dışı beden butonlarında genellikle bir SVG ikonu bulunur
+      if ($el.find('svg').length > 0 || $el.find('i.ty-icon-unavailable').length > 0) {
+        console.log(`Stok dışı tespit edildi: ${$el.text().trim()} - SVG veya ikon içeriyor`);
+        return true;
+      }
+      
+      // 4. Ebeveyn elementi kontrolü
+      const $parent = $el.parent();
+      if (
+        $parent.hasClass('unavailable') || 
+        $parent.hasClass('disabled') || 
+        $parent.hasClass('soldout') ||
+        $parent.hasClass('out-of-stock')
+      ) {
+        console.log(`Stok dışı tespit edildi: ${$el.text().trim()} - Ebeveyn element stok dışı`);
+        return true;
+      }
+          
+      // 5. data-* öznitelikleri kontrolü
+      if (
+        $el.attr('data-stock') === '0' || 
+        $el.attr('data-in-stock') === 'false' ||
+        $el.attr('data-available') === 'false'
+      ) {
+        console.log(`Stok dışı tespit edildi: ${$el.text().trim()} - data özniteliği stok dışını gösteriyor`);
+        return true;
+      }
+      
+      // 6. Inline stil kontrolü - Genellikle stok dışı butonlar opacity veya gri görünür
+      const style = $el.attr('style');
+      if (style && (style.includes('opacity: 0.5') || style.includes('cursor: not-allowed'))) {
+        console.log(`Stok dışı tespit edildi: ${$el.text().trim()} - Inline stil stok dışını gösteriyor`);
+        return true;
+      }
+      
+      // 7. Metin içeriğinde stok dışı göstergesi kontrolü
+      const buttonText = $el.text().toLowerCase();
+      if (buttonText.includes('tükendi') || buttonText.includes('stokta yok')) {
+        console.log(`Stok dışı tespit edildi: ${$el.text().trim()} - Metin stok dışını gösteriyor`);
+        return true;
+      }
+      
+      // Hiçbir stok dışı göstergesi yoksa stokta var demektir
+      return false;
+    };
+    
+    // HTML yapısında beden varyantlarını arayalım
+    console.log("Modern Trendyol UI (2025) beden seçeneklerini arıyorum...");
+    
+    // Modern Trendyol arayüzünü tespit et ve detaylı log çıktısı ver
+    const modernButtonCount = $('.ty-variartion-button-wrapper').length;
+    const variationBodyCount = $('.ty-variation-body').length;
+    const variantListItemCount = $('[data-testid="variantListItem"]').length;
+    const vItemCount = $('.v-cntnt .v-item').length;
+    
+    console.log(`Modern UI kontrolleri: 
+      - Modern butonlar: ${modernButtonCount > 0 ? "✓ Bulundu (" + modernButtonCount + ")" : "✗ Bulunamadı"}
+      - Varyasyon gövdesi: ${variationBodyCount > 0 ? "✓ Bulundu (" + variationBodyCount + ")" : "✗ Bulunamadı"}
+      - Test ID'li butonlar: ${variantListItemCount > 0 ? "✓ Bulundu (" + variantListItemCount + ")" : "✗ Bulunamadı"}
+      - V-item butonları: ${vItemCount > 0 ? "✓ Bulundu (" + vItemCount + ")" : "✗ Bulunamadı"}
+    `);
+    
     // Özel durum: Gönderilen ekran görüntüsündeki tamamen yeni arayüz için
     // Beden butonları ve stok durumu tespiti - 2025 Trendyol
     console.log("Gösterilen örneğe uygun Trendyol 2025 beden butonları taranıyor...");
@@ -175,31 +260,60 @@ export function extractVariants($: cheerio.CheerioAPI): {
       });
     });
 
-    // Modern beden butonları - Gönderilen ekran görüntüsündeki gibi modern buton stiller 
-    // Bu, Trendyol'un 2025 yılındaki yeni arayüzünü hedefler
-    $(".ty-variation-body button, .ty-variation-container button, .ty-variartion-button-wrapper button").each((_, el) => {
+    // Modern beden butonları - Trendyol'un 2025 yılındaki yeni arayüzünü hedefler
+    // Ekran görüntüsünde gösterildiği gibi SVG ikonları ve özel CSS sınıfları ile stok durumu tespiti
+    console.log("2025 Trendyol arayüzü için modern buton stillerini taranıyor...");
+    
+    // Tüm modern buton selektörlerini kapsayan bir sorgu
+    $(".ty-variation-body button, .ty-variation-container button, .ty-variartion-button-wrapper button, [data-testid='variantListItem'], .v-cntnt .v-item").each((_, el) => {
       const size = $(el).text().trim();
       if (size && !variants.size.includes(size)) {
         variants.size.push(size);
         variants.hasVariants = true;
         
-        // Stok kontrolü - modern ikonlar ve svg elementleri ile
-        const isDisabled = $(el).attr('disabled') !== undefined || 
-                          $(el).hasClass('unavailable') || 
-                          $(el).hasClass('sold-out') ||
-                          $(el).parent().hasClass('unavailable') ||
-                          $(el).find('svg.unavailable-icon').length > 0 ||
-                          $(el).find('svg.ty-icon').length > 0 ||
-                          $(el).closest('.ty-variartion-button-wrapper').hasClass('unavailable');
+        // Yukarıda tanımladığımız isOutOfStock fonksiyonunu kullan
+        const outOfStock = isOutOfStock(el);
         
         // Stokta var veya yok listesine ekle
-        if (!isDisabled && !variants.availableSizes.includes(size)) {
+        if (!outOfStock && !variants.availableSizes.includes(size)) {
           variants.availableSizes.push(size);
-          console.log(`Stokta bulunan beden (modern buton): ${size}`);
-        } else if (isDisabled && !variants.unavailableSizes.includes(size)) {
+          console.log(`✓ Stokta BULUNAN beden (modern 2025): ${size}`);
+        } else if (outOfStock && !variants.unavailableSizes.includes(size)) {
           variants.unavailableSizes.push(size);
-          console.log(`Stokta OLMAYAN beden (modern buton): ${size}`);
+          console.log(`✗ Stokta OLMAYAN beden (modern 2025): ${size}`);
         }
+      }
+    });
+    
+    // HTML yapısı içinde stok durumu bilgisini içeren veri özniteliklerini ara
+    console.log("Stok durumu için JSON veri özniteliklerini kontrol ediyorum...");
+    $('[data-variants]').each((_, el) => {
+      try {
+        const variantsData = $(el).attr('data-variants');
+        if (variantsData) {
+          const parsedData = JSON.parse(variantsData);
+          if (Array.isArray(parsedData)) {
+            parsedData.forEach(variant => {
+              if (variant.size && !variants.size.includes(variant.size)) {
+                variants.size.push(variant.size);
+                variants.hasVariants = true;
+                
+                // Stok durumu kontrolü
+                const isInStock = variant.inStock === true || variant.stock > 0;
+                
+                if (isInStock && !variants.availableSizes.includes(variant.size)) {
+                  variants.availableSizes.push(variant.size);
+                  console.log(`✓ JSON veri özniteliğinden stokta BULUNAN beden: ${variant.size}`);
+                } else if (!isInStock && !variants.unavailableSizes.includes(variant.size)) {
+                  variants.unavailableSizes.push(variant.size);
+                  console.log(`✗ JSON veri özniteliğinden stokta OLMAYAN beden: ${variant.size}`);
+                }
+              }
+            });
+          }
+        }
+      } catch (err) {
+        console.log("JSON veri özniteliği ayrıştırma hatası:", err);
       }
     });
 

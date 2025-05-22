@@ -34,9 +34,27 @@ function processVariants(product: Product, baseRow: any): any[] {
   const hasColors = variants.color && Array.isArray(variants.color) && variants.color.length > 0;
   
   // Öncelikle stokta olan bedenleri kontrol et, yoksa tüm beden listesini kullan
+  // Stokta bulunma kontrolü: Sadece stokta olan bedenleri varyant olarak ekle
   const availableSizes = variants.availableSizes && Array.isArray(variants.availableSizes) && variants.availableSizes.length > 0
     ? variants.availableSizes
     : (variants.size && Array.isArray(variants.size) ? variants.size : []);
+  
+  // Stok durumu hakkında log
+  if (variants.availableSizes && Array.isArray(variants.availableSizes)) {
+    console.log(`STOK DURUMU: ${variants.availableSizes.length} beden stokta var, ${
+      (variants.unavailableSizes && Array.isArray(variants.unavailableSizes)) 
+        ? variants.unavailableSizes.length 
+        : 0
+    } beden stokta yok`);
+    
+    if (variants.availableSizes.length > 0) {
+      console.log(`Stokta BULUNAN bedenler: ${variants.availableSizes.join(', ')}`);
+    }
+    
+    if (variants.unavailableSizes && variants.unavailableSizes.length > 0) {
+      console.log(`Stokta OLMAYAN bedenler: ${variants.unavailableSizes.join(', ')}`);
+    }
+  }
     
   const hasSizes = availableSizes.length > 0;
   
