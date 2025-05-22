@@ -569,24 +569,58 @@ export default function Home() {
                               </div>
                             )}
 
-                            {product.variants?.sizes?.length > 0 && (
+                            {/* Öncelikle stokta olan bedenleri göster */}
+                            {product.variants?.availableSizes?.length > 0 && (
                               <div>
                                 <h3 className="text-sm font-medium mb-2">
                                   {product.categories?.some((cat: string) =>
                                     cat.toLowerCase().includes('ayakkabı') ||
                                     cat.toLowerCase().includes('bot') ||
                                     cat.toLowerCase().includes('çizme')
-                                  ) ? 'Numara Seçenekleri' : 'Beden Seçenekleri'}
+                                  ) ? 'Stokta Olan Numara Seçenekleri' : 'Stokta Olan Beden Seçenekleri'}
                                 </h3>
                                 <div className="flex flex-wrap gap-2">
-                                  {product.variants.sizes.map((size: string, index: number) => (
+                                  {product.variants.availableSizes.map((size: string, index: number) => (
                                     <span
                                       key={index}
-                                      className="w-12 h-12 flex items-center justify-center bg-gray-800 rounded-md text-sm font-medium hover:bg-gray-700 transition-colors"
+                                      className="w-12 h-12 flex items-center justify-center bg-green-800 rounded-md text-sm font-medium hover:bg-green-700 transition-colors"
                                     >
                                       {size}
                                     </span>
                                   ))}
+                                </div>
+                              </div>
+                            )}
+                            
+                            {/* Tüm bedenleri gösteren kısım (stokta olmayan ve olan, karşılaştırma için) */}
+                            {product.variants?.sizes?.length > 0 && (
+                              <div className="mt-4">
+                                <h3 className="text-sm font-medium mb-2">
+                                  {product.categories?.some((cat: string) =>
+                                    cat.toLowerCase().includes('ayakkabı') ||
+                                    cat.toLowerCase().includes('bot') ||
+                                    cat.toLowerCase().includes('çizme')
+                                  ) ? 'Tüm Numara Seçenekleri' : 'Tüm Beden Seçenekleri'}
+                                </h3>
+                                <div className="flex flex-wrap gap-2">
+                                  {product.variants.sizes.map((size: string, index: number) => {
+                                    // Stokta varsa yeşil, yoksa gri renkte göster
+                                    const isInStock = product.variants.availableSizes?.includes(size);
+                                    return (
+                                      <span
+                                        key={index}
+                                        className={`w-12 h-12 flex items-center justify-center ${
+                                          isInStock ? 'bg-green-800/40' : 'bg-gray-800/50'
+                                        } rounded-md text-sm font-medium ${
+                                          isInStock ? 'hover:bg-green-700' : 'hover:bg-gray-700'
+                                        } transition-colors ${
+                                          !isInStock ? 'line-through text-gray-400' : ''
+                                        }`}
+                                      >
+                                        {size}
+                                      </span>
+                                    );
+                                  })}
                                 </div>
                               </div>
                             )}

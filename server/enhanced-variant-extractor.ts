@@ -13,18 +13,77 @@ import * as cheerio from 'cheerio';
 export function extractVariants($: cheerio.CheerioAPI): { 
   size: string[], 
   color: string[], 
-  hasVariants: boolean 
+  hasVariants: boolean,
+  availableSizes: string[], // Stokta olan bedenler
+  unavailableSizes: string[] // Stokta olmayan bedenler
 } {
   // Varyant bilgilerini tutacak nesne
   const variants = {
     size: [] as string[],
     color: [] as string[],
-    hasVariants: false
+    hasVariants: false,
+    availableSizes: [] as string[], // Stokta olan bedenleri tutacak dizi
+    unavailableSizes: [] as string[] // Stokta olmayan bedenleri tutacak dizi
   };
   
   console.log("Varyant çıkarma başlatıldı...");
 
   try {
+    // Özel durum: Gönderilen ekran görüntüsündeki tamamen yeni arayüz için
+    // Beden butonları ve stok durumu tespiti - 2025 Trendyol
+    console.log("Gösterilen örneğe uygun Trendyol 2025 beden butonları taranıyor...");
+    
+    // İkinci örnek için - Ayakkabı ürünü (https://www.trendyol.com/salomon/su-ve-soguga-karsi-dayanikli-erkek-kislik-outdoor-ayakkabisi-p-858626358)
+    $(".variants-wrapper:contains('Numara'), .variants-container:contains('Numara')").each((_, container) => {
+      // Numara seçeneklerini bul
+      $(container).find('button, .variant-option, .variant-button').each((_, el) => {
+        const size = $(el).text().trim();
+        if (size && !variants.size.includes(size)) {
+          variants.size.push(size);
+          variants.hasVariants = true;
+          
+          // Stok durumu kontrolü
+          const isDisabled = $(el).attr('disabled') !== undefined ||
+                           $(el).hasClass('disabled') ||
+                           $(el).hasClass('soldout') ||
+                           $(el).find('.unavailable-icon').length > 0 ||
+                           $(el).find('svg').length > 0;
+          
+          if (!isDisabled && !variants.availableSizes.includes(size)) {
+            variants.availableSizes.push(size);
+            console.log(`Ayakkabı örneği: Stokta bulunan numara: ${size}`);
+          } else if (isDisabled && !variants.unavailableSizes.includes(size)) {
+            variants.unavailableSizes.push(size);
+            console.log(`Ayakkabı örneği: Stokta OLMAYAN numara: ${size}`);
+          }
+        }
+      });
+    });
+    
+    $(".v-cntnt .v-item, [data-testid='variantListItem']").each((_, el) => {
+      const size = $(el).text().trim();
+      if (size && !variants.size.includes(size)) {
+        variants.size.push(size);
+        variants.hasVariants = true;
+        
+        // Stok kontrolünü özel ikon tespiti ile yap
+        // Ekran görüntüsünde gösterilen SVG ikon veya özel sınıf tespiti
+        const isDisabled = $(el).hasClass('disabled') ||
+                          $(el).find('svg').length > 0 || // Herhangi bir SVG ikon varsa (üzerine çarpı işareti)
+                          $(el).find('[data-testid="unavailableIcon"]').length > 0 ||
+                          $(el).find('.unavailable-icon').length > 0 ||
+                          $(el).attr('disabled') !== undefined;
+                          
+        if (!isDisabled && !variants.availableSizes.includes(size)) {
+          variants.availableSizes.push(size);
+          console.log(`Trendyol 2025: Stokta bulunan beden: ${size}`);
+        } else if (isDisabled && !variants.unavailableSizes.includes(size)) {
+          variants.unavailableSizes.push(size);
+          console.log(`Trendyol 2025: Stokta OLMAYAN beden: ${size}`);
+        }
+      }
+    });
+    
     // 0. Direkt ürün özelliklerinden ve attributes'dan renk çıkarma
     // HTML'den özellik arama
     const colorAttribute = $('div.detail-attr-container div.detail-attr-item:contains("Renk")').next().text().trim();
@@ -58,6 +117,24 @@ export function extractVariants($: cheerio.CheerioAPI): {
       if (size && !variants.size.includes(size)) {
         variants.size.push(size);
         variants.hasVariants = true;
+        
+        // Stok kontrolü - disabled veya sold-out sınıfı YOKSA stokta var demektir
+        const isDisabled = $(el).hasClass('disabled') || 
+                           $(el).hasClass('soldout') || 
+                           $(el).hasClass('sold-out') || 
+                           $(el).hasClass('notInStock') ||
+                           $(el).attr('disabled') !== undefined ||
+                           // Yeni stok kontrolü - Trendyol'un güncel arayüzünde SVG ikonlar kullanılıyor
+                           $(el).find('svg.unavailable-icon').length > 0 ||
+                           $(el).find('i.ty-icon-unavailable').length > 0;
+        
+        if (!isDisabled && !variants.availableSizes.includes(size)) {
+          variants.availableSizes.push(size);
+          console.log(`Stokta bulunan beden: ${size}`);
+        } else if (isDisabled && !variants.unavailableSizes.includes(size)) {
+          variants.unavailableSizes.push(size);
+          console.log(`Stokta OLMAYAN beden: ${size}`);
+        }
       }
     });
 
@@ -68,8 +145,62 @@ export function extractVariants($: cheerio.CheerioAPI): {
         if (size && !variants.size.includes(size)) {
           variants.size.push(size);
           variants.hasVariants = true;
+          
+          // Stok kontrolü - negatif sınıflar veya özellikler ile kontrol
+          const isDisabled = $(sizeEl).hasClass('disabled') || 
+                            $(sizeEl).hasClass('soldout') || 
+                            $(sizeEl).hasClass('sold-out') || 
+                            $(sizeEl).hasClass('not-available') ||
+                            $(sizeEl).hasClass('notInStock') ||
+                            $(sizeEl).attr('disabled') !== undefined ||
+                            $(sizeEl).attr('data-stock') === '0' ||
+                            // Trendyol'un güncel arayüzünde stok durumu için ikon kontrolü
+                            $(sizeEl).find('svg.unavailable-icon').length > 0 ||
+                            $(sizeEl).find('i.ty-icon-unavailable').length > 0 ||
+                            $(sizeEl).closest('.ty-variation-item').find('.ty-icon-not-available').length > 0;
+          
+          // Ayrıca ebeveyn elementin de stok out olma durumunu kontrol et
+          const parentHasNoStock = $(sizeEl).parent().hasClass('soldout') || 
+                                   $(sizeEl).parent().hasClass('disabled') ||
+                                   $(sizeEl).parent().find('svg.unavailable-icon').length > 0;
+          
+          if (!isDisabled && !parentHasNoStock && !variants.availableSizes.includes(size)) {
+            variants.availableSizes.push(size);
+            console.log(`Stokta bulunan beden (alternatif format): ${size}`);
+          } else if ((isDisabled || parentHasNoStock) && !variants.unavailableSizes.includes(size)) {
+            variants.unavailableSizes.push(size);
+            console.log(`Stokta OLMAYAN beden (alternatif format): ${size}`);
+          }
         }
       });
+    });
+
+    // Modern beden butonları - Gönderilen ekran görüntüsündeki gibi modern buton stiller 
+    // Bu, Trendyol'un 2025 yılındaki yeni arayüzünü hedefler
+    $(".ty-variation-body button, .ty-variation-container button, .ty-variartion-button-wrapper button").each((_, el) => {
+      const size = $(el).text().trim();
+      if (size && !variants.size.includes(size)) {
+        variants.size.push(size);
+        variants.hasVariants = true;
+        
+        // Stok kontrolü - modern ikonlar ve svg elementleri ile
+        const isDisabled = $(el).attr('disabled') !== undefined || 
+                          $(el).hasClass('unavailable') || 
+                          $(el).hasClass('sold-out') ||
+                          $(el).parent().hasClass('unavailable') ||
+                          $(el).find('svg.unavailable-icon').length > 0 ||
+                          $(el).find('svg.ty-icon').length > 0 ||
+                          $(el).closest('.ty-variartion-button-wrapper').hasClass('unavailable');
+        
+        // Stokta var veya yok listesine ekle
+        if (!isDisabled && !variants.availableSizes.includes(size)) {
+          variants.availableSizes.push(size);
+          console.log(`Stokta bulunan beden (modern buton): ${size}`);
+        } else if (isDisabled && !variants.unavailableSizes.includes(size)) {
+          variants.unavailableSizes.push(size);
+          console.log(`Stokta OLMAYAN beden (modern buton): ${size}`);
+        }
+      }
     });
 
     // Beden seçenekleri dropdown menüde olabilir
@@ -78,6 +209,20 @@ export function extractVariants($: cheerio.CheerioAPI): {
       if (size && size !== "Beden Seçiniz" && !variants.size.includes(size)) {
         variants.size.push(size);
         variants.hasVariants = true;
+        
+        // Dropdown seçeneklerinde stokta olmayan bedenler genellikle disabled özelliği ile işaretlenir
+        const isDisabled = $(el).attr('disabled') !== undefined || 
+                          $(el).hasClass('disabled') ||
+                          $(el).attr('data-stock') === '0' ||
+                          $(el).attr('data-in-stock') === "false";
+        
+        if (!isDisabled && !variants.availableSizes.includes(size)) {
+          variants.availableSizes.push(size);
+          console.log(`Stokta bulunan beden (dropdown): ${size}`);
+        } else if (isDisabled && !variants.unavailableSizes.includes(size)) {
+          variants.unavailableSizes.push(size);
+          console.log(`Stokta OLMAYAN beden (dropdown): ${size}`);
+        }
       }
     });
 
@@ -88,6 +233,7 @@ export function extractVariants($: cheerio.CheerioAPI): {
       if (color && !variants.color.includes(color)) {
         variants.color.push(color);
         variants.hasVariants = true;
+        console.log(`Renk varyantı bulundu (standart): ${color}`);
       }
     });
 
@@ -98,8 +244,24 @@ export function extractVariants($: cheerio.CheerioAPI): {
         if (color && !variants.color.includes(color)) {
           variants.color.push(color);
           variants.hasVariants = true;
+          console.log(`Renk varyantı bulundu (alternatif): ${color}`);
         }
       });
+    });
+    
+    // Yöntem 3: Ek renk selektörleri - Trendyol'un güncel tasarımında renk seçenekleri
+    $("button[data-pk='color'], .color-select-option, .color-wrapper .variant").each((_, el) => {
+      let color = $(el).attr("title") || $(el).attr("data-value") || $(el).text().trim();
+      // Renk ismi yoksa aria-label veya data-pk'dan almayı dene
+      if (!color || color === "") {
+        color = $(el).attr("aria-label") || "";
+      }
+      
+      if (color && !variants.color.includes(color)) {
+        variants.color.push(color);
+        variants.hasVariants = true;
+        console.log(`Renk varyantı bulundu (ek): ${color}`);
+      }
     });
 
     // JSON-LD içinden varyant bilgilerini al
@@ -160,6 +322,20 @@ export function extractVariants($: cheerio.CheerioAPI): {
               if (typeof variant.size === 'string' && !variants.size.includes(variant.size)) {
                 variants.size.push(variant.size);
                 variants.hasVariants = true;
+                
+                // Stok kontrolü - eğer availability veya stock bilgisi varsa kontrol et
+                const isInStock = variant.offers?.availability?.includes('InStock') || 
+                                  variant.offers?.itemCondition?.includes('NewCondition') ||
+                                  variant.availability?.includes('InStock') ||
+                                  !variant.offers?.availability?.includes('OutOfStock');
+                
+                if (isInStock && !variants.availableSizes.includes(variant.size)) {
+                  variants.availableSizes.push(variant.size);
+                  console.log(`Stokta bulunan beden (JSON-LD product): ${variant.size}`);
+                } else if (!isInStock && !variants.unavailableSizes.includes(variant.size)) {
+                  variants.unavailableSizes.push(variant.size);
+                  console.log(`Stokta OLMAYAN beden (JSON-LD product): ${variant.size}`);
+                }
               }
               
               // Beden varyantı - dizi ise her bir öğe ayrı ayrı alınır
@@ -168,6 +344,17 @@ export function extractVariants($: cheerio.CheerioAPI): {
                   if (sizeItem && !variants.size.includes(sizeItem)) {
                     variants.size.push(sizeItem);
                     variants.hasVariants = true;
+                    
+                    // Stok kontrolü - variant nesnesindeki availability bilgisini kullan
+                    const isInStock = variant.offers?.availability?.includes('InStock') || 
+                                      variant.offers?.itemCondition?.includes('NewCondition') ||
+                                      variant.availability?.includes('InStock') ||
+                                      !variant.offers?.availability?.includes('OutOfStock');
+                    
+                    if (isInStock && !variants.availableSizes.includes(sizeItem)) {
+                      variants.availableSizes.push(sizeItem);
+                      console.log(`Stokta bulunan beden (JSON-LD array): ${sizeItem}`);
+                    }
                   }
                 });
               }
@@ -187,6 +374,16 @@ export function extractVariants($: cheerio.CheerioAPI): {
           if (typeof data.size === 'string' && !variants.size.includes(data.size)) {
             variants.size.push(data.size);
             variants.hasVariants = true;
+            
+            // Stok kontrolü
+            const isInStock = data.offers?.availability?.includes('InStock') ||
+                             data.offers?.itemCondition?.includes('NewCondition') ||
+                             !data.offers?.availability?.includes('OutOfStock');
+            
+            if (isInStock && !variants.availableSizes.includes(data.size)) {
+              variants.availableSizes.push(data.size);
+              console.log(`Stokta bulunan beden (Product): ${data.size}`);
+            }
           }
           
           // Beden varyantları dizi olarak gelmiş olabilir
@@ -195,6 +392,16 @@ export function extractVariants($: cheerio.CheerioAPI): {
               if (sizeItem && !variants.size.includes(sizeItem)) {
                 variants.size.push(sizeItem);
                 variants.hasVariants = true;
+                
+                // Stok kontrolü
+                const isInStock = data.offers?.availability?.includes('InStock') ||
+                                 data.offers?.itemCondition?.includes('NewCondition') ||
+                                 !data.offers?.availability?.includes('OutOfStock');
+                
+                if (isInStock && !variants.availableSizes.includes(sizeItem)) {
+                  variants.availableSizes.push(sizeItem);
+                  console.log(`Stokta bulunan beden (Product Array): ${sizeItem}`);
+                }
               }
             });
           }

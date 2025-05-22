@@ -5,6 +5,14 @@ import { z } from "zod";
 // Ürün özellikleri için dinamik şema
 export const attributeSchema = z.record(z.string());
 
+// Varyant şeması - beden, renk ve stokta olan bedenler için
+export const variantSchema = z.object({
+  size: z.array(z.string()).optional(),
+  color: z.array(z.string()).optional(),
+  hasVariants: z.boolean().optional(),
+  availableSizes: z.array(z.string()).optional() // Stokta olan bedenleri içeren yeni alan
+});
+
 export const products = pgTable("products", {
   id: serial("id").primaryKey(),
   url: text("url").notNull(),

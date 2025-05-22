@@ -32,7 +32,13 @@ function processVariants(product: Product, baseRow: any): any[] {
   
   // Beden ve Renk varyantlarını kontrol et
   const hasColors = variants.color && Array.isArray(variants.color) && variants.color.length > 0;
-  const hasSizes = variants.size && Array.isArray(variants.size) && variants.size.length > 0;
+  
+  // Öncelikle stokta olan bedenleri kontrol et, yoksa tüm beden listesini kullan
+  const availableSizes = variants.availableSizes && Array.isArray(variants.availableSizes) && variants.availableSizes.length > 0
+    ? variants.availableSizes
+    : (variants.size && Array.isArray(variants.size) ? variants.size : []);
+    
+  const hasSizes = availableSizes.length > 0;
   
   // Her iki varyant türü varsa: Renk + Beden kombinasyonları oluştur
   if (hasColors && hasSizes) {
@@ -45,9 +51,9 @@ function processVariants(product: Product, baseRow: any): any[] {
     // İlk satır ana üründür, sadece varyant ekle
     let isFirstRow = true;
     
-    // Renk ve beden kombinasyonu
+    // Renk ve stokta olan beden kombinasyonu
     variants.color.forEach((color: string) => {
-      variants.size.forEach((size: string) => {
+      availableSizes.forEach((size: string) => {
         const variantRow = {...baseRow};
         
         // İlk satır ana ürünün detaylarını içerir
@@ -107,7 +113,7 @@ function processVariants(product: Product, baseRow: any): any[] {
   } 
   // Sadece Beden varyantı varsa
   else if (hasSizes) {
-    console.log(`Tek türlü varyant bulundu: ${variants.size.length} beden`);
+    console.log(`Tek türlü varyant bulundu: ${availableSizes.length} beden (stokta olan)`);
     
     // Option ismini ayarla
     baseRow.option1_name = 'Beden';
@@ -115,8 +121,8 @@ function processVariants(product: Product, baseRow: any): any[] {
     // İlk satır ana üründür, tüm detayları içerir
     let isFirstRow = true;
     
-    // Her beden için bir satır oluştur
-    variants.size.forEach((size: string) => {
+    // Sadece stokta olan bedenler için bir satır oluştur
+    availableSizes.forEach((size: string) => {
       const variantRow = {...baseRow};
       
       // İlk satır dışındaki satırlarda bazı bilgiler tekrarlanmaz
