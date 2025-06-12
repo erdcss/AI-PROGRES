@@ -1080,7 +1080,24 @@ export function generateShopifyCSV(
       
       await csvWriter.writeRecords(csvCompatibleRows);
       console.log(`CSV başarıyla oluşturuldu: ${outputPath} (${standardizedRows.length} satır)`);
-      resolve(outputPath);
+      
+      // Preview dosyasını temp klasörüne kopyala
+      if (outputPath.startsWith('/tmp/')) {
+        const timestamp = new Date().getTime();
+        const previewPath = `./temp/preview_${timestamp}.csv`;
+        const fs = require('fs');
+        
+        try {
+          fs.copyFileSync(outputPath, previewPath);
+          console.log(`CSV önizleme dosyası oluşturuldu: preview_${timestamp}.csv`);
+          resolve(previewPath);
+        } catch (copyError) {
+          console.error('CSV kopyalama hatası:', copyError);
+          resolve(outputPath);
+        }
+      } else {
+        resolve(outputPath);
+      }
     } catch (error) {
       console.error('CSV oluşturma hatası:', error);
       console.error('Hata detayları:', JSON.stringify(error, null, 2));
