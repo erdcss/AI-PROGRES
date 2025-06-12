@@ -1011,6 +1011,12 @@ export function generateShopifyCSV(
       
       console.log(`CSV'ye yazılacak: ${standardizedRows.length} satır`);
       
+      // Debug: İlk satırın key'lerini kontrol et
+      if (standardizedRows.length > 0) {
+        console.log("İLK SATIR KEY'LERİ:", Object.keys(standardizedRows[0]));
+        console.log("İLK SATIR VERİLERİ:", JSON.stringify(standardizedRows[0], null, 2).substring(0, 200));
+      }
+      
       // CSV'yi yaz - field ID'leri küçük harfe çevir
       const csvCompatibleRows = standardizedRows.map(row => {
         const newRow: Record<string, any> = {};
