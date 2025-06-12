@@ -1,7 +1,7 @@
 Handle,Title,Body (HTML),Vendor,Standard Product Type,Custom Product Type,Tags,Published,Status,Published At,Published Scope,Template Suffix,Option1 Name,Option1 Value,Option2 Name,Option2 Value,Option3 Name,Option3 Value,Variant SKU,Variant Grams,Variant Inventory Tracker,Variant Inventory Qty,Variant Inventory Policy,Variant Fulfillment Service,Variant Price,Variant Compare At Price,Variant Requires Shipping,Variant Taxable,Variant Barcode,Image Src,Image Position,Image Alt Text,Gift Card,SEO Title,SEO Description,Google Shopping / Google Product Category,Google Shopping / Gender,Google Shopping / Age Group,Google Shopping / MPN,Google Shopping / AdWords Grouping,Google Shopping / AdWords Labels,Google Shopping / Condition,Google Shopping / Custom Product,Google Shopping / Custom Label 0,Google Shopping / Custom Label 1,Google Shopping / Custom Label 2,Google Shopping / Custom Label 3,Google Shopping / Custom Label 4,Variant Image,Variant Weight Unit,Variant Tax Code,Cost per item
-ornek-trendyol-urunu,Örnek Trendyol Ürünü,"<p>Bu örnek bir ürün açıklamasıdır. Trendyol'dan çekilmiş gibi yapılmıştır.</p>
+standart-trendyol-urunu,Standart Trendyol Ürünü,"<p>Bu ürün https://www.trendyol.com/revasser/unisex-erkek-kadin-cherries-ozel-baskili-oversize-pamuklu-bisiklet-yaka-t-shirt-p-125104267 adresinden alınmıştır. Detaylı ürün bilgileri manuel olarak güncellenmelidir.</p>
 
 <h3>Ürün Özellikleri</h3>
-<ul><li><strong>Kategori:</strong> Electronics</li>
-<li><strong>Marka:</strong> turmarkt</li>
-</ul>",turmarkt,,Electronics,Electronics,TRUE,active,2025-06-12T08:58:29.516Z,web,,Title,Default Title,,,,,ornek-trendyol-urunu,500,shopify,50,deny,manual,604.99,499.99,TRUE,TRUE,,,,,FALSE,,,,,,,,,,,,,,,,,g,,
+<ul><li><strong>Durum:</strong> Yeni</li>
+<li><strong>Kaynak:</strong> Trendyol</li>
+</ul>",turmarkt,,Giyim,"Giyim,Trendyol",TRUE,active,2025-06-12T14:12:33.914Z,web,,Title,Default Title,,,,,standart-trendyol-urunu,500,shopify,50,deny,manual,109.99,89.99,TRUE,TRUE,,https://cdn.dsmcdn.com/mnresize/1200/1800/ty537/product/media/images/20220928/21/180590732/580093586/1/1_org_zoom.jpg,1,Standart Trendyol Ürünü,FALSE,,,,,,,,,,,,,,,,,g,,
