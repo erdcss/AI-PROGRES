@@ -4,6 +4,25 @@ import { tmpdir } from "os";
 import { join } from "path";
 import fs from "fs";
 
+// CSV için HTML ve özel karakterleri temizle
+function escapeForCSV(text: string): string {
+  if (!text) return '';
+  
+  // HTML etiketlerini kaldır
+  let cleaned = text.replace(/<[^>]*>/g, ' ');
+  
+  // Çift tırnak işaretlerini escape et
+  cleaned = cleaned.replace(/"/g, '""');
+  
+  // Satır başları ve fazla boşlukları temizle
+  cleaned = cleaned.replace(/\n/g, ' ').replace(/\r/g, ' ').replace(/\s+/g, ' ').trim();
+  
+  // Özel karakterleri temizle
+  cleaned = cleaned.replace(/[^\x20-\x7E\u00C0-\u017F\u0130\u0131\u011E\u011F\u015E\u015F\u00C7\u00E7]/g, '');
+  
+  return cleaned;
+}
+
 /**
  * Bu dosya Shopify uyumlu CSV oluşturmak için tasarlanmıştır
  * Shopify'ın kesin CSV formatını kullanır
@@ -454,7 +473,8 @@ export function generateShopifyCSV(
           html += `</ul>`;
         }
         
-        return html;
+        // CSV için HTML içeriğini escape et
+        return escapeForCSV(html);
       };
       
       // Ana ürün ve varyantları kontrol et
@@ -1085,7 +1105,6 @@ export function generateShopifyCSV(
       if (outputPath.startsWith('/tmp/')) {
         const timestamp = new Date().getTime();
         const previewPath = `./temp/preview_${timestamp}.csv`;
-        const fs = require('fs');
         
         try {
           fs.copyFileSync(outputPath, previewPath);
