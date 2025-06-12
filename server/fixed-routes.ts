@@ -2088,7 +2088,29 @@ export async function registerRoutes(app: Express): Promise<Server> {
               // Ürünü veritabanına kaydet ve yanıt olarak döndür
               const savedProduct = await storage.saveProduct(productData);
               console.log("HTML ile ayrıştırılan ürün kaydedildi, ID:", savedProduct.id);
-              return res.status(200).json(savedProduct);
+              
+              // CSV dosyasını otomatik oluştur
+              try {
+                const timestamp = new Date().getTime();
+                const previewFilePath = join(TEMP_DIR, `preview_${timestamp}.csv`);
+                
+                console.log("CSV oluşturuluyor...");
+                await generateShopifyCSV(savedProduct, previewFilePath);
+                console.log(`CSV dosyası oluşturuldu: preview_${timestamp}.csv`);
+                
+                // CSV URL'ini yanıta ekle
+                return res.status(200).json({
+                  ...savedProduct,
+                  csvPreviewUrl: `/temp/preview_${timestamp}.csv`
+                });
+              } catch (csvError: any) {
+                console.error("CSV oluşturma hatası:", csvError);
+                // CSV hatası olsa bile ürün verilerini döndür
+                return res.status(200).json({
+                  ...savedProduct,
+                  csvError: "CSV oluşturulamadı: " + csvError.message
+                });
+              }
             } catch (htmlParseError) {
               console.error("HTML parsing detaylı hata:", htmlParseError);
               throw new TrendyolScrapingError("HTML parsing hatası", {
