@@ -40,12 +40,9 @@ export const insertProductSchema = createInsertSchema(products).extend({
 export type InsertProduct = z.infer<typeof insertProductSchema>;
 export type Product = typeof products.$inferSelect;
 
-// CSV önizleme yanıt şeması
+// CSV önizleme istek şeması
 export const csvPreviewSchema = z.object({
-  filePath: z.string(),
-  headers: z.array(z.string()),
-  rows: z.array(z.record(z.string())).max(5),
-  totalRows: z.number()
+  url: z.string().url()
 });
 
 export const urlSchema = z.object({
