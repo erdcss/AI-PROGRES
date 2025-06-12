@@ -11,7 +11,8 @@ import { generateShopifyCSV } from "./shopify-export";
 import { generateEnhancedShopifyCSV } from "./enhanced-shopify-export";
 import { generateUltraSimpleCSV } from "./ultra-simple-csv";
 import { join } from "path";
-import { writeFileSync, mkdirSync, existsSync } from "fs";
+import { writeFileSync, mkdirSync, existsSync, readFileSync } from "fs";
+import * as fs from "fs";
 import { registerAllImagesRoute } from "./all-images-route";
 import { registerAllImagesRoutes } from "./all-images-routes";
 import { registerDirectImageEndpoint } from "./direct-image-endpoint";
@@ -1280,16 +1281,23 @@ export async function registerRoutes(app: Express): Promise<Server> {
               
               // Shopify CSV önizlemesini oluştur
               try {
-                const csvContent = await generateShopifyCSV(savedProduct);
+                const csvFilePath = await generateShopifyCSV(savedProduct);
                 const timestamp = new Date().getTime();
                 const previewFilePath = join(TEMP_DIR, `preview_${timestamp}.csv`);
                 
-                writeFileSync(previewFilePath, typeof csvContent === 'string' ? csvContent : '');
-                
-                // CSV önizleme dosyasının URL'sini ekle
-                const csvPreviewUrl = `/temp/preview_${timestamp}.csv`;
-                
-                savedProduct.csvPreviewUrl = csvPreviewUrl;
+                // CSV dosyasını okuyup preview dosyasına kopyala
+                if (existsSync(csvFilePath)) {
+                  const csvContent = readFileSync(csvFilePath, 'utf8');
+                  writeFileSync(previewFilePath, csvContent);
+                  
+                  // CSV önizleme dosyasının URL'sini ekle
+                  const csvPreviewUrl = `/temp/preview_${timestamp}.csv`;
+                  (savedProduct as any).csvPreviewUrl = csvPreviewUrl;
+                  
+                  console.log(`CSV önizleme dosyası oluşturuldu: ${previewFilePath}`);
+                } else {
+                  console.error("CSV dosyası bulunamadı:", csvFilePath);
+                }
               } catch (csvError) {
                 console.error("CSV oluşturma hatası:", csvError);
               }

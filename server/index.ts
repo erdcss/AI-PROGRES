@@ -51,6 +51,10 @@ app.use((req, res, next) => {
 (async () => {
   const server = await registerRoutes(app);
 
+  // Serve static CSV files from temp and exports directories
+  app.use('/temp', express.static(pathModule.resolve('./temp')));
+  app.use('/exports', express.static(pathModule.resolve('./exports')));
+
   app.use((err: any, _req: Request, res: Response, _next: NextFunction) => {
     const status = err.status || err.statusCode || 500;
     const message = err.message || "Internal Server Error";
