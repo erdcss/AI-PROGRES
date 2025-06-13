@@ -4,31 +4,27 @@ import { tmpdir } from "os";
 import { join } from "path";
 import fs from "fs";
 
-// CSV için HTML ve özel karakterleri temizle
+// CSV için güvenli metin temizleme - tırnak hatalarını tamamen önler
 function escapeForCSV(text: string): string {
   if (!text || typeof text !== 'string') return '';
   
-  // HTML etiketlerini kaldır
-  let cleaned = text.replace(/<[^>]*>/g, ' ');
+  // Convert to string and remove all HTML tags
+  let cleaned = String(text).replace(/<[^>]*>/g, '');
   
-  // Problemli karakterleri temizle
+  // Remove all problematic characters that cause CSV parsing issues
   cleaned = cleaned
-    .replace(/[\x00-\x08\x0B\x0C\x0E-\x1F\x7F]/g, '') // Kontrol karakterleri
-    .replace(/[""]/g, '"') // Farklı tırnak türlerini standart tırnağa çevir
-    .replace(/['']/g, "'") // Farklı kesme işareti türlerini standart kesme işaretine çevir
-    .replace(/\n/g, ' ') // Satır sonlarını boşluğa çevir
-    .replace(/\r/g, ' ') // Satır başlarını boşluğa çevir
-    .replace(/\t/g, ' ') // Tab karakterlerini boşluğa çevir
-    .replace(/\s+/g, ' ') // Çoklu boşlukları tekil boşluğa çevir
+    .replace(/[\x00-\x08\x0B\x0C\x0E-\x1F\x7F-\x9F]/g, '') // Control characters
+    .replace(/[""]/g, '') // Remove smart quotes entirely
+    .replace(/['']/g, '') // Remove smart apostrophes entirely  
+    .replace(/[–—]/g, '-') // Convert dashes to hyphens
+    .replace(/[…]/g, '...') // Convert ellipsis
+    .replace(/[\n\r\t]+/g, ' ') // Convert line breaks and tabs to spaces
+    .replace(/[^\w\s.,!?;:()\-+='çğıöşüÇĞIÖŞÜ]/g, ' ') // Keep only safe characters
+    .replace(/\s+/g, ' ') // Multiple spaces to single space
     .trim();
   
-  // Tırnak karakterlerini escape et (CSV standardı)
-  cleaned = cleaned.replace(/"/g, '""');
-  
-  // Virgül, tırnak veya satır sonu içeriyorsa tırnak içine al
-  if (cleaned.includes(',') || cleaned.includes('"') || cleaned.includes('\n') || cleaned.includes('\r')) {
-    cleaned = `"${cleaned}"`;
-  }
+  // Final safety check - remove any remaining quotes or commas that could break CSV
+  cleaned = cleaned.replace(/[",]/g, ' ').replace(/\s+/g, ' ').trim();
   
   return cleaned;
 }
