@@ -4,27 +4,21 @@ import { tmpdir } from "os";
 import { join } from "path";
 import fs from "fs";
 
-// CSV için güvenli metin temizleme - tırnak hatalarını tamamen önler
+// Shopify CSV için ultra güvenli temizleme
 function escapeForCSV(text: string): string {
   if (!text || typeof text !== 'string') return '';
   
-  // Convert to string and remove all HTML tags
-  let cleaned = String(text).replace(/<[^>]*>/g, '');
+  let cleaned = String(text);
   
-  // Remove all problematic characters that cause CSV parsing issues
+  // Remove all HTML tags completely
+  cleaned = cleaned.replace(/<[^>]*>/g, '');
+  
+  // Keep only basic alphanumeric and safe characters
   cleaned = cleaned
-    .replace(/[\x00-\x08\x0B\x0C\x0E-\x1F\x7F-\x9F]/g, '') // Control characters
-    .replace(/[""]/g, '') // Remove smart quotes entirely
-    .replace(/['']/g, '') // Remove smart apostrophes entirely  
-    .replace(/[–—]/g, '-') // Convert dashes to hyphens
-    .replace(/[…]/g, '...') // Convert ellipsis
-    .replace(/[\n\r\t]+/g, ' ') // Convert line breaks and tabs to spaces
-    .replace(/[^\w\s.,!?;:()\-+='çğıöşüÇĞIÖŞÜ]/g, ' ') // Keep only safe characters
-    .replace(/\s+/g, ' ') // Multiple spaces to single space
-    .trim();
-  
-  // Final safety check - remove any remaining quotes or commas that could break CSV
-  cleaned = cleaned.replace(/[",]/g, ' ').replace(/\s+/g, ' ').trim();
+    .replace(/[^\w\s\-çğıöşüÇĞIÖŞÜ]/g, ' ') // Only letters, numbers, spaces, hyphens, Turkish chars
+    .replace(/\s+/g, ' ') // Multiple spaces to single
+    .trim()
+    .substring(0, 80); // Limit length to prevent CSV issues
   
   return cleaned;
 }
