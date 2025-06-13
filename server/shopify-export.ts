@@ -481,31 +481,10 @@ export function generateShopifyCSV(
       // Handle oluştur (URL-uyumlu slug)
       const handle = createUniqueHandle(product.title);
       
-      // Body HTML oluştur - CSV için güvenli
+      // Body HTML oluştur - Sadece düz metin, HTML yok
       const generateBodyHTML = () => {
-        let html = '';
-        
-        // Açıklama kısmını temizle ve escape et
-        if (product.description) {
-          const cleanDesc = escapeForCSV(product.description.replace(/\n+/g, ' ').trim());
-          html += `<p>${cleanDesc}</p>`;
-        }
-        
-        // Özellikleri ekle - her değeri escape et
-        if (product.attributes && Object.keys(product.attributes).length > 0) {
-          html += `<h3>Ürün Özellikleri</h3><ul>`;
-          
-          Object.entries(product.attributes).forEach(([key, value]) => {
-            const cleanKey = escapeForCSV(String(key));
-            const cleanValue = escapeForCSV(String(value));
-            html += `<li><strong>${cleanKey}:</strong> ${cleanValue}</li>`;
-          });
-          
-          html += `</ul>`;
-        }
-        
-        // HTML içeriğini döndür (sanitization daha sonra uygulanacak)
-        return html;
+        // Sadece ürün başlığını kullan - en güvenli yöntem
+        return escapeForCSV(product.title || 'Ürün');
       };
       
       // Ana ürün ve varyantları kontrol et
@@ -612,7 +591,7 @@ export function generateShopifyCSV(
           let mainRow = {
             handle: handle,
             title: product.title,
-            body_html: generateBodyHTML(),
+            body_html: product.title,
             vendor: 'turmarkt',
             product_category: 'Apparel & Accessories',
             type: product.category ? 
@@ -649,7 +628,7 @@ export function generateShopifyCSV(
             const variantRow = {
               handle: handle,
               title: product.title,
-              body_html: generateBodyHTML(),
+              body_html: product.title,
               vendor: 'turmarkt',
               option1_value: colors[i],
               option2_value: '',
