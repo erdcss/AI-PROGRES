@@ -2101,7 +2101,10 @@ export async function registerRoutes(app: Express): Promise<Server> {
                 // CSV URL'ini yanıta ekle
                 return res.status(200).json({
                   ...savedProduct,
-                  csvPreviewUrl: `/temp/preview_${timestamp}.csv`
+                  csvPreviewUrl: `/temp/preview_${timestamp}.csv`,
+                  preview: {
+                    csvPath: `/temp/preview_${timestamp}.csv`
+                  }
                 });
               } catch (csvError: any) {
                 console.error("CSV oluşturma hatası:", csvError);
@@ -2183,6 +2186,9 @@ export async function registerRoutes(app: Express): Promise<Server> {
         return res.status(200).json({
           ...savedProduct,
           csvPreviewUrl: `/temp/preview_${timestamp}.csv`,
+          preview: {
+            csvPath: `/temp/preview_${timestamp}.csv`
+          },
           message: "Ürün temel bilgilerle oluşturuldu, CSV hazır"
         });
       } catch (fallbackError: any) {
