@@ -528,7 +528,7 @@ export function generateShopifyCSV(
           let mainRow = {
             handle: handle,
             title: product.title,
-            body_html: generateBodyHTML(),
+            body_html: product.title,
             vendor: 'turmarkt',
             product_category: 'Apparel & Accessories > Clothing',
             type: product.category ? 
@@ -653,7 +653,7 @@ export function generateShopifyCSV(
           let row = {
             handle: handle,
             title: product.title,
-            body_html: generateBodyHTML(),
+            body_html: product.title,
             vendor: 'turmarkt',
             product_category: 'Apparel & Accessories > Clothing',
             type: product.category ? 
@@ -721,7 +721,7 @@ export function generateShopifyCSV(
           let row = {
             handle: handle,
             title: product.title,
-            body_html: generateBodyHTML(),
+            body_html: product.title,
             vendor: 'turmarkt',
             product_category: 'Electronics & Accessories',
             type: product.category ? 
@@ -754,7 +754,7 @@ export function generateShopifyCSV(
           let row = {
             handle: handle,
             title: product.title,
-            body_html: generateBodyHTML(),
+            body_html: product.title,
             vendor: 'turmarkt',
             type: product.category ? 
               product.category.split('>').pop()?.trim() || 'Giyim'
@@ -793,7 +793,7 @@ export function generateShopifyCSV(
           const imageRow = {
             handle: handle,
             title: product.title,
-            body_html: generateBodyHTML(),
+            body_html: product.title,
             vendor: 'turmarkt',
             published: 'TRUE',
             status: 'active',
