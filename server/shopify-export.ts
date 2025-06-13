@@ -485,22 +485,31 @@ export function generateShopifyCSV(
       // Handle oluştur (URL-uyumlu slug)
       const handle = createUniqueHandle(product.title);
       
-      // Body HTML oluştur
+      // Body HTML oluştur - CSV için güvenli
       const generateBodyHTML = () => {
-        let html = product.description ? `<p>${product.description}</p>\n\n` : '';
+        let html = '';
         
+        // Açıklama kısmını temizle ve escape et
+        if (product.description) {
+          const cleanDesc = escapeForCSV(product.description.replace(/\n+/g, ' ').trim());
+          html += `<p>${cleanDesc}</p>`;
+        }
+        
+        // Özellikleri ekle - her değeri escape et
         if (product.attributes && Object.keys(product.attributes).length > 0) {
-          html += `<h3>Ürün Özellikleri</h3>\n<ul>`;
+          html += `<h3>Ürün Özellikleri</h3><ul>`;
           
           Object.entries(product.attributes).forEach(([key, value]) => {
-            html += `<li><strong>${key}:</strong> ${value}</li>\n`;
+            const cleanKey = escapeForCSV(String(key));
+            const cleanValue = escapeForCSV(String(value));
+            html += `<li><strong>${cleanKey}:</strong> ${cleanValue}</li>`;
           });
           
           html += `</ul>`;
         }
         
-        // CSV için HTML içeriğini escape et
-        return escapeForCSV(html);
+        // HTML içeriğini döndür (sanitization daha sonra uygulanacak)
+        return html;
       };
       
       // Ana ürün ve varyantları kontrol et
