@@ -181,7 +181,13 @@ export default function Home() {
     const csvFilename = product.preview.csvPath.split('/').pop();
     
     // Önce önizleme yap
-    fetch(`/api/csv-preview/${csvFilename}`)
+    fetch('/api/csv-preview-file', {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+      },
+      body: JSON.stringify({ filename: csvFilename })
+    })
       .then(response => {
         if (response.ok) {
           return response.json();

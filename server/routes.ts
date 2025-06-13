@@ -72,11 +72,14 @@ export async function registerRoutes(app: Express) {
     }
   });
 
-  // CSV önizleme endpoint'i
-  app.get("/api/csv-preview/:filename", (req, res) => {
+  // CSV önizleme endpoint'i - POST kullanarak Vite routing sorununu aşıyoruz
+  app.post("/api/csv-preview-file", (req, res) => {
     try {
-      const { filename } = req.params;
-      const filePath = path.resolve(process.cwd(), filename);
+      const { filename } = req.body;
+      if (!filename) {
+        return res.status(400).json({ message: "Dosya adı gerekli" });
+      }
+      const filePath = path.resolve(process.cwd(), 'temp', filename);
       
       if (!fs.existsSync(filePath)) {
         return res.status(404).json({ message: "CSV dosyası bulunamadı" });
@@ -102,11 +105,30 @@ export async function registerRoutes(app: Express) {
       const dataRows = rows.slice(1, 6).map(row => {
         if (!row.trim()) return {}; // Boş satırları atla
         
-        const values = row.split(',').map(v => v.trim().replace(/"/g, ''));
-        const rowObject: Record<string, string> = {};
+        // CSV parsing için gelişmiş yöntem - tırnak içindeki virgülleri koruma
+        const values: string[] = [];
+        let currentValue = '';
+        let inQuotes = false;
         
+        for (let i = 0; i < row.length; i++) {
+          const char = row[i];
+          if (char === '"') {
+            inQuotes = !inQuotes;
+          } else if (char === ',' && !inQuotes) {
+            values.push(currentValue.trim());
+            currentValue = '';
+          } else {
+            currentValue += char;
+          }
+        }
+        values.push(currentValue.trim());
+        
+        const rowObject: Record<string, string> = {};
         headers.forEach((header, index) => {
-          rowObject[header] = values[index] || '';
+          let value = values[index] || '';
+          // JSON için güvenli hale getir
+          value = value.replace(/[\x00-\x1F\x7F]/g, '').substring(0, 100);
+          rowObject[header] = value;
         });
         
         return rowObject;
