@@ -178,44 +178,22 @@ export default function Home() {
     
     // CSV dosya adını al
     const fileName = `shopify_products_${Date.now()}.csv`;
-    const csvFilename = product.preview.csvPath.split('/').pop();
     
-    // Önce önizleme yap
-    fetch('/api/csv-preview-file', {
-      method: 'POST',
-      headers: {
-        'Content-Type': 'application/json',
-      },
-      body: JSON.stringify({ filename: csvFilename })
-    })
-      .then(response => {
-        if (response.ok) {
-          return response.json();
-        }
-        throw new Error('CSV önizleme başarısız oldu');
-      })
-      .then(previewData => {
-        toast({
-          title: "CSV dosyası hazır",
-          description: `${previewData.totalRows} ürün satırı içeriyor`
-        });
-        
-        // Dosya indirme
-        const downloadLink = document.createElement('a');
-        downloadLink.href = product.preview.csvPath; // Doğrudan dosya yolunu kullan
-        downloadLink.download = fileName;
-        document.body.appendChild(downloadLink);
-        downloadLink.click();
-        document.body.removeChild(downloadLink);
-      })
-      .catch(error => {
-        console.error('CSV önizleme hatası:', error);
-        toast({
-          title: "CSV önizleme hatası",
-          description: error.message || "CSV dosyası oluşturulamadı",
-          variant: "destructive"
-        });
-      });
+    // Önizleme bilgileri response'ta mevcut
+    const previewData = product.preview;
+    
+    toast({
+      title: "CSV dosyası hazır",
+      description: `${previewData.totalRows || 1} ürün satırı içeriyor`
+    });
+    
+    // Dosya indirme
+    const downloadLink = document.createElement('a');
+    downloadLink.href = product.preview.csvPath;
+    downloadLink.download = fileName;
+    document.body.appendChild(downloadLink);
+    downloadLink.click();
+    document.body.removeChild(downloadLink);
   };
   
   // Eski export mutation - bu artık kullanılmıyor ama referans için saklıyoruz

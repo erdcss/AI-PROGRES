@@ -2183,11 +2183,19 @@ export async function registerRoutes(app: Express): Promise<Server> {
         await generateShopifyCSV(savedProduct, previewFilePath);
         console.log(`Fallback CSV dosyası oluşturuldu: preview_${timestamp}.csv`);
         
+        // CSV dosyası için önizleme bilgilerini oluştur
+        const csvPreviewData = {
+          headers: ["Handle", "Title", "Body (HTML)", "Vendor", "Product Category", "Type", "Tags", "Published", "Option1 Name", "Option1 Value", "Option2 Name", "Option2 Value", "Option3 Name", "Option3 Value", "Variant SKU", "Variant Grams", "Variant Inventory Tracker", "Variant Inventory Qty", "Variant Inventory Policy", "Variant Fulfillment Service", "Variant Price", "Variant Compare At Price", "Variant Requires Shipping", "Variant Taxable", "Variant Barcode", "Image Src", "Image Position", "Image Alt Text", "Gift Card", "SEO Title", "SEO Description", "Google Shopping / Google Product Category", "Google Shopping / Gender", "Google Shopping / Age Group", "Google Shopping / MPN", "Google Shopping / AdWords Grouping", "Google Shopping / AdWords Labels", "Google Shopping / Condition", "Google Shopping / Custom Product", "Google Shopping / Custom Label 0", "Google Shopping / Custom Label 1", "Google Shopping / Custom Label 2", "Google Shopping / Custom Label 3", "Google Shopping / Custom Label 4", "Variant Image", "Variant Weight Unit", "Variant Tax Code", "Cost per item", "Price / International", "Compare At Price / International", "Status"],
+          totalRows: 1,
+          filename: `preview_${timestamp}.csv`
+        };
+        
         return res.status(200).json({
           ...savedProduct,
           csvPreviewUrl: `/temp/preview_${timestamp}.csv`,
           preview: {
-            csvPath: `/temp/preview_${timestamp}.csv`
+            csvPath: `/temp/preview_${timestamp}.csv`,
+            ...csvPreviewData
           },
           message: "Ürün temel bilgilerle oluşturuldu, CSV hazır"
         });
@@ -2316,8 +2324,8 @@ export async function registerRoutes(app: Express): Promise<Server> {
     }
   });
 
-  // CSV önizleme endpoint'i
-  app.post("/api/csv-preview-file", (req, res) => {
+  // CSV önizleme endpoint'i - özel yol kullanarak Vite çakışmasını önle
+  app.post("/api/internal/csv-preview", (req, res) => {
     try {
       const { filename } = req.body;
       if (!filename) {
