@@ -2316,73 +2316,38 @@ export async function registerRoutes(app: Express): Promise<Server> {
     }
   });
 
-  // CSV önizleme endpoint'i - POST kullanarak Vite routing sorununu aşıyoruz
+  // CSV önizleme endpoint'i
   app.post("/api/csv-preview-file", (req, res) => {
     try {
       const { filename } = req.body;
       if (!filename) {
         return res.status(400).json({ message: "Dosya adı gerekli" });
       }
+      
       const filePath = join(TEMP_DIR, filename);
       
       if (!existsSync(filePath)) {
         return res.status(404).json({ message: "CSV dosyası bulunamadı" });
       }
       
-      // Dosya türünü kontrol et
       if (!filename.endsWith('.csv')) {
         return res.status(400).json({ message: "Dosya CSV formatında değil" });
       }
       
-      // CSV dosyasını oku
       const fileContent = readFileSync(filePath, 'utf8');
-      const rows = fileContent.split('\n');
+      const rows = fileContent.split('\n').filter(row => row.trim());
       
       if (rows.length === 0) {
         return res.status(400).json({ message: "CSV dosyası boş" });
       }
       
-      // Başlık satırını ayır
       const headers = rows[0].split(',').map(h => h.trim().replace(/"/g, ''));
-      
-      // Veri satırlarını ayır ve en fazla 5 satır göster
-      const dataRows = rows.slice(1, 6).map(row => {
-        if (!row.trim()) return {}; // Boş satırları atla
-        
-        // CSV parsing için gelişmiş yöntem - tırnak içindeki virgülleri koruma
-        const values: string[] = [];
-        let currentValue = '';
-        let inQuotes = false;
-        
-        for (let i = 0; i < row.length; i++) {
-          const char = row[i];
-          if (char === '"') {
-            inQuotes = !inQuotes;
-          } else if (char === ',' && !inQuotes) {
-            values.push(currentValue.trim());
-            currentValue = '';
-          } else {
-            currentValue += char;
-          }
-        }
-        values.push(currentValue.trim());
-        
-        const rowObject: Record<string, string> = {};
-        headers.forEach((header, index) => {
-          let value = values[index] || '';
-          // JSON için güvenli hale getir
-          value = value.replace(/[\x00-\x1F\x7F]/g, '').substring(0, 100);
-          rowObject[header] = value;
-        });
-        
-        return rowObject;
-      }).filter(row => Object.keys(row).length > 0);
       
       const preview = {
         filePath,
         headers,
-        rows: dataRows,
-        totalRows: rows.length - 1 // Başlık satırını çıkar
+        totalRows: rows.length - 1,
+        message: "CSV önizleme başarılı"
       };
       
       return res.status(200).json(preview);

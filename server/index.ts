@@ -3,7 +3,6 @@ import { registerRoutes } from "./fixed-routes";
 import { setupVite, serveStatic, log } from "./vite";
 import * as pathModule from "path";
 import { fileURLToPath } from 'url';
-import * as fs from "fs";
 
 console.log("Uygulama başlatılıyor...");
 
@@ -14,45 +13,6 @@ app.use(express.urlencoded({ extended: false }));
 // API kök dizini için bilgi mesajı
 app.get('/api', (req, res) => {
   res.send('Ürün Çekme Uygulaması API Çalışıyor! API rotalarını kullanabilirsiniz.');
-});
-
-// CSV önizleme endpoint'ini erken kaydet (Vite'dan önce)
-app.post("/api/csv-preview-file", (req, res) => {
-  try {
-    const { filename } = req.body;
-    if (!filename) {
-      return res.status(400).json({ message: "Dosya adı gerekli" });
-    }
-    const filePath = pathModule.resolve(process.cwd(), 'temp', filename);
-    
-    if (!fs.existsSync(filePath)) {
-      return res.status(404).json({ message: "CSV dosyası bulunamadı" });
-    }
-    
-    // CSV dosyasını oku
-    const fileContent = fs.readFileSync(filePath, 'utf8');
-    const rows = fileContent.split('\n');
-    
-    if (rows.length === 0) {
-      return res.status(400).json({ message: "CSV dosyası boş" });
-    }
-    
-    // Başlık satırını ayır
-    const headers = rows[0].split(',').map((h: string) => h.trim().replace(/"/g, ''));
-    
-    const preview = {
-      filePath,
-      headers,
-      totalRows: rows.length - 1
-    };
-    
-    return res.status(200).json(preview);
-  } catch (error) {
-    return res.status(500).json({ 
-      message: "CSV önizleme hatası", 
-      error: String(error) 
-    });
-  }
 });
 
 // Vite geliştirme ortamında React uygulamasını kullan
