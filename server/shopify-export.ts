@@ -6,19 +6,29 @@ import fs from "fs";
 
 // CSV için HTML ve özel karakterleri temizle
 function escapeForCSV(text: string): string {
-  if (!text) return '';
+  if (!text || typeof text !== 'string') return '';
   
   // HTML etiketlerini kaldır
   let cleaned = text.replace(/<[^>]*>/g, ' ');
   
-  // Çift tırnak işaretlerini escape et
+  // Problemli karakterleri temizle
+  cleaned = cleaned
+    .replace(/[\x00-\x08\x0B\x0C\x0E-\x1F\x7F]/g, '') // Kontrol karakterleri
+    .replace(/[""]/g, '"') // Farklı tırnak türlerini standart tırnağa çevir
+    .replace(/['']/g, "'") // Farklı kesme işareti türlerini standart kesme işaretine çevir
+    .replace(/\n/g, ' ') // Satır sonlarını boşluğa çevir
+    .replace(/\r/g, ' ') // Satır başlarını boşluğa çevir
+    .replace(/\t/g, ' ') // Tab karakterlerini boşluğa çevir
+    .replace(/\s+/g, ' ') // Çoklu boşlukları tekil boşluğa çevir
+    .trim();
+  
+  // Tırnak karakterlerini escape et (CSV standardı)
   cleaned = cleaned.replace(/"/g, '""');
   
-  // Satır başları ve fazla boşlukları temizle
-  cleaned = cleaned.replace(/\n/g, ' ').replace(/\r/g, ' ').replace(/\s+/g, ' ').trim();
-  
-  // Özel karakterleri temizle
-  cleaned = cleaned.replace(/[^\x20-\x7E\u00C0-\u017F\u0130\u0131\u011E\u011F\u015E\u015F\u00C7\u00E7]/g, '');
+  // Virgül, tırnak veya satır sonu içeriyorsa tırnak içine al
+  if (cleaned.includes(',') || cleaned.includes('"') || cleaned.includes('\n') || cleaned.includes('\r')) {
+    cleaned = `"${cleaned}"`;
+  }
   
   return cleaned;
 }
@@ -390,12 +400,28 @@ export function generateShopifyCSV(
     
     return row;
   };
+  // CSV satırındaki tüm değerleri temizle
+  function sanitizeCSVRow(row: any): any {
+    const sanitized: any = {};
+    for (const [key, value] of Object.entries(row)) {
+      if (typeof value === 'string') {
+        sanitized[key] = escapeForCSV(value);
+      } else if (value === null || value === undefined) {
+        sanitized[key] = '';
+      } else {
+        sanitized[key] = String(value);
+      }
+    }
+    return sanitized;
+  }
+
   return new Promise(async (resolve, reject) => {
     try {
       // Shopify'ın kesin istediği format (2024 şablonu)
       // ÖNEMLİ: Başlık isimleri ve sıralaması kritik önem taşır
       const csvWriter = createObjectCsvWriter({
         path: outputPath,
+        encoding: 'utf8',
         header: [
           // 2024 SHOPIFY IMPORT FORMAT - KESIN SHOPIFY BAŞLIK SIRASI
           { id: 'handle', title: 'Handle' },
@@ -1098,8 +1124,11 @@ export function generateShopifyCSV(
         return newRow;
       });
       
-      await csvWriter.writeRecords(csvCompatibleRows);
-      console.log(`CSV başarıyla oluşturuldu: ${outputPath} (${standardizedRows.length} satır)`);
+      // Tüm satırları sanitize et
+      const sanitizedRows = csvCompatibleRows.map(row => sanitizeCSVRow(row));
+      
+      await csvWriter.writeRecords(sanitizedRows);
+      console.log(`CSV başarıyla oluşturuldu: ${outputPath} (${sanitizedRows.length} satır)`);
       
       // Preview dosyasını temp klasörüne kopyala
       if (outputPath.startsWith('/tmp/')) {
