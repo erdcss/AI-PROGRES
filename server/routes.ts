@@ -12,6 +12,7 @@ import { cleanTrendyolAttributes } from "./clean-attributes";
 import { parseJsonLdProductData, generateTagsFromJsonLd } from "./json-ld-parser";
 import { InsertProduct } from "@shared/schema";
 import { getFinalImages } from "./final-image-solution";
+import { extractAllSizes } from "./advanced-size-extractor";
 
 const urlSchema = z.object({
   url: z.string().min(1, "URL boş olamaz")
@@ -363,7 +364,22 @@ export async function registerRoutes(app: Express) {
                 }
               }
               
-              // Beden sıralaması
+
+              
+              // Gelişmiş beden çıkarma sistemi devreye al
+              console.log('🔧 Gelişmiş beden çıkarma sistemi başlatılıyor...');
+              const productId = url.match(/p-(\d+)/)?.[1] || '';
+              const advancedSizes = await extractAllSizes(url, htmlContent, productId);
+              
+              // Gelişmiş sistemden gelen bedenleri mevcut varyantlara ekle
+              advancedSizes.forEach(size => {
+                if (!variants.size.includes(size)) {
+                  variants.size.push(size);
+                  console.log(`🔧 Gelişmiş sistemden beden eklendi: ${size}`);
+                }
+              });
+              
+              // Bedenleri yeniden sırala
               const sizeOrder = ['XS', 'S', 'M', 'L', 'XL', 'XXL', 'XXXL'];
               variants.size.sort((a, b) => {
                 const aIndex = sizeOrder.indexOf(a);
