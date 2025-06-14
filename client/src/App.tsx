@@ -95,11 +95,11 @@ function LoginScreen({ onLogin }: { onLogin: () => void }) {
                 <Input
                   id="password"
                   type="password"
+                  placeholder="Lütfen şifreyi giriniz"
                   value={password}
                   onChange={(e) => setPassword(e.target.value)}
                   onKeyDown={handleKeyDown}
                   className={error ? "border-red-500" : ""}
-                  placeholder="••••"
                   autoFocus
                 />
                 {error && (

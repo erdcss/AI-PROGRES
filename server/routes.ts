@@ -352,7 +352,8 @@ export async function registerRoutes(app: Express) {
                 basePrice: productData.basePrice || null,
                 category: productData.category || null,
                 subcategory: productData.subcategory || null,
-                productType: productData.productType || null
+                productType: productData.productType || null,
+                tags: productData.tags || null
               }, {});
               
               storage.addToHistory(url);
@@ -413,13 +414,36 @@ export async function registerRoutes(app: Express) {
                              $('.product-desc-item').text().trim() ||
                              title;
                              
-          // Resimler - Güncel selektörler
+          // Resimler - Kapsamlı görsel çekme sistemi
           const images: string[] = [];
-          $('[data-testid="product-image"] img, .product-slide img, .slick-slide img, .gallery-modal img').each((i, el) => {
-            const src = $(el).attr('src') || $(el).attr('data-src');
-            if (src && !src.includes('placeholder')) {
-              images.push(normalizeImageUrl(src));
-            }
+          const imageSelectors = [
+            '[data-testid="product-image"] img',
+            '.product-slide img',
+            '.slick-slide img', 
+            '.gallery-modal img',
+            '.product-gallery img',
+            '.product-images img',
+            '.image-gallery img',
+            '[data-testid="product-gallery"] img',
+            '.product-detail-images img',
+            '.prd-img img',
+            '.product-photo img',
+            'img[src*="product/media"]',
+            'img[src*="ty"]',
+            'img[data-src*="product"]',
+            '.swiper-slide img',
+            '.thumbnail img',
+            '.main-image img'
+          ];
+          
+          // Tüm görsel selektörlerini kontrol et
+          imageSelectors.forEach(selector => {
+            $(selector).each((i, el) => {
+              const src = $(el).attr('src') || $(el).attr('data-src') || $(el).attr('data-lazy');
+              if (src && !src.includes('placeholder')) {
+                images.push(normalizeImageUrl(src));
+              }
+            });
           });
           
           // Ürün variant'ları
