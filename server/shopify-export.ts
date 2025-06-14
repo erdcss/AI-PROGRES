@@ -398,18 +398,41 @@ export function generateShopifyCSV(
   function sanitizeCSVRow(row: any): any {
     const sanitized: any = {};
     for (const [key, value] of Object.entries(row)) {
-      if (typeof value === 'string') {
-        // String değerleri escape et
-        sanitized[key] = escapeForCSV(value);
-      } else if (value === null || value === undefined || value === '') {
-        // Boş değerler için çift tırnak içinde boş string
-        sanitized[key] = '""';
+      if (value === null || value === undefined || value === '') {
+        // Boş değerler için sadece boş string (tırnak yok)
+        sanitized[key] = '';
+      } else if (typeof value === 'string') {
+        // String değerleri temizle ve escape et
+        const cleanValue = value.trim();
+        if (cleanValue === '') {
+          sanitized[key] = '';
+        } else {
+          // HTML taglarını kaldır ve güvenli karakterlere dönüştür
+          let cleaned = cleanValue
+            .replace(/<[^>]*>/g, '') // HTML tagları
+            .replace(/"/g, '""') // Çift tırnakları escape et
+            .replace(/[\r\n\t]/g, ' ') // Satır sonu karakterleri
+            .replace(/\s+/g, ' ') // Çoklu boşlukları tek boşluğa
+            .trim();
+          
+          // Eğer virgül, çift tırnak veya satır sonu varsa tırnakla sar
+          if (cleaned.includes(',') || cleaned.includes('"') || cleaned.includes('\n') || cleaned.includes('\r')) {
+            sanitized[key] = `"${cleaned}"`;
+          } else {
+            sanitized[key] = cleaned;
+          }
+        }
       } else if (typeof value === 'boolean') {
-        // Boolean değerleri büyük harfle
-        sanitized[key] = `"${value.toString().toUpperCase()}"`;
+        // Boolean değerleri büyük harfle (tırnak yok)
+        sanitized[key] = value.toString().toUpperCase();
       } else {
-        // Diğer tüm değerleri string'e çevir ve escape et
-        sanitized[key] = escapeForCSV(String(value));
+        // Diğer tüm değerleri string'e çevir
+        const stringValue = String(value).trim();
+        if (stringValue === '') {
+          sanitized[key] = '';
+        } else {
+          sanitized[key] = stringValue;
+        }
       }
     }
     return sanitized;
@@ -1104,20 +1127,19 @@ export function generateShopifyCSV(
         return newRow;
       });
       
-      // Shopify CSV sütun uyumluluğu için standardize et
+      // Shopify CSV sütun uyumluluğu için standardize et (Template formatına uygun)
       const headerFields = [
-        'handle', 'title', 'body_html', 'vendor', 'standard_product_type', 'custom_product_type', 
-        'tags', 'published', 'status', 'published_at', 'published_scope', 'template_suffix',
-        'option1_name', 'option1_value', 'option2_name', 'option2_value', 'option3_name', 'option3_value',
-        'variant_sku', 'variant_grams', 'variant_inventory_tracker', 'variant_inventory_qty',
-        'variant_inventory_policy', 'variant_fulfillment_service', 'variant_price', 'variant_compare_at_price',
-        'variant_requires_shipping', 'variant_taxable', 'variant_barcode', 'image_src', 'image_position',
-        'image_alt_text', 'gift_card', 'seo_title', 'seo_description', 'google_shopping_metafields',
+        'handle', 'title', 'body_html', 'vendor', 'product_category', 'type', 
+        'tags', 'published', 'option1_name', 'option1_value', 'option2_name', 'option2_value', 
+        'option3_name', 'option3_value', 'variant_sku', 'variant_grams', 'variant_inventory_tracker', 
+        'variant_inventory_qty', 'variant_inventory_policy', 'variant_fulfillment_service', 
+        'variant_price', 'variant_compare_at_price', 'variant_requires_shipping', 'variant_taxable', 
+        'variant_barcode', 'image_src', 'image_position', 'image_alt_text', 'gift_card', 
+        'seo_title', 'seo_description', 'google_shopping_google_product_category',
         'google_shopping_gender', 'google_shopping_age_group', 'google_shopping_mpn',
         'google_shopping_adwords_grouping', 'google_shopping_adwords_labels', 'google_shopping_condition',
         'google_shopping_custom_product', 'google_shopping_custom_label_0', 'google_shopping_custom_label_1',
-        'google_shopping_custom_label_2', 'google_shopping_custom_label_3', 'google_shopping_custom_label_4',
-        'variant_image', 'variant_weight_unit', 'variant_tax_code', 'cost_per_item'
+        'google_shopping_custom_label_2', 'google_shopping_custom_label_3', 'google_shopping_custom_label_4'
       ];
 
       // Her satırda tüm alanların bulunmasını garanti et
