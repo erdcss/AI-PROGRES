@@ -446,7 +446,7 @@ export function generateShopifyCSV(
         path: outputPath,
         encoding: 'utf8',
         header: [
-          // SIMPLIFIED SHOPIFY FORMAT - PRACTICAL & CLEAN
+          // COMPLETE SHOPIFY FORMAT WITH ALL FIELDS
           { id: 'handle', title: 'Handle' },
           { id: 'title', title: 'Title' },
           { id: 'body_html', title: 'Body (HTML)' },
@@ -456,8 +456,45 @@ export function generateShopifyCSV(
           { id: 'published', title: 'Published' },
           { id: 'option1_name', title: 'Option1 Name' },
           { id: 'option1_value', title: 'Option1 Value' },
+          { id: 'option2_name', title: 'Option2 Name' },
+          { id: 'option2_value', title: 'Option2 Value' },
+          { id: 'option3_name', title: 'Option3 Name' },
+          { id: 'option3_value', title: 'Option3 Value' },
           { id: 'variant_sku', title: 'Variant SKU' },
-          { id: 'variant_price', title: 'Variant Price' }
+          { id: 'variant_grams', title: 'Variant Grams' },
+          { id: 'variant_inventory_tracker', title: 'Variant Inventory Tracker' },
+          { id: 'variant_inventory_qty', title: 'Variant Inventory Qty' },
+          { id: 'variant_inventory_policy', title: 'Variant Inventory Policy' },
+          { id: 'variant_fulfillment_service', title: 'Variant Fulfillment Service' },
+          { id: 'variant_price', title: 'Variant Price' },
+          { id: 'variant_compare_at_price', title: 'Variant Compare At Price' },
+          { id: 'variant_requires_shipping', title: 'Variant Requires Shipping' },
+          { id: 'variant_taxable', title: 'Variant Taxable' },
+          { id: 'variant_barcode', title: 'Variant Barcode' },
+          { id: 'image_src', title: 'Image Src' },
+          { id: 'image_position', title: 'Image Position' },
+          { id: 'image_alt_text', title: 'Image Alt Text' },
+          { id: 'gift_card', title: 'Gift Card' },
+          { id: 'seo_title', title: 'SEO Title' },
+          { id: 'seo_description', title: 'SEO Description' },
+          { id: 'google_shopping_google_product_category', title: 'Google Shopping / Google Product Category' },
+          { id: 'google_shopping_gender', title: 'Google Shopping / Gender' },
+          { id: 'google_shopping_age_group', title: 'Google Shopping / Age Group' },
+          { id: 'google_shopping_mpn', title: 'Google Shopping / MPN' },
+          { id: 'google_shopping_adwords_grouping', title: 'Google Shopping / AdWords Grouping' },
+          { id: 'google_shopping_adwords_labels', title: 'Google Shopping / AdWords Labels' },
+          { id: 'google_shopping_condition', title: 'Google Shopping / Condition' },
+          { id: 'google_shopping_custom_product', title: 'Google Shopping / Custom Product' },
+          { id: 'google_shopping_custom_label_0', title: 'Google Shopping / Custom Label 0' },
+          { id: 'google_shopping_custom_label_1', title: 'Google Shopping / Custom Label 1' },
+          { id: 'google_shopping_custom_label_2', title: 'Google Shopping / Custom Label 2' },
+          { id: 'google_shopping_custom_label_3', title: 'Google Shopping / Custom Label 3' },
+          { id: 'google_shopping_custom_label_4', title: 'Google Shopping / Custom Label 4' },
+          { id: 'variant_image', title: 'Variant Image' },
+          { id: 'variant_weight_unit', title: 'Variant Weight Unit' },
+          { id: 'variant_tax_code', title: 'Variant Tax Code' },
+          { id: 'cost_per_item', title: 'Cost per item' },
+          { id: 'status', title: 'Status' }
         ]
       });
 
@@ -533,17 +570,15 @@ export function generateShopifyCSV(
           let mainRow = {
             handle: handle,
             title: product.title,
-            body_html: product.title,
-            vendor: 'turmarkt',
-            product_category: 'Apparel & Accessories > Clothing',
+            body_html: product.description || product.title,
+            vendor: product.brand || 'turmarkt',
             type: product.category ? 
               product.category.split('>').pop()?.trim() || 'Giyim'
               : 'Giyim',
             tags: tags,
             published: 'TRUE',
-            status: 'active',
             option1_name: 'Size',
-            option1_value: sizes[0], // İlk beden değeri
+            option1_value: sizes[0],
             option2_name: '',
             option2_value: '',
             option3_name: '',
@@ -555,13 +590,34 @@ export function generateShopifyCSV(
             variant_inventory_policy: 'deny',
             variant_fulfillment_service: 'manual',
             variant_price: product.price,
+            variant_compare_at_price: product.basePrice || '',
             variant_requires_shipping: 'TRUE',
             variant_taxable: 'TRUE',
             variant_barcode: '',
             image_src: mainImage,
+            image_position: '1',
             image_alt_text: product.title || '',
+            gift_card: 'FALSE',
+            seo_title: product.title,
+            seo_description: product.description || product.title,
+            google_shopping_google_product_category: product.category || '',
+            google_shopping_gender: 'Unisex',
+            google_shopping_age_group: 'Adult',
+            google_shopping_mpn: product.brand || '',
+            google_shopping_adwords_grouping: '',
+            google_shopping_adwords_labels: '',
+            google_shopping_condition: 'New',
+            google_shopping_custom_product: 'FALSE',
+            google_shopping_custom_label_0: '',
+            google_shopping_custom_label_1: '',
+            google_shopping_custom_label_2: '',
+            google_shopping_custom_label_3: '',
+            google_shopping_custom_label_4: '',
+            variant_image: mainImage,
             variant_weight_unit: 'g',
-            published_scope: 'web'
+            variant_tax_code: '',
+            cost_per_item: '',
+            status: 'active'
           };
           
           // Ana satırı ekle
@@ -796,19 +852,17 @@ export function generateShopifyCSV(
           
           csvRows.push(fixShopifyVisibility(row));
         } else {
-          // Varyantı olmayan temel ürün - Shopify şablonunda Title/Default Title zorunlu
-          // ÖNEMLİ: option1_name ve option1_value yoksa, ürün Shopify'da görünmez!
+          // Varyantı olmayan temel ürün - Tam Shopify formatında
           let row = {
             handle: handle,
             title: product.title,
-            body_html: product.title,
-            vendor: 'turmarkt',
+            body_html: product.description || product.title,
+            vendor: product.brand || 'turmarkt',
             type: product.category ? 
               product.category.split('>').pop()?.trim() || 'Giyim'
               : 'Giyim',
-            tags: product.tags || '',
+            tags: tags,
             published: 'TRUE',
-            status: 'active',
             option1_name: 'Title',
             option1_value: 'Default Title',
             option2_name: '',
@@ -822,36 +876,96 @@ export function generateShopifyCSV(
             variant_inventory_policy: 'deny',
             variant_fulfillment_service: 'manual',
             variant_price: product.price,
+            variant_compare_at_price: product.basePrice || '',
             variant_requires_shipping: 'TRUE',
             variant_taxable: 'TRUE',
             variant_barcode: '',
-            image_src: product.images && product.images.length > 0 ? product.images[0] : '',
-            variant_weight_unit: 'g'
+            image_src: mainImage,
+            image_position: '1',
+            image_alt_text: product.title || '',
+            gift_card: 'FALSE',
+            seo_title: product.title,
+            seo_description: product.description || product.title,
+            google_shopping_google_product_category: product.category || '',
+            google_shopping_gender: 'Unisex',
+            google_shopping_age_group: 'Adult',
+            google_shopping_mpn: product.brand || '',
+            google_shopping_adwords_grouping: '',
+            google_shopping_adwords_labels: '',
+            google_shopping_condition: 'New',
+            google_shopping_custom_product: 'FALSE',
+            google_shopping_custom_label_0: '',
+            google_shopping_custom_label_1: '',
+            google_shopping_custom_label_2: '',
+            google_shopping_custom_label_3: '',
+            google_shopping_custom_label_4: '',
+            variant_image: mainImage,
+            variant_weight_unit: 'g',
+            variant_tax_code: '',
+            cost_per_item: '',
+            status: 'active'
           };
           
           csvRows.push(fixShopifyVisibility(row));
+          
+          // Ek görseller varsa ayrı satırlar ekle
+          additionalImages.forEach((imageUrl, index) => {
+            const imageRow = {
+              handle: handle,
+              title: '',
+              body_html: '',
+              vendor: '',
+              type: '',
+              tags: '',
+              published: '',
+              option1_name: '',
+              option1_value: '',
+              option2_name: '',
+              option2_value: '',
+              option3_name: '',
+              option3_value: '',
+              variant_sku: '',
+              variant_grams: '',
+              variant_inventory_tracker: '',
+              variant_inventory_qty: '',
+              variant_inventory_policy: '',
+              variant_fulfillment_service: '',
+              variant_price: '',
+              variant_compare_at_price: '',
+              variant_requires_shipping: '',
+              variant_taxable: '',
+              variant_barcode: '',
+              image_src: imageUrl,
+              image_position: `${index + 2}`,
+              image_alt_text: `${product.title} - Görsel ${index + 2}`,
+              gift_card: '',
+              seo_title: '',
+              seo_description: '',
+              google_shopping_google_product_category: '',
+              google_shopping_gender: '',
+              google_shopping_age_group: '',
+              google_shopping_mpn: '',
+              google_shopping_adwords_grouping: '',
+              google_shopping_adwords_labels: '',
+              google_shopping_condition: '',
+              google_shopping_custom_product: '',
+              google_shopping_custom_label_0: '',
+              google_shopping_custom_label_1: '',
+              google_shopping_custom_label_2: '',
+              google_shopping_custom_label_3: '',
+              google_shopping_custom_label_4: '',
+              variant_image: '',
+              variant_weight_unit: '',
+              variant_tax_code: '',
+              cost_per_item: '',
+              status: ''
+            };
+            csvRows.push(fixShopifyVisibility(imageRow));
+          });
         }
       }
       
-      // Ürün görselleri için ayrı satırlar (Shopify için önemli)
-      if (product.images && product.images.length > 1) {
-        // İlk görsel zaten ana üründe, diğer görseller için ayrı satırlar ekle
-        for (let i = 1; i < product.images.length; i++) {
-          const imageRow = {
-            handle: handle,
-            title: product.title,
-            body_html: product.title,
-            vendor: 'turmarkt',
-            published: 'TRUE',
-            status: 'active',
-            image_src: product.images[i],
-            image_position: (i + 1).toString(),
-            image_alt_text: `${product.title} - ${i + 1}`
-          };
-          
-          csvRows.push(fixShopifyVisibility(imageRow));
-        }
-      }
+
       
       // CSV dosyası için satırları hazırla - alan eşleştirmeleri yap
       const processedRows = csvRows.map(row => {

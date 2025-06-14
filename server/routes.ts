@@ -348,7 +348,11 @@ export async function registerRoutes(app: Express) {
                 id: 0,
                 brand: productData.brand || null,
                 video: productData.video || null,
-                vendor: productData.vendor || null
+                vendor: productData.vendor || null,
+                basePrice: productData.basePrice || null,
+                category: productData.category || null,
+                subcategory: productData.subcategory || null,
+                productType: productData.productType || null
               }, {});
               
               storage.addToHistory(url);
