@@ -318,7 +318,7 @@ export async function generateShopifyCSV(
       row.vendor = "turmarkt";
     }
     
-    // 2. Status alanının "active" olması şart (status değil durum değil)
+    // 2. Status alanının "active" olması şart - Shopify kabul edilen değerler: active, draft, archived
     row.status = 'active';
     
     // 3. ÖNEMLİ: Tüm Boolean alanlar BÜYÜK HARF olmalı
@@ -330,12 +330,12 @@ export async function generateShopifyCSV(
     row.published_at = new Date().toISOString(); // Şu anki tarih/saat
     
     // 5. Shopify'da varyant ayarları için kritik değişiklikler
-    row.variant_inventory_policy = 'deny'; // Şart
-    row.variant_fulfillment_service = 'manual'; // Şart
+    row.variant_inventory_policy = 'deny'; // Kabul edilen: deny, continue
+    row.variant_fulfillment_service = 'manual'; // Kabul edilen: manual, automatic
     
     // 6. Temel envanter ve durum ayarları
-    row.inventory_policy = 'deny';
-    row.fulfillment_service = 'manual';
+    row.inventory_policy = 'deny'; // Kabul edilen: deny, continue
+    row.fulfillment_service = 'manual'; // Kabul edilen: manual, automatic
     
     // 7. Handle alanı - Shopify için kritik önem taşır
     if (!row.handle) {
@@ -504,34 +504,35 @@ export async function generateShopifyCSV(
         path: outputPath,
         encoding: 'utf8',
         header: [
-          // COMPLETE SHOPIFY FORMAT WITH ALL FIELDS
+          // SHOPIFY RESMI CSV FORMATI (2024) - Tam liste
           { id: 'handle', title: 'Handle' },
           { id: 'title', title: 'Title' },
           { id: 'body_html', title: 'Body (HTML)' },
           { id: 'vendor', title: 'Vendor' },
-          { id: 'type', title: 'Type' },
+          { id: 'product_type', title: 'Product Type' },
           { id: 'tags', title: 'Tags' },
           { id: 'published', title: 'Published' },
+          { id: 'status', title: 'Status' },
           { id: 'option1_name', title: 'Option1 Name' },
           { id: 'option1_value', title: 'Option1 Value' },
           { id: 'option2_name', title: 'Option2 Name' },
           { id: 'option2_value', title: 'Option2 Value' },
           { id: 'option3_name', title: 'Option3 Name' },
           { id: 'option3_value', title: 'Option3 Value' },
-          { id: 'variant_sku', title: 'Variant SKU' },
-          { id: 'variant_grams', title: 'Variant Grams' },
-          { id: 'variant_inventory_tracker', title: 'Variant Inventory Tracker' },
-          { id: 'variant_inventory_qty', title: 'Variant Inventory Qty' },
-          { id: 'variant_inventory_policy', title: 'Variant Inventory Policy' },
-          { id: 'variant_fulfillment_service', title: 'Variant Fulfillment Service' },
           { id: 'variant_price', title: 'Variant Price' },
           { id: 'variant_compare_at_price', title: 'Variant Compare At Price' },
+          { id: 'variant_inventory_qty', title: 'Variant Inventory Qty' },
+          { id: 'variant_inventory_tracker', title: 'Variant Inventory Tracker' },
+          { id: 'variant_inventory_policy', title: 'Variant Inventory Policy' },
           { id: 'variant_requires_shipping', title: 'Variant Requires Shipping' },
           { id: 'variant_taxable', title: 'Variant Taxable' },
-          { id: 'variant_barcode', title: 'Variant Barcode' },
           { id: 'image_src', title: 'Image Src' },
           { id: 'image_position', title: 'Image Position' },
           { id: 'image_alt_text', title: 'Image Alt Text' },
+          { id: 'variant_sku', title: 'Variant SKU' },
+          { id: 'variant_grams', title: 'Variant Grams' },
+          { id: 'variant_fulfillment_service', title: 'Variant Fulfillment Service' },
+          { id: 'variant_barcode', title: 'Variant Barcode' },
           { id: 'gift_card', title: 'Gift Card' },
           { id: 'seo_title', title: 'SEO Title' },
           { id: 'seo_description', title: 'SEO Description' },
@@ -550,9 +551,14 @@ export async function generateShopifyCSV(
           { id: 'google_shopping_custom_label_4', title: 'Google Shopping / Custom Label 4' },
           { id: 'variant_image', title: 'Variant Image' },
           { id: 'variant_weight_unit', title: 'Variant Weight Unit' },
+          { id: 'published_scope', title: 'Published Scope' },
+          { id: 'published_at', title: 'Published At' },
           { id: 'variant_tax_code', title: 'Variant Tax Code' },
           { id: 'cost_per_item', title: 'Cost per item' },
-          { id: 'status', title: 'Status' }
+          { id: 'published_on_online_store', title: 'Published On Online Store' },
+          { id: 'product_category', title: 'Product Category' },
+          { id: 'requires_shipping', title: 'Requires Shipping' },
+          { id: 'taxable', title: 'Taxable' }
         ]
       });
 
@@ -682,31 +688,32 @@ export async function generateShopifyCSV(
             title: product.title,
             body_html: product.description || product.title,
             vendor: product.brand || 'turmarkt',
-            type: product.category ? 
+            product_type: product.category ? 
               product.category.split('>').pop()?.trim() || 'Giyim'
               : 'Giyim',
             tags: tags,
             published: 'TRUE',
+            status: 'active',
             option1_name: 'Size',
             option1_value: sizes[0],
             option2_name: '',
             option2_value: '',
             option3_name: '',
             option3_value: '',
-            variant_sku: `${handle}-${sizes[0]}`,
-            variant_grams: '500',
-            variant_inventory_tracker: 'shopify',
-            variant_inventory_qty: '50',
-            variant_inventory_policy: 'deny',
-            variant_fulfillment_service: 'manual',
             variant_price: product.price,
             variant_compare_at_price: product.basePrice || '',
+            variant_inventory_qty: '50',
+            variant_inventory_tracker: 'shopify',
+            variant_inventory_policy: 'deny',
             variant_requires_shipping: 'TRUE',
             variant_taxable: 'TRUE',
-            variant_barcode: '',
             image_src: mainImage,
             image_position: '1',
             image_alt_text: product.title || '',
+            variant_sku: `${handle}-${sizes[0]}`,
+            variant_grams: '500',
+            variant_fulfillment_service: 'manual',
+            variant_barcode: '',
             gift_card: 'FALSE',
             seo_title: product.title,
             seo_description: product.description || product.title,
@@ -725,9 +732,14 @@ export async function generateShopifyCSV(
             google_shopping_custom_label_4: '',
             variant_image: mainImage,
             variant_weight_unit: 'g',
+            published_scope: 'web',
+            published_at: new Date().toISOString(),
             variant_tax_code: '',
             cost_per_item: '',
-            status: 'active'
+            published_on_online_store: 'TRUE',
+            product_category: 'Apparel & Accessories',
+            requires_shipping: 'TRUE',
+            taxable: 'TRUE'
           };
           
           // Ana satırı ekle
@@ -783,34 +795,60 @@ export async function generateShopifyCSV(
           let mainRow = {
             handle: handle,
             title: product.title,
-            body_html: product.title,
-            vendor: 'turmarkt',
-            product_category: 'Apparel & Accessories',
-            type: product.category ? 
+            body_html: product.description || product.title,
+            vendor: product.brand || 'turmarkt',
+            product_type: product.category ? 
               product.category.split('>').pop()?.trim() || 'Giyim'
               : 'Giyim',
             tags: tags,
             published: 'TRUE',
             status: 'active',
             option1_name: 'Color',
-            option1_value: colors[0], // İlk renk değeri
+            option1_value: colors[0],
             option2_name: '',
             option2_value: '',
             option3_name: '',
             option3_value: '',
-            variant_sku: `${handle}-${colors[0]}`,
-            variant_grams: '500',
-            variant_inventory_tracker: 'shopify',
-            variant_inventory_qty: '50',
-            variant_inventory_policy: 'deny',
-            variant_fulfillment_service: 'manual',
             variant_price: product.price,
+            variant_compare_at_price: product.basePrice || '',
+            variant_inventory_qty: '50',
+            variant_inventory_tracker: 'shopify',
+            variant_inventory_policy: 'deny',
             variant_requires_shipping: 'TRUE',
             variant_taxable: 'TRUE',
-            variant_barcode: '',
             image_src: mainImage,
+            image_position: '1',
             image_alt_text: product.title || '',
-            variant_weight_unit: 'g'
+            variant_sku: `${handle}-${colors[0]}`,
+            variant_grams: '500',
+            variant_fulfillment_service: 'manual',
+            variant_barcode: '',
+            gift_card: 'FALSE',
+            seo_title: product.title,
+            seo_description: product.description || product.title,
+            google_shopping_google_product_category: product.category || '',
+            google_shopping_gender: 'Unisex',
+            google_shopping_age_group: 'Adult',
+            google_shopping_mpn: product.brand || '',
+            google_shopping_adwords_grouping: '',
+            google_shopping_adwords_labels: '',
+            google_shopping_condition: 'New',
+            google_shopping_custom_product: 'FALSE',
+            google_shopping_custom_label_0: '',
+            google_shopping_custom_label_1: '',
+            google_shopping_custom_label_2: '',
+            google_shopping_custom_label_3: '',
+            google_shopping_custom_label_4: '',
+            variant_image: mainImage,
+            variant_weight_unit: 'g',
+            published_scope: 'web',
+            published_at: new Date().toISOString(),
+            variant_tax_code: '',
+            cost_per_item: '',
+            published_on_online_store: 'TRUE',
+            product_category: 'Apparel & Accessories',
+            requires_shipping: 'TRUE',
+            taxable: 'TRUE'
           };
           
           // Ana satırı ekle
