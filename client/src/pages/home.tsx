@@ -363,10 +363,46 @@ export default function Home() {
                   </div>
 
                   <div className="space-y-3 border-b border-gray-800 pb-4">
-                    <h2 className="text-lg font-semibold">{product.title}</h2>
-                    <div className="flex items-baseline gap-2">
-                      <span className="text-base font-bold">{product.price} TL</span>
+                    <h2 className="text-lg font-semibold">{product.productInfo?.title || product.title}</h2>
+                    
+                    {/* Marka Bilgisi */}
+                    {product.productInfo?.brand && (
+                      <div className="flex items-center gap-2">
+                        <Package className="w-4 h-4 text-primary" />
+                        <span className="text-sm text-gray-300">Marka: {product.productInfo.brand}</span>
+                      </div>
+                    )}
+                    
+                    {/* Fiyat Bilgisi */}
+                    <div className="flex items-baseline gap-3">
+                      <span className="text-xl font-bold text-primary">{product.productInfo?.price || product.price} TL</span>
+                      {product.productInfo?.basePrice && (
+                        <span className="text-sm text-gray-400 line-through">{product.productInfo.basePrice} TL</span>
+                      )}
                     </div>
+                    
+                    {/* Derecelendirme */}
+                    {product.productInfo?.rating && (
+                      <div className="flex items-center gap-2">
+                        <div className="flex items-center">
+                          {[...Array(5)].map((_, i) => (
+                            <span key={i} className={`text-xs ${i < Math.floor(product.productInfo.rating.value) ? 'text-yellow-400' : 'text-gray-600'}`}>
+                              ★
+                            </span>
+                          ))}
+                        </div>
+                        <span className="text-sm text-gray-300">
+                          {product.productInfo.rating.value}/5 ({product.productInfo.rating.count} değerlendirme)
+                        </span>
+                      </div>
+                    )}
+                    
+                    {/* Yorum Sayısı */}
+                    {product.productInfo?.reviewCount > 0 && (
+                      <div className="text-sm text-gray-400">
+                        {product.productInfo.reviewCount} müşteri yorumu
+                      </div>
+                    )}
                     
                     {product.preview && product.preview.shopifyReady && (
                       <div className="mt-2 bg-green-900/30 p-2 rounded-md">
@@ -530,7 +566,29 @@ export default function Home() {
                           </div>
                         </AccordionTrigger>
                         <AccordionContent>
-                          <ProductAttributes attributes={product.attributes} />
+                          <div className="bg-gray-900/50 rounded-lg p-4 space-y-3">
+                            {product.productInfo?.attributes && Object.keys(product.productInfo.attributes).length > 0 ? (
+                              <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                                {Object.entries(product.productInfo.attributes).map(([key, value], index) => (
+                                  <div key={index} className="flex justify-between items-center p-2 bg-gray-800 rounded">
+                                    <span className="text-sm font-medium text-gray-300">{key}:</span>
+                                    <span className="text-sm text-white">{String(value)}</span>
+                                  </div>
+                                ))}
+                              </div>
+                            ) : product.attributes && Object.keys(product.attributes).length > 0 ? (
+                              <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                                {Object.entries(product.attributes).map(([key, value], index) => (
+                                  <div key={index} className="flex justify-between items-center p-2 bg-gray-800 rounded">
+                                    <span className="text-sm font-medium text-gray-300">{key}:</span>
+                                    <span className="text-sm text-white">{String(value)}</span>
+                                  </div>
+                                ))}
+                              </div>
+                            ) : (
+                              <div className="text-sm text-gray-400">Ürün özelliği bulunamadı</div>
+                            )}
+                          </div>
                         </AccordionContent>
                       </AccordionItem>
                       <AccordionItem value="variants" className="border-gray-800">
@@ -541,17 +599,35 @@ export default function Home() {
                           </div>
                         </AccordionTrigger>
                         <AccordionContent>
-                          <div className="bg-gray-900/50 rounded-lg p-4">
-                            {product.variants?.colors?.length > 0 && (
-                              <div className="mb-4">
-                                <h3 className="text-sm font-medium mb-2">Renk Seçenekleri</h3>
+                          <div className="bg-gray-900/50 rounded-lg p-4 space-y-4">
+                            {/* Renk Seçenekleri */}
+                            {(product.productInfo?.variants?.color?.length > 0 || product.variants?.color?.length > 0) && (
+                              <div>
+                                <h3 className="text-sm font-medium mb-2 text-primary">Renk Seçenekleri</h3>
                                 <div className="flex flex-wrap gap-2">
-                                  {product.variants.colors.map((color: string, index: number) => (
+                                  {(product.productInfo?.variants?.color || product.variants?.color || []).map((color: string, index: number) => (
                                     <span
                                       key={index}
-                                      className="px-3 py-1 bg-gray-800 rounded-full text-xs hover:bg-gray-700 transition-colors"
+                                      className="px-3 py-1 bg-gray-800 rounded-full text-xs hover:bg-gray-700 transition-colors border border-gray-700"
                                     >
                                       {color}
+                                    </span>
+                                  ))}
+                                </div>
+                              </div>
+                            )}
+
+                            {/* Beden Seçenekleri */}
+                            {(product.productInfo?.variants?.size?.length > 0 || product.variants?.size?.length > 0) && (
+                              <div>
+                                <h3 className="text-sm font-medium mb-2 text-primary">Beden Seçenekleri</h3>
+                                <div className="flex flex-wrap gap-2">
+                                  {(product.productInfo?.variants?.size || product.variants?.size || []).map((size: string, index: number) => (
+                                    <span
+                                      key={index}
+                                      className="px-3 py-1 bg-gray-800 rounded-full text-xs hover:bg-gray-700 transition-colors border border-gray-700"
+                                    >
+                                      {size}
                                     </span>
                                   ))}
                                 </div>
