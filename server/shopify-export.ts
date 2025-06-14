@@ -467,6 +467,19 @@ export function generateShopifyCSV(
       // Handle oluştur (URL-uyumlu slug)
       const handle = createUniqueHandle(product.title);
       
+      // Ürün görsellerini filtreleyip hazırla
+      const validImages = product.images 
+        ? product.images
+            .filter(isValidProductImage)
+            .slice(0, 10) // Maksimum 10 görsel
+        : [];
+      
+      console.log(`GÖRSEL SİSTEMİ: Toplam ${product.images?.length || 0} görsel, geçerli ${validImages.length} görsel`);
+      
+      // İlk görseli ana ürün için ayır, kalanları ayrı satırlar için
+      const mainImage = validImages.length > 0 ? validImages[0] : '';
+      const additionalImages = validImages.slice(1);
+      
       // Body HTML oluştur - Sadece düz metin, HTML yok
       const generateBodyHTML = () => {
         // Sadece ürün başlığını kullan - en güvenli yöntem
@@ -490,23 +503,29 @@ export function generateShopifyCSV(
                                  product.category.includes('Bilgisayar') ||
                                  product.category.includes('Telefon'));
       
-      // Etiketleri hazırla (Shopify için önemli)
+      // Gelişmiş etiket sistemi - JSON-LD verilerini kullan
       let tags = '';
       
-      // Kategori bilgisinden etiketler oluştur
-      if (product.category) {
-        // Kategori ağacını etiketlere çevir (maksimum 3 etiket)
+      if (product.tags && Array.isArray(product.tags) && product.tags.length > 0) {
+        // JSON-LD'den gelen kapsamlı etiketleri kullan
+        tags = product.tags
+          .filter(tag => tag && tag.length > 0 && tag.length <= 30)
+          .slice(0, 15) // Maksimum 15 etiket
+          .join(',');
+      } else if (product.category) {
+        // Fallback: Kategori bilgisinden etiketler oluştur
         const categoryParts = product.category.split('>').map(part => part.trim());
         const maxTags = Math.min(3, categoryParts.length);
         
-        // İlk 3 etiketi al, Trendyol kelimesini temizle
         const categoryTags = categoryParts
           .slice(0, maxTags)
           .map(tag => tag.replace(/trendyol/i, '').trim())
-          .filter(tag => tag.length > 0 && tag.length <= 20); // 20 karakter sınırı
+          .filter(tag => tag.length > 0 && tag.length <= 20);
           
         tags = categoryTags.join(',');
       }
+      
+      console.log(`ETİKET SİSTEMİ: ${product.tags?.length || 0} etiket, CSV'de kullanılan: ${tags}`);
 
       if (productHasVariants) {
         // Sadece beden varyantları içeren ürün
@@ -539,13 +558,34 @@ export function generateShopifyCSV(
             variant_requires_shipping: 'TRUE',
             variant_taxable: 'TRUE',
             variant_barcode: '',
-            image_src: product.images && product.images.length > 0 ? product.images[0] : '',
+            image_src: mainImage,
+            image_alt_text: product.title || '',
             variant_weight_unit: 'g',
             published_scope: 'web'
           };
           
           // Ana satırı ekle
           csvRows.push(fixShopifyVisibility(mainRow));
+          
+          // Ek görseller varsa ayrı satırlar ekle
+          additionalImages.forEach((imageUrl, index) => {
+            const imageRow = {
+              handle: handle,
+              title: '',
+              body_html: '',
+              vendor: '',
+              type: '',
+              tags: '',
+              published: '',
+              option1_name: '',
+              option1_value: '',
+              variant_sku: '',
+              variant_price: '',
+              image_src: imageUrl,
+              image_alt_text: `${product.title} - Görsel ${index + 2}`
+            };
+            csvRows.push(fixShopifyVisibility(imageRow));
+          });
           
           // Diğer beden varyantlarını ekle
           for (let i = 1; i < sizes.length; i++) {

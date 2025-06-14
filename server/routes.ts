@@ -258,8 +258,45 @@ export async function registerRoutes(app: Express) {
               // JSON-LD'den etiketler oluştur
               const jsonTags = generateTagsFromJsonLd(jsonldData);
               
+              // Ürün başlığından kategori çıkarma
+              const productTitle = jsonldData.name.toLowerCase();
+              let detectedCategories = [];
+              
+              // Başlık analizi ile kategori belirleme
+              if (productTitle.includes('cüzdan') || productTitle.includes('wallet')) {
+                detectedCategories = ['Accessories', 'Wallet', 'Fashion'];
+              } else if (productTitle.includes('ayakkabı') || productTitle.includes('bot') || productTitle.includes('sneaker')) {
+                detectedCategories = ['Shoes', 'Footwear', 'Fashion'];
+              } else if (productTitle.includes('çanta') || productTitle.includes('bag')) {
+                detectedCategories = ['Accessories', 'Bag', 'Fashion'];
+              } else if (productTitle.includes('kol saati') || productTitle.includes('watch')) {
+                detectedCategories = ['Accessories', 'Watch', 'Fashion'];
+              } else if (productTitle.includes('gömlek') || productTitle.includes('shirt')) {
+                detectedCategories = ['Clothing', 'Shirt', 'Fashion'];
+              } else if (productTitle.includes('pantolon') || productTitle.includes('pants')) {
+                detectedCategories = ['Clothing', 'Pants', 'Fashion'];
+              } else if (productTitle.includes('elbise') || productTitle.includes('dress')) {
+                detectedCategories = ['Clothing', 'Dress', 'Fashion'];
+              } else {
+                detectedCategories = ['Fashion', 'Accessories', 'General'];
+              }
+              
+              // Marka etiketini ekle
+              const brandTag = jsonldData.brand || 'turmarkt';
+              
+              // Etiket listesini oluştur: marka + kategori + JSON-LD etiketleri
+              const combinedTags = [brandTag, ...detectedCategories, ...jsonTags]
+                .filter((tag, index, self) => self.indexOf(tag) === index) // Tekrarları kaldır
+                .slice(0, 15); // Maksimum 15 etiket
+              
+              console.log(`KATEGORİ VE ETİKET OLUŞTURMA:
+                - Tespit edilen kategoriler: ${detectedCategories.join(', ')}
+                - Marka etiketi: ${brandTag}
+                - Toplam etiket sayısı: ${combinedTags.length}
+                - Etiketler: ${combinedTags.join(', ')}`);
+              
               // Kategori yapılandırması al
-              const categoryConfig = getCategoryConfig(jsonTags);
+              const categoryConfig = getCategoryConfig(detectedCategories);
               
               // Varyant bilgilerini düzenle
               const variants = {
@@ -273,7 +310,7 @@ export async function registerRoutes(app: Express) {
               const productData: InsertProduct = {
                 url,
                 title: jsonldData.name,
-                brand: jsonldData.brand,
+                brand: jsonldData.brand || null,
                 description: jsonldData.description,
                 price: priceWithProfit,
                 basePrice: jsonldData.price,
@@ -288,7 +325,7 @@ export async function registerRoutes(app: Express) {
                   reviews: jsonldData.reviews ? `${jsonldData.reviews.length} yorum` : 'Yorum yok',
                   availability: jsonldData.availability.includes('InStock') ? 'Stokta' : 'Stokta yok'
                 },
-                tags: [...jsonTags, ...categoryConfig.tags].slice(0, 15),
+                tags: combinedTags,
                 video: null,
                 vendor: "turmarkt"
               };
@@ -299,7 +336,7 @@ export async function registerRoutes(app: Express) {
                 - Fiyat: ${productData.price} TL (Orijinal: ${jsonldData.price} TL)
                 - Görseller: ${productData.images.length} adet
                 - Özellikler: ${Object.keys(productData.attributes).length} adet
-                - Etiketler: ${productData.tags.length} adet
+                - Etiketler: ${productData.tags?.length || 0} adet
                 - Varyantlar: ${variants.size.length} beden, ${variants.color.length} renk`);
               
               // Ürünü veritabanına kaydet
