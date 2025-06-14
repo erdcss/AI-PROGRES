@@ -377,6 +377,38 @@ export function generateShopifyCSV(
       row.variant_taxable = row.taxable;
     }
     
+    // GÖRSEL ALANLARI KONTROLÜ VE DÜZENLEMESİ
+    // Image Src alanının korunmasını sağla
+    if (row.image_src) {
+      // Görsel URL'ini temizle ve doğrula
+      const cleanImageUrl = String(row.image_src).trim();
+      if (cleanImageUrl && cleanImageUrl !== '' && cleanImageUrl !== 'undefined') {
+        row.image_src = cleanImageUrl;
+      } else {
+        row.image_src = '';
+      }
+    }
+    
+    // Image Position kontrolü
+    if (row.image_position && !isNaN(row.image_position)) {
+      row.image_position = String(row.image_position);
+    }
+    
+    // Image Alt Text kontrolü
+    if (row.image_alt_text) {
+      row.image_alt_text = String(row.image_alt_text).trim();
+    }
+    
+    // Variant Image alanı
+    if (row.variant_image) {
+      const cleanVariantImage = String(row.variant_image).trim();
+      if (cleanVariantImage && cleanVariantImage !== '' && cleanVariantImage !== 'undefined') {
+        row.variant_image = cleanVariantImage;
+      } else {
+        row.variant_image = '';
+      }
+    }
+
     // Varsayılan değerler - Shopify'da gerekli olan temel alanlar
     if (!row.status) row.status = 'active';
     if (!row.requires_shipping) row.requires_shipping = 'TRUE';
