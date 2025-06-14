@@ -4,7 +4,6 @@
  */
 
 import * as cheerio from "cheerio";
-import { extractAllImagesFromJsonLD } from './json-ld-extractor';
 
 export interface JsonLdProductData {
   name: string;
@@ -43,7 +42,7 @@ export interface JsonLdProductData {
  * @param $ Cheerio HTML içeriği
  * @returns Detaylı ürün verisi
  */
-export async function parseJsonLdProductData($: cheerio.CheerioAPI): Promise<JsonLdProductData | null> {
+export function parseJsonLdProductData($: cheerio.CheerioAPI): JsonLdProductData | null {
   try {
     // JSON-LD script taglarını bul
     const jsonLdScripts = $('script[type="application/ld+json"]');
@@ -83,7 +82,64 @@ export async function parseJsonLdProductData($: cheerio.CheerioAPI): Promise<Jso
           };
           
           // Görselleri JSON-LD'den çıkar ve filtrele
-          productData.images = await extractAllImagesFromJsonLD($);
+          const allImages: string[] = [];
+          
+          // Ana ürün görselleri
+          if (data.image && data.image.contentUrl) {
+            if (Array.isArray(data.image.contentUrl)) {
+              allImages.push(...data.image.contentUrl);
+            } else if (typeof data.image.contentUrl === 'string') {
+              allImages.push(data.image.contentUrl);
+            }
+          }
+          
+          // Varyant görselleri
+          if (data.hasVariant && Array.isArray(data.hasVariant)) {
+            data.hasVariant.forEach((variant: any) => {
+              if (variant.image) {
+                if (typeof variant.image === 'string') {
+                  allImages.push(variant.image);
+                } else if (variant.image.contentUrl) {
+                  allImages.push(variant.image.contentUrl);
+                }
+              }
+            });
+          }
+          
+          // Duplicate'leri kaldır
+          const uniqueImages = Array.from(new Set(allImages));
+          
+          // Logo ve gereksiz görselleri filtrele
+          const filteredImages = uniqueImages.filter(url => {
+            if (!url) return false;
+            
+            // Logo filtreleme
+            const isLogo = url.includes('logo') || 
+                          url.includes('ty-web.svg') || 
+                          url.includes('brand') ||
+                          url.includes('icon') ||
+                          url.includes('badge') ||
+                          url.includes('spacer');
+            
+            return !isLogo;
+          });
+          
+          // Aynı görselin farklı boyutlarını tek görsele indir
+          const deduplicatedImages = [];
+          const seenImages = new Set();
+          
+          for (const image of filteredImages) {
+            // Görsel ID'sini çıkar (dosya adından)
+            const imageId = image.split('/').pop()?.split('_')[0] || image;
+            
+            if (!seenImages.has(imageId)) {
+              seenImages.add(imageId);
+              deduplicatedImages.push(image);
+            }
+          }
+          
+          console.log(`🔧 Görsel filtreleme: ${allImages.length} ham -> ${filteredImages.length} filtreli -> ${deduplicatedImages.length} final`);
+          productData.images = deduplicatedImages;
           
           // Derecelendirme bilgisi
           if (data.aggregateRating) {
