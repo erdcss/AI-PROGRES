@@ -3,7 +3,9 @@ import { queryClient } from "./lib/queryClient";
 import { QueryClientProvider } from "@tanstack/react-query";
 import { Toaster } from "@/components/ui/toaster";
 import NotFound from "@/pages/not-found";
-import Home from "@/pages/home";
+import ScraperPage from "@/pages/scraper";
+import MarketplaceSelection from "@/pages/marketplace-selection";
+import ComingSoon from "@/pages/coming-soon";
 import { useState, useEffect } from "react";
 import { UrlHistory } from "@/components/UrlHistory";
 import { Card, CardContent, CardDescription, CardFooter, CardHeader, CardTitle } from "@/components/ui/card";
@@ -156,17 +158,20 @@ function LoginScreen({ onLogin }: { onLogin: () => void }) {
 function Router() {
   return (
     <Switch>
-      <Route path="/">
+      <Route path="/" component={MarketplaceSelection} />
+      <Route path="/marketplace" component={MarketplaceSelection} />
+      <Route path="/coming-soon" component={ComingSoon} />
+      <Route path="/scraper">
         <div className="container mx-auto p-4">
           <div className="flex flex-col gap-4">
-            <Home />
+            <ScraperPage />
             <UrlHistory onSelect={(url) => {
-              // Find the Home component and update its URL
-              const homeComponent = document.querySelector('input[name="url"]');
-              if (homeComponent) {
+              // Find the scraper component and update its URL
+              const scraperComponent = document.querySelector('input[name="url"]');
+              if (scraperComponent) {
                 const event = new Event('change', { bubbles: true });
                 Object.defineProperty(event, 'target', { value: { value: url } });
-                homeComponent.dispatchEvent(event);
+                scraperComponent.dispatchEvent(event);
               }
             }} />
           </div>
