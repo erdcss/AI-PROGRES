@@ -608,16 +608,25 @@ export async function registerRoutes(app: Express) {
         return res.status(404).json({ message: 'CSV dosyası bulunamadı' });
       }
       
-      // Shopify uyumlu HTTP başlıkları
-      res.setHeader('Content-Type', 'text/csv; charset=utf-8');
+      // Dosya içeriğini oku ve doğrula
+      const csvContent = fs.readFileSync(filepath, 'utf8');
+      
+      // CSV dosyasının gerçekten CSV olduğunu doğrula
+      if (!csvContent.startsWith('Handle,') && !csvContent.includes(',')) {
+        return res.status(400).json({ message: 'Geçersiz CSV dosyası formatı' });
+      }
+      
+      // Shopify uyumlu HTTP başlıkları - daha açık tanımlama
+      res.setHeader('Content-Type', 'application/csv');
       res.setHeader('Content-Disposition', `attachment; filename="${filename}"`);
-      res.setHeader('Cache-Control', 'no-cache');
+      res.setHeader('Content-Length', Buffer.byteLength(csvContent, 'utf8'));
+      res.setHeader('Cache-Control', 'no-cache, no-store, must-revalidate');
       res.setHeader('Pragma', 'no-cache');
       res.setHeader('Expires', '0');
+      res.setHeader('X-Content-Type-Options', 'nosniff');
       
-      // CSV dosyasını stream olarak gönder
-      const fileStream = fs.createReadStream(filepath);
-      fileStream.pipe(res);
+      // CSV dosyasını doğrudan gönder
+      res.send(csvContent);
       
     } catch (error: any) {
       console.error('CSV indirme hatası:', error);
