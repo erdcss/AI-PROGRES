@@ -1,1 +1,1 @@
-# Trendyol Scrapy projesi
+# Trendyol Scrapy Project
