@@ -27,10 +27,11 @@ export async function scrapeWithEnhancedImages(url: string): Promise<InsertProdu
   const title = $("h1.pr-new-br").text().trim() || $("h1.detail-name").text().trim();
   const description = $("div.detail-desc-content").text().trim();
   
-  // 4. Tüm görsel URL'lerini özel modülle çek
-  console.log(`Tüm görseller özel modül ile çekiliyor: ${url}`);
-  const images = await getAllProductImages(url);
-  console.log(`Toplam ${images.length} görsel başarıyla çekildi`);
+  // 4. Tüm görsel URL'lerini süper hibrit yöntemle çek
+  console.log(`Tüm görseller süper hibrit yöntem ile çekiliyor: ${url}`);
+  const { superHybridImageExtraction } = await import('./api-image-extractor');
+  const images = await superHybridImageExtraction(url);
+  console.log(`Süper hibrit yöntemle ${images.length} görsel bulundu`);
 
   // 5. Diğer verileri standart şekilde al
   // Fiyat
@@ -39,7 +40,7 @@ export async function scrapeWithEnhancedImages(url: string): Promise<InsertProdu
 
   // Orijinal fiyat
   let basePrice = $("span.prc-org").text().trim();
-  basePrice = basePrice ? basePrice.replace(/[^\d,.]/g, '').replace(/\./g, '').replace(',', '.') : null;
+  basePrice = basePrice ? basePrice.replace(/[^\d,.]/g, '').replace(/\./g, '').replace(',', '.') : '';
 
   // Kar marjı ekle
   if (price && !isNaN(parseFloat(price))) {
