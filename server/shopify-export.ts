@@ -1286,6 +1286,11 @@ export async function generateShopifyCSV(
           return false;
         }
         
+        // SHOPIFY TÜRKIYE ZORUNLU ALANLAR - HER SATIRA UYGULA
+        row.Status = 'etkin'; // Zorunlu Türkçe değer
+        row['Variant Inventory Policy'] = 'reddet'; // Zorunlu Türkçe değer
+        row['Variant Fulfillment Service'] = 'manuel'; // Zorunlu Türkçe değer
+        
         // Varyant veya görsel satırları için gerekli alanlar
         if (row['Image Src'] || row['Image Position']) {
           // Görsel satırı, gerekli alanları ekle
@@ -1432,31 +1437,19 @@ export async function generateShopifyCSV(
         return newRow;
       });
       
-      // Enhanced Shopify CSV format - includes Turkish compliance fields
-      const headerFields = [
-        'handle', 'title', 'body_html', 'vendor', 'type', 'tags', 'published', 
-        'option1_name', 'option1_value', 'variant_sku', 'variant_price',
-        'variant_inventory_qty', 'variant_inventory_tracker', 'variant_inventory_policy',
-        'variant_fulfillment_service', 'variant_requires_shipping', 'variant_taxable',
-        'variant_grams', 'image_src', 'image_position', 'image_alt_text', 'status'
-      ];
-
-      // Her satırda tüm alanların bulunmasını garanti et
-      const finalStandardizedRows = csvCompatibleRows.map(row => {
-        const standardRow: any = {};
-        headerFields.forEach(field => {
-          standardRow[field] = row[field] || '';
-        });
-        return standardRow;
+      // SHOPIFY TÜRKIYE UYUMLU CSV - normalizedRows kullan
+      // normalizedRows zaten tüm Türkçe değerleri içeriyor
+      const finalRows = normalizedRows.map(row => {
+        // Son kontrol: Türkçe değerlerin var olduğundan emin ol
+        const finalRow = { ...row };
+        finalRow.Status = 'etkin';
+        finalRow['Variant Inventory Policy'] = 'reddet';
+        finalRow['Variant Fulfillment Service'] = 'manuel';
+        return sanitizeCSVRow(finalRow);
       });
-
-      // Tüm satırları sanitize et
-      const sanitizedRows = finalStandardizedRows.map(row => sanitizeCSVRow(row));
       
-
-      
-      await csvWriter.writeRecords(sanitizedRows);
-      console.log(`CSV başarıyla oluşturuldu: ${outputPath} (${sanitizedRows.length} satır)`);
+      await csvWriter.writeRecords(finalRows);
+      console.log(`CSV başarıyla oluşturuldu: ${outputPath} (${finalRows.length} satır)`);
       
       // Preview dosyasını temp klasörüne kopyala
       if (outputPath.startsWith('/tmp/')) {
@@ -1470,14 +1463,14 @@ export async function generateShopifyCSV(
           resolve({
             csvPath: previewPath,
             filename: filename,
-            totalRows: sanitizedRows.length
+            totalRows: finalRows.length
           });
         } catch (copyError) {
           console.error('CSV kopyalama hatası:', copyError);
           resolve({
             csvPath: outputPath,
             filename: `shopify_products_${timestamp}.csv`,
-            totalRows: sanitizedRows.length
+            totalRows: finalRows.length
           });
         }
       } else {
@@ -1485,7 +1478,7 @@ export async function generateShopifyCSV(
         resolve({
           csvPath: outputPath,
           filename: filename,
-          totalRows: sanitizedRows.length
+          totalRows: finalRows.length
         });
       }
     } catch (error) {
