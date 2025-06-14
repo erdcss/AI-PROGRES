@@ -856,6 +856,7 @@ export function generateShopifyCSV(
           csvRows.push(fixShopifyVisibility(row));
         } else {
           // Varyantı olmayan temel ürün - Tam Shopify formatında
+          console.log(`DEBUG ROW CREATION: mainImage = "${mainImage}"`);
           let row = {
             handle: handle,
             title: product.title,
@@ -909,7 +910,10 @@ export function generateShopifyCSV(
             status: 'active'
           };
           
-          csvRows.push(fixShopifyVisibility(row));
+          console.log(`DEBUG BEFORE FIXING: row.image_src = "${row.image_src}"`);
+          const fixedRow = fixShopifyVisibility(row);
+          console.log(`DEBUG AFTER FIXING: fixedRow has image_src = "${fixedRow.image_src}"`);
+          csvRows.push(fixedRow);
           
           // Ek görseller varsa ayrı satırlar ekle
           additionalImages.forEach((imageUrl, index) => {
@@ -1112,6 +1116,14 @@ export function generateShopifyCSV(
             row['Option1 Name'] = row['Option1 Name'] || 'Title';
             row['Option1 Value'] = row['Option1 Value'] || 'Default Title';
           }
+          
+          // ANA ÜRÜN SATIRI İÇİN GÖRSEL URL'İNİ ZORLA EKLE
+          if (validImages.length > 0 && !row['Image Src']) {
+            row['Image Src'] = validImages[0];
+            row['Image Position'] = '1';
+            row['Image Alt Text'] = product.title || '';
+            console.log(`GÖRSEL ZORLA EKLENDİ: Ana satıra ${validImages[0]} eklendi`);
+          }
         }
         
         // 3. Handle alanı eksik satırları filtrele
@@ -1230,7 +1242,7 @@ export function generateShopifyCSV(
         const newRow: Record<string, any> = {};
         
         // Büyük harfli key'leri küçük harfli field ID'lere dönüştür
-        // Simplified CSV mapping - only 11 columns as requested
+        // Enhanced CSV mapping - includes essential image fields
         newRow.handle = row.Handle || '';
         newRow.title = row.Title || '';
         newRow.body_html = row['Body (HTML)'] || '';
@@ -1238,10 +1250,15 @@ export function generateShopifyCSV(
         newRow.type = row.Type || '';
         newRow.tags = row.Tags || '';
         newRow.published = row.Published || 'TRUE';
-        newRow.option1_name = row['Option1 Name'] || 'Renk';
-        newRow.option1_value = row['Option1 Value'] || 'Default';
+        newRow.option1_name = row['Option1 Name'] || 'Title';
+        newRow.option1_value = row['Option1 Value'] || 'Default Title';
         newRow.variant_sku = row['Variant SKU'] || '';
         newRow.variant_price = row['Variant Price'] || '';
+        
+        // CRITICAL: Add image fields to CSV output
+        newRow.image_src = row['Image Src'] || row.image_src || '';
+        newRow.image_position = row['Image Position'] || row.image_position || '';
+        newRow.image_alt_text = row['Image Alt Text'] || row.image_alt_text || '';
         
         return newRow;
       });
