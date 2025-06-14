@@ -96,7 +96,7 @@ function isValidProductImage(url: string): boolean {
   return hasProductPattern;
 }
 
-export function generateShopifyCSV(
+export async function generateShopifyCSV(
   product: Product,
   variants: { 
     sizes?: string[], 
@@ -112,12 +112,8 @@ export function generateShopifyCSV(
     product.price = priceWithProfit;
   }
   
-  // Ürün görsellerini filtrele - sadece gerçek ürün görselleri kalsın
-  if (product.images && product.images.length > 0) {
-    const originalImagesCount = product.images.length;
-    product.images = product.images.filter(img => isValidProductImage(img));
-    console.log(`GÖRSEL FİLTRELEME: ${originalImagesCount} görsel içinden ${product.images.length} gerçek ürün görseli seçildi`);
-  }
+  // ESKI FİLTRELEME SİSTEMİ DEVRE DIŞI - Yeni gelişmiş sistem aktif
+  console.log(`HAM GÖRSEL VERİSİ KORUNUYOR: ${product.images?.length || 0} görsel enhanced filtreye gönderiliyor`);
   /**
    * Shopify için ürün başlıklarını temizler ve optimize eder
    * 
@@ -566,43 +562,62 @@ export function generateShopifyCSV(
       // Handle oluştur (URL-uyumlu slug)
       const handle = createUniqueHandle(product.title);
       
-      // KESIN ÇÖZÜM: Görselleri yeniden çıkar ve filtrele
-      const validImages = await (async () => {
-        console.log('🔧 KEsin görsel filtreleme başlatılıyor...');
+      // KESIN ÇÖZÜM: Ultra sıkı görsel filtreleme sistemi
+      console.log('🔧 KESIN görsel filtreleme başlatılıyor...');
+      console.log('🔧 Ham görseller:', product.images);
+      
+      // Başlangıçta tüm görselleri al
+      let validImages = product.images ? [...product.images] : [];
+      console.log(`🔧 Toplam ${validImages.length} ham görsel bulundu`);
+      
+      // 1. AŞAMA: Kesin logo filtreleme
+      validImages = validImages.filter(url => {
+        const urlLower = url.toLowerCase();
+        const isLogo = urlLower.includes('logo') || 
+                      urlLower.includes('ty-web.svg') || 
+                      urlLower.includes('web/logo') ||
+                      urlLower.includes('master/') ||
+                      urlLower.includes('icon') ||
+                      urlLower.includes('badge');
         
-        // Önce mevcut görselleri strict filtreden geçir
-        let filtered = product.images 
-          ? product.images.filter(isValidProductImage)
-          : [];
+        if (isLogo) {
+          console.log(`🔧 Logo filtrelendi: ${url}`);
+          return false;
+        }
+        return true;
+      });
+      
+      // 2. AŞAMA: Sadece gerçek ürün görselleri
+      validImages = validImages.filter(url => {
+        const hasProductPattern = url.includes('product/media/images/') || 
+                                 url.includes('_org_zoom') ||
+                                 url.includes('/prod/');
         
-        // Duplicate'leri kaldır
-        filtered = Array.from(new Set(filtered));
-        
-        // Logo ve gereksiz görselleri manuel olarak çıkar
-        filtered = filtered.filter(url => {
-          const urlLower = url.toLowerCase();
-          return !urlLower.includes('logo') && 
-                 !urlLower.includes('ty-web.svg') && 
-                 !urlLower.includes('web/logo') &&
-                 !urlLower.includes('master/') &&
-                 url.includes('product/media/images/');
-        });
-        
-        // Sadece en kaliteli görselleri al
-        filtered = filtered
-          .sort((a, b) => {
-            let scoreA = 0, scoreB = 0;
-            if (a.includes('_org_zoom')) scoreA += 100;
-            if (b.includes('_org_zoom')) scoreB += 100;
-            if (a.includes('/1200/1800/')) scoreA += 50;
-            if (b.includes('/1200/1800/')) scoreB += 50;
-            return scoreB - scoreA;
-          })
-          .slice(0, 5); // Maksimum 5 kaliteli görsel
-        
-        console.log(`🔧 Filtreleme sonucu: ${filtered.length} temiz görsel`);
-        return filtered;
-      })();
+        if (!hasProductPattern) {
+          console.log(`🔧 Ürün görseli değil: ${url}`);
+          return false;
+        }
+        return true;
+      });
+      
+      // 3. AŞAMA: Duplicate kaldırma
+      const uniqueImages = Array.from(new Set(validImages));
+      console.log(`🔧 Duplicate'ler kaldırıldı: ${validImages.length} -> ${uniqueImages.length}`);
+      
+      // 4. AŞAMA: Kalite sıralaması ve limit
+      const finalImages = uniqueImages
+        .sort((a, b) => {
+          let scoreA = 0, scoreB = 0;
+          if (a.includes('_org_zoom')) scoreA += 100;
+          if (b.includes('_org_zoom')) scoreB += 100;
+          if (a.includes('/1200/1800/')) scoreA += 50;
+          if (b.includes('/1200/1800/')) scoreB += 50;
+          return scoreB - scoreA;
+        })
+        .slice(0, 3); // Maksimum 3 temiz görsel
+      
+      console.log(`🔧 Final temiz görseller (${finalImages.length}):`, finalImages);
+      validImages = finalImages;
       
       console.log(`GÖRSEL SİSTEMİ: Toplam ${product.images?.length || 0} görsel, geçerli ${validImages.length} görsel`);
       
