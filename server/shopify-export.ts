@@ -1038,54 +1038,18 @@ export function generateShopifyCSV(
         const newRow: Record<string, any> = {};
         
         // Büyük harfli key'leri küçük harfli field ID'lere dönüştür
+        // Simplified CSV mapping - only 11 columns as requested
         newRow.handle = row.Handle || '';
         newRow.title = row.Title || '';
         newRow.body_html = row['Body (HTML)'] || '';
-        newRow.vendor = row.Vendor || 'turmarkt';
-        newRow.product_category = row['Product Category'] || '';
+        newRow.vendor = row.Vendor || 'Turmarkt';
         newRow.type = row.Type || '';
         newRow.tags = row.Tags || '';
         newRow.published = row.Published || 'TRUE';
-        newRow.option1_name = row['Option1 Name'] || 'Title';
-        newRow.option1_value = row['Option1 Value'] || 'Default Title';
-        newRow.option2_name = row['Option2 Name'] || '';
-        newRow.option2_value = row['Option2 Value'] || '';
-        newRow.option3_name = row['Option3 Name'] || '';
-        newRow.option3_value = row['Option3 Value'] || '';
+        newRow.option1_name = row['Option1 Name'] || 'Renk';
+        newRow.option1_value = row['Option1 Value'] || 'Default';
         newRow.variant_sku = row['Variant SKU'] || '';
-        newRow.variant_grams = row['Variant Grams'] || '';
-        newRow.variant_inventory_tracker = row['Variant Inventory Tracker'] || 'shopify';
-        newRow.variant_inventory_qty = row['Variant Inventory Qty'] || '50';
-        newRow.variant_inventory_policy = row['Variant Inventory Policy'] || 'deny';
-        newRow.variant_fulfillment_service = row['Variant Fulfillment Service'] || 'manual';
         newRow.variant_price = row['Variant Price'] || '';
-        newRow.variant_compare_at_price = row['Variant Compare At Price'] || '';
-        newRow.variant_requires_shipping = row['Variant Requires Shipping'] || 'TRUE';
-        newRow.variant_taxable = row['Variant Taxable'] || 'TRUE';
-        newRow.variant_barcode = row['Variant Barcode'] || '';
-        newRow.image_src = row['Image Src'] || '';
-        newRow.image_position = row['Image Position'] || '';
-        newRow.image_alt_text = row['Image Alt Text'] || '';
-        newRow.gift_card = row['Gift Card'] || 'FALSE';
-        newRow.seo_title = row['SEO Title'] || '';
-        newRow.seo_description = row['SEO Description'] || '';
-        newRow.google_shopping_google_product_category = row['Google Shopping / Google Product Category'] || '';
-        newRow.google_shopping_gender = row['Google Shopping / Gender'] || '';
-        newRow.google_shopping_age_group = row['Google Shopping / Age Group'] || '';
-        newRow.google_shopping_mpn = row['Google Shopping / MPN'] || '';
-        newRow.google_shopping_adwords_grouping = row['Google Shopping / AdWords Grouping'] || '';
-        newRow.google_shopping_adwords_labels = row['Google Shopping / AdWords Labels'] || '';
-        newRow.google_shopping_condition = row['Google Shopping / Condition'] || '';
-        newRow.google_shopping_custom_product = row['Google Shopping / Custom Product'] || '';
-        newRow.google_shopping_custom_label_0 = row['Google Shopping / Custom Label 0'] || '';
-        newRow.google_shopping_custom_label_1 = row['Google Shopping / Custom Label 1'] || '';
-        newRow.google_shopping_custom_label_2 = row['Google Shopping / Custom Label 2'] || '';
-        newRow.google_shopping_custom_label_3 = row['Google Shopping / Custom Label 3'] || '';
-        newRow.google_shopping_custom_label_4 = row['Google Shopping / Custom Label 4'] || '';
-        newRow.variant_image = row['Variant Image'] || '';
-        newRow.variant_weight_unit = row['Variant Weight Unit'] || 'g';
-        newRow.variant_tax_code = row['Variant Tax Code'] || '';
-        newRow.cost_per_item = row['Cost per item'] || '';
         
         return newRow;
       });
