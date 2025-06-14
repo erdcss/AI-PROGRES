@@ -106,7 +106,9 @@ export async function extractFromMetaAndStructuredData(url: string): Promise<str
     });
 
     // 8. Manifest dosyasından icon'lar
-    $('link[rel="manifest"]').each(async (_, element) => {
+    const manifestLinks = $('link[rel="manifest"]');
+    for (let i = 0; i < manifestLinks.length; i++) {
+      const element = manifestLinks[i];
       const href = $(element).attr('href');
       if (href) {
         try {
@@ -127,8 +129,7 @@ export async function extractFromMetaAndStructuredData(url: string): Promise<str
           console.log('Manifest dosyası okunamadı, devam ediliyor...');
         }
       }
-    });
-
+    
     // 9. Product mikrodata
     $('[itemtype*="Product"]').each((_, element) => {
       $(element).find('[itemprop="image"]').each((_, imgElement) => {
@@ -251,7 +252,9 @@ export async function extractFromCSS(url: string): Promise<string[]> {
     });
     
     // External CSS dosyalarını kontrol et
-    $('link[rel="stylesheet"]').each(async (_, element) => {
+    const stylesheetLinks = $('link[rel="stylesheet"]');
+    for (let i = 0; i < stylesheetLinks.length; i++) {
+      const element = stylesheetLinks[i];
       const href = $(element).attr('href');
       if (href) {
         try {
@@ -273,7 +276,7 @@ export async function extractFromCSS(url: string): Promise<string[]> {
           console.log(`CSS dosyası okunamadı: ${href}`);
         }
       }
-    });
+    }
 
     console.log(`CSS analizinden ${images.length} görsel çıkarıldı`);
     return images;

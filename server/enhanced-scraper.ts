@@ -27,17 +27,32 @@ export async function scrapeWithEnhancedImages(url: string): Promise<InsertProdu
   const title = $("h1.pr-new-br").text().trim() || $("h1.detail-name").text().trim();
   const description = $("div.detail-desc-content").text().trim();
   
-  // 4. Tüm görsel URL'lerini gelişmiş yöntemle çek ve çoğalt
-  console.log(`Tüm görseller gelişmiş yöntem ile çekiliyor: ${url}`);
-  const { extractAllImages } = await import('./advanced-image-extractor');
-  const baseImages = await extractAllImages(url);
-  console.log(`Gelişmiş yöntemle ${baseImages.length} temel görsel bulundu`);
+  // 4. Tüm görsel URL'lerini çek ve çoğalt
+  console.log(`Görsel çıkarma ve çoğaltma başlıyor: ${url}`);
   
-  // Görselleri çoğalt ve optimize et
-  const { multiplyImages, selectBestImages } = await import('./image-multiplier');
-  const multipliedImages = multiplyImages(baseImages);
-  const images = selectBestImages(multipliedImages, 25);
-  console.log(`Görsel çoğaltma sonrası ${images.length} optimized görsel seçildi`);
+  // 4a. Temel görsel çıkarma
+  const { getAllProductImages } = await import('./image-extractor');
+  const baseImages = await getAllProductImages(url);
+  console.log(`Temel yöntemle ${baseImages.length} görsel bulundu`);
+  
+  // 4b. Görselleri çoğalt - her görsel için farklı boyut varyasyonları oluştur
+  const allImageVariations: string[] = [];
+  
+  baseImages.forEach((imageUrl, index) => {
+    // Orijinal görseli ekle
+    allImageVariations.push(imageUrl);
+    
+    // Farklı boyut varyasyonları oluştur
+    const variations = createSimpleImageVariations(imageUrl);
+    allImageVariations.push(...variations);
+    
+    console.log(`Görsel ${index + 1} için ${variations.length} varyasyon oluşturuldu`);
+  });
+  
+  // Tekrarları kaldır ve en iyilerini seç
+  const uniqueImages = Array.from(new Set(allImageVariations));
+  const images = uniqueImages.slice(0, 20); // En fazla 20 görsel
+  console.log(`Görsel çoğaltma sonrası ${images.length} görsel seçildi`);
 
   // 5. Diğer verileri standart şekilde al
   // Fiyat
