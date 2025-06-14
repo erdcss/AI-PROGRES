@@ -299,14 +299,64 @@ export async function registerRoutes(app: Express) {
               // Kategori yapılandırması al
               const categoryConfig = getCategoryConfig(detectedCategories);
               
-              // Varyant bilgilerini düzenle
+              // Varyant bilgilerini düzenle - Renk ve beden ayrımı
               const variants = {
-                size: jsonldData.variants?.map(v => v.color) || [],
-                color: [jsonldData.color].filter(Boolean),
-                hasVariants: (jsonldData.variants?.length || 0) > 1,
-                availableSizes: jsonldData.variants?.filter(v => v.availability.includes('InStock')).map(v => v.color) || [],
-                unavailableSizes: jsonldData.variants?.filter(v => !v.availability.includes('InStock')).map(v => v.color) || []
+                size: [] as string[],
+                color: [] as string[]
               };
+              
+              // JSON-LD'den varyantları çıkar ve kategorize et
+              if (jsonldData.variants && jsonldData.variants.length > 0) {
+                jsonldData.variants.forEach(variant => {
+                  // Renk bilgisi varsa
+                  if (variant.color && variant.color.trim()) {
+                    const colorValue = variant.color.trim();
+                    if (!variants.color.includes(colorValue)) {
+                      variants.color.push(colorValue);
+                    }
+                  }
+                  
+                  // Varyant adından beden çıkarmaya çalış
+                  if (variant.name) {
+                    const sizeMath = variant.name.match(/\b(XS|S|M|L|XL|XXL|XXXL|\d{2,3})\b/gi);
+                    if (sizeMath) {
+                      sizeMath.forEach(size => {
+                        const sizeValue = size.toUpperCase();
+                        if (!variants.size.includes(sizeValue)) {
+                          variants.size.push(sizeValue);
+                        }
+                      });
+                    }
+                  }
+                });
+              }
+              
+              // Ana ürünün renk bilgisini de ekle
+              if (jsonldData.color && jsonldData.color.trim()) {
+                const mainColor = jsonldData.color.trim();
+                if (!variants.color.includes(mainColor)) {
+                  variants.color.push(mainColor);
+                }
+              }
+              
+              // Beden sıralaması
+              const sizeOrder = ['XS', 'S', 'M', 'L', 'XL', 'XXL', 'XXXL'];
+              variants.size.sort((a, b) => {
+                const aIndex = sizeOrder.indexOf(a);
+                const bIndex = sizeOrder.indexOf(b);
+                
+                if (aIndex !== -1 && bIndex !== -1) {
+                  return aIndex - bIndex;
+                }
+                
+                const aNum = parseInt(a);
+                const bNum = parseInt(b);
+                if (!isNaN(aNum) && !isNaN(bNum)) {
+                  return aNum - bNum;
+                }
+                
+                return a.localeCompare(b);
+              });
               
               const productData: InsertProduct = {
                 url,
@@ -456,17 +506,65 @@ export async function registerRoutes(app: Express) {
             }
           });
           
-          // Ürün variant'ları
-          const variants: Record<string, string[]> = {};
+          // Ürün variant'ları - Renk ve beden ayrımı
+          const variants: Record<string, string[]> = { size: [], color: [] };
+          
+          // Renk seçeneklerini bul
           $('.sp-itm').each((i, el) => {
-            const type = $(el).find('.vrytn-cntnr-ttl').text().trim();
-            const values: string[] = [];
-            $(el).find('.slctd-vrytn').each((j, opt) => {
-              values.push($(opt).text().trim());
-            });
-            if (type && values.length > 0) {
-              variants[type] = values;
+            const $container = $(el);
+            const title = $container.find('.vrytn-cntnr-ttl').text().trim().toLowerCase();
+            
+            // Renk seçenekleri
+            if (title.includes('renk') || title.includes('color')) {
+              $container.find('.slctd-vrytn').each((j, opt) => {
+                const colorValue = $(opt).text().trim();
+                if (colorValue && !variants.color.includes(colorValue)) {
+                  variants.color.push(colorValue);
+                }
+              });
             }
+            
+            // Beden seçenekleri  
+            else if (title.includes('beden') || title.includes('size') || title.includes('boy')) {
+              $container.find('.slctd-vrytn').each((j, opt) => {
+                const sizeValue = $(opt).text().trim();
+                if (sizeValue && !variants.size.includes(sizeValue)) {
+                  variants.size.push(sizeValue);
+                }
+              });
+            }
+          });
+          
+          // Alternatif beden selektörleri
+          $('.variant-options .size-option, .size-variant, [data-testid*="size"]').each((i, el) => {
+            const sizeText = $(el).text().trim();
+            if (sizeText && /^(XS|S|M|L|XL|XXL|XXXL|\d+)$/.test(sizeText)) {
+              if (!variants.size.includes(sizeText)) {
+                variants.size.push(sizeText);
+              }
+            }
+          });
+          
+          // Beden sıralaması standartlaştır
+          const sizeOrder = ['XS', 'S', 'M', 'L', 'XL', 'XXL', 'XXXL'];
+          variants.size.sort((a, b) => {
+            const aIndex = sizeOrder.indexOf(a);
+            const bIndex = sizeOrder.indexOf(b);
+            
+            // Harf bedenleri
+            if (aIndex !== -1 && bIndex !== -1) {
+              return aIndex - bIndex;
+            }
+            
+            // Sayısal bedenleri
+            const aNum = parseInt(a);
+            const bNum = parseInt(b);
+            if (!isNaN(aNum) && !isNaN(bNum)) {
+              return aNum - bNum;
+            }
+            
+            // Alfabetik sıralama
+            return a.localeCompare(b);
           });
           
           // Ürün özellikleri
