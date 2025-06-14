@@ -8,6 +8,8 @@ import * as cheerio from 'cheerio';
 import { extractImagesByCDNPatterns } from './cdn-pattern-extractor';
 import { extractImagesFromTrendyolAPIs } from './api-enhanced-extractor';
 import { extractImagesFromVariants } from './variant-extractor';
+import { extractImagesWithScrapy } from './scrapy-extractor';
+import { extractImagesWithMLPatterns } from './ml-pattern-extractor';
 
 /**
  * Verilen ürün URL'sinden tüm görselleri çeker
@@ -180,7 +182,21 @@ export async function getAllProductImages(url: string): Promise<string[]> {
       console.error('Varyant Extractor hatası:', error);
     }
 
-    // 5. CDN Pattern Extractor'ı çalıştır - pattern tahminleri
+    // 5. Scrapy Enhanced Extractor'ı çalıştır - gelişmiş bot koruması bypass
+    console.log('🕷️ Scrapy Enhanced Extractor çalıştırılıyor...');
+    try {
+      const scrapyImages = await extractImagesWithScrapy(url);
+      scrapyImages.forEach(scrapyImg => {
+        if (!allImages.includes(scrapyImg)) {
+          allImages.push(scrapyImg);
+        }
+      });
+      console.log(`🕷️ Scrapy Enhanced Extractor'dan ${scrapyImages.length} ek görsel eklendi`);
+    } catch (error) {
+      console.error('Scrapy Enhanced Extractor hatası:', error);
+    }
+
+    // 6. CDN Pattern Extractor'ı çalıştır - pattern tahminleri
     console.log('🚀 CDN Pattern Extractor çalıştırılıyor...');
     try {
       const cdnImages = await extractImagesByCDNPatterns(url);
