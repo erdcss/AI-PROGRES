@@ -318,8 +318,8 @@ export async function generateShopifyCSV(
       row.vendor = "turmarkt";
     }
     
-    // 2. Status alanının "active" olması şart - Shopify kabul edilen değerler: active, draft, archived
-    row.status = 'active';
+    // 2. Status alanının Türkçe değerlerle olması gerekiyor
+    row.status = 'etkin'; // Shopify Türkiye: etkin, taslak, arşivlendi
     
     // 3. ÖNEMLİ: Tüm Boolean alanlar BÜYÜK HARF olmalı
     row.published = 'TRUE';
@@ -329,13 +329,13 @@ export async function generateShopifyCSV(
     row.published_scope = 'web';  // Bu alan Shopify'da gerekli
     row.published_at = new Date().toISOString(); // Şu anki tarih/saat
     
-    // 5. Shopify'da varyant ayarları için kritik değişiklikler
-    row.variant_inventory_policy = 'deny'; // Kabul edilen: deny, continue
-    row.variant_fulfillment_service = 'manual'; // Kabul edilen: manual, automatic
+    // 5. Shopify Türkiye için doğru değerler
+    row.variant_inventory_policy = 'reddet'; // Türkçe: reddet, devam et
+    row.variant_fulfillment_service = 'manuel'; // Türkçe: manuel, otomatik
     
     // 6. Temel envanter ve durum ayarları
-    row.inventory_policy = 'deny'; // Kabul edilen: deny, continue
-    row.fulfillment_service = 'manual'; // Kabul edilen: manual, automatic
+    row.inventory_policy = 'reddet'; 
+    row.fulfillment_service = 'manuel';
     
     // 7. Handle alanı - Shopify için kritik önem taşır
     if (!row.handle) {
@@ -504,21 +504,19 @@ export async function generateShopifyCSV(
         path: outputPath,
         encoding: 'utf8',
         header: [
-          // SHOPIFY RESMI CSV FORMATI (2024) - Tam liste
+          // SHOPIFY TAM UYUMLU CSV FORMATI - Loglardan görülen formatı düzeltiyoruz
           { id: 'handle', title: 'Handle' },
           { id: 'title', title: 'Title' },
           { id: 'body_html', title: 'Body (HTML)' },
           { id: 'vendor', title: 'Vendor' },
-          { id: 'product_type', title: 'Product Type' },
           { id: 'tags', title: 'Tags' },
+          { id: 'product_type', title: 'Custom Product Type' },
           { id: 'published', title: 'Published' },
           { id: 'status', title: 'Status' },
           { id: 'option1_name', title: 'Option1 Name' },
           { id: 'option1_value', title: 'Option1 Value' },
           { id: 'option2_name', title: 'Option2 Name' },
           { id: 'option2_value', title: 'Option2 Value' },
-          { id: 'option3_name', title: 'Option3 Name' },
-          { id: 'option3_value', title: 'Option3 Value' },
           { id: 'variant_price', title: 'Variant Price' },
           { id: 'variant_compare_at_price', title: 'Variant Compare At Price' },
           { id: 'variant_inventory_qty', title: 'Variant Inventory Qty' },
@@ -529,6 +527,8 @@ export async function generateShopifyCSV(
           { id: 'image_src', title: 'Image Src' },
           { id: 'image_position', title: 'Image Position' },
           { id: 'image_alt_text', title: 'Image Alt Text' },
+          { id: 'option3_name', title: 'Option3 Name' },
+          { id: 'option3_value', title: 'Option3 Value' },
           { id: 'variant_sku', title: 'Variant SKU' },
           { id: 'variant_grams', title: 'Variant Grams' },
           { id: 'variant_fulfillment_service', title: 'Variant Fulfillment Service' },
@@ -553,12 +553,13 @@ export async function generateShopifyCSV(
           { id: 'variant_weight_unit', title: 'Variant Weight Unit' },
           { id: 'published_scope', title: 'Published Scope' },
           { id: 'published_at', title: 'Published At' },
-          { id: 'variant_tax_code', title: 'Variant Tax Code' },
-          { id: 'cost_per_item', title: 'Cost per item' },
-          { id: 'published_on_online_store', title: 'Published On Online Store' },
-          { id: 'product_category', title: 'Product Category' },
-          { id: 'requires_shipping', title: 'Requires Shipping' },
-          { id: 'taxable', title: 'Taxable' }
+          { id: 'type', title: 'type' },
+          { id: 'variant_tax_code', title: 'variant_tax_code' },
+          { id: 'cost_per_item', title: 'cost_per_item' },
+          { id: 'published_on_online_store', title: 'published_on_online_store' },
+          { id: 'product_category', title: 'product_category' },
+          { id: 'requires_shipping', title: 'requires_shipping' },
+          { id: 'taxable', title: 'taxable' }
         ]
       });
 
@@ -693,7 +694,7 @@ export async function generateShopifyCSV(
               : 'Giyim',
             tags: tags,
             published: 'TRUE',
-            status: 'active',
+            status: 'etkin',
             option1_name: 'Size',
             option1_value: sizes[0],
             option2_name: '',
@@ -704,7 +705,7 @@ export async function generateShopifyCSV(
             variant_compare_at_price: product.basePrice || '',
             variant_inventory_qty: '50',
             variant_inventory_tracker: 'shopify',
-            variant_inventory_policy: 'deny',
+            variant_inventory_policy: 'reddet',
             variant_requires_shipping: 'TRUE',
             variant_taxable: 'TRUE',
             image_src: mainImage,
@@ -712,7 +713,7 @@ export async function generateShopifyCSV(
             image_alt_text: product.title || '',
             variant_sku: `${handle}-${sizes[0]}`,
             variant_grams: '500',
-            variant_fulfillment_service: 'manual',
+            variant_fulfillment_service: 'manuel',
             variant_barcode: '',
             gift_card: 'FALSE',
             seo_title: product.title,
@@ -779,8 +780,8 @@ export async function generateShopifyCSV(
               variant_grams: '500',
               variant_inventory_tracker: 'shopify',
               variant_inventory_qty: '50',
-              variant_inventory_policy: 'deny',
-              variant_fulfillment_service: 'manual',
+              variant_inventory_policy: 'reddet',
+              variant_fulfillment_service: 'manuel',
               variant_price: product.price,
               variant_requires_shipping: 'TRUE',
               variant_taxable: 'TRUE',
@@ -802,7 +803,7 @@ export async function generateShopifyCSV(
               : 'Giyim',
             tags: tags,
             published: 'TRUE',
-            status: 'active',
+            status: 'etkin',
             option1_name: 'Color',
             option1_value: colors[0],
             option2_name: '',
@@ -813,7 +814,7 @@ export async function generateShopifyCSV(
             variant_compare_at_price: product.basePrice || '',
             variant_inventory_qty: '50',
             variant_inventory_tracker: 'shopify',
-            variant_inventory_policy: 'deny',
+            variant_inventory_policy: 'reddet',
             variant_requires_shipping: 'TRUE',
             variant_taxable: 'TRUE',
             image_src: mainImage,
@@ -821,7 +822,7 @@ export async function generateShopifyCSV(
             image_alt_text: product.title || '',
             variant_sku: `${handle}-${colors[0]}`,
             variant_grams: '500',
-            variant_fulfillment_service: 'manual',
+            variant_fulfillment_service: 'manuel',
             variant_barcode: '',
             gift_card: 'FALSE',
             seo_title: product.title,
@@ -888,8 +889,8 @@ export async function generateShopifyCSV(
               variant_grams: '500',
               variant_inventory_tracker: 'shopify',
               variant_inventory_qty: '50',
-              variant_inventory_policy: 'deny',
-              variant_fulfillment_service: 'manual',
+              variant_inventory_policy: 'reddet',
+              variant_fulfillment_service: 'manuel',
               variant_price: product.price,
               variant_requires_shipping: 'TRUE',
               variant_taxable: 'TRUE',
@@ -912,7 +913,7 @@ export async function generateShopifyCSV(
               : 'Giyim',
             tags: tags,
             published: 'TRUE',
-            status: 'active',
+            status: 'etkin',
             option1_name: 'Size',
             option1_value: sizes[0],
             option2_name: 'Color',
@@ -923,8 +924,8 @@ export async function generateShopifyCSV(
             variant_grams: '500',
             variant_inventory_tracker: 'shopify',
             variant_inventory_qty: '50',
-            variant_inventory_policy: 'deny',
-            variant_fulfillment_service: 'manual',
+            variant_inventory_policy: 'reddet',
+            variant_fulfillment_service: 'manuel',
             variant_price: product.price,
             variant_requires_shipping: 'TRUE',
             variant_taxable: 'TRUE',
@@ -954,8 +955,8 @@ export async function generateShopifyCSV(
                 variant_grams: '500',
                 variant_inventory_tracker: 'shopify',
                 variant_inventory_qty: '50',
-                variant_inventory_policy: 'deny',
-                variant_fulfillment_service: 'manual',
+                variant_inventory_policy: 'reddet',
+                variant_fulfillment_service: 'manuel',
                 variant_price: product.price,
                 variant_requires_shipping: 'TRUE',
                 variant_taxable: 'TRUE',
@@ -980,13 +981,13 @@ export async function generateShopifyCSV(
               : 'Elektronik',
             tags: product.tags || '',
             published: 'TRUE',
-            status: 'active',
+            status: 'etkin',
             variant_sku: handle,
             variant_grams: '1000',
             variant_inventory_tracker: 'shopify',
             variant_inventory_qty: '50',
-            variant_inventory_policy: 'deny',
-            variant_fulfillment_service: 'manual',
+            variant_inventory_policy: 'reddet',
+            variant_fulfillment_service: 'manuel',
             variant_price: product.price,
             variant_requires_shipping: 'TRUE',
             variant_taxable: 'TRUE',
@@ -1021,8 +1022,8 @@ export async function generateShopifyCSV(
             variant_grams: '500',
             variant_inventory_tracker: 'shopify',
             variant_inventory_qty: '50',
-            variant_inventory_policy: 'deny',
-            variant_fulfillment_service: 'manual',
+            variant_inventory_policy: 'reddet',
+            variant_fulfillment_service: 'manuel',
             variant_price: product.price,
             variant_compare_at_price: product.basePrice || '',
             variant_requires_shipping: 'TRUE',
@@ -1051,7 +1052,7 @@ export async function generateShopifyCSV(
             variant_weight_unit: 'g',
             variant_tax_code: '',
             cost_per_item: '',
-            status: 'active'
+            status: 'etkin'
           };
           
           csvRows.push(fixShopifyVisibility(row));
