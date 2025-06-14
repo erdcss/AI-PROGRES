@@ -503,7 +503,47 @@ export async function registerRoutes(app: Express) {
               brand: brand || "turmarkt",
               description: description || "Ürün açıklaması bulunamadı",
               price: price * 1.1, // %10 kar marjı
-              images,
+              images: (() => {
+                // Apply the same filtering logic as the working system
+                console.log(`🔧 HTML route - Ham görseller: ${images.length} adet`);
+                
+                // Logo ve gereksiz görselleri filtrele
+                const filteredImages = images.filter(url => {
+                  if (!url) return false;
+                  
+                  // Logo filtreleme
+                  const isLogo = url.includes('logo') || 
+                                url.includes('ty-web.svg') || 
+                                url.includes('brand') ||
+                                url.includes('icon') ||
+                                url.includes('badge') ||
+                                url.includes('spacer');
+                  
+                  if (isLogo) {
+                    console.log(`🔧 HTML route - Logo filtrelendi: ${url}`);
+                    return false;
+                  }
+                  
+                  return true;
+                });
+                
+                // Aynı görselin farklı boyutlarını tek görsele indir
+                const deduplicatedImages = [];
+                const seenImages = new Set();
+                
+                for (const image of filteredImages) {
+                  // Görsel ID'sini çıkar (dosya adından)
+                  const imageId = image.split('/').pop()?.split('_')[0] || image;
+                  
+                  if (!seenImages.has(imageId)) {
+                    seenImages.add(imageId);
+                    deduplicatedImages.push(image);
+                  }
+                }
+                
+                console.log(`🔧 HTML route - Final: ${images.length} -> ${filteredImages.length} -> ${deduplicatedImages.length}`);
+                return deduplicatedImages;
+              })(),
               variants,
               attributes,
               categories,
@@ -545,10 +585,37 @@ export async function registerRoutes(app: Express) {
             
             storage.addToHistory(url);
             
+            // Apply final image filtering to the API response
+            const filteredProductInfo = {
+              ...productInfo,
+              images: productInfo.images.filter(url => {
+                if (!url) return false;
+                
+                // Logo filtreleme
+                const isLogo = url.includes('logo') || 
+                              url.includes('ty-web.svg') || 
+                              url.includes('brand') ||
+                              url.includes('icon') ||
+                              url.includes('badge') ||
+                              url.includes('spacer');
+                
+                return !isLogo;
+              }).filter((image, index, array) => {
+                // Duplicate'leri kaldır (aynı görsel farklı boyutlarda olabilir)
+                const imageId = image.split('/').pop()?.split('_')[0] || image;
+                return array.findIndex(img => {
+                  const id = img.split('/').pop()?.split('_')[0] || img;
+                  return id === imageId;
+                }) === index;
+              })
+            };
+            
+            console.log(`🔧 API Response Final: ${productInfo.images.length} -> ${filteredProductInfo.images.length} görseller`);
+            
             return res.status(200).json({
               url,
               message: "Ürün verisi HTML'den başarıyla çekildi ve işlendi",
-              productInfo,
+              productInfo: filteredProductInfo,
               preview: csvResult
             });
           } catch (processError: any) {
