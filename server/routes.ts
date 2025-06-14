@@ -375,7 +375,11 @@ export async function registerRoutes(app: Express) {
                 basePrice: "0",
                 video: null,
                 brand: productData.brand || null,
-                vendor: "turmarkt"
+                vendor: "turmarkt",
+                category: categoryConfig.mainCategory || null,
+                subcategory: categoryConfig.subCategory || null,
+                productType: categoryConfig.productType || null,
+                tags: categoryConfig.tags || []
               }, {});
               
               // İşlemi tamamla
@@ -389,10 +393,7 @@ export async function registerRoutes(app: Express) {
                   categories,
                   tags: categoryConfig.tags
                 },
-                preview: {
-                  csvPath: csvFilePath,
-                  shopifyReady: true
-                }
+                preview: csvResult
               });
             } catch (csvError: any) {
               console.log(`CSV oluşturma hatası: ${csvError.message}`);
@@ -530,15 +531,17 @@ export async function registerRoutes(app: Express) {
             await storage.saveProduct(productData);
             
             // Shopify CSV oluştur
-            const csvFilePath = await generateShopifyCSV({
+            const csvResult = await generateShopifyCSV({
               ...productData,
               id: 0, // Geçici ID
               basePrice: "0",
               video: null,
-              category: categoryConfig.mainCategory,
-              subcategory: categoryConfig.subCategory,
-              productType: categoryConfig.productType,
-              tags: categoryConfig.tags
+              brand: productData.brand || null,
+              vendor: "turmarkt",
+              category: categoryConfig.mainCategory || null,
+              subcategory: categoryConfig.subCategory || null,
+              productType: categoryConfig.productType || null,
+              tags: categoryConfig.tags || []
             }, variants);
             
             // İşlemi tamamla
@@ -548,10 +551,7 @@ export async function registerRoutes(app: Express) {
               url,
               message: "Ürün verisi HTML'den başarıyla çekildi ve işlendi",
               productInfo,
-              preview: {
-                csvPath: csvFilePath,
-                shopifyReady: true
-              }
+              preview: csvResult
             });
           } catch (processError: any) {
             console.log(`Ürün veri işleme hatası: ${processError.message}`);

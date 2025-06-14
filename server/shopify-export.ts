@@ -69,7 +69,7 @@ export function generateShopifyCSV(
     colors?: string[] 
   } = {},
   outputPath: string = join(tmpdir(), 'shopify_products.csv')
-): string {
+): Promise<{ csvPath: string; filename: string; totalRows: number }> {
   // Ürün fiyatına %10 kar ekle
   if (product.price && !isNaN(parseFloat(product.price))) {
     const basePrice = parseFloat(product.price);
@@ -405,7 +405,7 @@ export function generateShopifyCSV(
     return sanitized;
   }
 
-  return new Promise(async (resolve, reject) => {
+  return new Promise<{ csvPath: string; filename: string; totalRows: number }>(async (resolve, reject) => {
     try {
       // Shopify'ın kesin istediği format (2024 şablonu)
       // ÖNEMLİ: Başlık isimleri ve sıralaması kritik önem taşır
