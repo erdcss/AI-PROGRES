@@ -379,11 +379,11 @@ export async function registerRoutes(app: Express) {
                 }
               });
               
-              // Bedenleri yeniden sırala
-              const sizeOrder = ['XS', 'S', 'M', 'L', 'XL', 'XXL', 'XXXL'];
+              // Beden sıralaması burada yapılacak
+              const sizeOrderTemp = ['XS', 'S', 'M', 'L', 'XL', 'XXL', 'XXXL'];
               variants.size.sort((a, b) => {
-                const aIndex = sizeOrder.indexOf(a);
-                const bIndex = sizeOrder.indexOf(b);
+                const aIndex = sizeOrderTemp.indexOf(a);
+                const bIndex = sizeOrderTemp.indexOf(b);
                 
                 if (aIndex !== -1 && bIndex !== -1) {
                   return aIndex - bIndex;
