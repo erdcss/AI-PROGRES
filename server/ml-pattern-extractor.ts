@@ -180,7 +180,7 @@ function extractSizeVariants(html: string): string[] {
     });
   }
   
-  return [...new Set(sizes)];
+  return Array.from(new Set(sizes));
 }
 
 /**
@@ -209,7 +209,7 @@ async function applyMLPatterns(urlInfo: any, analysis: PageAnalysis): Promise<st
   const sequencialImages = generateSequencialVariations(analysis.existingImageUrls);
   predictedImages.push(...sequencialImages);
   
-  return [...new Set(predictedImages)];
+  return Array.from(new Set(predictedImages));
 }
 
 /**

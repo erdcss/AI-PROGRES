@@ -10,6 +10,7 @@ import { extractImagesFromTrendyolAPIs } from './api-enhanced-extractor';
 import { extractImagesFromVariants } from './variant-extractor';
 import { extractImagesWithScrapy } from './scrapy-extractor';
 import { extractImagesWithMLPatterns } from './ml-pattern-extractor';
+import { extractImagesWithStandaloneScrapy } from './standalone-scrapy-extractor';
 
 /**
  * Verilen ürün URL'sinden tüm görselleri çeker
@@ -182,21 +183,35 @@ export async function getAllProductImages(url: string): Promise<string[]> {
       console.error('Varyant Extractor hatası:', error);
     }
 
-    // 5. Scrapy Enhanced Extractor'ı çalıştır - gelişmiş bot koruması bypass
-    console.log('🕷️ Scrapy Enhanced Extractor çalıştırılıyor...');
+    // 5. Standalone Scrapy Extractor'ı çalıştır - Python tabanlı gelişmiş çıkarma
+    console.log('🐍 Standalone Scrapy Extractor çalıştırılıyor...');
     try {
-      const scrapyImages = await extractImagesWithScrapy(url);
-      scrapyImages.forEach(scrapyImg => {
-        if (!allImages.includes(scrapyImg)) {
-          allImages.push(scrapyImg);
+      const standaloneImages = await extractImagesWithStandaloneScrapy(url);
+      standaloneImages.forEach(standaloneImg => {
+        if (!allImages.includes(standaloneImg)) {
+          allImages.push(standaloneImg);
         }
       });
-      console.log(`🕷️ Scrapy Enhanced Extractor'dan ${scrapyImages.length} ek görsel eklendi`);
+      console.log(`🐍 Standalone Scrapy Extractor'dan ${standaloneImages.length} ek görsel eklendi`);
     } catch (error) {
-      console.error('Scrapy Enhanced Extractor hatası:', error);
+      console.error('Standalone Scrapy Extractor hatası:', error);
     }
 
-    // 6. CDN Pattern Extractor'ı çalıştır - pattern tahminleri
+    // 6. ML Pattern Extractor'ı çalıştır - makine öğrenmesi tabanlı tahminler
+    console.log('🤖 ML Pattern Extractor çalıştırılıyor...');
+    try {
+      const mlImages = await extractImagesWithMLPatterns(url);
+      mlImages.forEach(mlImg => {
+        if (!allImages.includes(mlImg)) {
+          allImages.push(mlImg);
+        }
+      });
+      console.log(`🤖 ML Pattern Extractor'dan ${mlImages.length} ek görsel eklendi`);
+    } catch (error) {
+      console.error('ML Pattern Extractor hatası:', error);
+    }
+
+    // 7. CDN Pattern Extractor'ı çalıştır - pattern tahminleri
     console.log('🚀 CDN Pattern Extractor çalıştırılıyor...');
     try {
       const cdnImages = await extractImagesByCDNPatterns(url);
