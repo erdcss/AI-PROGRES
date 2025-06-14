@@ -8,6 +8,51 @@ import { getAllProductImages } from "./image-extractor";
 import { extractVariants } from "./enhanced-variant-extractor";
 import { extractAttributes } from "./enhanced-attributes-extractor";
 import * as cheerio from "cheerio";
+
+/**
+ * Basit görsel varyasyonları oluşturur
+ */
+function createSimpleImageVariations(baseUrl: string): string[] {
+  const variations: string[] = [];
+  
+  // Farklı boyutlar
+  const sizes = [
+    '1200/1800', '800/1200', '600/900', '400/600'
+  ];
+  
+  // Farklı resize parametreleri
+  const resizeTypes = ['mnresize/1200', 'mnresize/800', 'org_zoom'];
+  
+  // Boyut varyasyonları
+  sizes.forEach(size => {
+    const sizeVariation = baseUrl.replace(/\/\d+\/\d+\//, `/${size}/`);
+    if (sizeVariation !== baseUrl) {
+      variations.push(sizeVariation);
+    }
+  });
+  
+  // Resize varyasyonları
+  resizeTypes.forEach(resizeType => {
+    let resizeVariation = baseUrl;
+    if (resizeVariation.includes('mnresize/')) {
+      resizeVariation = resizeVariation.replace(/mnresize\/\d+/, resizeType);
+    } else if (resizeVariation.includes('org_zoom')) {
+      resizeVariation = resizeVariation.replace('org_zoom', resizeType);
+    } else {
+      // Yeni resize ekle
+      const parts = resizeVariation.split('/');
+      if (parts.length >= 6) {
+        parts.splice(5, 0, resizeType);
+        resizeVariation = parts.join('/');
+      }
+    }
+    if (resizeVariation !== baseUrl && !variations.includes(resizeVariation)) {
+      variations.push(resizeVariation);
+    }
+  });
+  
+  return variations;
+}
 import { Product, InsertProduct } from "@shared/schema";
 
 /**
@@ -27,32 +72,11 @@ export async function scrapeWithEnhancedImages(url: string): Promise<InsertProdu
   const title = $("h1.pr-new-br").text().trim() || $("h1.detail-name").text().trim();
   const description = $("div.detail-desc-content").text().trim();
   
-  // 4. Tüm görsel URL'lerini çek ve çoğalt
-  console.log(`Görsel çıkarma ve çoğaltma başlıyor: ${url}`);
-  
-  // 4a. Temel görsel çıkarma
-  const { getAllProductImages } = await import('./image-extractor');
-  const baseImages = await getAllProductImages(url);
-  console.log(`Temel yöntemle ${baseImages.length} görsel bulundu`);
-  
-  // 4b. Görselleri çoğalt - her görsel için farklı boyut varyasyonları oluştur
-  const allImageVariations: string[] = [];
-  
-  baseImages.forEach((imageUrl, index) => {
-    // Orijinal görseli ekle
-    allImageVariations.push(imageUrl);
-    
-    // Farklı boyut varyasyonları oluştur
-    const variations = createSimpleImageVariations(imageUrl);
-    allImageVariations.push(...variations);
-    
-    console.log(`Görsel ${index + 1} için ${variations.length} varyasyon oluşturuldu`);
-  });
-  
-  // Tekrarları kaldır ve en iyilerini seç
-  const uniqueImages = Array.from(new Set(allImageVariations));
-  const images = uniqueImages.slice(0, 20); // En fazla 20 görsel
-  console.log(`Görsel çoğaltma sonrası ${images.length} görsel seçildi`);
+  // 4. Maksimum görsel çıkarma
+  console.log(`Maksimum görsel çıkarma başlıyor: ${url}`);
+  const { extractMaximumImages } = await import('./ultimate-image-extractor');
+  const images = await extractMaximumImages(url);
+  console.log(`Maksimum görsel çıkarma tamamlandı: ${images.length} görsel`);
 
   // 5. Diğer verileri standart şekilde al
   // Fiyat
