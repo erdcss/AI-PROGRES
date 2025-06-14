@@ -417,33 +417,42 @@ export async function registerRoutes(app: Express) {
           // JSON-LD yoksa standart HTML parsing yap
           debug("JSON-LD bulunamadı, standart HTML parsing denenecek");
           
-          // Ürün başlığı
-          const title = $('h1.pr-new-br').text().trim() || 
+          // Ürün başlığı - Güncel Trendyol selektörleri
+          const title = $('h1[data-testid="product-title"]').text().trim() || 
+                       $('h1.pr-new-br').text().trim() || 
                        $('h1.detail-name').text().trim() || 
-                       $('h1.product-title').text().trim();
+                       $('h1').first().text().trim() ||
+                       $('[data-testid="product-name"]').text().trim();
                        
-          // Marka
-          const brand = $('.product-title-brand span').text().trim() ||
+          // Marka - Güncel selektörler
+          const brand = $('[data-testid="product-brand"]').text().trim() ||
+                       $('.product-title-brand span').text().trim() ||
                        $('.prdct-desc-cntnr-ttl').text().trim() || 
                        "turmarkt";
                        
-          // Fiyat
-          let priceText = $('.prc-dsc').first().text().trim().replace('TL', '').replace(/\./g, '').replace(',', '.');
-          if (!priceText) {
-            priceText = $('.product-price-container .prc-dsc').text().trim().replace('TL', '').replace(/\./g, '').replace(',', '.');
-          }
+          // Fiyat - Güncel selektörler
+          let priceText = $('[data-testid="price-current"]').text().trim() ||
+                         $('.prc-dsc').first().text().trim() ||
+                         $('.product-price-container .prc-dsc').text().trim() ||
+                         $('[data-testid="product-price"]').text().trim();
+          
+          priceText = priceText.replace('TL', '').replace(/\./g, '').replace(',', '.').replace(/[^\d.,]/g, '');
           const price = parseFloat(priceText) || 0;
           
-          // Ürün açıklaması
-          const description = $('.description-text').text().trim() || 
-                             $('.detail-desc-list').text().trim() || 
-                             "Ürün açıklaması bulunamadı";
+          // Ürün açıklaması - Güncel selektörler
+          const description = $('[data-testid="product-description"]').text().trim() ||
+                             $('.description-text').text().trim() || 
+                             $('.detail-desc-list').text().trim() ||
+                             $('.product-desc-item').text().trim() ||
+                             title; // Fallback olarak başlığı kullan
                              
-          // Resimler
+          // Resimler - Güncel selektörler
           const images: string[] = [];
-          $('.product-slide img').each((i, el) => {
-            const src = $(el).attr('src');
-            if (src) images.push(normalizeImageUrl(src));
+          $('[data-testid="product-image"] img, .product-slide img, .slick-slide img, .gallery-modal img').each((i, el) => {
+            const src = $(el).attr('src') || $(el).attr('data-src');
+            if (src && !src.includes('placeholder')) {
+              images.push(normalizeImageUrl(src));
+            }
           });
           
           // Ürün variant'ları
