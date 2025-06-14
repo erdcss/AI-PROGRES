@@ -6,6 +6,8 @@
 import fetch from 'node-fetch';
 import * as cheerio from 'cheerio';
 import { extractImagesByCDNPatterns } from './cdn-pattern-extractor';
+import { extractImagesFromTrendyolAPIs } from './api-enhanced-extractor';
+import { extractImagesFromVariants } from './variant-extractor';
 
 /**
  * Verilen ürün URL'sinden tüm görselleri çeker
@@ -150,7 +152,35 @@ export async function getAllProductImages(url: string): Promise<string[]> {
                 .replace('/mnresize/400/', '/mnresize/1200/');
     });
     
-    // 3. CDN Pattern Extractor'ı çalıştır - ek görseller için
+    // 3. API Enhanced Extractor'ı çalıştır - internal API'lerden ek görseller
+    console.log('🔥 API Enhanced Extractor çalıştırılıyor...');
+    try {
+      const apiImages = await extractImagesFromTrendyolAPIs(url);
+      apiImages.forEach(apiImg => {
+        if (!allImages.includes(apiImg)) {
+          allImages.push(apiImg);
+        }
+      });
+      console.log(`🔥 API Enhanced Extractor'dan ${apiImages.length} ek görsel eklendi`);
+    } catch (error) {
+      console.error('API Enhanced Extractor hatası:', error);
+    }
+
+    // 4. Varyant Extractor'ı çalıştır - farklı renk/beden varyantlarından görseller
+    console.log('🎨 Varyant Extractor çalıştırılıyor...');
+    try {
+      const variantImages = await extractImagesFromVariants(url);
+      variantImages.forEach(variantImg => {
+        if (!allImages.includes(variantImg)) {
+          allImages.push(variantImg);
+        }
+      });
+      console.log(`🎨 Varyant Extractor'dan ${variantImages.length} ek görsel eklendi`);
+    } catch (error) {
+      console.error('Varyant Extractor hatası:', error);
+    }
+
+    // 5. CDN Pattern Extractor'ı çalıştır - pattern tahminleri
     console.log('🚀 CDN Pattern Extractor çalıştırılıyor...');
     try {
       const cdnImages = await extractImagesByCDNPatterns(url);
