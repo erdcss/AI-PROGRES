@@ -4,9 +4,9 @@ import { tmpdir } from "os";
 import { join } from "path";
 import fs from "fs";
 
-// Shopify CSV için ultra güvenli temizleme
+// Shopify CSV için ultra güvenli temizleme ve escape etme
 function escapeForCSV(text: string): string {
-  if (!text || typeof text !== 'string') return '';
+  if (!text || typeof text !== 'string') return '""';
   
   let cleaned = String(text);
   
@@ -15,12 +15,16 @@ function escapeForCSV(text: string): string {
   
   // Keep only basic alphanumeric and safe characters
   cleaned = cleaned
-    .replace(/[^\w\s\-çğıöşüÇĞIÖŞÜ]/g, ' ') // Only letters, numbers, spaces, hyphens, Turkish chars
+    .replace(/[^\w\s\-\.çğıöşüÇĞIÖŞÜ]/g, ' ') // Allow dots for prices
     .replace(/\s+/g, ' ') // Multiple spaces to single
     .trim()
     .substring(0, 80); // Limit length to prevent CSV issues
   
-  return cleaned;
+  // Escape double quotes by doubling them
+  cleaned = cleaned.replace(/"/g, '""');
+  
+  // Always wrap in quotes for CSV safety
+  return `"${cleaned}"`;
 }
 
 /**
@@ -390,16 +394,22 @@ export function generateShopifyCSV(
     
     return row;
   };
-  // CSV satırındaki tüm değerleri temizle
+  // CSV satırındaki tüm değerleri Shopify kurallarına göre temizle
   function sanitizeCSVRow(row: any): any {
     const sanitized: any = {};
     for (const [key, value] of Object.entries(row)) {
       if (typeof value === 'string') {
+        // String değerleri escape et
         sanitized[key] = escapeForCSV(value);
-      } else if (value === null || value === undefined) {
-        sanitized[key] = '';
+      } else if (value === null || value === undefined || value === '') {
+        // Boş değerler için çift tırnak içinde boş string
+        sanitized[key] = '""';
+      } else if (typeof value === 'boolean') {
+        // Boolean değerleri büyük harfle
+        sanitized[key] = `"${value.toString().toUpperCase()}"`;
       } else {
-        sanitized[key] = String(value);
+        // Diğer tüm değerleri string'e çevir ve escape et
+        sanitized[key] = escapeForCSV(String(value));
       }
     }
     return sanitized;
@@ -971,7 +981,7 @@ export function generateShopifyCSV(
       console.log("CSV VERİ KONTROLÜ: ", dataCheck);
       
       // Alanları standartlaştır - büyük/küçük harf ve farklı yazım tarzı sorunlarını çöz
-      const standardizedRows = filteredRows.map((row, index) => {
+      const normalizedRows = filteredRows.map((row, index) => {
         // Tüm veriyi tek bir formata dönüştür
         const newRow: Record<string, any> = {};
         
@@ -1029,20 +1039,20 @@ export function generateShopifyCSV(
       });
       
       // Detaylı hata ayıklama için bir örnek satır göster
-      if (standardizedRows.length > 0) {
-        console.log("STANDARTLAŞTIRILMIŞ SATIR ÖRNEĞİ:", Object.keys(standardizedRows[0]).slice(0, 5).join(", "));
+      if (normalizedRows.length > 0) {
+        console.log("STANDARTLAŞTIRILMIŞ SATIR ÖRNEĞİ:", Object.keys(normalizedRows[0]).slice(0, 5).join(", "));
       }
       
-      console.log(`CSV'ye yazılacak: ${standardizedRows.length} satır`);
+      console.log(`CSV'ye yazılacak: ${normalizedRows.length} satır`);
       
       // Debug: İlk satırın key'lerini kontrol et
-      if (standardizedRows.length > 0) {
-        console.log("İLK SATIR KEY'LERİ:", Object.keys(standardizedRows[0]));
-        console.log("İLK SATIR VERİLERİ:", JSON.stringify(standardizedRows[0], null, 2).substring(0, 200));
+      if (normalizedRows.length > 0) {
+        console.log("İLK SATIR KEY'LERİ:", Object.keys(normalizedRows[0]));
+        console.log("İLK SATIR VERİLERİ:", JSON.stringify(normalizedRows[0], null, 2).substring(0, 200));
       }
       
       // CSV'yi yaz - field ID'leri küçük harfe çevir
-      const csvCompatibleRows = standardizedRows.map(row => {
+      const csvCompatibleRows = normalizedRows.map(row => {
         const newRow: Record<string, any> = {};
         
         // Büyük harfli key'leri küçük harfli field ID'lere dönüştür
@@ -1102,8 +1112,33 @@ export function generateShopifyCSV(
         return newRow;
       });
       
+      // Shopify CSV sütun uyumluluğu için standardize et
+      const headerFields = [
+        'handle', 'title', 'body_html', 'vendor', 'standard_product_type', 'custom_product_type', 
+        'tags', 'published', 'status', 'published_at', 'published_scope', 'template_suffix',
+        'option1_name', 'option1_value', 'option2_name', 'option2_value', 'option3_name', 'option3_value',
+        'variant_sku', 'variant_grams', 'variant_inventory_tracker', 'variant_inventory_qty',
+        'variant_inventory_policy', 'variant_fulfillment_service', 'variant_price', 'variant_compare_at_price',
+        'variant_requires_shipping', 'variant_taxable', 'variant_barcode', 'image_src', 'image_position',
+        'image_alt_text', 'gift_card', 'seo_title', 'seo_description', 'google_shopping_metafields',
+        'google_shopping_gender', 'google_shopping_age_group', 'google_shopping_mpn',
+        'google_shopping_adwords_grouping', 'google_shopping_adwords_labels', 'google_shopping_condition',
+        'google_shopping_custom_product', 'google_shopping_custom_label_0', 'google_shopping_custom_label_1',
+        'google_shopping_custom_label_2', 'google_shopping_custom_label_3', 'google_shopping_custom_label_4',
+        'variant_image', 'variant_weight_unit', 'variant_tax_code', 'cost_per_item'
+      ];
+
+      // Her satırda tüm alanların bulunmasını garanti et
+      const finalStandardizedRows = csvCompatibleRows.map(row => {
+        const standardRow: any = {};
+        headerFields.forEach(field => {
+          standardRow[field] = row[field] || '';
+        });
+        return standardRow;
+      });
+
       // Tüm satırları sanitize et
-      const sanitizedRows = csvCompatibleRows.map(row => sanitizeCSVRow(row));
+      const sanitizedRows = finalStandardizedRows.map(row => sanitizeCSVRow(row));
       
       await csvWriter.writeRecords(sanitizedRows);
       console.log(`CSV başarıyla oluşturuldu: ${outputPath} (${sanitizedRows.length} satır)`);
