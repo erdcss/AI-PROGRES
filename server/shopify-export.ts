@@ -517,8 +517,7 @@ export function generateShopifyCSV(
       const mainImage = validImages.length > 0 ? validImages[0] : '';
       const additionalImages = validImages.slice(1);
       
-      console.log(`ANA GÖRSEL DEBUG: mainImage = "${mainImage}"`);
-      console.log(`EK GÖRSELLER DEBUG: ${additionalImages.length} adet ek görsel`);
+
       
       // Body HTML oluştur - Sadece düz metin, HTML yok
       const generateBodyHTML = () => {
@@ -856,7 +855,6 @@ export function generateShopifyCSV(
           csvRows.push(fixShopifyVisibility(row));
         } else {
           // Varyantı olmayan temel ürün - Tam Shopify formatında
-          console.log(`DEBUG ROW CREATION: mainImage = "${mainImage}"`);
           let row = {
             handle: handle,
             title: product.title,
@@ -910,10 +908,7 @@ export function generateShopifyCSV(
             status: 'active'
           };
           
-          console.log(`DEBUG BEFORE FIXING: row.image_src = "${row.image_src}"`);
-          const fixedRow = fixShopifyVisibility(row);
-          console.log(`DEBUG AFTER FIXING: fixedRow has image_src = "${fixedRow.image_src}"`);
-          csvRows.push(fixedRow);
+          csvRows.push(fixShopifyVisibility(row));
           
           // Ek görseller varsa ayrı satırlar ekle
           additionalImages.forEach((imageUrl, index) => {
@@ -1211,7 +1206,7 @@ export function generateShopifyCSV(
         if (index === 0) {
           // Ürün görsellerinden birincisini kullan
           const firstValidImage = product.images && product.images.length > 0 ? product.images[0] : '';
-          console.log(`İLK ÜRÜN GÖRSEL ATAMASI: "${firstValidImage}" atanıyor`);
+
           
           newRow['Image Src'] = firstValidImage;
           newRow['Image Position'] = firstValidImage ? '1' : '';
@@ -1286,11 +1281,7 @@ export function generateShopifyCSV(
       // Tüm satırları sanitize et
       const sanitizedRows = finalStandardizedRows.map(row => sanitizeCSVRow(row));
       
-      // KRITIK DEBUG: İlk satırın görsel bilgilerini kontrol et
-      if (sanitizedRows.length > 0) {
-        console.log(`FINAL CSV DEBUG: İlk satır image_src = "${sanitizedRows[0].image_src}"`);
-        console.log(`FINAL CSV DEBUG: İlk satır image_position = "${sanitizedRows[0].image_position}"`);
-      }
+
       
       await csvWriter.writeRecords(sanitizedRows);
       console.log(`CSV başarıyla oluşturuldu: ${outputPath} (${sanitizedRows.length} satır)`);
