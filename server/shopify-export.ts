@@ -517,6 +517,9 @@ export function generateShopifyCSV(
       const mainImage = validImages.length > 0 ? validImages[0] : '';
       const additionalImages = validImages.slice(1);
       
+      console.log(`ANA GÖRSEL DEBUG: mainImage = "${mainImage}"`);
+      console.log(`EK GÖRSELLER DEBUG: ${additionalImages.length} adet ek görsel`);
+      
       // Body HTML oluştur - Sadece düz metin, HTML yok
       const generateBodyHTML = () => {
         // Sadece ürün başlığını kullan - en güvenli yöntem
@@ -1059,6 +1062,20 @@ export function generateShopifyCSV(
             delete fixedRow[oldKey];
           }
         });
+        
+        // Özel görsel alan eşleştirmeleri - kritik düzeltme
+        if (fixedRow.image_src && !newRow['Image Src']) {
+          newRow['Image Src'] = fixedRow.image_src;
+        }
+        if (fixedRow.image_position && !newRow['Image Position']) {
+          newRow['Image Position'] = fixedRow.image_position;
+        }
+        if (fixedRow.image_alt_text && !newRow['Image Alt Text']) {
+          newRow['Image Alt Text'] = fixedRow.image_alt_text;
+        }
+        if (fixedRow.variant_image && !newRow['Variant Image']) {
+          newRow['Variant Image'] = fixedRow.variant_image;
+        }
         
         // Kalan tüm orijinal alanları kopyala
         Object.entries(fixedRow).forEach(([key, value]) => {
