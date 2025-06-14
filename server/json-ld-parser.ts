@@ -81,19 +81,48 @@ export function parseJsonLdProductData($: cheerio.CheerioAPI): JsonLdProductData
             attributes: {}
           };
           
-          // Görselleri JSON-LD'den çıkar ve filtrele
+          // Görselleri JSON-LD'den çıkar - TÜM GÖRSELLERİ AL
           const allImages: string[] = [];
           
-          // Ana ürün görselleri
-          if (data.image && data.image.contentUrl) {
-            if (Array.isArray(data.image.contentUrl)) {
-              allImages.push(...data.image.contentUrl);
-            } else if (typeof data.image.contentUrl === 'string') {
-              allImages.push(data.image.contentUrl);
+          // Ana ürün görselleri - farklı formatları kontrol et
+          if (data.image) {
+            if (data.image.contentUrl) {
+              if (Array.isArray(data.image.contentUrl)) {
+                allImages.push(...data.image.contentUrl);
+              } else if (typeof data.image.contentUrl === 'string') {
+                allImages.push(data.image.contentUrl);
+              }
+            } else if (typeof data.image === 'string') {
+              allImages.push(data.image);
+            } else if (Array.isArray(data.image)) {
+              data.image.forEach((img: any) => {
+                if (typeof img === 'string') {
+                  allImages.push(img);
+                } else if (img.contentUrl) {
+                  allImages.push(img.contentUrl);
+                } else if (img.url) {
+                  allImages.push(img.url);
+                }
+              });
             }
           }
           
-          // Varyant görselleri
+          // Offers içindeki görseller
+          if (data.offers && data.offers.image) {
+            if (Array.isArray(data.offers.image)) {
+              data.offers.image.forEach((img: any) => {
+                if (typeof img === 'string') {
+                  allImages.push(img);
+                } else if (img.contentUrl) {
+                  allImages.push(img.contentUrl);
+                }
+              });
+            } else if (typeof data.offers.image === 'string') {
+              allImages.push(data.offers.image);
+            }
+          }
+          
+          // Varyant görselleri - TÜM VARYANTLARI KONTROL ET
           if (data.hasVariant && Array.isArray(data.hasVariant)) {
             data.hasVariant.forEach((variant: any) => {
               if (variant.image) {
@@ -109,31 +138,32 @@ export function parseJsonLdProductData($: cheerio.CheerioAPI): JsonLdProductData
           // Duplicate'leri kaldır
           const uniqueImages = Array.from(new Set(allImages));
           
-          // Logo ve gereksiz görselleri filtrele
+          // Sadece açık logo ve gereksiz görselleri filtrele - daha az agresif
           const filteredImages = uniqueImages.filter(url => {
             if (!url) return false;
             
-            // Logo filtreleme
-            const isLogo = url.includes('logo') || 
-                          url.includes('ty-web.svg') || 
-                          url.includes('brand') ||
-                          url.includes('icon') ||
-                          url.includes('badge') ||
-                          url.includes('spacer');
+            // Sadece belirgin logoları filtrele, ürün görsellerini koruma
+            const isObviousLogo = url.includes('ty-web.svg') || 
+                                 url.includes('trendyol-logo') ||
+                                 url.includes('brand-logo') ||
+                                 url.includes('spacer.gif') ||
+                                 url.includes('placeholder.svg');
             
-            return !isLogo;
+            // CDN URL'lerini kabul et
+            const isValidCdnImage = url.includes('cdn.dsmcdn.com') && 
+                                   (url.includes('.jpg') || url.includes('.jpeg') || url.includes('.png') || url.includes('.webp'));
+            
+            return !isObviousLogo && isValidCdnImage;
           });
           
-          // Aynı görselin farklı boyutlarını tek görsele indir
+          // Sadece tamamen aynı URL'leri filtrele, farklı boyutları koru
           const deduplicatedImages = [];
-          const seenImages = new Set();
+          const seenUrls = new Set();
           
           for (const image of filteredImages) {
-            // Görsel ID'sini çıkar (dosya adından)
-            const imageId = image.split('/').pop()?.split('_')[0] || image;
-            
-            if (!seenImages.has(imageId)) {
-              seenImages.add(imageId);
+            // Tam URL kontrolü - sadece tamamen aynı olanları filtrele
+            if (!seenUrls.has(image)) {
+              seenUrls.add(image);
               deduplicatedImages.push(image);
             }
           }

@@ -415,36 +415,45 @@ export async function registerRoutes(app: Express) {
                              $('.product-desc-item').text().trim() ||
                              title;
                              
-          // Resimler - Kapsamlı görsel çekme sistemi
+          // Resimler - Kapsamlı görsel çekme sistemi - TÜM GÖRSELLERİ AL
           const images: string[] = [];
-          const imageSelectors = [
-            '[data-testid="product-image"] img',
-            '.product-slide img',
-            '.slick-slide img', 
-            '.gallery-modal img',
-            '.product-gallery img',
-            '.product-images img',
-            '.image-gallery img',
-            '[data-testid="product-gallery"] img',
-            '.product-detail-images img',
-            '.prd-img img',
-            '.product-photo img',
-            'img[src*="product/media"]',
-            'img[src*="ty"]',
-            'img[data-src*="product"]',
-            '.swiper-slide img',
-            '.thumbnail img',
-            '.main-image img'
-          ];
           
-          // Tüm görsel selektörlerini kontrol et
-          imageSelectors.forEach(selector => {
-            $(selector).each((i, el) => {
-              const src = $(el).attr('src') || $(el).attr('data-src') || $(el).attr('data-lazy');
-              if (src && !src.includes('placeholder')) {
+          // Önce CDN'den tüm görselleri bul
+          $('img').each((i, el) => {
+            const $img = $(el);
+            const src = $img.attr('src') || $img.attr('data-src') || $img.attr('data-lazy') || $img.attr('data-original');
+            if (src && src.includes('cdn.dsmcdn.com') && (src.includes('.jpg') || src.includes('.jpeg') || src.includes('.png') || src.includes('.webp'))) {
+              // Logo filtrele
+              if (!src.includes('ty-web.svg') && !src.includes('trendyol-logo') && !src.includes('spacer.gif')) {
                 images.push(normalizeImageUrl(src));
               }
-            });
+            }
+          });
+          
+          // Background-image stillerinden görselleri çıkar
+          $('[style*="background-image"]').each((i, el) => {
+            const style = $(el).attr('style') || '';
+            const bgMatch = style.match(/background-image:\s*url\(['"]?([^'"]+)['"]?\)/);
+            if (bgMatch && bgMatch[1]) {
+              const bgUrl = bgMatch[1];
+              if (bgUrl.includes('cdn.dsmcdn.com') && (bgUrl.includes('.jpg') || bgUrl.includes('.jpeg') || bgUrl.includes('.png') || bgUrl.includes('.webp'))) {
+                images.push(normalizeImageUrl(bgUrl));
+              }
+            }
+          });
+          
+          // Script içlerindeki görsel URL'lerini yakala
+          $('script').each((i, el) => {
+            const scriptContent = $(el).html() || '';
+            const imageUrls = scriptContent.match(/"(https:\/\/cdn\.dsmcdn\.com[^"]*\.(?:jpg|jpeg|png|webp)[^"]*)"/g);
+            if (imageUrls) {
+              imageUrls.forEach(url => {
+                const cleanUrl = url.replace(/"/g, '');
+                if (!cleanUrl.includes('ty-web.svg') && !cleanUrl.includes('trendyol-logo')) {
+                  images.push(normalizeImageUrl(cleanUrl));
+                }
+              });
+            }
           });
           
           // Ürün variant'ları
@@ -527,16 +536,13 @@ export async function registerRoutes(app: Express) {
                   return true;
                 });
                 
-                // Aynı görselin farklı boyutlarını tek görsele indir
+                // Sadece tamamen aynı URL'leri filtrele
                 const deduplicatedImages = [];
-                const seenImages = new Set();
+                const seenUrls = new Set();
                 
                 for (const image of filteredImages) {
-                  // Görsel ID'sini çıkar (dosya adından)
-                  const imageId = image.split('/').pop()?.split('_')[0] || image;
-                  
-                  if (!seenImages.has(imageId)) {
-                    seenImages.add(imageId);
+                  if (!seenUrls.has(image)) {
+                    seenUrls.add(image);
                     deduplicatedImages.push(image);
                   }
                 }
