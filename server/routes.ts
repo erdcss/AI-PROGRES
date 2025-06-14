@@ -318,7 +318,12 @@ export async function registerRoutes(app: Express) {
                 category: categoryConfig.mainCategory,
                 subcategory: categoryConfig.subCategory,
                 productType: categoryConfig.productType,
-                images: await getFinalImages(url),
+                images: await (async () => {
+                  console.log('🔧 FINAL IMAGE SOLUTION ÇAĞRILIYOR:', url);
+                  const finalImages = await getFinalImages(url);
+                  console.log('🔧 FINAL IMAGE SOLUTION SONUÇ:', finalImages.length, 'görsel');
+                  return finalImages;
+                })(),
                 variants: variants,
                 attributes: {
                   ...jsonldData.attributes,
