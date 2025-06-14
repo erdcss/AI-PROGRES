@@ -11,6 +11,7 @@ import { getCategoryConfig } from "./category-mapping";
 import { cleanTrendyolAttributes } from "./clean-attributes";
 import { parseJsonLdProductData, generateTagsFromJsonLd } from "./json-ld-parser";
 import { InsertProduct } from "@shared/schema";
+import { getFinalImages } from "./final-image-solution";
 
 const urlSchema = z.object({
   url: z.string().min(1, "URL boş olamaz")
@@ -317,7 +318,7 @@ export async function registerRoutes(app: Express) {
                 category: categoryConfig.mainCategory,
                 subcategory: categoryConfig.subCategory,
                 productType: categoryConfig.productType,
-                images: jsonldData.images.map(normalizeImageUrl),
+                images: await getFinalImages(url),
                 variants: variants,
                 attributes: {
                   ...jsonldData.attributes,

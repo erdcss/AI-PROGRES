@@ -81,16 +81,8 @@ export function parseJsonLdProductData($: cheerio.CheerioAPI): JsonLdProductData
             attributes: {}
           };
           
-          // Görsel URL'lerini çıkar
-          if (data.image) {
-            if (Array.isArray(data.image.contentUrl)) {
-              productData.images = data.image.contentUrl;
-            } else if (typeof data.image === 'string') {
-              productData.images = [data.image];
-            } else if (data.image.contentUrl) {
-              productData.images = [data.image.contentUrl];
-            }
-          }
+          // Görseller Final Image Solution ile çıkarılacak - boş bırak
+          productData.images = [];
           
           // Derecelendirme bilgisi
           if (data.aggregateRating) {
