@@ -187,10 +187,14 @@ export default function Home() {
       description: `${previewData.totalRows || 1} ürün satırı içeriyor`
     });
     
-    // Dosya indirme
+    // Güvenli CSV indirme - Shopify uyumlu
+    const csvFileName = product.preview.filename || `shopify_products_${Date.now()}.csv`;
+    const downloadUrl = `/api/download/${csvFileName}`;
+    
     const downloadLink = document.createElement('a');
-    downloadLink.href = product.preview.csvPath;
-    downloadLink.download = fileName;
+    downloadLink.href = downloadUrl;
+    downloadLink.download = csvFileName;
+    downloadLink.target = '_blank';
     document.body.appendChild(downloadLink);
     downloadLink.click();
     document.body.removeChild(downloadLink);

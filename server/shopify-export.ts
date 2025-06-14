@@ -1111,18 +1111,32 @@ export function generateShopifyCSV(
       // Preview dosyasını temp klasörüne kopyala
       if (outputPath.startsWith('/tmp/')) {
         const timestamp = new Date().getTime();
-        const previewPath = `./temp/preview_${timestamp}.csv`;
+        const filename = `preview_${timestamp}.csv`;
+        const previewPath = `./temp/${filename}`;
         
         try {
           fs.copyFileSync(outputPath, previewPath);
-          console.log(`CSV önizleme dosyası oluşturuldu: preview_${timestamp}.csv`);
-          resolve(previewPath);
+          console.log(`CSV önizleme dosyası oluşturuldu: ${filename}`);
+          resolve({
+            csvPath: previewPath,
+            filename: filename,
+            totalRows: sanitizedRows.length
+          });
         } catch (copyError) {
           console.error('CSV kopyalama hatası:', copyError);
-          resolve(outputPath);
+          resolve({
+            csvPath: outputPath,
+            filename: `shopify_products_${timestamp}.csv`,
+            totalRows: sanitizedRows.length
+          });
         }
       } else {
-        resolve(outputPath);
+        const filename = outputPath.split('/').pop() || 'shopify_products.csv';
+        resolve({
+          csvPath: outputPath,
+          filename: filename,
+          totalRows: sanitizedRows.length
+        });
       }
     } catch (error) {
       console.error('CSV oluşturma hatası:', error);

@@ -354,7 +354,7 @@ export async function registerRoutes(app: Express) {
                 title: productInfo.title,
                 brand: productInfo.brand,
                 description: productInfo.description,
-                price: productInfo.price,
+                price: String(productInfo.price),
                 category: categoryConfig.mainCategory,
                 subcategory: categoryConfig.subCategory,
                 productType: categoryConfig.productType,
@@ -369,15 +369,13 @@ export async function registerRoutes(app: Express) {
               await storage.saveProduct(productData);
               
               // Shopify CSV oluştur
-              const csvFilePath = await generateShopifyCSV({
+              const csvResult = await generateShopifyCSV({
                 ...productData,
                 id: 0, // Temp ID
                 basePrice: "0",
                 video: null,
-                category: categoryConfig.mainCategory,
-                subcategory: categoryConfig.subCategory,
-                productType: categoryConfig.productType,
-                tags: categoryConfig.tags
+                brand: productData.brand || null,
+                vendor: "turmarkt"
               }, {});
               
               // İşlemi tamamla
@@ -595,6 +593,37 @@ export async function registerRoutes(app: Express) {
       return res.status(errorResponse.status).json({ 
         message: errorResponse.message,
         details: errorResponse.details
+      });
+    }
+  });
+
+  // CSV dosyası indirme endpoint'i - Shopify uyumlu
+  app.get('/api/download/:filename', (req, res) => {
+    try {
+      const filename = req.params.filename;
+      const filepath = path.join('./temp', filename);
+      
+      // Dosya var mı kontrol et
+      if (!fs.existsSync(filepath)) {
+        return res.status(404).json({ message: 'CSV dosyası bulunamadı' });
+      }
+      
+      // Shopify uyumlu HTTP başlıkları
+      res.setHeader('Content-Type', 'text/csv; charset=utf-8');
+      res.setHeader('Content-Disposition', `attachment; filename="${filename}"`);
+      res.setHeader('Cache-Control', 'no-cache');
+      res.setHeader('Pragma', 'no-cache');
+      res.setHeader('Expires', '0');
+      
+      // CSV dosyasını stream olarak gönder
+      const fileStream = fs.createReadStream(filepath);
+      fileStream.pipe(res);
+      
+    } catch (error: any) {
+      console.error('CSV indirme hatası:', error);
+      return res.status(500).json({ 
+        message: "CSV dosyası indirilemedi",
+        error: error.message 
       });
     }
   });
