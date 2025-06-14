@@ -27,11 +27,17 @@ export async function scrapeWithEnhancedImages(url: string): Promise<InsertProdu
   const title = $("h1.pr-new-br").text().trim() || $("h1.detail-name").text().trim();
   const description = $("div.detail-desc-content").text().trim();
   
-  // 4. Tüm görsel URL'lerini süper hibrit yöntemle çek
-  console.log(`Tüm görseller süper hibrit yöntem ile çekiliyor: ${url}`);
-  const { superHybridImageExtraction } = await import('./api-image-extractor');
-  const images = await superHybridImageExtraction(url);
-  console.log(`Süper hibrit yöntemle ${images.length} görsel bulundu`);
+  // 4. Tüm görsel URL'lerini gelişmiş yöntemle çek ve çoğalt
+  console.log(`Tüm görseller gelişmiş yöntem ile çekiliyor: ${url}`);
+  const { extractAllImages } = await import('./advanced-image-extractor');
+  const baseImages = await extractAllImages(url);
+  console.log(`Gelişmiş yöntemle ${baseImages.length} temel görsel bulundu`);
+  
+  // Görselleri çoğalt ve optimize et
+  const { multiplyImages, selectBestImages } = await import('./image-multiplier');
+  const multipliedImages = multiplyImages(baseImages);
+  const images = selectBestImages(multipliedImages, 25);
+  console.log(`Görsel çoğaltma sonrası ${images.length} optimized görsel seçildi`);
 
   // 5. Diğer verileri standart şekilde al
   // Fiyat
