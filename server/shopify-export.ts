@@ -446,55 +446,18 @@ export function generateShopifyCSV(
         path: outputPath,
         encoding: 'utf8',
         header: [
-          // SHOPIFY TEMPLATE FORMAT - EXACT MATCH
+          // SIMPLIFIED SHOPIFY FORMAT - PRACTICAL & CLEAN
           { id: 'handle', title: 'Handle' },
           { id: 'title', title: 'Title' },
           { id: 'body_html', title: 'Body (HTML)' },
           { id: 'vendor', title: 'Vendor' },
-          { id: 'product_category', title: 'Product Category' },
           { id: 'type', title: 'Type' },
           { id: 'tags', title: 'Tags' },
           { id: 'published', title: 'Published' },
           { id: 'option1_name', title: 'Option1 Name' },
           { id: 'option1_value', title: 'Option1 Value' },
-          { id: 'option2_name', title: 'Option2 Name' },
-          { id: 'option2_value', title: 'Option2 Value' },
-          { id: 'option3_name', title: 'Option3 Name' },
-          { id: 'option3_value', title: 'Option3 Value' },
           { id: 'variant_sku', title: 'Variant SKU' },
-          { id: 'variant_grams', title: 'Variant Grams' },
-          { id: 'variant_inventory_tracker', title: 'Variant Inventory Tracker' },
-          { id: 'variant_inventory_qty', title: 'Variant Inventory Qty' },
-          { id: 'variant_inventory_policy', title: 'Variant Inventory Policy' },
-          { id: 'variant_fulfillment_service', title: 'Variant Fulfillment Service' },
-          { id: 'variant_price', title: 'Variant Price' },
-          { id: 'variant_compare_at_price', title: 'Variant Compare At Price' },
-          { id: 'variant_requires_shipping', title: 'Variant Requires Shipping' },
-          { id: 'variant_taxable', title: 'Variant Taxable' },
-          { id: 'variant_barcode', title: 'Variant Barcode' },
-          { id: 'image_src', title: 'Image Src' },
-          { id: 'image_position', title: 'Image Position' },
-          { id: 'image_alt_text', title: 'Image Alt Text' },
-          { id: 'gift_card', title: 'Gift Card' },
-          { id: 'seo_title', title: 'SEO Title' },
-          { id: 'seo_description', title: 'SEO Description' },
-          { id: 'google_shopping_google_product_category', title: 'Google Shopping / Google Product Category' },
-          { id: 'google_shopping_gender', title: 'Google Shopping / Gender' },
-          { id: 'google_shopping_age_group', title: 'Google Shopping / Age Group' },
-          { id: 'google_shopping_mpn', title: 'Google Shopping / MPN' },
-          { id: 'google_shopping_adwords_grouping', title: 'Google Shopping / AdWords Grouping' },
-          { id: 'google_shopping_adwords_labels', title: 'Google Shopping / AdWords Labels' },
-          { id: 'google_shopping_condition', title: 'Google Shopping / Condition' },
-          { id: 'google_shopping_custom_product', title: 'Google Shopping / Custom Product' },
-          { id: 'google_shopping_custom_label_0', title: 'Google Shopping / Custom Label 0' },
-          { id: 'google_shopping_custom_label_1', title: 'Google Shopping / Custom Label 1' },
-          { id: 'google_shopping_custom_label_2', title: 'Google Shopping / Custom Label 2' },
-          { id: 'google_shopping_custom_label_3', title: 'Google Shopping / Custom Label 3' },
-          { id: 'google_shopping_custom_label_4', title: 'Google Shopping / Custom Label 4' },
-          { id: 'variant_image', title: 'Variant Image' },
-          { id: 'variant_weight_unit', title: 'Variant Weight Unit' },
-          { id: 'variant_tax_code', title: 'Variant Tax Code' },
-          { id: 'cost_per_item', title: 'Cost per item' }
+          { id: 'variant_price', title: 'Variant Price' }
         ]
       });
 
@@ -1127,19 +1090,10 @@ export function generateShopifyCSV(
         return newRow;
       });
       
-      // Shopify CSV sütun uyumluluğu için standardize et (Template formatına uygun)
+      // Simplified Shopify CSV format - matches user example
       const headerFields = [
-        'handle', 'title', 'body_html', 'vendor', 'product_category', 'type', 
-        'tags', 'published', 'option1_name', 'option1_value', 'option2_name', 'option2_value', 
-        'option3_name', 'option3_value', 'variant_sku', 'variant_grams', 'variant_inventory_tracker', 
-        'variant_inventory_qty', 'variant_inventory_policy', 'variant_fulfillment_service', 
-        'variant_price', 'variant_compare_at_price', 'variant_requires_shipping', 'variant_taxable', 
-        'variant_barcode', 'image_src', 'image_position', 'image_alt_text', 'gift_card', 
-        'seo_title', 'seo_description', 'google_shopping_google_product_category',
-        'google_shopping_gender', 'google_shopping_age_group', 'google_shopping_mpn',
-        'google_shopping_adwords_grouping', 'google_shopping_adwords_labels', 'google_shopping_condition',
-        'google_shopping_custom_product', 'google_shopping_custom_label_0', 'google_shopping_custom_label_1',
-        'google_shopping_custom_label_2', 'google_shopping_custom_label_3', 'google_shopping_custom_label_4'
+        'handle', 'title', 'body_html', 'vendor', 'type', 'tags', 'published', 
+        'option1_name', 'option1_value', 'variant_sku', 'variant_price'
       ];
 
       // Her satırda tüm alanların bulunmasını garanti et
