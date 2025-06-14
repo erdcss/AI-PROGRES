@@ -171,10 +171,10 @@ export async function scrapeProductWithPuppeteer(url: string): Promise<string> {
                            url.includes('espresso') || 
                            url.includes('kahve'));
     
-    // Tarayıcıyı başlat - Daha fazla komut satırı argümanı ve yeni Puppeteer için 'headless: "new"'
+    // Tarayıcıyı başlat - Sistem Chromium kullan
     browser = await puppeteer.launch({
-      headless: "new",
-      executablePath: process.env.PUPPETEER_EXECUTABLE_PATH,
+      headless: true,
+      executablePath: '/nix/store/zi4f80l169xlmivz8vja8wlphq74qqk0-chromium-125.0.6422.141/bin/chromium',
       ignoreDefaultArgs: ['--disable-extensions'],
       args: [
         '--no-sandbox',
