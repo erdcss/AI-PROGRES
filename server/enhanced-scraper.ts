@@ -74,8 +74,8 @@ export async function scrapeWithEnhancedImages(url: string): Promise<InsertProdu
   
   // 4. Maksimum görsel çıkarma
   console.log(`Maksimum görsel çıkarma başlıyor: ${url}`);
-  const { extractMaximumImages } = await import('./ultimate-image-extractor');
-  const images = await extractMaximumImages(url);
+  const { extractUltimateImages } = await import('./ultimate-image-extractor');
+  const images = await extractUltimateImages(url);
   console.log(`Maksimum görsel çıkarma tamamlandı: ${images.length} görsel`);
 
   // 5. Diğer verileri standart şekilde al

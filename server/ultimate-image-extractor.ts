@@ -1,315 +1,312 @@
 /**
- * Nihai Görsel Çıkarıcı
- * Tüm mevcut yöntemleri birleştirerek maksimum görsel sayısını elde eder
+ * Ultimate Image Extractor - Kesin Çözüm
+ * Trendyol'dan maksimum ve benzersiz görsel çıkarmak için optimized sistem
  */
 
 import axios from 'axios';
 import * as cheerio from 'cheerio';
 
-/**
- * URL'den ürün ID'sini çıkarır
- */
-function extractProductId(url: string): string | null {
-  const match = url.match(/p-(\d+)/);
-  return match ? match[1] : null;
-}
-
-/**
- * Temel görsel URL'den tüm varyasyonları oluşturur
- */
-function generateAllImageVariations(baseUrl: string): string[] {
-  const variations = [baseUrl];
-  
-  // Boyut kombinasyonları
-  const sizePatterns = [
-    '1200/1800', '800/1200', '600/900', '400/600',
-    '1080/1620', '720/1080', '500/750', '300/450',
-    '240/360', '200/300', '150/225', '100/150'
-  ];
-  
-  // Resize/crop parametreleri
-  const processTypes = [
-    'org_zoom', 'mnresize/1200', 'mnresize/800', 'mnresize/600',
-    'crop/1200', 'crop/800', 'crop/600', 'ty/1200', 'ty/800'
-  ];
-  
-  // Kalite seviyeleri
-  const qualities = ['95', '90', '85', '80', '75'];
-  
-  sizePatterns.forEach(size => {
-    let sizeVariant = baseUrl.replace(/\/\d+\/\d+\//, `/${size}/`);
-    if (!variations.includes(sizeVariant)) {
-      variations.push(sizeVariant);
-    }
-    
-    // Her boyut için farklı işlem türleri
-    processTypes.forEach(processType => {
-      let processedVariant = sizeVariant;
-      
-      if (processedVariant.includes('mnresize/')) {
-        processedVariant = processedVariant.replace(/mnresize\/\d+/, processType);
-      } else if (processedVariant.includes('crop/')) {
-        processedVariant = processedVariant.replace(/crop\/\d+/, processType);
-      } else if (processedVariant.includes('org_zoom')) {
-        processedVariant = processedVariant.replace('org_zoom', processType);
-      } else {
-        // Yeni işlem parametresi ekle
-        const parts = processedVariant.split('/');
-        if (parts.length >= 6) {
-          parts.splice(5, 0, processType);
-          processedVariant = parts.join('/');
-        }
-      }
-      
-      if (!variations.includes(processedVariant)) {
-        variations.push(processedVariant);
-      }
-      
-      // Her varyant için kalite seviyeleri
-      qualities.forEach(quality => {
-        let qualityVariant = processedVariant;
-        if (qualityVariant.includes('quality/')) {
-          qualityVariant = qualityVariant.replace(/quality\/\d+/, `quality/${quality}`);
-        } else {
-          qualityVariant += qualityVariant.includes('?') ? `&quality=${quality}` : `?quality=${quality}`;
-        }
-        
-        if (!variations.includes(qualityVariant)) {
-          variations.push(qualityVariant);
-        }
-      });
-    });
-  });
-  
-  return variations;
-}
-
-/**
- * Trendyol'un CDN pattern'lerini kullanarak olası görsel URL'leri tahmin eder
- */
-function predictImageUrls(productId: string): string[] {
-  const predictedUrls: string[] = [];
-  const baseUrls = [
-    `https://cdn.dsmcdn.com/ty`,
-    `https://cdn.dsmcdn.com/mnresize/1200`,
-    `https://cdn.dsmcdn.com/org_zoom/ty`
-  ];
-  
-  // Farklı görsel indeksleri (0-20 arası)
-  for (let i = 0; i <= 20; i++) {
-    baseUrls.forEach(baseUrl => {
-      // Farklı dosya formatları
-      ['jpg', 'jpeg', 'webp', 'png'].forEach(ext => {
-        // Farklı naming pattern'leri
-        const patterns = [
-          `${baseUrl}${i}/${productId}_${i}.${ext}`,
-          `${baseUrl}/${productId}_${i}.${ext}`,
-          `${baseUrl}${i}/${productId}.${ext}`,
-          `${baseUrl}/${productId}-${i}.${ext}`,
-          `${baseUrl}/1200/1800/ty${i}/${productId}_${i}.${ext}`,
-          `${baseUrl}/800/1200/ty${i}/${productId}_${i}.${ext}`
-        ];
-        
-        predictedUrls.push(...patterns);
-      });
-    });
-  }
-  
-  return predictedUrls;
-}
-
-/**
- * Sayfa HTML'inden tüm olası görsel URL'lerini agresif şekilde çıkarır
- */
-async function aggressiveHtmlScrape(url: string): Promise<string[]> {
-  const images: string[] = [];
-  
-  try {
-    const response = await axios.get(url, {
-      headers: {
-        'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36',
-        'Accept': 'text/html,application/xhtml+xml,application/xml;q=0.9,image/webp,*/*;q=0.8'
-      },
-      timeout: 20000
-    });
-
-    const html = response.data;
-    const $ = cheerio.load(html);
-
-    // 1. Tüm img tag'leri
-    $('img').each((_, element) => {
-      const src = $(element).attr('src') || $(element).attr('data-src') || 
-                  $(element).attr('data-lazy-src') || $(element).attr('data-original');
-      if (src && isValidTrendyolImage(src)) {
-        images.push(src);
-      }
-    });
-
-    // 2. Style attribute'larında background-image
-    $('[style*="background-image"]').each((_, element) => {
-      const style = $(element).attr('style');
-      if (style) {
-        const matches = style.match(/background-image:\s*url\(['"]?([^'")]+)['"]?\)/gi);
-        if (matches) {
-          matches.forEach(match => {
-            const urlMatch = match.match(/url\(['"]?([^'")]+)['"]?\)/);
-            if (urlMatch && urlMatch[1] && isValidTrendyolImage(urlMatch[1])) {
-              images.push(urlMatch[1]);
-            }
-          });
-        }
-      }
-    });
-
-    // 3. Script tag'lerindeki tüm URL'ler
-    $('script').each((_, element) => {
-      const scriptContent = $(element).html();
-      if (scriptContent) {
-        // Trendyol CDN URL'lerini yakala
-        const urlMatches = scriptContent.match(/https:\/\/(cdn\.dsmcdn\.com|cdn\.trendyol\.com)[^"'\s]+\.(jpg|jpeg|png|webp)/gi);
-        if (urlMatches) {
-          urlMatches.forEach(match => {
-            if (isValidTrendyolImage(match)) {
-              images.push(match);
-            }
-          });
-        }
-        
-        // JSON string'leri içindeki görselleri yakala
-        const jsonMatches = scriptContent.match(/"[^"]*(?:cdn\.dsmcdn\.com|cdn\.trendyol\.com)[^"]*\.(jpg|jpeg|png|webp)[^"]*"/gi);
-        if (jsonMatches) {
-          jsonMatches.forEach(match => {
-            const cleanUrl = match.replace(/^"|"$/g, '').replace(/\\"/g, '"');
-            if (isValidTrendyolImage(cleanUrl)) {
-              images.push(cleanUrl);
-            }
-          });
-        }
-      }
-    });
-
-    // 4. Data attribute'ları
-    $('[data-src], [data-original], [data-lazy], [data-img]').each((_, element) => {
-      const attrs = ['data-src', 'data-original', 'data-lazy', 'data-img'];
-      attrs.forEach(attr => {
-        const value = $(element).attr(attr);
-        if (value && isValidTrendyolImage(value)) {
-          images.push(value);
-        }
-      });
-    });
-
-    // 5. CSS class'larından görsel URL'leri çıkar (Trendyol'un lazy loading sistemi)
-    $('[class*="image"], [class*="photo"], [class*="picture"]').each((_, element) => {
-      const className = $(element).attr('class');
-      if (className) {
-        // Class name'lerde encoded URL'ler olabilir
-        const urlMatches = className.match(/https?%3A%2F%2F[^%\s]+%2F[^%\s]+\.(jpg|jpeg|png|webp)/gi);
-        if (urlMatches) {
-          urlMatches.forEach(match => {
-            const decodedUrl = decodeURIComponent(match);
-            if (isValidTrendyolImage(decodedUrl)) {
-              images.push(decodedUrl);
-            }
-          });
-        }
-      }
-    });
-
-  } catch (error) {
-    console.error('Agresif HTML scraping hatası:', error);
-  }
-
-  return images;
-}
-
-/**
- * URL'nin geçerli bir Trendyol görseli olup olmadığını kontrol eder
- */
-function isValidTrendyolImage(url: string): boolean {
-  if (!url || typeof url !== 'string') return false;
-  
-  return (url.includes('cdn.dsmcdn.com') || url.includes('cdn.trendyol.com')) &&
-         /\.(jpg|jpeg|png|webp)(\?|$)/i.test(url) &&
-         !url.includes('favicon') &&
-         !url.includes('logo') &&
-         !url.includes('icon');
-}
-
-/**
- * Görsel URL'lerini kalite skoruna göre sıralar
- */
-function rankImagesByQuality(images: string[]): string[] {
-  return images.sort((a, b) => {
-    let scoreA = 0, scoreB = 0;
-    
-    // Boyut skorları
-    if (a.includes('1200') || a.includes('1800')) scoreA += 20;
-    if (b.includes('1200') || b.includes('1800')) scoreB += 20;
-    
-    // Özel parametreler
-    if (a.includes('org_zoom')) scoreA += 25;
-    if (b.includes('org_zoom')) scoreB += 25;
-    
-    if (a.includes('mnresize/1200')) scoreA += 15;
-    if (b.includes('mnresize/1200')) scoreB += 15;
-    
-    // Kalite parametresi
-    if (a.includes('quality/95')) scoreA += 10;
-    if (b.includes('quality/95')) scoreB += 10;
-    
-    return scoreB - scoreA;
-  });
-}
-
-/**
- * Nihai görsel çıkarma fonksiyonu - tüm yöntemleri birleştirir
- */
-export async function extractMaximumImages(url: string): Promise<string[]> {
-  console.log('Maksimum görsel çıkarma başlıyor...');
-  
-  const productId = extractProductId(url);
-  if (!productId) {
-    console.log('Ürün ID bulunamadı');
-    return [];
-  }
+export async function extractUltimateImages(url: string): Promise<string[]> {
+  console.log('🎯 Ultimate Image Extractor başlatılıyor...');
   
   const allImages: string[] = [];
   
   try {
-    // 1. Mevcut image-extractor'ı kullan
-    const { getAllProductImages } = await import('./image-extractor');
-    const baseImages = await getAllProductImages(url);
-    allImages.push(...baseImages);
-    console.log(`Temel çıkarıcıdan ${baseImages.length} görsel`);
-    
-    // 2. Agresif HTML scraping
-    const htmlImages = await aggressiveHtmlScrape(url);
-    allImages.push(...htmlImages);
-    console.log(`Agresif HTML'den ${htmlImages.length} görsel`);
-    
-    // 3. Tahmin edilen URL'ler
-    const predictedImages = predictImageUrls(productId);
-    allImages.push(...predictedImages);
-    console.log(`Tahmin edilen ${predictedImages.length} URL`);
-    
-    // 4. Her temel görsel için tüm varyasyonları oluştur
-    const uniqueBaseImages = Array.from(new Set([...baseImages, ...htmlImages.slice(0, 10)]));
-    uniqueBaseImages.forEach(baseImage => {
-      const variations = generateAllImageVariations(baseImage);
-      allImages.push(...variations);
+    // 1. Sayfa kaynağını al
+    const response = await axios.get(url, {
+      headers: {
+        'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36',
+        'Accept': 'text/html,application/xhtml+xml,application/xml;q=0.9,image/webp,*/*;q=0.8',
+        'Accept-Language': 'tr-TR,tr;q=0.9,en;q=0.8',
+        'Cache-Control': 'no-cache',
+        'Pragma': 'no-cache'
+      },
+      timeout: 15000
     });
-    console.log(`Varyasyon üretimi tamamlandı`);
+
+    const html = response.data;
+    const $ = cheerio.load(html);
     
-    // 5. Tekrarları kaldır ve sırala
+    // 2. JSON-LD'den benzersiz görselleri çıkar
+    const jsonLdImages = extractFromJsonLD($, html);
+    console.log(`📸 JSON-LD'den ${jsonLdImages.length} görsel bulundu`);
+    
+    // 3. HTML'den farklı yöntemlerle görselleri çıkar
+    const htmlImages = extractFromHTML($);
+    console.log(`🔍 HTML'den ${htmlImages.length} görsel bulundu`);
+    
+    // 4. Script tag'lerinden görselleri çıkar
+    const scriptImages = extractFromScripts($);
+    console.log(`📜 Script'lerden ${scriptImages.length} görsel bulundu`);
+    
+    // 5. Tüm görselleri birleştir
+    allImages.push(...jsonLdImages, ...htmlImages, ...scriptImages);
+    
+    // 6. Duplicate'leri kaldır ve filtrele
     const uniqueImages = Array.from(new Set(allImages));
-    const rankedImages = rankImagesByQuality(uniqueImages);
+    const validImages = uniqueImages.filter(img => isValidProductImage(img));
     
-    console.log(`Maksimum görsel çıkarma tamamlandı: ${rankedImages.length} görsel`);
-    return rankedImages.slice(0, 50); // En fazla 50 görsel döndür
+    // 7. Görselleri kaliteye göre sırala
+    const sortedImages = sortImagesByQuality(validImages);
+    
+    console.log(`🎯 Ultimate Extractor sonuç: ${sortedImages.length} benzersiz kaliteli görsel`);
+    return sortedImages;
     
   } catch (error) {
-    console.error('Maksimum görsel çıkarma hatası:', error);
-    return allImages;
+    console.error('❌ Ultimate Image Extractor hatası:', error);
+    return [];
   }
+}
+
+/**
+ * JSON-LD structured data'dan görselleri çıkarır
+ */
+function extractFromJsonLD($: cheerio.CheerioAPI, html: string): string[] {
+  const images: string[] = [];
+  
+  $('script[type="application/ld+json"]').each((_, el) => {
+    try {
+      const scriptContent = $(el).text();
+      if (!scriptContent) return;
+      
+      const data = JSON.parse(scriptContent);
+      
+      // ProductGroup yapısı
+      if (data["@type"] === "ProductGroup") {
+        // Ana ürün görselleri
+        if (data.image && data.image.contentUrl) {
+          if (Array.isArray(data.image.contentUrl)) {
+            data.image.contentUrl.forEach((imgUrl: string) => {
+              if (imgUrl && !images.includes(imgUrl)) {
+                images.push(imgUrl);
+              }
+            });
+          } else if (typeof data.image.contentUrl === 'string') {
+            images.push(data.image.contentUrl);
+          }
+        }
+        
+        // Varyant görselleri
+        if (data.hasVariant && Array.isArray(data.hasVariant)) {
+          data.hasVariant.forEach((variant: any) => {
+            if (variant.image) {
+              if (typeof variant.image === 'string' && !images.includes(variant.image)) {
+                images.push(variant.image);
+              } else if (variant.image.contentUrl && !images.includes(variant.image.contentUrl)) {
+                images.push(variant.image.contentUrl);
+              }
+            }
+          });
+        }
+      }
+      
+      // Product yapısı
+      if (data["@type"] === "Product") {
+        if (data.image) {
+          if (typeof data.image === 'string' && !images.includes(data.image)) {
+            images.push(data.image);
+          } else if (data.image.url && !images.includes(data.image.url)) {
+            images.push(data.image.url);
+          } else if (Array.isArray(data.image)) {
+            data.image.forEach((img: any) => {
+              const imgUrl = typeof img === 'string' ? img : img.url;
+              if (imgUrl && !images.includes(imgUrl)) {
+                images.push(imgUrl);
+              }
+            });
+          }
+        }
+      }
+      
+    } catch (error) {
+      // JSON parse hatası, devam et
+    }
+  });
+  
+  return images;
+}
+
+/**
+ * HTML'den farklı selector'larla görselleri çıkarır
+ */
+function extractFromHTML($: cheerio.CheerioAPI): string[] {
+  const images: string[] = [];
+  
+  // Farklı görsel selector'ları
+  const selectors = [
+    'img[src*="cdn.dsmcdn.com"]',
+    'img[data-src*="cdn.dsmcdn.com"]',
+    'img[data-original*="cdn.dsmcdn.com"]',
+    'img[data-lazy*="cdn.dsmcdn.com"]',
+    '[data-image*="cdn.dsmcdn.com"]',
+    '[style*="background-image"][style*="cdn.dsmcdn.com"]'
+  ];
+  
+  selectors.forEach(selector => {
+    $(selector).each((_, el) => {
+      const $el = $(el);
+      
+      // Farklı attribute'lardan URL çıkar
+      const possibleUrls = [
+        $el.attr('src'),
+        $el.attr('data-src'),
+        $el.attr('data-original'),
+        $el.attr('data-lazy'),
+        $el.attr('data-image'),
+        extractFromStyle($el.attr('style'))
+      ].filter(Boolean);
+      
+      possibleUrls.forEach(url => {
+        if (url && !images.includes(url)) {
+          images.push(url);
+        }
+      });
+    });
+  });
+  
+  return images;
+}
+
+/**
+ * Script tag'lerinden görselleri çıkarır
+ */
+function extractFromScripts($: cheerio.CheerioAPI): string[] {
+  const images: string[] = [];
+  
+  $('script').each((_, el) => {
+    const scriptContent = $(el).html();
+    if (!scriptContent) return;
+    
+    // JavaScript içindeki görsel URL'lerini bul
+    const patterns = [
+      /"(https:\/\/cdn\.dsmcdn\.com[^"]*\.(?:jpg|jpeg|png|webp)[^"]*)"/g,
+      /'(https:\/\/cdn\.dsmcdn\.com[^']*\.(?:jpg|jpeg|png|webp)[^']*)'/g,
+      /url\s*:\s*["'](https:\/\/cdn\.dsmcdn\.com[^"']*\.(?:jpg|jpeg|png|webp)[^"']*)["']/g,
+      /src\s*:\s*["'](https:\/\/cdn\.dsmcdn\.com[^"']*\.(?:jpg|jpeg|png|webp)[^"']*)["']/g
+    ];
+    
+    patterns.forEach(pattern => {
+      let match;
+      while ((match = pattern.exec(scriptContent)) !== null) {
+        const imageUrl = match[1];
+        if (imageUrl && !images.includes(imageUrl)) {
+          images.push(imageUrl);
+        }
+      }
+    });
+  });
+  
+  return images;
+}
+
+/**
+ * Style attribute'undan background-image URL'sini çıkarır
+ */
+function extractFromStyle(style: string | undefined): string | null {
+  if (!style) return null;
+  
+  const match = style.match(/background-image:\s*url\(['"]?(.*?)['"]?\)/);
+  return match ? match[1] : null;
+}
+
+/**
+ * Geçerli ürün görseli kontrolü
+ */
+function isValidProductImage(url: string): boolean {
+  if (!url || typeof url !== 'string') return false;
+  
+  // Trendyol CDN'den olmalı
+  if (!url.includes('cdn.dsmcdn.com')) return false;
+  
+  // Görsel dosyası olmalı
+  if (!url.match(/\.(jpg|jpeg|png|webp)(\?.*)?$/i)) return false;
+  
+  // Gereksiz görselleri filtrele
+  const excludePatterns = [
+    'logo',
+    'badge',
+    'icon',
+    'sprite',
+    'placeholder',
+    'avatar',
+    'button',
+    'arrow',
+    'star',
+    'rating',
+    'social',
+    'payment',
+    'delivery',
+    'security',
+    'banner',
+    'advertisement',
+    'ty-web.svg',
+    'favicon'
+  ];
+  
+  const urlLower = url.toLowerCase();
+  if (excludePatterns.some(pattern => urlLower.includes(pattern))) {
+    return false;
+  }
+  
+  // Çok küçük görselleri filtrele (boyut URL'de varsa)
+  const sizeMatch = url.match(/(\d+)x(\d+)/);
+  if (sizeMatch) {
+    const width = parseInt(sizeMatch[1]);
+    const height = parseInt(sizeMatch[2]);
+    if (width < 100 || height < 100) return false;
+  }
+  
+  // mnresize ile küçültülmüş görselleri tercih etme
+  if (url.includes('mnresize') && (url.includes('/50/') || url.includes('/75/') || url.includes('/100/'))) {
+    return false;
+  }
+  
+  return true;
+}
+
+/**
+ * Görselleri kaliteye göre sıralar
+ */
+function sortImagesByQuality(images: string[]): string[] {
+  return images.sort((a, b) => {
+    let scoreA = 0;
+    let scoreB = 0;
+    
+    // org_zoom en yüksek kalite
+    if (a.includes('_org_zoom')) scoreA += 100;
+    if (b.includes('_org_zoom')) scoreB += 100;
+    
+    // org ikinci en yüksek kalite
+    if (a.includes('_org') && !a.includes('_org_zoom')) scoreA += 80;
+    if (b.includes('_org') && !b.includes('_org_zoom')) scoreB += 80;
+    
+    // Büyük boyutlar tercih
+    if (a.includes('/1200/') || a.includes('/1800/')) scoreA += 60;
+    if (b.includes('/1200/') || b.includes('/1800/')) scoreB += 60;
+    
+    // ty1617, ty1605 gibi yeni versiyonlar tercih
+    const tyVersionA = a.match(/ty(\d+)/)?.[1];
+    const tyVersionB = b.match(/ty(\d+)/)?.[1];
+    if (tyVersionA) scoreA += parseInt(tyVersionA) / 10000;
+    if (tyVersionB) scoreB += parseInt(tyVersionB) / 10000;
+    
+    // mnresize küçük boyutları cezalandır
+    if (a.includes('mnresize')) {
+      const sizeMatch = a.match(/mnresize\/(\d+)/);
+      if (sizeMatch) {
+        const size = parseInt(sizeMatch[1]);
+        scoreA -= (500 - size) / 10; // Küçük boyutları cezalandır
+      }
+    }
+    
+    if (b.includes('mnresize')) {
+      const sizeMatch = b.match(/mnresize\/(\d+)/);
+      if (sizeMatch) {
+        const size = parseInt(sizeMatch[1]);
+        scoreB -= (500 - size) / 10;
+      }
+    }
+    
+    return scoreB - scoreA; // Yüksek skordan düşüğe sırala
+  });
 }
