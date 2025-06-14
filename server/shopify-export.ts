@@ -642,12 +642,33 @@ export function generateShopifyCSV(
             variant_requires_shipping: 'TRUE',
             variant_taxable: 'TRUE',
             variant_barcode: '',
-            image_src: product.images && product.images.length > 0 ? product.images[0] : '',
+            image_src: mainImage,
+            image_alt_text: product.title || '',
             variant_weight_unit: 'g'
           };
           
           // Ana satırı ekle
           csvRows.push(fixShopifyVisibility(mainRow));
+          
+          // Ek görseller varsa ayrı satırlar ekle
+          additionalImages.forEach((imageUrl, index) => {
+            const imageRow = {
+              handle: handle,
+              title: '',
+              body_html: '',
+              vendor: '',
+              type: '',
+              tags: '',
+              published: '',
+              option1_name: '',
+              option1_value: '',
+              variant_sku: '',
+              variant_price: '',
+              image_src: imageUrl,
+              image_alt_text: `${product.title} - Görsel ${index + 2}`
+            };
+            csvRows.push(fixShopifyVisibility(imageRow));
+          });
           
           // Diğer renk varyantlarını ekle
           for (let i = 1; i < colors.length; i++) {

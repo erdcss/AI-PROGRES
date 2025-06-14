@@ -345,7 +345,10 @@ export async function registerRoutes(app: Express) {
               // Shopify CSV oluştur
               const csvResult = await generateShopifyCSV({
                 ...productData,
-                id: 0
+                id: 0,
+                brand: productData.brand || null,
+                video: productData.video || null,
+                vendor: productData.vendor || null
               }, {});
               
               storage.addToHistory(url);
