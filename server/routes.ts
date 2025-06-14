@@ -229,25 +229,8 @@ export async function registerRoutes(app: Express) {
         try {
           console.log("Standart HTTP isteği deneniyor");
           
-          // Demo ürün ID'lerini kontrol et
-          const productId = url.match(/p-(\d+)/)?.[1];
-          if (productId === '33014186' || productId === '123456789') {
-            console.log("Demo ürün algılandı, JSON-LD ile demo verisi döndürülüyor");
-            htmlContent = `
-              <!DOCTYPE html>
-              <html lang="tr">
-              <head>
-                <script type="application/ld+json">
-                {
-                  "@context": "https://schema.org",
-                  "@type": "Product",
-                  "name": "Örnek Trendyol Ürünü",
-                  "description": "Bu örnek bir ürün açıklamasıdır. Trendyol'dan çekilmiş gibi yapılmıştır.",
-                  "brand": { "name": "turmarkt" },
-                  "offers": { "price": 499.99, "priceCurrency": "TRY" },
-                  "image": "https://cdn.dsmcdn.com/example/product1.jpg",
-                  "category": "Electronics"
-                }
+          // Always fetch real product data
+          const response = await fetch(url, {
                 </script>
               </head>
               <body>
