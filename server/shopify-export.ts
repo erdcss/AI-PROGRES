@@ -423,19 +423,15 @@ export function generateShopifyCSV(
         path: outputPath,
         encoding: 'utf8',
         header: [
-          // 2024 SHOPIFY IMPORT FORMAT - KESIN SHOPIFY BAŞLIK SIRASI
+          // SHOPIFY TEMPLATE FORMAT - EXACT MATCH
           { id: 'handle', title: 'Handle' },
           { id: 'title', title: 'Title' },
           { id: 'body_html', title: 'Body (HTML)' },
           { id: 'vendor', title: 'Vendor' },
-          { id: 'standard_product_type', title: 'Standard Product Type' },
-          { id: 'custom_product_type', title: 'Custom Product Type' },
+          { id: 'product_category', title: 'Product Category' },
+          { id: 'type', title: 'Type' },
           { id: 'tags', title: 'Tags' },
           { id: 'published', title: 'Published' },
-          { id: 'status', title: 'Status' },
-          { id: 'published_at', title: 'Published At' },
-          { id: 'published_scope', title: 'Published Scope' },
-          { id: 'template_suffix', title: 'Template Suffix' },
           { id: 'option1_name', title: 'Option1 Name' },
           { id: 'option1_value', title: 'Option1 Value' },
           { id: 'option2_name', title: 'Option2 Name' },
@@ -459,7 +455,7 @@ export function generateShopifyCSV(
           { id: 'gift_card', title: 'Gift Card' },
           { id: 'seo_title', title: 'SEO Title' },
           { id: 'seo_description', title: 'SEO Description' },
-          { id: 'google_shopping_metafields', title: 'Google Shopping / Google Product Category' },
+          { id: 'google_shopping_google_product_category', title: 'Google Shopping / Google Product Category' },
           { id: 'google_shopping_gender', title: 'Google Shopping / Gender' },
           { id: 'google_shopping_age_group', title: 'Google Shopping / Age Group' },
           { id: 'google_shopping_mpn', title: 'Google Shopping / MPN' },
@@ -1060,14 +1056,10 @@ export function generateShopifyCSV(
         newRow.title = row.Title || '';
         newRow.body_html = row['Body (HTML)'] || '';
         newRow.vendor = row.Vendor || 'turmarkt';
-        newRow.standard_product_type = row['Standard Product Type'] || '';
-        newRow.custom_product_type = row['Custom Product Type'] || '';
+        newRow.product_category = row['Product Category'] || '';
+        newRow.type = row.Type || '';
         newRow.tags = row.Tags || '';
         newRow.published = row.Published || 'TRUE';
-        newRow.status = row.Status || 'active';
-        newRow.published_at = row['Published At'] || '';
-        newRow.published_scope = row['Published Scope'] || 'web';
-        newRow.template_suffix = row['Template Suffix'] || '';
         newRow.option1_name = row['Option1 Name'] || 'Title';
         newRow.option1_value = row['Option1 Value'] || 'Default Title';
         newRow.option2_name = row['Option2 Name'] || '';
@@ -1091,7 +1083,7 @@ export function generateShopifyCSV(
         newRow.gift_card = row['Gift Card'] || 'FALSE';
         newRow.seo_title = row['SEO Title'] || '';
         newRow.seo_description = row['SEO Description'] || '';
-        newRow.google_shopping_metafields = row['Google Shopping / Google Product Category'] || '';
+        newRow.google_shopping_google_product_category = row['Google Shopping / Google Product Category'] || '';
         newRow.google_shopping_gender = row['Google Shopping / Gender'] || '';
         newRow.google_shopping_age_group = row['Google Shopping / Age Group'] || '';
         newRow.google_shopping_mpn = row['Google Shopping / MPN'] || '';
