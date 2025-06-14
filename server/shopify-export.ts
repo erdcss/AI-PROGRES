@@ -319,9 +319,7 @@ export async function generateShopifyCSV(
     }
     
     // 2. Status alanının Türkçe değerlerle olması gerekiyor - zorunlu alan
-    if (!row.status || row.status === 'active') {
-      row.status = 'etkin'; // Shopify Türkiye: etkin, taslak, arşivlendi
-    }
+    row.status = 'etkin'; // Shopify Türkiye: etkin, taslak, arşivlendi (HER ZAMAN SET ET)
     
     // 3. ÖNEMLİ: Tüm Boolean alanlar BÜYÜK HARF olmalı
     row.published = 'TRUE';
@@ -331,13 +329,9 @@ export async function generateShopifyCSV(
     row.published_scope = 'web';  // Bu alan Shopify'da gerekli
     row.published_at = new Date().toISOString(); // Şu anki tarih/saat
     
-    // 5. Shopify Türkiye için zorunlu alanları kontrol et ve düzelt
-    if (!row.variant_inventory_policy || row.variant_inventory_policy === 'deny') {
-      row.variant_inventory_policy = 'reddet'; // Türkçe: reddet, devam et
-    }
-    if (!row.variant_fulfillment_service || row.variant_fulfillment_service === 'manual') {
-      row.variant_fulfillment_service = 'manuel'; // Türkçe: manuel, otomatik
-    }
+    // 5. Shopify Türkiye için zorunlu alanları - HER ZAMAN SET ET
+    row.variant_inventory_policy = 'reddet'; // Türkçe: reddet, devam et (zorunlu)
+    row.variant_fulfillment_service = 'manuel'; // Türkçe: manuel, otomatik (zorunlu)
     
     // 6. Temel envanter ve durum ayarları - zorunlu alanlar
     row.inventory_policy = row.inventory_policy || 'reddet'; 
@@ -1214,8 +1208,9 @@ export async function generateShopifyCSV(
           'weight_unit': 'Variant Weight Unit',        // weight_unit -> Variant Weight Unit
           'inventory_quantity': 'Variant Inventory Qty',     // inventory_quantity -> Variant Inventory Qty
           'inventory_tracker': 'Variant Inventory Tracker',  // inventory_tracker -> Variant Inventory Tracker
-          'inventory_policy': 'Variant Inventory Policy',    // inventory_policy -> Variant Inventory Policy
-          'fulfillment_service': 'Variant Fulfillment Service' // fulfillment_service -> Variant Fulfillment Service
+          'variant_inventory_policy': 'Variant Inventory Policy', // variant_inventory_policy -> Variant Inventory Policy
+          'variant_fulfillment_service': 'Variant Fulfillment Service', // variant_fulfillment_service -> Variant Fulfillment Service
+          'status': 'Status'                            // status -> Status (zorunlu Türkçe alan)
         };
         
         // Tüm bilinen alan eşleştirmelerini uygula
