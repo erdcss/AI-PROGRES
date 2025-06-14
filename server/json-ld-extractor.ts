@@ -148,8 +148,47 @@ export async function extractAllImagesFromJsonLD(url: string): Promise<string[]>
     // Tekrarlayan görselleri kaldır
     const uniqueImages = Array.from(new Set(allImages));
     
-    console.log(`JSON-LD'den toplam ${uniqueImages.length} adet benzersiz görsel çıkarıldı`);
-    return uniqueImages;
+    console.log(`🔧 Ham görseller: ${JSON.stringify(uniqueImages)}`);
+    console.log(`🔧 Toplam ${uniqueImages.length} ham görsel bulundu`);
+    
+    // Logo ve gereksiz görselleri filtrele
+    const filteredImages = uniqueImages.filter(url => {
+      if (!url) return false;
+      
+      // Logo filtreleme
+      const isLogo = url.includes('logo') || 
+                    url.includes('ty-web.svg') || 
+                    url.includes('brand') ||
+                    url.includes('icon') ||
+                    url.includes('badge') ||
+                    url.includes('spacer');
+      
+      if (isLogo) {
+        console.log(`🔧 Logo filtrelendi: ${url}`);
+        return false;
+      }
+      
+      return true;
+    });
+    
+    // Duplicate'leri kaldır (aynı görsel farklı boyutlarda olabilir)
+    const deduplicatedImages = [];
+    const seenImages = new Set();
+    
+    for (const image of filteredImages) {
+      // Görsel ID'sini çıkar (dosya adından)
+      const imageId = image.split('/').pop()?.split('_')[0] || image;
+      
+      if (!seenImages.has(imageId)) {
+        seenImages.add(imageId);
+        deduplicatedImages.push(image);
+      }
+    }
+    
+    console.log(`🔧 Duplicate'ler kaldırıldı: ${filteredImages.length} -> ${deduplicatedImages.length}`);
+    console.log(`🔧 Final temiz görseller (${deduplicatedImages.length}): ${JSON.stringify(deduplicatedImages)}`);
+    
+    return deduplicatedImages;
   } catch (error) {
     console.error('Görsel çıkarma hatası:', error);
     return [];

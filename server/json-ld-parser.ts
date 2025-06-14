@@ -4,6 +4,7 @@
  */
 
 import * as cheerio from "cheerio";
+import { extractAllImagesFromJsonLD } from './json-ld-extractor';
 
 export interface JsonLdProductData {
   name: string;
@@ -42,7 +43,7 @@ export interface JsonLdProductData {
  * @param $ Cheerio HTML içeriği
  * @returns Detaylı ürün verisi
  */
-export function parseJsonLdProductData($: cheerio.CheerioAPI): JsonLdProductData | null {
+export async function parseJsonLdProductData($: cheerio.CheerioAPI): Promise<JsonLdProductData | null> {
   try {
     // JSON-LD script taglarını bul
     const jsonLdScripts = $('script[type="application/ld+json"]');
@@ -81,8 +82,8 @@ export function parseJsonLdProductData($: cheerio.CheerioAPI): JsonLdProductData
             attributes: {}
           };
           
-          // Görseller Final Image Solution ile çıkarılacak - boş bırak
-          productData.images = [];
+          // Görselleri JSON-LD'den çıkar ve filtrele
+          productData.images = await extractAllImagesFromJsonLD($);
           
           // Derecelendirme bilgisi
           if (data.aggregateRating) {

@@ -368,7 +368,7 @@ export async function registerRoutes(app: Express) {
                   description: productData.description,
                   price: productData.price,
                   basePrice: productData.basePrice,
-                  images: productData.images,
+                  images: jsonldData.images, // Use the properly filtered images from JSON-LD
                   variants: productData.variants,
                   attributes: productData.attributes,
                   tags: productData.tags,
