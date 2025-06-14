@@ -316,14 +316,38 @@ export async function registerRoutes(app: Express) {
                     }
                   }
                   
-                  // Varyant adından beden çıkarmaya çalış
+                  // Varyant adından beden çıkarmaya çalış - geliştirilmiş
                   if (variant.name) {
-                    const sizeMath = variant.name.match(/\b(XS|S|M|L|XL|XXL|XXXL|\d{2,3})\b/gi);
-                    if (sizeMath) {
-                      sizeMath.forEach(size => {
-                        const sizeValue = size.toUpperCase();
-                        if (!variants.size.includes(sizeValue)) {
-                          variants.size.push(sizeValue);
+                    // Farklı beden formatlarını yakala
+                    const sizePatterns = [
+                      /\b(XS|S|M|L|XL|XXL|XXXL)\b/gi,
+                      /\b(\d{2,3})\b/g,
+                      /\b(28|30|32|34|36|38|40|42|44|46|48|50)\b/g
+                    ];
+                    
+                    sizePatterns.forEach(pattern => {
+                      const matches = variant.name.match(pattern);
+                      if (matches) {
+                        matches.forEach(size => {
+                          const sizeValue = size.toUpperCase();
+                          if (!variants.size.includes(sizeValue)) {
+                            variants.size.push(sizeValue);
+                            console.log(`🔧 JSON-LD varyantından beden: ${sizeValue}`);
+                          }
+                        });
+                      }
+                    });
+                  }
+                  
+                  // Varyant SKU'sundan beden çıkarmaya çalış
+                  if (variant.sku) {
+                    const skuSizes = variant.sku.match(/[_-](XS|S|M|L|XL|XXL|XXXL|\d{2,3})[_-]?/gi);
+                    if (skuSizes) {
+                      skuSizes.forEach(match => {
+                        const size = match.replace(/[_-]/g, '').toUpperCase();
+                        if (!variants.size.includes(size)) {
+                          variants.size.push(size);
+                          console.log(`🔧 SKU'dan beden: ${size}`);
                         }
                       });
                     }
@@ -535,15 +559,177 @@ export async function registerRoutes(app: Express) {
             }
           });
           
-          // Alternatif beden selektörleri
-          $('.variant-options .size-option, .size-variant, [data-testid*="size"]').each((i, el) => {
-            const sizeText = $(el).text().trim();
-            if (sizeText && /^(XS|S|M|L|XL|XXL|XXXL|\d+)$/.test(sizeText)) {
-              if (!variants.size.includes(sizeText)) {
-                variants.size.push(sizeText);
+          // Gelişmiş beden selektörleri - Trendyol'un güncel yapısı
+          const sizeSelectors = [
+            // Standart beden selektörleri
+            '.variant-options .size-option',
+            '.size-variant',
+            '[data-testid*="size"]',
+            '[data-testid="variant-size"]',
+            
+            // Yeni Trendyol selektörleri
+            '.product-variants .variant-item',
+            '.variants-container .variant-option',
+            '.size-selector .size-item',
+            '.product-detail-variants .size',
+            
+            // Beden butonları
+            'button[data-variant="size"]',
+            'button[data-size]',
+            '.size-button',
+            '.btn-size',
+            
+            // Genel varyant selektörleri
+            '.variant-selector button',
+            '.option-selector .option-item',
+            '[class*="size"] button',
+            '[class*="variant"] button',
+            
+            // Select option'ları
+            'select[name*="size"] option',
+            'select[name*="beden"] option',
+            
+            // Data attribute'ları
+            '[data-option-type="size"]',
+            '[data-variant-type="size"]'
+          ];
+          
+          sizeSelectors.forEach(selector => {
+            $(selector).each((i, el) => {
+              const $el = $(el);
+              let sizeText = $el.text().trim();
+              
+              // Data attribute'lardan da kontrol et
+              if (!sizeText) {
+                sizeText = $el.attr('data-size') || $el.attr('data-value') || $el.attr('value') || '';
               }
+              
+              // Beden formatlarını kontrol et
+              if (sizeText && (
+                /^(XS|S|M|L|XL|XXL|XXXL)$/i.test(sizeText) ||
+                /^\d{2,3}$/.test(sizeText) ||
+                /^(28|30|32|34|36|38|40|42|44|46|48|50)$/.test(sizeText)
+              )) {
+                const normalizedSize = sizeText.toUpperCase();
+                if (!variants.size.includes(normalizedSize)) {
+                  variants.size.push(normalizedSize);
+                  console.log(`🔧 Beden bulundu: ${normalizedSize} (selector: ${selector})`);
+                }
+              }
+            });
+          });
+          
+          // Script içlerinden beden bilgilerini çıkar
+          $('script').each((i, el) => {
+            const scriptContent = $(el).html() || '';
+            
+            // Beden dizilerini yakala
+            const sizeMatches = scriptContent.match(/"(XS|S|M|L|XL|XXL|XXXL|\d{2,3})"/g);
+            if (sizeMatches) {
+              sizeMatches.forEach(match => {
+                const size = match.replace(/"/g, '').toUpperCase();
+                if (!variants.size.includes(size)) {
+                  variants.size.push(size);
+                  console.log(`🔧 Script'ten beden bulundu: ${size}`);
+                }
+              });
+            }
+            
+            // JSON içindeki size array'lerini yakala
+            const jsonSizeMatch = scriptContent.match(/["']sizes?["']\s*:\s*\[(.*?)\]/gi);
+            if (jsonSizeMatch) {
+              jsonSizeMatch.forEach(match => {
+                const sizesStr = match.match(/\[(.*?)\]/);
+                if (sizesStr && sizesStr[1]) {
+                  const sizes = sizesStr[1].match(/"([^"]+)"/g);
+                  if (sizes) {
+                    sizes.forEach(sizeMatch => {
+                      const size = sizeMatch.replace(/"/g, '').toUpperCase();
+                      if (/^(XS|S|M|L|XL|XXL|XXXL|\d{2,3})$/.test(size)) {
+                        if (!variants.size.includes(size)) {
+                          variants.size.push(size);
+                          console.log(`🔧 JSON'dan beden bulundu: ${size}`);
+                        }
+                      }
+                    });
+                  }
+                }
+              });
             }
           });
+          
+          // Trendyol API'den beden bilgilerini çekmeye çalış
+          if (productId) {
+            try {
+              const apiResponse = await fetch(`https://public-mdc.trendyol.com/discovery-web-productgw-service/api/productDetail/${productId}`, {
+                headers: {
+                  'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36',
+                  'Accept': 'application/json',
+                  'Referer': 'https://www.trendyol.com/'
+                }
+              });
+              
+              if (apiResponse.ok) {
+                const apiData = await apiResponse.json();
+                console.log('🔧 Trendyol API yanıtı alındı');
+                
+                // Varyantları kontrol et
+                if (apiData.result && apiData.result.variants) {
+                  apiData.result.variants.forEach((variant: any) => {
+                    if (variant.attributeType === 'size' || variant.attributeType === 'beden') {
+                      variant.attributes.forEach((attr: any) => {
+                        const sizeValue = attr.name || attr.value;
+                        if (sizeValue && /^(XS|S|M|L|XL|XXL|XXXL|\d{2,3})$/i.test(sizeValue)) {
+                          const normalizedSize = sizeValue.toUpperCase();
+                          if (!variants.size.includes(normalizedSize)) {
+                            variants.size.push(normalizedSize);
+                            console.log(`🔧 API'den beden bulundu: ${normalizedSize}`);
+                          }
+                        }
+                      });
+                    }
+                  });
+                }
+                
+                // Alternatif API yapısı
+                if (apiData.result && apiData.result.allVariants) {
+                  apiData.result.allVariants.forEach((variant: any) => {
+                    if (variant.size || variant.beden) {
+                      const sizeValue = variant.size || variant.beden;
+                      if (/^(XS|S|M|L|XL|XXL|XXXL|\d{2,3})$/i.test(sizeValue)) {
+                        const normalizedSize = sizeValue.toUpperCase();
+                        if (!variants.size.includes(normalizedSize)) {
+                          variants.size.push(normalizedSize);
+                          console.log(`🔧 API allVariants'tan beden: ${normalizedSize}`);
+                        }
+                      }
+                    }
+                  });
+                }
+              }
+            } catch (apiError) {
+              console.log('🔧 API beden çekme hatası:', apiError);
+            }
+          }
+          
+          // URL'den ürün özellikleri çıkarmaya çalış (son çare)
+          const urlSizeMatch = url.match(/[_-](XS|S|M|L|XL|XXL|XXXL|\d{2,3})[_-]/gi);
+          if (urlSizeMatch && variants.size.length === 0) {
+            urlSizeMatch.forEach(match => {
+              const size = match.replace(/[_-]/g, '').toUpperCase();
+              if (!variants.size.includes(size)) {
+                variants.size.push(size);
+                console.log(`🔧 URL'den beden çıkarıldı: ${size}`);
+              }
+            });
+          }
+          
+          // Eğer hiç beden bulunamadıysa, standart bedenler eklenmez
+          if (variants.size.length === 0) {
+            console.log('🔧 Hiç beden bilgisi bulunamadı - ürün tek beden olabilir');
+          } else {
+            console.log(`🔧 Toplam ${variants.size.length} beden bulundu: ${variants.size.join(', ')}`);
+          }
           
           // Beden sıralaması standartlaştır
           const sizeOrder = ['XS', 'S', 'M', 'L', 'XL', 'XXL', 'XXXL'];
