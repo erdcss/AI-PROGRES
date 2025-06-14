@@ -284,9 +284,8 @@ export async function generateShopifyCSV(
       row.published_on_online_store = 'TRUE';
     }
     
-    if (!row.status) {
-      row.status = 'active';
-    }
+    // Shopify Türkiye zorunlu değer
+    row.status = 'etkin';
     
     // Veri uygun
     return true;
@@ -1336,9 +1335,9 @@ export async function generateShopifyCSV(
         // Ürün tipi
         newRow['Custom Product Type'] = row['Custom Product Type'] || row.custom_product_type || product.category;
         
-        // Durum bilgileri
+        // Durum bilgileri - Shopify Türkiye için zorunlu
         newRow.Published = row.Published || row.published || 'TRUE';
-        newRow.Status = row.Status || row.status || 'active';
+        newRow.Status = 'etkin'; // Shopify Türkiye: etkin, taslak, arşivlendi
         
         // Varyant bilgileri
         newRow['Option1 Name'] = row['Option1 Name'] || row.option1_name || 'Size';
@@ -1353,12 +1352,13 @@ export async function generateShopifyCSV(
           }
         }
         
-        // Fiyat ve envanter bilgileri
+        // Fiyat ve envanter bilgileri - Shopify Türkiye için zorunlu değerler
         newRow['Variant Price'] = row['Variant Price'] || row.variant_price || product.price;
         newRow['Variant Compare At Price'] = row['Variant Compare At Price'] || row.variant_compare_at_price || product.basePrice;
         newRow['Variant Inventory Qty'] = row['Variant Inventory Qty'] || row.variant_inventory_qty || '50';
         newRow['Variant Inventory Tracker'] = row['Variant Inventory Tracker'] || row.variant_inventory_tracker || 'shopify';
-        newRow['Variant Inventory Policy'] = row['Variant Inventory Policy'] || row.variant_inventory_policy || 'deny';
+        newRow['Variant Inventory Policy'] = 'reddet'; // Shopify Türkiye: reddet, devam et
+        newRow['Variant Fulfillment Service'] = 'manuel'; // Shopify Türkiye: manuel, otomatik
         newRow['Variant Requires Shipping'] = row['Variant Requires Shipping'] || row.variant_requires_shipping || 'TRUE';
         newRow['Variant Taxable'] = row['Variant Taxable'] || row.variant_taxable || 'TRUE';
         
@@ -1419,14 +1419,26 @@ export async function generateShopifyCSV(
         newRow.image_position = row['Image Position'] || row.image_position || '';
         newRow.image_alt_text = row['Image Alt Text'] || row.image_alt_text || '';
         
+        // SHOPIFY TÜRKIYE ZORUNLU ALANLAR - HER SATIRA EKLE
+        newRow.status = 'etkin'; // Shopify Türkiye: etkin, taslak, arşivlendi
+        newRow.variant_inventory_policy = 'reddet'; // Shopify Türkiye: reddet, devam et
+        newRow.variant_fulfillment_service = 'manuel'; // Shopify Türkiye: manuel, otomatik
+        newRow.variant_inventory_qty = row['Variant Inventory Qty'] || '50';
+        newRow.variant_inventory_tracker = row['Variant Inventory Tracker'] || 'shopify';
+        newRow.variant_requires_shipping = row['Variant Requires Shipping'] || 'TRUE';
+        newRow.variant_taxable = row['Variant Taxable'] || 'TRUE';
+        newRow.variant_grams = row['Variant Grams'] || '500';
+        
         return newRow;
       });
       
-      // Enhanced Shopify CSV format - includes essential image fields
+      // Enhanced Shopify CSV format - includes Turkish compliance fields
       const headerFields = [
         'handle', 'title', 'body_html', 'vendor', 'type', 'tags', 'published', 
         'option1_name', 'option1_value', 'variant_sku', 'variant_price',
-        'image_src', 'image_position', 'image_alt_text'
+        'variant_inventory_qty', 'variant_inventory_tracker', 'variant_inventory_policy',
+        'variant_fulfillment_service', 'variant_requires_shipping', 'variant_taxable',
+        'variant_grams', 'image_src', 'image_position', 'image_alt_text', 'status'
       ];
 
       // Her satırda tüm alanların bulunmasını garanti et
