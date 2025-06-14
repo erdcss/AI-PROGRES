@@ -9,6 +9,7 @@ import { scrapeProductWithPuppeteer } from "./fixed-puppeteer-scraper";
 import { generateShopifyCSV } from "./shopify-export";
 import { getCategoryConfig } from "./category-mapping";
 import { cleanTrendyolAttributes } from "./clean-attributes";
+import { parseJsonLdProductData, generateTagsFromJsonLd } from "./json-ld-parser";
 import { InsertProduct } from "@shared/schema";
 
 const urlSchema = z.object({
@@ -230,73 +231,76 @@ export async function registerRoutes(app: Express) {
           const $ = cheerio.load(htmlContent);
           console.log("HTML içeriği Cheerio ile yüklendi");
           
-          // JSON-LD formatı var mı kontrol et
-          let jsonldData = null;
-          try {
-            const jsonlds = $('script[type="application/ld+json"]').toArray();
-            for (const element of jsonlds) {
-              const content = $(element).html();
-              if (content && content.includes('"@type":"Product"')) {
-                const parsedData = JSON.parse(content);
-                if (parsedData["@type"] === "Product") {
-                  jsonldData = parsedData;
-                  console.log("JSON-LD ürün verisi bulundu");
-                  break;
-                }
-              }
-            }
-          } catch (error) {
-            console.log(`JSON-LD parse hatası: ${error}`);
+          // Kapsamlı JSON-LD parsing ile ürün verilerini çek
+          console.log("[DEBUG] JSON-LD ile kapsamlı ürün verisi çekiliyor...");
+          const jsonldData = parseJsonLdProductData($);
+          
+          if (jsonldData) {
+            console.log(`[SUCCESS] JSON-LD'den kapsamlı ürün verisi alındı:
+              - Ürün: ${jsonldData.name}
+              - Fiyat: ${jsonldData.price} TL
+              - Marka: ${jsonldData.brand}
+              - Görseller: ${jsonldData.images.length} adet
+              - Özellikler: ${Object.keys(jsonldData.attributes).length} adet
+              - Derecelendirme: ${jsonldData.rating?.value || 'Yok'}/5`);
+          } else {
+            console.log("[DEBUG] JSON-LD bulunamadı, standart HTML parsing denenecek");
           }
           
-          // JSON-LD'den ürün bilgilerini oluştur
+          // JSON-LD'den kapsamlı ürün bilgilerini oluştur
           if (jsonldData) {
             try {
-              const productInfo = {
-                title: jsonldData.name || "Ürün adı bulunamadı",
-                brand: jsonldData.brand?.name || "turmarkt",
-                description: jsonldData.description || "",
-                price: jsonldData.offers?.price ? parseFloat(jsonldData.offers.price) * 1.1 : 0,
-                images: Array.isArray(jsonldData.image) ? 
-                  jsonldData.image.map(normalizeImageUrl) : 
-                  (jsonldData.image ? [normalizeImageUrl(jsonldData.image)] : []),
-                attributes: {}
-              };
+              // Fiyata %10 kar marjı ekle
+              const originalPrice = parseFloat(jsonldData.price) || 0;
+              const priceWithProfit = (originalPrice * 1.10).toFixed(2);
+              console.log(`FİYAT GÜNCELLEME: ${originalPrice} TL + %10 kar = ${priceWithProfit} TL`);
               
-              // Ürün kategorilerini ve özellikleri ekleyelim
-              let categories = [];
-              if (jsonldData.category) {
-                categories.push(jsonldData.category);
-              }
-              
-              // Belirli kelimeler varsa kategorilere ekle
-              if (productInfo.title.toLowerCase().includes('kol saati')) {
-                categories.push('Accessories', 'Watch');
-              } else if (productInfo.title.toLowerCase().includes('telefon')) {
-                categories.push('Electronics', 'Phone');
-              } else if (productInfo.title.toLowerCase().includes('kulaklık')) {
-                categories.push('Electronics', 'Headphone');
-              } else if (productInfo.title.toLowerCase().includes('bilgisayar') || productInfo.title.toLowerCase().includes('laptop')) {
-                categories.push('Electronics', 'Computer');
-              }
+              // JSON-LD'den etiketler oluştur
+              const jsonTags = generateTagsFromJsonLd(jsonldData);
               
               // Kategori yapılandırması al
-              const categoryConfig = getCategoryConfig(categories);
+              const categoryConfig = getCategoryConfig(jsonTags);
+              
+              // Varyant bilgilerini düzenle
+              const variants = {
+                size: jsonldData.variants?.map(v => v.color) || [],
+                color: [jsonldData.color].filter(Boolean),
+                hasVariants: (jsonldData.variants?.length || 0) > 1,
+                availableSizes: jsonldData.variants?.filter(v => v.availability.includes('InStock')).map(v => v.color) || [],
+                unavailableSizes: jsonldData.variants?.filter(v => !v.availability.includes('InStock')).map(v => v.color) || []
+              };
+              
               const productData: InsertProduct = {
                 url,
-                title: productInfo.title,
-                brand: productInfo.brand,
-                description: productInfo.description,
-                price: String(productInfo.price),
+                title: jsonldData.name,
+                brand: jsonldData.brand,
+                description: jsonldData.description,
+                price: priceWithProfit,
+                basePrice: jsonldData.price,
                 category: categoryConfig.mainCategory,
                 subcategory: categoryConfig.subCategory,
                 productType: categoryConfig.productType,
-                images: productInfo.images,
-                variants: {},
-                attributes: productInfo.attributes,
-                tags: categoryConfig.tags,
-                video: null
+                images: jsonldData.images.map(normalizeImageUrl),
+                variants: variants,
+                attributes: {
+                  ...jsonldData.attributes,
+                  rating: jsonldData.rating ? `${jsonldData.rating.value}/5 (${jsonldData.rating.count} değerlendirme)` : 'Değerlendirme yok',
+                  reviews: jsonldData.reviews ? `${jsonldData.reviews.length} yorum` : 'Yorum yok',
+                  availability: jsonldData.availability.includes('InStock') ? 'Stokta' : 'Stokta yok'
+                },
+                tags: [...jsonTags, ...categoryConfig.tags].slice(0, 15),
+                video: null,
+                vendor: "turmarkt"
               };
+              
+              console.log(`KAPSAMLI ÜRÜN VERİSİ OLUŞTURULDU:
+                - Başlık: ${productData.title}
+                - Marka: ${productData.brand}
+                - Fiyat: ${productData.price} TL (Orijinal: ${jsonldData.price} TL)
+                - Görseller: ${productData.images.length} adet
+                - Özellikler: ${Object.keys(productData.attributes).length} adet
+                - Etiketler: ${productData.tags.length} adet
+                - Varyantlar: ${variants.size.length} beden, ${variants.color.length} renk`);
               
               // Ürünü veritabanına kaydet
               await storage.saveProduct(productData);
@@ -304,44 +308,32 @@ export async function registerRoutes(app: Express) {
               // Shopify CSV oluştur
               const csvResult = await generateShopifyCSV({
                 ...productData,
-                id: 0,
-                basePrice: "0",
-                video: null,
-                brand: productData.brand || null,
-                vendor: "turmarkt",
-                category: categoryConfig.mainCategory || null,
-                subcategory: categoryConfig.subCategory || null,
-                productType: categoryConfig.productType || null,
-                tags: categoryConfig.tags || []
+                id: 0
               }, {});
               
               storage.addToHistory(url);
               
               return res.status(200).json({
                 url,
-                message: "Ürün verisi JSON-LD formatından başarıyla çekildi ve işlendi",
+                message: "Kapsamlı ürün verisi JSON-LD'den başarıyla çekildi",
                 productInfo: {
-                  ...productInfo,
-                  categories,
-                  tags: categoryConfig.tags
+                  title: productData.title,
+                  brand: productData.brand,
+                  description: productData.description,
+                  price: productData.price,
+                  basePrice: productData.basePrice,
+                  images: productData.images,
+                  variants: productData.variants,
+                  attributes: productData.attributes,
+                  tags: productData.tags,
+                  rating: jsonldData.rating,
+                  reviewCount: jsonldData.reviews?.length || 0
                 },
                 preview: csvResult
               });
-            } catch (csvError: any) {
-              console.log(`CSV oluşturma hatası: ${csvError.message}`);
-              storage.addToHistory(url);
-              
-              return res.status(200).json({
-                url,
-                message: "Ürün verisi çekildi fakat CSV dönüşümü başarısız",
-                productInfo: {
-                  title: jsonldData.name,
-                  brand: jsonldData.brand?.name || "turmarkt", 
-                  description: jsonldData.description,
-                  images: Array.isArray(jsonldData.image) ? jsonldData.image : [jsonldData.image],
-                  error: csvError.message
-                }
-              });
+            } catch (error: any) {
+              console.log(`JSON-LD işleme hatası: ${error.message}`);
+              // Hata durumunda standart parsing'e geç
             }
           }
           
