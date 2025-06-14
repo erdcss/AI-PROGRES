@@ -1437,19 +1437,76 @@ export async function generateShopifyCSV(
         return newRow;
       });
       
-      // SHOPIFY TÜRKIYE UYUMLU CSV - normalizedRows kullan
-      // normalizedRows zaten tüm Türkçe değerleri içeriyor
-      const finalRows = normalizedRows.map(row => {
-        // Son kontrol: Türkçe değerlerin var olduğundan emin ol
-        const finalRow = { ...row };
-        finalRow.Status = 'etkin';
-        finalRow['Variant Inventory Policy'] = 'reddet';
-        finalRow['Variant Fulfillment Service'] = 'manuel';
-        return sanitizeCSVRow(finalRow);
+      // DOĞRUDAN CSV VERİSİ OLUŞTUR - Türkçe uyumluluk garantili
+      const csvData = filteredRows.map(row => {
+        // Her satır için gereken tüm alanları map et
+        const csvRow: any = {};
+        
+        // Temel alanlar
+        csvRow.handle = row.Handle || '';
+        csvRow.title = row.Title || '';
+        csvRow.body_html = row['Body (HTML)'] || '';
+        csvRow.vendor = row.Vendor || 'turmarkt';
+        csvRow.product_category = row['Product Category'] || '';
+        csvRow.type = row.Type || '';
+        csvRow.tags = row.Tags || '';
+        csvRow.published = row.Published || 'TRUE';
+        
+        // Option alanları
+        csvRow.option1_name = row['Option1 Name'] || 'Title';
+        csvRow.option1_value = row['Option1 Value'] || 'Default Title';
+        csvRow.option2_name = row['Option2 Name'] || '';
+        csvRow.option2_value = row['Option2 Value'] || '';
+        csvRow.option3_name = row['Option3 Name'] || '';
+        csvRow.option3_value = row['Option3 Value'] || '';
+        
+        // Varyant alanları
+        csvRow.variant_sku = row['Variant SKU'] || '';
+        csvRow.variant_grams = row['Variant Grams'] || '500';
+        csvRow.variant_inventory_tracker = row['Variant Inventory Tracker'] || 'shopify';
+        csvRow.variant_inventory_qty = row['Variant Inventory Qty'] || '50';
+        csvRow.variant_price = row['Variant Price'] || '0';
+        csvRow.variant_compare_at_price = row['Variant Compare At Price'] || '';
+        csvRow.variant_requires_shipping = row['Variant Requires Shipping'] || 'TRUE';
+        csvRow.variant_taxable = row['Variant Taxable'] || 'TRUE';
+        csvRow.variant_barcode = row['Variant Barcode'] || '';
+        
+        // SHOPIFY TÜRKIYE ZORUNLU ALANLAR - HER SATIRA UYGULA
+        csvRow.status = 'etkin';
+        csvRow.variant_inventory_policy = 'reddet';
+        csvRow.variant_fulfillment_service = 'manuel';
+        
+        // Görsel alanları
+        csvRow.image_src = row['Image Src'] || '';
+        csvRow.image_position = row['Image Position'] || '';
+        csvRow.image_alt_text = row['Image Alt Text'] || '';
+        csvRow.gift_card = row['Gift Card'] || 'FALSE';
+        
+        // SEO ve Google Shopping alanları
+        csvRow.seo_title = row['SEO Title'] || '';
+        csvRow.seo_description = row['SEO Description'] || '';
+        csvRow.google_shopping_google_product_category = row['Google Shopping / Google Product Category'] || '';
+        csvRow.google_shopping_gender = row['Google Shopping / Gender'] || '';
+        csvRow.google_shopping_age_group = row['Google Shopping / Age Group'] || '';
+        csvRow.google_shopping_mpn = row['Google Shopping / MPN'] || '';
+        csvRow.google_shopping_condition = row['Google Shopping / Condition'] || '';
+        csvRow.google_shopping_custom_product = row['Google Shopping / Custom Product'] || '';
+        csvRow.variant_image = row['Variant Image'] || '';
+        csvRow.variant_weight_unit = row['Variant Weight Unit'] || 'g';
+        csvRow.variant_tax_code = row['Variant Tax Code'] || '';
+        csvRow.cost_per_item = row['Cost per item'] || '';
+        csvRow.included_united_states = row['Included / United States'] || 'TRUE';
+        csvRow.price_united_states = row['Price / United States'] || '';
+        csvRow.compare_at_price_united_states = row['Compare At Price / United States'] || '';
+        csvRow.included_international = row['Included / International'] || 'TRUE';
+        csvRow.price_international = row['Price / International'] || '';
+        csvRow.compare_at_price_international = row['Compare At Price / International'] || '';
+        
+        return sanitizeCSVRow(csvRow);
       });
       
-      await csvWriter.writeRecords(finalRows);
-      console.log(`CSV başarıyla oluşturuldu: ${outputPath} (${finalRows.length} satır)`);
+      await csvWriter.writeRecords(csvData);
+      console.log(`CSV başarıyla oluşturuldu: ${outputPath} (${csvData.length} satır)`);
       
       // Preview dosyasını temp klasörüne kopyala
       if (outputPath.startsWith('/tmp/')) {
@@ -1463,14 +1520,14 @@ export async function generateShopifyCSV(
           resolve({
             csvPath: previewPath,
             filename: filename,
-            totalRows: finalRows.length
+            totalRows: csvData.length
           });
         } catch (copyError) {
           console.error('CSV kopyalama hatası:', copyError);
           resolve({
             csvPath: outputPath,
             filename: `shopify_products_${timestamp}.csv`,
-            totalRows: finalRows.length
+            totalRows: csvData.length
           });
         }
       } else {
@@ -1478,7 +1535,7 @@ export async function generateShopifyCSV(
         resolve({
           csvPath: outputPath,
           filename: filename,
-          totalRows: finalRows.length
+          totalRows: csvData.length
         });
       }
     } catch (error) {
