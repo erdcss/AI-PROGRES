@@ -318,8 +318,10 @@ export async function generateShopifyCSV(
       row.vendor = "turmarkt";
     }
     
-    // 2. Status alanının Türkçe değerlerle olması gerekiyor
-    row.status = 'etkin'; // Shopify Türkiye: etkin, taslak, arşivlendi
+    // 2. Status alanının Türkçe değerlerle olması gerekiyor - zorunlu alan
+    if (!row.status || row.status === 'active') {
+      row.status = 'etkin'; // Shopify Türkiye: etkin, taslak, arşivlendi
+    }
     
     // 3. ÖNEMLİ: Tüm Boolean alanlar BÜYÜK HARF olmalı
     row.published = 'TRUE';
@@ -329,13 +331,17 @@ export async function generateShopifyCSV(
     row.published_scope = 'web';  // Bu alan Shopify'da gerekli
     row.published_at = new Date().toISOString(); // Şu anki tarih/saat
     
-    // 5. Shopify Türkiye için doğru değerler
-    row.variant_inventory_policy = 'reddet'; // Türkçe: reddet, devam et
-    row.variant_fulfillment_service = 'manuel'; // Türkçe: manuel, otomatik
+    // 5. Shopify Türkiye için zorunlu alanları kontrol et ve düzelt
+    if (!row.variant_inventory_policy || row.variant_inventory_policy === 'deny') {
+      row.variant_inventory_policy = 'reddet'; // Türkçe: reddet, devam et
+    }
+    if (!row.variant_fulfillment_service || row.variant_fulfillment_service === 'manual') {
+      row.variant_fulfillment_service = 'manuel'; // Türkçe: manuel, otomatik
+    }
     
-    // 6. Temel envanter ve durum ayarları
-    row.inventory_policy = 'reddet'; 
-    row.fulfillment_service = 'manuel';
+    // 6. Temel envanter ve durum ayarları - zorunlu alanlar
+    row.inventory_policy = row.inventory_policy || 'reddet'; 
+    row.fulfillment_service = row.fulfillment_service || 'manuel';
     
     // 7. Handle alanı - Shopify için kritik önem taşır
     if (!row.handle) {
@@ -698,8 +704,8 @@ export async function generateShopifyCSV(
             variant_grams: '500',
             variant_inventory_tracker: 'shopify',
             variant_inventory_qty: '50',
-            variant_inventory_policy: 'deny',
-            variant_fulfillment_service: 'manual',
+            variant_inventory_policy: 'reddet',
+            variant_fulfillment_service: 'manuel',
             variant_price: product.price,
             variant_compare_at_price: product.basePrice || '',
             variant_requires_shipping: 'TRUE',
@@ -727,7 +733,7 @@ export async function generateShopifyCSV(
             included_international: 'TRUE',
             price_international: '',
             compare_at_price_international: '',
-            status: 'active'
+            status: 'etkin'
           };
           
           // Ana satırı ekle
@@ -774,8 +780,8 @@ export async function generateShopifyCSV(
               variant_grams: '500',
               variant_inventory_tracker: 'shopify',
               variant_inventory_qty: '50',
-              variant_inventory_policy: 'deny',
-              variant_fulfillment_service: 'manual',
+              variant_inventory_policy: 'reddet',
+              variant_fulfillment_service: 'manuel',
               variant_price: product.price,
               variant_compare_at_price: '',
               variant_requires_shipping: 'TRUE',
@@ -832,8 +838,8 @@ export async function generateShopifyCSV(
             variant_grams: '500',
             variant_inventory_tracker: 'shopify',
             variant_inventory_qty: '50',
-            variant_inventory_policy: 'deny',
-            variant_fulfillment_service: 'manual',
+            variant_inventory_policy: 'reddet',
+            variant_fulfillment_service: 'manuel',
             variant_price: product.price,
             variant_compare_at_price: product.basePrice || '',
             variant_requires_shipping: 'TRUE',
@@ -861,7 +867,7 @@ export async function generateShopifyCSV(
             included_international: 'TRUE',
             price_international: '',
             compare_at_price_international: '',
-            status: 'active'
+            status: 'etkin'
           };
           
           // Ana satırı ekle
