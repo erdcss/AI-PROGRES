@@ -380,11 +380,11 @@ export default function Home() {
                   <div className="space-y-2">
                     <div className="flex items-center gap-2 text-sm text-gray-400">
                       <ImageIcon className="w-4 h-4" />
-                      <span>Ürün Görselleri ({product.images.length})</span>
+                      <span>Ürün Görselleri ({product.images?.length || 0})</span>
                     </div>
                     <ScrollArea className="h-[250px] rounded-md border border-gray-800 p-4">
                       <div className="grid grid-cols-3 md:grid-cols-4 gap-4">
-                        {product.images
+                        {(product.images || [])
                           .filter((image: string) => {
                             if (!image) return false;
                             
