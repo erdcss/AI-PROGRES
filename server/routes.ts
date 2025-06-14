@@ -12,8 +12,22 @@ import { cleanTrendyolAttributes } from "./clean-attributes";
 import { InsertProduct } from "@shared/schema";
 
 const urlSchema = z.object({
-  url: z.string().url("Geçerli bir URL girin")
+  url: z.string().min(1, "URL boş olamaz")
 });
+
+function normalizeUrl(url: string): string {
+  // https:// yoksa ekle
+  if (!url.startsWith('http://') && !url.startsWith('https://')) {
+    url = 'https://' + url;
+  }
+  
+  // www. yoksa ekle
+  if (!url.includes('www.') && url.includes('trendyol.com')) {
+    url = url.replace('trendyol.com', 'www.trendyol.com');
+  }
+  
+  return url;
+}
 
 function debug(message: string, ...args: any[]) {
   console.log(`[DEBUG] ${message}`, ...args);
@@ -114,7 +128,21 @@ export async function registerRoutes(app: Express) {
         });
       }
 
-      const { url } = validation.data;
+      const { url: rawUrl } = validation.data;
+      
+      // URL'i normalize et
+      const url = normalizeUrl(rawUrl);
+      console.log(`URL normalize edildi: ${rawUrl} -> ${url}`);
+      
+      // Normalize edilmiş URL'in geçerli olup olmadığını kontrol et
+      try {
+        new URL(url);
+      } catch (urlError) {
+        return res.status(400).json({
+          message: "URL formatı hatalı",
+          details: `Girilen: ${rawUrl}, Normalize: ${url}`
+        });
+      }
       
       // Ürün ID'sini URL'den çıkart
       const productIdMatch = url.match(/p-(\d+)/);
