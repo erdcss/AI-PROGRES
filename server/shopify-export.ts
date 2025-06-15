@@ -284,8 +284,8 @@ export async function generateShopifyCSV(
       row.published_on_online_store = 'TRUE';
     }
     
-    // Shopify Türkiye zorunlu değer
-    row.status = 'etkin';
+    // Shopify zorunlu değer - kabul edilen format
+    row.status = 'active';
     
     // Veri uygun
     return true;
@@ -318,7 +318,7 @@ export async function generateShopifyCSV(
     }
     
     // 2. Status alanının Türkçe değerlerle olması gerekiyor - zorunlu alan
-    row.status = 'etkin'; // Shopify Türkiye: etkin, taslak, arşivlendi (HER ZAMAN SET ET)
+    row.status = 'active'; // Shopify kabul edilen format: active, draft, archived
     
     // 3. ÖNEMLİ: Tüm Boolean alanlar BÜYÜK HARF olmalı
     row.published = 'TRUE';
@@ -1442,65 +1442,65 @@ export async function generateShopifyCSV(
         // Her satır için gereken tüm alanları map et
         const csvRow: any = {};
         
-        // Temel alanlar
-        csvRow.handle = row.Handle || '';
-        csvRow.title = row.Title || '';
-        csvRow.body_html = row['Body (HTML)'] || '';
-        csvRow.vendor = row.Vendor || 'turmarkt';
-        csvRow.product_category = row['Product Category'] || '';
-        csvRow.type = row.Type || '';
-        csvRow.tags = row.Tags || '';
-        csvRow.published = row.Published || 'TRUE';
+        // Temel alanlar - Shopify CSV başlıklarını kullan
+        csvRow.Handle = row.Handle || '';
+        csvRow.Title = row.Title || '';
+        csvRow['Body (HTML)'] = row['Body (HTML)'] || '';
+        csvRow.Vendor = row.Vendor || 'turmarkt';
+        csvRow['Product Category'] = row['Product Category'] || '';
+        csvRow.Type = row.Type || '';
+        csvRow.Tags = row.Tags || '';
+        csvRow.Published = row.Published || 'TRUE';
         
         // Option alanları
-        csvRow.option1_name = row['Option1 Name'] || 'Title';
-        csvRow.option1_value = row['Option1 Value'] || 'Default Title';
-        csvRow.option2_name = row['Option2 Name'] || '';
-        csvRow.option2_value = row['Option2 Value'] || '';
-        csvRow.option3_name = row['Option3 Name'] || '';
-        csvRow.option3_value = row['Option3 Value'] || '';
+        csvRow['Option1 Name'] = row['Option1 Name'] || 'Title';
+        csvRow['Option1 Value'] = row['Option1 Value'] || 'Default Title';
+        csvRow['Option2 Name'] = row['Option2 Name'] || '';
+        csvRow['Option2 Value'] = row['Option2 Value'] || '';
+        csvRow['Option3 Name'] = row['Option3 Name'] || '';
+        csvRow['Option3 Value'] = row['Option3 Value'] || '';
         
         // Varyant alanları
-        csvRow.variant_sku = row['Variant SKU'] || '';
-        csvRow.variant_grams = row['Variant Grams'] || '500';
-        csvRow.variant_inventory_tracker = row['Variant Inventory Tracker'] || 'shopify';
-        csvRow.variant_inventory_qty = row['Variant Inventory Qty'] || '50';
-        csvRow.variant_price = row['Variant Price'] || '0';
-        csvRow.variant_compare_at_price = row['Variant Compare At Price'] || '';
-        csvRow.variant_requires_shipping = row['Variant Requires Shipping'] || 'TRUE';
-        csvRow.variant_taxable = row['Variant Taxable'] || 'TRUE';
-        csvRow.variant_barcode = row['Variant Barcode'] || '';
+        csvRow['Variant SKU'] = row['Variant SKU'] || '';
+        csvRow['Variant Grams'] = row['Variant Grams'] || '500';
+        csvRow['Variant Inventory Tracker'] = row['Variant Inventory Tracker'] || 'shopify';
+        csvRow['Variant Inventory Qty'] = row['Variant Inventory Qty'] || '50';
+        csvRow['Variant Price'] = row['Variant Price'] || '0';
+        csvRow['Variant Compare At Price'] = row['Variant Compare At Price'] || '';
+        csvRow['Variant Requires Shipping'] = row['Variant Requires Shipping'] || 'TRUE';
+        csvRow['Variant Taxable'] = row['Variant Taxable'] || 'TRUE';
+        csvRow['Variant Barcode'] = row['Variant Barcode'] || '';
         
-        // SHOPIFY TÜRKIYE ZORUNLU ALANLAR - HER SATIRA UYGULA
-        csvRow.status = 'etkin';
-        csvRow.variant_inventory_policy = 'reddet';
-        csvRow.variant_fulfillment_service = 'manuel';
+        // SHOPIFY ZORUNLU ALANLAR - KABUL EDİLEN DEĞERLER
+        csvRow.Status = 'active';
+        csvRow['Variant Inventory Policy'] = 'deny';
+        csvRow['Variant Fulfillment Service'] = 'manual';
         
         // Görsel alanları
-        csvRow.image_src = row['Image Src'] || '';
-        csvRow.image_position = row['Image Position'] || '';
-        csvRow.image_alt_text = row['Image Alt Text'] || '';
-        csvRow.gift_card = row['Gift Card'] || 'FALSE';
+        csvRow['Image Src'] = row['Image Src'] || '';
+        csvRow['Image Position'] = row['Image Position'] || '';
+        csvRow['Image Alt Text'] = row['Image Alt Text'] || '';
+        csvRow['Gift Card'] = row['Gift Card'] || 'FALSE';
         
         // SEO ve Google Shopping alanları
-        csvRow.seo_title = row['SEO Title'] || '';
-        csvRow.seo_description = row['SEO Description'] || '';
-        csvRow.google_shopping_google_product_category = row['Google Shopping / Google Product Category'] || '';
-        csvRow.google_shopping_gender = row['Google Shopping / Gender'] || '';
-        csvRow.google_shopping_age_group = row['Google Shopping / Age Group'] || '';
-        csvRow.google_shopping_mpn = row['Google Shopping / MPN'] || '';
-        csvRow.google_shopping_condition = row['Google Shopping / Condition'] || '';
-        csvRow.google_shopping_custom_product = row['Google Shopping / Custom Product'] || '';
-        csvRow.variant_image = row['Variant Image'] || '';
-        csvRow.variant_weight_unit = row['Variant Weight Unit'] || 'g';
-        csvRow.variant_tax_code = row['Variant Tax Code'] || '';
-        csvRow.cost_per_item = row['Cost per item'] || '';
-        csvRow.included_united_states = row['Included / United States'] || 'TRUE';
-        csvRow.price_united_states = row['Price / United States'] || '';
-        csvRow.compare_at_price_united_states = row['Compare At Price / United States'] || '';
-        csvRow.included_international = row['Included / International'] || 'TRUE';
-        csvRow.price_international = row['Price / International'] || '';
-        csvRow.compare_at_price_international = row['Compare At Price / International'] || '';
+        csvRow['SEO Title'] = row['SEO Title'] || '';
+        csvRow['SEO Description'] = row['SEO Description'] || '';
+        csvRow['Google Shopping / Google Product Category'] = row['Google Shopping / Google Product Category'] || '';
+        csvRow['Google Shopping / Gender'] = row['Google Shopping / Gender'] || '';
+        csvRow['Google Shopping / Age Group'] = row['Google Shopping / Age Group'] || '';
+        csvRow['Google Shopping / MPN'] = row['Google Shopping / MPN'] || '';
+        csvRow['Google Shopping / Condition'] = row['Google Shopping / Condition'] || '';
+        csvRow['Google Shopping / Custom Product'] = row['Google Shopping / Custom Product'] || '';
+        csvRow['Variant Image'] = row['Variant Image'] || '';
+        csvRow['Variant Weight Unit'] = row['Variant Weight Unit'] || 'g';
+        csvRow['Variant Tax Code'] = row['Variant Tax Code'] || '';
+        csvRow['Cost per item'] = row['Cost per item'] || '';
+        csvRow['Included / United States'] = row['Included / United States'] || 'TRUE';
+        csvRow['Price / United States'] = row['Price / United States'] || '';
+        csvRow['Compare At Price / United States'] = row['Compare At Price / United States'] || '';
+        csvRow['Included / International'] = row['Included / International'] || 'TRUE';
+        csvRow['Price / International'] = row['Price / International'] || '';
+        csvRow['Compare At Price / International'] = row['Compare At Price / International'] || '';
         
         return sanitizeCSVRow(csvRow);
       });
