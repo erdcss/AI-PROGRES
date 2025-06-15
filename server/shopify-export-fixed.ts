@@ -34,7 +34,8 @@ export async function generateShopifyCSV(
   product: Product,
   variants: { 
     sizes?: string[], 
-    colors?: string[] 
+    colors?: string[],
+    availability?: string
   } = {},
   outputPath: string = join(tmpdir(), 'shopify_products.csv')
 ): Promise<{ csvPath: string; filename: string; totalRows: number }> {
@@ -48,8 +49,40 @@ export async function generateShopifyCSV(
 
   const sizes = variants?.sizes || [];
   const colors = variants?.colors || [];
+  const availability = variants?.availability || '';
   const hasSizeVariants = sizes?.length > 0;
   const hasColorVariants = colors?.length > 0;
+  
+  // Stok durumu analizi - akıllı stok yönetimi
+  const getStockQuantity = (): string => {
+    if (!availability) return '10'; // Varsayılan stok
+    
+    // Stokta var durumları
+    if (availability.includes('InStock') || 
+        availability.includes('Available') || 
+        availability.includes('stokta')) {
+      return '10'; // Normal stok
+    }
+    
+    // Sınırlı stok durumları
+    if (availability.includes('LimitedAvailability') || 
+        availability.includes('LastFew') || 
+        availability.includes('az kaldı')) {
+      return '3'; // Sınırlı stok
+    }
+    
+    // Stokta yok durumları
+    if (availability.includes('OutOfStock') || 
+        availability.includes('Discontinued') || 
+        availability.includes('stokta yok')) {
+      return '0'; // Stok yok
+    }
+    
+    return '10'; // Varsayılan
+  };
+  
+  const stockQuantity = getStockQuantity();
+  console.log(`STOK ANALİZİ: Availability="${availability}" → Stok miktarı: ${stockQuantity}`);
 
   // Handle oluştur
   const turkishToEnglish = (text: string): string => {
@@ -129,7 +162,7 @@ export async function generateShopifyCSV(
         variant_sku: `${handle}-${hasSizeVariants && hasColorVariants ? colors[0] + '-' + sizes[0] : hasSizeVariants ? sizes[0] : 'default'}`,
         variant_grams: '145',
         variant_inventory_tracker: 'shopify',
-        variant_inventory_qty: '10',
+        variant_inventory_qty: stockQuantity,
         variant_inventory_policy: 'deny',
         variant_fulfillment_service: 'manual',
         variant_price: product.price,
@@ -220,6 +253,7 @@ export async function generateShopifyCSV(
       // VARYANT SATIRLARI - SHOPIFY GERÇEK FORMATI
       if (hasSizeVariants && hasColorVariants) {
         // Renk-beden kombinasyonları (template formatında)
+        console.log(`VARYANT SİSTEMİ: ${colors.length} renk × ${sizes.length} beden kombinasyonu oluşturuluyor`);
         for (let c = 0; c < colors.length; c++) {
           for (let s = 0; s < sizes.length; s++) {
             if (c === 0 && s === 0) continue; // Ana ürünü atla
@@ -242,7 +276,7 @@ export async function generateShopifyCSV(
               variant_sku: `${handle}-${colors[c]}-${sizes[s]}`,
               variant_grams: '145',
               variant_inventory_tracker: 'shopify',
-              variant_inventory_qty: '10',
+              variant_inventory_qty: stockQuantity,
               variant_inventory_policy: 'deny',
               variant_fulfillment_service: 'manual',
               variant_price: product.price,
@@ -279,6 +313,7 @@ export async function generateShopifyCSV(
         console.log(`SHOPIFY FORMAT: ${(colors.length * sizes.length - 1)} varyant kombinasyonu eklendi`);
       } else if (hasSizeVariants) {
         // Sadece beden varyantları
+        console.log(`BEDEN VARYANTI SİSTEMİ: ${sizes.length} beden varyasyonu oluşturuluyor`);
         for (let s = 1; s < sizes.length; s++) {
           csvRows.push({
             handle: handle,
@@ -331,6 +366,67 @@ export async function generateShopifyCSV(
             status: ''
           });
         }
+        console.log(`SHOPIFY FORMAT: ${sizes.length - 1} beden varyantı eklendi`);
+      } else if (hasColorVariants) {
+        // Sadece renk varyantları
+        console.log(`RENK VARYANTI SİSTEMİ: ${colors.length} renk varyasyonu oluşturuluyor`);
+        for (let c = 1; c < colors.length; c++) {
+          csvRows.push({
+            handle: handle,
+            title: '',
+            body_html: '',
+            vendor: '',
+            product_category: '',
+            type: '',
+            tags: '',
+            published: '',
+            option1_name: '',
+            option1_value: colors[c],
+            option2_name: '',
+            option2_value: '',
+            option3_name: '',
+            option3_value: '',
+            variant_sku: `${handle}-${colors[c]}`,
+            variant_grams: '145',
+            variant_inventory_tracker: 'shopify',
+            variant_inventory_qty: '10',
+            variant_inventory_policy: 'deny',
+            variant_fulfillment_service: 'manual',
+            variant_price: product.price,
+            variant_compare_at_price: '',
+            variant_requires_shipping: 'TRUE',
+            variant_taxable: 'TRUE',
+            variant_barcode: '',
+            image_src: '',
+            image_position: '',
+            image_alt_text: '',
+            gift_card: '',
+            seo_title: '',
+            seo_description: '',
+            google_shopping_google_product_category: '',
+            google_shopping_gender: '',
+            google_shopping_age_group: '',
+            google_shopping_mpn: '',
+            google_shopping_condition: '',
+            google_shopping_custom_product: '',
+            variant_image: mainImage,
+            variant_weight_unit: 'g',
+            variant_tax_code: '',
+            cost_per_item: '',
+            included_united_states: '',
+            price_united_states: '',
+            compare_at_price_united_states: '',
+            included_international: '',
+            price_international: '',
+            compare_at_price_international: '',
+            status: ''
+          });
+        }
+        console.log(`SHOPIFY FORMAT: ${colors.length - 1} renk varyantı eklendi`);
+      } else {
+        // Varyasyonu olmayan ürünler - "Default Title" ile tek varyant
+        console.log('VARYASYON YOK SİSTEMİ: Tek varyant "Default Title" oluşturuluyor');
+        // Ana ürün zaten "Default Title" ile oluşturuldu, ek varyant gerekmiyor
       }
 
       // CSV WRITER - Shopify template header sırası
