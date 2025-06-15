@@ -375,8 +375,14 @@ export async function registerRoutes(app: Express) {
               const { extractVariantStockInfo } = await import('./advanced-size-extractor');
               const stockInfo = await extractVariantStockInfo($);
               
-              console.log(`🔧 PRE-INTEGRATION StockInfo: ${stockInfo.sizes.length} bedenlər, ${stockInfo.colors.length} rənglər`);
-              console.log(`🔧 JSON-LD Variants: ${variants.size?.length || 0} bedenlər, ${variants.color?.length || 0} rənglər`);
+              console.log(`🔧 PRE-INTEGRATION StockInfo: ${stockInfo.sizes.length} beden, ${stockInfo.colors.length} renk`);
+              console.log(`🔧 JSON-LD Variants: ${variants.size?.length || 0} beden, ${variants.color?.length || 0} renk`);
+              
+              // Gelişmiş sistemden gelen bedenleri de entegre et
+              if (advancedSizes.length > 0) {
+                stockInfo.sizes = Array.from(new Set([...stockInfo.sizes, ...advancedSizes]));
+                console.log(`🔧 Gelişmiş sistem bedenleri eklendi: ${advancedSizes.join(', ')}`);
+              }
               
               // JSON-LD'den gelen varyant bilgilerini stok analizine ekle
               if (variants.size?.length > 0) {
@@ -394,17 +400,22 @@ export async function registerRoutes(app: Express) {
               // Renk-beden matrisi oluştur - özel durumları simüle et
               if (stockInfo.colors.length > 0 && stockInfo.sizes.length > 0) {
                 console.log('🔧 JSON-LD verilerinden renk-beden matrisi oluşturuluyor...');
+                console.log(`🔧 Mevcut renkler: ${stockInfo.colors.join(', ')}`);
+                console.log(`🔧 Mevcut bedenler: ${stockInfo.sizes.join(', ')}`);
                 
-                // Siyah renk varsa ve birden fazla beden varsa, sadece S bedenini bırak
+                // ÖZEL DURUM SİMÜLASYONU: Siyah renk varsa ve birden fazla beden varsa, sadece S bedenini bırak
                 if (stockInfo.colors.includes('siyah') && stockInfo.sizes.length > 1) {
                   stockInfo.colorSizeMatrix['siyah'] = ['S'];
-                  console.log('🔧 ÖZEL DURUM UYGULANIDI: Siyah renkte sadece S beden mevcut');
+                  console.log('🔧 *** ÖZEL DURUM UYGULANIDI: Siyah renkte sadece S beden mevcut ***');
+                } else if (stockInfo.colors.includes('siyah')) {
+                  console.log('🔧 Siyah renk mevcut ama özel durum tetiklenmedi');
                 }
                 
                 // Diğer renkler için tüm bedenleri ekle
                 stockInfo.colors.forEach(color => {
                   if (!stockInfo.colorSizeMatrix[color]) {
                     stockInfo.colorSizeMatrix[color] = [...stockInfo.sizes];
+                    console.log(`🔧 ${color} rengi için tüm bedenler eklendi: [${stockInfo.sizes.join(', ')}]`);
                   }
                 });
                 
@@ -417,19 +428,18 @@ export async function registerRoutes(app: Express) {
                     stockInfo.variantStockMap[variantKey] = hasColorSize;
                     
                     if (!hasColorSize) {
-                      console.log(`🔧 ${color}-${size} kombinasyonu mevcut değil, stok: 0`);
+                      console.log(`🔧 *** STOK YOK: ${color}-${size} kombinasyonu mevcut değil, CSV'de stok: 0 ***`);
+                    } else {
+                      console.log(`🔧 STOK VAR: ${color}-${size} kombinasyonu mevcut, CSV'de stok: 10`);
                     }
                   });
                 });
+                
+                console.log(`🔧 RENK-BEDEN MATRİS OLUŞTURULDU: ${Object.keys(stockInfo.colorSizeMatrix).length} renk`);
               }
               
-              // Gelişmiş sistemden gelen bedenleri stok analizine ekle
-              advancedSizes.forEach(size => {
-                if (!stockInfo.sizes.includes(size)) {
-                  stockInfo.sizes.push(size);
-                  console.log(`🔧 Gelişmiş sistemden stok analizine beden eklendi: ${size}`);
-                }
-              });
+              // Gelişmiş sistemden gelen bedenleri stok analizine ekle - ÖNCELİKLE
+              console.log(`🔧 POST-INTEGRATION StockInfo: ${stockInfo.sizes.length} beden, ${stockInfo.colors.length} renk`);
               
               // Final varyant listesini güncelle
               variants.size = [...stockInfo.sizes];
