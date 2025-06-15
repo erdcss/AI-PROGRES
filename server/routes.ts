@@ -6,7 +6,7 @@ import path from "path";
 import fs from "fs";
 import { storage } from "./storage";
 import { scrapeProductWithPuppeteer } from "./fixed-puppeteer-scraper";
-import { generateShopifyCSV } from "./shopify-export";
+import { generateShopifyCSV } from "./shopify-export-fixed";
 import { getCategoryConfig } from "./category-mapping";
 import { cleanTrendyolAttributes } from "./clean-attributes";
 import { parseJsonLdProductData, generateTagsFromJsonLd } from "./json-ld-parser";
