@@ -366,10 +366,14 @@ export async function registerRoutes(app: Express) {
               
 
               
-              // Gelişmiş beden çıkarma sistemi devreye al
+              // Gelişmiş beden çıkarma sistemi ve stok analizi
               console.log('🔧 Gelişmiş beden çıkarma sistemi başlatılıyor...');
               const productId = url.match(/p-(\d+)/)?.[1] || '';
               const advancedSizes = await extractAllSizes(url, htmlContent, productId);
+              
+              // Stok durumu analizi
+              const { extractVariantStockInfo } = await import('./advanced-size-extractor');
+              const stockInfo = await extractVariantStockInfo($);
               
               // Gelişmiş sistemden gelen bedenleri mevcut varyantlara ekle
               advancedSizes.forEach(size => {
@@ -378,6 +382,27 @@ export async function registerRoutes(app: Express) {
                   console.log(`🔧 Gelişmiş sistemden beden eklendi: ${size}`);
                 }
               });
+              
+              // Stok analizi sonuçlarını varyantlara entegre et
+              if (stockInfo.sizes.length > 0 || stockInfo.colors.length > 0) {
+                console.log('🔧 Stok analizi verilerini entegre ediliyor...');
+                
+                // Stok analizinden gelen bedenleri ekle
+                stockInfo.sizes.forEach(size => {
+                  if (!variants.size.includes(size)) {
+                    variants.size.push(size);
+                    console.log(`🔧 Stok analizinden beden eklendi: ${size}`);
+                  }
+                });
+                
+                // Stok analizinden gelen renkleri ekle
+                stockInfo.colors.forEach(color => {
+                  if (!variants.color.includes(color)) {
+                    variants.color.push(color);
+                    console.log(`🔧 Stok analizinden renk eklendi: ${color}`);
+                  }
+                });
+              }
               
               // Beden sıralaması burada yapılacak
               const sizeOrderTemp = ['XS', 'S', 'M', 'L', 'XL', 'XXL', 'XXXL'];
@@ -460,7 +485,8 @@ export async function registerRoutes(app: Express) {
               }, {
                 sizes: variants.size || [],
                 colors: variants.color || [],
-                availability: jsonldData.availability
+                availability: jsonldData.availability,
+                stockMap: stockInfo.variantStockMap
               });
               
               storage.addToHistory(url);

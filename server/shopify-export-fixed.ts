@@ -406,7 +406,7 @@ export async function generateShopifyCSV(
             variant_sku: `${handle}-${colors[c]}`,
             variant_grams: '145',
             variant_inventory_tracker: 'shopify',
-            variant_inventory_qty: stockQuantity,
+            variant_inventory_qty: getVariantStockQuantity(colors[c], undefined),
             variant_inventory_policy: 'deny',
             variant_fulfillment_service: 'manual',
             variant_price: product.price,

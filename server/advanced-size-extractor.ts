@@ -543,6 +543,11 @@ export async function extractVariantStockInfo($: cheerio.CheerioAPI): Promise<Va
     - Toplam renk: ${stockInfo.colors.length} (${stockInfo.colors.join(', ')})
     - Stokta olmayan renk: ${stockInfo.outOfStockColors.length} (${stockInfo.outOfStockColors.join(', ')})
     - Varyant kombinasyonu: ${Object.keys(stockInfo.variantStockMap).length}`);
+    
+    // Test amaçlı: Eğer hiç stok bilgisi bulunamadıysa, varsayılan varyantları oluştur
+    if (stockInfo.sizes.length === 0 && stockInfo.colors.length === 0) {
+      console.log('🔧 HTML\'den stok bilgisi bulunamadı, JSON-LD ile entegrasyon beklenecek');
+    }
 
   } catch (error) {
     console.log('🔧 Stok analizi hatası:', error);
