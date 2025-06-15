@@ -445,9 +445,16 @@ export async function generateShopifyCSV(
     if (!row.variant_inventory_tracker) row.variant_inventory_tracker = 'shopify';
     if (!row.published) row.published = 'TRUE';
     
-    // Option değerlerini kontrol et - Shopify boş olanlara izin vermiyor
-    if (row.option1_name === '') row.option1_name = 'Title';
-    if (row.option1_value === '') row.option1_value = 'Default Title';
+    // Option değerlerini kontrol et - SADECE ana ürün satırı için
+    // Ek görsel satırları boş option değerleriyle kalmalı (duplicate önlenir)
+    if (row.option1_name === '' && row.variant_sku && row.variant_price) {
+      row.option1_name = 'Title';
+      row.option1_value = 'Default Title';
+    } else if (row.option1_name === '') {
+      // Görsel-only satırlar için option alanları boş kalır
+      row.option1_name = '';
+      row.option1_value = '';
+    }
     
     return row;
   };
@@ -924,7 +931,7 @@ export async function generateShopifyCSV(
               : 'Giyim',
             tags: tags,
             published: 'TRUE',
-            status: 'etkin',
+            status: 'active',
             option1_name: 'Size',
             option1_value: sizes[0],
             option2_name: 'Color',
@@ -992,7 +999,7 @@ export async function generateShopifyCSV(
               : 'Elektronik',
             tags: product.tags || '',
             published: 'TRUE',
-            status: 'etkin',
+            status: 'active',
             variant_sku: handle,
             variant_grams: '1000',
             variant_inventory_tracker: 'shopify',
@@ -1063,12 +1070,12 @@ export async function generateShopifyCSV(
             variant_weight_unit: 'g',
             variant_tax_code: '',
             cost_per_item: '',
-            status: 'etkin'
+            status: 'active'
           };
           
           csvRows.push(fixShopifyVisibility(row));
           
-          // Ek görseller varsa ayrı satırlar ekle
+          // Ek görseller varsa ayrı satırlar ekle - SADECE görsel bilgisi
           additionalImages.forEach((imageUrl, index) => {
             const imageRow = {
               handle: handle,
@@ -1079,7 +1086,7 @@ export async function generateShopifyCSV(
               tags: '',
               published: '',
               option1_name: '',
-              option1_value: '',
+              option1_value: '', // BOŞ BIRAK - Shopify duplicate hatası önlenir
               option2_name: '',
               option2_value: '',
               option3_name: '',
