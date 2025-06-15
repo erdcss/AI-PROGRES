@@ -1250,22 +1250,28 @@ export async function generateShopifyCSV(
           return false;
         }
         
-        // SHOPIFY TÜRKIYE ZORUNLU ALANLAR - HER SATIRA UYGULA
-        row.Status = 'etkin'; // Zorunlu Türkçe değer
-        row['Variant Inventory Policy'] = 'deny'; // Zorunlu Türkçe değer
-        row['Variant Fulfillment Service'] = 'manual'; // Zorunlu Türkçe değer
-        
-        // Varyant veya görsel satırları için gerekli alanlar
-        if (row['Image Src'] || row['Image Position']) {
-          // Görsel satırı, gerekli alanları ekle
+        // SHOPIFY TÜRKIYE ZORUNLU ALANLAR - Sadece ana ürün satırına uygula
+        if (row === processedRows[0] || (row.Title && row['Variant SKU'])) {
+          // Sadece ana ürün satırı için zorunlu alanlar
+          row.Status = 'active'; // Shopify kabul edilen değer
+          row['Variant Inventory Policy'] = 'deny';
+          row['Variant Fulfillment Service'] = 'manual';
           row.Published = 'TRUE';
-        } else {
-          // Varyant satırı, Option kontrolü yap
+          
+          // Ana satır için Option kontrolü
           if (!row['Option1 Name'] || !row['Option1 Value']) {
-            // Eksik option verileri içeren satır gördük, tamamlayalım
             row['Option1 Name'] = 'Title';
             row['Option1 Value'] = 'Default Title';
           }
+        } else {
+          // Ek görsel satırları için Option alanlarını BOŞ BIRAK
+          // Bu Shopify duplicate variant hatasını önleyecek
+          row['Option1 Name'] = '';
+          row['Option1 Value'] = '';
+          row.Status = '';
+          row['Variant Inventory Policy'] = '';
+          row['Variant Fulfillment Service'] = '';
+          row.Published = '';
         }
         
         // Bu satırı kabul et
@@ -1304,13 +1310,19 @@ export async function generateShopifyCSV(
         // Ürün tipi
         newRow['Custom Product Type'] = row['Custom Product Type'] || row.custom_product_type || product.category;
         
-        // Durum bilgileri - Shopify Türkiye için zorunlu
+        // Durum bilgileri - Shopify compliance
         newRow.Published = row.Published || row.published || 'TRUE';
-        newRow.Status = 'etkin'; // Shopify Türkiye: etkin, taslak, arşivlendi
+        newRow.Status = 'active'; // Shopify accepted: active, draft, archived
         
-        // Varyant bilgileri
-        newRow['Option1 Name'] = row['Option1 Name'] || row.option1_name || 'Size';
-        newRow['Option1 Value'] = row['Option1 Value'] || row.option1_value || 'Default';
+        // Varyant bilgileri - SADECE ilk satır için
+        if (index === 0) {
+          newRow['Option1 Name'] = 'Title';
+          newRow['Option1 Value'] = 'Default Title';
+        } else {
+          // Ek satırlar için variant alanlarını boş bırak
+          newRow['Option1 Name'] = '';
+          newRow['Option1 Value'] = '';
+        }
         
         // İlk satır için (ana ürün), tüm renk varyantlarını da ekle
         if (index === 0 && product.variants && typeof product.variants === 'object' && 'color' in product.variants) {
@@ -1388,10 +1400,22 @@ export async function generateShopifyCSV(
         newRow.image_position = row['Image Position'] || row.image_position || '';
         newRow.image_alt_text = row['Image Alt Text'] || row.image_alt_text || '';
         
-        // SHOPIFY COMPLIANCE - ACCEPTED ENGLISH VALUES
+        // SHOPIFY COMPLIANCE - ACCEPTED ENGLISH VALUES  
         newRow.status = 'active'; // Shopify accepted: active, draft, archived
         newRow.variant_inventory_policy = 'deny'; // Shopify accepted: deny, continue
         newRow.variant_fulfillment_service = 'manual'; // Shopify accepted: manual, automatic
+        
+        // CRITICAL FIX: Ensure only first row has variant data
+        if (index !== 0) {
+          // Clear variant fields for additional rows to prevent duplicates
+          newRow.option1_name = '';
+          newRow.option1_value = '';
+          newRow.variant_sku = '';
+          newRow.variant_price = '';
+          newRow.status = '';
+          newRow.variant_inventory_policy = '';
+          newRow.variant_fulfillment_service = '';
+        }
         newRow.variant_inventory_qty = row['Variant Inventory Qty'] || '50';
         newRow.variant_inventory_tracker = row['Variant Inventory Tracker'] || 'shopify';
         newRow.variant_requires_shipping = row['Variant Requires Shipping'] || 'TRUE';
