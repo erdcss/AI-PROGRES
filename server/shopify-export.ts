@@ -1315,17 +1315,11 @@ export async function generateShopifyCSV(
         newRow.Status = 'active'; // Shopify accepted: active, draft, archived
         
         // Varyant bilgileri - SADECE ilk satır için
-        if (index === 0) {
-          newRow['Option1 Name'] = 'Title';
-          newRow['Option1 Value'] = 'Default Title';
-        } else {
-          // Ek satırlar için variant alanlarını boş bırak
-          newRow['Option1 Name'] = '';
-          newRow['Option1 Value'] = '';
-        }
+        newRow['Option1 Name'] = 'Title';
+        newRow['Option1 Value'] = 'Default Title';
         
         // İlk satır için (ana ürün), tüm renk varyantlarını da ekle
-        if (index === 0 && product.variants && typeof product.variants === 'object' && 'color' in product.variants) {
+        if (product.variants && typeof product.variants === 'object' && 'color' in product.variants) {
           const variantColors = (product.variants as any).color;
           if (Array.isArray(variantColors) && variantColors.length > 0) {
             newRow['Option2 Name'] = 'Color';
@@ -1344,15 +1338,12 @@ export async function generateShopifyCSV(
         newRow['Variant Taxable'] = row['Variant Taxable'] || row.variant_taxable || 'TRUE';
         
         // İlk ürün için resimleri ekle - CRITICAL FIX
-        if (index === 0) {
-          // Ürün görsellerinden birincisini kullan
-          const firstValidImage = product.images && product.images.length > 0 ? product.images[0] : '';
-
-          
-          newRow['Image Src'] = firstValidImage;
-          newRow['Image Position'] = firstValidImage ? '1' : '';
-          newRow['Image Alt Text'] = firstValidImage ? product.title : '';
-        }
+        // Ürün görsellerinden birincisini kullan
+        const firstValidImage = product.images && product.images.length > 0 ? product.images[0] : '';
+        
+        newRow['Image Src'] = firstValidImage;
+        newRow['Image Position'] = firstValidImage ? '1' : '';
+        newRow['Image Alt Text'] = firstValidImage ? product.title : '';
         
         // Orijinal satırdaki diğer tüm alanları kopyala (yukarıda eklenmemişse)
         Object.keys(row).forEach(key => {
@@ -1378,7 +1369,7 @@ export async function generateShopifyCSV(
       }
       
       // CSV'yi yaz - field ID'leri küçük harfe çevir
-      const csvCompatibleRows = normalizedRows.map(row => {
+      const csvCompatibleRows = normalizedRows.map((row, index) => {
         const newRow: Record<string, any> = {};
         
         // Büyük harfli key'leri küçük harfli field ID'lere dönüştür
@@ -1392,6 +1383,10 @@ export async function generateShopifyCSV(
         newRow.published = row.Published || 'TRUE';
         newRow.option1_name = row['Option1 Name'] || 'Title';
         newRow.option1_value = row['Option1 Value'] || 'Default Title';
+        
+        // Debug field mapping
+        console.log(`Row ${index} - option1_value mapping: "${newRow.option1_value}"`);
+        console.log(`Row ${index} - option1_name mapping: "${newRow.option1_name}"`);
         newRow.variant_sku = row['Variant SKU'] || '';
         newRow.variant_price = row['Variant Price'] || '';
         
