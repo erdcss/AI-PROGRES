@@ -329,12 +329,12 @@ export async function generateShopifyCSV(
     row.published_at = new Date().toISOString(); // Şu anki tarih/saat
     
     // 5. Shopify Türkiye için zorunlu alanları - HER ZAMAN SET ET
-    row.variant_inventory_policy = 'reddet'; // Türkçe: reddet, devam et (zorunlu)
-    row.variant_fulfillment_service = 'manuel'; // Türkçe: manuel, otomatik (zorunlu)
+    row.variant_inventory_policy = 'deny'; // Shopify kabul edilen: deny, continue
+    row.variant_fulfillment_service = 'manual'; // Shopify kabul edilen: manual, automatic
     
     // 6. Temel envanter ve durum ayarları - zorunlu alanlar
-    row.inventory_policy = row.inventory_policy || 'reddet'; 
-    row.fulfillment_service = row.fulfillment_service || 'manuel';
+    row.inventory_policy = row.inventory_policy || 'deny'; 
+    row.fulfillment_service = row.fulfillment_service || 'manual';
     
     // 7. Handle alanı - Shopify için kritik önem taşır
     if (!row.handle) {
@@ -697,8 +697,8 @@ export async function generateShopifyCSV(
             variant_grams: '500',
             variant_inventory_tracker: 'shopify',
             variant_inventory_qty: '50',
-            variant_inventory_policy: 'reddet',
-            variant_fulfillment_service: 'manuel',
+            variant_inventory_policy: 'deny',
+            variant_fulfillment_service: 'manual',
             variant_price: product.price,
             variant_compare_at_price: product.basePrice || '',
             variant_requires_shipping: 'TRUE',
@@ -773,8 +773,8 @@ export async function generateShopifyCSV(
               variant_grams: '500',
               variant_inventory_tracker: 'shopify',
               variant_inventory_qty: '50',
-              variant_inventory_policy: 'reddet',
-              variant_fulfillment_service: 'manuel',
+              variant_inventory_policy: 'deny',
+              variant_fulfillment_service: 'manual',
               variant_price: product.price,
               variant_compare_at_price: '',
               variant_requires_shipping: 'TRUE',
@@ -831,8 +831,8 @@ export async function generateShopifyCSV(
             variant_grams: '500',
             variant_inventory_tracker: 'shopify',
             variant_inventory_qty: '50',
-            variant_inventory_policy: 'reddet',
-            variant_fulfillment_service: 'manuel',
+            variant_inventory_policy: 'deny',
+            variant_fulfillment_service: 'manual',
             variant_price: product.price,
             variant_compare_at_price: product.basePrice || '',
             variant_requires_shipping: 'TRUE',
@@ -900,8 +900,8 @@ export async function generateShopifyCSV(
               variant_grams: '500',
               variant_inventory_tracker: 'shopify',
               variant_inventory_qty: '50',
-              variant_inventory_policy: 'reddet',
-              variant_fulfillment_service: 'manuel',
+              variant_inventory_policy: 'deny',
+              variant_fulfillment_service: 'manual',
               variant_price: product.price,
               variant_requires_shipping: 'TRUE',
               variant_taxable: 'TRUE',
@@ -935,8 +935,8 @@ export async function generateShopifyCSV(
             variant_grams: '500',
             variant_inventory_tracker: 'shopify',
             variant_inventory_qty: '50',
-            variant_inventory_policy: 'reddet',
-            variant_fulfillment_service: 'manuel',
+            variant_inventory_policy: 'deny',
+            variant_fulfillment_service: 'manual',
             variant_price: product.price,
             variant_requires_shipping: 'TRUE',
             variant_taxable: 'TRUE',
@@ -966,8 +966,8 @@ export async function generateShopifyCSV(
                 variant_grams: '500',
                 variant_inventory_tracker: 'shopify',
                 variant_inventory_qty: '50',
-                variant_inventory_policy: 'reddet',
-                variant_fulfillment_service: 'manuel',
+                variant_inventory_policy: 'deny',
+                variant_fulfillment_service: 'manual',
                 variant_price: product.price,
                 variant_requires_shipping: 'TRUE',
                 variant_taxable: 'TRUE',
@@ -997,8 +997,8 @@ export async function generateShopifyCSV(
             variant_grams: '1000',
             variant_inventory_tracker: 'shopify',
             variant_inventory_qty: '50',
-            variant_inventory_policy: 'reddet',
-            variant_fulfillment_service: 'manuel',
+            variant_inventory_policy: 'deny',
+            variant_fulfillment_service: 'manual',
             variant_price: product.price,
             variant_requires_shipping: 'TRUE',
             variant_taxable: 'TRUE',
@@ -1033,8 +1033,8 @@ export async function generateShopifyCSV(
             variant_grams: '500',
             variant_inventory_tracker: 'shopify',
             variant_inventory_qty: '50',
-            variant_inventory_policy: 'reddet',
-            variant_fulfillment_service: 'manuel',
+            variant_inventory_policy: 'deny',
+            variant_fulfillment_service: 'manual',
             variant_price: product.price,
             variant_compare_at_price: product.basePrice || '',
             variant_requires_shipping: 'TRUE',
@@ -1204,12 +1204,10 @@ export async function generateShopifyCSV(
           
           // Varyant alanları
           'weight': 'Variant Grams',                   // weight -> Variant Grams
-          'weight_unit': 'Variant Weight Unit',        // weight_unit -> Variant Weight Unit
+          'weight_unit_alt': 'Variant Weight Unit',    // weight_unit -> Variant Weight Unit (renamed to avoid duplicate)
           'inventory_quantity': 'Variant Inventory Qty',     // inventory_quantity -> Variant Inventory Qty
           'inventory_tracker': 'Variant Inventory Tracker',  // inventory_tracker -> Variant Inventory Tracker
-          'variant_inventory_policy': 'Variant Inventory Policy', // variant_inventory_policy -> Variant Inventory Policy
-          'variant_fulfillment_service': 'Variant Fulfillment Service', // variant_fulfillment_service -> Variant Fulfillment Service
-          'status': 'Status'                            // status -> Status (zorunlu Türkçe alan)
+          'alt_status': 'Status'                            // status -> Status (renamed to avoid duplicate)
         };
         
         // Tüm bilinen alan eşleştirmelerini uygula
@@ -1288,8 +1286,8 @@ export async function generateShopifyCSV(
         
         // SHOPIFY TÜRKIYE ZORUNLU ALANLAR - HER SATIRA UYGULA
         row.Status = 'etkin'; // Zorunlu Türkçe değer
-        row['Variant Inventory Policy'] = 'reddet'; // Zorunlu Türkçe değer
-        row['Variant Fulfillment Service'] = 'manuel'; // Zorunlu Türkçe değer
+        row['Variant Inventory Policy'] = 'deny'; // Zorunlu Türkçe değer
+        row['Variant Fulfillment Service'] = 'manual'; // Zorunlu Türkçe değer
         
         // Varyant veya görsel satırları için gerekli alanlar
         if (row['Image Src'] || row['Image Position']) {
@@ -1362,8 +1360,8 @@ export async function generateShopifyCSV(
         newRow['Variant Compare At Price'] = row['Variant Compare At Price'] || row.variant_compare_at_price || product.basePrice;
         newRow['Variant Inventory Qty'] = row['Variant Inventory Qty'] || row.variant_inventory_qty || '50';
         newRow['Variant Inventory Tracker'] = row['Variant Inventory Tracker'] || row.variant_inventory_tracker || 'shopify';
-        newRow['Variant Inventory Policy'] = 'reddet'; // Shopify Türkiye: reddet, devam et
-        newRow['Variant Fulfillment Service'] = 'manuel'; // Shopify Türkiye: manuel, otomatik
+        newRow['Variant Inventory Policy'] = 'deny'; // Shopify Türkiye: reddet, devam et
+        newRow['Variant Fulfillment Service'] = 'manual'; // Shopify Türkiye: manuel, otomatik
         newRow['Variant Requires Shipping'] = row['Variant Requires Shipping'] || row.variant_requires_shipping || 'TRUE';
         newRow['Variant Taxable'] = row['Variant Taxable'] || row.variant_taxable || 'TRUE';
         
@@ -1426,8 +1424,8 @@ export async function generateShopifyCSV(
         
         // SHOPIFY TÜRKIYE ZORUNLU ALANLAR - HER SATIRA EKLE
         newRow.status = 'etkin'; // Shopify Türkiye: etkin, taslak, arşivlendi
-        newRow.variant_inventory_policy = 'reddet'; // Shopify Türkiye: reddet, devam et
-        newRow.variant_fulfillment_service = 'manuel'; // Shopify Türkiye: manuel, otomatik
+        newRow.variant_inventory_policy = 'deny'; // Shopify Türkiye: reddet, devam et
+        newRow.variant_fulfillment_service = 'manual'; // Shopify Türkiye: manuel, otomatik
         newRow.variant_inventory_qty = row['Variant Inventory Qty'] || '50';
         newRow.variant_inventory_tracker = row['Variant Inventory Tracker'] || 'shopify';
         newRow.variant_requires_shipping = row['Variant Requires Shipping'] || 'TRUE';
