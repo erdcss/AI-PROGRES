@@ -36,7 +36,8 @@ export async function generateShopifyCSV(
     sizes?: string[], 
     colors?: string[],
     availability?: string,
-    stockMap?: Record<string, boolean>
+    stockMap?: Record<string, boolean>,
+    colorSizeMatrix?: Record<string, string[]>
   } = {},
   outputPath: string = join(tmpdir(), 'shopify_products.csv')
 ): Promise<{ csvPath: string; filename: string; totalRows: number }> {
