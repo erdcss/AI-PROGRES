@@ -1600,12 +1600,22 @@ ${product.category ? `• Kategori: ${product.category}` : ''}`;
         newRow.Published = row.Published || row.published || 'TRUE';
         newRow.Status = 'active'; // Shopify accepted: active, draft, archived
         
-        // Varyant bilgileri - SADECE ilk satır için
-        newRow['Option1 Name'] = 'Title';
-        newRow['Option1 Value'] = 'Default Title';
+        // Varyant bilgileri - orijinal değerleri koru
+        if (row.option1_name || row['Option1 Name']) {
+          newRow['Option1 Name'] = row.option1_name || row['Option1 Name'] || 'Title';
+          newRow['Option1 Value'] = row.option1_value || row['Option1 Value'] || 'Default Title';
+        } else {
+          newRow['Option1 Name'] = 'Title';
+          newRow['Option1 Value'] = 'Default Title';
+        }
+        
+        if (row.option2_name || row['Option2 Name']) {
+          newRow['Option2 Name'] = row.option2_name || row['Option2 Name'] || '';
+          newRow['Option2 Value'] = row.option2_value || row['Option2 Value'] || '';
+        }
         
         // İlk satır için (ana ürün), tüm renk varyantlarını da ekle
-        if (product.variants && typeof product.variants === 'object' && 'color' in product.variants) {
+        if (product.variants && typeof product.variants === 'object' && 'color' in product.variants && !newRow['Option2 Name']) {
           const variantColors = (product.variants as any).color;
           if (Array.isArray(variantColors) && variantColors.length > 0) {
             newRow['Option2 Name'] = 'Color';
@@ -1686,9 +1696,9 @@ ${product.category ? `• Kategori: ${product.category}` : ''}`;
         newRow.variant_inventory_policy = 'deny'; // Shopify accepted: deny, continue
         newRow.variant_fulfillment_service = 'manual'; // Shopify accepted: manual, automatic
         
-        // CRITICAL FIX: Ensure only first row has variant data
-        if (index !== 0) {
-          // Clear variant fields for additional rows to prevent duplicates
+        // CRITICAL FIX: Preserve variant data for variant rows, clear for image-only rows
+        if (index !== 0 && !row['Option1 Value']) {
+          // Clear variant fields only for image-only rows
           newRow.option1_name = '';
           newRow.option1_value = '';
           newRow.variant_sku = '';
