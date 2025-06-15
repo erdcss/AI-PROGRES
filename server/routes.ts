@@ -459,7 +459,8 @@ export async function registerRoutes(app: Express) {
                 tags: productData.tags || null
               }, {
                 sizes: variants.size || [],
-                colors: variants.color || []
+                colors: variants.color || [],
+                availability: jsonldData.availability
               });
               
               storage.addToHistory(url);
