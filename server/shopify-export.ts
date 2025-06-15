@@ -1677,14 +1677,15 @@ ${product.category ? `• Kategori: ${product.category}` : ''}`;
         newRow.type = row.Type || '';
         newRow.tags = row.Tags || '';
         newRow.published = row.Published || 'TRUE';
-        newRow.option1_name = row['Option1 Name'] || 'Title';
-        newRow.option1_value = row['Option1 Value'] || 'Default Title';
+        newRow.option1_name = row['Option1 Name'] || row.option1_name || 'Title';
+        newRow.option1_value = row['Option1 Value'] || row.option1_value || 'Default Title';
+        newRow.option2_name = row['Option2 Name'] || row.option2_name || '';
+        newRow.option2_value = row['Option2 Value'] || row.option2_value || '';
         
         // Debug field mapping
-        console.log(`Row ${index} - option1_value mapping: "${newRow.option1_value}"`);
-        console.log(`Row ${index} - option1_name mapping: "${newRow.option1_name}"`);
-        newRow.variant_sku = row['Variant SKU'] || '';
-        newRow.variant_price = row['Variant Price'] || '';
+        console.log(`Row ${index} - option1_value: "${newRow.option1_value}" option2_value: "${newRow.option2_value}"`);
+        newRow.variant_sku = row['Variant SKU'] || row.variant_sku || '';
+        newRow.variant_price = row['Variant Price'] || row.variant_price || '';
         
         // CRITICAL: Add image fields to CSV output
         newRow.image_src = row['Image Src'] || row.image_src || '';
@@ -1696,9 +1697,17 @@ ${product.category ? `• Kategori: ${product.category}` : ''}`;
         newRow.variant_inventory_policy = 'deny'; // Shopify accepted: deny, continue
         newRow.variant_fulfillment_service = 'manual'; // Shopify accepted: manual, automatic
         
-        // CRITICAL FIX: Preserve variant data for variant rows, clear for image-only rows
-        if (index !== 0 && !row['Option1 Value']) {
-          // Clear variant fields only for image-only rows
+        // SHOPIFY VARYANT FIX: Option değerlerini koru
+        if (row['Option1 Value'] && row['Option1 Value'].trim() !== '') {
+          // Varyant satırı - option değerlerini koru
+          newRow.option1_value = row['Option1 Value'];
+          newRow.option1_name = row['Option1 Name'] || 'Size';
+        } else if (index === 0) {
+          // Ana ürün - varsayılan değer
+          newRow.option1_value = 'Default Title';
+          newRow.option1_name = 'Title';
+        } else {
+          // Görsel satırları - varyant alanlarını temizle
           newRow.option1_name = '';
           newRow.option1_value = '';
           newRow.variant_sku = '';
@@ -1706,6 +1715,12 @@ ${product.category ? `• Kategori: ${product.category}` : ''}`;
           newRow.status = '';
           newRow.variant_inventory_policy = '';
           newRow.variant_fulfillment_service = '';
+        }
+        
+        // Option2 değerlerini koru
+        if (row['Option2 Value'] && row['Option2 Value'].trim() !== '') {
+          newRow.option2_value = row['Option2 Value'];
+          newRow.option2_name = row['Option2 Name'] || 'Color';
         }
         newRow.variant_inventory_qty = row['Variant Inventory Qty'] || '50';
         newRow.variant_inventory_tracker = row['Variant Inventory Tracker'] || 'shopify';
