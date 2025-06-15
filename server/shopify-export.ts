@@ -567,19 +567,32 @@ export async function generateShopifyCSV(
       const productHandle = createUniqueHandle(product.title);
       const productImages = product.images || [];
       
-      const cleanCSVData = [{
+      // Enhanced product description with attributes
+      const productDescription = `${product.description || product.title}
+      
+Ürün Özellikleri:
+${product.attributes ? Object.entries(product.attributes).map(([key, value]) => `• ${key}: ${value}`).join('\n') : ''}
+${variants?.sizes?.length ? `• Mevcut Bedenler: ${variants.sizes.join(', ')}` : ''}
+${variants?.colors?.length ? `• Mevcut Renkler: ${variants.colors.join(', ')}` : ''}
+${product.category ? `• Kategori: ${product.category}` : ''}`;
+
+      // Generate CSV rows for main product and all images
+      const enhancedCSVRows = [];
+      
+      // Main product row
+      const mainRow = {
         handle: productHandle,
         title: product.title,
-        body_html: product.description?.substring(0, 500) || product.title,
+        body_html: productDescription,
         vendor: 'turmarkt',
         product_category: 'Apparel & Accessories',
         type: product.category?.split('>').pop()?.trim() || 'Clothing',
         tags: (product.tags || []).join(',') || 'turmarkt',
         published: 'TRUE',
-        option1_name: 'Title',
-        option1_value: 'Default Title',
-        option2_name: '',
-        option2_value: '',
+        option1_name: (variants?.sizes && variants.sizes.length > 0) ? 'Size' : 'Title',
+        option1_value: (variants?.sizes && variants.sizes.length > 0) ? variants.sizes[0] : 'Default Title',
+        option2_name: (variants?.colors && variants.colors.length > 0) ? 'Color' : '',
+        option2_value: (variants?.colors && variants.colors.length > 0) ? variants.colors[0] : '',
         option3_name: '',
         option3_value: '',
         variant_sku: productHandle,
@@ -589,7 +602,7 @@ export async function generateShopifyCSV(
         variant_inventory_policy: 'deny',
         variant_fulfillment_service: 'manual',
         variant_price: product.price || '0.00',
-        variant_compare_at_price: product.basePrice || '',
+        variant_compare_at_price: '', // Remove compare price completely
         variant_requires_shipping: 'TRUE',
         variant_taxable: 'TRUE',
         variant_barcode: '',
@@ -616,7 +629,123 @@ export async function generateShopifyCSV(
         price_international: '',
         compare_at_price_international: '',
         status: 'active'
-      }];
+      };
+      
+      enhancedCSVRows.push(mainRow);
+      
+      // Add additional images as separate rows
+      productImages.slice(1).forEach((imageUrl, index) => {
+        const imageRow = {
+          handle: productHandle,
+          title: '',
+          body_html: '',
+          vendor: '',
+          product_category: '',
+          type: '',
+          tags: '',
+          published: '',
+          option1_name: '',
+          option1_value: '',
+          option2_name: '',
+          option2_value: '',
+          option3_name: '',
+          option3_value: '',
+          variant_sku: '',
+          variant_grams: '',
+          variant_inventory_tracker: '',
+          variant_inventory_qty: '',
+          variant_inventory_policy: '',
+          variant_fulfillment_service: '',
+          variant_price: '',
+          variant_compare_at_price: '',
+          variant_requires_shipping: '',
+          variant_taxable: '',
+          variant_barcode: '',
+          image_src: imageUrl,
+          image_position: `${index + 2}`,
+          image_alt_text: `${product.title} - Görsel ${index + 2}`,
+          gift_card: '',
+          seo_title: '',
+          seo_description: '',
+          google_shopping_google_product_category: '',
+          google_shopping_gender: '',
+          google_shopping_age_group: '',
+          google_shopping_mpn: '',
+          google_shopping_condition: '',
+          google_shopping_custom_product: '',
+          variant_image: '',
+          variant_weight_unit: '',
+          variant_tax_code: '',
+          cost_per_item: '',
+          included_united_states: '',
+          price_united_states: '',
+          compare_at_price_united_states: '',
+          included_international: '',
+          price_international: '',
+          compare_at_price_international: '',
+          status: ''
+        };
+        enhancedCSVRows.push(imageRow);
+      });
+      
+      // Add size variants if available
+      if (variants?.sizes && variants.sizes.length > 1) {
+        variants.sizes.slice(1).forEach(size => {
+          const sizeRow = {
+            handle: productHandle,
+            title: '',
+            body_html: '',
+            vendor: '',
+            product_category: '',
+            type: '',
+            tags: '',
+            published: '',
+            option1_name: '',
+            option1_value: size,
+            option2_name: '',
+            option2_value: (variants?.colors && variants.colors.length > 0) ? variants.colors[0] : '',
+            option3_name: '',
+            option3_value: '',
+            variant_sku: `${productHandle}-${size}`,
+            variant_grams: '500',
+            variant_inventory_tracker: 'shopify',
+            variant_inventory_qty: '50',
+            variant_inventory_policy: 'deny',
+            variant_fulfillment_service: 'manual',
+            variant_price: product.price || '0.00',
+            variant_compare_at_price: '',
+            variant_requires_shipping: 'TRUE',
+            variant_taxable: 'TRUE',
+            variant_barcode: '',
+            image_src: '',
+            image_position: '',
+            image_alt_text: '',
+            gift_card: '',
+            seo_title: '',
+            seo_description: '',
+            google_shopping_google_product_category: '',
+            google_shopping_gender: '',
+            google_shopping_age_group: '',
+            google_shopping_mpn: '',
+            google_shopping_condition: '',
+            google_shopping_custom_product: '',
+            variant_image: '',
+            variant_weight_unit: 'g',
+            variant_tax_code: '',
+            cost_per_item: '',
+            included_united_states: '',
+            price_united_states: '',
+            compare_at_price_united_states: '',
+            included_international: '',
+            price_international: '',
+            compare_at_price_international: '',
+            status: ''
+          };
+          enhancedCSVRows.push(sizeRow);
+        });
+      }
+      
+      const cleanCSVData = enhancedCSVRows;
 
       console.log("CLEAN CSV - Option1 Value:", cleanCSVData[0].option1_value);
       
@@ -1583,7 +1712,7 @@ export async function generateShopifyCSV(
           resolve({
             csvPath: previewPath,
             filename: filename,
-            totalRows: directCSVData.length
+            totalRows: cleanCSVData.length
           });
         } catch (copyError) {
           console.error('CSV kopyalama hatası:', copyError);
