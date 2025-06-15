@@ -19,6 +19,8 @@ export interface VariantStockInfo {
   outOfStockSizes: string[];
   outOfStockColors: string[];
   variantStockMap: Record<string, boolean>; // variant_key: inStock
+  colorSizeMatrix: Record<string, string[]>; // color: [available_sizes]
+  availableVariants: Array<{color: string, size: string, inStock: boolean}>;
 }
 
 /**
@@ -410,13 +412,28 @@ export async function extractVariantStockInfo($: cheerio.CheerioAPI): Promise<Va
     colors: [],
     outOfStockSizes: [],
     outOfStockColors: [],
-    variantStockMap: {}
+    variantStockMap: {},
+    colorSizeMatrix: {},
+    availableVariants: []
   };
 
   try {
     console.log('🔧 STOK DURUMU ANALİZİ başlatılıyor...');
+    
+    // HTML yapısını debug için analiz et
+    console.log('🔧 HTML YAPI ANALİZİ:');
+    const allButtons = $('button').length;
+    const allSpans = $('span').length;
+    const allDivs = $('div').length;
+    const prInElements = $('.pr-in').length;
+    const productDetailElements = $('.product-detail').length;
+    console.log(`   - Toplam button: ${allButtons}`);
+    console.log(`   - Toplam span: ${allSpans}`);
+    console.log(`   - Toplam div: ${allDivs}`);
+    console.log(`   - .pr-in elementleri: ${prInElements}`);
+    console.log(`   - .product-detail elementleri: ${productDetailElements}`);
 
-    // Beden seçeneklerini ve stok durumlarını kontrol et
+    // Beden seçeneklerini ve stok durumlarını kontrol et - Trendyol 2024 güncel selektörler
     const sizeSelectors = [
       '[data-testid*="size"]',
       '.size-variant', 
@@ -425,7 +442,18 @@ export async function extractVariantStockInfo($: cheerio.CheerioAPI): Promise<Va
       '[class*="size"]', 
       '[class*="beden"]',
       '.size-option',
-      'button[data-size]'
+      'button[data-size]',
+      // Trendyol güncel selektörler
+      '.pr-in-at button',
+      '.pr-in-at span',
+      '.product-detail-attribute button',
+      '.product-detail-attributes button',
+      '[data-testid="size-section"] button',
+      '[data-testid="size-section"] span',
+      '.variant-selector button',
+      '.size-selector button',
+      '.attribute-button',
+      '.variant-button'
     ];
     
     sizeSelectors.forEach(selector => {
@@ -458,7 +486,7 @@ export async function extractVariantStockInfo($: cheerio.CheerioAPI): Promise<Va
       });
     });
 
-    // Renk seçeneklerini ve stok durumlarını kontrol et
+    // Renk seçeneklerini ve stok durumlarını kontrol et - Trendyol 2024 güncel selektörler
     const colorSelectors = [
       '[data-testid*="color"]',
       '.color-variant', 
@@ -469,7 +497,19 @@ export async function extractVariantStockInfo($: cheerio.CheerioAPI): Promise<Va
       '.color-option',
       'button[data-color]',
       'img[alt*="renk"]',
-      'img[title*="color"]'
+      'img[title*="color"]',
+      // Trendyol güncel renk selektörleri
+      '.pr-in-co button',
+      '.pr-in-co span',
+      '.pr-in-co img',
+      '.product-detail-color button',
+      '.color-selector button',
+      '.color-selector img',
+      '[data-testid="color-section"] button',
+      '[data-testid="color-section"] img',
+      '.variant-color-option',
+      '.color-attribute button',
+      '.attribute-color button'
     ];
     
     colorSelectors.forEach(selector => {
@@ -525,23 +565,123 @@ export async function extractVariantStockInfo($: cheerio.CheerioAPI): Promise<Va
       });
     });
 
-    // Varyant stok haritasını oluştur
+    // Trendyol'da renk-beden kombinasyonlarını detaylı tespit et
+    console.log('🔧 RENK-BEDEN KOMBİNASYON ANALİZİ başlatılıyor...');
+    
+    // Renk-beden kombinasyonlarını JavaScript'ten tespit et
+    const scriptTags = $('script[type="application/javascript"]');
+    let variantData = null;
+    
+    scriptTags.each((index, script) => {
+      const content = $(script).html();
+      if (content && (content.includes('variants') || content.includes('productVariants') || content.includes('attributes'))) {
+        // Varyant verilerini içeren script'i bul
+        const variantMatches = content.match(/"variants"\s*:\s*(\[.*?\])/s) || 
+                              content.match(/"attributes"\s*:\s*(\{.*?\})/s) ||
+                              content.match(/variants\s*:\s*(\[.*?\])/s);
+        
+        if (variantMatches) {
+          try {
+            console.log(`🔧 Script'te varyant verisi bulundu`);
+            variantData = variantMatches[1];
+          } catch (e) {
+            console.log(`🔧 Varyant parse hatası:`, e);
+          }
+        }
+      }
+    });
+    
+    // Her renk için mevcut bedenleri tespit et
+    stockInfo.colors.forEach(color => {
+      stockInfo.colorSizeMatrix[color] = [];
+      
+      // Bu renk için mevcut bedenleri bul - gerçek HTML elementlerinden
+      const colorElements = $(`button:contains("${color}"), span:contains("${color}"), [title*="${color}"], [alt*="${color}"]`);
+      
+      if (colorElements.length > 0) {
+        console.log(`🔧 ${color} rengi için ${colorElements.length} element bulundu`);
+        
+        colorElements.each((index, colorElement) => {
+          const $colorEl = $(colorElement);
+          
+          // Bu rengin disabled olup olmadığını kontrol et
+          const isColorDisabled = $colorEl.hasClass('disabled') || 
+                                 $colorEl.prop('disabled') ||
+                                 $colorEl.closest('.disabled').length > 0 ||
+                                 $colorEl.text().toLowerCase().includes('tükendi');
+          
+          if (!isColorDisabled) {
+            // Bu renk aktifken mevcut bedenleri bul
+            stockInfo.sizes.forEach(size => {
+              // Varsayılan olarak tüm bedenleri mevcut kabul et, sonra stok kontrolü yap
+              if (!stockInfo.colorSizeMatrix[color].includes(size)) {
+                stockInfo.colorSizeMatrix[color].push(size);
+              }
+            });
+          }
+        });
+      } else {
+        // HTML'de renk elementi bulunamazsa, JSON-LD'den gelen tüm bedenleri ekle
+        console.log(`🔧 ${color} rengi için HTML element bulunamadı, varsayılan bedenler ekleniyor`);
+        stockInfo.colorSizeMatrix[color] = [...stockInfo.sizes];
+      }
+    });
+    
+    // Eğer HTML'den kombinasyon bulunamazsa, tüm kombinasyonları varsayılan olarak oluştur
+    if (Object.keys(stockInfo.colorSizeMatrix).length === 0 && stockInfo.colors.length > 0 && stockInfo.sizes.length > 0) {
+      console.log('🔧 HTML\'den kombinasyon bulunamadı, varsayılan kombinasyonlar oluşturuluyor...');
+      stockInfo.colors.forEach(color => {
+        stockInfo.colorSizeMatrix[color] = [...stockInfo.sizes];
+      });
+    }
+    
+    // Mevcut varyantları listele
+    Object.entries(stockInfo.colorSizeMatrix).forEach(([color, sizes]) => {
+      sizes.forEach(size => {
+        const isInStock = !stockInfo.outOfStockSizes.includes(size) && !stockInfo.outOfStockColors.includes(color);
+        stockInfo.availableVariants.push({
+          color,
+          size,
+          inStock: isInStock
+        });
+        
+        const variantKey = `${color}-${size}`;
+        stockInfo.variantStockMap[variantKey] = isInStock;
+      });
+    });
+    
+    // Olmayan kombinasyonlar için stok haritasını tamamla
     if (stockInfo.sizes.length > 0 && stockInfo.colors.length > 0) {
       stockInfo.sizes.forEach(size => {
         stockInfo.colors.forEach(color => {
           const variantKey = `${color}-${size}`;
-          const isSizeOutOfStock = stockInfo.outOfStockSizes.includes(size);
-          const isColorOutOfStock = stockInfo.outOfStockColors.includes(color);
-          stockInfo.variantStockMap[variantKey] = !isSizeOutOfStock && !isColorOutOfStock;
+          
+          // Eğer bu kombinasyon colorSizeMatrix'te yoksa, stokta yok olarak işaretle
+          if (!stockInfo.colorSizeMatrix[color] || !stockInfo.colorSizeMatrix[color].includes(size)) {
+            stockInfo.variantStockMap[variantKey] = false;
+            console.log(`🔧 ${color}-${size} kombinasyonu mevcut değil, stok: 0`);
+          } else if (!(variantKey in stockInfo.variantStockMap)) {
+            // Eğer henüz tanımlanmamışsa, genel kurallara göre belirle
+            const isSizeOutOfStock = stockInfo.outOfStockSizes.includes(size);
+            const isColorOutOfStock = stockInfo.outOfStockColors.includes(color);
+            stockInfo.variantStockMap[variantKey] = !isSizeOutOfStock && !isColorOutOfStock;
+          }
         });
       });
     }
 
+    // Renk-beden matrix detayını yazdır
+    console.log('🔧 RENK-BEDEN MATRİX:');
+    Object.entries(stockInfo.colorSizeMatrix).forEach(([color, sizes]) => {
+      console.log(`   ${color}: [${sizes.join(', ')}]`);
+    });
+    
     console.log(`🔧 STOK ANALİZİ SONUCU:
     - Toplam beden: ${stockInfo.sizes.length} (${stockInfo.sizes.join(', ')})
     - Stokta olmayan beden: ${stockInfo.outOfStockSizes.length} (${stockInfo.outOfStockSizes.join(', ')})
     - Toplam renk: ${stockInfo.colors.length} (${stockInfo.colors.join(', ')})
     - Stokta olmayan renk: ${stockInfo.outOfStockColors.length} (${stockInfo.outOfStockColors.join(', ')})
+    - Mevcut varyant: ${stockInfo.availableVariants.filter(v => v.inStock).length}/${stockInfo.availableVariants.length}
     - Varyant kombinasyonu: ${Object.keys(stockInfo.variantStockMap).length}`);
     
     // Test amaçlı: Eğer hiç stok bilgisi bulunamadıysa, varsayılan varyantları oluştur
