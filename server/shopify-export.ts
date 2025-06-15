@@ -1135,79 +1135,38 @@ export async function generateShopifyCSV(
         // Şimdi Shopify'ın 2024 CSV belgeleri ile uyumlu hale getir
         const newRow: Record<string, any> = {};
         
-        // Alan eşleştirme (değişen Shopify başlıklarına uyum)
+        // Basitleştirilmiş alan eşleştirme - duplicate'ler kaldırıldı
         const fieldMapping: Record<string, string> = {
-          // Shopify alanları - kesin API alanları (2024)
-          'id': 'ID',                                  // Shopify Product ID
-          'handle': 'Handle',                         // URL-friendly name
-          'title': 'Title',                           // Product title
-          'body_html': 'Body (HTML)',                // Product description
-          'vendor': 'Vendor',                        // Manufacturer
-          'standard_product_type': 'Standard Product Type', // Ürün tipi (standart)
-          'custom_product_type': 'Custom Product Type',    // Özel ürün tipi
-          'tags': 'Tags',                            // Tags
-          'published': 'Published',                  // Whether product is published
-          'status': 'Status',                        // Product status (active, draft)
-          'published_at': 'Published At',            // Publish date
-          'published_scope': 'Published Scope',      // Publish scope
-          'template_suffix': 'Template Suffix',      // Template override
-          'option1_name': 'Option1 Name',            // First option name
-          'option1_value': 'Option1 Value',          // First option value
-          'option2_name': 'Option2 Name',            // Second option name
-          'option2_value': 'Option2 Value',          // Second option value
-          'option3_name': 'Option3 Name',            // Third option name
-          'option3_value': 'Option3 Value',          // Third option value
-          'variant_sku': 'Variant SKU',              // Variant stock keeping unit
-          'variant_grams': 'Variant Grams',          // Variant weight in grams
-          'variant_inventory_tracker': 'Variant Inventory Tracker', // Variant inventory tracking
-          'variant_inventory_qty': 'Variant Inventory Qty',         // Variant inventory quantity
-          'variant_inventory_policy': 'Variant Inventory Policy',   // Variant inventory policy
-          'variant_fulfillment_service': 'Variant Fulfillment Service', // Variant fulfillment service
-          'variant_price': 'Variant Price',          // Variant price
-          'variant_compare_at_price': 'Variant Compare At Price', // Variant compare at price
-          'variant_requires_shipping': 'Variant Requires Shipping', // Variant requires shipping
-          'variant_taxable': 'Variant Taxable',      // Variant taxable
-          'variant_barcode': 'Variant Barcode',      // Variant barcode
-          'image_src': 'Image Src',                  // Image source URL
-          'image_position': 'Image Position',        // Image position
-          'image_alt_text': 'Image Alt Text',        // Image alt text
-          'gift_card': 'Gift Card',                  // Gift card
-          'seo_title': 'SEO Title',                  // SEO title
-          'seo_description': 'SEO Description',      // SEO description
-          
-          // Google Shopping alanları
-          'google_shopping_google_product_category': 'Google Shopping / Google Product Category',
-          'google_shopping_gender': 'Google Shopping / Gender',
-          'google_shopping_age_group': 'Google Shopping / Age Group',
-          'google_shopping_mpn': 'Google Shopping / MPN',
-          'google_shopping_adwords_grouping': 'Google Shopping / AdWords Grouping',
-          'google_shopping_adwords_labels': 'Google Shopping / AdWords Labels',
-          'google_shopping_condition': 'Google Shopping / Condition',
-          'google_shopping_custom_product': 'Google Shopping / Custom Product',
-          'google_shopping_custom_label_0': 'Google Shopping / Custom Label 0',
-          'google_shopping_custom_label_1': 'Google Shopping / Custom Label 1',
-          'google_shopping_custom_label_2': 'Google Shopping / Custom Label 2',
-          'google_shopping_custom_label_3': 'Google Shopping / Custom Label 3',
-          'google_shopping_custom_label_4': 'Google Shopping / Custom Label 4',
-          'variant_image': 'Variant Image',            // Variant Image
-          'variant_weight_unit': 'Variant Weight Unit',  // Variant Weight Unit
-          // Removed duplicate properties
-          
-          // Alternatif alan adları (uyumluluk için)
-          'url_handle': 'Handle',                      // URL handle -> Handle 
-          'description': 'Body (HTML)',                // Description -> Body (HTML)
-          'option1 name': 'Option1 Name',              // option1 name -> Option1 Name
-          'option1 value': 'Option1 Value',            // option1 value -> Option1 Value
-          'price': 'Variant Price',                    // Price -> Variant Price
-          'sku': 'Variant SKU',                        // SKU -> Variant SKU
-          'product_image_url': 'Image Src',            // Product image URL -> Image Src
-          
-          // Varyant alanları
-          'weight': 'Variant Grams',                   // weight -> Variant Grams
-          'weight_unit_alt': 'Variant Weight Unit',    // weight_unit -> Variant Weight Unit (renamed to avoid duplicate)
-          'inventory_quantity': 'Variant Inventory Qty',     // inventory_quantity -> Variant Inventory Qty
-          'inventory_tracker': 'Variant Inventory Tracker',  // inventory_tracker -> Variant Inventory Tracker
-          'alt_status': 'Status'                            // status -> Status (renamed to avoid duplicate)
+          'handle': 'Handle',
+          'title': 'Title',
+          'body_html': 'Body (HTML)',
+          'vendor': 'Vendor',
+          'tags': 'Tags',
+          'published': 'Published',
+          'status': 'Status',
+          'option1_name': 'Option1 Name',
+          'option1_value': 'Option1 Value',
+          'option2_name': 'Option2 Name',
+          'option2_value': 'Option2 Value',
+          'option3_name': 'Option3 Name',
+          'option3_value': 'Option3 Value',
+          'variant_sku': 'Variant SKU',
+          'variant_grams': 'Variant Grams',
+          'variant_inventory_tracker': 'Variant Inventory Tracker',
+          'variant_inventory_qty': 'Variant Inventory Qty',
+          'variant_inventory_policy': 'Variant Inventory Policy',
+          'variant_fulfillment_service': 'Variant Fulfillment Service',
+          'variant_price': 'Variant Price',
+          'variant_compare_at_price': 'Variant Compare At Price',
+          'variant_requires_shipping': 'Variant Requires Shipping',
+          'variant_taxable': 'Variant Taxable',
+          'variant_barcode': 'Variant Barcode',
+          'image_src': 'Image Src',
+          'image_position': 'Image Position',
+          'image_alt_text': 'Image Alt Text',
+          'variant_image': 'Variant Image',
+          'variant_weight_unit': 'Variant Weight Unit',
+          'gift_card': 'Gift Card'
         };
         
         // Tüm bilinen alan eşleştirmelerini uygula
@@ -1422,10 +1381,10 @@ export async function generateShopifyCSV(
         newRow.image_position = row['Image Position'] || row.image_position || '';
         newRow.image_alt_text = row['Image Alt Text'] || row.image_alt_text || '';
         
-        // SHOPIFY TÜRKIYE ZORUNLU ALANLAR - HER SATIRA EKLE
-        newRow.status = 'etkin'; // Shopify Türkiye: etkin, taslak, arşivlendi
-        newRow.variant_inventory_policy = 'deny'; // Shopify Türkiye: reddet, devam et
-        newRow.variant_fulfillment_service = 'manual'; // Shopify Türkiye: manuel, otomatik
+        // SHOPIFY COMPLIANCE - ACCEPTED ENGLISH VALUES
+        newRow.status = 'active'; // Shopify accepted: active, draft, archived
+        newRow.variant_inventory_policy = 'deny'; // Shopify accepted: deny, continue
+        newRow.variant_fulfillment_service = 'manual'; // Shopify accepted: manual, automatic
         newRow.variant_inventory_qty = row['Variant Inventory Qty'] || '50';
         newRow.variant_inventory_tracker = row['Variant Inventory Tracker'] || 'shopify';
         newRow.variant_requires_shipping = row['Variant Requires Shipping'] || 'TRUE';
@@ -1435,73 +1394,8 @@ export async function generateShopifyCSV(
         return newRow;
       });
       
-      // DOĞRUDAN CSV VERİSİ OLUŞTUR - Türkçe uyumluluk garantili
-      const csvData = filteredRows.map(row => {
-        // Her satır için gereken tüm alanları map et
-        const csvRow: any = {};
-        
-        // Temel alanlar - Shopify CSV başlıklarını kullan
-        csvRow.Handle = row.Handle || '';
-        csvRow.Title = row.Title || '';
-        csvRow['Body (HTML)'] = row['Body (HTML)'] || '';
-        csvRow.Vendor = row.Vendor || 'turmarkt';
-        csvRow['Product Category'] = row['Product Category'] || '';
-        csvRow.Type = row.Type || '';
-        csvRow.Tags = row.Tags || '';
-        csvRow.Published = row.Published || 'TRUE';
-        
-        // Option alanları
-        csvRow['Option1 Name'] = row['Option1 Name'] || 'Title';
-        csvRow['Option1 Value'] = row['Option1 Value'] || 'Default Title';
-        csvRow['Option2 Name'] = row['Option2 Name'] || '';
-        csvRow['Option2 Value'] = row['Option2 Value'] || '';
-        csvRow['Option3 Name'] = row['Option3 Name'] || '';
-        csvRow['Option3 Value'] = row['Option3 Value'] || '';
-        
-        // Varyant alanları
-        csvRow['Variant SKU'] = row['Variant SKU'] || '';
-        csvRow['Variant Grams'] = row['Variant Grams'] || '500';
-        csvRow['Variant Inventory Tracker'] = row['Variant Inventory Tracker'] || 'shopify';
-        csvRow['Variant Inventory Qty'] = row['Variant Inventory Qty'] || '50';
-        csvRow['Variant Price'] = row['Variant Price'] || '0';
-        csvRow['Variant Compare At Price'] = row['Variant Compare At Price'] || '';
-        csvRow['Variant Requires Shipping'] = row['Variant Requires Shipping'] || 'TRUE';
-        csvRow['Variant Taxable'] = row['Variant Taxable'] || 'TRUE';
-        csvRow['Variant Barcode'] = row['Variant Barcode'] || '';
-        
-        // SHOPIFY ZORUNLU ALANLAR - KABUL EDİLEN DEĞERLER
-        csvRow.Status = 'active';
-        csvRow['Variant Inventory Policy'] = 'deny';
-        csvRow['Variant Fulfillment Service'] = 'manual';
-        
-        // Görsel alanları
-        csvRow['Image Src'] = row['Image Src'] || '';
-        csvRow['Image Position'] = row['Image Position'] || '';
-        csvRow['Image Alt Text'] = row['Image Alt Text'] || '';
-        csvRow['Gift Card'] = row['Gift Card'] || 'FALSE';
-        
-        // SEO ve Google Shopping alanları
-        csvRow['SEO Title'] = row['SEO Title'] || '';
-        csvRow['SEO Description'] = row['SEO Description'] || '';
-        csvRow['Google Shopping / Google Product Category'] = row['Google Shopping / Google Product Category'] || '';
-        csvRow['Google Shopping / Gender'] = row['Google Shopping / Gender'] || '';
-        csvRow['Google Shopping / Age Group'] = row['Google Shopping / Age Group'] || '';
-        csvRow['Google Shopping / MPN'] = row['Google Shopping / MPN'] || '';
-        csvRow['Google Shopping / Condition'] = row['Google Shopping / Condition'] || '';
-        csvRow['Google Shopping / Custom Product'] = row['Google Shopping / Custom Product'] || '';
-        csvRow['Variant Image'] = row['Variant Image'] || '';
-        csvRow['Variant Weight Unit'] = row['Variant Weight Unit'] || 'g';
-        csvRow['Variant Tax Code'] = row['Variant Tax Code'] || '';
-        csvRow['Cost per item'] = row['Cost per item'] || '';
-        csvRow['Included / United States'] = row['Included / United States'] || 'TRUE';
-        csvRow['Price / United States'] = row['Price / United States'] || '';
-        csvRow['Compare At Price / United States'] = row['Compare At Price / United States'] || '';
-        csvRow['Included / International'] = row['Included / International'] || 'TRUE';
-        csvRow['Price / International'] = row['Price / International'] || '';
-        csvRow['Compare At Price / International'] = row['Compare At Price / International'] || '';
-        
-        return sanitizeCSVRow(csvRow);
-      });
+      // WRITE PROCESSED CSV DATA WITH SHOPIFY COMPLIANCE
+      const csvData = csvCompatibleRows;
       
       await csvWriter.writeRecords(csvData);
       console.log(`CSV başarıyla oluşturuldu: ${outputPath} (${csvData.length} satır)`);
