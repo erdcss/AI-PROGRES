@@ -430,10 +430,22 @@ export async function registerRoutes(app: Express) {
                 - Etiketler: ${productData.tags?.length || 0} adet
                 - Varyantlar: ${variants.size.length} beden, ${variants.color.length} renk`);
               
+              console.log('🔥 JSON-LD DEBUG BEFORE CSV:', JSON.stringify({
+                sizes: variants.size,
+                colors: variants.color
+              }));
+              
               // Ürünü veritabanına kaydet
               await storage.saveProduct(productData);
               
-              // Shopify CSV oluştur
+              // Varyant verilerini CSV'ye aktarmadan önce debug et
+              console.log('🔥 JSON-LD ROUTE VARYANT DEBUG:', {
+                variantsSize: variants.size?.length || 0,
+                variantsColor: variants.color?.length || 0,
+                sizes: variants.size,
+                colors: variants.color
+              });
+              
               const csvResult = await generateShopifyCSV({
                 ...productData,
                 id: 0,
@@ -445,7 +457,10 @@ export async function registerRoutes(app: Express) {
                 subcategory: productData.subcategory || null,
                 productType: productData.productType || null,
                 tags: productData.tags || null
-              }, {});
+              }, {
+                sizes: variants.size || [],
+                colors: variants.color || []
+              });
               
               storage.addToHistory(url);
               
@@ -875,6 +890,14 @@ export async function registerRoutes(app: Express) {
             // Ürünü veritabanına kaydet
             await storage.saveProduct(productData);
             
+            // Varyant verilerini debug et
+            console.log('🔥 ROUTES VARYANT DEBUG:', {
+              variantsSize: variants.size?.length || 0,
+              variantsColor: variants.color?.length || 0,
+              sizes: variants.size,
+              colors: variants.color
+            });
+
             // Shopify CSV oluştur - varyant verilerini doğru gönder
             const csvResult = await generateShopifyCSV({
               ...productData,
