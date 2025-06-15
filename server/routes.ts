@@ -993,10 +993,16 @@ export async function registerRoutes(app: Express) {
   app.get('/api/download/:filename', (req, res) => {
     try {
       const filename = req.params.filename;
-      const filepath = path.join('./temp', filename);
+      // Hem temp hem de /tmp klasörlerini kontrol et
+      let filepath = path.join('./temp', filename);
       
       if (!fs.existsSync(filepath)) {
-        return res.status(404).json({ message: 'CSV dosyası bulunamadı' });
+        // /tmp klasöründe de ara
+        filepath = path.join('/tmp', filename);
+        if (!fs.existsSync(filepath)) {
+          console.log(`CSV dosyası bulunamadı: ${filename} (./temp ve /tmp kontrol edildi)`);
+          return res.status(404).json({ message: `CSV dosyası bulunamadı: ${filename}` });
+        }
       }
       
       const csvContent = fs.readFileSync(filepath, 'utf8');

@@ -392,8 +392,28 @@ export async function generateShopifyCSV(
       
       console.log(`SHOPIFY TEMPLATE FORMAT CSV oluşturuldu: ${outputPath} (${csvRows.length} satır)`);
       
+      // Dosyayı ./temp klasörüne de kopyala (download için)
+      const tempPath = join('./temp', 'shopify_products.csv');
+      const tempDir = './temp';
+      
+      // temp klasörünü oluştur
+      if (!fs.existsSync(tempDir)) {
+        fs.mkdirSync(tempDir, { recursive: true });
+      }
+      
+      // Dosyayı kopyala
+      try {
+        fs.copyFileSync(outputPath, tempPath);
+        console.log(`CSV dosyası hem /tmp hem de ./temp klasörüne kaydedildi`);
+      } catch (copyError) {
+        console.log(`Dosya kopyalama hatası: ${copyError}`);
+        // temp klasöründe direkt oluştur
+        fs.writeFileSync(tempPath, fs.readFileSync(outputPath, 'utf8'));
+        console.log(`CSV dosyası ./temp klasörüne yazıldı`);
+      }
+      
       resolve({
-        csvPath: outputPath,
+        csvPath: tempPath,
         filename: `shopify_products.csv`,
         totalRows: csvRows.length
       });
