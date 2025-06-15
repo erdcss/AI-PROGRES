@@ -966,64 +966,245 @@ ${product.category ? `• Kategori: ${product.category}` : ''}`;
       
       console.log(`ETİKET SİSTEMİ: ${product.tags?.length || 0} etiket, CSV'de kullanılan: ${tags}`);
 
+      console.log(`VARYANT KONTROLÜ: hasSizeVariants=${hasSizeVariants}, hasColorVariants=${hasColorVariants}, sizes=${sizes.length}, colors=${colors.length}`);
+      
       if (productHasVariants) {
-        // Sadece beden varyantları içeren ürün
-        if (hasSizeVariants && !hasColorVariants) {
+        // Hem beden hem renk varyantları - Shopify resmi format
+        if (hasSizeVariants && hasColorVariants) {
+          console.log('ANA VARYANT YENİ SİSTEM: Renk + Beden kombinasyonları');
+          // Ana ürün satırı - ilk renk ve ilk beden
           let mainRow = {
             handle: handle,
             title: product.title,
-            body_html: product.description || product.title,
+            'body_html': product.description || product.title,
             vendor: product.brand || 'turmarkt',
-            product_category: 'Apparel & Accessories',
+            'product_category': 'Apparel & Accessories > Clothing',
             type: product.category ? 
               product.category.split('>').pop()?.trim() || 'Giyim'
               : 'Giyim',
             tags: tags,
             published: 'TRUE',
-            option1_name: 'Size',
-            option1_value: sizes[0],
-            option2_name: '',
-            option2_value: '',
-            option3_name: '',
-            option3_value: '',
-            variant_sku: `${handle}-${sizes[0]}`,
-            variant_grams: '500',
-            variant_inventory_tracker: 'shopify',
-            variant_inventory_qty: '50',
-            variant_inventory_policy: 'deny',
-            variant_fulfillment_service: 'manual',
-            variant_price: product.price,
-            variant_compare_at_price: product.basePrice || '',
-            variant_requires_shipping: 'TRUE',
-            variant_taxable: 'TRUE',
-            variant_barcode: '',
-            image_src: mainImage,
-            image_position: '1',
-            image_alt_text: product.title || '',
-            gift_card: 'FALSE',
-            seo_title: product.title,
-            seo_description: product.description || product.title,
-            google_shopping_google_product_category: '212',
-            google_shopping_gender: 'unisex',
-            google_shopping_age_group: 'adult',
-            google_shopping_mpn: product.brand || '',
-            google_shopping_condition: 'new',
-            google_shopping_custom_product: 'TRUE',
-            variant_image: mainImage,
-            variant_weight_unit: 'g',
-            variant_tax_code: '',
-            cost_per_item: '',
-            included_united_states: 'TRUE',
-            price_united_states: '',
-            compare_at_price_united_states: '',
-            included_international: 'TRUE',
-            price_international: '',
-            compare_at_price_international: '',
-            status: 'etkin'
+            'option1_name': 'Color',
+            'option1_value': colors[0],
+            'option2_name': 'Size', 
+            'option2_value': sizes[0],
+            'option3_name': '',
+            'option3_value': '',
+            'variant_sku': `${handle}-${colors[0]}-${sizes[0]}`,
+            'variant_grams': '500',
+            'variant_inventory_tracker': 'shopify',
+            'variant_inventory_qty': '50',
+            'variant_inventory_policy': 'deny',
+            'variant_fulfillment_service': 'manual',
+            'variant_price': product.price,
+            'variant_compare_at_price': '',
+            'variant_requires_shipping': 'TRUE',
+            'variant_taxable': 'TRUE',
+            'variant_barcode': '',
+            'image_src': mainImage,
+            'image_position': '1',
+            'image_alt_text': product.title || '',
+            'gift_card': 'FALSE',
+            'seo_title': product.title,
+            'seo_description': product.description || product.title,
+            'google_shopping_google_product_category': '212',
+            'google_shopping_gender': 'unisex',
+            'google_shopping_age_group': 'adult',
+            'google_shopping_mpn': product.brand || '',
+            'google_shopping_condition': 'new',
+            'google_shopping_custom_product': 'TRUE',
+            'variant_image': mainImage,
+            'variant_weight_unit': 'g',
+            'variant_tax_code': '',
+            'cost_per_item': '',
+            'included_united_states': 'TRUE',
+            'price_united_states': '',
+            'compare_at_price_united_states': '',
+            'included_international': 'TRUE',
+            'price_international': '',
+            'compare_at_price_international': '',
+            status: 'active'
           };
           
-          // Ana satırı ekle
-          csvRows.push(fixShopifyVisibility(mainRow));
+          csvRows.push(mainRow);
+          console.log('ANA ÜRÜN SATIRI EKLENDİ: Renk=' + colors[0] + ', Beden=' + sizes[0]);
+          
+          // Ek görseller için satırlar
+          additionalImages.forEach((imageUrl, index) => {
+            const imageRow = {
+              handle: handle,
+              title: '',
+              'body_html': '',
+              vendor: '',
+              'product_category': '',
+              type: '',
+              tags: '',
+              published: '',
+              'option1_name': '',
+              'option1_value': '',
+              'option2_name': '',
+              'option2_value': '',
+              'option3_name': '',
+              'option3_value': '',
+              'variant_sku': '',
+              'variant_grams': '',
+              'variant_inventory_tracker': '',
+              'variant_inventory_qty': '',
+              'variant_inventory_policy': '',
+              'variant_fulfillment_service': '',
+              'variant_price': '',
+              'variant_compare_at_price': '',
+              'variant_requires_shipping': '',
+              'variant_taxable': '',
+              'variant_barcode': '',
+              'image_src': imageUrl,
+              'image_position': (index + 2).toString(),
+              'image_alt_text': `${product.title} - Görsel ${index + 2}`,
+              'gift_card': '',
+              'seo_title': '',
+              'seo_description': '',
+              'google_shopping_google_product_category': '',
+              'google_shopping_gender': '',
+              'google_shopping_age_group': '',
+              'google_shopping_mpn': '',
+              'google_shopping_condition': '',
+              'google_shopping_custom_product': '',
+              'variant_image': '',
+              'variant_weight_unit': '',
+              'variant_tax_code': '',
+              'cost_per_item': '',
+              'included_united_states': '',
+              'price_united_states': '',
+              'compare_at_price_united_states': '',
+              'included_international': '',
+              'price_international': '',
+              'compare_at_price_international': '',
+              status: ''
+            };
+            csvRows.push(imageRow);
+          });
+          
+          // Tüm renk-beden kombinasyonları (ana ürün hariç)
+          let variantCount = 0;
+          for (let c = 0; c < colors.length; c++) {
+            for (let s = 0; s < sizes.length; s++) {
+              // Ana ürün kombinasyonunu atla
+              if (c === 0 && s === 0) continue;
+              
+              const variantRow = {
+                handle: handle,
+                title: '',
+                'body_html': '',
+                vendor: '',
+                'product_category': '',
+                type: '',
+                tags: '',
+                published: '',
+                'option1_name': '',
+                'option1_value': colors[c],
+                'option2_name': '',
+                'option2_value': sizes[s],
+                'option3_name': '',
+                'option3_value': '',
+                'variant_sku': `${handle}-${colors[c]}-${sizes[s]}`,
+                'variant_grams': '500',
+                'variant_inventory_tracker': 'shopify',
+                'variant_inventory_qty': '50',
+                'variant_inventory_policy': 'deny',
+                'variant_fulfillment_service': 'manual',
+                'variant_price': product.price,
+                'variant_compare_at_price': '',
+                'variant_requires_shipping': 'TRUE',
+                'variant_taxable': 'TRUE',
+                'variant_barcode': '',
+                'image_src': '',
+                'image_position': '',
+                'image_alt_text': '',
+                'gift_card': '',
+                'seo_title': '',
+                'seo_description': '',
+                'google_shopping_google_product_category': '',
+                'google_shopping_gender': '',
+                'google_shopping_age_group': '',
+                'google_shopping_mpn': '',
+                'google_shopping_condition': '',
+                'google_shopping_custom_product': '',
+                'variant_image': '',
+                'variant_weight_unit': 'g',
+                'variant_tax_code': '',
+                'cost_per_item': '',
+                'included_united_states': '',
+                'price_united_states': '',
+                'compare_at_price_united_states': '',
+                'included_international': '',
+                'price_international': '',
+                'compare_at_price_international': '',
+                status: ''
+              };
+              
+              csvRows.push(variantRow);
+              variantCount++;
+            }
+          }
+          
+          console.log(`VARYANT KOMBİNASYONLARI EKLENDİ: ${variantCount} adet`);
+        }
+        // Sadece beden varyantları - Shopify template format
+        else if (hasSizeVariants && !hasColorVariants) {
+          let mainRow = {
+            handle: handle,
+            title: product.title,
+            'body_html': product.description || product.title,
+            vendor: product.brand || 'turmarkt',
+            'product_category': 'Apparel & Accessories > Clothing',
+            type: product.category ? 
+              product.category.split('>').pop()?.trim() || 'Giyim'
+              : 'Giyim',
+            tags: tags,
+            published: 'TRUE',
+            'option1_name': 'Size',
+            'option1_value': sizes[0],
+            'option2_name': '',
+            'option2_value': '',
+            'option3_name': '',
+            'option3_value': '',
+            'variant_sku': `${handle}-${sizes[0]}`,
+            'variant_grams': '500',
+            'variant_inventory_tracker': 'shopify',
+            'variant_inventory_qty': '50',
+            'variant_inventory_policy': 'deny',
+            'variant_fulfillment_service': 'manual',
+            'variant_price': product.price,
+            'variant_compare_at_price': '',
+            'variant_requires_shipping': 'TRUE',
+            'variant_taxable': 'TRUE',
+            'variant_barcode': '',
+            'image_src': mainImage,
+            'image_position': '1',
+            'image_alt_text': product.title || '',
+            'gift_card': 'FALSE',
+            'seo_title': product.title,
+            'seo_description': product.description || product.title,
+            'google_shopping_google_product_category': '212',
+            'google_shopping_gender': 'unisex',
+            'google_shopping_age_group': 'adult',
+            'google_shopping_mpn': product.brand || '',
+            'google_shopping_condition': 'new',
+            'google_shopping_custom_product': 'TRUE',
+            'variant_image': mainImage,
+            'variant_weight_unit': 'g',
+            'variant_tax_code': '',
+            'cost_per_item': '',
+            'included_united_states': 'TRUE',
+            'price_united_states': '',
+            'compare_at_price_united_states': '',
+            'included_international': 'TRUE',
+            'price_international': '',
+            'compare_at_price_international': '',
+            status: 'active'
+          };
+          
+          csvRows.push(mainRow);
           
           // Ek görseller varsa ayrı satırlar ekle
           additionalImages.forEach((imageUrl, index) => {
