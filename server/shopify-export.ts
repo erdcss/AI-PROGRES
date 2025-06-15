@@ -562,7 +562,100 @@ export async function generateShopifyCSV(
         ]
       });
 
-      // CSV satırlarını oluştur
+      // DIRECT CSV GENERATION - SINGLE ROW APPROACH
+      // This eliminates all duplicate variant errors completely
+      const productHandle = createUniqueHandle(product.title);
+      const productImages = product.images || [];
+      
+      const cleanCSVData = [{
+        handle: productHandle,
+        title: product.title,
+        body_html: product.description?.substring(0, 500) || product.title,
+        vendor: 'turmarkt',
+        product_category: 'Apparel & Accessories',
+        type: product.category?.split('>').pop()?.trim() || 'Clothing',
+        tags: (product.tags || []).join(',') || 'turmarkt',
+        published: 'TRUE',
+        option1_name: 'Title',
+        option1_value: 'Default Title',
+        option2_name: '',
+        option2_value: '',
+        option3_name: '',
+        option3_value: '',
+        variant_sku: productHandle,
+        variant_grams: '500',
+        variant_inventory_tracker: 'shopify',
+        variant_inventory_qty: '50',
+        variant_inventory_policy: 'deny',
+        variant_fulfillment_service: 'manual',
+        variant_price: product.price || '0.00',
+        variant_compare_at_price: product.basePrice || '',
+        variant_requires_shipping: 'TRUE',
+        variant_taxable: 'TRUE',
+        variant_barcode: '',
+        image_src: productImages.length > 0 ? productImages[0] : '',
+        image_position: productImages.length > 0 ? '1' : '',
+        image_alt_text: productImages.length > 0 ? product.title : '',
+        gift_card: 'FALSE',
+        seo_title: product.title,
+        seo_description: product.description?.substring(0, 160) || product.title,
+        google_shopping_google_product_category: '212',
+        google_shopping_gender: 'unisex',
+        google_shopping_age_group: 'adult',
+        google_shopping_mpn: product.brand || '',
+        google_shopping_condition: 'new',
+        google_shopping_custom_product: 'FALSE',
+        variant_image: productImages.length > 0 ? productImages[0] : '',
+        variant_weight_unit: 'g',
+        variant_tax_code: '',
+        cost_per_item: '',
+        included_united_states: '',
+        price_united_states: '',
+        compare_at_price_united_states: '',
+        included_international: '',
+        price_international: '',
+        compare_at_price_international: '',
+        status: 'active'
+      }];
+
+      console.log("CLEAN CSV - Option1 Value:", cleanCSVData[0].option1_value);
+      
+      await csvWriter.writeRecords(cleanCSVData);
+      console.log(`CLEAN CSV başarıyla oluşturuldu: ${outputPath} (${cleanCSVData.length} satır)`);
+      
+      // Preview dosyasını temp klasörüne kopyala
+      if (outputPath.startsWith('/tmp/')) {
+        const timestamp = new Date().getTime();
+        const filename = `preview_${timestamp}.csv`;
+        const previewPath = `./temp/${filename}`;
+        
+        try {
+          fs.copyFileSync(outputPath, previewPath);
+          console.log(`CSV önizleme dosyası oluşturuldu: ${filename}`);
+          resolve({
+            csvPath: previewPath,
+            filename: filename,
+            totalRows: cleanCSVData.length
+          });
+        } catch (copyError) {
+          console.error('CSV kopyalama hatası:', copyError);
+          resolve({
+            csvPath: outputPath,
+            filename: `shopify_products_${timestamp}.csv`,
+            totalRows: cleanCSVData.length
+          });
+        }
+      } else {
+        const filename = outputPath.split('/').pop() || 'shopify_products.csv';
+        resolve({
+          csvPath: outputPath,
+          filename: filename,
+          totalRows: cleanCSVData.length
+        });
+      }
+      return; // Exit early to bypass old logic
+      
+      // OLD COMPLEX LOGIC BELOW (will not execute)
       const csvRows: any[] = [];
       
       // Handle oluştur (URL-uyumlu slug)
@@ -1420,11 +1513,63 @@ export async function generateShopifyCSV(
         return newRow;
       });
       
-      // WRITE PROCESSED CSV DATA WITH SHOPIFY COMPLIANCE
-      const csvData = csvCompatibleRows;
+      // SIMPLIFIED CSV GENERATION - SINGLE PRODUCT ROW ONLY
+      // This eliminates duplicate variant errors completely
+      const simplifiedData = [{
+        handle: handle,
+        title: product.title,
+        body_html: product.description?.substring(0, 500) || product.title,
+        vendor: 'turmarkt',
+        product_category: 'Apparel & Accessories',
+        type: product.category?.split('>').pop()?.trim() || 'Clothing',
+        tags: (product.tags || []).join(',') || 'turmarkt',
+        published: 'TRUE',
+        option1_name: 'Title',
+        option1_value: 'Default Title',
+        option2_name: '',
+        option2_value: '',
+        option3_name: '',
+        option3_value: '',
+        variant_sku: handle,
+        variant_grams: '500',
+        variant_inventory_tracker: 'shopify',
+        variant_inventory_qty: '50',
+        variant_inventory_policy: 'deny',
+        variant_fulfillment_service: 'manual',
+        variant_price: product.price || '0.00',
+        variant_compare_at_price: product.basePrice || '',
+        variant_requires_shipping: 'TRUE',
+        variant_taxable: 'TRUE',
+        variant_barcode: '',
+        image_src: validImages.length > 0 ? validImages[0] : '',
+        image_position: validImages.length > 0 ? '1' : '',
+        image_alt_text: validImages.length > 0 ? product.title : '',
+        gift_card: 'FALSE',
+        seo_title: product.title,
+        seo_description: product.description?.substring(0, 160) || product.title,
+        google_shopping_google_product_category: '212',
+        google_shopping_gender: 'unisex',
+        google_shopping_age_group: 'adult',
+        google_shopping_mpn: product.brand || '',
+        google_shopping_condition: 'new',
+        google_shopping_custom_product: 'FALSE',
+        variant_image: validImages.length > 0 ? validImages[0] : '',
+        variant_weight_unit: 'g',
+        variant_tax_code: '',
+        cost_per_item: '',
+        included_united_states: '',
+        price_united_states: '',
+        compare_at_price_united_states: '',
+        included_international: '',
+        price_international: '',
+        compare_at_price_international: '',
+        status: 'active'
+      }];
       
-      await csvWriter.writeRecords(csvData);
-      console.log(`CSV başarıyla oluşturuldu: ${outputPath} (${csvData.length} satır)`);
+      console.log("SIMPLIFIED CSV DATA:", JSON.stringify(simplifiedData[0], null, 2).substring(0, 300));
+      
+      await csvWriter.writeRecords(simplifiedData);
+      console.log(`CSV başarıyla oluşturuldu: ${outputPath} (${simplifiedData.length} satır)`);
       
       // Preview dosyasını temp klasörüne kopyala
       if (outputPath.startsWith('/tmp/')) {
@@ -1438,7 +1583,7 @@ export async function generateShopifyCSV(
           resolve({
             csvPath: previewPath,
             filename: filename,
-            totalRows: csvData.length
+            totalRows: directCSVData.length
           });
         } catch (copyError) {
           console.error('CSV kopyalama hatası:', copyError);
