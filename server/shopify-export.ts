@@ -219,9 +219,11 @@ export async function generateShopifyCSV(
   console.log("SHOPIFY CSV GENERATOR ÇİFT DOĞRULAMA KONTROLÜ");
   console.log("Shopify'a ürün yüklenme problemini çözüyoruz");
   console.log("============================================");
+  console.log('🔥 VARYANT DEBUG - GELEN VERİ:', JSON.stringify(variants, null, 2));
+  console.log('🔥 ÜRÜN VARYANT ALANI:', JSON.stringify(product.variants, null, 2));
   console.log('Generating Shopify CSV:', { 
     productName: product.title,
-    variants: { sizes: variants.sizes?.length || 0, colors: variants.colors?.length || 0 }
+    variants: { sizes: variants?.sizes?.length || 0, colors: variants?.colors?.length || 0 }
   });
   
   // Türkçe karakterleri İngilizce karşılıklarına çeviren yardımcı fonksiyon
@@ -688,10 +690,11 @@ ${product.category ? `• Kategori: ${product.category}` : ''}`;
         enhancedCSVRows.push(imageRow);
       });
       
-      // Add size variants if available
-      if (variants?.sizes && variants.sizes.length > 1) {
+      // Shopify varyant sistemi için tüm beden kombinasyonlarını ekle
+      if (variants?.sizes && variants.sizes.length > 0) {
+        // Ana ürün dışında kalan bedenler için varyant satırları oluştur
         variants.sizes.slice(1).forEach(size => {
-          const sizeRow = {
+          const sizeVariantRow = {
             handle: productHandle,
             title: '',
             body_html: '',
@@ -703,7 +706,7 @@ ${product.category ? `• Kategori: ${product.category}` : ''}`;
             option1_name: '',
             option1_value: size,
             option2_name: '',
-            option2_value: (variants?.colors && variants.colors.length > 0) ? variants.colors[0] : '',
+            option2_value: '',
             option3_name: '',
             option3_value: '',
             variant_sku: `${productHandle}-${size}`,
@@ -741,8 +744,69 @@ ${product.category ? `• Kategori: ${product.category}` : ''}`;
             compare_at_price_international: '',
             status: ''
           };
-          enhancedCSVRows.push(sizeRow);
+          enhancedCSVRows.push(sizeVariantRow);
         });
+        
+        console.log(`VARYANT SATIR EKLENDİ: ${variants.sizes.length - 1} adet beden varyantı`);
+      }
+      
+      // Renk varyantları varsa ekle (şimdilik test için basit yapı)
+      if (variants?.colors && variants.colors.length > 1) {
+        variants.colors.slice(1).forEach(color => {
+          const colorVariantRow = {
+            handle: productHandle,
+            title: '',
+            body_html: '',
+            vendor: '',
+            product_category: '',
+            type: '',
+            tags: '',
+            published: '',
+            option1_name: '',
+            option1_value: variants?.sizes && variants.sizes.length > 0 ? variants.sizes[0] : 'Default Title',
+            option2_name: '',
+            option2_value: color,
+            option3_name: '',
+            option3_value: '',
+            variant_sku: `${productHandle}-${color}`,
+            variant_grams: '500',
+            variant_inventory_tracker: 'shopify',
+            variant_inventory_qty: '50',
+            variant_inventory_policy: 'deny',
+            variant_fulfillment_service: 'manual',
+            variant_price: product.price || '0.00',
+            variant_compare_at_price: '',
+            variant_requires_shipping: 'TRUE',
+            variant_taxable: 'TRUE',
+            variant_barcode: '',
+            image_src: '',
+            image_position: '',
+            image_alt_text: '',
+            gift_card: '',
+            seo_title: '',
+            seo_description: '',
+            google_shopping_google_product_category: '',
+            google_shopping_gender: '',
+            google_shopping_age_group: '',
+            google_shopping_mpn: '',
+            google_shopping_condition: '',
+            google_shopping_custom_product: '',
+            variant_image: '',
+            variant_weight_unit: 'g',
+            variant_tax_code: '',
+            cost_per_item: '',
+            included_united_states: '',
+            price_united_states: '',
+            compare_at_price_united_states: '',
+            included_international: '',
+            price_international: '',
+            compare_at_price_international: '',
+            status: ''
+          };
+          enhancedCSVRows.push(colorVariantRow);
+        });
+        
+        console.log(`RENK VARYANT EKLENDİ: ${variants.colors.length - 1} adet renk varyantı`);
       }
       
       const cleanCSVData = enhancedCSVRows;

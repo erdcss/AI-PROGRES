@@ -875,7 +875,7 @@ export async function registerRoutes(app: Express) {
             // Ürünü veritabanına kaydet
             await storage.saveProduct(productData);
             
-            // Shopify CSV oluştur
+            // Shopify CSV oluştur - varyant verilerini doğru gönder
             const csvResult = await generateShopifyCSV({
               ...productData,
               id: 0,
@@ -887,7 +887,10 @@ export async function registerRoutes(app: Express) {
               subcategory: categoryConfig.subCategory || null,
               productType: categoryConfig.productType || null,
               tags: categoryConfig.tags || []
-            }, {});
+            }, {
+              sizes: variants.size || [],
+              colors: variants.color || []
+            });
             
             storage.addToHistory(url);
             
