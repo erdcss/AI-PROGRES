@@ -616,6 +616,12 @@ export async function extractVariantStockInfo($: cheerio.CheerioAPI): Promise<Va
         // Özel durum simülasyonu: Bazı renklerde sadece belirli bedenlerin olması
         console.log('🔧 Özel durum kontrolü yapılıyor...');
         
+        // JSON-LD'den gelen renk ve beden bilgilerini kullan
+        if (stockInfo.colors.length === 0 && stockInfo.sizes.length === 0) {
+          console.log('🔧 Stok analizi boş, JSON-LD entegrasyonu beklenecek');
+          return stockInfo;
+        }
+        
         // Siyah renk varsa ve 3'ten fazla beden varsa, sadece S bedenini bırak
         if (stockInfo.colors.includes('siyah') && stockInfo.sizes.length > 2) {
           stockInfo.colorSizeMatrix['siyah'] = ['S'];

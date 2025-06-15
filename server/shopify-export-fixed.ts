@@ -58,6 +58,15 @@ export async function generateShopifyCSV(
   
   // Varyant bazlı akıllı stok yönetimi
   const getVariantStockQuantity = (color?: string, size?: string): string => {
+    // Renk-beden matrisi kontrolü - özel kombinasyonlar
+    if (color && size && variants.colorSizeMatrix) {
+      const availableSizesForColor = variants.colorSizeMatrix[color];
+      if (availableSizesForColor && !availableSizesForColor.includes(size)) {
+        console.log(`🔧 CSV: ${color} renginde ${size} beden mevcut değil - stok: 0`);
+        return '0';
+      }
+    }
+    
     // Eğer stok haritası varsa, önce onu kontrol et
     if (Object.keys(stockMap).length > 0 && color && size) {
       const variantKey = `${color}-${size}`;

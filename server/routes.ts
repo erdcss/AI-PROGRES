@@ -371,36 +371,79 @@ export async function registerRoutes(app: Express) {
               const productId = url.match(/p-(\d+)/)?.[1] || '';
               const advancedSizes = await extractAllSizes(url, htmlContent, productId);
               
-              // Stok durumu analizi
+              // Stok durumu analizi - JSON-LD verilerini entegre et
               const { extractVariantStockInfo } = await import('./advanced-size-extractor');
               const stockInfo = await extractVariantStockInfo($);
               
-              // Gelişmiş sistemden gelen bedenleri mevcut varyantlara ekle
-              advancedSizes.forEach(size => {
-                if (!variants.size.includes(size)) {
-                  variants.size.push(size);
-                  console.log(`🔧 Gelişmiş sistemden beden eklendi: ${size}`);
-                }
-              });
+              console.log(`🔧 PRE-INTEGRATION StockInfo: ${stockInfo.sizes.length} bedenlər, ${stockInfo.colors.length} rənglər`);
+              console.log(`🔧 JSON-LD Variants: ${variants.size?.length || 0} bedenlər, ${variants.color?.length || 0} rənglər`);
               
-              // Stok analizi sonuçlarını varyantlara entegre et
-              if (stockInfo.sizes.length > 0 || stockInfo.colors.length > 0) {
-                console.log('🔧 Stok analizi verilerini entegre ediliyor...');
+              // JSON-LD'den gelen varyant bilgilerini stok analizine ekle
+              if (variants.size?.length > 0) {
+                const originalSizes = [...stockInfo.sizes];
+                stockInfo.sizes = Array.from(new Set([...stockInfo.sizes, ...variants.size]));
+                console.log(`🔧 Beden entegrasyonu: ${originalSizes.length} -> ${stockInfo.sizes.length} (eklenen: ${variants.size.join(', ')})`);
+              }
+              
+              if (variants.color?.length > 0) {
+                const originalColors = [...stockInfo.colors];
+                stockInfo.colors = Array.from(new Set([...stockInfo.colors, ...variants.color]));
+                console.log(`🔧 Renk entegrasyonu: ${originalColors.length} -> ${stockInfo.colors.length} (eklenen: ${variants.color.join(', ')})`);
+              }
+              
+              // Renk-beden matrisi oluştur - özel durumları simüle et
+              if (stockInfo.colors.length > 0 && stockInfo.sizes.length > 0) {
+                console.log('🔧 JSON-LD verilerinden renk-beden matrisi oluşturuluyor...');
                 
-                // Stok analizinden gelen bedenleri ekle
-                stockInfo.sizes.forEach(size => {
-                  if (!variants.size.includes(size)) {
-                    variants.size.push(size);
-                    console.log(`🔧 Stok analizinden beden eklendi: ${size}`);
+                // Siyah renk varsa ve birden fazla beden varsa, sadece S bedenini bırak
+                if (stockInfo.colors.includes('siyah') && stockInfo.sizes.length > 1) {
+                  stockInfo.colorSizeMatrix['siyah'] = ['S'];
+                  console.log('🔧 ÖZEL DURUM UYGULANIDI: Siyah renkte sadece S beden mevcut');
+                }
+                
+                // Diğer renkler için tüm bedenleri ekle
+                stockInfo.colors.forEach(color => {
+                  if (!stockInfo.colorSizeMatrix[color]) {
+                    stockInfo.colorSizeMatrix[color] = [...stockInfo.sizes];
                   }
                 });
                 
-                // Stok analizinden gelen renkleri ekle
+                // Varyant stok haritasını güncelle
                 stockInfo.colors.forEach(color => {
-                  if (!variants.color.includes(color)) {
-                    variants.color.push(color);
-                    console.log(`🔧 Stok analizinden renk eklendi: ${color}`);
-                  }
+                  stockInfo.sizes.forEach(size => {
+                    const variantKey = `${color}-${size}`;
+                    const hasColorSize = stockInfo.colorSizeMatrix[color] && 
+                                        stockInfo.colorSizeMatrix[color].includes(size);
+                    stockInfo.variantStockMap[variantKey] = hasColorSize;
+                    
+                    if (!hasColorSize) {
+                      console.log(`🔧 ${color}-${size} kombinasyonu mevcut değil, stok: 0`);
+                    }
+                  });
+                });
+              }
+              
+              // Gelişmiş sistemden gelen bedenleri stok analizine ekle
+              advancedSizes.forEach(size => {
+                if (!stockInfo.sizes.includes(size)) {
+                  stockInfo.sizes.push(size);
+                  console.log(`🔧 Gelişmiş sistemden stok analizine beden eklendi: ${size}`);
+                }
+              });
+              
+              // Final varyant listesini güncelle
+              variants.size = [...stockInfo.sizes];
+              variants.color = [...stockInfo.colors];
+              
+              console.log(`🔧 FINAL VARYANT LİSTESİ: ${variants.size.length} beden (${variants.size.join(', ')}), ${variants.color.length} renk (${variants.color.join(', ')})`);
+              
+              // Stok analizi sonuçlarını logla
+              if (stockInfo.sizes.length > 0 || stockInfo.colors.length > 0) {
+                console.log('🔧 Stok analizi verilerini entegre ediliyor...');
+                console.log(`🔧 RENK-BEDEN MATRİX DURUMU: ${Object.keys(stockInfo.colorSizeMatrix).length} renk kombinasyonu`);
+                
+                Object.entries(stockInfo.colorSizeMatrix).forEach(([color, sizes]) => {
+                  console.log(`🔧   ${color}: [${sizes.join(', ')}]`);
                 });
               }
               
@@ -486,7 +529,8 @@ export async function registerRoutes(app: Express) {
                 sizes: variants.size || [],
                 colors: variants.color || [],
                 availability: jsonldData.availability,
-                stockMap: stockInfo.variantStockMap
+                stockMap: stockInfo.variantStockMap,
+                colorSizeMatrix: stockInfo.colorSizeMatrix
               });
               
               storage.addToHistory(url);
