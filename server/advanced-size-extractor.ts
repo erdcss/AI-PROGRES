@@ -13,6 +13,14 @@ export interface SizeInfo {
   source: string;
 }
 
+export interface VariantStockInfo {
+  sizes: string[];
+  colors: string[];
+  outOfStockSizes: string[];
+  outOfStockColors: string[];
+  variantStockMap: Record<string, boolean>; // variant_key: inStock
+}
+
 /**
  * Trendyol API'lerinden beden bilgilerini çıkarır
  */
@@ -391,4 +399,174 @@ export async function extractAllSizes(url: string, html: string, productId: stri
   
   console.log(`🔧 Toplam ${uniqueSizes.length} benzersiz beden bulundu: ${uniqueSizes.join(', ')}`);
   return uniqueSizes;
+}
+
+/**
+ * Trendyol'dan stok durumu ile birlikte varyant bilgilerini çıkarır
+ */
+export async function extractVariantStockInfo($: cheerio.CheerioAPI): Promise<VariantStockInfo> {
+  const stockInfo: VariantStockInfo = {
+    sizes: [],
+    colors: [],
+    outOfStockSizes: [],
+    outOfStockColors: [],
+    variantStockMap: {}
+  };
+
+  try {
+    console.log('🔧 STOK DURUMU ANALİZİ başlatılıyor...');
+
+    // Beden seçeneklerini ve stok durumlarını kontrol et
+    const sizeSelectors = [
+      '[data-testid*="size"]',
+      '.size-variant', 
+      '.pr-in-sz', 
+      '.variant-size', 
+      '[class*="size"]', 
+      '[class*="beden"]',
+      '.size-option',
+      'button[data-size]'
+    ];
+    
+    sizeSelectors.forEach(selector => {
+      $(selector).each((index, element) => {
+        const $el = $(element);
+        const sizeText = $el.text().trim() || $el.attr('data-size') || $el.attr('title') || '';
+        
+        // Stok durumu kontrolü
+        const isDisabled = $el.hasClass('disabled') || 
+                          $el.hasClass('out-of-stock') || 
+                          $el.hasClass('sold-out') ||
+                          $el.hasClass('unavailable') ||
+                          $el.attr('disabled') !== undefined ||
+                          $el.closest('.disabled').length > 0 ||
+                          $el.text().toLowerCase().includes('tükendi') ||
+                          $el.text().toLowerCase().includes('stokta yok');
+        
+        if (sizeText && isValidSize(sizeText)) {
+          if (!stockInfo.sizes.includes(sizeText)) {
+            stockInfo.sizes.push(sizeText);
+          }
+          
+          if (isDisabled) {
+            if (!stockInfo.outOfStockSizes.includes(sizeText)) {
+              stockInfo.outOfStockSizes.push(sizeText);
+              console.log(`🔧 STOKTA YOK BEDEN: ${sizeText}`);
+            }
+          }
+        }
+      });
+    });
+
+    // Renk seçeneklerini ve stok durumlarını kontrol et
+    const colorSelectors = [
+      '[data-testid*="color"]',
+      '.color-variant', 
+      '.pr-in-cn', 
+      '.variant-color', 
+      '[class*="color"]', 
+      '[class*="renk"]',
+      '.color-option',
+      'button[data-color]',
+      'img[alt*="renk"]',
+      'img[title*="color"]'
+    ];
+    
+    colorSelectors.forEach(selector => {
+      $(selector).each((index, element) => {
+        const $el = $(element);
+        const colorText = $el.text().trim() || 
+                         $el.attr('data-color') || 
+                         $el.attr('title') || 
+                         $el.attr('alt') || 
+                         $el.find('img').attr('alt') || '';
+        
+        // Stok durumu kontrolü
+        const isDisabled = $el.hasClass('disabled') || 
+                          $el.hasClass('out-of-stock') || 
+                          $el.hasClass('sold-out') ||
+                          $el.hasClass('unavailable') ||
+                          $el.attr('disabled') !== undefined ||
+                          $el.closest('.disabled').length > 0 ||
+                          $el.text().toLowerCase().includes('tükendi') ||
+                          $el.text().toLowerCase().includes('stokta yok');
+        
+        if (colorText && isValidColor(colorText)) {
+          if (!stockInfo.colors.includes(colorText)) {
+            stockInfo.colors.push(colorText);
+          }
+          
+          if (isDisabled) {
+            if (!stockInfo.outOfStockColors.includes(colorText)) {
+              stockInfo.outOfStockColors.push(colorText);
+              console.log(`🔧 STOKTA YOK RENK: ${colorText}`);
+            }
+          }
+        }
+      });
+    });
+
+    // "Stoklar Tükendi" metinlerini kontrol et
+    const outOfStockTexts = ['stoklar tükendi', 'tükendi', 'stokta yok', 'out of stock', 'sold out', 'unavailable'];
+    outOfStockTexts.forEach(text => {
+      $(`:contains("${text}")`).each((index, element) => {
+        const $parent = $(element).closest('[data-testid], .variant, .size, .color, button, .option');
+        const variantText = $parent.text().trim() || $parent.attr('data-size') || $parent.attr('data-color') || '';
+        
+        if (isValidSize(variantText) && !stockInfo.outOfStockSizes.includes(variantText)) {
+          stockInfo.outOfStockSizes.push(variantText);
+          console.log(`🔧 "TÜKENDI" METNİNDEN BEDEN: ${variantText}`);
+        }
+        
+        if (isValidColor(variantText) && !stockInfo.outOfStockColors.includes(variantText)) {
+          stockInfo.outOfStockColors.push(variantText);
+          console.log(`🔧 "TÜKENDI" METNİNDEN RENK: ${variantText}`);
+        }
+      });
+    });
+
+    // Varyant stok haritasını oluştur
+    if (stockInfo.sizes.length > 0 && stockInfo.colors.length > 0) {
+      stockInfo.sizes.forEach(size => {
+        stockInfo.colors.forEach(color => {
+          const variantKey = `${color}-${size}`;
+          const isSizeOutOfStock = stockInfo.outOfStockSizes.includes(size);
+          const isColorOutOfStock = stockInfo.outOfStockColors.includes(color);
+          stockInfo.variantStockMap[variantKey] = !isSizeOutOfStock && !isColorOutOfStock;
+        });
+      });
+    }
+
+    console.log(`🔧 STOK ANALİZİ SONUCU:
+    - Toplam beden: ${stockInfo.sizes.length} (${stockInfo.sizes.join(', ')})
+    - Stokta olmayan beden: ${stockInfo.outOfStockSizes.length} (${stockInfo.outOfStockSizes.join(', ')})
+    - Toplam renk: ${stockInfo.colors.length} (${stockInfo.colors.join(', ')})
+    - Stokta olmayan renk: ${stockInfo.outOfStockColors.length} (${stockInfo.outOfStockColors.join(', ')})
+    - Varyant kombinasyonu: ${Object.keys(stockInfo.variantStockMap).length}`);
+
+  } catch (error) {
+    console.log('🔧 Stok analizi hatası:', error);
+  }
+
+  return stockInfo;
+}
+
+/**
+ * Renk değerinin geçerli olup olmadığını kontrol eder
+ */
+function isValidColor(color: string): boolean {
+  if (!color || color.length < 2 || color.length > 25) return false;
+  
+  const validColors = [
+    'siyah', 'beyaz', 'kırmızı', 'mavi', 'yeşil', 'sarı', 'pembe', 'mor', 'turuncu', 'gri',
+    'kahverengi', 'lacivert', 'bordo', 'bej', 'krem', 'fuşya', 'turkuaz', 'lila', 'mürdüm',
+    'black', 'white', 'red', 'blue', 'green', 'yellow', 'pink', 'purple', 'orange', 'gray',
+    'brown', 'navy', 'beige', 'cream', 'fuchsia', 'turquoise', 'lilac'
+  ];
+  
+  const colorLower = color.toLowerCase();
+  return validColors.some(validColor => 
+    colorLower.includes(validColor) || 
+    validColor.includes(colorLower)
+  );
 }

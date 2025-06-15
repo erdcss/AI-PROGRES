@@ -35,7 +35,8 @@ export async function generateShopifyCSV(
   variants: { 
     sizes?: string[], 
     colors?: string[],
-    availability?: string
+    availability?: string,
+    stockMap?: Record<string, boolean>
   } = {},
   outputPath: string = join(tmpdir(), 'shopify_products.csv')
 ): Promise<{ csvPath: string; filename: string; totalRows: number }> {
@@ -50,11 +51,25 @@ export async function generateShopifyCSV(
   const sizes = variants?.sizes || [];
   const colors = variants?.colors || [];
   const availability = variants?.availability || '';
+  const stockMap = variants?.stockMap || {};
   const hasSizeVariants = sizes?.length > 0;
   const hasColorVariants = colors?.length > 0;
   
-  // Stok durumu analizi - akıllı stok yönetimi
-  const getStockQuantity = (): string => {
+  // Varyant bazlı akıllı stok yönetimi
+  const getVariantStockQuantity = (color?: string, size?: string): string => {
+    // Eğer stok haritası varsa, önce onu kontrol et
+    if (Object.keys(stockMap).length > 0 && color && size) {
+      const variantKey = `${color}-${size}`;
+      const isInStock = stockMap[variantKey];
+      if (isInStock === false) {
+        return '0'; // Stokta yok
+      }
+      if (isInStock === true) {
+        return '10'; // Stokta var
+      }
+    }
+    
+    // Genel availability kontrolü
     if (!availability) return '10'; // Varsayılan stok
     
     // Stokta var durumları
@@ -81,8 +96,7 @@ export async function generateShopifyCSV(
     return '10'; // Varsayılan
   };
   
-  const stockQuantity = getStockQuantity();
-  console.log(`STOK ANALİZİ: Availability="${availability}" → Stok miktarı: ${stockQuantity}`);
+  console.log(`STOK ANALİZİ: Availability="${availability}", StockMap entries: ${Object.keys(stockMap).length}`);
 
   // Handle oluştur
   const turkishToEnglish = (text: string): string => {
@@ -162,7 +176,10 @@ export async function generateShopifyCSV(
         variant_sku: `${handle}-${hasSizeVariants && hasColorVariants ? colors[0] + '-' + sizes[0] : hasSizeVariants ? sizes[0] : 'default'}`,
         variant_grams: '145',
         variant_inventory_tracker: 'shopify',
-        variant_inventory_qty: stockQuantity,
+        variant_inventory_qty: getVariantStockQuantity(
+          hasSizeVariants && hasColorVariants ? colors[0] : undefined,
+          hasSizeVariants && hasColorVariants ? sizes[0] : hasSizeVariants ? sizes[0] : undefined
+        ),
         variant_inventory_policy: 'deny',
         variant_fulfillment_service: 'manual',
         variant_price: product.price,
@@ -276,7 +293,7 @@ export async function generateShopifyCSV(
               variant_sku: `${handle}-${colors[c]}-${sizes[s]}`,
               variant_grams: '145',
               variant_inventory_tracker: 'shopify',
-              variant_inventory_qty: stockQuantity,
+              variant_inventory_qty: getVariantStockQuantity(colors[c], sizes[s]),
               variant_inventory_policy: 'deny',
               variant_fulfillment_service: 'manual',
               variant_price: product.price,
@@ -333,7 +350,7 @@ export async function generateShopifyCSV(
             variant_sku: `${handle}-${sizes[s]}`,
             variant_grams: '145',
             variant_inventory_tracker: 'shopify',
-            variant_inventory_qty: stockQuantity,
+            variant_inventory_qty: getVariantStockQuantity(undefined, sizes[s]),
             variant_inventory_policy: 'deny',
             variant_fulfillment_service: 'manual',
             variant_price: product.price,
