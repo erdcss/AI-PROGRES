@@ -90,26 +90,26 @@ export async function generateShopifyCSV(
   const hasSizeVariants = sizes?.length > 0;
   const hasColorVariants = colors?.length > 0;
   
-  // Varyant bazlı akıllı stok yönetimi
+  // Enhanced stock detection - uses real Trendyol DOM data
   const getVariantStockQuantity = (color?: string, size?: string): string => {
-    // Renk-beden matrisi kontrolü - özel kombinasyonlar
+    // First check color-size matrix from real DOM analysis
     if (color && size && variants.colorSizeMatrix) {
-      const availableSizesForColor = variants.colorSizeMatrix[color];
+      const availableSizesForColor = variants.colorSizeMatrix[color.toLowerCase()];
       if (availableSizesForColor && !availableSizesForColor.includes(size)) {
         console.log(`🔧 CSV: ${color} renginde ${size} beden mevcut değil - stok: 0`);
         return '0';
       }
     }
     
-    // Eğer stok haritası varsa, önce onu kontrol et
+    // Enhanced stock map check with normalized keys
     if (Object.keys(stockMap).length > 0 && color && size) {
-      const variantKey = `${color}-${size}`;
+      const variantKey = `${color.toLowerCase()}-${size}`;
       const isInStock = stockMap[variantKey];
       if (isInStock === false) {
-        return '0'; // Stokta yok
+        return '0'; // Out of stock
       }
       if (isInStock === true) {
-        return '10'; // Stokta var
+        return '10'; // In stock
       }
     }
     

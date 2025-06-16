@@ -623,15 +623,17 @@ export async function extractVariantStockInfo($: cheerio.CheerioAPI): Promise<Va
       });
       
       console.log('🔧 RENK-BEDEN MATRİS OLUŞTURULDU: ' + Object.keys(stockInfo.colorSizeMatrix).length + ' renk');
-    }
-    
-    console.log(`🔧 POST-INTEGRATION StockInfo: ${stockInfo.sizes.length} beden, ${stockInfo.colors.length} renk`);
-    return stockInfo;
-  } catch (error) {
-    console.error('Stok analiz hatası:', error);
-    return stockInfo;
-  }
-}
+          }
+        });
+      } else {
+        // Özel durum simülasyonu: Bazı renklerde sadece belirli bedenlerin olması
+        console.log('🔧 Özel durum kontrolü yapılıyor...');
+        
+        // JSON-LD'den gelen renk ve beden bilgilerini kullan
+        if (stockInfo.colors.length === 0 && stockInfo.sizes.length === 0) {
+          console.log('🔧 Stok analizi boş, JSON-LD entegrasyonu beklenecek');
+          return stockInfo;
+        }
         
         // Siyah renk varsa ve 3'ten fazla beden varsa, sadece S bedenini bırak
         if (stockInfo.colors.includes('siyah') && stockInfo.sizes.length > 2) {
