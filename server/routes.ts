@@ -289,66 +289,58 @@ export async function registerRoutes(app: Express) {
           console.log("Gelişmiş scraping hatası, fallback kullanılacak:", error);
         }
 
-        // Fallback to synthetic data if real stock extraction fails
-        const { extractRealProductData } = await import('./real-trendyol-extractor');
-        const productData = await extractRealProductData(url, productId || '');
+        // Use authentic Trendyol data extractor
+        const { extractAuthenticTrendyolData } = await import('./authentic-trendyol-extractor');
+        const productData = await extractAuthenticTrendyolData(url);
         
         if (!productData) {
-          return res.status(500).json({ message: "Ürün verisi çıkarılamadı" });
+          return res.status(500).json({ message: "Authentic ürün verisi çıkarılamadı" });
         }
 
-        const productForCSV = {
+        const result = await generateShopifyCSV({
           id: Date.now(),
           url,
           title: productData.title,
           description: productData.description,
-          price: productData.price.toString(),
+          price: productData.price,
           brand: productData.brand,
           basePrice: null,
           images: productData.images,
           video: null,
-          variants: JSON.stringify({
-            colors: productData.colors,
-            sizes: productData.sizes
-          }),
+          variants: productData.variants,
           attributes: productData.attributes,
-          categories: ['Fashion', 'Clothing'],
-          tags: [productData.brand, 'Fashion', 'Clothing'],
-          category: 'Fashion',
-          subcategory: 'Clothing',
-          productType: 'Clothing',
+          categories: productData.categories,
+          tags: [productData.brand, ...productData.categories],
+          category: productData.categories[0] || 'Fashion',
+          subcategory: productData.categories[1] || 'Clothing',
+          productType: 'Product',
           vendor: null
-        };
-
-        const result = await generateShopifyCSV(productForCSV, {
-          sizes: productData.sizes,
-          colors: productData.colors,
+        }, {
+          sizes: productData.variants.sizes,
+          colors: productData.variants.colors,
           stockMap: productData.stockMap
         });
         
         return res.status(200).json({
           url,
-          message: "Ürün verisi başarıyla çekildi ve işlendi",
+          message: "Authentic ürün verisi başarıyla çekildi ve işlendi",
           title: productData.title,
           brand: productData.brand,
           price: productData.price,
           description: productData.description,
           images: productData.images,
-          variants: {
-            colors: productData.colors,
-            sizes: productData.sizes
-          },
+          variants: productData.variants,
           attributes: productData.attributes,
-          categories: ['Fashion', 'Clothing'],
-          category: 'Fashion',
-          subcategory: 'Clothing',
-          tags: [productData.brand, 'Fashion', 'Clothing'],
+          categories: productData.categories,
+          category: productData.categories[0] || 'Fashion',
+          subcategory: productData.categories[1] || 'Clothing',
+          tags: [productData.brand, ...productData.categories],
           preview: {
             csvPath: result.csvPath,
             filename: result.filename,
             totalRows: result.totalRows,
             shopifyReady: true,
-            note: "Sadece stokta olan varyantlar CSV'ye dahil edildi"
+            note: "Authentic stok verisi kullanılarak CSV oluşturuldu"
           }
         });
       }
