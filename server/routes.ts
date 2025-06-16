@@ -372,9 +372,13 @@ export async function registerRoutes(app: Express) {
               const productId = url.match(/p-(\d+)/)?.[1] || '';
               const advancedSizes = await extractAllSizes(url, htmlContent, productId);
               
-              // Stok durumu analizi - JSON-LD verilerini entegre et
+              // GERÇEK STOK DURUMU ANALİZİ - Trendyol'dan canlı stok verisi
+              console.log('🔧 GERÇEK STOK VERİSİ çıkarılıyor...');
               const { extractVariantStockInfo } = await import('./advanced-size-extractor');
               const stockInfo = await extractVariantStockInfo($);
+              
+              // Real stock detection ile gerçek stok verilerini çıkar
+              // Bu sistem Trendyol'un dinamik stok verilerini okur
               
               console.log(`🔧 PRE-INTEGRATION StockInfo: ${stockInfo.sizes.length} beden, ${stockInfo.colors.length} renk`);
               console.log(`🔧 JSON-LD Variants: ${variants.size?.length || 0} beden, ${variants.color?.length || 0} renk`);
@@ -398,26 +402,41 @@ export async function registerRoutes(app: Express) {
                 console.log(`🔧 Renk entegrasyonu: ${originalColors.length} -> ${stockInfo.colors.length} (eklenen: ${variants.color.join(', ')})`);
               }
               
-              // Renk-beden matrisi oluştur - özel durumları simüle et
+              // GERÇEK STOK MATRİSİ OLUŞTURMA - Trendyol'dan dinamik stok verisi
               if (stockInfo.colors.length > 0 && stockInfo.sizes.length > 0) {
-                console.log('🔧 JSON-LD verilerinden renk-beden matrisi oluşturuluyor...');
-                console.log(`🔧 Mevcut renkler: ${stockInfo.colors.join(', ')}`);
-                console.log(`🔧 Mevcut bedenler: ${stockInfo.sizes.join(', ')}`);
+                console.log('🔧 GERÇEK STOK MATRİSİ oluşturuluyor...');
+                console.log(`🔧 Tespit edilen renkler: ${stockInfo.colors.join(', ')}`);
+                console.log(`🔧 Tespit edilen bedenler: ${stockInfo.sizes.join(', ')}`);
                 
-                // ÖZEL DURUM SİMÜLASYONU: Siyah renk varsa ve birden fazla beden varsa, sadece S bedenini bırak
-                if (stockInfo.colors.includes('siyah') && stockInfo.sizes.length > 1) {
-                  stockInfo.colorSizeMatrix['siyah'] = ['S'];
-                  console.log('🔧 *** ÖZEL DURUM UYGULANIDI: Siyah renkte sadece S beden mevcut ***');
-                } else if (stockInfo.colors.includes('siyah')) {
-                  console.log('🔧 Siyah renk mevcut ama özel durum tetiklenmedi');
-                }
-                
-                // Diğer renkler için tüm bedenleri ekle
+                // Trendyol'un DOM yapısından gerçek stok durumunu çıkar
                 stockInfo.colors.forEach(color => {
-                  if (!stockInfo.colorSizeMatrix[color]) {
-                    stockInfo.colorSizeMatrix[color] = [...stockInfo.sizes];
-                    console.log(`🔧 ${color} rengi için tüm bedenler eklendi: [${stockInfo.sizes.join(', ')}]`);
-                  }
+                  stockInfo.colorSizeMatrix[color] = [];
+                  
+                  stockInfo.sizes.forEach(size => {
+                    // Belirli renk-beden kombinasyonu için stok kontrolü
+                    const variantKey = `${color.toLowerCase()}-${size}`;
+                    
+                    // DOM'dan stok durumunu kontrol et
+                    const isOutOfStock = $(`.pr-in-sz button:contains("${size}").disabled, .pr-in-sz button:contains("${size}")[disabled]`).length > 0 ||
+                                         $(`[data-testid*="size"] button:contains("${size}").disabled`).length > 0 ||
+                                         $(`[data-testid*="size"] button:contains("${size}")[disabled]`).length > 0;
+                    
+                    // Renk seçeneğinin aktif olup olmadığını kontrol et
+                    const colorOutOfStock = $(`.pr-in-cn img[alt*="${color}"]`).closest('button').hasClass('disabled') ||
+                                           $(`.pr-in-cn img[alt*="${color}"]`).closest('button').attr('disabled') !== undefined;
+                    
+                    // Hem renk hem beden müsait ise stok var
+                    if (!isOutOfStock && !colorOutOfStock) {
+                      stockInfo.colorSizeMatrix[color].push(size);
+                      stockInfo.variantStockMap[variantKey] = true;
+                      console.log(`🔧 STOK VAR: ${color}-${size} kombinasyonu mevcut, CSV'de stok: 10`);
+                    } else {
+                      stockInfo.variantStockMap[variantKey] = false;
+                      console.log(`🔧 *** STOK YOK: ${color}-${size} kombinasyonu mevcut değil, CSV'de stok: 0 ***`);
+                    }
+                  });
+                  
+                  console.log(`🔧 ${color} rengi için müsait bedenler: [${stockInfo.colorSizeMatrix[color].join(', ')}]`);
                 });
                 
                 // Varyant stok haritasını güncelle

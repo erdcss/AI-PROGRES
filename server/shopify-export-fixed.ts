@@ -3,6 +3,8 @@ import { createObjectCsvWriter } from "csv-writer";
 import { tmpdir } from "os";
 import { join } from "path";
 import fs from "fs";
+import { extractRealStockFromDOM, filterInStockVariants, createStockMatrix } from "./enhanced-stock-system";
+import * as cheerio from 'cheerio';
 
 // Shopify CSV için güvenli temizleme
 function escapeForCSV(text: string): string {
