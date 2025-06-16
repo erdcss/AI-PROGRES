@@ -67,20 +67,49 @@ export async function handleTrendyolProduct(url: string, productId: string) {
       const images: string[] = [];
       const variantImages: Record<string, string[]> = {};
       
-      // Extract all product images and variant-specific images
-      const imagePattern = /https:\/\/cdn\.dsmcdn\.com\/[^"'\s]+\/product\/media\/images\/[^"'\s]+\.(jpg|jpeg|png|webp)/gi;
-      const allImageMatches = htmlContent.match(imagePattern) || [];
+      // Extract all product images with comprehensive patterns
+      const imagePatterns = [
+        /https:\/\/cdn\.dsmcdn\.com\/[^"'\s]+\/product\/media\/images\/[^"'\s]+\.(jpg|jpeg|png|webp)/gi,
+        /"imageUrl":"(https:\/\/cdn\.dsmcdn\.com\/[^"]+\/product\/media\/images\/[^"]+\.(jpg|jpeg|png|webp))"/gi,
+        /"url":"(https:\/\/cdn\.dsmcdn\.com\/[^"]+\/product\/media\/images\/[^"]+\.(jpg|jpeg|png|webp))"/gi,
+        /"href":"(https:\/\/cdn\.dsmcdn\.com\/[^"]+\/product\/media\/images\/[^"]+\.(jpg|jpeg|png|webp))"/gi
+      ];
+      
+      const allImageMatches: string[] = [];
+      imagePatterns.forEach(pattern => {
+        const matches = htmlContent.match(pattern) || [];
+        allImageMatches.push(...matches);
+      });
+      
+      // Also extract from productImages data structure
+      const productImagesMatch = htmlContent.match(/"productImages":\[(.*?)\]/);
+      if (productImagesMatch) {
+        try {
+          const imageData = JSON.parse(`[${productImagesMatch[1]}]`);
+          imageData.forEach((imgData: any) => {
+            if (imgData.url || imgData.imageUrl) {
+              allImageMatches.push(imgData.url || imgData.imageUrl);
+            }
+          });
+        } catch (e) {
+          console.log("Product images parse hatası:", e);
+        }
+      }
       
       // Process all found product images
       allImageMatches.forEach(url => {
-        let fullUrl = url.replace(/\/ty\d+\//, '/ty933/');
-        fullUrl = fullUrl.replace(/_thumb\.(jpg|jpeg|png|webp)/, '_org.$1');
-        fullUrl = fullUrl.replace(/_small\.(jpg|jpeg|png|webp)/, '_org.$1');
-        fullUrl = fullUrl.replace(/_zoom\.(jpg|jpeg|png|webp)/, '_org.$1');
-        fullUrl = fullUrl.replace(/mnresize\/\d+\/\d+\//, 'mnresize/1200/1800/');
-        
-        if (!images.includes(fullUrl)) {
-          images.push(fullUrl);
+        let cleanUrl = url.replace(/^"imageUrl":"/, '').replace(/^"url":"/, '').replace(/^"href":"/, '').replace(/"$/, '');
+        if (cleanUrl.includes('cdn.dsmcdn.com') && cleanUrl.includes('/product/media/images/')) {
+          let fullUrl = cleanUrl.startsWith('//') ? 'https:' + cleanUrl : cleanUrl;
+          fullUrl = fullUrl.replace(/\/ty\d+\//, '/ty933/');
+          fullUrl = fullUrl.replace(/_thumb\.(jpg|jpeg|png|webp)/, '_org.$1');
+          fullUrl = fullUrl.replace(/_small\.(jpg|jpeg|png|webp)/, '_org.$1');
+          fullUrl = fullUrl.replace(/_zoom\.(jpg|jpeg|png|webp)/, '_org.$1');
+          fullUrl = fullUrl.replace(/mnresize\/\d+\/\d+\//, 'mnresize/1200/1800/');
+          
+          if (!images.includes(fullUrl)) {
+            images.push(fullUrl);
+          }
         }
       });
       
@@ -100,6 +129,41 @@ export async function handleTrendyolProduct(url: string, productId: string) {
           }
         }
       });
+      
+      // If no images found, try alternative extraction methods
+      if (images.length === 0) {
+        console.log("Ana görsel çıkarımı başarısız, alternatif yöntemler deneniyor...");
+        
+        // Try extracting from script tags containing image data
+        $('script').each((_, script) => {
+          const scriptContent = $(script).html() || '';
+          const imgMatches = scriptContent.match(/https:\/\/cdn\.dsmcdn\.com\/[^"'\s]+\.(jpg|jpeg|png|webp)/gi) || [];
+          imgMatches.forEach(url => {
+            if (url.includes('/product/media/images/') || url.includes('/productimages/')) {
+              let fullUrl = url.replace(/\/ty\d+\//, '/ty933/');
+              fullUrl = fullUrl.replace(/mnresize\/\d+\/\d+\//, 'mnresize/1200/1800/');
+              if (!images.includes(fullUrl)) {
+                images.push(fullUrl);
+              }
+            }
+          });
+        });
+        
+        // Log if no images found from authentic sources
+        if (images.length === 0) {
+          console.log("⚠️ Authentic görsel bulunamadı - sadece gerçek ürün görselleri kullanılır");
+        }
+      }
+      
+      // Debug: Log HTML sample to understand image structure
+      if (images.length === 0) {
+        const htmlSample = htmlContent.substring(0, 2000);
+        const imageUrls = htmlSample.match(/https:\/\/cdn\.dsmcdn\.com[^"'\s]+\.(jpg|jpeg|png|webp)/gi) || [];
+        console.log(`🔍 HTML'de toplam ${imageUrls.length} CDN URL bulundu`);
+        if (imageUrls.length > 0) {
+          console.log(`🔗 İlk URL örneği: ${imageUrls[0]}`);
+        }
+      }
       
       console.log(`🖼️ ${images.length} ürün görseli bulundu`);
       
