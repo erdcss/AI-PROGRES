@@ -12,8 +12,7 @@ import { cleanTrendyolAttributes } from "./clean-attributes";
 import { parseJsonLdProductData, generateTagsFromJsonLd } from "./json-ld-parser";
 import { InsertProduct } from "@shared/schema";
 import { getFinalImages } from "./final-image-solution";
-import { extractAllSizes } from "./advanced-size-extractor";
-import { extractRealStockData, optimizeStockMap } from "./stock-detector";
+import { extractVariantStockInfo } from "./advanced-size-extractor";
 
 const urlSchema = z.object({
   url: z.string().min(1, "URL boş olamaz")
@@ -367,26 +366,22 @@ export async function registerRoutes(app: Express) {
               
 
               
-              // Gelişmiş beden çıkarma sistemi ve stok analizi
-              console.log('🔧 Gelişmiş beden çıkarma sistemi başlatılıyor...');
-              const productId = url.match(/p-(\d+)/)?.[1] || '';
-              const advancedSizes = await extractAllSizes(url, htmlContent, productId);
-              
-              // GERÇEK STOK DURUMU ANALİZİ - Trendyol'dan canlı stok verisi
-              console.log('🔧 GERÇEK STOK VERİSİ çıkarılıyor...');
-              const { extractVariantStockInfo } = await import('./advanced-size-extractor');
+              // GERÇEK TRENDYOL STOK DURUMU ANALİZİ - DOM'dan canlı stok verisi
+              console.log('🔧 GERÇEK TRENDYOL STOK VERİSİ çıkarılıyor...');
               const stockInfo = await extractVariantStockInfo($);
               
-              // Real stock detection ile gerçek stok verilerini çıkar
-              // Bu sistem Trendyol'un dinamik stok verilerini okur
-              
-              console.log(`🔧 PRE-INTEGRATION StockInfo: ${stockInfo.sizes.length} beden, ${stockInfo.colors.length} renk`);
+              console.log(`🔧 STOK ANALİZ SONUCU: ${stockInfo.sizes.length} beden, ${stockInfo.colors.length} renk tespit edildi`);
               console.log(`🔧 JSON-LD Variants: ${variants.size?.length || 0} beden, ${variants.color?.length || 0} renk`);
               
-              // Gelişmiş sistemden gelen bedenleri de entegre et
-              if (advancedSizes.length > 0) {
-                stockInfo.sizes = Array.from(new Set([...stockInfo.sizes, ...advancedSizes]));
-                console.log(`🔧 Gelişmiş sistem bedenleri eklendi: ${advancedSizes.join(', ')}`);
+              // JSON-LD ile gerçek stok verilerini birleştir
+              if (variants.size && variants.size.length > 0) {
+                stockInfo.sizes = Array.from(new Set([...stockInfo.sizes, ...variants.size]));
+                console.log(`🔧 JSON-LD bedenleri entegre edildi`);
+              }
+              
+              if (variants.color && variants.color.length > 0) {
+                stockInfo.colors = Array.from(new Set([...stockInfo.colors, ...variants.color]));
+                console.log(`🔧 JSON-LD renkleri entegre edildi`);
               }
               
               // JSON-LD'den gelen varyant bilgilerini stok analizine ekle
