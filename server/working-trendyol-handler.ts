@@ -67,18 +67,20 @@ export async function handleTrendyolProduct(url: string, productId: string) {
       const images: string[] = [];
       const variantImages: Record<string, string[]> = {};
       
-      // Extract main product images
+      // Extract only actual product photos with strict filtering
       $('img').each((_, img) => {
         const src = $(img).attr('src') || $(img).attr('data-src') || $(img).attr('data-original');
-        if (src && (src.includes('cdn.dsmcdn.com') || src.includes('trendyol.com'))) {
+        
+        // Only process product media images from Trendyol CDN
+        if (src && src.includes('cdn.dsmcdn.com') && src.includes('/product/media/images/')) {
           let fullUrl = src.startsWith('//') ? 'https:' + src : src;
           
-          // Convert to high-quality format
-          if (fullUrl.includes('cdn.dsmcdn.com')) {
-            fullUrl = fullUrl.replace(/\/ty\d+\//, '/ty933/');
-            fullUrl = fullUrl.replace(/_thumb\.jpg/, '_org.jpg');
-            fullUrl = fullUrl.replace(/_small\.jpg/, '_org.jpg');
-          }
+          // Convert to highest quality format
+          fullUrl = fullUrl.replace(/\/ty\d+\//, '/ty933/');
+          fullUrl = fullUrl.replace(/_thumb\.jpg/, '_org.jpg');
+          fullUrl = fullUrl.replace(/_small\.jpg/, '_org.jpg');
+          fullUrl = fullUrl.replace(/_zoom\.jpg/, '_org.jpg');
+          fullUrl = fullUrl.replace(/mnresize\/\d+\/\d+\//, 'mnresize/1200/1800/');
           
           if (!images.includes(fullUrl)) {
             images.push(fullUrl);
@@ -285,7 +287,7 @@ export async function handleTrendyolProduct(url: string, productId: string) {
         brand,
         price: `${price.toFixed(2)} TL`,
         description: `${title} - Yüksek kaliteli ${brand} ürünü`,
-        images,
+        images: images.filter(img => img.includes('/product/media/images/')),
         variants: {
           colors,
           sizes,
