@@ -363,23 +363,46 @@ export default function Home() {
                   </div>
 
                   <div className="space-y-3 border-b border-gray-800 pb-4">
-                    <h2 className="text-lg font-semibold">{product.productInfo?.title || product.title}</h2>
+                    <h2 className="text-lg font-semibold">{product.title || "Ürün Başlığı"}</h2>
                     
                     {/* Marka Bilgisi */}
-                    {product.productInfo?.brand && (
+                    {product.brand && (
                       <div className="flex items-center gap-2">
                         <Package className="w-4 h-4 text-primary" />
-                        <span className="text-sm text-gray-300">Marka: {product.productInfo.brand}</span>
+                        <span className="text-sm text-gray-300">Marka: {product.brand}</span>
                       </div>
                     )}
                     
                     {/* Fiyat Bilgisi */}
                     <div className="flex items-baseline gap-3">
-                      <span className="text-xl font-bold text-primary">{product.productInfo?.price || product.price} TL</span>
-                      {product.productInfo?.basePrice && (
-                        <span className="text-sm text-gray-400 line-through">{product.productInfo.basePrice} TL</span>
+                      <span className="text-xl font-bold text-primary">{product.price || "Fiyat bilgisi yok"}</span>
+                      {product.basePrice && product.basePrice !== product.price && (
+                        <span className="text-sm text-gray-400 line-through">{product.basePrice}</span>
                       )}
                     </div>
+
+                    {/* Ürün Açıklaması */}
+                    {product.description && (
+                      <div className="bg-gray-900/50 p-3 rounded-md">
+                        <h3 className="text-sm font-medium mb-2 text-primary">Ürün Açıklaması</h3>
+                        <p className="text-sm text-gray-300 leading-relaxed">
+                          {product.description.length > 200 
+                            ? `${product.description.substring(0, 200)}...` 
+                            : product.description
+                          }
+                        </p>
+                      </div>
+                    )}
+
+                    {/* Kategori Bilgisi */}
+                    {(product.category || product.categories) && (
+                      <div className="flex items-center gap-2">
+                        <FileText className="w-4 h-4 text-primary" />
+                        <span className="text-sm text-gray-300">
+                          Kategori: {product.category || (Array.isArray(product.categories) ? product.categories.join(' > ') : product.categories)}
+                        </span>
+                      </div>
+                    )}
                     
                     {/* Derecelendirme */}
                     {product.productInfo?.rating && (
@@ -416,11 +439,11 @@ export default function Home() {
                   <div className="space-y-2">
                     <div className="flex items-center gap-2 text-sm text-gray-400">
                       <ImageIcon className="w-4 h-4" />
-                      <span>Ürün Görselleri ({(product.productInfo?.images || product.images)?.length || 0})</span>
+                      <span>Ürün Görselleri ({(product.images)?.length || 0})</span>
                     </div>
                     <ScrollArea className="h-[250px] rounded-md border border-gray-800 p-4">
                       <div className="grid grid-cols-3 md:grid-cols-4 gap-4">
-                        {(product.productInfo?.images || product.images || [])
+                        {(product.images || [])
                           .filter((image: string) => {
                             if (!image) return false;
                             
@@ -600,37 +623,64 @@ export default function Home() {
                         </AccordionTrigger>
                         <AccordionContent>
                           <div className="bg-gray-900/50 rounded-lg p-4 space-y-4">
-                            {/* Renk Seçenekleri */}
-                            {(product.productInfo?.variants?.color?.length > 0 || product.variants?.color?.length > 0) && (
+                            {/* Variant kombinasyonları direkt olarak göster */}
+                            {product.variants && typeof product.variants === 'string' && (
                               <div>
-                                <h3 className="text-sm font-medium mb-2 text-primary">Renk Seçenekleri</h3>
-                                <div className="flex flex-wrap gap-2">
-                                  {(product.productInfo?.variants?.color || product.variants?.color || []).map((color: string, index: number) => (
-                                    <span
-                                      key={index}
-                                      className="px-3 py-1 bg-gray-800 rounded-full text-xs hover:bg-gray-700 transition-colors border border-gray-700"
-                                    >
-                                      {color}
-                                    </span>
-                                  ))}
+                                <h3 className="text-sm font-medium mb-2 text-primary">Ekstraktlanan Varyantlar</h3>
+                                <div className="text-xs text-gray-400 bg-gray-800 p-3 rounded-md font-mono max-h-40 overflow-y-auto">
+                                  {product.variants}
                                 </div>
                               </div>
                             )}
 
-                            {/* Beden Seçenekleri */}
-                            {(product.productInfo?.variants?.size?.length > 0 || product.variants?.size?.length > 0) && (
-                              <div>
-                                <h3 className="text-sm font-medium mb-2 text-primary">Beden Seçenekleri</h3>
-                                <div className="flex flex-wrap gap-2">
-                                  {(product.productInfo?.variants?.size || product.variants?.size || []).map((size: string, index: number) => (
-                                    <span
-                                      key={index}
-                                      className="px-3 py-1 bg-gray-800 rounded-full text-xs hover:bg-gray-700 transition-colors border border-gray-700"
-                                    >
-                                      {size}
-                                    </span>
-                                  ))}
-                                </div>
+                            {/* JSON format varyantları parse et ve göster */}
+                            {product.variants && typeof product.variants === 'object' && (
+                              <div className="space-y-3">
+                                {/* Renk Seçenekleri */}
+                                {product.variants.colors && product.variants.colors.length > 0 && (
+                                  <div>
+                                    <h3 className="text-sm font-medium mb-2 text-primary">Renk Seçenekleri ({product.variants.colors.length})</h3>
+                                    <div className="flex flex-wrap gap-2">
+                                      {product.variants.colors.map((color: string, index: number) => (
+                                        <span
+                                          key={index}
+                                          className="px-3 py-1 bg-gray-800 rounded-full text-xs hover:bg-gray-700 transition-colors border border-gray-700"
+                                        >
+                                          {color}
+                                        </span>
+                                      ))}
+                                    </div>
+                                  </div>
+                                )}
+
+                                {/* Beden Seçenekleri */}
+                                {product.variants.sizes && product.variants.sizes.length > 0 && (
+                                  <div>
+                                    <h3 className="text-sm font-medium mb-2 text-primary">Beden Seçenekleri ({product.variants.sizes.length})</h3>
+                                    <div className="flex flex-wrap gap-2">
+                                      {product.variants.sizes.map((size: string, index: number) => (
+                                        <span
+                                          key={index}
+                                          className="px-3 py-1 bg-gray-800 rounded-full text-xs hover:bg-gray-700 transition-colors border border-gray-700"
+                                        >
+                                          {size}
+                                        </span>
+                                      ))}
+                                    </div>
+                                  </div>
+                                )}
+
+                                {/* CSV için oluşturulan toplam kombinasyon sayısı */}
+                                {product.preview && product.preview.totalRows && (
+                                  <div className="bg-green-900/30 p-3 rounded-md">
+                                    <div className="flex items-center gap-2">
+                                      <div className="w-2 h-2 bg-green-400 rounded-full"></div>
+                                      <span className="text-sm text-green-400 font-medium">
+                                        {product.preview.totalRows - 1} renk-beden kombinasyonu CSV'ye aktarıldı
+                                      </span>
+                                    </div>
+                                  </div>
+                                )}
                               </div>
                             )}
 
