@@ -67,15 +67,28 @@ export async function handleTrendyolProduct(url: string, productId: string) {
       const images: string[] = [];
       const variantImages: Record<string, string[]> = {};
       
-      // Extract only actual product photos with strict filtering
+      // Extract all product images and variant-specific images
+      const imagePattern = /https:\/\/cdn\.dsmcdn\.com\/[^"'\s]+\/product\/media\/images\/[^"'\s]+\.(jpg|jpeg|png|webp)/gi;
+      const allImageMatches = htmlContent.match(imagePattern) || [];
+      
+      // Process all found product images
+      allImageMatches.forEach(url => {
+        let fullUrl = url.replace(/\/ty\d+\//, '/ty933/');
+        fullUrl = fullUrl.replace(/_thumb\.(jpg|jpeg|png|webp)/, '_org.$1');
+        fullUrl = fullUrl.replace(/_small\.(jpg|jpeg|png|webp)/, '_org.$1');
+        fullUrl = fullUrl.replace(/_zoom\.(jpg|jpeg|png|webp)/, '_org.$1');
+        fullUrl = fullUrl.replace(/mnresize\/\d+\/\d+\//, 'mnresize/1200/1800/');
+        
+        if (!images.includes(fullUrl)) {
+          images.push(fullUrl);
+        }
+      });
+      
+      // Also extract from img tags
       $('img').each((_, img) => {
         const src = $(img).attr('src') || $(img).attr('data-src') || $(img).attr('data-original');
-        
-        // Only process product media images from Trendyol CDN
         if (src && src.includes('cdn.dsmcdn.com') && src.includes('/product/media/images/')) {
           let fullUrl = src.startsWith('//') ? 'https:' + src : src;
-          
-          // Convert to highest quality format
           fullUrl = fullUrl.replace(/\/ty\d+\//, '/ty933/');
           fullUrl = fullUrl.replace(/_thumb\.jpg/, '_org.jpg');
           fullUrl = fullUrl.replace(/_small\.jpg/, '_org.jpg');
@@ -120,20 +133,32 @@ export async function handleTrendyolProduct(url: string, productId: string) {
             if (color.colorName && !colors.includes(color.colorName)) {
               colors.push(color.colorName);
               
-              // Extract color-specific images
+              // Extract color-specific images with enhanced matching
               if (color.images && Array.isArray(color.images)) {
                 variantImages[color.colorName] = color.images.map((img: any) => {
-                  let url = img.url || img;
+                  let url = img.url || img.href || img;
                   if (typeof url === 'string') {
                     if (url.startsWith('//')) url = 'https:' + url;
                     if (url.includes('cdn.dsmcdn.com')) {
                       url = url.replace(/\/ty\d+\//, '/ty933/');
-                      url = url.replace(/_thumb\.jpg/, '_org.jpg');
+                      url = url.replace(/_thumb\.(jpg|jpeg|png|webp)/, '_org.$1');
+                      url = url.replace(/_small\.(jpg|jpeg|png|webp)/, '_org.$1');
+                      url = url.replace(/mnresize\/\d+\/\d+\//, 'mnresize/1200/1800/');
                     }
                     return url;
                   }
                   return url;
                 }).filter(Boolean);
+              } else {
+                // Try to match images by color name in URL path
+                const colorSpecificImages = images.filter(img => 
+                  img.toLowerCase().includes(color.colorName.toLowerCase()) ||
+                  img.includes(`-${color.colorName.toLowerCase()}-`) ||
+                  img.includes(`/${color.colorName.toLowerCase()}/`)
+                );
+                if (colorSpecificImages.length > 0) {
+                  variantImages[color.colorName] = colorSpecificImages;
+                }
               }
             }
           });
@@ -224,7 +249,51 @@ export async function handleTrendyolProduct(url: string, productId: string) {
         });
       }
       
+      // Extract detailed product attributes for Shopify description
+      const attributes: Record<string, string> = {};
+      
+      // Extract from product details sections
+      $('.detail-attr-item, .product-attribute, .feature-item').each((_, elem) => {
+        const key = $(elem).find('.detail-attr-title, .attr-title, .feature-title').text().trim();
+        const value = $(elem).find('.detail-attr-text, .attr-value, .feature-value').text().trim();
+        if (key && value) {
+          attributes[key] = value;
+        }
+      });
+      
+      // Extract from specifications table
+      $('.spec-list-item, .specification-item').each((_, elem) => {
+        const key = $(elem).find('dt, .spec-title').text().trim();
+        const value = $(elem).find('dd, .spec-value').text().trim();
+        if (key && value) {
+          attributes[key] = value;
+        }
+      });
+      
+      // Extract from JavaScript product data
+      const attributeMatches = htmlContent.match(/"attributeValue":"([^"]+)"/g) || [];
+      const attributeNames = htmlContent.match(/"attributeName":"([^"]+)"/g) || [];
+      
+      attributeNames.forEach((nameMatch, index) => {
+        const name = nameMatch.replace(/"attributeName":"/, '').replace(/"$/, '');
+        if (attributeMatches[index]) {
+          const value = attributeMatches[index].replace(/"attributeValue":"/, '').replace(/"$/, '');
+          if (name && value) {
+            attributes[name] = value;
+          }
+        }
+      });
+      
+      // Set default attributes if none found
+      if (Object.keys(attributes).length === 0) {
+        attributes['Marka'] = brand;
+        attributes['Materyal'] = 'Kaliteli Kumaş';
+        attributes['Yıkama Talimatı'] = '30°C Makinede Yıkanabilir';
+        attributes['Menşei'] = 'Türkiye';
+      }
+      
       console.log(`📂 Türkçe kategoriler bulundu: ${categories.join(' > ')}`);
+      console.log(`📋 ${Object.keys(attributes).length} ürün özelliği çıkarıldı`);
       console.log(`📊 Toplam ${Object.keys(stockMap).length} varyant bulundu`);
       const inStockVariants = Object.values(stockMap).filter(Boolean).length;
       console.log(`✅ ${inStockVariants} varyant stokta mevcut`);
@@ -234,7 +303,7 @@ export async function handleTrendyolProduct(url: string, productId: string) {
         id: Date.now(),
         url,
         title,
-        description: `${title} - Yüksek kaliteli ${brand} ürünü`,
+        description: createShopifyDescription(title, brand, attributes, categories),
         price: price.toString(),
         brand,
         basePrice: null,
@@ -244,14 +313,9 @@ export async function handleTrendyolProduct(url: string, productId: string) {
           colors,
           sizes
         }),
-        attributes: {
-          'Materyal': 'Kaliteli Kumaş',
-          'Yıkama': '30°C Makinede Yıkanabilir',
-          'Menşei': 'Türkiye',
-          'Marka': brand
-        },
-        categories: ['Fashion', 'Clothing'],
-        tags: [brand.toLowerCase(), 'fashion', 'clothing'],
+        attributes,
+        categories: categories.length > 0 ? categories : ['Moda', 'Giyim'],
+        tags: [brand.toLowerCase(), ...categories.map(c => c.toLowerCase().replace(/\s+/g, '-'))],
         category: 'Fashion',
         subcategory: 'Clothing',
         productType: 'Clothing',
@@ -286,7 +350,7 @@ export async function handleTrendyolProduct(url: string, productId: string) {
         title,
         brand,
         price: `${price.toFixed(2)} TL`,
-        description: `${title} - Yüksek kaliteli ${brand} ürünü`,
+        description: createShopifyDescription(title, brand, attributes, categories),
         images: images.filter(img => img.includes('/product/media/images/')),
         variants: {
           colors,
@@ -331,6 +395,29 @@ function parseProductTitle(slug: string, brand: string): string {
     .map(word => word.charAt(0).toUpperCase() + word.slice(1).toLowerCase())
     .join(' ')
     .replace(new RegExp(brand, 'i'), brand);
+}
+
+// Create comprehensive Shopify description with product attributes
+function createShopifyDescription(title: string, brand: string, attributes: Record<string, string>, categories: string[]): string {
+  let description = `<h2>${title}</h2>\n\n`;
+  description += `<p><strong>Marka:</strong> ${brand}</p>\n\n`;
+  
+  if (categories.length > 0) {
+    description += `<p><strong>Kategori:</strong> ${categories.join(' > ')}</p>\n\n`;
+  }
+  
+  description += `<h3>Ürün Özellikleri</h3>\n<ul>\n`;
+  
+  Object.entries(attributes).forEach(([key, value]) => {
+    if (key && value) {
+      description += `  <li><strong>${key}:</strong> ${value}</li>\n`;
+    }
+  });
+  
+  description += `</ul>\n\n`;
+  description += `<p>Bu ürün yüksek kalite standartlarında üretilmiş olup, uzun ömürlü kullanım sağlar.</p>`;
+  
+  return description;
 }
 
 function generateFallbackProduct(url: string, productId: string, brand: string) {
