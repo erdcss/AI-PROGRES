@@ -6,6 +6,7 @@ import path from "path";
 import fs from "fs";
 import { storage } from "./storage";
 import { scrapeProductWithPuppeteer } from "./fixed-puppeteer-scraper";
+import { scrapeWithEnhancedMethod } from "./enhanced-trendyol-scraper";
 import { generateShopifyCSV } from "./shopify-export-fixed";
 import { getCategoryConfig } from "./category-mapping";
 import { cleanTrendyolAttributes } from "./clean-attributes";
@@ -186,10 +187,62 @@ export async function registerRoutes(app: Express) {
         }
       }
       
-      // Puppeteer'ı dene
+      // Enhanced scraper'ı öncelikli olarak dene
+      console.log("Enhanced scraper kullanılıyor (prioritized)");
+      try {
+        const enhancedData = await scrapeWithEnhancedMethod(url);
+          if (enhancedData) {
+            console.log("Enhanced scraper başarılı, veri işleniyor");
+            // Enhanced data'yı işle ve direkt CSV oluştur
+            const productData = {
+              id: Date.now(),
+              url,
+              title: enhancedData.title,
+              brand: enhancedData.brand,
+              basePrice: null,
+              price: enhancedData.price.toString(),
+              images: enhancedData.images,
+              video: null,
+              variants: enhancedData.variants,
+              description: enhancedData.description,
+              attributes: enhancedData.attributes,
+              categories: ['Fashion', 'Accessories'],
+              tags: [enhancedData.brand, 'Fashion', 'Accessories'],
+              vendor: null
+            };
+
+            // CSV oluştur
+            const csvPath = await generateShopifyCSV(productData, enhancedData.variants.stockMap);
+            
+            return res.status(200).json({
+              url,
+              message: "Enhanced scraper ile ürün verisi başarıyla çekildi",
+              productInfo: {
+                title: enhancedData.title,
+                brand: enhancedData.brand,
+                price: enhancedData.price,
+                images: enhancedData.images,
+                variants: {
+                  size: enhancedData.variants.sizes,
+                  color: enhancedData.variants.colors
+                },
+                stockMap: enhancedData.variants.stockMap
+              },
+              preview: {
+                csvPath,
+                filename: "shopify_products.csv",
+                totalRows: Object.keys(enhancedData.variants.stockMap).length || 1
+              }
+            });
+          }
+      } catch (enhancedError: any) {
+        console.log(`Enhanced scraper hatası: ${enhancedError.message}`);
+      }
+
+      // Fallback: Puppeteer'ı dene
       if (!htmlContent) {
         try {
-          console.log("Puppeteer kullanılıyor");
+          console.log("Fallback: Puppeteer kullanılıyor");
           htmlContent = await scrapeProductWithPuppeteer(url);
         } catch (puppeteerError: any) {
           console.log(`Puppeteer hatası: ${puppeteerError.message}`);
