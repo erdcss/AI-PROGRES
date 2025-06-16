@@ -277,13 +277,24 @@ export async function generateShopifyCSV(
         });
       });
 
-      // VARYANT SATIRLARI - SHOPIFY GERÇEK FORMATI
+      // VARYANT SATIRLARI - SHOPIFY GERÇEK FORMATI - SADECE STOKTA OLANLAR
       if (hasSizeVariants && hasColorVariants) {
-        // Renk-beden kombinasyonları (template formatında)
-        console.log(`VARYANT SİSTEMİ: ${colors.length} renk × ${sizes.length} beden kombinasyonu oluşturuluyor`);
+        // Renk-beden kombinasyonları (template formatında) - SADECE STOKTA OLANLAR
+        console.log(`VARYANT SİSTEMİ: ${colors.length} renk × ${sizes.length} beden kombinasyonu kontrol ediliyor`);
+        let addedVariants = 0;
         for (let c = 0; c < colors.length; c++) {
           for (let s = 0; s < sizes.length; s++) {
             if (c === 0 && s === 0) continue; // Ana ürünü atla
+            
+            // STOK KONTROLÜ - SADECE STOKTA OLANLAR EKLENSİN
+            const stockQuantity = getVariantStockQuantity(colors[c], sizes[s]);
+            if (stockQuantity === '0') {
+              console.log(`🚫 ATLANDI: ${colors[c]}-${sizes[s]} kombinasyonu stokta yok`);
+              continue; // Stoksuz varyantı atla
+            }
+            
+            console.log(`✅ EKLENDİ: ${colors[c]}-${sizes[s]} kombinasyonu stokta (${stockQuantity} adet)`);
+            addedVariants++;
             
             csvRows.push({
               handle: handle,
@@ -303,7 +314,7 @@ export async function generateShopifyCSV(
               variant_sku: `${handle}-${colors[c]}-${sizes[s]}`,
               variant_grams: '145',
               variant_inventory_tracker: 'shopify',
-              variant_inventory_qty: getVariantStockQuantity(colors[c], sizes[s]),
+              variant_inventory_qty: stockQuantity,
               variant_inventory_policy: 'deny',
               variant_fulfillment_service: 'manual',
               variant_price: product.price,
@@ -337,11 +348,22 @@ export async function generateShopifyCSV(
             });
           }
         }
-        console.log(`SHOPIFY FORMAT: ${(colors.length * sizes.length - 1)} varyant kombinasyonu eklendi`);
+        console.log(`SHOPIFY FORMAT: ${addedVariants} stokta olan varyant eklendi (toplam ${colors.length * sizes.length - 1} kombinasyondan)`);
       } else if (hasSizeVariants) {
-        // Sadece beden varyantları
-        console.log(`BEDEN VARYANTI SİSTEMİ: ${sizes.length} beden varyasyonu oluşturuluyor`);
+        // Sadece beden varyantları - SADECE STOKTA OLANLAR
+        console.log(`BEDEN VARYANTI SİSTEMİ: ${sizes.length} beden varyasyonu kontrol ediliyor`);
+        let addedSizeVariants = 0;
         for (let s = 1; s < sizes.length; s++) {
+          // STOK KONTROLÜ - SADECE STOKTA OLANLAR EKLENSİN
+          const stockQuantity = getVariantStockQuantity('', sizes[s]);
+          if (stockQuantity === '0') {
+            console.log(`🚫 ATLANDI: ${sizes[s]} bedeni stokta yok`);
+            continue;
+          }
+          
+          console.log(`✅ EKLENDİ: ${sizes[s]} bedeni stokta (${stockQuantity} adet)`);
+          addedSizeVariants++;
+          
           csvRows.push({
             handle: handle,
             title: '',
@@ -360,7 +382,7 @@ export async function generateShopifyCSV(
             variant_sku: `${handle}-${sizes[s]}`,
             variant_grams: '145',
             variant_inventory_tracker: 'shopify',
-            variant_inventory_qty: getVariantStockQuantity(undefined, sizes[s]),
+            variant_inventory_qty: stockQuantity,
             variant_inventory_policy: 'deny',
             variant_fulfillment_service: 'manual',
             variant_price: product.price,
@@ -393,11 +415,22 @@ export async function generateShopifyCSV(
             status: ''
           });
         }
-        console.log(`SHOPIFY FORMAT: ${sizes.length - 1} beden varyantı eklendi`);
+        console.log(`SHOPIFY FORMAT: ${addedSizeVariants} stokta olan beden varyantı eklendi (toplam ${sizes.length - 1} bedenden)`);
       } else if (hasColorVariants) {
-        // Sadece renk varyantları
-        console.log(`RENK VARYANTI SİSTEMİ: ${colors.length} renk varyasyonu oluşturuluyor`);
+        // Sadece renk varyantları - SADECE STOKTA OLANLAR
+        console.log(`RENK VARYANTI SİSTEMİ: ${colors.length} renk varyasyonu kontrol ediliyor`);
+        let addedColorVariants = 0;
         for (let c = 1; c < colors.length; c++) {
+          // STOK KONTROLÜ - SADECE STOKTA OLANLAR EKLENSİN
+          const stockQuantity = getVariantStockQuantity(colors[c], '');
+          if (stockQuantity === '0') {
+            console.log(`🚫 ATLANDI: ${colors[c]} rengi stokta yok`);
+            continue;
+          }
+          
+          console.log(`✅ EKLENDİ: ${colors[c]} rengi stokta (${stockQuantity} adet)`);
+          addedColorVariants++;
+          
           csvRows.push({
             handle: handle,
             title: '',
@@ -416,7 +449,7 @@ export async function generateShopifyCSV(
             variant_sku: `${handle}-${colors[c]}`,
             variant_grams: '145',
             variant_inventory_tracker: 'shopify',
-            variant_inventory_qty: getVariantStockQuantity(colors[c], undefined),
+            variant_inventory_qty: stockQuantity,
             variant_inventory_policy: 'deny',
             variant_fulfillment_service: 'manual',
             variant_price: product.price,
@@ -449,7 +482,7 @@ export async function generateShopifyCSV(
             status: ''
           });
         }
-        console.log(`SHOPIFY FORMAT: ${colors.length - 1} renk varyantı eklendi`);
+        console.log(`SHOPIFY FORMAT: ${addedColorVariants} stokta olan renk varyantı eklendi (toplam ${colors.length - 1} renkten)`);
       } else {
         // Varyasyonu olmayan ürünler - "Default Title" ile tek varyant
         console.log('VARYASYON YOK SİSTEMİ: Tek varyant "Default Title" oluşturuluyor');
