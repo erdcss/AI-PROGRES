@@ -154,38 +154,66 @@ export async function registerRoutes(app: Express) {
 
       let htmlContent;
       
-      // Demo: Real stock detection system based on user evidence
-      if (url.includes('turmarkt') && url.includes('kemer')) {
-        console.log("DEMO: Implementing real stock detection based on user screenshot");
-        console.log("Evidence: siyah (black) color only available in S size, M/L/XL out of stock");
+      // Enhanced product data extraction for all Trendyol URLs
+      if (url.includes('trendyol.com/')) {
+        console.log("Gelişmiş ürün verisi çıkarılıyor...");
         
-        const { demonstrateRealStockDetection, createDemoShopifyData } = await import('./stock-demo-system');
-        const stockData = demonstrateRealStockDetection();
-        const csvRows = createDemoShopifyData(stockData);
+        const { extractRealProductData } = await import('./real-trendyol-extractor');
+        const productData = await extractRealProductData(url, productId || '');
         
-        // Write CSV file
-        const csvContent = csvRows.map(row => row.map(cell => `"${cell}"`).join(',')).join('\n');
-        const fs = await import('fs');
-        const csvPath = 'temp/shopify_products.csv';
-        await fs.promises.writeFile(csvPath, csvContent, 'utf8');
+        if (!productData) {
+          return res.status(500).json({ message: "Ürün verisi çıkarılamadı" });
+        }
+
+        // Create product data for CSV generation
+        const productForCSV: InsertProduct = {
+          url,
+          title: productData.title,
+          brand: productData.brand,
+          price: productData.price.toString(),
+          images: JSON.stringify(productData.images),
+          variants: JSON.stringify({
+            colors: productData.colors,
+            sizes: productData.sizes
+          }),
+          description: productData.description,
+          attributes: JSON.stringify(productData.attributes),
+          categories: JSON.stringify(['Fashion', 'Clothing']),
+          tags: JSON.stringify([productData.brand, 'Fashion', 'Clothing'])
+        };
+
+        // Generate CSV with real stock data
+        const csvPath = await generateShopifyCSV(productForCSV, productData.stockMap);
         
         return res.status(200).json({
           url,
-          message: "Real stock detection demo completed - shows authentic Trendyol behavior",
+          message: "Ürün verisi başarıyla çekildi ve işlendi",
           productInfo: {
-            title: "Turmarkt Kadın Klasik Kemer",
-            brand: "turmarkt",
-            price: 150,
-            images: ["https://cdn.dsmcdn.com/mnresize/1200/1800/ty1505/product/media/images/prod/QC/20240827/01/12dbde1a-1e78-3452-86a2-60938f5afea9/1_org.jpg"],
+            title: productData.title,
+            brand: productData.brand,
+            price: productData.price,
+            images: productData.images,
             variants: {
-              size: stockData.sizes,
-              color: stockData.colors
+              size: productData.sizes,
+              color: productData.colors
             },
-            stockMap: stockData.variantStockMap,
-            realStockBehavior: "siyah color only in S size - matches user screenshot evidence"
+            attributes: productData.attributes,
+            stockMap: productData.stockMap
           },
           preview: {
             csvPath,
+            filename: "shopify_products.csv",
+            totalRows: Object.values(productData.stockMap).filter(Boolean).length,
+            note: "Sadece stokta olan varyantlar CSV'ye dahil edildi"
+          }
+        });
+      }
+      
+      // Mobil API stratejisini dene
+      if (productId) {
+        try {
+          const mobileApiUrl = `https://m.trendyol.com/mweb/product/${productId}`;
+          console.log(`Mobil API stratejisi deneniyor: ${mobileApiUrl}`);
             filename: "shopify_products.csv", 
             totalRows: stockData.inStockVariants,
             demoNote: "Shows real stock detection: only in-stock variants included in CSV"
