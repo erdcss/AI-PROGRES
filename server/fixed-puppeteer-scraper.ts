@@ -7,6 +7,7 @@
  * TEST MODU: Puppeteer başlatmadan önce test modu aktifse, ürün ID'ye göre örnek veri döndürür
  */
 import puppeteer from 'puppeteer';
+import { execSync } from 'child_process';
 import { join } from 'path';
 import * as os from 'os';
 import fetch from 'node-fetch';
@@ -210,9 +211,19 @@ export async function scrapeProductWithPuppeteer(url: string): Promise<string> {
                            url.includes('espresso') || 
                            url.includes('kahve'));
     
-    // Tarayıcıyı başlat
+    // Tarayıcıyı başlat - sistem Chromium'unu kullan
+    let executablePath;
+    try {
+      // Mevcut Chromium yolunu bul
+      executablePath = execSync('which chromium-browser || which chromium || which google-chrome', { encoding: 'utf8' }).trim();
+      debug(`Chromium yolu bulundu: ${executablePath}`);
+    } catch (error) {
+      debug('Chromium bulunamadı, varsayılan ayarları kullanılıyor');
+    }
+
     browser = await puppeteer.launch({
       headless: true,
+      executablePath: executablePath || undefined,
       args: [
         '--no-sandbox',
         '--disable-setuid-sandbox',
@@ -220,6 +231,9 @@ export async function scrapeProductWithPuppeteer(url: string): Promise<string> {
         '--disable-accelerated-2d-canvas',
         '--disable-gpu',
         '--window-size=1920,1080',
+        '--disable-background-timer-throttling',
+        '--disable-backgrounding-occluded-windows',
+        '--disable-renderer-backgrounding',
         '--user-agent=Mozilla/5.0 (iPhone; CPU iPhone OS 15_0 like Mac OS X) AppleWebKit/605.1.15 (KHTML, like Gecko) CriOS/95.0.4638.54 Mobile/15E148 Safari/604.1'
       ]
     });
