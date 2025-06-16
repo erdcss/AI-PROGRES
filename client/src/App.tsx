@@ -13,6 +13,7 @@ import { Input } from "@/components/ui/input";
 import { Button } from "@/components/ui/button";
 import { Label } from "@/components/ui/label";
 import { Lock, ShieldCheck, AlertCircle } from "lucide-react";
+import { PageTransition } from "@/components/PageTransition";
 
 // Login component with password protection
 function LoginScreen({ onLogin }: { onLogin: () => void }) {
@@ -158,26 +159,44 @@ function LoginScreen({ onLogin }: { onLogin: () => void }) {
 function Router() {
   return (
     <Switch>
-      <Route path="/" component={MarketplaceSelection} />
-      <Route path="/marketplace" component={MarketplaceSelection} />
-      <Route path="/coming-soon" component={ComingSoon} />
-      <Route path="/scraper">
-        <div className="container mx-auto p-4">
-          <div className="flex flex-col gap-4">
-            <ScraperPage />
-            <UrlHistory onSelect={(url) => {
-              // Find the scraper component and update its URL
-              const scraperComponent = document.querySelector('input[name="url"]');
-              if (scraperComponent) {
-                const event = new Event('change', { bubbles: true });
-                Object.defineProperty(event, 'target', { value: { value: url } });
-                scraperComponent.dispatchEvent(event);
-              }
-            }} />
-          </div>
-        </div>
+      <Route path="/">
+        <PageTransition>
+          <MarketplaceSelection />
+        </PageTransition>
       </Route>
-      <Route component={NotFound} />
+      <Route path="/marketplace">
+        <PageTransition>
+          <MarketplaceSelection />
+        </PageTransition>
+      </Route>
+      <Route path="/coming-soon">
+        <PageTransition>
+          <ComingSoon />
+        </PageTransition>
+      </Route>
+      <Route path="/scraper">
+        <PageTransition>
+          <div className="container mx-auto p-4">
+            <div className="flex flex-col gap-4">
+              <ScraperPage />
+              <UrlHistory onSelect={(url) => {
+                // Find the scraper component and update its URL
+                const scraperComponent = document.querySelector('input[name="url"]');
+                if (scraperComponent) {
+                  const event = new Event('change', { bubbles: true });
+                  Object.defineProperty(event, 'target', { value: { value: url } });
+                  scraperComponent.dispatchEvent(event);
+                }
+              }} />
+            </div>
+          </div>
+        </PageTransition>
+      </Route>
+      <Route>
+        <PageTransition>
+          <NotFound />
+        </PageTransition>
+      </Route>
     </Switch>
   );
 }
