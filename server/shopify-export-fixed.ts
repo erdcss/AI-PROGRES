@@ -490,7 +490,7 @@ export async function generateShopifyCSV(
             google_shopping_mpn: '',
             google_shopping_condition: '',
             google_shopping_custom_product: '',
-            variant_image: mainImage,
+            variant_image: sanitizeImageUrl(mainImage),
             variant_weight_unit: 'g',
             variant_tax_code: '',
             cost_per_item: '',
