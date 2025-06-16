@@ -240,8 +240,8 @@ export async function registerRoutes(app: Express) {
                   'Yıkama': '30°C',
                   'Menşei': 'Türkiye'
                 },
-                categories: JSON.stringify(['Fashion', 'Clothing']),
-                tags: JSON.stringify([brand.toLowerCase(), 'fashion', 'clothing']),
+                categories: ['Fashion', 'Clothing'],
+                tags: [brand.toLowerCase(), 'fashion', 'clothing'],
                 category: 'Fashion',
                 subcategory: 'Clothing',
                 productType: 'Clothing',
@@ -257,22 +257,29 @@ export async function registerRoutes(app: Express) {
               return res.status(200).json({
                 url,
                 message: "Gerçek stok verisi ile ürün başarıyla işlendi",
-                productInfo: {
-                  title,
-                  brand,
-                  price,
-                  images,
-                  variants: {
-                    size: stockData.availableSizes,
-                    color: stockData.availableColors
-                  },
-                  stockMap: stockData.variantStockMap,
-                  inStockCount: Object.values(stockData.variantStockMap).filter(Boolean).length
+                title,
+                brand,
+                price: price.toString(),
+                description: `${title} - Yüksek kaliteli ürün`,
+                images,
+                variants: {
+                  colors: stockData.availableColors,
+                  sizes: stockData.availableSizes
                 },
+                attributes: {
+                  'Materyal': 'Kaliteli Kumaş',
+                  'Yıkama': '30°C',
+                  'Menşei': 'Türkiye'
+                },
+                categories: ['Fashion', 'Clothing'],
+                category: 'Fashion',
+                subcategory: 'Clothing',
+                tags: [brand.toLowerCase(), 'fashion', 'clothing'],
                 preview: {
                   csvPath: result.csvPath,
                   filename: result.filename,
                   totalRows: result.totalRows,
+                  shopifyReady: true,
                   note: "Gerçek stok verisi kullanılarak sadece mevcut varyantlar dahil edildi"
                 }
               });
@@ -305,8 +312,8 @@ export async function registerRoutes(app: Express) {
             sizes: productData.sizes
           }),
           attributes: productData.attributes,
-          categories: JSON.stringify(['Fashion', 'Clothing']),
-          tags: JSON.stringify([productData.brand, 'Fashion', 'Clothing']),
+          categories: ['Fashion', 'Clothing'],
+          tags: [productData.brand, 'Fashion', 'Clothing'],
           category: 'Fashion',
           subcategory: 'Clothing',
           productType: 'Clothing',
@@ -322,41 +329,25 @@ export async function registerRoutes(app: Express) {
         return res.status(200).json({
           url,
           message: "Ürün verisi başarıyla çekildi ve işlendi",
-          productInfo: {
-            title: productData.title,
-            brand: productData.brand,
-            price: productData.price,
-            images: productData.images,
-            variants: {
-              size: productData.sizes,
-              color: productData.colors
-            },
-            attributes: productData.attributes,
-            stockMap: productData.stockMap
+          title: productData.title,
+          brand: productData.brand,
+          price: productData.price,
+          description: productData.description,
+          images: productData.images,
+          variants: {
+            colors: productData.colors,
+            sizes: productData.sizes
           },
+          attributes: productData.attributes,
+          categories: ['Fashion', 'Clothing'],
+          category: 'Fashion',
+          subcategory: 'Clothing',
+          tags: [productData.brand, 'Fashion', 'Clothing'],
           preview: {
             csvPath: result.csvPath,
             filename: result.filename,
             totalRows: result.totalRows,
-            note: "Sadece stokta olan varyantlar CSV'ye dahil edildi"
-          }
-        });
-          productInfo: {
-            title: productData.title,
-            brand: productData.brand,
-            price: productData.price,
-            images: productData.images,
-            variants: {
-              size: productData.sizes,
-              color: productData.colors
-            },
-            attributes: productData.attributes,
-            stockMap: productData.stockMap
-          },
-          preview: {
-            csvPath,
-            filename: "shopify_products.csv",
-            totalRows: Object.values(productData.stockMap).filter(Boolean).length,
+            shopifyReady: true,
             note: "Sadece stokta olan varyantlar CSV'ye dahil edildi"
           }
         });
