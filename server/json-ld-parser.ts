@@ -169,6 +169,22 @@ export function parseJsonLdProductData($: cheerio.CheerioAPI): JsonLdProductData
               cleanUrl = cleanUrl.replace('http://', 'https://');
             }
             
+            // Trendyol CDN için güvenilir thumb formatına çevir
+            if (cleanUrl.includes('cdn.dsmcdn.com')) {
+              if (cleanUrl.includes('_org_zoom.jpg')) {
+                cleanUrl = cleanUrl.replace('_org_zoom.jpg', '_thumb.jpg');
+              } else if (cleanUrl.includes('_org_zoom.png')) {
+                cleanUrl = cleanUrl.replace('_org_zoom.png', '_thumb.png');
+              } else if (cleanUrl.includes('/1.jpg')) {
+                cleanUrl = cleanUrl.replace('/1.jpg', '_thumb.jpg');
+              } else if (cleanUrl.includes('/1.png')) {
+                cleanUrl = cleanUrl.replace('/1.png', '_thumb.png');
+              } else if (!cleanUrl.includes('_thumb.') && !cleanUrl.includes('_org.')) {
+                cleanUrl = cleanUrl.replace('.jpg', '_thumb.jpg');
+                cleanUrl = cleanUrl.replace('.png', '_thumb.png');
+              }
+            }
+            
             // Tam URL kontrolü - sadece tamamen aynı olanları filtrele
             if (!seenUrls.has(cleanUrl)) {
               seenUrls.add(cleanUrl);

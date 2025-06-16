@@ -40,11 +40,22 @@ function sanitizeImageUrl(url: string): string {
     cleanUrl = cleanUrl.replace('http://', 'https://');
   }
   
-  // Trendyol CDN URL'lerini optimize et
+  // Trendyol CDN için farklı boyut formatlarını dene
   if (cleanUrl.includes('cdn.dsmcdn.com')) {
-    // _org_zoom.jpg formatını düzenle
-    cleanUrl = cleanUrl.replace('_org_zoom.jpg', '.jpg');
-    cleanUrl = cleanUrl.replace('_org_zoom.png', '.png');
+    // En küçük güvenilir boyutu kullan - thumb formatı
+    if (cleanUrl.includes('_org_zoom.jpg')) {
+      cleanUrl = cleanUrl.replace('_org_zoom.jpg', '_thumb.jpg');
+    } else if (cleanUrl.includes('_org_zoom.png')) {
+      cleanUrl = cleanUrl.replace('_org_zoom.png', '_thumb.png');
+    } else if (cleanUrl.includes('/1.jpg')) {
+      cleanUrl = cleanUrl.replace('/1.jpg', '_thumb.jpg');
+    } else if (cleanUrl.includes('/1.png')) {
+      cleanUrl = cleanUrl.replace('/1.png', '_thumb.png');
+    } else if (!cleanUrl.includes('_thumb.') && !cleanUrl.includes('_org.')) {
+      // Eğer hiçbir format yoksa, thumb ekle
+      cleanUrl = cleanUrl.replace('.jpg', '_thumb.jpg');
+      cleanUrl = cleanUrl.replace('.png', '_thumb.png');
+    }
   }
   
   return cleanUrl;
