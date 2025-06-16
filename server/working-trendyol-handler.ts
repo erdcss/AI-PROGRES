@@ -415,7 +415,7 @@ export async function handleTrendyolProduct(url: string, productId: string) {
         brand,
         price: `${price.toFixed(2)} TL`,
         description: createShopifyDescription(title, brand, attributes, categories),
-        images: images.filter(img => img.includes('/product/media/images/')),
+        images: images,
         variants: {
           colors,
           sizes,
