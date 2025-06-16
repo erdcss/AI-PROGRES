@@ -4,7 +4,7 @@
  */
 
 import { generateShopifyCSV } from './shopify-export-fixed';
-import { InsertProduct } from '@shared/schema';
+import { Product } from '@shared/schema';
 
 export async function handleModagenProduct(url: string, productId: string) {
   console.log(`Processing Modagen product: ${productId}`);
@@ -54,24 +54,37 @@ export async function handleModagenProduct(url: string, productId: string) {
   });
 
   // Create product data for CSV generation
-  const productForCSV: InsertProduct = {
+  const productForCSV: Product = {
+    id: Date.now(),
     url,
     title: productData.title,
-    brand: productData.brand,
+    description: productData.description,
     price: productData.price.toString(),
-    images: JSON.stringify(productData.images),
+    brand: productData.brand,
+    basePrice: null,
+    images: productData.images,
+    video: null,
     variants: JSON.stringify({
       colors: productData.colors,
       sizes: productData.sizes
     }),
-    description: productData.description,
-    attributes: JSON.stringify(productData.attributes),
+    attributes: productData.attributes,
     categories: JSON.stringify(['Fashion', 'Dress', 'Women']),
-    tags: JSON.stringify(['modagen', 'elbise', 'yazlik', 'fashion'])
+    tags: JSON.stringify(['modagen', 'elbise', 'yazlik', 'fashion']),
+    category: 'Fashion',
+    subcategory: 'Dress',
+    productType: 'Dress',
+    vendor: null
   };
 
   // Generate CSV with real stock filtering
-  const csvPath = await generateShopifyCSV(productForCSV, stockMap);
+  const result = await generateShopifyCSV(productForCSV, {
+    sizes: productData.sizes,
+    colors: productData.colors,
+    stockMap: stockMap
+  });
+  
+  const csvPath = result.csvPath;
   
   const inStockCount = Object.values(stockMap).filter(Boolean).length;
   const totalVariants = Object.keys(stockMap).length;

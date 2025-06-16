@@ -152,11 +152,15 @@ export async function registerRoutes(app: Express) {
       const productIdMatch = url.match(/p-(\d+)/);
       const productId = productIdMatch ? productIdMatch[1] : null;
 
-      let htmlContent;
-      
-      // Enhanced product data extraction for all Trendyol URLs
-      if (url.includes('trendyol.com/')) {
-        console.log("Gelişmiş ürün verisi çıkarılıyor...");
+      // Enhanced product data extraction for Modagen and other Trendyol products
+      if (url.includes('modagen') || url.includes('trendyol.com/')) {
+        console.log("Ürün verisi işleniyor...");
+        
+        if (url.includes('modagen')) {
+          const { handleModagenProduct } = await import('./modagen-handler');
+          const result = await handleModagenProduct(url, productId || '');
+          return res.status(200).json(result);
+        }
         
         const { extractRealProductData } = await import('./real-trendyol-extractor');
         const productData = await extractRealProductData(url, productId || '');
@@ -166,20 +170,27 @@ export async function registerRoutes(app: Express) {
         }
 
         // Create product data for CSV generation
-        const productForCSV: InsertProduct = {
+        const productForCSV = {
+          id: Date.now(),
           url,
           title: productData.title,
           brand: productData.brand,
+          basePrice: null,
           price: productData.price.toString(),
-          images: JSON.stringify(productData.images),
-          variants: JSON.stringify({
+          images: productData.images,
+          video: null,
+          variants: {
             colors: productData.colors,
             sizes: productData.sizes
-          }),
+          },
           description: productData.description,
-          attributes: JSON.stringify(productData.attributes),
-          categories: JSON.stringify(['Fashion', 'Clothing']),
-          tags: JSON.stringify([productData.brand, 'Fashion', 'Clothing'])
+          attributes: productData.attributes,
+          categories: ['Fashion', 'Clothing'],
+          tags: [productData.brand, 'Fashion', 'Clothing'],
+          category: 'Fashion',
+          subcategory: 'Clothing',
+          productType: 'Clothing',
+          vendor: null
         };
 
         // Generate CSV with real stock data
@@ -209,19 +220,8 @@ export async function registerRoutes(app: Express) {
         });
       }
       
-      // Mobil API stratejisini dene
-      if (productId) {
-        try {
-          const mobileApiUrl = `https://m.trendyol.com/mweb/product/${productId}`;
-          console.log(`Mobil API stratejisi deneniyor: ${mobileApiUrl}`);
-            filename: "shopify_products.csv", 
-            totalRows: stockData.inStockVariants,
-            demoNote: "Shows real stock detection: only in-stock variants included in CSV"
-          }
-        });
-      }
+      // Continue with original scraping flow
       
-      // Mobil API stratejisini dene 
       if (productId) {
         try {
           const mobileApiUrl = `https://m.trendyol.com/mweb/product/${productId}`;
