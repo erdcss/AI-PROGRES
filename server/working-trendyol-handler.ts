@@ -50,73 +50,92 @@ export async function handleTrendyolProduct(url: string, productId: string) {
         }
       });
       
-      // Extract colors and sizes from JSON-LD structured data
+      // Extract real variant data from page content
       const colors: string[] = [];
       const sizes: string[] = [];
+      let stockMap: Record<string, boolean> = {};
       
-      // Look for JSON-LD structured data which contains variant information
-      $('script[type="application/ld+json"]').each((_, script) => {
+      // Extract from inline JavaScript data containing allVariants
+      const allVariantsMatch = htmlContent.match(/"allVariants":\[(.*?)\]/);
+      const productColorsMatch = htmlContent.match(/"productColors":\[(.*?)\]/);
+      
+      if (allVariantsMatch) {
         try {
-          const jsonData = JSON.parse($(script).html() || '');
-          if (jsonData['@type'] === 'Product' && jsonData.offers) {
-            const offers = Array.isArray(jsonData.offers) ? jsonData.offers : [jsonData.offers];
-            offers.forEach((offer: any) => {
-              if (offer.color && !colors.includes(offer.color)) {
-                colors.push(offer.color);
-              }
-              if (offer.size && Array.isArray(offer.size)) {
-                offer.size.forEach((s: string) => {
-                  if (!sizes.includes(s)) {
-                    sizes.push(s);
-                  }
-                });
-              }
-            });
-          }
+          const variantData = JSON.parse(`[${allVariantsMatch[1]}]`);
+          variantData.forEach((variant: any) => {
+            if (variant.value && !sizes.includes(variant.value)) {
+              sizes.push(variant.value);
+            }
+          });
+          console.log(`✅ Gerçek beden verisi bulundu: ${sizes.join(', ')}`);
         } catch (e) {
-          // Continue if JSON parsing fails
+          console.log("Varyant verisi parse edilemedi:", e);
         }
-      });
+      }
       
-      // Fallback: Extract from page content if no structured data
+      if (productColorsMatch) {
+        try {
+          const colorData = JSON.parse(`[${productColorsMatch[1]}]`);
+          colorData.forEach((color: any) => {
+            if (color.colorName && !colors.includes(color.colorName)) {
+              colors.push(color.colorName);
+            }
+          });
+          console.log(`✅ Gerçek renk verisi bulundu: ${colors.join(', ')}`);
+        } catch (e) {
+          console.log("Renk verisi parse edilemedi:", e);
+        }
+      }
+      
+      // Extract stock information from page
+      const stockMatch = htmlContent.match(/"variants":\[(.*?)\]/);
+      if (stockMatch) {
+        try {
+          const stockData = JSON.parse(`[${stockMatch[1]}]`);
+          stockData.forEach((item: any) => {
+            if (item.attributeType === 'productSize' && item.variants) {
+              item.variants.forEach((variant: any) => {
+                if (variant.attributeValue && typeof variant.inStock === 'boolean') {
+                  const sizeKey = variant.attributeValue;
+                  colors.forEach(color => {
+                    const variantKey = `${color.toLowerCase()}-${sizeKey}`;
+                    stockMap[variantKey] = variant.inStock;
+                  });
+                }
+              });
+            }
+          });
+        } catch (e) {
+          console.log("Stok verisi parse edilemedi:", e);
+        }
+      }
+      
+      // If no colors found, extract from color selectors
       if (colors.length === 0) {
-        $('.pr-in-cn img, [data-testid*="color"] img, .color-option img').each((_, el) => {
-          const colorName = $(el).attr('alt') || $(el).attr('title') || '';
+        const colorPattern = /"color":\s*"([^"]+)"/g;
+        let colorMatch;
+        while ((colorMatch = colorPattern.exec(htmlContent)) !== null) {
+          const colorName = colorMatch[1];
           if (colorName && !colors.includes(colorName)) {
             colors.push(colorName);
           }
-        });
+        }
       }
       
-      if (sizes.length === 0) {
-        $('.pr-in-sz button, [data-testid*="size"] button, .size-option').each((_, el) => {
-          const sizeName = $(el).text().trim();
-          if (sizeName && sizeName.match(/^(XS|S|M|L|XL|XXL|\d+)$/i)) {
-            if (!sizes.includes(sizeName)) {
-              sizes.push(sizeName);
-            }
-          }
-        });
-      }
-      
-      // Generate realistic stock map
-      const stockMap: Record<string, boolean> = {};
-      if (colors.length > 0 && sizes.length > 0) {
+      // If no stock data was extracted, create basic stock map for available sizes
+      if (Object.keys(stockMap).length === 0 && colors.length > 0 && sizes.length > 0) {
         colors.forEach(color => {
           sizes.forEach(size => {
             const variantKey = `${color.toLowerCase()}-${size}`;
-            // 85% availability for realistic stock distribution
-            const inStock = Math.random() > 0.15;
-            stockMap[variantKey] = inStock;
-            
-            if (inStock) {
-              console.log(`✅ ${variantKey}: STOKTA`);
-            } else {
-              console.log(`❌ ${variantKey}: STOKTA YOK`);
-            }
+            stockMap[variantKey] = true; // Assume in stock if no specific data
+            console.log(`📦 ${variantKey}: Stok verisi yok, mevcut kabul edildi`);
           });
         });
       }
+      
+      console.log(`📊 Toplam ${Object.keys(stockMap).length} varyant bulundu`);
+      const inStockVariants = Object.values(stockMap).filter(Boolean).length;
+      console.log(`✅ ${inStockVariants} varyant stokta mevcut`);
       
       // Create product data for CSV generation
       const productData: Product = {
@@ -154,9 +173,9 @@ export async function handleTrendyolProduct(url: string, productId: string) {
         stockMap
       });
       
-      const inStockCount = Object.values(stockMap).filter(Boolean).length;
+      const finalInStockCount = Object.values(stockMap).filter(Boolean).length;
       
-      console.log(`📊 CSV oluşturuldu: ${inStockCount}/${Object.keys(stockMap).length} varyant stokta`);
+      console.log(`📊 CSV oluşturuldu: ${finalInStockCount}/${Object.keys(stockMap).length} varyant stokta`);
       
       return {
         url,
