@@ -10,6 +10,8 @@ import * as cheerio from 'cheerio';
 export async function handleTrendyolProduct(url: string, productId: string) {
   console.log(`Processing Trendyol product: ${productId}`);
   
+  console.log(`🚀 STARTING AUTHENTIC EXTRACTION for product: ${productId}`);
+  
   try {
     // Fetch the actual page content
     const response = await fetch(url, {
@@ -20,6 +22,8 @@ export async function handleTrendyolProduct(url: string, productId: string) {
         'Cache-Control': 'no-cache'
       }
     });
+    
+    console.log(`📡 Response status: ${response.status}, OK: ${response.ok}`);
 
     if (response.ok) {
       const htmlContent = await response.text();
@@ -30,9 +34,15 @@ export async function handleTrendyolProduct(url: string, productId: string) {
       const brand = urlParts[3] || 'Marka';
       const productSlug = urlParts[4] || '';
       
-      const title = $('h1').first().text().trim() || 
-                   $('.product-title').text().trim() ||
-                   parseProductTitle(productSlug, brand);
+      // More comprehensive title extraction
+      let title = $('h1').first().text().trim() || 
+                  $('.product-title').text().trim() ||
+                  $('h1[data-testid="product-detail-name"]').text().trim() ||
+                  $('.pr-in-nm').text().trim();
+      
+      if (!title) {
+        title = parseProductTitle(productSlug, brand);
+      }
       
       const priceText = $('.prc-dsc, .prc-slg, .price').first().text().trim();
       const price = priceText.match(/[\d,]+/) ? 
@@ -167,17 +177,28 @@ export async function handleTrendyolProduct(url: string, productId: string) {
       };
 
       // Generate CSV with stock filtering
-      const result = await generateShopifyCSV(productData, {
-        sizes,
-        colors,
-        stockMap
-      });
+      console.log(`📊 Generating CSV with ${colors.length} colors and ${sizes.length} sizes`);
+      let result;
+      try {
+        result = await generateShopifyCSV(productData, {
+          sizes,
+          colors,
+          stockMap
+        });
+        console.log(`✅ CSV generation successful`);
+      } catch (csvError) {
+        console.log(`❌ CSV generation failed:`, csvError);
+        throw csvError;
+      }
       
       const finalInStockCount = Object.values(stockMap).filter(Boolean).length;
       
       console.log(`📊 CSV oluşturuldu: ${finalInStockCount}/${Object.keys(stockMap).length} varyant stokta`);
+      console.log(`✅ AUTHENTIC DATA EXTRACTION SUCCESS: ${colors.length} colors, ${sizes.length} sizes`);
+      console.log(`✅ Colors: ${colors.join(', ')}`);
+      console.log(`✅ Sizes: ${sizes.join(', ')}`);
       
-      return {
+      const authenticResult = {
         url,
         message: "Authentic ürün verisi başarıyla çekildi ve işlendi",
         title,
@@ -202,10 +223,15 @@ export async function handleTrendyolProduct(url: string, productId: string) {
           note: "Authentic stok verisi kullanılarak CSV oluşturuldu"
         }
       };
+      
+      console.log(`🚀 RETURNING AUTHENTIC DATA:`, JSON.stringify(authenticResult, null, 2));
+      return authenticResult;
+    } else {
+      console.log(`❌ Response not OK: ${response.status} ${response.statusText}`);
     }
   } catch (error) {
-    console.log("Trendyol scraping hatası:", error);
-    console.log("Error details:", error);
+    console.log("❌ Trendyol scraping hatası:", error);
+    console.log("❌ Error details:", error?.message || error);
   }
   
   // Fallback if scraping fails
