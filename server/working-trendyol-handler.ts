@@ -44,21 +44,49 @@ export async function handleTrendyolProduct(url: string, productId: string) {
         title = parseProductTitle(productSlug, brand);
       }
       
-      const priceText = $('.prc-dsc, .prc-slg, .price').first().text().trim();
-      const price = priceText.match(/[\d,]+/) ? 
-                   parseInt(priceText.replace(/[^\d]/g, '')) : 150;
+      // Enhanced price extraction with proper formatting
+      let price = 150;
+      let priceText = $('.prc-dsc, .prc-slg, .price, .prc-cntr .prc-dsc, .prc-cntr .prc-org').first().text().trim();
       
-      // Extract images
+      if (!priceText) {
+        // Try to extract price from JavaScript data
+        const priceMatch = htmlContent.match(/"price":(\d+\.?\d*)/);
+        if (priceMatch) {
+          price = parseFloat(priceMatch[1]);
+        }
+      } else {
+        const cleanPrice = priceText.replace(/[^\d,]/g, '').replace(',', '.');
+        if (cleanPrice) {
+          price = parseFloat(cleanPrice);
+        }
+      }
+      
+      console.log(`💰 Fiyat bulundu: ${price} TL`);
+      
+      // Enhanced image extraction with variant-specific images
       const images: string[] = [];
-      $('.product-images img, .gallery img, [data-testid*="image"] img').each((_, img) => {
-        const src = $(img).attr('src') || $(img).attr('data-src');
-        if (src && src.includes('cdn.dsmcdn.com')) {
-          const fullUrl = src.startsWith('//') ? 'https:' + src : src;
+      const variantImages: Record<string, string[]> = {};
+      
+      // Extract main product images
+      $('img').each((_, img) => {
+        const src = $(img).attr('src') || $(img).attr('data-src') || $(img).attr('data-original');
+        if (src && (src.includes('cdn.dsmcdn.com') || src.includes('trendyol.com'))) {
+          let fullUrl = src.startsWith('//') ? 'https:' + src : src;
+          
+          // Convert to high-quality format
+          if (fullUrl.includes('cdn.dsmcdn.com')) {
+            fullUrl = fullUrl.replace(/\/ty\d+\//, '/ty933/');
+            fullUrl = fullUrl.replace(/_thumb\.jpg/, '_org.jpg');
+            fullUrl = fullUrl.replace(/_small\.jpg/, '_org.jpg');
+          }
+          
           if (!images.includes(fullUrl)) {
             images.push(fullUrl);
           }
         }
       });
+      
+      console.log(`🖼️ ${images.length} ürün görseli bulundu`);
       
       // Extract real variant data from page content
       const colors: string[] = [];
@@ -89,9 +117,26 @@ export async function handleTrendyolProduct(url: string, productId: string) {
           colorData.forEach((color: any) => {
             if (color.colorName && !colors.includes(color.colorName)) {
               colors.push(color.colorName);
+              
+              // Extract color-specific images
+              if (color.images && Array.isArray(color.images)) {
+                variantImages[color.colorName] = color.images.map((img: any) => {
+                  let url = img.url || img;
+                  if (typeof url === 'string') {
+                    if (url.startsWith('//')) url = 'https:' + url;
+                    if (url.includes('cdn.dsmcdn.com')) {
+                      url = url.replace(/\/ty\d+\//, '/ty933/');
+                      url = url.replace(/_thumb\.jpg/, '_org.jpg');
+                    }
+                    return url;
+                  }
+                  return url;
+                }).filter(Boolean);
+              }
             }
           });
           console.log(`✅ Gerçek renk verisi bulundu: ${colors.join(', ')}`);
+          console.log(`🎨 Renk görselleri: ${Object.keys(variantImages).length} renk için görsel eşleşmesi`);
         } catch (e) {
           console.log("Renk verisi parse edilemedi:", e);
         }
@@ -143,6 +188,41 @@ export async function handleTrendyolProduct(url: string, productId: string) {
         });
       }
       
+      // Extract Turkish categories from breadcrumb navigation
+      const categories: string[] = [];
+      $('.breadcrumb a, .breadcrumb span, .pb-basket-item a').each((_, elem) => {
+        const categoryText = $(elem).text().trim();
+        if (categoryText && categoryText !== 'Ana Sayfa' && categoryText !== 'Trendyol' && categoryText.length > 2) {
+          if (!categories.includes(categoryText)) {
+            categories.push(categoryText);
+          }
+        }
+      });
+      
+      // Try alternative category selectors
+      if (categories.length === 0) {
+        $('.category-link, .category-name, .breadcrumb-item').each((_, elem) => {
+          const categoryText = $(elem).text().trim();
+          if (categoryText && categoryText.length > 2) {
+            if (!categories.includes(categoryText)) {
+              categories.push(categoryText);
+            }
+          }
+        });
+      }
+      
+      // Extract from JavaScript data if available
+      const categoryMatch = htmlContent.match(/"categoryName":"([^"]+)"/g);
+      if (categoryMatch) {
+        categoryMatch.forEach(match => {
+          const category = match.replace(/"categoryName":"/, '').replace(/"$/, '');
+          if (category && !categories.includes(category)) {
+            categories.push(category);
+          }
+        });
+      }
+      
+      console.log(`📂 Türkçe kategoriler bulundu: ${categories.join(' > ')}`);
       console.log(`📊 Toplam ${Object.keys(stockMap).length} varyant bulundu`);
       const inStockVariants = Object.values(stockMap).filter(Boolean).length;
       console.log(`✅ ${inStockVariants} varyant stokta mevcut`);
@@ -203,18 +283,19 @@ export async function handleTrendyolProduct(url: string, productId: string) {
         message: "Authentic ürün verisi başarıyla çekildi ve işlendi",
         title,
         brand,
-        price: price.toString(),
+        price: `${price.toFixed(2)} TL`,
         description: `${title} - Yüksek kaliteli ${brand} ürünü`,
         images,
         variants: {
           colors,
-          sizes
+          sizes,
+          variantImages
         },
         attributes: productData.attributes,
-        categories: ['Fashion', 'Clothing'],
-        category: 'Fashion',
-        subcategory: 'Clothing',
-        tags: [brand.toLowerCase(), 'fashion', 'clothing'],
+        categories: categories.length > 0 ? categories : ['Moda', 'Giyim'],
+        category: categories[0] || 'Moda',
+        subcategory: categories[1] || 'Giyim',
+        tags: [brand.toLowerCase(), ...categories.map(c => c.toLowerCase())],
         preview: {
           csvPath: result.csvPath,
           filename: result.filename,
