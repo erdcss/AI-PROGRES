@@ -13,6 +13,7 @@ import { parseJsonLdProductData, generateTagsFromJsonLd } from "./json-ld-parser
 import { InsertProduct } from "@shared/schema";
 import { getFinalImages } from "./final-image-solution";
 import { extractAllSizes } from "./advanced-size-extractor";
+import { extractRealStockData, optimizeStockMap } from "./stock-detector";
 
 const urlSchema = z.object({
   url: z.string().min(1, "URL boş olamaz")

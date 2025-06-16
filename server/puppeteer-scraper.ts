@@ -8,6 +8,8 @@ import puppeteer from 'puppeteer';
 import { join } from 'path';
 import * as os from 'os';
 import fetch from 'node-fetch';
+import * as cheerio from 'cheerio';
+import { extractRealStockData, optimizeStockMap } from './stock-detector';
 
 // Debug
 const debug = (message: string) => console.log(`[PUPPETEER] ${message}`);
