@@ -50,24 +50,54 @@ export async function handleTrendyolProduct(url: string, productId: string) {
         }
       });
       
-      // Extract colors and sizes
+      // Extract colors and sizes from JSON-LD structured data
       const colors: string[] = [];
-      $('.pr-in-cn img, [data-testid*="color"] img, .color-option img').each((_, el) => {
-        const colorName = $(el).attr('alt') || $(el).attr('title') || '';
-        if (colorName && !colors.includes(colorName)) {
-          colors.push(colorName);
+      const sizes: string[] = [];
+      
+      // Look for JSON-LD structured data which contains variant information
+      $('script[type="application/ld+json"]').each((_, script) => {
+        try {
+          const jsonData = JSON.parse($(script).html() || '');
+          if (jsonData['@type'] === 'Product' && jsonData.offers) {
+            const offers = Array.isArray(jsonData.offers) ? jsonData.offers : [jsonData.offers];
+            offers.forEach((offer: any) => {
+              if (offer.color && !colors.includes(offer.color)) {
+                colors.push(offer.color);
+              }
+              if (offer.size && Array.isArray(offer.size)) {
+                offer.size.forEach((s: string) => {
+                  if (!sizes.includes(s)) {
+                    sizes.push(s);
+                  }
+                });
+              }
+            });
+          }
+        } catch (e) {
+          // Continue if JSON parsing fails
         }
       });
       
-      const sizes: string[] = [];
-      $('.pr-in-sz button, [data-testid*="size"] button, .size-option').each((_, el) => {
-        const sizeName = $(el).text().trim();
-        if (sizeName && sizeName.match(/^(XS|S|M|L|XL|XXL|\d+)$/i)) {
-          if (!sizes.includes(sizeName)) {
-            sizes.push(sizeName);
+      // Fallback: Extract from page content if no structured data
+      if (colors.length === 0) {
+        $('.pr-in-cn img, [data-testid*="color"] img, .color-option img').each((_, el) => {
+          const colorName = $(el).attr('alt') || $(el).attr('title') || '';
+          if (colorName && !colors.includes(colorName)) {
+            colors.push(colorName);
           }
-        }
-      });
+        });
+      }
+      
+      if (sizes.length === 0) {
+        $('.pr-in-sz button, [data-testid*="size"] button, .size-option').each((_, el) => {
+          const sizeName = $(el).text().trim();
+          if (sizeName && sizeName.match(/^(XS|S|M|L|XL|XXL|\d+)$/i)) {
+            if (!sizes.includes(sizeName)) {
+              sizes.push(sizeName);
+            }
+          }
+        });
+      }
       
       // Generate realistic stock map
       const stockMap: Record<string, boolean> = {};
@@ -109,8 +139,8 @@ export async function handleTrendyolProduct(url: string, productId: string) {
           'Menşei': 'Türkiye',
           'Marka': brand
         },
-        categories: JSON.stringify(['Fashion', 'Clothing']),
-        tags: JSON.stringify([brand.toLowerCase(), 'fashion', 'clothing']),
+        categories: ['Fashion', 'Clothing'],
+        tags: [brand.toLowerCase(), 'fashion', 'clothing'],
         category: 'Fashion',
         subcategory: 'Clothing',
         productType: 'Clothing',
@@ -156,6 +186,8 @@ export async function handleTrendyolProduct(url: string, productId: string) {
   }
   
   // Fallback if scraping fails
+  const urlParts = url.split('/');
+  const brand = urlParts[3] || 'Marka';
   return generateFallbackProduct(url, productId, brand);
 }
 
