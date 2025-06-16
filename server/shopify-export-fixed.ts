@@ -29,6 +29,27 @@ function escapeForCSV(text: string): string {
   return cleaned;
 }
 
+function sanitizeImageUrl(url: string): string {
+  if (!url) return '';
+  
+  // HTTPS'e zorla
+  let cleanUrl = url.toString();
+  if (cleanUrl.startsWith('//')) {
+    cleanUrl = 'https:' + cleanUrl;
+  } else if (cleanUrl.startsWith('http://')) {
+    cleanUrl = cleanUrl.replace('http://', 'https://');
+  }
+  
+  // Trendyol CDN URL'lerini optimize et
+  if (cleanUrl.includes('cdn.dsmcdn.com')) {
+    // _org_zoom.jpg formatını düzenle
+    cleanUrl = cleanUrl.replace('_org_zoom.jpg', '.jpg');
+    cleanUrl = cleanUrl.replace('_org_zoom.png', '.png');
+  }
+  
+  return cleanUrl;
+}
+
 // Shopify resmi template formatı - tam uyumlu
 export async function generateShopifyCSV(
   product: Product,
@@ -197,7 +218,7 @@ export async function generateShopifyCSV(
         variant_requires_shipping: 'TRUE',
         variant_taxable: 'TRUE',
         variant_barcode: '',
-        image_src: mainImage,
+        image_src: sanitizeImageUrl(mainImage),
         image_position: '1',
         image_alt_text: product.title,
         gift_card: 'FALSE',
@@ -251,7 +272,7 @@ export async function generateShopifyCSV(
           variant_requires_shipping: '',
           variant_taxable: '',
           variant_barcode: '',
-          image_src: imageUrl,
+          image_src: sanitizeImageUrl(imageUrl),
           image_position: (index + 2).toString(),
           image_alt_text: `${product.title} - Görsel ${index + 2}`,
           gift_card: '',
@@ -334,7 +355,7 @@ export async function generateShopifyCSV(
               google_shopping_mpn: '',
               google_shopping_condition: '',
               google_shopping_custom_product: '',
-              variant_image: mainImage, // Varyant görseli
+              variant_image: sanitizeImageUrl(mainImage), // Varyant görseli
               variant_weight_unit: 'g',
               variant_tax_code: '',
               cost_per_item: '',
@@ -402,7 +423,7 @@ export async function generateShopifyCSV(
             google_shopping_mpn: '',
             google_shopping_condition: '',
             google_shopping_custom_product: '',
-            variant_image: mainImage,
+            variant_image: sanitizeImageUrl(mainImage),
             variant_weight_unit: 'g',
             variant_tax_code: '',
             cost_per_item: '',

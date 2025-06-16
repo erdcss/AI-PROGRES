@@ -149,7 +149,7 @@ export function parseJsonLdProductData($: cheerio.CheerioAPI): JsonLdProductData
                                  url.includes('spacer.gif') ||
                                  url.includes('placeholder.svg');
             
-            // CDN URL'lerini kabul et
+            // CDN URL'lerini kabul et ve HTTPS zorla
             const isValidCdnImage = url.includes('cdn.dsmcdn.com') && 
                                    (url.includes('.jpg') || url.includes('.jpeg') || url.includes('.png') || url.includes('.webp'));
             
@@ -161,10 +161,18 @@ export function parseJsonLdProductData($: cheerio.CheerioAPI): JsonLdProductData
           const seenUrls = new Set();
           
           for (const image of filteredImages) {
+            // HTTPS'e zorla ve URL'i temizle
+            let cleanUrl = image.toString();
+            if (cleanUrl.startsWith('//')) {
+              cleanUrl = 'https:' + cleanUrl;
+            } else if (cleanUrl.startsWith('http://')) {
+              cleanUrl = cleanUrl.replace('http://', 'https://');
+            }
+            
             // Tam URL kontrolü - sadece tamamen aynı olanları filtrele
-            if (!seenUrls.has(image)) {
-              seenUrls.add(image);
-              deduplicatedImages.push(image);
+            if (!seenUrls.has(cleanUrl)) {
+              seenUrls.add(cleanUrl);
+              deduplicatedImages.push(cleanUrl);
             }
           }
           
