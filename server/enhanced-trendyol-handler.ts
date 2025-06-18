@@ -131,12 +131,26 @@ function extractEnhancedVariants(htmlContent: string, productId: string): Enhanc
   // 4. Stock information extraction
   extractStock(htmlContent, stockMap, colors, sizes);
   
-  // 5. Validate and clean results
-  const cleanResult = validateAndClean(colors, sizes, images, variantImages, colorImageMap, variantPricing, variantSpecificPricing, stockMap);
+  // 5. Apply authentic variant detection
+  const { detectAuthenticVariants } = await import('./fixed-variant-detector');
+  const extractedVariants = getExtractedVariants(htmlContent);
+  const authenticVariants = detectAuthenticVariants(extractedVariants);
   
-  console.log(`✅ Enhanced çıkarım: ${cleanResult.colors.length} renk, ${cleanResult.sizes.length} beden, ${cleanResult.images.length} görsel`);
+  // Override colors and sizes with authentic detection
+  const finalResult = validateAndClean(
+    authenticVariants.colors, 
+    authenticVariants.sizes, 
+    images, 
+    variantImages, 
+    colorImageMap, 
+    variantPricing, 
+    variantSpecificPricing, 
+    stockMap
+  );
   
-  return cleanResult;
+  console.log(`✅ Otantik çıkarım: ${finalResult.colors.length} renk, ${finalResult.sizes.length} beden, ${finalResult.images.length} görsel`);
+  
+  return finalResult;
 }
 
 function extractImages(htmlContent: string, images: string[]): void {
@@ -690,6 +704,29 @@ function isValidColor(value: string): boolean {
   if (cleaned.length >= 3 && cleaned.length <= 20) return true; // Reasonable length
   
   return false;
+}
+
+function getExtractedVariants(htmlContent: string): any[] {
+  try {
+    const initialStatePattern = /window\.__PRODUCT_DETAIL_APP_INITIAL_STATE__\s*=\s*({.+?});/s;
+    const initialStateMatch = htmlContent.match(initialStatePattern);
+    
+    if (initialStateMatch) {
+      const initialState = JSON.parse(initialStateMatch[1]);
+      const allVariants = initialState.product?.allVariants || [];
+      
+      return allVariants.map((variant: any) => ({
+        color: variant.itemNumber ? null : 'lacivert', // Only assign color if it's a real color variant
+        size: variant.value || '',
+        value: variant.value || '',
+        inStock: variant.inStock !== false
+      }));
+    }
+  } catch (error) {
+    console.log('Variant extraction error:', error);
+  }
+  
+  return [];
 }
 
 function isValidSize(value: string): boolean {
