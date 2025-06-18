@@ -50,6 +50,18 @@ export async function scrapeTrendyolProduct(inputUrl: string) {
                   $('[data-id="product-name"]').text().trim() ||
                   $('title').text().replace(' - Trendyol', '').trim();
 
+    // Extract brand information
+    let brand = null;
+    const brandElement = $('[data-testid="product-brand-name"]').first();
+    if (brandElement.length) {
+      brand = brandElement.text().trim();
+    } else {
+      // Alternative brand extraction methods
+      const breadcrumbBrand = $('.breadcrumb a').last().text().trim();
+      const titleFirstWord = title.split(' ')[0]; // First word often brand
+      brand = breadcrumbBrand || titleFirstWord || null;
+    }
+
     const priceText = $('.prc-dsc').first().text().trim() || 
                       $('.prc-slg').first().text().trim() ||
                       $('[data-id="price"]').text().trim();
@@ -79,7 +91,7 @@ export async function scrapeTrendyolProduct(inputUrl: string) {
       basePrice: price || '0',
       images: variantData.images,
       video: null,
-      brand: null,
+      brand: brand,
       vendor: 'Trendyol',
       category: null,
       subcategory: null,
@@ -95,7 +107,8 @@ export async function scrapeTrendyolProduct(inputUrl: string) {
         colorImageMap: variantData.colorImageMap,
         variantPricing: variantData.variantPricing,
         variantSpecificPricing: variantData.variantSpecificPricing,
-        stockMap: variantData.stockMap
+        stockMap: variantData.stockMap,
+        outOfStockVariants: variantData.outOfStockVariants || []
       }
     };
 
