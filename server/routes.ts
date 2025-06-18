@@ -1424,6 +1424,13 @@ export async function registerRoutes(app: Express) {
     }
   });
 
+  // Remove old download endpoint - redirect to proper CSV endpoint
+  app.get('/api/download/:filename', (req, res) => {
+    const filename = req.params.filename;
+    console.log(`🔄 Redirecting /api/download/${filename} to /csv/${filename}`);
+    res.redirect(302, `/csv/${filename}`);
+  });
+
   // CSV download endpoint
   app.get('/api/download-csv', (req, res) => {
     try {
