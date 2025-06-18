@@ -63,9 +63,9 @@ function extractImages(htmlContent: string, images: string[]): void {
         
         // Process full URLs
         fullUrlMatches.forEach(url => {
-          const cleanUrl = optimizeImageUrl(url);
-          if (cleanUrl && !images.includes(cleanUrl)) {
-            images.push(cleanUrl);
+          const optimizedUrl = optimizeImageUrl(url);
+          if (optimizedUrl && !images.includes(optimizedUrl)) {
+            images.push(optimizedUrl);
           }
         });
         
@@ -74,10 +74,10 @@ function extractImages(htmlContent: string, images: string[]): void {
           const relativePath = match.replace(/"/g, '');
           if (relativePath.startsWith('/')) {
             const fullUrl = `https://cdn.dsmcdn.com${relativePath}`;
-            const cleanUrl = optimizeImageUrl(fullUrl);
-            if (cleanUrl && !images.includes(cleanUrl)) {
-              images.push(cleanUrl);
-              console.log(`🖼️ Relative path görsel: ${cleanUrl}`);
+            const optimizedUrl = optimizeImageUrl(fullUrl);
+            if (optimizedUrl && !images.includes(optimizedUrl)) {
+              images.push(optimizedUrl);
+              console.log(`🖼️ Relative path görsel: ${optimizedUrl}`);
             }
           }
         });
@@ -88,9 +88,9 @@ function extractImages(htmlContent: string, images: string[]): void {
     const directUrlPattern = /https:\/\/cdn\.dsmcdn\.com\/[^"'\s,}]+\/prod\/(?:QC|PIM)\/[^"'\s,}]+\.(jpg|jpeg|png|webp)/gi;
     const directMatches = htmlContent.match(directUrlPattern) || [];
     directMatches.forEach(url => {
-      const cleanUrl = optimizeImageUrl(url);
-      if (cleanUrl && !images.includes(cleanUrl)) {
-        images.push(cleanUrl);
+      const optimizedUrl = optimizeImageUrl(url);
+      if (optimizedUrl && !images.includes(optimizedUrl)) {
+        images.push(optimizedUrl);
       }
     });
     
@@ -99,10 +99,10 @@ function extractImages(htmlContent: string, images: string[]): void {
     let relativeMatch;
     while ((relativeMatch = relativeImagePattern.exec(htmlContent)) !== null) {
       const fullUrl = `https://cdn.dsmcdn.com/${relativeMatch[1]}`;
-      const cleanUrl = optimizeImageUrl(fullUrl);
-      if (cleanUrl && !images.includes(cleanUrl)) {
-        images.push(cleanUrl);
-        console.log(`🖼️ Enhanced relative görsel: ${cleanUrl}`);
+      const optimizedUrl = optimizeImageUrl(fullUrl);
+      if (optimizedUrl && !images.includes(optimizedUrl)) {
+        images.push(optimizedUrl);
+        console.log(`🖼️ Enhanced relative görsel: ${optimizedUrl}`);
       }
     }
     
@@ -113,10 +113,10 @@ function extractImages(htmlContent: string, images: string[]): void {
       const fullUrl = imagePath.startsWith('/') 
         ? `https://cdn.dsmcdn.com${imagePath}`
         : `https://cdn.dsmcdn.com/${imagePath}`;
-      const cleanUrl = optimizeImageUrl(fullUrl);
-      if (cleanUrl && !images.includes(cleanUrl)) {
-        images.push(cleanUrl);
-        console.log(`🖼️ Aggressive pattern görsel: ${cleanUrl}`);
+      const optimizedUrl = optimizeImageUrl(fullUrl);
+      if (optimizedUrl && !images.includes(optimizedUrl)) {
+        images.push(optimizedUrl);
+        console.log(`🖼️ Aggressive pattern görsel: ${optimizedUrl}`);
       }
     });
     
@@ -455,32 +455,35 @@ function optimizeImageUrl(url: string): string | null {
   if (!url || typeof url !== 'string') return null;
   
   // Clean URL and ensure CDN domain
-  let cleanUrl = url.trim();
-  if (cleanUrl.startsWith('//')) {
-    cleanUrl = 'https:' + cleanUrl;
+  let finalUrl = url.trim();
+  if (finalUrl.startsWith('//')) {
+    finalUrl = 'https:' + finalUrl;
   }
-  if (cleanUrl.startsWith('/') && !cleanUrl.startsWith('//')) {
-    cleanUrl = 'https://cdn.dsmcdn.com' + cleanUrl;
+  if (finalUrl.startsWith('/') && !finalUrl.startsWith('//')) {
+    finalUrl = 'https://cdn.dsmcdn.com' + finalUrl;
   }
   
   // Only Trendyol CDN
-  if (!cleanUrl.includes('cdn.dsmcdn.com')) return null;
+  if (!finalUrl.includes('cdn.dsmcdn.com')) return null;
   
   // Only product images (relaxed for more coverage)
-  if (!(cleanUrl.includes('/QC/') || cleanUrl.includes('/PIM/') || cleanUrl.includes('/prod/'))) return null;
+  if (!(finalUrl.includes('/QC/') || finalUrl.includes('/PIM/') || finalUrl.includes('/prod/'))) return null;
   
   // Clean URL
-  let cleanUrl = url.replace(/[{}]/g, '');
+  finalUrl = finalUrl.replace(/[{}]/g, '');
   
   // High quality
-  if (!cleanUrl.includes('_org_zoom.jpg')) {
-    cleanUrl = cleanUrl.replace(/\.(jpg|jpeg|png|webp)$/i, '_org_zoom.jpg');
+  if (!finalUrl.includes('_org_zoom.jpg')) {
+    finalUrl = finalUrl.replace(/\.(jpg|jpeg|png|webp)$/i, '_org_zoom.jpg');
   }
   
   // HTTPS
-  if (!cleanUrl.startsWith('https:')) {
-    cleanUrl = cleanUrl.startsWith('//') ? 'https:' + cleanUrl : 'https://' + cleanUrl;
+  if (!finalUrl.startsWith('https:')) {
+    finalUrl = finalUrl.startsWith('//') ? 'https:' + finalUrl : 'https://' + finalUrl;
   }
   
-  return cleanUrl;
+  // Fix org_zoom to full resolution
+  finalUrl = finalUrl.replace('org_zoom', 'org');
+  
+  return finalUrl;
 }
