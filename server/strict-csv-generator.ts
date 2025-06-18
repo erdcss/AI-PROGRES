@@ -128,11 +128,12 @@ export async function generateStrictShopifyCSV(products: Product[]): Promise<{
   totalRows: number;
 }> {
   const filename = 'shopify-urunler.csv';
-  const tempDir = path.join(process.cwd(), 'temp');
-  const filePath = path.join(tempDir, filename);
+  const filePath = path.join('/home/runner/workspace', filename);
 
-  if (!fs.existsSync(tempDir)) {
-    fs.mkdirSync(tempDir, { recursive: true });
+  // Ensure workspace directory exists
+  const workspaceDir = '/home/runner/workspace';
+  if (!fs.existsSync(workspaceDir)) {
+    fs.mkdirSync(workspaceDir, { recursive: true });
   }
 
   const headers = [
@@ -253,7 +254,7 @@ export async function generateStrictShopifyCSV(products: Product[]): Promise<{
   return {
     filename,
     csvPath: filePath,
-    downloadUrl: `/csv/${filename}`,
+    downloadUrl: `/${filename}`,
     success: true,
     message: "Strict CSV ready",
     totalRows: shopifyVariants.length + 1
