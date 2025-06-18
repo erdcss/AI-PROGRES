@@ -108,21 +108,27 @@ export async function handleTrendyolProduct(url: string, productId: string) {
       allImageMatches.forEach(url => {
         let cleanUrl = url.replace(/^"imageUrl":"/, '').replace(/^"url":"/, '').replace(/^"href":"/, '').replace(/"$/, '');
         
-        // Filter for product-related images
+        // Strict filter for authentic product images only
         const isProductImage = cleanUrl.includes('cdn.dsmcdn.com') && (
-          cleanUrl.includes('/product/media/images/') ||
-          cleanUrl.includes('/prod/PIM/') ||
-          cleanUrl.includes('/productimages/') ||
-          (cleanUrl.includes('/ty') && cleanUrl.match(/\d{8,}/)) // Product ID pattern
+          cleanUrl.includes('/prod/QC/') ||  // Main product images
+          cleanUrl.includes('/prod/PIM/') || // Product information management images
+          (cleanUrl.includes('/ty') && cleanUrl.includes('/prod/') && cleanUrl.match(/[a-f0-9-]{36}/)) // UUID pattern for product images
         );
         
-        // Exclude icons, logos, and non-product images
+        // Strict exclusion of non-product content
         const isExcluded = cleanUrl.includes('/ui/') || 
                           cleanUrl.includes('/icons/') || 
                           cleanUrl.includes('/logo') ||
                           cleanUrl.includes('/banner') ||
                           cleanUrl.includes('_avatar') ||
-                          cleanUrl.includes('_logo');
+                          cleanUrl.includes('_logo') ||
+                          cleanUrl.includes('/web/') ||
+                          cleanUrl.includes('/footer-') ||
+                          cleanUrl.includes('.svg') ||
+                          cleanUrl.includes('/production/') ||
+                          cleanUrl.includes('/social/') ||
+                          cleanUrl.includes('/brand/') ||
+                          cleanUrl.includes('/categories/');
         
         if (isProductImage && !isExcluded) {
           let fullUrl = cleanUrl.startsWith('//') ? 'https:' + cleanUrl : cleanUrl;
@@ -143,10 +149,12 @@ export async function handleTrendyolProduct(url: string, productId: string) {
         }
       });
       
-      // Also extract from img tags
+      // Also extract from img tags with strict product filtering
       $('img').each((_, img) => {
         const src = $(img).attr('src') || $(img).attr('data-src') || $(img).attr('data-original');
-        if (src && src.includes('cdn.dsmcdn.com')) {
+        if (src && src.includes('cdn.dsmcdn.com') && 
+            (src.includes('/prod/QC/') || src.includes('/prod/PIM/')) &&
+            !src.includes('/web/') && !src.includes('.svg') && !src.includes('/footer-')) {
           let fullUrl = src.startsWith('//') ? 'https:' + src : src;
           // Use working CDN paths
           fullUrl = fullUrl.replace(/\/ty933\//, '/ty1660/');
@@ -229,10 +237,13 @@ export async function handleTrendyolProduct(url: string, productId: string) {
         }
       }
       
-      // Optimize and categorize images by removing duplicates and prioritizing quality
-      const uniqueImages = Array.from(new Set(images));
-      const optimizedImages = uniqueImages.slice(0, 15); // Limit to 15 high-quality images
-      console.log(`🖼️ ${optimizedImages.length} optimize edilmiş ürün görseli hazırlandı`);
+      // Filter and optimize authentic product images only
+      const productOnlyImages = images.filter(url => 
+        url.includes('/prod/QC/') || url.includes('/prod/PIM/')
+      );
+      const uniqueImages = Array.from(new Set(productOnlyImages));
+      const optimizedImages = uniqueImages.slice(0, 10); // Limit to 10 authentic product images
+      console.log(`🖼️ ${optimizedImages.length} sadece ürün görseli filtrelendi (logos/footer hariç)`);
       
       // Extract real variant data from page content with pricing
       const colors: string[] = [];
