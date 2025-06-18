@@ -113,33 +113,8 @@ export async function scrapeTrendyolProduct(inputUrl: string) {
       }
     };
 
-    // Direkt Shopify CSV oluştur
-    try {
-      const { generateShopifyCSV } = await import('./shopify-csv-generator');
-      const csvResult = await generateShopifyCSV([productData]);
-      
-      console.log(`✅ Shopify CSV oluşturuldu: ${csvResult.filename}`);
-      
-      return {
-        ...productData,
-        csvExport: {
-          filename: csvResult.filename,
-          message: "Shopify CSV başarıyla oluşturuldu",
-          downloadUrl: `/temp/${csvResult.filename}`,
-          success: true
-        }
-      };
-    } catch (csvError: any) {
-      console.error('CSV oluşturma hatası:', csvError);
-      return {
-        ...productData,
-        csvExport: {
-          error: "CSV oluşturulamadı",
-          message: csvError.message,
-          success: false
-        }
-      };
-    }
+    // Return enhanced product data with complete variant information
+    return productData;
 
   } catch (error) {
     console.log("❌ Enhanced Trendyol handler hatası:", error);
