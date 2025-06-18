@@ -178,6 +178,20 @@ function Router() {
           </PageTransition>
         )}
       </Route>
+      <Route path="/auto-csv">
+        {() => (
+          <PageTransition>
+            <AutoCSVPage />
+          </PageTransition>
+        )}
+      </Route>
+      <Route path="/bulk-csv">
+        {() => (
+          <PageTransition>
+            <BulkCSVPage />
+          </PageTransition>
+        )}
+      </Route>
       <Route path="/scraper/:platform?">
         {(params) => (
           <PageTransition>

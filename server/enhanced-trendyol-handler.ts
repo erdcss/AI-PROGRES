@@ -152,8 +152,8 @@ function extractEnhancedVariants(htmlContent: string, productId: string): Enhanc
   
   // Override with authentic detection
   const finalResult = validateAndClean(
-    finalColors, 
-    finalSizes, 
+    finalColors as string[], 
+    finalSizes as string[], 
     images, 
     variantImages, 
     colorImageMap, 
