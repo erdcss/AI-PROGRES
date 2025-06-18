@@ -278,9 +278,7 @@ export async function handleTrendyolProduct(url: string, productId: string) {
         }
       }
       
-      // Use advanced color variant extraction system
-      const { extractAdvancedColorVariants } = await import('./advanced-color-variant-extractor');
-      const variantData = extractTrendyolVariants(htmlContent, $, parseFloat(price?.toString().replace(/[^\d.,]/g, '').replace(',', '.') || '0'), optimizedImages);
+      // Remove the problematic import - use built-in extraction
       
       // Apply extracted data
       colors.push(...variantData.colors);

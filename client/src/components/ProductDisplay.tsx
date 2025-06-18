@@ -83,11 +83,11 @@ export function ProductDisplay({ data }: ProductDisplayProps) {
             <div>
               <h3 className="font-semibold text-gray-300 mb-2">Kategoriler</h3>
               <div className="flex flex-wrap gap-2">
-                {data.categories.map((category, index) => (
+                {data.categories?.map((category, index) => (
                   <Badge key={index} variant="outline" className="border-gray-600 text-gray-300">
                     {category}
                   </Badge>
-                ))}
+                )) || <span className="text-gray-500">Kategori bilgisi yok</span>}
               </div>
             </div>
             
@@ -115,7 +115,7 @@ export function ProductDisplay({ data }: ProductDisplayProps) {
         </CardHeader>
         <CardContent>
           <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-4">
-            {data.images.slice(0, 8).map((image, index) => (
+            {data.images && data.images.length > 0 ? data.images.slice(0, 8).map((image, index) => (
               <div key={index} className="aspect-square bg-gray-700 rounded-lg overflow-hidden">
                 <img 
                   src={image} 
@@ -123,7 +123,11 @@ export function ProductDisplay({ data }: ProductDisplayProps) {
                   className="w-full h-full object-cover hover:scale-105 transition-transform"
                 />
               </div>
-            ))}
+            )) : (
+              <div className="col-span-full text-center text-gray-500 py-8">
+                Görsel bulunamadı
+              </div>
+            )}
           </div>
         </CardContent>
       </Card>
@@ -137,20 +141,20 @@ export function ProductDisplay({ data }: ProductDisplayProps) {
           </CardTitle>
         </CardHeader>
         <CardContent className="space-y-4">
-          {data.variants.colors.map((color) => (
+          {data.variants.colors && data.variants.colors.length > 0 ? data.variants.colors.map((color) => (
             <div key={color} className="border border-gray-600 rounded-lg p-4">
               <div className="flex items-center justify-between mb-3">
                 <h3 className="font-semibold text-white">{color}</h3>
                 <div className="flex items-center gap-2">
                   <DollarSign className="h-4 w-4 text-green-400" />
                   <span className="font-bold text-green-400">
-                    {data.variants.pricing[color]?.toFixed(2)} TL
+                    {data.variants.pricing?.[color]?.toFixed(2) || 'N/A'} TL
                   </span>
                 </div>
               </div>
               
               <div className="grid grid-cols-3 md:grid-cols-6 gap-2">
-                {data.variants.variantImages[color]?.map((image, index) => (
+                {data.variants.variantImages?.[color]?.map((image, index) => (
                   <div key={index} className="aspect-square bg-gray-700 rounded overflow-hidden">
                     <img 
                       src={image} 
@@ -158,10 +162,18 @@ export function ProductDisplay({ data }: ProductDisplayProps) {
                       className="w-full h-full object-cover"
                     />
                   </div>
-                ))}
+                )) || (
+                  <div className="col-span-full text-sm text-gray-500 py-2">
+                    Bu renk için görsel bulunamadı
+                  </div>
+                )}
               </div>
             </div>
-          ))}
+          )) : (
+            <div className="text-center text-gray-500 py-8">
+              Renk varyantı bulunamadı
+            </div>
+          )}
         </CardContent>
       </Card>
 
