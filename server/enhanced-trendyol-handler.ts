@@ -61,7 +61,7 @@ export async function scrapeTrendyolProduct(inputUrl: string) {
     const productId = productIdMatch ? productIdMatch[1] : '';
 
     // Enhanced variant extraction
-    const variantData = extractEnhancedVariants(htmlContent, productId);
+    const variantData = await extractEnhancedVariants(htmlContent, productId);
     
     // Calculate total variants
     const totalVariants = variantData.colors.length * variantData.sizes.length;
@@ -105,7 +105,7 @@ export async function scrapeTrendyolProduct(inputUrl: string) {
   }
 }
 
-function extractEnhancedVariants(htmlContent: string, productId: string): EnhancedVariantData {
+async function extractEnhancedVariants(htmlContent: string, productId: string): Promise<EnhancedVariantData> {
   const $ = cheerio.load(htmlContent);
   
   const colors: string[] = [];
@@ -132,14 +132,25 @@ function extractEnhancedVariants(htmlContent: string, productId: string): Enhanc
   extractStock(htmlContent, stockMap, colors, sizes);
   
   // 5. Apply authentic variant detection
-  const { detectAuthenticVariants } = await import('./fixed-variant-detector');
   const extractedVariants = getExtractedVariants(htmlContent);
-  const authenticVariants = detectAuthenticVariants(extractedVariants);
   
-  // Override colors and sizes with authentic detection
+  // Only use authentic colors if we detect real color variants
+  const authenticColors = extractedVariants.length > 0 ? 
+    [...new Set(extractedVariants.filter(v => v.color).map(v => v.color))] : 
+    [];
+  
+  const authenticSizes = extractedVariants.length > 0 ?
+    [...new Set(extractedVariants.filter(v => v.size).map(v => v.size))] :
+    sizes;
+    
+  // Use authentic colors if found, otherwise default to single color
+  const finalColors = authenticColors.length > 1 ? authenticColors : ['Tek Renk'];
+  const finalSizes = authenticSizes.length > 0 ? authenticSizes : sizes;
+  
+  // Override with authentic detection
   const finalResult = validateAndClean(
-    authenticVariants.colors, 
-    authenticVariants.sizes, 
+    finalColors, 
+    finalSizes, 
     images, 
     variantImages, 
     colorImageMap, 
@@ -715,9 +726,14 @@ function getExtractedVariants(htmlContent: string): any[] {
       const initialState = JSON.parse(initialStateMatch[1]);
       const allVariants = initialState.product?.allVariants || [];
       
+      // Check if product actually has color variants by examining variant structure
+      const hasColorVariants = allVariants.some((v: any) => 
+        v.attributeName1 && v.attributeName1.toLowerCase().includes('renk')
+      );
+      
       return allVariants.map((variant: any) => ({
-        color: variant.itemNumber ? null : 'lacivert', // Only assign color if it's a real color variant
-        size: variant.value || '',
+        color: hasColorVariants ? (variant.attributeName1 || null) : null,
+        size: variant.value || variant.attributeName2 || '',
         value: variant.value || '',
         inStock: variant.inStock !== false
       }));
