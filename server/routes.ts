@@ -152,9 +152,9 @@ export async function registerRoutes(app: Express) {
       const productIdMatch = url.match(/p-(\d+)/);
       const productId = productIdMatch ? productIdMatch[1] : null;
 
-      // Enhanced product data extraction for Modagen and other Trendyol products
-      if (url.includes('modagen') || url.includes('trendyol.com/')) {
-        console.log("Ürün verisi işleniyor...");
+      // Enhanced product data extraction for Trendyol products
+      if (url.includes('trendyol.com')) {
+        console.log("Trendyol ürün verisi işleniyor...");
         
         if (url.includes('modagen')) {
           const { handleModagenProduct } = await import('./modagen-handler');
@@ -162,52 +162,39 @@ export async function registerRoutes(app: Express) {
           return res.status(200).json(result);
         }
         
-        // Use enhanced Trendyol handler for all other products
+        // Enhanced Trendyol handler kullan
+        console.log('🚀 Enhanced Trendyol handler başlatılıyor...');
         const { scrapeTrendyolProduct } = await import('./enhanced-trendyol-handler');
         const trendyolResult = await scrapeTrendyolProduct(url);
         
-        // Direkt CSV oluştur ve indirme linki ver
+        console.log('✅ Ürün verisi alındı, CSV oluşturuluyor...');
+        
+        // CSV oluştur ve indirme linki ver
         try {
-          console.log('🔄 CSV oluşturma başlatılıyor...');
           const { generateShopifyCSV } = await import('./shopify-csv-generator');
           const csvResult = await generateShopifyCSV([trendyolResult]);
           
-          console.log(`✅ CSV oluşturma sonucu:`, csvResult);
+          console.log('✅ CSV başarıyla oluşturuldu:', csvResult);
           
-          if (typeof csvResult === 'string') {
-            // Eski format - sadece filename döner
-            return res.status(200).json({
-              ...trendyolResult,
-              csvExport: {
-                filename: csvResult,
-                downloadUrl: `/temp/${csvResult}`,
-                success: true,
-                message: "CSV otomatik hazırlandı",
-                totalRows: 0
-              }
-            });
-          } else {
-            // Yeni format - obje döner
-            return res.status(200).json({
-              ...trendyolResult,
-              csvExport: {
-                filename: csvResult.filename,
-                downloadUrl: `/temp/${csvResult.filename}`,
-                success: true,
-                message: "CSV otomatik hazırlandı",
-                totalRows: csvResult.totalRows || 0
-              }
-            });
-          }
+          return res.status(200).json({
+            ...trendyolResult,
+            csvExport: {
+              filename: csvResult.filename,
+              downloadUrl: `/temp/${csvResult.filename}`,
+              success: true,
+              message: "CSV hazır",
+              totalRows: csvResult.totalRows
+            }
+          });
         } catch (csvError: any) {
           console.error('❌ CSV oluşturma hatası:', csvError);
-          console.error('CSV Error Stack:', csvError.stack);
+          console.error('Stack trace:', csvError.stack);
           return res.status(200).json({
             ...trendyolResult,
             csvExport: {
               success: false,
               error: csvError.message,
-              message: "CSV oluşturulamadı: " + csvError.message
+              message: "CSV oluşturulamadı"
             }
           });
         }
