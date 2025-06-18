@@ -171,7 +171,7 @@ export async function generateShopifyCSV(products: ProductData[]): Promise<{file
         const variant: ShopifyVariant = {
           Handle: handle,
           Title: isFirstVariant ? product.title : '',
-          'Body (HTML)': isFirstVariant ? `<p>${product.description || '%100 kaliteli ürün, rahat kesim'}</p>` : '',
+          'Body (HTML)': isFirstVariant ? (product.description || 'Kaliteli urun rahat kesim') : '',
           Vendor: product.brand || 'Turmarkt',
           Type: product.productType || 'Tişört',
           Tags: isFirstVariant ? (product.tags?.join(',') || 'indirimli') : '',
