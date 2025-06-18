@@ -1500,6 +1500,70 @@ export async function registerRoutes(app: Express) {
     fileStream.pipe(res);
   });
 
+  // Otomatik CSV oluşturma endpoint'i
+  app.post('/api/auto-csv', async (req, res) => {
+    try {
+      const { urls, filename, batchSize } = req.body;
+      
+      if (!urls || !Array.isArray(urls) || urls.length === 0) {
+        return res.status(400).json({ 
+          message: "URL listesi gerekli", 
+          example: { urls: ["https://www.trendyol.com/product1", "https://www.trendyol.com/product2"] }
+        });
+      }
+      
+      const validUrls = urls.filter(url => 
+        typeof url === 'string' && url.includes('trendyol.com') && url.includes('-p-')
+      );
+      
+      if (validUrls.length === 0) {
+        return res.status(400).json({ 
+          message: "Geçerli Trendyol ürün URL'si bulunamadı",
+          received: urls.length,
+          valid: 0
+        });
+      }
+      
+      console.log(`🚀 Otomatik CSV işlemi başlatılıyor: ${validUrls.length} ürün`);
+      
+      const { generateAutoCSV } = await import('./auto-csv-generator');
+      const result = await generateAutoCSV({
+        urls: validUrls,
+        outputFilename: filename,
+        batchSize: batchSize || 3
+      });
+      
+      if (result.success) {
+        res.json({
+          success: true,
+          message: `${result.totalProducts} ürün başarıyla işlendi`,
+          filename: result.filename,
+          csvPath: result.csvPath,
+          totalProducts: result.totalProducts,
+          totalVariants: result.totalVariants,
+          totalRows: result.totalRows,
+          summary: result.summary,
+          results: result.results
+        });
+      } else {
+        res.status(500).json({
+          success: false,
+          message: result.error,
+          summary: result.summary,
+          results: result.results
+        });
+      }
+      
+    } catch (error: any) {
+      console.error('Otomatik CSV hatası:', error);
+      res.status(500).json({ 
+        success: false,
+        message: "Otomatik CSV oluşturma hatası",
+        error: error.message
+      });
+    }
+  });
+
   const httpServer = createServer(app);
   return httpServer;
 }

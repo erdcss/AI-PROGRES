@@ -76,7 +76,9 @@ export async function generateAutoCSV(options: AutoCSVOptions) {
   if (allProducts.length > 0) {
     console.log(`📝 ${allProducts.length} ürün için CSV oluşturuluyor...`);
     
-    const csvResult = await generateVariantSpecificCSV(allProducts);
+    const csvResult = await generateVariantSpecificCSV(allProducts, {
+      filename: outputFilename
+    });
     const finalFilename = outputFilename || `auto-shopify-export-${new Date().toISOString().slice(0, 19).replace(/:/g, '-')}.csv`;
     
     // Copy to final location with custom name
