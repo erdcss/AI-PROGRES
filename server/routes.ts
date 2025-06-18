@@ -162,9 +162,9 @@ export async function registerRoutes(app: Express) {
           return res.status(200).json(result);
         }
         
-        // Use working Trendyol handler for all other products
-        const { handleTrendyolProduct } = await import('./working-trendyol-handler-clean');
-        const trendyolResult = await handleTrendyolProduct(url, productId || '');
+        // Use enhanced Trendyol handler for all other products
+        const { scrapeTrendyolProduct } = await import('./enhanced-trendyol-handler');
+        const trendyolResult = await scrapeTrendyolProduct(url);
         return res.status(200).json(trendyolResult);
       }
       
@@ -186,16 +186,16 @@ export async function registerRoutes(app: Express) {
           });
           
           if (response.ok) {
-            const htmlContent = await response.text();
+            const pageContent = await response.text();
             const cheerio = await import('cheerio');
-            const $ = cheerio.load(htmlContent);
+            const $ = cheerio.load(pageContent);
             
             // Extract basic product info
             const title = $('h1').first().text().trim() || 
                          $('.product-title').text().trim() ||
-                         productSlug.split('-').map(word => 
+                         url.split('/').pop()?.split('-').map((word: string) => 
                            word.charAt(0).toUpperCase() + word.slice(1)
-                         ).join(' ');
+                         ).join(' ') || 'Ürün';
             
             const brand = url.split('/')[3] || 'Marka';
             const priceText = $('.prc-dsc, .prc-slg, .price').first().text().trim();
