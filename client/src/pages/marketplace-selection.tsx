@@ -11,28 +11,28 @@ const MarketplaceSelection = () => {
       icon: <Store className="w-12 h-12 mb-4 text-red-500" />,
       color: "from-red-500 to-red-600",
       available: true,
-      path: "/scraper"
+      path: "/scraper/trendyol"
     },
     {
       name: "Hepsiburada", 
       icon: <ShoppingCart className="w-12 h-12 mb-4 text-orange-500" />,
       color: "from-orange-500 to-orange-600",
       available: false,
-      path: "/coming-soon"
+      path: "/scraper/hepsiburada"
     },
     {
       name: "Amazon",
       icon: <Package className="w-12 h-12 mb-4 text-yellow-500" />,
       color: "from-yellow-500 to-yellow-600", 
       available: false,
-      path: "/coming-soon"
+      path: "/scraper/amazon"
     },
     {
       name: "N11",
       icon: <Truck className="w-12 h-12 mb-4 text-purple-500" />,
       color: "from-purple-500 to-purple-600",
       available: false,
-      path: "/coming-soon"
+      path: "/scraper/n11"
     }
   ];
 

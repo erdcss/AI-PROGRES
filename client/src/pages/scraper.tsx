@@ -49,7 +49,67 @@ const getCategoryConfig = (categories: string[] | undefined) => {
 };
 
 
-export default function Home() {
+// Platform logo configuration
+const PlatformLogos = {
+  trendyol: {
+    name: "Trendyol",
+    logo: (
+      <div className="flex items-center gap-3">
+        <div className="w-10 h-10 bg-gradient-to-r from-red-500 to-red-600 rounded-lg flex items-center justify-center">
+          <span className="text-white font-bold text-lg">T</span>
+        </div>
+        <span className="text-2xl font-bold text-red-500">Trendyol</span>
+      </div>
+    ),
+    color: "red",
+    domain: "trendyol.com"
+  },
+  hepsiburada: {
+    name: "Hepsiburada",
+    logo: (
+      <div className="flex items-center gap-3">
+        <div className="w-10 h-10 bg-gradient-to-r from-orange-500 to-orange-600 rounded-lg flex items-center justify-center">
+          <span className="text-white font-bold text-lg">H</span>
+        </div>
+        <span className="text-2xl font-bold text-orange-500">Hepsiburada</span>
+      </div>
+    ),
+    color: "orange",
+    domain: "hepsiburada.com"
+  },
+  amazon: {
+    name: "Amazon",
+    logo: (
+      <div className="flex items-center gap-3">
+        <div className="w-10 h-10 bg-gradient-to-r from-yellow-500 to-yellow-600 rounded-lg flex items-center justify-center">
+          <span className="text-white font-bold text-lg">A</span>
+        </div>
+        <span className="text-2xl font-bold text-yellow-500">Amazon</span>
+      </div>
+    ),
+    color: "yellow",
+    domain: "amazon.com.tr"
+  },
+  n11: {
+    name: "N11",
+    logo: (
+      <div className="flex items-center gap-3">
+        <div className="w-10 h-10 bg-gradient-to-r from-purple-500 to-purple-600 rounded-lg flex items-center justify-center">
+          <span className="text-white font-bold text-lg">N</span>
+        </div>
+        <span className="text-2xl font-bold text-purple-500">N11</span>
+      </div>
+    ),
+    color: "purple",
+    domain: "n11.com"
+  }
+};
+
+interface ScraperPageProps {
+  platform?: string;
+}
+
+function ScraperPage({ platform = 'trendyol' }: ScraperPageProps) {
   const [product, setProduct] = useState<any>(null);
   const [error, setError] = useState<{
     message: string;
@@ -60,6 +120,9 @@ export default function Home() {
   const [categoryConfig, setCategoryConfig] = useState({ shopifyCategory: 'N/A' });
 
   const { toast } = useToast();
+  
+  // Get current platform configuration
+  const currentPlatform = PlatformLogos[platform as keyof typeof PlatformLogos] || PlatformLogos.trendyol;
 
   const form = useForm({
     resolver: zodResolver(urlSchema),
@@ -262,10 +325,17 @@ export default function Home() {
           className="transition-all duration-500"
         >
           <div className="text-center mb-6">
-            <Package className="w-10 h-10 mx-auto mb-3 text-primary" />
+            <div className="flex justify-center mb-4">
+              {currentPlatform.logo}
+            </div>
             <h1 className="text-2xl font-bold mb-2">Ürün Aktarıcı</h1>
-            <p className="text-sm text-gray-400">Ürün verilerini Shopify'a uyumlu formata dönüştürün</p>
-            <p className="text-xs text-gray-500 mt-2">ERDEM ÇALIŞGAN tarafından geliştirilmiştir</p>
+            <p className="text-sm text-gray-400">
+              {currentPlatform.name} ürün verilerini Shopify'a uyumlu formata dönüştürün
+            </p>
+            <p className="text-xs text-gray-500 mt-2">
+              {currentPlatform.domain} için optimize edilmiştir
+            </p>
+            <p className="text-xs text-gray-500 mt-1">ERDEM ÇALIŞGAN tarafından geliştirilmiştir</p>
             <p className="text-xs text-gray-600 mt-1">Versiyon 0.13.1006</p>
           </div>
 
@@ -947,3 +1017,5 @@ export default function Home() {
     </div>
   );
 }
+
+export default ScraperPage;
