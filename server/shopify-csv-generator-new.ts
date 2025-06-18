@@ -36,6 +36,7 @@ interface ShopifyVariant {
   Title: string;
   'Body (HTML)': string;
   Vendor: string;
+  'Product Category': string;
   Type: string;
   Tags: string;
   Published: string;
@@ -43,6 +44,8 @@ interface ShopifyVariant {
   'Option1 Value': string;
   'Option2 Name': string;
   'Option2 Value': string;
+  'Option3 Name': string;
+  'Option3 Value': string;
   'Variant SKU': string;
   'Variant Grams': string;
   'Variant Inventory Tracker': string;
@@ -68,29 +71,15 @@ interface ShopifyVariant {
   'Google Shopping / Custom Product': string;
   'Variant Image': string;
   'Variant Weight Unit': string;
-  'Cost per item': string;
-  'Option3 Name': string;
-  'Option3 Value': string;
-  'Google Shopping / AdWords Grouping': string;
-  'Google Shopping / AdWords Labels': string;
-  'Google Shopping / Custom Label 0': string;
-  'Google Shopping / Custom Label 1': string;
-  'Google Shopping / Custom Label 2': string;
-  'Google Shopping / Custom Label 3': string;
-  'Google Shopping / Custom Label 4': string;
   'Variant Tax Code': string;
-  'Included / France': string;
-  'Price / France': string;
-  'Compare At Price / France': string;
-  'Included / Germany': string;
-  'Price / Germany': string;
-  'Compare At Price / Germany': string;
-  'Included / UK': string;
-  'Price / UK': string;
-  'Compare At Price / UK': string;
-  'Included / US': string;
-  'Price / US': string;
-  'Compare At Price / US': string;
+  'Cost per item': string;
+  'Included / United States': string;
+  'Price / United States': string;
+  'Compare At Price / United States': string;
+  'Included / International': string;
+  'Price / International': string;
+  'Compare At Price / International': string;
+  'Status': string;
 }
 
 function generateHandle(title: string): string {
@@ -114,22 +103,19 @@ function isValidImageUrl(url: string): boolean {
 export async function generateShopifyCSV(products: ProductData[]): Promise<{filename: string, csvPath: string, downloadUrl: string, success: true, message: string, totalRows: number}> {
   console.log(`🔄 CSV oluşturma başlıyor: ${products.length} ürün`);
   
-  // Kullanıcının csv dosyasından alınan exact header sırası - 57 field
+  // Kullanıcının verdiği exact template headers - product_template_csv (3)
   const headers = [
-    'Handle', 'Title', 'Body (HTML)', 'Vendor', 'Type', 'Tags', 'Published',
-    'Option1 Name', 'Option1 Value', 'Option2 Name', 'Option2 Value',
+    'Handle', 'Title', 'Body (HTML)', 'Vendor', 'Product Category', 'Type', 'Tags', 'Published',
+    'Option1 Name', 'Option1 Value', 'Option2 Name', 'Option2 Value', 'Option3 Name', 'Option3 Value',
     'Variant SKU', 'Variant Grams', 'Variant Inventory Tracker', 'Variant Inventory Qty',
     'Variant Inventory Policy', 'Variant Fulfillment Service', 'Variant Price', 'Variant Compare At Price',
     'Variant Requires Shipping', 'Variant Taxable', 'Variant Barcode', 'Image Src', 'Image Position',
     'Image Alt Text', 'Gift Card', 'SEO Title', 'SEO Description',
     'Google Shopping / Google Product Category', 'Google Shopping / Gender', 'Google Shopping / Age Group',
     'Google Shopping / MPN', 'Google Shopping / Condition', 'Google Shopping / Custom Product',
-    'Variant Image', 'Variant Weight Unit', 'Cost per item', 'Option3 Name', 'Option3 Value',
-    'Google Shopping / AdWords Grouping', 'Google Shopping / AdWords Labels', 'Google Shopping / Custom Label 0',
-    'Google Shopping / Custom Label 1', 'Google Shopping / Custom Label 2', 'Google Shopping / Custom Label 3',
-    'Google Shopping / Custom Label 4', 'Variant Tax Code', 'Included / France', 'Price / France',
-    'Compare At Price / France', 'Included / Germany', 'Price / Germany', 'Compare At Price / Germany',
-    'Included / UK', 'Price / UK', 'Compare At Price / UK', 'Included / US', 'Price / US', 'Compare At Price / US'
+    'Variant Image', 'Variant Weight Unit', 'Variant Tax Code', 'Cost per item',
+    'Included / United States', 'Price / United States', 'Compare At Price / United States',
+    'Included / International', 'Price / International', 'Compare At Price / International', 'Status'
   ];
 
   const shopifyVariants: ShopifyVariant[] = [];
@@ -170,63 +156,52 @@ export async function generateShopifyCSV(products: ProductData[]): Promise<{file
         const variant: ShopifyVariant = {
           Handle: handle,
           Title: isFirstVariant ? product.title : '',
-          'Body (HTML)': isFirstVariant ? `<p>${product.description || 'Kaliteli ürün'}</p>` : '',
-          Vendor: product.brand || 'Turmarkt',
-          Type: product.productType || product.category || 'Tişört',
-          Tags: isFirstVariant ? (product.tags?.join(',') || 'indirimli') : '',
+          'Body (HTML)': isFirstVariant ? `<p>${product.description || 'Kaliteli ürün açıklaması'}</p>` : '',
+          Vendor: product.brand || 'Acme',
+          'Product Category': isFirstVariant ? 'Apparel & Accessories > Clothing > Clothing Tops > T-Shirts' : '',
+          Type: product.productType || 'Shirts',
+          Tags: isFirstVariant ? (product.tags?.join(',') || 'Made to Order, Shirt Tag') : '',
           Published: 'TRUE',
-          'Option1 Name': isFirstVariant ? 'Renk' : '',
+          'Option1 Name': isFirstVariant ? 'Color' : '',
           'Option1 Value': color,
-          'Option2 Name': isFirstVariant ? 'Beden' : '',
+          'Option2 Name': isFirstVariant ? 'Size' : '',
           'Option2 Value': size,
+          'Option3 Name': '',
+          'Option3 Value': '',
           'Variant SKU': variantSKU,
-          'Variant Grams': '200',
-          'Variant Inventory Tracker': 'shopify',
-          'Variant Inventory Qty': '10',
+          'Variant Grams': '145',
+          'Variant Inventory Tracker': '',
+          'Variant Inventory Qty': '0',
           'Variant Inventory Policy': 'deny',
           'Variant Fulfillment Service': 'manual',
           'Variant Price': finalPrice,
-          'Variant Compare At Price': comparePrice,
+          'Variant Compare At Price': '',
           'Variant Requires Shipping': 'TRUE',
           'Variant Taxable': 'TRUE',
           'Variant Barcode': '',
           'Image Src': isFirstVariant ? primaryImage : '',
-          'Image Position': isFirstVariant ? '1' : '',
+          'Image Position': isFirstVariant ? '1' : (colors.indexOf(color) * sizes.length + sizes.indexOf(size) + 2).toString(),
           'Image Alt Text': isFirstVariant ? product.title : '',
-          'Gift Card': 'FALSE',
+          'Gift Card': isFirstVariant ? 'FALSE' : '',
           'SEO Title': isFirstVariant ? product.title : '',
-          'SEO Description': isFirstVariant ? (product.description || 'Rahat ve sade tasarım') : '',
-          'Google Shopping / Google Product Category': isFirstVariant ? 'Apparel & Accessories > Clothing > Shirts & Tops' : '',
-          'Google Shopping / Gender': isFirstVariant ? 'unisex' : '',
-          'Google Shopping / Age Group': isFirstVariant ? 'adult' : '',
-          'Google Shopping / MPN': isFirstVariant ? variantSKU : '',
+          'SEO Description': isFirstVariant ? (product.description || product.title) : '',
+          'Google Shopping / Google Product Category': '',
+          'Google Shopping / Gender': '',
+          'Google Shopping / Age Group': '',
+          'Google Shopping / MPN': '',
           'Google Shopping / Condition': isFirstVariant ? 'new' : '',
-          'Google Shopping / Custom Product': isFirstVariant ? 'FALSE' : '',
+          'Google Shopping / Custom Product': isFirstVariant ? 'TRUE' : '',
           'Variant Image': primaryImage,
-          'Variant Weight Unit': isFirstVariant ? 'g' : '',
-          'Cost per item': comparePrice ? (parseFloat(comparePrice) * 0.8).toFixed(2) : '',
-          'Option3 Name': '',
-          'Option3 Value': '',
-          'Google Shopping / AdWords Grouping': '',
-          'Google Shopping / AdWords Labels': '',
-          'Google Shopping / Custom Label 0': '',
-          'Google Shopping / Custom Label 1': '',
-          'Google Shopping / Custom Label 2': '',
-          'Google Shopping / Custom Label 3': '',
-          'Google Shopping / Custom Label 4': '',
+          'Variant Weight Unit': 'g',
           'Variant Tax Code': '',
-          'Included / France': '',
-          'Price / France': '',
-          'Compare At Price / France': '',
-          'Included / Germany': '',
-          'Price / Germany': '',
-          'Compare At Price / Germany': '',
-          'Included / UK': '',
-          'Price / UK': '',
-          'Compare At Price / UK': '',
-          'Included / US': '',
-          'Price / US': '',
-          'Compare At Price / US': ''
+          'Cost per item': '',
+          'Included / United States': isFirstVariant ? 'TRUE' : '',
+          'Price / United States': '',
+          'Compare At Price / United States': '',
+          'Included / International': isFirstVariant ? 'TRUE' : '',
+          'Price / International': '',
+          'Compare At Price / International': '',
+          'Status': isFirstVariant ? 'active' : ''
         };
 
         shopifyVariants.push(variant);
