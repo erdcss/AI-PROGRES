@@ -182,7 +182,7 @@ export async function registerRoutes(app: Express) {
         
         // CSV oluştur ve indirme linki ver
         try {
-          const { generateShopifyCSV } = await import('./shopify-csv-generator');
+          const { generateShopifyCSV } = await import('./shopify-csv-generator-new');
           const csvResult = await generateShopifyCSV([trendyolResult]);
           
           console.log('✅ CSV başarıyla oluşturuldu:', csvResult);
