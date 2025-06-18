@@ -42,7 +42,7 @@ export function registerRoutes(app: Express): Server {
         }
         
         // Use working Trendyol handler for all other products
-        const { handleTrendyolProduct } = await import('./working-trendyol-handler');
+        const { handleTrendyolProduct } = await import('./working-trendyol-handler-clean');
         const result = await handleTrendyolProduct(normalizedUrl, productId || '');
         return res.status(200).json(result);
       }

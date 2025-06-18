@@ -64,10 +64,14 @@ export async function handleTrendyolProduct(url: string, productId: string) {
     const imagePattern = /https:\/\/cdn\.dsmcdn\.com\/[^"'\s,}]+\/prod\/(?:QC|PIM)\/[^"'\s,}]+\.(jpg|jpeg|png|webp)/gi;
     const imageMatches = htmlContent.match(imagePattern) || [];
     
-    images = [...new Set(imageMatches)]
-      .map(url => optimizeImageUrl(url))
-      .filter((url): url is string => url !== null)
-      .slice(0, 10);
+    const processedImages = [];
+    for (const url of imageMatches) {
+      const optimized = optimizeImageUrl(url);
+      if (optimized) {
+        processedImages.push(optimized);
+      }
+    }
+    images = processedImages.slice(0, 10);
 
     console.log(`🖼️ ${images.length} görsel çıkarıldı`);
 
@@ -85,7 +89,15 @@ export async function handleTrendyolProduct(url: string, productId: string) {
     
     // Add clean images to main image array
     images.push(...cleanData.images);
-    images = Array.from(new Set(images)).slice(0, 12);
+    const uniqueImages = [];
+    const seen = new Set();
+    for (const img of images) {
+      if (!seen.has(img)) {
+        seen.add(img);
+        uniqueImages.push(img);
+      }
+    }
+    images = uniqueImages.slice(0, 12);
 
     console.log(`🎨 ${colors.length} renk: ${colors.length > 0 ? colors.join(', ') : 'Hiç renk seçeneği yok'}`);
     console.log(`📏 ${sizes.length} beden: ${sizes.length > 0 ? sizes.join(', ') : 'Hiç beden seçeneği yok'}`);
