@@ -7,8 +7,16 @@ import { fileURLToPath } from 'url';
 console.log("Uygulama başlatılıyor...");
 
 const app = express();
-app.use(express.json());
-app.use(express.urlencoded({ extended: false }));
+
+// Timeout ve connection handling
+app.use((req, res, next) => {
+  req.setTimeout(60000); // 60 second timeout
+  res.setTimeout(60000);
+  next();
+});
+
+app.use(express.json({ limit: '50mb' }));
+app.use(express.urlencoded({ extended: false, limit: '50mb' }));
 
 // API kök dizini için bilgi mesajı
 app.get('/api', (req, res) => {
@@ -60,8 +68,8 @@ app.use((req, res, next) => {
     const message = err.message || "Internal Server Error";
 
     res.status(status).json({ message });
-    console.error('Error:', err);
-    // throw err; // Hata fırlatmayı engelliyoruz, bu sunucuyu durdurabiliyor
+    console.error('Error handled:', err.message);
+    // Sunucuyu durduracak hataları engelliyoruz
   });
 
   // importantly only setup vite in development and after
@@ -76,12 +84,37 @@ app.use((req, res, next) => {
   // Serving the app on port 5000
   // this serves both the API and the client.
   // Port 5000 is expected by the Replit workflow
-  const port = 5000; // Portu 5000 olarak ayarlıyoruz
-  server.listen({
-    port,
-    host: "0.0.0.0",
-    reusePort: true,
-  }, () => {
+  const port = 5000;
+  
+  // Graceful shutdown handling
+  process.on('SIGTERM', () => {
+    console.log('SIGTERM received, shutting down gracefully');
+    server.close(() => {
+      console.log('Process terminated');
+    });
+  });
+
+  process.on('SIGINT', () => {
+    console.log('SIGINT received, shutting down gracefully');
+    server.close(() => {
+      console.log('Process terminated');
+    });
+  });
+
+  // Error handling for server
+  server.on('error', (err: any) => {
+    if (err.code === 'EADDRINUSE') {
+      console.log(`Port ${port} is already in use, attempting to restart...`);
+      setTimeout(() => {
+        server.close();
+        server.listen(port, "0.0.0.0");
+      }, 1000);
+    } else {
+      console.error('Server error:', err);
+    }
+  });
+
+  server.listen(port, "0.0.0.0", () => {
     log(`serving on port ${port}`);
     console.log(`Server is running at http://localhost:${port}`);
     console.log(`Please visit the application at http://localhost:${port}`);
