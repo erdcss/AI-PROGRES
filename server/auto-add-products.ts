@@ -24,8 +24,18 @@ export async function addProductToAutoCSV(url: string) {
   console.log(`🔄 Otomatik ürün ekleme: ${url}`);
   
   try {
-    // Normalize URL
-    const normalizedUrl = url.startsWith('http') ? url : `https://${url}`;
+    // Normalize URL - ensure https:// prefix
+    let normalizedUrl = url.trim();
+    if (!normalizedUrl.startsWith('http://') && !normalizedUrl.startsWith('https://')) {
+      normalizedUrl = 'https://' + normalizedUrl;
+    }
+    
+    // Validate URL format
+    try {
+      new URL(normalizedUrl);
+    } catch (error) {
+      throw new Error(`Geçersiz URL formatı: ${url}`);
+    }
     
     // Check if product already exists
     const existingProduct = autoAddState.products.find(p => p.url === normalizedUrl);

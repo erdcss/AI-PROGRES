@@ -12,9 +12,22 @@ export interface EnhancedVariantData {
   stockMap: Record<string, boolean>;
 }
 
-export async function scrapeTrendyolProduct(url: string) {
+export async function scrapeTrendyolProduct(inputUrl: string) {
   try {
     console.log('🚀 Enhanced Trendyol handler başlatılıyor...');
+    
+    // Normalize URL - ensure https:// prefix
+    let url = inputUrl.trim();
+    if (!url.startsWith('http://') && !url.startsWith('https://')) {
+      url = 'https://' + url;
+    }
+    
+    // Validate URL format
+    try {
+      new URL(url);
+    } catch (error) {
+      throw new Error(`Geçersiz URL formatı: ${inputUrl}`);
+    }
     
     const response = await axios.get(url, {
       headers: {
