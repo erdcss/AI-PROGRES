@@ -172,6 +172,7 @@ export async function registerRoutes(app: Express) {
           const csvResult = await generateShopifyCSV([trendyolResult]);
           
           console.log(`✅ Otomatik CSV oluşturuldu: ${csvResult.filename}`);
+          console.log(`✅ CSV dosya yolu: ${csvResult.csvPath}`);
           
           return res.status(200).json({
             ...trendyolResult,
@@ -179,17 +180,19 @@ export async function registerRoutes(app: Express) {
               filename: csvResult.filename,
               downloadUrl: `/temp/${csvResult.filename}`,
               success: true,
-              message: "CSV otomatik hazırlandı"
+              message: "CSV otomatik hazırlandı",
+              totalRows: csvResult.totalRows || 0
             }
           });
         } catch (csvError: any) {
-          console.error('Otomatik CSV oluşturma hatası:', csvError);
+          console.error('❌ Otomatik CSV oluşturma hatası:', csvError);
+          console.error('CSV Error Stack:', csvError.stack);
           return res.status(200).json({
             ...trendyolResult,
             csvExport: {
               success: false,
               error: csvError.message,
-              message: "CSV oluşturulamadı"
+              message: "CSV oluşturulamadı - detay: " + csvError.message
             }
           });
         }
