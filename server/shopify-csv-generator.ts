@@ -415,7 +415,7 @@ export async function generateShopifyCSV(products: ProductData[]): Promise<{file
 
   // Generate filename with timestamp - CSV format
   const timestamp = new Date().toISOString().replace(/[:.]/g, '-').slice(0, -5);
-  const filename = `shopify-import-${timestamp}.csv`;
+  const filename = 'shopify-urunler.csv';
   const filePath = path.join(process.cwd(), 'temp', filename);
 
   // Ensure temp directory exists

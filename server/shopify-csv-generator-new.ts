@@ -234,9 +234,8 @@ export async function generateShopifyCSV(products: ProductData[]): Promise<{file
     });
   }
 
-  // Generate filename with timestamp
-  const timestamp = new Date().toISOString().replace(/:/g, '-').split('.')[0];
-  const filename = `shopify-import-${timestamp}.csv`;
+  // Generate filename as requested: shopify-urunler.csv
+  const filename = 'shopify-urunler.csv';
   const filePath = path.join(process.cwd(), 'temp', filename);
 
   // Ensure temp directory exists
@@ -268,7 +267,7 @@ export async function generateShopifyCSV(products: ProductData[]): Promise<{file
   });
   
   const csvContent = csvLines.join('\n');
-  await fs.promises.writeFile(filePath, csvContent, { encoding: 'utf8' });
+  await fs.promises.writeFile(filePath, csvContent, { encoding: 'utf-8' });
 
   console.log(`✅ Shopify CSV oluşturuldu: ${filename}`);
   console.log(`📊 ${shopifyVariants.length} varyant, ${products.length} ürün`);
