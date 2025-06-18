@@ -226,6 +226,7 @@ function CSVPreview({ csvPath }: { csvPath: string }) {
 
 function ScraperPage({ platform = 'trendyol' }: ScraperPageProps) {
   const [product, setProduct] = useState<any>(null);
+  const [result, setResult] = useState<any>(null);
   const [error, setError] = useState<{
     message: string;
     status?: number;
