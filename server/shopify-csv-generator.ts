@@ -164,16 +164,27 @@ export async function generateShopifyCSV(products: ProductData[]): Promise<{file
             if (product.attributes && Object.keys(product.attributes).length > 0) {
               description += '\n\nÜrün Özellikleri:';
               Object.entries(product.attributes).forEach(([key, value]) => {
-                description += `\n• ${key}: ${value}`;
+                // Remove any commas and quotes from attribute values
+                const cleanKey = String(key).replace(/[",]/g, ' ').trim();
+                const cleanValue = String(value).replace(/[",]/g, ' ').trim();
+                description += `\n• ${cleanKey}: ${cleanValue}`;
               });
             }
             
             // Add categories if available
             if (product.categories && product.categories.length > 0) {
-              description += `\n\nKategoriler: ${product.categories.join(' > ')}`;
+              const cleanCategories = product.categories.map(cat => 
+                String(cat).replace(/[",]/g, ' ').trim()
+              );
+              description += `\n\nKategoriler: ${cleanCategories.join(' > ')}`;
             }
             
-            return description.trim().replace(/\n/g, ' ').replace(/\r/g, '');
+            // Clean description of any problematic characters
+            return description.trim()
+              .replace(/\n/g, ' ')
+              .replace(/\r/g, '')
+              .replace(/"/g, '')  // Remove all quotes from description
+              .replace(/,/g, ' '); // Replace commas with spaces
           };
 
           const variant: ShopifyVariant = {
