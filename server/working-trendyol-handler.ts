@@ -278,8 +278,8 @@ export async function handleTrendyolProduct(url: string, productId: string) {
         }
       }
       
-      // Use enhanced variant extraction system
-      const { extractTrendyolVariants } = await import('./enhanced-variant-extractor');
+      // Use advanced color variant extraction system
+      const { extractAdvancedColorVariants } = await import('./advanced-color-variant-extractor');
       const variantData = extractTrendyolVariants(htmlContent, $, parseFloat(price?.toString().replace(/[^\d.,]/g, '').replace(',', '.') || '0'), optimizedImages);
       
       // Apply extracted data

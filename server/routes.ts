@@ -1481,6 +1481,25 @@ export async function registerRoutes(app: Express) {
     }
   });
 
+  app.get('/api/download-csv', (req, res) => {
+    const filename = req.query.filename as string;
+    if (!filename) {
+      return res.status(400).json({ error: 'Filename required' });
+    }
+
+    const csvPath = path.join(__dirname, '../temp', filename);
+    
+    if (!fs.existsSync(csvPath)) {
+      return res.status(404).json({ error: 'CSV file not found' });
+    }
+
+    res.setHeader('Content-Type', 'text/csv');
+    res.setHeader('Content-Disposition', `attachment; filename="${filename}"`);
+    
+    const fileStream = fs.createReadStream(csvPath);
+    fileStream.pipe(res);
+  });
+
   const httpServer = createServer(app);
   return httpServer;
 }
