@@ -543,14 +543,19 @@ function ScraperPage({ platform = 'trendyol' }: ScraperPageProps) {
                               cleanedImage = `https://cdn.dsmcdn.com${cleanedImage}`;
                             }
                             
-                            return (
-                              <div key={index} className="relative aspect-square group">
-                                <img
-                                  src={cleanedImage}
-                                  alt={`${product.title} - Görsel ${index + 1}`}
-                                  className="w-full h-full object-cover rounded-lg transition-transform group-hover:scale-105"
-                                  loading="lazy"
-                                  onError={(e) => {
+                                return (
+                                  <div key={index} className="relative aspect-square group cursor-pointer">
+                                    <img
+                                      src={cleanedImage}
+                                      alt={`${product.title} - Görsel ${index + 1}`}
+                                      className="w-full h-full object-cover rounded border-2 border-transparent hover:border-blue-500 transition-all"
+                                      loading="lazy"
+                                      onClick={() => {
+                                        // Update main image
+                                        const mainImg = document.querySelector('.aspect-square img') as HTMLImageElement;
+                                        if (mainImg) mainImg.src = cleanedImage;
+                                      }}
+                                      onError={(e) => {
                                     const img = e.target as HTMLImageElement;
                                     
                                     // Hata olursa sırasıyla alternatif resim formatlarını dene
@@ -607,14 +612,21 @@ function ScraperPage({ platform = 'trendyol' }: ScraperPageProps) {
                                     Orijinal Görsel
                                   </a>
                                 </div>
-                                <div className="absolute top-2 right-2 bg-black/70 text-white text-xs px-2 py-1 rounded-full">
-                                  {index + 1}
-                                </div>
-                              </div>
-                            );
-                          })}
+                                    <div className="absolute top-1 right-1 bg-black/70 text-white text-xs px-1.5 py-0.5 rounded-full">
+                                      {index + 1}
+                                    </div>
+                                    {index === 0 && (
+                                      <div className="absolute top-1 left-1 bg-blue-600 text-white text-xs px-1.5 py-0.5 rounded-full">
+                                        Ana
+                                      </div>
+                                    )}
+                                  </div>
+                                );
+                              })}
+                          </div>
+                        </ScrollArea>
                       </div>
-                    </ScrollArea>
+                    )}
                   </div>
 
                   {/* Comprehensive Data Preview */}
@@ -630,32 +642,54 @@ function ScraperPage({ platform = 'trendyol' }: ScraperPageProps) {
                       <div className="text-xs text-green-500 mt-1">10% kar marjı dahil</div>
                     </div>
 
-                    {/* Product Variants Summary */}
+                    {/* Enhanced Product Variants with Pricing */}
                     {product.variants && (
-                      <div className="grid grid-cols-2 gap-3">
-                        {product.variants.colors && product.variants.colors.length > 0 && (
-                          <div className="bg-blue-900/20 p-3 rounded-lg border border-blue-800">
-                            <div className="text-blue-400 text-sm font-medium mb-2">
-                              Renkler ({product.variants.colors.length})
-                            </div>
-                            <div className="text-blue-300 text-xs">
-                              {product.variants.colors.slice(0, 3).join(', ')}
-                              {product.variants.colors.length > 3 && ` +${product.variants.colors.length - 3} daha`}
-                            </div>
-                          </div>
-                        )}
+                      <div className="space-y-3">
+                        <h3 className="text-lg font-semibold text-gray-200">Varyant Bilgileri</h3>
                         
-                        {product.variants.sizes && product.variants.sizes.length > 0 && (
-                          <div className="bg-purple-900/20 p-3 rounded-lg border border-purple-800">
-                            <div className="text-purple-400 text-sm font-medium mb-2">
-                              Bedenler ({product.variants.sizes.length})
+                        <div className="grid grid-cols-1 gap-3">
+                          {/* Colors with Pricing */}
+                          {product.variants.colors && product.variants.colors.length > 0 && (
+                            <div className="bg-blue-900/20 p-4 rounded-lg border border-blue-800">
+                              <div className="text-blue-400 text-sm font-medium mb-3">
+                                Renk Seçenekleri ({product.variants.colors.length})
+                              </div>
+                              <div className="grid grid-cols-2 md:grid-cols-3 gap-2">
+                                {product.variants.colors.map((color: string, index: number) => (
+                                  <div key={index} className="bg-blue-900/30 p-2 rounded border border-blue-700">
+                                    <div className="text-blue-300 text-xs font-medium">{color}</div>
+                                    {product.variants.pricing && product.variants.pricing[color] && (
+                                      <div className="text-green-400 text-xs mt-1">
+                                        {(product.variants.pricing[color] * 1.10).toFixed(2)} TL
+                                      </div>
+                                    )}
+                                  </div>
+                                ))}
+                              </div>
                             </div>
-                            <div className="text-purple-300 text-xs">
-                              {product.variants.sizes.slice(0, 4).join(', ')}
-                              {product.variants.sizes.length > 4 && ` +${product.variants.sizes.length - 4} daha`}
+                          )}
+                          
+                          {/* Sizes with Pricing */}
+                          {product.variants.sizes && product.variants.sizes.length > 0 && (
+                            <div className="bg-purple-900/20 p-4 rounded-lg border border-purple-800">
+                              <div className="text-purple-400 text-sm font-medium mb-3">
+                                Beden Seçenekleri ({product.variants.sizes.length})
+                              </div>
+                              <div className="grid grid-cols-3 md:grid-cols-5 gap-2">
+                                {product.variants.sizes.map((size: string, index: number) => (
+                                  <div key={index} className="bg-purple-900/30 p-2 rounded border border-purple-700 text-center">
+                                    <div className="text-purple-300 text-xs font-medium">{size}</div>
+                                    {product.variants.pricing && product.variants.pricing[size] && (
+                                      <div className="text-green-400 text-xs mt-1">
+                                        {(product.variants.pricing[size] * 1.10).toFixed(2)} TL
+                                      </div>
+                                    )}
+                                  </div>
+                                ))}
+                              </div>
                             </div>
-                          </div>
-                        )}
+                          )}
+                        </div>
                       </div>
                     )}
 
@@ -694,23 +728,31 @@ function ScraperPage({ platform = 'trendyol' }: ScraperPageProps) {
                         </div>
                       )}
 
+                      {/* Enhanced Advanced Tagging System */}
                       {product.tags && product.tags.length > 0 && (
-                        <div className="bg-yellow-900/20 p-3 rounded-lg border border-yellow-800">
-                          <div className="text-yellow-400 text-sm font-medium mb-2">
-                            Etiketler ({product.tags.length})
+                        <div className="bg-yellow-900/20 p-4 rounded-lg border border-yellow-800">
+                          <div className="text-yellow-400 text-sm font-medium mb-3">
+                            Akıllı Etiket Sistemi ({product.tags.length})
                           </div>
-                          <div className="flex flex-wrap gap-1">
-                            {product.tags.slice(0, 5).map((tag: string, index: number) => (
-                              <span
-                                key={index}
-                                className="px-2 py-1 bg-yellow-900/30 text-yellow-300 text-xs rounded"
-                              >
-                                #{tag}
-                              </span>
-                            ))}
-                            {product.tags.length > 5 && (
-                              <span className="text-yellow-500 text-xs">+{product.tags.length - 5} daha</span>
+                          <div className="space-y-2">
+                            <div className="flex flex-wrap gap-1">
+                              {product.tags.slice(0, 8).map((tag: string, index: number) => (
+                                <span
+                                  key={index}
+                                  className="px-2 py-1 bg-yellow-900/30 text-yellow-300 text-xs rounded border border-yellow-700 hover:bg-yellow-800/30 transition-colors"
+                                >
+                                  #{tag}
+                                </span>
+                              ))}
+                            </div>
+                            {product.tags.length > 8 && (
+                              <div className="text-yellow-500 text-xs">
+                                +{product.tags.length - 8} ek kategorizasyon etiketi
+                              </div>
                             )}
+                            <div className="text-yellow-600 text-xs mt-2 p-2 bg-yellow-900/20 rounded">
+                              Bu etiketler ürünün kategorize edilmesi ve aranabilirliğini artırmak için otomatik oluşturulmuştur
+                            </div>
                           </div>
                         </div>
                       )}

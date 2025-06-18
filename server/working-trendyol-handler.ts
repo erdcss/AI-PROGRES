@@ -226,10 +226,11 @@ export async function handleTrendyolProduct(url: string, productId: string) {
       const optimizedImages = uniqueImages.slice(0, 15); // Limit to 15 high-quality images
       console.log(`🖼️ ${optimizedImages.length} optimize edilmiş ürün görseli hazırlandı`);
       
-      // Extract real variant data from page content
+      // Extract real variant data from page content with pricing
       const colors: string[] = [];
       const sizes: string[] = [];
       let stockMap: Record<string, boolean> = {};
+      let variantPricing: Record<string, number> = {};
       
       // Extract from inline JavaScript data containing allVariants
       const allVariantsMatch = htmlContent.match(/"allVariants":\[(.*?)\]/);
@@ -242,8 +243,15 @@ export async function handleTrendyolProduct(url: string, productId: string) {
             if (variant.value && !sizes.includes(variant.value)) {
               sizes.push(variant.value);
             }
+            // Extract variant-specific pricing
+            if (variant.price && variant.value) {
+              variantPricing[variant.value] = parseFloat(variant.price);
+            }
           });
           console.log(`✅ Gerçek beden verisi bulundu: ${sizes.join(', ')}`);
+          if (Object.keys(variantPricing).length > 0) {
+            console.log(`💰 Varyant fiyatları bulundu: ${Object.keys(variantPricing).length} adet`);
+          }
         } catch (e) {
           console.log("Varyant verisi parse edilemedi:", e);
         }
@@ -255,6 +263,11 @@ export async function handleTrendyolProduct(url: string, productId: string) {
           colorData.forEach((color: any) => {
             if (color.colorName && !colors.includes(color.colorName)) {
               colors.push(color.colorName);
+              
+              // Extract color-specific pricing
+              if (color.price) {
+                variantPricing[color.colorName] = parseFloat(color.price);
+              }
               
               // Extract color-specific images with enhanced matching
               if (color.images && Array.isArray(color.images)) {
@@ -511,6 +524,99 @@ export async function handleTrendyolProduct(url: string, productId: string) {
 }
 
 
+
+/**
+ * Generate advanced tags for better product categorization
+ */
+function generateAdvancedTags(title: string, brand: string, categories: string[], attributes: Record<string, string>, colors: string[], sizes: string[]): string[] {
+  const tags = new Set<string>();
+  
+  // Add brand tag
+  tags.add(brand.toLowerCase());
+  
+  // Add category-based tags
+  categories.forEach(cat => {
+    tags.add(cat.toLowerCase());
+  });
+  
+  // Add product type tags based on title analysis
+  const titleLower = title.toLowerCase();
+  const productTypes = [
+    'elbise', 'pantolon', 'gömlek', 'tişört', 'ayakkabı', 'çanta', 'mont', 'ceket',
+    'etek', 'bluz', 'kazak', 'hırka', 'bot', 'sandalet', 'spor', 'jean', 'şort',
+    'tunik', 'kaban', 'yelek', 'kimono', 'jumpsuit', 'overall', 'kombinezön'
+  ];
+  
+  productTypes.forEach(type => {
+    if (titleLower.includes(type)) {
+      tags.add(type);
+    }
+  });
+  
+  // Add material tags from title and attributes
+  const materials = [
+    'pamuk', 'polyester', 'visko', 'elastan', 'denim', 'keten', 'yün', 'ipek',
+    'kadife', 'saten', 'şifon', 'dantel', 'örme', 'dokuma', 'polyamid', 'akrilik'
+  ];
+  
+  materials.forEach(material => {
+    if (titleLower.includes(material) || Object.values(attributes).some(val => val.toLowerCase().includes(material))) {
+      tags.add(material);
+    }
+  });
+  
+  // Add style tags
+  const styles = [
+    'casual', 'spor', 'şık', 'klasik', 'modern', 'vintage', 'bohemian', 'minimalist',
+    'yazlık', 'kışlık', 'sonbahar', 'ilkbahar', 'parti', 'günlük', 'iş', 'gece'
+  ];
+  
+  styles.forEach(style => {
+    if (titleLower.includes(style)) {
+      tags.add(style);
+    }
+  });
+  
+  // Add color family tags
+  const colorFamilies: Record<string, string[]> = {
+    'siyah-beyaz': ['siyah', 'beyaz', 'gri'],
+    'mavi-tonları': ['mavi', 'lacivert', 'navy', 'denim', 'kot'],
+    'kırmızı-tonları': ['kırmızı', 'bordo', 'pembe'],
+    'doğal-tonlar': ['bej', 'kahverengi', 'camel', 'nude', 'krem'],
+    'yeşil-tonları': ['yeşil', 'haki', 'zeytin'],
+    'mor-tonları': ['mor', 'lila', 'eflatun']
+  };
+  
+  Object.entries(colorFamilies).forEach(([family, colorList]) => {
+    if (colors.some(color => colorList.some(c => color.toLowerCase().includes(c)))) {
+      tags.add(family);
+    }
+  });
+  
+  // Add size category tags
+  if (sizes.length > 0) {
+    const hasSmallSizes = sizes.some(s => ['XS', 'S', '34', '36'].includes(s));
+    const hasLargeSizes = sizes.some(s => ['XL', 'XXL', '44', '46', '48'].includes(s));
+    
+    if (hasSmallSizes) tags.add('küçük-beden');
+    if (hasLargeSizes) tags.add('büyük-beden');
+    if (sizes.length > 3) tags.add('geniş-beden-aralığı');
+  }
+  
+  // Add occasion tags based on title
+  const occasions = [
+    'düğün', 'mezuniyet', 'iş', 'tatil', 'plaj', 'parti', 'gece', 'günlük',
+    'spor', 'yoga', 'koşu', 'fitness', 'ofis', 'randevu', 'davet'
+  ];
+  
+  occasions.forEach(occasion => {
+    if (titleLower.includes(occasion)) {
+      tags.add(occasion);
+    }
+  });
+  
+  return Array.from(tags).slice(0, 20); // Limit to 20 most relevant tags
+}
 
 function parseProductTitle(slug: string, brand: string): string {
   return slug
