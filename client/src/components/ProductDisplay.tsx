@@ -1,0 +1,225 @@
+import { Badge } from "@/components/ui/badge";
+import { Button } from "@/components/ui/button";
+import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
+import { Separator } from "@/components/ui/separator";
+import { Download, Package, Tag, Image as ImageIcon, DollarSign } from "lucide-react";
+
+interface ProductDisplayProps {
+  data: {
+    title: string;
+    brand: string;
+    price: string;
+    description: string;
+    images: string[];
+    variants: {
+      colors: string[];
+      sizes: string[];
+      variantImages: Record<string, string[]>;
+      pricing: Record<string, number>;
+      allVariants: Array<{
+        color: string;
+        size: string;
+        sku: string;
+        price: number;
+        shopifyPrice: string;
+        images: string[];
+      }>;
+      totalVariants: number;
+    };
+    attributes: Record<string, string>;
+    categories: string[];
+    tags: string[];
+    preview: {
+      csvPath: string;
+      filename: string;
+      totalRows: number;
+      shopifyReady: boolean;
+    };
+  };
+}
+
+export function ProductDisplay({ data }: ProductDisplayProps) {
+  const handleDownloadCSV = async () => {
+    try {
+      const response = await fetch(`/api/download-csv?filename=${data.preview.filename}`);
+      if (response.ok) {
+        const blob = await response.blob();
+        const url = window.URL.createObjectURL(blob);
+        const a = document.createElement('a');
+        a.href = url;
+        a.download = data.preview.filename;
+        document.body.appendChild(a);
+        a.click();
+        window.URL.revokeObjectURL(url);
+        document.body.removeChild(a);
+      }
+    } catch (error) {
+      console.error('CSV indirme hatası:', error);
+    }
+  };
+
+  return (
+    <div className="space-y-6 p-6 bg-gray-900 text-white">
+      {/* Ana Ürün Bilgileri */}
+      <Card className="bg-gray-800 border-gray-700">
+        <CardHeader>
+          <CardTitle className="flex items-center gap-2 text-white">
+            <Package className="h-5 w-5 text-blue-400" />
+            Ürün Bilgileri
+          </CardTitle>
+        </CardHeader>
+        <CardContent className="space-y-4">
+          <div>
+            <h2 className="text-xl font-bold text-white mb-2">{data.title}</h2>
+            <div className="flex items-center gap-4">
+              <Badge variant="secondary" className="bg-blue-600 text-white">
+                {data.brand}
+              </Badge>
+              <span className="text-lg font-semibold text-green-400">{data.price}</span>
+            </div>
+          </div>
+          
+          <div className="grid grid-cols-1 lg:grid-cols-2 gap-4">
+            <div>
+              <h3 className="font-semibold text-gray-300 mb-2">Kategoriler</h3>
+              <div className="flex flex-wrap gap-2">
+                {data.categories.map((category, index) => (
+                  <Badge key={index} variant="outline" className="border-gray-600 text-gray-300">
+                    {category}
+                  </Badge>
+                ))}
+              </div>
+            </div>
+            
+            <div>
+              <h3 className="font-semibold text-gray-300 mb-2">Özellikler</h3>
+              <div className="space-y-1 text-sm text-gray-400">
+                {Object.entries(data.attributes).map(([key, value]) => (
+                  <div key={key}>
+                    <span className="font-medium">{key}:</span> {value}
+                  </div>
+                ))}
+              </div>
+            </div>
+          </div>
+        </CardContent>
+      </Card>
+
+      {/* Ürün Görselleri */}
+      <Card className="bg-gray-800 border-gray-700">
+        <CardHeader>
+          <CardTitle className="flex items-center gap-2 text-white">
+            <ImageIcon className="h-5 w-5 text-purple-400" />
+            Ürün Görselleri ({data.images.length})
+          </CardTitle>
+        </CardHeader>
+        <CardContent>
+          <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-4">
+            {data.images.slice(0, 8).map((image, index) => (
+              <div key={index} className="aspect-square bg-gray-700 rounded-lg overflow-hidden">
+                <img 
+                  src={image} 
+                  alt={`Ürün görseli ${index + 1}`}
+                  className="w-full h-full object-cover hover:scale-105 transition-transform"
+                />
+              </div>
+            ))}
+          </div>
+        </CardContent>
+      </Card>
+
+      {/* Renk Varyantları */}
+      <Card className="bg-gray-800 border-gray-700">
+        <CardHeader>
+          <CardTitle className="flex items-center gap-2 text-white">
+            <Tag className="h-5 w-5 text-green-400" />
+            Renk Varyantları ({data.variants.colors.length})
+          </CardTitle>
+        </CardHeader>
+        <CardContent className="space-y-4">
+          {data.variants.colors.map((color) => (
+            <div key={color} className="border border-gray-600 rounded-lg p-4">
+              <div className="flex items-center justify-between mb-3">
+                <h3 className="font-semibold text-white">{color}</h3>
+                <div className="flex items-center gap-2">
+                  <DollarSign className="h-4 w-4 text-green-400" />
+                  <span className="font-bold text-green-400">
+                    {data.variants.pricing[color]?.toFixed(2)} TL
+                  </span>
+                </div>
+              </div>
+              
+              <div className="grid grid-cols-3 md:grid-cols-6 gap-2">
+                {data.variants.variantImages[color]?.map((image, index) => (
+                  <div key={index} className="aspect-square bg-gray-700 rounded overflow-hidden">
+                    <img 
+                      src={image} 
+                      alt={`${color} varyantı ${index + 1}`}
+                      className="w-full h-full object-cover"
+                    />
+                  </div>
+                ))}
+              </div>
+            </div>
+          ))}
+        </CardContent>
+      </Card>
+
+      {/* Varyant Özeti */}
+      <Card className="bg-gray-800 border-gray-700">
+        <CardHeader>
+          <CardTitle className="flex items-center gap-2 text-white">
+            <Package className="h-5 w-5 text-orange-400" />
+            Varyant Özeti
+          </CardTitle>
+        </CardHeader>
+        <CardContent>
+          <div className="grid grid-cols-2 md:grid-cols-4 gap-4 text-center">
+            <div className="bg-gray-700 p-4 rounded-lg">
+              <div className="text-2xl font-bold text-blue-400">{data.variants.colors.length}</div>
+              <div className="text-sm text-gray-400">Renk</div>
+            </div>
+            <div className="bg-gray-700 p-4 rounded-lg">
+              <div className="text-2xl font-bold text-green-400">{data.variants.sizes.length || 1}</div>
+              <div className="text-sm text-gray-400">Beden</div>
+            </div>
+            <div className="bg-gray-700 p-4 rounded-lg">
+              <div className="text-2xl font-bold text-purple-400">{data.variants.totalVariants}</div>
+              <div className="text-sm text-gray-400">Toplam Varyant</div>
+            </div>
+            <div className="bg-gray-700 p-4 rounded-lg">
+              <div className="text-2xl font-bold text-orange-400">{data.preview.totalRows}</div>
+              <div className="text-sm text-gray-400">CSV Satırı</div>
+            </div>
+          </div>
+        </CardContent>
+      </Card>
+
+      {/* CSV İndirme */}
+      <Card className="bg-gray-800 border-gray-700">
+        <CardHeader>
+          <CardTitle className="flex items-center gap-2 text-white">
+            <Download className="h-5 w-5 text-blue-400" />
+            Shopify CSV Export
+          </CardTitle>
+        </CardHeader>
+        <CardContent>
+          <div className="flex items-center justify-between">
+            <div>
+              <p className="text-gray-300">
+                {data.preview.totalRows} satır ile Shopify uyumlu CSV hazır
+              </p>
+              <p className="text-sm text-gray-500">
+                Dosya: {data.preview.filename}
+              </p>
+            </div>
+            <Button onClick={handleDownloadCSV} className="bg-blue-600 hover:bg-blue-700">
+              <Download className="h-4 w-4 mr-2" />
+              CSV İndir
+            </Button>
+          </div>
+        </CardContent>
+      </Card>
+    </div>
+  );
+}
