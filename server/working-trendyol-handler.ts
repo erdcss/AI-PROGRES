@@ -222,78 +222,40 @@ export async function handleTrendyolProduct(url: string, productId: string) {
       let optimizedImages = uniqueImages.slice(0, 10); // Limit to 10 authentic product images
       console.log(`🖼️ ${optimizedImages.length} sadece ürün görseli filtrelendi (logos/footer hariç)`);
       
-      // Extract advanced variant data with individual pricing and image matching
-      const colors: string[] = [];
-      const sizes: string[] = [];
+      // GELİŞMİŞ VARYANT ÇIKARMA SİSTEMİ
+      console.log('🚀 Gelişmiş varyant çıkarma sistemi başlatılıyor...');
+      
+      const { extractAdvancedVariants } = await import('./advanced-variant-extractor');
+      const variantData = extractAdvancedVariants(htmlContent, productId);
+      
+      const colors = variantData.colors;
+      const sizes = variantData.sizes;
+      const variantImages = variantData.variantImages;
+      const colorImageMap = variantData.colorImageMap;
+      const variantPricing = variantData.variantPricing;
+      const variantSpecificPricing = variantData.variantSpecificPricing;
       let stockMap: Record<string, boolean> = {};
-      const variantPricing: Record<string, number> = {}; // Individual variant pricing
-      const colorImageMap: Record<string, string[]> = {}; // Color-specific image mapping
-      const variantSpecificPricing: Record<string, number> = {}; // Each variant combo pricing
       
-      // TÜM VARYANT VERİLERİNİ ÇIKAR
-      const allVariantsMatch = htmlContent.match(/"allVariants":\[(.*?)\]/);
-      const productColorsMatch = htmlContent.match(/"productColors":\[(.*?)\]/);
-      const sizesMatch = htmlContent.match(/"sizes":\[(.*?)\]/);
-      
-      // Beden verilerini çıkar
-      if (allVariantsMatch) {
+      // STOK BİLGİSİ ÇIKARMA
+      const stockMatch = htmlContent.match(/"variants":\[(.*?)\]/);
+      if (stockMatch) {
         try {
-          const variantData = JSON.parse(`[${allVariantsMatch[1]}]`);
-          variantData.forEach((variant: any) => {
-            if (variant.value && !sizes.includes(variant.value)) {
-              sizes.push(variant.value);
-            }
-            // Beden bazlı fiyat
-            if (variant.price && variant.value) {
-              variantPricing[variant.value] = parseFloat(variant.price);
+          const stockData = JSON.parse(`[${stockMatch[1]}]`);
+          stockData.forEach((item: any) => {
+            if (item.attributeType === 'productSize' && item.variants) {
+              item.variants.forEach((variant: any) => {
+                if (variant.attributeValue && typeof variant.inStock === 'boolean') {
+                  const sizeKey = variant.attributeValue;
+                  colors.forEach(color => {
+                    const variantKey = `${color.toLowerCase()}-${sizeKey}`;
+                    stockMap[variantKey] = variant.inStock;
+                  });
+                }
+              });
             }
           });
-          console.log(`✅ Beden verisi: ${sizes.join(', ')}`);
         } catch (e) {
-          console.log("Beden verisi parse edilemedi:", e);
-        }
-      }
-      
-      // Renk verilerini çıkar
-      if (productColorsMatch) {
-        try {
-          const colorData = JSON.parse(`[${productColorsMatch[1]}]`);
-          colorData.forEach((color: any) => {
-            const colorName = color.colorName || color.name || color.value;
-            if (colorName && !colors.includes(colorName)) {
-              colors.push(colorName);
-              
-              // Renk bazlı fiyat
-              if (color.price) {
-                variantSpecificPricing[colorName] = parseFloat(color.price);
-              }
-              
-              // Renk bazlı görsel
-              if (color.images && Array.isArray(color.images)) {
-                colorImageMap[colorName] = color.images;
-                variantImages[colorName] = color.images;
-              }
-            }
-          });
-          console.log(`✅ Renk verisi: ${colors.join(', ')}`);
-        } catch (e) {
-          console.log("Renk verisi parse edilemedi:", e);
-        }
-      }
-      
-      // Ekstra beden verisi
-      if (sizesMatch) {
-        try {
-          const sizeData = JSON.parse(`[${sizesMatch[1]}]`);
-          sizeData.forEach((size: any) => {
-            const sizeName = size.sizeName || size.name || size.value || size;
-            if (sizeName && typeof sizeName === 'string' && !sizes.includes(sizeName)) {
-              sizes.push(sizeName);
-            }
-          });
-          console.log(`✅ Ek beden verisi: ${sizes.join(', ')}`);
-        } catch (e) {
-          console.log("Ek beden verisi parse edilemedi:", e);
+          console.log("Stok verisi parse edilemedi:", e);
         }
       }
       
