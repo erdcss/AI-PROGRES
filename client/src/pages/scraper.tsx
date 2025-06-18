@@ -359,7 +359,7 @@ function ScraperPage({ platform = 'trendyol' }: ScraperPageProps) {
   };
 
   const downloadCSV = async () => {
-    if (!product?.preview?.csvPath) {
+    if (!product?.preview?.filename) {
       toast({
         title: "CSV bulunamadı",
         description: "Önce bir ürün verisi çekin",
@@ -369,7 +369,7 @@ function ScraperPage({ platform = 'trendyol' }: ScraperPageProps) {
     }
 
     try {
-      const response = await fetch(`/api/download-csv?path=${encodeURIComponent(product.preview.csvPath)}`);
+      const response = await fetch(`/api/download/${product.preview.filename}`);
       if (!response.ok) throw new Error('CSV indirilemedi');
       
       const blob = await response.blob();

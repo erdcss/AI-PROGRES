@@ -41,7 +41,7 @@ interface ProductDisplayProps {
 export function ProductDisplay({ data }: ProductDisplayProps) {
   const handleDownloadCSV = async () => {
     try {
-      const response = await fetch(`/api/download-csv?filename=${data.preview.filename}`);
+      const response = await fetch(`/api/download/${data.preview.filename}`);
       if (response.ok) {
         const blob = await response.blob();
         const url = window.URL.createObjectURL(blob);
