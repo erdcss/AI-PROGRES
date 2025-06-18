@@ -243,7 +243,7 @@ export async function handleTrendyolProduct(url: string, productId: string) {
       const variantStockMatch = htmlContent.match(/"variants":\[(.*?)\]/);
       if (variantStockMatch) {
         try {
-          const stockData = JSON.parse(`[${stockMatch[1]}]`);
+          const stockData = JSON.parse(`[${variantStockMatch[1]}]`);
           stockData.forEach((item: any) => {
             if (item.attributeType === 'productSize' && item.variants) {
               item.variants.forEach((variant: any) => {
@@ -863,12 +863,8 @@ export async function handleTrendyolProduct(url: string, productId: string) {
         });
         
         // Son fallback - en temel varyantları oluştur
-        if (colors.length === 0) {
-          colors.push('Varsayılan');
-          console.log('🎨 Varsayılan renk eklendi');
-        }
         if (sizes.length === 0) {
-          sizes.push('Standart');
+          sizes.push('Default');
           console.log('📏 Varsayılan beden eklendi');
         }
       }
@@ -1029,7 +1025,7 @@ export async function handleTrendyolProduct(url: string, productId: string) {
         variants: {
           colors: Array.from(new Set(allVariants.map(v => v.color))),
           sizes: Array.from(new Set(allVariants.map(v => v.size))),
-          variantImages: variantImages,
+          variantImages: extractedVariantImages,
           pricing: variantPricing,
           allVariants: allVariants,
           totalVariants: allVariants.length
