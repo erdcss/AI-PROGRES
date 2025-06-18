@@ -67,111 +67,72 @@ export async function handleTrendyolProduct(url: string, productId: string) {
       const images: string[] = [];
       const variantImages: Record<string, string[]> = {};
       
-      // Extract all product images with comprehensive patterns
-      const imagePatterns = [
-        // Direct CDN URLs
-        /https:\/\/cdn\.dsmcdn\.com\/[^"'\s]+\/product\/media\/images\/[^"'\s]+\.(jpg|jpeg|png|webp)/gi,
-        // JSON encoded URLs
-        /"imageUrl":"(https:\/\/cdn\.dsmcdn\.com\/[^"]+\/product\/media\/images\/[^"]+\.(jpg|jpeg|png|webp))"/gi,
-        /"url":"(https:\/\/cdn\.dsmcdn\.com\/[^"]+\/product\/media\/images\/[^"]+\.(jpg|jpeg|png|webp))"/gi,
-        /"href":"(https:\/\/cdn\.dsmcdn\.com\/[^"]+\/product\/media\/images\/[^"]+\.(jpg|jpeg|png|webp))"/gi,
-        // Broad CDN pattern for any product images
-        /https:\/\/cdn\.dsmcdn\.com\/[^"'\s]*\.(jpg|jpeg|png|webp)/gi,
-        // PIM (Product Information Management) URLs
-        /https:\/\/cdn\.dsmcdn\.com\/[^"'\s]*\/prod\/PIM\/[^"'\s]*\.(jpg|jpeg|png|webp)/gi
-      ];
-      
+      // KALICI ÇÖZÜM: Gerçek ürün görsellerini çıkar
       const allImageMatches: string[] = [];
-      imagePatterns.forEach(pattern => {
-        const matches = htmlContent.match(pattern) || [];
-        allImageMatches.push(...matches);
-      });
       
-      console.log(`🔍 Toplam ${allImageMatches.length} potansiyel görsel URL bulundu`);
+      // Pattern 1: Ana ürün görselleri - QC klasöründen
+      const qcPattern = /https:\/\/cdn\.dsmcdn\.com\/ty\d+\/prod\/QC\/[^"'\s]+\.(jpg|jpeg|png|webp)/gi;
+      const qcMatches = htmlContent.match(qcPattern) || [];
+      allImageMatches.push(...qcMatches);
       
-      // Also extract from productImages data structure
-      const productImagesMatch = htmlContent.match(/"productImages":\[(.*?)\]/);
-      if (productImagesMatch) {
+      // Pattern 2: Varyant görselleri örneklerinden ana ürün görsellerini al
+      const variantImagePattern = /"images":\[(.*?)\]/g;
+      let variantMatch;
+      while ((variantMatch = variantImagePattern.exec(htmlContent)) !== null) {
         try {
-          const imageData = JSON.parse(`[${productImagesMatch[1]}]`);
-          imageData.forEach((imgData: any) => {
-            if (imgData.url || imgData.imageUrl) {
-              allImageMatches.push(imgData.url || imgData.imageUrl);
+          const imageUrls = JSON.parse(`[${variantMatch[1]}]`);
+          imageUrls.forEach((url: string) => {
+            if (url && url.includes('cdn.dsmcdn.com') && !allImageMatches.includes(url)) {
+              allImageMatches.push(url);
             }
           });
         } catch (e) {
-          console.log("Product images parse hatası:", e);
+          // Ignore parse errors
         }
       }
       
-      // Process all found product images
+      // Pattern 3: Meta tag görsellerini al
+      const metaPattern = /<meta[^>]*property="og:image"[^>]*content="([^"]*cdn\.dsmcdn\.com[^"]*)"[^>]*>/gi;
+      let metaMatch;
+      while ((metaMatch = metaPattern.exec(htmlContent)) !== null) {
+        if (metaMatch[1] && !allImageMatches.includes(metaMatch[1])) {
+          allImageMatches.push(metaMatch[1]);
+        }
+      }
+      
+      // Pattern 4: JSON-LD structured data'dan al
+      const jsonLdPattern = /"image":\s*"([^"]*cdn\.dsmcdn\.com[^"]*)"/gi;
+      let jsonMatch;
+      while ((jsonMatch = jsonLdPattern.exec(htmlContent)) !== null) {
+        if (jsonMatch[1] && !allImageMatches.includes(jsonMatch[1])) {
+          allImageMatches.push(jsonMatch[1]);
+        }
+      }
+      
+      // Process and optimize found images
       allImageMatches.forEach(url => {
-        let cleanUrl = url.replace(/^"imageUrl":"/, '').replace(/^"url":"/, '').replace(/^"href":"/, '').replace(/"$/, '');
+        let optimizedUrl = url;
         
-        // Strict filter for authentic product images only
-        const isProductImage = cleanUrl.includes('cdn.dsmcdn.com') && (
-          cleanUrl.includes('/prod/QC/') ||  // Main product images
-          cleanUrl.includes('/prod/PIM/') || // Product information management images
-          (cleanUrl.includes('/ty') && cleanUrl.includes('/prod/') && cleanUrl.match(/[a-f0-9-]{36}/)) // UUID pattern for product images
-        );
+        // Remove quotes and clean URL
+        optimizedUrl = optimizedUrl.replace(/^["']|["']$/g, '');
         
-        // Strict exclusion of non-product content
-        const isExcluded = cleanUrl.includes('/ui/') || 
-                          cleanUrl.includes('/icons/') || 
-                          cleanUrl.includes('/logo') ||
-                          cleanUrl.includes('/banner') ||
-                          cleanUrl.includes('_avatar') ||
-                          cleanUrl.includes('_logo') ||
-                          cleanUrl.includes('/web/') ||
-                          cleanUrl.includes('/footer-') ||
-                          cleanUrl.includes('.svg') ||
-                          cleanUrl.includes('/production/') ||
-                          cleanUrl.includes('/social/') ||
-                          cleanUrl.includes('/brand/') ||
-                          cleanUrl.includes('/categories/');
+        // Optimize for highest quality
+        optimizedUrl = optimizedUrl.replace(/\/ty\d+\//, '/ty1660/');
+        optimizedUrl = optimizedUrl.replace(/mnresize\/\d+\/\d+\//, 'mnresize/1200/1800/');
+        optimizedUrl = optimizedUrl.replace(/_thumb\.(jpg|jpeg|png|webp)/i, '_org.$1');
+        optimizedUrl = optimizedUrl.replace(/_small\.(jpg|jpeg|png|webp)/i, '_org.$1');
         
-        if (isProductImage && !isExcluded) {
-          let fullUrl = cleanUrl.startsWith('//') ? 'https:' + cleanUrl : cleanUrl;
-          
-          // Convert ty933 to ty1660 for working URLs based on schema.org data
-          fullUrl = fullUrl.replace(/\/ty933\//, '/ty1660/');
-          fullUrl = fullUrl.replace(/\/ty\d+\//, '/ty1660/');
-          fullUrl = fullUrl.replace(/_org_org\.jpg/, '_org_zoom.jpg');
-          
-          // Ensure https protocol
-          if (!fullUrl.startsWith('https:')) {
-            fullUrl = fullUrl.replace(/^http:/, 'https:');
-          }
-          
-          if (!images.includes(fullUrl)) {
-            images.push(fullUrl);
-          }
+        // Ensure HTTPS
+        if (!optimizedUrl.startsWith('https:')) {
+          optimizedUrl = optimizedUrl.replace(/^http:/, 'https:');
+        }
+        
+        if (optimizedUrl && !images.includes(optimizedUrl)) {
+          images.push(optimizedUrl);
         }
       });
       
-      // Also extract from img tags with strict product filtering
-      $('img').each((_, img) => {
-        const src = $(img).attr('src') || $(img).attr('data-src') || $(img).attr('data-original');
-        if (src && src.includes('cdn.dsmcdn.com') && 
-            (src.includes('/prod/QC/') || src.includes('/prod/PIM/')) &&
-            !src.includes('/web/') && !src.includes('.svg') && !src.includes('/footer-')) {
-          let fullUrl = src.startsWith('//') ? 'https:' + src : src;
-          // Use working CDN paths
-          fullUrl = fullUrl.replace(/\/ty933\//, '/ty1660/');
-          fullUrl = fullUrl.replace(/\/ty\d+\//, '/ty1660/');
-          fullUrl = fullUrl.replace(/_org_org\.jpg/, '_org_zoom.jpg');
-          
-          if (!fullUrl.startsWith('https:')) {
-            fullUrl = fullUrl.replace(/^http:/, 'https:');
-          }
-          fullUrl = fullUrl.replace(/_zoom\.jpg/, '_org.jpg');
-          fullUrl = fullUrl.replace(/mnresize\/\d+\/\d+\//, 'mnresize/1200/1800/');
-          
-          if (!images.includes(fullUrl)) {
-            images.push(fullUrl);
-          }
-        }
-      });
+      console.log(`✅ ${images.length} ana ürün görseli başarıyla çıkarıldı`);
       
       // If no images found, try alternative extraction methods
       if (images.length === 0) {
