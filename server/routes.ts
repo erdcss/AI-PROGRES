@@ -1320,6 +1320,34 @@ export async function registerRoutes(app: Express) {
     }
   });
 
+  // CSV download endpoint
+  app.get('/api/download-csv', (req, res) => {
+    try {
+      const csvPath = req.query.path as string;
+      
+      if (!csvPath) {
+        return res.status(400).json({ error: 'CSV path is required' });
+      }
+
+      const fullPath = path.join(process.cwd(), csvPath);
+      if (!fullPath.includes('temp/') || !fs.existsSync(fullPath)) {
+        return res.status(404).json({ error: 'CSV file not found' });
+      }
+
+      const csvContent = fs.readFileSync(fullPath, 'utf-8');
+      
+      res.setHeader('Content-Type', 'text/csv; charset=utf-8');
+      res.setHeader('Content-Disposition', 'attachment; filename="shopify-export.csv"');
+      res.setHeader('Cache-Control', 'no-cache');
+      
+      console.log(`📥 CSV downloaded: ${csvPath}`);
+      res.send(csvContent);
+    } catch (error) {
+      console.error('CSV download error:', error);
+      res.status(500).json({ error: 'CSV download failed' });
+    }
+  });
+
   // Geçmiş URL'leri listele
   app.get('/api/history', (_req, res) => {
     try {
