@@ -679,22 +679,22 @@ export async function handleTrendyolProduct(url: string, productId: string) {
 
       // Generate comprehensive variant combinations with individual pricing and images
       const allVariants: any[] = [];
+      
       if (colors.length > 0 && sizes.length > 0) {
+        // Create color-size combinations
         colors.forEach(color => {
           sizes.forEach(size => {
             const variantKey = `${color.toLowerCase()}-${size}`;
-            const isInStock = stockMap[variantKey] !== false; // Default to true if undefined
+            const isInStock = stockMap[variantKey] !== false;
             
-            // Get color-specific images or fallback to general images
             const variantImages = colorImageMap[color] || optimizedImages.slice(0, 3);
             
-            // Calculate individual variant price with 10% markup
             const priceStr = typeof price === 'string' ? price : price.toString();
             const basePrice = variantSpecificPricing[color] || 
                             variantPricing[color] || 
                             parseFloat(priceStr.replace(/[^\d.,]/g, '').replace(',', '.') || '0');
             
-            const finalPrice = basePrice > 0 ? basePrice * 1.10 : basePrice;
+            const finalPrice = basePrice;
             
             allVariants.push({
               color: color,
@@ -703,10 +703,50 @@ export async function handleTrendyolProduct(url: string, productId: string) {
               inStock: isInStock,
               variantKey: variantKey,
               images: variantImages,
-              price: finalPrice.toFixed(2),
-              originalPrice: basePrice.toFixed(2)
+              price: finalPrice,
+              variantPrice: finalPrice,
+              shopifyPrice: finalPrice.toFixed(2)
             });
           });
+        });
+      } else if (colors.length > 0) {
+        // Create color-only variants when no sizes are available
+        colors.forEach(color => {
+          const priceStr = typeof price === 'string' ? price : price.toString();
+          const basePrice = variantSpecificPricing[color] || 
+                          variantPricing[color] || 
+                          parseFloat(priceStr.replace(/[^\d.,]/g, '').replace(',', '.') || '0');
+          
+          const finalPrice = basePrice;
+          const variantImages = colorImageMap[color] || optimizedImages.slice(0, 3);
+          
+          allVariants.push({
+            color: color,
+            size: 'Default',
+            sku: `${title.replace(/\s+/g, '-').toLowerCase()}-${color.toLowerCase()}-default`,
+            inStock: true,
+            variantKey: `${color.toLowerCase()}-default`,
+            images: variantImages,
+            price: finalPrice,
+            variantPrice: finalPrice,
+            shopifyPrice: finalPrice.toFixed(2)
+          });
+        });
+      } else {
+        // Fallback: create single default variant
+        const priceStr = typeof price === 'string' ? price : price.toString();
+        const basePrice = parseFloat(priceStr.replace(/[^\d.,]/g, '').replace(',', '.') || '0');
+        
+        allVariants.push({
+          color: 'Default',
+          size: 'Default',
+          sku: `${title.replace(/\s+/g, '-').toLowerCase()}-default`,
+          inStock: true,
+          variantKey: 'default-default',
+          images: optimizedImages.slice(0, 3),
+          price: basePrice,
+          variantPrice: basePrice,
+          shopifyPrice: basePrice.toFixed(2)
         });
       }
       
