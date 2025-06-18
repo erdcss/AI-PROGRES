@@ -542,15 +542,21 @@ function ScraperPage({ platform = 'trendyol' }: ScraperPageProps) {
                             src={product.images[0]}
                             alt={`${product.brand} ${product.title} - Ana görsel`}
                             className="w-full h-full object-cover rounded border border-gray-600 group-hover:border-blue-400 transition-all duration-200"
-                            loading="lazy"
+                            loading="eager"
+                            crossOrigin="anonymous"
                             onError={(e) => {
-                              console.log('Ana görsel yüklenemedi:', product.images[0]);
-                              e.currentTarget.style.opacity = '0.5';
+                              const target = e.currentTarget;
+                              target.style.opacity = '1';
+                              target.style.backgroundColor = '#1f2937';
+                              target.style.display = 'flex';
+                              target.style.alignItems = 'center';
+                              target.style.justifyContent = 'center';
+                              target.innerHTML = '<div style="color: #9ca3af; text-align: center; padding: 20px;">Görsel Yükleniyor...</div>';
                             }}
                             onLoad={(e) => {
                               e.currentTarget.style.opacity = '1';
                             }}
-                            style={{ opacity: '0' }}
+                            style={{ opacity: '1' }}
                           />
                           <div className="absolute top-1 left-1 bg-black/70 text-white text-xs px-1.5 py-0.5 rounded">
                             Ana
@@ -579,57 +585,60 @@ function ScraperPage({ platform = 'trendyol' }: ScraperPageProps) {
                                   /\.(jpg|jpeg|png|webp)($|\?)/.test(image.toLowerCase())
                                 );
                               })
-                              .map((image: string, index: number) => {
-                                let cleanedImage = image;
-                                if (cleanedImage.includes('#')) {
-                                  cleanedImage = cleanedImage.split('#')[0];
-                                }
-                                if (cleanedImage.includes('?')) {
-                                  cleanedImage = cleanedImage.split('?')[0];
-                                }
-                                
-                                if (cleanedImage.startsWith('/ty')) {
-                                  cleanedImage = `https://cdn.dsmcdn.com${cleanedImage}`;
-                                }
-                                
-                                return (
-                                  <div key={index} className="relative aspect-square group cursor-pointer">
-                                    <img
-                                      src={cleanedImage}
-                                      alt={`${product.brand} ${product.title} - ${index + 1}`}
-                                      className="w-full h-full object-cover rounded border border-gray-600 hover:border-blue-400 transition-all duration-200"
-                                      loading="lazy"
-                                      onError={(e) => {
-                                        const target = e.currentTarget;
-                                        // Try fallback to original URL without cleaning
-                                        if (cleanedImage !== image) {
-                                          target.src = image;
-                                        } else {
-                                          target.style.display = 'none';
-                                        }
-                                      }}
-                                      onClick={() => {
-                                        const mainImg = document.getElementById('mainProductImage') as HTMLImageElement;
-                                        if (mainImg) {
-                                          mainImg.style.opacity = '0.7';
-                                          setTimeout(() => {
-                                            mainImg.src = cleanedImage;
-                                            mainImg.style.opacity = '1';
-                                          }, 100);
-                                        }
-                                      }}
-                                    />
-                                    <div className="absolute bottom-0.5 right-0.5 bg-black/70 text-white text-xs px-1 py-0.5 rounded text-[10px]">
-                                      {index + 1}
-                                    </div>
-                                    {index === 0 && (
-                                      <div className="absolute top-0.5 left-0.5 bg-blue-600 text-white text-xs px-1 py-0.5 rounded text-[10px]">
-                                        Ana
-                                      </div>
-                                    )}
+                              .map((image: string, index: number) => (
+                                <div key={index} className="relative aspect-square group cursor-pointer bg-gray-800 rounded border border-gray-700 overflow-hidden">
+                                  <img
+                                    src={image}
+                                    alt={`${product.brand} ${product.title} - Görsel ${index + 1}`}
+                                    className="w-full h-full object-cover transition-all duration-200 hover:scale-105"
+                                    loading="eager"
+                                    referrerPolicy="no-referrer"
+                                    crossOrigin="anonymous"
+                                    onLoad={(e) => {
+                                      e.currentTarget.style.opacity = '1';
+                                    }}
+                                    onError={(e) => {
+                                      const target = e.currentTarget;
+                                      const parent = target.parentElement;
+                                      if (parent) {
+                                        parent.style.backgroundColor = '#374151';
+                                        parent.innerHTML = `
+                                          <div class="flex items-center justify-center h-full">
+                                            <div class="text-gray-300 text-xs text-center p-2">
+                                              <div class="mb-1">📷</div>
+                                              <div>Görsel ${index + 1}</div>
+                                            </div>
+                                          </div>
+                                          <div class="absolute bottom-1 right-1 bg-black/80 text-white text-xs px-1.5 py-0.5 rounded">
+                                            ${index + 1}
+                                          </div>
+                                          ${index === 0 ? '<div class="absolute top-1 left-1 bg-blue-600 text-white text-xs px-1.5 py-0.5 rounded">Ana</div>' : ''}
+                                        `;
+                                      }
+                                    }}
+                                    onClick={() => {
+                                      const mainImg = document.getElementById('mainProductImage') as HTMLImageElement;
+                                      if (mainImg) {
+                                        mainImg.style.opacity = '0.7';
+                                        setTimeout(() => {
+                                          mainImg.src = image;
+                                          mainImg.style.opacity = '1';
+                                        }, 100);
+                                      }
+                                    }}
+                                    style={{ opacity: '1' }}
+                                  />
+                                  <div className="absolute bottom-1 right-1 bg-black/80 text-white text-xs px-1.5 py-0.5 rounded">
+                                    {index + 1}
                                   </div>
-                                );
-                              })}
+                                  {index === 0 && (
+                                    <div className="absolute top-1 left-1 bg-blue-600 text-white text-xs px-1.5 py-0.5 rounded">
+                                      Ana
+                                    </div>
+                                  )}
+                                  <div className="absolute inset-0 bg-black/20 opacity-0 group-hover:opacity-100 transition-opacity duration-200" />
+                                </div>
+                              ))}
                           </div>
                           <div className="text-xs text-gray-500 mt-2 text-center">
                             Tıklayarak ana görseli değiştir
