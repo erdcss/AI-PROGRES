@@ -1564,6 +1564,72 @@ export async function registerRoutes(app: Express) {
     }
   });
 
+  // Otomatik ürün ekleme endpoints
+  app.post('/api/auto-add-product', async (req, res) => {
+    try {
+      const { url } = req.body;
+      
+      if (!url || typeof url !== 'string') {
+        return res.status(400).json({ 
+          success: false,
+          message: "URL gerekli" 
+        });
+      }
+      
+      const { addProductToAutoCSV } = await import('./auto-add-products');
+      const result = await addProductToAutoCSV(url);
+      
+      res.json(result);
+      
+    } catch (error: any) {
+      console.error('Otomatik ürün ekleme hatası:', error);
+      res.status(500).json({ 
+        success: false,
+        message: "Ürün ekleme hatası",
+        error: error.message
+      });
+    }
+  });
+
+  app.get('/api/auto-add-state', async (req, res) => {
+    try {
+      const { getAutoAddState } = await import('./auto-add-products');
+      const state = getAutoAddState();
+      res.json(state);
+    } catch (error: any) {
+      res.status(500).json({ 
+        success: false,
+        error: error.message 
+      });
+    }
+  });
+
+  app.post('/api/auto-add-clear', async (req, res) => {
+    try {
+      const { clearAutoAddProducts } = await import('./auto-add-products');
+      const result = clearAutoAddProducts();
+      res.json(result);
+    } catch (error: any) {
+      res.status(500).json({ 
+        success: false,
+        error: error.message 
+      });
+    }
+  });
+
+  app.post('/api/auto-add-generate-csv', async (req, res) => {
+    try {
+      const { generateAutoCSV } = await import('./auto-add-products');
+      const result = await generateAutoCSV();
+      res.json(result);
+    } catch (error: any) {
+      res.status(500).json({ 
+        success: false,
+        error: error.message 
+      });
+    }
+  });
+
   const httpServer = createServer(app);
   return httpServer;
 }
