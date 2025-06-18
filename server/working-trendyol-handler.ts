@@ -808,6 +808,44 @@ export async function handleTrendyolProduct(url: string, productId: string) {
 
 
 /**
+ * Optimize Trendyol image URL for maximum quality
+ */
+function optimizeImageUrl(url: string): string | null {
+  if (!url || typeof url !== 'string') return null;
+  
+  // Only process Trendyol CDN images
+  if (!url.includes('cdn.dsmcdn.com')) return null;
+  
+  // Skip non-product images
+  if (url.includes('/ui/') || url.includes('/icon') || url.includes('/logo') || url.includes('/footer')) {
+    return null;
+  }
+  
+  let optimized = url;
+  
+  // Force highest quality resolution path
+  optimized = optimized.replace(/\/ty\d+\//, '/ty933/');
+  
+  // Set maximum resolution
+  optimized = optimized.replace(/mnresize\/\d+\/\d+\//, 'mnresize/1200/1800/');
+  
+  // Convert thumbnails to original quality
+  optimized = optimized.replace(/_thumb\.(jpg|jpeg|png|webp)/, '_org.$1');
+  optimized = optimized.replace(/_small\.(jpg|jpeg|png|webp)/, '_org.$1');
+  optimized = optimized.replace(/_medium\.(jpg|jpeg|png|webp)/, '_org.$1');
+  
+  // Add zoom quality if not present
+  if (!optimized.includes('_org') && !optimized.includes('_zoom')) {
+    optimized = optimized.replace(/\.(jpg|jpeg|png|webp)/, '_org_zoom.$1');
+  }
+  
+  // Ensure HTTPS
+  optimized = optimized.replace(/^http:/, 'https:');
+  
+  return optimized;
+}
+
+/**
  * Generate advanced tags for better product categorization
  */
 function generateAdvancedTags(title: string, brand: string, categories: string[], attributes: Record<string, string>, colors: string[], sizes: string[]): string[] {
