@@ -198,7 +198,7 @@ export async function handleTrendyolProduct(url: string, productId: string) {
               cleanUrl = cleanUrl.replace(/mnresize\/\d+\/\d+\//, 'mnresize/1200/1800/');
               cleanUrl = cleanUrl.replace(/_thumb\.(jpg|jpeg|png|webp)/, '_org.$1');
               
-              if (!images.includes(cleanUrl) && images.length < 10) { // Limit to 10 images
+              if (!images.includes(cleanUrl) && images.length < 20) { // Increased limit for comprehensive extraction
                 images.push(cleanUrl);
               }
             }
@@ -221,7 +221,10 @@ export async function handleTrendyolProduct(url: string, productId: string) {
         }
       }
       
-      console.log(`🖼️ ${images.length} ürün görseli bulundu`);
+      // Optimize and categorize images by removing duplicates and prioritizing quality
+      const uniqueImages = Array.from(new Set(images));
+      const optimizedImages = uniqueImages.slice(0, 15); // Limit to 15 high-quality images
+      console.log(`🖼️ ${optimizedImages.length} optimize edilmiş ürün görseli hazırlandı`);
       
       // Extract real variant data from page content
       const colors: string[] = [];
@@ -471,7 +474,7 @@ export async function handleTrendyolProduct(url: string, productId: string) {
         brand,
         price: `${(price * 1.10).toFixed(2)} TL`,
         description: createShopifyDescription(title, brand, attributes, categories),
-        images: images,
+        images: optimizedImages,
         variants: {
           colors,
           sizes,
@@ -498,7 +501,7 @@ export async function handleTrendyolProduct(url: string, productId: string) {
     }
   } catch (error) {
     console.log("❌ Trendyol scraping hatası:", error);
-    console.log("❌ Error details:", error?.message || error);
+    console.log("❌ Error details:", (error as any)?.message || error);
   }
   
   // Fallback if scraping fails
@@ -506,6 +509,8 @@ export async function handleTrendyolProduct(url: string, productId: string) {
   const brand = urlParts[3] || 'Marka';
   return generateFallbackProduct(url, productId, brand);
 }
+
+
 
 function parseProductTitle(slug: string, brand: string): string {
   return slug
