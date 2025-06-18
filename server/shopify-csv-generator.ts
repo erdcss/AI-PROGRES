@@ -179,12 +179,13 @@ export async function generateShopifyCSV(products: ProductData[]): Promise<{file
               description += `\n\nKategoriler: ${cleanCategories.join(' > ')}`;
             }
             
-            // Clean description of any problematic characters
+            // Shopify-compliant description cleaning
             return description.trim()
-              .replace(/\n/g, ' ')
-              .replace(/\r/g, '')
-              .replace(/"/g, '')  // Remove all quotes from description
-              .replace(/,/g, ' '); // Replace commas with spaces
+              .replace(/[\r\n]+/g, ' ')     // Replace line breaks with spaces
+              .replace(/\s+/g, ' ')         // Normalize multiple spaces
+              .replace(/[""'']/g, '"')      // Normalize smart quotes to regular quotes
+              .replace(/[–—]/g, '-')        // Normalize dashes
+              .trim();                      // Final trim
           };
 
           const variant: ShopifyVariant = {
@@ -374,29 +375,42 @@ export async function generateShopifyCSV(products: ProductData[]): Promise<{file
   // Manual CSV generation with strict RFC 4180 compliance
   const headers = Object.keys(shopifyVariants[0]);
   
-  // Helper function to escape CSV fields properly
+  // Shopify-compliant CSV field escaping based on official requirements
   function escapeCSVField(field: string): string {
     if (!field && field !== 0) return '';
     
-    const stringField = String(field);
+    let stringField = String(field);
     
-    // Always quote fields that contain quotes, commas, newlines, or carriage returns
-    if (stringField.includes('"') || stringField.includes(',') || 
-        stringField.includes('\n') || stringField.includes('\r')) {
-      // Escape quotes by doubling them, then wrap in quotes
-      return '"' + stringField.replace(/"/g, '""') + '"';
+    // Clean field according to Shopify requirements
+    stringField = stringField
+      .replace(/[\r\n]+/g, ' ')  // Replace line breaks with spaces
+      .replace(/\s+/g, ' ')      // Normalize whitespace
+      .trim();                   // Remove leading/trailing spaces
+    
+    // Shopify requirement: Always quote fields containing special chars
+    const needsQuoting = stringField.includes('"') || 
+                        stringField.includes(',') || 
+                        stringField.includes('\n') || 
+                        stringField.includes('\r') ||
+                        stringField.startsWith(' ') ||
+                        stringField.endsWith(' ');
+    
+    if (needsQuoting) {
+      // Shopify requirement: Escape internal quotes by doubling them
+      const escapedField = stringField.replace(/"/g, '""');
+      return '"' + escapedField + '"';
     }
     
     return stringField;
   }
   
-  // Build CSV content line by line
+  // Build CSV content with Shopify compliance
   const csvLines = [];
   
-  // Add header row
-  csvLines.push(headers.map(escapeCSVField).join(','));
+  // Add header row (headers should not be quoted per Shopify requirements)
+  csvLines.push(headers.join(','));
   
-  // Add data rows
+  // Add data rows with proper field escaping
   shopifyVariants.forEach(variant => {
     const row = headers.map(header => {
       const value = variant[header as keyof ShopifyVariant];
@@ -405,10 +419,11 @@ export async function generateShopifyCSV(products: ProductData[]): Promise<{file
     csvLines.push(row.join(','));
   });
   
+  // Use LF line endings as preferred by Shopify
   const cleanCsvContent = csvLines.join('\n');
   
-  // Write CSV file
-  await fs.writeFile(filePath, cleanCsvContent, 'utf8');
+  // Write CSV file with UTF-8 encoding (no BOM) as required by Shopify
+  await fs.writeFile(filePath, cleanCsvContent, { encoding: 'utf8' });
 
   console.log(`✅ Shopify CSV oluşturuldu: ${filename}`);
   console.log(`📊 ${shopifyVariants.length} varyant, ${products.length} ürün`);
