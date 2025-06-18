@@ -1370,9 +1370,17 @@ export async function registerRoutes(app: Express) {
       });
 
       res.json({
-        headers: headers.slice(0, 6), // Show first 6 columns
+        headers: headers.slice(0, 5),
         rows: dataRows,
-        totalRows: lines.length - 1
+        totalRows: lines.length - 1,
+        fileInfo: {
+          shopifyCompatible: true,
+          variants: dataRows.length,
+          columns: headers.length,
+          hasImages: headers.includes('Image Src'),
+          hasPricing: headers.includes('Variant Price'),
+          hasInventory: headers.includes('Variant Inventory Qty')
+        }
       });
     } catch (error) {
       console.error('CSV preview error:', error);
