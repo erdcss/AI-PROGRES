@@ -1434,6 +1434,53 @@ export async function registerRoutes(app: Express) {
     }
   });
 
+  // Image proxy endpoint to handle CORS issues with Trendyol CDN
+  app.get("/api/proxy-image", async (req, res) => {
+    try {
+      const imageUrl = req.query.url as string;
+      if (!imageUrl) {
+        return res.status(400).json({ error: "URL parametresi gerekli" });
+      }
+
+      // Validate the URL is from Trendyol CDN
+      if (!imageUrl.includes('cdn.dsmcdn.com')) {
+        return res.status(403).json({ error: "Sadece Trendyol CDN görsellerine izin veriliyor" });
+      }
+
+      const response = await fetch(imageUrl, {
+        headers: {
+          'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/122.0.0.0 Safari/537.36',
+          'Accept': 'image/avif,image/webp,image/apng,image/svg+xml,image/*,*/*;q=0.8',
+          'Accept-Language': 'tr-TR,tr;q=0.9,en-US;q=0.8,en;q=0.7',
+          'Accept-Encoding': 'gzip, deflate, br',
+          'Cache-Control': 'no-cache',
+          'Pragma': 'no-cache',
+          'Sec-Fetch-Dest': 'image',
+          'Sec-Fetch-Mode': 'no-cors',
+          'Sec-Fetch-Site': 'cross-site'
+        }
+      });
+
+      if (!response.ok) {
+        throw new Error(`HTTP error! status: ${response.status}`);
+      }
+
+      const contentType = response.headers.get('content-type');
+      if (contentType) {
+        res.setHeader('Content-Type', contentType);
+      }
+      
+      res.setHeader('Cache-Control', 'public, max-age=86400'); // Cache for 1 day
+      res.setHeader('Access-Control-Allow-Origin', '*');
+
+      const buffer = await response.arrayBuffer();
+      res.send(Buffer.from(buffer));
+    } catch (error) {
+      console.error('Image proxy error:', error);
+      res.status(500).json({ error: "Görsel yüklenirken hata oluştu" });
+    }
+  });
+
   const httpServer = createServer(app);
   return httpServer;
 }

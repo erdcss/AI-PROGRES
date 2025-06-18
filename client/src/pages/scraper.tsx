@@ -539,19 +539,22 @@ function ScraperPage({ platform = 'trendyol' }: ScraperPageProps) {
                         <div className="aspect-square w-48 mx-auto mb-3 relative group">
                           <img
                             id="mainProductImage"
-                            src={product.images[0]}
+                            src={`/api/proxy-image?url=${encodeURIComponent(product.images[0])}`}
                             alt={`${product.brand} ${product.title} - Ana görsel`}
                             className="w-full h-full object-cover rounded border border-gray-600 group-hover:border-blue-400 transition-all duration-200"
                             loading="eager"
-                            crossOrigin="anonymous"
                             onError={(e) => {
                               const target = e.currentTarget;
-                              target.style.opacity = '1';
-                              target.style.backgroundColor = '#1f2937';
-                              target.style.display = 'flex';
-                              target.style.alignItems = 'center';
-                              target.style.justifyContent = 'center';
-                              target.innerHTML = '<div style="color: #9ca3af; text-align: center; padding: 20px;">Görsel Yükleniyor...</div>';
+                              // Try direct URL as fallback
+                              if (target.src.includes('/api/proxy-image')) {
+                                target.src = product.images[0];
+                              } else {
+                                target.style.backgroundColor = '#1f2937';
+                                target.style.display = 'flex';
+                                target.style.alignItems = 'center';
+                                target.style.justifyContent = 'center';
+                                target.innerHTML = '<div style="color: #9ca3af; text-align: center; padding: 20px; font-size: 14px;"><div>📷</div><div>Ana Görsel</div></div>';
+                              }
                             }}
                             onLoad={(e) => {
                               e.currentTarget.style.opacity = '1';
@@ -588,32 +591,35 @@ function ScraperPage({ platform = 'trendyol' }: ScraperPageProps) {
                               .map((image: string, index: number) => (
                                 <div key={index} className="relative aspect-square group cursor-pointer bg-gray-800 rounded border border-gray-700 overflow-hidden">
                                   <img
-                                    src={image}
+                                    src={`/api/proxy-image?url=${encodeURIComponent(image)}`}
                                     alt={`${product.brand} ${product.title} - Görsel ${index + 1}`}
                                     className="w-full h-full object-cover transition-all duration-200 hover:scale-105"
-                                    loading="eager"
-                                    referrerPolicy="no-referrer"
-                                    crossOrigin="anonymous"
+                                    loading="lazy"
                                     onLoad={(e) => {
                                       e.currentTarget.style.opacity = '1';
                                     }}
                                     onError={(e) => {
                                       const target = e.currentTarget;
-                                      const parent = target.parentElement;
-                                      if (parent) {
-                                        parent.style.backgroundColor = '#374151';
-                                        parent.innerHTML = `
-                                          <div class="flex items-center justify-center h-full">
-                                            <div class="text-gray-300 text-xs text-center p-2">
-                                              <div class="mb-1">📷</div>
-                                              <div>Görsel ${index + 1}</div>
+                                      // Try direct URL as fallback
+                                      if (target.src.includes('/api/proxy-image')) {
+                                        target.src = image;
+                                      } else {
+                                        const parent = target.parentElement;
+                                        if (parent) {
+                                          parent.style.backgroundColor = '#374151';
+                                          parent.innerHTML = `
+                                            <div class="flex items-center justify-center h-full">
+                                              <div class="text-gray-300 text-xs text-center p-2">
+                                                <div class="mb-1">📷</div>
+                                                <div>Görsel ${index + 1}</div>
+                                              </div>
                                             </div>
-                                          </div>
-                                          <div class="absolute bottom-1 right-1 bg-black/80 text-white text-xs px-1.5 py-0.5 rounded">
-                                            ${index + 1}
-                                          </div>
-                                          ${index === 0 ? '<div class="absolute top-1 left-1 bg-blue-600 text-white text-xs px-1.5 py-0.5 rounded">Ana</div>' : ''}
-                                        `;
+                                            <div class="absolute bottom-1 right-1 bg-black/80 text-white text-xs px-1.5 py-0.5 rounded">
+                                              ${index + 1}
+                                            </div>
+                                            ${index === 0 ? '<div class="absolute top-1 left-1 bg-blue-600 text-white text-xs px-1.5 py-0.5 rounded">Ana</div>' : ''}
+                                          `;
+                                        }
                                       }
                                     }}
                                     onClick={() => {
@@ -621,7 +627,7 @@ function ScraperPage({ platform = 'trendyol' }: ScraperPageProps) {
                                       if (mainImg) {
                                         mainImg.style.opacity = '0.7';
                                         setTimeout(() => {
-                                          mainImg.src = image;
+                                          mainImg.src = `/api/proxy-image?url=${encodeURIComponent(image)}`;
                                           mainImg.style.opacity = '1';
                                         }, 100);
                                       }
