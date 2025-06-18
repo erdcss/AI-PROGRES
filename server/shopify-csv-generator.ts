@@ -206,7 +206,7 @@ export async function generateShopifyCSV(products: ProductData[]): Promise<{file
             'Variant SKU': `${product.id}-${color}-${size}`.replace(/[^a-zA-Z0-9-]/g, ''),
             'Variant Grams': '0',
             'Variant Inventory Tracker': 'shopify',
-            'Variant Inventory Qty': isInStock ? '100' : '0',
+            'Variant Inventory Qty': isInStock ? '10' : '0',
             'Variant Inventory Policy': 'deny',
             'Variant Fulfillment Service': 'manual',
             'Variant Price': String(Math.ceil(parseFloat(product.price) * 1.1)),
