@@ -20,6 +20,14 @@ let autoAddState: AutoAddProductsState = {
   errors: []
 };
 
+export function clearAutoProducts(): void {
+  autoAddState.products = [];
+  autoAddState.totalProcessed = 0;
+  autoAddState.errors = [];
+  autoAddState.lastUpdated = new Date();
+  console.log('🗑️ Otomatik ürün listesi temizlendi');
+}
+
 export async function addProductToAutoCSV(url: string) {
   console.log(`🔄 Otomatik ürün ekleme: ${url}`);
   

@@ -165,6 +165,16 @@ export async function registerRoutes(app: Express) {
         // Use enhanced Trendyol handler for all other products
         const { scrapeTrendyolProduct } = await import('./enhanced-trendyol-handler');
         const trendyolResult = await scrapeTrendyolProduct(url);
+        
+        // Ürünü otomatik olarak CSV'ye ekle
+        try {
+          const { addProductToAutoCSV } = await import('./auto-add-products');
+          await addProductToAutoCSV(url);
+          console.log('✅ Ürün otomatik CSV listesine eklendi');
+        } catch (error) {
+          console.log('⚠️ Otomatik CSV ekleme hatası:', error);
+        }
+        
         return res.status(200).json(trendyolResult);
       }
       
@@ -1564,6 +1574,27 @@ export async function registerRoutes(app: Express) {
     }
   });
 
+  // Otomatik CSV temizleme endpoint
+  app.post('/api/auto-add-clear', async (req, res) => {
+    try {
+      const { clearAutoProducts } = await import('./auto-add-products');
+      await clearAutoProducts();
+      
+      res.json({ 
+        success: true,
+        message: "Ürün listesi temizlendi" 
+      });
+      
+    } catch (error: any) {
+      console.error('Otomatik liste temizleme hatası:', error);
+      res.status(500).json({ 
+        success: false,
+        message: "Liste temizlenirken hata oluştu",
+        error: error.message 
+      });
+    }
+  });
+
   // Otomatik ürün ekleme endpoints
   app.post('/api/auto-add-product', async (req, res) => {
     try {
@@ -1606,12 +1637,19 @@ export async function registerRoutes(app: Express) {
 
   app.post('/api/auto-add-clear', async (req, res) => {
     try {
-      const { clearAutoAddProducts } = await import('./auto-add-products');
-      const result = clearAutoAddProducts();
-      res.json(result);
+      const { clearAutoProducts } = await import('./auto-add-products');
+      await clearAutoProducts();
+      
+      res.json({ 
+        success: true,
+        message: "Ürün listesi temizlendi" 
+      });
+      
     } catch (error: any) {
+      console.error('Otomatik liste temizleme hatası:', error);
       res.status(500).json({ 
         success: false,
+        message: "Liste temizlenirken hata oluştu",
         error: error.message 
       });
     }
