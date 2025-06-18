@@ -200,7 +200,7 @@ export function ProductDisplay({ data }: ProductDisplayProps) {
               <div className="text-sm text-gray-400">Toplam Varyant</div>
             </div>
             <div className="bg-gray-700 p-4 rounded-lg">
-              <div className="text-2xl font-bold text-orange-400">{data.preview.totalRows}</div>
+              <div className="text-2xl font-bold text-orange-400">{data.preview?.totalRows || 0}</div>
               <div className="text-sm text-gray-400">CSV Satırı</div>
             </div>
           </div>
@@ -219,10 +219,10 @@ export function ProductDisplay({ data }: ProductDisplayProps) {
           <div className="flex items-center justify-between">
             <div>
               <p className="text-gray-300">
-                {data.preview.totalRows} satır ile Shopify uyumlu CSV hazır
+                {data.preview?.totalRows || 0} satır ile Shopify uyumlu CSV hazır
               </p>
               <p className="text-sm text-gray-500">
-                Dosya: {data.preview.filename}
+                Dosya: {data.preview?.filename || 'Generating...'}
               </p>
             </div>
             <Button onClick={handleDownloadCSV} className="bg-blue-600 hover:bg-blue-700">
