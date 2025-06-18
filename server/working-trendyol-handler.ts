@@ -65,7 +65,7 @@ export async function handleTrendyolProduct(url: string, productId: string) {
       
       // Enhanced image extraction with variant-specific images
       const images: string[] = [];
-      const variantImages: Record<string, string[]> = {};
+      const productVariantImages: Record<string, string[]> = {};
       
       // KALICI ÇÖZÜM: Gerçek ürün görsellerini çıkar
       const allImageMatches: string[] = [];
@@ -230,15 +230,15 @@ export async function handleTrendyolProduct(url: string, productId: string) {
       
       const colors = variantData.colors;
       const sizes = variantData.sizes;
-      const variantImages = variantData.variantImages;
+      const extractedVariantImages = variantData.variantImages;
       const colorImageMap = variantData.colorImageMap;
       const variantPricing = variantData.variantPricing;
       const variantSpecificPricing = variantData.variantSpecificPricing;
       let stockMap: Record<string, boolean> = {};
       
       // STOK BİLGİSİ ÇIKARMA
-      const stockMatch = htmlContent.match(/"variants":\[(.*?)\]/);
-      if (stockMatch) {
+      const variantStockMatch = htmlContent.match(/"variants":\[(.*?)\]/);
+      if (variantStockMatch) {
         try {
           const stockData = JSON.parse(`[${stockMatch[1]}]`);
           stockData.forEach((item: any) => {
@@ -525,10 +525,10 @@ export async function handleTrendyolProduct(url: string, productId: string) {
       // The enhanced extractor already handles image and price distribution
       
       // Extract stock information from page
-      const stockMatch = htmlContent.match(/"variants":\[(.*?)\]/);
-      if (stockMatch) {
+      const fallbackStockMatch = htmlContent.match(/"variants":\[(.*?)\]/);
+      if (fallbackStockMatch) {
         try {
-          const stockData = JSON.parse(`[${stockMatch[1]}]`);
+          const stockData = JSON.parse(`[${fallbackStockMatch[1]}]`);
           stockData.forEach((item: any) => {
             if (item.attributeType === 'productSize' && item.variants) {
               item.variants.forEach((variant: any) => {
