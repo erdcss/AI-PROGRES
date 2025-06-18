@@ -249,9 +249,9 @@ export async function handleTrendyolProduct(url: string, productId: string) {
       const colors: string[] = [];
       const sizes: string[] = [];
       let stockMap: Record<string, boolean> = {};
-      let variantPricing: Record<string, number> = {}; // Individual variant pricing
-      let colorImageMap: Record<string, string[]> = {}; // Color-specific image mapping
-      let variantSpecificPricing: Record<string, number> = {}; // Each variant combo pricing
+      const variantPricing: Record<string, number> = {}; // Individual variant pricing
+      const colorImageMap: Record<string, string[]> = {}; // Color-specific image mapping
+      const variantSpecificPricing: Record<string, number> = {}; // Each variant combo pricing
       
       // Extract from inline JavaScript data containing allVariants
       const allVariantsMatch = htmlContent.match(/"allVariants":\[(.*?)\]/);
@@ -278,20 +278,8 @@ export async function handleTrendyolProduct(url: string, productId: string) {
         }
       }
       
-      // Remove the problematic import - use built-in extraction
-      
-      // Apply extracted data
-      colors.push(...variantData.colors);
-      Object.assign(variantPricing, variantData.variantPricing);
-      Object.assign(colorImageMap, variantData.colorImageMap);
-      Object.assign(variantImages, variantData.colorImageMap);
-      
-      // Apply 10% markup to all variant pricing
-      Object.entries(variantData.variantPricing).forEach(([color, basePrice]) => {
-        variantSpecificPricing[color] = basePrice * 1.10;
-      });
-      
-      console.log('🎨 Enhanced variant extraction completed...');
+      // Extract color variants from page data
+      console.log('🎨 Extracting color variants from page data...');
       
       // Extract from window.__PRODUCT_DETAIL_APP_INITIAL_STATE__
       const initialStatePattern = /window\.__PRODUCT_DETAIL_APP_INITIAL_STATE__\s*=\s*({.*?});/;
