@@ -134,9 +134,23 @@ export async function handleTrendyolProduct(url: string, productId: string) {
       
       console.log(`✅ ${images.length} ana ürün görseli başarıyla çıkarıldı`);
       
-      // If no images found, try alternative extraction methods
+      // KALICI ÇÖZÜM: Ana görsel yoksa varyant görsellerini kullan
       if (images.length === 0) {
-        console.log("Ana görsel çıkarımı başarısız, alternatif yöntemler deneniyor...");
+        console.log("Ana görsel bulunamadı, varyant görsellerini ana görsel olarak kullanıyorum...");
+        
+        // Varyant görsellerinden unique olanları ana görsellere ekle
+        const variantImageSet = new Set<string>();
+        Object.values(variantImages).forEach(imgArray => {
+          imgArray.forEach(img => variantImageSet.add(img));
+        });
+        
+        images.push(...Array.from(variantImageSet).slice(0, 10)); // İlk 10 unique görseli al
+        console.log(`✅ ${images.length} görsel varyant görsellerinden eklendi`);
+      }
+      
+      // Ana görsel yoksa alternatif yöntemler dene
+      if (images.length === 0) {
+        console.log("Hiçbir görsel bulunamadı, son alternatif yöntemler deneniyor...");
         
         // Try extracting from script tags containing image data
         $('script').each((_, script) => {
@@ -203,7 +217,7 @@ export async function handleTrendyolProduct(url: string, productId: string) {
         url.includes('/prod/QC/') || url.includes('/prod/PIM/')
       );
       const uniqueImages = Array.from(new Set(productOnlyImages));
-      const optimizedImages = uniqueImages.slice(0, 10); // Limit to 10 authentic product images
+      let optimizedImages = uniqueImages.slice(0, 10); // Limit to 10 authentic product images
       console.log(`🖼️ ${optimizedImages.length} sadece ürün görseli filtrelendi (logos/footer hariç)`);
       
       // Extract advanced variant data with individual pricing and image matching
@@ -239,8 +253,22 @@ export async function handleTrendyolProduct(url: string, productId: string) {
         }
       }
       
-      // Extract color variants from page data
-      console.log('🎨 Extracting color variants from page data...');
+      // GELIŞMIŞ RENK VARYANTI VE GÖRSEL SİSTEMİ
+      console.log('🎨 Gelişmiş renk varyantı ve görsel sistemi başlatılıyor...');
+      
+      // Ana ürün görsellerini varyant görsellerinden topla
+      if (optimizedImages.length === 0) {
+        console.log("Ana görsel bulunamadı, varyant görsellerini toplamaya başlıyorum...");
+        const allFoundImages = new Set<string>();
+        
+        // Tüm varyant görsellerini topla
+        Object.values(variantImages).forEach(imgArray => {
+          imgArray.forEach(img => allFoundImages.add(img));
+        });
+        
+        optimizedImages = Array.from(allFoundImages).slice(0, 8);
+        console.log(`✅ ${optimizedImages.length} ana görsel varyantlardan toplandı`);
+      }
       
       // Extract from window.__PRODUCT_DETAIL_APP_INITIAL_STATE__
       const initialStatePattern = /window\.__PRODUCT_DETAIL_APP_INITIAL_STATE__\s*=\s*({.*?});/;
@@ -690,7 +718,7 @@ export async function handleTrendyolProduct(url: string, productId: string) {
           sku: `${title.replace(/\s+/g, '-').toLowerCase()}-default`,
           inStock: true,
           variantKey: 'default-default',
-          images: optimizedImages.slice(0, 3),
+          images: optimizedImages.length > 0 ? optimizedImages.slice(0, 3) : [],
           price: basePrice,
           variantPrice: basePrice,
           shopifyPrice: basePrice.toFixed(2)
