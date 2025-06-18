@@ -25,7 +25,8 @@ import {
   AlertCircle,
   RefreshCcw,
   Image as ImageIcon,
-  Clipboard
+  Clipboard,
+  Download
 } from "lucide-react";
 import {
   Alert,
@@ -228,8 +229,59 @@ function ScraperPage({ platform = 'trendyol' }: ScraperPageProps) {
     }
   };
 
+  const downloadCSV = async () => {
+    if (!product?.preview?.csvPath) {
+      toast({
+        title: "CSV bulunamadı",
+        description: "Önce bir ürün verisi çekin",
+        variant: "destructive"
+      });
+      return;
+    }
+
+    try {
+      const response = await fetch(`/api/download-csv?path=${encodeURIComponent(product.preview.csvPath)}`);
+      if (!response.ok) throw new Error('CSV indirilemedi');
+      
+      const blob = await response.blob();
+      const url = window.URL.createObjectURL(blob);
+      const a = document.createElement('a');
+      a.href = url;
+      a.download = `${product.brand || 'urun'}-shopify-export.csv`;
+      document.body.appendChild(a);
+      a.click();
+      document.body.removeChild(a);
+      window.URL.revokeObjectURL(url);
+      
+      toast({
+        title: "CSV indirildi",
+        description: `${product.preview.totalRows} satır Shopify formatında`
+      });
+    } catch (error) {
+      toast({
+        title: "İndirme hatası",
+        description: "CSV dosyası indirilemedi",
+        variant: "destructive"
+      });
+    }
+  };
+
   return (
-    <div className="min-h-screen bg-black text-white p-4">
+    <div className="min-h-screen bg-black text-white p-4 relative">
+      {/* CSV Export Button - Top Right */}
+      {product && (
+        <div className="fixed top-4 right-4 z-50">
+          <Button
+            onClick={downloadCSV}
+            className="bg-green-600 hover:bg-green-700 text-white shadow-lg"
+            size="sm"
+          >
+            <Download className="w-4 h-4 mr-2" />
+            CSV İndir
+          </Button>
+        </div>
+      )}
+      
       <div className="max-w-2xl mx-auto space-y-6">
         <motion.div
           initial={false}
@@ -353,24 +405,41 @@ function ScraperPage({ platform = 'trendyol' }: ScraperPageProps) {
                       </div>
                     </div>
                     
-                    {/* Main Image Display */}
+                    {/* Enhanced Main Image Display */}
                     {product.images && product.images.length > 0 && (
                       <div className="bg-gray-900 rounded-lg p-3">
-                        <div className="aspect-square w-full max-w-md mx-auto mb-4">
+                        <div className="aspect-square w-full max-w-lg mx-auto mb-4 relative group">
                           <img
+                            id="mainProductImage"
                             src={product.images[0]}
-                            alt={`${product.title} - Ana görsel`}
-                            className="w-full h-full object-cover rounded-lg"
+                            alt={`${product.brand} ${product.title} - Ana görsel`}
+                            className="w-full h-full object-cover rounded-lg shadow-lg border-2 border-gray-700 group-hover:border-blue-500 transition-all duration-300"
                             loading="lazy"
                           />
+                          <div className="absolute top-2 left-2 bg-black/70 text-white text-xs px-2 py-1 rounded-full">
+                            Ana Görsel
+                          </div>
+                          <div className="absolute top-2 right-2 bg-blue-600/80 text-white text-xs px-2 py-1 rounded-full">
+                            {product.images.length} Görsel
+                          </div>
                         </div>
                         
-                        {/* All Images Grid Gallery */}
-                        <div className="bg-gray-800/30 p-3 rounded-lg">
-                          <h5 className="text-sm font-medium text-gray-300 mb-3">
-                            Tüm Ürün Görselleri ({product.images?.length || 0})
-                          </h5>
-                          <div className="grid grid-cols-3 md:grid-cols-4 lg:grid-cols-6 gap-2">
+                        {/* Enhanced All Images Grid Gallery */}
+                        <div className="bg-gray-800/30 p-4 rounded-lg border border-gray-700">
+                          <div className="flex items-center justify-between mb-4">
+                            <h5 className="text-sm font-medium text-gray-200">
+                              Tüm Ürün Görselleri
+                            </h5>
+                            <div className="flex items-center gap-2">
+                              <span className="text-xs bg-blue-600/20 text-blue-400 px-2 py-1 rounded border border-blue-600">
+                                {product.images?.length || 0} Adet
+                              </span>
+                              <span className="text-xs bg-green-600/20 text-green-400 px-2 py-1 rounded border border-green-600">
+                                HD Kalite
+                              </span>
+                            </div>
+                          </div>
+                          <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-3">
                             {product.images
                               .filter((image: string) => {
                                 const isValidImage = 
@@ -403,29 +472,41 @@ function ScraperPage({ platform = 'trendyol' }: ScraperPageProps) {
                                   <div key={index} className="relative aspect-square group cursor-pointer">
                                     <img
                                       src={cleanedImage}
-                                      alt={`${product.title} - Görsel ${index + 1}`}
-                                      className="w-full h-full object-cover rounded border-2 border-transparent hover:border-blue-500 transition-all"
+                                      alt={`${product.brand} ${product.title} - Görsel ${index + 1}`}
+                                      className="w-full h-full object-cover rounded-lg border-2 border-gray-600 hover:border-blue-400 group-hover:scale-105 transition-all duration-300"
                                       loading="lazy"
                                       onClick={() => {
-                                        // Update main image
-                                        const mainImg = document.querySelector('.aspect-square img') as HTMLImageElement;
-                                        if (mainImg) mainImg.src = cleanedImage;
+                                        // Update main image with smooth transition
+                                        const mainImg = document.getElementById('mainProductImage') as HTMLImageElement;
+                                        if (mainImg) {
+                                          mainImg.style.opacity = '0.5';
+                                          setTimeout(() => {
+                                            mainImg.src = cleanedImage;
+                                            mainImg.style.opacity = '1';
+                                          }, 150);
+                                        }
                                       }}
                                     />
-                                    <div className="absolute top-1 right-1 bg-black/70 text-white text-xs px-1.5 py-0.5 rounded-full">
+                                    <div className="absolute inset-0 bg-black/0 group-hover:bg-black/20 transition-all duration-300 rounded-lg"></div>
+                                    <div className="absolute bottom-1 right-1 bg-black/80 text-white text-xs px-2 py-1 rounded-full">
                                       {index + 1}
                                     </div>
                                     {index === 0 && (
-                                      <div className="absolute top-1 left-1 bg-blue-600 text-white text-xs px-1.5 py-0.5 rounded-full">
+                                      <div className="absolute top-1 left-1 bg-blue-600 text-white text-xs px-2 py-1 rounded-full font-medium">
                                         Ana
                                       </div>
                                     )}
+                                    <div className="absolute top-1 right-1 opacity-0 group-hover:opacity-100 transition-opacity duration-300">
+                                      <div className="bg-blue-600 text-white text-xs px-1.5 py-0.5 rounded-full">
+                                        Büyüt
+                                      </div>
+                                    </div>
                                   </div>
                                 );
                               })}
                           </div>
-                          <div className="text-xs text-gray-500 mt-2 text-center">
-                            Görsellere tıklayarak ana görseli değiştirebilirsiniz
+                          <div className="text-xs text-gray-400 mt-3 p-2 bg-gray-900/50 rounded text-center border border-gray-700">
+                            💡 Görsellere tıklayarak ana görseli değiştirebilirsiniz
                           </div>
                         </div>
                       </div>
