@@ -1320,8 +1320,8 @@ export async function registerRoutes(app: Express) {
     }
   });
 
-  // CSV preview endpoint
-  app.get('/api/preview/:filename', async (req, res) => {
+  // CSV preview endpoint - must be before other routes
+  app.get('/api/preview/:filename', (req, res) => {
     try {
       const filename = req.params.filename;
       const filePath = path.join(process.cwd(), 'temp', filename);
@@ -1341,28 +1341,33 @@ export async function registerRoutes(app: Express) {
       const headerLine = lines[0];
       const headers = headerLine.split(',').map(h => h.replace(/^"|"$/g, '').trim());
       
-      // Parse first 3 data rows
+      // Parse first 3 data rows with proper CSV parsing
       const dataRows = lines.slice(1, 4).map(line => {
-        const values = [];
+        const values: string[] = [];
         let current = '';
         let inQuotes = false;
         
         for (let i = 0; i < line.length; i++) {
           const char = line[i];
-          if (char === '"' && (i === 0 || line[i-1] === ',')) {
-            inQuotes = true;
-          } else if (char === '"' && inQuotes && (i === line.length - 1 || line[i+1] === ',')) {
-            inQuotes = false;
+          if (char === '"') {
+            if (!inQuotes) {
+              inQuotes = true;
+            } else if (i + 1 < line.length && line[i + 1] === '"') {
+              current += '"';
+              i++; // Skip next quote
+            } else {
+              inQuotes = false;
+            }
           } else if (char === ',' && !inQuotes) {
-            values.push(current.trim());
+            values.push(current.replace(/^"|"$/g, '').trim());
             current = '';
           } else {
             current += char;
           }
         }
-        values.push(current.trim());
+        values.push(current.replace(/^"|"$/g, '').trim());
         
-        const row: any = {};
+        const row: Record<string, string> = {};
         headers.forEach((header, index) => {
           row[header] = values[index] || '';
         });

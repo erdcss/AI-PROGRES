@@ -543,6 +543,14 @@ function ScraperPage({ platform = 'trendyol' }: ScraperPageProps) {
                             alt={`${product.brand} ${product.title} - Ana görsel`}
                             className="w-full h-full object-cover rounded border border-gray-600 group-hover:border-blue-400 transition-all duration-200"
                             loading="lazy"
+                            onError={(e) => {
+                              console.log('Ana görsel yüklenemedi:', product.images[0]);
+                              e.currentTarget.style.opacity = '0.5';
+                            }}
+                            onLoad={(e) => {
+                              e.currentTarget.style.opacity = '1';
+                            }}
+                            style={{ opacity: '0' }}
                           />
                           <div className="absolute top-1 left-1 bg-black/70 text-white text-xs px-1.5 py-0.5 rounded">
                             Ana
@@ -565,18 +573,11 @@ function ScraperPage({ platform = 'trendyol' }: ScraperPageProps) {
                           <div className="grid grid-cols-4 md:grid-cols-6 gap-1.5">
                             {product.images
                               .filter((image: string) => {
-                                const isValidImage = 
-                                  /\.(jpg|jpeg|png|webp|gif)($|\?)/.test(image.toLowerCase()) || 
-                                  /(cdn\.trendyol\.com|cdn\.dsmcdn\.com).*\/(product\/media|products)/.test(image);
-                                const isInvalidFile = 
-                                  /\.(css|js|html|php)($|\?)/.test(image.toLowerCase()) ||
-                                  image.includes('sizechart') ||
-                                  image.includes('main.') ||
-                                  image.includes('spacer.gif') ||
-                                  image.includes('badge') ||
-                                  image.includes('icon') ||
-                                  image.includes('logo');
-                                return isValidImage && !isInvalidFile;
+                                return image && (
+                                  image.includes('cdn.dsmcdn.com') || 
+                                  image.includes('ty933/prod') ||
+                                  /\.(jpg|jpeg|png|webp)($|\?)/.test(image.toLowerCase())
+                                );
                               })
                               .map((image: string, index: number) => {
                                 let cleanedImage = image;
