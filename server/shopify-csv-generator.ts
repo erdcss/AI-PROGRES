@@ -308,19 +308,23 @@ export async function generateShopifyCSV(products: ProductData[]): Promise<strin
   // Add worksheet to workbook
   XLSX.utils.book_append_sheet(workbook, worksheet, 'Products');
 
-  // Generate filename with timestamp
+  // Generate filename with timestamp - CSV format
   const timestamp = new Date().toISOString().replace(/[:.]/g, '-').slice(0, -5);
-  const filename = `shopify-import-${timestamp}.xlsx`;
+  const filename = `shopify-import-${timestamp}.csv`;
   const filePath = path.join(process.cwd(), 'temp', filename);
 
   // Ensure temp directory exists
   await fs.mkdir(path.dirname(filePath), { recursive: true });
 
-  // Write file
-  XLSX.writeFile(workbook, filePath);
+  // Convert to CSV format
+  const csvContent = XLSX.utils.sheet_to_csv(worksheet);
+  
+  // Write CSV file
+  await fs.writeFile(filePath, csvContent, 'utf8');
 
   console.log(`✅ Shopify CSV oluşturuldu: ${filename}`);
   console.log(`📊 ${shopifyVariants.length} varyant, ${products.length} ürün`);
+  console.log(`📁 Dosya yolu: ${filePath}`);
 
   return {
     filename,

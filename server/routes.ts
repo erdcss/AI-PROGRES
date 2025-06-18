@@ -168,31 +168,46 @@ export async function registerRoutes(app: Express) {
         
         // Direkt CSV oluştur ve indirme linki ver
         try {
+          console.log('🔄 CSV oluşturma başlatılıyor...');
           const { generateShopifyCSV } = await import('./shopify-csv-generator');
           const csvResult = await generateShopifyCSV([trendyolResult]);
           
-          console.log(`✅ Otomatik CSV oluşturuldu: ${csvResult.filename}`);
-          console.log(`✅ CSV dosya yolu: ${csvResult.csvPath}`);
+          console.log(`✅ CSV oluşturma sonucu:`, csvResult);
           
-          return res.status(200).json({
-            ...trendyolResult,
-            csvExport: {
-              filename: csvResult.filename,
-              downloadUrl: `/temp/${csvResult.filename}`,
-              success: true,
-              message: "CSV otomatik hazırlandı",
-              totalRows: csvResult.totalRows || 0
-            }
-          });
+          if (typeof csvResult === 'string') {
+            // Eski format - sadece filename döner
+            return res.status(200).json({
+              ...trendyolResult,
+              csvExport: {
+                filename: csvResult,
+                downloadUrl: `/temp/${csvResult}`,
+                success: true,
+                message: "CSV otomatik hazırlandı",
+                totalRows: 0
+              }
+            });
+          } else {
+            // Yeni format - obje döner
+            return res.status(200).json({
+              ...trendyolResult,
+              csvExport: {
+                filename: csvResult.filename,
+                downloadUrl: `/temp/${csvResult.filename}`,
+                success: true,
+                message: "CSV otomatik hazırlandı",
+                totalRows: csvResult.totalRows || 0
+              }
+            });
+          }
         } catch (csvError: any) {
-          console.error('❌ Otomatik CSV oluşturma hatası:', csvError);
+          console.error('❌ CSV oluşturma hatası:', csvError);
           console.error('CSV Error Stack:', csvError.stack);
           return res.status(200).json({
             ...trendyolResult,
             csvExport: {
               success: false,
               error: csvError.message,
-              message: "CSV oluşturulamadı - detay: " + csvError.message
+              message: "CSV oluşturulamadı: " + csvError.message
             }
           });
         }
