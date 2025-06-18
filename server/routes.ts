@@ -1391,8 +1391,28 @@ export async function registerRoutes(app: Express) {
   // Remove old download endpoint - redirect to proper CSV endpoint
   app.get('/api/download/:filename', (req, res) => {
     const filename = req.params.filename;
-    console.log(`🔄 Redirecting /api/download/${filename} to /csv/${filename}`);
-    res.redirect(302, `/csv/${filename}`);
+    const workspaceFilePath = path.join('/home/runner/workspace', filename);
+    const tempFilePath = path.join(process.cwd(), 'temp', filename);
+    
+    let filePath = workspaceFilePath;
+    if (!fs.existsSync(workspaceFilePath)) {
+      if (fs.existsSync(tempFilePath)) {
+        fs.copyFileSync(tempFilePath, workspaceFilePath);
+        filePath = workspaceFilePath;
+      } else {
+        return res.status(404).json({ message: 'CSV dosyası bulunamadı' });
+      }
+    }
+    
+    try {
+      const csvContent = fs.readFileSync(filePath, 'utf-8');
+      res.setHeader('Content-Type', 'text/csv; charset=utf-8');
+      res.setHeader('Content-Disposition', `attachment; filename="${filename}"`);
+      res.setHeader('Cache-Control', 'no-cache');
+      res.send(csvContent);
+    } catch (error) {
+      res.status(500).json({ message: 'Dosya okuma hatası' });
+    }
   });
 
   // CSV download endpoint
