@@ -19,25 +19,27 @@ app.use((req, res, next) => {
 app.use(express.json({ limit: '50mb' }));
 app.use(express.urlencoded({ extended: false, limit: '50mb' }));
 
-// CSV download route - MUST be before Vite middleware
-app.get('/csv/:filename', (req, res) => {
-  const filename = req.params.filename;
-  if (!filename.endsWith('.csv')) {
-    return res.status(400).send('Invalid file type');
+// Direct CSV download - MUST be before Vite middleware
+app.get('/api/download/shopify-urunler.csv', (req, res) => {
+  const workspaceFile = '/home/runner/workspace/shopify-urunler.csv';
+  const tempFile = '/home/runner/workspace/temp/shopify-urunler.csv';
+  
+  // Copy from temp to workspace if needed
+  if (!fs.existsSync(workspaceFile) && fs.existsSync(tempFile)) {
+    fs.copyFileSync(tempFile, workspaceFile);
   }
   
-  const filepath = pathModule.join(process.cwd(), 'temp', filename);
-  if (!fs.existsSync(filepath)) {
-    return res.status(404).send('File not found');
+  if (fs.existsSync(workspaceFile)) {
+    const csvContent = fs.readFileSync(workspaceFile, 'utf-8');
+    res.writeHead(200, {
+      'Content-Type': 'text/csv; charset=utf-8',
+      'Content-Disposition': 'attachment; filename="shopify-urunler.csv"',
+      'Cache-Control': 'no-cache'
+    });
+    res.end(csvContent);
+  } else {
+    res.status(404).send('CSV file not found');
   }
-  
-  const csvContent = fs.readFileSync(filepath, 'utf8');
-  res.set({
-    'Content-Type': 'text/csv; charset=utf-8',
-    'Content-Disposition': `attachment; filename="${filename}"`,
-    'Cache-Control': 'no-cache'
-  });
-  res.send(csvContent);
 });
 
 // API kök dizini için bilgi mesajı
