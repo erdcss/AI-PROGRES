@@ -393,24 +393,8 @@ function ScraperPage({ platform = 'trendyol' }: ScraperPageProps) {
       const downloadUrl = product.csvExport?.downloadUrl || `/csv/${product.preview?.filename}`;
       const filename = product.csvExport?.filename || product.preview?.filename;
       
-      if (product.csvExport?.downloadUrl) {
-        // Direkt dosya indirme
-        window.open(downloadUrl, '_blank');
-      } else {
-        // API üzerinden indirme
-        const response = await fetch(downloadUrl);
-        if (!response.ok) throw new Error('CSV indirilemedi');
-        
-        const blob = await response.blob();
-        const url = window.URL.createObjectURL(blob);
-        const a = document.createElement('a');
-        a.href = url;
-        a.download = `${product.brand || 'urun'}-shopify-export.csv`;
-        document.body.appendChild(a);
-        a.click();
-        document.body.removeChild(a);
-        window.URL.revokeObjectURL(url);
-      }
+      // Always use direct download with proper CSV endpoint
+      window.open(downloadUrl, '_blank');
       
       toast({
         title: "CSV indirildi",
