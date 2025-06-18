@@ -247,6 +247,8 @@ export async function generateStrictShopifyCSV(products: Product[]): Promise<{
 
   const csvContent = generateCSVContent(headers, shopifyVariants);
   await fs.promises.writeFile(filePath, csvContent, { encoding: 'utf-8' });
+  
+  console.log(`📁 Dosya yolu: ${filePath}`);
 
   console.log(`✅ Strict Shopify CSV created: ${filename}`);
   console.log(`📊 ${shopifyVariants.length} variants, ${products.length} products`);
