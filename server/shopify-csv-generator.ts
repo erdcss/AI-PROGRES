@@ -481,6 +481,9 @@ export async function generateShopifyCSV(products: ProductData[]): Promise<{file
   return {
     filename,
     csvPath: filePath,
+    downloadUrl: `/api/csv-download/${filename}`,
+    success: true,
+    message: "CSV hazır",
     totalRows: shopifyVariants.length + 1
   };
 }

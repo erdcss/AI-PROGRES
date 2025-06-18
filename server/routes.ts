@@ -1338,8 +1338,8 @@ export async function registerRoutes(app: Express) {
     }
   });
 
-  // CSV dosyası indirme endpoint'i
-  app.get('/api/download/:filename', (req, res) => {
+  // CSV dosyası indirme endpoint'i - farklı path kullanarak Vite conflict'ini önle
+  app.get('/api/csv-download/:filename', (req, res) => {
     try {
       const filename = req.params.filename;
       // Hem temp hem de /tmp klasörlerini kontrol et
@@ -1360,15 +1360,18 @@ export async function registerRoutes(app: Express) {
         return res.status(400).json({ message: 'Geçersiz CSV dosyası formatı' });
       }
       
-      res.setHeader('Content-Type', 'application/csv');
-      res.setHeader('Content-Disposition', `attachment; filename="${filename}"`);
-      res.setHeader('Content-Length', Buffer.byteLength(csvContent, 'utf8'));
-      res.setHeader('Cache-Control', 'no-cache, no-store, must-revalidate');
-      res.setHeader('Pragma', 'no-cache');
-      res.setHeader('Expires', '0');
-      res.setHeader('X-Content-Type-Options', 'nosniff');
+      // Force CSV headers before any other middleware can interfere
+      res.writeHead(200, {
+        'Content-Type': 'text/csv; charset=utf-8',
+        'Content-Disposition': `attachment; filename="${filename}"`,
+        'Content-Length': Buffer.byteLength(csvContent, 'utf8'),
+        'Cache-Control': 'no-cache, no-store, must-revalidate',
+        'Pragma': 'no-cache',
+        'Expires': '0',
+        'X-Content-Type-Options': 'nosniff'
+      });
       
-      res.send(csvContent);
+      res.end(csvContent);
       
     } catch (error: any) {
       console.error('CSV indirme hatası:', error);
