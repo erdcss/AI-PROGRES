@@ -43,6 +43,8 @@ interface ShopifyVariant {
   'Option1 Value': string;
   'Option2 Name': string;
   'Option2 Value': string;
+  'Option3 Name': string;
+  'Option3 Value': string;
   'Variant SKU': string;
   'Variant Grams': string;
   'Variant Inventory Tracker': string;
@@ -64,21 +66,19 @@ interface ShopifyVariant {
   'Google Shopping / Gender': string;
   'Google Shopping / Age Group': string;
   'Google Shopping / MPN': string;
-  'Google Shopping / Condition': string;
-  'Google Shopping / Custom Product': string;
-  'Variant Image': string;
-  'Variant Weight Unit': string;
-  'Cost per item': string;
-  'Option3 Name': string;
-  'Option3 Value': string;
   'Google Shopping / AdWords Grouping': string;
   'Google Shopping / AdWords Labels': string;
+  'Google Shopping / Condition': string;
+  'Google Shopping / Custom Product': string;
   'Google Shopping / Custom Label 0': string;
   'Google Shopping / Custom Label 1': string;
   'Google Shopping / Custom Label 2': string;
   'Google Shopping / Custom Label 3': string;
   'Google Shopping / Custom Label 4': string;
+  'Variant Image': string;
+  'Variant Weight Unit': string;
   'Variant Tax Code': string;
+  'Cost per item': string;
   'Included / France': string;
   'Price / France': string;
   'Compare At Price / France': string;
@@ -114,22 +114,23 @@ function isValidImageUrl(url: string): boolean {
 export async function generateShopifyCSV(products: ProductData[]): Promise<{filename: string, csvPath: string, downloadUrl: string, success: true, message: string, totalRows: number}> {
   console.log(`🔄 CSV oluşturma başlıyor: ${products.length} ürün`);
   
-  // Kullanıcının verdiği shopify-urun-ornek-dosya exact headers - 59 field  
+  // Kullanıcının verdiği Python template exact headers - 53 field
   const headers = [
     'Handle', 'Title', 'Body (HTML)', 'Vendor', 'Type', 'Tags', 'Published',
-    'Option1 Name', 'Option1 Value', 'Option2 Name', 'Option2 Value',
+    'Option1 Name', 'Option1 Value', 'Option2 Name', 'Option2 Value', 'Option3 Name', 'Option3 Value',
     'Variant SKU', 'Variant Grams', 'Variant Inventory Tracker', 'Variant Inventory Qty',
     'Variant Inventory Policy', 'Variant Fulfillment Service', 'Variant Price', 'Variant Compare At Price',
     'Variant Requires Shipping', 'Variant Taxable', 'Variant Barcode', 'Image Src', 'Image Position',
     'Image Alt Text', 'Gift Card', 'SEO Title', 'SEO Description',
     'Google Shopping / Google Product Category', 'Google Shopping / Gender', 'Google Shopping / Age Group',
-    'Google Shopping / MPN', 'Google Shopping / Condition', 'Google Shopping / Custom Product',
-    'Variant Image', 'Variant Weight Unit', 'Cost per item', 'Option3 Name', 'Option3 Value',
-    'Google Shopping / AdWords Grouping', 'Google Shopping / AdWords Labels', 'Google Shopping / Custom Label 0',
+    'Google Shopping / MPN', 'Google Shopping / AdWords Grouping', 'Google Shopping / AdWords Labels',
+    'Google Shopping / Condition', 'Google Shopping / Custom Product', 'Google Shopping / Custom Label 0',
     'Google Shopping / Custom Label 1', 'Google Shopping / Custom Label 2', 'Google Shopping / Custom Label 3',
-    'Google Shopping / Custom Label 4', 'Variant Tax Code', 'Included / France', 'Price / France',
-    'Compare At Price / France', 'Included / Germany', 'Price / Germany', 'Compare At Price / Germany',
-    'Included / UK', 'Price / UK', 'Compare At Price / UK', 'Included / US', 'Price / US', 'Compare At Price / US'
+    'Google Shopping / Custom Label 4', 'Variant Image', 'Variant Weight Unit', 'Variant Tax Code',
+    'Cost per item', 'Included / France', 'Price / France', 'Compare At Price / France',
+    'Included / Germany', 'Price / Germany', 'Compare At Price / Germany',
+    'Included / UK', 'Price / UK', 'Compare At Price / UK',
+    'Included / US', 'Price / US', 'Compare At Price / US'
   ];
 
   const shopifyVariants: ShopifyVariant[] = [];
@@ -179,6 +180,8 @@ export async function generateShopifyCSV(products: ProductData[]): Promise<{file
           'Option1 Value': color,
           'Option2 Name': isFirstVariant ? 'Beden' : '',
           'Option2 Value': size,
+          'Option3 Name': '',
+          'Option3 Value': '',
           'Variant SKU': variantSKU,
           'Variant Grams': '200',
           'Variant Inventory Tracker': 'shopify',
@@ -200,21 +203,19 @@ export async function generateShopifyCSV(products: ProductData[]): Promise<{file
           'Google Shopping / Gender': isFirstVariant ? 'unisex' : '',
           'Google Shopping / Age Group': isFirstVariant ? 'adult' : '',
           'Google Shopping / MPN': isFirstVariant ? variantSKU : '',
-          'Google Shopping / Condition': isFirstVariant ? 'new' : '',
-          'Google Shopping / Custom Product': isFirstVariant ? 'FALSE' : '',
-          'Variant Image': primaryImage,
-          'Variant Weight Unit': isFirstVariant ? 'g' : '',
-          'Cost per item': comparePrice ? (parseFloat(comparePrice) * 0.8).toFixed(2) : '',
-          'Option3 Name': '',
-          'Option3 Value': '',
           'Google Shopping / AdWords Grouping': '',
           'Google Shopping / AdWords Labels': '',
+          'Google Shopping / Condition': isFirstVariant ? 'new' : '',
+          'Google Shopping / Custom Product': isFirstVariant ? 'FALSE' : '',
           'Google Shopping / Custom Label 0': '',
           'Google Shopping / Custom Label 1': '',
           'Google Shopping / Custom Label 2': '',
           'Google Shopping / Custom Label 3': '',
           'Google Shopping / Custom Label 4': '',
+          'Variant Image': primaryImage,
+          'Variant Weight Unit': isFirstVariant ? 'g' : '',
           'Variant Tax Code': '',
+          'Cost per item': comparePrice ? (parseFloat(comparePrice) * 0.8).toFixed(2) : '',
           'Included / France': '',
           'Price / France': '',
           'Compare At Price / France': '',
