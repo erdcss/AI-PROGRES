@@ -1630,6 +1630,46 @@ export async function registerRoutes(app: Express) {
     }
   });
 
+  // Toplu CSV işleme endpoint
+  app.post('/api/bulk-csv', async (req, res) => {
+    try {
+      const { urls } = req.body;
+      
+      if (!urls || !Array.isArray(urls) || urls.length === 0) {
+        return res.status(400).json({ 
+          success: false,
+          message: "URL listesi gerekli" 
+        });
+      }
+      
+      const validUrls = urls.filter(url => 
+        typeof url === 'string' && url.includes('trendyol.com')
+      );
+      
+      if (validUrls.length === 0) {
+        return res.status(400).json({ 
+          success: false,
+          message: "Geçerli Trendyol URL'si bulunamadı" 
+        });
+      }
+      
+      console.log(`🚀 Toplu CSV işlemi başlatılıyor: ${validUrls.length} ürün`);
+      
+      const { processBulkProducts } = await import('./bulk-csv-processor');
+      const result = await processBulkProducts(validUrls);
+      
+      res.json(result);
+      
+    } catch (error: any) {
+      console.error('Toplu CSV hatası:', error);
+      res.status(500).json({ 
+        success: false,
+        message: "Toplu CSV oluşturma hatası",
+        error: error.message
+      });
+    }
+  });
+
   const httpServer = createServer(app);
   return httpServer;
 }
