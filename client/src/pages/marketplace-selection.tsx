@@ -82,7 +82,7 @@ const MarketplaceSelection = () => {
                 className={`
                   w-full h-48 rounded-2xl bg-gradient-to-br ${marketplace.color}
                   flex flex-col items-center justify-center text-white font-semibold text-lg
-                  shadow-xl hover:shadow-2xl transition-all duration-300
+                  shadow-xl
                   border border-white/10 backdrop-blur-sm
                   ${!marketplace.available ? 'opacity-75' : 'hover:brightness-110'}
                 `}

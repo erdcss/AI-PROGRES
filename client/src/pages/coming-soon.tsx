@@ -115,7 +115,7 @@ const ComingSoon = ({ platform }: ComingSoonProps) => {
           whileTap={{ }}
           onClick={() => setLocation("/marketplace")}
           className="bg-gradient-to-r from-blue-500 to-purple-500 text-white px-8 py-3 rounded-xl font-semibold 
-                     hover:from-blue-600 hover:to-purple-600 transition-all duration-300 shadow-lg hover:shadow-xl
+                     hover:from-blue-600 hover:to-purple-600 shadow-lg
                      flex items-center justify-center mx-auto"
         >
           <ArrowLeft className="w-5 h-5 mr-2" />
