@@ -149,7 +149,7 @@ export async function generateShopifyCSV(products: ProductData[]): Promise<{file
             
             // Add color options if available
             if (product.variants?.colors && product.variants.colors.length > 1) {
-              const colorList = product.variants.colors.filter((c: string) => c !== 'tek renk').join(', ');
+              const colorList = product.variants.colors.filter((c: string) => c !== 'tek renk').join(' - ');
               if (colorList) {
                 description += `\n\nRenk Seçenekleri: ${colorList}`;
               }
@@ -157,7 +157,7 @@ export async function generateShopifyCSV(products: ProductData[]): Promise<{file
             
             // Add size options if available
             if (product.variants?.sizes && product.variants.sizes.length > 0) {
-              description += `\n\nBeden Seçenekleri: ${product.variants.sizes.join(', ')}`;
+              description += `\n\nBeden Seçenekleri: ${product.variants.sizes.join(' - ')}`;
             }
             
             // Add product attributes if available
