@@ -1,6 +1,7 @@
 import * as XLSX from 'xlsx';
 import path from 'path';
 import fs from 'fs/promises';
+import { stringify } from 'csv-stringify/sync';
 
 interface ProductData {
   title: string;
