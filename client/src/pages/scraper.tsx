@@ -427,19 +427,7 @@ function ScraperPage({ platform = 'trendyol' }: ScraperPageProps) {
 
   return (
     <div className="min-h-screen bg-black text-white p-4 relative">
-      {/* CSV Export Button - Top Right */}
-      {product && (
-        <div className="fixed top-4 right-4 z-50">
-          <Button
-            onClick={downloadCSV}
-            className="bg-green-600 hover:bg-green-700 text-white shadow-lg"
-            size="sm"
-          >
-            <Download className="w-4 h-4 mr-2" />
-            CSV İndir
-          </Button>
-        </div>
-      )}
+
       
       <div className="max-w-2xl mx-auto space-y-6">
         <motion.div
