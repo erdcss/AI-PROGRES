@@ -1320,6 +1320,44 @@ export async function registerRoutes(app: Express) {
     }
   });
 
+  // CSV preview endpoint
+  app.get('/api/preview/:filename', async (req, res) => {
+    try {
+      const filename = req.params.filename;
+      const filePath = path.join(__dirname, '..', 'temp', filename);
+      
+      if (!fs.existsSync(filePath)) {
+        return res.status(404).json({ error: 'CSV file not found' });
+      }
+
+      const csvContent = fs.readFileSync(filePath, 'utf-8');
+      const lines = csvContent.split('\n').filter(line => line.trim());
+      
+      if (lines.length === 0) {
+        return res.json({ headers: [], rows: [], totalRows: 0 });
+      }
+
+      const headers = lines[0].split(',').map(h => h.replace(/"/g, '').trim());
+      const dataRows = lines.slice(1, 4).map(line => {
+        const values = line.split(',').map(v => v.replace(/"/g, '').trim());
+        const row: any = {};
+        headers.forEach((header, index) => {
+          row[header] = values[index] || '';
+        });
+        return row;
+      });
+
+      res.json({
+        headers,
+        rows: dataRows,
+        totalRows: lines.length - 1
+      });
+    } catch (error) {
+      console.error('CSV preview error:', error);
+      res.status(500).json({ error: 'Failed to read CSV file' });
+    }
+  });
+
   // CSV download endpoint
   app.get('/api/download-csv', (req, res) => {
     try {

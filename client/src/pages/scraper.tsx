@@ -1,4 +1,3 @@
-import { useState, useEffect } from "react";
 import { motion, AnimatePresence } from "framer-motion";
 import { useForm } from "react-hook-form";
 import { zodResolver } from "@hookform/resolvers/zod";
@@ -34,6 +33,7 @@ import {
   AlertTitle,
 } from "@/components/ui/alert";
 import { ScrollArea } from "@/components/ui/scroll-area";
+import { useState, useEffect } from "react";
 
 // Platform logo configuration
 const PlatformLogos = {
@@ -93,6 +93,85 @@ const PlatformLogos = {
 
 interface ScraperPageProps {
   platform?: string;
+}
+
+// CSV Preview Component
+function CSVPreview({ csvPath }: { csvPath: string }) {
+  const [csvData, setCsvData] = useState<any>(null);
+  const [loading, setLoading] = useState(false);
+
+  useEffect(() => {
+    if (csvPath) {
+      setLoading(true);
+      fetch(`/api/preview/${csvPath.split('/').pop()}`)
+        .then(res => res.json())
+        .then(data => {
+          setCsvData(data);
+          setLoading(false);
+        })
+        .catch(err => {
+          console.error('CSV preview error:', err);
+          setLoading(false);
+        });
+    }
+  }, [csvPath]);
+
+  if (loading) {
+    return (
+      <div className="bg-gray-800/20 p-3 rounded border border-gray-700">
+        <div className="text-xs text-gray-400">CSV önizleme yükleniyor...</div>
+      </div>
+    );
+  }
+
+  if (!csvData) {
+    return null;
+  }
+
+  return (
+    <div className="bg-gray-800/20 p-3 rounded border border-gray-700">
+      <div className="text-xs font-medium text-gray-300 mb-2">CSV Önizleme</div>
+      <div className="overflow-x-auto">
+        <table className="w-full text-xs">
+          <thead>
+            <tr className="border-b border-gray-600">
+              {csvData.headers?.slice(0, 4).map((header: string, index: number) => (
+                <th key={index} className="text-left p-1 text-gray-400">
+                  {header.length > 15 ? header.substring(0, 15) + '...' : header}
+                </th>
+              ))}
+              {csvData.headers?.length > 4 && (
+                <th className="text-left p-1 text-gray-400">+{csvData.headers.length - 4} sütun</th>
+              )}
+            </tr>
+          </thead>
+          <tbody>
+            {csvData.rows?.slice(0, 3).map((row: any, rowIndex: number) => (
+              <tr key={rowIndex} className="border-b border-gray-700">
+                {csvData.headers?.slice(0, 4).map((header: string, colIndex: number) => (
+                  <td key={colIndex} className="p-1 text-gray-300">
+                    {row[header] ? 
+                      (row[header].length > 20 ? row[header].substring(0, 20) + '...' : row[header])
+                      : '-'
+                    }
+                  </td>
+                ))}
+                {csvData.headers?.length > 4 && (
+                  <td className="p-1 text-gray-500">...</td>
+                )}
+              </tr>
+            ))}
+          </tbody>
+        </table>
+      </div>
+      <div className="text-xs text-gray-500 mt-2">
+        {csvData.totalRows} satır × {csvData.headers?.length} sütun
+        {csvData.rows?.length < csvData.totalRows && (
+          <span> (ilk {csvData.rows?.length} satır gösteriliyor)</span>
+        )}
+      </div>
+    </div>
+  );
 }
 
 function ScraperPage({ platform = 'trendyol' }: ScraperPageProps) {
@@ -470,6 +549,15 @@ function ScraperPage({ platform = 'trendyol' }: ScraperPageProps) {
                                       alt={`${product.brand} ${product.title} - ${index + 1}`}
                                       className="w-full h-full object-cover rounded border border-gray-600 hover:border-blue-400 transition-all duration-200"
                                       loading="lazy"
+                                      onError={(e) => {
+                                        const target = e.currentTarget;
+                                        // Try fallback to original URL without cleaning
+                                        if (cleanedImage !== image) {
+                                          target.src = image;
+                                        } else {
+                                          target.style.display = 'none';
+                                        }
+                                      }}
                                       onClick={() => {
                                         const mainImg = document.getElementById('mainProductImage') as HTMLImageElement;
                                         if (mainImg) {
@@ -569,16 +657,21 @@ function ScraperPage({ platform = 'trendyol' }: ScraperPageProps) {
                       </div>
                     )}
 
-                    {/* Compact CSV Status */}
+                    {/* Enhanced CSV Preview Section */}
                     {product.preview && (
-                      <div className="bg-green-900/20 p-2 rounded border border-green-800">
-                        <div className="flex items-center justify-between">
-                          <span className="text-green-400 text-xs font-medium">CSV Export</span>
-                          <span className="text-green-300 text-xs">{product.preview.totalRows} satır</span>
+                      <div className="space-y-3">
+                        <div className="bg-green-900/20 p-2 rounded border border-green-800">
+                          <div className="flex items-center justify-between">
+                            <span className="text-green-400 text-xs font-medium">CSV Export</span>
+                            <span className="text-green-300 text-xs">{product.preview.totalRows} satır</span>
+                          </div>
+                          <div className="text-green-500 text-xs">
+                            {product.preview.shopifyReady ? 'Shopify uyumlu' : 'Standart'}
+                          </div>
                         </div>
-                        <div className="text-green-500 text-xs">
-                          {product.preview.shopifyReady ? 'Shopify uyumlu' : 'Standart'}
-                        </div>
+                        
+                        {/* CSV Content Preview */}
+                        <CSVPreview csvPath={product.preview.csvPath} />
                       </div>
                     )}
                   </div>
