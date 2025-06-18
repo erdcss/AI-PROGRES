@@ -116,21 +116,31 @@ function isVariantInStock(color: string, size: string, stockMap: any, outOfStock
   return true;
 }
 
-export async function generateShopifyCSV(products: ProductData[]): Promise<string> {
+export async function generateShopifyCSV(products: ProductData[]): Promise<{filename: string, csvPath: string, totalRows: number}> {
+  console.log('🔄 CSV oluşturma başlıyor:', products.length, 'ürün');
   const shopifyVariants: ShopifyVariant[] = [];
 
   products.forEach((product, productIndex) => {
+    console.log(`🔧 ${productIndex + 1}/${products.length} ürün işleniyor: ${product.title}`);
+    console.log('🔧 Varyant bilgileri:', {
+      colors: product.variants?.colors,
+      sizes: product.variants?.sizes,
+      totalVariants: product.variants?.totalVariants
+    });
+    
     const handle = generateHandle(product.title);
-    const hasColors = product.variants.colors.length > 1 || 
-                     (product.variants.colors.length === 1 && product.variants.colors[0] !== 'tek renk');
-    const hasSizes = product.variants.sizes.length > 0;
+    const hasColors = product.variants?.colors?.length > 1 || 
+                     (product.variants?.colors?.length === 1 && product.variants.colors[0] !== 'tek renk');
+    const hasSizes = product.variants?.sizes?.length > 0;
 
     // If product has variants, create one row per variant
     if (hasColors || hasSizes) {
-      product.variants.colors.forEach((color, colorIndex) => {
-        product.variants.sizes.forEach((size, sizeIndex) => {
-          const isInStock = isVariantInStock(color, size, product.variants.stockMap, product.variants.outOfStockVariants);
-          const variantIndex = colorIndex * product.variants.sizes.length + sizeIndex;
+      console.log('🔧 Varyantlar oluşturuluyor...');
+      (product.variants?.colors || ['tek renk']).forEach((color, colorIndex) => {
+        (product.variants?.sizes || ['Tek Beden']).forEach((size, sizeIndex) => {
+          console.log(`🔧 Varyant: ${color}-${size}`);
+          const isInStock = isVariantInStock(color, size, product.variants?.stockMap, product.variants?.outOfStockVariants);
+          const variantIndex = colorIndex * (product.variants?.sizes?.length || 1) + sizeIndex;
           
           const variant: ShopifyVariant = {
             Handle: handle,
