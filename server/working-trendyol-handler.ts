@@ -127,12 +127,15 @@ export async function handleTrendyolProduct(url: string, productId: string) {
         if (isProductImage && !isExcluded) {
           let fullUrl = cleanUrl.startsWith('//') ? 'https:' + cleanUrl : cleanUrl;
           
-          // Optimize image URLs for high quality
-          fullUrl = fullUrl.replace(/\/ty\d+\//, '/ty933/');
-          fullUrl = fullUrl.replace(/_thumb\.(jpg|jpeg|png|webp)/, '_org.$1');
-          fullUrl = fullUrl.replace(/_small\.(jpg|jpeg|png|webp)/, '_org.$1');
-          fullUrl = fullUrl.replace(/_zoom\.(jpg|jpeg|png|webp)/, '_org.$1');
-          fullUrl = fullUrl.replace(/mnresize\/\d+\/\d+\//, 'mnresize/1200/1800/');
+          // Convert ty933 to ty1660 for working URLs based on schema.org data
+          fullUrl = fullUrl.replace(/\/ty933\//, '/ty1660/');
+          fullUrl = fullUrl.replace(/\/ty\d+\//, '/ty1660/');
+          fullUrl = fullUrl.replace(/_org_org\.jpg/, '_org_zoom.jpg');
+          
+          // Ensure https protocol
+          if (!fullUrl.startsWith('https:')) {
+            fullUrl = fullUrl.replace(/^http:/, 'https:');
+          }
           
           if (!images.includes(fullUrl)) {
             images.push(fullUrl);
@@ -143,11 +146,16 @@ export async function handleTrendyolProduct(url: string, productId: string) {
       // Also extract from img tags
       $('img').each((_, img) => {
         const src = $(img).attr('src') || $(img).attr('data-src') || $(img).attr('data-original');
-        if (src && src.includes('cdn.dsmcdn.com') && src.includes('/product/media/images/')) {
+        if (src && src.includes('cdn.dsmcdn.com')) {
           let fullUrl = src.startsWith('//') ? 'https:' + src : src;
-          fullUrl = fullUrl.replace(/\/ty\d+\//, '/ty933/');
-          fullUrl = fullUrl.replace(/_thumb\.jpg/, '_org.jpg');
-          fullUrl = fullUrl.replace(/_small\.jpg/, '_org.jpg');
+          // Use working CDN paths
+          fullUrl = fullUrl.replace(/\/ty933\//, '/ty1660/');
+          fullUrl = fullUrl.replace(/\/ty\d+\//, '/ty1660/');
+          fullUrl = fullUrl.replace(/_org_org\.jpg/, '_org_zoom.jpg');
+          
+          if (!fullUrl.startsWith('https:')) {
+            fullUrl = fullUrl.replace(/^http:/, 'https:');
+          }
           fullUrl = fullUrl.replace(/_zoom\.jpg/, '_org.jpg');
           fullUrl = fullUrl.replace(/mnresize\/\d+\/\d+\//, 'mnresize/1200/1800/');
           
@@ -276,8 +284,10 @@ export async function handleTrendyolProduct(url: string, productId: string) {
                   if (typeof url === 'string') {
                     if (url.startsWith('//')) url = 'https:' + url;
                     if (url.includes('cdn.dsmcdn.com')) {
-                      url = url.replace(/\/ty\d+\//, '/ty933/');
-                      url = url.replace(/_thumb\.(jpg|jpeg|png|webp)/, '_org.$1');
+                      // Keep original URLs to prevent 404s
+                      if (!url.startsWith('https:')) {
+                        url = url.replace(/^http:/, 'https:');
+                      }
                       url = url.replace(/_small\.(jpg|jpeg|png|webp)/, '_org.$1');
                       url = url.replace(/mnresize\/\d+\/\d+\//, 'mnresize/1200/1800/');
                     }
