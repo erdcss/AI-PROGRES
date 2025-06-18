@@ -38,7 +38,6 @@ interface ShopifyVariant {
   Title: string;
   'Body (HTML)': string;
   Vendor: string;
-  'Product Category': string;
   Type: string;
   Tags: string;
   Published: string;
@@ -82,6 +81,18 @@ interface ShopifyVariant {
   'Variant Weight Unit': string;
   'Variant Tax Code': string;
   'Cost per item': string;
+  'Included / France': string;
+  'Price / France': string;
+  'Compare At Price / France': string;
+  'Included / Germany': string;
+  'Price / Germany': string;
+  'Compare At Price / Germany': string;
+  'Included / UK': string;
+  'Price / UK': string;
+  'Compare At Price / UK': string;
+  'Included / US': string;
+  'Price / US': string;
+  'Compare At Price / US': string;
 }
 
 function generateHandle(title: string): string {
@@ -193,7 +204,6 @@ export async function generateShopifyCSV(products: ProductData[]): Promise<{file
             Title: productIndex === 0 && colorIndex === 0 && sizeIndex === 0 ? product.title : '',
             'Body (HTML)': productIndex === 0 && colorIndex === 0 && sizeIndex === 0 ? buildProductDescription(product) : '',
             Vendor: product.brand || product.vendor || '',
-            'Product Category': product.category || '',
             Type: product.productType || '',
             Tags: (product.tags || []).join(', '),
             Published: 'TRUE',
@@ -236,7 +246,19 @@ export async function generateShopifyCSV(products: ProductData[]): Promise<{file
             'Variant Image': product.variants.variantImages?.[`${color}-${size}`] || '',
             'Variant Weight Unit': 'kg',
             'Variant Tax Code': '',
-            'Cost per item': ''
+            'Cost per item': '',
+            'Included / France': '',
+            'Price / France': '',
+            'Compare At Price / France': '',
+            'Included / Germany': '',
+            'Price / Germany': '',
+            'Compare At Price / Germany': '',
+            'Included / UK': '',
+            'Price / UK': '',
+            'Compare At Price / UK': '',
+            'Included / US': '',
+            'Price / US': '',
+            'Compare At Price / US': ''
           };
 
           shopifyVariants.push(variant);
@@ -251,7 +273,6 @@ export async function generateShopifyCSV(products: ProductData[]): Promise<{file
             Title: '',
             'Body (HTML)': '',
             Vendor: '',
-            'Product Category': '',
             Type: '',
             Tags: '',
             Published: '',
@@ -294,7 +315,19 @@ export async function generateShopifyCSV(products: ProductData[]): Promise<{file
             'Variant Image': '',
             'Variant Weight Unit': '',
             'Variant Tax Code': '',
-            'Cost per item': ''
+            'Cost per item': '',
+            'Included / France': '',
+            'Price / France': '',
+            'Compare At Price / France': '',
+            'Included / Germany': '',
+            'Price / Germany': '',
+            'Compare At Price / Germany': '',
+            'Included / UK': '',
+            'Price / UK': '',
+            'Compare At Price / UK': '',
+            'Included / US': '',
+            'Price / US': '',
+            'Compare At Price / US': ''
           };
 
           shopifyVariants.push(imageVariant);
@@ -307,7 +340,6 @@ export async function generateShopifyCSV(products: ProductData[]): Promise<{file
         Title: product.title,
         'Body (HTML)': product.description,
         Vendor: product.brand || product.vendor,
-        'Product Category': product.category || '',
         Type: product.productType || '',
         Tags: product.tags.join(', '),
         Published: 'TRUE',
@@ -350,7 +382,19 @@ export async function generateShopifyCSV(products: ProductData[]): Promise<{file
         'Variant Image': '',
         'Variant Weight Unit': 'kg',
         'Variant Tax Code': '',
-        'Cost per item': ''
+        'Cost per item': '',
+        'Included / France': '',
+        'Price / France': '',
+        'Compare At Price / France': '',
+        'Included / Germany': '',
+        'Price / Germany': '',
+        'Compare At Price / Germany': '',
+        'Included / UK': '',
+        'Price / UK': '',
+        'Compare At Price / UK': '',
+        'Included / US': '',
+        'Price / US': '',
+        'Compare At Price / US': ''
       };
 
       shopifyVariants.push(variant);
