@@ -47,7 +47,7 @@ export function extractCleanVariants(htmlContent: string, productId: string): Cl
 
 function extractImages(htmlContent: string, images: string[]): void {
   try {
-    // Pattern 1: Script içindeki JSON görsel arrays
+    // Pattern 1: Enhanced JSON image arrays with relative paths
     const imageArrayPatterns = [
       /"images":\s*\[(.*?)\]/g,
       /"galleryImages":\s*\[(.*?)\]/g,
@@ -57,11 +57,28 @@ function extractImages(htmlContent: string, images: string[]): void {
     imageArrayPatterns.forEach(pattern => {
       let match;
       while ((match = pattern.exec(htmlContent)) !== null) {
-        const urlMatches = match[1].match(/https:\/\/cdn\.dsmcdn\.com\/[^"',\s}]+\.(jpg|jpeg|png|webp)/gi) || [];
-        urlMatches.forEach(url => {
+        // Extract both full URLs and relative paths
+        const fullUrlMatches = match[1].match(/https:\/\/cdn\.dsmcdn\.com\/[^"',\s}]+\.(jpg|jpeg|png|webp)/gi) || [];
+        const relativePathMatches = match[1].match(/"([^"]*\/(?:QC|PIM)\/[^"]*\.(jpg|jpeg|png|webp))"/gi) || [];
+        
+        // Process full URLs
+        fullUrlMatches.forEach(url => {
           const cleanUrl = optimizeImageUrl(url);
           if (cleanUrl && !images.includes(cleanUrl)) {
             images.push(cleanUrl);
+          }
+        });
+        
+        // Process relative paths and convert to full URLs
+        relativePathMatches.forEach(match => {
+          const relativePath = match.replace(/"/g, '');
+          if (relativePath.startsWith('/')) {
+            const fullUrl = `https://cdn.dsmcdn.com${relativePath}`;
+            const cleanUrl = optimizeImageUrl(fullUrl);
+            if (cleanUrl && !images.includes(cleanUrl)) {
+              images.push(cleanUrl);
+              console.log(`🖼️ Relative path görsel: ${cleanUrl}`);
+            }
           }
         });
       }
@@ -74,6 +91,32 @@ function extractImages(htmlContent: string, images: string[]): void {
       const cleanUrl = optimizeImageUrl(url);
       if (cleanUrl && !images.includes(cleanUrl)) {
         images.push(cleanUrl);
+      }
+    });
+    
+    // Pattern 3: Enhanced relative path detection
+    const relativeImagePattern = /['"]\/(ty\d+\/[^'"]*\/(?:QC|PIM)\/[^'"]*\.(jpg|jpeg|png|webp))['"]/gi;
+    let relativeMatch;
+    while ((relativeMatch = relativeImagePattern.exec(htmlContent)) !== null) {
+      const fullUrl = `https://cdn.dsmcdn.com/${relativeMatch[1]}`;
+      const cleanUrl = optimizeImageUrl(fullUrl);
+      if (cleanUrl && !images.includes(cleanUrl)) {
+        images.push(cleanUrl);
+        console.log(`🖼️ Enhanced relative görsel: ${cleanUrl}`);
+      }
+    }
+    
+    // Pattern 4: More aggressive image pattern for HAKKE-style products
+    const aggressiveImagePattern = /\/ty\d+\/[^"'\s,}]*\/(?:QC|PIM)\/[^"'\s,}]*\.(jpg|jpeg|png|webp)/gi;
+    const aggressiveMatches = htmlContent.match(aggressiveImagePattern) || [];
+    aggressiveMatches.forEach(imagePath => {
+      const fullUrl = imagePath.startsWith('/') 
+        ? `https://cdn.dsmcdn.com${imagePath}`
+        : `https://cdn.dsmcdn.com/${imagePath}`;
+      const cleanUrl = optimizeImageUrl(fullUrl);
+      if (cleanUrl && !images.includes(cleanUrl)) {
+        images.push(cleanUrl);
+        console.log(`🖼️ Aggressive pattern görsel: ${cleanUrl}`);
       }
     });
     
@@ -268,25 +311,60 @@ function extractFromHTML($: cheerio.CheerioAPI, colors: string[], sizes: string[
 
 function extractStockInfo(htmlContent: string, stockMap: Record<string, boolean>, colors: string[], sizes: string[]): void {
   try {
-    const stockPattern = /"variants":\s*\[(.*?)\]/;
-    const stockMatch = htmlContent.match(stockPattern);
+    // Initialize all variants as out of stock
+    colors.forEach(color => {
+      sizes.forEach(size => {
+        const variantKey = `${color}-${size}`;
+        stockMap[variantKey] = false;
+      });
+    });
     
-    if (stockMatch) {
-      const stockObjects = extractJSONObjects(stockMatch[1]);
-      stockObjects.forEach(item => {
-        if (item.attributeType === 'productSize' && item.variants) {
-          item.variants.forEach((variant: any) => {
-            if (variant.attributeValue && typeof variant.inStock === 'boolean') {
-              const sizeKey = variant.attributeValue;
-              colors.forEach(color => {
-                const variantKey = `${color.toLowerCase()}-${sizeKey}`;
-                stockMap[variantKey] = variant.inStock;
-              });
-            }
+    // Enhanced stock detection from allVariants
+    const allVariantsPattern = /"allVariants":\s*\[(.*?)\]/g;
+    let allVariantsMatch;
+    while ((allVariantsMatch = allVariantsPattern.exec(htmlContent)) !== null) {
+      const variantObjects = extractJSONObjects(allVariantsMatch[1]);
+      variantObjects.forEach(variant => {
+        const isInStock = variant.inStock === true;
+        const sizeValue = variant.value;
+        
+        if (sizeValue && sizes.includes(sizeValue)) {
+          colors.forEach(color => {
+            const variantKey = `${color}-${sizeValue}`;
+            stockMap[variantKey] = isInStock;
+            console.log(`📦 Stok: ${variantKey} = ${isInStock ? 'Mevcut' : 'Tükendi'}`);
           });
         }
       });
     }
+    
+    // Fallback stock patterns
+    const stockPatterns = [
+      /"variants":\s*\[(.*?)\]/g,
+      /"productVariants":\s*\[(.*?)\]/g
+    ];
+    
+    stockPatterns.forEach(pattern => {
+      let match;
+      while ((match = pattern.exec(htmlContent)) !== null) {
+        const stockObjects = extractJSONObjects(match[1]);
+        stockObjects.forEach(item => {
+          if (item.attributeType === 'productSize' && item.variants) {
+            item.variants.forEach((variant: any) => {
+              if (variant.attributeValue && typeof variant.inStock === 'boolean') {
+                const sizeKey = variant.attributeValue;
+                colors.forEach(color => {
+                  const variantKey = `${color}-${sizeKey}`;
+                  stockMap[variantKey] = variant.inStock;
+                  console.log(`📦 Fallback stok: ${variantKey} = ${variant.inStock ? 'Mevcut' : 'Tükendi'}`);
+                });
+              }
+            });
+          }
+        });
+      }
+    });
+    
   } catch (error) {
     console.log("Stok çıkarma hatası:", error);
   }
@@ -376,11 +454,20 @@ function extractJSONObjects(jsonString: string): any[] {
 function optimizeImageUrl(url: string): string | null {
   if (!url || typeof url !== 'string') return null;
   
-  // Only Trendyol CDN
-  if (!url.includes('cdn.dsmcdn.com')) return null;
+  // Clean URL and ensure CDN domain
+  let cleanUrl = url.trim();
+  if (cleanUrl.startsWith('//')) {
+    cleanUrl = 'https:' + cleanUrl;
+  }
+  if (cleanUrl.startsWith('/') && !cleanUrl.startsWith('//')) {
+    cleanUrl = 'https://cdn.dsmcdn.com' + cleanUrl;
+  }
   
-  // Only product images
-  if (!(url.includes('/prod/QC/') || url.includes('/prod/PIM/'))) return null;
+  // Only Trendyol CDN
+  if (!cleanUrl.includes('cdn.dsmcdn.com')) return null;
+  
+  // Only product images (relaxed for more coverage)
+  if (!(cleanUrl.includes('/QC/') || cleanUrl.includes('/PIM/') || cleanUrl.includes('/prod/'))) return null;
   
   // Clean URL
   let cleanUrl = url.replace(/[{}]/g, '');
