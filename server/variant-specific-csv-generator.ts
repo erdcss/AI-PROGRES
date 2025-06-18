@@ -20,10 +20,10 @@ interface ProductData {
   brand: string | null;
   attributes: Record<string, string>;
   categories: string[] | null;
-  tags: string[];
-  category: string;
-  subcategory: string;
-  productType: string;
+  tags: string[] | null;
+  category: string | null;
+  subcategory: string | null;
+  productType: string | null;
 }
 
 /**
@@ -87,7 +87,7 @@ export async function generateVariantSpecificCSV(
       vendor: productData.brand || '',
       product_category: (productData.categories && productData.categories[0]) || 'Fashion',
       type: productData.productType || 'Clothing',
-      tags: isFirstRow ? productData.tags.join(', ') : '',
+      tags: isFirstRow ? (productData.tags || []).join(', ') : '',
       published: 'TRUE',
       option1_name: 'Renk',
       option1_value: variant.color,
