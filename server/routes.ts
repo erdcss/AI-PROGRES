@@ -1215,6 +1215,33 @@ export async function registerRoutes(app: Express) {
               colors: variants.color || []
             });
             
+            // Auto-add sistemine ürünü ekle
+            try {
+              const { addProductToAutoAdd } = await import('./auto-add-products');
+              const autoAddResult = await addProductToAutoAdd({
+                title: productData.title,
+                brand: productData.brand,
+                price: productData.price,
+                variants: productData.variants,
+                images: productData.images,
+                url: productData.url,
+                description: productData.description,
+                id: 0,
+                basePrice: productData.price,
+                video: null,
+                vendor: "turmarkt",
+                category: productData.category,
+                subcategory: productData.subcategory,
+                productType: productData.productType,
+                tags: productData.tags,
+                attributes: productData.attributes,
+                categories: null
+              });
+              console.log(`Auto-add sistemi: ${autoAddResult.success ? 'Ürün eklendi' : autoAddResult.message}`);
+            } catch (autoAddError) {
+              console.log('Auto-add sistemi hatası:', autoAddError);
+            }
+            
             storage.addToHistory(url);
             
             // Apply final image filtering to the API response
