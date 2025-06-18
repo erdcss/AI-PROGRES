@@ -52,16 +52,28 @@ function normalizeImageUrl(url: string): string {
 }
 
 export async function registerRoutes(app: Express) {
-  // CSV static serving - must be FIRST to avoid Vite interference
-  app.use('/csv', express.static(path.join(process.cwd(), 'temp'), {
-    setHeaders: (res, filePath) => {
-      if (filePath.endsWith('.csv')) {
-        res.setHeader('Content-Type', 'text/csv; charset=utf-8');
-        res.setHeader('Content-Disposition', `attachment; filename="${path.basename(filePath)}"`);
-        res.setHeader('Cache-Control', 'no-cache');
-      }
+  // CSV serving from workspace root - highest priority
+  app.get('/api/download/shopify-urunler.csv', (req, res) => {
+    const workspaceFile = '/home/runner/workspace/shopify-urunler.csv';
+    const tempFile = '/home/runner/workspace/temp/shopify-urunler.csv';
+    
+    let filePath = workspaceFile;
+    if (!fs.existsSync(workspaceFile) && fs.existsSync(tempFile)) {
+      fs.copyFileSync(tempFile, workspaceFile);
     }
-  }));
+    
+    if (fs.existsSync(workspaceFile)) {
+      const csvContent = fs.readFileSync(workspaceFile, 'utf-8');
+      res.writeHead(200, {
+        'Content-Type': 'text/csv; charset=utf-8',
+        'Content-Disposition': 'attachment; filename="shopify-urunler.csv"',
+        'Cache-Control': 'no-cache'
+      });
+      res.end(csvContent);
+    } else {
+      res.status(404).send('CSV not found');
+    }
+  });
 
   // CSV önizleme endpoint'i
   app.get('/api/preview/:filename', (req, res) => {
@@ -1394,24 +1406,37 @@ export async function registerRoutes(app: Express) {
     const workspaceFilePath = path.join('/home/runner/workspace', filename);
     const tempFilePath = path.join(process.cwd(), 'temp', filename);
     
+    console.log(`📥 CSV indirme isteği: ${filename}`);
+    
     let filePath = workspaceFilePath;
     if (!fs.existsSync(workspaceFilePath)) {
       if (fs.existsSync(tempFilePath)) {
+        console.log(`📋 Temp'ten workspace'e kopyalanıyor: ${tempFilePath} -> ${workspaceFilePath}`);
         fs.copyFileSync(tempFilePath, workspaceFilePath);
         filePath = workspaceFilePath;
       } else {
-        return res.status(404).json({ message: 'CSV dosyası bulunamadı' });
+        console.log(`❌ Dosya bulunamadı: ${filename}`);
+        return res.status(404).send('CSV dosyası bulunamadı');
       }
     }
     
     try {
       const csvContent = fs.readFileSync(filePath, 'utf-8');
-      res.setHeader('Content-Type', 'text/csv; charset=utf-8');
-      res.setHeader('Content-Disposition', `attachment; filename="${filename}"`);
-      res.setHeader('Cache-Control', 'no-cache');
-      res.send(csvContent);
+      console.log(`✅ CSV içerik okundu: ${csvContent.length} karakter`);
+      
+      // Force CSV content type and download headers
+      res.writeHead(200, {
+        'Content-Type': 'text/csv; charset=utf-8',
+        'Content-Disposition': `attachment; filename="${filename}"`,
+        'Cache-Control': 'no-cache, no-store, must-revalidate',
+        'Pragma': 'no-cache',
+        'Expires': '0'
+      });
+      
+      res.end(csvContent);
     } catch (error) {
-      res.status(500).json({ message: 'Dosya okuma hatası' });
+      console.log(`❌ Dosya okuma hatası: ${error}`);
+      res.status(500).send('Dosya okuma hatası');
     }
   });
 

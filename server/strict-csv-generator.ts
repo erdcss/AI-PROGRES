@@ -245,22 +245,27 @@ export async function generateStrictShopifyCSV(products: Product[]): Promise<{
     });
   });
 
-  // Python csv.writer(f, quoting=csv.QUOTE_ALL) formatında yazma
-  const csvLines: string[] = [];
-  
-  // Header satırı - her alanı çift tırnak içine al
-  csvLines.push(headers.map(h => `"${h.replace(/"/g, '""')}"`).join(','));
-  
-  // Varyant satırları - her alanı çift tırnak içine al
-  shopifyVariants.forEach(variant => {
-    const row = headers.map(header => {
-      const value = (variant as any)[header] || '';
-      return `"${String(value).replace(/"/g, '""')}"`;
+  // Python csv.writer equivalent with exact format
+  const createPythonStyleCSV = () => {
+    const csvLines: string[] = [];
+    
+    // Headers - quote every field exactly like Python csv.QUOTE_ALL
+    csvLines.push(headers.map(h => `"${h.replace(/"/g, '""')}"`).join(','));
+    
+    // Data rows - quote every field exactly like Python csv.QUOTE_ALL
+    shopifyVariants.forEach(variant => {
+      const row = headers.map(header => {
+        const value = (variant as any)[header] || '';
+        const stringValue = String(value).replace(/"/g, '""');
+        return `"${stringValue}"`;
+      });
+      csvLines.push(row.join(','));
     });
-    csvLines.push(row.join(','));
-  });
+    
+    return csvLines.join('\n');
+  };
   
-  const csvContent = csvLines.join('\r\n'); // Windows line endings for Shopify
+  const csvContent = createPythonStyleCSV();
   await fs.promises.writeFile(filePath, csvContent, { encoding: 'utf-8' });
   
   console.log(`📁 Dosya yolu: ${filePath}`);
