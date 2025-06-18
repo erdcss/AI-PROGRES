@@ -222,19 +222,22 @@ export async function handleTrendyolProduct(url: string, productId: string) {
       let optimizedImages = uniqueImages.slice(0, 10); // Limit to 10 authentic product images
       console.log(`🖼️ ${optimizedImages.length} sadece ürün görseli filtrelendi (logos/footer hariç)`);
       
-      // GELİŞMİŞ VARYANT ÇIKARMA SİSTEMİ
-      console.log('🚀 Gelişmiş varyant çıkarma sistemi başlatılıyor...');
+      // TEMİZ VARYANT ÇIKARMA SİSTEMİ
+      console.log('🚀 Temiz varyant çıkarma sistemi başlatılıyor...');
       
-      const { extractAdvancedVariants } = await import('./advanced-variant-extractor');
-      const variantData = extractAdvancedVariants(htmlContent, productId);
+      const { extractCleanVariants } = await import('./clean-variant-system');
+      const cleanData = extractCleanVariants(htmlContent, productId);
       
-      const colors = variantData.colors;
-      const sizes = variantData.sizes;
-      const extractedVariantImages = variantData.variantImages;
-      const colorImageMap = variantData.colorImageMap;
-      const variantPricing = variantData.variantPricing;
-      const variantSpecificPricing = variantData.variantSpecificPricing;
-      let stockMap: Record<string, boolean> = {};
+      const colors = cleanData.colors;
+      const sizes = cleanData.sizes;
+      const extractedVariantImages = cleanData.variantImages;
+      const colorImageMap = cleanData.colorImageMap;
+      const variantPricing = cleanData.variantPricing;
+      const variantSpecificPricing = cleanData.variantSpecificPricing;
+      let stockMap = cleanData.stockMap;
+      
+      // Temiz görsel verisi
+      images.push(...cleanData.images);
       
       // STOK BİLGİSİ ÇIKARMA
       const variantStockMatch = htmlContent.match(/"variants":\[(.*?)\]/);
@@ -268,7 +271,7 @@ export async function handleTrendyolProduct(url: string, productId: string) {
         const allFoundImages = new Set<string>();
         
         // Tüm varyant görsellerini topla
-        Object.values(variantImages).forEach(imgArray => {
+        Object.values(extractedVariantImages).forEach(imgArray => {
           imgArray.forEach(img => allFoundImages.add(img));
         });
         
@@ -330,7 +333,7 @@ export async function handleTrendyolProduct(url: string, productId: string) {
                     
                     if (colorImages.length > 0) {
                       colorImageMap[colorName] = colorImages;
-                      variantImages[colorName] = colorImages;
+                      extractedVariantImages[colorName] = colorImages;
                       console.log(`🖼️ ${colorName} rengi için ${colorImages.length} görsel atandı`);
                     }
                   }
@@ -462,7 +465,7 @@ export async function handleTrendyolProduct(url: string, productId: string) {
                     
                     if (colorImages.length > 0) {
                       colorImageMap[colorName] = colorImages;
-                      variantImages[colorName] = colorImages;
+                      extractedVariantImages[colorName] = colorImages;
                     }
                   }
                 }
