@@ -180,10 +180,12 @@ export async function generateStrictShopifyCSV(products: Product[]): Promise<{
         const isFirstVariant = colorIndex === 0 && sizeIndex === 0;
         const variantSku = `${product.id}-${color.replace(/\s+/g, '').toLowerCase()}-${size.replace(/\s+/g, '').toLowerCase()}`;
         
-        // Her varyant için farklı görsel atama
-        const imageIndex = colorIndex < product.images.length ? colorIndex : 0;
+        // Tüm görsellerden varyanta uygun olanı seç
+        const totalVariants = colors.length * sizes.length;
+        const variantIndex = colorIndex * sizes.length + sizeIndex;
+        const imageIndex = variantIndex < product.images.length ? variantIndex : variantIndex % product.images.length;
         const imageSrc = product.images[imageIndex] || product.images[0] || '';
-        const variantImageSrc = product.images[colorIndex] || product.images[0] || '';
+        const variantImageSrc = product.images[imageIndex] || '';
 
         console.log(`🔧 Varyant: ${color}-${size} (Görsel: ${imageIndex + 1}/${product.images.length})`);
 
