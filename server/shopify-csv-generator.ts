@@ -326,11 +326,27 @@ export async function generateShopifyCSV(products: ProductData[]): Promise<{file
   // Ensure temp directory exists
   await fs.mkdir(path.dirname(filePath), { recursive: true });
 
-  // Convert to CSV format
-  const csvContent = XLSX.utils.sheet_to_csv(worksheet);
+  // Convert to CSV format with proper quoting
+  const csvContent = XLSX.utils.sheet_to_csv(worksheet, {
+    FS: ',',
+    RS: '\n',
+    forceQuotes: false
+  });
+  
+  // Clean CSV content to fix quoting issues
+  const cleanCsvContent = csvContent
+    .split('\n')
+    .map(line => {
+      // Fix any unescaped quotes in the line
+      if (line.includes('"')) {
+        return line.replace(/([^,"])"([^,"])/g, '$1""$2');
+      }
+      return line;
+    })
+    .join('\n');
   
   // Write CSV file
-  await fs.writeFile(filePath, csvContent, 'utf8');
+  await fs.writeFile(filePath, cleanCsvContent, 'utf8');
 
   console.log(`✅ Shopify CSV oluşturuldu: ${filename}`);
   console.log(`📊 ${shopifyVariants.length} varyant, ${products.length} ürün`);
