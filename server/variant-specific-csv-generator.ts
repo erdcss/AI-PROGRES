@@ -27,35 +27,42 @@ interface ProductData {
 }
 
 /**
- * Safely escape CSV field content
+ * Safely escape CSV field content with enhanced HTML handling
  */
 function escapeCsvField(field: string): string {
   if (!field) return '';
   
-  // Replace all quotes with double quotes and wrap in quotes if contains special chars
-  const escaped = field.replace(/"/g, '""');
+  // Clean field of problematic characters first
+  let cleaned = field
+    .replace(/\r\n|\r|\n/g, ' ') // Remove line breaks
+    .replace(/\t/g, ' ') // Remove tabs
+    .replace(/\s+/g, ' ') // Normalize whitespace
+    .trim();
+  
+  // Escape quotes by doubling them
+  cleaned = cleaned.replace(/"/g, '""');
   
   // Always wrap in quotes to avoid issues with commas, quotes, and newlines
-  return `"${escaped}"`;
+  return `"${cleaned}"`;
 }
 
 /**
- * Clean HTML content for CSV export
+ * Clean HTML content for CSV export with aggressive sanitization
  */
 function cleanHtmlForCsv(html: string): string {
   if (!html) return '';
   
-  // Remove HTML tags, line breaks and normalize whitespace
+  // Aggressive HTML cleaning for CSV safety
   return html
-    .replace(/<[^>]*>/g, '') // Remove HTML tags
+    .replace(/<[^>]*>/g, '') // Remove all HTML tags
+    .replace(/&[^;]+;/g, ' ') // Remove all HTML entities
     .replace(/\r\n|\r|\n/g, ' ') // Remove line breaks
+    .replace(/\t/g, ' ') // Remove tabs
+    .replace(/["']/g, '') // Remove quotes entirely for CSV safety
+    .replace(/[^\w\s\-.,!?()]/g, ' ') // Remove special characters except basic punctuation
     .replace(/\s+/g, ' ') // Normalize whitespace
-    .replace(/&nbsp;/g, ' ') // Replace non-breaking spaces
-    .replace(/&amp;/g, '&') // Decode HTML entities
-    .replace(/&lt;/g, '<')
-    .replace(/&gt;/g, '>')
-    .replace(/&quot;/g, '"')
-    .trim();
+    .trim()
+    .substring(0, 500); // Limit length for CSV
 }
 
 /**
