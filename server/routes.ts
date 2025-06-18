@@ -163,7 +163,7 @@ export async function registerRoutes(app: Express) {
         }
         
         // Use working Trendyol handler for all other products
-        const { handleTrendyolProduct } = await import('./working-trendyol-handler');
+        const { handleTrendyolProduct } = await import('./working-trendyol-handler-clean');
         const trendyolResult = await handleTrendyolProduct(url, productId || '');
         return res.status(200).json(trendyolResult);
       }

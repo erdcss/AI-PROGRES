@@ -134,18 +134,7 @@ export async function handleTrendyolProduct(url: string, productId: string) {
       
       console.log(`✅ ${images.length} ana ürün görseli başarıyla çıkarıldı`);
       
-      // Ana görsel yoksa varyant görsellerini kullan
-      if (images.length === 0 && Object.keys(extractedVariantImages).length > 0) {
-        console.log("Ana görsel bulunamadı, varyant görsellerini kullanıyorum...");
-        Object.values(extractedVariantImages).forEach((imgArray: string[]) => {
-          imgArray.forEach((img: string) => {
-            if (!images.includes(img)) {
-              images.push(img);
-            }
-          });
-        });
-        console.log(`✅ ${images.length} görsel varyant görsellerinden eklendi`);
-      }
+      // Ana görsel kontrolü temiz sistemden sonra yapılacak
       
 
       
@@ -262,11 +251,41 @@ export async function handleTrendyolProduct(url: string, productId: string) {
         console.log(`✅ ${optimizedImages.length} ana görsel varyantlardan toplandı`);
       }
       
-      // Varyant çıkarımı tamamlandı, şimdi CSV oluşturma
-      const initialStatePattern = /window\.__PRODUCT_DETAIL_APP_INITIAL_STATE__\s*=\s*({.*?});/;
-      const initialStateMatch = htmlContent.match(initialStatePattern);
+      // Gerekirse ek kategori bilgisi al
+      let categories: string[] = [];
+      const categoryPattern = /"categories":\s*\[([^\]]+)\]/;
+      const categoryMatch = htmlContent.match(categoryPattern);
+      if (categoryMatch) {
+        try {
+          const categoryData = JSON.parse(`[${categoryMatch[1]}]`);
+          categoryData.forEach((cat: any) => {
+            if (typeof cat === 'string') {
+              categories.push(cat);
+            } else if (cat.name) {
+              categories.push(cat.name);
+            }
+          });
+        } catch (e) {
+          console.log("Kategori verisi parse edilemedi");
+        }
+      }
       
-      if (initialStateMatch) {
+      // Ürün özellikleri al
+      let attributes: Record<string, string> = {};
+      const attributePattern = /"attributes":\s*\[([^\]]+)\]/;
+      const attributeMatch = htmlContent.match(attributePattern);
+      if (attributeMatch) {
+        try {
+          const attrData = JSON.parse(`[${attributeMatch[1]}]`);
+          attrData.forEach((attr: any) => {
+            if (attr.name && attr.value) {
+              attributes[attr.name] = attr.value;
+            }
+          });
+        } catch (e) {
+          console.log("Attribute verisi parse edilemedi");
+        }
+      }
         try {
           const initialState = JSON.parse(initialStateMatch[1]);
           const product = initialState?.product;
@@ -492,7 +511,7 @@ export async function handleTrendyolProduct(url: string, productId: string) {
                 }
                 
                 colorImageMap[colorName] = [imageUrl];
-                variantImages[colorName] = [imageUrl];
+                extractedVariantImages[colorName] = [imageUrl];
               }
             }
           }
