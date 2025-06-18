@@ -191,7 +191,7 @@ export async function registerRoutes(app: Express) {
             ...trendyolResult,
             csvExport: {
               filename: csvResult.filename,
-              downloadUrl: `/temp/${csvResult.filename}`,
+              downloadUrl: `/csv/${csvResult.filename}`,
               success: true,
               message: "CSV hazır",
               totalRows: csvResult.totalRows

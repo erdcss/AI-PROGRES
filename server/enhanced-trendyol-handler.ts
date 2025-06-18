@@ -124,7 +124,7 @@ export async function scrapeTrendyolProduct(inputUrl: string) {
         ...productData,
         csvExport: {
           filename: csvResult.filename,
-          downloadUrl: `/temp/${csvResult.filename}`,
+          downloadUrl: `/csv/${csvResult.filename}`,
           success: true,
           message: "CSV hazır",
           totalRows: csvResult.totalRows
