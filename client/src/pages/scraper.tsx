@@ -436,11 +436,25 @@ export default function Home() {
                     )}
                   </div>
 
-                  <div className="space-y-2">
-                    <div className="flex items-center gap-2 text-sm text-gray-400">
-                      <ImageIcon className="w-4 h-4" />
-                      <span>Ürün Görselleri ({(product.images)?.length || 0})</span>
+                  {/* Comprehensive Product Data Preview */}
+                  <div className="space-y-4">
+                    {/* Price and Profit Margin */}
+                    <div className="bg-green-900/20 p-3 rounded-lg border border-green-800">
+                      <div className="flex items-center justify-between">
+                        <span className="text-green-400 font-medium">Satış Fiyatı</span>
+                        <span className="text-lg font-bold text-green-300">{product.price}</span>
+                      </div>
+                      <div className="text-xs text-green-500 mt-1">
+                        %10 kar marjı dahil
+                      </div>
                     </div>
+
+                    {/* Product Images */}
+                    <div className="space-y-2">
+                      <div className="flex items-center gap-2 text-sm text-gray-400">
+                        <ImageIcon className="w-4 h-4" />
+                        <span>Ürün Görselleri ({(product.images)?.length || 0})</span>
+                      </div>
                     <ScrollArea className="h-[250px] rounded-md border border-gray-800 p-4">
                       <div className="grid grid-cols-3 md:grid-cols-4 gap-4">
                         {(product.images || [])
@@ -577,6 +591,138 @@ export default function Home() {
                           })}
                       </div>
                     </ScrollArea>
+                    </div>
+
+                    {/* Product Variants */}
+                    {product.variants && (
+                      <div className="space-y-3">
+                        <h4 className="text-sm font-medium text-gray-300">Ürün Varyantları</h4>
+                        <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                          {/* Colors */}
+                          {product.variants.colors && product.variants.colors.length > 0 && (
+                            <div className="bg-gray-800/50 p-3 rounded-lg">
+                              <div className="text-xs text-gray-400 mb-2">
+                                Renk Seçenekleri ({product.variants.colors.length})
+                              </div>
+                              <div className="flex flex-wrap gap-2">
+                                {product.variants.colors.map((color: string, index: number) => (
+                                  <span
+                                    key={index}
+                                    className="px-2 py-1 bg-blue-900/30 text-blue-300 text-xs rounded border border-blue-800"
+                                  >
+                                    {color}
+                                  </span>
+                                ))}
+                              </div>
+                            </div>
+                          )}
+
+                          {/* Sizes */}
+                          {product.variants.sizes && product.variants.sizes.length > 0 && (
+                            <div className="bg-gray-800/50 p-3 rounded-lg">
+                              <div className="text-xs text-gray-400 mb-2">
+                                Beden Seçenekleri ({product.variants.sizes.length})
+                              </div>
+                              <div className="flex flex-wrap gap-2">
+                                {product.variants.sizes.map((size: string, index: number) => (
+                                  <span
+                                    key={index}
+                                    className="px-2 py-1 bg-purple-900/30 text-purple-300 text-xs rounded border border-purple-800"
+                                  >
+                                    {size}
+                                  </span>
+                                ))}
+                              </div>
+                            </div>
+                          )}
+                        </div>
+                      </div>
+                    )}
+
+                    {/* Product Attributes */}
+                    {product.attributes && Object.keys(product.attributes).length > 0 && (
+                      <div className="space-y-3">
+                        <h4 className="text-sm font-medium text-gray-300">Ürün Özellikleri</h4>
+                        <div className="bg-gray-800/50 p-3 rounded-lg">
+                          <div className="space-y-2">
+                            {Object.entries(product.attributes).map(([key, value]: [string, any]) => (
+                              <div key={key} className="flex justify-between items-center">
+                                <span className="text-xs text-gray-400">{key}:</span>
+                                <span className="text-xs text-gray-300">{value}</span>
+                              </div>
+                            ))}
+                          </div>
+                        </div>
+                      </div>
+                    )}
+
+                    {/* Category and Tags */}
+                    <div className="space-y-3">
+                      <h4 className="text-sm font-medium text-gray-300">Kategori ve Etiketler</h4>
+                      <div className="grid grid-cols-1 gap-3">
+                        {/* Categories */}
+                        {product.categories && product.categories.length > 0 && (
+                          <div className="bg-gray-800/50 p-3 rounded-lg">
+                            <div className="text-xs text-gray-400 mb-2">Kategoriler</div>
+                            <div className="text-sm text-gray-300">
+                              {Array.isArray(product.categories) 
+                                ? product.categories.join(' > ') 
+                                : product.categories}
+                            </div>
+                          </div>
+                        )}
+
+                        {/* Tags */}
+                        {product.tags && product.tags.length > 0 && (
+                          <div className="bg-gray-800/50 p-3 rounded-lg">
+                            <div className="text-xs text-gray-400 mb-2">
+                              Etiketler ({product.tags.length})
+                            </div>
+                            <div className="flex flex-wrap gap-2">
+                              {product.tags.map((tag: string, index: number) => (
+                                <span
+                                  key={index}
+                                  className="px-2 py-1 bg-orange-900/30 text-orange-300 text-xs rounded border border-orange-800"
+                                >
+                                  #{tag}
+                                </span>
+                              ))}
+                            </div>
+                          </div>
+                        )}
+                      </div>
+                    </div>
+
+                    {/* CSV Export Information */}
+                    {product.preview && (
+                      <div className="space-y-3">
+                        <h4 className="text-sm font-medium text-gray-300">CSV Dosya Bilgileri</h4>
+                        <div className="bg-green-900/20 p-3 rounded-lg border border-green-800">
+                          <div className="space-y-2">
+                            <div className="flex justify-between items-center">
+                              <span className="text-xs text-gray-400">Dosya Adı:</span>
+                              <span className="text-xs text-green-300">{product.preview.filename}</span>
+                            </div>
+                            <div className="flex justify-between items-center">
+                              <span className="text-xs text-gray-400">Toplam Satır:</span>
+                              <span className="text-xs text-green-300">{product.preview.totalRows}</span>
+                            </div>
+                            <div className="flex justify-between items-center">
+                              <span className="text-xs text-gray-400">Shopify Uyumlu:</span>
+                              <span className="text-xs text-green-300">
+                                {product.preview.shopifyReady ? '✓ Evet' : '✗ Hayır'}
+                              </span>
+                            </div>
+                            {product.preview.note && (
+                              <div className="text-xs text-gray-400 mt-2 p-2 bg-gray-800/50 rounded">
+                                {product.preview.note}
+                              </div>
+                            )}
+                          </div>
+                        </div>
+                      </div>
+                    )}
+                    </div>
                   </div>
 
                   <div className="space-y-2">

@@ -469,7 +469,7 @@ export async function handleTrendyolProduct(url: string, productId: string) {
         message: "Authentic ürün verisi başarıyla çekildi ve işlendi",
         title,
         brand,
-        price: `${price.toFixed(2)} TL`,
+        price: `${(price * 1.10).toFixed(2)} TL`,
         description: createShopifyDescription(title, brand, attributes, categories),
         images: images,
         variants: {
