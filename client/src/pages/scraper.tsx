@@ -405,41 +405,36 @@ function ScraperPage({ platform = 'trendyol' }: ScraperPageProps) {
                       </div>
                     </div>
                     
-                    {/* Enhanced Main Image Display */}
+                    {/* Compact Main Image Display */}
                     {product.images && product.images.length > 0 && (
-                      <div className="bg-gray-900 rounded-lg p-3">
-                        <div className="aspect-square w-full max-w-lg mx-auto mb-4 relative group">
+                      <div className="bg-gray-900 rounded-lg p-2">
+                        <div className="aspect-square w-48 mx-auto mb-3 relative group">
                           <img
                             id="mainProductImage"
                             src={product.images[0]}
                             alt={`${product.brand} ${product.title} - Ana görsel`}
-                            className="w-full h-full object-cover rounded-lg shadow-lg border-2 border-gray-700 group-hover:border-blue-500 transition-all duration-300"
+                            className="w-full h-full object-cover rounded border border-gray-600 group-hover:border-blue-400 transition-all duration-200"
                             loading="lazy"
                           />
-                          <div className="absolute top-2 left-2 bg-black/70 text-white text-xs px-2 py-1 rounded-full">
-                            Ana Görsel
+                          <div className="absolute top-1 left-1 bg-black/70 text-white text-xs px-1.5 py-0.5 rounded">
+                            Ana
                           </div>
-                          <div className="absolute top-2 right-2 bg-blue-600/80 text-white text-xs px-2 py-1 rounded-full">
-                            {product.images.length} Görsel
+                          <div className="absolute top-1 right-1 bg-blue-600/80 text-white text-xs px-1.5 py-0.5 rounded">
+                            {product.images.length}
                           </div>
                         </div>
                         
-                        {/* Enhanced All Images Grid Gallery */}
-                        <div className="bg-gray-800/30 p-4 rounded-lg border border-gray-700">
-                          <div className="flex items-center justify-between mb-4">
-                            <h5 className="text-sm font-medium text-gray-200">
-                              Tüm Ürün Görselleri
-                            </h5>
-                            <div className="flex items-center gap-2">
-                              <span className="text-xs bg-blue-600/20 text-blue-400 px-2 py-1 rounded border border-blue-600">
-                                {product.images?.length || 0} Adet
-                              </span>
-                              <span className="text-xs bg-green-600/20 text-green-400 px-2 py-1 rounded border border-green-600">
-                                HD Kalite
-                              </span>
-                            </div>
+                        {/* Compact Images Grid */}
+                        <div className="bg-gray-800/20 p-2 rounded border border-gray-700">
+                          <div className="flex items-center justify-between mb-2">
+                            <span className="text-xs font-medium text-gray-300">
+                              Tüm Görseller ({product.images?.length || 0})
+                            </span>
+                            <span className="text-xs bg-green-600/20 text-green-400 px-1.5 py-0.5 rounded">
+                              HD
+                            </span>
                           </div>
-                          <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-3">
+                          <div className="grid grid-cols-4 md:grid-cols-6 gap-1.5">
                             {product.images
                               .filter((image: string) => {
                                 const isValidImage = 
@@ -472,104 +467,77 @@ function ScraperPage({ platform = 'trendyol' }: ScraperPageProps) {
                                   <div key={index} className="relative aspect-square group cursor-pointer">
                                     <img
                                       src={cleanedImage}
-                                      alt={`${product.brand} ${product.title} - Görsel ${index + 1}`}
-                                      className="w-full h-full object-cover rounded-lg border-2 border-gray-600 hover:border-blue-400 group-hover:scale-105 transition-all duration-300"
+                                      alt={`${product.brand} ${product.title} - ${index + 1}`}
+                                      className="w-full h-full object-cover rounded border border-gray-600 hover:border-blue-400 transition-all duration-200"
                                       loading="lazy"
                                       onClick={() => {
-                                        // Update main image with smooth transition
                                         const mainImg = document.getElementById('mainProductImage') as HTMLImageElement;
                                         if (mainImg) {
-                                          mainImg.style.opacity = '0.5';
+                                          mainImg.style.opacity = '0.7';
                                           setTimeout(() => {
                                             mainImg.src = cleanedImage;
                                             mainImg.style.opacity = '1';
-                                          }, 150);
+                                          }, 100);
                                         }
                                       }}
                                     />
-                                    <div className="absolute inset-0 bg-black/0 group-hover:bg-black/20 transition-all duration-300 rounded-lg"></div>
-                                    <div className="absolute bottom-1 right-1 bg-black/80 text-white text-xs px-2 py-1 rounded-full">
+                                    <div className="absolute bottom-0.5 right-0.5 bg-black/70 text-white text-xs px-1 py-0.5 rounded text-[10px]">
                                       {index + 1}
                                     </div>
                                     {index === 0 && (
-                                      <div className="absolute top-1 left-1 bg-blue-600 text-white text-xs px-2 py-1 rounded-full font-medium">
+                                      <div className="absolute top-0.5 left-0.5 bg-blue-600 text-white text-xs px-1 py-0.5 rounded text-[10px]">
                                         Ana
                                       </div>
                                     )}
-                                    <div className="absolute top-1 right-1 opacity-0 group-hover:opacity-100 transition-opacity duration-300">
-                                      <div className="bg-blue-600 text-white text-xs px-1.5 py-0.5 rounded-full">
-                                        Büyüt
-                                      </div>
-                                    </div>
                                   </div>
                                 );
                               })}
                           </div>
-                          <div className="text-xs text-gray-400 mt-3 p-2 bg-gray-900/50 rounded text-center border border-gray-700">
-                            💡 Görsellere tıklayarak ana görseli değiştirebilirsiniz
+                          <div className="text-xs text-gray-500 mt-2 text-center">
+                            Tıklayarak ana görseli değiştir
                           </div>
                         </div>
                       </div>
                     )}
                   </div>
 
-                  {/* Comprehensive Data Preview */}
-                  <div className="space-y-4 border-t border-gray-800 pt-4">
-                    <h3 className="text-lg font-semibold text-gray-200">Veri Önizleme</h3>
+                  {/* Compact Data Preview */}
+                  <div className="space-y-3 border-t border-gray-800 pt-3">
+                    <h3 className="text-base font-semibold text-gray-200">Veri Önizleme</h3>
                     
-                    {/* Price with Profit Margin */}
-                    <div className="bg-green-900/20 p-3 rounded-lg border border-green-800">
+                    {/* Compact Price */}
+                    <div className="bg-green-900/20 p-2 rounded border border-green-800">
                       <div className="flex items-center justify-between">
-                        <span className="text-green-400 font-medium">Satış Fiyatı</span>
-                        <span className="text-lg font-bold text-green-300">{product.price}</span>
+                        <span className="text-green-400 text-sm">Satış Fiyatı</span>
+                        <span className="text-base font-bold text-green-300">{product.price}</span>
                       </div>
-                      <div className="text-xs text-green-500 mt-1">10% kar marjı dahil</div>
+                      <div className="text-xs text-green-500">%10 kar dahil</div>
                     </div>
 
-                    {/* Enhanced Product Variants with Pricing */}
+                    {/* Compact Variants */}
                     {product.variants && (
-                      <div className="space-y-3">
-                        <h3 className="text-lg font-semibold text-gray-200">Varyant Bilgileri</h3>
-                        
-                        <div className="grid grid-cols-1 gap-3">
-                          {/* Colors with Pricing */}
+                      <div className="space-y-2">
+                        <h4 className="text-sm font-medium text-gray-300">Varyantlar</h4>
+                        <div className="grid grid-cols-2 gap-2">
                           {product.variants.colors && product.variants.colors.length > 0 && (
-                            <div className="bg-blue-900/20 p-4 rounded-lg border border-blue-800">
-                              <div className="text-blue-400 text-sm font-medium mb-3">
-                                Renk Seçenekleri ({product.variants.colors.length})
+                            <div className="bg-blue-900/20 p-2 rounded border border-blue-800">
+                              <div className="text-blue-400 text-xs font-medium mb-1">
+                                Renkler ({product.variants.colors.length})
                               </div>
-                              <div className="grid grid-cols-2 md:grid-cols-3 gap-2">
-                                {product.variants.colors.map((color: string, index: number) => (
-                                  <div key={index} className="bg-blue-900/30 p-2 rounded border border-blue-700">
-                                    <div className="text-blue-300 text-xs font-medium">{color}</div>
-                                    {product.variants.pricing && product.variants.pricing[color] && (
-                                      <div className="text-green-400 text-xs mt-1">
-                                        {(product.variants.pricing[color] * 1.10).toFixed(2)} TL
-                                      </div>
-                                    )}
-                                  </div>
-                                ))}
+                              <div className="text-xs text-blue-300">
+                                {product.variants.colors.slice(0, 3).join(', ')}
+                                {product.variants.colors.length > 3 && ` +${product.variants.colors.length - 3}`}
                               </div>
                             </div>
                           )}
                           
-                          {/* Sizes with Pricing */}
                           {product.variants.sizes && product.variants.sizes.length > 0 && (
-                            <div className="bg-purple-900/20 p-4 rounded-lg border border-purple-800">
-                              <div className="text-purple-400 text-sm font-medium mb-3">
-                                Beden Seçenekleri ({product.variants.sizes.length})
+                            <div className="bg-purple-900/20 p-2 rounded border border-purple-800">
+                              <div className="text-purple-400 text-xs font-medium mb-1">
+                                Bedenler ({product.variants.sizes.length})
                               </div>
-                              <div className="grid grid-cols-3 md:grid-cols-5 gap-2">
-                                {product.variants.sizes.map((size: string, index: number) => (
-                                  <div key={index} className="bg-purple-900/30 p-2 rounded border border-purple-700 text-center">
-                                    <div className="text-purple-300 text-xs font-medium">{size}</div>
-                                    {product.variants.pricing && product.variants.pricing[size] && (
-                                      <div className="text-green-400 text-xs mt-1">
-                                        {(product.variants.pricing[size] * 1.10).toFixed(2)} TL
-                                      </div>
-                                    )}
-                                  </div>
-                                ))}
+                              <div className="text-xs text-purple-300">
+                                {product.variants.sizes.join(', ')}
                               </div>
                             </div>
                           )}
@@ -577,50 +545,40 @@ function ScraperPage({ platform = 'trendyol' }: ScraperPageProps) {
                       </div>
                     )}
 
-                    {/* Enhanced Advanced Tagging System */}
+                    {/* Compact Tags */}
                     {product.tags && product.tags.length > 0 && (
-                      <div className="bg-yellow-900/20 p-4 rounded-lg border border-yellow-800">
-                        <div className="text-yellow-400 text-sm font-medium mb-3">
-                          Akıllı Etiket Sistemi ({product.tags.length})
+                      <div className="bg-yellow-900/20 p-2 rounded border border-yellow-800">
+                        <div className="text-yellow-400 text-xs font-medium mb-1">
+                          Etiketler ({product.tags.length})
                         </div>
-                        <div className="space-y-2">
-                          <div className="flex flex-wrap gap-1">
-                            {product.tags.slice(0, 8).map((tag: string, index: number) => (
-                              <span
-                                key={index}
-                                className="px-2 py-1 bg-yellow-900/30 text-yellow-300 text-xs rounded border border-yellow-700 hover:bg-yellow-800/30 transition-colors"
-                              >
-                                #{tag}
-                              </span>
-                            ))}
-                          </div>
-                          {product.tags.length > 8 && (
-                            <div className="text-yellow-500 text-xs">
-                              +{product.tags.length - 8} ek kategorizasyon etiketi
-                            </div>
+                        <div className="flex flex-wrap gap-1">
+                          {product.tags.slice(0, 6).map((tag: string, index: number) => (
+                            <span
+                              key={index}
+                              className="px-1.5 py-0.5 bg-yellow-900/30 text-yellow-300 text-xs rounded"
+                            >
+                              {tag}
+                            </span>
+                          ))}
+                          {product.tags.length > 6 && (
+                            <span className="text-yellow-500 text-xs">
+                              +{product.tags.length - 6}
+                            </span>
                           )}
-                          <div className="text-yellow-600 text-xs mt-2 p-2 bg-yellow-900/20 rounded">
-                            Bu etiketler ürünün kategorize edilmesi ve aranabilirliğini artırmak için otomatik oluşturulmuştur
-                          </div>
                         </div>
                       </div>
                     )}
 
-                    {/* CSV Export Status */}
+                    {/* Compact CSV Status */}
                     {product.preview && (
-                      <div className="bg-green-900/20 p-3 rounded-lg border border-green-800">
-                        <div className="flex items-center justify-between mb-2">
-                          <span className="text-green-400 font-medium">CSV Dosyası</span>
-                          <span className="text-green-300 text-sm">{product.preview.totalRows} satır</span>
+                      <div className="bg-green-900/20 p-2 rounded border border-green-800">
+                        <div className="flex items-center justify-between">
+                          <span className="text-green-400 text-xs font-medium">CSV Export</span>
+                          <span className="text-green-300 text-xs">{product.preview.totalRows} satır</span>
                         </div>
                         <div className="text-green-500 text-xs">
-                          {product.preview.shopifyReady ? 'Shopify uyumlu format' : 'Standart format'}
+                          {product.preview.shopifyReady ? 'Shopify uyumlu' : 'Standart'}
                         </div>
-                        {product.preview.note && (
-                          <div className="text-green-600 text-xs mt-2 p-2 bg-green-900/30 rounded">
-                            {product.preview.note}
-                          </div>
-                        )}
                       </div>
                     )}
                   </div>
