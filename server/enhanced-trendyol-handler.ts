@@ -61,7 +61,7 @@ export async function scrapeTrendyolProduct(inputUrl: string) {
     const productId = productIdMatch ? productIdMatch[1] : '';
 
     // Enhanced variant extraction
-    const variantData = await extractEnhancedVariants(htmlContent, productId);
+    const variantData = extractEnhancedVariants(htmlContent, productId);
     
     // Calculate total variants
     const totalVariants = variantData.colors.length * variantData.sizes.length;
@@ -105,7 +105,7 @@ export async function scrapeTrendyolProduct(inputUrl: string) {
   }
 }
 
-async function extractEnhancedVariants(htmlContent: string, productId: string): Promise<EnhancedVariantData> {
+function extractEnhancedVariants(htmlContent: string, productId: string): EnhancedVariantData {
   const $ = cheerio.load(htmlContent);
   
   const colors: string[] = [];
@@ -135,13 +135,16 @@ async function extractEnhancedVariants(htmlContent: string, productId: string): 
   const extractedVariants = getExtractedVariants(htmlContent);
   
   // Only use authentic colors if we detect real color variants
-  const authenticColors = extractedVariants.length > 0 ? 
-    [...new Set(extractedVariants.filter(v => v.color).map(v => v.color))] : 
-    [];
+  const authenticColorsSet = new Set();
+  const authenticSizesSet = new Set();
   
-  const authenticSizes = extractedVariants.length > 0 ?
-    [...new Set(extractedVariants.filter(v => v.size).map(v => v.size))] :
-    sizes;
+  if (extractedVariants.length > 0) {
+    extractedVariants.filter(v => v.color).forEach(v => authenticColorsSet.add(v.color));
+    extractedVariants.filter(v => v.size).forEach(v => authenticSizesSet.add(v.size));
+  }
+  
+  const authenticColors = Array.from(authenticColorsSet);
+  const authenticSizes = authenticSizesSet.size > 0 ? Array.from(authenticSizesSet) : sizes;
     
   // Use authentic colors if found, otherwise default to single color
   const finalColors = authenticColors.length > 1 ? authenticColors : ['Tek Renk'];
