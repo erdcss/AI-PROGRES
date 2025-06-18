@@ -287,11 +287,30 @@ function ScraperPage({ platform = 'trendyol' }: ScraperPageProps) {
       return response.json();
     },
     onSuccess: (data) => {
-      setProduct(data);
+      console.log('✅ Ürün verisi alındı:', data);
+      
+      // CSV export varsa preview verisi oluştur
+      if (data.csvExport?.success) {
+        const enhancedData = {
+          ...data,
+          preview: {
+            filename: data.csvExport.filename,
+            totalRows: data.csvExport.totalRows || 0,
+            csvPath: data.csvExport.downloadUrl,
+            shopifyReady: true
+          }
+        };
+        setResult(enhancedData);
+        setProduct(enhancedData);
+      } else {
+        setResult(data);
+        setProduct(data);
+      }
+      
       setError(null);
       toast({
         title: "Başarılı",
-        description: "Ürün verileri başarıyla çekildi"
+        description: data.csvExport?.success ? "Ürün verileri çekildi ve CSV hazırlandı" : "Ürün verileri başarıyla çekildi"
       });
     },
     onError: (error: any) => {
@@ -369,22 +388,32 @@ function ScraperPage({ platform = 'trendyol' }: ScraperPageProps) {
     }
 
     try {
-      const response = await fetch(`/api/download/${product.preview.filename}`);
-      if (!response.ok) throw new Error('CSV indirilemedi');
+      // CSV export varsa o kullanılır, yoksa preview kullanılır
+      const downloadUrl = product.csvExport?.downloadUrl || `/api/download/${product.preview?.filename}`;
+      const filename = product.csvExport?.filename || product.preview?.filename;
       
-      const blob = await response.blob();
-      const url = window.URL.createObjectURL(blob);
-      const a = document.createElement('a');
-      a.href = url;
-      a.download = `${product.brand || 'urun'}-shopify-export.csv`;
-      document.body.appendChild(a);
-      a.click();
-      document.body.removeChild(a);
-      window.URL.revokeObjectURL(url);
+      if (product.csvExport?.downloadUrl) {
+        // Direkt dosya indirme
+        window.open(downloadUrl, '_blank');
+      } else {
+        // API üzerinden indirme
+        const response = await fetch(downloadUrl);
+        if (!response.ok) throw new Error('CSV indirilemedi');
+        
+        const blob = await response.blob();
+        const url = window.URL.createObjectURL(blob);
+        const a = document.createElement('a');
+        a.href = url;
+        a.download = `${product.brand || 'urun'}-shopify-export.csv`;
+        document.body.appendChild(a);
+        a.click();
+        document.body.removeChild(a);
+        window.URL.revokeObjectURL(url);
+      }
       
       toast({
         title: "CSV indirildi",
-        description: `${product.preview.totalRows} satır Shopify formatında`
+        description: `${product.csvExport?.totalRows || product.preview?.totalRows || 0} satır Shopify formatında`
       });
     } catch (error) {
       toast({
