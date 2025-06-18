@@ -119,15 +119,17 @@ export async function generateAutoCSV() {
     const { generateShopifyCSV } = await import('./shopify-csv-generator');
     const filename = await generateShopifyCSV(autoAddState.products as any);
     
-    console.log(`✅ Otomatik CSV oluşturuldu: ${filename}`);
+    console.log(`✅ Shopify CSV oluşturuldu: ${filename}`);
+    
+    const totalVariants = autoAddState.products.reduce((sum: number, product: any) => 
+      sum + (product.variants?.totalVariants || 1), 0);
     
     return {
       success: true,
+      message: `${autoAddState.products.length} ürün Shopify CSV'ye aktarıldı`,
       filename,
-      csvPath: finalPath,
       totalProducts: autoAddState.products.length,
-      totalVariants: autoAddState.products.reduce((sum, p) => sum + p.variants.totalVariants, 0),
-      totalRows: csvResult.totalRows
+      totalVariants
     };
     
   } catch (error: any) {

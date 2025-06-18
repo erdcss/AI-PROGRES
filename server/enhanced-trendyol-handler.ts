@@ -718,7 +718,9 @@ function validateAndClean(
     colorImageMap,
     variantPricing,
     variantSpecificPricing,
-    stockMap
+    stockMap,
+    outOfStockVariants,
+    totalVariants: cleanColors.length * cleanSizes.length
   };
 }
 
