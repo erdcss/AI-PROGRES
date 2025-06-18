@@ -12,7 +12,7 @@ interface AutoAddProductsState {
 }
 
 // In-memory state for auto-add functionality
-let autoAddState: AutoAddProductsState = {
+export let autoAddState: AutoAddProductsState = {
   products: [],
   isProcessing: false,
   lastUpdated: new Date(),
