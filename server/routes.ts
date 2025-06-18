@@ -7,7 +7,7 @@ import fs from "fs";
 import { storage } from "./storage";
 import { scrapeProductWithPuppeteer } from "./fixed-puppeteer-scraper";
 import { scrapeWithEnhancedMethod } from "./enhanced-trendyol-scraper";
-import { generateShopifyCSV } from "./shopify-export-fixed";
+import { generateStrictShopifyCSV } from "./strict-csv-generator";
 import { getCategoryConfig } from "./category-mapping";
 import { cleanTrendyolAttributes } from "./clean-attributes";
 import { parseJsonLdProductData, generateTagsFromJsonLd } from "./json-ld-parser";
@@ -742,24 +742,22 @@ export async function registerRoutes(app: Express) {
                 colors: variants.color
               });
               
-              const csvResult = await generateShopifyCSV({
-                ...productData,
-                id: 0,
+              const csvResult = await generateStrictShopifyCSV([{
+                url: url,
+                title: productData.title,
+                id: productData.id || 0,
+                description: productData.description || '',
+                price: productData.price,
                 brand: productData.brand || null,
-                video: productData.video || null,
-                vendor: productData.vendor || null,
                 basePrice: productData.basePrice || null,
-                category: productData.category || null,
-                subcategory: productData.subcategory || null,
-                productType: productData.productType || null,
-                tags: productData.tags || null
-              }, {
-                sizes: variants.size || [],
-                colors: variants.color || [],
-                availability: jsonldData.availability,
-                stockMap: stockInfo.variantStockMap,
-                colorSizeMatrix: stockInfo.colorSizeMatrix
-              });
+                images: productData.images || [],
+                video: productData.video || null,
+                variants: {
+                  colors: variants.color || ['tek renk'],
+                  sizes: variants.size || ['Standart'],
+                  totalVariants: (variants.color || ['tek renk']).length * (variants.size || ['Standart']).length
+                }
+              }]);
               
               storage.addToHistory(url);
               
