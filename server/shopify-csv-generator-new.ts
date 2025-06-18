@@ -69,6 +69,28 @@ interface ShopifyVariant {
   'Variant Image': string;
   'Variant Weight Unit': string;
   'Cost per item': string;
+  'Option3 Name': string;
+  'Option3 Value': string;
+  'Google Shopping / AdWords Grouping': string;
+  'Google Shopping / AdWords Labels': string;
+  'Google Shopping / Custom Label 0': string;
+  'Google Shopping / Custom Label 1': string;
+  'Google Shopping / Custom Label 2': string;
+  'Google Shopping / Custom Label 3': string;
+  'Google Shopping / Custom Label 4': string;
+  'Variant Tax Code': string;
+  'Included / France': string;
+  'Price / France': string;
+  'Compare At Price / France': string;
+  'Included / Germany': string;
+  'Price / Germany': string;
+  'Compare At Price / Germany': string;
+  'Included / UK': string;
+  'Price / UK': string;
+  'Compare At Price / UK': string;
+  'Included / US': string;
+  'Price / US': string;
+  'Compare At Price / US': string;
 }
 
 function generateHandle(title: string): string {
@@ -92,7 +114,7 @@ function isValidImageUrl(url: string): boolean {
 export async function generateShopifyCSV(products: ProductData[]): Promise<{filename: string, csvPath: string, downloadUrl: string, success: true, message: string, totalRows: number}> {
   console.log(`🔄 CSV oluşturma başlıyor: ${products.length} ürün`);
   
-  // Kullanıcının verdiği exact Shopify template headers
+  // Kullanıcının csv dosyasından alınan exact header sırası - 57 field
   const headers = [
     'Handle', 'Title', 'Body (HTML)', 'Vendor', 'Type', 'Tags', 'Published',
     'Option1 Name', 'Option1 Value', 'Option2 Name', 'Option2 Value',
@@ -102,7 +124,12 @@ export async function generateShopifyCSV(products: ProductData[]): Promise<{file
     'Image Alt Text', 'Gift Card', 'SEO Title', 'SEO Description',
     'Google Shopping / Google Product Category', 'Google Shopping / Gender', 'Google Shopping / Age Group',
     'Google Shopping / MPN', 'Google Shopping / Condition', 'Google Shopping / Custom Product',
-    'Variant Image', 'Variant Weight Unit', 'Cost per item'
+    'Variant Image', 'Variant Weight Unit', 'Cost per item', 'Option3 Name', 'Option3 Value',
+    'Google Shopping / AdWords Grouping', 'Google Shopping / AdWords Labels', 'Google Shopping / Custom Label 0',
+    'Google Shopping / Custom Label 1', 'Google Shopping / Custom Label 2', 'Google Shopping / Custom Label 3',
+    'Google Shopping / Custom Label 4', 'Variant Tax Code', 'Included / France', 'Price / France',
+    'Compare At Price / France', 'Included / Germany', 'Price / Germany', 'Compare At Price / Germany',
+    'Included / UK', 'Price / UK', 'Compare At Price / UK', 'Included / US', 'Price / US', 'Compare At Price / US'
   ];
 
   const shopifyVariants: ShopifyVariant[] = [];
@@ -145,7 +172,7 @@ export async function generateShopifyCSV(products: ProductData[]): Promise<{file
           Title: isFirstVariant ? product.title : '',
           'Body (HTML)': isFirstVariant ? `<p>${product.description || 'Kaliteli ürün'}</p>` : '',
           Vendor: product.brand || 'Turmarkt',
-          Type: product.productType || product.category || '',
+          Type: product.productType || product.category || 'Tişört',
           Tags: isFirstVariant ? (product.tags?.join(',') || 'indirimli') : '',
           Published: 'TRUE',
           'Option1 Name': isFirstVariant ? 'Renk' : '',
@@ -168,8 +195,8 @@ export async function generateShopifyCSV(products: ProductData[]): Promise<{file
           'Image Alt Text': isFirstVariant ? product.title : '',
           'Gift Card': 'FALSE',
           'SEO Title': isFirstVariant ? product.title : '',
-          'SEO Description': isFirstVariant ? (product.description || product.title) : '',
-          'Google Shopping / Google Product Category': isFirstVariant ? 'Apparel & Accessories > Clothing' : '',
+          'SEO Description': isFirstVariant ? (product.description || 'Rahat ve sade tasarım') : '',
+          'Google Shopping / Google Product Category': isFirstVariant ? 'Apparel & Accessories > Clothing > Shirts & Tops' : '',
           'Google Shopping / Gender': isFirstVariant ? 'unisex' : '',
           'Google Shopping / Age Group': isFirstVariant ? 'adult' : '',
           'Google Shopping / MPN': isFirstVariant ? variantSKU : '',
@@ -177,7 +204,29 @@ export async function generateShopifyCSV(products: ProductData[]): Promise<{file
           'Google Shopping / Custom Product': isFirstVariant ? 'FALSE' : '',
           'Variant Image': primaryImage,
           'Variant Weight Unit': isFirstVariant ? 'g' : '',
-          'Cost per item': ''
+          'Cost per item': comparePrice ? (parseFloat(comparePrice) * 0.8).toFixed(2) : '',
+          'Option3 Name': '',
+          'Option3 Value': '',
+          'Google Shopping / AdWords Grouping': '',
+          'Google Shopping / AdWords Labels': '',
+          'Google Shopping / Custom Label 0': '',
+          'Google Shopping / Custom Label 1': '',
+          'Google Shopping / Custom Label 2': '',
+          'Google Shopping / Custom Label 3': '',
+          'Google Shopping / Custom Label 4': '',
+          'Variant Tax Code': '',
+          'Included / France': '',
+          'Price / France': '',
+          'Compare At Price / France': '',
+          'Included / Germany': '',
+          'Price / Germany': '',
+          'Compare At Price / Germany': '',
+          'Included / UK': '',
+          'Price / UK': '',
+          'Compare At Price / UK': '',
+          'Included / US': '',
+          'Price / US': '',
+          'Compare At Price / US': ''
         };
 
         shopifyVariants.push(variant);
