@@ -18,21 +18,21 @@ const MarketplaceSelection = () => {
       icon: <ShoppingCart className="w-12 h-12 mb-4 text-orange-500" />,
       color: "from-orange-500 to-orange-600",
       available: false,
-      path: "/scraper/hepsiburada"
+      path: "/coming-soon/hepsiburada"
     },
     {
       name: "Amazon",
       icon: <Package className="w-12 h-12 mb-4 text-yellow-500" />,
       color: "from-yellow-500 to-yellow-600", 
       available: false,
-      path: "/scraper/amazon"
+      path: "/coming-soon/amazon"
     },
     {
       name: "N11",
       icon: <Truck className="w-12 h-12 mb-4 text-purple-500" />,
       color: "from-purple-500 to-purple-600",
       available: false,
-      path: "/scraper/n11"
+      path: "/coming-soon/n11"
     }
   ];
 
