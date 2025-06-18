@@ -360,20 +360,41 @@ export async function generateShopifyCSV(products: ProductData[]): Promise<{file
   // Ensure temp directory exists
   await fs.mkdir(path.dirname(filePath), { recursive: true });
 
-  // Use professional CSV library for RFC 4180 compliance
+  // Manual CSV generation with strict RFC 4180 compliance
   const headers = Object.keys(shopifyVariants[0]);
-  const csvData = shopifyVariants.map(variant => 
-    headers.map(header => variant[header as keyof ShopifyVariant] || '')
-  );
   
-  const cleanCsvContent = stringify([headers, ...csvData], {
-    quoted: true,
-    quote: '"',
-    escape: '"',
-    delimiter: ',',
-    record_delimiter: '\n',
-    encoding: 'utf8'
+  // Helper function to escape CSV fields properly
+  function escapeCSVField(field: string): string {
+    if (!field && field !== 0) return '';
+    
+    const stringField = String(field);
+    
+    // Always quote fields that contain quotes, commas, newlines, or carriage returns
+    if (stringField.includes('"') || stringField.includes(',') || 
+        stringField.includes('\n') || stringField.includes('\r')) {
+      // Escape quotes by doubling them, then wrap in quotes
+      return '"' + stringField.replace(/"/g, '""') + '"';
+    }
+    
+    return stringField;
+  }
+  
+  // Build CSV content line by line
+  const csvLines = [];
+  
+  // Add header row
+  csvLines.push(headers.map(escapeCSVField).join(','));
+  
+  // Add data rows
+  shopifyVariants.forEach(variant => {
+    const row = headers.map(header => {
+      const value = variant[header as keyof ShopifyVariant];
+      return escapeCSVField(value || '');
+    });
+    csvLines.push(row.join(','));
   });
+  
+  const cleanCsvContent = csvLines.join('\n');
   
   // Write CSV file
   await fs.writeFile(filePath, cleanCsvContent, 'utf8');
