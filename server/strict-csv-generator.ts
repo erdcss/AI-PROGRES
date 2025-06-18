@@ -222,7 +222,7 @@ export async function generateStrictShopifyCSV(products: Product[]): Promise<{
           'Google Shopping / Custom Label 2': '',
           'Google Shopping / Custom Label 3': '',
           'Google Shopping / Custom Label 4': '',
-          'Variant Image': product.images[sizeIndex] || product.images[0] || '',
+          'Variant Image': variantImageSrc,
           'Variant Weight Unit': 'g',
           'Variant Tax Code': '',
           'Cost per item': costPrice,
