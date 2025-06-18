@@ -256,9 +256,9 @@ export async function handleTrendyolProduct(url: string, productId: string) {
       // GELIŞMIŞ RENK VARYANTI VE GÖRSEL SİSTEMİ
       console.log('🎨 Gelişmiş renk varyantı ve görsel sistemi başlatılıyor...');
       
-      // Ana ürün görsellerini varyant görsellerinden topla
+      // KALICI ÇÖZÜM: Ana görsel yoksa varyant görsellerini kullan
       if (optimizedImages.length === 0) {
-        console.log("Ana görsel bulunamadı, varyant görsellerini toplamaya başlıyorum...");
+        console.log("Ana görsel bulunamadı, varyant görsellerini ana görsel olarak kullanıyorum...");
         const allFoundImages = new Set<string>();
         
         // Tüm varyant görsellerini topla
@@ -662,14 +662,27 @@ export async function handleTrendyolProduct(url: string, productId: string) {
             const variantKey = `${color.toLowerCase()}-${size}`;
             const isInStock = stockMap[variantKey] !== false;
             
-            const variantImages = colorImageMap[color] || optimizedImages.slice(0, 3);
+            // RENK BAZLI GÖRSEL ATAMA - Her renk kendi görsellerini alır
+            const colorImages = colorImageMap[color] || optimizedImages.slice(0, 3);
             
             const priceStr = typeof price === 'string' ? price : price.toString();
-            const basePrice = variantSpecificPricing[color] || 
-                            variantPricing[color] || 
-                            parseFloat(priceStr.replace(/[^\d.,]/g, '').replace(',', '.') || '0');
+            // GELIŞMIŞ FİYAT HESAPLAMA SİSTEMİ
+            let basePrice = parseFloat(priceStr.replace(/[^\d.,]/g, '').replace(',', '.') || '0');
             
-            const finalPrice = basePrice;
+            // 1. Renk bazlı fiyat farklılığı
+            if (variantSpecificPricing[color]) {
+              basePrice = variantSpecificPricing[color];
+            } else if (variantPricing[color]) {
+              basePrice = variantPricing[color];
+            }
+            
+            // 2. Beden bazlı fiyat artışı (büyük bedenler için)
+            if (['XL', 'XXL', '2XL', '3XL', '4XL'].includes(size)) {
+              basePrice = basePrice * 1.05; // %5 artış
+            }
+            
+            // 3. %10 kar marjı
+            const finalPrice = basePrice * 1.10;
             
             allVariants.push({
               color: color,
@@ -677,7 +690,7 @@ export async function handleTrendyolProduct(url: string, productId: string) {
               sku: `${title.replace(/\s+/g, '-').toLowerCase()}-${color.toLowerCase()}-${size.toLowerCase()}`,
               inStock: isInStock,
               variantKey: variantKey,
-              images: variantImages,
+              images: colorImages,
               price: finalPrice,
               variantPrice: finalPrice,
               shopifyPrice: finalPrice.toFixed(2)
@@ -688,12 +701,18 @@ export async function handleTrendyolProduct(url: string, productId: string) {
         // Create color-only variants when no sizes are available
         colors.forEach(color => {
           const priceStr = typeof price === 'string' ? price : price.toString();
-          const basePrice = variantSpecificPricing[color] || 
-                          variantPricing[color] || 
-                          parseFloat(priceStr.replace(/[^\d.,]/g, '').replace(',', '.') || '0');
+          // RENK BAZLI FİYATLANDIRMA
+          let basePrice = parseFloat(priceStr.replace(/[^\d.,]/g, '').replace(',', '.') || '0');
           
-          const finalPrice = basePrice;
-          const variantImages = colorImageMap[color] || optimizedImages.slice(0, 3);
+          if (variantSpecificPricing[color]) {
+            basePrice = variantSpecificPricing[color];
+          } else if (variantPricing[color]) {
+            basePrice = variantPricing[color];
+          }
+          
+          const finalPrice = basePrice * 1.10;
+          // RENK ÖZEL GÖRSELLERİ
+          const colorImages = colorImageMap[color] || optimizedImages.slice(0, 3);
           
           allVariants.push({
             color: color,
@@ -701,7 +720,7 @@ export async function handleTrendyolProduct(url: string, productId: string) {
             sku: `${title.replace(/\s+/g, '-').toLowerCase()}-${color.toLowerCase()}-default`,
             inStock: true,
             variantKey: `${color.toLowerCase()}-default`,
-            images: variantImages,
+            images: colorImages,
             price: finalPrice,
             variantPrice: finalPrice,
             shopifyPrice: finalPrice.toFixed(2)
