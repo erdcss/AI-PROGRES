@@ -1324,7 +1324,7 @@ export async function registerRoutes(app: Express) {
   app.get('/api/preview/:filename', async (req, res) => {
     try {
       const filename = req.params.filename;
-      const filePath = path.join(__dirname, '..', 'temp', filename);
+      const filePath = path.join(process.cwd(), 'temp', filename);
       
       if (!fs.existsSync(filePath)) {
         return res.status(404).json({ error: 'CSV file not found' });
@@ -1337,9 +1337,31 @@ export async function registerRoutes(app: Express) {
         return res.json({ headers: [], rows: [], totalRows: 0 });
       }
 
-      const headers = lines[0].split(',').map(h => h.replace(/"/g, '').trim());
+      // Parse CSV headers properly
+      const headerLine = lines[0];
+      const headers = headerLine.split(',').map(h => h.replace(/^"|"$/g, '').trim());
+      
+      // Parse first 3 data rows
       const dataRows = lines.slice(1, 4).map(line => {
-        const values = line.split(',').map(v => v.replace(/"/g, '').trim());
+        const values = [];
+        let current = '';
+        let inQuotes = false;
+        
+        for (let i = 0; i < line.length; i++) {
+          const char = line[i];
+          if (char === '"' && (i === 0 || line[i-1] === ',')) {
+            inQuotes = true;
+          } else if (char === '"' && inQuotes && (i === line.length - 1 || line[i+1] === ',')) {
+            inQuotes = false;
+          } else if (char === ',' && !inQuotes) {
+            values.push(current.trim());
+            current = '';
+          } else {
+            current += char;
+          }
+        }
+        values.push(current.trim());
+        
         const row: any = {};
         headers.forEach((header, index) => {
           row[header] = values[index] || '';
@@ -1348,7 +1370,7 @@ export async function registerRoutes(app: Express) {
       });
 
       res.json({
-        headers,
+        headers: headers.slice(0, 6), // Show first 6 columns
         rows: dataRows,
         totalRows: lines.length - 1
       });
