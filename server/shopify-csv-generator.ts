@@ -142,14 +142,15 @@ export async function generateShopifyCSV(products: ProductData[]): Promise<{file
           const isInStock = isVariantInStock(color, size, product.variants?.stockMap, product.variants?.outOfStockVariants);
           const variantIndex = colorIndex * (product.variants?.sizes?.length || 1) + sizeIndex;
           
-          // Clean function for CSV values containing Turkish characters
+          // Clean function for CSV values - always quote strings with Turkish chars or special content
           const cleanCsvValue = (str: string) => {
             if (!str) return '';
-            // Always wrap Turkish character containing strings in quotes
-            if (/[ıığşüöçİIĞŞÜÖÇ]/.test(str)) {
-              return `"${str.replace(/"/g, '""')}"`;
+            const cleanStr = str.replace(/"/g, '""').replace(/\n/g, ' ').replace(/\r/g, '').trim();
+            // Quote if contains Turkish chars, spaces, commas, or special characters
+            if (/[ıığşüöçİIĞŞÜÖÇ\s,]/.test(cleanStr) || cleanStr.includes('"')) {
+              return `"${cleanStr}"`;
             }
-            return str.replace(/"/g, '""');
+            return cleanStr;
           };
 
           const variant: ShopifyVariant = {
@@ -173,7 +174,7 @@ export async function generateShopifyCSV(products: ProductData[]): Promise<{file
             'Variant Inventory Qty': isInStock ? '100' : '0',
             'Variant Inventory Policy': 'deny',
             'Variant Fulfillment Service': 'manual',
-            'Variant Price': product.price,
+            'Variant Price': String(Math.ceil(parseFloat(product.price) * 1.1)),
             'Variant Compare At Price': product.basePrice !== product.price ? product.basePrice : '',
             'Variant Requires Shipping': 'TRUE',
             'Variant Taxable': 'TRUE',
@@ -336,31 +337,26 @@ export async function generateShopifyCSV(products: ProductData[]): Promise<{file
   // Ensure temp directory exists
   await fs.mkdir(path.dirname(filePath), { recursive: true });
 
-  // Convert to CSV with proper handling of Turkish characters
+  // Use proper CSV library approach - write to buffer then to file
+  const csvBuffer = Buffer.from('\uFEFF', 'utf8'); // UTF-8 BOM for Excel compatibility
   const headers = Object.keys(shopifyVariants[0]);
-  const csvLines = [headers.join(',')];
+  let csvContent = headers.join(',') + '\n';
   
   shopifyVariants.forEach(variant => {
     const row = headers.map(header => {
-      const value = variant[header as keyof ShopifyVariant] || '';
-      const stringValue = String(value);
+      let value = String(variant[header as keyof ShopifyVariant] || '');
       
-      // If value is already quoted (from cleanCsvValue), return as-is
-      if (stringValue.startsWith('"') && stringValue.endsWith('"')) {
-        return stringValue;
+      // Escape quotes by doubling them and wrap in quotes if needed
+      if (value.includes('"') || value.includes(',') || value.includes('\n') || /[ıığşüöçİIĞŞÜÖÇ\s]/.test(value)) {
+        value = `"${value.replace(/"/g, '""')}"`;
       }
       
-      // If value contains special characters, wrap in quotes
-      if (stringValue.includes(',') || stringValue.includes('\n') || stringValue.includes('"') || /[ıığşüöçİIĞŞÜÖÇ]/.test(stringValue)) {
-        return `"${stringValue.replace(/"/g, '""')}"`;
-      }
-      
-      return stringValue;
+      return value;
     });
-    csvLines.push(row.join(','));
+    csvContent += row.join(',') + '\n';
   });
   
-  const cleanCsvContent = csvLines.join('\n');
+  const cleanCsvContent = csvContent;
   
   // Write CSV file
   await fs.writeFile(filePath, cleanCsvContent, 'utf8');
