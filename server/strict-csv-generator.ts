@@ -245,7 +245,22 @@ export async function generateStrictShopifyCSV(products: Product[]): Promise<{
     });
   });
 
-  const csvContent = generateCSVContent(headers, shopifyVariants);
+  // Python csv.writer(f, quoting=csv.QUOTE_ALL) formatında yazma
+  const csvLines: string[] = [];
+  
+  // Header satırı - her alanı çift tırnak içine al
+  csvLines.push(headers.map(h => `"${h.replace(/"/g, '""')}"`).join(','));
+  
+  // Varyant satırları - her alanı çift tırnak içine al
+  shopifyVariants.forEach(variant => {
+    const row = headers.map(header => {
+      const value = (variant as any)[header] || '';
+      return `"${String(value).replace(/"/g, '""')}"`;
+    });
+    csvLines.push(row.join(','));
+  });
+  
+  const csvContent = csvLines.join('\r\n'); // Windows line endings for Shopify
   await fs.promises.writeFile(filePath, csvContent, { encoding: 'utf-8' });
   
   console.log(`📁 Dosya yolu: ${filePath}`);
