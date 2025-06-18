@@ -278,27 +278,236 @@ export async function handleTrendyolProduct(url: string, productId: string) {
         }
       }
       
-      // Use advanced color variant extraction system
-      const { extractColorVariants } = await import('./advanced-color-variant-extractor');
-      const variantExtractionResult = extractColorVariants(htmlContent, $);
+      // Use enhanced variant extraction system
+      const { extractTrendyolVariants } = await import('./enhanced-variant-extractor');
+      const variantData = extractTrendyolVariants(htmlContent, $, parseFloat(price?.toString().replace(/[^\d.,]/g, '').replace(',', '.') || '0'), optimizedImages);
       
-      // Merge results from advanced extraction
-      variantExtractionResult.colors.forEach(color => {
-        if (!colors.includes(color)) {
-          colors.push(color);
-        }
-      });
+      // Apply extracted data
+      colors.push(...variantData.colors);
+      Object.assign(variantPricing, variantData.variantPricing);
+      Object.assign(colorImageMap, variantData.colorImageMap);
+      Object.assign(variantImages, variantData.colorImageMap);
       
-      // Apply extracted pricing with 10% markup
-      Object.entries(variantExtractionResult.variantPricing).forEach(([color, basePrice]) => {
-        variantPricing[color] = basePrice;
+      // Apply 10% markup to all variant pricing
+      Object.entries(variantData.variantPricing).forEach(([color, basePrice]) => {
         variantSpecificPricing[color] = basePrice * 1.10;
       });
       
-      // Apply extracted color-specific images
-      Object.entries(variantExtractionResult.colorImageMap).forEach(([color, images]) => {
-        colorImageMap[color] = images;
-        variantImages[color] = images;
+      console.log('🎨 Enhanced variant extraction completed...');
+      
+      // Extract from window.__PRODUCT_DETAIL_APP_INITIAL_STATE__
+      const initialStatePattern = /window\.__PRODUCT_DETAIL_APP_INITIAL_STATE__\s*=\s*({.*?});/;
+      const initialStateMatch = htmlContent.match(initialStatePattern);
+      
+      if (initialStateMatch) {
+        try {
+          const initialState = JSON.parse(initialStateMatch[1]);
+          const product = initialState?.product;
+          
+          // Extract all variant data structures
+          console.log('Product structure:', Object.keys(product || {}));
+          
+          if (product?.variants && Array.isArray(product.variants)) {
+            console.log(`🔍 Found ${product.variants.length} variants in initial state`);
+            
+            product.variants.forEach((variant: any, index: number) => {
+              console.log(`Variant ${index}:`, Object.keys(variant), variant.attributeType, variant.attributeValue);
+              
+              // Handle different variant types (color, size, etc.)
+              if (variant.attributeType === 'color' || variant.attributeType === 'renk') {
+                const colorName = variant.attributeValue || variant.value || variant.name;
+                
+                if (colorName && !colors.includes(colorName)) {
+                  colors.push(colorName);
+                  console.log(`🎨 Found color variant: ${colorName}`);
+                  
+                  if (variant.price) {
+                    const colorPrice = parseFloat(variant.price);
+                    variantPricing[colorName] = colorPrice;
+                    variantSpecificPricing[colorName] = colorPrice * 1.10;
+                  }
+                  
+                  if (variant.images && Array.isArray(variant.images)) {
+                    const colorImages = variant.images.map((img: any) => {
+                      let url = typeof img === 'string' ? img : (img.url || img);
+                      if (url && url.includes('cdn.dsmcdn.com')) {
+                        url = url.replace(/\/ty\d+\//, '/ty1660/');
+                        if (!url.includes('_org_zoom.jpg')) {
+                          url = url.replace(/\.(jpg|jpeg|png|webp)$/, '_org_zoom.jpg');
+                        }
+                        if (!url.startsWith('https:')) {
+                          url = url.startsWith('//') ? 'https:' + url : 'https://' + url;
+                        }
+                        return url;
+                      }
+                      return url;
+                    }).filter(Boolean);
+                    
+                    if (colorImages.length > 0) {
+                      colorImageMap[colorName] = colorImages;
+                      variantImages[colorName] = colorImages;
+                    }
+                  }
+                }
+              }
+              
+              // Also extract any variant with color property
+              if (!variant.attributeType && (variant.color || variant.colorName)) {
+                const colorName = variant.color || variant.colorName;
+                if (colorName && !colors.includes(colorName)) {
+                  colors.push(colorName);
+                  console.log(`🎨 Found color property: ${colorName}`);
+                  
+                  if (variant.price) {
+                    const colorPrice = parseFloat(variant.price);
+                    variantPricing[colorName] = colorPrice;
+                    variantSpecificPricing[colorName] = colorPrice * 1.10;
+                  }
+                }
+              }
+            });
+          }
+          
+          // Try to extract colors from allVariants array
+          if (product?.allVariants && Array.isArray(product.allVariants)) {
+            console.log(`🔍 Found allVariants: ${product.allVariants.length}`);
+            product.allVariants.forEach((variant: any) => {
+              if (variant.color || variant.colorName) {
+                const colorName = variant.color || variant.colorName;
+                if (!colors.includes(colorName)) {
+                  colors.push(colorName);
+                  
+                  if (variant.price) {
+                    const colorPrice = parseFloat(variant.price);
+                    variantPricing[colorName] = colorPrice;
+                    variantSpecificPricing[colorName] = colorPrice * 1.10;
+                  }
+                }
+              }
+            });
+          }
+          
+          // Try to extract from color variants specifically
+          if (product?.colorVariants && Array.isArray(product.colorVariants)) {
+            console.log(`🔍 Found colorVariants: ${product.colorVariants.length}`);
+            product.colorVariants.forEach((colorVariant: any) => {
+              const colorName = colorVariant.name || colorVariant.colorName || colorVariant.value;
+              if (colorName && !colors.includes(colorName)) {
+                colors.push(colorName);
+                
+                if (colorVariant.price) {
+                  const colorPrice = parseFloat(colorVariant.price);
+                  variantPricing[colorName] = colorPrice;
+                  variantSpecificPricing[colorName] = colorPrice * 1.10;
+                }
+                
+                if (colorVariant.images && Array.isArray(colorVariant.images)) {
+                  const colorImages = colorVariant.images.map((img: any) => {
+                    let url = typeof img === 'string' ? img : (img.url || img);
+                    if (url && url.includes('cdn.dsmcdn.com')) {
+                      url = url.replace(/\/ty\d+\//, '/ty1660/');
+                      if (!url.includes('_org_zoom.jpg')) {
+                        url = url.replace(/\.(jpg|jpeg|png|webp)$/, '_org_zoom.jpg');
+                      }
+                      if (!url.startsWith('https:')) {
+                        url = url.startsWith('//') ? 'https:' + url : 'https://' + url;
+                      }
+                      return url;
+                    }
+                    return url;
+                  }).filter(Boolean);
+                  
+                  if (colorImages.length > 0) {
+                    colorImageMap[colorName] = colorImages;
+                    variantImages[colorName] = colorImages;
+                  }
+                }
+              }
+            });
+          }
+          
+          // Also check for productDetail structure
+          if (product?.productDetail?.variants) {
+            product.productDetail.variants.forEach((variant: any) => {
+              if (variant.color && variant.color.name) {
+                const colorName = variant.color.name;
+                
+                if (!colors.includes(colorName)) {
+                  colors.push(colorName);
+                  
+                  if (variant.price?.discountedPrice?.value) {
+                    const colorPrice = parseFloat(variant.price.discountedPrice.value);
+                    variantPricing[colorName] = colorPrice;
+                    variantSpecificPricing[colorName] = colorPrice * 1.10;
+                  }
+                  
+                  if (variant.images && Array.isArray(variant.images)) {
+                    const colorImages = variant.images.map((img: any) => {
+                      let url = img.url || img;
+                      if (url && url.includes('cdn.dsmcdn.com')) {
+                        url = url.replace(/\/ty\d+\//, '/ty1660/');
+                        if (!url.includes('_org_zoom.jpg')) {
+                          url = url.replace(/\.(jpg|jpeg|png|webp)$/, '_org_zoom.jpg');
+                        }
+                        if (!url.startsWith('https:')) {
+                          url = url.startsWith('//') ? 'https:' + url : 'https://' + url;
+                        }
+                        return url;
+                      }
+                      return url;
+                    }).filter(Boolean);
+                    
+                    if (colorImages.length > 0) {
+                      colorImageMap[colorName] = colorImages;
+                      variantImages[colorName] = colorImages;
+                    }
+                  }
+                }
+              }
+            });
+          }
+        } catch (e) {
+          console.log('Failed to parse initial state:', e);
+        }
+      }
+      
+      // Extract from color picker elements in HTML
+      const colorElements = $('[style*="background"], [class*="color"], [data-testid*="color"]');
+      console.log(`🔍 Found ${colorElements.length} potential color elements`);
+      
+      colorElements.each((_, elem) => {
+        const $elem = $(elem);
+        const style = $elem.attr('style') || '';
+        const title = $elem.attr('title') || $elem.attr('aria-label') || '';
+        
+        // Extract color from background-color or background-image
+        const bgColorMatch = style.match(/background-color:\s*([^;]+)/);
+        const bgImageMatch = style.match(/background-image:\s*url\(['"]?([^'"]+)['"]?\)/);
+        
+        if ((bgColorMatch || bgImageMatch) && title) {
+          const colorName = title.trim();
+          
+          if (colorName && !colors.includes(colorName)) {
+            colors.push(colorName);
+            
+            // If has background image, use it as color-specific image
+            if (bgImageMatch) {
+              let imageUrl = bgImageMatch[1];
+              if (imageUrl.includes('cdn.dsmcdn.com')) {
+                imageUrl = imageUrl.replace(/\/ty\d+\//, '/ty1660/');
+                if (!imageUrl.includes('_org_zoom.jpg')) {
+                  imageUrl = imageUrl.replace(/\.(jpg|jpeg|png|webp)$/, '_org_zoom.jpg');
+                }
+                if (!imageUrl.startsWith('https:')) {
+                  imageUrl = imageUrl.startsWith('//') ? 'https:' + imageUrl : 'https://' + imageUrl;
+                }
+                
+                colorImageMap[colorName] = [imageUrl];
+                variantImages[colorName] = [imageUrl];
+              }
+            }
+          }
+        }
       });
       
       console.log(`✅ ${colors.length} renk verisi bulundu: ${colors.join(', ')}`);
@@ -310,21 +519,7 @@ export async function handleTrendyolProduct(url: string, productId: string) {
         console.log(`   ${color}: ${imgs.length} görsel`);
       });
       
-      // If no specific color images found, distribute general images among colors
-      if (colors.length > 0 && Object.keys(colorImageMap).length === 0) {
-        console.log('🔄 No color-specific images found, distributing general images...');
-        colors.forEach((color, index) => {
-          const startIndex = index * 2;
-          const endIndex = Math.min(startIndex + 3, optimizedImages.length);
-          const assignedImages = optimizedImages.slice(startIndex, endIndex);
-          
-          if (assignedImages.length > 0) {
-            colorImageMap[color] = assignedImages;
-            variantImages[color] = assignedImages;
-            console.log(`   ${color}: ${assignedImages.length} genel görsel atandı`);
-          }
-        });
-      }
+      // The enhanced extractor already handles image and price distribution
       
       // Extract stock information from page
       const stockMatch = htmlContent.match(/"variants":\[(.*?)\]/);
