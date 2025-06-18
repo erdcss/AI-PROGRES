@@ -99,7 +99,7 @@ function generateHandle(title: string): string {
     .replace(/^-|-$/g, '');
 }
 
-function isVariantInStock(color: string, size: string, stockMap: any, outOfStockVariants: string[]): boolean {
+function isVariantInStock(color: string, size: string, stockMap: any, outOfStockVariants?: string[]): boolean {
   const variantKey = `${color.toLowerCase()}-${size}`;
   
   // Check if variant is explicitly marked as out of stock

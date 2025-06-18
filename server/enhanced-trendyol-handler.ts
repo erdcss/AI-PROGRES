@@ -10,6 +10,7 @@ export interface EnhancedVariantData {
   variantPricing: Record<string, number>;
   variantSpecificPricing: Record<string, number>;
   stockMap: Record<string, boolean>;
+  outOfStockVariants: string[];
 }
 
 export async function scrapeTrendyolProduct(inputUrl: string) {
@@ -160,7 +161,7 @@ function extractEnhancedVariants(htmlContent: string, productId: string): Enhanc
   const authenticSizes = authenticSizesSet.size > 0 ? Array.from(authenticSizesSet) : sizes;
     
   // Use authentic colors if found, otherwise default to single color
-  const finalColors = authenticColors.length > 1 ? authenticColors : ['Tek Renk'];
+  const finalColors = authenticColors.length > 1 ? authenticColors : ['tek renk'];
   const finalSizes = authenticSizes.length > 0 ? authenticSizes : sizes;
   
   // Override with authentic detection
@@ -697,6 +698,14 @@ function validateAndClean(
     .filter(size => isValidSize(size))
     .map(size => size.trim())
     .filter((size, index, arr) => arr.indexOf(size) === index);
+
+  // Track out of stock variants
+  const outOfStockVariants: string[] = [];
+  Object.keys(stockMap).forEach(variantKey => {
+    if (!stockMap[variantKey]) {
+      outOfStockVariants.push(variantKey);
+    }
+  });
 
   // Remove duplicate images
   const cleanImages = images.filter((img, index, arr) => arr.indexOf(img) === index);

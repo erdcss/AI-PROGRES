@@ -77,17 +77,12 @@ export async function processBulkProducts(urls: string[]): Promise<BulkProcessin
   // Generate CSV if we have successful products
   if (successfulProducts.length > 0) {
     try {
-      console.log(`📝 ${successfulProducts.length} ürün için CSV oluşturuluyor...`);
+      console.log(`📝 ${successfulProducts.length} ürün için Shopify CSV oluşturuluyor...`);
       
-      const csvResult = await generateVariantSpecificCSV(successfulProducts as any);
-      const timestamp = new Date().toISOString().slice(0, 19).replace(/:/g, '-');
-      const filename = `toplu-urunler-${timestamp}.csv`;
+      const { generateShopifyCSV } = await import('./shopify-csv-generator');
+      const filename = await generateShopifyCSV(successfulProducts as any);
       
-      // Copy to final location
-      const finalPath = path.join('./temp', filename);
-      fs.copyFileSync(csvResult.csvPath, finalPath);
-      
-      console.log(`✅ Toplu CSV oluşturuldu: ${filename}`);
+      console.log(`✅ Toplu Shopify CSV oluşturuldu: ${filename}`);
       
       return {
         success: true,

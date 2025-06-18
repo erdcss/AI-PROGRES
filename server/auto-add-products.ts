@@ -119,10 +119,6 @@ export async function generateAutoCSV() {
     const { generateShopifyCSV } = await import('./shopify-csv-generator');
     const filename = await generateShopifyCSV(autoAddState.products as any);
     
-    // Copy to permanent location
-    const finalPath = path.join('./temp', filename);
-    fs.copyFileSync(csvResult.csvPath, finalPath);
-    
     console.log(`✅ Otomatik CSV oluşturuldu: ${filename}`);
     
     return {
