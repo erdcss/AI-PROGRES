@@ -25,36 +25,19 @@
   transition: opacity 300ms ease-in, transform 300ms ease-in;
 }
 
-/* Smooth button transitions */
+/* Simple button transitions */
 button {
-  transition: all 0.2s ease-in-out;
+  transition: background-color 0.15s ease;
 }
 
-button:hover {
-  transform: translateY(-1px);
-}
-
-button:active {
-  transform: translateY(0);
-}
-
-/* Card hover animations */
+/* Simple card hover */
 .card-hover {
-  transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1);
+  transition: background-color 0.2s ease;
 }
 
-.card-hover:hover {
-  transform: translateY(-4px);
-  box-shadow: 0 20px 25px -5px rgba(0, 0, 0, 0.1), 0 10px 10px -5px rgba(0, 0, 0, 0.04);
-}
-
-/* Input focus animations */
+/* Simple input focus */
 input, textarea {
-  transition: all 0.2s ease-in-out;
-}
-
-input:focus, textarea:focus {
-  transform: scale(1.02);
+  transition: border-color 0.15s ease;
 }
 
 /* Loading pulse animation */

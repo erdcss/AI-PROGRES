@@ -417,7 +417,7 @@ function ScraperPage({ platform = 'trendyol' }: ScraperPageProps) {
         <motion.div
           initial={false}
           animate={product ? { y: -20, scale: 0.95, opacity: 0.8 } : { y: 0, scale: 1, opacity: 1 }}
-          className="transition-all duration-500"
+          className=""
         >
           <div className="text-center mb-6">
             <div className="flex justify-center mb-4">
@@ -505,7 +505,7 @@ function ScraperPage({ platform = 'trendyol' }: ScraperPageProps) {
               initial={{ opacity: 0, y: 50 }}
               animate={{ opacity: 1, y: 0 }}
               exit={{ opacity: 0, y: -50 }}
-              transition={{ duration: 0.5 }}
+              transition={{ duration: 0.2 }}
             >
               <Card className="bg-gray-900 border-gray-800">
                 <CardContent className="p-6">
@@ -635,7 +635,7 @@ function ScraperPage({ platform = 'trendyol' }: ScraperPageProps) {
                                       Ana
                                     </div>
                                   )}
-                                  <div className="absolute inset-0 bg-black/20 opacity-0 group-hover:opacity-100 transition-opacity duration-200" />
+                                  <div className="absolute inset-0 bg-black/20 opacity-0 group-hover:opacity-100" />
                                 </div>
                               ))}
                           </div>
