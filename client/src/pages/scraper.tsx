@@ -390,7 +390,7 @@ function ScraperPage({ platform = 'trendyol' }: ScraperPageProps) {
 
     try {
       // CSV export varsa o kullanılır, yoksa preview kullanılır
-      const downloadUrl = product.csvExport?.downloadUrl || `/api/csv-download/${product.preview?.filename}`;
+      const downloadUrl = product.csvExport?.downloadUrl || `/csv/${product.preview?.filename}`;
       const filename = product.csvExport?.filename || product.preview?.filename;
       
       if (product.csvExport?.downloadUrl) {

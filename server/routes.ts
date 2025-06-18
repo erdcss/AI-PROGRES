@@ -52,6 +52,17 @@ function normalizeImageUrl(url: string): string {
 }
 
 export async function registerRoutes(app: Express) {
+  // CSV static serving - must be FIRST to avoid Vite interference
+  app.use('/csv', express.static(path.join(process.cwd(), 'temp'), {
+    setHeaders: (res, filePath) => {
+      if (filePath.endsWith('.csv')) {
+        res.setHeader('Content-Type', 'text/csv; charset=utf-8');
+        res.setHeader('Content-Disposition', `attachment; filename="${path.basename(filePath)}"`);
+        res.setHeader('Cache-Control', 'no-cache');
+      }
+    }
+  }));
+
   // CSV önizleme endpoint'i
   app.get('/api/preview/:filename', (req, res) => {
     try {
@@ -1338,49 +1349,7 @@ export async function registerRoutes(app: Express) {
     }
   });
 
-  // CSV dosyası indirme endpoint'i - farklı path kullanarak Vite conflict'ini önle
-  app.get('/api/csv-download/:filename', (req, res) => {
-    try {
-      const filename = req.params.filename;
-      // Hem temp hem de /tmp klasörlerini kontrol et
-      let filepath = path.join('./temp', filename);
-      
-      if (!fs.existsSync(filepath)) {
-        // /tmp klasöründe de ara
-        filepath = path.join('/tmp', filename);
-        if (!fs.existsSync(filepath)) {
-          console.log(`CSV dosyası bulunamadı: ${filename} (./temp ve /tmp kontrol edildi)`);
-          return res.status(404).json({ message: `CSV dosyası bulunamadı: ${filename}` });
-        }
-      }
-      
-      const csvContent = fs.readFileSync(filepath, 'utf8');
-      
-      if (!csvContent.startsWith('Handle,') && !csvContent.includes(',')) {
-        return res.status(400).json({ message: 'Geçersiz CSV dosyası formatı' });
-      }
-      
-      // Force CSV headers before any other middleware can interfere
-      res.writeHead(200, {
-        'Content-Type': 'text/csv; charset=utf-8',
-        'Content-Disposition': `attachment; filename="${filename}"`,
-        'Content-Length': Buffer.byteLength(csvContent, 'utf8'),
-        'Cache-Control': 'no-cache, no-store, must-revalidate',
-        'Pragma': 'no-cache',
-        'Expires': '0',
-        'X-Content-Type-Options': 'nosniff'
-      });
-      
-      res.end(csvContent);
-      
-    } catch (error: any) {
-      console.error('CSV indirme hatası:', error);
-      return res.status(500).json({ 
-        message: "CSV dosyası indirilemedi",
-        error: error.message 
-      });
-    }
-  });
+
 
   // CSV preview endpoint - must be before other routes
   app.get('/api/preview/:filename', (req, res) => {
