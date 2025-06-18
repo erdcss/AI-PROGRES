@@ -245,11 +245,13 @@ export async function handleTrendyolProduct(url: string, productId: string) {
       const optimizedImages = uniqueImages.slice(0, 10); // Limit to 10 authentic product images
       console.log(`🖼️ ${optimizedImages.length} sadece ürün görseli filtrelendi (logos/footer hariç)`);
       
-      // Extract real variant data from page content with pricing
+      // Extract advanced variant data with individual pricing and image matching
       const colors: string[] = [];
       const sizes: string[] = [];
       let stockMap: Record<string, boolean> = {};
-      let variantPricing: Record<string, number> = {};
+      let variantPricing: Record<string, number> = {}; // Individual variant pricing
+      let colorImageMap: Record<string, string[]> = {}; // Color-specific image mapping
+      let variantSpecificPricing: Record<string, number> = {}; // Each variant combo pricing
       
       // Extract from inline JavaScript data containing allVariants
       const allVariantsMatch = htmlContent.match(/"allVariants":\[(.*?)\]/);
@@ -283,44 +285,76 @@ export async function handleTrendyolProduct(url: string, productId: string) {
             if (color.colorName && !colors.includes(color.colorName)) {
               colors.push(color.colorName);
               
-              // Extract color-specific pricing
+              // Extract color-specific pricing for individual variants
               if (color.price) {
-                variantPricing[color.colorName] = parseFloat(color.price);
+                const colorPrice = parseFloat(color.price);
+                variantPricing[color.colorName] = colorPrice;
+                
+                // Apply 10% markup to each color variant
+                const markupPrice = colorPrice * 1.10;
+                variantSpecificPricing[color.colorName] = markupPrice;
               }
               
-              // Extract color-specific images with enhanced matching
+              // Enhanced color-specific image extraction and matching
+              let colorImages: string[] = [];
+              
               if (color.images && Array.isArray(color.images)) {
-                variantImages[color.colorName] = color.images.map((img: any) => {
+                colorImages = color.images.map((img: any) => {
                   let url = img.url || img.href || img;
                   if (typeof url === 'string') {
                     if (url.startsWith('//')) url = 'https:' + url;
                     if (url.includes('cdn.dsmcdn.com')) {
-                      // Keep original URLs to prevent 404s
+                      // Ensure working CDN format
+                      url = url.replace(/\/ty\d+\//, '/ty1660/');
+                      if (!url.includes('_org_zoom.jpg')) {
+                        url = url.replace(/\.(jpg|jpeg|png|webp)$/, '_org_zoom.jpg');
+                      }
                       if (!url.startsWith('https:')) {
                         url = url.replace(/^http:/, 'https:');
                       }
-                      url = url.replace(/_small\.(jpg|jpeg|png|webp)/, '_org.$1');
-                      url = url.replace(/mnresize\/\d+\/\d+\//, 'mnresize/1200/1800/');
                     }
                     return url;
                   }
                   return url;
                 }).filter(Boolean);
-              } else {
-                // Try to match images by color name in URL path
-                const colorSpecificImages = images.filter(img => 
-                  img.toLowerCase().includes(color.colorName.toLowerCase()) ||
-                  img.includes(`-${color.colorName.toLowerCase()}-`) ||
-                  img.includes(`/${color.colorName.toLowerCase()}/`)
-                );
-                if (colorSpecificImages.length > 0) {
-                  variantImages[color.colorName] = colorSpecificImages;
+              }
+              
+              // If no direct color images, try intelligent matching from all product images
+              if (colorImages.length === 0) {
+                const colorName = color.colorName.toLowerCase();
+                colorImages = optimizedImages.filter(img => {
+                  // Match by color name in URL or similar patterns
+                  return img.toLowerCase().includes(colorName) ||
+                         img.includes(`-${colorName}-`) ||
+                         img.includes(`/${colorName}/`) ||
+                         img.includes(`_${colorName}_`);
+                });
+                
+                // If still no matches, assign sequential images (2-3 images per color)
+                if (colorImages.length === 0) {
+                  const colorIndex = colors.indexOf(color.colorName);
+                  const startIndex = colorIndex * 2;
+                  const endIndex = Math.min(startIndex + 3, optimizedImages.length);
+                  colorImages = optimizedImages.slice(startIndex, endIndex);
                 }
+              }
+              
+              // Store color-specific images
+              if (colorImages.length > 0) {
+                colorImageMap[color.colorName] = colorImages;
+                variantImages[color.colorName] = colorImages;
               }
             }
           });
-          console.log(`✅ Gerçek renk verisi bulundu: ${colors.join(', ')}`);
-          console.log(`🎨 Renk görselleri: ${Object.keys(variantImages).length} renk için görsel eşleşmesi`);
+          
+          console.log(`✅ ${colors.length} renk verisi bulundu: ${colors.join(', ')}`);
+          console.log(`💰 Renk bazlı fiyatlar (%10 kar): ${Object.keys(variantSpecificPricing).length} adet`);
+          console.log(`🎨 Renk-görsel eşleşmesi: ${Object.keys(colorImageMap).length} renk için`);
+          
+          // Log color-image mapping details
+          Object.entries(colorImageMap).forEach(([color, imgs]) => {
+            console.log(`   ${color}: ${imgs.length} görsel`);
+          });
         } catch (e) {
           console.log("Renk verisi parse edilemedi:", e);
         }
@@ -482,18 +516,52 @@ export async function handleTrendyolProduct(url: string, productId: string) {
         vendor: null
       };
 
-      // Generate CSV with stock filtering
-      console.log(`📊 Generating CSV with ${colors.length} colors and ${sizes.length} sizes`);
+      // Generate comprehensive variant combinations with individual pricing and images
+      const allVariants: any[] = [];
+      if (colors.length > 0 && sizes.length > 0) {
+        colors.forEach(color => {
+          sizes.forEach(size => {
+            const variantKey = `${color.toLowerCase()}-${size}`;
+            const isInStock = stockMap[variantKey] !== false; // Default to true if undefined
+            
+            // Get color-specific images or fallback to general images
+            const variantImages = colorImageMap[color] || optimizedImages.slice(0, 3);
+            
+            // Calculate individual variant price with 10% markup
+            const priceStr = typeof price === 'string' ? price : price.toString();
+            const basePrice = variantSpecificPricing[color] || 
+                            variantPricing[color] || 
+                            parseFloat(priceStr.replace(/[^\d.,]/g, '').replace(',', '.') || '0');
+            
+            const finalPrice = basePrice > 0 ? basePrice * 1.10 : basePrice;
+            
+            allVariants.push({
+              color: color,
+              size: size,
+              sku: `${title.replace(/\s+/g, '-').toLowerCase()}-${color.toLowerCase()}-${size.toLowerCase()}`,
+              inStock: isInStock,
+              variantKey: variantKey,
+              images: variantImages,
+              price: finalPrice.toFixed(2),
+              originalPrice: basePrice.toFixed(2)
+            });
+          });
+        });
+      }
+      
+      console.log(`🔄 ${allVariants.length} varyant kombinasyonu oluşturuldu (her biri kendi görseli ve %10 karlı fiyatı ile)`);
+
+      // Generate variant-specific CSV with individual pricing and images
+      console.log(`📊 Generating variant-specific CSV with individual pricing and color-matched images`);
       let result;
       try {
-        result = await generateShopifyCSV(productData, {
-          sizes,
-          colors,
-          stockMap
-        });
-        console.log(`✅ CSV generation successful`);
+        // Import the new variant-specific CSV generator
+        const { generateVariantSpecificCSV } = await import('./variant-specific-csv-generator');
+        
+        result = await generateVariantSpecificCSV(productData, allVariants);
+        console.log(`✅ Variant-specific CSV generation successful`);
       } catch (csvError) {
-        console.log(`❌ CSV generation failed:`, csvError);
+        console.log(`❌ Variant-specific CSV generation failed:`, csvError);
         throw csvError;
       }
       
@@ -515,8 +583,10 @@ export async function handleTrendyolProduct(url: string, productId: string) {
         variants: {
           colors,
           sizes,
-          variantImages,
-          pricing: variantPricing
+          variantImages: colorImageMap,
+          pricing: variantSpecificPricing,
+          allVariants: allVariants,
+          totalVariants: allVariants.length
         },
         attributes: productData.attributes,
         categories: categories.length > 0 ? categories : ['Moda', 'Giyim'],
