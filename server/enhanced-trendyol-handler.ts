@@ -83,7 +83,7 @@ export async function scrapeTrendyolProduct(inputUrl: string) {
     console.log(`🔍 ${variantData.colors.length} renk, ${variantData.sizes.length} beden tespit edildi`);
     console.log(`📊 ${totalVariants} toplam varyant`);
 
-    return {
+    const productData = {
       title,
       price: price || '0',
       id: parseInt(productId) || 0,
@@ -113,8 +113,34 @@ export async function scrapeTrendyolProduct(inputUrl: string) {
       }
     };
 
-    // Return enhanced product data with complete variant information
-    return productData;
+    // CSV otomatik oluştur
+    try {
+      console.log('🔄 Otomatik CSV oluşturuluyor...');
+      const { generateShopifyCSV } = await import('./shopify-csv-generator');
+      const csvResult = await generateShopifyCSV([productData]);
+      console.log('✅ CSV başarıyla oluşturuldu:', csvResult.filename);
+      
+      return {
+        ...productData,
+        csvExport: {
+          filename: csvResult.filename,
+          downloadUrl: `/temp/${csvResult.filename}`,
+          success: true,
+          message: "CSV hazır",
+          totalRows: csvResult.totalRows
+        }
+      };
+    } catch (csvError: any) {
+      console.error('❌ CSV oluşturma hatası:', csvError);
+      return {
+        ...productData,
+        csvExport: {
+          success: false,
+          error: csvError.message,
+          message: "CSV oluşturulamadı"
+        }
+      };
+    }
 
   } catch (error) {
     console.log("❌ Enhanced Trendyol handler hatası:", error);
