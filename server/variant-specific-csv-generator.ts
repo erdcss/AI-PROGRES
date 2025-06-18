@@ -27,6 +27,38 @@ interface ProductData {
 }
 
 /**
+ * Safely escape CSV field content
+ */
+function escapeCsvField(field: string): string {
+  if (!field) return '';
+  
+  // Replace all quotes with double quotes and wrap in quotes if contains special chars
+  const escaped = field.replace(/"/g, '""');
+  
+  // Always wrap in quotes to avoid issues with commas, quotes, and newlines
+  return `"${escaped}"`;
+}
+
+/**
+ * Clean HTML content for CSV export
+ */
+function cleanHtmlForCsv(html: string): string {
+  if (!html) return '';
+  
+  // Remove HTML tags, line breaks and normalize whitespace
+  return html
+    .replace(/<[^>]*>/g, '') // Remove HTML tags
+    .replace(/\r\n|\r|\n/g, ' ') // Remove line breaks
+    .replace(/\s+/g, ' ') // Normalize whitespace
+    .replace(/&nbsp;/g, ' ') // Replace non-breaking spaces
+    .replace(/&amp;/g, '&') // Decode HTML entities
+    .replace(/&lt;/g, '<')
+    .replace(/&gt;/g, '>')
+    .replace(/&quot;/g, '"')
+    .trim();
+}
+
+/**
  * Generate Shopify CSV with individual variant rows, each with specific images and 10% markup pricing
  */
 export async function generateVariantSpecificCSV(
@@ -79,14 +111,18 @@ export async function generateVariantSpecificCSV(
     const variantImages = variant.images.length > 0 ? variant.images : [];
     const mainImage = variantImages[0] || '';
     
+    // Clean and prepare data
+    const cleanDescription = cleanHtmlForCsv(productData.description);
+    const cleanTitle = productData.title || '';
+    
     // Create base row for this variant
     const baseRow = {
       handle,
-      title: isFirstRow ? productData.title : '',
-      body_html: isFirstRow ? productData.description : '',
-      vendor: productData.brand || '',
-      product_category: (productData.categories && productData.categories[0]) || 'Fashion',
-      type: productData.productType || 'Clothing',
+      title: isFirstRow ? cleanTitle : '',
+      body_html: isFirstRow ? cleanDescription : '',
+      vendor: productData.brand || 'Marka Bilinmiyor',
+      product_category: (productData.categories && productData.categories[0]) || 'Moda',
+      type: productData.productType || 'Giyim',
       tags: isFirstRow ? (productData.tags || []).join(', ') : '',
       published: 'TRUE',
       option1_name: 'Renk',
@@ -101,17 +137,17 @@ export async function generateVariantSpecificCSV(
       variant_inventory_qty: variant.inStock ? '10' : '0',
       variant_inventory_policy: 'deny',
       variant_fulfillment_service: 'manual',
-      variant_price: variant.price, // Individual variant price with 10% markup
-      variant_compare_at_price: variant.originalPrice,
+      variant_price: variant.price,
+      variant_compare_at_price: variant.originalPrice || '',
       variant_requires_shipping: 'TRUE',
       variant_taxable: 'TRUE',
       variant_barcode: '',
       image_src: mainImage,
       image_position: mainImage ? '1' : '',
-      image_alt_text: mainImage ? `${productData.title} - ${variant.color} ${variant.size}` : '',
+      image_alt_text: mainImage ? `${cleanTitle} - ${variant.color} ${variant.size}` : '',
       gift_card: 'FALSE',
-      seo_title: isFirstRow ? productData.title : '',
-      seo_description: isFirstRow ? productData.description.substring(0, 160) : '',
+      seo_title: isFirstRow ? cleanTitle : '',
+      seo_description: isFirstRow ? cleanDescription.substring(0, 160) : '',
       google_shopping_google_product_category: 'Apparel & Accessories',
       google_shopping_gender: 'Unisex',
       google_shopping_age_group: 'Adult',
@@ -131,13 +167,8 @@ export async function generateVariantSpecificCSV(
       status: 'active'
     };
 
-    // Add main variant row
-    const mainRowValues = Object.values(baseRow).map(value => {
-      if (typeof value === 'string' && (value.includes(',') || value.includes('"') || value.includes('\n'))) {
-        return `"${value.replace(/"/g, '""')}"`;
-      }
-      return value;
-    });
+    // Add main variant row with proper escaping
+    const mainRowValues = Object.values(baseRow).map(value => escapeCsvField(String(value || '')));
     
     csvRows.push(mainRowValues.join(','));
     totalVariantRows++;
@@ -196,12 +227,7 @@ export async function generateVariantSpecificCSV(
           status: ''
         };
 
-        const imageRowValues = Object.values(imageRow).map(value => {
-          if (typeof value === 'string' && (value.includes(',') || value.includes('"') || value.includes('\n'))) {
-            return `"${value.replace(/"/g, '""')}"`;
-          }
-          return value;
-        });
+        const imageRowValues = Object.values(imageRow).map(value => escapeCsvField(String(value || '')));
         
         csvRows.push(imageRowValues.join(','));
         totalVariantRows++;
@@ -211,8 +237,9 @@ export async function generateVariantSpecificCSV(
     isFirstRow = false;
   });
 
-  // Write CSV file
-  fs.writeFileSync(csvPath, csvRows.join('\n'), 'utf8');
+  // Write CSV file with BOM for proper UTF-8 encoding
+  const csvContent = '\uFEFF' + csvRows.join('\n');
+  fs.writeFileSync(csvPath, csvContent, 'utf8');
   
   console.log(`✅ Variant-specific CSV created: ${filename}`);
   console.log(`📊 Total variants: ${variants.length}`);
