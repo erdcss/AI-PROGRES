@@ -137,11 +137,11 @@ export function ProductDisplay({ data }: ProductDisplayProps) {
         <CardHeader>
           <CardTitle className="flex items-center gap-2 text-white">
             <Tag className="h-5 w-5 text-green-400" />
-            Renk Varyantları ({data.variants.colors.length})
+            Renk Varyantları ({data.variants?.colors?.length || 0})
           </CardTitle>
         </CardHeader>
         <CardContent className="space-y-4">
-          {data.variants.colors && data.variants.colors.length > 0 ? data.variants.colors.map((color) => (
+          {data.variants?.colors && data.variants.colors.length > 0 ? data.variants.colors.map((color) => (
             <div key={color} className="border border-gray-600 rounded-lg p-4">
               <div className="flex items-center justify-between mb-3">
                 <h3 className="font-semibold text-white">{color}</h3>

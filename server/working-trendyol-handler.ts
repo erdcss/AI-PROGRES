@@ -228,10 +228,12 @@ export async function handleTrendyolProduct(url: string, productId: string) {
       const colorImageMap: Record<string, string[]> = {}; // Color-specific image mapping
       const variantSpecificPricing: Record<string, number> = {}; // Each variant combo pricing
       
-      // Extract from inline JavaScript data containing allVariants
+      // TÜM VARYANT VERİLERİNİ ÇIKAR
       const allVariantsMatch = htmlContent.match(/"allVariants":\[(.*?)\]/);
       const productColorsMatch = htmlContent.match(/"productColors":\[(.*?)\]/);
+      const sizesMatch = htmlContent.match(/"sizes":\[(.*?)\]/);
       
+      // Beden verilerini çıkar
       if (allVariantsMatch) {
         try {
           const variantData = JSON.parse(`[${allVariantsMatch[1]}]`);
@@ -239,17 +241,57 @@ export async function handleTrendyolProduct(url: string, productId: string) {
             if (variant.value && !sizes.includes(variant.value)) {
               sizes.push(variant.value);
             }
-            // Extract variant-specific pricing
+            // Beden bazlı fiyat
             if (variant.price && variant.value) {
               variantPricing[variant.value] = parseFloat(variant.price);
             }
           });
-          console.log(`✅ Gerçek beden verisi bulundu: ${sizes.join(', ')}`);
-          if (Object.keys(variantPricing).length > 0) {
-            console.log(`💰 Varyant fiyatları bulundu: ${Object.keys(variantPricing).length} adet`);
-          }
+          console.log(`✅ Beden verisi: ${sizes.join(', ')}`);
         } catch (e) {
-          console.log("Varyant verisi parse edilemedi:", e);
+          console.log("Beden verisi parse edilemedi:", e);
+        }
+      }
+      
+      // Renk verilerini çıkar
+      if (productColorsMatch) {
+        try {
+          const colorData = JSON.parse(`[${productColorsMatch[1]}]`);
+          colorData.forEach((color: any) => {
+            const colorName = color.colorName || color.name || color.value;
+            if (colorName && !colors.includes(colorName)) {
+              colors.push(colorName);
+              
+              // Renk bazlı fiyat
+              if (color.price) {
+                variantSpecificPricing[colorName] = parseFloat(color.price);
+              }
+              
+              // Renk bazlı görsel
+              if (color.images && Array.isArray(color.images)) {
+                colorImageMap[colorName] = color.images;
+                variantImages[colorName] = color.images;
+              }
+            }
+          });
+          console.log(`✅ Renk verisi: ${colors.join(', ')}`);
+        } catch (e) {
+          console.log("Renk verisi parse edilemedi:", e);
+        }
+      }
+      
+      // Ekstra beden verisi
+      if (sizesMatch) {
+        try {
+          const sizeData = JSON.parse(`[${sizesMatch[1]}]`);
+          sizeData.forEach((size: any) => {
+            const sizeName = size.sizeName || size.name || size.value || size;
+            if (sizeName && typeof sizeName === 'string' && !sizes.includes(sizeName)) {
+              sizes.push(sizeName);
+            }
+          });
+          console.log(`✅ Ek beden verisi: ${sizes.join(', ')}`);
+        } catch (e) {
+          console.log("Ek beden verisi parse edilemedi:", e);
         }
       }
       
@@ -288,20 +330,24 @@ export async function handleTrendyolProduct(url: string, productId: string) {
             product.variants.forEach((variant: any, index: number) => {
               console.log(`Variant ${index}:`, Object.keys(variant), variant.attributeType, variant.attributeValue);
               
-              // Handle different variant types (color, size, etc.)
-              if (variant.attributeType === 'color' || variant.attributeType === 'renk') {
-                const colorName = variant.attributeValue || variant.value || variant.name;
+              // GELIŞMIŞ RENK VARYANTI ÇIKARMA
+              if (variant.attributeType === 'color' || variant.attributeType === 'renk' || variant.colorName || variant.color) {
+                const colorName = variant.attributeValue || variant.value || variant.name || variant.colorName || variant.color;
+                const colorCode = variant.colorCode || variant.hexCode || variant.attributeBeautifiedValue || null;
                 
                 if (colorName && !colors.includes(colorName)) {
                   colors.push(colorName);
-                  console.log(`🎨 Found color variant: ${colorName}`);
+                  console.log(`🎨 Renk varyantı bulundu: ${colorName} ${colorCode ? `(${colorCode})` : ''}`);
                   
+                  // Renk bazlı fiyat farklılığı
                   if (variant.price) {
                     const colorPrice = parseFloat(variant.price);
                     variantPricing[colorName] = colorPrice;
-                    variantSpecificPricing[colorName] = colorPrice * 1.10;
+                    variantSpecificPricing[colorName] = colorPrice;
+                    console.log(`💰 ${colorName} rengi için özel fiyat: ${colorPrice} TL`);
                   }
                   
+                  // Renk bazlı görsel atama
                   if (variant.images && Array.isArray(variant.images)) {
                     const colorImages = variant.images.map((img: any) => {
                       let url = typeof img === 'string' ? img : (img.url || img);
@@ -321,7 +367,25 @@ export async function handleTrendyolProduct(url: string, productId: string) {
                     if (colorImages.length > 0) {
                       colorImageMap[colorName] = colorImages;
                       variantImages[colorName] = colorImages;
+                      console.log(`🖼️ ${colorName} rengi için ${colorImages.length} görsel atandı`);
                     }
+                  }
+                }
+              }
+              
+              // GELIŞMIŞ BEDEN VARYANTI ÇIKARMA
+              if (variant.attributeType === 'size' || variant.attributeType === 'beden' || variant.sizeName || variant.size) {
+                const sizeName = variant.attributeValue || variant.value || variant.name || variant.sizeName || variant.size;
+                
+                if (sizeName && !sizes.includes(sizeName)) {
+                  sizes.push(sizeName);
+                  console.log(`📏 Beden varyantı bulundu: ${sizeName}`);
+                  
+                  // Beden bazlı fiyat farklılığı
+                  if (variant.price) {
+                    const sizePrice = parseFloat(variant.price);
+                    variantPricing[sizeName] = sizePrice;
+                    console.log(`💰 ${sizeName} bedeni için özel fiyat: ${sizePrice} TL`);
                   }
                 }
               }
@@ -519,16 +583,53 @@ export async function handleTrendyolProduct(url: string, productId: string) {
         }
       }
       
-      // If no colors found, extract from color selectors
+      // FALLBACK RENK VE BEDEN ÇIKARMA
       if (colors.length === 0) {
-        const colorPattern = /"color":\s*"([^"]+)"/g;
-        let colorMatch;
-        while ((colorMatch = colorPattern.exec(htmlContent)) !== null) {
-          const colorName = colorMatch[1];
-          if (colorName && !colors.includes(colorName)) {
-            colors.push(colorName);
+        console.log('🔍 Fallback renk arama başlatılıyor...');
+        
+        // Çeşitli renk pattern'ları
+        const colorPatterns = [
+          /"color":\s*"([^"]+)"/g,
+          /"colorName":\s*"([^"]+)"/g,
+          /"attributeValue":\s*"([^"]+)"/g,
+          /data-color="([^"]+)"/g,
+          /class="[^"]*color[^"]*"[^>]*>([^<]+)</g
+        ];
+        
+        colorPatterns.forEach(pattern => {
+          let match;
+          while ((match = pattern.exec(htmlContent)) !== null) {
+            const colorName = match[1];
+            if (colorName && colorName.length > 1 && !colors.includes(colorName)) {
+              colors.push(colorName);
+              console.log(`🎨 Fallback ile renk bulundu: ${colorName}`);
+            }
           }
-        }
+        });
+      }
+      
+      if (sizes.length === 0) {
+        console.log('🔍 Fallback beden arama başlatılıyor...');
+        
+        // Çeşitli beden pattern'ları
+        const sizePatterns = [
+          /"size":\s*"([^"]+)"/g,
+          /"sizeName":\s*"([^"]+)"/g,
+          /data-size="([^"]+)"/g,
+          /class="[^"]*size[^"]*"[^>]*>([^<]+)</g,
+          /"value":\s*"(XS|S|M|L|XL|XXL|2XL|3XL|4XL|\d+)"/g
+        ];
+        
+        sizePatterns.forEach(pattern => {
+          let match;
+          while ((match = pattern.exec(htmlContent)) !== null) {
+            const sizeName = match[1];
+            if (sizeName && sizeName.length <= 4 && !sizes.includes(sizeName)) {
+              sizes.push(sizeName);
+              console.log(`📏 Fallback ile beden bulundu: ${sizeName}`);
+            }
+          }
+        });
       }
       
       // If no stock data was extracted, create basic stock map for available sizes
@@ -666,23 +767,40 @@ export async function handleTrendyolProduct(url: string, productId: string) {
             const colorImages = colorImageMap[color] || optimizedImages.slice(0, 3);
             
             const priceStr = typeof price === 'string' ? price : price.toString();
-            // GELIŞMIŞ FİYAT HESAPLAMA SİSTEMİ
+            // DETAYLI FİYAT HESAPLAMA SİSTEMİ
             let basePrice = parseFloat(priceStr.replace(/[^\d.,]/g, '').replace(',', '.') || '0');
+            let finalPrice = basePrice;
             
-            // 1. Renk bazlı fiyat farklılığı
+            // 1. Renk bazlı fiyat farklılığı kontrolü
             if (variantSpecificPricing[color]) {
-              basePrice = variantSpecificPricing[color];
+              finalPrice = variantSpecificPricing[color];
+              console.log(`🎨 ${color} rengi için özel fiyat uygulandı: ${finalPrice} TL`);
             } else if (variantPricing[color]) {
-              basePrice = variantPricing[color];
+              finalPrice = variantPricing[color];
+              console.log(`🎨 ${color} rengi için genel fiyat uygulandı: ${finalPrice} TL`);
             }
             
-            // 2. Beden bazlı fiyat artışı (büyük bedenler için)
+            // 2. Beden bazlı fiyat farklılığı kontrolü
+            if (variantPricing[size]) {
+              finalPrice = variantPricing[size];
+              console.log(`📏 ${size} bedeni için özel fiyat uygulandı: ${finalPrice} TL`);
+            }
+            
+            // 3. Büyük beden artışı
             if (['XL', 'XXL', '2XL', '3XL', '4XL'].includes(size)) {
-              basePrice = basePrice * 1.05; // %5 artış
+              finalPrice = finalPrice * 1.05; // %5 artış
+              console.log(`📏 ${size} büyük beden artışı uygulandı: ${finalPrice} TL`);
             }
             
-            // 3. %10 kar marjı
-            const finalPrice = basePrice * 1.10;
+            // 4. Kombinasyon bazlı özel fiyat
+            const comboKey = `${color}-${size}`;
+            if (variantSpecificPricing[comboKey]) {
+              finalPrice = variantSpecificPricing[comboKey];
+              console.log(`🔀 ${comboKey} kombinasyonu için özel fiyat: ${finalPrice} TL`);
+            }
+            
+            // 5. %10 kar marjı (final)
+            finalPrice = finalPrice * 1.10;
             
             allVariants.push({
               color: color,
