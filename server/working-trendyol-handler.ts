@@ -278,86 +278,52 @@ export async function handleTrendyolProduct(url: string, productId: string) {
         }
       }
       
-      if (productColorsMatch) {
-        try {
-          const colorData = JSON.parse(`[${productColorsMatch[1]}]`);
-          colorData.forEach((color: any) => {
-            if (color.colorName && !colors.includes(color.colorName)) {
-              colors.push(color.colorName);
-              
-              // Extract color-specific pricing for individual variants
-              if (color.price) {
-                const colorPrice = parseFloat(color.price);
-                variantPricing[color.colorName] = colorPrice;
-                
-                // Apply 10% markup to each color variant
-                const markupPrice = colorPrice * 1.10;
-                variantSpecificPricing[color.colorName] = markupPrice;
-              }
-              
-              // Enhanced color-specific image extraction and matching
-              let colorImages: string[] = [];
-              
-              if (color.images && Array.isArray(color.images)) {
-                colorImages = color.images.map((img: any) => {
-                  let url = img.url || img.href || img;
-                  if (typeof url === 'string') {
-                    if (url.startsWith('//')) url = 'https:' + url;
-                    if (url.includes('cdn.dsmcdn.com')) {
-                      // Ensure working CDN format
-                      url = url.replace(/\/ty\d+\//, '/ty1660/');
-                      if (!url.includes('_org_zoom.jpg')) {
-                        url = url.replace(/\.(jpg|jpeg|png|webp)$/, '_org_zoom.jpg');
-                      }
-                      if (!url.startsWith('https:')) {
-                        url = url.replace(/^http:/, 'https:');
-                      }
-                    }
-                    return url;
-                  }
-                  return url;
-                }).filter(Boolean);
-              }
-              
-              // If no direct color images, try intelligent matching from all product images
-              if (colorImages.length === 0) {
-                const colorName = color.colorName.toLowerCase();
-                colorImages = optimizedImages.filter(img => {
-                  // Match by color name in URL or similar patterns
-                  return img.toLowerCase().includes(colorName) ||
-                         img.includes(`-${colorName}-`) ||
-                         img.includes(`/${colorName}/`) ||
-                         img.includes(`_${colorName}_`);
-                });
-                
-                // If still no matches, assign sequential images (2-3 images per color)
-                if (colorImages.length === 0) {
-                  const colorIndex = colors.indexOf(color.colorName);
-                  const startIndex = colorIndex * 2;
-                  const endIndex = Math.min(startIndex + 3, optimizedImages.length);
-                  colorImages = optimizedImages.slice(startIndex, endIndex);
-                }
-              }
-              
-              // Store color-specific images
-              if (colorImages.length > 0) {
-                colorImageMap[color.colorName] = colorImages;
-                variantImages[color.colorName] = colorImages;
-              }
-            }
-          });
-          
-          console.log(`✅ ${colors.length} renk verisi bulundu: ${colors.join(', ')}`);
-          console.log(`💰 Renk bazlı fiyatlar (%10 kar): ${Object.keys(variantSpecificPricing).length} adet`);
-          console.log(`🎨 Renk-görsel eşleşmesi: ${Object.keys(colorImageMap).length} renk için`);
-          
-          // Log color-image mapping details
-          Object.entries(colorImageMap).forEach(([color, imgs]) => {
-            console.log(`   ${color}: ${imgs.length} görsel`);
-          });
-        } catch (e) {
-          console.log("Renk verisi parse edilemedi:", e);
+      // Use advanced color variant extraction system
+      const { extractColorVariants } = await import('./advanced-color-variant-extractor');
+      const variantExtractionResult = extractColorVariants(htmlContent, $);
+      
+      // Merge results from advanced extraction
+      variantExtractionResult.colors.forEach(color => {
+        if (!colors.includes(color)) {
+          colors.push(color);
         }
+      });
+      
+      // Apply extracted pricing with 10% markup
+      Object.entries(variantExtractionResult.variantPricing).forEach(([color, basePrice]) => {
+        variantPricing[color] = basePrice;
+        variantSpecificPricing[color] = basePrice * 1.10;
+      });
+      
+      // Apply extracted color-specific images
+      Object.entries(variantExtractionResult.colorImageMap).forEach(([color, images]) => {
+        colorImageMap[color] = images;
+        variantImages[color] = images;
+      });
+      
+      console.log(`✅ ${colors.length} renk verisi bulundu: ${colors.join(', ')}`);
+      console.log(`💰 Renk bazlı fiyatlar (%10 kar): ${Object.keys(variantSpecificPricing).length} adet`);
+      console.log(`🎨 Renk-görsel eşleşmesi: ${Object.keys(colorImageMap).length} renk için`);
+      
+      // Log color-image mapping details
+      Object.entries(colorImageMap).forEach(([color, imgs]) => {
+        console.log(`   ${color}: ${imgs.length} görsel`);
+      });
+      
+      // If no specific color images found, distribute general images among colors
+      if (colors.length > 0 && Object.keys(colorImageMap).length === 0) {
+        console.log('🔄 No color-specific images found, distributing general images...');
+        colors.forEach((color, index) => {
+          const startIndex = index * 2;
+          const endIndex = Math.min(startIndex + 3, optimizedImages.length);
+          const assignedImages = optimizedImages.slice(startIndex, endIndex);
+          
+          if (assignedImages.length > 0) {
+            colorImageMap[color] = assignedImages;
+            variantImages[color] = assignedImages;
+            console.log(`   ${color}: ${assignedImages.length} genel görsel atandı`);
+          }
+        });
       }
       
       // Extract stock information from page
