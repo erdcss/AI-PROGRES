@@ -94,7 +94,7 @@ export function ProductDisplay({ data }: ProductDisplayProps) {
             <div>
               <h3 className="font-semibold text-gray-300 mb-2">Özellikler</h3>
               <div className="space-y-1 text-sm text-gray-400">
-                {Object.entries(data.attributes).map(([key, value]) => (
+                {Object.entries(data.attributes || {}).map(([key, value]) => (
                   <div key={key}>
                     <span className="font-medium">{key}:</span> {value}
                   </div>
