@@ -159,40 +159,49 @@ export async function generateStrictShopifyCSV(products: Product[]): Promise<{
 
   const shopifyVariants: ShopifyVariant[] = [];
 
-  products.forEach(product => {
-    const handle = product.title.toLowerCase()
-      .replace(/[^a-z0-9\s-]/g, '')
-      .replace(/\s+/g, '-')
-      .replace(/-+/g, '-')
-      .trim();
-
-    const colors = product.variants.colors.length > 0 ? product.variants.colors : ['tek renk'];
-    const sizes = product.variants.sizes.length > 0 ? product.variants.sizes : ['Standart'];
-
-    const basePrice = parseFloat(product.price || '0');
+  products.forEach((product, productIndex) => {
+    console.log(`🔧 ${productIndex + 1}/${products.length} ürün işleniyor: ${product.title}`);
+    
+    const handle = slugify(product.title, { lower: true, remove: /[*+~.()'"!:@]/g });
+    const basePrice = parseFloat(product.basePrice) || parseFloat(product.price);
     const markupPrice = (basePrice * 1.1).toFixed(2);
     const costPrice = (basePrice * 0.73).toFixed(2);
 
-    colors.forEach(color => {
+    console.log(`🔧 Otantik varyant bilgileri: ${JSON.stringify(product.variants)}`);
+    
+    // Otantik renk ve beden bilgilerini kullan
+    const colors = product.variants.colors.length > 0 ? product.variants.colors : ['tek renk'];
+    const sizes = product.variants.sizes.length > 0 ? product.variants.sizes : ['tek beden'];
+    
+    console.log(`🔧 ${colors.length} renk x ${sizes.length} beden = ${colors.length * sizes.length} varyant`);
+
+    colors.forEach((color, colorIndex) => {
       sizes.forEach((size, sizeIndex) => {
-        const isFirstVariant = shopifyVariants.length === 0;
-        const variantSKU = `${product.id}-${color.toLowerCase().replace(/[^a-z0-9]/g, '')}-${size.toLowerCase().replace(/[^a-z0-9]/g, '')}`;
+        const isFirstVariant = colorIndex === 0 && sizeIndex === 0;
+        const variantSku = `${product.id}-${color.replace(/\s+/g, '').toLowerCase()}-${size.replace(/\s+/g, '').toLowerCase()}`;
+        
+        // Her varyant için farklı görsel atama
+        const imageIndex = colorIndex < product.images.length ? colorIndex : 0;
+        const imageSrc = product.images[imageIndex] || product.images[0] || '';
+        const variantImageSrc = product.images[colorIndex] || product.images[0] || '';
+
+        console.log(`🔧 Varyant: ${color}-${size} (Görsel: ${imageIndex + 1}/${product.images.length})`);
 
         const variant: ShopifyVariant = {
           Handle: handle,
           Title: isFirstVariant ? product.title : '',
-          'Body (HTML)': isFirstVariant ? (product.description || 'Kaliteli urun') : '',
-          Vendor: product.brand || 'Turmarkt',
-          Type: 'Genel',
-          Tags: isFirstVariant ? 'indirimli' : '',
-          Published: 'TRUE',
-          'Option1 Name': 'Renk',
+          'Body (HTML)': isFirstVariant ? generateProductDescription(product) : '',
+          Vendor: isFirstVariant ? (product.brand || extractBrandFromTitle(product.title)) : '',
+          Type: isFirstVariant ? categorizeProduct(product.title) : '',
+          Tags: isFirstVariant ? generateTags(product.title, product.price) : '',
+          Published: isFirstVariant ? 'TRUE' : 'TRUE',
+          'Option1 Name': isFirstVariant ? 'Renk' : '',
           'Option1 Value': color,
-          'Option2 Name': 'Beden',
+          'Option2 Name': isFirstVariant ? 'Beden' : '',
           'Option2 Value': size,
           'Option3 Name': '',
           'Option3 Value': '',
-          'Variant SKU': variantSKU,
+          'Variant SKU': variantSku,
           'Variant Grams': '200',
           'Variant Inventory Tracker': 'shopify',
           'Variant Inventory Qty': '10',
@@ -203,16 +212,16 @@ export async function generateStrictShopifyCSV(products: Product[]): Promise<{
           'Variant Requires Shipping': 'TRUE',
           'Variant Taxable': 'TRUE',
           'Variant Barcode': '',
-          'Image Src': isFirstVariant ? (product.images[0] || '') : '',
-          'Image Position': isFirstVariant ? '1' : '',
-          'Image Alt Text': isFirstVariant ? product.title : '',
+          'Image Src': isFirstVariant ? imageSrc : '',
+          'Image Position': isFirstVariant ? (imageIndex + 1).toString() : '',
+          'Image Alt Text': isFirstVariant ? `${product.title} - ${color}` : '',
           'Gift Card': 'FALSE',
           'SEO Title': isFirstVariant ? product.title : '',
-          'SEO Description': isFirstVariant ? 'Kaliteli urun' : '',
-          'Google Shopping / Google Product Category': 'Apparel & Accessories',
-          'Google Shopping / Gender': 'unisex',
+          'SEO Description': isFirstVariant ? generateSEODescription(product) : '',
+          'Google Shopping / Google Product Category': getCategoryForGoogle(product.title),
+          'Google Shopping / Gender': getGenderFromTitle(product.title),
           'Google Shopping / Age Group': 'adult',
-          'Google Shopping / MPN': variantSKU,
+          'Google Shopping / MPN': variantSku,
           'Google Shopping / AdWords Grouping': '',
           'Google Shopping / AdWords Labels': '',
           'Google Shopping / Condition': 'new',
