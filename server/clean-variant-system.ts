@@ -142,11 +142,22 @@ function extractFromScripts(
       }
     }
     
-    // Fallback extraction from various JSON patterns
+    // Fallback extraction from various JSON patterns - enhanced for colors
     const jsonPatterns = [
       /"allVariants":\s*\[(.*?)\]/g,
       /"productColors":\s*\[(.*?)\]/g,
+      /"colors":\s*\[(.*?)\]/g,
+      /"variants":\s*\[(.*?)\]/g,
+      /"colorVariants":\s*\[(.*?)\]/g,
       /"sizes":\s*\[(.*?)\]/g
+    ];
+    
+    // Enhanced color pattern matching
+    const colorPatterns = [
+      /"color":\s*"([^"]+)"/g,
+      /"colorName":\s*"([^"]+)"/g,
+      /"renk":\s*"([^"]+)"/g,
+      /"variant.*color":\s*"([^"]+)"/gi
     ];
     
     jsonPatterns.forEach(pattern => {
@@ -179,6 +190,18 @@ function extractFromScripts(
       }
     });
     
+    // Additional color pattern extraction
+    colorPatterns.forEach(pattern => {
+      let match;
+      while ((match = pattern.exec(htmlContent)) !== null) {
+        const colorValue = match[1];
+        if (colorValue && isValidColor(colorValue) && !colors.includes(colorValue)) {
+          colors.push(colorValue);
+          console.log(`🎨 Pattern renk: ${colorValue}`);
+        }
+      }
+    });
+    
   } catch (error) {
     console.log("Script çıkarma hatası:", error);
   }
@@ -201,13 +224,33 @@ function extractFromHTML($: cheerio.CheerioAPI, colors: string[], sizes: string[
       }
     });
     
-    // Data attributes
-    $('[data-color], [data-variant-color]').each((_, elem) => {
-      const colorValue = $(elem).attr('data-color') || $(elem).attr('data-variant-color');
-      if (colorValue && isValidColor(colorValue) && !colors.includes(colorValue)) {
-        colors.push(colorValue);
-        console.log(`🎨 Data attr renk: ${colorValue}`);
-      }
+    // Enhanced color detection from various HTML patterns
+    const colorSelectors = [
+      '[data-color]',
+      '[data-variant-color]',
+      '[data-testid*="color"]',
+      '.color-option',
+      '.variant-color',
+      '.product-color',
+      '.color-selector',
+      '[class*="color"]',
+      '[id*="color"]'
+    ];
+    
+    colorSelectors.forEach(selector => {
+      $(selector).each((_, elem) => {
+        const $elem = $(elem);
+        const colorValue = $elem.attr('data-color') || 
+                          $elem.attr('data-variant-color') || 
+                          $elem.attr('title') ||
+                          $elem.attr('alt') ||
+                          $elem.text().trim();
+        
+        if (colorValue && isValidColor(colorValue) && !colors.includes(colorValue)) {
+          colors.push(colorValue);
+          console.log(`🎨 HTML selector renk: ${colorValue}`);
+        }
+      });
     });
     
     $('[data-size], [data-variant-size]').each((_, elem) => {
