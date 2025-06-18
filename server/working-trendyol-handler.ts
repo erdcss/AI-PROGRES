@@ -148,15 +148,7 @@ export async function handleTrendyolProduct(url: string, productId: string) {
         console.log(`✅ ${images.length} görsel varyant görsellerinden eklendi`);
       }
       
-      // VARYANT VERİLERİNİ RESPONSE'A EKLE
-      const responseVariants = {
-        colors: colors,
-        sizes: sizes,
-        variantImages: variantImages,
-        pricing: variantPricing,
-        allVariants: allVariants,
-        totalVariants: allVariants.length
-      };
+
       
       // Ana görsel yoksa alternatif yöntemler dene
       if (images.length === 0) {
@@ -799,36 +791,113 @@ export async function handleTrendyolProduct(url: string, productId: string) {
         vendor: null
       };
 
-      // Son kontrol: Hiç varyant yoksa varsayılan oluştur
-      if (colors.length === 0 && sizes.length === 0) {
-        console.log('🔧 Hiç varyant bulunamadı, HTML içerik analizi yapılıyor...');
+      // GÜÇLÜ FALLBACK SİSTEMİ - Her durumda ek varyant arama
+      if (colors.length === 0 || sizes.length === 0) {
+        console.log('🔧 Ek varyant arama başlatılıyor (mevcut: ${colors.length} renk, ${sizes.length} beden)...');
         
-        // HTML select/option elementlerinden çıkar
-        const selectPattern = /<select[^>]*>\s*(.*?)\s*<\/select>/gs;
-        const selectMatches = htmlContent.match(selectPattern) || [];
+        // Script içindeki JSON verilerinden varyant bilgilerini çıkar
+        const scriptMatches = htmlContent.match(/<script[^>]*>(.*?)<\/script>/gs) || [];
         
-        selectMatches.forEach(selectContent => {
-          const optionPattern = /<option[^>]*value="([^"]*)"[^>]*>([^<]*)<\/option>/g;
-          let optionMatch;
-          while ((optionMatch = optionPattern.exec(selectContent)) !== null) {
-            const value = optionMatch[1];
-            const text = optionMatch[2].trim();
-            
-            // Beden benzeri değerler
-            if (/^(XS|S|M|L|XL|XXL|2XL|3XL|4XL|\d+)$/i.test(value) && !sizes.includes(value)) {
-              sizes.push(value);
-              console.log(`📏 HTML select'den beden: ${value}`);
+        scriptMatches.forEach(scriptContent => {
+          // Variant data patterns
+          const variantPatterns = [
+            /"variants":\s*\[(.*?)\]/gs,
+            /"allVariants":\s*\[(.*?)\]/gs,
+            /"productVariants":\s*\[(.*?)\]/gs,
+            /"colorVariants":\s*\[(.*?)\]/gs,
+            /"sizeVariants":\s*\[(.*?)\]/gs
+          ];
+          
+          variantPatterns.forEach(pattern => {
+            const matches = scriptContent.match(pattern);
+            if (matches) {
+              try {
+                const variantStr = matches[1];
+                const variantObjs = variantStr.match(/\{[^{}]*\}/g) || [];
+                
+                variantObjs.forEach(objStr => {
+                  try {
+                    const variant = JSON.parse(objStr);
+                    
+                    // Extract colors
+                    const colorFields = ['color', 'colorName', 'colorCode', 'name', 'value'];
+                    colorFields.forEach(field => {
+                      if (variant[field] && typeof variant[field] === 'string' && variant[field].length > 1) {
+                        if (!colors.includes(variant[field])) {
+                          colors.push(variant[field]);
+                          console.log(`🎨 Script'ten renk: ${variant[field]}`);
+                        }
+                      }
+                    });
+                    
+                    // Extract sizes
+                    const sizeFields = ['size', 'sizeName', 'sizeValue', 'name', 'value'];
+                    sizeFields.forEach(field => {
+                      if (variant[field] && typeof variant[field] === 'string' && variant[field].length <= 4) {
+                        if (!sizes.includes(variant[field])) {
+                          sizes.push(variant[field]);
+                          console.log(`📏 Script'ten beden: ${variant[field]}`);
+                        }
+                      }
+                    });
+                    
+                    // Extract pricing
+                    if (variant.price) {
+                      const price = parseFloat(variant.price);
+                      if (!isNaN(price)) {
+                        const key = variant.color || variant.colorName || variant.size || variant.sizeName || 'default';
+                        variantPricing[key] = price;
+                        variantSpecificPricing[key] = price * 1.10;
+                      }
+                    }
+                    
+                    // Extract images
+                    if (variant.images && Array.isArray(variant.images)) {
+                      const key = variant.color || variant.colorName || 'default';
+                      colorImageMap[key] = variant.images;
+                      variantImages[key] = variant.images;
+                    }
+                    
+                  } catch (e) {
+                    // Skip invalid JSON
+                  }
+                });
+              } catch (e) {
+                // Skip invalid data
+              }
             }
-            
-            // Renk benzeri değerler (hex kodu değilse)
-            if (text.length > 1 && text.length < 20 && !/^#[0-9A-F]{6}$/i.test(text) && !colors.includes(text)) {
-              colors.push(text);
-              console.log(`🎨 HTML select'den renk: ${text}`);
+          });
+        });
+        
+        // HTML attribute'larından da çıkarmaya çalış
+        const htmlAttributePatterns = [
+          /data-color="([^"]+)"/g,
+          /data-size="([^"]+)"/g,
+          /data-variant="([^"]+)"/g,
+          /class="[^"]*color[^"]*"[^>]*>([^<]+)</g,
+          /class="[^"]*size[^"]*"[^>]*>([^<]+)</g
+        ];
+        
+        htmlAttributePatterns.forEach(pattern => {
+          let match;
+          while ((match = pattern.exec(htmlContent)) !== null) {
+            const value = match[1];
+            if (value && value.length > 1 && value.length <= 20) {
+              // Size pattern detection
+              if (/^(XS|S|M|L|XL|XXL|2XL|3XL|4XL|\d+)$/i.test(value) && !sizes.includes(value)) {
+                sizes.push(value);
+                console.log(`📏 HTML attribute'tan beden: ${value}`);
+              }
+              // Color pattern detection (not hex codes)
+              else if (!/^#[0-9A-F]{6}$/i.test(value) && !colors.includes(value)) {
+                colors.push(value);
+                console.log(`🎨 HTML attribute'tan renk: ${value}`);
+              }
             }
           }
         });
         
-        // Hala yoksa temel varyantlar oluştur
+        // Son fallback - en temel varyantları oluştur
         if (colors.length === 0) {
           colors.push('Varsayılan');
           console.log('🎨 Varsayılan renk eklendi');
