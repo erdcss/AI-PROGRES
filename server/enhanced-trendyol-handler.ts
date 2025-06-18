@@ -590,14 +590,19 @@ function extractStock(htmlContent: string, stockMap: Record<string, boolean>, co
       }
     });
 
-    // If no sizes found but colors exist, try to add default sizes for certain product types
-    if (sizes.length === 0 && colors.length > 0) {
-      console.log("⚠️ Beden bulunamadı, varsayılan bedenler ekleniyor");
-      // Add common clothing sizes as fallback
-      const defaultSizes = ['S', 'M', 'L', 'XL'];
-      sizes.push(...defaultSizes);
-      console.log(`📏 Varsayılan bedenler eklendi: ${defaultSizes.join(', ')}`);
+    // Clean up invalid sizes
+    const cleanedSizes = sizes.filter(size => {
+      const cleaned = size.replace(/^Beden:?/, '').trim();
+      return cleaned.length > 0 && cleaned !== 'SML' && isValidSize(cleaned);
+    });
+    
+    // If no valid sizes found, add defaults for clothing
+    if (cleanedSizes.length === 0 && colors.length > 0) {
+      cleanedSizes.push(...['S', 'M', 'L', 'XL']);
     }
+    
+    sizes.length = 0;
+    sizes.push(...cleanedSizes);
 
     // Fallback: assume all combinations are in stock if no data found
     if (Object.keys(stockMap).length === 0 && colors.length > 0 && sizes.length > 0) {

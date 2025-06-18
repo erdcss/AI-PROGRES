@@ -102,7 +102,7 @@ export async function generateVariantSpecificCSV(
   const csvRows: string[] = [];
   csvRows.push(headers.join(','));
 
-  const handle = productData.title
+  const handle = (productData.title || 'product')
     .toLowerCase()
     .replace(/[^a-z0-9\s-]/g, '')
     .replace(/\s+/g, '-')
