@@ -67,7 +67,7 @@ export async function registerRoutes(app: Express) {
   app.get('/api/preview/:filename', (req, res) => {
     try {
       const filename = req.params.filename;
-      const filePath = path.join('./temp', filename);
+      const filePath = path.join(process.cwd(), 'temp', filename);
       
       if (!fs.existsSync(filePath)) {
         return res.status(404).json({ message: 'CSV dosyası bulunamadı' });
@@ -80,50 +80,16 @@ export async function registerRoutes(app: Express) {
         return res.status(400).json({ message: 'CSV dosyası boş' });
       }
       
-      // Başlık satırını ayır
+      // Simple CSV parsing for preview
       const headers = rows[0].split(',').map(h => h.trim().replace(/"/g, ''));
+      const dataRows = rows.slice(1, 6).map(row => row.split(',').map(cell => cell.trim().replace(/"/g, '')));
       
-      // Veri satırlarını ayır ve en fazla 5 satır göster
-      const dataRows = rows.slice(1, 6).map(row => {
-        if (!row.trim()) return {}; // Boş satırları atla
-        
-        // CSV parsing için gelişmiş yöntem - tırnak içindeki virgülleri koruma
-        const values: string[] = [];
-        let currentValue = '';
-        let inQuotes = false;
-        
-        for (let i = 0; i < row.length; i++) {
-          const char = row[i];
-          if (char === '"') {
-            inQuotes = !inQuotes;
-          } else if (char === ',' && !inQuotes) {
-            values.push(currentValue.trim());
-            currentValue = '';
-          } else {
-            currentValue += char;
-          }
-        }
-        values.push(currentValue.trim());
-        
-        const rowObject: Record<string, string> = {};
-        headers.forEach((header, index) => {
-          let value = values[index] || '';
-          // JSON için güvenli hale getir
-          value = value.replace(/[\x00-\x1F\x7F]/g, '').substring(0, 100);
-          rowObject[header] = value;
-        });
-        
-        return rowObject;
-      }).filter(row => Object.keys(row).length > 0);
-      
-      const preview = {
-        filePath,
+      return res.json({
         headers,
         rows: dataRows,
-        totalRows: rows.length - 1 // Başlık satırını çıkar
-      };
-      
-      return res.status(200).json(preview);
+        totalRows: rows.length - 1,
+        filename
+      });
     } catch (error) {
       return res.status(500).json({ message: "CSV önizleme hatası", error: String(error) });
     }
