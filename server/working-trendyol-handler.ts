@@ -993,8 +993,8 @@ export async function handleTrendyolProduct(url: string, productId: string) {
         description: createShopifyDescription(title, brand, attributes, categories),
         images: optimizedImages,
         variants: {
-          colors,
-          sizes,
+          colors: Array.from(new Set(allVariants.map(v => v.color))),
+          sizes: Array.from(new Set(allVariants.map(v => v.size))),
           variantImages: variantImages,
           pricing: variantPricing,
           allVariants: allVariants,
