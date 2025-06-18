@@ -48,7 +48,37 @@ export async function scrapeTrendyolProduct(inputUrl: string) {
 
     // Extract basic product info
     const title = $('h1').first().text().trim() || 
-                  $('[data-id="product-name"]').text().trim() ||
+      $('h1.pr-new-br').text().trim() ||
+      $('h1[data-testid="product-name"]').text().trim() ||
+      $('h1.product-name').text().trim() ||
+      'Ürün Başlığı Bulunamadı';
+
+    // Extract price
+    const priceElement = $('.prc-dsc').first().text().trim() ||
+      $('.prc-org').first().text().trim() ||
+      $('[data-testid="price"]').first().text().trim() ||
+      $('span.price').first().text().trim();
+      
+    const priceMatch = priceElement.match(/[\d.,]+/);
+    const price = priceMatch ? priceMatch[0].replace(',', '.') : '0';
+
+    // Extract brand
+    const brand = $('a[data-fragment-name="Breadcrumb"] span').last().text().trim() ||
+      $('span.product-brand').text().trim() ||
+      title.split(' ')[0] ||
+      'Genel Markalar';
+
+    // Extract product ID from URL
+    const productIdMatch = url.match(/p-(\d+)/);
+    const productId = productIdMatch ? parseInt(productIdMatch[1]) : Math.floor(Math.random() * 1000000);
+
+    console.log(`🔍 Ürün bilgileri: ${title} - ${brand} - ${price} TL`);
+    
+    const variantData = extractEnhancedVariants(htmlContent, productId.toString());
+
+    // Enhanced product feature extraction
+    const productDescription = extractDetailedProductFeatures($, htmlContent);
+    console.log(`📝 Açıklama uzunluğu: ${productDescription.length} karakter`);
                   $('title').text().replace(' - Trendyol', '').trim();
 
     // Extract brand information

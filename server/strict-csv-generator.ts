@@ -180,14 +180,19 @@ export async function generateStrictShopifyCSV(products: Product[]): Promise<{
         const isFirstVariant = colorIndex === 0 && sizeIndex === 0;
         const variantSku = `${product.id}-${color.replace(/\s+/g, '').toLowerCase()}-${size.replace(/\s+/g, '').toLowerCase()}`;
         
-        // Tüm görsellerden varyanta uygun olanı seç
+        // Tüm görsellerden farklı olanları varyantlara dağıt
         const totalVariants = colors.length * sizes.length;
         const variantIndex = colorIndex * sizes.length + sizeIndex;
-        const imageIndex = variantIndex < product.images.length ? variantIndex : variantIndex % product.images.length;
-        const imageSrc = product.images[imageIndex] || product.images[0] || '';
-        const variantImageSrc = product.images[imageIndex] || '';
+        
+        // Ana görsel için farklı strategi
+        const mainImageIndex = Math.floor(variantIndex / 2) % product.images.length;
+        const imageSrc = product.images[mainImageIndex] || product.images[0] || '';
+        
+        // Varyant görsel için başka görsel kullan
+        const variantImageIndex = variantIndex < product.images.length ? variantIndex : variantIndex % product.images.length;
+        const variantImageSrc = product.images[variantImageIndex] || product.images[mainImageIndex] || '';
 
-        console.log(`🔧 Varyant: ${color}-${size} (Görsel: ${imageIndex + 1}/${product.images.length})`);
+        console.log(`🔧 Varyant: ${color}-${size} (Ana görsel: ${mainImageIndex + 1}, Varyant görsel: ${variantImageIndex + 1})`);
 
         const variant: ShopifyVariant = {
           Handle: handle,
