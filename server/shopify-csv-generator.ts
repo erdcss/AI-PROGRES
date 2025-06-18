@@ -142,19 +142,29 @@ export async function generateShopifyCSV(products: ProductData[]): Promise<{file
           const isInStock = isVariantInStock(color, size, product.variants?.stockMap, product.variants?.outOfStockVariants);
           const variantIndex = colorIndex * (product.variants?.sizes?.length || 1) + sizeIndex;
           
+          // Clean function for CSV values containing Turkish characters
+          const cleanCsvValue = (str: string) => {
+            if (!str) return '';
+            // Always wrap Turkish character containing strings in quotes
+            if (/[ıığşüöçİIĞŞÜÖÇ]/.test(str)) {
+              return `"${str.replace(/"/g, '""')}"`;
+            }
+            return str.replace(/"/g, '""');
+          };
+
           const variant: ShopifyVariant = {
             Handle: handle,
-            Title: productIndex === 0 && colorIndex === 0 && sizeIndex === 0 ? product.title : '',
-            'Body (HTML)': productIndex === 0 && colorIndex === 0 && sizeIndex === 0 ? product.description : '',
-            Vendor: product.brand || product.vendor,
-            'Product Category': product.category || '',
-            Type: product.productType || '',
-            Tags: product.tags.join(', '),
+            Title: productIndex === 0 && colorIndex === 0 && sizeIndex === 0 ? cleanCsvValue(product.title) : '',
+            'Body (HTML)': productIndex === 0 && colorIndex === 0 && sizeIndex === 0 ? cleanCsvValue(product.description || '') : '',
+            Vendor: cleanCsvValue(product.brand || product.vendor || ''),
+            'Product Category': cleanCsvValue(product.category || ''),
+            Type: cleanCsvValue(product.productType || ''),
+            Tags: cleanCsvValue((product.tags || []).join(', ')),
             Published: 'TRUE',
             'Option1 Name': hasColors ? 'Renk' : '',
-            'Option1 Value': hasColors ? color : '',
+            'Option1 Value': hasColors ? cleanCsvValue(color) : '',
             'Option2 Name': hasSizes ? 'Beden' : '',
-            'Option2 Value': hasSizes ? size : '',
+            'Option2 Value': hasSizes ? cleanCsvValue(size) : '',
             'Option3 Name': '',
             'Option3 Value': '',
             'Variant SKU': `${product.id}-${color}-${size}`.replace(/[^a-zA-Z0-9-]/g, ''),
@@ -326,24 +336,31 @@ export async function generateShopifyCSV(products: ProductData[]): Promise<{file
   // Ensure temp directory exists
   await fs.mkdir(path.dirname(filePath), { recursive: true });
 
-  // Convert to CSV format with proper quoting
-  const csvContent = XLSX.utils.sheet_to_csv(worksheet, {
-    FS: ',',
-    RS: '\n',
-    forceQuotes: false
+  // Convert to CSV with proper handling of Turkish characters
+  const headers = Object.keys(shopifyVariants[0]);
+  const csvLines = [headers.join(',')];
+  
+  shopifyVariants.forEach(variant => {
+    const row = headers.map(header => {
+      const value = variant[header as keyof ShopifyVariant] || '';
+      const stringValue = String(value);
+      
+      // If value is already quoted (from cleanCsvValue), return as-is
+      if (stringValue.startsWith('"') && stringValue.endsWith('"')) {
+        return stringValue;
+      }
+      
+      // If value contains special characters, wrap in quotes
+      if (stringValue.includes(',') || stringValue.includes('\n') || stringValue.includes('"') || /[ıığşüöçİIĞŞÜÖÇ]/.test(stringValue)) {
+        return `"${stringValue.replace(/"/g, '""')}"`;
+      }
+      
+      return stringValue;
+    });
+    csvLines.push(row.join(','));
   });
   
-  // Clean CSV content to fix quoting issues
-  const cleanCsvContent = csvContent
-    .split('\n')
-    .map(line => {
-      // Fix any unescaped quotes in the line
-      if (line.includes('"')) {
-        return line.replace(/([^,"])"([^,"])/g, '$1""$2');
-      }
-      return line;
-    })
-    .join('\n');
+  const cleanCsvContent = csvLines.join('\n');
   
   // Write CSV file
   await fs.writeFile(filePath, cleanCsvContent, 'utf8');
