@@ -322,5 +322,9 @@ export async function generateShopifyCSV(products: ProductData[]): Promise<strin
   console.log(`✅ Shopify CSV oluşturuldu: ${filename}`);
   console.log(`📊 ${shopifyVariants.length} varyant, ${products.length} ürün`);
 
-  return filename;
+  return {
+    filename,
+    csvPath: filePath,
+    totalRows: shopifyVariants.length + 1
+  };
 }
