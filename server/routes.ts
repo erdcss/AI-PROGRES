@@ -346,7 +346,7 @@ export async function registerRoutes(app: Express) {
       }
       
       // Continue with original scraping flow
-      let htmlContent;
+      let pageHtmlContent;
       
       if (productId) {
         try {

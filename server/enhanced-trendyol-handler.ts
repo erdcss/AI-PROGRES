@@ -213,14 +213,36 @@ function extractFromScripts(
     if (initialStateMatch) {
       try {
         const initialState = JSON.parse(initialStateMatch[1]);
+        console.log("🔍 Initial state bulundu, varyantlar çıkarılıyor...");
         
-        // Extract colors
+        // Extract colors and sizes from attributes
+        if (initialState.product?.attributes?.length) {
+          initialState.product.attributes.forEach((attr: any) => {
+            if (attr.key?.name === 'Renk' && attr.value?.name) {
+              const colorName = attr.value.name.toLowerCase();
+              if (!colors.includes(colorName)) {
+                colors.push(colorName);
+                console.log(`🎨 Renk tespit edildi: ${colorName}`);
+              }
+            }
+            if (attr.key?.name === 'Beden' && attr.value?.name) {
+              const sizeName = attr.value.name;
+              if (!sizes.includes(sizeName)) {
+                sizes.push(sizeName);
+                console.log(`📏 Beden tespit edildi: ${sizeName}`);
+              }
+            }
+          });
+        }
+
+        // Extract from variants array
         if (initialState.product?.variants?.length) {
           initialState.product.variants.forEach((variant: any) => {
             if (variant.attributeType === 1 && variant.name) { // Color variants
               const colorName = variant.name.toLowerCase();
               if (!colors.includes(colorName)) {
                 colors.push(colorName);
+                console.log(`🎨 Varyant rengi: ${colorName}`);
               }
               
               // Extract variant images
@@ -239,20 +261,33 @@ function extractFromScripts(
               const sizeName = variant.name;
               if (!sizes.includes(sizeName)) {
                 sizes.push(sizeName);
+                console.log(`📏 Varyant bedeni: ${sizeName}`);
               }
             }
           });
         }
 
-        // Extract from allVariants for stock info
+        // Extract from allVariants for detailed info
         if (initialState.product?.allVariants?.length) {
+          console.log(`📊 ${initialState.product.allVariants.length} adet allVariant bulundu`);
           initialState.product.allVariants.forEach((variant: any) => {
-            if (variant.attributeName1 && variant.attributeName2) {
-              const key = `${variant.attributeName1}-${variant.attributeName2}`;
-              // Extract stock status
-              if (typeof variant.inStock === 'boolean') {
-                // stockMap will be populated in extractStock function
-              }
+            if (variant.attributes?.length) {
+              variant.attributes.forEach((attr: any) => {
+                if (attr.key?.name === 'Renk' && attr.value?.name) {
+                  const colorName = attr.value.name.toLowerCase();
+                  if (!colors.includes(colorName)) {
+                    colors.push(colorName);
+                    console.log(`🎨 AllVariant rengi: ${colorName}`);
+                  }
+                }
+                if (attr.key?.name === 'Beden' && attr.value?.name) {
+                  const sizeName = attr.value.name;
+                  if (!sizes.includes(sizeName)) {
+                    sizes.push(sizeName);
+                    console.log(`📏 AllVariant bedeni: ${sizeName}`);
+                  }
+                }
+              });
             }
           });
         }
@@ -260,6 +295,34 @@ function extractFromScripts(
         console.log("Initial state parsing error:", parseError);
       }
     }
+
+    // Enhanced pattern matching for variants
+    const variantPatterns = [
+      /"attributeType":1[^}]*"name":"([^"]+)"/g,  // Color patterns
+      /"attributeType":2[^}]*"name":"([^"]+)"/g,  // Size patterns
+      /"Renk"[^}]*"name":"([^"]+)"/g,             // Turkish color
+      /"Beden"[^}]*"name":"([^"]+)"/g,            // Turkish size
+      /"Color"[^}]*"name":"([^"]+)"/g,            // English color
+      /"Size"[^}]*"name":"([^"]+)"/g              // English size
+    ];
+
+    variantPatterns.forEach((pattern, index) => {
+      let match;
+      while ((match = pattern.exec(htmlContent)) !== null) {
+        const value = match[1];
+        if (index < 3) { // Color patterns
+          if (isValidColor(value) && !colors.includes(value.toLowerCase())) {
+            colors.push(value.toLowerCase());
+            console.log(`🎨 Pattern renk: ${value}`);
+          }
+        } else { // Size patterns
+          if (isValidSize(value) && !sizes.includes(value)) {
+            sizes.push(value);
+            console.log(`📏 Pattern beden: ${value}`);
+          }
+        }
+      }
+    });
 
     // Additional script extraction patterns
     const scriptTags = htmlContent.match(/<script[^>]*>(.*?)<\/script>/gis) || [];
@@ -336,32 +399,91 @@ function extractFromHTML($: cheerio.CheerioAPI, colors: string[], sizes: string[
 
 function extractStock(htmlContent: string, stockMap: Record<string, boolean>, colors: string[], sizes: string[]): void {
   try {
-    // Extract stock information from allVariants
-    const allVariantsPattern = /"allVariants":\s*\[(.*?)\]/s;
-    const allVariantsMatch = htmlContent.match(allVariantsPattern);
+    console.log("📦 Stok bilgisi çıkarılıyor...");
+    
+    // Extract from window.__PRODUCT_DETAIL_APP_INITIAL_STATE__
+    const initialStatePattern = /window\.__PRODUCT_DETAIL_APP_INITIAL_STATE__\s*=\s*({.+?});/s;
+    const initialStateMatch = htmlContent.match(initialStatePattern);
 
-    if (allVariantsMatch) {
+    if (initialStateMatch) {
       try {
-        const allVariantsStr = `[${allVariantsMatch[1]}]`;
-        const allVariants = JSON.parse(allVariantsStr);
-
-        allVariants.forEach((variant: any) => {
-          if (variant.attributeName1 && variant.attributeName2) {
-            const color = variant.attributeName1.toLowerCase();
-            const size = variant.attributeName2;
-            const key = `${color}-${size}`;
+        const initialState = JSON.parse(initialStateMatch[1]);
+        
+        if (initialState.product?.allVariants?.length) {
+          console.log(`📊 ${initialState.product.allVariants.length} varyant stok bilgisi kontrol ediliyor`);
+          
+          initialState.product.allVariants.forEach((variant: any) => {
+            let colorName = '';
+            let sizeName = '';
             
-            // Set stock status
-            stockMap[key] = variant.inStock === true;
-          }
-        });
+            // Extract color and size from attributes
+            if (variant.attributes?.length) {
+              variant.attributes.forEach((attr: any) => {
+                if (attr.key?.name === 'Renk' && attr.value?.name) {
+                  colorName = attr.value.name.toLowerCase();
+                }
+                if (attr.key?.name === 'Beden' && attr.value?.name) {
+                  sizeName = attr.value.name;
+                }
+              });
+            }
+            
+            // Fallback to attributeName1/attributeName2
+            if (!colorName && variant.attributeName1) {
+              colorName = variant.attributeName1.toLowerCase();
+            }
+            if (!sizeName && variant.attributeName2) {
+              sizeName = variant.attributeName2;
+            }
+            
+            if (colorName && sizeName) {
+              const key = `${colorName}-${sizeName}`;
+              const inStock = variant.inStock === true || variant.hasStock === true;
+              stockMap[key] = inStock;
+              
+              console.log(`📦 ${key}: ${inStock ? 'Stokta' : 'Stokta yok'}`);
+            }
+          });
+        }
       } catch (parseError) {
         console.log("Stock parsing error:", parseError);
       }
     }
 
+    // Extract stock information from JSON patterns
+    const stockPatterns = [
+      /"allVariants":\s*\[(.*?)\]/s,
+      /"variants":\s*\[(.*?)\]/s,
+      /"productVariants":\s*\[(.*?)\]/s
+    ];
+
+    stockPatterns.forEach(pattern => {
+      const match = htmlContent.match(pattern);
+      if (match) {
+        try {
+          const variantsStr = `[${match[1]}]`;
+          const variants = JSON.parse(variantsStr);
+
+          variants.forEach((variant: any) => {
+            if (variant.attributeName1 && variant.attributeName2) {
+              const color = variant.attributeName1.toLowerCase();
+              const size = variant.attributeName2;
+              const key = `${color}-${size}`;
+              
+              // Set stock status
+              const inStock = variant.inStock === true || variant.hasStock === true;
+              stockMap[key] = inStock;
+            }
+          });
+        } catch (parseError) {
+          // Skip invalid JSON
+        }
+      }
+    });
+
     // Fallback: assume all combinations are in stock if no data found
-    if (Object.keys(stockMap).length === 0) {
+    if (Object.keys(stockMap).length === 0 && colors.length > 0 && sizes.length > 0) {
+      console.log("⚠️ Stok bilgisi bulunamadı, tüm varyantlar stokta varsayılıyor");
       colors.forEach(color => {
         sizes.forEach(size => {
           const key = `${color}-${size}`;
@@ -369,6 +491,8 @@ function extractStock(htmlContent: string, stockMap: Record<string, boolean>, co
         });
       });
     }
+
+    console.log(`📦 Toplam ${Object.keys(stockMap).length} varyant stok bilgisi çıkarıldı`);
 
   } catch (error) {
     console.log("Stock extraction error:", error);
