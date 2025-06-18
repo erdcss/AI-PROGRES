@@ -326,13 +326,31 @@ function ScraperPage({ platform = 'trendyol' }: ScraperPageProps) {
             >
               <Card className="bg-gray-900 border-gray-800">
                 <CardContent className="p-6">
+                  {/* Product Brand and Title Header */}
+                  <div className="mb-6 text-center border-b border-gray-800 pb-4">
+                    <div className="text-lg font-bold text-blue-400 mb-2">
+                      {product.brand?.toUpperCase() || 'MARKA'}
+                    </div>
+                    <h2 className="text-xl font-semibold text-white leading-tight">
+                      {product.title}
+                    </h2>
+                    <div className="text-sm text-gray-400 mt-2">
+                      Ürün kodu: {product.url?.split('-p-')[1]?.split('?')[0] || 'N/A'}
+                    </div>
+                  </div>
+
                   {/* Enhanced Product Images Gallery */}
                   <div className="space-y-4">
                     <div className="flex items-center justify-between">
-                      <h4 className="text-sm font-medium text-gray-300">Ürün Görselleri</h4>
-                      <span className="text-xs text-gray-500 bg-gray-800 px-2 py-1 rounded">
-                        {product.images?.length || 0} görsel
-                      </span>
+                      <h4 className="text-lg font-medium text-gray-200">Ürün Görselleri</h4>
+                      <div className="flex items-center gap-2">
+                        <span className="text-xs text-gray-500 bg-gray-800 px-2 py-1 rounded">
+                          {product.images?.length || 0} adet
+                        </span>
+                        <span className="text-xs text-green-500 bg-green-900/20 px-2 py-1 rounded border border-green-800">
+                          Yüksek Kalite
+                        </span>
+                      </div>
                     </div>
                     
                     {/* Main Image Display */}
@@ -347,9 +365,12 @@ function ScraperPage({ platform = 'trendyol' }: ScraperPageProps) {
                           />
                         </div>
                         
-                        {/* Thumbnail Gallery */}
-                        <ScrollArea className="w-full">
-                          <div className="grid grid-cols-4 md:grid-cols-6 gap-2">
+                        {/* All Images Grid Gallery */}
+                        <div className="bg-gray-800/30 p-3 rounded-lg">
+                          <h5 className="text-sm font-medium text-gray-300 mb-3">
+                            Tüm Ürün Görselleri ({product.images?.length || 0})
+                          </h5>
+                          <div className="grid grid-cols-3 md:grid-cols-4 lg:grid-cols-6 gap-2">
                             {product.images
                               .filter((image: string) => {
                                 const isValidImage = 
@@ -403,7 +424,10 @@ function ScraperPage({ platform = 'trendyol' }: ScraperPageProps) {
                                 );
                               })}
                           </div>
-                        </ScrollArea>
+                          <div className="text-xs text-gray-500 mt-2 text-center">
+                            Görsellere tıklayarak ana görseli değiştirebilirsiniz
+                          </div>
+                        </div>
                       </div>
                     )}
                   </div>

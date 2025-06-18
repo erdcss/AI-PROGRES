@@ -160,9 +160,11 @@ export async function generateShopifyCSV(
     .replace(/^-|-$/g, '')
     .substring(0, 60);
 
-  // Ana görsel ve ek görseller
+  // Ana görsel ve ek görseller with brand integration
   const mainImage = product.images?.[0] || '';
   const additionalImages = product.images?.slice(1) || [];
+  
+  console.log(`📸 Marka: ${product.brand}, Toplam ${product.images?.length || 0} görsel CSV'ye ekleniyor`);
 
   // Etiketler
   let tags = '';
@@ -204,9 +206,9 @@ export async function generateShopifyCSV(
       // ANA ÜRÜN SATIRI - Shopify template formatı
       const mainRow = {
         handle: handle,
-        title: product.title,
+        title: `${product.brand ? product.brand.toUpperCase() + ' ' : ''}${product.title}`,
         body_html: generateBodyHTML(),
-        vendor: product.brand || 'turmarkt',
+        vendor: product.brand || 'TurMarkt',
         product_category: 'Apparel & Accessories > Clothing',
         type: product.category?.split('>').pop()?.trim() || 'Giyim',
         tags: tags,
@@ -217,7 +219,7 @@ export async function generateShopifyCSV(
         option2_value: hasSizeVariants && hasColorVariants ? sizes[0] : '',
         option3_name: '',
         option3_value: '',
-        variant_sku: `${handle}-${hasSizeVariants && hasColorVariants ? colors[0] + '-' + sizes[0] : hasSizeVariants ? sizes[0] : 'default'}`,
+        variant_sku: `${product.brand ? product.brand.toUpperCase() + '-' : ''}${handle}-${hasSizeVariants && hasColorVariants ? colors[0] + '-' + sizes[0] : hasSizeVariants ? sizes[0] : 'default'}`,
         variant_grams: '145',
         variant_inventory_tracker: 'shopify',
         variant_inventory_qty: getVariantStockQuantity(
@@ -233,10 +235,10 @@ export async function generateShopifyCSV(
         variant_barcode: '',
         image_src: sanitizeImageUrl(mainImage),
         image_position: '1',
-        image_alt_text: product.title,
+        image_alt_text: `${product.brand ? product.brand + ' ' : ''}${product.title} - Ana Görsel`,
         gift_card: 'FALSE',
-        seo_title: product.title,
-        seo_description: product.description || product.title,
+        seo_title: `${product.brand ? product.brand + ' ' : ''}${product.title}`,
+        seo_description: `${product.brand ? product.brand + ' markası ' : ''}${product.description || product.title}. ${product.categories?.join(', ') || ''} kategorisinde.`,
         google_shopping_google_product_category: '212',
         google_shopping_gender: 'unisex',
         google_shopping_age_group: 'adult',
@@ -287,7 +289,7 @@ export async function generateShopifyCSV(
           variant_barcode: '',
           image_src: sanitizeImageUrl(imageUrl),
           image_position: (index + 2).toString(),
-          image_alt_text: `${product.title} - Görsel ${index + 2}`,
+          image_alt_text: `${product.brand ? product.brand + ' ' : ''}${product.title} - Görsel ${index + 2}`,
           gift_card: '',
           seo_title: '',
           seo_description: '',
@@ -345,7 +347,7 @@ export async function generateShopifyCSV(
               option2_value: sizes[s], // SADECE DEĞER
               option3_name: '',
               option3_value: '',
-              variant_sku: `${handle}-${colors[c]}-${sizes[s]}`,
+              variant_sku: `${product.brand ? product.brand.toUpperCase() + '-' : ''}${handle}-${colors[c]}-${sizes[s]}`,
               variant_grams: '145',
               variant_inventory_tracker: 'shopify',
               variant_inventory_qty: stockQuantity,
