@@ -142,30 +142,52 @@ export async function generateShopifyCSV(products: ProductData[]): Promise<{file
           const isInStock = isVariantInStock(color, size, product.variants?.stockMap, product.variants?.outOfStockVariants);
           const variantIndex = colorIndex * (product.variants?.sizes?.length || 1) + sizeIndex;
           
-          // Clean function for CSV values - always quote strings with Turkish chars or special content
-          const cleanCsvValue = (str: string) => {
-            if (!str) return '';
-            const cleanStr = str.replace(/"/g, '""').replace(/\n/g, ' ').replace(/\r/g, '').trim();
-            // Quote if contains Turkish chars, spaces, commas, or special characters
-            if (/[ıığşüöçİIĞŞÜÖÇ\s,]/.test(cleanStr) || cleanStr.includes('"')) {
-              return `"${cleanStr}"`;
+          // Build product description with attributes and features
+          const buildProductDescription = (product: any) => {
+            let description = product.description || '';
+            
+            // Add color options if available
+            if (product.variants?.colors && product.variants.colors.length > 1) {
+              const colorList = product.variants.colors.filter((c: string) => c !== 'tek renk').join(', ');
+              if (colorList) {
+                description += `\n\nRenk Seçenekleri: ${colorList}`;
+              }
             }
-            return cleanStr;
+            
+            // Add size options if available
+            if (product.variants?.sizes && product.variants.sizes.length > 0) {
+              description += `\n\nBeden Seçenekleri: ${product.variants.sizes.join(', ')}`;
+            }
+            
+            // Add product attributes if available
+            if (product.attributes && Object.keys(product.attributes).length > 0) {
+              description += '\n\nÜrün Özellikleri:';
+              Object.entries(product.attributes).forEach(([key, value]) => {
+                description += `\n• ${key}: ${value}`;
+              });
+            }
+            
+            // Add categories if available
+            if (product.categories && product.categories.length > 0) {
+              description += `\n\nKategoriler: ${product.categories.join(' > ')}`;
+            }
+            
+            return description.trim().replace(/\n/g, ' ').replace(/\r/g, '');
           };
 
           const variant: ShopifyVariant = {
             Handle: handle,
-            Title: productIndex === 0 && colorIndex === 0 && sizeIndex === 0 ? cleanCsvValue(product.title) : '',
-            'Body (HTML)': productIndex === 0 && colorIndex === 0 && sizeIndex === 0 ? cleanCsvValue(product.description || '') : '',
-            Vendor: cleanCsvValue(product.brand || product.vendor || ''),
-            'Product Category': cleanCsvValue(product.category || ''),
-            Type: cleanCsvValue(product.productType || ''),
-            Tags: cleanCsvValue((product.tags || []).join(', ')),
+            Title: productIndex === 0 && colorIndex === 0 && sizeIndex === 0 ? product.title : '',
+            'Body (HTML)': productIndex === 0 && colorIndex === 0 && sizeIndex === 0 ? buildProductDescription(product) : '',
+            Vendor: product.brand || product.vendor || '',
+            'Product Category': product.category || '',
+            Type: product.productType || '',
+            Tags: (product.tags || []).join(', '),
             Published: 'TRUE',
             'Option1 Name': hasColors ? 'Renk' : '',
-            'Option1 Value': hasColors ? cleanCsvValue(color) : '',
+            'Option1 Value': hasColors ? color : '',
             'Option2 Name': hasSizes ? 'Beden' : '',
-            'Option2 Value': hasSizes ? cleanCsvValue(size) : '',
+            'Option2 Value': hasSizes ? size : '',
             'Option3 Name': '',
             'Option3 Value': '',
             'Variant SKU': `${product.id}-${color}-${size}`.replace(/[^a-zA-Z0-9-]/g, ''),
@@ -337,26 +359,20 @@ export async function generateShopifyCSV(products: ProductData[]): Promise<{file
   // Ensure temp directory exists
   await fs.mkdir(path.dirname(filePath), { recursive: true });
 
-  // Use proper CSV library approach - write to buffer then to file
-  const csvBuffer = Buffer.from('\uFEFF', 'utf8'); // UTF-8 BOM for Excel compatibility
+  // Use professional CSV library for RFC 4180 compliance
   const headers = Object.keys(shopifyVariants[0]);
-  let csvContent = headers.join(',') + '\n';
+  const csvData = shopifyVariants.map(variant => 
+    headers.map(header => variant[header as keyof ShopifyVariant] || '')
+  );
   
-  shopifyVariants.forEach(variant => {
-    const row = headers.map(header => {
-      let value = String(variant[header as keyof ShopifyVariant] || '');
-      
-      // Escape quotes by doubling them and wrap in quotes if needed
-      if (value.includes('"') || value.includes(',') || value.includes('\n') || /[ıığşüöçİIĞŞÜÖÇ\s]/.test(value)) {
-        value = `"${value.replace(/"/g, '""')}"`;
-      }
-      
-      return value;
-    });
-    csvContent += row.join(',') + '\n';
+  const cleanCsvContent = stringify([headers, ...csvData], {
+    quoted: true,
+    quote: '"',
+    escape: '"',
+    delimiter: ',',
+    record_delimiter: '\n',
+    encoding: 'utf8'
   });
-  
-  const cleanCsvContent = csvContent;
   
   // Write CSV file
   await fs.writeFile(filePath, cleanCsvContent, 'utf8');

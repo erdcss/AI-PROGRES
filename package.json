@@ -52,6 +52,7 @@
     "clsx": "^2.1.1",
     "cmdk": "^1.0.0",
     "connect-pg-simple": "^10.0.0",
+    "csv-stringify": "^6.5.2",
     "csv-writer": "^1.6.0",
     "date-fns": "^3.6.0",
     "drizzle-orm": "^0.39.3",
