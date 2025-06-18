@@ -401,12 +401,17 @@ export async function generateShopifyCSV(products: ProductData[]): Promise<{file
     }
   });
 
-  // Create workbook and worksheet
-  const workbook = XLSX.utils.book_new();
-  const worksheet = XLSX.utils.json_to_sheet(shopifyVariants);
-
-  // Add worksheet to workbook
-  XLSX.utils.book_append_sheet(workbook, worksheet, 'Products');
+  // CSV formatında dosya oluştur (Excel değil)
+  const csvData = stringify(shopifyVariants, {
+    header: true,
+    delimiter: ',',
+    quoted: true,
+    quoted_empty: true,
+    quoted_string: true,
+    record_delimiter: '\n',
+    encoding: 'utf8',
+    bom: false
+  });
 
   // Generate filename with timestamp - CSV format
   const timestamp = new Date().toISOString().replace(/[:.]/g, '-').slice(0, -5);
