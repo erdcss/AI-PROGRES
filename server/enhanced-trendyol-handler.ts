@@ -270,7 +270,29 @@ function extractFromScripts(
         // Extract from allVariants for detailed info
         if (initialState.product?.allVariants?.length) {
           console.log(`📊 ${initialState.product.allVariants.length} adet allVariant bulundu`);
-          initialState.product.allVariants.forEach((variant: any) => {
+          
+          // Debug: Log the structure of the first variant
+          console.log("🔍 İlk variant yapısı:", JSON.stringify(initialState.product.allVariants[0], null, 2));
+          
+          initialState.product.allVariants.forEach((variant: any, index: number) => {
+            // Extract from direct properties
+            if (variant.attributeName1) {
+              const colorName = variant.attributeName1.toLowerCase();
+              if (isValidColor(colorName) && !colors.includes(colorName)) {
+                colors.push(colorName);
+                console.log(`🎨 AllVariant attributeName1: ${colorName}`);
+              }
+            }
+            
+            if (variant.attributeName2) {
+              const sizeName = variant.attributeName2;
+              if (isValidSize(sizeName) && !sizes.includes(sizeName)) {
+                sizes.push(sizeName);
+                console.log(`📏 AllVariant attributeName2: ${sizeName}`);
+              }
+            }
+            
+            // Extract from attributes array
             if (variant.attributes?.length) {
               variant.attributes.forEach((attr: any) => {
                 if (attr.key?.name === 'Renk' && attr.value?.name) {
@@ -289,6 +311,17 @@ function extractFromScripts(
                 }
               });
             }
+            
+            // Look for any size-like properties
+            Object.keys(variant).forEach(key => {
+              if (key.toLowerCase().includes('size') || key.toLowerCase().includes('beden')) {
+                const value = variant[key];
+                if (typeof value === 'string' && isValidSize(value) && !sizes.includes(value)) {
+                  sizes.push(value);
+                  console.log(`📏 AllVariant ${key}: ${value}`);
+                }
+              }
+            });
           });
         }
       } catch (parseError) {
@@ -303,14 +336,18 @@ function extractFromScripts(
       /"Renk"[^}]*"name":"([^"]+)"/g,             // Turkish color
       /"Beden"[^}]*"name":"([^"]+)"/g,            // Turkish size
       /"Color"[^}]*"name":"([^"]+)"/g,            // English color
-      /"Size"[^}]*"name":"([^"]+)"/g              // English size
+      /"Size"[^}]*"name":"([^"]+)"/g,             // English size
+      /"size":"([^"]+)"/g,                        // Simple size
+      /"color":"([^"]+)"/g,                       // Simple color
+      /"attributeName2":"([^"]+)"/g,              // Attribute name 2 (usually size)
+      /"attributeName1":"([^"]+)"/g               // Attribute name 1 (usually color)
     ];
 
     variantPatterns.forEach((pattern, index) => {
       let match;
       while ((match = pattern.exec(htmlContent)) !== null) {
         const value = match[1];
-        if (index < 3) { // Color patterns
+        if (index < 5 || index === 7 || index === 9) { // Color patterns
           if (isValidColor(value) && !colors.includes(value.toLowerCase())) {
             colors.push(value.toLowerCase());
             console.log(`🎨 Pattern renk: ${value}`);
@@ -320,6 +357,26 @@ function extractFromScripts(
             sizes.push(value);
             console.log(`📏 Pattern beden: ${value}`);
           }
+        }
+      }
+    });
+
+    // Additional fallback patterns for sizes
+    const sizePatterns = [
+      /['"](XS|S|M|L|XL|XXL|XXXL)['"]/g,
+      /['"](36|38|40|42|44|46|48|50|52)['"]/g,
+      /['"](TEK|STANDART|UNIVERSAL)['"]/g,
+      /"value":"([SMLX]{1,4})"/g,
+      /"text":"([SMLX]{1,4})"/g
+    ];
+
+    sizePatterns.forEach(pattern => {
+      let match;
+      while ((match = pattern.exec(htmlContent)) !== null) {
+        const value = match[1];
+        if (isValidSize(value) && !sizes.includes(value)) {
+          sizes.push(value);
+          console.log(`📏 Fallback pattern beden: ${value}`);
         }
       }
     });
@@ -365,11 +422,14 @@ function extractFromScripts(
 }
 
 function extractFromHTML($: cheerio.CheerioAPI, colors: string[], sizes: string[]): void {
+  console.log("🔍 HTML elementlerinden varyant çıkarma...");
+  
   // Extract colors from color selectors
   $('.color-variants .color-variant').each((_, elem) => {
     const colorName = $(elem).attr('title') || $(elem).attr('data-color') || '';
     if (colorName && !colors.includes(colorName.toLowerCase())) {
       colors.push(colorName.toLowerCase());
+      console.log(`🎨 HTML renk: ${colorName}`);
     }
   });
 
@@ -378,21 +438,70 @@ function extractFromHTML($: cheerio.CheerioAPI, colors: string[], sizes: string[
     const sizeName = $(elem).text().trim();
     if (sizeName && !sizes.includes(sizeName)) {
       sizes.push(sizeName);
+      console.log(`📏 HTML beden: ${sizeName}`);
     }
   });
 
-  // Alternative selectors
-  $('[data-testid="color-variant"]').each((_, elem) => {
-    const colorName = $(elem).attr('title') || '';
-    if (colorName && !colors.includes(colorName.toLowerCase())) {
-      colors.push(colorName.toLowerCase());
-    }
+  // Enhanced size selectors for HAKKE-style products
+  const sizeSelectors = [
+    '.size-variants button',
+    '[data-testid="size-variant"]',
+    '.size-selector button',
+    '.product-size-options button',
+    '.size-list button',
+    '.size-option',
+    '[class*="size"] button',
+    '[class*="Size"] button',
+    '.variant-size',
+    '.product-variant-size'
+  ];
+
+  sizeSelectors.forEach(selector => {
+    $(selector).each((_, elem) => {
+      const sizeName = $(elem).text().trim();
+      if (sizeName && isValidSize(sizeName) && !sizes.includes(sizeName)) {
+        sizes.push(sizeName);
+        console.log(`📏 HTML beden (${selector}): ${sizeName}`);
+      }
+    });
   });
 
-  $('[data-testid="size-variant"]').each((_, elem) => {
-    const sizeName = $(elem).text().trim();
-    if (sizeName && !sizes.includes(sizeName)) {
-      sizes.push(sizeName);
+  // Enhanced color selectors
+  const colorSelectors = [
+    '[data-testid="color-variant"]',
+    '.color-option',
+    '.product-color-options button',
+    '[class*="color"] button',
+    '[class*="Color"] button',
+    '.variant-color'
+  ];
+
+  colorSelectors.forEach(selector => {
+    $(selector).each((_, elem) => {
+      const colorName = $(elem).attr('title') || $(elem).attr('data-color') || $(elem).text().trim();
+      if (colorName && isValidColor(colorName) && !colors.includes(colorName.toLowerCase())) {
+        colors.push(colorName.toLowerCase());
+        console.log(`🎨 HTML renk (${selector}): ${colorName}`);
+      }
+    });
+  });
+
+  // Look for any button or span that might contain size info
+  $('button, span, div').each((_, elem) => {
+    const text = $(elem).text().trim();
+    if (text && text.length <= 10 && isValidSize(text) && !sizes.includes(text)) {
+      // Check if this element seems to be in a size context
+      const classes = $(elem).attr('class') || '';
+      const parent = $(elem).parent();
+      const parentClasses = parent.attr('class') || '';
+      
+      if (classes.toLowerCase().includes('size') || 
+          classes.toLowerCase().includes('beden') ||
+          parentClasses.toLowerCase().includes('size') ||
+          parentClasses.toLowerCase().includes('beden')) {
+        sizes.push(text);
+        console.log(`📏 HTML context beden: ${text}`);
+      }
     }
   });
 }
@@ -481,6 +590,15 @@ function extractStock(htmlContent: string, stockMap: Record<string, boolean>, co
       }
     });
 
+    // If no sizes found but colors exist, try to add default sizes for certain product types
+    if (sizes.length === 0 && colors.length > 0) {
+      console.log("⚠️ Beden bulunamadı, varsayılan bedenler ekleniyor");
+      // Add common clothing sizes as fallback
+      const defaultSizes = ['S', 'M', 'L', 'XL'];
+      sizes.push(...defaultSizes);
+      console.log(`📏 Varsayılan bedenler eklendi: ${defaultSizes.join(', ')}`);
+    }
+
     // Fallback: assume all combinations are in stock if no data found
     if (Object.keys(stockMap).length === 0 && colors.length > 0 && sizes.length > 0) {
       console.log("⚠️ Stok bilgisi bulunamadı, tüm varyantlar stokta varsayılıyor");
@@ -560,17 +678,23 @@ function isValidSize(value: string): boolean {
   if (!value || typeof value !== 'string') return false;
   const cleaned = value.trim();
   
-  // Size patterns
+  // Size patterns - more comprehensive
   const sizePatterns = [
     /^(XS|S|M|L|XL|XXL|XXXL)$/i,
     /^\d{1,3}$/,
     /^\d{1,3}-\d{1,3}$/,
     /^[0-9]+[.,]?[0-9]*$/,
-    /^(TEK|STANDART|UNIVERSAL)$/i
+    /^(TEK|STANDART|UNIVERSAL|ONE SIZE|FREE SIZE)$/i,
+    /^(34|36|38|40|42|44|46|48|50|52|54|56)$/,
+    /^[0-9]{1,2}[A-Z]*$/,
+    /^[A-Z]{1,4}$/
   ];
   
+  // Also accept single letters/numbers that could be sizes
+  if (cleaned.length === 1 && /[SMLX0-9]/.test(cleaned)) return true;
+  
   return sizePatterns.some(pattern => pattern.test(cleaned)) || 
-         (cleaned.length >= 1 && cleaned.length <= 10);
+         (cleaned.length >= 1 && cleaned.length <= 15);
 }
 
 function extractJSONObjects(jsonString: string): any[] {
