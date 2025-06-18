@@ -627,7 +627,6 @@ function ScraperPage({ platform = 'trendyol' }: ScraperPageProps) {
                         </ScrollArea>
                       </div>
                     )}
-                  </div>
 
                   {/* Comprehensive Data Preview */}
                   <div className="space-y-4 border-t border-gray-800 pt-4">

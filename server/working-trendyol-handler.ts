@@ -430,6 +430,9 @@ export async function handleTrendyolProduct(url: string, productId: string) {
       
       console.log(`📂 Türkçe kategoriler bulundu: ${categories.join(' > ')}`);
       console.log(`📋 ${Object.keys(attributes).length} ürün özelliği çıkarıldı`);
+      
+      // Generate advanced tags for categorization
+      const tags = generateAdvancedTags(title, brand, categories, attributes, colors, sizes);
       console.log(`📊 Toplam ${Object.keys(stockMap).length} varyant bulundu`);
       const inStockVariants = Object.values(stockMap).filter(Boolean).length;
       console.log(`✅ ${inStockVariants} varyant stokta mevcut`);
@@ -491,13 +494,14 @@ export async function handleTrendyolProduct(url: string, productId: string) {
         variants: {
           colors,
           sizes,
-          variantImages
+          variantImages,
+          pricing: variantPricing
         },
         attributes: productData.attributes,
         categories: categories.length > 0 ? categories : ['Moda', 'Giyim'],
         category: categories[0] || 'Moda',
         subcategory: categories[1] || 'Giyim',
-        tags: [brand.toLowerCase(), ...categories.map(c => c.toLowerCase())],
+        tags,
         preview: {
           csvPath: result.csvPath,
           filename: result.filename,
