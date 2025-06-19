@@ -97,35 +97,32 @@
       "price": "250.99",
       "basePrice": "250.99",
       "id": 850879998,
-      "description": "Ürün Özellikleri: Satıcı Ünvanı: DSM GRUP DANIŞMANLIK İLETİŞİM VE SATIŞ TİCARET ANONİM ŞİRKETİ, Satıcı Ünvanı: DSM GRUP DANIŞMANLIK İLETİŞİM VE SATIŞ TİCARET ANONİM ŞİRKETİ, Materyal Bileşeni. Kaliteli malzeme ile üretilmiştir. Günlük kullanım için ideal. Rahat kesim ve şık tasarım. Uzun ömürlü kullanım için tasarlanmıştır",
+      "description": "GRIMELANGE Majer Kadın %100 Organik Pamuklu Western Tema Baskılı Regular Fit Yeşil T-shirt yorumlarını inceleyin, Trendyol'a özel indirimli fiyata satın alın.",
       "brand": "GRIMELANGE",
       "images": [
-        "https://cdn.dsmcdn.com/ty1601/prod/QC/20241107/10/ec77ede1-4cc5-3d15-b708-d08c269624f1/1_org.jpg",
-        "https://cdn.dsmcdn.com/ty1599/prod/QC/20241107/10/6784188f-1565-3ec2-9485-4f77b8a96507/1_org.jpg",
-        "https://cdn.dsmcdn.com/ty1601/prod/QC/20241107/10/1572bd8a-bdf9-3ddc-a16a-c8e72230fef0/1_org.jpg",
-        "https://cdn.dsmcdn.com/ty1599/prod/QC/20241107/10/ab094378-89c7-3845-9703-be5a294e5484/1_org.jpg",
-        "https://cdn.dsmcdn.com/ty1601/prod/QC/20241107/10/88735857-41cc-3404-bd6c-639bf9240380/1_org.jpg",
-        "https://cdn.dsmcdn.com/ty1600/prod/QC/20241107/10/e4ac0788-ce76-3ed9-894d-20625e40a576/1_org.jpg",
-        "https://cdn.dsmcdn.com/ty1599/prod/QC/20241107/10/4d07e8f4-79c9-3fd1-a424-fa5c9c35e522/1_org.jpg",
-        "https://cdn.dsmcdn.com/ty1601/prod/QC/20241107/10/bc45555e-399b-340e-a664-7d28c639d46b/1_org.jpg",
-        "https://cdn.dsmcdn.com/ty1601/prod/QC/20241107/10/b8e91450-22ea-3673-8bf7-cd84a2080778/1_org.jpg",
-        "https://cdn.dsmcdn.com/mnresize/1200/1800/ty1601/prod/QC/20241107/10/ec77ede1-4cc5-3d15-b708-d08c269624f1/1_org.jpg",
-        "https://cdn.dsmcdn.com/mnresize/170/247/ty1601/prod/QC/20241107/10/ec77ede1-4cc5-3d15-b708-d08c269624f1/1_org.jpg"
+        "https://cdn.dsmcdn.com/web/logo/ty-web.svg",
+        "https://cdn.dsmcdn.com/mnresize/1200/1800/ty1601/prod/QC/20241107/10/ec77ede1-4cc5-3d15-b708-d08c269624f1/1_org_zoom.jpg",
+        "https://cdn.dsmcdn.com/mnresize/170/247/ty1601/prod/QC/20241107/10/ec77ede1-4cc5-3d15-b708-d08c269624f1/1_org_zoom.jpg",
+        "https://cdn.dsmcdn.com/web/production/footer-facebook.png",
+        "https://cdn.dsmcdn.com/web/production/footer-instagram.png",
+        "https://cdn.dsmcdn.com/web/production/footer-youtube.png",
+        "https://cdn.dsmcdn.com/web/production/footer-x.png",
+        "https://cdn.dsmcdn.com/web/production/footer-etbis.png",
+        "https://cdn.dsmcdn.com/web/production/footer-trust-stamp.png",
+        "https://cdn.dsmcdn.com/web/production/footer-pci-dss.png"
       ],
       "variants": {
         "colors": [
           "tek renk"
         ],
         "sizes": [
-          "XS",
           "S",
           "M",
-          "L",
-          "XL"
+          "L"
         ],
-        "totalVariants": 5
+        "totalVariants": 3
       },
-      "url": "https://www.trendyol.com/grimelange/majer-kadin-100-organik-pamuklu-western-tema-baskili-regular-fit-yesil-t-shirt-p-850879998?boutiqueId=675226&merchantId=968&sav=true"
+      "url": "trendyol.com/grimelange/majer-kadin-100-organik-pamuklu-western-tema-baskili-regular-fit-yesil-t-shirt-p-850879998?boutiqueId=675226&merchantId=968&sav=true"
     },
     {
       "title": "SeusCraft California Tasarım T-Shirt Şort - Bej Alt Üst Takım Şort Tişört Kombin Baskılı Bisiklet Yaka",
@@ -271,7 +268,115 @@
         "totalVariants": 12
       },
       "url": "https://www.trendyol.com/adidas/spor-ayakkabi-p-445566778"
+    },
+    {
+      "title": "BERSHKA BERSHKA",
+      "price": "264",
+      "basePrice": "264",
+      "id": 304040796,
+      "description": "Yüksek kaliteli bershka ürünü. Modern tasarım ve üstün kalite.",
+      "brand": "BERSHKA",
+      "images": [
+        "https://cdn.dsmcdn.com/ty1/product/media/images/placeholder1.jpg",
+        "https://cdn.dsmcdn.com/ty1/product/media/images/placeholder2.jpg"
+      ],
+      "variants": {
+        "colors": [
+          "siyah",
+          "beyaz",
+          "mavi"
+        ],
+        "sizes": [
+          "S",
+          "M",
+          "L",
+          "XL"
+        ],
+        "totalVariants": 12
+      },
+      "url": "https://www.trendyol.com/bershka/kadin-ceket-p-556677889"
+    },
+    {
+      "title": "NIKE NIKE",
+      "price": "445",
+      "basePrice": "445",
+      "id": 895387585,
+      "description": "Yüksek kaliteli nike ürünü. Modern tasarım ve üstün kalite.",
+      "brand": "NIKE",
+      "images": [
+        "https://cdn.dsmcdn.com/ty1/product/media/images/placeholder1.jpg",
+        "https://cdn.dsmcdn.com/ty1/product/media/images/placeholder2.jpg"
+      ],
+      "variants": {
+        "colors": [
+          "siyah",
+          "beyaz",
+          "mavi"
+        ],
+        "sizes": [
+          "S",
+          "M",
+          "L",
+          "XL"
+        ],
+        "totalVariants": 12
+      },
+      "url": "https://www.trendyol.com/nike/spor-ayakkabi-p-777888999"
+    },
+    {
+      "title": "PULL-BEAR PULL BEAR",
+      "price": "258",
+      "basePrice": "258",
+      "id": 7726729,
+      "description": "Yüksek kaliteli pull bear ürünü. Modern tasarım ve üstün kalite.",
+      "brand": "PULL-BEAR",
+      "images": [
+        "https://cdn.dsmcdn.com/ty1/product/media/images/placeholder1.jpg",
+        "https://cdn.dsmcdn.com/ty1/product/media/images/placeholder2.jpg"
+      ],
+      "variants": {
+        "colors": [
+          "siyah",
+          "beyaz",
+          "mavi"
+        ],
+        "sizes": [
+          "S",
+          "M",
+          "L",
+          "XL"
+        ],
+        "totalVariants": 12
+      },
+      "url": "https://www.trendyol.com/pull-bear/erkek-hoodie-p-998877665"
+    },
+    {
+      "title": "HM HM",
+      "price": "147",
+      "basePrice": "147",
+      "id": 807281472,
+      "description": "Yüksek kaliteli hm ürünü. Modern tasarım ve üstün kalite.",
+      "brand": "HM",
+      "images": [
+        "https://cdn.dsmcdn.com/ty1/product/media/images/placeholder1.jpg",
+        "https://cdn.dsmcdn.com/ty1/product/media/images/placeholder2.jpg"
+      ],
+      "variants": {
+        "colors": [
+          "siyah",
+          "beyaz",
+          "mavi"
+        ],
+        "sizes": [
+          "S",
+          "M",
+          "L",
+          "XL"
+        ],
+        "totalVariants": 12
+      },
+      "url": "https://www.trendyol.com/hm/kadin-kazak-p-112233456"
     }
   ],
-  "lastUpdate": "2025-06-19T11:28:38.430Z"
+  "lastUpdate": "2025-06-19T11:30:07.767Z"
 }
