@@ -8,6 +8,7 @@ import { storage } from "./storage";
 import { scrapeProductWithPuppeteer } from "./fixed-puppeteer-scraper";
 import { scrapeWithEnhancedMethod } from "./enhanced-trendyol-scraper";
 import { generateStrictShopifyCSV } from "./strict-csv-generator";
+import { csvAccumulator } from "./csv-accumulator";
 import { getCategoryConfig } from "./category-mapping";
 import { cleanTrendyolAttributes } from "./clean-attributes";
 import { parseJsonLdProductData, generateTagsFromJsonLd } from "./json-ld-parser";
@@ -732,7 +733,8 @@ export async function registerRoutes(app: Express) {
                 colors: variants.color
               });
               
-              const csvResult = await generateStrictShopifyCSV([{
+              // Ürünü CSV koleksiyonuna ekle
+              csvAccumulator.addProduct({
                 url: url,
                 title: productData.title,
                 id: productData.id || 0,
@@ -741,13 +743,15 @@ export async function registerRoutes(app: Express) {
                 brand: productData.brand || null,
                 basePrice: productData.basePrice || null,
                 images: productData.images || [],
-                video: productData.video || null,
                 variants: {
                   colors: variants.color || ['tek renk'],
                   sizes: variants.size || ['Standart'],
                   totalVariants: (variants.color || ['tek renk']).length * (variants.size || ['Standart']).length
                 }
-              }]);
+              });
+              
+              // CSV istatistiklerini al
+              const stats = csvAccumulator.getStats();
               
               storage.addToHistory(url);
               
@@ -767,7 +771,14 @@ export async function registerRoutes(app: Express) {
                   rating: jsonldData.rating,
                   reviewCount: jsonldData.reviews?.length || 0
                 },
-                preview: csvResult
+                csvInfo: {
+                  filename: 'shopify-urunler.csv',
+                  csvPath: '/home/runner/workspace/shopify-urunler.csv',
+                  downloadUrl: '/shopify-urunler.csv',
+                  success: true,
+                  message: `Toplam ${stats.totalProducts} ürün CSV'de`,
+                  totalRows: stats.totalProducts * 3 + 1
+                }
               });
             } catch (error: any) {
               console.log(`JSON-LD işleme hatası: ${error.message}`);
