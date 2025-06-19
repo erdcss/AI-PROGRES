@@ -123,11 +123,12 @@ function CSVPreview({ csvPath }: { csvPath: string }) {
           try {
             const data = JSON.parse(text);
             console.log('CSV preview parsed data:', data);
+            console.log('Rows data:', data.rows);
+            console.log('First row:', data.rows?.[0]);
             setCsvData(data);
           } catch (parseError) {
             console.error('JSON parse error:', parseError);
             console.log('Response was not JSON, treating as error');
-            // Backend returned HTML instead of JSON, probably routing issue
           }
           setLoading(false);
         })
@@ -195,18 +196,33 @@ function CSVPreview({ csvPath }: { csvPath: string }) {
             </tr>
           </thead>
           <tbody>
-            {csvData.rows?.slice(0, 3).map((row: any[], rowIndex: number) => (
-              <tr key={rowIndex} className="border-b border-gray-700">
-                {row.slice(0, 4).map((cell: string, cellIndex: number) => (
-                  <td key={cellIndex} className="p-1 text-gray-300 max-w-[100px] truncate">
-                    {cell && cell.length > 20 ? cell.substring(0, 20) + '...' : cell || '-'}
-                  </td>
-                ))}
-                {csvData.headers?.length > 4 && (
-                  <td className="p-1 text-gray-500">...</td>
-                )}
+            {csvData.rows && csvData.rows.length > 0 ? (
+              csvData.rows.slice(0, 3).map((row: any[], rowIndex: number) => (
+                <tr key={rowIndex} className="border-b border-gray-700">
+                  {Array.isArray(row) ? (
+                    row.slice(0, 4).map((cell: string, cellIndex: number) => (
+                      <td key={cellIndex} className="p-1 text-gray-300 max-w-[100px] truncate">
+                        {cell && typeof cell === 'string' && cell.length > 20 ? 
+                          cell.substring(0, 20) + '...' : 
+                          (cell || '-')
+                        }
+                      </td>
+                    ))
+                  ) : (
+                    <td colSpan={4} className="p-1 text-red-400">Satır formatı hatası</td>
+                  )}
+                  {csvData.headers?.length > 4 && (
+                    <td className="p-1 text-gray-500">...</td>
+                  )}
+                </tr>
+              ))
+            ) : (
+              <tr>
+                <td colSpan={5} className="p-3 text-center text-gray-400">
+                  Veri yükleniyor...
+                </td>
               </tr>
-            ))}
+            )}
           </tbody>
         </table>
       </div>
