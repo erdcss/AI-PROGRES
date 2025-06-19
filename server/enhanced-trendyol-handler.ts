@@ -111,6 +111,12 @@ export async function scrapeTrendyolProduct(inputUrl: string) {
     // CSV otomatik oluştur
     try {
       console.log('🔄 Otomatik CSV oluşturuluyor...');
+      console.log('📊 Gönderilen ürün verisi:', {
+        title: title,
+        description: productDescription,
+        brand: brand,
+        images: cleanImages.length
+      });
       const { generateStrictShopifyCSV } = await import('./strict-csv-generator');
       const csvResult = await generateStrictShopifyCSV([{
         title: title,

@@ -128,13 +128,15 @@ export async function generateStrictShopifyCSV(products: Product[]): Promise<{
   totalRows: number;
 }> {
   const filename = 'shopify-urunler.csv';
-  const filePath = path.join('/home/runner/workspace', filename);
+  const tempPath = path.join(process.cwd(), 'temp', filename);
+  const finalPath = path.join(process.cwd(), filename);
 
-  // Ensure workspace directory exists
-  const workspaceDir = '/home/runner/workspace';
-  if (!fs.existsSync(workspaceDir)) {
-    fs.mkdirSync(workspaceDir, { recursive: true });
-  }
+  // Ensure temp directory exists
+  await fs.promises.mkdir(path.dirname(tempPath), { recursive: true });
+  
+  console.log(`🔧 CSV oluşturuluyor - ${products.length} ürün`);
+  console.log(`📝 İlk ürün: "${products[0]?.title}"`);
+  console.log(`📝 İlk açıklama: "${products[0]?.description}"`);
 
   const headers = [
     'Handle', 'Title', 'Body (HTML)', 'Vendor', 'Type', 'Tags', 'Published',
