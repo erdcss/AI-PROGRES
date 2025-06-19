@@ -292,16 +292,18 @@ export async function generateStrictShopifyCSV(products: Product[]): Promise<{
   };
   
   const csvContent = createPythonStyleCSV();
-  await fs.promises.writeFile(filePath, csvContent, { encoding: 'utf-8' });
+  await fs.promises.writeFile(tempPath, csvContent, { encoding: 'utf-8' });
+  await fs.promises.writeFile(finalPath, csvContent, { encoding: 'utf-8' });
   
-  console.log(`📁 Dosya yolu: ${filePath}`);
+  console.log(`📁 Temp dosya: ${tempPath}`);
+  console.log(`📁 Final dosya: ${finalPath}`);
 
   console.log(`✅ Strict Shopify CSV created: ${filename}`);
   console.log(`📊 ${shopifyVariants.length} variants, ${products.length} products`);
 
   return {
     filename,
-    csvPath: filePath,
+    csvPath: finalPath,
     downloadUrl: `/${filename}`,
     success: true,
     message: "Strict CSV ready",
