@@ -92,18 +92,24 @@ export class InstantCSVGenerator {
   private createVariantRow(product: Product, handle: string, color: string, size: string, markedPrice: string, basePrice: string): any[] {
     const variantHandle = `${handle}-${color.replace(/\s+/g, '').toLowerCase()}-${size.replace(/\s+/g, '').toLowerCase()}`;
     const title = product.title || 'Ürün';
-    const description = product.description || 'Kaliteli malzeme ile üretilmiştir. Günlük kullanım için ideal. Rahat kesim ve şık tasarım. Uzun ömürlü kullanım için tasarlanmıştır';
+    
+    // Enhanced description with product attributes
+    const enhancedDescription = this.createEnhancedDescription(product);
+    
     const brand = product.brand || 'Marka';
     const mainImage = product.images?.[0] || '';
     const comparePrice = basePrice;
     
+    // Generate category-based tags
+    const categoryTags = this.generateCategoryTags(product);
+    
     return [
       handle,                           // Handle
       title,                           // Title
-      description,                     // Body (HTML)
+      enhancedDescription,             // Body (HTML) - Enhanced with attributes
       brand,                          // Vendor
-      'Giyim',                        // Product Category
-      'giyim,moda,trend',             // Tags
+      this.detectProductCategory(product), // Product Category - Auto-detected
+      categoryTags,                   // Tags - Category-based
       'TRUE',                         // Published
       'Renk',                         // Option1 Name
       color,                          // Option1 Value
@@ -122,7 +128,7 @@ export class InstantCSVGenerator {
       'TRUE',                         // Variant Requires Shipping
       'TRUE',                         // Variant Taxable
       '',                             // Variant Barcode
-      mainImage,                      // Image Src
+      this.getAllProductImages(product), // Image Src - All images
       '1',                            // Image Position
       `${title} - ${color}`,          // Image Alt Text
       'FALSE',                        // Gift Card
@@ -141,7 +147,7 @@ export class InstantCSVGenerator {
       '',                             // Google Shopping / Custom Label 2
       '',                             // Google Shopping / Custom Label 3
       '',                             // Google Shopping / Custom Label 4
-      mainImage,                      // Variant Image
+      this.getAllProductImages(product), // Variant Image - All images
       'kg',                           // Variant Weight Unit
       '',                             // Variant Tax Code
       (parseFloat(markedPrice) * 0.64).toFixed(2), // Cost per item
@@ -199,6 +205,182 @@ export class InstantCSVGenerator {
     });
 
     return csvContent;
+  }
+
+  /**
+   * Create enhanced description with Trendyol product attributes
+   */
+  private createEnhancedDescription(product: Product): string {
+    let description = product.description || '';
+    
+    // Add original description
+    let enhancedDesc = `<div class="product-description">
+      <h3>Ürün Açıklaması</h3>
+      <p>${description}</p>
+    </div>`;
+    
+    // Add product attributes if available
+    if (product.attributes && Object.keys(product.attributes).length > 0) {
+      enhancedDesc += `\n<div class="product-attributes">
+        <h3>Ürün Özellikleri</h3>
+        <table>`;
+      
+      Object.entries(product.attributes).forEach(([key, value]) => {
+        enhancedDesc += `\n<tr><td><strong>${key}:</strong></td><td>${value}</td></tr>`;
+      });
+      
+      enhancedDesc += `\n</table></div>`;
+    }
+    
+    // Add general quality statements
+    enhancedDesc += `\n<div class="quality-info">
+      <ul>
+        <li>Kaliteli malzeme ile üretilmiştir</li>
+        <li>Günlük kullanım için ideal</li>
+        <li>Rahat kesim ve şık tasarım</li>
+        <li>Uzun ömürlü kullanım için tasarlanmıştır</li>
+      </ul>
+    </div>`;
+    
+    return enhancedDesc;
+  }
+
+  /**
+   * Generate category-based tags
+   */
+  private generateCategoryTags(product: Product): string {
+    const tags = new Set<string>();
+    
+    // Add brand tag
+    if (product.brand) {
+      tags.add(product.brand.toLowerCase());
+    }
+    
+    // Add category-based tags based on title analysis
+    const title = product.title?.toLowerCase() || '';
+    
+    // Clothing categories
+    if (title.includes('tişört') || title.includes('t-shirt')) {
+      tags.add('tişört');
+      tags.add('üst giyim');
+      tags.add('günlük');
+    }
+    
+    if (title.includes('pantolon') || title.includes('jean')) {
+      tags.add('pantolon');
+      tags.add('alt giyim');
+      tags.add('günlük');
+    }
+    
+    if (title.includes('elbise') || title.includes('dress')) {
+      tags.add('elbise');
+      tags.add('özel günler');
+      tags.add('şık');
+    }
+    
+    if (title.includes('ayakkabı') || title.includes('bot') || title.includes('sandalet')) {
+      tags.add('ayakkabı');
+      tags.add('footwear');
+    }
+    
+    if (title.includes('çanta') || title.includes('bag')) {
+      tags.add('çanta');
+      tags.add('aksesuar');
+    }
+    
+    // Gender-based tags
+    if (title.includes('kadın') || title.includes('woman')) {
+      tags.add('kadın');
+    }
+    
+    if (title.includes('erkek') || title.includes('man')) {
+      tags.add('erkek');
+    }
+    
+    if (title.includes('unisex')) {
+      tags.add('unisex');
+    }
+    
+    // Style tags
+    if (title.includes('spor') || title.includes('sport')) {
+      tags.add('spor');
+      tags.add('aktif yaşam');
+    }
+    
+    if (title.includes('klasik') || title.includes('classic')) {
+      tags.add('klasik');
+      tags.add('zamansız');
+    }
+    
+    // Material tags
+    if (title.includes('pamuk') || title.includes('cotton')) {
+      tags.add('pamuk');
+      tags.add('doğal kumaş');
+    }
+    
+    if (title.includes('deri') || title.includes('leather')) {
+      tags.add('deri');
+      tags.add('premium');
+    }
+    
+    // Add generic fashion tags
+    tags.add('moda');
+    tags.add('trend');
+    tags.add('kaliteli');
+    tags.add('türkiye');
+    
+    return Array.from(tags).join(',');
+  }
+
+  /**
+   * Detect product category from title and attributes
+   */
+  private detectProductCategory(product: Product): string {
+    const title = product.title?.toLowerCase() || '';
+    
+    // Clothing categories
+    if (title.includes('tişört') || title.includes('t-shirt') || title.includes('gömlek')) {
+      return 'Üst Giyim';
+    }
+    
+    if (title.includes('pantolon') || title.includes('jean') || title.includes('şort')) {
+      return 'Alt Giyim';
+    }
+    
+    if (title.includes('elbise') || title.includes('dress')) {
+      return 'Elbise';
+    }
+    
+    if (title.includes('ayakkabı') || title.includes('bot') || title.includes('sandalet') || title.includes('loafer')) {
+      return 'Ayakkabı';
+    }
+    
+    if (title.includes('çanta') || title.includes('bag') || title.includes('cüzdan')) {
+      return 'Çanta & Aksesuar';
+    }
+    
+    if (title.includes('saat') || title.includes('watch')) {
+      return 'Saat';
+    }
+    
+    if (title.includes('takı') || title.includes('jewelry')) {
+      return 'Takı';
+    }
+    
+    // Default category
+    return 'Giyim';
+  }
+
+  /**
+   * Get all product images as comma-separated string
+   */
+  private getAllProductImages(product: Product): string {
+    if (!product.images || product.images.length === 0) {
+      return '';
+    }
+    
+    // Return all images separated by pipes for Shopify multiple images
+    return product.images.slice(0, 10).join(' | '); // Limit to 10 images
   }
 
   /**
