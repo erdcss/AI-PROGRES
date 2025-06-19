@@ -288,17 +288,26 @@ export async function generateStrictShopifyCSV(products: Product[]): Promise<str
     console.log('⚠️ CSV quote fixing atlandı:', error.message);
   }
   
-  console.log(`✅ Optimized Shopify CSV created: shopify-urunler.csv`);
-  console.log(`📊 ${csvRows.length - 1} variants, ${products.length} products`);
+  console.log(`✅ Shopify CSV oluşturuldu: shopify-urunler.csv`);
+  console.log(`📊 ${csvRows.length} varyant, ${products.length} ürün`);
   
   return finalFilePath;
 }
-  
-  return str;
+
+// Helper functions for product categorization
+function getProductType(title: string): string {
+  const lower = title.toLowerCase();
+  if (lower.includes('elbise')) return 'Elbise';
+  if (lower.includes('gömlek')) return 'Gömlek';
+  if (lower.includes('pantolon')) return 'Pantolon';
+  if (lower.includes('sweatshirt')) return 'Sweatshirt';
+  if (lower.includes('takım')) return 'Takım';
+  return 'Giyim';
 }
 
-// Generate CSV with strict formatting
-function generateCSVContent(headers: string[], variants: ShopifyVariant[]): string {
+function generateTags(product: any): string {
+  return 'premium, moda, trend, kaliteli';
+}
   const lines: string[] = [];
   
   // Header line
