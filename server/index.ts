@@ -188,27 +188,7 @@ app.get('/api/preview/:filename', (req, res) => {
   }
 });
 
-app.get('/api/download/shopify-urunler.csv', (req, res) => {
-  const workspaceFile = '/home/runner/workspace/shopify-urunler.csv';
-  const tempFile = '/home/runner/workspace/temp/shopify-urunler.csv';
-  
-  // Copy from temp to workspace if needed
-  if (!fs.existsSync(workspaceFile) && fs.existsSync(tempFile)) {
-    fs.copyFileSync(tempFile, workspaceFile);
-  }
-  
-  if (fs.existsSync(workspaceFile)) {
-    const csvContent = fs.readFileSync(workspaceFile, 'utf-8');
-    res.writeHead(200, {
-      'Content-Type': 'text/csv; charset=utf-8',
-      'Content-Disposition': 'attachment; filename="shopify-urunler.csv"',
-      'Cache-Control': 'no-cache'
-    });
-    res.end(csvContent);
-  } else {
-    res.status(404).send('CSV file not found');
-  }
-});
+
 
 // API kök dizini için bilgi mesajı
 app.get('/api', (req, res) => {
