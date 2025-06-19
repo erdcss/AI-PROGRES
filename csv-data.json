@@ -1,0 +1,30 @@
+{
+  "products": [
+    {
+      "title": "HAKKE Bel Lastikli Yarasa Kol Keten Elbise",
+      "price": "506.99",
+      "basePrice": "506.99",
+      "id": 790728343,
+      "description": "Ürün Özellikleri: Materyal Bileşeni. Kaliteli malzeme ile üretilmiştir. Günlük kullanım için ideal. Rahat kesim ve şık tasarım. Uzun ömürlü kullanım için tasarlanmıştır",
+      "brand": "HAKKE",
+      "images": [
+        "https://cdn.dsmcdn.com/ty1102/product/media/images/prod/SPM/PIM/20231222/09/1aee7899-050f-3e0c-9d77-5aa40c357fcd/1_org.jpg",
+        "https://cdn.dsmcdn.com/ty1101/product/media/images/prod/SPM/PIM/20231222/09/0c06754a-cddc-3167-ac0d-81bcb46dc2b9/1_org.jpg",
+        "https://cdn.dsmcdn.com/ty1102/product/media/images/prod/SPM/PIM/20231222/09/1ebcd50d-1518-3437-84d0-6040384003a9/1_org.jpg"
+      ],
+      "variants": {
+        "colors": [
+          "tek renk"
+        ],
+        "sizes": [
+          "S",
+          "M",
+          "L"
+        ],
+        "totalVariants": 3
+      },
+      "url": "https://www.trendyol.com/hakke/bel-lastikli-yarasa-kol-keten-elbise-p-790728343"
+    }
+  ],
+  "lastUpdate": "2025-06-19T08:13:55.173Z"
+}

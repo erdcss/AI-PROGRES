@@ -131,41 +131,9 @@ export async function registerRoutes(app: Express) {
         }
         
         // Enhanced Trendyol handler kullan
-        console.log('🚀 Enhanced Trendyol handler başlatılıyor...');
         const { scrapeTrendyolProduct } = await import('./enhanced-trendyol-handler');
-        const trendyolResult = await scrapeTrendyolProduct(url);
-        
-        console.log('✅ Ürün verisi alındı, CSV oluşturuluyor...');
-        
-        // CSV oluştur ve indirme linki ver
-        try {
-          const { generateShopifyCSV } = await import('./shopify-csv-generator-new');
-          const csvResult = await generateShopifyCSV([trendyolResult]);
-          
-          console.log('✅ CSV başarıyla oluşturuldu:', csvResult);
-          
-          return res.status(200).json({
-            ...trendyolResult,
-            csvExport: {
-              filename: csvResult.filename,
-              downloadUrl: `/csv/${csvResult.filename}`,
-              success: true,
-              message: "CSV hazır",
-              totalRows: csvResult.totalRows
-            }
-          });
-        } catch (csvError: any) {
-          console.error('❌ CSV oluşturma hatası:', csvError);
-          console.error('Stack trace:', csvError.stack);
-          return res.status(200).json({
-            ...trendyolResult,
-            csvExport: {
-              success: false,
-              error: csvError.message,
-              message: "CSV oluşturulamadı"
-            }
-          });
-        }
+        const result = await scrapeTrendyolProduct(url);
+        return res.status(200).json(result);
       }
       
       // Continue with original flow for non-Trendyol URLs

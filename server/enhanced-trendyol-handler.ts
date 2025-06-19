@@ -1,5 +1,6 @@
 import * as cheerio from 'cheerio';
 import axios from 'axios';
+import { csvAccumulator } from './csv-accumulator';
 
 export interface EnhancedVariantData {
   colors: string[];
@@ -92,73 +93,50 @@ export async function scrapeTrendyolProduct(inputUrl: string) {
     
     console.log(`✅ Otantik çıkarım: ${colorCount} renk, ${sizeCount} beden, ${imageCount} görsel`);
     
-    // CSV otomatik oluştur
-    try {
-      console.log('🔄 Otomatik CSV oluşturuluyor...');
-      console.log('📊 Gönderilen ürün verisi:', {
-        title: title,
-        description: productDescription,
-        brand: brand,
-        images: cleanImages.length
-      });
-      const { generateStrictShopifyCSV } = await import('./strict-csv-generator');
-      const csvResult = await generateStrictShopifyCSV([{
-        title: title,
-        price: price,
-        basePrice: price,
-        id: productId,
-        description: productDescription,
-        brand: brand,
-        images: cleanImages,
-        variants: {
-          colors: colorVariants,
-          sizes: sizeVariants,
-          totalVariants: Math.max(colorVariants.length * sizeVariants.length, 1)
-        },
-        url: url
-      }]);
-      console.log('✅ CSV başarıyla oluşturuldu:', csvResult.filename);
-      
-      return {
+    // Ürünü CSV koleksiyonuna ekle
+    console.log('🔄 Ürün CSV koleksiyonuna ekleniyor...');
+    console.log('📊 Gönderilen ürün verisi:', {
+      title: title,
+      description: productDescription,
+      brand: brand,
+      images: cleanImages.length
+    });
+    
+    const productData = {
+      title: title,
+      price: price,
+      basePrice: price,
+      id: productId,
+      description: productDescription,
+      brand: brand,
+      images: cleanImages,
+      variants: {
+        colors: colorVariants,
+        sizes: sizeVariants,
+        totalVariants: Math.max(colorVariants.length * sizeVariants.length, 1)
+      },
+      url: url
+    };
+    
+    // CSV accumulator'a ekle
+    csvAccumulator.addProduct(productData);
+    
+    // İstatistikleri al
+    const stats = csvAccumulator.getStats();
+    console.log(`✅ Ürün koleksiyona eklendi. Toplam: ${stats.totalProducts} ürün`);
+    
+    return {
+      success: true,
+      ...productData,
+      csvInfo: {
+        filename: 'shopify-urunler.csv',
+        csvPath: '/home/runner/workspace/shopify-urunler.csv',
+        downloadUrl: '/shopify-urunler.csv',
         success: true,
-        title: title,
-        price: price,
-        basePrice: price,
-        id: productId,
-        description: productDescription,
-        brand: brand,
-        images: cleanImages,
-        variants: {
-          colors: colorVariants,
-          sizes: sizeVariants,
-          totalVariants: Math.max(colorVariants.length * sizeVariants.length, 1)
-        },
-        url: url,
-        csvInfo: csvResult
-      };
-    } catch (csvError) {
-      console.error('❌ CSV oluşturma hatası:', csvError);
-      
-      return {
-        success: false,
-        title: title,
-        price: price,
-        id: productId,
-        description: productDescription,
-        brand: brand,
-        images: cleanImages,
-        variants: {
-          colors: colorVariants,
-          sizes: sizeVariants,
-          totalVariants: Math.max(colorVariants.length * sizeVariants.length, 1)
-        },
-        url: url,
-        csvInfo: {
-          success: false,
-          message: "CSV oluşturulamadı"
-        }
-      };
-    }
+        message: `Toplam ${stats.totalProducts} ürün CSV'de`,
+        totalRows: stats.totalProducts * 3 + 1
+      }
+    };
 
   } catch (error) {
     console.log("❌ Enhanced Trendyol handler hatası:", error);
