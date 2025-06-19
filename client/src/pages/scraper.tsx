@@ -27,7 +27,6 @@ import {
   Clipboard,
   Download
 } from "lucide-react";
-import { useState } from "react";
 import {
   Alert,
   AlertDescription,
