@@ -535,87 +535,41 @@ function extractDetailedProductFeatures($: any, htmlContent: string): string {
   
   return enhancedDescription;
 }
-  const features = [];
+
+function extractFeaturesFromJSON(htmlContent: string): string[] {
+  const features: string[] = [];
   
-  console.log('🔍 Detaylı ürün özellik çıkarma başlıyor...');
-  
-  // Ana ürün açıklaması
-  const mainDescriptions = [
-    $('div[data-fragment-name="ProductDescription"]').text().trim(),
-    $('.product-detail-description').text().trim(),
-    $('.description-content').text().trim(),
-    $('.product-description').text().trim(),
-    $('.detail-description').text().trim()
-  ].filter(desc => desc && desc.length > 20);
-  
-  if (mainDescriptions.length > 0) {
-    features.push(mainDescriptions[0]);
-    console.log(`📝 Ana açıklama bulundu: ${mainDescriptions[0].length} karakter`);
-  }
-  
-  // Ürün özellikleri tablosu
-  const tableFeatures: string[] = [];
-  $('table tr, .attributes-table tr, .product-features-table tr').each((i: number, el: any) => {
-    const row = $(el);
-    const cells = row.find('td, th');
+  try {
+    // Pattern 1: attributes array
+    const attributePattern = /"attributes":\s*\[(.*?)\]/;
+    const attributeMatch = htmlContent.match(attributePattern);
     
-    if (cells.length >= 2) {
-      const key = $(cells[0]).text().trim();
-      const value = $(cells[1]).text().trim();
+    if (attributeMatch) {
+      const attributeText = attributeMatch[1];
+      const jsonAttributes = attributeText.match(/"name":"([^"]+)","value":"([^"]+)"/g);
       
-      if (key && value && key !== value && key.length > 1 && value.length > 1) {
-        tableFeatures.push(`${key}: ${value}`);
-        console.log(`🔧 Tablo özelliği: ${key}: ${value}`);
+      if (jsonAttributes) {
+        jsonAttributes.slice(0, 8).forEach(attr => {
+          const nameMatch = attr.match(/"name":"([^"]+)"/);
+          const valueMatch = attr.match(/"value":"([^"]+)"/);
+          
+          if (nameMatch && valueMatch) {
+            const name = nameMatch[1];
+            const value = valueMatch[1];
+            if (name && value && name.length > 1 && value.length > 1) {
+              features.push(`${name}: ${value}`);
+              console.log(`🔗 JSON özellik: ${name}: ${value}`);
+            }
+          }
+        });
       }
     }
-  });
-  
-  // Liste formatındaki özellikler
-  const listFeatures: string[] = [];
-  $('.product-features li, .feature-list li, .attributes-list li, ul.features li').each((i: number, el: any) => {
-    const feature = $(el).text().trim();
-    if (feature && feature.length > 5 && feature.length < 150 && !feature.includes('http')) {
-      listFeatures.push(feature);
-      console.log(`📋 Liste özelliği: ${feature}`);
-    }
-  });
-  
-  // Malzeme ve bakım bilgileri
-  const materialFeatures: string[] = [];
-  $('div, span, p').each((i: number, el: any) => {
-    const text = $(el).text().trim();
-    const keywords = ['malzeme', 'materyal', 'kumaş', 'fabric', 'bakım', 'yıkama', 'care', 'wash'];
-    
-    if (keywords.some(keyword => text.toLowerCase().includes(keyword)) && 
-        text.length > 10 && text.length < 200) {
-      materialFeatures.push(text);
-      console.log(`🧵 Malzeme/Bakım: ${text}`);
-    }
-  });
-  
-  // JSON verilerinden özellik çıkarma
-  const jsonFeatures = extractFeaturesFromJSON(htmlContent);
-  
-  // Tüm özellikleri birleştir
-  const allFeatures = [
-    ...tableFeatures.slice(0, 8),
-    ...listFeatures.slice(0, 6),
-    ...materialFeatures.slice(0, 4),
-    ...jsonFeatures.slice(0, 6)
-  ];
-  
-  if (allFeatures.length > 0) {
-    features.push(`Ürün Özellikleri: ${allFeatures.join(', ')}`);
-    console.log(`✅ ${allFeatures.length} özellik toplandı`);
+  } catch (e) {
+    console.log('⚠️ JSON özellik çıkarma hatası:', e);
   }
   
-  // Kalite ve kullanım bilgileri ekle
-  const qualityInfo = [
-    'Kaliteli malzeme ile üretilmiştir',
-    'Günlük kullanım için ideal',
-    'Rahat kesim ve şık tasarım',
-    'Uzun ömürlü kullanım için tasarlanmıştır'
-  ];
+  return features;
+}
   
   features.push(...qualityInfo);
   
