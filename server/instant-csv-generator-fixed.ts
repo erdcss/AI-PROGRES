@@ -79,6 +79,8 @@ class InstantCSVGenerator {
       const realSizes = variants.sizes.filter(s => s && s !== 'OS' && s !== 'default' && s !== 'tek beden' && s.trim() !== '' && s !== 'N/A');
       
       console.log(`🔍 Variant analysis: Real colors=${realColors.length} (${realColors.join(', ')}), Real sizes=${realSizes.length} (${realSizes.join(', ')})`);
+      console.log(`🔍 All received colors: ${variants.colors.join(', ')}`);
+      console.log(`🔍 All received sizes: ${variants.sizes.join(', ')}`);
       
       // Determine variant structure
       const hasColorVariants = realColors.length > 1;

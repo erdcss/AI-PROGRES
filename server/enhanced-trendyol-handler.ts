@@ -127,6 +127,10 @@ export async function scrapeTrendyolProduct(inputUrl: string) {
 
     const htmlContent = response.data;
     const $ = cheerio.load(htmlContent);
+    
+    // Extract product ID early for multi-variant detection
+    const productIdMatch = url.match(/p-(\d+)/);
+    const productId = productIdMatch ? parseInt(productIdMatch[1]) : Math.floor(Math.random() * 1000000);
 
     // Extract basic product info
     const title = $('h1').first().text().trim() || 
@@ -150,13 +154,10 @@ export async function scrapeTrendyolProduct(inputUrl: string) {
       title.split(' ')[0] ||
       'Genel Markalar';
 
-    // Extract product ID from URL
-    const productIdMatch = url.match(/p-(\d+)/);
-    const productId = productIdMatch ? parseInt(productIdMatch[1]) : Math.floor(Math.random() * 1000000);
-
     console.log(`🔍 Ürün bilgileri: ${title} - ${brand} - ${price} TL`);
     
-    // Use multi-variant extractor for better variant detection
+    // Use enhanced multi-variant extraction system
+    console.log('🔍 Using enhanced multi-variant extraction system...');
     const { extractMultiVariants } = await import('./multi-variant-extractor');
     const multiVariantData = await extractMultiVariants(url);
     
