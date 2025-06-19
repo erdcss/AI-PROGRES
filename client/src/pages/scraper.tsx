@@ -211,8 +211,8 @@ function CSVPreview({ csvPath }: { csvPath: string }) {
               </tr>
             </thead>
             <tbody>
-              {csvData.rows.slice(0, 3).map((row: string[], rowIndex: number) => {
-                console.log(`🔧 DEBUG - Row ${rowIndex}:`, row.slice(0, 4));
+              {csvData.rows.map((row: string[], rowIndex: number) => {
+                console.log(`Product ${rowIndex + 1}:`, row.slice(0, 4));
                 return (
                   <tr key={rowIndex} className="border-b border-gray-600 hover:bg-gray-700/30">
                     {row.slice(0, 4).map((cell: string, cellIndex: number) => (

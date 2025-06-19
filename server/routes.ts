@@ -99,10 +99,32 @@ export async function registerRoutes(app: Express) {
         return cells;
       });
       
+      // Extract unique products only - first row of each handle
+      const uniqueProducts: string[][] = [];
+      const seenHandles = new Set<string>();
+      
+      for (let i = 1; i < rows.length; i++) {
+        const parsedRow = parseCSVRow(rows[i]);
+        const handle = parsedRow[0];
+        
+        if (!seenHandles.has(handle) && handle.trim()) {
+          seenHandles.add(handle);
+          uniqueProducts.push(parsedRow);
+          
+          if (uniqueProducts.length >= 6) break;
+        }
+      }
+      
+      console.log(`📊 Unique products found: ${uniqueProducts.length}`);
+      uniqueProducts.forEach((product, i) => {
+        console.log(`${i + 1}. ${product[1]} (${product[3]})`);
+      });
+      
       return res.json({
         headers: headers.slice(0, 5),
-        rows: dataRows,
+        rows: uniqueProducts,
         totalRows: rows.length - 1,
+        uniqueProducts: uniqueProducts.length,
         filename
       });
     } catch (error) {
