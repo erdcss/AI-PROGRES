@@ -309,10 +309,7 @@ export async function scrapeTrendyolProduct(inputUrl: string) {
     const variantData = {
       colors: multiVariantData.colors,
       sizes: multiVariantData.sizes,
-      images: Array.from(new Set([
-        ...Object.values(multiVariantData.images).flat(),
-        ...cleanImages
-      ])).slice(0, 25),
+      images: absoluteImages,
       pricing: multiVariantData.pricing
     };
 
@@ -324,8 +321,17 @@ export async function scrapeTrendyolProduct(inputUrl: string) {
     const allImages = Array.from(new Set([
       ...Object.values(multiVariantData.images).flat(),
       ...cleanImages
-    ])).filter(img => img.startsWith('http')).slice(0, 25);
-    console.log(`🎯 ${allImages.length} görsel çıkarıldı`);
+    ])).filter(img => img && (img.startsWith('http') || img.startsWith('/'))).slice(0, 25);
+    
+    // Convert relative URLs to absolute URLs
+    const absoluteImages = allImages.map(img => {
+      if (img.startsWith('/')) {
+        return `https://cdn.dsmcdn.com${img}`;
+      }
+      return img;
+    });
+    
+    console.log(`🎯 ${absoluteImages.length} görsel çıkarıldı`);
     
     const colorVariants = multiVariantData.colors;
     const sizeVariants = multiVariantData.sizes;
@@ -353,7 +359,7 @@ export async function scrapeTrendyolProduct(inputUrl: string) {
         description: productDescription,
         brand: basicProductData.brand,
         price: basicProductData.price,
-        images: cleanImages,
+        images: absoluteImages,
         colors: variantData.colors,
         sizes: variantData.sizes
       });
@@ -429,13 +435,17 @@ export async function scrapeTrendyolProduct(inputUrl: string) {
     // Extract comprehensive product features for display
     const productFeatures = extractProductFeatures($, htmlContent);
     
+    // Extract category information
+    const categoryInfo = extractCategoryInfo($, htmlContent);
+    
     // Final product data assembly with comprehensive information
     const productData = {
       title: basicProductData.title,
       brand: basicProductData.brand,
       price: basicProductData.price,
       description: productDescription,
-      images: cleanImages,
+      images: absoluteImages,
+      category: categoryInfo,
       variants: variantData,
       features: productFeatures,
       stockInfo: multiVariantData.stockInfo || {},
@@ -444,6 +454,9 @@ export async function scrapeTrendyolProduct(inputUrl: string) {
     };
 
     console.log(`✅ Ürün anlık olarak işlendi: ${basicProductData.title}`);
+    
+    console.log(`🔍 Kategori bilgisi: ${categoryInfo}`);
+    console.log(`🖼️ İlk görsel URL: ${absoluteImages[0]}`);
     
     return {
       success: true,
@@ -546,6 +559,71 @@ function extractDetailedProductFeatures($: any, htmlContent: string): string {
   const enhancedDescription = `Ürün Özellikleri: ${baseDescription}. Kaliteli malzeme ile üretilmiştir. Günlük kullanım için ideal. Rahat kesim ve şık tasarım. Uzun ömürlü kullanım için tasarlanmıştır`;
   
   return enhancedDescription;
+}
+
+function extractCategoryInfo($: any, htmlContent: string): string {
+  try {
+    // Method 1: Breadcrumb navigation
+    const breadcrumbSelectors = [
+      '.breadcrumb a',
+      '.breadcrumb-item a',
+      '.breadcrumb li a',
+      '.navigation-breadcrumb a',
+      '.product-breadcrumb a',
+      '[data-testid="breadcrumb"] a'
+    ];
+    
+    for (const selector of breadcrumbSelectors) {
+      const breadcrumbs = $(selector);
+      if (breadcrumbs.length > 0) {
+        const categories = [];
+        breadcrumbs.each((i: number, elem: any) => {
+          const text = $(elem).text().trim();
+          if (text && text !== 'Anasayfa' && text !== 'Home') {
+            categories.push(text);
+          }
+        });
+        if (categories.length > 0) {
+          return categories.join(' > ');
+        }
+      }
+    }
+    
+    // Method 2: Script data extraction
+    const scriptMatches = [
+      ...htmlContent.matchAll(/"categoryName":\s*"([^"]+)"/g),
+      ...htmlContent.matchAll(/"category":\s*"([^"]+)"/g),
+      ...htmlContent.matchAll(/"productCategory":\s*"([^"]+)"/g),
+      ...htmlContent.matchAll(/"categoryDisplayName":\s*"([^"]+)"/g),
+      ...htmlContent.matchAll(/"categoryHierarchy":\s*"([^"]+)"/g)
+    ];
+    
+    if (scriptMatches.length > 0) {
+      return scriptMatches[0][1];
+    }
+    
+    // Method 2.5: URL-based category extraction
+    const urlMatch = htmlContent.match(/\/([^\/]+)-x-c\d+/);
+    if (urlMatch) {
+      const categorySlug = urlMatch[1];
+      const categoryName = categorySlug.split('-').map(word => 
+        word.charAt(0).toUpperCase() + word.slice(1)
+      ).join(' ');
+      return categoryName;
+    }
+    
+    // Method 3: Meta tag extraction
+    const metaCategory = $('meta[property="product:category"]').attr('content') ||
+                        $('meta[name="category"]').attr('content');
+    if (metaCategory) {
+      return metaCategory;
+    }
+    
+    return 'Kategori Bulunamadı';
+  } catch (error) {
+    console.log('❌ Kategori çıkarma hatası:', error);
+    return 'Kategori Bulunamadı';
+  }
 }
 
 function extractProductFeatures($: any, htmlContent: string): Array<{key: string, value: string}> {
