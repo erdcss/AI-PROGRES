@@ -180,17 +180,23 @@ export async function generateStrictShopifyCSV(products: Product[]): Promise<{
         const isFirstVariant = colorIndex === 0 && sizeIndex === 0;
         const variantSku = `${product.id}-${color.replace(/\s+/g, '').toLowerCase()}-${size.replace(/\s+/g, '').toLowerCase()}`;
         
-        // Tüm görsellerden farklı olanları varyantlara dağıt
+        // Akıllı görsel dağılımı - her varyant farklı görsel alsın
         const totalVariants = colors.length * sizes.length;
         const variantIndex = colorIndex * sizes.length + sizeIndex;
         
-        // Ana görsel için farklı strategi
-        const mainImageIndex = Math.floor(variantIndex / 2) % product.images.length;
+        // Ana görsel: her 2 varyanttan bir görsel değiştir
+        const mainImageIndex = Math.floor(variantIndex / 2) % Math.max(product.images.length, 1);
         const imageSrc = product.images[mainImageIndex] || product.images[0] || '';
         
-        // Varyant görsel için başka görsel kullan
-        const variantImageIndex = variantIndex < product.images.length ? variantIndex : variantIndex % product.images.length;
-        const variantImageSrc = product.images[variantImageIndex] || product.images[mainImageIndex] || '';
+        // Varyant görseli: her varyant için farklı görsel
+        let variantImageIndex = variantIndex % Math.max(product.images.length, 1);
+        
+        // Eğer aynı görsel geliyorsa, bir sonrakini al
+        if (variantImageIndex === mainImageIndex && product.images.length > 1) {
+          variantImageIndex = (variantImageIndex + 1) % product.images.length;
+        }
+        
+        const variantImageSrc = product.images[variantImageIndex] || product.images[0] || '';
 
         console.log(`🔧 Varyant: ${color}-${size} (Ana görsel: ${mainImageIndex + 1}, Varyant görsel: ${variantImageIndex + 1})`);
 

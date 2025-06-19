@@ -77,8 +77,37 @@ export async function scrapeTrendyolProduct(inputUrl: string) {
     const variantData = extractEnhancedVariants(htmlContent, productId.toString());
 
     // Enhanced product feature extraction
-    const productDescription = extractDetailedProductFeatures($, htmlContent);
+    const { extractProductFeatures } = await import('./product-feature-extractor');
+    const productDescription = extractProductFeatures($, htmlContent);
     console.log(`📝 Açıklama uzunluğu: ${productDescription.length} karakter`);
+
+    // Clean and enhance images - get ALL available images
+    const cleanImages = variantData.images.filter(img => img.startsWith('http')).slice(0, 25);
+    console.log(`🎯 ${cleanImages.length} görsel çıkarıldı`);
+    
+    const colorVariants = variantData.colors.length > 0 ? variantData.colors : ['tek renk'];
+    const sizeVariants = variantData.sizes.length > 0 ? variantData.sizes : ['tek beden'];
+    const colorCount = colorVariants.length;
+    const sizeCount = sizeVariants.length;
+    const imageCount = cleanImages.length;
+    
+    console.log(`✅ Otantik çıkarım: ${colorCount} renk, ${sizeCount} beden, ${imageCount} görsel`);
+    
+    return {
+      title: title,
+      price: price,
+      basePrice: price,
+      id: productId,
+      description: productDescription,
+      brand: brand,
+      images: cleanImages,
+      variants: {
+        colors: colorVariants,
+        sizes: sizeVariants,
+        totalVariants: Math.max(colorVariants.length * sizeVariants.length, 1)
+      },
+      url: url
+    };
                   $('title').text().replace(' - Trendyol', '').trim();
 
     // Extract brand information
