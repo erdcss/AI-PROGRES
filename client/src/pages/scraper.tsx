@@ -35,7 +35,7 @@ import {
 import { ScrollArea } from "@/components/ui/scroll-area";
 import { useState, useEffect } from "react";
 import { ProductDisplay } from "@/components/ProductDisplay";
-import { CSVPreview } from "@/components/CSVPreview";
+import { EnhancedCSVPreview } from "@/components/EnhancedCSVPreview";
 
 // Platform logo configuration
 const PlatformLogos = {
@@ -651,7 +651,7 @@ function ScraperPage({ platform = 'trendyol' }: ScraperPageProps) {
                         </div>
                         
                         {/* CSV Content Preview */}
-                        <CSVPreview csvPath={product.csvInfo?.filename || 'shopify-urunler.csv'} />
+                        <EnhancedCSVPreview />
                         
                         {/* Enhanced Download Button */}
                         <div className="mt-3">

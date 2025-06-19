@@ -764,7 +764,34 @@
         "totalVariants": 12
       },
       "url": "https://www.trendyol.com/nike/test-product"
+    },
+    {
+      "title": "ADIDAS ADIDAS",
+      "price": "261",
+      "basePrice": "261",
+      "id": 678101058,
+      "description": "Yüksek kaliteli adidas ürünü. Modern tasarım ve üstün kalite.",
+      "brand": "ADIDAS",
+      "images": [
+        "https://cdn.dsmcdn.com/ty1/product/media/images/placeholder1.jpg",
+        "https://cdn.dsmcdn.com/ty1/product/media/images/placeholder2.jpg"
+      ],
+      "variants": {
+        "colors": [
+          "siyah",
+          "beyaz",
+          "mavi"
+        ],
+        "sizes": [
+          "S",
+          "M",
+          "L",
+          "XL"
+        ],
+        "totalVariants": 12
+      },
+      "url": "https://www.trendyol.com/adidas/ayakkabi-p-987654321"
     }
   ],
-  "lastUpdate": "2025-06-19T12:12:48.124Z"
+  "lastUpdate": "2025-06-19T12:13:23.820Z"
 }
