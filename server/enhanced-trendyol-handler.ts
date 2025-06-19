@@ -77,8 +77,7 @@ export async function scrapeTrendyolProduct(inputUrl: string) {
     const variantData = extractEnhancedVariants(htmlContent, productId.toString());
 
     // Enhanced product feature extraction
-    const { extractProductFeatures } = await import('./product-feature-extractor');
-    const productDescription = extractProductFeatures($, htmlContent);
+    const productDescription = extractDetailedProductFeatures($, htmlContent);
     console.log(`📝 Açıklama uzunluğu: ${productDescription.length} karakter`);
 
     // Clean and enhance images - get ALL available images
@@ -108,94 +107,64 @@ export async function scrapeTrendyolProduct(inputUrl: string) {
       },
       url: url
     };
-                  $('title').text().replace(' - Trendyol', '').trim();
-
-    // Extract brand information
-    let brand = null;
-    const brandElement = $('[data-testid="product-brand-name"]').first();
-    if (brandElement.length) {
-      brand = brandElement.text().trim();
-    } else {
-      // Alternative brand extraction methods
-      const breadcrumbBrand = $('.breadcrumb a').last().text().trim();
-      const titleFirstWord = title.split(' ')[0]; // First word often brand
-      brand = breadcrumbBrand || titleFirstWord || null;
-    }
-
-    const priceText = $('.prc-dsc').first().text().trim() || 
-                      $('.prc-slg').first().text().trim() ||
-                      $('[data-id="price"]').text().trim();
-                      
-    const price = priceText.replace(/[^\d,]/g, '').replace(',', '.');
-
-    // Extract product ID from URL
-    const productIdMatch = url.match(/p-(\d+)/);
-    const productId = productIdMatch ? productIdMatch[1] : '';
-
-    // Enhanced variant extraction
-    const variantData = extractEnhancedVariants(htmlContent, productId);
-    
-    // Calculate total variants
-    const totalVariants = variantData.colors.length * variantData.sizes.length;
-
-    console.log(`🎯 ${variantData.images.length} görsel çıkarıldı`);
-    console.log(`🔍 ${variantData.colors.length} renk, ${variantData.sizes.length} beden tespit edildi`);
-    console.log(`📊 ${totalVariants} toplam varyant`);
-
-    const productData = {
-      title,
-      price: price || '0',
-      id: parseInt(productId) || 0,
-      url,
-      description: '',
-      basePrice: price || '0',
-      images: variantData.images,
-      video: null,
-      brand: brand,
-      vendor: 'Trendyol',
-      category: null,
-      subcategory: null,
-      productType: null,
-      tags: [],
-      attributes: {},
-      categories: null,
-      variants: {
-        colors: variantData.colors,
-        sizes: variantData.sizes,
-        totalVariants,
-        variantImages: variantData.variantImages,
-        colorImageMap: variantData.colorImageMap,
-        variantPricing: variantData.variantPricing,
-        variantSpecificPricing: variantData.variantSpecificPricing,
-        stockMap: variantData.stockMap,
-        outOfStockVariants: variantData.outOfStockVariants || []
-      }
-    };
 
     // CSV otomatik oluştur
     try {
       console.log('🔄 Otomatik CSV oluşturuluyor...');
-      const { generateShopifyCSV } = await import('./shopify-csv-generator-new');
-      const csvResult = await generateShopifyCSV([productData]);
+      const { generateStrictShopifyCSV } = await import('./strict-csv-generator');
+      const csvResult = await generateStrictShopifyCSV([{
+        title: title,
+        price: price,
+        basePrice: price,
+        id: productId,
+        description: productDescription,
+        brand: brand,
+        images: cleanImages,
+        variants: {
+          colors: colorVariants,
+          sizes: sizeVariants,
+          totalVariants: Math.max(colorVariants.length * sizeVariants.length, 1)
+        },
+        url: url
+      }]);
       console.log('✅ CSV başarıyla oluşturuldu:', csvResult.filename);
       
       return {
-        ...productData,
-        csvExport: {
-          filename: csvResult.filename,
-          downloadUrl: `/csv/${csvResult.filename}`,
-          success: true,
-          message: "CSV hazır",
-          totalRows: csvResult.totalRows
-        }
+        success: true,
+        title: title,
+        price: price,
+        basePrice: price,
+        id: productId,
+        description: productDescription,
+        brand: brand,
+        images: cleanImages,
+        variants: {
+          colors: colorVariants,
+          sizes: sizeVariants,
+          totalVariants: Math.max(colorVariants.length * sizeVariants.length, 1)
+        },
+        url: url,
+        csvInfo: csvResult
       };
-    } catch (csvError: any) {
+    } catch (csvError) {
       console.error('❌ CSV oluşturma hatası:', csvError);
+      
       return {
-        ...productData,
-        csvExport: {
+        success: false,
+        title: title,
+        price: price,
+        id: productId,
+        description: productDescription,
+        brand: brand,
+        images: cleanImages,
+        variants: {
+          colors: colorVariants,
+          sizes: sizeVariants,
+          totalVariants: Math.max(colorVariants.length * sizeVariants.length, 1)
+        },
+        url: url,
+        csvInfo: {
           success: false,
-          error: csvError.message,
           message: "CSV oluşturulamadı"
         }
       };
@@ -205,6 +174,157 @@ export async function scrapeTrendyolProduct(inputUrl: string) {
     console.log("❌ Enhanced Trendyol handler hatası:", error);
     throw error;
   }
+}
+
+function extractDetailedProductFeatures($: any, htmlContent: string): string {
+  const features = [];
+  
+  console.log('🔍 Detaylı ürün özellik çıkarma başlıyor...');
+  
+  // Ana ürün açıklaması
+  const mainDescriptions = [
+    $('div[data-fragment-name="ProductDescription"]').text().trim(),
+    $('.product-detail-description').text().trim(),
+    $('.description-content').text().trim(),
+    $('.product-description').text().trim(),
+    $('.detail-description').text().trim()
+  ].filter(desc => desc && desc.length > 20);
+  
+  if (mainDescriptions.length > 0) {
+    features.push(mainDescriptions[0]);
+    console.log(`📝 Ana açıklama bulundu: ${mainDescriptions[0].length} karakter`);
+  }
+  
+  // Ürün özellikleri tablosu
+  const tableFeatures: string[] = [];
+  $('table tr, .attributes-table tr, .product-features-table tr').each((i: number, el: any) => {
+    const row = $(el);
+    const cells = row.find('td, th');
+    
+    if (cells.length >= 2) {
+      const key = $(cells[0]).text().trim();
+      const value = $(cells[1]).text().trim();
+      
+      if (key && value && key !== value && key.length > 1 && value.length > 1) {
+        tableFeatures.push(`${key}: ${value}`);
+        console.log(`🔧 Tablo özelliği: ${key}: ${value}`);
+      }
+    }
+  });
+  
+  // Liste formatındaki özellikler
+  const listFeatures: string[] = [];
+  $('.product-features li, .feature-list li, .attributes-list li, ul.features li').each((i: number, el: any) => {
+    const feature = $(el).text().trim();
+    if (feature && feature.length > 5 && feature.length < 150 && !feature.includes('http')) {
+      listFeatures.push(feature);
+      console.log(`📋 Liste özelliği: ${feature}`);
+    }
+  });
+  
+  // Malzeme ve bakım bilgileri
+  const materialFeatures: string[] = [];
+  $('div, span, p').each((i: number, el: any) => {
+    const text = $(el).text().trim();
+    const keywords = ['malzeme', 'materyal', 'kumaş', 'fabric', 'bakım', 'yıkama', 'care', 'wash'];
+    
+    if (keywords.some(keyword => text.toLowerCase().includes(keyword)) && 
+        text.length > 10 && text.length < 200) {
+      materialFeatures.push(text);
+      console.log(`🧵 Malzeme/Bakım: ${text}`);
+    }
+  });
+  
+  // JSON verilerinden özellik çıkarma
+  const jsonFeatures = extractFeaturesFromJSON(htmlContent);
+  
+  // Tüm özellikleri birleştir
+  const allFeatures = [
+    ...tableFeatures.slice(0, 8),
+    ...listFeatures.slice(0, 6),
+    ...materialFeatures.slice(0, 4),
+    ...jsonFeatures.slice(0, 6)
+  ];
+  
+  if (allFeatures.length > 0) {
+    features.push(`Ürün Özellikleri: ${allFeatures.join(', ')}`);
+    console.log(`✅ ${allFeatures.length} özellik toplandı`);
+  }
+  
+  // Kalite ve kullanım bilgileri ekle
+  const qualityInfo = [
+    'Kaliteli malzeme ile üretilmiştir',
+    'Günlük kullanım için ideal',
+    'Rahat kesim ve şık tasarım',
+    'Uzun ömürlü kullanım için tasarlanmıştır'
+  ];
+  
+  features.push(...qualityInfo);
+  
+  const result = features.join('. ').substring(0, 1000);
+  console.log(`📋 Final açıklama: ${result.length} karakter`);
+  
+  return result;
+}
+
+function extractFeaturesFromJSON(htmlContent: string): string[] {
+  const features: string[] = [];
+  
+  try {
+    // Pattern 1: attributes array
+    const attributePattern = /"attributes":\s*\[(.*?)\]/;
+    const attributeMatch = htmlContent.match(attributePattern);
+    
+    if (attributeMatch) {
+      const attributeText = attributeMatch[1];
+      const jsonAttributes = attributeText.match(/"name":"([^"]+)","value":"([^"]+)"/g);
+      
+      if (jsonAttributes) {
+        jsonAttributes.slice(0, 8).forEach(attr => {
+          const nameMatch = attr.match(/"name":"([^"]+)"/);
+          const valueMatch = attr.match(/"value":"([^"]+)"/);
+          
+          if (nameMatch && valueMatch) {
+            const name = nameMatch[1];
+            const value = valueMatch[1];
+            if (name && value && name.length > 1 && value.length > 1) {
+              features.push(`${name}: ${value}`);
+              console.log(`🔗 JSON özellik: ${name}: ${value}`);
+            }
+          }
+        });
+      }
+    }
+    
+    // Pattern 2: productDetail attributes
+    const detailPattern = /"productDetail"[^}]*"attributes":\s*\[(.*?)\]/;
+    const detailMatch = htmlContent.match(detailPattern);
+    
+    if (detailMatch && features.length < 10) {
+      const detailText = detailMatch[1];
+      const detailAttributes = detailText.match(/"name":"([^"]+)","value":"([^"]+)"/g);
+      
+      if (detailAttributes) {
+        detailAttributes.slice(0, 6).forEach(attr => {
+          const nameMatch = attr.match(/"name":"([^"]+)"/);
+          const valueMatch = attr.match(/"value":"([^"]+)"/);
+          
+          if (nameMatch && valueMatch) {
+            const name = nameMatch[1];
+            const value = valueMatch[1];
+            if (!features.some(f => f.includes(name))) {
+              features.push(`${name}: ${value}`);
+              console.log(`📊 Detail özellik: ${name}: ${value}`);
+            }
+          }
+        });
+      }
+    }
+  } catch (e) {
+    console.log('JSON parsing error:', e);
+  }
+  
+  return features;
 }
 
 function extractEnhancedVariants(htmlContent: string, productId: string): EnhancedVariantData {

@@ -304,3 +304,106 @@ export async function generateStrictShopifyCSV(products: Product[]): Promise<{
     totalRows: shopifyVariants.length + 1
   };
 }
+
+function generateProductDescription(product: any): string {
+  console.log(`🔧 Açıklama oluşturuluyor: ${product.description ? product.description.length : 0} karakter mevcut`);
+  
+  // Otantik ürün açıklaması öncelikli kullan
+  if (product.description && product.description.trim() && product.description.length > 50) {
+    console.log(`✅ Otantik açıklama kullanılıyor`);
+    return product.description.trim().substring(0, 1200);
+  } else {
+    // Enhanced premium fallback
+    const features = [];
+    const brand = product.brand || extractBrandFromTitle(product.title);
+    
+    features.push(`${product.title} - ${brand} kalitesiyle üretilmiş premium kalite ürün`);
+    features.push('Günlük kullanım için ideal, rahat kesim ve kaliteli malzeme ile özenle tasarlanmıştır');
+    features.push('Modern ve şık tasarımıyla her ortamda rahatlıkla kullanabilirsiniz');
+    features.push('Yüksek kalite standartlarında üretilmiş, dayanıklı ve uzun ömürlü kullanım sağlar');
+    
+    // Varyant bilgilerini dahil et
+    if (product.variants.colors.length > 1) {
+      features.push(`${product.variants.colors.length} farklı renk seçeneği ile kişisel tarzınıza uygun alternatifler sunar`);
+    }
+    
+    if (product.variants.sizes.length > 1) {
+      features.push(`${product.variants.sizes.length} farklı beden seçeneği ile mükemmel uyum ve konfor sağlar`);
+    }
+    
+    // Ek kalite bilgileri
+    features.push('Detaylı kalite kontrol süreçlerinden geçmiş güvenilir ürün');
+    features.push('Kolay bakım talimatları ile pratik günlük kullanım');
+    features.push('Ürün kalitesi ve müşteri memnuniyeti garantili');
+    features.push('Hızlı ve güvenli teslimat imkanı');
+    
+    console.log(`⚠️ Enhanced premium fallback açıklama kullanılıyor`);
+    return features.join('. ').substring(0, 1200);
+  }
+}
+
+function extractBrandFromTitle(title: string): string {
+  return title.split(' ')[0] || 'Genel Markalar';
+}
+
+function categorizeProduct(title: string): string {
+  const lowerTitle = title.toLowerCase();
+  
+  if (lowerTitle.includes('elbise') || lowerTitle.includes('dress')) return 'Elbise';
+  if (lowerTitle.includes('pantolon') || lowerTitle.includes('pants')) return 'Pantolon';
+  if (lowerTitle.includes('gömlek') || lowerTitle.includes('shirt')) return 'Gömlek';
+  if (lowerTitle.includes('kazak') || lowerTitle.includes('sweater')) return 'Kazak';
+  if (lowerTitle.includes('mont') || lowerTitle.includes('jacket')) return 'Mont';
+  if (lowerTitle.includes('ayakkabı') || lowerTitle.includes('shoe')) return 'Ayakkabı';
+  if (lowerTitle.includes('çanta') || lowerTitle.includes('bag')) return 'Çanta';
+  
+  return 'Genel';
+}
+
+function generateTags(title: string, price: string): string {
+  const tags = [];
+  const lowerTitle = title.toLowerCase();
+  
+  // Kategori tabanlı tag'ler
+  if (lowerTitle.includes('kadın')) tags.push('kadın');
+  if (lowerTitle.includes('erkek')) tags.push('erkek');
+  if (lowerTitle.includes('yazlık')) tags.push('yazlık');
+  if (lowerTitle.includes('kışlık')) tags.push('kışlık');
+  if (lowerTitle.includes('spor')) tags.push('spor');
+  if (lowerTitle.includes('casual')) tags.push('günlük');
+  
+  // Fiyat tabanlı tag'ler
+  const priceNum = parseFloat(price);
+  if (priceNum < 100) tags.push('ekonomik');
+  else if (priceNum > 500) tags.push('premium');
+  
+  // Genel tag'ler
+  tags.push('moda', 'trend', 'kaliteli');
+  
+  return tags.join(', ');
+}
+
+function generateSEODescription(title: string): string {
+  return `${title} - Yüksek kaliteli, şık ve modern tasarım. Hızlı teslimat ve güvenli alışveriş imkanı.`;
+}
+
+function getCategoryForGoogle(title: string): string {
+  const lowerTitle = title.toLowerCase();
+  
+  if (lowerTitle.includes('elbise')) return 'Apparel & Accessories > Clothing > Dresses';
+  if (lowerTitle.includes('pantolon')) return 'Apparel & Accessories > Clothing > Pants';
+  if (lowerTitle.includes('gömlek')) return 'Apparel & Accessories > Clothing > Shirts & Tops';
+  if (lowerTitle.includes('ayakkabı')) return 'Apparel & Accessories > Shoes';
+  if (lowerTitle.includes('çanta')) return 'Apparel & Accessories > Handbags, Wallets & Cases';
+  
+  return 'Apparel & Accessories > Clothing';
+}
+
+function getGenderFromTitle(title: string): string {
+  const lowerTitle = title.toLowerCase();
+  
+  if (lowerTitle.includes('kadın') || lowerTitle.includes('bayan')) return 'female';
+  if (lowerTitle.includes('erkek')) return 'male';
+  
+  return 'unisex';
+}
