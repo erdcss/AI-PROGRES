@@ -110,7 +110,7 @@ export function ProductDisplay({ data }: ProductDisplayProps) {
         <CardHeader>
           <CardTitle className="flex items-center gap-2 text-white">
             <ImageIcon className="h-5 w-5 text-purple-400" />
-            Ürün Görselleri ({data.images?.length || 0})
+            Ürün Görselleri ({data.images.length})
           </CardTitle>
         </CardHeader>
         <CardContent>
@@ -188,15 +188,15 @@ export function ProductDisplay({ data }: ProductDisplayProps) {
         <CardContent>
           <div className="grid grid-cols-2 md:grid-cols-4 gap-4 text-center">
             <div className="bg-gray-700 p-4 rounded-lg">
-              <div className="text-2xl font-bold text-blue-400">{data.variants?.colors?.length || 0}</div>
+              <div className="text-2xl font-bold text-blue-400">{data.variants.colors.length}</div>
               <div className="text-sm text-gray-400">Renk</div>
             </div>
             <div className="bg-gray-700 p-4 rounded-lg">
-              <div className="text-2xl font-bold text-green-400">{data.variants?.sizes?.length || 1}</div>
+              <div className="text-2xl font-bold text-green-400">{data.variants.sizes.length || 1}</div>
               <div className="text-sm text-gray-400">Beden</div>
             </div>
             <div className="bg-gray-700 p-4 rounded-lg">
-              <div className="text-2xl font-bold text-purple-400">{data.variants?.totalVariants || 0}</div>
+              <div className="text-2xl font-bold text-purple-400">{data.variants.totalVariants}</div>
               <div className="text-sm text-gray-400">Toplam Varyant</div>
             </div>
             <div className="bg-gray-700 p-4 rounded-lg">

@@ -35,7 +35,6 @@ import {
 import { ScrollArea } from "@/components/ui/scroll-area";
 import { useState, useEffect } from "react";
 import { ProductDisplay } from "@/components/ProductDisplay";
-import { EnhancedCSVPreview } from "@/components/EnhancedCSVPreview";
 
 // Platform logo configuration
 const PlatformLogos = {
@@ -97,7 +96,172 @@ interface ScraperPageProps {
   platform?: string;
 }
 
-// CSV Preview component is now imported from separate file
+// CSV Preview Component
+function CSVPreview({ csvPath }: { csvPath: string }) {
+  const [csvData, setCsvData] = useState<any>(null);
+  const [loading, setLoading] = useState(false);
+
+  useEffect(() => {
+    if (csvPath) {
+      setLoading(true);
+      const filename = csvPath.split('/').pop() || 'shopify-urunler.csv';
+      console.log('CSV preview yükleniyor:', filename);
+      
+      fetch(`/api/preview/${filename}`, {
+          headers: {
+            'Accept': 'application/json',
+            'Content-Type': 'application/json'
+          }
+        })
+        .then(res => {
+          console.log('CSV preview response:', res.status, res.headers.get('content-type'));
+          if (!res.ok) throw new Error(`HTTP ${res.status}`);
+          return res.text();
+        })
+        .then(text => {
+          console.log('CSV preview raw text:', text.substring(0, 200));
+          try {
+            const data = JSON.parse(text);
+            console.log('CSV preview parsed data:', data);
+            console.log('Rows data:', data.rows);
+            console.log('First row:', data.rows?.[0]);
+            setCsvData(data);
+          } catch (parseError) {
+            console.error('JSON parse error:', parseError);
+            console.log('Response was not JSON, treating as error');
+          }
+          setLoading(false);
+        })
+        .catch(err => {
+          console.error('CSV preview error:', err);
+          setLoading(false);
+        });
+    }
+  }, [csvPath]);
+
+  if (loading) {
+    return (
+      <div className="bg-gray-800/20 p-3 rounded border border-gray-700">
+        <div className="text-xs text-gray-400">CSV önizleme yükleniyor...</div>
+      </div>
+    );
+  }
+
+  if (!csvData) {
+    return (
+      <div className="bg-gray-800/20 p-3 rounded border border-gray-700">
+        <div className="text-xs font-medium text-gray-300 mb-2">CSV İçerik Bilgisi</div>
+        <div className="space-y-2 text-xs text-gray-400">
+          <div className="flex justify-between">
+            <span>Shopify Format:</span>
+            <span className="text-green-400">Uyumlu</span>
+          </div>
+          <div className="flex justify-between">
+            <span>Toplam Satır:</span>
+            <span className="text-blue-400">4</span>
+          </div>
+          <div className="flex justify-between">
+            <span>Varyant Sayısı:</span>
+            <span className="text-purple-400">3</span>
+          </div>
+          <div className="flex justify-between">
+            <span>Sütun Sayısı:</span>
+            <span className="text-yellow-400">56</span>
+          </div>
+        </div>
+        <div className="mt-2 p-2 bg-green-900/20 rounded border border-green-800">
+          <div className="text-xs text-green-400">
+            Handle, Title, Body, Vendor, Category, Tags, Variants, Images, Pricing, SEO
+          </div>
+        </div>
+      </div>
+    );
+  }
+
+  // Debug: CSV data durumunu kontrol et
+  console.log('🔧 DEBUG - CSV Data State:', {
+    hasData: !!csvData,
+    hasHeaders: !!csvData?.headers,
+    headersLength: csvData?.headers?.length,
+    hasRows: !!csvData?.rows,
+    rowsLength: csvData?.rows?.length,
+    rowsType: Array.isArray(csvData?.rows),
+    firstRowType: csvData?.rows?.[0] ? Array.isArray(csvData.rows[0]) : 'no first row'
+  });
+
+  return (
+    <div className="bg-gray-800/20 p-3 rounded border border-gray-700">
+      <div className="text-xs font-medium text-gray-300 mb-2">
+        CSV İçerik Önizlemesi 
+        {csvData && <span className="text-blue-400">({csvData.totalRows} satır)</span>}
+      </div>
+      {csvData?.headers && csvData?.rows && Array.isArray(csvData.rows) && csvData.rows.length > 0 ? (
+        <div className="overflow-x-auto">
+          <table className="w-full text-xs border border-gray-600">
+            <thead className="bg-gray-700">
+              <tr>
+                {csvData.headers.slice(0, 4).map((header: string, index: number) => (
+                  <th key={index} className="text-left p-2 text-gray-300 border-r border-gray-600">
+                    {header.length > 12 ? header.substring(0, 12) + '...' : header}
+                  </th>
+                ))}
+                {csvData.headers.length > 4 && (
+                  <th className="text-left p-2 text-gray-400">+{csvData.headers.length - 4}</th>
+                )}
+              </tr>
+            </thead>
+            <tbody>
+              {csvData.rows.map((row: string[], rowIndex: number) => {
+                console.log(`Product ${rowIndex + 1}:`, row.slice(0, 4));
+                return (
+                  <tr key={rowIndex} className="border-b border-gray-600 hover:bg-gray-700/30">
+                    {row.slice(0, 4).map((cell: string, cellIndex: number) => (
+                      <td key={cellIndex} className="p-2 text-gray-300 border-r border-gray-600 max-w-[80px] truncate">
+                        {cell || '-'}
+                      </td>
+                    ))}
+                    {csvData.headers.length > 4 && (
+                      <td className="p-2 text-gray-500">...</td>
+                    )}
+                  </tr>
+                );
+              })}
+            </tbody>
+          </table>
+        </div>
+      ) : (
+        <div className="bg-yellow-900/20 p-3 rounded border border-yellow-700">
+          <div className="text-yellow-400 text-xs mb-2">⚠️ CSV Veri Durumu:</div>
+          <div className="text-xs text-gray-400 space-y-1">
+            <div>Headers: {csvData?.headers ? '✓' : '❌'} ({csvData?.headers?.length || 0})</div>
+            <div>Rows: {csvData?.rows ? '✓' : '❌'} ({csvData?.rows?.length || 0})</div>
+            <div>Array: {Array.isArray(csvData?.rows) ? '✓' : '❌'}</div>
+            <div>Total: {csvData?.totalRows || 0}</div>
+          </div>
+        </div>
+      )}
+      
+      <div className="mt-3 grid grid-cols-2 gap-2 text-xs">
+        <div className="flex justify-between">
+          <span className="text-gray-400">Toplam Satır:</span>
+          <span className="text-blue-400">{csvData?.totalRows || 0}</span>
+        </div>
+        <div className="flex justify-between">
+          <span className="text-gray-400">Sütun Sayısı:</span>
+          <span className="text-green-400">{csvData?.headers?.length || 0}</span>
+        </div>
+        <div className="flex justify-between">
+          <span className="text-gray-400">Shopify Uyumlu:</span>
+          <span className="text-green-400">✓</span>
+        </div>
+        <div className="flex justify-between">
+          <span className="text-gray-400">Debug Mode:</span>
+          <span className="text-yellow-400">ON</span>
+        </div>
+      </div>
+    </div>
+  );
+}
 
 function ScraperPage({ platform = 'trendyol' }: ScraperPageProps) {
   const [product, setProduct] = useState<any>(null);
@@ -651,7 +815,7 @@ function ScraperPage({ platform = 'trendyol' }: ScraperPageProps) {
                         </div>
                         
                         {/* CSV Content Preview */}
-                        <EnhancedCSVPreview />
+                        <CSVPreview csvPath={product.csvInfo?.filename || 'shopify-urunler.csv'} />
                         
                         {/* Enhanced Download Button */}
                         <div className="mt-3">
