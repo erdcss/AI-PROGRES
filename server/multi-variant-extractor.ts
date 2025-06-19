@@ -159,14 +159,20 @@ export async function extractMultiVariants(url: string): Promise<VariantInfo> {
           if (productData.product?.otherMerchants || productData.product?.allVariants) {
             const jsonStr = JSON.stringify(productData.product);
             
-            // Only extract real product color variants
-            const colorPatterns = [
+            // Comprehensive color variant extraction
+            const colorSources = [
+              // Direct color properties
               /"color":\s*"([^"]+)"/gi,
               /"renk":\s*"([^"]+)"/gi,
-              /"variant":\s*"([^"]+)"/gi
+              /"colorName":\s*"([^"]+)"/gi,
+              /"attributeName":\s*"([^"]+)"/gi,
+              // Variant color data
+              /"value":\s*"([^"]*(?:siyah|beyaz|kırmızı|mavi|yeşil|sarı|turuncu|mor|pembe|gri|kahverengi|lacivert|bordo)[^"]*)"/gi,
+              // Option colors
+              /"name":\s*"([^"]*(?:siyah|beyaz|kırmızı|mavi|yeşil|sarı|turuncu|mor|pembe|gri|kahverengi|lacivert|bordo)[^"]*)"/gi
             ];
             
-            colorPatterns.forEach(pattern => {
+            colorSources.forEach(pattern => {
               const matches = jsonStr.match(pattern);
               if (matches) {
                 matches.forEach(match => {
@@ -175,14 +181,16 @@ export async function extractMultiVariants(url: string): Promise<VariantInfo> {
                     const cleanColor = colorMatch[1].trim();
                     const actualColorKeywords = ['siyah', 'beyaz', 'kırmızı', 'mavi', 'yeşil', 'sarı', 'turuncu', 'mor', 'pembe', 'gri', 'kahverengi', 'lacivert', 'bordo'];
                     
+                    // Check if it contains actual color
+                    const hasColor = actualColorKeywords.some(keyword => cleanColor.toLowerCase().includes(keyword));
+                    
                     // Filter out brand names and non-color terms
-                    const excludePatterns = ['grimelange', 'zetus', 'nike', 'adidas', 'trendyol', 'sarıyer', 'brand', '/', '-'];
+                    const excludePatterns = ['grimelange', 'zetus', 'nike', 'adidas', 'trendyol', 'sarıyer', 'brand', '/', 'http', 'www'];
                     const isExcluded = excludePatterns.some(pattern => cleanColor.toLowerCase().includes(pattern.toLowerCase()));
                     
-                    if (actualColorKeywords.some(keyword => cleanColor.toLowerCase().includes(keyword)) && 
-                        cleanColor.length > 2 && cleanColor.length < 15 && !colors.includes(cleanColor) && !isExcluded) {
+                    if (hasColor && !isExcluded && cleanColor.length > 2 && cleanColor.length < 25 && !colors.includes(cleanColor)) {
                       colors.push(cleanColor);
-                      console.log(`🎨 Actual product color: ${cleanColor}`);
+                      console.log(`🎨 Found color variant: ${cleanColor}`);
                     }
                   }
                 });
