@@ -249,11 +249,7 @@ async function extractVariants(page: any, $: cheerio.CheerioAPI): Promise<{ colo
     console.log('Error extracting JS variants:', error);
   }
   
-  // Fallback to DOM extraction
-  const colors = extractColorsFromDOM($);
-  const sizes = extractSizesFromDOM($);
-  
-  return { colors, sizes };
+  throw new Error('Varyant verisi çıkarılamadı - sadece otantik JavaScript verisi kullanılabilir');
 }
 
 function extractColorsFromData(data: string): string[] {

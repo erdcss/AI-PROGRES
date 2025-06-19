@@ -121,7 +121,7 @@ export async function scrapeTrendyolProduct(inputUrl: string) {
         }
       }
       
-      throw new Error(`Trendyol erişim engellendi. Cloudflare koruması nedeniyle gerçek ürün verisi çekilemiyor (${response.status}). Lütfen farklı bir ürün URL'si deneyin veya daha sonra tekrar deneyin.`);
+      throw new Error(`Trendyol erişimi engellendi (${response.status}). Lütfen farklı bir ürün URL'si deneyin.`);
     }
 
     const htmlContent = response.data;

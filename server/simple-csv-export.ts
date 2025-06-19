@@ -66,7 +66,7 @@ export async function generateSimpleShopifyCSV(
     price = (basePrice * 1.10).toFixed(2);
     console.log(`Orijinal fiyat: ${basePrice}, %10 kar eklenmiş fiyat: ${price}`);
   } else {
-    console.log("Geçerli bir fiyat bulunamadı, varsayılan 0.00 kullanılıyor");
+    throw new Error("Geçerli fiyat bulunamadı - sadece otantik veri kullanılabilir");
   }
   
   // TypeScript güvenli varyant erişimi

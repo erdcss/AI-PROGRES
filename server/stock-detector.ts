@@ -99,8 +99,7 @@ export async function extractRealStockData(page: Page, $: cheerio.CheerioAPI): P
 
     console.log(`🔧 JavaScript'ten ${stockData.variants.length} varyant bulundu`);
     
-    // HTML'den de stok bilgilerini çıkar (fallback)
-    await extractStockFromHTML($, analysis);
+    // Sadece JavaScript verisi kullanılıyor - HTML fallback kaldırıldı
     
     // JavaScript verilerini entegre et
     stockData.variants.forEach(variant => {

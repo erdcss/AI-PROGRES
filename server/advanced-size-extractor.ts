@@ -135,28 +135,7 @@ export async function extractVariantStockInfo($: cheerio.CheerioAPI): Promise<Va
       console.log(`📈 STOK DURUMU ÖZET: ${inStockCount}/${totalCount} varyant gerçekten stokta`);
       
     } else {
-      console.log('⚠️ Renk veya beden bulunamadı - varsayılan stok oluşturuluyor');
-      
-      // Fallback: JSON-LD'den temel bilgileri al
-      const fallbackColors = ['siyah', 'beyaz'];
-      const fallbackSizes = ['S', 'M', 'L', 'XL'];
-      
-      stockInfo.colors = fallbackColors;
-      stockInfo.sizes = fallbackSizes;
-      
-      // Siyah renkte sadece S bedeni stokta olacak şekilde simülasyon
-      fallbackColors.forEach(color => {
-        const availableSizes = color === 'siyah' ? ['S'] : fallbackSizes;
-        stockInfo.colorSizeMatrix[color] = availableSizes;
-        
-        fallbackSizes.forEach(size => {
-          const variantKey = `${color}-${size}`;
-          const inStock = availableSizes.includes(size);
-          stockInfo.variantStockMap[variantKey] = inStock;
-          
-          console.log(`${inStock ? '✅' : '❌'} ${variantKey}: ${inStock ? 'STOKTA' : 'STOKTA YOK'}`);
-        });
-      });
+      throw new Error('Varyant bilgisi çıkarılamadı - sadece otantik veri kullanılabilir');
     }
 
     return stockInfo;
