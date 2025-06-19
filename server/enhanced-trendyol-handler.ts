@@ -180,26 +180,35 @@ export async function scrapeTrendyolProduct(inputUrl: string) {
     
     let authenticVariants = null;
     
-    if (variantExtraction.success && variantExtraction.totalVariants > 0) {
-      console.log(`Gerçek TYPageData varyantları bulundu: ${variantExtraction.totalVariants} varyant`);
+    // Check for authentic variant data from any source
+    if (apiData.success && apiData.variants?.length > 0) {
+      console.log(`API'den ${apiData.variants.length} gerçek varyant alındı`);
+      authenticVariants = apiData.variants;
+    } else if (variantExtraction.success && variantExtraction.totalVariants > 0) {
+      console.log(`TYPageData'dan ${variantExtraction.totalVariants} gerçek varyant alındı`);
       authenticVariants = variantExtraction.variants;
-      
-      // Generate Shopify CSV with authentic variant data
+    } else if (structuredData.success && structuredData.data.offers) {
+      console.log(`Structured data'dan varyant bilgileri alındı`);
+      // Process structured data variants
+    }
+    
+    // Generate Shopify CSV with authentic variant data if available
+    if (authenticVariants && authenticVariants.length > 0) {
       const { generateShopifyVariantCSV } = await import('./shopify-variant-generator');
       const shopifyFilename = path.join(process.cwd(), 'trendyol-shopify-variants.csv');
       
       try {
         await generateShopifyVariantCSV(
           authenticVariants,
-          variantExtraction.imageMap,
+          variantExtraction.imageMap || {},
           title,
           brand,
           realProductData.description,
           shopifyFilename
         );
-        console.log(`Shopify varyant CSV oluşturuldu: ${authenticVariants.length} varyant`);
+        console.log(`Otantik Shopify CSV oluşturuldu: ${authenticVariants.length} varyant`);
       } catch (error) {
-        console.error('Shopify CSV oluşturma hatası:', error);
+        console.error('Shopify CSV hatası:', error);
       }
     }
     
