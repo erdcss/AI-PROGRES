@@ -81,13 +81,8 @@ class CSVAccumulatorService {
       
       console.log(`🔄 Toplam ${this.accumulator.products.length} ürün için CSV yeniden oluşturuluyor...`);
       
-      const result = await generateStrictShopifyCSV(this.accumulator.products);
-      
-      if (result.success) {
-        console.log(`✅ Birleşik CSV oluşturuldu: ${result.totalRows} satır, ${result.filename}`);
-      } else {
-        console.error('❌ CSV oluşturma hatası:', result.error);
-      }
+      const csvPath = await generateStrictShopifyCSV(this.accumulator.products);
+      console.log(`✅ UTF-8 BOM ile Shopify CSV oluşturuldu: ${csvPath}`);
     } catch (error) {
       console.error('❌ CSV yeniden oluşturma hatası:', error);
     }
