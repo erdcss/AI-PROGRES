@@ -23,9 +23,9 @@ interface Product {
 
 // Enhanced CSV escape function - Shopify compatible
 function escapeCSVValue(value: string): string {
-  if (!value) return '""';
+  if (!value) return '';
   const escaped = value.replace(/"/g, '""');
-  return `"${escaped}"`;
+  return `"${escaped}"`; // Çift tırnakla sar ve iç tırnakları çiftle
 }
 
 function sanitizeCSVValue(value: string): string {
@@ -160,12 +160,13 @@ export async function generateStrictShopifyCSV(products: Product[]): Promise<str
 
   console.log(`✅ CSV tamamlandı: ${totalVariants} varyant oluşturuldu`);
 
-  // Write CSV with UTF-8 BOM
-  const csvContent = '\uFEFF' + csvRows.join('\n');
+  // Write CSV with UTF-8 BOM for Shopify compatibility
+  const BOM = '\uFEFF';
+  const csvContent = csvRows.join('\n');
   const filename = 'shopify-urunler.csv';
   const finalPath = path.join(process.cwd(), filename);
   
-  await fs.promises.writeFile(finalPath, csvContent, 'utf8');
+  await fs.promises.writeFile(finalPath, BOM + csvContent, { encoding: 'utf-8' });
   console.log(`💾 CSV dosyası kaydedildi: ${finalPath}`);
 
   return csvContent;

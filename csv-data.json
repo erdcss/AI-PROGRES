@@ -710,7 +710,34 @@
         "totalVariants": 12
       },
       "url": "https://www.trendyol.com/mango/erkek-pantolon-p-998877445"
+    },
+    {
+      "title": "HM HM",
+      "price": "483",
+      "basePrice": "483",
+      "id": 524488800,
+      "description": "Yüksek kaliteli hm ürünü. Modern tasarım ve üstün kalite.",
+      "brand": "HM",
+      "images": [
+        "https://cdn.dsmcdn.com/ty1/product/media/images/placeholder1.jpg",
+        "https://cdn.dsmcdn.com/ty1/product/media/images/placeholder2.jpg"
+      ],
+      "variants": {
+        "colors": [
+          "siyah",
+          "beyaz",
+          "mavi"
+        ],
+        "sizes": [
+          "S",
+          "M",
+          "L",
+          "XL"
+        ],
+        "totalVariants": 12
+      },
+      "url": "https://www.trendyol.com/hm/erkek-gomlek-p-123456789"
     }
   ],
-  "lastUpdate": "2025-06-19T12:05:24.419Z"
+  "lastUpdate": "2025-06-19T12:07:32.099Z"
 }
