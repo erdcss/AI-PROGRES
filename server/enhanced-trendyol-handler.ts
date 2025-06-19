@@ -205,7 +205,8 @@ export async function scrapeTrendyolProduct(inputUrl: string) {
       price: price.toString(),
       basePrice: price.toString(),
       id: productId,
-      description,
+      description: enhancedDescription || description,
+      authenticVariants: authenticVariants || null,
       brand,
       images: uniqueImages.length > 0 ? uniqueImages : variantData.images.slice(0, 10),
       variants: {

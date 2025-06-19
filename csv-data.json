@@ -1061,7 +1061,34 @@
         "totalVariants": 12
       },
       "url": "https://www.trendyol.com/test/enhanced-images-p-555999111"
+    },
+    {
+      "title": "REAL-PRODUCT REAL PRODUCT",
+      "price": "472",
+      "basePrice": "472",
+      "id": 921103207,
+      "description": "Yüksek kaliteli real product ürünü. Modern tasarım ve üstün kalite.",
+      "brand": "REAL-PRODUCT",
+      "images": [
+        "https://cdn.dsmcdn.com/ty1/product/media/images/placeholder1.jpg",
+        "https://cdn.dsmcdn.com/ty1/product/media/images/placeholder2.jpg"
+      ],
+      "variants": {
+        "colors": [
+          "siyah",
+          "beyaz",
+          "mavi"
+        ],
+        "sizes": [
+          "S",
+          "M",
+          "L",
+          "XL"
+        ],
+        "totalVariants": 12
+      },
+      "url": "https://www.trendyol.com/real-product/test-features-p-777888999"
     }
   ],
-  "lastUpdate": "2025-06-19T12:20:14.245Z"
+  "lastUpdate": "2025-06-19T12:20:55.184Z"
 }
