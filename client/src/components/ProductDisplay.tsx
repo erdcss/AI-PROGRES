@@ -105,30 +105,85 @@ export function ProductDisplay({ data }: ProductDisplayProps) {
         </CardContent>
       </Card>
 
-      {/* Ürün Görselleri */}
+      {/* Ürün Görselleri ve Renk Modelleri */}
       <Card className="bg-gray-800 border-gray-700">
         <CardHeader>
           <CardTitle className="flex items-center gap-2 text-white">
             <ImageIcon className="h-5 w-5 text-purple-400" />
-            Ürün Görselleri ({data.images.length})
+            Ürün Görselleri ve Modelleri ({data.images?.length || 0})
           </CardTitle>
         </CardHeader>
-        <CardContent>
-          <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-4">
-            {data.images && data.images.length > 0 ? data.images.slice(0, 8).map((image, index) => (
-              <div key={index} className="aspect-square bg-gray-700 rounded-lg overflow-hidden">
-                <img 
-                  src={image} 
-                  alt={`Ürün görseli ${index + 1}`}
-                  className="w-full h-full object-cover hover:scale-105 transition-transform"
-                />
-              </div>
-            )) : (
-              <div className="col-span-full text-center text-gray-500 py-8">
-                Görsel bulunamadı
-              </div>
-            )}
+        <CardContent className="space-y-6">
+          {/* Ana Ürün Görselleri */}
+          <div>
+            <h3 className="text-lg font-semibold text-white mb-3">Ana Ürün Görselleri</h3>
+            <div className="grid grid-cols-2 md:grid-cols-4 lg:grid-cols-6 gap-3">
+              {data.images && data.images.length > 0 ? data.images.slice(0, 12).map((image, index) => (
+                <div key={index} className="aspect-square bg-gray-700 rounded-lg overflow-hidden border border-gray-600 hover:border-purple-400 transition-colors">
+                  <img 
+                    src={image} 
+                    alt={`Ürün görseli ${index + 1}`}
+                    className="w-full h-full object-cover hover:scale-105 transition-transform cursor-pointer"
+                    onError={(e) => {
+                      e.currentTarget.style.display = 'none';
+                    }}
+                  />
+                </div>
+              )) : (
+                <div className="col-span-full text-center text-gray-500 py-8">
+                  Görseller yükleniyor...
+                </div>
+              )}
+            </div>
           </div>
+
+          {/* Renk Varyantları ve Modelleri */}
+          {data.variants?.colors && data.variants.colors.length > 0 && (
+            <div>
+              <h3 className="text-lg font-semibold text-white mb-3">Renk Varyantları ({data.variants.colors.length})</h3>
+              <div className="space-y-4">
+                {data.variants.colors.map((color, index) => (
+                  <div key={color} className="border border-gray-600 rounded-lg p-4 bg-gray-750">
+                    <div className="flex items-center justify-between mb-3">
+                      <div className="flex items-center gap-3">
+                        <h4 className="font-semibold text-white">{color}</h4>
+                        <Badge variant="outline" className="border-purple-400 text-purple-400">
+                          Model {index + 1}
+                        </Badge>
+                      </div>
+                      {data.variants.pricing?.[color] && (
+                        <div className="flex items-center gap-2">
+                          <DollarSign className="h-4 w-4 text-green-400" />
+                          <span className="font-bold text-green-400">
+                            {data.variants.pricing[color].toFixed(2)} TL
+                          </span>
+                        </div>
+                      )}
+                    </div>
+                    
+                    <div className="grid grid-cols-3 md:grid-cols-6 gap-2">
+                      {data.variants.variantImages?.[color]?.slice(0, 6).map((image, imgIndex) => (
+                        <div key={imgIndex} className="aspect-square bg-gray-700 rounded overflow-hidden border border-gray-500 hover:border-purple-400 transition-colors">
+                          <img 
+                            src={image} 
+                            alt={`${color} renk görseli ${imgIndex + 1}`}
+                            className="w-full h-full object-cover hover:scale-105 transition-transform cursor-pointer"
+                            onError={(e) => {
+                              e.currentTarget.style.display = 'none';
+                            }}
+                          />
+                        </div>
+                      )) || (
+                        <div className="col-span-full text-center text-gray-400 py-2 text-sm">
+                          {color} rengi görselleri yükleniyor...
+                        </div>
+                      )}
+                    </div>
+                  </div>
+                ))}
+              </div>
+            </div>
+          )}
         </CardContent>
       </Card>
 

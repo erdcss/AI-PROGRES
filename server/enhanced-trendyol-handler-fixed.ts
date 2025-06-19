@@ -190,23 +190,31 @@ export async function scrapeTrendyolProduct(inputUrl: string) {
       });
     });
 
-    // Method 6: Extract images from merchant data
+    // Method 6: Enhanced image extraction from all merchant variants
     try {
       const merchantMatches = [...htmlContent.matchAll(/"otherMerchants":\s*(\[[^\]]*\])/g)];
       merchantMatches.forEach(match => {
         try {
           const merchants = JSON.parse(match[1]);
           merchants.forEach((merchant: any) => {
+            // Extract main merchant image
             if (merchant.image && merchant.image.includes('cdn.dsmcdn.com')) {
-              const highRes = merchant.image.replace(/\/\d+\/\d+\//, '/1200/1800/');
-              if (!allProductImages.includes(highRes)) {
-                allProductImages.push(highRes);
-              }
+              const baseUrl = merchant.image.replace(/\/\d+\/\d+\//, '/');
+              const sizes = ['1200/1800', '800/1200', '600/900'];
+              sizes.forEach(size => {
+                const resizedUrl = baseUrl.replace('/', `/${size}/`);
+                if (!allProductImages.includes(resizedUrl)) {
+                  allProductImages.push(resizedUrl);
+                }
+              });
             }
+            
+            // Extract additional merchant images array
             if (merchant.images && Array.isArray(merchant.images)) {
               merchant.images.forEach((img: string) => {
                 if (img.includes('cdn.dsmcdn.com')) {
-                  const highRes = img.replace(/\/\d+\/\d+\//, '/1200/1800/');
+                  const baseUrl = img.replace(/\/\d+\/\d+\//, '/');
+                  const highRes = baseUrl.replace('/', '/1200/1800/');
                   if (!allProductImages.includes(highRes)) {
                     allProductImages.push(highRes);
                   }
@@ -214,6 +222,7 @@ export async function scrapeTrendyolProduct(inputUrl: string) {
               });
             }
           });
+          console.log(`🖼️ Merchant extraction: ${merchants.length} merchants analyzed`);
         } catch (e) {}
       });
     } catch (e) {}
