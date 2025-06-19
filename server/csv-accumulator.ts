@@ -121,8 +121,16 @@ class CSVAccumulatorService {
         const handle = `${product.brand?.toLowerCase() || 'product'}-${product.id}`.replace(/[^a-z0-9-]/g, '');
         const colors = product.variants?.colors || ['tek renk'];
         const sizes = product.variants?.sizes || ['tek beden'];
-        const basePrice = parseFloat(product.price) || 0;
+        
+        // Fix Turkish price formatting - remove dots used as thousands separators
+        const cleanPrice = product.price.toString()
+          .replace(/\./g, '') // Remove dots used as thousands separators
+          .replace(/,/g, '.'); // Convert comma decimal separator to dot
+        
+        const basePrice = parseFloat(cleanPrice) || 0;
         const markedPrice = (basePrice * 1.1).toFixed(2);
+        
+        console.log(`💰 Price fix for ${product.title}: "${product.price}" → "${cleanPrice}" → ${basePrice}`);
         
         colors.forEach(color => {
           sizes.forEach((size, sizeIndex) => {
@@ -143,7 +151,7 @@ class CSVAccumulatorService {
               escapeCSV(`${handle}-${color.replace(/\s+/g, '')}-${size}`.toLowerCase()),
               escapeCSV('300'), escapeCSV('shopify'), escapeCSV('50'), 
               escapeCSV('deny'), escapeCSV('manual'),
-              escapeCSV(markedPrice), escapeCSV(product.price),
+              escapeCSV(markedPrice), escapeCSV(cleanPrice),
               escapeCSV('TRUE'), escapeCSV('TRUE'), escapeCSV(''),
               escapeCSV(isFirst ? (product.images?.[0] || '') : ''),
               escapeCSV(isFirst ? '1' : ''),
