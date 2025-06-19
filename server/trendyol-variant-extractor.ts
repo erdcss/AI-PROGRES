@@ -34,15 +34,37 @@ interface VariantExtractionResult {
 
 export function extractTrendyolVariants(html: string): VariantExtractionResult {
   try {
-    // Extract window.TYPageData from HTML
-    const pageDataMatch = html.match(/window\.TYPageData\s*=\s*({.*?});/s);
+    // Extract window.TYPageData from HTML - try multiple patterns
+    let pageDataMatch = html.match(/window\.TYPageData\s*=\s*({.*?});/s);
     
     if (!pageDataMatch) {
-      console.log('⚠️ window.TYPageData bulunamadı');
+      // Try alternative pattern
+      pageDataMatch = html.match(/TYPageData\s*=\s*({.*?});/s);
+    }
+    
+    if (!pageDataMatch) {
+      // Try finding in script tags
+      const scriptMatch = html.match(/<script[^>]*>[\s\S]*?window\.TYPageData\s*=\s*({[\s\S]*?});[\s\S]*?<\/script>/);
+      if (scriptMatch) {
+        pageDataMatch = [scriptMatch[0], scriptMatch[1]];
+      }
+    }
+    
+    if (!pageDataMatch) {
+      console.log('⚠️ window.TYPageData bulunamadı - farklı pattern deneniyor');
+      
+      // Try to find any JSON-like data with product info
+      const jsonMatches = html.match(/"variants"\s*:\s*\[[\s\S]*?\]/g);
+      if (jsonMatches) {
+        console.log(`🔍 ${jsonMatches.length} varyant JSON bloğu bulundu`);
+      }
+      
       return { variants: [], imageMap: {}, success: false, totalVariants: 0 };
     }
 
     const pageDataJson = pageDataMatch[1];
+    console.log(`📄 TYPageData bulundu: ${pageDataJson.length} karakter`);
+    
     const data: TYPageData = JSON.parse(pageDataJson);
     
     const product = data.product || {};

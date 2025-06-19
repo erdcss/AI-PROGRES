@@ -1,4 +1,5 @@
 import * as cheerio from 'cheerio';
+import * as path from 'path';
 import axios from 'axios';
 import { csvAccumulator } from './csv-accumulator';
 
@@ -194,10 +195,78 @@ export async function scrapeTrendyolProduct(inputUrl: string) {
       outOfStockVariants: []
     };
 
-    console.log(`✅ Otantik çıkarım: ${variantData.colors.length} renk, ${variantData.sizes.length} beden, ${variantData.images.length} görsel`);
+    // Enhanced image extraction using Python-inspired method
+    const { extractTrendyolImages } = await import('./trendyol-image-extractor');
+    const imageExtraction = extractTrendyolImages(htmlContent);
+    
+    // Enhanced product features extraction
+    const { extractAdvancedProductAttributes, generateProductDescription } = await import('./product-features-extractor');
+    const attributeData = extractAdvancedProductAttributes(htmlContent);
+    
+    // Debug TYPageData extraction
+    const { debugTYPageData } = await import('./debug-typage-data');
+    debugTYPageData(htmlContent);
+    
+    // Extract authentic Trendyol variants from window.TYPageData
+    const { extractTrendyolVariants, getVariantColors, getVariantSizes, getStockStatus } = await import('./trendyol-variant-extractor');
+    const variantExtraction = extractTrendyolVariants(htmlContent);
+    
+    let authenticVariants = null;
+    
+    if (variantExtraction.success && variantExtraction.totalVariants > 0) {
+      console.log(`🎯 Gerçek varyant verisi bulundu: ${variantExtraction.totalVariants} varyant`);
+      
+      const realColors = getVariantColors(variantExtraction.variants);
+      const realSizes = getVariantSizes(variantExtraction.variants);
+      const stockStatus = getStockStatus(variantExtraction.variants);
+      
+      console.log(`📊 Stok durumu: ${stockStatus.inStock} stokta, ${stockStatus.outOfStock} tükendi`);
+      
+      // Use real variant data instead of mock data
+      variantData.colors = realColors.length > 0 ? realColors : ['tek renk'];
+      variantData.sizes = realSizes.length > 0 ? realSizes : ['tek beden'];
+      authenticVariants = variantExtraction.variants;
+    }
+    
+    // Combine images from different sources
+    const combinedImages = [
+      ...imageExtraction.validImages,
+      ...variantData.images
+    ];
+    
+    // Remove duplicates and select best quality
+    const uniqueImages = Array.from(new Set(combinedImages))
+      .filter(img => img && !img.includes('_xs.') && !img.includes('_thumb.'))
+      .slice(0, 10);
+
+    console.log(`✅ Otantik çıkarım: ${variantData.colors.length} renk, ${variantData.sizes.length} beden, ${uniqueImages.length} görsel`);
+    console.log(`📋 Ürün özellikleri: ${Object.keys(attributeData.features).length} ana özellik`);
 
     // Extract detailed product description
     const description = extractProductDescription(htmlContent, $);
+    
+    // Generate enhanced description with extracted features
+    const enhancedDescription = generateProductDescription(title, attributeData.features, attributeData.specifications);
+    
+    // Generate authentic Shopify variant CSV if we have real variant data
+    if (authenticVariants && authenticVariants.length > 0) {
+      const { generateShopifyVariantCSV } = await import('./shopify-variant-generator');
+      const shopifyFilename = path.join(process.cwd(), 'trendyol-shopify-variants.csv');
+      
+      try {
+        await generateShopifyVariantCSV(
+          authenticVariants,
+          variantExtraction.imageMap,
+          title,
+          brand,
+          enhancedDescription,
+          shopifyFilename
+        );
+        console.log(`✅ Shopify varyant CSV'si oluşturuldu: ${authenticVariants.length} varyant`);
+      } catch (error) {
+        console.error('❌ Shopify CSV oluşturma hatası:', error);
+      }
+    }
 
     // Create final product data
     const productData = {
@@ -209,6 +278,7 @@ export async function scrapeTrendyolProduct(inputUrl: string) {
       authenticVariants: authenticVariants || null,
       brand,
       images: uniqueImages.length > 0 ? uniqueImages : variantData.images.slice(0, 10),
+      attributes: attributeData.features,
       variants: {
         colors: variantData.colors.length > 0 ? variantData.colors : ['tek renk'],
         sizes: variantData.sizes.length > 0 ? variantData.sizes : ['tek beden'],

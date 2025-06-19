@@ -1088,7 +1088,61 @@
         "totalVariants": 12
       },
       "url": "https://www.trendyol.com/real-product/test-features-p-777888999"
+    },
+    {
+      "title": "NEW-BALANCE NEW BALANCE",
+      "price": "242",
+      "basePrice": "242",
+      "id": 768784185,
+      "description": "Yüksek kaliteli new balance ürünü. Modern tasarım ve üstün kalite.",
+      "brand": "NEW-BALANCE",
+      "images": [
+        "https://cdn.dsmcdn.com/ty1/product/media/images/placeholder1.jpg",
+        "https://cdn.dsmcdn.com/ty1/product/media/images/placeholder2.jpg"
+      ],
+      "variants": {
+        "colors": [
+          "siyah",
+          "beyaz",
+          "mavi"
+        ],
+        "sizes": [
+          "S",
+          "M",
+          "L",
+          "XL"
+        ],
+        "totalVariants": 12
+      },
+      "url": "https://www.trendyol.com/new-balance/fresh-foam-x-1080-v12-erkek-kosu-ayakkabisi-p-244896574"
+    },
+    {
+      "title": "MANGO MANGO",
+      "price": "378",
+      "basePrice": "378",
+      "id": 479773765,
+      "description": "Yüksek kaliteli mango ürünü. Modern tasarım ve üstün kalite.",
+      "brand": "MANGO",
+      "images": [
+        "https://cdn.dsmcdn.com/ty1/product/media/images/placeholder1.jpg",
+        "https://cdn.dsmcdn.com/ty1/product/media/images/placeholder2.jpg"
+      ],
+      "variants": {
+        "colors": [
+          "siyah",
+          "beyaz",
+          "mavi"
+        ],
+        "sizes": [
+          "S",
+          "M",
+          "L",
+          "XL"
+        ],
+        "totalVariants": 12
+      },
+      "url": "https://www.trendyol.com/mango/kad%C4%B1n-k%C4%B1sa-kollu-ti%C5%9F%C3%B6rt-p-123456789"
     }
   ],
-  "lastUpdate": "2025-06-19T12:20:55.184Z"
+  "lastUpdate": "2025-06-19T12:26:05.125Z"
 }
