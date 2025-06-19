@@ -107,7 +107,7 @@ function CSVPreview({ csvPath }: { csvPath: string }) {
       const filename = csvPath.split('/').pop() || 'shopify-urunler.csv';
       console.log('CSV preview yükleniyor:', filename);
       
-      fetch(`/api/preview/${filename}`, {
+      fetch(`/api/csv/preview`, {
           headers: {
             'Accept': 'application/json',
             'Content-Type': 'application/json'
@@ -196,10 +196,16 @@ function CSVPreview({ csvPath }: { csvPath: string }) {
         {csvData && <span className="text-blue-400">({csvData.totalRows} satır)</span>}
       </div>
       {csvData?.headers && csvData?.rows && Array.isArray(csvData.rows) && csvData.rows.length > 0 ? (
-        <div className="overflow-x-auto">
-          <table className="w-full text-xs border border-gray-600">
-            <thead className="bg-gray-700">
-              <tr>
+        <div className="space-y-3">
+          <div className="flex items-center gap-2 text-xs">
+            <span className="text-green-400">✓ {csvData.uniqueProducts || csvData.rows.length} ürün</span>
+            <span className="text-blue-400">• {csvData.totalRows} toplam satır</span>
+            <span className="text-yellow-400">• {csvData.headers.length} sütun</span>
+          </div>
+          <div className="overflow-x-auto max-h-40">
+            <table className="w-full text-xs border border-gray-600 rounded">
+              <thead className="bg-gray-700">
+                <tr>
                 {csvData.headers.slice(0, 4).map((header: string, index: number) => (
                   <th key={index} className="text-left p-2 text-gray-300 border-r border-gray-600">
                     {header.length > 12 ? header.substring(0, 12) + '...' : header}
@@ -226,8 +232,9 @@ function CSVPreview({ csvPath }: { csvPath: string }) {
                   </tr>
                 );
               })}
-            </tbody>
-          </table>
+              </tbody>
+            </table>
+          </div>
         </div>
       ) : (
         <div className="bg-yellow-900/20 p-3 rounded border border-yellow-700">

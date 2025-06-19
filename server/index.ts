@@ -92,6 +92,7 @@ app.get('/api/csv/status', (req, res) => {
 
 // Direct CSV endpoints - MUST be before Vite middleware
 app.get('/api/csv/preview', (req, res) => {
+  res.setHeader('Content-Type', 'application/json');
   const filename = 'shopify-urunler.csv';
   try {
     const workspaceFilePath = pathModule.join('/home/runner/workspace', filename);
