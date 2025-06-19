@@ -27,6 +27,7 @@ import {
   Clipboard,
   Download
 } from "lucide-react";
+import { useState } from "react";
 import {
   Alert,
   AlertDescription,
@@ -270,6 +271,7 @@ function CSVPreview({ csvPath }: { csvPath: string }) {
 function ScraperPage({ platform = 'trendyol' }: ScraperPageProps) {
   const [product, setProduct] = useState<any>(null);
   const [result, setResult] = useState<any>(null);
+  const [isDownloading, setIsDownloading] = useState(false);
   // CSV Download handler
   const handleCSVDownload = async () => {
     try {

@@ -66,6 +66,28 @@ export function registerRoutes(app: Express): Server {
     res.json({ urls: [] });
   });
 
+  // CSV download endpoint
+  app.get('/api/download-csv', (req, res) => {
+    try {
+      const csvPath = path.join('/home/runner/workspace', 'shopify-urunler.csv');
+      
+      if (!fs.existsSync(csvPath)) {
+        return res.status(404).json({ error: 'CSV dosyası bulunamadı' });
+      }
+      
+      res.setHeader('Content-Type', 'text/csv; charset=utf-8');
+      res.setHeader('Content-Disposition', 'attachment; filename="shopify-urunler.csv"');
+      
+      const csvContent = fs.readFileSync(csvPath, 'utf8');
+      res.send('\uFEFF' + csvContent); // Add BOM for Excel compatibility
+      
+      console.log('📥 CSV dosyası indirildi');
+    } catch (error) {
+      console.error('❌ CSV indirme hatası:', error);
+      res.status(500).json({ error: 'CSV indirme hatası' });
+    }
+  });
+
   const httpServer = createServer(app);
   return httpServer;
 }
