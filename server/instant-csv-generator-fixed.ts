@@ -74,16 +74,62 @@ class InstantCSVGenerator {
       
       const handle = `${product.brand ? product.brand.toLowerCase() + '-' : ''}${product.title.toLowerCase().replace(/[^a-z0-9]/g, '-').replace(/-+/g, '-').replace(/^-|-$/g, '')}`;
       
-      // Analyze actual variants - improved detection
-      const realColors = variants.colors.filter(c => c && c !== 'tek renk' && c !== 'default' && c.trim() !== '' && c !== 'N/A');
-      const realSizes = variants.sizes.filter(s => s && s !== 'OS' && s !== 'default' && s !== 'tek beden' && s.trim() !== '' && s !== 'N/A');
+      // Enhanced variant analysis with better filtering
+      const allColors = variants.colors || [];
+      const allSizes = variants.sizes || [];
       
-      console.log(`🔍 Variant analysis: Real colors=${realColors.length} (${realColors.join(', ')}), Real sizes=${realSizes.length} (${realSizes.join(', ')})`);
-      console.log(`🔍 All received colors: ${variants.colors.join(', ')}`);
-      console.log(`🔍 All received sizes: ${variants.sizes.join(', ')}`);
+      console.log(`🔍 All received colors: ${allColors.join(', ')}`);
+      console.log(`🔍 All received sizes: ${allSizes.join(', ')}`);
+      
+      // Filter out non-color terms but keep valid color variants
+      const excludeTerms = [
+        'buymorepayless', 'isblacklist', 'starred', 'registered', 'credit', 'expired', 'flash',
+        'bag', 'more', 'promotions', 'email', 'address', 'suitable', 'attributes', 'sales',
+        'show', 'true', 'false'
+      ];
+      
+      // More permissive filtering to capture actual color variants
+      const realColors = allColors.filter(c => {
+        if (!c || typeof c !== 'string') return false;
+        const clean = c.trim().toLowerCase();
+        
+        // Skip obvious placeholders
+        if (clean === 'tek renk' || clean === 'default' || clean === 'n/a' || clean === '' || 
+            clean === 'undefined' || clean === 'null' || clean.length <= 1) {
+          return false;
+        }
+        
+        // Skip terms that are clearly not colors
+        const containsExcluded = excludeTerms.some(term => clean.includes(term.toLowerCase()));
+        if (containsExcluded) {
+          console.log(`🚫 Filtering out non-color term: ${c}`);
+          return false;
+        }
+        
+        // Accept any remaining terms as potential color variants
+        // This includes "Siyah", "Siyah çanta", etc.
+        console.log(`✅ Accepting color variant: ${c}`);
+        return true;
+      });
+
+      const realSizes = allSizes.filter(s => {
+        if (!s || typeof s !== 'string') return false;
+        const clean = s.trim().toLowerCase();
+        return clean !== 'os' && 
+               clean !== 'default' && 
+               clean !== 'tek beden' && 
+               clean !== 'n/a' && 
+               clean !== '' && 
+               clean !== 'undefined' &&
+               clean !== 'null' &&
+               clean.length > 0;
+      });
+      
+      console.log(`🔍 Final filtered colors: ${realColors.length} (${realColors.join(', ')})`);
+      console.log(`🔍 Final filtered sizes: ${realSizes.length} (${realSizes.join(', ')})`);
       
       // Determine variant structure
-      const hasColorVariants = realColors.length > 1;
+      const hasColorVariants = realColors.length >= 1; // Changed from > 1 to >= 1
       const hasSizeVariants = realSizes.length > 1;
       
       if (!hasColorVariants && !hasSizeVariants) {
@@ -176,6 +222,18 @@ class InstantCSVGenerator {
               option2Value = '';
             }
             
+            // Use variant-specific pricing if available
+            let variantPrice = priceWithMargin;
+            if (pricing && hasColorVariants && pricing[color]) {
+              const colorPrice = parseFloat(pricing[color].toString());
+              variantPrice = (colorPrice * 1.1).toFixed(2);
+              console.log(`💰 Using variant price for ${color}: ${colorPrice} -> ${variantPrice}`);
+            } else if (pricing && hasSizeVariants && pricing[size]) {
+              const sizePrice = parseFloat(pricing[size].toString());
+              variantPrice = (sizePrice * 1.1).toFixed(2);
+              console.log(`💰 Using variant price for ${size}: ${sizePrice} -> ${variantPrice}`);
+            }
+
             const row = [
               handle,
               isMainVariant ? `${product.brand ? product.brand.toUpperCase() + ' ' : ''}${product.title}` : '',

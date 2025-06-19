@@ -159,22 +159,32 @@ export async function extractMultiVariants(url: string): Promise<VariantInfo> {
           if (productData.product?.otherMerchants || productData.product?.allVariants) {
             const jsonStr = JSON.stringify(productData.product);
             
-            // Enhanced color detection patterns
-            const colorNames = [
+            // Enhanced color detection patterns - only actual colors
+            const actualColorNames = [
               'siyah', 'beyaz', 'kırmızı', 'mavi', 'yeşil', 'sarı', 'turuncu', 'mor', 'pembe', 'gri', 'kahverengi',
-              'lacivert', 'bordo', 'haki', 'bej', 'ekru', 'vizon', 'camel', 'pudra', 'mint', 'krem', 'füme',
-              'black', 'white', 'red', 'blue', 'green', 'yellow', 'orange', 'purple', 'pink', 'gray', 'brown'
+              'lacivert', 'bordo', 'haki', 'bej', 'ekru', 'vizon', 'camel', 'pudra', 'mint', 'krem', 'füme'
             ];
             
-            colorNames.forEach(colorName => {
+            // Filter out non-color terms
+            const excludeTerms = [
+              'buymorepayless', 'isblacklist', 'starred', 'registered', 'credit', 'expired', 'flash',
+              'bag', 'more', 'promotions', 'email', 'address', 'suitable', 'attributes', 'sales',
+              'show', 'true', 'false', 'null', 'undefined', 'object', 'array'
+            ];
+            
+            actualColorNames.forEach(colorName => {
               const regex = new RegExp(`"[^"]*${colorName}[^"]*"`, 'gi');
               const matches = jsonStr.match(regex);
               if (matches) {
                 matches.forEach(match => {
                   const cleanColor = match.replace(/"/g, '').trim();
-                  if (cleanColor.length > 2 && cleanColor.length < 30 && !colors.includes(cleanColor)) {
+                  const isExcluded = excludeTerms.some(term => 
+                    cleanColor.toLowerCase().includes(term.toLowerCase())
+                  );
+                  
+                  if (!isExcluded && cleanColor.length > 2 && cleanColor.length < 30 && !colors.includes(cleanColor)) {
                     colors.push(cleanColor);
-                    console.log(`🎨 Deep scan color: ${cleanColor}`);
+                    console.log(`🎨 Valid color found: ${cleanColor}`);
                   }
                 });
               }
