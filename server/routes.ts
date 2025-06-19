@@ -16,6 +16,36 @@ import { InsertProduct } from "@shared/schema";
 import { getFinalImages } from "./final-image-solution";
 import { extractVariantStockInfo } from "./advanced-size-extractor";
 
+// CSV preview generator function
+async function generateCSVPreview(csvPath?: string) {
+  if (!csvPath || !fs.existsSync(csvPath)) {
+    return null;
+  }
+  
+  try {
+    const csvContent = fs.readFileSync(csvPath, 'utf-8');
+    const lines = csvContent.split('\n').filter(line => line.trim());
+    
+    if (lines.length === 0) return null;
+    
+    const headers = lines[0].split(',').map(h => h.replace(/"/g, '').trim());
+    const rows = lines.slice(1, 6).map(line => { // Show first 5 rows
+      return line.split(',').map(cell => cell.replace(/"/g, '').trim());
+    });
+    
+    return {
+      headers: headers,
+      rows: rows,
+      totalRows: lines.length - 1, // Exclude header
+      filename: 'shopify-urunler.csv',
+      shopifyReady: true
+    };
+  } catch (error) {
+    console.error('CSV preview generation error:', error);
+    return null;
+  }
+}
+
 const urlSchema = z.object({
   url: z.string().min(1, "URL boş olamaz")
 });
@@ -238,6 +268,9 @@ export async function registerRoutes(app: Express) {
         // Use instant CSV generator instead of memory-based system
         const csvResult = await instantCSVGenerator.generateInstantCSV(productData);
         
+        // Generate CSV preview data for the interface
+        const csvPreview = await generateCSVPreview(csvResult.csvPath);
+        
         return res.status(200).json({
           success: true,
           url,
@@ -249,6 +282,7 @@ export async function registerRoutes(app: Express) {
           images: productData.images,
           variants: productData.variants,
           csvGenerated: csvResult.success,
+          csvPreview: csvPreview,
           totalProducts: 1,
           instantMode: true
         });

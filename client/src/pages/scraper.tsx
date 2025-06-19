@@ -373,16 +373,11 @@ function ScraperPage({ platform = 'trendyol' }: ScraperPageProps) {
     onSuccess: (data) => {
       console.log('✅ Ürün verisi alındı:', data);
       
-      // CSV export varsa preview verisi oluştur
-      if (data.csvExport?.success) {
+      // Add CSV preview data from instant processing
+      if (data.csvPreview) {
         const enhancedData = {
           ...data,
-          preview: {
-            filename: data.csvExport.filename,
-            totalRows: data.csvExport.totalRows || 0,
-            csvPath: data.csvExport.downloadUrl,
-            shopifyReady: true
-          }
+          csvData: data.csvPreview
         };
         setResult(enhancedData);
         setProduct(enhancedData);
@@ -394,7 +389,7 @@ function ScraperPage({ platform = 'trendyol' }: ScraperPageProps) {
       setError(null);
       toast({
         title: "Başarılı",
-        description: data.csvExport?.success ? "Ürün verileri çekildi ve CSV hazırlandı" : "Ürün verileri başarıyla çekildi"
+        description: data.csvGenerated ? "Ürün verisi çekildi ve CSV oluşturuldu" : "Ürün verisi başarıyla çekildi"
       });
     },
     onError: (error: any) => {
