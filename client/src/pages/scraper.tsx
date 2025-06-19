@@ -136,15 +136,15 @@ function CSVPreview({ csvPath }: { csvPath: string }) {
           </div>
           <div className="flex justify-between">
             <span>Toplam Satır:</span>
-            <span className="text-blue-400">41</span>
+            <span className="text-blue-400">Oluşturuluyor...</span>
           </div>
           <div className="flex justify-between">
             <span>Varyant Sayısı:</span>
-            <span className="text-purple-400">32</span>
+            <span className="text-purple-400">Hesaplanıyor...</span>
           </div>
           <div className="flex justify-between">
             <span>Sütun Sayısı:</span>
-            <span className="text-yellow-400">47</span>
+            <span className="text-yellow-400">56</span>
           </div>
         </div>
         <div className="mt-2 p-2 bg-green-900/20 rounded border border-green-800">
@@ -389,18 +389,28 @@ function ScraperPage({ platform = 'trendyol' }: ScraperPageProps) {
     }
 
     try {
-      // CSV export varsa o kullanılır, yoksa preview kullanılır
-      const downloadUrl = product.csvExport?.downloadUrl || `/csv/${product.preview?.filename}`;
-      const filename = product.csvExport?.filename || product.preview?.filename;
+      const filename = product.csvInfo?.filename || 'shopify-urunler.csv';
       
-      // Always use direct download with proper CSV endpoint
-      window.open(downloadUrl, '_blank');
+      // Use proper download endpoint
+      const response = await fetch(`/api/download/${filename}`);
+      if (!response.ok) throw new Error('İndirme hatası');
+      
+      const blob = await response.blob();
+      const url = window.URL.createObjectURL(blob);
+      const a = document.createElement('a');
+      a.href = url;
+      a.download = filename;
+      document.body.appendChild(a);
+      a.click();
+      document.body.removeChild(a);
+      window.URL.revokeObjectURL(url);
       
       toast({
         title: "CSV indirildi",
-        description: `${product.csvExport?.totalRows || product.preview?.totalRows || 0} satır Shopify formatında`
+        description: `${product.csvInfo?.totalRows || 0} satır Shopify formatında`
       });
     } catch (error) {
+      console.error('CSV indirme hatası:', error);
       toast({
         title: "İndirme hatası",
         description: "CSV dosyası indirilemedi",
