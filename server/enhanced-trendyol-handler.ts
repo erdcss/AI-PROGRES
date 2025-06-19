@@ -1,5 +1,6 @@
 import * as cheerio from 'cheerio';
 import axios from 'axios';
+import * as fs from 'fs';
 // Memory storage removed - instant processing only
 
 export interface EnhancedVariantData {
@@ -198,19 +199,57 @@ export async function scrapeTrendyolProduct(inputUrl: string) {
       url: url
     };
     
-    // No memory storage - instant processing only
+    // Generate instant CSV and preview
+    const { instantCSVGenerator } = await import('./instant-csv-generator');
+    const csvResult = await instantCSVGenerator.generateInstantCSV(productData);
+    
+    // Generate CSV preview data for the interface
+    const csvPreview = await generateCSVPreview(csvResult.csvPath);
+    
     console.log(`✅ Ürün anlık olarak işlendi: ${productData.title}`);
     
     return {
       success: true,
       ...productData,
+      csvGenerated: csvResult.success,
+      csvPreview: csvPreview,
       instantMode: true,
-      message: "Instant processing - no memory storage"
+      message: "Ürün verisi anlık olarak çekildi ve CSV oluşturuldu"
     };
 
   } catch (error) {
     console.log("❌ Enhanced Trendyol handler hatası:", error);
     throw error;
+  }
+}
+
+// CSV preview generator function
+async function generateCSVPreview(csvPath?: string) {
+  if (!csvPath || !fs.existsSync(csvPath)) {
+    return null;
+  }
+  
+  try {
+    const csvContent = fs.readFileSync(csvPath, 'utf-8');
+    const lines = csvContent.split('\n').filter(line => line.trim());
+    
+    if (lines.length === 0) return null;
+    
+    const headers = lines[0].split(',').map(h => h.replace(/"/g, '').trim());
+    const rows = lines.slice(1, 6).map(line => { // Show first 5 rows
+      return line.split(',').map(cell => cell.replace(/"/g, '').trim());
+    });
+    
+    return {
+      headers: headers,
+      rows: rows,
+      totalRows: lines.length - 1, // Exclude header
+      filename: 'shopify-urunler.csv',
+      shopifyReady: true
+    };
+  } catch (error) {
+    console.error('CSV preview generation error:', error);
+    return null;
   }
 }
 

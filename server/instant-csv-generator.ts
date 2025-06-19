@@ -1,4 +1,3 @@
-import { generateShopifyCSV } from "./shopify-export-fixed";
 import path from "path";
 import fs from "fs";
 
@@ -55,51 +54,120 @@ class InstantCSVGenerator {
       
       console.log(`📁 CSV will be created at: ${outputPath}`);
       
-      // Generate CSV using existing function
-      const result = await generateShopifyCSV(product, variants, outputPath);
-      
-      console.log(`🔄 CSV generation result:`, result);
-      
-      // Copy to expected filename if different
-      if (result.csvPath !== outputPath) {
-        if (fs.existsSync(result.csvPath)) {
-          fs.copyFileSync(result.csvPath, outputPath);
-          console.log(`📋 CSV copied to final location: ${outputPath}`);
+      // Fix Turkish price format (2.549.57 -> 2549.57)
+      let cleanPrice = product.price;
+      if (typeof cleanPrice === 'string') {
+        console.log(`🔧 Original price: "${cleanPrice}"`);
+        
+        if (cleanPrice.includes('.')) {
+          const parts = cleanPrice.split('.');
+          if (parts.length === 3 && parts[2].length === 2) {
+            // Format: "2.549.57" -> "2549.57"
+            cleanPrice = `${parts[0]}${parts[1]}.${parts[2]}`;
+            console.log(`🔧 Fixed Turkish format: "${product.price}" -> "${cleanPrice}"`);
+          }
         }
       }
       
-      // Verify file exists
-      if (fs.existsSync(outputPath)) {
-        const stats = fs.statSync(outputPath);
-        console.log(`✅ CSV created successfully: ${outputPath} (${stats.size} bytes)`);
-        
-        // Read first few lines for verification
-        const content = fs.readFileSync(outputPath, 'utf-8');
-        const lines = content.split('\n').slice(0, 3);
-        console.log(`📄 CSV sample:`, lines);
-        
-        return {
-          success: true,
-          message: `CSV oluşturuldu: ${result.totalRows} satır`,
-          csvPath: outputPath
-        };
-      } else {
-        console.log(`❌ CSV file not found at expected location: ${outputPath}`);
-        console.log(`🔍 Checking result path: ${result.csvPath}`);
-        if (result.csvPath && fs.existsSync(result.csvPath)) {
-          console.log(`📁 CSV found at result path, attempting copy...`);
-          fs.copyFileSync(result.csvPath, outputPath);
-          return {
-            success: true,
-            message: `CSV oluşturuldu: ${result.totalRows} satır`,
-            csvPath: outputPath
-          };
+      const basePrice = parseFloat(cleanPrice);
+      const priceWithMargin = (basePrice * 1.10).toFixed(2);
+      console.log(`💰 Price with 10% margin: ${basePrice} -> ${priceWithMargin}`);
+      
+      // Generate direct CSV content
+      const csvRows = [];
+      
+      // Shopify CSV headers
+      const headers = [
+        'handle', 'title', 'body_html', 'vendor', 'product_category', 'type', 'tags',
+        'published', 'option1_name', 'option1_value', 'option2_name', 'option2_value',
+        'option3_name', 'option3_value', 'variant_sku', 'variant_grams', 'variant_inventory_tracker',
+        'variant_inventory_qty', 'variant_inventory_policy', 'variant_fulfillment_service',
+        'variant_price', 'variant_compare_at_price', 'variant_requires_shipping', 'variant_taxable',
+        'variant_barcode', 'image_src', 'image_position', 'image_alt_text', 'gift_card',
+        'seo_title', 'seo_description', 'google_shopping_google_product_category',
+        'google_shopping_gender', 'google_shopping_age_group', 'google_shopping_mpn',
+        'google_shopping_condition', 'google_shopping_custom_product', 'variant_image',
+        'variant_weight_unit', 'variant_tax_code'
+      ];
+      
+      csvRows.push(headers.join(','));
+      
+      // Generate handle
+      const handle = `${product.brand ? product.brand.toLowerCase() + '-' : ''}${product.title.toLowerCase().replace(/[^a-z0-9]/g, '-').replace(/-+/g, '-').replace(/^-|-$/g, '')}`;
+      
+      // Create variants
+      const colors = variants.colors.length > 0 ? variants.colors : ['Default'];
+      const sizes = variants.sizes.length > 0 ? variants.sizes : ['OS'];
+      
+      let variantCount = 0;
+      for (const color of colors) {
+        for (const size of sizes) {
+          variantCount++;
+          const isMainVariant = variantCount === 1;
+          
+          const row = [
+            handle,
+            isMainVariant ? `${product.brand ? product.brand.toUpperCase() + ' ' : ''}${product.title}` : '',
+            isMainVariant ? `${product.description || product.title}` : '',
+            product.brand || 'TurMarkt',
+            'Apparel & Accessories > Clothing',
+            'Giyim',
+            `${product.brand ? product.brand.toLowerCase() + ',' : ''}fashion,clothing`,
+            'TRUE',
+            colors.length > 1 || sizes.length > 1 ? (colors.length > 1 ? 'Color' : 'Size') : 'Title',
+            colors.length > 1 || sizes.length > 1 ? (colors.length > 1 ? color : size) : 'Default Title',
+            colors.length > 1 && sizes.length > 1 ? 'Size' : '',
+            colors.length > 1 && sizes.length > 1 ? size : '',
+            '', '', // option3
+            `${handle}-${color.toLowerCase()}-${size}`,
+            '145',
+            'shopify',
+            '10',
+            'deny',
+            'manual',
+            priceWithMargin,
+            '',
+            'TRUE',
+            'TRUE',
+            '',
+            isMainVariant && product.images.length > 0 ? product.images[0] : '',
+            isMainVariant ? '1' : '',
+            isMainVariant ? `${product.title} - Ana Görsel` : '',
+            'FALSE',
+            `${product.brand ? product.brand + ' ' : ''}${product.title}`,
+            `${product.brand ? product.brand + ' markası ' : ''}${product.description || product.title}`,
+            '212',
+            'unisex',
+            'adult',
+            product.brand || '',
+            'new',
+            'TRUE',
+            isMainVariant && product.images.length > 0 ? product.images[0] : '',
+            'g',
+            ''
+          ];
+          
+          csvRows.push(row.map(cell => {
+            const cellStr = String(cell || '');
+            if (cellStr.includes(',') || cellStr.includes('"') || cellStr.includes('\n')) {
+              return `"${cellStr.replace(/"/g, '""')}"`;
+            }
+            return cellStr;
+          }).join(','));
         }
-        return {
-          success: false,
-          message: "CSV dosyası oluşturulamadı"
-        };
       }
+      
+      // Write CSV file
+      const csvContent = csvRows.join('\n');
+      fs.writeFileSync(outputPath, csvContent, 'utf-8');
+      
+      console.log(`✅ CSV created: ${outputPath} (${csvRows.length} rows)`);
+      
+      return {
+        success: true,
+        message: `CSV oluşturuldu: ${csvRows.length - 1} satır`,
+        csvPath: outputPath
+      };
       
     } catch (error) {
       console.error('❌ Instant CSV generation error:', error);
@@ -109,6 +177,7 @@ class InstantCSVGenerator {
       };
     }
   }
+}
 }
 
 export const instantCSVGenerator = new InstantCSVGenerator();
