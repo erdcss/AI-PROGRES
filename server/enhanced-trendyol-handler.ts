@@ -113,6 +113,27 @@ export async function scrapeTrendyolProduct(inputUrl: string) {
       authenticVariants = variantExtraction.variants;
     } else if (structuredData.success && structuredData.data.offers) {
       console.log(`Structured data'dan varyant bilgileri alındı`);
+    } else {
+      // Create basic variants from extracted product data for CSV generation
+      const basicVariants = [];
+      const colors = realProductData.variants.colors;
+      const sizes = realProductData.variants.sizes;
+      
+      colors.forEach(color => {
+        sizes.forEach(size => {
+          basicVariants.push({
+            color: color,
+            size: size,
+            price: price,
+            stock: true
+          });
+        });
+      });
+      
+      if (basicVariants.length > 0) {
+        authenticVariants = basicVariants;
+        console.log(`Temel varyantlar oluşturuldu: ${basicVariants.length} kombinasyon`);
+      }
     }
     
     // Generate Shopify CSV with authentic variant data if available
