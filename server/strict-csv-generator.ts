@@ -24,12 +24,7 @@ interface Product {
 // Enhanced CSV escape function - Shopify compatible
 function escapeCSVValue(value: string): string {
   if (!value) return '""';
-  const escaped = value
-    .replace(/[\r\n]/g, ' ')  // Clean newlines
-    .replace(/\t/g, ' ')      // Clean tabs
-    .replace(/"/g, '""')      // Escape quotes
-    .trim()
-    .substring(0, 1000);      // Max length
+  const escaped = value.replace(/"/g, '""');
   return `"${escaped}"`;
 }
 
