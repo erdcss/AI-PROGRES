@@ -791,7 +791,61 @@
         "totalVariants": 12
       },
       "url": "https://www.trendyol.com/adidas/ayakkabi-p-987654321"
+    },
+    {
+      "title": "ZARA ZARA",
+      "price": "460",
+      "basePrice": "460",
+      "id": 561325583,
+      "description": "Yüksek kaliteli zara ürünü. Modern tasarım ve üstün kalite.",
+      "brand": "ZARA",
+      "images": [
+        "https://cdn.dsmcdn.com/ty1/product/media/images/placeholder1.jpg",
+        "https://cdn.dsmcdn.com/ty1/product/media/images/placeholder2.jpg"
+      ],
+      "variants": {
+        "colors": [
+          "siyah",
+          "beyaz",
+          "mavi"
+        ],
+        "sizes": [
+          "S",
+          "M",
+          "L",
+          "XL"
+        ],
+        "totalVariants": 12
+      },
+      "url": "https://www.trendyol.com/zara/kadin-elbise-p-555666777"
+    },
+    {
+      "title": "ZARA ZARA",
+      "price": "342",
+      "basePrice": "342",
+      "id": 484077624,
+      "description": "Yüksek kaliteli zara ürünü. Modern tasarım ve üstün kalite.",
+      "brand": "ZARA",
+      "images": [
+        "https://cdn.dsmcdn.com/ty1/product/media/images/placeholder1.jpg",
+        "https://cdn.dsmcdn.com/ty1/product/media/images/placeholder2.jpg"
+      ],
+      "variants": {
+        "colors": [
+          "siyah",
+          "beyaz",
+          "mavi"
+        ],
+        "sizes": [
+          "S",
+          "M",
+          "L",
+          "XL"
+        ],
+        "totalVariants": 12
+      },
+      "url": "https://www.trendyol.com/zara/kadin-elbise-p-555666777"
     }
   ],
-  "lastUpdate": "2025-06-19T12:13:23.820Z"
+  "lastUpdate": "2025-06-19T12:17:02.805Z"
 }

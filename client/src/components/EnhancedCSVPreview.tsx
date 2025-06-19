@@ -4,7 +4,7 @@ import { Badge } from '@/components/ui/badge';
 import { ScrollArea } from '@/components/ui/scroll-area';
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
 import { Button } from '@/components/ui/button';
-import { RefreshCw, Download, AlertCircle, CheckCircle, FileText } from 'lucide-react';
+import { RefreshCw, Download, AlertCircle, CheckCircle, FileText, Trash2 } from 'lucide-react';
 import { Alert, AlertDescription } from '@/components/ui/alert';
 
 interface CSVRow {
@@ -27,9 +27,17 @@ interface CSVValidation {
   warnings: string[];
 }
 
+interface CSVStats {
+  productCount: number;
+  totalRows: number;
+  fileSize: number;
+  fileSizeKB: number;
+}
+
 export function EnhancedCSVPreview() {
   const [csvData, setCsvData] = useState<CSVRow[]>([]);
   const [validation, setValidation] = useState<CSVValidation | null>(null);
+  const [csvStats, setCsvStats] = useState<CSVStats | null>(null);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
@@ -125,7 +133,8 @@ export function EnhancedCSVPreview() {
     setError(null);
     
     try {
-      const response = await fetch('/shopify-urunler.csv');
+      // Add timestamp to prevent caching
+      const response = await fetch(`/shopify-urunler.csv?t=${Date.now()}`);
       if (!response.ok) {
         throw new Error('CSV dosyası bulunamadı');
       }
@@ -159,13 +168,45 @@ export function EnhancedCSVPreview() {
 
   const downloadCSV = () => {
     const link = document.createElement('a');
-    link.href = '/shopify-urunler.csv';
+    link.href = `/shopify-urunler.csv?t=${Date.now()}`;
     link.download = 'shopify-urunler.csv';
     link.click();
   };
 
+  const clearAllData = async () => {
+    if (!confirm('Tüm ürün verilerini ve CSV dosyasını silmek istediğinizden emin misiniz?')) {
+      return;
+    }
+    
+    try {
+      const response = await fetch('/api/clear', { method: 'POST' });
+      if (response.ok) {
+        setCsvData([]);
+        setValidation(null);
+        setCsvStats(null);
+        await fetchCSVData();
+        await fetchCSVStats();
+      }
+    } catch (error) {
+      console.error('Clear error:', error);
+    }
+  };
+
+  const fetchCSVStats = async () => {
+    try {
+      const response = await fetch('/api/csv-stats');
+      if (response.ok) {
+        const stats = await response.json();
+        setCsvStats(stats);
+      }
+    } catch (error) {
+      console.error('Stats fetch error:', error);
+    }
+  };
+
   useEffect(() => {
     fetchCSVData();
+    fetchCSVStats();
   }, []);
 
   if (loading) {
@@ -211,13 +252,20 @@ export function EnhancedCSVPreview() {
             <FileText className="h-5 w-5 text-blue-400" />
             CSV Önizleme
             <Badge variant="secondary" className="bg-blue-900 text-blue-300">
-              {validation?.totalRows || 0} varyant
+              {csvStats?.productCount || 0} ürün
+            </Badge>
+            <Badge variant="outline" className="border-gray-600 text-gray-400">
+              {csvStats?.fileSizeKB || 0} KB
             </Badge>
           </div>
           <div className="flex gap-2">
-            <Button variant="outline" size="sm" onClick={fetchCSVData} className="border-gray-600">
+            <Button variant="outline" size="sm" onClick={() => { fetchCSVData(); fetchCSVStats(); }} className="border-gray-600">
               <RefreshCw className="h-4 w-4 mr-2" />
               Yenile
+            </Button>
+            <Button variant="outline" size="sm" onClick={clearAllData} className="border-red-600 text-red-400 hover:bg-red-900/20">
+              <Trash2 className="h-4 w-4 mr-2" />
+              Temizle
             </Button>
             <Button size="sm" onClick={downloadCSV} className="bg-green-600 hover:bg-green-700">
               <Download className="h-4 w-4 mr-2" />
