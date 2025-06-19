@@ -57,6 +57,8 @@ class CSVAccumulatorService {
   }
 
   addProduct(product: Product): void {
+    console.log(`🔍 Ürün ekleme işlemi: ${product.title} (ID: ${product.id})`);
+    
     // Mevcut ürün kontrolü (ID bazında)
     const existingIndex = this.accumulator.products.findIndex(p => p.id === product.id);
     
@@ -67,11 +69,18 @@ class CSVAccumulatorService {
     } else {
       // Ekle
       this.accumulator.products.push(product);
-      console.log(`➕ Yeni ürün eklendi: ${product.title}`);
+      console.log(`➕ Yeni ürün eklendi: ${product.title} - Toplam: ${this.accumulator.products.length}`);
     }
     
     this.accumulator.lastUpdate = new Date();
     this.saveAccumulator();
+    
+    // Force verification of data before CSV regeneration
+    console.log(`💾 Current products in accumulator: ${this.accumulator.products.length}`);
+    this.accumulator.products.forEach((p, i) => {
+      console.log(`${i + 1}. ${p.title} (${p.id})`);
+    });
+    
     this.regenerateCSV();
   }
 
