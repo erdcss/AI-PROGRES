@@ -106,15 +106,19 @@ class InstantCSVGenerator {
           return false;
         }
         
-        // Only accept actual color terms
-        const actualColorKeywords = ['siyah', 'beyaz', 'kırmızı', 'mavi', 'yeşil', 'sarı', 'turuncu', 'mor', 'pembe', 'gri', 'kahverengi', 'lacivert', 'bordo', 'haki', 'bej', 'ekru', 'vizon', 'camel', 'pudra', 'mint', 'krem', 'füme', 'çanta', 'renk'];
-        const isActualColor = actualColorKeywords.some(keyword => clean.includes(keyword));
+        // Very strict color filtering - only real product colors
+        const actualColorKeywords = ['siyah', 'beyaz', 'kırmızı', 'mavi', 'yeşil', 'sarı', 'turuncu', 'mor', 'pembe', 'gri', 'kahverengi', 'lacivert', 'bordo'];
+        const isActualColor = actualColorKeywords.some(keyword => clean === keyword || clean.includes(keyword + ' '));
         
-        if (isActualColor) {
+        // Exclude brand names, URLs, and non-color terms
+        const excludePatterns = ['grimelange', 'zetus', 'nike', 'adidas', 'trendyol', '/', '-', 'x-', 'sarıyer', 'brand'];
+        const isExcluded = excludePatterns.some(pattern => clean.includes(pattern));
+        
+        if (isActualColor && !isExcluded && clean.length < 15 && clean.length > 2) {
           console.log(`✅ Accepting real color: ${c}`);
           return true;
         } else {
-          console.log(`🚫 Skipping non-color term: ${c}`);
+          console.log(`🚫 Skipping non-color: ${c}`);
           return false;
         }
       });

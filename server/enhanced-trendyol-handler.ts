@@ -166,12 +166,41 @@ export async function scrapeTrendyolProduct(inputUrl: string) {
     console.log(`📏 Sizes found: ${multiVariantData.sizes.join(', ')}`);
     console.log(`💰 Pricing data: ${Object.keys(multiVariantData.pricing).length} prices`);
     
-    // Extract images directly for multi-variant system (restored original)
-    const imgElements = $('img').toArray();
-    const cleanImages = imgElements
-      .map(img => $(img).attr('src') || $(img).attr('data-src') || $(img).attr('data-original'))
-      .filter(src => src && src.startsWith('http') && (src.includes('cdn.dsmcdn.com') || src.includes('trendyol')))
-      .slice(0, 25);
+    // Extract only actual product images (filter out logos, icons, etc.)
+    const productImages: string[] = [];
+    
+    // Get images from script data first (most reliable)
+    const imageScriptMatches = htmlContent.match(/"images":\s*\[([^\]]*)\]/g) || [];
+    imageScriptMatches.forEach(match => {
+      try {
+        const imagesArray = JSON.parse(match.replace('"images":', ''));
+        imagesArray.forEach((img: string) => {
+          if (img && img.includes('prod/QC') && img.includes('cdn.dsmcdn.com')) {
+            productImages.push(img);
+          }
+        });
+      } catch (e) {}
+    });
+    
+    // Get product-specific images from DOM
+    $('img').each((i, img) => {
+      const src = $(img).attr('src') || $(img).attr('data-src') || $(img).attr('data-original');
+      if (src && src.includes('prod/QC') && src.includes('cdn.dsmcdn.com') && !productImages.includes(src)) {
+        productImages.push(src);
+      }
+    });
+    
+    // Filter out non-product images
+    const cleanImages = productImages.filter(src => {
+      return src.includes('prod/QC') && 
+             !src.includes('logo') && 
+             !src.includes('footer') && 
+             !src.includes('header') && 
+             !src.includes('icon') &&
+             !src.includes('sprite');
+    }).slice(0, 15);
+    
+    console.log(`🖼️ Filtered product images: ${cleanImages.length} (removed logos/icons)`);
 
     const variantData = {
       colors: multiVariantData.colors,

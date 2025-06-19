@@ -159,18 +159,31 @@ export async function extractMultiVariants(url: string): Promise<VariantInfo> {
           if (productData.product?.otherMerchants || productData.product?.allVariants) {
             const jsonStr = JSON.stringify(productData.product);
             
-            // Restore original color detection - only real color variants
-            const colorKeywords = ['siyah', 'beyaz', 'kırmızı', 'mavi', 'yeşil', 'sarı', 'turuncu', 'mor', 'pembe', 'gri', 'kahverengi'];
+            // Only extract real product color variants
+            const colorPatterns = [
+              /"color":\s*"([^"]+)"/gi,
+              /"renk":\s*"([^"]+)"/gi,
+              /"variant":\s*"([^"]+)"/gi
+            ];
             
-            colorKeywords.forEach(colorName => {
-              const regex = new RegExp(`"[^"]*${colorName}[^"]*"`, 'gi');
-              const matches = jsonStr.match(regex);
+            colorPatterns.forEach(pattern => {
+              const matches = jsonStr.match(pattern);
               if (matches) {
                 matches.forEach(match => {
-                  const cleanColor = match.replace(/"/g, '').trim();
-                  if (cleanColor.length > 2 && cleanColor.length < 20 && !colors.includes(cleanColor)) {
-                    colors.push(cleanColor);
-                    console.log(`🎨 Real color detected: ${cleanColor}`);
+                  const colorMatch = match.match(/"([^"]+)"$/);
+                  if (colorMatch) {
+                    const cleanColor = colorMatch[1].trim();
+                    const actualColorKeywords = ['siyah', 'beyaz', 'kırmızı', 'mavi', 'yeşil', 'sarı', 'turuncu', 'mor', 'pembe', 'gri', 'kahverengi', 'lacivert', 'bordo'];
+                    
+                    // Filter out brand names and non-color terms
+                    const excludePatterns = ['grimelange', 'zetus', 'nike', 'adidas', 'trendyol', 'sarıyer', 'brand', '/', '-'];
+                    const isExcluded = excludePatterns.some(pattern => cleanColor.toLowerCase().includes(pattern.toLowerCase()));
+                    
+                    if (actualColorKeywords.some(keyword => cleanColor.toLowerCase().includes(keyword)) && 
+                        cleanColor.length > 2 && cleanColor.length < 15 && !colors.includes(cleanColor) && !isExcluded) {
+                      colors.push(cleanColor);
+                      console.log(`🎨 Actual product color: ${cleanColor}`);
+                    }
                   }
                 });
               }
@@ -346,6 +359,10 @@ export async function extractMultiVariants(url: string): Promise<VariantInfo> {
 
     console.log(`📏 Final size summary: ${availableSizes.length} available (${availableSizes.join(', ')}), ${outOfStockSizes.length} out of stock (${outOfStockSizes.join(', ')})`);
 
+    // Use only available sizes (exclude out-of-stock)
+    const finalSizes = availableSizes.length > 0 ? availableSizes : sizes.filter(s => !outOfStockSizes.includes(s));
+    console.log(`📏 Using only available sizes: ${finalSizes.join(', ')}`);
+
     // Only use real color variants, don't create artificial ones
     console.log(`🎨 Using only actual color variants found: ${colors.length} colors`);
 
@@ -353,7 +370,7 @@ export async function extractMultiVariants(url: string): Promise<VariantInfo> {
 
     return {
       colors: colors.length > 0 ? colors : ['tek renk'],
-      sizes: sizes.length > 0 ? sizes : ['tek beden'],
+      sizes: finalSizes.length > 0 ? finalSizes : ['tek beden'],
       pricing,
       images
     };
