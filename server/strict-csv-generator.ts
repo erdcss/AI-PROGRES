@@ -160,6 +160,15 @@ export async function generateStrictShopifyCSV(products: Product[]): Promise<str
 
   console.log(`✅ CSV tamamlandı: ${totalVariants} varyant oluşturuldu`);
 
+  // Validate CSV before writing
+  const sampleRow = csvRows[1];
+  if (sampleRow) {
+    const columns = sampleRow.split(',');
+    console.log(`✓ İlk satır kontrol: ${columns.length} kolon`);
+    console.log(`✓ Handle: ${columns[0] ? 'OK' : 'BOŞ'}`);
+    console.log(`✓ Title: ${columns[1] ? 'OK' : 'BOŞ'}`);
+  }
+
   // Write CSV with UTF-8 BOM for Shopify compatibility
   const BOM = '\uFEFF';
   const csvContent = csvRows.join('\n');
@@ -168,8 +177,12 @@ export async function generateStrictShopifyCSV(products: Product[]): Promise<str
   
   await fs.promises.writeFile(finalPath, BOM + csvContent, { encoding: 'utf-8' });
   console.log(`💾 CSV dosyası kaydedildi: ${finalPath}`);
+  
+  // Final validation
+  const fileStats = await fs.promises.stat(finalPath);
+  console.log(`📊 Dosya boyutu: ${(fileStats.size / 1024).toFixed(2)} KB`);
 
-  return csvContent;
+  return BOM + csvContent;
 }
 
 function getProductType(title: string): string {

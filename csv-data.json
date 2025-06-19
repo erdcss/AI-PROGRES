@@ -737,7 +737,34 @@
         "totalVariants": 12
       },
       "url": "https://www.trendyol.com/hm/erkek-gomlek-p-123456789"
+    },
+    {
+      "title": "NIKE NIKE",
+      "price": "350",
+      "basePrice": "350",
+      "id": 837407090,
+      "description": "Yüksek kaliteli nike ürünü. Modern tasarım ve üstün kalite.",
+      "brand": "NIKE",
+      "images": [
+        "https://cdn.dsmcdn.com/ty1/product/media/images/placeholder1.jpg",
+        "https://cdn.dsmcdn.com/ty1/product/media/images/placeholder2.jpg"
+      ],
+      "variants": {
+        "colors": [
+          "siyah",
+          "beyaz",
+          "mavi"
+        ],
+        "sizes": [
+          "S",
+          "M",
+          "L",
+          "XL"
+        ],
+        "totalVariants": 12
+      },
+      "url": "https://www.trendyol.com/nike/test-product"
     }
   ],
-  "lastUpdate": "2025-06-19T12:07:32.099Z"
+  "lastUpdate": "2025-06-19T12:12:48.124Z"
 }
