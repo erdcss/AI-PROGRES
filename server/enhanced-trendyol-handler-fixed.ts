@@ -306,10 +306,13 @@ export async function scrapeTrendyolProduct(inputUrl: string) {
       console.log(`🎨 Renk özel görseller: ${Object.keys(colorSpecificImages).length} renk için ${Object.values(colorSpecificImages).flat().length} görsel`);
     }
 
+    // Extract category information first
+    const categoryInfo = extractCategoryInfo($, htmlContent);
+    
     const variantData = {
       colors: multiVariantData.colors,
       sizes: multiVariantData.sizes,
-      images: absoluteImages,
+      images: cleanImages,
       pricing: multiVariantData.pricing
     };
 
@@ -435,8 +438,7 @@ export async function scrapeTrendyolProduct(inputUrl: string) {
     // Extract comprehensive product features for display
     const productFeatures = extractProductFeatures($, htmlContent);
     
-    // Extract category information
-    const categoryInfo = extractCategoryInfo($, htmlContent);
+    // Category already extracted above
     
     // Final product data assembly with comprehensive information
     const productData = {
@@ -446,7 +448,10 @@ export async function scrapeTrendyolProduct(inputUrl: string) {
       description: productDescription,
       images: absoluteImages,
       category: categoryInfo,
-      variants: variantData,
+      variants: {
+        ...variantData,
+        images: absoluteImages
+      },
       features: productFeatures,
       stockInfo: multiVariantData.stockInfo || {},
       outOfStockSizes: multiVariantData.outOfStockSizes || [],
