@@ -629,7 +629,34 @@
         "totalVariants": 12
       },
       "url": "https://www.trendyol.com/nike/erkek-sneaker-p-556677889"
+    },
+    {
+      "title": "NIKE NIKE",
+      "price": "381",
+      "basePrice": "381",
+      "id": 741285855,
+      "description": "Yüksek kaliteli nike ürünü. Modern tasarım ve üstün kalite.",
+      "brand": "NIKE",
+      "images": [
+        "https://cdn.dsmcdn.com/ty1/product/media/images/placeholder1.jpg",
+        "https://cdn.dsmcdn.com/ty1/product/media/images/placeholder2.jpg"
+      ],
+      "variants": {
+        "colors": [
+          "siyah",
+          "beyaz",
+          "mavi"
+        ],
+        "sizes": [
+          "S",
+          "M",
+          "L",
+          "XL"
+        ],
+        "totalVariants": 12
+      },
+      "url": "https://www.trendyol.com/nike/erkek-ayakkabi-p-123456789"
     }
   ],
-  "lastUpdate": "2025-06-19T11:58:48.465Z"
+  "lastUpdate": "2025-06-19T12:01:44.326Z"
 }
