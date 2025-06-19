@@ -200,10 +200,14 @@ export async function generateStrictShopifyCSV(products: Product[]): Promise<{
 
         console.log(`🔧 Varyant: ${color}-${size} (Ana görsel: ${mainImageIndex + 1}, Varyant görsel: ${variantImageIndex + 1})`);
 
+        // Generate authentic product description
+        const authenticDescription = isFirstVariant ? generateProductDescription(product) : '';
+        console.log(`🔍 Varyant açıklama: "${authenticDescription.substring(0, 50)}..." (${authenticDescription.length} karakter)`);
+
         const variant: ShopifyVariant = {
           Handle: handle,
           Title: isFirstVariant ? product.title : '',
-          'Body (HTML)': isFirstVariant ? generateProductDescription(product) : '',
+          'Body (HTML)': authenticDescription,
           Vendor: isFirstVariant ? (product.brand || extractBrandFromTitle(product.title)) : '',
           Type: isFirstVariant ? categorizeProduct(product.title) : '',
           Tags: isFirstVariant ? generateTags(product.title, product.price) : '',
@@ -308,9 +312,9 @@ export async function generateStrictShopifyCSV(products: Product[]): Promise<{
 function generateProductDescription(product: any): string {
   console.log(`🔧 Açıklama oluşturuluyor: ${product.description ? product.description.length : 0} karakter mevcut`);
   
-  // Otantik ürün açıklaması öncelikli kullan
-  if (product.description && product.description.trim() && product.description.length > 50) {
-    console.log(`✅ Otantik açıklama kullanılıyor`);
+  // Otantik ürün açıklaması öncelikli kullan - threshold lowered to catch more authentic data
+  if (product.description && product.description.trim() && product.description.length > 20) {
+    console.log(`✅ Otantik açıklama kullanılıyor: ${product.description.length} karakter`);
     return product.description.trim().substring(0, 1200);
   } else {
     // Enhanced premium fallback
