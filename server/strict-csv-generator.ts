@@ -305,9 +305,8 @@ function getProductType(title: string): string {
   return 'Giyim';
 }
 
-function generateTags(product: any): string {
-  return 'premium, moda, trend, kaliteli';
-}
+export async function generateStrictShopifyCSV(products: Product[]): Promise<string> {
+  const filename = 'shopify-urunler.csv';
   const finalPath = path.join(process.cwd(), filename);
 
   // Ensure temp directory exists
