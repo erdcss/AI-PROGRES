@@ -395,7 +395,8 @@ function generateTags(title: string, price: string): string {
   return tags.join(', ');
 }
 
-function generateSEODescription(title: string): string {
+function generateSEODescription(product: any): string {
+  const title = product.title || '';
   return `${title} - Yüksek kaliteli, şık ve modern tasarım. Hızlı teslimat ve güvenli alışveriş imkanı.`;
 }
 
