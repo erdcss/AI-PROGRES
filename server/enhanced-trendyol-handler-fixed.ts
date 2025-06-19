@@ -438,6 +438,29 @@ export async function scrapeTrendyolProduct(inputUrl: string) {
     // Extract comprehensive product features for display
     const productFeatures = extractProductFeatures($, htmlContent);
     
+    // AI-powered product analysis
+    console.log('🤖 AI destekli ürün analizi başlatılıyor...');
+    let aiAnalysis = null;
+    
+    try {
+      const { analyzeProductWithAI } = await import('./ai-product-analyzer');
+      aiAnalysis = await analyzeProductWithAI({
+        title: basicProductData.title,
+        brand: basicProductData.brand,
+        price: basicProductData.price,
+        images: absoluteImages,
+        category: categoryInfo,
+        features: productFeatures,
+        variants: {
+          colors: multiVariantData.colors,
+          sizes: multiVariantData.sizes
+        }
+      });
+      console.log('✅ AI analizi başarıyla tamamlandı');
+    } catch (error) {
+      console.log('⚠️ AI analizi atlandı:', error.message);
+    }
+    
     // Category already extracted above
     
     // Final product data assembly with comprehensive information
@@ -453,6 +476,7 @@ export async function scrapeTrendyolProduct(inputUrl: string) {
         images: absoluteImages
       },
       features: productFeatures,
+      aiAnalysis: aiAnalysis,
       stockInfo: multiVariantData.stockInfo || {},
       outOfStockSizes: multiVariantData.outOfStockSizes || [],
       availableSizes: multiVariantData.availableSizes || []
