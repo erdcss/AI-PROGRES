@@ -1,0 +1,417 @@
+import * as cheerio from 'cheerio';
+import axios from 'axios';
+
+export interface EnhancedVariantData {
+  colors: string[];
+  sizes: string[];
+  images: string[];
+  variantImages: Record<string, string[]>;
+  colorImageMap: Record<string, string[]>;
+  variantPricing: Record<string, number>;
+  variantSpecificPricing: Record<string, number>;
+  stockMap: Record<string, boolean>;
+  outOfStockVariants: string[];
+}
+
+export async function scrapeTrendyolProduct(inputUrl: string) {
+  try {
+    console.log('🚀 Enhanced Trendyol handler başlatılıyor...');
+    
+    const url = inputUrl.trim();
+    console.log(`📡 Canlı Trendyol verisi çekiliyor: ${url}`);
+    
+    const response = await axios.get(url, {
+      headers: {
+        'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/91.0.4472.124 Safari/537.36',
+        'Accept': 'text/html,application/xhtml+xml,application/xml;q=0.9,image/webp,*/*;q=0.8',
+        'Accept-Language': 'tr-TR,tr;q=0.9,en;q=0.8',
+        'Accept-Encoding': 'gzip, deflate, br',
+        'DNT': '1',
+        'Connection': 'keep-alive',
+        'Upgrade-Insecure-Requests': '1',
+      },
+      timeout: 15000,
+      maxRedirects: 5,
+    });
+
+    console.log(`📊 Response status: ${response.status}, Content length: ${response.data.length}`);
+
+    if (response.status === 403 || response.status === 404) {
+      console.log(`⚠️ Cloudflare blocking detected (${response.status}), trying alternative approach`);
+      throw new Error(`Trendyol erişimi engellendi (${response.status}). Lütfen farklı bir ürün URL'si deneyin.`);
+    }
+
+    const htmlContent = response.data;
+    const $ = cheerio.load(htmlContent);
+
+    // Basic product data extraction
+    const title = $('h1').first().text().trim() || 
+                  $('.pr-new-br span').first().text().trim() ||
+                  $('title').text().replace(' - Trendyol', '').trim();
+    
+    const priceText = $('.prc-slg').first().text().trim() || 
+                      $('.pr-in-pr .prc-cnr .prc-dsc').first().text().trim() ||
+                      $('.price-current').first().text().trim();
+    
+    const price = priceText.replace(/[^\d,]/g, '').replace(',', '.') || '0';
+    
+    const brand = $('.pr-in-nr a span').first().text().trim() || 
+                  $('.product-brand').first().text().trim() ||
+                  'TRENDYOL';
+
+    const basicProductData = { title, price, brand };
+    console.log(`🔍 Ürün bilgileri: ${title} - ${brand} - ${price} TL`);
+
+    // Enhanced multi-variant extraction
+    console.log('🔍 Using enhanced multi-variant extraction system...');
+    const { extractMultiVariants } = await import('./multi-variant-extractor');
+    const multiVariantData = await extractMultiVariants(url);
+    
+    console.log(`🔍 Multi-variant results: ${multiVariantData.colors.length} colors, ${multiVariantData.sizes.length} sizes`);
+    console.log(`🎨 Colors found: ${multiVariantData.colors.join(', ')}`);
+    console.log(`📏 Sizes found: ${multiVariantData.sizes.join(', ')}`);
+    console.log(`💰 Pricing data: ${Object.keys(multiVariantData.pricing).length} prices`);
+    
+    // Stock status reporting
+    if (multiVariantData.outOfStockSizes && multiVariantData.outOfStockSizes.length > 0) {
+      console.log(`⚠️ STOK UYARISI: ${multiVariantData.outOfStockSizes.join(', ')} bedenler stokta yok`);
+    }
+    if (multiVariantData.availableSizes && multiVariantData.availableSizes.length > 0) {
+      console.log(`✅ Mevcut bedenler: ${multiVariantData.availableSizes.join(', ')}`);
+    }
+    
+    // Extract ALL product images including color variants
+    const allProductImages: string[] = [];
+    
+    // Method 1: Deep script data extraction
+    const scriptMatches = [
+      ...htmlContent.matchAll(/"images":\s*\[([^\]]*)\]/g),
+      ...htmlContent.matchAll(/"allImages":\s*\[([^\]]*)\]/g),
+      ...htmlContent.matchAll(/"gallery":\s*\[([^\]]*)\]/g),
+      ...htmlContent.matchAll(/"variantImages":\s*\[([^\]]*)\]/g),
+      ...htmlContent.matchAll(/"colorImages":\s*\{([^}]*)\}/g)
+    ];
+    
+    scriptMatches.forEach(match => {
+      try {
+        let content = match[1];
+        if (content.includes('"')) {
+          const urls = content.match(/"[^"]*prod\/QC[^"]*"/g) || [];
+          urls.forEach(url => {
+            const cleanUrl = url.replace(/"/g, '');
+            if (cleanUrl.includes('cdn.dsmcdn.com')) {
+              const highRes = cleanUrl.replace(/\/\d+\/\d+\//, '/1200/1800/');
+              if (!allProductImages.includes(highRes)) {
+                allProductImages.push(highRes);
+              }
+            }
+          });
+        }
+      } catch (e) {}
+    });
+    
+    // Method 2: Product state comprehensive extraction
+    const productDetailMatch = htmlContent.match(/window\.__PRODUCT_DETAIL_APP_INITIAL_STATE__\s*=\s*({.*?});/);
+    if (productDetailMatch) {
+      try {
+        const productState = JSON.parse(productDetailMatch[1]);
+        
+        const imageSources = [
+          productState.product?.images,
+          productState.product?.allImages,
+          productState.product?.gallery,
+          productState.product?.variants?.map((v: any) => v.images).flat(),
+          Object.values(productState.product?.colorImages || {}),
+          Object.values(productState.product?.variantImages || {})
+        ].flat().filter(Boolean);
+        
+        imageSources.forEach((img: any) => {
+          if (typeof img === 'string' && img.includes('prod/QC')) {
+            const highRes = img.replace(/\/\d+\/\d+\//, '/1200/1800/');
+            if (!allProductImages.includes(highRes)) {
+              allProductImages.push(highRes);
+            }
+          }
+        });
+      } catch (e) {}
+    }
+    
+    // Method 3: Enhanced DOM extraction
+    const comprehensiveSelectors = [
+      'img[src*="prod/QC"]',
+      'img[data-src*="prod/QC"]',
+      'img[data-original*="prod/QC"]',
+      '.variant-image img',
+      '.color-image img',
+      '.product-gallery img',
+      '.gallery img',
+      '.image-gallery img',
+      '.product-images img',
+      '.slider img',
+      '.carousel img',
+      '[data-color] img',
+      '[data-variant] img',
+      '.thumb img',
+      '.thumbnail img'
+    ];
+    
+    comprehensiveSelectors.forEach(selector => {
+      $(selector).each((i, img) => {
+        const src = $(img).attr('src') || $(img).attr('data-src') || $(img).attr('data-original') || $(img).attr('data-lazy');
+        if (src && src.includes('prod/QC') && src.includes('cdn.dsmcdn.com')) {
+          const variants = [
+            src.replace(/\/\d+\/\d+\//, '/1200/1800/'),
+            src.replace(/\/\d+\/\d+\//, '/800/1200/'),
+            src.replace(/\/\d+\/\d+\//, '/600/900/'),
+            src
+          ];
+          
+          variants.forEach(variant => {
+            if (!allProductImages.includes(variant)) {
+              allProductImages.push(variant);
+            }
+          });
+        }
+      });
+    });
+
+    const cleanImages = Array.from(new Set(allProductImages));
+    console.log(`🖼️ Comprehensive extraction: ${cleanImages.length} total images (all variants included)`);
+
+    const variantData = {
+      colors: multiVariantData.colors,
+      sizes: multiVariantData.sizes,
+      images: Array.from(new Set([
+        ...Object.values(multiVariantData.images).flat(),
+        ...cleanImages
+      ])).slice(0, 25),
+      pricing: multiVariantData.pricing
+    };
+
+    // Enhanced product feature extraction
+    const productDescription = extractDetailedProductFeatures($, htmlContent);
+    console.log(`📝 Açıklama uzunluğu: ${productDescription.length} karakter`);
+
+    // Combine images from variants and original extraction
+    const allImages = Array.from(new Set([
+      ...Object.values(multiVariantData.images).flat(),
+      ...cleanImages
+    ])).filter(img => img.startsWith('http')).slice(0, 25);
+    console.log(`🎯 ${allImages.length} görsel çıkarıldı`);
+    
+    const colorVariants = multiVariantData.colors;
+    const sizeVariants = multiVariantData.sizes;
+    const colorCount = colorVariants.length;
+    const sizeCount = sizeVariants.length;
+    const imageCount = allImages.length;
+    
+    console.log(`✅ Otantik çıkarım: ${colorCount} renk, ${sizeCount} beden, ${imageCount} görsel`);
+    
+    // Process instant CSV generation
+    console.log('🔄 Ürün CSV koleksiyonuna ekleniyor...');
+    console.log('📊 Gönderilen ürün verisi:', {
+      title: basicProductData.title,
+      description: productDescription.substring(0, 100) + '...',
+      brand: basicProductData.brand,
+      images: cleanImages.length
+    });
+    
+    // Generate instant CSV
+    let csvGenerated = false;
+    try {
+      const { generateInstantCSV } = await import('./instant-csv-generator-fixed');
+      csvGenerated = await generateInstantCSV({
+        title: basicProductData.title,
+        description: productDescription,
+        brand: basicProductData.brand,
+        price: basicProductData.price,
+        images: cleanImages,
+        colors: variantData.colors,
+        sizes: variantData.sizes
+      });
+    } catch (error) {
+      console.log('⚠️ CSV generation error, using fallback method');
+      // Fallback CSV generation
+      const fs = require('fs');
+      const path = require('path');
+      
+      const csvRows = [];
+      const headers = ['handle','title','body_html','vendor','product_category','type','tags','published','option1_name','option1_value','option2_name','option2_value','option3_name','option3_value','variant_sku','variant_grams','variant_inventory_tracker','variant_inventory_qty','variant_inventory_policy','variant_fulfillment_service','variant_price','variant_compare_at_price','variant_requires_shipping','variant_taxable','variant_barcode','image_src','image_position','image_alt_text','gift_card','seo_title','seo_description','google_shopping_google_product_category','google_shopping_gender','google_shopping_age_group','google_shopping_mpn','google_shopping_condition','google_shopping_custom_product','variant_image','variant_weight_unit','variant_tax_code'];
+      csvRows.push(headers.join(','));
+
+      const basePrice = parseFloat(basicProductData.price) || 100;
+      const finalPrice = (basePrice * 1.1).toFixed(2);
+      
+      variantData.sizes.forEach((size: string, index: number) => {
+        const handle = basicProductData.title.toLowerCase()
+          .replace(/[^a-z0-9]+/g, '-')
+          .replace(/^-+|-+$/g, '');
+        
+        const imageUrl = cleanImages[0] || '';
+        
+        const row = [
+          handle,
+          `${basicProductData.brand} ${basicProductData.title}`,
+          `"${productDescription.replace(/"/g, '""')}"`,
+          basicProductData.brand,
+          'Apparel & Accessories > Clothing',
+          'Giyim',
+          `"${basicProductData.brand.toLowerCase()},clothing"`,
+          'TRUE',
+          'Size',
+          size,
+          '','','','',
+          `${handle}-default-${size}`,
+          '145',
+          'shopify',
+          '10',
+          'deny',
+          'manual',
+          finalPrice,
+          '',
+          'TRUE',
+          'TRUE',
+          '',
+          imageUrl,
+          index === 0 ? '1' : '',
+          `${basicProductData.title} - ${size}`,
+          'FALSE',
+          `${basicProductData.brand} ${basicProductData.title}`,
+          `"${basicProductData.brand} markası ${productDescription.substring(0, 200).replace(/"/g, '""')}"`,
+          '212',
+          'unisex',
+          'adult',
+          basicProductData.brand,
+          'new',
+          'TRUE',
+          imageUrl,
+          'g',
+          ''
+        ];
+        csvRows.push(row.join(','));
+      });
+      
+      const csvContent = csvRows.join('\n');
+      const csvPath = path.join('/home/runner/workspace', 'shopify-urunler.csv');
+      fs.writeFileSync(csvPath, csvContent, 'utf8');
+      csvGenerated = true;
+      console.log(`✅ Fallback CSV created: ${csvPath} (${variantData.sizes.length + 1} rows)`);
+    }
+    
+    // Final product data assembly with stock information
+    const productData = {
+      title: basicProductData.title,
+      brand: basicProductData.brand,
+      price: basicProductData.price,
+      description: productDescription,
+      images: cleanImages,
+      variants: variantData,
+      stockInfo: multiVariantData.stockInfo || {},
+      outOfStockSizes: multiVariantData.outOfStockSizes || [],
+      availableSizes: multiVariantData.availableSizes || []
+    };
+
+    console.log(`✅ Ürün anlık olarak işlendi: ${basicProductData.title}`);
+    
+    return {
+      success: true,
+      ...productData,
+      csvGenerated,
+      totalVariants: variantData.colors.length * variantData.sizes.length,
+      variants: {
+        colors: variantData.colors,
+        sizes: variantData.sizes,
+        totalVariants: variantData.colors.length * variantData.sizes.length
+      }
+    };
+
+  } catch (error) {
+    console.error('❌ Enhanced Trendyol handler hatası:', error);
+    throw error;
+  }
+}
+
+function extractDetailedProductFeatures($: any, htmlContent: string): string {
+  const features: string[] = [];
+  
+  // Comprehensive feature extraction with detailed patterns
+  const featurePatterns = [
+    // Material and fabric with percentages
+    /(?:Malzeme|Material|Kumaş|Fabric|Composition|İçerik)[^:]*:\s*([^,\n\r]+)/gi,
+    /(?:Pamuk|Cotton|Polyester|Elastan|Spandex|Viscose|Modal)\s*[%]\s*\d+/gi,
+    
+    // Care instructions
+    /(?:Bakım|Care|Yıkama|Washing)[^:]*:\s*([^,\n\r]+)/gi,
+    /(?:\d+)°C'de\s*yıkanabilir/gi,
+    
+    // Product features and details
+    /(?:Özellik|Feature|Detay|Detail)[^:]*:\s*([^,\n\r]+)/gi,
+    /(?:Regular|Slim|Oversize|Comfort)\s*(?:Fit|Kesim)/gi,
+    
+    // Size and fit information
+    /(?:Beden|Size|Ölçü|Measurement)[^:]*:\s*([^,\n\r]+)/gi,
+    /(?:Model|Fit|Kalıp|Cut)[^:]*:\s*([^,\n\r]+)/gi,
+    
+    // Design and style details
+    /(?:Desen|Pattern|Baskı|Print)[^:]*:\s*([^,\n\r]+)/gi,
+    /(?:Yaka|Collar|Neck)[^:]*:\s*([^,\n\r]+)/gi,
+    /(?:Kol|Sleeve|Arm)[^:]*:\s*([^,\n\r]+)/gi,
+    /(?:Cep|Pocket)[^:]*:\s*([^,\n\r]+)/gi,
+    /(?:Kapüşon|Hood)[^:]*:\s*([^,\n\r]+)/gi,
+    
+    // Brand and seller information
+    /(?:Marka|Brand)[^:]*:\s*([^,\n\r]+)/gi,
+    /(?:Satıcı|Seller|Üretici|Manufacturer)[^:]*:\s*([^,\n\r]+)/gi,
+    
+    // Season and usage
+    /(?:Sezon|Season|Mevsim)[^:]*:\s*([^,\n\r]+)/gi,
+    /(?:Kullanım|Usage|Stil|Style)[^:]*:\s*([^,\n\r]+)/gi,
+    
+    // Quality and certifications
+    /(?:Kalite|Quality|Sertifika|Certificate)[^:]*:\s*([^,\n\r]+)/gi,
+    /(?:Organik|Organic|Doğal|Natural|Sürdürülebilir|Sustainable)/gi
+  ];
+
+  // Extract features from HTML content
+  featurePatterns.forEach(pattern => {
+    const matches = htmlContent.match(pattern);
+    if (matches) {
+      matches.forEach(match => {
+        const cleanMatch = match.replace(/['"]/g, '').trim();
+        if (cleanMatch.length > 5 && cleanMatch.length < 150 && !features.includes(cleanMatch)) {
+          features.push(cleanMatch);
+          console.log(`🧵 Ürün Özelliği: ${cleanMatch}`);
+        }
+      });
+    }
+  });
+
+  // Extract from DOM elements with specific selectors
+  const featureSelectors = [
+    '.detail-desc-list li',
+    '.product-detail-info li', 
+    '.product-features li',
+    '.specs-list li',
+    '[data-feature]',
+    '.attribute-list li',
+    '.product-attributes li',
+    '.feature-list li'
+  ];
+
+  featureSelectors.forEach(selector => {
+    $(selector).each((i: number, element: any) => {
+      const text = $(element).text().trim();
+      if (text.length > 5 && text.length < 150 && !features.includes(text)) {
+        features.push(text);
+        console.log(`🧵 DOM Özelliği: ${text}`);
+      }
+    });
+  });
+
+  console.log(`✅ ${features.length} detaylı özellik toplandı`);
+  
+  const baseDescription = features.length > 0 ? features.join(', ') : 'Kaliteli ürün';
+  const enhancedDescription = `Ürün Özellikleri: ${baseDescription}. Kaliteli malzeme ile üretilmiştir. Günlük kullanım için ideal. Rahat kesim ve şık tasarım. Uzun ömürlü kullanım için tasarlanmıştır`;
+  
+  return enhancedDescription;
+}

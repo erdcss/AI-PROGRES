@@ -570,21 +570,6 @@ function extractFeaturesFromJSON(htmlContent: string): string[] {
   
   return features;
 }
-  
-  features.push(...qualityInfo);
-  
-  const result = features.join('. ').substring(0, 1000);
-  console.log(`📋 Final açıklama: ${result.length} karakter`);
-  
-  return result;
-}
-
-function extractFeaturesFromJSON(htmlContent: string): string[] {
-  const features: string[] = [];
-  
-  try {
-    // Pattern 1: attributes array
-    const attributePattern = /"attributes":\s*\[(.*?)\]/;
     const attributeMatch = htmlContent.match(attributePattern);
     
     if (attributeMatch) {
