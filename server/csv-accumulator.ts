@@ -122,10 +122,24 @@ class CSVAccumulatorService {
         const colors = product.variants?.colors || ['tek renk'];
         const sizes = product.variants?.sizes || ['tek beden'];
         
-        // Fix Turkish price formatting - remove dots used as thousands separators
-        const cleanPrice = product.price.toString()
-          .replace(/\./g, '') // Remove dots used as thousands separators
-          .replace(/,/g, '.'); // Convert comma decimal separator to dot
+        // Fix Turkish price formatting - handle decimal separators correctly
+        const priceStr = product.price.toString();
+        let cleanPrice;
+        
+        // Check if it's a decimal price (contains only one dot at the end)
+        if (priceStr.match(/^\d+\.\d{1,2}$/)) {
+          // It's already in correct format (e.g., "250.99")
+          cleanPrice = priceStr;
+        } else if (priceStr.includes('.') && priceStr.split('.').length > 2) {
+          // Multiple dots - thousands separators (e.g., "2.549.57")
+          const parts = priceStr.split('.');
+          const integerPart = parts.slice(0, -1).join('');
+          const decimalPart = parts[parts.length - 1];
+          cleanPrice = `${integerPart}.${decimalPart}`;
+        } else {
+          // No decimal or single number
+          cleanPrice = priceStr.replace(/,/g, '.');
+        }
         
         const basePrice = parseFloat(cleanPrice) || 0;
         const markedPrice = (basePrice * 1.1).toFixed(2);
