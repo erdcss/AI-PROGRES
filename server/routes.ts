@@ -55,9 +55,9 @@ function normalizeImageUrl(url: string): string {
 export async function registerRoutes(app: Express) {
 
   // CSV önizleme endpoint'i
-  app.get('/api/preview/:filename', (req, res) => {
+  app.get('/api/csv/preview', (req, res) => {
+    const filename = 'shopify-urunler.csv';
     try {
-      const filename = req.params.filename;
       const workspaceFilePath = path.join('/home/runner/workspace', filename);
       const tempFilePath = path.join(process.cwd(), 'temp', filename);
       
@@ -77,9 +77,11 @@ export async function registerRoutes(app: Express) {
         return res.status(400).json({ message: 'CSV dosyası boş' });
       }
       
-      // Simple CSV parsing for preview
+      // Parse all rows to find unique products  
       const headers = rows[0].split(',').map(h => h.trim().replace(/"/g, ''));
-      const dataRows = rows.slice(1, 4).map(row => {
+      
+      // Function to parse CSV row properly
+      const parseCSVRow = (row: string): string[] => {
         const cells = [];
         let current = '';
         let inQuotes = false;
@@ -97,9 +99,9 @@ export async function registerRoutes(app: Express) {
         }
         cells.push(current.trim().replace(/^"|"$/g, ''));
         return cells;
-      });
+      };
       
-      // Extract unique products only - first row of each handle
+      // Process all rows to extract unique products
       const uniqueProducts: string[][] = [];
       const seenHandles = new Set<string>();
       
