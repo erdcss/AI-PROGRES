@@ -6,8 +6,8 @@ import NotFound from "@/pages/not-found";
 import ScraperPage from "@/pages/scraper";
 import MarketplaceSelection from "@/pages/marketplace-selection";
 import ComingSoon from "@/pages/coming-soon";
-import AutoCSVPage from "@/pages/auto-csv";
-import BulkCSVPage from "@/pages/bulk-csv";
+// Removed auto-csv page import
+// Removed bulk-csv page import
 import { useState, useEffect } from "react";
 import { UrlHistory } from "@/components/UrlHistory";
 import { Card, CardContent, CardDescription, CardFooter, CardHeader, CardTitle } from "@/components/ui/card";
@@ -178,20 +178,7 @@ function Router() {
           </PageTransition>
         )}
       </Route>
-      <Route path="/auto-csv">
-        {() => (
-          <PageTransition>
-            <AutoCSVPage />
-          </PageTransition>
-        )}
-      </Route>
-      <Route path="/bulk-csv">
-        {() => (
-          <PageTransition>
-            <BulkCSVPage />
-          </PageTransition>
-        )}
-      </Route>
+      {/* Memory-based routes removed - instant mode only */}
       <Route path="/scraper/:platform?">
         {(params) => (
           <PageTransition>

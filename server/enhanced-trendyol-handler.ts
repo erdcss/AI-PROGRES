@@ -1,6 +1,6 @@
 import * as cheerio from 'cheerio';
 import axios from 'axios';
-import { csvAccumulator } from './csv-accumulator';
+// Memory storage removed - instant processing only
 
 export interface EnhancedVariantData {
   colors: string[];
