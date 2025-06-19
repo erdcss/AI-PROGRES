@@ -8,7 +8,7 @@ import { storage } from "./storage";
 import { scrapeProductWithPuppeteer } from "./fixed-puppeteer-scraper";
 import { scrapeWithEnhancedMethod } from "./enhanced-trendyol-scraper";
 import { generateStrictShopifyCSV } from "./strict-csv-generator";
-import { instantCSVGenerator } from "./instant-csv-generator";
+import { instantCSVGenerator } from "./instant-csv-generator-fixed";
 import { getCategoryConfig } from "./category-mapping";
 import { cleanTrendyolAttributes } from "./clean-attributes";
 import { parseJsonLdProductData, generateTagsFromJsonLd } from "./json-ld-parser";
