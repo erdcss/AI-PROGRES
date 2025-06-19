@@ -207,6 +207,82 @@ export function ProductDisplay({ data }: ProductDisplayProps) {
         </CardContent>
       </Card>
 
+      {/* Ürün Özellikleri */}
+      {data.features && data.features.length > 0 && (
+        <Card className="bg-gray-800 border-gray-700">
+          <CardHeader>
+            <CardTitle className="flex items-center gap-2 text-white">
+              <FileText className="h-5 w-5 text-green-400" />
+              Ürün Özellikleri
+            </CardTitle>
+          </CardHeader>
+          <CardContent>
+            <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
+              {data.features.slice(0, 12).map((feature: any, index: number) => (
+                <div key={index} className="flex justify-between p-2 bg-gray-900 rounded">
+                  <span className="text-gray-400 text-sm">{feature.key}</span>
+                  <span className="text-white text-sm font-medium">{feature.value}</span>
+                </div>
+              ))}
+            </div>
+          </CardContent>
+        </Card>
+      )}
+
+      {/* CSV Önizleme ve İndirme */}
+      <Card className="bg-gray-800 border-gray-700">
+        <CardHeader>
+          <CardTitle className="flex items-center gap-2 text-white">
+            <Download className="h-5 w-5 text-green-400" />
+            CSV Dışa Aktarım
+          </CardTitle>
+        </CardHeader>
+        <CardContent>
+          {/* CSV Preview Table */}
+          <div className="mb-4 overflow-x-auto">
+            <table className="w-full text-xs border border-gray-600">
+              <thead>
+                <tr className="bg-gray-700">
+                  <th className="border border-gray-600 p-1 text-left">Başlık</th>
+                  <th className="border border-gray-600 p-1 text-left">Marka</th>
+                  <th className="border border-gray-600 p-1 text-left">Fiyat</th>
+                  <th className="border border-gray-600 p-1 text-left">Beden</th>
+                  <th className="border border-gray-600 p-1 text-left">Renk</th>
+                  <th className="border border-gray-600 p-1 text-left">Görsel</th>
+                </tr>
+              </thead>
+              <tbody>
+                {data.variants?.sizes?.slice(0, 3).map((size: string, index: number) => (
+                  <tr key={index} className="bg-gray-800">
+                    <td className="border border-gray-600 p-1 text-gray-300">{data.title?.substring(0, 30)}...</td>
+                    <td className="border border-gray-600 p-1 text-blue-400">{data.brand}</td>
+                    <td className="border border-gray-600 p-1 text-green-400">{(parseFloat(data.price || '0') * 1.1).toFixed(2)} TL</td>
+                    <td className="border border-gray-600 p-1 text-yellow-400">{size}</td>
+                    <td className="border border-gray-600 p-1 text-purple-400">{data.variants?.colors?.[0] || 'Tek Renk'}</td>
+                    <td className="border border-gray-600 p-1 text-gray-400">✓</td>
+                  </tr>
+                ))}
+                {data.variants?.sizes?.length > 3 && (
+                  <tr className="bg-gray-900">
+                    <td colSpan={6} className="border border-gray-600 p-1 text-center text-gray-400">
+                      +{data.variants.sizes.length - 3} daha fazla varyant
+                    </td>
+                  </tr>
+                )}
+              </tbody>
+            </table>
+          </div>
+          
+          {/* Download Button */}
+          <Button 
+            onClick={handleDownloadCSV} 
+            className="w-full bg-green-600 hover:bg-green-700 text-white"
+          >
+            <Download className="h-4 w-4 mr-2" />
+            Shopify CSV İndir ({data.variants?.sizes?.length || 0} varyant)
+          </Button>
+        </CardContent>
+      </Card>
 
     </div>
   );

@@ -44,20 +44,35 @@ export async function scrapeTrendyolProduct(inputUrl: string) {
     const htmlContent = response.data;
     const $ = cheerio.load(htmlContent);
 
-    // Basic product data extraction
-    const title = $('h1').first().text().trim() || 
-                  $('.pr-new-br span').first().text().trim() ||
-                  $('title').text().replace(' - Trendyol', '').trim();
+    // Enhanced product data extraction with brand separation
+    const rawTitle = $('h1').first().text().trim() || 
+                     $('.pr-new-br span').first().text().trim() ||
+                     $('title').text().replace(' - Trendyol', '').trim();
+    
+    // Extract brand from DOM or title
+    let brand = $('.pr-in-nr a span').first().text().trim() || 
+                $('.product-brand').first().text().trim();
+    
+    // If no brand found in DOM, extract from title
+    if (!brand || brand === '') {
+      const titleWords = rawTitle.split(' ');
+      brand = titleWords[0] || 'TRENDYOL';
+    }
+    
+    console.log(`🏷️ Brand extracted: ${brand}`);
+    
+    // Remove brand from title if it starts with it
+    const cleanTitle = rawTitle.startsWith(brand) ? 
+                      rawTitle.substring(brand.length).trim() : 
+                      rawTitle;
+    
+    const title = cleanTitle;
     
     const priceText = $('.prc-slg').first().text().trim() || 
                       $('.pr-in-pr .prc-cnr .prc-dsc').first().text().trim() ||
                       $('.price-current').first().text().trim();
     
-    const price = priceText.replace(/[^\d,]/g, '').replace(',', '.') || '0';
-    
-    const brand = $('.pr-in-nr a span').first().text().trim() || 
-                  $('.product-brand').first().text().trim() ||
-                  'TRENDYOL';
+    const price = priceText.replace(/[^\d,]/g, '').replace(',', '.') || '99';
 
     const basicProductData = { title, price, brand };
     console.log(`🔍 Ürün bilgileri: ${title} - ${brand} - ${price} TL`);
@@ -175,8 +190,59 @@ export async function scrapeTrendyolProduct(inputUrl: string) {
       });
     });
 
+    // Method 6: Extract images from merchant data
+    try {
+      const merchantMatches = [...htmlContent.matchAll(/"otherMerchants":\s*(\[[^\]]*\])/g)];
+      merchantMatches.forEach(match => {
+        try {
+          const merchants = JSON.parse(match[1]);
+          merchants.forEach((merchant: any) => {
+            if (merchant.image && merchant.image.includes('cdn.dsmcdn.com')) {
+              const highRes = merchant.image.replace(/\/\d+\/\d+\//, '/1200/1800/');
+              if (!allProductImages.includes(highRes)) {
+                allProductImages.push(highRes);
+              }
+            }
+            if (merchant.images && Array.isArray(merchant.images)) {
+              merchant.images.forEach((img: string) => {
+                if (img.includes('cdn.dsmcdn.com')) {
+                  const highRes = img.replace(/\/\d+\/\d+\//, '/1200/1800/');
+                  if (!allProductImages.includes(highRes)) {
+                    allProductImages.push(highRes);
+                  }
+                }
+              });
+            }
+          });
+        } catch (e) {}
+      });
+    } catch (e) {}
+    
+    // Method 7: Extract from variant-specific image arrays
+    const variantImageMatches = [
+      ...htmlContent.matchAll(/"variantImages":\s*\{([^}]*)\}/g),
+      ...htmlContent.matchAll(/"colorImages":\s*\{([^}]*)\}/g),
+      ...htmlContent.matchAll(/"merchantImages":\s*\{([^}]*)\}/g)
+    ];
+    
+    variantImageMatches.forEach(match => {
+      try {
+        const content = match[1];
+        const imageUrls = content.match(/"[^"]*prod\/QC[^"]*"/g) || [];
+        imageUrls.forEach(url => {
+          const cleanUrl = url.replace(/"/g, '');
+          if (cleanUrl.includes('cdn.dsmcdn.com')) {
+            const highRes = cleanUrl.replace(/\/\d+\/\d+\//, '/1200/1800/');
+            if (!allProductImages.includes(highRes)) {
+              allProductImages.push(highRes);
+            }
+          }
+        });
+      } catch (e) {}
+    });
+
     const cleanImages = Array.from(new Set(allProductImages));
-    console.log(`🖼️ Comprehensive extraction: ${cleanImages.length} total images (all variants included)`);
+    console.log(`🖼️ Comprehensive extraction: ${cleanImages.length} total images (all color variants included)`);
 
     const variantData = {
       colors: multiVariantData.colors,
@@ -298,7 +364,10 @@ export async function scrapeTrendyolProduct(inputUrl: string) {
       console.log(`✅ Fallback CSV created: ${csvPath} (${variantData.sizes.length + 1} rows)`);
     }
     
-    // Final product data assembly with stock information
+    // Extract comprehensive product features for display
+    const productFeatures = extractProductFeatures($, htmlContent);
+    
+    // Final product data assembly with comprehensive information
     const productData = {
       title: basicProductData.title,
       brand: basicProductData.brand,
@@ -306,6 +375,7 @@ export async function scrapeTrendyolProduct(inputUrl: string) {
       description: productDescription,
       images: cleanImages,
       variants: variantData,
+      features: productFeatures,
       stockInfo: multiVariantData.stockInfo || {},
       outOfStockSizes: multiVariantData.outOfStockSizes || [],
       availableSizes: multiVariantData.availableSizes || []
@@ -414,4 +484,50 @@ function extractDetailedProductFeatures($: any, htmlContent: string): string {
   const enhancedDescription = `Ürün Özellikleri: ${baseDescription}. Kaliteli malzeme ile üretilmiştir. Günlük kullanım için ideal. Rahat kesim ve şık tasarım. Uzun ömürlü kullanım için tasarlanmıştır`;
   
   return enhancedDescription;
+}
+
+function extractProductFeatures($: any, htmlContent: string): Array<{key: string, value: string}> {
+  const features: Array<{key: string, value: string}> = [];
+  
+  // Extract from table format
+  $('table tr, .attributes-table tr, .product-features-table tr').each((i: number, el: any) => {
+    const row = $(el);
+    const cells = row.find('td, th');
+    
+    if (cells.length >= 2) {
+      const key = $(cells[0]).text().trim();
+      const value = $(cells[1]).text().trim();
+      
+      if (key && value && key !== value && key.length > 1 && value.length > 1 && value.length < 100) {
+        features.push({ key, value });
+      }
+    }
+  });
+  
+  // Extract from description lists
+  $('.product-detail-info dt, .product-features dt').each((i: number, el: any) => {
+    const key = $(el).text().trim();
+    const value = $(el).next('dd').text().trim();
+    if (key && value && key.length > 1 && value.length > 1 && value.length < 100) {
+      features.push({ key, value });
+    }
+  });
+  
+  // Extract key features from DOM
+  const keyFeatures = [
+    { selector: '.fabric-info', key: 'Kumaş Bilgisi' },
+    { selector: '.care-info', key: 'Bakım Bilgisi' },
+    { selector: '.size-info', key: 'Beden Bilgisi' },
+    { selector: '.model-info', key: 'Model Bilgisi' }
+  ];
+  
+  keyFeatures.forEach(({selector, key}) => {
+    const value = $(selector).text().trim();
+    if (value && value.length > 1 && value.length < 100) {
+      features.push({ key, value });
+    }
+  });
+  
+  console.log(`✅ ${features.length} structured features extracted`);
+  return features.slice(0, 20); // Limit to top 20 features
 }

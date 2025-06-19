@@ -277,6 +277,48 @@ export async function extractMultiVariants(url: string): Promise<VariantInfo> {
                 }
               });
             }
+            
+            // Extract all available colors from otherMerchants (comprehensive color detection)
+            if (productData.product?.otherMerchants && Array.isArray(productData.product.otherMerchants)) {
+              const colorVariantMap = new Map();
+              
+              productData.product.otherMerchants.forEach((merchant: any) => {
+                if (merchant && merchant.url) {
+                  // Extract color from URL parameters
+                  const urlColorMatch = merchant.url.match(/renk=([^&]+)|color=([^&]+)/i);
+                  if (urlColorMatch) {
+                    const urlColor = decodeURIComponent(urlColorMatch[1] || urlColorMatch[2]);
+                    if (!colorVariantMap.has(urlColor.toLowerCase())) {
+                      colorVariantMap.set(urlColor.toLowerCase(), urlColor);
+                    }
+                  }
+                  
+                  // Extract from merchant name/title
+                  if (merchant.title || merchant.name) {
+                    const merchantText = (merchant.title || merchant.name).toLowerCase();
+                    allColorKeywords.forEach(keyword => {
+                      if (merchantText.includes(keyword.toLowerCase())) {
+                        const colorName = keyword.charAt(0).toUpperCase() + keyword.slice(1);
+                        if (!colorVariantMap.has(keyword.toLowerCase())) {
+                          colorVariantMap.set(keyword.toLowerCase(), colorName);
+                        }
+                      }
+                    });
+                  }
+                }
+              });
+              
+              // Add unique colors from variant map
+              colorVariantMap.forEach((colorName, key) => {
+                if (!colors.some(c => c.toLowerCase() === key) && colorName.length > 2) {
+                  colors.push(colorName);
+                  console.log(`🎨 Comprehensive color detected: ${colorName}`);
+                }
+              });
+              
+              console.log(`🔍 Total merchants analyzed: ${productData.product.otherMerchants.length}`);
+              console.log(`🎨 Color variants found: ${colorVariantMap.size}`);
+            }
           }
 
           // Check allVariants in HTML
