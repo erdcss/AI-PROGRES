@@ -115,22 +115,36 @@ class InstantCSVGenerator {
       const realSizes = allSizes.filter(s => {
         if (!s || typeof s !== 'string') return false;
         const clean = s.trim().toLowerCase();
-        return clean !== 'os' && 
-               clean !== 'default' && 
-               clean !== 'tek beden' && 
-               clean !== 'n/a' && 
-               clean !== '' && 
-               clean !== 'undefined' &&
-               clean !== 'null' &&
-               clean.length > 0;
+        
+        // Accept standard sizes including S, M, L, XL, etc.
+        const isValidSize = /^(xs|s|m|l|xl|xxl|xxxl|\d+|\d+-\d+)$/i.test(clean) ||
+                           clean.match(/^\d{2,3}$/) || // Numeric sizes like 36, 38, 40
+                           ['xs', 's', 'm', 'l', 'xl', 'xxl'].includes(clean);
+        
+        const isNotPlaceholder = clean !== 'os' && 
+                                clean !== 'default' && 
+                                clean !== 'tek beden' && 
+                                clean !== 'n/a' && 
+                                clean !== '' && 
+                                clean !== 'undefined' &&
+                                clean !== 'null';
+        
+        if (isValidSize && isNotPlaceholder) {
+          console.log(`✅ Accepting size: ${s}`);
+          return true;
+        }
+        
+        return false;
       });
       
       console.log(`🔍 Final filtered colors: ${realColors.length} (${realColors.join(', ')})`);
       console.log(`🔍 Final filtered sizes: ${realSizes.length} (${realSizes.join(', ')})`);
       
       // Determine variant structure
-      const hasColorVariants = realColors.length >= 1; // Changed from > 1 to >= 1
-      const hasSizeVariants = realSizes.length > 1;
+      const hasColorVariants = realColors.length > 1;
+      const hasSizeVariants = realSizes.length > 0; // Changed to include single sizes
+
+      console.log(`🔍 Variant structure: ${hasColorVariants ? 'Multiple colors' : 'Single color'}, ${hasSizeVariants ? realSizes.length + ' sizes' : 'No sizes'}`);
       
       if (!hasColorVariants && !hasSizeVariants) {
         console.log(`📦 Single product (no variants) - using Default Title`);
@@ -224,11 +238,11 @@ class InstantCSVGenerator {
             
             // Use variant-specific pricing if available
             let variantPrice = priceWithMargin;
-            if (pricing && hasColorVariants && pricing[color]) {
+            if (typeof pricing !== 'undefined' && pricing && hasColorVariants && pricing[color]) {
               const colorPrice = parseFloat(pricing[color].toString());
               variantPrice = (colorPrice * 1.1).toFixed(2);
               console.log(`💰 Using variant price for ${color}: ${colorPrice} -> ${variantPrice}`);
-            } else if (pricing && hasSizeVariants && pricing[size]) {
+            } else if (typeof pricing !== 'undefined' && pricing && hasSizeVariants && pricing[size]) {
               const sizePrice = parseFloat(pricing[size].toString());
               variantPrice = (sizePrice * 1.1).toFixed(2);
               console.log(`💰 Using variant price for ${size}: ${sizePrice} -> ${variantPrice}`);

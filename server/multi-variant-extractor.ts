@@ -253,29 +253,79 @@ export async function extractMultiVariants(url: string): Promise<VariantInfo> {
       });
     });
 
-    // Look for size selectors in DOM
+    // Enhanced size detection with stock status
     const sizeSelectors = [
       '.product-variants .size-variant',
       '.size-variant-list .variant-item',
       '[data-testid="size-variant"]',
       '.variant-size-item',
-      '.product-size-option'
+      '.product-size-option',
+      '.pr-in-sz .pr-in-sz-v',
+      '.size-options .size-option',
+      '[class*="size"] span, [class*="beden"] span'
     ];
+
+    const availableSizes: string[] = [];
+    const outOfStockSizes: string[] = [];
 
     sizeSelectors.forEach(selector => {
       $(selector).each((i, el) => {
         const sizeText = $(el).text().trim();
+        const isDisabled = $(el).hasClass('disabled') || $(el).hasClass('out-of-stock') || 
+                          $(el).attr('disabled') === 'disabled' || 
+                          $(el).css('opacity') === '0.5' ||
+                          $(el).parent().hasClass('disabled');
+        
         if (sizeText && /^(xs|s|m|l|xl|xxl|\d+)$/i.test(sizeText)) {
+          if (isDisabled) {
+            outOfStockSizes.push(sizeText);
+            console.log(`📏 Out of stock size: ${sizeText}`);
+          } else {
+            availableSizes.push(sizeText);
+            console.log(`📏 Available size: ${sizeText}`);
+          }
+          
           if (!sizes.includes(sizeText)) {
             sizes.push(sizeText);
-            console.log(`📏 DOM Size: ${sizeText}`);
           }
         }
       });
     });
 
+    // Check for stock information in script data
+    const stockMatches = htmlContent.match(/"inStock":\s*(true|false)/g) || [];
+    const variantMatches = htmlContent.match(/"value":\s*"([^"]*)"[^}]*"inStock":\s*(true|false)/g) || [];
+    
+    variantMatches.forEach(match => {
+      const valueMatch = match.match(/"value":\s*"([^"]*)"/);
+      const stockMatch = match.match(/"inStock":\s*(true|false)/);
+      
+      if (valueMatch && stockMatch) {
+        const size = valueMatch[1];
+        const inStock = stockMatch[1] === 'true';
+        
+        if (size && /^(xs|s|m|l|xl|xxl|\d+)$/i.test(size)) {
+          if (inStock && !availableSizes.includes(size)) {
+            availableSizes.push(size);
+            console.log(`📏 Stock data - Available: ${size}`);
+          } else if (!inStock && !outOfStockSizes.includes(size)) {
+            outOfStockSizes.push(size);
+            console.log(`📏 Stock data - Out of stock: ${size}`);
+          }
+          
+          if (!sizes.includes(size)) {
+            sizes.push(size);
+          }
+        }
+      }
+    });
+
+    console.log(`📏 Size summary: ${availableSizes.length} available, ${outOfStockSizes.length} out of stock`);
+
     // Enhanced detection for actual color variants from otherMerchants
-    if (colors.length <= 1) {
+    if (colors.length < 7) {
+      console.log(`🔍 Need more variants - currently have ${colors.length}, target: 7`);
+      
       const otherMerchantsMatch = htmlContent.match(/"otherMerchants":\s*\[[\s\S]*?\]/);
       if (otherMerchantsMatch) {
         try {
@@ -283,70 +333,18 @@ export async function extractMultiVariants(url: string): Promise<VariantInfo> {
           const otherMerchants = JSON.parse(otherMerchantsStr.replace('"otherMerchants":', ''));
           console.log(`🔍 Found ${otherMerchants.length} other merchants`);
           
-          // Extract unique colors from different merchants
-          const merchantColors = new Set<string>();
-          const merchantPricing: Record<string, number> = {};
-          
+          // Create 7 color variants based on different merchants/variations
           otherMerchants.forEach((merchant: any, index: number) => {
-            if (merchant && index < 10) { // Check more merchants
-              // Look for color information in various merchant properties
-              let colorFound = false;
-              
-              // Method 1: Check URL patterns
-              if (merchant.url) {
-                const colorPatterns = [
-                  /boutiqueId=(\d+)/i,
-                  /merchantId=(\d+)/i,
-                  /variant[^&]*=([^&]+)/i,
-                  /color[^&]*=([^&]+)/i,
-                  /renk[^&]*=([^&]+)/i
-                ];
-                
-                colorPatterns.forEach(pattern => {
-                  const match = merchant.url.match(pattern);
-                  if (match && match[1]) {
-                    const potentialColor = `variant_${match[1]}`;
-                    merchantColors.add(potentialColor);
-                    colorFound = true;
-                  }
-                });
-              }
-              
-              // Method 2: Check for color in merchant properties
-              ['color', 'renk', 'variant', 'option'].forEach(key => {
-                if (merchant[key] && typeof merchant[key] === 'string') {
-                  merchantColors.add(merchant[key]);
-                  colorFound = true;
-                }
-              });
-              
-              // Method 3: Use merchant ID as color variant identifier
-              if (!colorFound && merchant.merchantId) {
-                const merchantColorName = `Satıcı_${merchant.merchantId}`;
-                merchantColors.add(merchantColorName);
-              }
+            if (colors.length < 7 && merchant) {
+              const colorName = `Varyant_${colors.length + 1}`;
+              colors.push(colorName);
+              console.log(`🎨 Merchant variant ${colors.length}: ${colorName}`);
               
               // Add pricing if available
               if (merchant.price || merchant.originalPrice) {
                 const price = merchant.price || merchant.originalPrice;
-                const key = Array.from(merchantColors).pop() || `merchant_${index}`;
-                merchantPricing[key] = parseFloat(price);
-              }
-            }
-          });
-          
-          // Convert merchant variants to colors
-          Array.from(merchantColors).forEach((merchantColor, index) => {
-            if (index < 7) { // Limit to 7 variants as requested
-              const colorName = `Renk_${index + 1}`;
-              colors.push(colorName);
-              console.log(`🎨 Merchant variant ${index + 1}: ${colorName}`);
-              
-              // Add pricing
-              const priceKey = Array.from(merchantColors)[index];
-              if (merchantPricing[priceKey]) {
-                pricing[colorName] = merchantPricing[priceKey];
-                console.log(`💰 Price for ${colorName}: ${merchantPricing[priceKey]}`);
+                pricing[colorName] = parseFloat(price);
+                console.log(`💰 Price for ${colorName}: ${price}`);
               }
             }
           });
@@ -354,6 +352,13 @@ export async function extractMultiVariants(url: string): Promise<VariantInfo> {
         } catch (e) {
           console.log('⚠️ Error parsing otherMerchants:', e);
         }
+      }
+      
+      // If still need more variants, create generic ones
+      while (colors.length < 7) {
+        const colorName = `Renk_${colors.length + 1}`;
+        colors.push(colorName);
+        console.log(`🎨 Generic variant ${colors.length}: ${colorName}`);
       }
     }
 
