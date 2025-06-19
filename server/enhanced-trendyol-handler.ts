@@ -166,40 +166,12 @@ export async function scrapeTrendyolProduct(inputUrl: string) {
     console.log(`📏 Sizes found: ${multiVariantData.sizes.join(', ')}`);
     console.log(`💰 Pricing data: ${Object.keys(multiVariantData.pricing).length} prices`);
     
-    // Extract only product-specific images (not logos, icons, etc.)
-    const productImages: string[] = [];
-    
-    // Method 1: Product gallery images
-    $('.gallery-modal img, .product-image img, .product-gallery img').each((i, img) => {
-      const src = $(img).attr('src') || $(img).attr('data-src') || $(img).attr('data-original');
-      if (src && src.includes('cdn.dsmcdn.com') && src.includes('prod/QC')) {
-        productImages.push(src.replace(/\/\d+\//, '/1200/1800/'));
-      }
-    });
-    
-    // Method 2: Main product images from script data
-    const imageMatches = htmlContent.match(/"images":\s*\[[^\]]*\]/g) || [];
-    imageMatches.forEach(match => {
-      try {
-        const images = JSON.parse(match.replace('"images":', ''));
-        images.forEach((img: string) => {
-          if (img && img.includes('cdn.dsmcdn.com') && img.includes('prod/QC') && !productImages.includes(img)) {
-            productImages.push(img.replace(/\/\d+\//, '/1200/1800/'));
-          }
-        });
-      } catch (e) {}
-    });
-    
-    // Method 3: Get images from specific selectors
-    $('img[src*="prod/QC"], img[data-src*="prod/QC"]').each((i, img) => {
-      const src = $(img).attr('src') || $(img).attr('data-src');
-      if (src && !productImages.includes(src)) {
-        productImages.push(src.replace(/\/\d+\//, '/1200/1800/'));
-      }
-    });
-    
-    const cleanImages = Array.from(new Set(productImages)).slice(0, 10);
-    console.log(`🖼️ Found ${cleanImages.length} product-specific images`);
+    // Extract images directly for multi-variant system (restored original)
+    const imgElements = $('img').toArray();
+    const cleanImages = imgElements
+      .map(img => $(img).attr('src') || $(img).attr('data-src') || $(img).attr('data-original'))
+      .filter(src => src && src.startsWith('http') && (src.includes('cdn.dsmcdn.com') || src.includes('trendyol')))
+      .slice(0, 25);
 
     const variantData = {
       colors: multiVariantData.colors,

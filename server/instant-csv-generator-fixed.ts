@@ -88,7 +88,7 @@ class InstantCSVGenerator {
         'show', 'true', 'false'
       ];
       
-      // More permissive filtering to capture actual color variants
+      // Restore original color filtering - only accept real colors
       const realColors = allColors.filter(c => {
         if (!c || typeof c !== 'string') return false;
         const clean = c.trim().toLowerCase();
@@ -106,10 +106,17 @@ class InstantCSVGenerator {
           return false;
         }
         
-        // Accept any remaining terms as potential color variants
-        // This includes "Siyah", "Siyah çanta", etc.
-        console.log(`✅ Accepting color variant: ${c}`);
-        return true;
+        // Only accept actual color terms
+        const actualColorKeywords = ['siyah', 'beyaz', 'kırmızı', 'mavi', 'yeşil', 'sarı', 'turuncu', 'mor', 'pembe', 'gri', 'kahverengi', 'lacivert', 'bordo', 'haki', 'bej', 'ekru', 'vizon', 'camel', 'pudra', 'mint', 'krem', 'füme', 'çanta', 'renk'];
+        const isActualColor = actualColorKeywords.some(keyword => clean.includes(keyword));
+        
+        if (isActualColor) {
+          console.log(`✅ Accepting real color: ${c}`);
+          return true;
+        } else {
+          console.log(`🚫 Skipping non-color term: ${c}`);
+          return false;
+        }
       });
 
       const realSizes = allSizes.filter(s => {
@@ -140,11 +147,11 @@ class InstantCSVGenerator {
       console.log(`🔍 Final filtered colors: ${realColors.length} (${realColors.join(', ')})`);
       console.log(`🔍 Final filtered sizes: ${realSizes.length} (${realSizes.join(', ')})`);
       
-      // Determine variant structure
+      // Determine variant structure - restore original logic
       const hasColorVariants = realColors.length > 1;
-      const hasSizeVariants = realSizes.length > 0; // Changed to include single sizes
+      const hasSizeVariants = realSizes.length > 1;
 
-      console.log(`🔍 Variant structure: ${hasColorVariants ? 'Multiple colors' : 'Single color'}, ${hasSizeVariants ? realSizes.length + ' sizes' : 'No sizes'}`);
+      console.log(`🔍 Variant structure: ${hasColorVariants ? realColors.length + ' colors' : 'Single color'}, ${hasSizeVariants ? realSizes.length + ' sizes' : 'Single size/No variants'}`);
       
       if (!hasColorVariants && !hasSizeVariants) {
         console.log(`📦 Single product (no variants) - using Default Title`);

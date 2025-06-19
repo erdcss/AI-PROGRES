@@ -159,32 +159,18 @@ export async function extractMultiVariants(url: string): Promise<VariantInfo> {
           if (productData.product?.otherMerchants || productData.product?.allVariants) {
             const jsonStr = JSON.stringify(productData.product);
             
-            // Enhanced color detection patterns - only actual colors
-            const actualColorNames = [
-              'siyah', 'beyaz', 'kırmızı', 'mavi', 'yeşil', 'sarı', 'turuncu', 'mor', 'pembe', 'gri', 'kahverengi',
-              'lacivert', 'bordo', 'haki', 'bej', 'ekru', 'vizon', 'camel', 'pudra', 'mint', 'krem', 'füme'
-            ];
+            // Restore original color detection - only real color variants
+            const colorKeywords = ['siyah', 'beyaz', 'kırmızı', 'mavi', 'yeşil', 'sarı', 'turuncu', 'mor', 'pembe', 'gri', 'kahverengi'];
             
-            // Filter out non-color terms
-            const excludeTerms = [
-              'buymorepayless', 'isblacklist', 'starred', 'registered', 'credit', 'expired', 'flash',
-              'bag', 'more', 'promotions', 'email', 'address', 'suitable', 'attributes', 'sales',
-              'show', 'true', 'false', 'null', 'undefined', 'object', 'array'
-            ];
-            
-            actualColorNames.forEach(colorName => {
+            colorKeywords.forEach(colorName => {
               const regex = new RegExp(`"[^"]*${colorName}[^"]*"`, 'gi');
               const matches = jsonStr.match(regex);
               if (matches) {
                 matches.forEach(match => {
                   const cleanColor = match.replace(/"/g, '').trim();
-                  const isExcluded = excludeTerms.some(term => 
-                    cleanColor.toLowerCase().includes(term.toLowerCase())
-                  );
-                  
-                  if (!isExcluded && cleanColor.length > 2 && cleanColor.length < 30 && !colors.includes(cleanColor)) {
+                  if (cleanColor.length > 2 && cleanColor.length < 20 && !colors.includes(cleanColor)) {
                     colors.push(cleanColor);
-                    console.log(`🎨 Valid color found: ${cleanColor}`);
+                    console.log(`🎨 Real color detected: ${cleanColor}`);
                   }
                 });
               }
@@ -292,75 +278,76 @@ export async function extractMultiVariants(url: string): Promise<VariantInfo> {
       });
     });
 
-    // Check for stock information in script data
-    const stockMatches = htmlContent.match(/"inStock":\s*(true|false)/g) || [];
-    const variantMatches = htmlContent.match(/"value":\s*"([^"]*)"[^}]*"inStock":\s*(true|false)/g) || [];
-    
-    variantMatches.forEach(match => {
-      const valueMatch = match.match(/"value":\s*"([^"]*)"/);
-      const stockMatch = match.match(/"inStock":\s*(true|false)/);
-      
-      if (valueMatch && stockMatch) {
-        const size = valueMatch[1];
-        const inStock = stockMatch[1] === 'true';
+    // Enhanced stock detection from product detail state
+    const productDetailMatch = htmlContent.match(/window\.__PRODUCT_DETAIL_APP_INITIAL_STATE__\s*=\s*({.*?});/);
+    if (productDetailMatch) {
+      try {
+        const productState = JSON.parse(productDetailMatch[1]);
         
-        if (size && /^(xs|s|m|l|xl|xxl|\d+)$/i.test(size)) {
-          if (inStock && !availableSizes.includes(size)) {
-            availableSizes.push(size);
-            console.log(`📏 Stock data - Available: ${size}`);
-          } else if (!inStock && !outOfStockSizes.includes(size)) {
-            outOfStockSizes.push(size);
-            console.log(`📏 Stock data - Out of stock: ${size}`);
-          }
-          
-          if (!sizes.includes(size)) {
-            sizes.push(size);
-          }
-        }
-      }
-    });
-
-    console.log(`📏 Size summary: ${availableSizes.length} available, ${outOfStockSizes.length} out of stock`);
-
-    // Enhanced detection for actual color variants from otherMerchants
-    if (colors.length < 7) {
-      console.log(`🔍 Need more variants - currently have ${colors.length}, target: 7`);
-      
-      const otherMerchantsMatch = htmlContent.match(/"otherMerchants":\s*\[[\s\S]*?\]/);
-      if (otherMerchantsMatch) {
-        try {
-          const otherMerchantsStr = otherMerchantsMatch[0];
-          const otherMerchants = JSON.parse(otherMerchantsStr.replace('"otherMerchants":', ''));
-          console.log(`🔍 Found ${otherMerchants.length} other merchants`);
-          
-          // Create 7 color variants based on different merchants/variations
-          otherMerchants.forEach((merchant: any, index: number) => {
-            if (colors.length < 7 && merchant) {
-              const colorName = `Varyant_${colors.length + 1}`;
-              colors.push(colorName);
-              console.log(`🎨 Merchant variant ${colors.length}: ${colorName}`);
-              
-              // Add pricing if available
-              if (merchant.price || merchant.originalPrice) {
-                const price = merchant.price || merchant.originalPrice;
-                pricing[colorName] = parseFloat(price);
-                console.log(`💰 Price for ${colorName}: ${price}`);
-              }
+        // Check for variant stock information
+        if (productState.product && productState.product.variants) {
+          productState.product.variants.forEach((variant: any) => {
+            if (variant.attributeType === 1 && variant.attributes) { // Size variants
+              variant.attributes.forEach((attr: any) => {
+                const size = attr.name;
+                const inStock = attr.stock > 0;
+                
+                if (size && /^(xs|s|m|l|xl|xxl|\d+)$/i.test(size)) {
+                  if (inStock) {
+                    availableSizes.push(size);
+                    console.log(`📏 Available size: ${size} (stock: ${attr.stock})`);
+                  } else {
+                    outOfStockSizes.push(size);
+                    console.log(`📏 OUT OF STOCK size: ${size}`);
+                  }
+                  
+                  if (!sizes.includes(size)) {
+                    sizes.push(size);
+                  }
+                }
+              });
             }
           });
-          
-        } catch (e) {
-          console.log('⚠️ Error parsing otherMerchants:', e);
         }
-      }
-      
-      // If still need more variants, create generic ones
-      while (colors.length < 7) {
-        const colorName = `Renk_${colors.length + 1}`;
-        colors.push(colorName);
-        console.log(`🎨 Generic variant ${colors.length}: ${colorName}`);
+      } catch (e) {
+        console.log('⚠️ Error parsing product state for stock:', e);
       }
     }
+
+    // Additional stock check from allVariants data
+    const allVariantsMatch = htmlContent.match(/"allVariants":\s*\[([^\]]*)\]/);
+    if (allVariantsMatch) {
+      try {
+        const allVariants = JSON.parse(`[${allVariantsMatch[1]}]`);
+        allVariants.forEach((variant: any) => {
+          if (variant.value && variant.inStock !== undefined) {
+            const size = variant.value;
+            const inStock = variant.inStock;
+            
+            if (size && /^(xs|s|m|l|xl|xxl|\d+)$/i.test(size)) {
+              if (inStock && !availableSizes.includes(size)) {
+                availableSizes.push(size);
+                console.log(`📏 Available: ${size}`);
+              } else if (!inStock && !outOfStockSizes.includes(size)) {
+                outOfStockSizes.push(size);
+                console.log(`📏 OUT OF STOCK: ${size}`);
+              }
+              
+              if (!sizes.includes(size)) {
+                sizes.push(size);
+              }
+            }
+          }
+        });
+      } catch (e) {
+        console.log('⚠️ Error parsing allVariants for stock:', e);
+      }
+    }
+
+    console.log(`📏 Final size summary: ${availableSizes.length} available (${availableSizes.join(', ')}), ${outOfStockSizes.length} out of stock (${outOfStockSizes.join(', ')})`);
+
+    // Only use real color variants, don't create artificial ones
+    console.log(`🎨 Using only actual color variants found: ${colors.length} colors`);
 
     console.log(`✅ Multi-variant extraction complete: ${colors.length} colors, ${sizes.length} sizes, ${Object.keys(pricing).length} prices`);
 
