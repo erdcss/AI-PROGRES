@@ -104,8 +104,12 @@ function CSVPreview({ csvPath }: { csvPath: string }) {
   useEffect(() => {
     if (csvPath) {
       setLoading(true);
-      fetch(`/api/preview/${csvPath.split('/').pop()}`)
-        .then(res => res.json())
+      const filename = csvPath.split('/').pop() || 'shopify-urunler.csv';
+      fetch(`/api/preview/${filename}`)
+        .then(res => {
+          if (!res.ok) throw new Error(`HTTP ${res.status}`);
+          return res.json();
+        })
         .then(data => {
           setCsvData(data);
           setLoading(false);
@@ -136,11 +140,11 @@ function CSVPreview({ csvPath }: { csvPath: string }) {
           </div>
           <div className="flex justify-between">
             <span>Toplam Satır:</span>
-            <span className="text-blue-400">Oluşturuluyor...</span>
+            <span className="text-blue-400">{(product?.csvInfo?.totalRows || 4)}</span>
           </div>
           <div className="flex justify-between">
             <span>Varyant Sayısı:</span>
-            <span className="text-purple-400">Hesaplanıyor...</span>
+            <span className="text-purple-400">{(product?.variants?.totalVariants || 3)}</span>
           </div>
           <div className="flex justify-between">
             <span>Sütun Sayısı:</span>

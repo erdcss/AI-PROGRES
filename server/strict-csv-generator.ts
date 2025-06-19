@@ -293,7 +293,8 @@ export async function generateStrictShopifyCSV(products: Product[]): Promise<{
       csvLines.push(row.join(','));
     });
     
-    return csvLines.join('\n');
+    // Add newline at end for proper file formatting
+    return csvLines.join('\n') + '\n';
   };
   
   const csvContent = createPythonStyleCSV();
