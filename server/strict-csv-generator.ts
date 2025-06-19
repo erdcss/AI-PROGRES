@@ -189,7 +189,7 @@ export async function generateStrictShopifyCSV(products: Product[]): Promise<str
           'Published': 'TRUE',
           'Option1 Name': 'Renk',
           'Option1 Value': color,
-          'Option2 Name': 'Beden',
+          'Option2 Name': 'Beden', 
           'Option2 Value': size,
           'Option3 Name': '',
           'Option3 Value': '',
@@ -261,22 +261,15 @@ export async function generateStrictShopifyCSV(products: Product[]): Promise<str
   // CSV içerik oluştur
   const csvContent = [headerRow, ...csvRows].join('\n');
   
-  // Temp dosyaya yaz
-  const tempDir = path.join(process.cwd(), 'temp');
-  if (!fs.existsSync(tempDir)) {
-    fs.mkdirSync(tempDir, { recursive: true });
-  }
-  
-  const tempFilePath = path.join(tempDir, 'shopify-urunler.csv');
+  // Dosya yolu hazırlama
   const finalFilePath = path.join('/home/runner/workspace', 'shopify-urunler.csv');
   
-  // UTF-8 BOM ile kaydet (byte-level)
-  const bomBuffer = Buffer.from([0xEF, 0xBB, 0xBF]); // UTF-8 BOM bytes
-  const csvBuffer = Buffer.from(csvContent, 'utf8');
-  const finalBuffer = Buffer.concat([bomBuffer, csvBuffer]);
+  // UTF-8 BOM ekle ve kaydet
+  const BOM = '\uFEFF';
+  const finalContent = BOM + csvContent;
   
-  fs.writeFileSync(finalFilePath, finalBuffer);
-  console.log(`📁 Shopify uyumlu CSV kaydedildi (UTF-8 BOM ile): ${finalFilePath}`);
+  fs.writeFileSync(finalFilePath, finalContent, 'utf8');
+  console.log(`📁 Shopify uyumlu CSV kaydedildi: ${finalFilePath}`);
   
   // Python CSV quote fixer entegrasyonu
   try {
