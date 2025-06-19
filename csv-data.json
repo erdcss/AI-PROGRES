@@ -122,7 +122,7 @@
         ],
         "totalVariants": 3
       },
-      "url": "trendyol.com/grimelange/majer-kadin-100-organik-pamuklu-western-tema-baskili-regular-fit-yesil-t-shirt-p-850879998?boutiqueId=675226&merchantId=968&sav=true"
+      "url": "https://www.trendyol.com/grimelange/majer-kadin-100-organik-pamuklu-western-tema-baskili-regular-fit-yesil-t-shirt-p-850879998?boutiqueId=675226&merchantId=968&sav=true"
     },
     {
       "title": "SeusCraft California Tasarım T-Shirt Şort - Bej Alt Üst Takım Şort Tişört Kombin Baskılı Bisiklet Yaka",
@@ -430,7 +430,34 @@
         "totalVariants": 12
       },
       "url": "https://www.trendyol.com/test-brand/test-product-p-123456789"
+    },
+    {
+      "title": "MANGO MANGO",
+      "price": "144",
+      "basePrice": "144",
+      "id": 491679518,
+      "description": "Yüksek kaliteli mango ürünü. Modern tasarım ve üstün kalite.",
+      "brand": "MANGO",
+      "images": [
+        "https://cdn.dsmcdn.com/ty1/product/media/images/placeholder1.jpg",
+        "https://cdn.dsmcdn.com/ty1/product/media/images/placeholder2.jpg"
+      ],
+      "variants": {
+        "colors": [
+          "siyah",
+          "beyaz",
+          "mavi"
+        ],
+        "sizes": [
+          "S",
+          "M",
+          "L",
+          "XL"
+        ],
+        "totalVariants": 12
+      },
+      "url": "https://www.trendyol.com/mango/kadin-elbise-p-998877123"
     }
   ],
-  "lastUpdate": "2025-06-19T11:31:12.607Z"
+  "lastUpdate": "2025-06-19T11:47:07.763Z"
 }
