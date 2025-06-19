@@ -457,7 +457,34 @@
         "totalVariants": 12
       },
       "url": "https://www.trendyol.com/mango/kadin-elbise-p-998877123"
+    },
+    {
+      "title": "LCW LCW",
+      "price": "170",
+      "basePrice": "170",
+      "id": 699768768,
+      "description": "Yüksek kaliteli lcw ürünü. Modern tasarım ve üstün kalite.",
+      "brand": "LCW",
+      "images": [
+        "https://cdn.dsmcdn.com/ty1/product/media/images/placeholder1.jpg",
+        "https://cdn.dsmcdn.com/ty1/product/media/images/placeholder2.jpg"
+      ],
+      "variants": {
+        "colors": [
+          "siyah",
+          "beyaz",
+          "mavi"
+        ],
+        "sizes": [
+          "S",
+          "M",
+          "L",
+          "XL"
+        ],
+        "totalVariants": 12
+      },
+      "url": "https://www.trendyol.com/lcw/erkek-tisort-p-556677889"
     }
   ],
-  "lastUpdate": "2025-06-19T11:47:07.763Z"
+  "lastUpdate": "2025-06-19T11:49:27.061Z"
 }

@@ -126,6 +126,10 @@ class CSVAccumulatorService {
   getProducts(): Product[] {
     return this.accumulator.products;
   }
+
+  getProductCount(): number {
+    return this.accumulator.products.length;
+  }
 }
 
 export const csvAccumulator = new CSVAccumulatorService();
