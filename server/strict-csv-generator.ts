@@ -264,12 +264,13 @@ export async function generateStrictShopifyCSV(products: Product[]): Promise<str
   // Dosya yolu hazırlama
   const finalFilePath = path.join('/home/runner/workspace', 'shopify-urunler.csv');
   
-  // UTF-8 BOM ekle ve kaydet
-  const BOM = '\uFEFF';
-  const finalContent = BOM + csvContent;
+  // UTF-8 BOM ile kaydet - byte düzeyinde
+  const utf8BOM = Buffer.from([0xEF, 0xBB, 0xBF]);
+  const contentBuffer = Buffer.from(csvContent, 'utf8');
+  const finalBuffer = Buffer.concat([utf8BOM, contentBuffer]);
   
-  fs.writeFileSync(finalFilePath, finalContent, 'utf8');
-  console.log(`📁 Shopify uyumlu CSV kaydedildi: ${finalFilePath}`);
+  fs.writeFileSync(finalFilePath, finalBuffer);
+  console.log(`📁 UTF-8 BOM ile Shopify CSV kaydedildi: ${finalFilePath}`);
   
   // Python CSV quote fixer entegrasyonu
   try {
