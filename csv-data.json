@@ -484,7 +484,66 @@
         "totalVariants": 12
       },
       "url": "https://www.trendyol.com/lcw/erkek-tisort-p-556677889"
+    },
+    {
+      "title": "ZARA ZARA",
+      "price": "201",
+      "basePrice": "201",
+      "id": 534720665,
+      "description": "Yüksek kaliteli zara ürünü. Modern tasarım ve üstün kalite.",
+      "brand": "ZARA",
+      "images": [
+        "https://cdn.dsmcdn.com/ty1/product/media/images/placeholder1.jpg",
+        "https://cdn.dsmcdn.com/ty1/product/media/images/placeholder2.jpg"
+      ],
+      "variants": {
+        "colors": [
+          "siyah",
+          "beyaz",
+          "mavi"
+        ],
+        "sizes": [
+          "S",
+          "M",
+          "L",
+          "XL"
+        ],
+        "totalVariants": 12
+      },
+      "url": "https://www.trendyol.com/zara/erkek-gomlek-p-998877665"
+    },
+    {
+      "title": "EGATOPTAN 404 Yapgit Sert Pvc Yapıştırıcı 125 Gr.",
+      "price": "452",
+      "basePrice": "452",
+      "id": 112233445,
+      "description": "EGATOPTAN 404 Yapgit Sert Pvc Yapıştırıcı 125 Gr. yorumlarını inceleyin, Trendyol'a özel indirimli fiyata satın alın.",
+      "brand": "EGATOPTAN",
+      "images": [
+        "https://cdn.dsmcdn.com/web/logo/ty-web.svg",
+        "https://cdn.dsmcdn.com/mnresize/1200/1800/ty1583/prod/QC/20241012/15/c69e4b6d-68fb-338f-9577-bba0ddfee629/1_org_zoom.jpg",
+        "https://cdn.dsmcdn.com/mnresize/170/247/ty1583/prod/QC/20241012/15/c69e4b6d-68fb-338f-9577-bba0ddfee629/1_org_zoom.jpg",
+        "https://cdn.dsmcdn.com/web/production/footer-facebook.png",
+        "https://cdn.dsmcdn.com/web/production/footer-instagram.png",
+        "https://cdn.dsmcdn.com/web/production/footer-youtube.png",
+        "https://cdn.dsmcdn.com/web/production/footer-x.png",
+        "https://cdn.dsmcdn.com/web/production/footer-etbis.png",
+        "https://cdn.dsmcdn.com/web/production/footer-trust-stamp.png",
+        "https://cdn.dsmcdn.com/web/production/footer-pci-dss.png"
+      ],
+      "variants": {
+        "colors": [
+          "tek renk"
+        ],
+        "sizes": [
+          "S",
+          "M",
+          "L"
+        ],
+        "totalVariants": 3
+      },
+      "url": "https://www.trendyol.com/puma/spor-ayakkabi-p-112233445"
     }
   ],
-  "lastUpdate": "2025-06-19T11:49:27.061Z"
+  "lastUpdate": "2025-06-19T11:52:24.981Z"
 }
