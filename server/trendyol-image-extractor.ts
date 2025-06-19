@@ -1,211 +1,137 @@
-/**
- * Ultimate Trendyol Image Extractor
- * Garantili gerçek ürün görselleri çıkarımı
- */
+import axios from 'axios';
+import fs from 'fs';
+import path from 'path';
 
-import * as cheerio from 'cheerio';
-
-export interface ImageExtractionResult {
+interface ImageExtractionResult {
   images: string[];
-  variantImages: Record<string, string[]>;
   totalFound: number;
+  validImages: string[];
 }
 
-/**
- * Trendyol görsel URL'ini optimize eder
- */
-function optimizeImageUrl(url: string): string | null {
-  if (!url || typeof url !== 'string') return null;
-  
-  // Sadece Trendyol CDN görsellerini işle
-  if (!url.includes('cdn.dsmcdn.com')) return null;
-  
-  // Ürün dışı görselleri filtrele
-  const excludePatterns = ['/ui/', '/icon', '/logo', '/footer', '/brand/', '/web/', '.svg'];
-  if (excludePatterns.some(pattern => url.includes(pattern))) {
-    return null;
+export function extractTrendyolImages(html: string): ImageExtractionResult {
+  try {
+    // Görsel dizisini yakala - Python regex'ini JavaScript'e çevir
+    const imageMatch = html.match(/"images":\s*\[(.*?)\]/);
+    if (!imageMatch) {
+      console.log('⚠️ HTML içinde görsel dizisi bulunamadı');
+      return { images: [], totalFound: 0, validImages: [] };
+    }
+
+    // Tüm görsel yollarını listele
+    const rawImages = imageMatch[1];
+    const imagePathMatches = rawImages.match(/"(.*?)"/g);
+    
+    if (!imagePathMatches) {
+      return { images: [], totalFound: 0, validImages: [] };
+    }
+
+    // Tam URL oluştur
+    const imagePaths = imagePathMatches.map(match => match.replace(/"/g, ''));
+    const fullUrls = imagePaths
+      .filter(path => path.startsWith('/'))
+      .map(path => `https://cdn.dsmcdn.com${path}`);
+
+    // Geçerli görsel URL'lerini filtrele
+    const validImages = fullUrls.filter(url => {
+      return url.includes('.jpg') || url.includes('.jpeg') || url.includes('.png') || url.includes('.webp');
+    });
+
+    console.log(`📸 Trendyol görsel çıkarma: ${validImages.length}/${fullUrls.length} geçerli görsel`);
+    
+    return {
+      images: fullUrls,
+      totalFound: fullUrls.length,
+      validImages
+    };
+
+  } catch (error) {
+    console.error('❌ Trendyol görsel çıkarma hatası:', error);
+    return { images: [], totalFound: 0, validImages: [] };
   }
-  
-  let optimized = url;
-  
-  // En yüksek kalite resolution path
-  optimized = optimized.replace(/\/ty\d+\//, '/ty1660/');
-  
-  // Maksimum çözünürlük ayarla
-  optimized = optimized.replace(/mnresize\/\d+\/\d+\//, 'mnresize/1200/1800/');
-  
-  // Thumbnail'i orijinal kaliteye çevir
-  optimized = optimized.replace(/_thumb\.(jpg|jpeg|png|webp)/i, '_org.$1');
-  optimized = optimized.replace(/_small\.(jpg|jpeg|png|webp)/i, '_org.$1');
-  optimized = optimized.replace(/_medium\.(jpg|jpeg|png|webp)/i, '_org.$1');
-  
-  // Zoom kalitesi ekle
-  if (!optimized.includes('_org') && !optimized.includes('_zoom')) {
-    optimized = optimized.replace(/\.(jpg|jpeg|png|webp)/i, '_org_zoom.$1');
-  }
-  
-  // HTTPS garantisi
-  optimized = optimized.replace(/^http:/, 'https:');
-  
-  return optimized;
 }
 
-/**
- * Ana ürün görsellerini çıkarır
- */
-export function extractProductImages(htmlContent: string, $: cheerio.CheerioAPI): ImageExtractionResult {
-  const images: string[] = [];
-  const variantImages: Record<string, string[]> = {};
+export async function downloadTrendyolImages(imageUrls: string[], productId: string): Promise<string[]> {
+  const downloadFolder = path.join(process.cwd(), 'downloads', productId);
   
-  console.log("🎯 Kapsamlı görsel çıkarma başlatılıyor...");
-  
-  // Strateji 1: window.__PRODUCT_DETAIL_APP_INITIAL_STATE__ 
-  const initialStatePattern = /window\.__PRODUCT_DETAIL_APP_INITIAL_STATE__\s*=\s*({.*?});/s;
-  const initialStateMatch = htmlContent.match(initialStatePattern);
-  
-  if (initialStateMatch) {
-    try {
-      const state = JSON.parse(initialStateMatch[1]);
-      const product = state?.product || state?.productDetail || state;
-      
-      // Ana ürün görselleri
-      if (product.images && Array.isArray(product.images)) {
-        product.images.forEach((img: any) => {
-          const url = typeof img === 'string' ? img : img.url || img.src;
-          if (url) {
-            const optimizedUrl = optimizeImageUrl(url);
-            if (optimizedUrl && !images.includes(optimizedUrl)) {
-              images.push(optimizedUrl);
-            }
-          }
-        });
-      }
-      
-      // Varyant görselleri
-      if (product.variants && Array.isArray(product.variants)) {
-        product.variants.forEach((variant: any) => {
-          const colorKey = variant.color || variant.colorName || 'default';
-          if (variant.images && Array.isArray(variant.images)) {
-            variantImages[colorKey] = [];
-            variant.images.forEach((img: any) => {
-              const url = typeof img === 'string' ? img : img.url || img.src;
-              if (url) {
-                const optimizedUrl = optimizeImageUrl(url);
-                if (optimizedUrl) {
-                  variantImages[colorKey].push(optimizedUrl);
-                  if (!images.includes(optimizedUrl)) {
-                    images.push(optimizedUrl);
-                  }
-                }
-              }
-            });
-          }
-        });
-      }
-      
-      console.log(`✅ Initial State'den ${images.length} görsel çıkarıldı`);
-    } catch (e) {
-      console.log("Initial State parse hatası:", e);
-    }
-  }
-  
-  // Strateji 2: JSON-LD structured data
-  const jsonLdPattern = /<script[^>]*type="application\/ld\+json"[^>]*>(.*?)<\/script>/gs;
-  let jsonLdMatch;
-  while ((jsonLdMatch = jsonLdPattern.exec(htmlContent)) !== null) {
-    try {
-      const data = JSON.parse(jsonLdMatch[1]);
-      if (data.image) {
-        const imageList = Array.isArray(data.image) ? data.image : [data.image];
-        imageList.forEach((img: string) => {
-          const optimizedUrl = optimizeImageUrl(img);
-          if (optimizedUrl && !images.includes(optimizedUrl)) {
-            images.push(optimizedUrl);
-          }
-        });
-      }
-    } catch (e) {
-      // Silent fail
-    }
-  }
-  
-  // Strateji 3: Meta tag'lerden
-  const metaImageMatches = htmlContent.match(/<meta[^>]*property="og:image"[^>]*content="([^"]*)"[^>]*>/g) || [];
-  metaImageMatches.forEach(match => {
-    const urlMatch = match.match(/content="([^"]*)"/);
-    if (urlMatch) {
-      const optimizedUrl = optimizeImageUrl(urlMatch[1]);
-      if (optimizedUrl && !images.includes(optimizedUrl)) {
-        images.push(optimizedUrl);
-      }
-    }
-  });
-  
-  // Strateji 4: İleri CDN pattern matching
-  const cdnPatterns = [
-    /https:\/\/cdn\.dsmcdn\.com\/ty\d+\/prod\/QC\/[^"'\s]+\.(jpg|jpeg|png|webp)/gi,
-    /https:\/\/cdn\.dsmcdn\.com\/ty\d+\/prod\/PIM\/[^"'\s]+\.(jpg|jpeg|png|webp)/gi,
-    /https:\/\/cdn\.dsmcdn\.com\/ty\d+\/product\/media\/[^"'\s]+\.(jpg|jpeg|png|webp)/gi
-  ];
-  
-  cdnPatterns.forEach(pattern => {
-    const matches = htmlContent.match(pattern) || [];
-    matches.forEach(url => {
-      const optimizedUrl = optimizeImageUrl(url);
-      if (optimizedUrl && !images.includes(optimizedUrl)) {
-        images.push(optimizedUrl);
-      }
-    });
-  });
-  
-  // Strateji 5: Script tag'lerindeki görsel URL'leri
-  $('script').each((_, script) => {
-    const scriptContent = $(script).html() || '';
-    const imageMatches = scriptContent.match(/https:\/\/cdn\.dsmcdn\.com\/[^"'\s]+\.(jpg|jpeg|png|webp)/gi) || [];
+  try {
+    // Klasör oluştur
+    fs.mkdirSync(downloadFolder, { recursive: true });
     
-    imageMatches.forEach(url => {
-      if (url.includes('/prod/') || url.includes('/QC/') || url.includes('/PIM/')) {
-        const optimizedUrl = optimizeImageUrl(url);
-        if (optimizedUrl && !images.includes(optimizedUrl)) {
-          images.push(optimizedUrl);
-        }
-      }
-    });
-  });
-  
-  // Strateji 6: IMG tag'lerinden direkt çıkarım
-  $('img').each((_, img) => {
-    const src = $(img).attr('src') || $(img).attr('data-src') || $(img).attr('data-original');
-    if (src) {
-      const optimizedUrl = optimizeImageUrl(src);
-      if (optimizedUrl && !images.includes(optimizedUrl)) {
-        images.push(optimizedUrl);
+    const downloadedFiles: string[] = [];
+    
+    for (let i = 0; i < Math.min(imageUrls.length, 10); i++) {
+      const url = imageUrls[i];
+      
+      try {
+        const response = await axios.get(url, {
+          responseType: 'arraybuffer',
+          timeout: 10000,
+          headers: {
+            'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36'
+          }
+        });
+        
+        const extension = url.includes('.webp') ? '.webp' : 
+                         url.includes('.png') ? '.png' : '.jpg';
+        const filename = path.join(downloadFolder, `image_${i + 1}${extension}`);
+        
+        fs.writeFileSync(filename, response.data);
+        downloadedFiles.push(filename);
+        
+        console.log(`💾 Görsel kaydedildi: image_${i + 1}${extension}`);
+        
+      } catch (downloadError) {
+        console.error(`❌ Görsel indirme hatası: ${url}`, downloadError);
       }
     }
+    
+    return downloadedFiles;
+    
+  } catch (error) {
+    console.error('❌ Görsel indirme klasörü hatası:', error);
+    return [];
+  }
+}
+
+export async function extractAndProcessTrendyolImages(html: string, productId: string): Promise<{
+  extractedImages: string[];
+  downloadedFiles: string[];
+  processingSummary: string;
+}> {
+  // Görselleri çıkar
+  const extraction = extractTrendyolImages(html);
+  
+  // En kaliteli görselleri seç (büyük boyutlu)
+  const highQualityImages = extraction.validImages.filter(url => {
+    return !url.includes('_xs.') && !url.includes('_s.') && !url.includes('_thumb.');
   });
   
-  // Son kontrol - hiç görsel bulunamadıysa fallback
-  if (images.length === 0) {
-    console.log("⚠️ Ana görsel bulunamadı, fallback URL'ler deneniyor...");
-    const fallbackPattern = /https:\/\/cdn\.dsmcdn\.com\/[^"'\s]+\.(jpg|jpeg|png|webp)/gi;
-    const fallbackMatches = htmlContent.match(fallbackPattern) || [];
-    
-    fallbackMatches.slice(0, 5).forEach(url => {
-      const optimizedUrl = optimizeImageUrl(url);
-      if (optimizedUrl && !images.includes(optimizedUrl)) {
-        images.push(optimizedUrl);
-      }
-    });
-  }
+  // Görselleri indir
+  const downloadedFiles = await downloadTrendyolImages(
+    highQualityImages.slice(0, 8), // İlk 8 yüksek kalite görsel
+    productId
+  );
   
-  // Deduplication
-  const uniqueImages = [...new Set(images)];
+  const processingSummary = `Toplam ${extraction.totalFound} görsel tespit edildi, ${highQualityImages.length} yüksek kalite, ${downloadedFiles.length} başarıyla indirildi`;
   
-  console.log(`🖼️ TOPLAM ${uniqueImages.length} kaliteli görsel çıkarıldı`);
+  console.log(`📊 ${processingSummary}`);
   
   return {
-    images: uniqueImages,
-    variantImages,
-    totalFound: uniqueImages.length
+    extractedImages: highQualityImages,
+    downloadedFiles,
+    processingSummary
   };
+}
+
+export function cleanupImageDownloads(productId: string): void {
+  const downloadFolder = path.join(process.cwd(), 'downloads', productId);
+  
+  try {
+    if (fs.existsSync(downloadFolder)) {
+      fs.rmSync(downloadFolder, { recursive: true });
+      console.log(`🗑️ Görsel klasörü temizlendi: ${productId}`);
+    }
+  } catch (error) {
+    console.error('❌ Görsel klasörü temizleme hatası:', error);
+  }
 }

@@ -1679,5 +1679,42 @@ export async function registerRoutes(app: Express) {
   });
 
   const httpServer = createServer(app);
+  // Clear all products and CSV
+  app.post('/api/clear', (req, res) => {
+    try {
+      csvAccumulator.clearAllProducts();
+      res.json({ success: true, message: 'Tüm veriler temizlendi' });
+    } catch (error) {
+      console.error('Clear API error:', error);
+      res.status(500).json({ error: 'Veriler temizlenemedi' });
+    }
+  });
+
+  // Get CSV stats
+  app.get('/api/csv-stats', (req, res) => {
+    try {
+      const productCount = csvAccumulator.getProductCount();
+      const csvPath = path.join(process.cwd(), 'shopify-urunler.csv');
+      let totalRows = 0;
+      let fileSize = 0;
+      
+      if (fs.existsSync(csvPath)) {
+        const content = fs.readFileSync(csvPath, 'utf-8');
+        totalRows = content.split('\n').length - 1;
+        fileSize = fs.statSync(csvPath).size;
+      }
+      
+      res.json({
+        productCount,
+        totalRows,
+        fileSize,
+        fileSizeKB: Math.round(fileSize / 1024 * 100) / 100
+      });
+    } catch (error) {
+      console.error('CSV stats error:', error);
+      res.status(500).json({ error: 'İstatistikler alınamadı' });
+    }
+  });
+
   return httpServer;
 }

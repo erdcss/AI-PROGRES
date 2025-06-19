@@ -207,7 +207,7 @@ export async function scrapeTrendyolProduct(inputUrl: string) {
       id: productId,
       description,
       brand,
-      images: variantData.images.slice(0, 10), // Limit to 10 images
+      images: uniqueImages.length > 0 ? uniqueImages : variantData.images.slice(0, 10),
       variants: {
         colors: variantData.colors.length > 0 ? variantData.colors : ['tek renk'],
         sizes: variantData.sizes.length > 0 ? variantData.sizes : ['tek beden'],
@@ -224,8 +224,12 @@ export async function scrapeTrendyolProduct(inputUrl: string) {
       images: productData.images.length
     });
 
-    // Add to CSV accumulator
-    csvAccumulator.addProduct(productData);
+    // Add to CSV accumulator with duplicate check
+    const isNewProduct = csvAccumulator.addProduct(productData);
+    
+    const message = isNewProduct 
+      ? 'Ürün başarıyla çekildi ve CSV koleksiyonuna eklendi'
+      : 'Ürün zaten mevcut - CSV güncellenmedi';
 
     console.log(`✅ Ürün koleksiyona eklendi. Toplam: ${csvAccumulator.getProductCount()} ürün`);
 
@@ -237,7 +241,7 @@ export async function scrapeTrendyolProduct(inputUrl: string) {
       images: productData.images.length,
       variants: productData.variants.totalVariants,
       id: productData.id,
-      message: 'Ürün başarıyla çekildi ve CSV koleksiyonuna eklendi'
+      message
     };
 
   } catch (error) {

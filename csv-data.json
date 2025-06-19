@@ -926,7 +926,142 @@
         "totalVariants": 12
       },
       "url": "https://www.trendyol.com/zara/test-duplicate-p-555666777"
+    },
+    {
+      "title": "NIKE NIKE",
+      "price": "438",
+      "basePrice": "438",
+      "id": 831787052,
+      "description": "Yüksek kaliteli nike ürünü. Modern tasarım ve üstün kalite.",
+      "brand": "NIKE",
+      "images": [
+        "https://cdn.dsmcdn.com/ty1/product/media/images/placeholder1.jpg",
+        "https://cdn.dsmcdn.com/ty1/product/media/images/placeholder2.jpg"
+      ],
+      "variants": {
+        "colors": [
+          "siyah",
+          "beyaz",
+          "mavi"
+        ],
+        "sizes": [
+          "S",
+          "M",
+          "L",
+          "XL"
+        ],
+        "totalVariants": 12
+      },
+      "url": "https://www.trendyol.com/nike/duplicate-test-p-123456789"
+    },
+    {
+      "title": "NIKE NIKE",
+      "price": "121",
+      "basePrice": "121",
+      "id": 719525978,
+      "description": "Yüksek kaliteli nike ürünü. Modern tasarım ve üstün kalite.",
+      "brand": "NIKE",
+      "images": [
+        "https://cdn.dsmcdn.com/ty1/product/media/images/placeholder1.jpg",
+        "https://cdn.dsmcdn.com/ty1/product/media/images/placeholder2.jpg"
+      ],
+      "variants": {
+        "colors": [
+          "siyah",
+          "beyaz",
+          "mavi"
+        ],
+        "sizes": [
+          "S",
+          "M",
+          "L",
+          "XL"
+        ],
+        "totalVariants": 12
+      },
+      "url": "https://www.trendyol.com/nike/duplicate-test-p-123456789"
+    },
+    {
+      "title": "TEST TEST",
+      "price": "243",
+      "basePrice": "243",
+      "id": 371330825,
+      "description": "Yüksek kaliteli test ürünü. Modern tasarım ve üstün kalite.",
+      "brand": "TEST",
+      "images": [
+        "https://cdn.dsmcdn.com/ty1/product/media/images/placeholder1.jpg",
+        "https://cdn.dsmcdn.com/ty1/product/media/images/placeholder2.jpg"
+      ],
+      "variants": {
+        "colors": [
+          "siyah",
+          "beyaz",
+          "mavi"
+        ],
+        "sizes": [
+          "S",
+          "M",
+          "L",
+          "XL"
+        ],
+        "totalVariants": 12
+      },
+      "url": "https://www.trendyol.com/test/duplicate-check-p-999888777"
+    },
+    {
+      "title": "TEST TEST",
+      "price": "359",
+      "basePrice": "359",
+      "id": 915294416,
+      "description": "Yüksek kaliteli test ürünü. Modern tasarım ve üstün kalite.",
+      "brand": "TEST",
+      "images": [
+        "https://cdn.dsmcdn.com/ty1/product/media/images/placeholder1.jpg",
+        "https://cdn.dsmcdn.com/ty1/product/media/images/placeholder2.jpg"
+      ],
+      "variants": {
+        "colors": [
+          "siyah",
+          "beyaz",
+          "mavi"
+        ],
+        "sizes": [
+          "S",
+          "M",
+          "L",
+          "XL"
+        ],
+        "totalVariants": 12
+      },
+      "url": "https://www.trendyol.com/test/duplicate-check-p-999888777"
+    },
+    {
+      "title": "TEST TEST",
+      "price": "290",
+      "basePrice": "290",
+      "id": 512251036,
+      "description": "Yüksek kaliteli test ürünü. Modern tasarım ve üstün kalite.",
+      "brand": "TEST",
+      "images": [
+        "https://cdn.dsmcdn.com/ty1/product/media/images/placeholder1.jpg",
+        "https://cdn.dsmcdn.com/ty1/product/media/images/placeholder2.jpg"
+      ],
+      "variants": {
+        "colors": [
+          "siyah",
+          "beyaz",
+          "mavi"
+        ],
+        "sizes": [
+          "S",
+          "M",
+          "L",
+          "XL"
+        ],
+        "totalVariants": 12
+      },
+      "url": "https://www.trendyol.com/test/enhanced-images-p-555999111"
     }
   ],
-  "lastUpdate": "2025-06-19T12:18:18.939Z"
+  "lastUpdate": "2025-06-19T12:20:14.245Z"
 }
