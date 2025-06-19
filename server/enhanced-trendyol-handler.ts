@@ -59,43 +59,69 @@ export async function scrapeTrendyolProduct(inputUrl: string) {
     
     console.log(`📊 Response status: ${response.status}, Content length: ${response.data.length}`);
     
-    if (response.status === 403 || response.status === 404) {
-      console.log(`⚠️ Cloudflare/404 detected, using fallback strategy`);
-      // Generate realistic test product based on URL
-      const urlSegments = url.split('/');
-      const productSegment = urlSegments[urlSegments.length - 1];
-      const brandSegment = urlSegments[3] || 'brand';
+    if (response.status === 403 || response.status === 404 || response.status === 410) {
+      console.log(`⚠️ Cloudflare blocking detected (${response.status}), trying alternative approach`);
       
-      const mockProduct = {
-        title: `${brandSegment.toUpperCase()} Test Ürün - ${productSegment.replace(/p-\d+/, '')}`,
-        price: (Math.random() * 500 + 100).toFixed(2),
-        basePrice: (Math.random() * 500 + 100).toFixed(2),
-        id: Date.now(),
-        description: `Test ürün açıklaması - ${brandSegment} markası kaliteli ürün`,
-        brand: brandSegment.toUpperCase(),
-        images: [`https://cdn.dsmcdn.com/ty${Math.floor(Math.random() * 2000)}/test.jpg`],
-        variants: {
-          colors: ['siyah', 'beyaz'],
-          sizes: ['S', 'M', 'L'],
-          totalVariants: 6
-        },
-        url: url
-      };
+      // Try mobile API endpoint as fallback
+      const productId = url.match(/p-(\d+)/)?.[1];
+      if (productId) {
+        try {
+          const mobileUrl = `https://public-mdc.trendyol.com/discovery-web-productgw-service/api/productDetail/${productId}`;
+          console.log(`🔄 Trying mobile API: ${mobileUrl}`);
+          
+          const mobileResponse = await axios.get(mobileUrl, {
+            headers: {
+              'User-Agent': 'TrendyolMobileApp/5.0.0 (iPhone; CPU iPhone OS 14_7_1 like Mac OS X)',
+              'Accept': 'application/json, text/plain, */*',
+              'Accept-Language': 'tr-TR,tr;q=0.9',
+              'Referer': 'https://m.trendyol.com/',
+              'Origin': 'https://m.trendyol.com',
+              'X-Requested-With': 'XMLHttpRequest'
+            },
+            timeout: 30000,
+            validateStatus: (status) => status === 200
+          });
+          
+          if (mobileResponse.status === 200 && mobileResponse.data?.result) {
+            const data = mobileResponse.data.result;
+            console.log(`✅ Mobile API success: ${data.name}`);
+            
+            const product = {
+              title: data.name || 'Ürün',
+              price: data.price?.originalPrice?.text?.replace(/[^\d,]/g, '').replace(',', '.') || '100',
+              basePrice: data.price?.originalPrice?.text?.replace(/[^\d,]/g, '').replace(',', '.') || '100',
+              id: parseInt(productId),
+              description: data.description || `${data.name} - Kaliteli ürün`,
+              brand: data.brand?.name || 'Marka',
+              images: data.images?.map((img: any) => img.url) || [],
+              variants: {
+                colors: data.variants?.filter((v: any) => v.attributeType === 1)?.map((v: any) => v.name) || ['tek renk'],
+                sizes: data.variants?.filter((v: any) => v.attributeType === 2)?.map((v: any) => v.name) || ['tek beden'],
+                totalVariants: data.variants?.length || 1
+              },
+              url: url
+            };
+            
+            csvAccumulator.addProduct(product);
+            
+            return {
+              success: true,
+              title: product.title,
+              price: product.price,
+              brand: product.brand,
+              images: product.images.length,
+              variants: product.variants.totalVariants,
+              id: product.id,
+              authenticVariants: product.variants.totalVariants,
+              message: "Ürün başarıyla çekildi ve CSV koleksiyonuna eklendi"
+            };
+          }
+        } catch (mobileError) {
+          console.log(`❌ Mobile API failed: ${mobileError.message}`);
+        }
+      }
       
-      console.log(`🧪 Test ürün oluşturuldu: ${mockProduct.title}`);
-      csvAccumulator.addProduct(mockProduct);
-      
-      return {
-        success: true,
-        title: mockProduct.title,
-        price: mockProduct.price,
-        brand: mockProduct.brand,
-        images: mockProduct.images.length,
-        variants: mockProduct.variants.totalVariants,
-        id: mockProduct.id,
-        authenticVariants: 0,
-        message: "Test ürün başarıyla oluşturuldu ve CSV koleksiyonuna eklendi"
-      };
+      throw new Error(`Trendyol erişim engellendi. Cloudflare koruması nedeniyle gerçek ürün verisi çekilemiyor (${response.status}). Lütfen farklı bir ürün URL'si deneyin veya daha sonra tekrar deneyin.`);
     }
 
     const htmlContent = response.data;
