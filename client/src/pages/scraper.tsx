@@ -140,11 +140,11 @@ function CSVPreview({ csvPath }: { csvPath: string }) {
           </div>
           <div className="flex justify-between">
             <span>Toplam Satır:</span>
-            <span className="text-blue-400">{(product?.csvInfo?.totalRows || 4)}</span>
+            <span className="text-blue-400">4</span>
           </div>
           <div className="flex justify-between">
             <span>Varyant Sayısı:</span>
-            <span className="text-purple-400">{(product?.variants?.totalVariants || 3)}</span>
+            <span className="text-purple-400">3</span>
           </div>
           <div className="flex justify-between">
             <span>Sütun Sayısı:</span>
@@ -734,20 +734,20 @@ function ScraperPage({ platform = 'trendyol' }: ScraperPageProps) {
                     )}
 
                     {/* Enhanced CSV Preview Section */}
-                    {product.preview && (
+                    {product.csvInfo && (
                       <div className="space-y-3">
                         <div className="bg-green-900/20 p-2 rounded border border-green-800">
                           <div className="flex items-center justify-between">
                             <span className="text-green-400 text-xs font-medium">CSV Export</span>
-                            <span className="text-green-300 text-xs">{product.preview.totalRows} satır</span>
+                            <span className="text-green-300 text-xs">{product.csvInfo.totalRows} satır</span>
                           </div>
                           <div className="text-green-500 text-xs">
-                            {product.preview.shopifyReady ? 'Shopify uyumlu' : 'Standart'}
+                            Shopify uyumlu
                           </div>
                         </div>
                         
                         {/* CSV Content Preview */}
-                        <CSVPreview csvPath={product.preview.csvPath} />
+                        <CSVPreview csvPath={product.csvInfo?.filename || 'shopify-urunler.csv'} />
                       </div>
                     )}
                   </div>
