@@ -56,23 +56,24 @@ class CSVAccumulatorService {
     }
   }
 
-  addProduct(product: Product): void {
-    // Mevcut ürün kontrolü (ID bazında)
-    const existingIndex = this.accumulator.products.findIndex(p => p.id === product.id);
-    
-    if (existingIndex !== -1) {
-      // Güncelle
-      this.accumulator.products[existingIndex] = product;
-      console.log(`🔄 Ürün güncellendi: ${product.title}`);
-    } else {
-      // Ekle
-      this.accumulator.products.push(product);
-      console.log(`➕ Yeni ürün eklendi: ${product.title}`);
+  addProduct(product: Product): boolean {
+    // Check for duplicates by URL or ID
+    const isDuplicate = this.accumulator.products.some(existing => 
+      existing.url === product.url || existing.id === product.id
+    );
+
+    if (isDuplicate) {
+      console.log(`⚠️ Ürün zaten mevcut: ${product.title} (ID: ${product.id})`);
+      return false;
     }
+
+    this.accumulator.products.push(product);
+    console.log(`➕ Yeni ürün eklendi: ${product.title} (Toplam: ${this.accumulator.products.length})`);
     
     this.accumulator.lastUpdate = new Date();
     this.saveAccumulator();
     this.regenerateCSV();
+    return true;
   }
 
   private async regenerateCSV(): Promise<void> {
@@ -129,6 +130,23 @@ class CSVAccumulatorService {
 
   getProductCount(): number {
     return this.accumulator.products.length;
+  }
+
+  clearAllProducts(): void {
+    this.accumulator.products = [];
+    this.accumulator.lastUpdate = new Date();
+    this.saveAccumulator();
+    
+    // Remove CSV file
+    if (fs.existsSync(this.csvPath)) {
+      fs.unlinkSync(this.csvPath);
+    }
+    
+    console.log('🗑️ Tüm ürünler ve CSV temizlendi');
+  }
+
+  getUniqueProductUrls(): string[] {
+    return [...new Set(this.accumulator.products.map(p => p.url))];
   }
 }
 

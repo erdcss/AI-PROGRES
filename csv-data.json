@@ -845,7 +845,88 @@
         "totalVariants": 12
       },
       "url": "https://www.trendyol.com/zara/kadin-elbise-p-555666777"
+    },
+    {
+      "title": "ZARA ZARA",
+      "price": "259",
+      "basePrice": "259",
+      "id": 152633455,
+      "description": "Yüksek kaliteli zara ürünü. Modern tasarım ve üstün kalite.",
+      "brand": "ZARA",
+      "images": [
+        "https://cdn.dsmcdn.com/ty1/product/media/images/placeholder1.jpg",
+        "https://cdn.dsmcdn.com/ty1/product/media/images/placeholder2.jpg"
+      ],
+      "variants": {
+        "colors": [
+          "siyah",
+          "beyaz",
+          "mavi"
+        ],
+        "sizes": [
+          "S",
+          "M",
+          "L",
+          "XL"
+        ],
+        "totalVariants": 12
+      },
+      "url": "https://www.trendyol.com/zara/kadin-elbise-p-555666777"
+    },
+    {
+      "title": "ZARA ZARA",
+      "price": "457",
+      "basePrice": "457",
+      "id": 285125082,
+      "description": "Yüksek kaliteli zara ürünü. Modern tasarım ve üstün kalite.",
+      "brand": "ZARA",
+      "images": [
+        "https://cdn.dsmcdn.com/ty1/product/media/images/placeholder1.jpg",
+        "https://cdn.dsmcdn.com/ty1/product/media/images/placeholder2.jpg"
+      ],
+      "variants": {
+        "colors": [
+          "siyah",
+          "beyaz",
+          "mavi"
+        ],
+        "sizes": [
+          "S",
+          "M",
+          "L",
+          "XL"
+        ],
+        "totalVariants": 12
+      },
+      "url": "https://www.trendyol.com/zara/test-duplicate-p-555666777"
+    },
+    {
+      "title": "ZARA ZARA",
+      "price": "460",
+      "basePrice": "460",
+      "id": 536143559,
+      "description": "Yüksek kaliteli zara ürünü. Modern tasarım ve üstün kalite.",
+      "brand": "ZARA",
+      "images": [
+        "https://cdn.dsmcdn.com/ty1/product/media/images/placeholder1.jpg",
+        "https://cdn.dsmcdn.com/ty1/product/media/images/placeholder2.jpg"
+      ],
+      "variants": {
+        "colors": [
+          "siyah",
+          "beyaz",
+          "mavi"
+        ],
+        "sizes": [
+          "S",
+          "M",
+          "L",
+          "XL"
+        ],
+        "totalVariants": 12
+      },
+      "url": "https://www.trendyol.com/zara/test-duplicate-p-555666777"
     }
   ],
-  "lastUpdate": "2025-06-19T12:17:02.805Z"
+  "lastUpdate": "2025-06-19T12:18:18.939Z"
 }
