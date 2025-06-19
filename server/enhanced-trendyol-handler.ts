@@ -166,13 +166,21 @@ export async function scrapeTrendyolProduct(inputUrl: string) {
     console.log(`📏 Sizes found: ${multiVariantData.sizes.join(', ')}`);
     console.log(`💰 Pricing data: ${Object.keys(multiVariantData.pricing).length} prices`);
     
+    // Extract images directly for multi-variant system
+    const imgElements = $('img').toArray();
+    const cleanImages = imgElements
+      .map(img => $(img).attr('src') || $(img).attr('data-src') || $(img).attr('data-original'))
+      .filter(src => src && src.startsWith('http') && (src.includes('cdn.dsmcdn.com') || src.includes('trendyol')))
+      .slice(0, 25);
+
     const variantData = {
       colors: multiVariantData.colors,
       sizes: multiVariantData.sizes,
       images: Array.from(new Set([
         ...Object.values(multiVariantData.images).flat(),
         ...cleanImages
-      ])).slice(0, 25)
+      ])).slice(0, 25),
+      pricing: multiVariantData.pricing
     };
 
     // Enhanced product feature extraction

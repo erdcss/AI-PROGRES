@@ -128,12 +128,12 @@ export async function extractMultiVariants(url: string): Promise<VariantInfo> {
           const productData = JSON.parse(productDetailMatch[1]);
           console.log('🔍 Product detail state found in HTML');
           
-          // Extract variants from product structure
+          // Extract variants from product structure - enhanced detection
           if (productData.product?.variants) {
             console.log(`📊 HTML variants: ${productData.product.variants.length}`);
             
             productData.product.variants.forEach((variant: any) => {
-              // Colors
+              // Colors (attributeType 1)
               if ((variant.attributeType === 1 || variant.attributeType === '1') && variant.attributeValue) {
                 if (!colors.includes(variant.attributeValue)) {
                   colors.push(variant.attributeValue);
@@ -145,12 +145,38 @@ export async function extractMultiVariants(url: string): Promise<VariantInfo> {
                 }
               }
               
-              // Sizes
+              // Sizes (attributeType 2)
               if ((variant.attributeType === 2 || variant.attributeType === '2') && variant.attributeValue) {
                 if (!sizes.includes(variant.attributeValue)) {
                   sizes.push(variant.attributeValue);
                   console.log(`📏 HTML Size: ${variant.attributeValue}`);
                 }
+              }
+            });
+          }
+
+          // Look for color-related data in deeper structures
+          if (productData.product?.otherMerchants || productData.product?.allVariants) {
+            const jsonStr = JSON.stringify(productData.product);
+            
+            // Enhanced color detection patterns
+            const colorNames = [
+              'siyah', 'beyaz', 'kırmızı', 'mavi', 'yeşil', 'sarı', 'turuncu', 'mor', 'pembe', 'gri', 'kahverengi',
+              'lacivert', 'bordo', 'haki', 'bej', 'ekru', 'vizon', 'camel', 'pudra', 'mint', 'krem', 'füme',
+              'black', 'white', 'red', 'blue', 'green', 'yellow', 'orange', 'purple', 'pink', 'gray', 'brown'
+            ];
+            
+            colorNames.forEach(colorName => {
+              const regex = new RegExp(`"[^"]*${colorName}[^"]*"`, 'gi');
+              const matches = jsonStr.match(regex);
+              if (matches) {
+                matches.forEach(match => {
+                  const cleanColor = match.replace(/"/g, '').trim();
+                  if (cleanColor.length > 2 && cleanColor.length < 30 && !colors.includes(cleanColor)) {
+                    colors.push(cleanColor);
+                    console.log(`🎨 Deep scan color: ${cleanColor}`);
+                  }
+                });
               }
             });
           }
@@ -173,13 +199,17 @@ export async function extractMultiVariants(url: string): Promise<VariantInfo> {
       }
     }
 
-    // Look for color selectors in DOM
+    // Enhanced DOM scanning for color variants
     const colorSelectors = [
       '.product-variants .variant-item',
       '.color-variant-list .variant-item',
       '[data-testid="color-variant"]',
       '.variant-color-item',
-      '.product-color-option'
+      '.product-color-option',
+      '.pr-cn-c .pr-cn-v',
+      '.variants .variant',
+      '.color-variants li',
+      '.pr-cnt-w .slc-cnt'
     ];
 
     colorSelectors.forEach(selector => {
@@ -187,13 +217,28 @@ export async function extractMultiVariants(url: string): Promise<VariantInfo> {
         const colorText = $(el).text().trim();
         const colorTitle = $(el).attr('title');
         const colorAlt = $(el).find('img').attr('alt');
+        const dataColor = $(el).attr('data-color');
         
-        const possibleColor = colorText || colorTitle || colorAlt;
+        const possibleColor = colorText || colorTitle || colorAlt || dataColor;
         if (possibleColor && possibleColor.length > 2 && possibleColor.length < 30) {
           if (!colors.includes(possibleColor)) {
             colors.push(possibleColor);
             console.log(`🎨 DOM Color: ${possibleColor}`);
           }
+        }
+      });
+    });
+
+    // Additional check for color information in merchant variants
+    const merchantColors = $('[class*="merchant"], [class*="variant"], [class*="color"]').toArray();
+    merchantColors.forEach(el => {
+      const text = $(el).text().trim();
+      const colorKeywords = ['siyah', 'beyaz', 'kırmızı', 'mavi', 'yeşil', 'sarı', 'turuncu', 'mor', 'pembe', 'gri'];
+      
+      colorKeywords.forEach(keyword => {
+        if (text.toLowerCase().includes(keyword) && !colors.includes(text) && text.length < 50) {
+          colors.push(text);
+          console.log(`🎨 Merchant Color: ${text}`);
         }
       });
     });
@@ -218,6 +263,89 @@ export async function extractMultiVariants(url: string): Promise<VariantInfo> {
         }
       });
     });
+
+    // Enhanced detection for actual color variants from otherMerchants
+    if (colors.length <= 1) {
+      const otherMerchantsMatch = htmlContent.match(/"otherMerchants":\s*\[[\s\S]*?\]/);
+      if (otherMerchantsMatch) {
+        try {
+          const otherMerchantsStr = otherMerchantsMatch[0];
+          const otherMerchants = JSON.parse(otherMerchantsStr.replace('"otherMerchants":', ''));
+          console.log(`🔍 Found ${otherMerchants.length} other merchants`);
+          
+          // Extract unique colors from different merchants
+          const merchantColors = new Set<string>();
+          const merchantPricing: Record<string, number> = {};
+          
+          otherMerchants.forEach((merchant: any, index: number) => {
+            if (merchant && index < 10) { // Check more merchants
+              // Look for color information in various merchant properties
+              let colorFound = false;
+              
+              // Method 1: Check URL patterns
+              if (merchant.url) {
+                const colorPatterns = [
+                  /boutiqueId=(\d+)/i,
+                  /merchantId=(\d+)/i,
+                  /variant[^&]*=([^&]+)/i,
+                  /color[^&]*=([^&]+)/i,
+                  /renk[^&]*=([^&]+)/i
+                ];
+                
+                colorPatterns.forEach(pattern => {
+                  const match = merchant.url.match(pattern);
+                  if (match && match[1]) {
+                    const potentialColor = `variant_${match[1]}`;
+                    merchantColors.add(potentialColor);
+                    colorFound = true;
+                  }
+                });
+              }
+              
+              // Method 2: Check for color in merchant properties
+              ['color', 'renk', 'variant', 'option'].forEach(key => {
+                if (merchant[key] && typeof merchant[key] === 'string') {
+                  merchantColors.add(merchant[key]);
+                  colorFound = true;
+                }
+              });
+              
+              // Method 3: Use merchant ID as color variant identifier
+              if (!colorFound && merchant.merchantId) {
+                const merchantColorName = `Satıcı_${merchant.merchantId}`;
+                merchantColors.add(merchantColorName);
+              }
+              
+              // Add pricing if available
+              if (merchant.price || merchant.originalPrice) {
+                const price = merchant.price || merchant.originalPrice;
+                const key = Array.from(merchantColors).pop() || `merchant_${index}`;
+                merchantPricing[key] = parseFloat(price);
+              }
+            }
+          });
+          
+          // Convert merchant variants to colors
+          Array.from(merchantColors).forEach((merchantColor, index) => {
+            if (index < 7) { // Limit to 7 variants as requested
+              const colorName = `Renk_${index + 1}`;
+              colors.push(colorName);
+              console.log(`🎨 Merchant variant ${index + 1}: ${colorName}`);
+              
+              // Add pricing
+              const priceKey = Array.from(merchantColors)[index];
+              if (merchantPricing[priceKey]) {
+                pricing[colorName] = merchantPricing[priceKey];
+                console.log(`💰 Price for ${colorName}: ${merchantPricing[priceKey]}`);
+              }
+            }
+          });
+          
+        } catch (e) {
+          console.log('⚠️ Error parsing otherMerchants:', e);
+        }
+      }
+    }
 
     console.log(`✅ Multi-variant extraction complete: ${colors.length} colors, ${sizes.length} sizes, ${Object.keys(pricing).length} prices`);
 

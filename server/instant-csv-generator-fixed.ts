@@ -196,7 +196,7 @@ class InstantCSVGenerator {
               '10',
               'deny',
               'manual',
-              priceWithMargin,
+              variantPrice,
               '',
               'TRUE',
               'TRUE',
