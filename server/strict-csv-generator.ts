@@ -25,13 +25,19 @@ interface Product {
 function sanitizeCSVValue(value: string): string {
   if (!value) return '';
   
-  // Tehlikeli karakterleri temizle
+  // Proper CSV quote escaping: her " karakterini "" ile değiştir
   return value
-    .replace(/"/g, '""')  // Quote escape
+    .replace(/"/g, '""')  // Quote escape: "Slim Fit" -> ""Slim Fit""
     .replace(/[\r\n]/g, ' ')  // Newline kaldır
     .replace(/\t/g, ' ')  // Tab kaldır
     .trim()
     .substring(0, 1000);  // Maksimum uzunluk
+}
+
+function createCSVCell(value: string): string {
+  if (!value) return '""';
+  const cleaned = sanitizeCSVValue(value);
+  return `"${cleaned}"`;
 }
 
 function optimizeTitle(title: string): string {
@@ -125,23 +131,180 @@ interface ShopifyVariant {
   'Compare At Price / US': string;
 }
 
-// Strict RFC 4180 CSV field escaping
-function escapeCSVField(field: string | number | null | undefined): string {
-  if (field === null || field === undefined) {
-    return '';
+export async function generateStrictShopifyCSV(products: Product[]): Promise<string> {
+  console.log('🔧 Optimized Strict Shopify CSV oluşturuluyor...');
+  
+  if (!products || products.length === 0) {
+    throw new Error('Ürün verisi bulunamadı');
+  }
+
+  const csvRows: string[] = [];
+  
+  // Shopify header (tam format)
+  const headers = [
+    'Handle', 'Title', 'Body (HTML)', 'Vendor', 'Type', 'Tags', 'Published',
+    'Option1 Name', 'Option1 Value', 'Option2 Name', 'Option2 Value', 'Option3 Name', 'Option3 Value',
+    'Variant SKU', 'Variant Grams', 'Variant Inventory Tracker', 'Variant Inventory Qty',
+    'Variant Inventory Policy', 'Variant Fulfillment Service', 'Variant Price', 'Variant Compare At Price',
+    'Variant Requires Shipping', 'Variant Taxable', 'Variant Barcode', 'Image Src', 'Image Position',
+    'Image Alt Text', 'Gift Card', 'SEO Title', 'SEO Description', 'Google Shopping / Google Product Category',
+    'Google Shopping / Gender', 'Google Shopping / Age Group', 'Google Shopping / MPN',
+    'Google Shopping / AdWords Grouping', 'Google Shopping / AdWords Labels', 'Google Shopping / Condition',
+    'Google Shopping / Custom Product', 'Google Shopping / Custom Label 0', 'Google Shopping / Custom Label 1',
+    'Google Shopping / Custom Label 2', 'Google Shopping / Custom Label 3', 'Google Shopping / Custom Label 4',
+    'Variant Image', 'Variant Weight Unit', 'Variant Tax Code', 'Cost per item',
+    'Included / France', 'Price / France', 'Compare At Price / France',
+    'Included / Germany', 'Price / Germany', 'Compare At Price / Germany',
+    'Included / UK', 'Price / UK', 'Compare At Price / UK',
+    'Included / US', 'Price / US', 'Compare At Price / US'
+  ];
+  
+  // Header row with proper quoting
+  const headerRow = headers.map(header => createCSVCell(header)).join(',');
+  csvRows.push(headerRow);
+
+  console.log(`🔧 ${products.length} ürün işleniyor`);
+
+  products.forEach((product, productIndex) => {
+    console.log(`🔧 ${productIndex + 1}/${products.length} ürün işleniyor: ${product.title}`);
+    
+    // Optimize edilmiş handle
+    const handle = createSafeHandle(product.title, product.id);
+    const optimizedTitle = optimizeTitle(product.title);
+    
+    // Varyant bilgilerini çıkar
+    const variants = product.variants;
+    console.log(`🔧 Otantik varyant bilgileri: ${JSON.stringify(variants)}`);
+    
+    const colors = variants.colors || ['tek renk'];
+    const sizes = variants.sizes || ['tek beden'];
+    
+    console.log(`🔧 ${colors.length} renk x ${sizes.length} beden = ${colors.length * sizes.length} varyant`);
+
+    let variantIndex = 0;
+    colors.forEach((color, colorIndex) => {
+      sizes.forEach((size, sizeIndex) => {
+        variantIndex++;
+        
+        const isFirstVariant = variantIndex === 1;
+        const imageIndex = Math.min(variantIndex, product.images.length);
+        const variantImageIndex = Math.min(variantIndex + 1, product.images.length);
+        
+        console.log(`🔧 Varyant: ${color}-${size} (Ana görsel: ${imageIndex}, Varyant görsel: ${variantImageIndex})`);
+
+        // Optimize edilmiş açıklama
+        let description = '';
+        if (product.description && product.description.length > 10) {
+          console.log(`🔧 Açıklama oluşturuluyor: ${product.description.length} karakter mevcut`);
+          description = sanitizeCSVValue(product.description).substring(0, 500);
+          console.log('✅ Otantik açıklama kullanılıyor: ' + description.length + ' karakter');
+        } else if (isFirstVariant) {
+          description = sanitizeCSVValue(`${optimizedTitle} - Yüksek kaliteli, şık ve modern tasarım. Hızlı teslimat ve güvenli alışveriş imkanı.`);
+          console.log('⚠️ Fallback açıklama oluşturuldu: ' + description.length + ' karakter');
+        }
+        
+        console.log(`🔍 Varyant açıklama: "${description.substring(0, 50)}..." (${description.length} karakter)`);
+
+        // Optimize edilmiş SKU
+        const variantName = optimizeVariantName(color, size);
+        const sku = `${product.id}-${variantName}`;
+        
+        // Fiyat hesapla (%10 kar marjı)
+        const basePrice = parseFloat(product.basePrice || product.price);
+        const finalPrice = (basePrice * 1.1).toFixed(2);
+        
+        // CSV satırı oluştur (proper quoting ile)
+        const row = [
+          createCSVCell(handle), // Handle
+          isFirstVariant ? createCSVCell(optimizedTitle) : '""', // Title
+          isFirstVariant ? createCSVCell(description) : '""', // Body
+          isFirstVariant ? createCSVCell(product.brand || 'Unknown') : '""', // Vendor
+          isFirstVariant ? createCSVCell(getProductType(product.title)) : '""', // Type
+          isFirstVariant ? createCSVCell(generateTags(product)) : '""', // Tags
+          createCSVCell('TRUE'), // Published
+          createCSVCell('Renk'), // Option1 Name
+          createCSVCell(color), // Option1 Value
+          createCSVCell('Beden'), // Option2 Name
+          createCSVCell(size), // Option2 Value
+          '""', '""', // Option3 Name, Value
+          createCSVCell(sku), // Variant SKU
+          createCSVCell('200'), // Variant Grams
+          createCSVCell('shopify'), // Variant Inventory Tracker
+          createCSVCell('10'), // Variant Inventory Qty
+          createCSVCell('deny'), // Variant Inventory Policy
+          createCSVCell('manual'), // Variant Fulfillment Service
+          createCSVCell(finalPrice), // Variant Price
+          createCSVCell(product.price), // Variant Compare At Price
+          createCSVCell('TRUE'), createCSVCell('TRUE'), '""', // Requires Shipping, Taxable, Barcode
+          isFirstVariant && product.images[0] ? createCSVCell(product.images[0]) : '""', // Image Src
+          isFirstVariant ? createCSVCell('1') : '""', // Image Position
+          isFirstVariant ? createCSVCell(`${optimizedTitle} - ${color}`) : '""', // Image Alt Text
+          createCSVCell('FALSE'), // Gift Card
+          isFirstVariant ? createCSVCell(optimizedTitle) : '""', // SEO Title
+          isFirstVariant ? createCSVCell(`${optimizedTitle} - Yüksek kaliteli, şık ve modern tasarım. Hızlı teslimat ve güvenli alışveriş imkanı.`) : '""', // SEO Description
+          isFirstVariant ? createCSVCell('Apparel & Accessories > Clothing > Dresses') : '""', // Google Category
+          isFirstVariant ? createCSVCell('unisex') : '""', // Gender
+          isFirstVariant ? createCSVCell('adult') : '""', // Age Group
+          createCSVCell(sku), // MPN
+          '""', '""', // AdWords Grouping, Labels
+          isFirstVariant ? createCSVCell('new') : '""', // Condition
+          createCSVCell('FALSE'), // Custom Product
+          '""', '""', '""', '""', '""', // Custom Labels 0-4
+          product.images[variantImageIndex - 1] ? createCSVCell(product.images[variantImageIndex - 1]) : '""', // Variant Image
+          createCSVCell('g'), // Weight Unit
+          '""', // Tax Code
+          createCSVCell((basePrice * 0.75).toFixed(2)), // Cost per item
+          '""', '""', '""', '""', '""', '""', '""', '""', '""', '""', '""', '""' // International pricing
+        ];
+
+        csvRows.push(row.join(','));
+      });
+    });
+  });
+
+  const csvContent = csvRows.join('\n');
+  
+  // Temp dosyaya yaz
+  const tempDir = path.join(process.cwd(), 'temp');
+  if (!fs.existsSync(tempDir)) {
+    fs.mkdirSync(tempDir, { recursive: true });
   }
   
-  let str = String(field).trim();
+  const tempFilePath = path.join(tempDir, 'shopify-urunler.csv');
+  const finalFilePath = path.join('/home/runner/workspace', 'shopify-urunler.csv');
   
-  // Remove any control characters
-  str = str.replace(/[\x00-\x1F\x7F]/g, '');
+  // UTF-8 BOM ekle
+  const BOM = '\uFEFF';
+  const finalContent = BOM + csvContent;
   
-  // If field contains comma, quote, or newline, it must be quoted
-  if (str.includes(',') || str.includes('"') || str.includes('\n') || str.includes('\r')) {
-    // Escape quotes by doubling them
-    str = str.replace(/"/g, '""');
-    return `"${str}"`;
+  fs.writeFileSync(tempFilePath, finalContent, 'utf-8');
+  console.log(`📁 Temp dosya (UTF-8 BOM ile): ${tempFilePath}`);
+  
+  // Final dosyaya kopyala
+  fs.copyFileSync(tempFilePath, finalFilePath);
+  console.log(`📁 Final dosya: ${finalFilePath}`);
+  
+  // Python CSV quote fixer entegrasyonu
+  try {
+    console.log('🔧 Python CSV quote fixer çalıştırılıyor...');
+    const fixCommand = `cd /home/runner/workspace && python3 fix_csv_quotes.py "${finalFilePath}" "${finalFilePath}_fixed"`;
+    await execAsync(fixCommand);
+    
+    // Fixed dosyayı asıl dosyanın üzerine kopyala
+    if (fs.existsSync(`${finalFilePath}_fixed`)) {
+      fs.copyFileSync(`${finalFilePath}_fixed`, finalFilePath);
+      fs.unlinkSync(`${finalFilePath}_fixed`);
+      console.log('✅ CSV quote fixing ve güncelleme tamamlandı');
+    }
+  } catch (error) {
+    console.log('⚠️ CSV quote fixing atlandı:', error.message);
   }
+  
+  console.log(`✅ Optimized Shopify CSV created: shopify-urunler.csv`);
+  console.log(`📊 ${csvRows.length - 1} variants, ${products.length} products`);
+  
+  return finalFilePath;
+}
   
   return str;
 }
