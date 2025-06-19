@@ -76,11 +76,45 @@ export async function generateShopifyCSV(
   outputPath: string = join(tmpdir(), 'shopify_products.csv')
 ): Promise<{ csvPath: string; filename: string; totalRows: number }> {
 
+  // Fix Turkish price format first (2.549.57 -> 2549.57)
+  let cleanPrice = product.price;
+  if (typeof cleanPrice === 'string') {
+    console.log(`🔧 Original price string: "${cleanPrice}"`);
+    
+    // Handle Turkish format like "2.549.57" (thousands separator with decimals)
+    if (cleanPrice.includes('.')) {
+      const parts = cleanPrice.split('.');
+      
+      if (parts.length === 3 && parts[2].length === 2) {
+        // Format: "2.549.57" -> "2549.57"
+        const integerPart = parts[0] + parts[1];
+        const decimalPart = parts[2];
+        cleanPrice = `${integerPart}.${decimalPart}`;
+        console.log(`🔧 Turkish thousands format detected: "${product.price}" -> "${cleanPrice}"`);
+      } else if (parts.length === 2 && parts[1].length <= 2) {
+        // Format: "250.99" (already correct)
+        cleanPrice = product.price;
+        console.log(`🔧 Standard decimal format: "${product.price}"`);
+      } else {
+        // Multiple dots as thousands separators
+        const integerPart = parts.slice(0, -1).join('');
+        const decimalPart = parts[parts.length - 1];
+        cleanPrice = `${integerPart}.${decimalPart}`;
+        console.log(`🔧 Multiple dots format: "${product.price}" -> "${cleanPrice}"`);
+      }
+    } else {
+      // No dots, might have commas
+      cleanPrice = cleanPrice.replace(/,/g, '.');
+      console.log(`🔧 No dots format: "${product.price}" -> "${cleanPrice}"`);
+    }
+  }
+
   // Fiyata %10 kar ekle
-  if (product.price && !isNaN(parseFloat(product.price))) {
-    const basePrice = parseFloat(product.price);
+  if (cleanPrice && !isNaN(parseFloat(cleanPrice))) {
+    const basePrice = parseFloat(cleanPrice);
     const priceWithProfit = (basePrice * 1.10).toFixed(2);
     product.price = priceWithProfit;
+    console.log(`💰 Fiyat kar marjı ile güncellendi: ${basePrice} -> ${priceWithProfit}`);
   }
 
   const sizes = variants?.sizes || [];
