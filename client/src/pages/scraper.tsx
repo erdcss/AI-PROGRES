@@ -266,6 +266,43 @@ function CSVPreview({ csvPath }: { csvPath: string }) {
 function ScraperPage({ platform = 'trendyol' }: ScraperPageProps) {
   const [product, setProduct] = useState<any>(null);
   const [result, setResult] = useState<any>(null);
+  // CSV Download handler
+  const handleCSVDownload = async () => {
+    try {
+      console.log('CSV indirme başlatılıyor...');
+      
+      // İlk olarak CSV durumunu kontrol et
+      const statusResponse = await fetch('/api/csv/status');
+      if (!statusResponse.ok) {
+        throw new Error('CSV durumu kontrol edilemedi');
+      }
+      
+      const status = await statusResponse.json();
+      console.log('CSV durumu:', status);
+      
+      if (!status.ready) {
+        throw new Error('CSV dosyası henüz hazır değil');
+      }
+      
+      // CSV dosyasını indir
+      const downloadUrl = '/api/download/shopify-urunler.csv';
+      const link = document.createElement('a');
+      link.href = downloadUrl;
+      link.download = 'shopify-urunler.csv';
+      document.body.appendChild(link);
+      link.click();
+      document.body.removeChild(link);
+      
+      console.log('CSV indirme başarılı');
+    } catch (error) {
+      console.error('CSV indirme hatası:', error);
+      setError({
+        message: `CSV indirme hatası: ${error.message}`,
+        details: 'CSV dosyası henüz hazır olmayabilir. Lütfen önce bir ürün çekin.'
+      });
+    }
+  };
+
   const [error, setError] = useState<{
     message: string;
     status?: number;
@@ -779,6 +816,19 @@ function ScraperPage({ platform = 'trendyol' }: ScraperPageProps) {
                         
                         {/* CSV Content Preview */}
                         <CSVPreview csvPath={product.csvInfo?.filename || 'shopify-urunler.csv'} />
+                        
+                        {/* Enhanced Download Button */}
+                        <div className="mt-3">
+                          <button
+                            onClick={() => handleCSVDownload()}
+                            className="w-full bg-blue-600 hover:bg-blue-700 text-white px-4 py-2 rounded text-sm font-medium transition-colors flex items-center justify-center gap-2"
+                          >
+                            <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 10v6m0 0l-3-3m3 3l3-3m2 8H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z" />
+                            </svg>
+                            CSV İndir (shopify-urunler.csv)
+                          </button>
+                        </div>
                       </div>
                     )}
                   </div>

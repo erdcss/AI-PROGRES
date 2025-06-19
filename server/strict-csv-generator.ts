@@ -1,5 +1,9 @@
 import * as fs from 'fs';
 import * as path from 'path';
+import { exec } from 'child_process';
+import { promisify } from 'util';
+
+const execAsync = promisify(exec);
 
 interface Product {
   title: string;
@@ -15,6 +19,48 @@ interface Product {
   };
   url: string;
   basePrice: string;
+}
+
+// CSV güvenlik fonksiyonları
+function sanitizeCSVValue(value: string): string {
+  if (!value) return '';
+  
+  // Tehlikeli karakterleri temizle
+  return value
+    .replace(/"/g, '""')  // Quote escape
+    .replace(/[\r\n]/g, ' ')  // Newline kaldır
+    .replace(/\t/g, ' ')  // Tab kaldır
+    .trim()
+    .substring(0, 1000);  // Maksimum uzunluk
+}
+
+function optimizeTitle(title: string): string {
+  const cleaned = sanitizeCSVValue(title);
+  return cleaned.length > 70 ? cleaned.substring(0, 67) + '...' : cleaned;
+}
+
+function optimizeVariantName(color: string, size: string): string {
+  const colorClean = color.replace(/[^a-zA-ZçğıöşüÇĞIÖŞÜ0-9\s]/g, '').trim();
+  const sizeClean = size.replace(/[^a-zA-Z0-9]/g, '').trim();
+  return `${colorClean}-${sizeClean}`.substring(0, 30);
+}
+
+function createSafeHandle(title: string, id: number): string {
+  const handle = title
+    .toLowerCase()
+    .replace(/[çÇ]/g, 'c')
+    .replace(/[ğĞ]/g, 'g')
+    .replace(/[ıİ]/g, 'i')
+    .replace(/[öÖ]/g, 'o')
+    .replace(/[şŞ]/g, 's')
+    .replace(/[üÜ]/g, 'u')
+    .replace(/[^a-z0-9\s-]/g, '')
+    .replace(/\s+/g, '-')
+    .replace(/-+/g, '-')
+    .replace(/^-|-$/g, '')
+    .substring(0, 60);
+    
+  return handle || `product-${id}`;
 }
 
 interface ShopifyVariant {

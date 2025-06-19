@@ -19,6 +19,77 @@ app.use((req, res, next) => {
 app.use(express.json({ limit: '50mb' }));
 app.use(express.urlencoded({ extended: false, limit: '50mb' }));
 
+// Sync CSV download endpoint
+app.get('/api/download/:filename', (req, res) => {
+  try {
+    const filename = req.params.filename;
+    const filePath = pathModule.join('/home/runner/workspace', filename);
+    
+    console.log('📥 CSV Download isteği:', {
+      filename,
+      filePath,
+      exists: fs.existsSync(filePath)
+    });
+    
+    if (!fs.existsSync(filePath)) {
+      console.log('❌ Dosya bulunamadı:', filePath);
+      return res.status(404).json({ message: 'Dosya bulunamadı' });
+    }
+    
+    const stats = fs.statSync(filePath);
+    console.log('📊 Dosya bilgileri:', {
+      size: stats.size,
+      modified: stats.mtime
+    });
+    
+    res.setHeader('Content-Type', 'text/csv; charset=utf-8');
+    res.setHeader('Content-Disposition', `attachment; filename="${filename}"`);
+    res.setHeader('Cache-Control', 'no-cache');
+    res.setHeader('Content-Length', stats.size);
+    
+    const fileStream = fs.createReadStream(filePath);
+    fileStream.pipe(res);
+    
+    console.log('✅ CSV dosyası gönderiliyor');
+  } catch (error) {
+    console.error('❌ Download error:', error);
+    res.status(500).json({ message: "Dosya indirme hatası" });
+  }
+});
+
+// CSV dosya durumu endpoint
+app.get('/api/csv/status', (req, res) => {
+  try {
+    const filePath = pathModule.join('/home/runner/workspace', 'shopify-urunler.csv');
+    const jsonPath = pathModule.join('/home/runner/workspace', 'csv-data.json');
+    
+    const status = {
+      csvExists: fs.existsSync(filePath),
+      csvSize: fs.existsSync(filePath) ? fs.statSync(filePath).size : 0,
+      csvModified: fs.existsSync(filePath) ? fs.statSync(filePath).mtime : null,
+      jsonExists: fs.existsSync(jsonPath),
+      productCount: 0,
+      ready: false
+    };
+    
+    if (fs.existsSync(jsonPath)) {
+      try {
+        const jsonData = JSON.parse(fs.readFileSync(jsonPath, 'utf-8'));
+        status.productCount = jsonData.products?.length || 0;
+      } catch (e) {
+        console.log('JSON parse hatası:', e.message);
+      }
+    }
+    
+    status.ready = status.csvExists && status.csvSize > 1000 && status.productCount > 0;
+    
+    res.json(status);
+  } catch (error) {
+    console.error('CSV status error:', error);
+    res.status(500).json({ message: "CSV durumu kontrolü hatası" });
+  }
+});
+
 // Direct CSV endpoints - MUST be before Vite middleware
 app.get('/api/preview/:filename', (req, res) => {
   try {
