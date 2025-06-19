@@ -105,13 +105,25 @@ function CSVPreview({ csvPath }: { csvPath: string }) {
     if (csvPath) {
       setLoading(true);
       const filename = csvPath.split('/').pop() || 'shopify-urunler.csv';
+      console.log('CSV preview yükleniyor:', filename);
+      
       fetch(`/api/preview/${filename}`)
         .then(res => {
+          console.log('CSV preview response:', res.status);
           if (!res.ok) throw new Error(`HTTP ${res.status}`);
-          return res.json();
+          return res.text();
         })
-        .then(data => {
-          setCsvData(data);
+        .then(text => {
+          console.log('CSV preview raw text:', text.substring(0, 200));
+          try {
+            const data = JSON.parse(text);
+            console.log('CSV preview parsed data:', data);
+            setCsvData(data);
+          } catch (parseError) {
+            console.error('JSON parse error:', parseError);
+            console.log('Response was not JSON, treating as error');
+            // Backend returned HTML instead of JSON, probably routing issue
+          }
           setLoading(false);
         })
         .catch(err => {

@@ -58,7 +58,13 @@ export async function registerRoutes(app: Express) {
   app.get('/api/preview/:filename', (req, res) => {
     try {
       const filename = req.params.filename;
-      const filePath = path.join(process.cwd(), 'temp', filename);
+      const workspaceFilePath = path.join('/home/runner/workspace', filename);
+      const tempFilePath = path.join(process.cwd(), 'temp', filename);
+      
+      let filePath = workspaceFilePath;
+      if (!fs.existsSync(workspaceFilePath) && fs.existsSync(tempFilePath)) {
+        filePath = tempFilePath;
+      }
       
       if (!fs.existsSync(filePath)) {
         return res.status(404).json({ message: 'CSV dosyası bulunamadı' });
@@ -73,15 +79,34 @@ export async function registerRoutes(app: Express) {
       
       // Simple CSV parsing for preview
       const headers = rows[0].split(',').map(h => h.trim().replace(/"/g, ''));
-      const dataRows = rows.slice(1, 6).map(row => row.split(',').map(cell => cell.trim().replace(/"/g, '')));
+      const dataRows = rows.slice(1, 4).map(row => {
+        const cells = [];
+        let current = '';
+        let inQuotes = false;
+        
+        for (let i = 0; i < row.length; i++) {
+          const char = row[i];
+          if (char === '"') {
+            inQuotes = !inQuotes;
+          } else if (char === ',' && !inQuotes) {
+            cells.push(current.trim().replace(/^"|"$/g, ''));
+            current = '';
+          } else {
+            current += char;
+          }
+        }
+        cells.push(current.trim().replace(/^"|"$/g, ''));
+        return cells;
+      });
       
       return res.json({
-        headers,
+        headers: headers.slice(0, 5),
         rows: dataRows,
         totalRows: rows.length - 1,
         filename
       });
     } catch (error) {
+      console.error('CSV preview error:', error);
       return res.status(500).json({ message: "CSV önizleme hatası", error: String(error) });
     }
   });
@@ -1284,78 +1309,7 @@ export async function registerRoutes(app: Express) {
 
 
 
-  // CSV preview endpoint - must be before other routes
-  app.get('/api/preview/:filename', (req, res) => {
-    try {
-      const filename = req.params.filename;
-      const filePath = path.join(process.cwd(), 'temp', filename);
-      
-      if (!fs.existsSync(filePath)) {
-        return res.status(404).json({ error: 'CSV file not found' });
-      }
 
-      const csvContent = fs.readFileSync(filePath, 'utf-8');
-      const lines = csvContent.split('\n').filter(line => line.trim());
-      
-      if (lines.length === 0) {
-        return res.json({ headers: [], rows: [], totalRows: 0 });
-      }
-
-      // Parse CSV headers properly
-      const headerLine = lines[0];
-      const headers = headerLine.split(',').map(h => h.replace(/^"|"$/g, '').trim());
-      
-      // Parse first 3 data rows with proper CSV parsing
-      const dataRows = lines.slice(1, 4).map(line => {
-        const values: string[] = [];
-        let current = '';
-        let inQuotes = false;
-        
-        for (let i = 0; i < line.length; i++) {
-          const char = line[i];
-          if (char === '"') {
-            if (!inQuotes) {
-              inQuotes = true;
-            } else if (i + 1 < line.length && line[i + 1] === '"') {
-              current += '"';
-              i++; // Skip next quote
-            } else {
-              inQuotes = false;
-            }
-          } else if (char === ',' && !inQuotes) {
-            values.push(current.replace(/^"|"$/g, '').trim());
-            current = '';
-          } else {
-            current += char;
-          }
-        }
-        values.push(current.replace(/^"|"$/g, '').trim());
-        
-        const row: Record<string, string> = {};
-        headers.forEach((header, index) => {
-          row[header] = values[index] || '';
-        });
-        return row;
-      });
-
-      res.json({
-        headers: headers.slice(0, 5),
-        rows: dataRows,
-        totalRows: lines.length - 1,
-        fileInfo: {
-          shopifyCompatible: true,
-          variants: dataRows.length,
-          columns: headers.length,
-          hasImages: headers.includes('Image Src'),
-          hasPricing: headers.includes('Variant Price'),
-          hasInventory: headers.includes('Variant Inventory Qty')
-        }
-      });
-    } catch (error) {
-      console.error('CSV preview error:', error);
-      res.status(500).json({ error: 'Failed to read CSV file' });
-    }
-  });
 
   // Remove old download endpoint - redirect to proper CSV endpoint
   app.get('/api/download/:filename', (req, res) => {
