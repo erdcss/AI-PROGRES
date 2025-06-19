@@ -200,7 +200,7 @@ export async function scrapeTrendyolProduct(inputUrl: string) {
     };
     
     // Generate instant CSV and preview
-    const { instantCSVGenerator } = await import('./instant-csv-generator');
+    const { instantCSVGenerator } = await import('./instant-csv-generator-fixed');
     const csvResult = await instantCSVGenerator.generateInstantCSV(productData);
     
     // Generate CSV preview data for the interface

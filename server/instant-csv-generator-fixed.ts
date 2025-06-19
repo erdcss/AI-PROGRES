@@ -20,16 +20,7 @@ class InstantCSVGenerator {
   async generateInstantCSV(productData: InstantProduct): Promise<{ success: boolean; message: string; csvPath?: string }> {
     try {
       console.log(`📝 Instant CSV generation starting for: ${productData.title}`);
-      console.log(`📊 Product data:`, {
-        title: productData.title,
-        brand: productData.brand,
-        price: productData.price,
-        colors: productData.variants.colors,
-        sizes: productData.variants.sizes,
-        images: productData.images.length
-      });
       
-      // Convert to Product format expected by generateShopifyCSV
       const product = {
         title: productData.title,
         brand: productData.brand,
@@ -40,29 +31,20 @@ class InstantCSVGenerator {
         categories: productData.categories || ['Giyim']
       };
 
-      // Create variants object
       const variants = {
         sizes: productData.variants.sizes || [],
         colors: productData.variants.colors || [],
         stockMap: productData.stockMap || {}
       };
 
-      console.log(`📦 Variants created:`, variants);
-
-      // Set output path to workspace root with correct filename
       const outputPath = path.join('/home/runner/workspace', 'shopify-urunler.csv');
-      
-      console.log(`📁 CSV will be created at: ${outputPath}`);
       
       // Fix Turkish price format (2.549.57 -> 2549.57)
       let cleanPrice = product.price;
       if (typeof cleanPrice === 'string') {
-        console.log(`🔧 Original price: "${cleanPrice}"`);
-        
         if (cleanPrice.includes('.')) {
           const parts = cleanPrice.split('.');
           if (parts.length === 3 && parts[2].length === 2) {
-            // Format: "2.549.57" -> "2549.57"
             cleanPrice = `${parts[0]}${parts[1]}.${parts[2]}`;
             console.log(`🔧 Fixed Turkish format: "${product.price}" -> "${cleanPrice}"`);
           }
@@ -73,10 +55,8 @@ class InstantCSVGenerator {
       const priceWithMargin = (basePrice * 1.10).toFixed(2);
       console.log(`💰 Price with 10% margin: ${basePrice} -> ${priceWithMargin}`);
       
-      // Generate direct CSV content
+      // Generate CSV content
       const csvRows = [];
-      
-      // Shopify CSV headers
       const headers = [
         'handle', 'title', 'body_html', 'vendor', 'product_category', 'type', 'tags',
         'published', 'option1_name', 'option1_value', 'option2_name', 'option2_value',
@@ -92,10 +72,7 @@ class InstantCSVGenerator {
       
       csvRows.push(headers.join(','));
       
-      // Generate handle
       const handle = `${product.brand ? product.brand.toLowerCase() + '-' : ''}${product.title.toLowerCase().replace(/[^a-z0-9]/g, '-').replace(/-+/g, '-').replace(/^-|-$/g, '')}`;
-      
-      // Create variants
       const colors = variants.colors.length > 0 ? variants.colors : ['Default'];
       const sizes = variants.sizes.length > 0 ? variants.sizes : ['OS'];
       
@@ -118,7 +95,7 @@ class InstantCSVGenerator {
             colors.length > 1 || sizes.length > 1 ? (colors.length > 1 ? color : size) : 'Default Title',
             colors.length > 1 && sizes.length > 1 ? 'Size' : '',
             colors.length > 1 && sizes.length > 1 ? size : '',
-            '', '', // option3
+            '', '',
             `${handle}-${color.toLowerCase()}-${size}`,
             '145',
             'shopify',
@@ -157,7 +134,6 @@ class InstantCSVGenerator {
         }
       }
       
-      // Write CSV file
       const csvContent = csvRows.join('\n');
       fs.writeFileSync(outputPath, csvContent, 'utf-8');
       
