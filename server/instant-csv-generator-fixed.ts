@@ -181,7 +181,7 @@ class InstantCSVGenerator {
               product.brand || 'TurMarkt',
               'Apparel & Accessories > Clothing',
               'Giyim',
-              `${product.brand ? product.brand.toLowerCase() + ',' : ''}fashion,clothing`,
+              `${product.brand ? product.brand.toLowerCase() : 'fashion'},clothing`,
               'TRUE',
               option1Name,
               option1Value,
