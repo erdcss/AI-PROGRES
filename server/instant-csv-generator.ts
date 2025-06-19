@@ -21,6 +21,14 @@ class InstantCSVGenerator {
   async generateInstantCSV(productData: InstantProduct): Promise<{ success: boolean; message: string; csvPath?: string }> {
     try {
       console.log(`📝 Instant CSV generation starting for: ${productData.title}`);
+      console.log(`📊 Product data:`, {
+        title: productData.title,
+        brand: productData.brand,
+        price: productData.price,
+        colors: productData.variants.colors,
+        sizes: productData.variants.sizes,
+        images: productData.images.length
+      });
       
       // Convert to Product format expected by generateShopifyCSV
       const product = {
@@ -40,6 +48,8 @@ class InstantCSVGenerator {
         stockMap: productData.stockMap || {}
       };
 
+      console.log(`📦 Variants created:`, variants);
+
       // Set output path to workspace root with correct filename
       const outputPath = path.join('/home/runner/workspace', 'shopify-urunler.csv');
       
@@ -47,6 +57,8 @@ class InstantCSVGenerator {
       
       // Generate CSV using existing function
       const result = await generateShopifyCSV(product, variants, outputPath);
+      
+      console.log(`🔄 CSV generation result:`, result);
       
       // Copy to expected filename if different
       if (result.csvPath !== outputPath) {
@@ -60,6 +72,12 @@ class InstantCSVGenerator {
       if (fs.existsSync(outputPath)) {
         const stats = fs.statSync(outputPath);
         console.log(`✅ CSV created successfully: ${outputPath} (${stats.size} bytes)`);
+        
+        // Read first few lines for verification
+        const content = fs.readFileSync(outputPath, 'utf-8');
+        const lines = content.split('\n').slice(0, 3);
+        console.log(`📄 CSV sample:`, lines);
+        
         return {
           success: true,
           message: `CSV oluşturuldu: ${result.totalRows} satır`,
@@ -67,6 +85,16 @@ class InstantCSVGenerator {
         };
       } else {
         console.log(`❌ CSV file not found at expected location: ${outputPath}`);
+        console.log(`🔍 Checking result path: ${result.csvPath}`);
+        if (result.csvPath && fs.existsSync(result.csvPath)) {
+          console.log(`📁 CSV found at result path, attempting copy...`);
+          fs.copyFileSync(result.csvPath, outputPath);
+          return {
+            success: true,
+            message: `CSV oluşturuldu: ${result.totalRows} satır`,
+            csvPath: outputPath
+          };
+        }
         return {
           success: false,
           message: "CSV dosyası oluşturulamadı"

@@ -202,36 +202,33 @@ function CSVPreview({ csvPath }: { csvPath: string }) {
             <span className="text-blue-400">• {csvData.totalRows} toplam satır</span>
             <span className="text-yellow-400">• {csvData.headers.length} sütun</span>
           </div>
-          <div className="overflow-x-auto max-h-40">
+          <div className="overflow-x-auto max-h-60">
             <table className="w-full text-xs border border-gray-600 rounded">
-              <thead className="bg-gray-700">
+              <thead className="bg-gray-700 sticky top-0">
                 <tr>
-                {csvData.headers.slice(0, 4).map((header: string, index: number) => (
-                  <th key={index} className="text-left p-2 text-gray-300 border-r border-gray-600">
-                    {header.length > 12 ? header.substring(0, 12) + '...' : header}
+                {result.csvData.headers.slice(0, 6).map((header: string, index: number) => (
+                  <th key={index} className="text-left p-2 text-gray-300 border-r border-gray-600 min-w-[100px]">
+                    {header.length > 15 ? header.substring(0, 15) + '...' : header}
                   </th>
                 ))}
-                {csvData.headers.length > 4 && (
-                  <th className="text-left p-2 text-gray-400">+{csvData.headers.length - 4}</th>
+                {result.csvData.headers.length > 6 && (
+                  <th className="text-left p-2 text-gray-400">+{result.csvData.headers.length - 6} daha</th>
                 )}
               </tr>
             </thead>
             <tbody>
-              {csvData.rows.map((row: string[], rowIndex: number) => {
-                console.log(`Product ${rowIndex + 1}:`, row.slice(0, 4));
-                return (
-                  <tr key={rowIndex} className="border-b border-gray-600 hover:bg-gray-700/30">
-                    {row.slice(0, 4).map((cell: string, cellIndex: number) => (
-                      <td key={cellIndex} className="p-2 text-gray-300 border-r border-gray-600 max-w-[80px] truncate">
-                        {cell || '-'}
-                      </td>
-                    ))}
-                    {csvData.headers.length > 4 && (
-                      <td className="p-2 text-gray-500">...</td>
-                    )}
-                  </tr>
-                );
-              })}
+              {result.csvData.rows.map((row: string[], rowIndex: number) => (
+                <tr key={rowIndex} className="border-b border-gray-600 hover:bg-gray-700/30">
+                  {row.slice(0, 6).map((cell: string, cellIndex: number) => (
+                    <td key={cellIndex} className="p-2 text-gray-300 border-r border-gray-600 max-w-[120px] truncate" title={cell}>
+                      {cell || '-'}
+                    </td>
+                  ))}
+                  {result.csvData.headers.length > 6 && (
+                    <td className="p-2 text-gray-500">...</td>
+                  )}
+                </tr>
+              ))}
               </tbody>
             </table>
           </div>
