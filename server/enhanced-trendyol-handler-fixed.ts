@@ -97,6 +97,7 @@ export async function scrapeTrendyolProduct(inputUrl: string) {
     
     // Extract ALL product images including color variants
     const allProductImages: string[] = [];
+    const colorSpecificImages: Record<string, string[]> = {};
     
     // Method 1: Deep script data extraction
     const scriptMatches = [
@@ -236,8 +237,8 @@ export async function scrapeTrendyolProduct(inputUrl: string) {
               });
             }
             
-            // Renk bilgisi ile görsel eşleştirme
-            if (merchant.url && merchant.image) {
+            // Renk bilgisi ile görsel eşleştirme (güvenli kontrol)
+            if (merchant.url && merchant.image && typeof colorSpecificImages !== 'undefined') {
               const colorMatch = merchant.url.match(/renk=([^&]+)|color=([^&]+)/i);
               if (colorMatch) {
                 const colorName = decodeURIComponent(colorMatch[1] || colorMatch[2]);
@@ -291,14 +292,19 @@ export async function scrapeTrendyolProduct(inputUrl: string) {
     // Method 7: Tüm görsel kaynaklarını birleştir ve optimize et
     const finalImageSet = new Set(allProductImages);
     
-    // Renk özel görsellerini de ekle
-    Object.values(colorSpecificImages).forEach(colorImgs => {
-      colorImgs.forEach(img => finalImageSet.add(img));
-    });
+    // Renk özel görsellerini de ekle (eğer varsa)
+    if (typeof colorSpecificImages !== 'undefined') {
+      Object.values(colorSpecificImages).forEach(colorImgs => {
+        colorImgs.forEach(img => finalImageSet.add(img));
+      });
+    }
     
     const cleanImages = Array.from(finalImageSet);
     console.log(`🖼️ Kapsamlı görsel çıkarma tamamlandı: ${cleanImages.length} toplam görsel (tüm renk varyantları dahil)`);
-    console.log(`🎨 Renk özel görseller: ${Object.keys(colorSpecificImages).length} renk için ${Object.values(colorSpecificImages).flat().length} görsel`);
+    
+    if (typeof colorSpecificImages !== 'undefined') {
+      console.log(`🎨 Renk özel görseller: ${Object.keys(colorSpecificImages).length} renk için ${Object.values(colorSpecificImages).flat().length} görsel`);
+    }
 
     const variantData = {
       colors: multiVariantData.colors,
