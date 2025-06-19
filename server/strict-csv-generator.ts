@@ -1,6 +1,5 @@
 import * as fs from 'fs';
 import * as path from 'path';
-import slugify from 'slugify';
 
 interface Product {
   title: string;
@@ -165,7 +164,10 @@ export async function generateStrictShopifyCSV(products: Product[]): Promise<{
   products.forEach((product, productIndex) => {
     console.log(`🔧 ${productIndex + 1}/${products.length} ürün işleniyor: ${product.title}`);
     
-    const handle = slugify(product.title, { lower: true, remove: /[*+~.()'"!:@]/g });
+    const handle = product.title.toLowerCase()
+      .replace(/[^a-z0-9\s-]/g, '')
+      .replace(/\s+/g, '-')
+      .trim();
     const basePrice = parseFloat(product.basePrice) || parseFloat(product.price);
     const markupPrice = (basePrice * 1.1).toFixed(2);
     const costPrice = (basePrice * 0.73).toFixed(2);
