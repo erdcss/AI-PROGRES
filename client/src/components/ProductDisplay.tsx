@@ -110,7 +110,7 @@ export function ProductDisplay({ data }: ProductDisplayProps) {
         <CardHeader>
           <CardTitle className="flex items-center gap-2 text-white">
             <ImageIcon className="h-5 w-5 text-purple-400" />
-            Ürün Görselleri ({data.images.length})
+            Ürün Görselleri ({data.images?.length || 0})
           </CardTitle>
         </CardHeader>
         <CardContent>

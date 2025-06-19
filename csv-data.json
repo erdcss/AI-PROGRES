@@ -543,7 +543,66 @@
         "totalVariants": 3
       },
       "url": "https://www.trendyol.com/puma/spor-ayakkabi-p-112233445"
+    },
+    {
+      "title": "BİKELİFE Kadın Lacivert Likralı Palazzo Salaş Geniş Paça Pantolon",
+      "price": "669",
+      "basePrice": "669",
+      "id": 861877805,
+      "description": "BİKELİFE Kadın Lacivert Likralı Palazzo Salaş Geniş Paça Pantolon yorumlarını inceleyin, Trendyol'a özel indirimli fiyata satın alın.",
+      "brand": "BİKELİFE",
+      "images": [
+        "https://cdn.dsmcdn.com/web/logo/ty-web.svg",
+        "https://cdn.dsmcdn.com/mnresize/1200/1800/ty1637/prod/QC/20250213/13/0083c286-ea7a-3b09-b8e7-e97136d1f5b7/1_org_zoom.jpg",
+        "https://cdn.dsmcdn.com/mnresize/170/247/ty1637/prod/QC/20250213/13/0083c286-ea7a-3b09-b8e7-e97136d1f5b7/1_org_zoom.jpg",
+        "https://cdn.dsmcdn.com/web/production/footer-facebook.png",
+        "https://cdn.dsmcdn.com/web/production/footer-instagram.png",
+        "https://cdn.dsmcdn.com/web/production/footer-youtube.png",
+        "https://cdn.dsmcdn.com/web/production/footer-x.png",
+        "https://cdn.dsmcdn.com/web/production/footer-etbis.png",
+        "https://cdn.dsmcdn.com/web/production/footer-trust-stamp.png",
+        "https://cdn.dsmcdn.com/web/production/footer-pci-dss.png"
+      ],
+      "variants": {
+        "colors": [
+          "tek renk"
+        ],
+        "sizes": [
+          "S",
+          "M",
+          "L"
+        ],
+        "totalVariants": 3
+      },
+      "url": "https://www.trendyol.com/bikelife/kadin-lacivert-likrali-palazzo-salas-genis-paca-pantolon-p-861877805"
+    },
+    {
+      "title": "ADIDAS ADIDAS",
+      "price": "238",
+      "basePrice": "238",
+      "id": 221206740,
+      "description": "Yüksek kaliteli adidas ürünü. Modern tasarım ve üstün kalite.",
+      "brand": "ADIDAS",
+      "images": [
+        "https://cdn.dsmcdn.com/ty1/product/media/images/placeholder1.jpg",
+        "https://cdn.dsmcdn.com/ty1/product/media/images/placeholder2.jpg"
+      ],
+      "variants": {
+        "colors": [
+          "siyah",
+          "beyaz",
+          "mavi"
+        ],
+        "sizes": [
+          "S",
+          "M",
+          "L",
+          "XL"
+        ],
+        "totalVariants": 12
+      },
+      "url": "https://www.trendyol.com/adidas/erkek-sneaker-p-998877445"
     }
   ],
-  "lastUpdate": "2025-06-19T11:52:24.981Z"
+  "lastUpdate": "2025-06-19T11:53:44.284Z"
 }
