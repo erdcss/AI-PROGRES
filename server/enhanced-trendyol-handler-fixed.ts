@@ -232,8 +232,8 @@ export async function scrapeTrendyolProduct(inputUrl: string) {
     } catch (error) {
       console.log('⚠️ CSV generation error, using fallback method');
       // Fallback CSV generation
-      const fs = require('fs');
-      const path = require('path');
+      const fs = await import('fs');
+      const path = await import('path');
       
       const csvRows = [];
       const headers = ['handle','title','body_html','vendor','product_category','type','tags','published','option1_name','option1_value','option2_name','option2_value','option3_name','option3_value','variant_sku','variant_grams','variant_inventory_tracker','variant_inventory_qty','variant_inventory_policy','variant_fulfillment_service','variant_price','variant_compare_at_price','variant_requires_shipping','variant_taxable','variant_barcode','image_src','image_position','image_alt_text','gift_card','seo_title','seo_description','google_shopping_google_product_category','google_shopping_gender','google_shopping_age_group','google_shopping_mpn','google_shopping_condition','google_shopping_custom_product','variant_image','variant_weight_unit','variant_tax_code'];
