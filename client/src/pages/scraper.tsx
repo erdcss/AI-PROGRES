@@ -383,41 +383,37 @@ function ScraperPage({ platform = 'trendyol' }: ScraperPageProps) {
   };
 
   const downloadCSV = async () => {
-    if (!product?.preview?.filename) {
-      toast({
-        title: "CSV bulunamadı",
-        description: "Önce bir ürün verisi çekin",
-        variant: "destructive"
-      });
-      return;
-    }
-
     try {
-      const filename = product.csvInfo?.filename || 'shopify-urunler.csv';
+      const filename = 'shopify-urunler.csv';
+      console.log('CSV indirme başlatılıyor:', filename);
       
-      // Use proper download endpoint
       const response = await fetch(`/api/download/${filename}`);
-      if (!response.ok) throw new Error('İndirme hatası');
+      if (!response.ok) {
+        const errorText = await response.text();
+        console.error('CSV indirme hatası:', response.status, errorText);
+        throw new Error(`HTTP ${response.status}: ${errorText}`);
+      }
       
       const blob = await response.blob();
       const url = window.URL.createObjectURL(blob);
       const a = document.createElement('a');
       a.href = url;
       a.download = filename;
+      a.style.display = 'none';
       document.body.appendChild(a);
       a.click();
       document.body.removeChild(a);
       window.URL.revokeObjectURL(url);
       
       toast({
-        title: "CSV indirildi",
-        description: `${product.csvInfo?.totalRows || 0} satır Shopify formatında`
+        title: "CSV başarıyla indirildi",
+        description: `${filename} Shopify formatında hazır`
       });
     } catch (error) {
       console.error('CSV indirme hatası:', error);
       toast({
         title: "İndirme hatası",
-        description: "CSV dosyası indirilemedi",
+        description: error instanceof Error ? error.message : "CSV dosyası indirilemedi",
         variant: "destructive"
       });
     }
