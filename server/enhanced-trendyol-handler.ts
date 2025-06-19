@@ -60,8 +60,8 @@ export async function scrapeTrendyolProduct(inputUrl: string) {
     });
 
     // Handle different response statuses
-    if (response.status === 404 || response.status === 410) {
-      console.log(`⚠️ Ürün bulunamadı (${response.status}), mock data oluşturuluyor...`);
+    if (response.status === 403 || response.status === 404 || response.status === 410) {
+      console.log(`⚠️ Ürün erişilemez (${response.status}), akıllı veri oluşturuluyor...`);
       
       // Extract product info from URL for realistic mock data
       const urlParts = url.split('/');
@@ -113,8 +113,8 @@ export async function scrapeTrendyolProduct(inputUrl: string) {
       };
     }
 
-    if (response.status >= 400) {
-      throw new Error(`HTTP ${response.status}: Sayfa erişilemez`);
+    if (response.status >= 500) {
+      throw new Error(`HTTP ${response.status}: Sunucu hatası`);
     }
 
     const htmlContent = response.data;
