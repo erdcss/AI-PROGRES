@@ -1142,7 +1142,61 @@
         "totalVariants": 12
       },
       "url": "https://www.trendyol.com/mango/kad%C4%B1n-k%C4%B1sa-kollu-ti%C5%9F%C3%B6rt-p-123456789"
+    },
+    {
+      "title": "DEFACTO DEFACTO",
+      "price": "175",
+      "basePrice": "175",
+      "id": 1624142,
+      "description": "Yüksek kaliteli defacto ürünü. Modern tasarım ve üstün kalite.",
+      "brand": "DEFACTO",
+      "images": [
+        "https://cdn.dsmcdn.com/ty1/product/media/images/placeholder1.jpg",
+        "https://cdn.dsmcdn.com/ty1/product/media/images/placeholder2.jpg"
+      ],
+      "variants": {
+        "colors": [
+          "siyah",
+          "beyaz",
+          "mavi"
+        ],
+        "sizes": [
+          "S",
+          "M",
+          "L",
+          "XL"
+        ],
+        "totalVariants": 12
+      },
+      "url": "https://www.trendyol.com/defacto/erkek-regular-fit-polo-yaka-t-shirt-p-123456789"
+    },
+    {
+      "title": "KOTON KOTON",
+      "price": "363",
+      "basePrice": "363",
+      "id": 762634327,
+      "description": "Yüksek kaliteli koton ürünü. Modern tasarım ve üstün kalite.",
+      "brand": "KOTON",
+      "images": [
+        "https://cdn.dsmcdn.com/ty1/product/media/images/placeholder1.jpg",
+        "https://cdn.dsmcdn.com/ty1/product/media/images/placeholder2.jpg"
+      ],
+      "variants": {
+        "colors": [
+          "siyah",
+          "beyaz",
+          "mavi"
+        ],
+        "sizes": [
+          "S",
+          "M",
+          "L",
+          "XL"
+        ],
+        "totalVariants": 12
+      },
+      "url": "https://www.trendyol.com/koton/kad%C4%B1n-basic-t-shirt-p-987654321"
     }
   ],
-  "lastUpdate": "2025-06-19T12:26:05.125Z"
+  "lastUpdate": "2025-06-19T12:27:10.244Z"
 }

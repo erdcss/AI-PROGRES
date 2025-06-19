@@ -112,7 +112,7 @@ export async function scrapeTrendyolProduct(inputUrl: string) {
         id: productData.id,
         message: 'Mock ürün verisi oluşturuldu ve CSV koleksiyonuna eklendi'
       };
-    }
+    }*/
 
     if (response.status >= 500) {
       throw new Error(`HTTP ${response.status}: Sunucu hatası`);
