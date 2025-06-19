@@ -36,6 +36,7 @@ interface ProductDisplayProps {
       totalRows: number;
       shopifyReady: boolean;
     };
+    aiAnalysis?: any;
   };
 }
 
@@ -286,6 +287,11 @@ export function ProductDisplay({ data }: ProductDisplayProps) {
             </div>
           </CardContent>
         </Card>
+      )}
+
+      {/* AI Analysis Section */}
+      {data.aiAnalysis && (
+        <AIAnalysisDisplay analysis={data.aiAnalysis} />
       )}
 
       {/* CSV Önizleme ve İndirme */}

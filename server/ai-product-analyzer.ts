@@ -2,7 +2,7 @@ import Anthropic from '@anthropic-ai/sdk';
 
 // the newest Anthropic model is "claude-sonnet-4-20250514" which was released May 14, 2025. Use this by default unless user has already selected claude-3-7-sonnet-20250219
 const anthropic = new Anthropic({
-  apiKey: process.env.ANTHROPIC_API_KEY,
+  apiKey: process.env.ANTHROPIC_API_KEY || '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',
 });
 
 export interface AIProductAnalysis {
@@ -125,7 +125,7 @@ Lütfen aşağıdaki JSON formatında cevap ver:
 Gerçekçi veriler kullan ve Türkiye pazarına uygun analiz yap.`;
 
     const response = await anthropic.messages.create({
-      model: 'claude-sonnet-4-20250514',
+      model: 'claude-3-5-sonnet-20241022',
       max_tokens: 2048,
       messages: [
         { role: 'user', content: analysisPrompt }
