@@ -278,61 +278,117 @@ export async function extractMultiVariants(url: string): Promise<VariantInfo> {
               });
             }
             
-            // Enhanced color detection from all merchant variants
+            // Gelişmiş renk analizi - tüm merchant varyantlarından renk tespiti
             if (productData.product?.otherMerchants && Array.isArray(productData.product.otherMerchants)) {
               const colorVariantMap = new Map();
               const imagesByColor = new Map();
+              const colorPricing = new Map();
               
-              productData.product.otherMerchants.forEach((merchant: any) => {
+              console.log(`🔍 ${productData.product.otherMerchants.length} merchant analiz ediliyor...`);
+              
+              productData.product.otherMerchants.forEach((merchant: any, index: number) => {
                 if (merchant && merchant.url) {
-                  // Extract color from URL parameters
-                  const urlColorMatch = merchant.url.match(/renk=([^&]+)|color=([^&]+)/i);
                   let detectedColor = null;
                   
+                  // Method 1: URL parametrelerinden renk çıkar
+                  const urlColorMatch = merchant.url.match(/renk=([^&]+)|color=([^&]+)|rengi=([^&]+)/i);
                   if (urlColorMatch) {
-                    detectedColor = decodeURIComponent(urlColorMatch[1] || urlColorMatch[2]);
-                  } else {
-                    // Extract from merchant title/name
+                    detectedColor = decodeURIComponent(urlColorMatch[1] || urlColorMatch[2] || urlColorMatch[3]);
+                    console.log(`🎨 URL'den renk tespit edildi: ${detectedColor}`);
+                  }
+                  
+                  // Method 2: Merchant başlık/isiminden renk analizi
+                  if (!detectedColor) {
                     const merchantText = (merchant.title || merchant.name || '').toLowerCase();
+                    
+                    // Önce tam eşleşme ara
                     for (const keyword of allColorKeywords) {
-                      if (merchantText.includes(keyword.toLowerCase())) {
+                      const regex = new RegExp(`\\b${keyword.toLowerCase()}\\b`, 'i');
+                      if (regex.test(merchantText)) {
                         detectedColor = keyword;
+                        console.log(`🎨 Başlıktan renk tespit edildi: ${detectedColor}`);
                         break;
                       }
                     }
+                    
+                    // Kısmi eşleşme ara
+                    if (!detectedColor) {
+                      for (const keyword of allColorKeywords) {
+                        if (merchantText.includes(keyword.toLowerCase()) && keyword.length > 3) {
+                          detectedColor = keyword;
+                          console.log(`🎨 Kısmi eşleşme ile renk tespit edildi: ${detectedColor}`);
+                          break;
+                        }
+                      }
+                    }
                   }
                   
-                  if (detectedColor && !colorVariantMap.has(detectedColor.toLowerCase())) {
-                    const colorName = detectedColor.charAt(0).toUpperCase() + detectedColor.slice(1).toLowerCase();
-                    colorVariantMap.set(detectedColor.toLowerCase(), colorName);
+                  // Method 3: Ürün ID'sinden renk çıkarma
+                  if (!detectedColor && merchant.productId) {
+                    const productIdStr = merchant.productId.toString();
+                    // Belirli ID pattern'leri renk bilgisi içerebilir
+                    console.log(`🔍 Ürün ID analizi: ${productIdStr}`);
+                  }
+                  
+                  if (detectedColor && detectedColor.length > 2) {
+                    const normalizedColor = detectedColor.toLowerCase().trim();
                     
-                    // Associate images with this color
-                    if (merchant.image) {
-                      if (!imagesByColor.has(colorName)) {
-                        imagesByColor.set(colorName, []);
+                    if (!colorVariantMap.has(normalizedColor)) {
+                      const displayName = detectedColor.charAt(0).toUpperCase() + detectedColor.slice(1);
+                      colorVariantMap.set(normalizedColor, displayName);
+                      
+                      // Renk için fiyat bilgisi
+                      if (merchant.price || merchant.originalPrice) {
+                        colorPricing.set(displayName, merchant.price || merchant.originalPrice);
                       }
-                      const highResImage = merchant.image.replace(/\/\d+\/\d+\//, '/1200/1800/');
-                      imagesByColor.get(colorName).push(highResImage);
+                      
+                      // Renk için görsel toplama
+                      if (merchant.image && merchant.image.includes('cdn.dsmcdn.com')) {
+                        if (!imagesByColor.has(displayName)) {
+                          imagesByColor.set(displayName, []);
+                        }
+                        
+                        const baseImage = merchant.image.replace(/\/\d+\/\d+\//, '/');
+                        const imageSizes = [
+                          baseImage.replace('/', '/1200/1800/'),
+                          baseImage.replace('/', '/800/1200/'),
+                          baseImage.replace('/', '/600/900/')
+                        ];
+                        
+                        imageSizes.forEach(img => {
+                          const colorImages = imagesByColor.get(displayName);
+                          if (colorImages && !colorImages.includes(img)) {
+                            colorImages.push(img);
+                          }
+                        });
+                      }
+                      
+                      console.log(`✅ Renk kaydedildi: ${displayName} (${normalizedColor})`);
                     }
                   }
                 }
               });
               
-              // Add all detected colors
-              colorVariantMap.forEach((colorName, key) => {
-                if (!colors.some(c => c.toLowerCase() === key) && colorName.length > 2) {
-                  colors.push(colorName);
+              // Tespit edilen renkleri ana listiye ekle
+              colorVariantMap.forEach((displayName, normalizedColor) => {
+                if (!colors.some(c => c.toLowerCase() === normalizedColor)) {
+                  colors.push(displayName);
                   
-                  // Add color-specific images
-                  if (imagesByColor.has(colorName)) {
-                    images[colorName] = imagesByColor.get(colorName);
+                  // Renk için fiyat bilgisi ekle
+                  if (colorPricing.has(displayName)) {
+                    pricing[displayName] = colorPricing.get(displayName);
                   }
                   
-                  console.log(`🎨 Enhanced color detected: ${colorName} with ${imagesByColor.get(colorName)?.length || 0} images`);
+                  // Renk için görselleri ekle
+                  if (imagesByColor.has(displayName)) {
+                    images[displayName] = imagesByColor.get(displayName);
+                  }
+                  
+                  console.log(`🎨 Renk eklendi: ${displayName} - ${imagesByColor.get(displayName)?.length || 0} görsel, fiyat: ${colorPricing.get(displayName) || 'N/A'}`);
                 }
               });
               
-              console.log(`🔍 Enhanced analysis: ${productData.product.otherMerchants.length} merchants, ${colorVariantMap.size} unique colors`);
+              console.log(`📊 Renk analizi tamamlandı: ${colorVariantMap.size} benzersiz renk tespit edildi`);
             }
           }
 

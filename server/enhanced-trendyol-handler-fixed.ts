@@ -190,42 +190,80 @@ export async function scrapeTrendyolProduct(inputUrl: string) {
       });
     });
 
-    // Method 6: Enhanced image extraction from all merchant variants
+    // Method 6: Gelişmiş merchant varyant görsel analizi - tüm renk modellerinden görseller
     try {
       const merchantMatches = [...htmlContent.matchAll(/"otherMerchants":\s*(\[[^\]]*\])/g)];
       merchantMatches.forEach(match => {
         try {
           const merchants = JSON.parse(match[1]);
-          merchants.forEach((merchant: any) => {
-            // Extract main merchant image
-            if (merchant.image && merchant.image.includes('cdn.dsmcdn.com')) {
+          console.log(`🔍 ${merchants.length} merchant varyantı analiz ediliyor...`);
+          
+          merchants.forEach((merchant: any, index: number) => {
+            // Ana merchant görseli
+            if (merchant.image && merchant.image.includes('cdn.dsmcdn.com') && merchant.image.includes('prod')) {
               const baseUrl = merchant.image.replace(/\/\d+\/\d+\//, '/');
-              const sizes = ['1200/1800', '800/1200', '600/900'];
-              sizes.forEach(size => {
+              
+              // Çoklu çözünürlük seçenekleri
+              const resolutions = [
+                { size: '1200/1800', quality: 'ultra' },
+                { size: '800/1200', quality: 'high' },
+                { size: '600/900', quality: 'medium' },
+                { size: '400/600', quality: 'low' }
+              ];
+              
+              resolutions.forEach(({ size, quality }) => {
                 const resizedUrl = baseUrl.replace('/', `/${size}/`);
                 if (!allProductImages.includes(resizedUrl)) {
                   allProductImages.push(resizedUrl);
+                  console.log(`📸 Görsel eklendi (${quality}): ${index + 1}/${merchants.length}`);
                 }
               });
             }
             
-            // Extract additional merchant images array
+            // Merchant görsel dizisi
             if (merchant.images && Array.isArray(merchant.images)) {
               merchant.images.forEach((img: string) => {
-                if (img.includes('cdn.dsmcdn.com')) {
+                if (img.includes('cdn.dsmcdn.com') && img.includes('prod')) {
                   const baseUrl = img.replace(/\/\d+\/\d+\//, '/');
-                  const highRes = baseUrl.replace('/', '/1200/1800/');
-                  if (!allProductImages.includes(highRes)) {
-                    allProductImages.push(highRes);
-                  }
+                  const sizes = ['1200/1800', '800/1200'];
+                  sizes.forEach(size => {
+                    const resizedUrl = baseUrl.replace('/', `/${size}/`);
+                    if (!allProductImages.includes(resizedUrl)) {
+                      allProductImages.push(resizedUrl);
+                    }
+                  });
                 }
               });
             }
+            
+            // Renk bilgisi ile görsel eşleştirme
+            if (merchant.url && merchant.image) {
+              const colorMatch = merchant.url.match(/renk=([^&]+)|color=([^&]+)/i);
+              if (colorMatch) {
+                const colorName = decodeURIComponent(colorMatch[1] || colorMatch[2]);
+                const cleanColorName = colorName.charAt(0).toUpperCase() + colorName.slice(1);
+                
+                if (!colorSpecificImages[cleanColorName]) {
+                  colorSpecificImages[cleanColorName] = [];
+                }
+                
+                const baseImg = merchant.image.replace(/\/\d+\/\d+\//, '/1200/1800/');
+                if (!colorSpecificImages[cleanColorName].includes(baseImg)) {
+                  colorSpecificImages[cleanColorName].push(baseImg);
+                  console.log(`🎨 ${cleanColorName} rengi için görsel eklendi`);
+                }
+              }
+            }
           });
-          console.log(`🖼️ Merchant extraction: ${merchants.length} merchants analyzed`);
-        } catch (e) {}
+          
+          console.log(`✅ Merchant analizi tamamlandı: ${merchants.length} varyant, ${allProductImages.length} görsel`);
+        } catch (e) {
+          console.log('⚠️ Merchant parsing hatası:', e.message);
+        }
       });
-    } catch (e) {}
+    } catch (e) {
+      console.log('⚠️ Merchant extraction hatası:', e.message);
+    }
     
     // Method 7: Extract from variant-specific image arrays
     const variantImageMatches = [
@@ -250,8 +288,17 @@ export async function scrapeTrendyolProduct(inputUrl: string) {
       } catch (e) {}
     });
 
-    const cleanImages = Array.from(new Set(allProductImages));
-    console.log(`🖼️ Comprehensive extraction: ${cleanImages.length} total images (all color variants included)`);
+    // Method 7: Tüm görsel kaynaklarını birleştir ve optimize et
+    const finalImageSet = new Set(allProductImages);
+    
+    // Renk özel görsellerini de ekle
+    Object.values(colorSpecificImages).forEach(colorImgs => {
+      colorImgs.forEach(img => finalImageSet.add(img));
+    });
+    
+    const cleanImages = Array.from(finalImageSet);
+    console.log(`🖼️ Kapsamlı görsel çıkarma tamamlandı: ${cleanImages.length} toplam görsel (tüm renk varyantları dahil)`);
+    console.log(`🎨 Renk özel görseller: ${Object.keys(colorSpecificImages).length} renk için ${Object.values(colorSpecificImages).flat().length} görsel`);
 
     const variantData = {
       colors: multiVariantData.colors,

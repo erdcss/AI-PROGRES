@@ -174,8 +174,11 @@ export function ProductDisplay({ data }: ProductDisplayProps) {
                           />
                         </div>
                       )) || (
-                        <div className="col-span-full text-center text-gray-400 py-2 text-sm">
-                          {color} rengi görselleri yükleniyor...
+                        <div className="col-span-full text-center text-gray-400 py-2 text-sm bg-gray-800 rounded">
+                          <div className="flex items-center justify-center gap-2">
+                            <ImageIcon className="h-4 w-4" />
+                            <span>{color} rengi için özel görseller analiz ediliyor...</span>
+                          </div>
                         </div>
                       )}
                     </div>
