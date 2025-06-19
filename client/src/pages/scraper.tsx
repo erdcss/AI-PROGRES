@@ -195,14 +195,11 @@ function CSVPreview({ csvPath }: { csvPath: string }) {
             </tr>
           </thead>
           <tbody>
-            {csvData.rows?.slice(0, 3).map((row: any, rowIndex: number) => (
+            {csvData.rows?.slice(0, 3).map((row: any[], rowIndex: number) => (
               <tr key={rowIndex} className="border-b border-gray-700">
-                {csvData.headers?.slice(0, 4).map((header: string, colIndex: number) => (
-                  <td key={colIndex} className="p-1 text-gray-300">
-                    {row[header] ? 
-                      (row[header].length > 20 ? row[header].substring(0, 20) + '...' : row[header])
-                      : '-'
-                    }
+                {row.slice(0, 4).map((cell: string, cellIndex: number) => (
+                  <td key={cellIndex} className="p-1 text-gray-300 max-w-[100px] truncate">
+                    {cell && cell.length > 20 ? cell.substring(0, 20) + '...' : cell || '-'}
                   </td>
                 ))}
                 {csvData.headers?.length > 4 && (
