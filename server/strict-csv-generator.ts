@@ -246,9 +246,13 @@ export async function generateStrictShopifyCSV(products: Product[]): Promise<str
     });
   });
 
-  // CSV satırlarını oluştur - her alan escape edilecek
+  // CSV satırlarını oluştur - her alan escape edilecek şekilde düzenlendi
   const csvRows = variants.map(variant => {
-    return headers.map(header => escapeCSVValue(variant[header] || '')).join(',');
+    const row = headers.map(header => {
+      const value = variant[header] || '';
+      return escapeCSVValue(String(value));
+    });
+    return row.join(',');
   });
 
   // Header row
@@ -266,10 +270,13 @@ export async function generateStrictShopifyCSV(products: Product[]): Promise<str
   const tempFilePath = path.join(tempDir, 'shopify-urunler.csv');
   const finalFilePath = path.join('/home/runner/workspace', 'shopify-urunler.csv');
   
-  // Shopify uyumu için UTF-8 BOM ile kaydet
-  const BOM = '\uFEFF';
-  await fs.promises.writeFile(finalFilePath, BOM + csvContent, { encoding: 'utf-8' });
-  console.log(`📁 Shopify uyumlu CSV kaydedildi: ${finalFilePath}`);
+  // UTF-8 BOM ile kaydet (byte-level)
+  const bomBuffer = Buffer.from([0xEF, 0xBB, 0xBF]); // UTF-8 BOM bytes
+  const csvBuffer = Buffer.from(csvContent, 'utf8');
+  const finalBuffer = Buffer.concat([bomBuffer, csvBuffer]);
+  
+  fs.writeFileSync(finalFilePath, finalBuffer);
+  console.log(`📁 Shopify uyumlu CSV kaydedildi (UTF-8 BOM ile): ${finalFilePath}`);
   
   // Python CSV quote fixer entegrasyonu
   try {
