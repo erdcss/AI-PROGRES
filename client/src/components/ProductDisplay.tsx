@@ -57,24 +57,6 @@ export function ProductDisplay({ data }: ProductDisplayProps) {
       console.error('CSV download error:', error);
     }
   };
-  const handleDownloadCSV = async () => {
-    try {
-      const response = await fetch(`/api/download/${data.preview.filename}`);
-      if (response.ok) {
-        const blob = await response.blob();
-        const url = window.URL.createObjectURL(blob);
-        const a = document.createElement('a');
-        a.href = url;
-        a.download = data.preview.filename;
-        document.body.appendChild(a);
-        a.click();
-        window.URL.revokeObjectURL(url);
-        document.body.removeChild(a);
-      }
-    } catch (error) {
-      console.error('CSV indirme hatası:', error);
-    }
-  };
 
   return (
     <div className="space-y-6 p-6 bg-gray-900 text-white">

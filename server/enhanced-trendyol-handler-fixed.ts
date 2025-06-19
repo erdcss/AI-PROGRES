@@ -540,5 +540,5 @@ function extractProductFeatures($: any, htmlContent: string): Array<{key: string
   });
   
   console.log(`✅ ${features.length} structured features extracted`);
-  return features.length > 0 ? features.slice(0, 15) : commonFeatures;
+  return commonFeatures;
 }
