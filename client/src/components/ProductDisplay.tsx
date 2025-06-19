@@ -41,6 +41,24 @@ interface ProductDisplayProps {
 export function ProductDisplay({ data }: ProductDisplayProps) {
   const handleDownloadCSV = async () => {
     try {
+      const response = await fetch('/shopify-urunler.csv');
+      if (response.ok) {
+        const blob = await response.blob();
+        const url = window.URL.createObjectURL(blob);
+        const a = document.createElement('a');
+        a.href = url;
+        a.download = `shopify-${data.brand?.toLowerCase()}-${Date.now()}.csv`;
+        document.body.appendChild(a);
+        a.click();
+        window.URL.revokeObjectURL(url);
+        document.body.removeChild(a);
+      }
+    } catch (error) {
+      console.error('CSV download error:', error);
+    }
+  };
+  const handleDownloadCSV = async () => {
+    try {
       const response = await fetch(`/api/download/${data.preview.filename}`);
       if (response.ok) {
         const blob = await response.blob();
