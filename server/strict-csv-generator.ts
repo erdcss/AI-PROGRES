@@ -179,9 +179,16 @@ async function generateStrictShopifyCSVInternal(products: Product[]): Promise<st
       .replace(/[^a-z0-9\s-]/g, '')
       .replace(/\s+/g, '-')
       .trim();
-    const basePrice = parseFloat(product.basePrice) || parseFloat(product.price);
+    // Fix Turkish price formatting - remove dots used as thousands separators
+    const cleanPrice = (product.basePrice || product.price).toString()
+      .replace(/\./g, '') // Remove dots used as thousands separators
+      .replace(/,/g, '.'); // Convert comma decimal separator to dot
+    
+    const basePrice = parseFloat(cleanPrice) || 0;
     const markupPrice = (basePrice * 1.1).toFixed(2);
     const costPrice = (basePrice * 0.73).toFixed(2);
+    
+    console.log(`💰 Price fix: "${product.price}" → "${cleanPrice}" → ${basePrice}`);
 
     console.log(`🔧 Otantik varyant bilgileri: ${JSON.stringify(product.variants)}`);
     
