@@ -178,68 +178,85 @@ function CSVPreview({ csvPath }: { csvPath: string }) {
     );
   }
 
+  // Debug: CSV data durumunu kontrol et
+  console.log('🔧 DEBUG - CSV Data State:', {
+    hasData: !!csvData,
+    hasHeaders: !!csvData?.headers,
+    headersLength: csvData?.headers?.length,
+    hasRows: !!csvData?.rows,
+    rowsLength: csvData?.rows?.length,
+    rowsType: Array.isArray(csvData?.rows),
+    firstRowType: csvData?.rows?.[0] ? Array.isArray(csvData.rows[0]) : 'no first row'
+  });
+
   return (
     <div className="bg-gray-800/20 p-3 rounded border border-gray-700">
-      <div className="text-xs font-medium text-gray-300 mb-2">CSV İçerik Önizlemesi</div>
-      <div className="overflow-x-auto">
-        <table className="w-full text-xs">
-          <thead>
-            <tr className="border-b border-gray-600">
-              {csvData.headers?.slice(0, 4).map((header: string, index: number) => (
-                <th key={index} className="text-left p-1 text-gray-400">
-                  {header.length > 15 ? header.substring(0, 15) + '...' : header}
-                </th>
-              ))}
-              {csvData.headers?.length > 4 && (
-                <th className="text-left p-1 text-gray-400">+{csvData.headers.length - 4} sütun</th>
-              )}
-            </tr>
-          </thead>
-          <tbody>
-            {csvData.rows.slice(0, 3).map((row: any[], rowIndex: number) => (
-              <tr key={rowIndex} className="border-b border-gray-700">
-                {row.slice(0, 4).map((cell: string, cellIndex: number) => (
-                  <td key={cellIndex} className="p-1 text-gray-300 max-w-[100px] truncate text-xs">
-                    {cell && typeof cell === 'string' && cell.length > 15 ? 
-                      cell.substring(0, 15) + '...' : 
-                      (cell || '-')
-                    }
-                  </td>
+      <div className="text-xs font-medium text-gray-300 mb-2">
+        CSV İçerik Önizlemesi 
+        {csvData && <span className="text-blue-400">({csvData.totalRows} satır)</span>}
+      </div>
+      {csvData?.headers && csvData?.rows && Array.isArray(csvData.rows) && csvData.rows.length > 0 ? (
+        <div className="overflow-x-auto">
+          <table className="w-full text-xs border border-gray-600">
+            <thead className="bg-gray-700">
+              <tr>
+                {csvData.headers.slice(0, 4).map((header: string, index: number) => (
+                  <th key={index} className="text-left p-2 text-gray-300 border-r border-gray-600">
+                    {header.length > 12 ? header.substring(0, 12) + '...' : header}
+                  </th>
                 ))}
-                {csvData.headers?.length > 4 && (
-                  <td className="p-1 text-gray-500 text-xs">+{csvData.headers.length - 4}</td>
+                {csvData.headers.length > 4 && (
+                  <th className="text-left p-2 text-gray-400">+{csvData.headers.length - 4}</th>
                 )}
               </tr>
-            ))}
-          </tbody>
-        </table>
-      </div>
-      <div className="text-xs text-gray-500 mt-2">
-        {csvData.totalRows} satır × {csvData.headers?.length} sütun
-        {csvData.rows?.length < csvData.totalRows && (
-          <span> (ilk {csvData.rows?.length} satır gösteriliyor)</span>
-        )}
-      </div>
+            </thead>
+            <tbody>
+              {csvData.rows.slice(0, 3).map((row: string[], rowIndex: number) => {
+                console.log(`🔧 DEBUG - Row ${rowIndex}:`, row.slice(0, 4));
+                return (
+                  <tr key={rowIndex} className="border-b border-gray-600 hover:bg-gray-700/30">
+                    {row.slice(0, 4).map((cell: string, cellIndex: number) => (
+                      <td key={cellIndex} className="p-2 text-gray-300 border-r border-gray-600 max-w-[80px] truncate">
+                        {cell || '-'}
+                      </td>
+                    ))}
+                    {csvData.headers.length > 4 && (
+                      <td className="p-2 text-gray-500">...</td>
+                    )}
+                  </tr>
+                );
+              })}
+            </tbody>
+          </table>
+        </div>
+      ) : (
+        <div className="bg-yellow-900/20 p-3 rounded border border-yellow-700">
+          <div className="text-yellow-400 text-xs mb-2">⚠️ CSV Veri Durumu:</div>
+          <div className="text-xs text-gray-400 space-y-1">
+            <div>Headers: {csvData?.headers ? '✓' : '❌'} ({csvData?.headers?.length || 0})</div>
+            <div>Rows: {csvData?.rows ? '✓' : '❌'} ({csvData?.rows?.length || 0})</div>
+            <div>Array: {Array.isArray(csvData?.rows) ? '✓' : '❌'}</div>
+            <div>Total: {csvData?.totalRows || 0}</div>
+          </div>
+        </div>
+      )}
       
-      <div className="mt-3 space-y-2">
-        <div className="text-xs font-medium text-gray-300">Dosya İçerik Özeti:</div>
-        <div className="grid grid-cols-2 gap-2 text-xs">
-          <div className="flex justify-between">
-            <span className="text-gray-400">Shopify Uyumlu:</span>
-            <span className="text-green-400">✓</span>
-          </div>
-          <div className="flex justify-between">
-            <span className="text-gray-400">Varyant Fiyatları:</span>
-            <span className="text-blue-400">%10 kar</span>
-          </div>
-          <div className="flex justify-between">
-            <span className="text-gray-400">Stok Durumu:</span>
-            <span className="text-purple-400">10 adet</span>
-          </div>
-          <div className="flex justify-between">
-            <span className="text-gray-400">SEO Optimize:</span>
-            <span className="text-yellow-400">✓</span>
-          </div>
+      <div className="mt-3 grid grid-cols-2 gap-2 text-xs">
+        <div className="flex justify-between">
+          <span className="text-gray-400">Toplam Satır:</span>
+          <span className="text-blue-400">{csvData?.totalRows || 0}</span>
+        </div>
+        <div className="flex justify-between">
+          <span className="text-gray-400">Sütun Sayısı:</span>
+          <span className="text-green-400">{csvData?.headers?.length || 0}</span>
+        </div>
+        <div className="flex justify-between">
+          <span className="text-gray-400">Shopify Uyumlu:</span>
+          <span className="text-green-400">✓</span>
+        </div>
+        <div className="flex justify-between">
+          <span className="text-gray-400">Debug Mode:</span>
+          <span className="text-yellow-400">ON</span>
         </div>
       </div>
     </div>

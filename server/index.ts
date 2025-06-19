@@ -26,52 +26,93 @@ app.get('/api/preview/:filename', (req, res) => {
     const workspaceFilePath = pathModule.join('/home/runner/workspace', filename);
     const tempFilePath = pathModule.join(process.cwd(), 'temp', filename);
     
+    console.log('🔍 CSV Preview Debug:', {
+      filename,
+      workspaceExists: fs.existsSync(workspaceFilePath),
+      tempExists: fs.existsSync(tempFilePath)
+    });
+    
     let filePath = workspaceFilePath;
     if (!fs.existsSync(workspaceFilePath) && fs.existsSync(tempFilePath)) {
       filePath = tempFilePath;
     }
     
     if (!fs.existsSync(filePath)) {
+      console.log('❌ CSV dosyası bulunamadı:', filePath);
       return res.status(404).json({ message: 'CSV dosyası bulunamadı' });
     }
     
     const csvContent = fs.readFileSync(filePath, 'utf8');
     const rows = csvContent.split('\n').filter(row => row.trim());
     
+    console.log('📊 CSV İçerik:', {
+      totalLines: rows.length,
+      firstLinePreview: rows[0]?.substring(0, 100)
+    });
+    
     if (rows.length === 0) {
       return res.status(400).json({ message: 'CSV dosyası boş' });
     }
     
-    const headers = rows[0].split(',').map(h => h.trim().replace(/"/g, ''));
-    const dataRows = rows.slice(1, 4).map(row => {
+    // Enhanced CSV parsing with proper quote handling
+    const parseCSVRow = (row) => {
       const cells = [];
       let current = '';
       let inQuotes = false;
+      let i = 0;
       
-      for (let i = 0; i < row.length; i++) {
+      while (i < row.length) {
         const char = row[i];
+        
         if (char === '"') {
-          inQuotes = !inQuotes;
+          if (inQuotes && i + 1 < row.length && row[i + 1] === '"') {
+            // Escaped quote
+            current += '"';
+            i += 2;
+          } else {
+            // Toggle quote state
+            inQuotes = !inQuotes;
+            i++;
+          }
         } else if (char === ',' && !inQuotes) {
-          cells.push(current.trim().replace(/^"|"$/g, ''));
+          cells.push(current.trim());
           current = '';
+          i++;
         } else {
           current += char;
+          i++;
         }
       }
-      cells.push(current.trim().replace(/^"|"$/g, ''));
+      cells.push(current.trim());
       return cells;
+    };
+    
+    const headers = parseCSVRow(rows[0]);
+    const dataRows = rows.slice(1, 4).map(row => parseCSVRow(row));
+    
+    console.log('📋 Parsed Data:', {
+      headers: headers.length,
+      rows: dataRows.length,
+      sampleRow: dataRows[0]?.slice(0, 3)
     });
     
-    res.setHeader('Content-Type', 'application/json');
-    return res.json({
+    const response = {
       headers: headers.slice(0, 5),
       rows: dataRows,
       totalRows: rows.length - 1,
-      filename
-    });
+      filename,
+      debug: {
+        filePath,
+        contentLength: csvContent.length,
+        rawHeaders: headers.length,
+        rawRows: dataRows.length
+      }
+    };
+    
+    res.setHeader('Content-Type', 'application/json');
+    return res.json(response);
   } catch (error) {
-    console.error('CSV preview error:', error);
+    console.error('❌ CSV preview error:', error);
     return res.status(500).json({ message: "CSV önizleme hatası", error: String(error) });
   }
 });
