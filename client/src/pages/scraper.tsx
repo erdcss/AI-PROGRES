@@ -196,33 +196,21 @@ function CSVPreview({ csvPath }: { csvPath: string }) {
             </tr>
           </thead>
           <tbody>
-            {csvData.rows && csvData.rows.length > 0 ? (
-              csvData.rows.slice(0, 3).map((row: any[], rowIndex: number) => (
-                <tr key={rowIndex} className="border-b border-gray-700">
-                  {Array.isArray(row) ? (
-                    row.slice(0, 4).map((cell: string, cellIndex: number) => (
-                      <td key={cellIndex} className="p-1 text-gray-300 max-w-[100px] truncate">
-                        {cell && typeof cell === 'string' && cell.length > 20 ? 
-                          cell.substring(0, 20) + '...' : 
-                          (cell || '-')
-                        }
-                      </td>
-                    ))
-                  ) : (
-                    <td colSpan={4} className="p-1 text-red-400">Satır formatı hatası</td>
-                  )}
-                  {csvData.headers?.length > 4 && (
-                    <td className="p-1 text-gray-500">...</td>
-                  )}
-                </tr>
-              ))
-            ) : (
-              <tr>
-                <td colSpan={5} className="p-3 text-center text-gray-400">
-                  Veri yükleniyor...
-                </td>
+            {csvData.rows.slice(0, 3).map((row: any[], rowIndex: number) => (
+              <tr key={rowIndex} className="border-b border-gray-700">
+                {row.slice(0, 4).map((cell: string, cellIndex: number) => (
+                  <td key={cellIndex} className="p-1 text-gray-300 max-w-[100px] truncate text-xs">
+                    {cell && typeof cell === 'string' && cell.length > 15 ? 
+                      cell.substring(0, 15) + '...' : 
+                      (cell || '-')
+                    }
+                  </td>
+                ))}
+                {csvData.headers?.length > 4 && (
+                  <td className="p-1 text-gray-500 text-xs">+{csvData.headers.length - 4}</td>
+                )}
               </tr>
-            )}
+            ))}
           </tbody>
         </table>
       </div>
