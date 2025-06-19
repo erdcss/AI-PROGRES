@@ -77,14 +77,27 @@ class CSVAccumulatorService {
 
   private async regenerateCSV(): Promise<void> {
     try {
-      const { generateStrictShopifyCSV } = await import('./strict-csv-generator');
-      
       console.log(`🔄 Toplam ${this.accumulator.products.length} ürün için CSV yeniden oluşturuluyor...`);
       
+      // Debug: Show product titles being processed
+      this.accumulator.products.forEach((p, i) => {
+        console.log(`📦 ${i + 1}. ${p.title} (ID: ${p.id})`);
+      });
+      
+      const { generateStrictShopifyCSV } = await import('./strict-csv-generator');
       const csvPath = await generateStrictShopifyCSV(this.accumulator.products);
       console.log(`✅ UTF-8 BOM ile Shopify CSV oluşturuldu: ${csvPath}`);
+      
+      // Verify CSV was created with all products
+      const fs = await import('fs');
+      if (fs.existsSync(csvPath)) {
+        const content = fs.readFileSync(csvPath, 'utf-8');
+        const lines = content.split('\n').filter(l => l.trim());
+        console.log(`📊 CSV doğrulandı: ${lines.length} satır`);
+      }
     } catch (error) {
       console.error('❌ CSV yeniden oluşturma hatası:', error);
+      console.error('❌ Error details:', error.stack);
     }
   }
 

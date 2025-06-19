@@ -308,31 +308,6 @@ function getProductType(title: string): string {
 function generateTags(product: any): string {
   return 'premium, moda, trend, kaliteli';
 }
-  const lines: string[] = [];
-  
-  // Header line
-  lines.push(headers.map(h => escapeCSVField(h)).join(','));
-  
-  // Data lines
-  variants.forEach(variant => {
-    const row = headers.map(header => {
-      const value = variant[header as keyof ShopifyVariant];
-      return escapeCSVField(value);
-    });
-    lines.push(row.join(','));
-  });
-  
-  return lines.join('\n');
-}
-
-export async function generateStrictShopifyCSV(products: Product[]): Promise<{
-  filename: string;
-  csvPath: string;
-  downloadUrl: string;
-  success: boolean;
-  message: string;
-  totalRows: number;
-}> {
   const filename = 'shopify-urunler.csv';
   const tempPath = path.join(process.cwd(), 'temp', filename);
   const finalPath = path.join(process.cwd(), filename);
