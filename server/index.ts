@@ -91,9 +91,9 @@ app.get('/api/csv/status', (req, res) => {
 });
 
 // Direct CSV endpoints - MUST be before Vite middleware
-app.get('/api/preview/:filename', (req, res) => {
+app.get('/api/csv/preview', (req, res) => {
+  const filename = 'shopify-urunler.csv';
   try {
-    const filename = req.params.filename;
     const workspaceFilePath = pathModule.join('/home/runner/workspace', filename);
     const tempFilePath = pathModule.join(process.cwd(), 'temp', filename);
     
@@ -159,24 +159,41 @@ app.get('/api/preview/:filename', (req, res) => {
     };
     
     const headers = parseCSVRow(rows[0]);
-    const dataRows = rows.slice(1, 4).map(row => parseCSVRow(row));
     
-    console.log('📋 Parsed Data:', {
-      headers: headers.length,
-      rows: dataRows.length,
-      sampleRow: dataRows[0]?.slice(0, 3)
+    // Extract unique products only - first row of each handle
+    const uniqueProducts = [];
+    const seenHandles = new Set();
+    
+    for (let i = 1; i < rows.length; i++) {
+      const parsedRow = parseCSVRow(rows[i]);
+      const handle = parsedRow[0];
+      
+      if (!seenHandles.has(handle) && handle.trim()) {
+        seenHandles.add(handle);
+        uniqueProducts.push(parsedRow);
+        
+        if (uniqueProducts.length >= 10) break;
+      }
+    }
+    
+    console.log(`📊 Unique products found: ${uniqueProducts.length}`);
+    uniqueProducts.forEach((product, i) => {
+      console.log(`${i + 1}. ${product[1]} (${product[3]})`);
     });
+    
+    console.log(`🔍 CSV contains ${rows.length - 1} total rows with ${uniqueProducts.length} unique products`);
     
     const response = {
       headers: headers.slice(0, 5),
-      rows: dataRows,
+      rows: uniqueProducts,
       totalRows: rows.length - 1,
+      uniqueProducts: uniqueProducts.length,
       filename,
       debug: {
         filePath,
         contentLength: csvContent.length,
         rawHeaders: headers.length,
-        rawRows: dataRows.length
+        rawRows: uniqueProducts.length
       }
     };
     
