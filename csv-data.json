@@ -1196,7 +1196,61 @@
         "totalVariants": 12
       },
       "url": "https://www.trendyol.com/koton/kad%C4%B1n-basic-t-shirt-p-987654321"
+    },
+    {
+      "title": "LCW LCW",
+      "price": "293",
+      "basePrice": "293",
+      "id": 92827044,
+      "description": "Yüksek kaliteli lcw ürünü. Modern tasarım ve üstün kalite.",
+      "brand": "LCW",
+      "images": [
+        "https://cdn.dsmcdn.com/ty1/product/media/images/placeholder1.jpg",
+        "https://cdn.dsmcdn.com/ty1/product/media/images/placeholder2.jpg"
+      ],
+      "variants": {
+        "colors": [
+          "siyah",
+          "beyaz",
+          "mavi"
+        ],
+        "sizes": [
+          "S",
+          "M",
+          "L",
+          "XL"
+        ],
+        "totalVariants": 12
+      },
+      "url": "https://www.trendyol.com/lcw/kad%C4%B1n-sweatshirt-p-555666777"
+    },
+    {
+      "title": "ZARA ZARA",
+      "price": "231",
+      "basePrice": "231",
+      "id": 167237926,
+      "description": "Yüksek kaliteli zara ürünü. Modern tasarım ve üstün kalite.",
+      "brand": "ZARA",
+      "images": [
+        "https://cdn.dsmcdn.com/ty1/product/media/images/placeholder1.jpg",
+        "https://cdn.dsmcdn.com/ty1/product/media/images/placeholder2.jpg"
+      ],
+      "variants": {
+        "colors": [
+          "siyah",
+          "beyaz",
+          "mavi"
+        ],
+        "sizes": [
+          "S",
+          "M",
+          "L",
+          "XL"
+        ],
+        "totalVariants": 12
+      },
+      "url": "https://www.trendyol.com/zara/erkek-polo-t-shirt-p-999888777"
     }
   ],
-  "lastUpdate": "2025-06-19T12:27:10.244Z"
+  "lastUpdate": "2025-06-19T12:29:05.175Z"
 }

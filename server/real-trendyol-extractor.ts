@@ -1,180 +1,129 @@
-/**
- * Real Trendyol Product Data Extractor
- * Extracts authentic product information from Trendyol URLs
- */
-
 import * as cheerio from 'cheerio';
 
-export interface ProductData {
+export interface RealProductData {
   title: string;
   brand: string;
   price: number;
-  images: string[];
-  colors: string[];
-  sizes: string[];
   description: string;
+  images: string[];
+  variants: {
+    colors: string[];
+    sizes: string[];
+  };
   attributes: Record<string, string>;
-  stockMap: Record<string, boolean>;
 }
 
-/**
- * Extract product data from URL and productId
- */
-export async function extractRealProductData(url: string, productId: string): Promise<ProductData | null> {
-  console.log(`🔍 Gerçek ürün verisi çıkarılıyor: ${productId}`);
-
-  // Extract brand and category from URL
-  const urlParts = url.split('/');
-  const brand = urlParts[3] || 'Unknown';
-  const productSlug = urlParts[4] || '';
-
-  // Parse title from slug
-  const title = parseProductTitle(productSlug, brand);
+export function extractRealTrendyolData(html: string): RealProductData {
+  const $ = cheerio.load(html);
   
-  // Determine product type and variants
-  const productType = determineProductType(productSlug);
-  const variants = generateVariants(productType);
+  // Extract title with multiple selectors
+  const title = $('h1[data-testid="product-name"]').text().trim() || 
+               $('.product-title, .pr-in-nm, h1').first().text().trim() ||
+               $('title').text().split('|')[0].trim() ||
+               'Ürün';
+
+  // Extract brand
+  const brand = $('.product-brand, .pr-in-br, [data-testid="brand-name"]').text().trim() || 
+               title.split(' ')[0] || 
+               'Marka';
+
+  // Extract price with improved selectors
+  const priceSelectors = [
+    '[data-testid="price"]',
+    '.prc-dsc',
+    '.prc-slg', 
+    '.pr-in-pr',
+    '.price-current',
+    '.current-price'
+  ];
   
-  // Generate realistic stock map
-  const stockMap = generateRealisticStock(variants.colors, variants.sizes);
+  let price = 0;
+  for (const selector of priceSelectors) {
+    const priceText = $(selector).first().text().trim();
+    if (priceText) {
+      const priceMatch = priceText.match(/[\d,]+/);
+      if (priceMatch) {
+        price = parseFloat(priceMatch[0].replace(',', '.'));
+        break;
+      }
+    }
+  }
   
-  // Create realistic product data
-  const productData: ProductData = {
-    title,
-    brand: capitalizeFirst(brand),
-    price: generatePrice(productType),
-    images: generateImages(productId),
-    colors: variants.colors,
-    sizes: variants.sizes,
-    description: generateDescription(title, brand),
-    attributes: generateAttributes(productType),
-    stockMap
-  };
-
-  console.log(`✅ Ürün verisi oluşturuldu: ${title}`);
-  console.log(`📊 ${variants.colors.length} renk, ${variants.sizes.length} beden`);
-  console.log(`🎯 ${Object.values(stockMap).filter(Boolean).length} varyant stokta`);
-
-  return productData;
-}
-
-function parseProductTitle(slug: string, brand: string): string {
-  return slug
-    .replace(/-/g, ' ')
-    .replace(/\bp\s\d+$/, '') // Remove product ID
-    .split(' ')
-    .map(word => capitalizeFirst(word))
-    .join(' ')
-    .replace(new RegExp(capitalizeFirst(brand), 'i'), capitalizeFirst(brand));
-}
-
-function determineProductType(slug: string): string {
-  if (slug.includes('elbise')) return 'dress';
-  if (slug.includes('pantolon')) return 'pants';
-  if (slug.includes('gomlek')) return 'shirt';
-  if (slug.includes('ayakkabi')) return 'shoes';
-  if (slug.includes('canta')) return 'bag';
-  if (slug.includes('kemer')) return 'belt';
-  return 'clothing';
-}
-
-function generateVariants(productType: string) {
-  const variants = {
-    colors: ['Siyah', 'Beyaz', 'Lacivert', 'Kırmızı'],
-    sizes: ['S', 'M', 'L', 'XL']
-  };
-
-  // Adjust based on product type
-  if (productType === 'dress') {
-    variants.colors = ['Siyah', 'Beyaz', 'Lacivert', 'Kırmızı', 'Yeşil'];
-    variants.sizes = ['XS', 'S', 'M', 'L', 'XL'];
-  } else if (productType === 'shoes') {
-    variants.colors = ['Siyah', 'Beyaz', 'Kahverengi'];
-    variants.sizes = ['36', '37', '38', '39', '40'];
-  } else if (productType === 'bag') {
-    variants.colors = ['Siyah', 'Kahverengi', 'Bej'];
-    variants.sizes = ['Tek Beden'];
+  if (price === 0) {
+    price = 100; // Default minimum price
   }
 
-  return variants;
-}
+  // Extract description
+  const description = $('.product-description, .detail-attr-item, .product-detail-content')
+    .first().text().trim() || 
+    `${title} - Yüksek kalite ve modern tasarım.`;
 
-function generateRealisticStock(colors: string[], sizes: string[]): Record<string, boolean> {
-  const stockMap: Record<string, boolean> = {};
+  // Extract real images
+  const images: string[] = [];
   
-  colors.forEach(color => {
-    sizes.forEach(size => {
-      const variantKey = `${color.toLowerCase()}-${size}`;
-      // Realistic stock distribution - some variants out of stock
-      const inStock = Math.random() > 0.15; // 85% availability
-      stockMap[variantKey] = inStock;
+  // Try different image selectors
+  const imageSelectors = [
+    'img[data-testid="product-image"]',
+    '.product-image img',
+    '.gallery-image img',
+    '.slider-image img',
+    '[data-src*="cdn.dsmcdn.com"]'
+  ];
+  
+  imageSelectors.forEach(selector => {
+    $(selector).each((_, img) => {
+      const src = $(img).attr('src') || $(img).attr('data-src');
+      if (src && src.includes('cdn.dsmcdn.com') && !images.includes(src)) {
+        images.push(src);
+      }
     });
   });
 
-  return stockMap;
-}
-
-function generatePrice(productType: string): number {
-  const priceRanges = {
-    dress: [120, 350],
-    pants: [80, 250],
-    shirt: [60, 180],
-    shoes: [150, 400],
-    bag: [100, 300],
-    belt: [50, 150],
-    clothing: [70, 200]
-  };
-
-  const range = priceRanges[productType as keyof typeof priceRanges] || [80, 200];
-  return Math.floor(Math.random() * (range[1] - range[0]) + range[0]);
-}
-
-function generateImages(productId: string): string[] {
-  const baseUrl = 'https://cdn.dsmcdn.com/mnresize/1200/1800/ty1505/product/media/images/prod/QC';
-  const randomFolder = Math.floor(Math.random() * 30) + 1;
-  const folderStr = randomFolder.toString().padStart(2, '0');
+  // Extract variants
+  const colors: string[] = [];
+  const sizes: string[] = [];
   
-  return [
-    `${baseUrl}/2024082${randomFolder}/${folderStr}/product-${productId}/1_org.jpg`,
-    `${baseUrl}/2024082${randomFolder}/${folderStr}/product-${productId}/2_org.jpg`,
-    `${baseUrl}/2024082${randomFolder}/${folderStr}/product-${productId}/3_org.jpg`,
-    `${baseUrl}/2024082${randomFolder}/${folderStr}/product-${productId}/4_org.jpg`
-  ];
-}
-
-function generateDescription(title: string, brand: string): string {
-  const descriptions = [
-    `${title} - Yüksek kaliteli kumaş ve şık tasarım`,
-    `${brand} markasının özel koleksiyonundan ${title.toLowerCase()}`,
-    `Günlük kullanım için ideal, rahat ve şık ${title.toLowerCase()}`,
-    `Kaliteli malzeme ve modern kesim ile tasarlanan ${title.toLowerCase()}`
-  ];
+  // Color extraction
+  $('[data-testid*="color"], .color-variant, .variant-color, .color-item').each((_, el) => {
+    const colorText = $(el).attr('title') || $(el).text().trim();
+    if (colorText && !colors.includes(colorText.toLowerCase())) {
+      colors.push(colorText.toLowerCase());
+    }
+  });
   
-  return descriptions[Math.floor(Math.random() * descriptions.length)];
-}
+  // Size extraction
+  $('[data-testid*="size"], .size-variant, .variant-size, .size-item').each((_, el) => {
+    const sizeText = $(el).text().trim();
+    if (sizeText && isValidSize(sizeText) && !sizes.includes(sizeText)) {
+      sizes.push(sizeText);
+    }
+  });
 
-function generateAttributes(productType: string): Record<string, string> {
-  const baseAttributes = {
-    'Materyal': 'Pamuk Karışımı',
-    'Yıkama Talimatı': '30°C Makinede Yıkanabilir',
-    'Menşei': 'Türkiye'
-  };
-
-  const typeSpecific = {
-    dress: { 'Kesim': 'Rahat Kalıp', 'Kol': 'Kısa Kol' },
-    pants: { 'Kesim': 'Dar Kalıp', 'Bel': 'Yüksek Bel' },
-    shirt: { 'Yaka': 'V Yaka', 'Kesim': 'Regular Fit' },
-    shoes: { 'Topuk': 'Düz', 'Materyal': 'Suni Deri' },
-    bag: { 'Kapama': 'Fermuar', 'Askı': 'Ayarlanabilir' },
-    belt: { 'Genişlik': '3 cm', 'Materyal': 'Deri' }
-  };
+  // Extract product attributes
+  const attributes: Record<string, string> = {};
+  $('.detail-attr-item, .product-attribute').each((_, item) => {
+    const label = $(item).find('.attr-label, .attribute-label').text().trim();
+    const value = $(item).find('.attr-value, .attribute-value').text().trim();
+    if (label && value) {
+      attributes[label.replace(':', '')] = value;
+    }
+  });
 
   return {
-    ...baseAttributes,
-    ...(typeSpecific[productType as keyof typeof typeSpecific] || {})
+    title,
+    brand,
+    price,
+    description,
+    images: images.slice(0, 10),
+    variants: {
+      colors: colors.length > 0 ? colors : ['tek renk'],
+      sizes: sizes.length > 0 ? sizes : ['tek beden']
+    },
+    attributes
   };
 }
 
-function capitalizeFirst(str: string): string {
-  return str.charAt(0).toUpperCase() + str.slice(1).toLowerCase();
+function isValidSize(value: string): boolean {
+  const validSizes = ['XS', 'S', 'M', 'L', 'XL', 'XXL', '34', '36', '38', '40', '42', '44', '46', '48', '50', 'Tek Beden'];
+  return validSizes.some(size => value.toUpperCase().includes(size));
 }
