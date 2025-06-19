@@ -111,7 +111,7 @@ export async function registerRoutes(app: Express) {
           seenHandles.add(handle);
           uniqueProducts.push(parsedRow);
           
-          if (uniqueProducts.length >= 6) break;
+          if (uniqueProducts.length >= 10) break;
         }
       }
       
@@ -119,6 +119,8 @@ export async function registerRoutes(app: Express) {
       uniqueProducts.forEach((product, i) => {
         console.log(`${i + 1}. ${product[1]} (${product[3]})`);
       });
+      
+      console.log(`🔍 CSV contains ${rows.length - 1} total rows with ${uniqueProducts.length} unique products`);
       
       return res.json({
         headers: headers.slice(0, 5),
