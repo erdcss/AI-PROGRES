@@ -35,6 +35,7 @@ import {
 import { ScrollArea } from "@/components/ui/scroll-area";
 import { useState, useEffect } from "react";
 import { ProductDisplay } from "@/components/ProductDisplay";
+import { CSVPreview } from "@/components/CSVPreview";
 
 // Platform logo configuration
 const PlatformLogos = {
