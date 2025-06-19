@@ -235,51 +235,22 @@ export async function registerRoutes(app: Express) {
           return res.status(500).json({ message: "Authentic ürün verisi çıkarılamadı" });
         }
 
-        const result = await generateShopifyCSV({
-          id: Date.now(),
-          url,
-          title: productData.title,
-          description: productData.description,
-          price: productData.price,
-          brand: productData.brand,
-          basePrice: null,
-          images: productData.images,
-          video: null,
-          variants: productData.variants,
-          attributes: productData.attributes,
-          categories: productData.categories,
-          tags: [productData.brand, ...productData.categories],
-          category: productData.categories[0] || 'Fashion',
-          subcategory: productData.categories[1] || 'Clothing',
-          productType: 'Product',
-          vendor: null
-        }, {
-          sizes: productData.variants.sizes,
-          colors: productData.variants.colors,
-          stockMap: productData.stockMap
-        });
+        // Use instant CSV generator instead of memory-based system
+        const csvResult = await instantCSVGenerator.generateInstantCSV(productData);
         
         return res.status(200).json({
+          success: true,
           url,
-          message: "Authentic ürün verisi başarıyla çekildi ve işlendi",
+          message: "Ürün verisi anlık olarak çekildi ve CSV oluşturuldu",
           title: productData.title,
           brand: productData.brand,
           price: productData.price,
           description: productData.description,
           images: productData.images,
           variants: productData.variants,
-          attributes: productData.attributes,
-          categories: productData.categories,
-          category: productData.categories[0] || 'Fashion',
-          subcategory: productData.categories[1] || 'Clothing',
-          tags: [productData.brand, ...productData.categories],
-          preview: {
-            csvPath: result.csvPath,
-            filename: result.filename,
-            totalRows: result.totalRows,
-            shopifyReady: true,
-            note: "Authentic stok verisi kullanılarak CSV oluşturuldu"
-          }
+          csvGenerated: csvResult.success,
+          totalProducts: 1,
+          instantMode: true
         });
       }
       

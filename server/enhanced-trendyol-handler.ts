@@ -198,24 +198,14 @@ export async function scrapeTrendyolProduct(inputUrl: string) {
       url: url
     };
     
-    // CSV accumulator'a ekle
-    csvAccumulator.addProduct(productData);
-    
-    // İstatistikleri al
-    const stats = csvAccumulator.getStats();
-    console.log(`✅ Ürün koleksiyona eklendi. Toplam: ${stats.totalProducts} ürün`);
+    // No memory storage - instant processing only
+    console.log(`✅ Ürün anlık olarak işlendi: ${productData.title}`);
     
     return {
       success: true,
       ...productData,
-      csvInfo: {
-        filename: 'shopify-urunler.csv',
-        csvPath: '/home/runner/workspace/shopify-urunler.csv',
-        downloadUrl: '/shopify-urunler.csv',
-        success: true,
-        message: `Toplam ${stats.totalProducts} ürün CSV'de`,
-        totalRows: stats.totalProducts * 3 + 1
-      }
+      instantMode: true,
+      message: "Instant processing - no memory storage"
     };
 
   } catch (error) {
