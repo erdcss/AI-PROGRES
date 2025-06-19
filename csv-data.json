@@ -240,7 +240,7 @@
         ],
         "totalVariants": 3
       },
-      "url": "https://www.trendyol.com/lcwaikiki/kadin-bluz-p-334455667"
+      "url": "https://www.trendyol.com/zara/erkek-pantolon-p-334455667"
     },
     {
       "title": "ADIDAS ADIDAS",
@@ -376,7 +376,61 @@
         "totalVariants": 12
       },
       "url": "https://www.trendyol.com/hm/kadin-kazak-p-112233456"
+    },
+    {
+      "title": "KOTON KOTON",
+      "price": "354",
+      "basePrice": "354",
+      "id": 199484785,
+      "description": "Yüksek kaliteli koton ürünü. Modern tasarım ve üstün kalite.",
+      "brand": "KOTON",
+      "images": [
+        "https://cdn.dsmcdn.com/ty1/product/media/images/placeholder1.jpg",
+        "https://cdn.dsmcdn.com/ty1/product/media/images/placeholder2.jpg"
+      ],
+      "variants": {
+        "colors": [
+          "siyah",
+          "beyaz",
+          "mavi"
+        ],
+        "sizes": [
+          "S",
+          "M",
+          "L",
+          "XL"
+        ],
+        "totalVariants": 12
+      },
+      "url": "https://www.trendyol.com/koton/erkek-gomlek-p-445566778"
+    },
+    {
+      "title": "TEST-BRAND TEST BRAND",
+      "price": "377",
+      "basePrice": "377",
+      "id": 862717513,
+      "description": "Yüksek kaliteli test brand ürünü. Modern tasarım ve üstün kalite.",
+      "brand": "TEST-BRAND",
+      "images": [
+        "https://cdn.dsmcdn.com/ty1/product/media/images/placeholder1.jpg",
+        "https://cdn.dsmcdn.com/ty1/product/media/images/placeholder2.jpg"
+      ],
+      "variants": {
+        "colors": [
+          "siyah",
+          "beyaz",
+          "mavi"
+        ],
+        "sizes": [
+          "S",
+          "M",
+          "L",
+          "XL"
+        ],
+        "totalVariants": 12
+      },
+      "url": "https://www.trendyol.com/test-brand/test-product-p-123456789"
     }
   ],
-  "lastUpdate": "2025-06-19T11:30:07.767Z"
+  "lastUpdate": "2025-06-19T11:31:12.607Z"
 }
