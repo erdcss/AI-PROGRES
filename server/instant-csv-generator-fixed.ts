@@ -74,9 +74,9 @@ class InstantCSVGenerator {
       
       const handle = `${product.brand ? product.brand.toLowerCase() + '-' : ''}${product.title.toLowerCase().replace(/[^a-z0-9]/g, '-').replace(/-+/g, '-').replace(/^-|-$/g, '')}`;
       
-      // Analyze actual variants
-      const realColors = variants.colors.filter(c => c && c !== 'tek renk' && c !== 'default' && c.trim() !== '');
-      const realSizes = variants.sizes.filter(s => s && s !== 'OS' && s !== 'default' && s.trim() !== '');
+      // Analyze actual variants - improved detection
+      const realColors = variants.colors.filter(c => c && c !== 'tek renk' && c !== 'default' && c.trim() !== '' && c !== 'N/A');
+      const realSizes = variants.sizes.filter(s => s && s !== 'OS' && s !== 'default' && s !== 'tek beden' && s.trim() !== '' && s !== 'N/A');
       
       console.log(`🔍 Variant analysis: Real colors=${realColors.length} (${realColors.join(', ')}), Real sizes=${realSizes.length} (${realSizes.join(', ')})`);
       

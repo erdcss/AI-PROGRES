@@ -156,21 +156,40 @@ export async function scrapeTrendyolProduct(inputUrl: string) {
 
     console.log(`🔍 Ürün bilgileri: ${title} - ${brand} - ${price} TL`);
     
-    const variantData = extractEnhancedVariants(htmlContent, productId.toString());
+    // Use multi-variant extractor for better variant detection
+    const { extractMultiVariants } = await import('./multi-variant-extractor');
+    const multiVariantData = await extractMultiVariants(url);
+    
+    console.log(`🔍 Multi-variant results: ${multiVariantData.colors.length} colors, ${multiVariantData.sizes.length} sizes`);
+    console.log(`🎨 Colors found: ${multiVariantData.colors.join(', ')}`);
+    console.log(`📏 Sizes found: ${multiVariantData.sizes.join(', ')}`);
+    console.log(`💰 Pricing data: ${Object.keys(multiVariantData.pricing).length} prices`);
+    
+    const variantData = {
+      colors: multiVariantData.colors,
+      sizes: multiVariantData.sizes,
+      images: Array.from(new Set([
+        ...Object.values(multiVariantData.images).flat(),
+        ...cleanImages
+      ])).slice(0, 25)
+    };
 
     // Enhanced product feature extraction
     const productDescription = extractDetailedProductFeatures($, htmlContent);
     console.log(`📝 Açıklama uzunluğu: ${productDescription.length} karakter`);
 
-    // Clean and enhance images - get ALL available images
-    const cleanImages = variantData.images.filter(img => img.startsWith('http')).slice(0, 25);
-    console.log(`🎯 ${cleanImages.length} görsel çıkarıldı`);
+    // Combine images from variants and original extraction
+    const allImages = Array.from(new Set([
+      ...Object.values(multiVariantData.images).flat(),
+      ...cleanImages
+    ])).filter(img => img.startsWith('http')).slice(0, 25);
+    console.log(`🎯 ${allImages.length} görsel çıkarıldı`);
     
-    const colorVariants = variantData.colors.length > 0 ? variantData.colors : ['tek renk'];
-    const sizeVariants = variantData.sizes.length > 0 ? variantData.sizes : ['tek beden'];
+    const colorVariants = multiVariantData.colors;
+    const sizeVariants = multiVariantData.sizes;
     const colorCount = colorVariants.length;
     const sizeCount = sizeVariants.length;
-    const imageCount = cleanImages.length;
+    const imageCount = allImages.length;
     
     console.log(`✅ Otantik çıkarım: ${colorCount} renk, ${sizeCount} beden, ${imageCount} görsel`);
     
@@ -190,7 +209,7 @@ export async function scrapeTrendyolProduct(inputUrl: string) {
       id: productId,
       description: productDescription,
       brand: brand,
-      images: cleanImages,
+      images: allImages,
       variants: {
         colors: colorVariants,
         sizes: sizeVariants,
