@@ -19,7 +19,63 @@ app.use((req, res, next) => {
 app.use(express.json({ limit: '50mb' }));
 app.use(express.urlencoded({ extended: false, limit: '50mb' }));
 
-// Direct CSV download - MUST be before Vite middleware
+// Direct CSV endpoints - MUST be before Vite middleware
+app.get('/api/preview/:filename', (req, res) => {
+  try {
+    const filename = req.params.filename;
+    const workspaceFilePath = pathModule.join('/home/runner/workspace', filename);
+    const tempFilePath = pathModule.join(process.cwd(), 'temp', filename);
+    
+    let filePath = workspaceFilePath;
+    if (!fs.existsSync(workspaceFilePath) && fs.existsSync(tempFilePath)) {
+      filePath = tempFilePath;
+    }
+    
+    if (!fs.existsSync(filePath)) {
+      return res.status(404).json({ message: 'CSV dosyası bulunamadı' });
+    }
+    
+    const csvContent = fs.readFileSync(filePath, 'utf8');
+    const rows = csvContent.split('\n').filter(row => row.trim());
+    
+    if (rows.length === 0) {
+      return res.status(400).json({ message: 'CSV dosyası boş' });
+    }
+    
+    const headers = rows[0].split(',').map(h => h.trim().replace(/"/g, ''));
+    const dataRows = rows.slice(1, 4).map(row => {
+      const cells = [];
+      let current = '';
+      let inQuotes = false;
+      
+      for (let i = 0; i < row.length; i++) {
+        const char = row[i];
+        if (char === '"') {
+          inQuotes = !inQuotes;
+        } else if (char === ',' && !inQuotes) {
+          cells.push(current.trim().replace(/^"|"$/g, ''));
+          current = '';
+        } else {
+          current += char;
+        }
+      }
+      cells.push(current.trim().replace(/^"|"$/g, ''));
+      return cells;
+    });
+    
+    res.setHeader('Content-Type', 'application/json');
+    return res.json({
+      headers: headers.slice(0, 5),
+      rows: dataRows,
+      totalRows: rows.length - 1,
+      filename
+    });
+  } catch (error) {
+    console.error('CSV preview error:', error);
+    return res.status(500).json({ message: "CSV önizleme hatası", error: String(error) });
+  }
+});
+
 app.get('/api/download/shopify-urunler.csv', (req, res) => {
   const workspaceFile = '/home/runner/workspace/shopify-urunler.csv';
   const tempFile = '/home/runner/workspace/temp/shopify-urunler.csv';

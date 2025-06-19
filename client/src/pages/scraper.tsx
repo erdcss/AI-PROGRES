@@ -107,9 +107,14 @@ function CSVPreview({ csvPath }: { csvPath: string }) {
       const filename = csvPath.split('/').pop() || 'shopify-urunler.csv';
       console.log('CSV preview yükleniyor:', filename);
       
-      fetch(`/api/preview/${filename}`)
+      fetch(`/api/preview/${filename}`, {
+          headers: {
+            'Accept': 'application/json',
+            'Content-Type': 'application/json'
+          }
+        })
         .then(res => {
-          console.log('CSV preview response:', res.status);
+          console.log('CSV preview response:', res.status, res.headers.get('content-type'));
           if (!res.ok) throw new Error(`HTTP ${res.status}`);
           return res.text();
         })
