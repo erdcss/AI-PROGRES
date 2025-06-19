@@ -73,64 +73,157 @@ class InstantCSVGenerator {
       csvRows.push(headers.join(','));
       
       const handle = `${product.brand ? product.brand.toLowerCase() + '-' : ''}${product.title.toLowerCase().replace(/[^a-z0-9]/g, '-').replace(/-+/g, '-').replace(/^-|-$/g, '')}`;
-      const colors = variants.colors.length > 0 ? variants.colors : ['Default'];
-      const sizes = variants.sizes.length > 0 ? variants.sizes : ['OS'];
       
-      let variantCount = 0;
-      for (const color of colors) {
-        for (const size of sizes) {
-          variantCount++;
-          const isMainVariant = variantCount === 1;
+      // Analyze actual variants
+      const realColors = variants.colors.filter(c => c && c !== 'tek renk' && c !== 'default' && c.trim() !== '');
+      const realSizes = variants.sizes.filter(s => s && s !== 'OS' && s !== 'default' && s.trim() !== '');
+      
+      console.log(`🔍 Variant analysis: Real colors=${realColors.length} (${realColors.join(', ')}), Real sizes=${realSizes.length} (${realSizes.join(', ')})`);
+      
+      // Determine variant structure
+      const hasColorVariants = realColors.length > 1;
+      const hasSizeVariants = realSizes.length > 1;
+      
+      if (!hasColorVariants && !hasSizeVariants) {
+        console.log(`📦 Single product (no variants) - using Default Title`);
+        const isMainVariant = true;
           
-          const row = [
-            handle,
-            isMainVariant ? `${product.brand ? product.brand.toUpperCase() + ' ' : ''}${product.title}` : '',
-            isMainVariant ? `${product.description || product.title}` : '',
-            product.brand || 'TurMarkt',
-            'Apparel & Accessories > Clothing',
-            'Giyim',
-            `${product.brand ? product.brand.toLowerCase() + ',' : ''}fashion,clothing`,
-            'TRUE',
-            colors.length > 1 || sizes.length > 1 ? (colors.length > 1 ? 'Color' : 'Size') : 'Title',
-            colors.length > 1 || sizes.length > 1 ? (colors.length > 1 ? color : size) : 'Default Title',
-            colors.length > 1 && sizes.length > 1 ? 'Size' : '',
-            colors.length > 1 && sizes.length > 1 ? size : '',
-            '', '',
-            `${handle}-${color.toLowerCase()}-${size}`,
-            '145',
-            'shopify',
-            '10',
-            'deny',
-            'manual',
-            priceWithMargin,
-            '',
-            'TRUE',
-            'TRUE',
-            '',
-            isMainVariant && product.images.length > 0 ? product.images[0] : '',
-            isMainVariant ? '1' : '',
-            isMainVariant ? `${product.title} - Ana Görsel` : '',
-            'FALSE',
-            `${product.brand ? product.brand + ' ' : ''}${product.title}`,
-            `${product.brand ? product.brand + ' markası ' : ''}${product.description || product.title}`,
-            '212',
-            'unisex',
-            'adult',
-            product.brand || '',
-            'new',
-            'TRUE',
-            isMainVariant && product.images.length > 0 ? product.images[0] : '',
-            'g',
-            ''
-          ];
-          
-          csvRows.push(row.map(cell => {
-            const cellStr = String(cell || '');
-            if (cellStr.includes(',') || cellStr.includes('"') || cellStr.includes('\n')) {
-              return `"${cellStr.replace(/"/g, '""')}"`;
+        const row = [
+          handle,
+          `${product.brand ? product.brand.toUpperCase() + ' ' : ''}${product.title}`,
+          `${product.description || product.title}`,
+          product.brand || 'TurMarkt',
+          'Apparel & Accessories > Clothing',
+          'Giyim',
+          `${product.brand ? product.brand.toLowerCase() + ',' : ''}fashion,clothing`,
+          'TRUE',
+          'Title',
+          'Default Title',
+          '', '',
+          '', '',
+          `${handle}-default`,
+          '145',
+          'shopify',
+          '10',
+          'deny',
+          'manual',
+          priceWithMargin,
+          '',
+          'TRUE',
+          'TRUE',
+          '',
+          product.images.length > 0 ? product.images[0] : '',
+          '1',
+          `${product.title} - Ana Görsel`,
+          'FALSE',
+          `${product.brand ? product.brand + ' ' : ''}${product.title}`,
+          `${product.brand ? product.brand + ' markası ' : ''}${product.description || product.title}`,
+          '212',
+          'unisex',
+          'adult',
+          product.brand || '',
+          'new',
+          'TRUE',
+          product.images.length > 0 ? product.images[0] : '',
+          'g',
+          ''
+        ];
+        
+        csvRows.push(row.map(cell => {
+          const cellStr = String(cell || '');
+          if (cellStr.includes(',') || cellStr.includes('"') || cellStr.includes('\n')) {
+            return `"${cellStr.replace(/"/g, '""')}"`;
+          }
+          return cellStr;
+        }).join(','));
+        
+      } else {
+        // Create variants for actual combinations
+        console.log(`📦 Creating variants: ${hasColorVariants ? realColors.length + ' colors' : 'single color'} × ${hasSizeVariants ? realSizes.length + ' sizes' : 'single size'}`);
+        
+        let variantCount = 0;
+        const colorsToProcess = hasColorVariants ? realColors : [''];
+        const sizesToProcess = hasSizeVariants ? realSizes : [''];
+        
+        for (const color of colorsToProcess) {
+          for (const size of sizesToProcess) {
+            variantCount++;
+            const isMainVariant = variantCount === 1;
+            
+            let option1Name, option1Value, option2Name, option2Value;
+            
+            if (hasColorVariants && hasSizeVariants) {
+              option1Name = 'Color';
+              option1Value = color;
+              option2Name = 'Size';
+              option2Value = size;
+            } else if (hasColorVariants) {
+              option1Name = 'Color';
+              option1Value = color;
+              option2Name = '';
+              option2Value = '';
+            } else if (hasSizeVariants) {
+              option1Name = 'Size';
+              option1Value = size;
+              option2Name = '';
+              option2Value = '';
+            } else {
+              option1Name = 'Title';
+              option1Value = 'Default Title';
+              option2Name = '';
+              option2Value = '';
             }
-            return cellStr;
-          }).join(','));
+            
+            const row = [
+              handle,
+              isMainVariant ? `${product.brand ? product.brand.toUpperCase() + ' ' : ''}${product.title}` : '',
+              isMainVariant ? `${product.description || product.title}` : '',
+              product.brand || 'TurMarkt',
+              'Apparel & Accessories > Clothing',
+              'Giyim',
+              `${product.brand ? product.brand.toLowerCase() + ',' : ''}fashion,clothing`,
+              'TRUE',
+              option1Name,
+              option1Value,
+              option2Name,
+              option2Value,
+              '', '',
+              `${handle}-${color || 'default'}-${size || 'default'}`,
+              '145',
+              'shopify',
+              '10',
+              'deny',
+              'manual',
+              priceWithMargin,
+              '',
+              'TRUE',
+              'TRUE',
+              '',
+              isMainVariant && product.images.length > 0 ? product.images[0] : '',
+              isMainVariant ? '1' : '',
+              isMainVariant ? `${product.title} - Ana Görsel` : '',
+              'FALSE',
+              `${product.brand ? product.brand + ' ' : ''}${product.title}`,
+              `${product.brand ? product.brand + ' markası ' : ''}${product.description || product.title}`,
+              '212',
+              'unisex',
+              'adult',
+              product.brand || '',
+              'new',
+              'TRUE',
+              isMainVariant && product.images.length > 0 ? product.images[0] : '',
+              'g',
+              ''
+            ];
+            
+            csvRows.push(row.map(cell => {
+              const cellStr = String(cell || '');
+              if (cellStr.includes(',') || cellStr.includes('"') || cellStr.includes('\n')) {
+                return `"${cellStr.replace(/"/g, '""')}"`;
+              }
+              return cellStr;
+            }).join(','));
+          }
         }
       }
       
