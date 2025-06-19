@@ -308,8 +308,6 @@ function getProductType(title: string): string {
 function generateTags(product: any): string {
   return 'premium, moda, trend, kaliteli';
 }
-  const filename = 'shopify-urunler.csv';
-  const tempPath = path.join(process.cwd(), 'temp', filename);
   const finalPath = path.join(process.cwd(), filename);
 
   // Ensure temp directory exists
