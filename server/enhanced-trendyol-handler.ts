@@ -92,22 +92,6 @@ export async function scrapeTrendyolProduct(inputUrl: string) {
     
     console.log(`✅ Otantik çıkarım: ${colorCount} renk, ${sizeCount} beden, ${imageCount} görsel`);
     
-    return {
-      title: title,
-      price: price,
-      basePrice: price,
-      id: productId,
-      description: productDescription,
-      brand: brand,
-      images: cleanImages,
-      variants: {
-        colors: colorVariants,
-        sizes: sizeVariants,
-        totalVariants: Math.max(colorVariants.length * sizeVariants.length, 1)
-      },
-      url: url
-    };
-
     // CSV otomatik oluştur
     try {
       console.log('🔄 Otomatik CSV oluşturuluyor...');

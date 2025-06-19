@@ -1,5 +1,6 @@
 import * as fs from 'fs';
 import * as path from 'path';
+import slugify from 'slugify';
 
 interface Product {
   title: string;
