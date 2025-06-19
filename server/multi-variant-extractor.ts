@@ -159,23 +159,35 @@ export async function extractMultiVariants(url: string): Promise<VariantInfo> {
           if (productData.product?.otherMerchants || productData.product?.allVariants) {
             const jsonStr = JSON.stringify(productData.product);
             
-            // Enhanced color variant extraction from all sources
+            // Comprehensive color variant extraction from all possible sources
             const allColorSources = [
               // Core color properties
               /"color":\s*"([^"]+)"/gi,
               /"renk":\s*"([^"]+)"/gi,
               /"colorName":\s*"([^"]+)"/gi,
               /"attributeName":\s*"([^"]+)"/gi,
-              // Variant attributes with colors
-              /"value":\s*"([^"]*(?:siyah|beyaz|kırmızı|mavi|yeşil|sarı|turuncu|mor|pembe|gri|kahverengi|lacivert|bordo|bej|ekru|vizon|pudra|mint|krem)[^"]*)"/gi,
-              /"name":\s*"([^"]*(?:siyah|beyaz|kırmızı|mavi|yeşil|sarı|turuncu|mor|pembe|gri|kahverengi|lacivert|bordo|bej|ekru|vizon|pudra|mint|krem)[^"]*)"/gi,
+              /"colorAttribute":\s*"([^"]+)"/gi,
+              // Variant attributes with expanded color keywords
+              /"value":\s*"([^"]*(?:siyah|beyaz|kırmızı|mavi|yeşil|sarı|turuncu|mor|pembe|gri|kahverengi|lacivert|bordo|bej|ekru|vizon|pudra|mint|krem|indigo|navy|black|white|red|blue|green|yellow|orange|purple|pink|gray|brown|beige|cream)[^"]*)"/gi,
+              /"name":\s*"([^"]*(?:siyah|beyaz|kırmızı|mavi|yeşil|sarı|turuncu|mor|pembe|gri|kahverengi|lacivert|bordo|bej|ekru|vizon|pudra|mint|krem|indigo|navy|black|white|red|blue|green|yellow|orange|purple|pink|gray|brown|beige|cream)[^"]*)"/gi,
               // Option and variant colors
-              /"option":\s*"([^"]*(?:siyah|beyaz|kırmızı|mavi|yeşil|sarı|turuncu|mor|pembe|gri|kahverengi|lacivert|bordo|bej|ekru|vizon|pudra|mint|krem)[^"]*)"/gi,
+              /"option":\s*"([^"]*(?:siyah|beyaz|kırmızı|mavi|yeşil|sarı|turuncu|mor|pembe|gri|kahverengi|lacivert|bordo|bej|ekru|vizon|pudra|mint|krem|indigo|navy|black|white|red|blue|green|yellow|orange|purple|pink|gray|brown|beige|cream)[^"]*)"/gi,
               // Color variants from different merchants
-              /"variantName":\s*"([^"]*(?:siyah|beyaz|kırmızı|mavi|yeşil|sarı|turuncu|mor|pembe|gri|kahverengi|lacivert|bordo|bej|ekru|vizon|pudra|mint|krem)[^"]*)"/gi
+              /"variantName":\s*"([^"]*(?:siyah|beyaz|kırmızı|mavi|yeşil|sarı|turuncu|mor|pembe|gri|kahverengi|lacivert|bordo|bej|ekru|vizon|pudra|mint|krem|indigo|navy|black|white|red|blue|green|yellow|orange|purple|pink|gray|brown|beige|cream)[^"]*)"/gi,
+              // Additional merchant color patterns
+              /"merchantColor":\s*"([^"]+)"/gi,
+              /"productColor":\s*"([^"]+)"/gi,
+              /"variantColor":\s*"([^"]+)"/gi
             ];
             
-            const allColorKeywords = ['siyah', 'beyaz', 'kırmızı', 'mavi', 'yeşil', 'sarı', 'turuncu', 'mor', 'pembe', 'gri', 'kahverengi', 'lacivert', 'bordo', 'haki', 'bej', 'ekru', 'vizon', 'camel', 'pudra', 'mint', 'krem', 'füme'];
+            const allColorKeywords = [
+              // Turkish color names
+              'siyah', 'beyaz', 'kırmızı', 'mavi', 'yeşil', 'sarı', 'turuncu', 'mor', 'pembe', 'gri', 'kahverengi', 'lacivert', 'bordo', 'haki', 'bej', 'ekru', 'vizon', 'camel', 'pudra', 'mint', 'krem', 'füme', 'indigo',
+              // English color names
+              'black', 'white', 'red', 'blue', 'green', 'yellow', 'orange', 'purple', 'pink', 'gray', 'grey', 'brown', 'navy', 'beige', 'cream', 'olive', 'khaki', 'maroon', 'coral', 'teal', 'lime', 'cyan', 'magenta',
+              // Special color variations
+              'açık', 'koyu', 'light', 'dark', 'pastel', 'neon', 'metalik', 'mat'
+            ];
             
             allColorSources.forEach(pattern => {
               const matches = jsonStr.match(pattern);
@@ -251,6 +263,17 @@ export async function extractMultiVariants(url: string): Promise<VariantInfo> {
                     colors.push(variant.value);
                     console.log(`🎨 Variant color: ${variant.value}`);
                   }
+                }
+              });
+            }
+            
+            // Extract colors from product title and description
+            const titleColorMatch = productData.product?.name?.match(new RegExp(`(${allColorKeywords.join('|')})`, 'gi'));
+            if (titleColorMatch) {
+              titleColorMatch.forEach((color: string) => {
+                if (!colors.includes(color) && color.length > 2) {
+                  colors.push(color);
+                  console.log(`🎨 Title color: ${color}`);
                 }
               });
             }

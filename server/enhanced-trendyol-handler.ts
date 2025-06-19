@@ -292,17 +292,42 @@ export async function scrapeTrendyolProduct(inputUrl: string) {
       });
     }
     
-    // Method 5: Extract from window state variables
+    // Method 5: Extract from all possible window state variables and data structures
     const windowStateMatches = [
       ...htmlContent.matchAll(/window\.__[^=]*=\s*({[^;]*prod\/QC[^;]*});/g),
       ...htmlContent.matchAll(/"imageUrls":\s*\[([^\]]*prod\/QC[^\]]*)\]/g),
-      ...htmlContent.matchAll(/"galleryImages":\s*\[([^\]]*prod\/QC[^\]]*)\]/g)
+      ...htmlContent.matchAll(/"galleryImages":\s*\[([^\]]*prod\/QC[^\]]*)\]/g),
+      ...htmlContent.matchAll(/"allImages":\s*\[([^\]]*prod\/QC[^\]]*)\]/g),
+      ...htmlContent.matchAll(/"variantImages":\s*{([^}]*prod\/QC[^}]*)}/g),
+      ...htmlContent.matchAll(/"colorImages":\s*{([^}]*prod\/QC[^}]*)}/g)
     ];
     
     windowStateMatches.forEach(match => {
       try {
         const content = match[1] || match[0];
         const imageUrls = content.match(/"[^"]*prod\/QC[^"]*"/g) || [];
+        imageUrls.forEach(url => {
+          const cleanUrl = url.replace(/"/g, '');
+          if (cleanUrl.includes('cdn.dsmcdn.com')) {
+            // Create multiple resolution variants
+            const resolutions = ['/1200/1800/', '/800/1200/', '/600/900/', '/400/600/'];
+            resolutions.forEach(res => {
+              const variant = cleanUrl.replace(/\/\d+\/\d+\//, res);
+              if (!allProductImages.includes(variant)) {
+                allProductImages.push(variant);
+              }
+            });
+          }
+        });
+      } catch (e) {}
+    });
+    
+    // Method 6: Extract color-specific images from merchant data
+    const colorImageMatches = htmlContent.matchAll(/"otherMerchants":\s*\[([^\]]*)\]/g);
+    for (const match of colorImageMatches) {
+      try {
+        const merchantData = match[1];
+        const imageUrls = merchantData.match(/"[^"]*prod\/QC[^"]*"/g) || [];
         imageUrls.forEach(url => {
           const cleanUrl = url.replace(/"/g, '');
           if (cleanUrl.includes('cdn.dsmcdn.com')) {
@@ -313,7 +338,7 @@ export async function scrapeTrendyolProduct(inputUrl: string) {
           }
         });
       } catch (e) {}
-    });
+    }
     
     const cleanImages = Array.from(new Set(allProductImages));
     console.log(`🖼️ Comprehensive extraction: ${cleanImages.length} total images (all variants included)`);
@@ -427,6 +452,89 @@ async function generateCSVPreview(csvPath?: string) {
 }
 
 function extractDetailedProductFeatures($: any, htmlContent: string): string {
+  const features: string[] = [];
+  
+  // Comprehensive feature extraction with detailed patterns
+  const featurePatterns = [
+    // Material and fabric with percentages
+    /(?:Malzeme|Material|Kumaş|Fabric|Composition|İçerik)[^:]*:\s*([^,\n\r]+)/gi,
+    /(?:Pamuk|Cotton|Polyester|Elastan|Spandex|Viscose|Modal)\s*[%]\s*\d+/gi,
+    
+    // Care instructions
+    /(?:Bakım|Care|Yıkama|Washing)[^:]*:\s*([^,\n\r]+)/gi,
+    /(?:\d+)°C'de\s*yıkanabilir/gi,
+    
+    // Product features and details
+    /(?:Özellik|Feature|Detay|Detail)[^:]*:\s*([^,\n\r]+)/gi,
+    /(?:Regular|Slim|Oversize|Comfort)\s*(?:Fit|Kesim)/gi,
+    
+    // Size and fit information
+    /(?:Beden|Size|Ölçü|Measurement)[^:]*:\s*([^,\n\r]+)/gi,
+    /(?:Model|Fit|Kalıp|Cut)[^:]*:\s*([^,\n\r]+)/gi,
+    
+    // Design and style details
+    /(?:Desen|Pattern|Baskı|Print)[^:]*:\s*([^,\n\r]+)/gi,
+    /(?:Yaka|Collar|Neck)[^:]*:\s*([^,\n\r]+)/gi,
+    /(?:Kol|Sleeve|Arm)[^:]*:\s*([^,\n\r]+)/gi,
+    /(?:Cep|Pocket)[^:]*:\s*([^,\n\r]+)/gi,
+    /(?:Kapüşon|Hood)[^:]*:\s*([^,\n\r]+)/gi,
+    
+    // Brand and seller information
+    /(?:Marka|Brand)[^:]*:\s*([^,\n\r]+)/gi,
+    /(?:Satıcı|Seller|Üretici|Manufacturer)[^:]*:\s*([^,\n\r]+)/gi,
+    
+    // Season and usage
+    /(?:Sezon|Season|Mevsim)[^:]*:\s*([^,\n\r]+)/gi,
+    /(?:Kullanım|Usage|Stil|Style)[^:]*:\s*([^,\n\r]+)/gi,
+    
+    // Quality and certifications
+    /(?:Kalite|Quality|Sertifika|Certificate)[^:]*:\s*([^,\n\r]+)/gi,
+    /(?:Organik|Organic|Doğal|Natural|Sürdürülebilir|Sustainable)/gi
+  ];
+
+  // Extract features from HTML content
+  featurePatterns.forEach(pattern => {
+    const matches = htmlContent.match(pattern);
+    if (matches) {
+      matches.forEach(match => {
+        const cleanMatch = match.replace(/['"]/g, '').trim();
+        if (cleanMatch.length > 5 && cleanMatch.length < 150 && !features.includes(cleanMatch)) {
+          features.push(cleanMatch);
+          console.log(`🧵 Ürün Özelliği: ${cleanMatch}`);
+        }
+      });
+    }
+  });
+
+  // Extract from DOM elements with specific selectors
+  const featureSelectors = [
+    '.detail-desc-list li',
+    '.product-detail-info li', 
+    '.product-features li',
+    '.specs-list li',
+    '[data-feature]',
+    '.attribute-list li',
+    '.product-attributes li',
+    '.feature-list li'
+  ];
+
+  featureSelectors.forEach(selector => {
+    $(selector).each((i: number, element: any) => {
+      const text = $(element).text().trim();
+      if (text.length > 5 && text.length < 150 && !features.includes(text)) {
+        features.push(text);
+        console.log(`🧵 DOM Özelliği: ${text}`);
+      }
+    });
+  });
+
+  console.log(`✅ ${features.length} detaylı özellik toplandı`);
+  
+  const baseDescription = features.length > 0 ? features.join(', ') : 'Kaliteli ürün';
+  const enhancedDescription = `Ürün Özellikleri: ${baseDescription}. Kaliteli malzeme ile üretilmiştir. Günlük kullanım için ideal. Rahat kesim ve şık tasarım. Uzun ömürlü kullanım için tasarlanmıştır`;
+  
+  return enhancedDescription;
+}
   const features = [];
   
   console.log('🔍 Detaylı ürün özellik çıkarma başlıyor...');

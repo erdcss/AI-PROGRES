@@ -207,31 +207,7 @@ export function ProductDisplay({ data }: ProductDisplayProps) {
         </CardContent>
       </Card>
 
-      {/* CSV İndirme */}
-      <Card className="bg-gray-800 border-gray-700">
-        <CardHeader>
-          <CardTitle className="flex items-center gap-2 text-white">
-            <Download className="h-5 w-5 text-blue-400" />
-            Shopify CSV Export
-          </CardTitle>
-        </CardHeader>
-        <CardContent>
-          <div className="flex items-center justify-between">
-            <div>
-              <p className="text-gray-300">
-                {data.preview?.totalRows || 0} satır ile Shopify uyumlu CSV hazır
-              </p>
-              <p className="text-sm text-gray-500">
-                Dosya: {data.preview?.filename || 'Generating...'}
-              </p>
-            </div>
-            <Button onClick={handleDownloadCSV} className="bg-blue-600 hover:bg-blue-700">
-              <Download className="h-4 w-4 mr-2" />
-              CSV İndir
-            </Button>
-          </div>
-        </CardContent>
-      </Card>
+
     </div>
   );
 }
