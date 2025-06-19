@@ -166,73 +166,157 @@ export async function scrapeTrendyolProduct(inputUrl: string) {
     console.log(`📏 Sizes found: ${multiVariantData.sizes.join(', ')}`);
     console.log(`💰 Pricing data: ${Object.keys(multiVariantData.pricing).length} prices`);
     
-    // Extract ALL product images comprehensively
-    const productImages: string[] = [];
+    // Stock status reporting
+    if (multiVariantData.outOfStockSizes && multiVariantData.outOfStockSizes.length > 0) {
+      console.log(`⚠️ STOK UYARISI: ${multiVariantData.outOfStockSizes.join(', ')} bedenler stokta yok`);
+    }
+    if (multiVariantData.availableSizes && multiVariantData.availableSizes.length > 0) {
+      console.log(`✅ Mevcut bedenler: ${multiVariantData.availableSizes.join(', ')}`);
+    }
     
-    // Method 1: Extract from all script data
-    const allImageMatches = [
+    // Extract ALL product images including color variants
+    const allProductImages: string[] = [];
+    
+    // Method 1: Deep script data extraction
+    const scriptMatches = [
       ...htmlContent.matchAll(/"images":\s*\[([^\]]*)\]/g),
       ...htmlContent.matchAll(/"allImages":\s*\[([^\]]*)\]/g),
-      ...htmlContent.matchAll(/"productImages":\s*\[([^\]]*)\]/g),
-      ...htmlContent.matchAll(/"gallery":\s*\[([^\]]*)\]/g)
+      ...htmlContent.matchAll(/"gallery":\s*\[([^\]]*)\]/g),
+      ...htmlContent.matchAll(/"variantImages":\s*\[([^\]]*)\]/g),
+      ...htmlContent.matchAll(/"colorImages":\s*\{([^}]*)\}/g)
     ];
     
-    allImageMatches.forEach(match => {
+    scriptMatches.forEach(match => {
       try {
-        const imagesArray = JSON.parse(`[${match[1]}]`);
-        imagesArray.forEach((img: string) => {
-          if (img && img.includes('prod/QC') && img.includes('cdn.dsmcdn.com')) {
-            const highResImage = img.replace(/\/\d+\/\d+\//, '/1200/1800/');
-            if (!productImages.includes(highResImage)) {
-              productImages.push(highResImage);
+        let content = match[1];
+        // Handle both array and object formats
+        if (content.includes('"')) {
+          const urls = content.match(/"[^"]*prod\/QC[^"]*"/g) || [];
+          urls.forEach(url => {
+            const cleanUrl = url.replace(/"/g, '');
+            if (cleanUrl.includes('cdn.dsmcdn.com')) {
+              const highRes = cleanUrl.replace(/\/\d+\/\d+\//, '/1200/1800/');
+              if (!allProductImages.includes(highRes)) {
+                allProductImages.push(highRes);
+              }
+            }
+          });
+        }
+      } catch (e) {}
+    });
+    
+    // Method 2: Product state comprehensive extraction
+    const productDetailMatch = htmlContent.match(/window\.__PRODUCT_DETAIL_APP_INITIAL_STATE__\s*=\s*({.*?});/);
+    if (productDetailMatch) {
+      try {
+        const productState = JSON.parse(productDetailMatch[1]);
+        
+        // Extract from multiple image sources
+        const imageSources = [
+          productState.product?.images,
+          productState.product?.allImages,
+          productState.product?.gallery,
+          productState.product?.variants?.map((v: any) => v.images).flat(),
+          Object.values(productState.product?.colorImages || {}),
+          Object.values(productState.product?.variantImages || {})
+        ].flat().filter(Boolean);
+        
+        imageSources.forEach((img: any) => {
+          if (typeof img === 'string' && img.includes('prod/QC')) {
+            const highRes = img.replace(/\/\d+\/\d+\//, '/1200/1800/');
+            if (!allProductImages.includes(highRes)) {
+              allProductImages.push(highRes);
+            }
+          }
+        });
+      } catch (e) {}
+    }
+    
+    // Method 3: Enhanced DOM extraction with all possible selectors
+    const comprehensiveSelectors = [
+      'img[src*="prod/QC"]',
+      'img[data-src*="prod/QC"]',
+      'img[data-original*="prod/QC"]',
+      '.variant-image img',
+      '.color-image img',
+      '.product-gallery img',
+      '.gallery img',
+      '.image-gallery img',
+      '.product-images img',
+      '.slider img',
+      '.carousel img',
+      '[data-color] img',
+      '[data-variant] img',
+      '.thumb img',
+      '.thumbnail img'
+    ];
+    
+    comprehensiveSelectors.forEach(selector => {
+      $(selector).each((i, img) => {
+        const src = $(img).attr('src') || $(img).attr('data-src') || $(img).attr('data-original') || $(img).attr('data-lazy');
+        if (src && src.includes('prod/QC') && src.includes('cdn.dsmcdn.com')) {
+          const variants = [
+            src.replace(/\/\d+\/\d+\//, '/1200/1800/'),
+            src.replace(/\/\d+\/\d+\//, '/800/1200/'),
+            src.replace(/\/\d+\/\d+\//, '/600/900/'),
+            src
+          ];
+          
+          variants.forEach(variant => {
+            if (!allProductImages.includes(variant)) {
+              allProductImages.push(variant);
+            }
+          });
+        }
+      });
+    });
+    
+    // Method 4: Extract images from JSON-LD and microdata
+    const jsonLdMatches = htmlContent.match(/<script[^>]*type=["']application\/ld\+json["'][^>]*>(.*?)<\/script>/gs);
+    if (jsonLdMatches) {
+      jsonLdMatches.forEach(match => {
+        try {
+          const jsonData = JSON.parse(match.replace(/<script[^>]*>/, '').replace(/<\/script>/, ''));
+          if (jsonData.image) {
+            const images = Array.isArray(jsonData.image) ? jsonData.image : [jsonData.image];
+            images.forEach((img: string) => {
+              if (img && img.includes('prod/QC')) {
+                const highRes = img.replace(/\/\d+\/\d+\//, '/1200/1800/');
+                if (!allProductImages.includes(highRes)) {
+                  allProductImages.push(highRes);
+                }
+              }
+            });
+          }
+        } catch (e) {}
+      });
+    }
+    
+    // Method 5: Extract from window state variables
+    const windowStateMatches = [
+      ...htmlContent.matchAll(/window\.__[^=]*=\s*({[^;]*prod\/QC[^;]*});/g),
+      ...htmlContent.matchAll(/"imageUrls":\s*\[([^\]]*prod\/QC[^\]]*)\]/g),
+      ...htmlContent.matchAll(/"galleryImages":\s*\[([^\]]*prod\/QC[^\]]*)\]/g)
+    ];
+    
+    windowStateMatches.forEach(match => {
+      try {
+        const content = match[1] || match[0];
+        const imageUrls = content.match(/"[^"]*prod\/QC[^"]*"/g) || [];
+        imageUrls.forEach(url => {
+          const cleanUrl = url.replace(/"/g, '');
+          if (cleanUrl.includes('cdn.dsmcdn.com')) {
+            const highRes = cleanUrl.replace(/\/\d+\/\d+\//, '/1200/1800/');
+            if (!allProductImages.includes(highRes)) {
+              allProductImages.push(highRes);
             }
           }
         });
       } catch (e) {}
     });
     
-    // Method 2: Extract from product detail state
-    const productDetailMatch = htmlContent.match(/window\.__PRODUCT_DETAIL_APP_INITIAL_STATE__\s*=\s*({.*?});/);
-    if (productDetailMatch) {
-      try {
-        const productState = JSON.parse(productDetailMatch[1]);
-        if (productState.product?.images) {
-          productState.product.images.forEach((img: string) => {
-            if (img && img.includes('prod/QC')) {
-              const highResImage = img.replace(/\/\d+\/\d+\//, '/1200/1800/');
-              if (!productImages.includes(highResImage)) {
-                productImages.push(highResImage);
-              }
-            }
-          });
-        }
-      } catch (e) {}
-    }
-    
-    // Method 3: DOM extraction with enhanced selectors
-    const imageSelectors = [
-      'img[src*="prod/QC"]',
-      'img[data-src*="prod/QC"]', 
-      'img[data-original*="prod/QC"]',
-      '.gallery img',
-      '.product-images img',
-      '.image-gallery img'
-    ];
-    
-    imageSelectors.forEach(selector => {
-      $(selector).each((i, img) => {
-        const src = $(img).attr('src') || $(img).attr('data-src') || $(img).attr('data-original');
-        if (src && src.includes('prod/QC') && src.includes('cdn.dsmcdn.com')) {
-          const highResImage = src.replace(/\/\d+\/\d+\//, '/1200/1800/');
-          if (!productImages.includes(highResImage)) {
-            productImages.push(highResImage);
-          }
-        }
-      });
-    });
-    
-    const cleanImages = Array.from(new Set(productImages));
-    console.log(`🖼️ Extracted ${cleanImages.length} complete product images`);
+    const cleanImages = Array.from(new Set(allProductImages));
+    console.log(`🖼️ Comprehensive extraction: ${cleanImages.length} total images (all variants included)`);
 
     const variantData = {
       colors: multiVariantData.colors,
