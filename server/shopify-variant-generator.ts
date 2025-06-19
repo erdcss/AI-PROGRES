@@ -43,41 +43,31 @@ function escapeCSVValue(value: string): string {
   return `"${escaped}"`;
 }
 
-export async function generateShopifyVariantCSV(
+export async function generateSimpleShopifyCSV(
   variants: TrendyolVariant[],
   imageMap: VariantImageMap,
   productTitle: string,
-  productBrand: string,
-  productDescription: string,
   filename: string = 'shopify-variants.csv'
 ): Promise<void> {
   try {
-    const outputDir = path.dirname(filename);
-    if (!fs.existsSync(outputDir)) {
-      fs.mkdirSync(outputDir, { recursive: true });
-    }
-
-    const handle = slugify(productTitle);
+    // Write directly to main directory as suggested
     const csvRows: string[] = [];
     
-    // CSV Header
+    // Simple CSV header as per user's Python code
     const headers = [
-      'Handle', 'Title', 'Body (HTML)', 'Vendor', 'Type', 'Tags', 'Published',
-      'Option1 Name', 'Option1 Value', 'Option2 Name', 'Option2 Value',
-      'Variant SKU', 'Variant Price', 'Variant Compare At Price',
-      'Image Src', 'Image Position', 'Image Alt Text',
-      'Variant Inventory Tracker', 'Variant Inventory Qty', 'Variant Inventory Policy',
-      'Variant Fulfillment Service', 'Variant Requires Shipping', 'Variant Taxable'
+      'Handle', 'Title', 'Option1 Name', 'Option1 Value',
+      'Option2 Name', 'Option2 Value', 'Variant Price', 'Image Src'
     ];
     
     csvRows.push(headers.map(h => escapeCSVValue(h)).join(','));
 
+    const handle = slugify(productTitle);
+
     // Generate rows for each variant
-    variants.forEach((variant, index) => {
-      const color = variant.color || 'tek renk';
-      const size = variant.size || 'tek beden';
-      const price = variant.price ? parseFloat(variant.price.toString()) * 1.1 : 0; // 10% markup
-      const comparePrice = variant.price ? parseFloat(variant.price.toString()) : 0;
+    variants.forEach((variant) => {
+      const color = variant.color || '-';
+      const size = variant.size || '-';
+      const price = variant.price || '0.00';
       
       // Get variant image
       const colorKey = color.toLowerCase();
@@ -87,50 +77,43 @@ export async function generateShopifyVariantCSV(
         imageUrl = imagePath ? `https://cdn.dsmcdn.com${imagePath}` : '';
       }
       
-      const isFirstVariant = index === 0;
-      const sku = `${handle}-${slugify(color)}-${slugify(size)}`;
-      const variantTitle = `${productTitle} - ${color} ${size}`;
-      
       const row = [
         handle,
-        isFirstVariant ? productTitle : '',
-        isFirstVariant ? productDescription : '',
-        isFirstVariant ? productBrand : '',
-        isFirstVariant ? 'Giyim' : '',
-        isFirstVariant ? 'moda, trend, kaliteli' : '',
-        'TRUE',
-        isFirstVariant ? 'Renk' : '',
+        `${productTitle} - ${color} ${size}`,
+        'Renk',
         color,
-        isFirstVariant ? 'Beden' : '',
+        'Beden', 
         size,
-        sku,
-        price.toFixed(2),
-        comparePrice.toFixed(2),
-        imageUrl,
-        isFirstVariant ? '1' : '',
-        variantTitle,
-        'shopify',
-        variant.stock ? '10' : '0',
-        'deny',
-        'manual',
-        'TRUE',
-        'TRUE'
+        price,
+        imageUrl
       ];
       
       csvRows.push(row.map(value => escapeCSVValue(String(value))).join(','));
     });
 
-    // Write CSV with UTF-8 BOM
+    // Write CSV with UTF-8 BOM directly to main directory
     const csvContent = '\uFEFF' + csvRows.join('\n');
     fs.writeFileSync(filename, csvContent, 'utf-8');
     
-    console.log(`✅ Shopify CSV kaydedildi: ${filename}`);
-    console.log(`📊 ${variants.length} varyant işlendi`);
+    console.log(`Shopify CSV başarıyla oluşturuldu: ${filename}`);
     
   } catch (error) {
-    console.error('❌ Shopify CSV oluşturma hatası:', error);
+    console.error('Shopify CSV oluşturma hatası:', error);
     throw error;
   }
+}
+
+// Keep the original function for backward compatibility
+export async function generateShopifyVariantCSV(
+  variants: TrendyolVariant[],
+  imageMap: VariantImageMap,
+  productTitle: string,
+  productBrand: string,
+  productDescription: string,
+  filename: string = 'trendyol-shopify-variants.csv'
+): Promise<void> {
+  // Use the simple version for main directory
+  await generateSimpleShopifyCSV(variants, imageMap, productTitle, filename);
 }
 
 export function generateVariantSKU(productHandle: string, color: string, size: string): string {

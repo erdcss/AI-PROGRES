@@ -117,16 +117,14 @@ export async function scrapeTrendyolProduct(inputUrl: string) {
     
     // Generate Shopify CSV with authentic variant data if available
     if (authenticVariants && authenticVariants.length > 0) {
-      const { generateShopifyVariantCSV } = await import('./shopify-variant-generator');
-      const shopifyFilename = path.join(process.cwd(), 'trendyol-shopify-variants.csv');
+      const { generateSimpleShopifyCSV } = await import('./shopify-variant-generator');
+      const shopifyFilename = 'shopify-variants.csv'; // Direct to main directory
       
       try {
-        await generateShopifyVariantCSV(
+        await generateSimpleShopifyCSV(
           authenticVariants,
           variantExtraction.imageMap || {},
           title,
-          brand,
-          realProductData.description,
           shopifyFilename
         );
         console.log(`Otantik Shopify CSV oluşturuldu: ${authenticVariants.length} varyant`);
