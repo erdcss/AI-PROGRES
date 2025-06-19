@@ -124,15 +124,8 @@ interface ShopifyVariant {
   'Compare At Price / US': string;
 }
 
-export async function generateStrictShopifyCSV(products: Product[]): Promise<string> {
-  console.log('🔧 Shopify Uyumlu CSV oluşturuluyor...');
-  
-  if (!products || products.length === 0) {
-    throw new Error('Ürün verisi bulunamadı');
-  }
-
-  // Shopify headers - tam format
-  const headers = [
+// First export function removed - using the one at the end of file
+const headers_old = [
     'Handle', 'Title', 'Body (HTML)', 'Vendor', 'Type', 'Tags', 'Published',
     'Option1 Name', 'Option1 Value', 'Option2 Name', 'Option2 Value', 'Option3 Name', 'Option3 Value',
     'Variant SKU', 'Variant Grams', 'Variant Inventory Tracker', 'Variant Inventory Qty',
@@ -305,11 +298,12 @@ function getProductType(title: string): string {
   return 'Giyim';
 }
 
-export async function generateStrictShopifyCSV(products: Product[]): Promise<string> {
+async function generateStrictShopifyCSVInternal(products: Product[]): Promise<string> {
   const filename = 'shopify-urunler.csv';
   const finalPath = path.join(process.cwd(), filename);
 
   // Ensure temp directory exists
+  const tempPath = path.join(process.cwd(), 'temp', filename);
   await fs.promises.mkdir(path.dirname(tempPath), { recursive: true });
   
   console.log(`🔧 CSV oluşturuluyor - ${products.length} ürün`);
@@ -597,4 +591,8 @@ function getGenderFromTitle(title: string): string {
   if (lowerTitle.includes('erkek')) return 'male';
   
   return 'unisex';
+}
+
+export async function generateStrictShopifyCSV(products: Product[]): Promise<string> {
+  return await generateStrictShopifyCSVInternal(products);
 }

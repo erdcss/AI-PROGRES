@@ -1,4 +1,48 @@
 {
-  "products": [],
-  "lastUpdate": "2025-06-19T13:03:53.694Z"
+  "products": [
+    {
+      "title": "BİKELİFE Kadın Lacivert Likralı Palazzo Salaş Geniş Paça Pantolon",
+      "price": "669",
+      "basePrice": "669",
+      "id": 861877805,
+      "description": "Ürün Özellikleri: Materyal Bileşeni. Kaliteli malzeme ile üretilmiştir. Günlük kullanım için ideal. Rahat kesim ve şık tasarım. Uzun ömürlü kullanım için tasarlanmıştır",
+      "brand": "BİKELİFE",
+      "images": [
+        "https://cdn.dsmcdn.com/ty1637/prod/QC/20250213/13/0083c286-ea7a-3b09-b8e7-e97136d1f5b7/1_org.jpg",
+        "https://cdn.dsmcdn.com/ty1637/prod/QC/20250213/13/cd254d93-a7cc-37cb-b106-67bad0ec1ab6/1_org.jpg",
+        "https://cdn.dsmcdn.com/ty1637/prod/QC/20250213/13/0aede5c7-dfee-3a6f-85d0-f866018aefb5/1_org.jpg",
+        "https://cdn.dsmcdn.com/ty1637/prod/QC/20250213/13/7c33e58a-77fc-3128-a0a2-2217cddf2343/1_org.jpg",
+        "https://cdn.dsmcdn.com/ty1637/prod/QC/20250213/13/94ed1401-208c-3c86-8f3f-4d25326ae380/1_org.jpg",
+        "https://cdn.dsmcdn.com/ty1637/prod/QC/20250213/13/af09a5fe-2c94-3c11-ae01-060bc10c011e/1_org.jpg",
+        "https://cdn.dsmcdn.com/ty1635/prod/QC/20250213/13/a3826d53-488b-3d6e-8321-2d740ff4dd06/1_org.jpg",
+        "https://cdn.dsmcdn.com/ty1646/prod/QC/20250301/13/d323499b-64dd-3318-ab5f-ac3b6dbc8652/1_org.jpg",
+        "https://cdn.dsmcdn.com/ty1636/prod/QC/20250214/18/92fa077d-f9da-3802-a0c9-ddde66b04241/1_org.jpg",
+        "https://cdn.dsmcdn.com/ty1636/prod/QC/20250213/09/a4b47575-c546-3e39-9429-9513a71cf148/1_org.jpg",
+        "https://cdn.dsmcdn.com/ty1635/prod/QC/20250214/18/c70b9d80-9f1e-37ba-bedd-41e5f113e8b2/1_org.jpg",
+        "https://cdn.dsmcdn.com/ty1635/prod/QC/20250215/10/3f8ee80f-98e0-3647-9d6f-2f7f218c3f16/1_org.jpg",
+        "https://cdn.dsmcdn.com/ty1654/prod/QC/20250323/20/916c68c2-09fd-346c-b0e8-801e02d515be/1_org.jpg",
+        "https://cdn.dsmcdn.com/ty1688/prod/QC_ENRICHMENT/20250602/19/2c5886d4-6264-3479-b9cd-2340da639391/1_org.jpg",
+        "https://cdn.dsmcdn.com/ty1635/prod/QC/20250211/15/8f8224a1-541c-3ba3-83b3-73e4c00a1f7d/1_org.jpg",
+        "https://cdn.dsmcdn.com/ty1644/prod/QC/20250305/10/3dd7b015-fbf6-3e0d-a117-4340275d6958/1_org.jpg",
+        "https://cdn.dsmcdn.com/mnresize/1200/1800/ty1637/prod/QC/20250213/13/0083c286-ea7a-3b09-b8e7-e97136d1f5b7/1_org.jpg",
+        "https://cdn.dsmcdn.com/mnresize/170/247/ty1637/prod/QC/20250213/13/0083c286-ea7a-3b09-b8e7-e97136d1f5b7/1_org.jpg"
+      ],
+      "variants": {
+        "colors": [
+          "tek renk"
+        ],
+        "sizes": [
+          "S",
+          "M",
+          "L",
+          "XL",
+          "2XL",
+          "3XL"
+        ],
+        "totalVariants": 6
+      },
+      "url": "https://www.trendyol.com/bikelife/kad%C4%B1n-lacivert-palazzo-pantolon-p-861877805"
+    }
+  ],
+  "lastUpdate": "2025-06-19T13:06:31.893Z"
 }
