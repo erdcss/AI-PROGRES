@@ -4,6 +4,7 @@ import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Separator } from "@/components/ui/separator";
 import { Download, Package, Tag, Image as ImageIcon, DollarSign, FileText } from "lucide-react";
 import { AIAnalysisDisplay } from "./AIAnalysisDisplay";
+import { AIEnhancedProductDisplay } from "./AIEnhancedProductDisplay";
 
 interface ProductDisplayProps {
   data: {
