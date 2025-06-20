@@ -64,8 +64,7 @@ export function ProductDisplay({ data }: ProductDisplayProps) {
 
   return (
     <div className="space-y-6 p-6 bg-gray-900 text-white">
-      {/* AI Destekli Ürün Gösterimi */}
-      <AIEnhancedProductDisplay productData={data} />
+
       {/* Ana Ürün Bilgileri */}
       <Card className="bg-gray-800 border-gray-700">
         <CardHeader>
@@ -222,8 +221,8 @@ export function ProductDisplay({ data }: ProductDisplayProps) {
                 </div>
               </div>
               
-              <div className="grid grid-cols-3 md:grid-cols-6 gap-2">
-                {data.variants.variantImages?.[colorName]?.map((image, index) => (
+              <div className="grid grid-cols-3 md:grid-cols-4 gap-2">
+                {data.variants.variantImages?.[colorName]?.slice(0, 4).map((image, index) => (
                   <div key={index} className="aspect-square bg-gray-700 rounded overflow-hidden">
                     <img 
                       src={image} 
