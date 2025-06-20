@@ -11,63 +11,58 @@ import Anthropic from '@anthropic-ai/sdk';
 function extractOriginalProductImages(htmlContent: string): string[] {
   const images = new Set<string>();
   
-  // 1. Script verilerinden görsel çıkarma
-  const scriptMatches = htmlContent.matchAll(/"(https?:\/\/[^"]*cdn\.dsmcdn\.com[^"]*\.(?:jpg|jpeg|png|webp)[^"]*)"/gi);
-  for (const match of scriptMatches) {
+  console.log('🔍 Görsel arama başlatılıyor...');
+  
+  // 1. Tüm dsmcdn.com görsellerini çıkar
+  const allImageMatches = htmlContent.matchAll(/"(https?:\/\/[^"]*cdn\.dsmcdn\.com[^"]*\.(jpg|jpeg|png|webp)[^"]*)"/gi);
+  for (const match of allImageMatches) {
     if (match[1]) {
       images.add(match[1]);
+      console.log('📸 Bulunan görsel:', match[1].substring(0, 80) + '...');
     }
   }
   
-  // 2. HTML img tag'lerinden
-  const imgMatches = htmlContent.match(/<img[^>]+src="([^"]+)"/g);
-  imgMatches?.forEach(match => {
-    const srcMatch = match.match(/src="([^"]+)"/);
-    if (srcMatch && srcMatch[1].includes('dsmcdn.com')) {
-      images.add(srcMatch[1]);
-    }
-  });
-  
-  // 3. Sadece orijinal ürün görselleri filtrele
-  const originalImages = Array.from(images).filter(url => {
-    if (!url || !url.includes('dsmcdn.com')) return false;
-    
-    // Hariç tutulacaklar
-    const excludePatterns = ['mnresize', 'web-pdp', 'cok_satanlar', 'footer', 'header', 'logo', 'icon', 'banner'];
-    if (excludePatterns.some(pattern => url.toLowerCase().includes(pattern))) return false;
-    
-    // Sadece product/media/images yolları
-    return url.includes('/product/media/images/') && (url.includes('/PIM/') || url.includes('/QC/'));
-  });
-  
-  // 4. Varyant üretimi
-  const finalImages = new Set<string>();
-  
-  if (originalImages.length > 0) {
-    const firstImage = originalImages[0];
-    const hashMatch = firstImage.match(/([a-f0-9]{8}-[a-f0-9]{4}-[a-f0-9]{4}-[a-f0-9]{4}-[a-f0-9]{12})/);
-    
-    if (hashMatch) {
-      const basePath = firstImage.replace(/\/\d+(_org_zoom)?\.jpg.*$/, '');
-      
-      // Varyant görselleri üret
-      for (let i = 1; i <= 6; i++) {
-        finalImages.add(`${basePath}/${i}_org_zoom.jpg`);
-        finalImages.add(`${basePath}/${i}.jpg`);
+  // 2. Script tag'lerinden JSON verilerini çıkar
+  const scriptRegex = /<script[^>]*>(.*?)<\/script>/gis;
+  let scriptMatch;
+  while ((scriptMatch = scriptRegex.exec(htmlContent)) !== null) {
+    const scriptContent = scriptMatch[1];
+    const imageMatches = scriptContent.matchAll(/"(https?:\/\/[^"]*dsmcdn\.com[^"]*\.(jpg|jpeg|png|webp)[^"]*)"/gi);
+    for (const match of imageMatches) {
+      if (match[1]) {
+        images.add(match[1]);
       }
     }
   }
   
-  // 5. Orijinal görselleri de ekle
-  originalImages.forEach(img => finalImages.add(img));
+  // 3. HTML img tag'lerinden
+  const imgRegex = /<img[^>]+src=["']([^"']+)["'][^>]*>/gi;
+  let imgMatch;
+  while ((imgMatch = imgRegex.exec(htmlContent)) !== null) {
+    const src = imgMatch[1];
+    if (src && src.includes('dsmcdn.com')) {
+      images.add(src);
+    }
+  }
   
-  // 6. Final filtreleme
-  const cleanedImages = Array.from(finalImages).filter(url => {
-    const excludePatterns = ['mnresize', 'web-pdp', 'cok_satanlar', 'footer', 'header', 'logo', 'icon'];
-    return !excludePatterns.some(pattern => url.toLowerCase().includes(pattern));
+  console.log(`🔍 Toplam ${images.size} görsel bulundu`);
+  
+  // 4. Filtreleme - sadece ürün görselleri
+  const productImages = Array.from(images).filter(url => {
+    if (!url || !url.includes('dsmcdn.com')) return false;
+    
+    // Hariç tutulacaklar - daha az kısıtlayıcı
+    const excludePatterns = ['web-pdp', 'cok_satanlar', 'footer', 'header', 'sprite', 'ui'];
+    if (excludePatterns.some(pattern => url.toLowerCase().includes(pattern))) return false;
+    
+    // Ürün görseli olma ihtimali yüksek olanlar
+    return url.includes('/product/') || url.includes('/prod/') || url.includes('/ty') && url.includes('.jpg');
   });
   
-  return cleanedImages;
+  console.log(`✅ ${productImages.length} ürün görseli filtrelendi`);
+  productImages.forEach((img, i) => console.log(`${i+1}. ${img}`));
+  
+  return productImages;
 }
 
 const anthropic = new Anthropic({
