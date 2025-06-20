@@ -135,14 +135,10 @@ export function AIEnhancedProductDisplay({ productData }: AIEnhancedProductDispl
 
       {/* AI Gelişmiş Analizler */}
       <Tabs defaultValue="images" className="w-full">
-        <TabsList className="grid w-full grid-cols-7">
-          <TabsTrigger value="images">AI Görseller</TabsTrigger>
-          <TabsTrigger value="variants">Varyantlar</TabsTrigger>
-          <TabsTrigger value="pricing">Fiyat Analizi</TabsTrigger>
+        <TabsList className="grid w-full grid-cols-3">
+          <TabsTrigger value="images">Görseller</TabsTrigger>
+          <TabsTrigger value="variants">Renkler</TabsTrigger>
           <TabsTrigger value="features">Özellikler</TabsTrigger>
-          <TabsTrigger value="materials">Malzemeler</TabsTrigger>
-          <TabsTrigger value="shopify">Shopify</TabsTrigger>
-          <TabsTrigger value="ai-analysis">AI Analiz</TabsTrigger>
         </TabsList>
 
         <TabsContent value="images">
