@@ -41,9 +41,9 @@ export function registerRoutes(app: Express): Server {
           return res.status(200).json(result);
         }
         
-        // Use simple Trendyol handler for basic data extraction
-        const { scrapeSimpleTrendyolProduct } = await import('./simple-trendyol-scraper');
-        const result = await scrapeSimpleTrendyolProduct(normalizedUrl);
+        // Use AI-enhanced professional scraper for complete data extraction
+        const { aiEnhancedScrape } = await import('./ai-enhanced-scraper');
+        const result = await aiEnhancedScrape(normalizedUrl);
         return res.status(200).json(result);
       }
 
