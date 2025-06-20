@@ -598,8 +598,41 @@ export async function extractFocusedData(url: string): Promise<FocusedProductDat
   
   const processedKeys = new Set<string>();
   
-  // Product attributes'dan - en detaylı özellikler
+  console.log('🔍 Ürün özellikleri detaylı çıkarım başlatılıyor...');
+  
+  // HTML'den ürün özellikleri tablosu çıkar - ÖNCE BUNU YAP
+  console.log('📋 HTML tablosundan detaylı özellikler çıkarılıyor...');
+  
+  // Ürün özellikleri tablosu için farklı pattern'ler dene
+  const featurePatterns = [
+    // Trendyol ürün özellikleri tablosu
+    /<tr[^>]*>\s*<td[^>]*class="[^"]*feature[^"]*"[^>]*>([^<]+)<\/td>\s*<td[^>]*>([^<]+)<\/td>\s*<\/tr>/gi,
+    // Genel tablo yapısı
+    /<tr[^>]*>\s*<td[^>]*>([^<]+)<\/td>\s*<td[^>]*>([^<]+)<\/td>\s*<\/tr>/gi,
+    // Başka bir pattern
+    /<div[^>]*class="[^"]*property[^"]*"[^>]*>.*?<span[^>]*>([^<]+)<\/span>.*?<span[^>]*>([^<]+)<\/span>.*?<\/div>/gi
+  ];
+  
+  featurePatterns.forEach((pattern, index) => {
+    console.log(`  Pattern ${index + 1} deneniyor...`);
+    let match;
+    while ((match = pattern.exec(htmlContent)) !== null) {
+      const key = match[1].trim().replace(/[:\s]+$/, '');
+      const value = match[2].trim();
+      
+      if (key && value && key.length > 1 && value.length > 0 && 
+          !processedKeys.has(key.toLowerCase()) &&
+          !key.includes('script') && !value.includes('script')) {
+        features.push({ key, value });
+        processedKeys.add(key.toLowerCase());
+        console.log(`    ✓ Tablo'dan özellik: ${key} = ${value}`);
+      }
+    }
+  });
+  
+  // Product attributes'dan - temel özellikler
   if (product.attributes && typeof product.attributes === 'object') {
+    console.log('🏷️ Product attributes çıkarılıyor...');
     Object.entries(product.attributes).forEach(([key, value]) => {
       if (key && value && 
           typeof key === 'string' && typeof value === 'string' &&
@@ -612,6 +645,7 @@ export async function extractFocusedData(url: string): Promise<FocusedProductDat
           value: value.trim()
         });
         processedKeys.add(key.toLowerCase());
+        console.log(`  ✓ Attribute: ${key} = ${value}`);
       }
     });
   }
