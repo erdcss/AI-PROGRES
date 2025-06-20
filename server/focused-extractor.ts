@@ -82,19 +82,27 @@ export async function extractFocusedData(url: string): Promise<FocusedProductDat
     profitFormatted: '0 TL'
   };
   
+  // Gelişmiş fiyat çıkarma - çoklu kaynak kontrolü
+  let foundPrice = false;
+  
+  // 1. Selling price kontrolü
   if (product.price?.sellingPrice?.value) {
-    const originalPrice = product.price.sellingPrice.value / 100; // Kuruştan TL'ye
+    const originalPrice = product.price.sellingPrice.value / 100;
     const currency = product.price.sellingPrice.currency || 'TRY';
-    const profitPrice = Math.round(originalPrice * 1.1 * 100) / 100; // %10 kar + yuvarlama
+    const profitPrice = Math.round(originalPrice * 1.1 * 100) / 100;
     
     priceData = {
       original: originalPrice,
       currency: currency,
-      formatted: `${originalPrice.toFixed(2)} ${currency}`,
+      formatted: `${originalPrice.toFixed(2)} TL`,
       withProfit: profitPrice,
-      profitFormatted: `${profitPrice.toFixed(2)} ${currency}`
+      profitFormatted: `${profitPrice.toFixed(2)} TL`
     };
-  } else if (product.price?.originalPrice?.value) {
+    foundPrice = true;
+  }
+  
+  // 2. Original price kontrolü
+  if (!foundPrice && product.price?.originalPrice?.value) {
     const originalPrice = product.price.originalPrice.value / 100;
     const currency = product.price.originalPrice.currency || 'TRY';
     const profitPrice = Math.round(originalPrice * 1.1 * 100) / 100;
@@ -102,13 +110,48 @@ export async function extractFocusedData(url: string): Promise<FocusedProductDat
     priceData = {
       original: originalPrice,
       currency: currency,
-      formatted: `${originalPrice.toFixed(2)} ${currency}`,
+      formatted: `${originalPrice.toFixed(2)} TL`,
       withProfit: profitPrice,
-      profitFormatted: `${profitPrice.toFixed(2)} ${currency}`
+      profitFormatted: `${profitPrice.toFixed(2)} TL`
     };
+    foundPrice = true;
   }
   
-  console.log(`✓ Fiyat: ${priceData.formatted} → %10 kar: ${priceData.profitFormatted}`);
+  // 3. Direct price field kontrolü
+  if (!foundPrice && product.price && typeof product.price === 'number') {
+    const originalPrice = product.price;
+    const profitPrice = Math.round(originalPrice * 1.1 * 100) / 100;
+    
+    priceData = {
+      original: originalPrice,
+      currency: 'TRY',
+      formatted: `${originalPrice.toFixed(2)} TL`,
+      withProfit: profitPrice,
+      profitFormatted: `${profitPrice.toFixed(2)} TL`
+    };
+    foundPrice = true;
+  }
+  
+  // 4. HTML'den fiyat regex ile çıkarma
+  if (!foundPrice) {
+    const priceRegex = /"price":\s*(\d+(?:\.\d+)?)/;
+    const priceMatch = htmlContent.match(priceRegex);
+    if (priceMatch) {
+      const originalPrice = parseFloat(priceMatch[1]);
+      const profitPrice = Math.round(originalPrice * 1.1 * 100) / 100;
+      
+      priceData = {
+        original: originalPrice,
+        currency: 'TRY',
+        formatted: `${originalPrice.toFixed(2)} TL`,
+        withProfit: profitPrice,
+        profitFormatted: `${profitPrice.toFixed(2)} TL`
+      };
+      foundPrice = true;
+    }
+  }
+  
+  console.log(`✓ Fiyat: ${priceData.formatted} → %10 kar: ${priceData.profitFormatted} ${foundPrice ? '(Kaynak: JSON)' : '(Kaynak: HTML)'}`);
   
   // 4. GÖRSELLER - Gelişmiş görsel çıkarma
   const images: string[] = [];
