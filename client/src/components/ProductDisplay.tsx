@@ -259,7 +259,7 @@ export function ProductDisplay({ data }: ProductDisplayProps) {
               <div className="text-sm text-gray-400">Beden</div>
             </div>
             <div className="bg-gray-700 p-4 rounded-lg">
-              <div className="text-2xl font-bold text-purple-400">{data.variants.totalVariants}</div>
+              <div className="text-2xl font-bold text-purple-400">{(data.colors?.length || 0) * (data.sizes?.length || 1)}</div>
               <div className="text-sm text-gray-400">Toplam Varyant</div>
             </div>
             <div className="bg-gray-700 p-4 rounded-lg">
