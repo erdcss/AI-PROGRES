@@ -77,24 +77,19 @@ function LoginScreen({ onLogin }: { onLogin: () => void }) {
     <div className="flex items-center justify-center min-h-screen bg-gradient-to-b from-slate-900 to-slate-800">
       <Card className="w-[380px] shadow-xl border-slate-700">
         <CardHeader className="space-y-4">
-          <div className="flex justify-center">
-            <AIBrandLogo />
-          </div>
           <CardTitle className="text-2xl text-center">
             <div className="flex items-center justify-center gap-2">
               <Lock className="h-6 w-6 text-blue-500" />
               <span>Veri Transfer Programı</span>
             </div>
           </CardTitle>
-          <CardDescription className="text-center">
-            {success ? 
+          {success && (
+            <CardDescription className="text-center">
               <span className="text-green-500 font-bold animate-pulse">
                 Giriş başarılı, sistem aktif ediliyor... ({countdown}s)
               </span>
-             : 
-              "Lütfen şifrenizi girin"
-            }
-          </CardDescription>
+            </CardDescription>
+          )}
         </CardHeader>
         {!success && (
           <>
@@ -138,7 +133,7 @@ function LoginScreen({ onLogin }: { onLogin: () => void }) {
                 )}
               </div>
             </CardContent>
-            <CardFooter>
+            <CardFooter className="flex flex-col gap-3">
               <Button 
                 onClick={handleLogin} 
                 className="w-full" 
@@ -147,6 +142,15 @@ function LoginScreen({ onLogin }: { onLogin: () => void }) {
                 <ShieldCheck className="mr-2 h-4 w-4" />
                 Giriş Yap
               </Button>
+              
+              <div className="flex justify-center">
+                <div className="flex items-center gap-2 scale-75">
+                  <div className="w-6 h-6 bg-gradient-to-r from-blue-500 to-purple-600 rounded-lg flex items-center justify-center">
+                    <span className="text-white text-xs font-bold">AI</span>
+                  </div>
+                  <span className="text-xs text-gray-400 font-medium">Yapay Zeka Destekli</span>
+                </div>
+              </div>
             </CardFooter>
           </>
         )}

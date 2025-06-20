@@ -75,12 +75,12 @@ export function ProductDisplay({ data }: ProductDisplayProps) {
         </CardHeader>
         <CardContent className="space-y-4">
           <div>
-            <h2 className="text-xl font-bold text-white mb-2">{data.title}</h2>
+            <h2 className="text-xl font-bold text-white mb-2">{String(data.title || '')}</h2>
             <div className="flex items-center gap-4">
               <Badge variant="secondary" className="bg-blue-600 text-white">
-                {data.brand}
+                {String(data.brand || '')}
               </Badge>
-              <span className="text-lg font-semibold text-green-400">{data.price}</span>
+              <span className="text-lg font-semibold text-green-400">{String(data.price || '')}</span>
             </div>
           </div>
           
