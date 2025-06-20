@@ -147,31 +147,33 @@ export function ProductDisplay({ data }: ProductDisplayProps) {
             <div>
               <h3 className="text-lg font-semibold text-white mb-3">Renk Varyantları ({data.variants.colors.length})</h3>
               <div className="space-y-4">
-                {data.variants.colors.map((color, index) => (
-                  <div key={color} className="border border-gray-600 rounded-lg p-4 bg-gray-750">
+                {data.variants.colors.map((color, index) => {
+                  const colorName = typeof color === 'string' ? color : color?.name || `Renk ${index + 1}`;
+                  return (
+                  <div key={colorName} className="border border-gray-600 rounded-lg p-4 bg-gray-750">
                     <div className="flex items-center justify-between mb-3">
                       <div className="flex items-center gap-3">
-                        <h4 className="font-semibold text-white">{color}</h4>
+                        <h4 className="font-semibold text-white">{colorName}</h4>
                         <Badge variant="outline" className="border-purple-400 text-purple-400">
                           Model {index + 1}
                         </Badge>
                       </div>
-                      {data.variants.pricing?.[color] && (
+                      {data.variants.pricing?.[colorName] && (
                         <div className="flex items-center gap-2">
                           <DollarSign className="h-4 w-4 text-green-400" />
                           <span className="font-bold text-green-400">
-                            {data.variants.pricing[color].toFixed(2)} TL
+                            {data.variants.pricing[colorName].toFixed(2)} TL
                           </span>
                         </div>
                       )}
                     </div>
                     
                     <div className="grid grid-cols-3 md:grid-cols-6 gap-2">
-                      {data.variants.variantImages?.[color]?.slice(0, 6).map((image, imgIndex) => (
+                      {data.variants.variantImages?.[colorName]?.slice(0, 6).map((image, imgIndex) => (
                         <div key={imgIndex} className="aspect-square bg-gray-700 rounded overflow-hidden border border-gray-500 hover:border-purple-400 transition-colors">
                           <img 
                             src={image} 
-                            alt={`${color} renk görseli ${imgIndex + 1}`}
+                            alt={`${colorName} renk görseli ${imgIndex + 1}`}
                             className="w-full h-full object-cover hover:scale-105 transition-transform cursor-pointer"
                             onError={(e) => {
                               e.currentTarget.style.display = 'none';
@@ -182,13 +184,14 @@ export function ProductDisplay({ data }: ProductDisplayProps) {
                         <div className="col-span-full text-center text-gray-400 py-2 text-sm bg-gray-800 rounded">
                           <div className="flex items-center justify-center gap-2">
                             <ImageIcon className="h-4 w-4" />
-                            <span>{color} rengi için özel görseller analiz ediliyor...</span>
+                            <span>{colorName} rengi için özel görseller analiz ediliyor...</span>
                           </div>
                         </div>
                       )}
                     </div>
                   </div>
-                ))}
+                  );
+                })}
               </div>
             </div>
           )}
@@ -204,24 +207,26 @@ export function ProductDisplay({ data }: ProductDisplayProps) {
           </CardTitle>
         </CardHeader>
         <CardContent className="space-y-4">
-          {data.variants?.colors && data.variants.colors.length > 0 ? data.variants.colors.map((color) => (
-            <div key={color} className="border border-gray-600 rounded-lg p-4">
+          {data.variants?.colors && data.variants.colors.length > 0 ? data.variants.colors.map((color) => {
+            const colorName = typeof color === 'string' ? color : color?.name || 'Renk';
+            return (
+            <div key={colorName} className="border border-gray-600 rounded-lg p-4">
               <div className="flex items-center justify-between mb-3">
-                <h3 className="font-semibold text-white">{color}</h3>
+                <h3 className="font-semibold text-white">{colorName}</h3>
                 <div className="flex items-center gap-2">
                   <DollarSign className="h-4 w-4 text-green-400" />
                   <span className="font-bold text-green-400">
-                    {data.variants.pricing?.[color]?.toFixed(2) || 'N/A'} TL
+                    {data.variants.pricing?.[colorName]?.toFixed(2) || 'N/A'} TL
                   </span>
                 </div>
               </div>
               
               <div className="grid grid-cols-3 md:grid-cols-6 gap-2">
-                {data.variants.variantImages?.[color]?.map((image, index) => (
+                {data.variants.variantImages?.[colorName]?.map((image, index) => (
                   <div key={index} className="aspect-square bg-gray-700 rounded overflow-hidden">
                     <img 
                       src={image} 
-                      alt={`${color} varyantı ${index + 1}`}
+                      alt={`${colorName} varyantı ${index + 1}`}
                       className="w-full h-full object-cover"
                     />
                   </div>
@@ -232,7 +237,8 @@ export function ProductDisplay({ data }: ProductDisplayProps) {
                 )}
               </div>
             </div>
-          )) : (
+            );
+          }) : (
             <div className="text-center text-gray-500 py-8">
               Renk varyantı bulunamadı
             </div>
@@ -325,8 +331,14 @@ export function ProductDisplay({ data }: ProductDisplayProps) {
                     <td className="border border-gray-600 p-1 text-gray-300">{String(data.title || '').substring(0, 30)}...</td>
                     <td className="border border-gray-600 p-1 text-blue-400">{String(data.brand || '')}</td>
                     <td className="border border-gray-600 p-1 text-green-400">{(parseFloat(data.price || '0') * 1.1).toFixed(2)} TL</td>
-                    <td className="border border-gray-600 p-1 text-yellow-400">{String(size)}</td>
-                    <td className="border border-gray-600 p-1 text-purple-400">{String(data.colors?.[0] || 'Tek Renk')}</td>
+                    <td className="border border-gray-600 p-1 text-yellow-400">{
+                      typeof size === 'string' ? size : size?.name || `Beden ${index + 1}`
+                    }</td>
+                    <td className="border border-gray-600 p-1 text-purple-400">{
+                      data.colors?.[0] ? 
+                        (typeof data.colors[0] === 'string' ? data.colors[0] : data.colors[0]?.name || 'Renk 1') : 
+                        'Tek Renk'
+                    }</td>
                     <td className="border border-gray-600 p-1 text-gray-400">✓</td>
                   </tr>
                 ))}
