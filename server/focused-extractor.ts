@@ -352,6 +352,16 @@ export async function extractFocusedData(url: string): Promise<FocusedProductDat
       let color = attributes.RENK || attributes.Renk || attributes.renk || variant.color || 'Varsayılan';
       let size = attributes.BEDEN || attributes.Beden || attributes.beden || variant.size || 'Tek Beden';
       
+      // Varyant "value" alanından beden çıkar - EN ÖNEMLİ!
+      if (variant.value && typeof variant.value === 'string') {
+        const cleanValue = variant.value.trim();
+        // S, M, L, XL, 2XL, 3XL gibi beden kontrolü
+        if (cleanValue.match(/^(XS|S|M|L|XL|XXL|XXXL|2XL|3XL|4XL|\d{2,3})$/i)) {
+          size = cleanValue.toUpperCase();
+          console.log(`  ✓ VARIANT VALUE'dan beden bulundu: ${size}`);
+        }
+      }
+
       // ItemAttributes'dan da kontrol et
       if (variant.itemAttributes && Array.isArray(variant.itemAttributes)) {
         variant.itemAttributes.forEach((attr: any) => {
@@ -376,6 +386,11 @@ export async function extractFocusedData(url: string): Promise<FocusedProductDat
       // Tüm renk ve beden seçeneklerini topla
       colorSet.add(String(color));
       sizeSet.add(String(size));
+      
+      // Debug: Gerçek beden tespit edildi mi?
+      if (size !== 'Tek Beden' && size !== 'Varsayılan') {
+        console.log(`🎯 GERÇEK BEDEN EKLENDI: "${size}"`);
+      }
       
       console.log(`  → SizeSet güncellendi: [${Array.from(sizeSet).join(', ')}]`);
       
