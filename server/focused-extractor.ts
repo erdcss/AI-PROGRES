@@ -403,38 +403,46 @@ export async function extractFocusedData(url: string): Promise<FocusedProductDat
     });
   }
   
-  // JSON state'ten beden seçeneklerini çıkar
-  try {
-    const stateMatch = htmlContent.match(/window\.__PRODUCT_DETAIL_APP_INITIAL_STATE__\s*=\s*({.*?});/s);
-    if (stateMatch && stateMatch[1]) {
-      const jsonData = JSON.parse(stateMatch[1]);
-      
-      // Product variants'tan beden çıkar
-      if (jsonData.product?.variants) {
-        jsonData.product.variants.forEach((variant: any) => {
-          if (variant.attributeId1 && variant.value1) {
-            const size = variant.value1.trim();
-            if (size.match(/^(XS|S|M|L|XL|XXL|XXXL|\d{2,3})$/i) && size !== 'STD' && size !== 'Tek Beden') {
-              sizeSet.add(size.toUpperCase());
-            }
-          }
-        });
+  // Gerçek varyant verilerinden beden çıkarımı
+  console.log('🔍 Varyant verilerinden beden seçenekleri çıkarılıyor...');
+  
+  variants.forEach((variant, index) => {
+    console.log(`Varyant ${index + 1}: Renk=${variant.color}, Beden=${variant.size}, Stok=${variant.inStock}`);
+    
+    if (variant.size && variant.size !== 'Tek Beden' && variant.size !== 'Varsayılan') {
+      const cleanSize = variant.size.trim();
+      if (cleanSize.match(/^(XS|S|M|L|XL|XXL|XXXL|3XL|4XL|\d{2,3})$/i)) {
+        sizeSet.add(cleanSize.toUpperCase());
+        console.log(`✓ Varyant'tan beden eklendi: ${cleanSize}`);
       }
+    }
+  });
+
+  // Eğer varyantlardan beden bulunamadıysa ürün tek beden olabilir
+  if (sizeSet.size === 0 && variants.length > 0) {
+    const hasRealVariants = variants.some(v => 
+      v.size && v.size !== 'Tek Beden' && v.size !== 'Varsayılan' && v.size.trim() !== ''
+    );
+    
+    if (!hasRealVariants) {
+      console.log('📏 Ürün tek beden olarak tespit edildi');
+      // Tek beden ürünler için boş array döndür
+    } else {
+      console.log('⚠️ Varyantlar var ama beden çıkarılamadı, HTML'den aranacak...');
       
-      // Product allVariants'tan beden çıkar
-      if (jsonData.product?.allVariants) {
-        jsonData.product.allVariants.forEach((variant: any) => {
-          if (variant.value1) {
-            const size = variant.value1.trim();
-            if (size.match(/^(XS|S|M|L|XL|XXL|XXXL|\d{2,3})$/i) && size !== 'STD' && size !== 'Tek Beden') {
-              sizeSet.add(size.toUpperCase());
-            }
+      // HTML'den son deneme
+      const htmlSizeSearch = htmlContent.match(/(?:beden|size)[^>]*>([^<]*)/gi);
+      if (htmlSizeSearch) {
+        htmlSizeSearch.forEach(match => {
+          const sizeText = match.replace(/<[^>]*>/g, '').trim();
+          const sizeMatch = sizeText.match(/\b(XS|S|M|L|XL|XXL|XXXL|\d{2,3})\b/i);
+          if (sizeMatch) {
+            sizeSet.add(sizeMatch[1].toUpperCase());
+            console.log(`✓ HTML'den beden bulundu: ${sizeMatch[1]}`);
           }
         });
       }
     }
-  } catch (e) {
-    console.log('JSON parse hatası, devam ediliyor...');
   }
 
   // Product allVariants'tan çıkar

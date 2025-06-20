@@ -701,12 +701,12 @@ function ScraperPage({ platform = 'trendyol' }: ScraperPageProps) {
                       <thead>
                         <tr className="border-b border-gray-700">
                           <th className="text-left p-2">Handle</th>
-                          <th className="text-left p-2">Title</th>
-                          <th className="text-left p-2">Vendor</th>
-                          <th className="text-left p-2">Price</th>
-                          <th className="text-left p-2">Compare Price</th>
-                          <th className="text-left p-2">Size</th>
-                          <th className="text-left p-2">Stock</th>
+                          <th className="text-left p-2">Başlık</th>
+                          <th className="text-left p-2">Marka</th>
+                          <th className="text-left p-2">Fiyat</th>
+                          <th className="text-left p-2">Eski Fiyat</th>
+                          <th className="text-left p-2">Beden</th>
+                          <th className="text-left p-2">Stok</th>
                         </tr>
                       </thead>
                       <tbody>
