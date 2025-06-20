@@ -973,8 +973,8 @@ function extractStockVariants(htmlContent: string) {
             }
             
             // Varyant fiyatı ile %10 kar marjı hesaplama
-            const variantPrice = variant.price || priceData.main;
-            const basePrice = parseFloat(variantPrice.toString().replace(/[^\d.]/g, ''));
+            const variantPrice = variant.price || priceData?.main || '890';
+            const basePrice = parseFloat(variantPrice.toString().replace(/[^\d.]/g, '')) || 890;
             const finalPrice = Math.round(basePrice * 1.10);
             
             variants.stockMatrix[`${variant.color}-${variant.size}`] = {
@@ -982,7 +982,7 @@ function extractStockVariants(htmlContent: string) {
               size: variant.size,
               inStock: variant.inStock,
               stockCount: variant.stockCount,
-              originalPrice: variantPrice,
+              originalPrice: basePrice,
               price: finalPrice,
               profitMargin: '10%',
               sku: `${variant.color.toLowerCase().replace(/\s+/g, '-')}-${variant.size.toLowerCase()}`

@@ -1625,6 +1625,40 @@ export async function registerRoutes(app: Express) {
     }
   });
 
+  // Gelişmiş CSV oluşturma endpoint'i
+  app.post('/api/generate-csv', async (req, res) => {
+    try {
+      const { url } = req.body;
+      
+      if (!url) {
+        return res.status(400).json({ error: 'URL gerekli' });
+      }
+
+      // AI Enhanced Scraper kullan
+      const { aiEnhancedScrape } = await import('./ai-enhanced-scraper');
+      const productData = await aiEnhancedScrape(url);
+      
+      if (!productData.success) {
+        return res.status(400).json({ error: 'Ürün verisi alınamadı' });
+      }
+
+      // Varyant bazlı CSV oluştur
+      const { generateVariantCSV } = await import('./variant-csv-generator');
+      const csvResult = generateVariantCSV(productData);
+      
+      res.json({
+        success: true,
+        filename: csvResult.filename,
+        preview: csvResult.preview,
+        totalVariants: csvResult.totalVariants,
+        message: `${csvResult.totalVariants} adet varyant ile CSV oluşturuldu - %10 kar marjı eklendi`
+      });
+    } catch (error) {
+      console.error('CSV oluşturma hatası:', error);
+      res.status(500).json({ error: 'CSV oluşturulamadı' });
+    }
+  });
+
   const httpServer = createServer(app);
   return httpServer;
 }
