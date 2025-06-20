@@ -843,15 +843,15 @@ function ScraperPage({ platform = 'trendyol' }: ScraperPageProps) {
             </motion.div>
           )}
           
-          {product && (
+          {result && (
             <motion.div
-              key="product-display"
+              key="product-preview"
               initial={{ opacity: 0, y: 20 }}
               animate={{ opacity: 1, y: 0 }}
               exit={{ opacity: 0, y: -20 }}
               className="mt-8"
             >
-              <ProductDisplay data={product} />
+              <SimpleProductPreview product={result} />
             </motion.div>
           )}
         </AnimatePresence>
