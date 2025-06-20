@@ -493,6 +493,52 @@ function ScraperPage({ platform = 'trendyol' }: ScraperPageProps) {
     }
   };
 
+  const exportToShopifyCSV = async () => {
+    if (extractedProducts.length === 0) {
+      toast({
+        title: "Hata",
+        description: "CSV'ye aktarmak için önce ürün çıkarın.",
+        variant: "destructive"
+      });
+      return;
+    }
+
+    try {
+      const response = await fetch('/api/export-shopify-csv', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({ products: extractedProducts }),
+      });
+
+      if (!response.ok) {
+        throw new Error('CSV export başarısız');
+      }
+
+      const blob = await response.blob();
+      const url = window.URL.createObjectURL(blob);
+      const a = document.createElement('a');
+      a.href = url;
+      a.download = `shopify-products-${Date.now()}.csv`;
+      document.body.appendChild(a);
+      a.click();
+      window.URL.revokeObjectURL(url);
+      document.body.removeChild(a);
+
+      toast({
+        title: "Başarılı!",
+        description: `${extractedProducts.length} ürün Shopify CSV formatında indirildi.`,
+      });
+    } catch (error) {
+      toast({
+        title: "Hata",
+        description: "CSV export sırasında hata oluştu.",
+        variant: "destructive"
+      });
+    }
+  };
+
   return (
     <div className="min-h-screen bg-black text-white p-4 relative">
 

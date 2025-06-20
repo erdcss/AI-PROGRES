@@ -1839,7 +1839,7 @@ export function registerRoutes(app: Express): Server {
         colorOptions: result.colorOptions,
         sizeOptions: result.sizeOptions,
         variants: result.variants,
-        stockAnalysis: result.stockAnalysis,
+        isOutOfStock: result.isOutOfStock,
         features: result.features
       });
     } catch (error) {
@@ -1942,4 +1942,24 @@ export function registerRoutes(app: Express): Server {
 
   const httpServer = createServer(app);
   return httpServer;
+}
+
+// Ürün açıklaması oluştur
+function generateProductDescription(features: Array<{ key: string; value: string }>): string {
+  if (features.length === 0) return '';
+  
+  let description = '<div class="product-description">';
+  description += '<h3>Ürün Özellikleri:</h3>';
+  description += '<ul>';
+  
+  features.forEach(feature => {
+    if (feature.key && feature.value) {
+      description += `<li><strong>${feature.key}:</strong> ${feature.value}</li>`;
+    }
+  });
+  
+  description += '</ul>';
+  description += '</div>';
+  
+  return description;
 }

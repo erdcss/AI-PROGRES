@@ -550,11 +550,8 @@ export async function extractFocusedData(url: string): Promise<FocusedProductDat
   
   console.log(`✓ Özellikler: ${features.length} adet (kapsamlı)`);
   
-  // Final stok analizi
-  const finalInStockVariants = variants.filter(v => v.inStock);
-  const finalOutOfStockVariants = variants.filter(v => !v.inStock);
-  const finalAvailableSizes = [...new Set(finalInStockVariants.map(v => v.size))].filter(s => s !== 'Tek Beden');
-  const finalUnavailableSizes = [...new Set(finalOutOfStockVariants.map(v => v.size))].filter(s => s !== 'Tek Beden');
+  // Stokta olmayan ürün kontrolü
+  const isOutOfStock = variants.every(v => !v.inStock) || variants.length === 0;
   
   const result: FocusedProductData = {
     brand,
@@ -564,14 +561,8 @@ export async function extractFocusedData(url: string): Promise<FocusedProductDat
     colorOptions,
     sizeOptions,
     variants: variants.slice(0, 30), // İlk 30 varyant
-    stockAnalysis: {
-      totalVariants: variants.length,
-      inStockVariants: finalInStockVariants.length,
-      outOfStockVariants: finalOutOfStockVariants.length,
-      availableSizes: finalAvailableSizes,
-      unavailableSizes: finalUnavailableSizes
-    },
-    features: features.slice(0, 50) // Tüm özellikler (maksimum 50)
+    isOutOfStock,
+    features // Tüm özellikler tam liste
   };
   
   console.log(`🎯 Focused extraction tamamlandı`);
