@@ -353,7 +353,7 @@ export async function scrapeTrendyolProduct(inputUrl: string) {
 
     // Gelişmiş ürün özellikleri çıkarma
     console.log('🔍 AI destekli gelişmiş ürün özellikleri çıkarılıyor...');
-    const enhancedFeatures = extractEnhancedProductFeatures(htmlContent, $);
+    const advancedFeatures = extractEnhancedProductFeatures(htmlContent, $);
     
     // Extract category information first
     const categoryInfo = extractCategoryInfo($, htmlContent);
@@ -384,6 +384,24 @@ export async function scrapeTrendyolProduct(inputUrl: string) {
     ];
     const enhancedColors = Array.from(new Set(allColors));
     
+    // Fallback özelliklerle birleştir
+    const allFeatures = [
+      ...advancedFeatures.basicFeatures,
+      ...advancedFeatures.technicalSpecs,
+      ...advancedFeatures.materialInfo,
+      ...fallbackData.features
+    ];
+    
+    // Kategorilere ayır
+    const categorizedFeatures = {
+      basicFeatures: allFeatures.filter(f => f.category === 'basic'),
+      technicalSpecs: allFeatures.filter(f => f.category === 'technical'),
+      materialInfo: allFeatures.filter(f => f.category === 'material'),
+      careInstructions: allFeatures.filter(f => f.category === 'care'),
+      sizeGuide: allFeatures.filter(f => f.category === 'size'),
+      structuredData: advancedFeatures.structuredData
+    };
+    
     const variantData = {
       colors: enhancedColors,
       sizes: multiVariantData.sizes,
@@ -398,7 +416,7 @@ export async function scrapeTrendyolProduct(inputUrl: string) {
     console.log(`📝 Açıklama uzunluğu: ${productDescription.length} karakter`);
 
     // Combine images from variants and original extraction
-    const allImages = Array.from(new Set([
+    const finalImages = Array.from(new Set([
       ...Object.values(multiVariantData.images).flat(),
       ...cleanImages
     ])).filter(img => img && (img.startsWith('http') || img.startsWith('/'))).slice(0, 25);
@@ -418,7 +436,7 @@ export async function scrapeTrendyolProduct(inputUrl: string) {
     const sizeVariants = multiVariantData.sizes;
     const colorCount = colorVariants.length;
     const sizeCount = sizeVariants.length;
-    const imageCount = allImages.length;
+    const imageCount = absoluteImages.length;
     
     console.log(`✅ AI destekli varyant analizi: ${enhancedColors.length} renk (${aiDetectedColors.size} AI), ${sizeCount} beden, ${imageCount} görsel`);
     
