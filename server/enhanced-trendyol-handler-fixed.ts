@@ -6,6 +6,7 @@ import { extractDataWithAI, optimizeForShopifyWithAI } from './ai-enhanced-data-
 import { extractEnhancedProductFeatures } from './enhanced-product-features-extractor';
 import { extractEnhancedColors } from './enhanced-color-extractor';
 import { analyzeVariantPricing } from './variant-price-analyzer';
+import { extractComprehensiveFallbackData } from './enhanced-fallback-extractor';
 
 export interface EnhancedVariantData {
   colors: string[];
@@ -340,16 +341,26 @@ export async function scrapeTrendyolProduct(inputUrl: string) {
     console.log('🎨 AI ile renk tespiti başlatılıyor...');
     const aiColorMap = await detectColorsWithAI(combinedImages.slice(0, 8));
     
-    const cleanImages = combinedImages; // TÜM görselleri al
-    console.log(`🖼️ AI destekli görsel çıkarma tamamlandı: ${cleanImages.length} toplam görsel (AI kalite skoru: ${aiImageResult.qualityScore.toFixed(2)}/3.0)`);
+    // Fallback verilerle birleştir
+    const allImages = Array.from(new Set([...combinedImages, ...fallbackData.images]));
+    const cleanImages = allImages; // TÜM görselleri al
+    console.log(`🖼️ Kapsamlı görsel çıkarma tamamlandı: ${cleanImages.length} toplam görsel (AI: ${combinedImages.length}, Fallback: ${fallbackData.images.length})`);
     console.log(`🎨 AI renk tespiti: ${Object.keys(aiColorMap).length} görsel analiz edildi`);
     
     if (typeof colorSpecificImages !== 'undefined') {
       console.log(`🎨 Renk özel görseller: ${Object.keys(colorSpecificImages).length} renk için ${Object.values(colorSpecificImages).flat().length} görsel`);
     }
 
+    // Gelişmiş ürün özellikleri çıkarma
+    console.log('🔍 AI destekli gelişmiş ürün özellikleri çıkarılıyor...');
+    const enhancedFeatures = extractEnhancedProductFeatures(htmlContent, $);
+    
     // Extract category information first
     const categoryInfo = extractCategoryInfo($, htmlContent);
+    
+    // Kapsamlı fallback veri çıkarma
+    console.log('🔄 Kapsamlı veri çıkarma başlatılıyor...');
+    const fallbackData = extractComprehensiveFallbackData(htmlContent, $);
     
     // Gelişmiş renk çıkarma sistemi
     console.log('🎨 Gelişmiş renk analizi başlatılıyor...');
@@ -368,6 +379,7 @@ export async function scrapeTrendyolProduct(inputUrl: string) {
     const allColors = [
       ...multiVariantData.colors,
       ...enhancedColorData.availableColors,
+      ...fallbackData.colors,
       ...Array.from(aiDetectedColors)
     ];
     const enhancedColors = Array.from(new Set(allColors));
@@ -587,11 +599,11 @@ export async function scrapeTrendyolProduct(inputUrl: string) {
       
       // Gelişmiş ürün özellikleri
       enhancedFeatures: {
-        basicFeatures: enhancedFeatures.basicFeatures,
-        technicalSpecs: enhancedFeatures.technicalSpecs,
-        materialInfo: enhancedFeatures.materialInfo,
-        careInstructions: enhancedFeatures.careInstructions,
-        sizeGuide: enhancedFeatures.sizeGuide,
+        basicFeatures: categorizedFeatures.basicFeatures,
+        technicalSpecs: categorizedFeatures.technicalSpecs,
+        materialInfo: categorizedFeatures.materialInfo,
+        careInstructions: categorizedFeatures.careInstructions,
+        sizeGuide: categorizedFeatures.sizeGuide,
         structuredData: enhancedFeatures.structuredData
       },
       
