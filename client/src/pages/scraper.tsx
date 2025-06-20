@@ -739,11 +739,11 @@ function ScraperPage({ platform = 'trendyol' }: ScraperPageProps) {
                     <div className="bg-green-900/20 p-2 rounded border border-green-800">
                       <div className="flex items-center justify-between mb-2">
                         <span className="text-gray-400 text-sm">Orijinal Fiyat</span>
-                        <span className="text-sm font-medium text-gray-300">{product.price} TL</span>
+                        <span className="text-sm font-medium text-gray-300">{typeof product.price === 'object' ? product.price.formatted : product.price} TL</span>
                       </div>
                       <div className="flex items-center justify-between">
                         <span className="text-green-400 text-sm">CSV Fiyatı (%10 Kar)</span>
-                        <span className="text-base font-bold text-green-300">{Math.ceil(parseFloat(product.price) * 1.1)} TL</span>
+                        <span className="text-base font-bold text-green-300">{Math.ceil(parseFloat(typeof product.price === 'object' ? product.price.original : product.price) * 1.1)} TL</span>
                       </div>
                       <div className="text-xs text-green-500">%10 kar dahil</div>
                     </div>

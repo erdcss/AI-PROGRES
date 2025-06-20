@@ -248,7 +248,7 @@ export function AIAnalysisDisplay({ analysis }: AIAnalysisProps) {
                       <div key={index} className="flex items-center justify-between text-sm">
                         <span>{entry.month}</span>
                         <div className="flex items-center gap-2">
-                          <span className="font-medium">{entry.price} TL</span>
+                          <span className="font-medium">{typeof entry.price === 'object' ? entry.price.formatted : entry.price} TL</span>
                           <span className={`text-xs px-1 py-0.5 rounded ${
                             entry.change > 0 ? 'text-red-600 bg-red-50' : 
                             entry.change < 0 ? 'text-green-600 bg-green-50' : 

@@ -246,7 +246,7 @@ export function AIEnhancedProductDisplay({ productData }: AIEnhancedProductDispl
                                 )}
                               </div>
                               {colorInfo.price && (
-                                <span className="text-sm font-bold text-green-600">{colorInfo.price} TL</span>
+                                <span className="text-sm font-bold text-green-600">{typeof colorInfo.price === 'object' ? colorInfo.price.formatted : colorInfo.price} TL</span>
                               )}
                             </div>
                             {colorInfo.images && colorInfo.images.length > 0 && (
@@ -363,7 +363,7 @@ export function AIEnhancedProductDisplay({ productData }: AIEnhancedProductDispl
                               {!variant.available && <span className="text-red-500 text-xs ml-2">(Stokta Yok)</span>}
                             </div>
                             <div className="text-right">
-                              <div className="font-bold text-green-600">{variant.price} {variant.currency}</div>
+                              <div className="font-bold text-green-600">{typeof variant.price === 'object' ? variant.price.formatted : variant.price} {variant.currency}</div>
                               {variant.originalPrice && variant.originalPrice > variant.price && (
                                 <div className="text-sm text-gray-500 line-through">{variant.originalPrice} {variant.currency}</div>
                               )}
