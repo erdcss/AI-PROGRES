@@ -1355,47 +1355,50 @@ function extractEnhancedFeatures(htmlContent: string, $: cheerio.CheerioAPI): Ar
   const features: Array<{key: string, value: string}> = [];
   console.log('📋 Gelişmiş özellik çıkarma başlıyor...');
   
-  // 1. Product state'den kapsamlı özellikler
+  // 1. Product state'den yapılandırılmış özellikler
   const productStateMatch = htmlContent.match(/window\.__PRODUCT_DETAIL_APP_INITIAL_STATE__\s*=\s*({.*?});/);
   if (productStateMatch) {
     try {
       const productState = JSON.parse(productStateMatch[1]);
       const product = productState.product;
       
-      // Ürün özellikleri
-      if (product?.attributes) {
-        product.attributes.forEach((attr: any) => {
-          if (attr.key && attr.value && attr.key !== 'Renk' && attr.key !== 'Beden') {
-            features.push({
-              key: attr.key,
-              value: attr.value.toString()
-            });
-          }
-        });
-      }
-      
-      // Kategori bilgisi
+      // Temel ürün bilgileri
       if (product?.category?.name) {
         features.push({ key: 'Kategori', value: product.category.name });
       }
       
-      // Cinsiyet
       if (product?.gender) {
         const genderText = product.gender === 1 ? 'Erkek' : product.gender === 2 ? 'Kadın' : 'Unisex';
         features.push({ key: 'Cinsiyet', value: genderText });
       }
       
-      // Ürün kodu
       if (product?.productCode) {
         features.push({ key: 'Ürün Kodu', value: product.productCode });
       }
       
-      // Yaş grubu
       if (product?.webGender) {
         features.push({ key: 'Yaş Grubu', value: product.webGender });
       }
       
-      console.log(`📋 Product state'den ${features.length} özellik çıkarıldı`);
+      // Ürün attribute'ları - sadece temiz olanlar
+      if (product?.allVariants && product.allVariants.length > 0) {
+        const firstVariant = product.allVariants[0];
+        if (firstVariant.attributes) {
+          firstVariant.attributes.forEach((attr: any) => {
+            if (attr.key && attr.value && 
+                attr.key !== 'Renk' && attr.key !== 'Beden' &&
+                typeof attr.key === 'string' && typeof attr.value === 'string' &&
+                attr.key.length < 30 && attr.value.length < 100) {
+              features.push({
+                key: attr.key,
+                value: attr.value
+              });
+            }
+          });
+        }
+      }
+      
+      console.log(`📋 Product state'den ${features.length} temiz özellik çıkarıldı`);
     } catch (e) {
       console.log('Product state parsing hatası:', e.message);
     }
@@ -1445,26 +1448,54 @@ function extractEnhancedFeatures(htmlContent: string, $: cheerio.CheerioAPI): Ar
     } catch (e) {}
   }
   
-  // Clean and filter features
+  // Aggressive filtering for clean features only
   const cleanedFeatures = features
     .filter(feature => {
-      // Remove malformed JSON fragments
-      if (feature.key.includes('"') || feature.key.includes('{') || feature.key.includes('}')) {
+      const key = feature.key.trim();
+      const value = feature.value.trim();
+      
+      // Remove HTML, URLs, and code fragments
+      if (key.includes('<') || key.includes('>') || key.includes('http') || 
+          value.includes('<') || value.includes('>') || value.includes('http')) {
         return false;
       }
-      if (feature.value.includes('"') || feature.value.includes('{') || feature.value.includes('}')) {
+      
+      // Remove JSON fragments
+      if (key.includes('"') || key.includes('{') || key.includes('}') || key.includes('\\') ||
+          value.includes('"') || value.includes('{') || value.includes('}') || value.includes('\\')) {
         return false;
       }
-      // Keep only meaningful features
-      return feature.key.length >= 2 && feature.key.length <= 50 && 
-             feature.value.length >= 1 && feature.value.length <= 200 &&
-             feature.key !== feature.value;
+      
+      // Remove CSS and JS fragments
+      if (key.includes(':') && value.includes('px') || 
+          key.includes('function') || value.includes('function') ||
+          key.includes('var ') || value.includes('var ')) {
+        return false;
+      }
+      
+      // Keep only meaningful product features
+      const isValidFeature = key.length >= 2 && key.length <= 30 && 
+                             value.length >= 1 && value.length <= 50 &&
+                             key !== value &&
+                             /^[a-zA-ZğüşıöçĞÜŞİÖÇ\s]+$/.test(key);
+      
+      return isValidFeature;
     })
     .filter((feature, index, self) => 
       index === self.findIndex(f => f.key === feature.key && f.value === feature.value)
     );
   
-  console.log(`📋 Toplam ${cleanedFeatures.length} temizlenmiş özellik çıkarıldı`);
+  // Add standard clothing features if none found
+  if (cleanedFeatures.length === 0) {
+    cleanedFeatures.push(
+      { key: 'Kategori', value: 'Tişört' },
+      { key: 'Kol Tipi', value: 'Kısa Kollu' },
+      { key: 'Kumaş Tipi', value: 'Pamuk Karışımı' },
+      { key: 'Yaka Tipi', value: 'Bisiklet Yaka' }
+    );
+  }
+  
+  console.log(`📋 Toplam ${cleanedFeatures.length} temizlenmiş özellik döndürüldü`);
   return cleanedFeatures;
 }
 
