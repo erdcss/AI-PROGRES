@@ -110,7 +110,7 @@ export function AIEnhancedProductDisplay({ productData }: AIEnhancedProductDispl
                 <Badge variant="outline">{subcategory}</Badge>
               </div>
               <div className="mt-4">
-                <span className="text-2xl font-bold text-green-600">{price} TL</span>
+                <span className="text-2xl font-bold text-green-600">{typeof price === 'object' ? price.formatted : price} TL</span>
               </div>
             </div>
             <div>
@@ -343,7 +343,7 @@ export function AIEnhancedProductDisplay({ productData }: AIEnhancedProductDispl
                       {Object.entries(priceAnalysis.colorPricing).map(([color, price]: [string, any]) => (
                         <div key={color} className="flex justify-between items-center p-2 bg-gray-50 rounded">
                           <span className="font-medium">{color}</span>
-                          <span className="text-green-600 font-bold">{price} TL</span>
+                          <span className="text-green-600 font-bold">{typeof price === 'object' ? price.formatted : price} TL</span>
                         </div>
                       ))}
                     </div>
