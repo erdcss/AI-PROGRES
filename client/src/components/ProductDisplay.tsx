@@ -277,7 +277,6 @@ export function ProductDisplay({ data }: ProductDisplayProps) {
       </Card>
 
       {/* Ürün Özellikleri */}
-      {/* Ürün Özellikleri */}
       <Card className="bg-gray-800 border-gray-700">
         <CardHeader>
           <CardTitle className="flex items-center gap-2 text-white">
