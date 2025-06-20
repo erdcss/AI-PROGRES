@@ -23,7 +23,7 @@ function generateSingleProductShopifyCSV(product: any): string {
     .replace(/\s+/g, '-')
     .substring(0, 50);
   
-  const bodyHTML = `<h3>Ürün Özellikleri</h3><ul>${product.features.map((f: any) => `<li><strong>${f.key}:</strong> ${f.value}</li>`).join('')}</ul><p>Marka: ${product.brand}</p><p>Beden seçenekleri: ${product.sizeOptions.join(', ')}</p>`;
+  const bodyHTML = `<h3>Ürün Özellikleri</h3><ul>${product.features.map((f: any) => `<li><strong>${f.key}:</strong> ${f.value}</li>`).join('')}</ul><p>Marka: ${product.brand}</p><p>Beden seçenekleri: ${product.sizeOptions.join(' ')}</p>`;
 
   const headers = [
     'Handle', 'Title', 'Body (HTML)', 'Vendor', 'Product Category', 'Type', 'Tags', 'Published',
