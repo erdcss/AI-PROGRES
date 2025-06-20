@@ -5,6 +5,7 @@ import { extractImagesWithAI, detectColorsWithAI } from './ai-enhanced-image-ext
 import { extractDataWithAI, optimizeForShopifyWithAI } from './ai-enhanced-data-extractor';
 import { extractEnhancedProductFeatures } from './enhanced-product-features-extractor';
 import { extractEnhancedColors } from './enhanced-color-extractor';
+import { analyzeVariantPricing } from './variant-price-analyzer';
 
 export interface EnhancedVariantData {
   colors: string[];
@@ -354,6 +355,10 @@ export async function scrapeTrendyolProduct(inputUrl: string) {
     console.log('🎨 Gelişmiş renk analizi başlatılıyor...');
     const enhancedColorData = extractEnhancedColors(htmlContent, $);
     
+    // Varyant fiyat analizi
+    console.log('💰 Varyant fiyat analizi başlatılıyor...');
+    const priceAnalysis = await analyzeVariantPricing(htmlContent, $);
+    
     // AI ile renkleri birleştir
     const aiDetectedColors = new Set<string>();
     Object.values(aiColorMap).forEach(colorArray => {
@@ -597,6 +602,16 @@ export async function scrapeTrendyolProduct(inputUrl: string) {
         availableColors: enhancedColorData.availableColors,
         outOfStockColors: enhancedColorData.outOfStockColors,
         colorImageMap: enhancedColorData.colorImageMap
+      },
+      
+      // Varyant fiyat analizi
+      priceAnalysis: {
+        variants: priceAnalysis.variants,
+        priceRange: priceAnalysis.priceRange,
+        pricingStrategy: priceAnalysis.pricingStrategy,
+        colorPricing: priceAnalysis.colorPricing,
+        sizePricing: priceAnalysis.sizePricing,
+        aiAnalysis: priceAnalysis.aiAnalysis
       },
       
       // Shopify optimizasyonu

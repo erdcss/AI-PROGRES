@@ -45,7 +45,8 @@ export function AIEnhancedProductDisplay({ productData }: AIEnhancedProductDispl
     imageAnalysis = {},
     aiAnalysis = {},
     enhancedFeatures = {},
-    colorDetails = {}
+    colorDetails = {},
+    priceAnalysis = {}
   } = productData;
 
   return (
@@ -134,9 +135,10 @@ export function AIEnhancedProductDisplay({ productData }: AIEnhancedProductDispl
 
       {/* AI Gelişmiş Analizler */}
       <Tabs defaultValue="images" className="w-full">
-        <TabsList className="grid w-full grid-cols-6">
+        <TabsList className="grid w-full grid-cols-7">
           <TabsTrigger value="images">AI Görseller</TabsTrigger>
           <TabsTrigger value="variants">Varyantlar</TabsTrigger>
+          <TabsTrigger value="pricing">Fiyat Analizi</TabsTrigger>
           <TabsTrigger value="features">Özellikler</TabsTrigger>
           <TabsTrigger value="materials">Malzemeler</TabsTrigger>
           <TabsTrigger value="shopify">Shopify</TabsTrigger>
@@ -274,6 +276,119 @@ export function AIEnhancedProductDisplay({ productData }: AIEnhancedProductDispl
                       </Badge>
                     ))}
                   </div>
+                </div>
+              </div>
+            </CardContent>
+          </Card>
+        </TabsContent>
+
+        <TabsContent value="pricing">
+          <Card>
+            <CardHeader>
+              <CardTitle className="flex items-center gap-2">
+                <TrendingUp className="h-5 w-5" />
+                AI Varyant Fiyat Analizi
+              </CardTitle>
+            </CardHeader>
+            <CardContent>
+              <div className="space-y-6">
+                {priceAnalysis.priceRange && (
+                  <div>
+                    <h4 className="font-semibold mb-3">Fiyat Aralığı</h4>
+                    <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+                      <div className="text-center p-3 bg-green-50 rounded-lg">
+                        <div className="text-2xl font-bold text-green-600">
+                          {priceAnalysis.priceRange.min} TL
+                        </div>
+                        <div className="text-sm text-gray-600">En Düşük</div>
+                      </div>
+                      <div className="text-center p-3 bg-red-50 rounded-lg">
+                        <div className="text-2xl font-bold text-red-600">
+                          {priceAnalysis.priceRange.max} TL
+                        </div>
+                        <div className="text-sm text-gray-600">En Yüksek</div>
+                      </div>
+                      <div className="text-center p-3 bg-blue-50 rounded-lg">
+                        <div className="text-2xl font-bold text-blue-600">
+                          {priceAnalysis.priceRange.difference} TL
+                        </div>
+                        <div className="text-sm text-gray-600">Fark</div>
+                      </div>
+                    </div>
+                  </div>
+                )}
+                
+                {priceAnalysis.colorPricing && Object.keys(priceAnalysis.colorPricing).length > 0 && (
+                  <div>
+                    <h4 className="font-semibold mb-3">Renk Bazlı Fiyatlandırma</h4>
+                    <div className="grid grid-cols-1 md:grid-cols-2 gap-2">
+                      {Object.entries(priceAnalysis.colorPricing).map(([color, price]: [string, any]) => (
+                        <div key={color} className="flex justify-between items-center p-2 bg-gray-50 rounded">
+                          <span className="font-medium">{color}</span>
+                          <span className="text-green-600 font-bold">{price} TL</span>
+                        </div>
+                      ))}
+                    </div>
+                  </div>
+                )}
+                
+                {priceAnalysis.variants && priceAnalysis.variants.length > 0 && (
+                  <div>
+                    <h4 className="font-semibold mb-3">Detaylı Varyant Fiyatları</h4>
+                    <div className="space-y-2 max-h-60 overflow-y-auto">
+                      {priceAnalysis.variants.map((variant: any, index: number) => (
+                        <div key={index} className={`p-3 rounded border ${variant.available ? 'bg-white' : 'bg-gray-100'}`}>
+                          <div className="flex justify-between items-center">
+                            <div>
+                              <span className="font-medium">{variant.color}</span>
+                              {variant.size && <span className="text-gray-500 ml-2">({variant.size})</span>}
+                              {!variant.available && <span className="text-red-500 text-xs ml-2">(Stokta Yok)</span>}
+                            </div>
+                            <div className="text-right">
+                              <div className="font-bold text-green-600">{variant.price} {variant.currency}</div>
+                              {variant.originalPrice && variant.originalPrice > variant.price && (
+                                <div className="text-sm text-gray-500 line-through">{variant.originalPrice} {variant.currency}</div>
+                              )}
+                            </div>
+                          </div>
+                        </div>
+                      ))}
+                    </div>
+                  </div>
+                )}
+                
+                {priceAnalysis.aiAnalysis && (
+                  <div>
+                    <h4 className="font-semibold mb-3">AI Fiyatlandırma Stratejisi</h4>
+                    <div className="p-4 bg-blue-50 rounded-lg">
+                      <div className="mb-2">
+                        <span className="font-medium">Strateji:</span> {priceAnalysis.aiAnalysis.strategy}
+                      </div>
+                      <div className="mb-2">
+                        <span className="font-medium">Analiz:</span> {priceAnalysis.aiAnalysis.reasoning}
+                      </div>
+                      {priceAnalysis.aiAnalysis.recommendations && (
+                        <div>
+                          <span className="font-medium">Öneriler:</span>
+                          <ul className="list-disc list-inside mt-1">
+                            {priceAnalysis.aiAnalysis.recommendations.map((rec: string, idx: number) => (
+                              <li key={idx} className="text-sm">{rec}</li>
+                            ))}
+                          </ul>
+                        </div>
+                      )}
+                    </div>
+                  </div>
+                )}
+                
+                <div>
+                  <h4 className="font-semibold mb-2">Fiyatlandırma Stratejisi</h4>
+                  <Badge variant="outline" className="text-lg px-3 py-1">
+                    {priceAnalysis.pricingStrategy === 'color_based' && 'Renk Bazlı Fiyatlandırma'}
+                    {priceAnalysis.pricingStrategy === 'size_based' && 'Beden Bazlı Fiyatlandırma'}
+                    {priceAnalysis.pricingStrategy === 'complex' && 'Karmaşık Fiyatlandırma'}
+                    {priceAnalysis.pricingStrategy === 'uniform' && 'Tekdüzen Fiyatlandırma'}
+                  </Badge>
                 </div>
               </div>
             </CardContent>
