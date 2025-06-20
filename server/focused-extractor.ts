@@ -64,14 +64,26 @@ export async function extractFocusedData(url: string): Promise<FocusedProductDat
   const title = product.name || 'Başlık bulunamadı';
   console.log(`✓ Başlık: ${title}`);
   
-  // 3. GÖRSELLER
+  // 3. GÖRSELLER - Gelişmiş görsel çıkarma
   const images: string[] = [];
   
   // Ana ürün görselleri
   if (product.images && Array.isArray(product.images)) {
     product.images.forEach((img: any) => {
-      if (img?.url && typeof img.url === 'string' && img.url.includes('dsmcdn.com')) {
-        images.push(img.url);
+      let imageUrl = null;
+      
+      // Farklı görsel formatları kontrol et
+      if (typeof img === 'string' && img.includes('dsmcdn.com')) {
+        imageUrl = img;
+      } else if (img?.url && typeof img.url === 'string' && img.url.includes('dsmcdn.com')) {
+        imageUrl = img.url;
+      } else if (img?.link && typeof img.link === 'string' && img.link.includes('dsmcdn.com')) {
+        imageUrl = img.link;
+      }
+      
+      if (imageUrl && !images.includes(imageUrl)) {
+        images.push(imageUrl);
+        console.log(`📸 Ana görsel: ${imageUrl}`);
       }
     });
   }
@@ -81,13 +93,69 @@ export async function extractFocusedData(url: string): Promise<FocusedProductDat
     product.allVariants.forEach((variant: any) => {
       if (variant.images && Array.isArray(variant.images)) {
         variant.images.forEach((img: any) => {
-          const imageUrl = typeof img === 'string' ? img : img?.url;
-          if (imageUrl && typeof imageUrl === 'string' && imageUrl.includes('dsmcdn.com')) {
-            if (!images.includes(imageUrl)) {
-              images.push(imageUrl);
-            }
+          let imageUrl = null;
+          
+          if (typeof img === 'string' && img.includes('dsmcdn.com')) {
+            imageUrl = img;
+          } else if (img?.url && img.url.includes('dsmcdn.com')) {
+            imageUrl = img.url;
+          }
+          
+          if (imageUrl && !images.includes(imageUrl)) {
+            images.push(imageUrl);
+            console.log(`📸 Varyant görseli: ${imageUrl}`);
           }
         });
+      }
+    });
+  }
+  
+  // Alternatif görsel kaynakları
+  if (images.length === 0) {
+    console.log(`⚠️ Ana kaynaklardan görsel bulunamadı, alternatif kaynaklar kontrol ediliyor...`);
+    
+    // Product detail içindeki diğer görsel alanları kontrol et
+    const alternativeSources = [
+      product.productImages,
+      product.galleryImages,
+      product.media?.images,
+      productState.productDetail?.images,
+      productState.gallery?.images
+    ];
+    
+    alternativeSources.forEach((source, index) => {
+      console.log(`🔍 Alternatif kaynak ${index + 1} kontrol ediliyor:`, !!source);
+      
+      if (source && Array.isArray(source)) {
+        source.forEach((img: any) => {
+          let imageUrl = null;
+          
+          if (typeof img === 'string' && img.includes('dsmcdn.com')) {
+            imageUrl = img;
+          } else if (img?.url && img.url.includes('dsmcdn.com')) {
+            imageUrl = img.url;
+          }
+          
+          if (imageUrl && !images.includes(imageUrl)) {
+            images.push(imageUrl);
+            console.log(`📸 Alternatif görsel: ${imageUrl}`);
+          }
+        });
+      }
+    });
+  }
+  
+  // Son çare: HTML'den görsel URL'lerini regex ile çıkar
+  if (images.length === 0) {
+    console.log(`⚠️ JSON'dan görsel bulunamadı, HTML'den regex ile aranıyor...`);
+    
+    const imageRegex = /https:\/\/cdn\.dsmcdn\.com\/ty\d+\/product\/media\/images\/[^"'\s]+\.jpg/g;
+    const htmlImages = htmlContent.match(imageRegex) || [];
+    
+    htmlImages.forEach(imageUrl => {
+      if (!images.includes(imageUrl)) {
+        images.push(imageUrl);
+        console.log(`📸 HTML'den görsel: ${imageUrl}`);
       }
     });
   }

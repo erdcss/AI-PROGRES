@@ -1847,6 +1847,18 @@ export async function registerRoutes(app: Express) {
     }
   });
 
+  // Görsel debug endpoint
+  app.post('/api/debug-images', async (req, res) => {
+    try {
+      const { url } = req.body;
+      const { debugImageExtraction } = await import('./image-debug');
+      const result = await debugImageExtraction(url);
+      res.json(result);
+    } catch (error) {
+      res.status(500).json({ error: error.message });
+    }
+  });
+
   // Basit Trendyol extraction endpoint'i
   app.post('/api/simple-extract', async (req, res) => {
     try {
