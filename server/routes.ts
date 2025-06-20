@@ -1834,7 +1834,10 @@ export function registerRoutes(app: Express): Server {
         success: true,
         brand: result.brand,
         title: result.title,
+        price: result.price,
         images: result.images,
+        colorOptions: result.colorOptions,
+        sizeOptions: result.sizeOptions,
         variants: result.variants,
         features: result.features
       });

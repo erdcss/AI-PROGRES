@@ -1,12 +1,21 @@
 import { motion } from "framer-motion";
-import { Package, Image as ImageIcon, Tags, Palette } from "lucide-react";
+import { Package, Image as ImageIcon, Tags, Palette, DollarSign } from "lucide-react";
 
 interface SimpleProductPreviewProps {
   product: {
     success: boolean;
     brand: string;
     title: string;
+    price?: {
+      original: number;
+      currency: string;
+      formatted: string;
+      withProfit: number;
+      profitFormatted: string;
+    };
     images: string[];
+    colorOptions?: string[];
+    sizeOptions?: string[];
     variants: Array<{
       color: string;
       size: string;
@@ -25,7 +34,7 @@ export function SimpleProductPreview({ product }: SimpleProductPreviewProps) {
     return null;
   }
 
-  const { brand, title, images, variants, features } = product;
+  const { brand, title, price, images, colorOptions, sizeOptions, variants, features } = product;
 
   return (
     <motion.div
@@ -52,7 +61,64 @@ export function SimpleProductPreview({ product }: SimpleProductPreviewProps) {
             <h3 className="text-sm font-medium text-gray-300 mb-2">Ürün Başlığı</h3>
             <p className="text-white text-sm leading-relaxed">{title}</p>
           </div>
+          
+          {price && (
+            <div>
+              <h3 className="text-sm font-medium text-gray-300 mb-2">Fiyat Bilgisi</h3>
+              <div className="space-y-2">
+                <div className="flex items-center justify-between bg-gray-800/30 rounded-lg p-3">
+                  <span className="text-gray-400 text-sm">Orijinal Fiyat:</span>
+                  <span className="text-white font-medium">{price.formatted}</span>
+                </div>
+                <div className="flex items-center justify-between bg-green-900/20 rounded-lg p-3 border border-green-800">
+                  <span className="text-green-400 text-sm">%10 Kar Marjı:</span>
+                  <span className="text-green-300 font-bold">{price.profitFormatted}</span>
+                </div>
+              </div>
+            </div>
+          )}
         </div>
+
+        {/* Color and Size Options */}
+        {(colorOptions?.length > 0 || sizeOptions?.length > 0) && (
+          <div className="space-y-3">
+            {colorOptions?.length > 0 && (
+              <div>
+                <h3 className="text-sm font-medium text-gray-300 mb-2">
+                  Renk Seçenekleri ({colorOptions.length})
+                </h3>
+                <div className="flex flex-wrap gap-2">
+                  {colorOptions.map((color, index) => (
+                    <span
+                      key={index}
+                      className="px-3 py-1 bg-blue-900/20 text-blue-300 text-sm rounded-lg border border-blue-800"
+                    >
+                      {color}
+                    </span>
+                  ))}
+                </div>
+              </div>
+            )}
+            
+            {sizeOptions?.length > 0 && (
+              <div>
+                <h3 className="text-sm font-medium text-gray-300 mb-2">
+                  Beden Seçenekleri ({sizeOptions.length})
+                </h3>
+                <div className="flex flex-wrap gap-2">
+                  {sizeOptions.map((size, index) => (
+                    <span
+                      key={index}
+                      className="px-3 py-1 bg-purple-900/20 text-purple-300 text-sm rounded-lg border border-purple-800"
+                    >
+                      {size}
+                    </span>
+                  ))}
+                </div>
+              </div>
+            )}
+          </div>
+        )}
 
         {/* Summary Card */}
         <div className="bg-gray-800/50 rounded-lg p-4 space-y-3">
@@ -156,14 +222,19 @@ export function SimpleProductPreview({ product }: SimpleProductPreviewProps) {
             <Tags className="h-4 w-4" />
             Ürün Özellikleri ({features.length})
           </h3>
-          <div className="grid grid-cols-1 md:grid-cols-2 gap-3 max-h-48 overflow-y-auto">
-            {features.slice(0, 12).map((feature, index) => (
+          <div className="grid grid-cols-1 md:grid-cols-2 gap-3 max-h-64 overflow-y-auto">
+            {features.map((feature, index) => (
               <div key={index} className="bg-gray-800/20 rounded-lg p-3">
                 <div className="text-xs text-gray-400 mb-1">{feature.key}</div>
-                <div className="text-sm text-white">{feature.value}</div>
+                <div className="text-sm text-white break-words">{feature.value}</div>
               </div>
             ))}
           </div>
+          {features.length === 0 && (
+            <div className="text-center text-gray-500 py-4">
+              Ürün özellikleri bulunamadı
+            </div>
+          )}
         </div>
       )}
     </motion.div>

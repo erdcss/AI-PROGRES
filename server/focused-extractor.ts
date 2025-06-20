@@ -10,7 +10,16 @@
 export interface FocusedProductData {
   brand: string;
   title: string;
+  price: {
+    original: number;
+    currency: string;
+    formatted: string;
+    withProfit: number;
+    profitFormatted: string;
+  };
   images: string[];
+  colorOptions: string[];
+  sizeOptions: string[];
   variants: Array<{
     color: string;
     size: string;
@@ -64,7 +73,44 @@ export async function extractFocusedData(url: string): Promise<FocusedProductDat
   const title = product.name || 'Başlık bulunamadı';
   console.log(`✓ Başlık: ${title}`);
   
-  // 3. GÖRSELLER - Gelişmiş görsel çıkarma
+  // 3. FİYAT - %10 kar marjı ile
+  let priceData = {
+    original: 0,
+    currency: 'TRY',
+    formatted: '0 TL',
+    withProfit: 0,
+    profitFormatted: '0 TL'
+  };
+  
+  if (product.price?.sellingPrice?.value) {
+    const originalPrice = product.price.sellingPrice.value / 100; // Kuruştan TL'ye
+    const currency = product.price.sellingPrice.currency || 'TRY';
+    const profitPrice = Math.round(originalPrice * 1.1 * 100) / 100; // %10 kar + yuvarlama
+    
+    priceData = {
+      original: originalPrice,
+      currency: currency,
+      formatted: `${originalPrice.toFixed(2)} ${currency}`,
+      withProfit: profitPrice,
+      profitFormatted: `${profitPrice.toFixed(2)} ${currency}`
+    };
+  } else if (product.price?.originalPrice?.value) {
+    const originalPrice = product.price.originalPrice.value / 100;
+    const currency = product.price.originalPrice.currency || 'TRY';
+    const profitPrice = Math.round(originalPrice * 1.1 * 100) / 100;
+    
+    priceData = {
+      original: originalPrice,
+      currency: currency,
+      formatted: `${originalPrice.toFixed(2)} ${currency}`,
+      withProfit: profitPrice,
+      profitFormatted: `${profitPrice.toFixed(2)} ${currency}`
+    };
+  }
+  
+  console.log(`✓ Fiyat: ${priceData.formatted} → %10 kar: ${priceData.profitFormatted}`);
+  
+  // 4. GÖRSELLER - Gelişmiş görsel çıkarma
   const images: string[] = [];
   
   // Ana ürün görselleri
@@ -221,13 +267,16 @@ export async function extractFocusedData(url: string): Promise<FocusedProductDat
     console.log(`✅ İlk görsel: ${images[0]}`);
   }
   
-  // 4. VARYANTLAR - Gelişmiş varyant çıkarma
+  // 5. VARYANTLAR - Gelişmiş varyant çıkarma
   const variants: Array<{
     color: string;
     size: string;
     inStock: boolean;
     stockCount: number;
   }> = [];
+  
+  const colorSet = new Set<string>();
+  const sizeSet = new Set<string>();
   
   if (product.allVariants && Array.isArray(product.allVariants)) {
     product.allVariants.forEach((variant: any) => {
@@ -239,7 +288,11 @@ export async function extractFocusedData(url: string): Promise<FocusedProductDat
       const stockCount = parseInt(variant.stock || variant.stockCount || variant.quantity || '0');
       const inStock = stockCount > 0;
       
-      // Sadece stokta olanları ekle
+      // Renk ve beden seçeneklerini topla
+      colorSet.add(String(color));
+      sizeSet.add(String(size));
+      
+      // Sadece stokta olanları varyant listesine ekle
       if (inStock) {
         variants.push({
           color: String(color),
@@ -268,6 +321,9 @@ export async function extractFocusedData(url: string): Promise<FocusedProductDat
             const size = variant.size || variant.beden || 'Tek Beden';
             const stockCount = parseInt(variant.stock || variant.quantity || '1');
             
+            colorSet.add(String(color));
+            sizeSet.add(String(size));
+            
             if (stockCount > 0) {
               variants.push({
                 color: String(color),
@@ -282,38 +338,82 @@ export async function extractFocusedData(url: string): Promise<FocusedProductDat
     });
   }
   
-  console.log(`✓ Varyantlar: ${variants.length} adet (stokta)`);
+  // Renk ve beden seçeneklerini arraye çevir
+  const colorOptions = Array.from(colorSet).filter(color => 
+    color !== 'Varsayılan' && color.length > 0
+  );
+  const sizeOptions = Array.from(sizeSet).filter(size => 
+    size !== 'Tek Beden' && size.length > 0
+  );
   
-  // 5. ÖZELLİKLER - Gelişmiş özellik çıkarma
+  console.log(`✓ Varyantlar: ${variants.length} adet (stokta)`);
+  console.log(`✓ Renk seçenekleri: ${colorOptions.length} adet - ${colorOptions.join(', ')}`);
+  console.log(`✓ Beden seçenekleri: ${sizeOptions.length} adet - ${sizeOptions.join(', ')}`);
+  
+  // 6. ÖZELLİKLER - Tüm ürün özelliklerini çıkar
   const features: Array<{
     key: string;
     value: string;
   }> = [];
   
-  // Product attributes'dan
+  const processedKeys = new Set<string>();
+  
+  // Product attributes'dan - en detaylı özellikler
   if (product.attributes && typeof product.attributes === 'object') {
     Object.entries(product.attributes).forEach(([key, value]) => {
       if (key && value && 
           typeof key === 'string' && typeof value === 'string' &&
-          key.length > 1 && key.length < 50 &&
-          value.length > 1 && value.length < 100 &&
-          !key.includes('"') && !value.includes('"') &&
-          !key.includes('{') && !value.includes('{')) {
+          key.length > 1 && key.length < 100 &&
+          value.length > 0 && value.length < 200 &&
+          !processedKeys.has(key.toLowerCase())) {
+        
         features.push({
           key: key.trim(),
           value: value.trim()
         });
+        processedKeys.add(key.toLowerCase());
       }
     });
   }
   
-  // Alternatif özellik kaynakları
+  // Product contentDescriptions - detaylı açıklamalar
+  if (product.contentDescriptions && Array.isArray(product.contentDescriptions)) {
+    product.contentDescriptions.forEach((desc: any) => {
+      if (desc?.description && typeof desc.description === 'string') {
+        const cleanDesc = desc.description.replace(/<[^>]*>/g, '').trim();
+        if (cleanDesc.length > 10 && cleanDesc.length < 500) {
+          features.push({
+            key: 'Ürün Açıklaması',
+            value: cleanDesc
+          });
+        }
+      }
+    });
+  }
+  
+  // Product properties - teknik özellikler
+  if (product.properties && Array.isArray(product.properties)) {
+    product.properties.forEach((prop: any) => {
+      if (prop?.name && prop?.value && 
+          !processedKeys.has(prop.name.toLowerCase())) {
+        features.push({
+          key: prop.name,
+          value: prop.value
+        });
+        processedKeys.add(prop.name.toLowerCase());
+      }
+    });
+  }
+  
+  // Alternatif özellik kaynakları - kapsamlı arama
   const alternativeFeatureSources = [
     product.productAttributes,
     product.specifications,
     product.details,
+    product.productDetail,
     productState.productDetail?.attributes,
-    productState.product?.specifications
+    productState.product?.specifications,
+    productState.product?.properties
   ];
   
   alternativeFeatureSources.forEach(source => {
@@ -321,45 +421,47 @@ export async function extractFocusedData(url: string): Promise<FocusedProductDat
       Object.entries(source).forEach(([key, value]) => {
         if (key && value && 
             typeof key === 'string' && typeof value === 'string' &&
-            key.length > 1 && key.length < 50 &&
-            value.length > 1 && value.length < 100 &&
-            !features.some(f => f.key === key)) {
+            key.length > 1 && key.length < 100 &&
+            value.length > 0 && value.length < 200 &&
+            !processedKeys.has(key.toLowerCase())) {
+          
           features.push({
             key: key.trim(),
             value: value.trim()
           });
+          processedKeys.add(key.toLowerCase());
         }
       });
     }
   });
   
-  // HTML'den özellik çıkarma
-  if (features.length < 5) {
-    const featureMatches = htmlContent.match(/"([^"]{3,30})":"([^"]{2,50})"/g) || [];
-    featureMatches.forEach(match => {
-      const parsed = match.match(/"([^"]+)":"([^"]+)"/);
-      if (parsed && parsed[1] && parsed[2] && features.length < 15) {
-        const key = parsed[1].trim();
-        const value = parsed[2].trim();
-        
-        if (key.length > 2 && value.length > 1 && 
-            !features.some(f => f.key === key) &&
-            !key.includes('url') && !key.includes('id') &&
-            !value.includes('http') && !value.includes('cdn')) {
-          features.push({ key, value });
-        }
-      }
-    });
-  }
+  // Temel ürün bilgilerini özellik olarak ekle
+  const basicFeatures = [
+    { key: 'Kategori', value: product.category?.name || product.categoryName },
+    { key: 'Satıcı', value: product.merchant?.name },
+    { key: 'Model', value: product.model },
+    { key: 'SKU', value: product.sku },
+    { key: 'Barkod', value: product.barcode }
+  ];
   
-  console.log(`✓ Özellikler: ${features.length} adet`);
+  basicFeatures.forEach(({ key, value }) => {
+    if (value && !processedKeys.has(key.toLowerCase())) {
+      features.push({ key, value: String(value) });
+      processedKeys.add(key.toLowerCase());
+    }
+  });
+  
+  console.log(`✓ Özellikler: ${features.length} adet (kapsamlı)`);
   
   const result: FocusedProductData = {
     brand,
     title,
+    price: priceData,
     images: images.slice(0, 10), // İlk 10 görsel
-    variants: variants.slice(0, 20), // İlk 20 varyant
-    features: features.slice(0, 15) // İlk 15 özellik
+    colorOptions,
+    sizeOptions,
+    variants: variants.slice(0, 30), // İlk 30 varyant
+    features: features.slice(0, 50) // Tüm özellikler (maksimum 50)
   };
   
   console.log(`🎯 Focused extraction tamamlandı`);
