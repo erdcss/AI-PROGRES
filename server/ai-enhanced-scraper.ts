@@ -71,6 +71,14 @@ export async function aiEnhancedScrape(url: string): Promise<AIEnhancedProductDa
     // 2. Temel veri çıkarma
     const basicData = extractBasicData($, htmlContent);
     
+    // 2.1. Optimize görsel çıkarma
+    const optimizedImages = extractOptimizedImages(htmlContent);
+    basicData.images = optimizedImages;
+    
+    // 2.2. Stoklu varyantlar
+    const stockVariants = extractStockVariants(htmlContent);
+    basicData.variants = stockVariants;
+    
     // 3. AI ile gelişmiş analiz
     const aiAnalysis = await performAIAnalysis(basicData, htmlContent);
     
