@@ -327,7 +327,129 @@ function extractAllImagesEnhanced(htmlContent: string, $: cheerio.CheerioAPI): s
     });
   });
   
-  return Array.from(images);
+  return Array.from(images).slice(0, 12); // Maksimum 12 görsel
+}
+
+/**
+ * Optimize görsel çıkarma - Sadece ürün görselleri
+ */
+function extractOptimizedImages(htmlContent: string): string[] {
+  const images = new Set<string>();
+  
+  try {
+    // Product state'den görseller
+    const productStateMatch = htmlContent.match(/window\.__PRODUCT_DETAIL_APP_INITIAL_STATE__\s*=\s*({.*?});/);
+    if (productStateMatch) {
+      const productState = JSON.parse(productStateMatch[1]);
+      
+      // Ana ürün görselleri
+      if (productState.product?.images) {
+        productState.product.images.forEach((img: any) => {
+          const imgUrl = typeof img === 'string' ? img : img?.url;
+          if (imgUrl && imgUrl.includes('prod/QC') && !isExcludedImage(imgUrl)) {
+            images.add(imgUrl);
+          }
+        });
+      }
+      
+      // Varyant görselleri (sınırlı)
+      if (productState.product?.allVariants) {
+        productState.product.allVariants.slice(0, 3).forEach((variant: any) => {
+          if (variant.images) {
+            variant.images.slice(0, 2).forEach((img: string) => {
+              if (img && img.includes('prod/QC') && !isExcludedImage(img)) {
+                images.add(img);
+              }
+            });
+          }
+        });
+      }
+    }
+  } catch (error) {
+    console.log('Görsel çıkarma hatası:', error.message);
+  }
+  
+  return Array.from(images).map(url => optimizeImageUrl(url)).slice(0, 12);
+}
+
+/**
+ * Stoklu varyant çıkarma
+ */
+function extractStockVariants(htmlContent: string) {
+  const variants = { colors: [], sizes: [] };
+  
+  try {
+    const productStateMatch = htmlContent.match(/window\.__PRODUCT_DETAIL_APP_INITIAL_STATE__\s*=\s*({.*?});/);
+    if (productStateMatch) {
+      const productState = JSON.parse(productStateMatch[1]);
+      
+      if (productState.product?.allVariants) {
+        const colorMap = new Map();
+        const sizeMap = new Map();
+        
+        productState.product.allVariants.forEach((variant: any) => {
+          const isInStock = variant.inStock !== false && (variant.quantity === undefined || variant.quantity > 0);
+          
+          // Renkler
+          const colorName = variant.attributeValue1 || variant.color;
+          if (colorName) {
+            colorMap.set(colorName, {
+              name: colorName,
+              inStock: colorMap.get(colorName)?.inStock || isInStock
+            });
+          }
+          
+          // Bedenler
+          const sizeName = variant.attributeValue2 || variant.size;
+          if (sizeName) {
+            sizeMap.set(sizeName, {
+              name: sizeName,
+              inStock: sizeMap.get(sizeName)?.inStock || isInStock
+            });
+          }
+        });
+        
+        variants.colors = Array.from(colorMap.values());
+        variants.sizes = Array.from(sizeMap.values());
+      }
+    }
+  } catch (error) {
+    console.log('Varyant çıkarma hatası:', error.message);
+  }
+  
+  return variants;
+}
+
+/**
+ * Gereksiz görselleri filtrele
+ */
+function isExcludedImage(url: string): boolean {
+  const excludePatterns = [
+    'enerjietiketi',
+    '/50/50/',
+    '/64/64/', 
+    '/80/80/',
+    'badge',
+    'icon',
+    'logo',
+    'button',
+    'star',
+    'rating',
+    'watermark'
+  ];
+  
+  return excludePatterns.some(pattern => url.toLowerCase().includes(pattern));
+}
+
+/**
+ * Görsel URL optimize et
+ */
+function optimizeImageUrl(url: string): string {
+  return url
+    .replace('/170/247/', '/1200/1800/')
+    .replace('/236/347/', '/1200/1800/')
+    .replace('/300/300/', '/1200/1800/')
+    .replace('/mnresize/300/', '/mnresize/1200/');
 }
 
 /**
