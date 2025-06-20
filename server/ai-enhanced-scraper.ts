@@ -81,7 +81,7 @@ export async function aiEnhancedScrape(url: string): Promise<AIEnhancedProductDa
     // 2.1. Optimize görsel çıkarma
     console.log('🖼️ Görsel çıkarma başlatılıyor...');
     const optimizedImages = extractOptimizedImages(htmlContent);
-    basicData.images = optimizedImages.length > 0 ? optimizedImages : ['https://cdn.dsmcdn.com/ty1631/prod/QC/20250130/10/2ad4867e-0fc7-3b24-9e8b-9b32084e8030/1_org_zoom.jpg'];
+    basicData.images = optimizedImages;
     
     // 2.2. Stoklu varyantlar
     console.log('📦 Varyant çıkarma başlatılıyor...');
@@ -324,7 +324,7 @@ function generateShopifyData(basicData: any, aiAnalysis: any) {
  * CSV önizleme oluşturma
  */
 function generateCSVPreview(basicData: any, shopifyData: any): Array<Record<string, string>> {
-  return shopifyData.variants.slice(0, 5).map((variant: any) => ({
+  return shopifyData.variants.map((variant: any) => ({
     'Handle': shopifyData.handle,
     'Title': variant.title,
     'Body (HTML)': basicData.description,
@@ -380,7 +380,7 @@ function extractAllImagesEnhanced(htmlContent: string, $: cheerio.CheerioAPI): s
     });
   });
   
-  return Array.from(images).slice(0, 12); // Maksimum 12 görsel
+  return Array.from(images); // Maksimum 12 görsel
 }
 
 /**
@@ -627,8 +627,7 @@ function extractOptimizedImages(htmlContent: string): string[] {
   }
   
   const finalImages = Array.from(images)
-    .map(url => optimizeImageUrl(url))
-    .slice(0, 15);
+    .map(url => optimizeImageUrl(url));
     
   console.log(`✅ ${finalImages.length} ürün görseli çıkarıldı`);
   return finalImages;
@@ -805,7 +804,7 @@ function extractColorVariantsWithImages(htmlContent: string, $: cheerio.CheerioA
   if (colors.size === 0) {
     colors.set('Tek Renk', {
       name: 'Tek Renk',
-      images: allImages.slice(0, 10) // İlk 10 görsel
+      images: allImages // İlk 10 görsel
     });
   }
   
@@ -1017,7 +1016,7 @@ function generateKeywords(title: string, brand: string): string[] {
   const words = title.toLowerCase().split(' ').filter(word => word.length > 2);
   const keywords = [
     brand?.toLowerCase() || '',
-    ...words.slice(0, 5),
+    ...words,
     'türkiye',
     'online',
     'kaliteli'
