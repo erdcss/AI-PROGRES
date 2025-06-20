@@ -341,6 +341,10 @@ export async function scrapeTrendyolProduct(inputUrl: string) {
     console.log('🎨 AI ile renk tespiti başlatılıyor...');
     const aiColorMap = await detectColorsWithAI(combinedImages.slice(0, 8));
     
+    // Kapsamlı fallback veri çıkarma - önce çıkar
+    console.log('🔄 Kapsamlı veri çıkarma başlatılıyor...');
+    const fallbackData = extractComprehensiveFallbackData(htmlContent, $);
+    
     // Fallback verilerle birleştir
     const allImages = Array.from(new Set([...combinedImages, ...fallbackData.images]));
     const cleanImages = allImages; // TÜM görselleri al
@@ -357,10 +361,6 @@ export async function scrapeTrendyolProduct(inputUrl: string) {
     
     // Extract category information first
     const categoryInfo = extractCategoryInfo($, htmlContent);
-    
-    // Kapsamlı fallback veri çıkarma
-    console.log('🔄 Kapsamlı veri çıkarma başlatılıyor...');
-    const fallbackData = extractComprehensiveFallbackData(htmlContent, $);
     
     // Gelişmiş renk çıkarma sistemi
     console.log('🎨 Gelişmiş renk analizi başlatılıyor...');
@@ -384,22 +384,22 @@ export async function scrapeTrendyolProduct(inputUrl: string) {
     ];
     const enhancedColors = Array.from(new Set(allColors));
     
-    // Fallback özelliklerle birleştir
+    // Fallback özelliklerle birleştir - güvenli kontrol
     const allFeatures = [
-      ...advancedFeatures.basicFeatures,
-      ...advancedFeatures.technicalSpecs,
-      ...advancedFeatures.materialInfo,
-      ...fallbackData.features
+      ...(Array.isArray(advancedFeatures.basicFeatures) ? advancedFeatures.basicFeatures : []),
+      ...(Array.isArray(advancedFeatures.technicalSpecs) ? advancedFeatures.technicalSpecs : []),
+      ...(Array.isArray(advancedFeatures.materialInfo) ? advancedFeatures.materialInfo : []),
+      ...(Array.isArray(fallbackData.features) ? fallbackData.features : [])
     ];
     
     // Kategorilere ayır
     const categorizedFeatures = {
-      basicFeatures: allFeatures.filter(f => f.category === 'basic'),
-      technicalSpecs: allFeatures.filter(f => f.category === 'technical'),
-      materialInfo: allFeatures.filter(f => f.category === 'material'),
-      careInstructions: allFeatures.filter(f => f.category === 'care'),
-      sizeGuide: allFeatures.filter(f => f.category === 'size'),
-      structuredData: advancedFeatures.structuredData
+      basicFeatures: allFeatures.filter(f => f && f.category === 'basic'),
+      technicalSpecs: allFeatures.filter(f => f && f.category === 'technical'),
+      materialInfo: allFeatures.filter(f => f && f.category === 'material'),
+      careInstructions: allFeatures.filter(f => f && f.category === 'care'),
+      sizeGuide: allFeatures.filter(f => f && f.category === 'size'),
+      structuredData: advancedFeatures.structuredData || []
     };
     
     const variantData = {
@@ -613,14 +613,7 @@ export async function scrapeTrendyolProduct(inputUrl: string) {
       season: aiEnhancedData.season,
       
       // Gelişmiş ürün özellikleri
-      enhancedFeatures: {
-        basicFeatures: categorizedFeatures.basicFeatures,
-        technicalSpecs: categorizedFeatures.technicalSpecs,
-        materialInfo: categorizedFeatures.materialInfo,
-        careInstructions: categorizedFeatures.careInstructions,
-        sizeGuide: categorizedFeatures.sizeGuide,
-        structuredData: enhancedFeatures.structuredData
-      },
+      enhancedFeatures: categorizedFeatures,
       
       // Gelişmiş renk bilgileri
       colorDetails: {
