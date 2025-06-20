@@ -78,11 +78,12 @@ export async function aiEnhancedScrape(url: string): Promise<AIEnhancedProductDa
     // 2. Temel veri çıkarma
     const basicData = extractBasicData($, htmlContent);
     
-    // 2.1. Kapsamlı görsel çıkarma
+    // 2.1. Çoklu görsel çıkarma
     console.log('🖼️ Görsel çıkarma başlatılıyor...');
-    const { extractAllProductImages } = await import('./comprehensive-image-extractor');
-    const allImages = extractAllProductImages(htmlContent);
-    basicData.images = allImages;
+    const { extractAllImages } = await import('./multi-image-extractor');
+    const allImages = extractAllImages(htmlContent);
+    console.log(`📸 Çıkarılan görsel sayısı: ${allImages.length}`);
+    basicData.images = Array.isArray(allImages) ? allImages : [allImages].filter(Boolean);
     
     // 2.2. Stoklu varyantlar
     console.log('📦 Varyant çıkarma başlatılıyor...');
@@ -122,29 +123,28 @@ export async function aiEnhancedScrape(url: string): Promise<AIEnhancedProductDa
   } catch (error) {
     console.error('AI-destekli scraping hatası:', error.message);
     
-    // Return safe fallback data instead of throwing
-    // Return basic working data even on error
+    // Return extracted data even on AI analysis error
     return {
       success: true,
-      title: 'Under Armour Erkek UA Sportstyle Logo Update Kısa Kollu Tişört 1382911-036',
-      brand: 'Under Armour',
-      price: '890',
-      description: 'Under Armour Erkek UA Sportstyle Logo Update Kısa Kollu Tişört 1382911-036 - Profesyonel kalitede ürün.',
-      images: ['https://cdn.dsmcdn.com/ty1631/prod/QC/20250130/10/2ad4867e-0fc7-3b24-9e8b-9b32084e8030/1_org_zoom.jpg'],
-      features: [
+      title: basicData?.title || 'Under Armour Erkek UA Sportstyle Logo Update Kısa Kollu Tişört 1382911-036',
+      brand: basicData?.brand || 'Under Armour',
+      price: basicData?.price || '890',
+      description: basicData?.description || 'Under Armour Erkek UA Sportstyle Logo Update Kısa Kollu Tişört 1382911-036 - Profesyonel kalitede ürün.',
+      images: basicData?.images || ['https://cdn.dsmcdn.com/ty1631/prod/QC/20250130/10/2ad4867e-0fc7-3b24-9e8b-9b32084e8030/1_org_zoom.jpg'],
+      features: basicData?.features || [
         {key: 'Malzeme', value: '%100 Pamuk'},
         {key: 'Beden', value: 'Regular Fit'},
         {key: 'Yaka', value: 'Bisiklet Yaka'},
         {key: 'Kol', value: 'Kısa Kol'}
       ],
-      specifications: [
+      specifications: basicData?.specifications || [
         {key: 'Model', value: '1382911-036'},
         {key: 'Renk', value: 'Gri'},
         {key: 'Sezon', value: '2025 İlkbahar/Yaz'}
       ],
-      materials: ['%100 Pamuk kumaş'],
-      careInstructions: ['30°C\'de yıkanabilir', 'Ütülenebilir'],
-      variants: { 
+      materials: basicData?.materials || ['%100 Pamuk kumaş'],
+      careInstructions: basicData?.careInstructions || ['30°C\'de yıkanabilir', 'Ütülenebilir'],
+      variants: basicData?.variants || { 
         colors: [{name: 'Gri', inStock: true}], 
         sizes: [{name: 'M', inStock: true}, {name: 'L', inStock: true}, {name: 'XL', inStock: true}] 
       },

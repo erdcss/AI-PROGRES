@@ -1,6 +1,5 @@
 /**
- * Comprehensive Image Extraction System
- * Extracts ALL product images without limits
+ * Legacy extractor - use multi-image-extractor instead
  */
 
 export function extractAllProductImages(htmlContent: string): string[] {
