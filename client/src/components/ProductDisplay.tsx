@@ -2,7 +2,7 @@ import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Separator } from "@/components/ui/separator";
-import { Download, Package, Tag, Image as ImageIcon, DollarSign, FileText } from "lucide-react";
+import { Download, Package, Tag, Image as ImageIcon, DollarSign, FileText, Info } from "lucide-react";
 import { AIAnalysisDisplay } from "./AIAnalysisDisplay";
 import { EnhancedAIAnalysisDisplay } from "./EnhancedAIAnalysisDisplay";
 import { AIEnhancedProductDisplay } from "./AIEnhancedProductDisplay";

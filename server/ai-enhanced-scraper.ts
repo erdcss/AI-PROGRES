@@ -92,11 +92,20 @@ export async function aiEnhancedScrape(url: string): Promise<AIEnhancedProductDa
     const csvContent = generateProfessionalCSV({...basicData, aiAnalysis});
     const csvPreview = generateCSVPreview(basicData, shopifyData);
     
-    console.log(`✅ AI-destekli çıkarma tamamlandı: ${basicData.images.length} görsel, ${basicData.colors.length} renk`);
+    console.log(`✅ AI-destekli çıkarma tamamlandı: ${basicData.images?.length || 0} görsel, ${basicData.features?.length || 0} özellik`);
     
     return {
       success: true,
-      ...basicData,
+      title: basicData.title,
+      brand: basicData.brand,
+      price: basicData.price,
+      description: basicData.description,
+      images: basicData.images,
+      features: basicData.features,
+      specifications: basicData.specifications,
+      materials: basicData.materials,
+      careInstructions: basicData.careInstructions,
+      variants: basicData.variants,
       aiAnalysis,
       shopifyData,
       csvPreview
@@ -112,35 +121,27 @@ export async function aiEnhancedScrape(url: string): Promise<AIEnhancedProductDa
  * Temel veri çıkarma (gelişmiş)
  */
 function extractBasicData($: cheerio.CheerioAPI, htmlContent: string) {
-  // Başlık çıkarma
+  console.log('📋 Gelişmiş veri çıkarma başlıyor...');
+  
   const title = extractEnhancedTitle($);
-  
-  // Marka çıkarma
   const brand = extractEnhancedBrand($);
-  
-  // Fiyat çıkarma (tüm varyantlar)
-  const prices = extractAllPrices($, htmlContent);
-  
-  // Açıklama çıkarma
+  const priceData = extractAllPrices($, htmlContent);
   const description = extractEnhancedDescription($, title);
   
-  // Tüm görselleri çıkar (ultra gelişmiş)
-  const images = extractAllImagesEnhanced(htmlContent, $);
-  
-  // Renk varyantları ve görselleri eşleştir
-  const colors = extractColorVariantsWithImages(htmlContent, $, images);
-  
-  // Özellikleri çıkar (detaylı)
-  const features = extractEnhancedFeatures(htmlContent, $);
+  // Gelişmiş özellik çıkarma
+  const productFeatures = extractProductFeatures(htmlContent, $);
   
   return {
     title,
     brand,
-    price: prices.main || '0',
+    price: priceData.main,
     description,
-    images,
-    colors,
-    features
+    images: [], // Bu optimize edilmiş fonksiyondan gelecek
+    features: productFeatures.features,
+    specifications: productFeatures.specifications,
+    materials: productFeatures.materials,
+    careInstructions: productFeatures.careInstructions,
+    variants: { colors: [], sizes: [] } // Bu stock variants'tan gelecek
   };
 }
 
@@ -537,17 +538,29 @@ function extractOptimizedImages(htmlContent: string): string[] {
       }
     }
     
-    // 3. Script'lerden JSON görselleri
-    const scriptMatches = htmlContent.matchAll(/"images":\s*\[([^\]]+)\]/gi);
-    for (const match of scriptMatches) {
-      try {
-        const imageArray = JSON.parse(`[${match[1]}]`);
-        imageArray.forEach((img: string) => {
-          if (img && isValidProductImage(img)) {
-            images.add(img);
+    // 3. DOM'dan görsel çıkarma
+    try {
+      const cheerio = require('cheerio');
+      const $ = cheerio.load(htmlContent);
+      
+      const imageSelectors = [
+        'img[src*="prod/QC"]',
+        'img[data-src*="prod/QC"]', 
+        '.product-image img',
+        '.gallery img',
+        '.image-gallery img'
+      ];
+      
+      imageSelectors.forEach(selector => {
+        $(selector).each((i: number, elem: any) => {
+          const src = $(elem).attr('src') || $(elem).attr('data-src');
+          if (src && isValidProductImage(src)) {
+            images.add(src.startsWith('//') ? 'https:' + src : src);
           }
         });
-      } catch (e) {}
+      });
+    } catch (e) {
+      console.log('DOM görsel çıkarma hatası:', e.message);
     }
     
     const imageSelectors = [
