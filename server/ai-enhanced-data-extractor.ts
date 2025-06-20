@@ -61,44 +61,44 @@ export interface AIEnhancedProductData {
  */
 async function cleanProductTitleWithAI(rawTitle: string, brand: string): Promise<{cleanTitle: string, seoTitle: string}> {
   try {
+    // Hızlı fallback temizleme
+    const cleanTitle = rawTitle
+      .replace(/[^\w\sÇŞĞÜÖİçşğüöı\-]/g, ' ')
+      .replace(/\s+/g, ' ')
+      .trim();
+    
+    if (!process.env.ANTHROPIC_API_KEY) {
+      return { cleanTitle, seoTitle: cleanTitle };
+    }
+    
     console.log('🤖 AI ile ürün başlığı temizleniyor...');
     
-    const prompt = `Bu e-ticaret ürün başlığını temizle ve SEO için optimize et.
-
-Ham başlık: "${rawTitle}"
-Marka: "${brand}"
-
-Görevler:
-1. Gereksiz kelimeler, kodlar, tekrarları kaldır
-2. Doğal ve anlaşılır hale getir
-3. SEO dostu başlık oluştur
-4. Türkçe dilbilgisi kurallarına uygun yap
-
-JSON formatında döndür:
-{
-  "cleanTitle": "temizlenmiş başlık",
-  "seoTitle": "SEO optimize başlık"
-}`;
-
     const response = await anthropic.messages.create({
       model: 'claude-sonnet-4-20250514',
-      max_tokens: 300,
-      messages: [{ role: 'user', content: prompt }],
+      max_tokens: 200,
+      messages: [{ 
+        role: 'user', 
+        content: `Başlık: "${rawTitle}" Marka: "${brand}" - Temizle ve SEO optimize et. JSON: {"cleanTitle": "temiz başlık", "seoTitle": "seo başlık"}` 
+      }],
     });
 
     const result = JSON.parse(response.content[0].text);
     console.log(`✅ Başlık temizlendi: ${result.cleanTitle}`);
     
     return {
-      cleanTitle: result.cleanTitle || rawTitle,
-      seoTitle: result.seoTitle || rawTitle
+      cleanTitle: result.cleanTitle || cleanTitle,
+      seoTitle: result.seoTitle || cleanTitle
     };
     
   } catch (error) {
-    console.log(`⚠️ AI başlık temizleme hatası: ${error.message}`);
+    console.log(`⚠️ AI başlık temizleme hatası, yerel temizlik kullanılıyor`);
+    const cleanTitle = rawTitle
+      .replace(/[^\w\sÇŞĞÜÖİçşğüöı\-]/g, ' ')
+      .replace(/\s+/g, ' ')
+      .trim();
     return {
-      cleanTitle: rawTitle,
-      seoTitle: rawTitle
+      cleanTitle,
+      seoTitle: cleanTitle
     };
   }
 }

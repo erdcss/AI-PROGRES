@@ -175,8 +175,8 @@ export async function extractImagesWithAI(htmlContent: string, productId: string
   const allImages = Array.from(allImageUrls);
   console.log(`📸 ${allImages.length} görsel bulundu, AI analizi başlatılıyor...`);
   
-  // 4. AI analizi ile görselleri kategorilendirme - TÜM görselleri işle
-  const aiAnalysisPromises = allImages.map(async (imageUrl) => {
+  // 4. AI analizi ile görselleri kategorilendirme - Performans için ilk 10 görsel
+  const aiAnalysisPromises = allImages.slice(0, 10).map(async (imageUrl) => {
     const analysis = await analyzeImageWithAI(imageUrl);
     return { url: imageUrl, analysis };
   });

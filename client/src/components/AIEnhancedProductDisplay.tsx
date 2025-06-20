@@ -44,7 +44,8 @@ export function AIEnhancedProductDisplay({ productData }: AIEnhancedProductDispl
     aiMetrics = {},
     imageAnalysis = {},
     aiAnalysis = {},
-    enhancedFeatures = {}
+    enhancedFeatures = {},
+    colorDetails = {}
   } = productData;
 
   return (
@@ -172,16 +173,37 @@ export function AIEnhancedProductDisplay({ productData }: AIEnhancedProductDispl
               
               <div className="grid grid-cols-2 md:grid-cols-4 gap-2 max-h-96 overflow-y-auto">
                 {images.map((image: string, index: number) => (
-                  <div key={index} className="aspect-square">
+                  <div key={index} className="aspect-square relative group">
                     <img 
                       src={image} 
                       alt={`Ürün görseli ${index + 1}`}
-                      className="w-full h-full object-cover rounded-lg border"
+                      className="w-full h-full object-cover rounded-lg border transition-transform group-hover:scale-105"
                       loading="lazy"
                     />
+                    <div className="absolute top-1 right-1 bg-black/50 text-white text-xs px-1 rounded">
+                      {index + 1}
+                    </div>
                   </div>
                 ))}
               </div>
+              
+              {colorDetails.colorImageMap && Object.keys(colorDetails.colorImageMap).length > 0 && (
+                <div className="mt-4">
+                  <h5 className="font-medium mb-2">Renk Bazlı Görseller</h5>
+                  <div className="space-y-3">
+                    {Object.entries(colorDetails.colorImageMap).slice(0, 5).map(([color, colorImages]: [string, any]) => (
+                      <div key={color} className="p-2 border rounded">
+                        <div className="text-sm font-medium mb-1">{color}</div>
+                        <div className="grid grid-cols-4 gap-1">
+                          {colorImages.slice(0, 4).map((img: string, idx: number) => (
+                            <img key={idx} src={img} alt={`${color} ${idx + 1}`} className="w-full aspect-square object-cover rounded" />
+                          ))}
+                        </div>
+                      </div>
+                    ))}
+                  </div>
+                </div>
+              )}
             </CardContent>
           </Card>
         </TabsContent>
@@ -203,6 +225,35 @@ export function AIEnhancedProductDisplay({ productData }: AIEnhancedProductDispl
                       <Badge key={color} variant="outline">{color}</Badge>
                     ))}
                   </div>
+                  
+                  {colorDetails.colors && colorDetails.colors.length > 0 && (
+                    <div className="mt-3">
+                      <h5 className="font-medium mb-2">Detaylı Renk Bilgileri</h5>
+                      <div className="grid grid-cols-1 md:grid-cols-2 gap-2">
+                        {colorDetails.colors.map((colorInfo: any, index: number) => (
+                          <div key={index} className={`p-2 rounded border ${colorInfo.available ? 'bg-green-50' : 'bg-red-50'}`}>
+                            <div className="flex items-center gap-2">
+                              {colorInfo.hex && (
+                                <div 
+                                  className="w-4 h-4 rounded border" 
+                                  style={{ backgroundColor: colorInfo.hex }}
+                                ></div>
+                              )}
+                              <span className="font-medium">{colorInfo.name}</span>
+                              {!colorInfo.available && (
+                                <span className="text-xs text-red-600">(Stokta Yok)</span>
+                              )}
+                            </div>
+                            {colorInfo.images && colorInfo.images.length > 0 && (
+                              <div className="text-xs text-gray-500 mt-1">
+                                {colorInfo.images.length} görsel
+                              </div>
+                            )}
+                          </div>
+                        ))}
+                      </div>
+                    </div>
+                  )}
                 </div>
                 
                 <div>

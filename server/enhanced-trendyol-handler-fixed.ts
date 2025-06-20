@@ -4,6 +4,7 @@ import { analyzeProductWithAI } from './ai-product-analyzer';
 import { extractImagesWithAI, detectColorsWithAI } from './ai-enhanced-image-extractor';
 import { extractDataWithAI, optimizeForShopifyWithAI } from './ai-enhanced-data-extractor';
 import { extractEnhancedProductFeatures } from './enhanced-product-features-extractor';
+import { extractEnhancedColors } from './enhanced-color-extractor';
 
 export interface EnhancedVariantData {
   colors: string[];
@@ -338,7 +339,7 @@ export async function scrapeTrendyolProduct(inputUrl: string) {
     console.log('🎨 AI ile renk tespiti başlatılıyor...');
     const aiColorMap = await detectColorsWithAI(combinedImages.slice(0, 8));
     
-    const cleanImages = combinedImages.slice(0, 50); // Maksimum 50 görsel için performans
+    const cleanImages = combinedImages; // TÜM görselleri al
     console.log(`🖼️ AI destekli görsel çıkarma tamamlandı: ${cleanImages.length} toplam görsel (AI kalite skoru: ${aiImageResult.qualityScore.toFixed(2)}/3.0)`);
     console.log(`🎨 AI renk tespiti: ${Object.keys(aiColorMap).length} görsel analiz edildi`);
     
@@ -349,13 +350,22 @@ export async function scrapeTrendyolProduct(inputUrl: string) {
     // Extract category information first
     const categoryInfo = extractCategoryInfo($, htmlContent);
     
+    // Gelişmiş renk çıkarma sistemi
+    console.log('🎨 Gelişmiş renk analizi başlatılıyor...');
+    const enhancedColorData = extractEnhancedColors(htmlContent, $);
+    
     // AI ile renkleri birleştir
     const aiDetectedColors = new Set<string>();
     Object.values(aiColorMap).forEach(colorArray => {
       colorArray.forEach(color => aiDetectedColors.add(color));
     });
     
-    const enhancedColors = Array.from(new Set([...multiVariantData.colors, ...Array.from(aiDetectedColors)]));
+    const allColors = [
+      ...multiVariantData.colors,
+      ...enhancedColorData.availableColors,
+      ...Array.from(aiDetectedColors)
+    ];
+    const enhancedColors = Array.from(new Set(allColors));
     
     const variantData = {
       colors: enhancedColors,
@@ -578,6 +588,15 @@ export async function scrapeTrendyolProduct(inputUrl: string) {
         careInstructions: enhancedFeatures.careInstructions,
         sizeGuide: enhancedFeatures.sizeGuide,
         structuredData: enhancedFeatures.structuredData
+      },
+      
+      // Gelişmiş renk bilgileri
+      colorDetails: {
+        colors: enhancedColorData.colors,
+        totalColors: enhancedColorData.totalColors,
+        availableColors: enhancedColorData.availableColors,
+        outOfStockColors: enhancedColorData.outOfStockColors,
+        colorImageMap: enhancedColorData.colorImageMap
       },
       
       // Shopify optimizasyonu
