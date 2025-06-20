@@ -90,18 +90,25 @@ export async function aiEnhancedScrape(url: string): Promise<AIEnhancedProductDa
     const stockVariants = extractStockVariants(htmlContent);
     basicData.variants = stockVariants;
     
-    // 3. AI ile gelişmiş analiz
-    const aiAnalysis = await performAIAnalysis(basicData, htmlContent);
+    // 3. AI ile gelişmiş analiz (safe mode)
+    let aiAnalysis = null;
+    let shopifyData = null;
+    let csvPreview = null;
     
-    // 4. Shopify formatında veri hazırlama
-    const shopifyData = generateShopifyData(basicData, aiAnalysis);
-    
-    // 5. CSV oluşturma ve önizleme
-    const { generateProfessionalCSV } = await import('./csv-generator');
-    const csvContent = generateProfessionalCSV({...basicData, aiAnalysis});
-    const csvPreview = generateCSVPreview(basicData, shopifyData);
+    try {
+      aiAnalysis = await performAIAnalysis(basicData, htmlContent);
+      shopifyData = generateShopifyData(basicData, aiAnalysis);
+      
+      const { generateProfessionalCSV } = await import('./csv-generator');
+      const csvContent = generateProfessionalCSV({...basicData, aiAnalysis});
+      csvPreview = generateCSVPreview(basicData, shopifyData);
+    } catch (analysisError) {
+      console.log('AI analiz hatası (devam ediliyor):', analysisError.message);
+      // Continue with basic data even if AI analysis fails
+    }
     
     console.log(`✅ AI-destekli çıkarma tamamlandı: ${basicData.images?.length || 0} görsel, ${basicData.features?.length || 0} özellik`);
+    console.log(`🖼️ Gönderilen görseller: ${basicData.images?.slice(0, 3).join(', ')}`);
     
     return {
       success: true,
