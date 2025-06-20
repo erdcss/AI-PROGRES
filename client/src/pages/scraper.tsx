@@ -318,6 +318,46 @@ function ScraperPage({ platform = 'trendyol' }: ScraperPageProps) {
   } | null>(null);
 
   const { toast } = useToast();
+
+  const handleExportCSV = async () => {
+    if (!productData) return;
+    
+    setIsExporting(true);
+    try {
+      const response = await fetch('/api/export-shopify-csv', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(productData)
+      });
+
+      if (response.ok) {
+        const blob = await response.blob();
+        const url = window.URL.createObjectURL(blob);
+        const a = document.createElement('a');
+        a.href = url;
+        a.download = `shopify-${productData.brand.toLowerCase()}-${Date.now()}.csv`;
+        document.body.appendChild(a);
+        a.click();
+        window.URL.revokeObjectURL(url);
+        document.body.removeChild(a);
+        
+        toast({
+          title: 'CSV İndirildi',
+          description: `${productData.brand} ürünü Shopify formatında hazırlandı`,
+        });
+      } else {
+        throw new Error('CSV oluşturulamadı');
+      }
+    } catch (error) {
+      toast({
+        title: 'Hata',
+        description: 'CSV dosyası oluşturulurken bir hata oluştu',
+        variant: 'destructive',
+      });
+    } finally {
+      setIsExporting(false);
+    }
+  };
   
   // Get current platform configuration
   const currentPlatform = PlatformLogos[platform as keyof typeof PlatformLogos] || PlatformLogos.trendyol;
