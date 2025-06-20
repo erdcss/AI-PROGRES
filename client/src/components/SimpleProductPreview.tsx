@@ -22,6 +22,13 @@ interface SimpleProductPreviewProps {
       inStock: boolean;
       stockCount: number;
     }>;
+    stockAnalysis?: {
+      totalVariants: number;
+      inStockVariants: number;
+      outOfStockVariants: number;
+      availableSizes: string[];
+      unavailableSizes: string[];
+    };
     features: Array<{
       key: string;
       value: string;
@@ -34,7 +41,7 @@ export function SimpleProductPreview({ product }: SimpleProductPreviewProps) {
     return null;
   }
 
-  const { brand, title, price, images, colorOptions, sizeOptions, variants, features } = product;
+  const { brand, title, price, images, colorOptions, sizeOptions, variants, stockAnalysis, features } = product;
 
   return (
     <motion.div
@@ -112,16 +119,33 @@ export function SimpleProductPreview({ product }: SimpleProductPreviewProps) {
               <div>
                 <h3 className="text-sm font-medium text-gray-300 mb-2">
                   Beden Seçenekleri ({sizeOptions.length})
+                  {stockAnalysis && stockAnalysis.outOfStockVariants > 0 && (
+                    <span className="text-red-400 text-xs ml-2">
+                      ({stockAnalysis.unavailableSizes.length} stokta yok)
+                    </span>
+                  )}
                 </h3>
                 <div className="flex flex-wrap gap-2">
-                  {sizeOptions.map((size, index) => (
-                    <span
-                      key={index}
-                      className="px-3 py-1 bg-purple-900/20 text-purple-300 text-sm rounded-lg border border-purple-800"
-                    >
-                      {size}
-                    </span>
-                  ))}
+                  {sizeOptions.map((size, index) => {
+                    const isAvailable = stockAnalysis?.availableSizes.includes(size) ?? true;
+                    const isUnavailable = stockAnalysis?.unavailableSizes.includes(size) ?? false;
+                    
+                    return (
+                      <span
+                        key={index}
+                        className={`px-3 py-1 text-sm rounded-lg border ${
+                          isUnavailable 
+                            ? 'bg-red-900/20 text-red-300 border-red-800 line-through' 
+                            : isAvailable 
+                              ? 'bg-green-900/20 text-green-300 border-green-800'
+                              : 'bg-purple-900/20 text-purple-300 border-purple-800'
+                        }`}
+                      >
+                        {size}
+                        {isUnavailable && <span className="ml-1 text-xs">(stokta yok)</span>}
+                      </span>
+                    );
+                  })}
                 </div>
               </div>
             )}

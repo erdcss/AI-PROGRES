@@ -1839,6 +1839,7 @@ export function registerRoutes(app: Express): Server {
         colorOptions: result.colorOptions,
         sizeOptions: result.sizeOptions,
         variants: result.variants,
+        stockAnalysis: result.stockAnalysis,
         features: result.features
       });
     } catch (error) {

@@ -26,6 +26,13 @@ export interface FocusedProductData {
     inStock: boolean;
     stockCount: number;
   }>;
+  stockAnalysis: {
+    totalVariants: number;
+    inStockVariants: number;
+    outOfStockVariants: number;
+    availableSizes: string[];
+    unavailableSizes: string[];
+  };
   features: Array<{
     key: string;
     value: string;
@@ -319,7 +326,7 @@ export async function extractFocusedData(url: string): Promise<FocusedProductDat
     console.log(`✅ İlk görsel: ${images[0]}`);
   }
   
-  // 5. VARYANTLAR - Gelişmiş varyant çıkarma
+  // 5. VARYANTLAR - Gelişmiş varyant çıkarma (stokta olan + olmayan)
   const variants: Array<{
     color: string;
     size: string;
@@ -329,6 +336,7 @@ export async function extractFocusedData(url: string): Promise<FocusedProductDat
   
   const colorSet = new Set<string>();
   const sizeSet = new Set<string>();
+  const outOfStockSizes = new Set<string>();
   
   if (product.allVariants && Array.isArray(product.allVariants)) {
     product.allVariants.forEach((variant: any) => {
@@ -340,19 +348,22 @@ export async function extractFocusedData(url: string): Promise<FocusedProductDat
       const stockCount = parseInt(variant.stock || variant.stockCount || variant.quantity || '0');
       const inStock = stockCount > 0;
       
-      // Renk ve beden seçeneklerini topla
+      // Tüm renk ve beden seçeneklerini topla (stokta olan/olmayan)
       colorSet.add(String(color));
       sizeSet.add(String(size));
       
-      // Sadece stokta olanları varyant listesine ekle
-      if (inStock) {
-        variants.push({
-          color: String(color),
-          size: String(size),
-          inStock: true,
-          stockCount
-        });
+      // Stokta olmayan bedenleri ayrı takip et
+      if (!inStock && size !== 'Tek Beden') {
+        outOfStockSizes.add(String(size));
       }
+      
+      // Tüm varyantları ekle (stokta olan/olmayan)
+      variants.push({
+        color: String(color),
+        size: String(size),
+        inStock: inStock,
+        stockCount: stockCount
+      });
     });
   }
   
@@ -368,24 +379,41 @@ export async function extractFocusedData(url: string): Promise<FocusedProductDat
     alternativeVariantSources.forEach(source => {
       if (source && Array.isArray(source)) {
         source.forEach((variant: any) => {
-          if (variant && variant.inStock !== false) {
-            const color = variant.color || variant.renk || 'Varsayılan';
-            const size = variant.size || variant.beden || 'Tek Beden';
-            const stockCount = parseInt(variant.stock || variant.quantity || '1');
-            
-            colorSet.add(String(color));
-            sizeSet.add(String(size));
-            
-            if (stockCount > 0) {
-              variants.push({
-                color: String(color),
-                size: String(size),
-                inStock: true,
-                stockCount
-              });
-            }
+          const color = variant.color || variant.renk || 'Varsayılan';
+          const size = variant.size || variant.beden || 'Tek Beden';
+          const stockCount = parseInt(variant.stock || variant.quantity || '0');
+          const inStock = stockCount > 0;
+          
+          colorSet.add(String(color));
+          sizeSet.add(String(size));
+          
+          // Stokta olmayan bedenleri kaydet
+          if (!inStock && size !== 'Tek Beden') {
+            outOfStockSizes.add(String(size));
           }
+          
+          variants.push({
+            color: String(color),
+            size: String(size),
+            inStock: inStock,
+            stockCount: stockCount
+          });
         });
+      }
+    });
+  }
+  
+  // HTML'den beden seçeneklerini çıkar (stokta olmayan dahil)
+  const sizeRegex = /(?:beden|size).*?["']([^"']+)["']/gi;
+  const sizeMatches = htmlContent.match(sizeRegex);
+  if (sizeMatches) {
+    sizeMatches.forEach(match => {
+      const sizeMatch = match.match(/["']([^"']+)["']/);
+      if (sizeMatch && sizeMatch[1]) {
+        const size = sizeMatch[1].trim();
+        if (size.length > 0 && size.length < 10 && !size.includes('http')) {
+          sizeSet.add(size);
+        }
       }
     });
   }
@@ -505,6 +533,12 @@ export async function extractFocusedData(url: string): Promise<FocusedProductDat
   
   console.log(`✓ Özellikler: ${features.length} adet (kapsamlı)`);
   
+  // Stok analizi
+  const inStockVariants = variants.filter(v => v.inStock);
+  const outOfStockVariants = variants.filter(v => !v.inStock);
+  const availableSizes = [...new Set(inStockVariants.map(v => v.size))];
+  const unavailableSizes = [...new Set(outOfStockVariants.map(v => v.size))];
+  
   const result: FocusedProductData = {
     brand,
     title,
@@ -513,6 +547,13 @@ export async function extractFocusedData(url: string): Promise<FocusedProductDat
     colorOptions,
     sizeOptions,
     variants: variants.slice(0, 30), // İlk 30 varyant
+    stockAnalysis: {
+      totalVariants: variants.length,
+      inStockVariants: inStockVariants.length,
+      outOfStockVariants: outOfStockVariants.length,
+      availableSizes,
+      unavailableSizes
+    },
     features: features.slice(0, 50) // Tüm özellikler (maksimum 50)
   };
   
