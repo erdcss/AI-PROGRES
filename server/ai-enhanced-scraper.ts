@@ -78,10 +78,11 @@ export async function aiEnhancedScrape(url: string): Promise<AIEnhancedProductDa
     // 2. Temel veri çıkarma
     const basicData = extractBasicData($, htmlContent);
     
-    // 2.1. Optimize görsel çıkarma
+    // 2.1. Kapsamlı görsel çıkarma
     console.log('🖼️ Görsel çıkarma başlatılıyor...');
-    const optimizedImages = extractOptimizedImages(htmlContent);
-    basicData.images = optimizedImages;
+    const { extractAllProductImages } = await import('./comprehensive-image-extractor');
+    const allImages = extractAllProductImages(htmlContent);
+    basicData.images = allImages;
     
     // 2.2. Stoklu varyantlar
     console.log('📦 Varyant çıkarma başlatılıyor...');
