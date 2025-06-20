@@ -113,12 +113,12 @@ export function AIAnalysisDisplay({ analysis }: AIAnalysisProps) {
                   </CardHeader>
                   <CardContent>
                     <div className="text-2xl font-bold text-blue-600">
-                      {analysis.salesPrediction.estimatedYearlySales.toLocaleString()} adet
+                      {analysis.salesPrediction?.estimatedYearlySales?.toLocaleString() || 'N/A'} adet
                     </div>
-                    <div className={`flex items-center gap-1 mt-2 px-2 py-1 rounded text-sm ${getTrendColor(analysis.salesPrediction.salesTrend)}`}>
-                      {getTrendIcon(analysis.salesPrediction.salesTrend)}
-                      {analysis.salesPrediction.salesTrend === 'yukselen' ? 'Yükselen' : 
-                       analysis.salesPrediction.salesTrend === 'durgun' ? 'Durgun' : 'Düşen'} Trend
+                    <div className={`flex items-center gap-1 mt-2 px-2 py-1 rounded text-sm ${getTrendColor(analysis.salesPrediction?.salesTrend || 'durgun')}`}>
+                      {getTrendIcon(analysis.salesPrediction?.salesTrend || 'durgun')}
+                      {analysis.salesPrediction?.salesTrend === 'yukselen' ? 'Yükselen' : 
+                       analysis.salesPrediction?.salesTrend === 'durgun' ? 'Durgun' : 'Düşen'} Trend
                     </div>
                   </CardContent>
                 </Card>
@@ -132,9 +132,9 @@ export function AIAnalysisDisplay({ analysis }: AIAnalysisProps) {
                   </CardHeader>
                   <CardContent>
                     <div className="text-2xl font-bold text-green-600">
-                      {analysis.salesPrediction.popularityScore}/100
+                      {analysis.salesPrediction?.popularityScore || 0}/100
                     </div>
-                    <Progress value={analysis.salesPrediction.popularityScore} className="mt-2" />
+                    <Progress value={analysis.salesPrediction?.popularityScore || 0} className="mt-2" />
                   </CardContent>
                 </Card>
               </div>
@@ -145,7 +145,7 @@ export function AIAnalysisDisplay({ analysis }: AIAnalysisProps) {
                 </CardHeader>
                 <CardContent>
                   <div className="flex flex-wrap gap-2">
-                    {analysis.salesPrediction.competitiveAdvantage.map((advantage, index) => (
+                    {(analysis.salesPrediction?.competitiveAdvantage || []).map((advantage, index) => (
                       <Badge key={index} variant="secondary">
                         {advantage}
                       </Badge>
@@ -164,7 +164,7 @@ export function AIAnalysisDisplay({ analysis }: AIAnalysisProps) {
                   </CardTitle>
                 </CardHeader>
                 <CardContent className="space-y-3">
-                  {analysis.geographicAnalysis.topSellingCities.map((city, index) => (
+                  {(analysis.geographicAnalysis?.topSellingCities || []).map((city, index) => (
                     <div key={index} className="flex items-center justify-between">
                       <div className="flex items-center gap-2">
                         <Badge variant="outline">{index + 1}</Badge>
@@ -185,7 +185,7 @@ export function AIAnalysisDisplay({ analysis }: AIAnalysisProps) {
                   <CardTitle className="text-sm">Bölgesel Dağılım</CardTitle>
                 </CardHeader>
                 <CardContent className="space-y-2">
-                  {Object.entries(analysis.geographicAnalysis.regionPreferences).map(([region, percentage]) => (
+                  {Object.entries(analysis.geographicAnalysis?.regionPreferences || {}).map(([region, percentage]) => (
                     <div key={region} className="flex items-center justify-between">
                       <span className="text-sm capitalize">{region.replace('_', ' ')}</span>
                       <div className="flex items-center gap-2">
