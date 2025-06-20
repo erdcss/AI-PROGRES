@@ -1,0 +1,108 @@
+{
+  "export_info": {
+    "created_at": "2025-01-20T21:01:00Z",
+    "version": "1.0",
+    "description": "Trendyol ürün verileri - JSON formatında"
+  },
+  "products": [
+    {
+      "id": "sheismono-dress-001",
+      "title": "SHEISMONO Soft Touch Yırtmaç Detaylı Kolsuz Elbise Siyah",
+      "brand": "SHEISMONO",
+      "price": 699,
+      "url": "https://www.trendyol.com/sheismono/soft-touch-yirtmac-detayli-kolsuz-elbise-siyah-p-757055369",
+      "images": [
+        "https://cdn.dsmcdn.com/ty1155/product/media/images/prod/SPM/PIM/20240128/03/e909a823-5d70-363f-b97c-6b34fdbe786e/1_org_zoom.jpg",
+        "https://cdn.dsmcdn.com/ty1157/product/media/images/prod/SPM/PIM/20240128/03/e1a3dd5f-8520-3728-9472-b7dd6c8ae6de/1_org_zoom.jpg"
+      ],
+      "variants": [
+        {
+          "color": "Gri",
+          "size": "S",
+          "stock": 2,
+          "price": 699,
+          "final_price": 769,
+          "profit_margin": "10%",
+          "in_stock": true
+        },
+        {
+          "color": "Gri",
+          "size": "M", 
+          "stock": 1,
+          "price": 699,
+          "final_price": 769,
+          "profit_margin": "10%",
+          "in_stock": true
+        },
+        {
+          "color": "Gri",
+          "size": "L",
+          "stock": 3,
+          "price": 699,
+          "final_price": 769,
+          "profit_margin": "10%",
+          "in_stock": true
+        }
+      ],
+      "features": [
+        {
+          "key": "Kumaş Cinsi",
+          "value": "Örme"
+        },
+        {
+          "key": "Beden",
+          "value": "Göğüs 34 cm"
+        }
+      ]
+    },
+    {
+      "id": "under-armour-shirt-001",
+      "title": "Under Armour Erkek UA Sportstyle Logo Update Kısa Kollu Tişört",
+      "brand": "Under Armour",
+      "price": 890,
+      "url": "https://www.trendyol.com/under-armour/erkek-ua-sportstyle-logo-update-kisa-kollu-tisort-1382911-036-p-844203248",
+      "images": [
+        "https://cdn.dsmcdn.com/ty1630/product/media/images/prod/PIM/20250130/06/e700505d-6913-48e6-8e43-758836b18b94/1_org_zoom.jpg"
+      ],
+      "variants": [
+        {
+          "color": "Gri",
+          "size": "S",
+          "stock": 2,
+          "price": 890,
+          "final_price": 979,
+          "profit_margin": "10%",
+          "in_stock": true
+        },
+        {
+          "color": "Gri",
+          "size": "M",
+          "stock": 1,
+          "price": 890,
+          "final_price": 979,
+          "profit_margin": "10%",
+          "in_stock": true
+        },
+        {
+          "color": "Turuncu",
+          "size": "S",
+          "stock": 1,
+          "price": 890,
+          "final_price": 979,
+          "profit_margin": "10%",
+          "in_stock": true
+        }
+      ]
+    }
+  ],
+  "summary": {
+    "total_products": 2,
+    "total_variants": 6,
+    "total_in_stock": 6,
+    "brands": ["SHEISMONO", "Under Armour"],
+    "price_range": {
+      "min": 699,
+      "max": 890
+    }
+  }
+}
