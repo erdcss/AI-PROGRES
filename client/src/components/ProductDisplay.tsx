@@ -320,20 +320,20 @@ export function ProductDisplay({ data }: ProductDisplayProps) {
                 </tr>
               </thead>
               <tbody>
-                {data.variants?.sizes?.slice(0, 3).map((size: string, index: number) => (
+                {(data.sizes || ['XS', 'S', 'M']).slice(0, 3).map((size: any, index: number) => (
                   <tr key={index} className="bg-gray-800">
-                    <td className="border border-gray-600 p-1 text-gray-300">{data.title?.substring(0, 30)}...</td>
-                    <td className="border border-gray-600 p-1 text-blue-400">{data.brand}</td>
+                    <td className="border border-gray-600 p-1 text-gray-300">{String(data.title || '').substring(0, 30)}...</td>
+                    <td className="border border-gray-600 p-1 text-blue-400">{String(data.brand || '')}</td>
                     <td className="border border-gray-600 p-1 text-green-400">{(parseFloat(data.price || '0') * 1.1).toFixed(2)} TL</td>
-                    <td className="border border-gray-600 p-1 text-yellow-400">{size}</td>
-                    <td className="border border-gray-600 p-1 text-purple-400">{data.variants?.colors?.[0] || 'Tek Renk'}</td>
+                    <td className="border border-gray-600 p-1 text-yellow-400">{String(size)}</td>
+                    <td className="border border-gray-600 p-1 text-purple-400">{String(data.colors?.[0] || 'Tek Renk')}</td>
                     <td className="border border-gray-600 p-1 text-gray-400">✓</td>
                   </tr>
                 ))}
-                {data.variants?.sizes?.length > 3 && (
+                {(data.sizes || []).length > 3 && (
                   <tr className="bg-gray-900">
                     <td colSpan={6} className="border border-gray-600 p-1 text-center text-gray-400">
-                      +{data.variants.sizes.length - 3} daha fazla varyant
+                      +{(data.sizes || []).length - 3} daha fazla varyant
                     </td>
                   </tr>
                 )}
@@ -347,7 +347,7 @@ export function ProductDisplay({ data }: ProductDisplayProps) {
             className="w-full bg-green-600 hover:bg-green-700 text-white"
           >
             <Download className="h-4 w-4 mr-2" />
-            Shopify CSV İndir ({data.variants?.sizes?.length || 0} varyant)
+            Shopify CSV İndir ({(data.sizes || []).length || 0} varyant)
           </Button>
         </CardContent>
       </Card>
