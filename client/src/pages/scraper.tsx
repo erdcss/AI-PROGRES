@@ -493,6 +493,49 @@ function ScraperPage({ platform = 'trendyol' }: ScraperPageProps) {
     }
   };
 
+  const [csvPreview, setCsvPreview] = useState<any[]>([]);
+  const [showCsvPreview, setShowCsvPreview] = useState(false);
+
+  const previewCSV = async () => {
+    if (extractedProducts.length === 0) {
+      toast({
+        title: "Hata",
+        description: "Önizleme için önce ürün çıkarın.",
+        variant: "destructive"
+      });
+      return;
+    }
+
+    try {
+      const response = await fetch('/api/preview-csv', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({ products: extractedProducts }),
+      });
+
+      if (!response.ok) {
+        throw new Error('CSV önizleme başarısız');
+      }
+
+      const data = await response.json();
+      setCsvPreview(data.preview);
+      setShowCsvPreview(true);
+
+      toast({
+        title: "CSV Önizleme Hazır",
+        description: `${data.totalRows} satır veri önizlendi.`,
+      });
+    } catch (error) {
+      toast({
+        title: "Hata",
+        description: "CSV önizleme sırasında hata oluştu.",
+        variant: "destructive"
+      });
+    }
+  };
+
   const exportToShopifyCSV = async () => {
     if (extractedProducts.length === 0) {
       toast({
@@ -628,6 +671,77 @@ function ScraperPage({ platform = 'trendyol' }: ScraperPageProps) {
             </div>
           </form>
         </motion.div>
+
+        {/* CSV Önizleme Tablosu */}
+        <AnimatePresence>
+          {showCsvPreview && csvPreview.length > 0 && (
+            <motion.div
+              initial={{ opacity: 0, y: 50 }}
+              animate={{ opacity: 1, y: 0 }}
+              exit={{ opacity: 0, y: -50 }}
+              transition={{ duration: 0.3 }}
+              className="mb-6"
+            >
+              <Card className="bg-gray-900 border-gray-800">
+                <CardContent className="p-6">
+                  <div className="flex justify-between items-center mb-4">
+                    <h3 className="text-lg font-semibold text-white">CSV Önizleme</h3>
+                    <Button 
+                      variant="ghost" 
+                      size="sm" 
+                      onClick={() => setShowCsvPreview(false)}
+                      className="text-gray-400 hover:text-white"
+                    >
+                      <XCircle className="h-4 w-4" />
+                    </Button>
+                  </div>
+                  
+                  <div className="overflow-x-auto">
+                    <table className="w-full text-sm text-gray-300">
+                      <thead>
+                        <tr className="border-b border-gray-700">
+                          <th className="text-left p-2">Handle</th>
+                          <th className="text-left p-2">Title</th>
+                          <th className="text-left p-2">Vendor</th>
+                          <th className="text-left p-2">Price</th>
+                          <th className="text-left p-2">Compare Price</th>
+                          <th className="text-left p-2">Size</th>
+                          <th className="text-left p-2">Stock</th>
+                        </tr>
+                      </thead>
+                      <tbody>
+                        {csvPreview.slice(0, 10).map((row, index) => (
+                          <tr key={index} className="border-b border-gray-800">
+                            <td className="p-2 text-xs">{row.handle}</td>
+                            <td className="p-2 text-xs">{row.title}</td>
+                            <td className="p-2 text-xs">{row.vendor}</td>
+                            <td className="p-2 text-xs">{row.variant_price} TL</td>
+                            <td className="p-2 text-xs">{row.variant_compare_price} TL</td>
+                            <td className="p-2 text-xs">{row.option1_value || 'Tek Beden'}</td>
+                            <td className="p-2 text-xs">{row.variant_inventory_qty}</td>
+                          </tr>
+                        ))}
+                      </tbody>
+                    </table>
+                  </div>
+                  
+                  {csvPreview.length > 10 && (
+                    <p className="text-gray-400 text-sm mt-2">
+                      ... ve {csvPreview.length - 10} satır daha
+                    </p>
+                  )}
+                  
+                  <div className="flex gap-2 mt-4">
+                    <Button onClick={exportToShopifyCSV} className="bg-green-600 hover:bg-green-700">
+                      <Download className="h-4 w-4 mr-2" />
+                      CSV'yi İndir
+                    </Button>
+                  </div>
+                </CardContent>
+              </Card>
+            </motion.div>
+          )}
+        </AnimatePresence>
 
         <AnimatePresence>
           {product && (

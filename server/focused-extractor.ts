@@ -403,19 +403,47 @@ export async function extractFocusedData(url: string): Promise<FocusedProductDat
     });
   }
   
-  // Temizlenmiş HTML beden çıkarma - sadece basit string arama
-  const simpleSizePattern = /\b(XS|S|M|L|XL|XXL|XXXL|\b[3-5][0-9]\b)\b/gi;
-  const foundSizes = htmlContent.match(simpleSizePattern);
-  if (foundSizes) {
-    foundSizes.forEach(size => {
-      const cleanSize = size.trim().toUpperCase();
-      if (cleanSize.length <= 4) {
-        sizeSet.add(cleanSize);
+  // Direkt varyant verilerinden beden seçeneklerini çıkar
+  if (product.variants && Array.isArray(product.variants)) {
+    product.variants.forEach((variant: any) => {
+      if (variant.attributes) {
+        Object.values(variant.attributes).forEach((attr: any) => {
+          if (attr && typeof attr === 'string') {
+            const size = attr.trim();
+            if (size.match(/^(XS|S|M|L|XL|XXL|XXXL|\d{2,3}|\d{2,3}\/\d{2,3})$/i)) {
+              sizeSet.add(size.toUpperCase());
+            }
+          }
+        });
+      }
+    });
+  }
+
+  // Allvariants'tan beden çıkar
+  if (product.allVariants && Array.isArray(product.allVariants)) {
+    product.allVariants.forEach((variant: any) => {
+      if (variant.itemAttributes) {
+        variant.itemAttributes.forEach((attr: any) => {
+          if (attr.attributeValue && typeof attr.attributeValue === 'string') {
+            const size = attr.attributeValue.trim();
+            if (size.match(/^(XS|S|M|L|XL|XXL|XXXL|\d{2,3}|\d{2,3}\/\d{2,3})$/i)) {
+              sizeSet.add(size.toUpperCase());
+            }
+          }
+        });
       }
     });
   }
   
-  // Sadece temel beden kontrolü - karmaşık regex'leri kaldır
+  // HTML'den ek beden seçenekleri
+  const htmlSizePattern = /(?:beden|size)["\s]*:["\s]*["']([^"']+)["']/gi;
+  let htmlMatch;
+  while ((htmlMatch = htmlSizePattern.exec(htmlContent)) !== null) {
+    const size = htmlMatch[1].trim();
+    if (size.match(/^(XS|S|M|L|XL|XXL|XXXL|\d{2,3})$/i)) {
+      sizeSet.add(size.toUpperCase());
+    }
+  }
   
   // Renk ve beden seçeneklerini arraye çevir
   const colorOptions = Array.from(colorSet).filter(color => 
