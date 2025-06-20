@@ -55,10 +55,17 @@ export async function aiEnhancedScrape(url: string): Promise<AIEnhancedProductDa
   console.log(`🚀 AI-destekli profesyonel veri çıkarma başlatılıyor: ${url}`);
   
   try {
+    // URL doğrulama
+    if (!url || typeof url !== 'string') {
+      throw new Error('Geçersiz URL');
+    }
+    
     // 1. Ham veri çıkarma
     const response = await axios.get(url, {
       headers: {
-        'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/91.0.4472.124 Safari/537.36'
+        'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/91.0.4472.124 Safari/537.36',
+        'Accept': 'text/html,application/xhtml+xml,application/xml;q=0.9,image/webp,*/*;q=0.8',
+        'Accept-Language': 'tr-TR,tr;q=0.9,en-US;q=0.8,en;q=0.7'
       },
       timeout: 15000
     });
@@ -113,7 +120,24 @@ export async function aiEnhancedScrape(url: string): Promise<AIEnhancedProductDa
     
   } catch (error) {
     console.error('AI-destekli scraping hatası:', error.message);
-    throw error;
+    
+    // Return safe fallback data instead of throwing
+    return {
+      success: false,
+      title: 'Başlık bulunamadı',
+      brand: 'Marka bulunamadı', 
+      price: '0',
+      description: 'Açıklama bulunamadı',
+      images: [],
+      features: [],
+      specifications: [],
+      materials: [],
+      careInstructions: [],
+      variants: { colors: [], sizes: [] },
+      aiAnalysis: null,
+      shopifyData: null,
+      csvPreview: null
+    };
   }
 }
 

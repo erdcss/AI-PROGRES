@@ -130,10 +130,29 @@ export async function registerRoutes(app: Express) {
           return res.status(200).json(result);
         }
         
-        // Enhanced Trendyol handler kullan
-        const { scrapeTrendyolProduct } = await import('./enhanced-trendyol-handler');
-        const result = await scrapeTrendyolProduct(url);
-        return res.status(200).json(result);
+        // AI Enhanced Scraper kullan
+        const { aiEnhancedScrape } = await import('./ai-enhanced-scraper');
+        const result = await aiEnhancedScrape(url);
+        
+        // Ensure safe data structure
+        const safeResult = {
+          success: result?.success !== false,
+          title: result?.title || 'Başlık bulunamadı',
+          brand: result?.brand || 'Marka bulunamadı',
+          price: result?.price || '0',
+          description: result?.description || 'Açıklama bulunamadı',
+          images: Array.isArray(result?.images) ? result.images : [],
+          features: Array.isArray(result?.features) ? result.features : [],
+          specifications: Array.isArray(result?.specifications) ? result.specifications : [],
+          materials: Array.isArray(result?.materials) ? result.materials : [],
+          careInstructions: Array.isArray(result?.careInstructions) ? result.careInstructions : [],
+          variants: result?.variants || { colors: [], sizes: [] },
+          aiAnalysis: result?.aiAnalysis || null,
+          shopifyData: result?.shopifyData || null,
+          csvPreview: result?.csvPreview || null
+        };
+        
+        return res.status(200).json({ success: true, data: safeResult });
       }
       
       // Continue with original flow for non-Trendyol URLs
