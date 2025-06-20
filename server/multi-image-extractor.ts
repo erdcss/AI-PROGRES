@@ -1,65 +1,52 @@
-/**
- * Çoklu Görsel Çıkarıcı - Tüm ürün görsellerini yakalama
- */
-
 export function extractAllImages(htmlContent: string): string[] {
-  const images = new Set<string>();
+  const allImages = new Set<string>();
   
-  // 1. HTML'den tüm CDN görsellerini çıkar
-  const patterns = [
-    /https:\/\/cdn\.dsmcdn\.com[^"'\s\)]*\.(jpg|jpeg|png|webp)/gi,
-    /\/ty\d+\/prod\/[^"'\s\)]*\.(jpg|jpeg|png|webp)/gi,
-    /\/mnresize\/\d+\/\d+\/[^"'\s\)]*\.(jpg|jpeg|png|webp)/gi
-  ];
-  
-  patterns.forEach(pattern => {
-    let match;
-    while ((match = pattern.exec(htmlContent)) !== null) {
-      let url = match[0];
-      if (url.startsWith('/')) {
-        url = 'https://cdn.dsmcdn.com' + url;
-      }
-      images.add(url);
+  // 1. Temel görsel çıkarma
+  const imgMatches = htmlContent.match(/<img[^>]+src="([^"]+)"/g);
+  imgMatches?.forEach(match => {
+    const srcMatch = match.match(/src="([^"]+)"/);
+    if (srcMatch) {
+      allImages.add(srcMatch[1]);
     }
   });
   
-  // 2. Önce product filtreleme yap
-  const productOnlyImages = Array.from(images).filter(url => {
-    return url && url.includes('/product/');
+  // 2. İlk filtreleme - sadece orijinal ürün görselleri
+  const originalProductImages = Array.from(allImages).filter(url => {
+    if (!url) return false;
+    
+    // Sadece orijinal ty yolları, resize yok  
+    const isOriginal = /^https:\/\/cdn\.dsmcdn\.com\/ty\d+\/product\/media\/images\/prod\/(PIM|QC)\/\d{8}\/\d{2}\/[a-f0-9-]+\/\d+(_org_zoom)?\.jpg$/.test(url);
+    
+    return isOriginal;
   });
   
-  // 3. Product görsellerinden varyantlar üret
-  if (productOnlyImages.length > 0) {
-    const firstImage = productOnlyImages[0];
+  // 3. Orijinal görsellerden varyantlar üret
+  const finalImages = new Set<string>();
+  
+  if (originalProductImages.length > 0) {
+    const firstImage = originalProductImages[0];
     const hashMatch = firstImage.match(/([a-f0-9]{8}-[a-f0-9]{4}-[a-f0-9]{4}-[a-f0-9]{4}-[a-f0-9]{12})/);
+    
     if (hashMatch) {
-      const hash = hashMatch[1];
-      const basePath = firstImage.replace(/\/\d+(_org_zoom)?\.jpg.*$/, '');
+      const basePath = firstImage.replace(/\/\d+(_org_zoom)?\.jpg$/, '');
       
-      // Sadece product yolunda varyantlar üret
-      if (basePath.includes('/product/')) {
-        for (let i = 1; i <= 10; i++) {
-          images.add(`${basePath}/${i}_org_zoom.jpg`);
-          images.add(`${basePath}/${i}.jpg`);
-        }
+      // Sadece orijinal yolda varyantlar üret
+      for (let i = 1; i <= 8; i++) {
+        finalImages.add(`${basePath}/${i}_org_zoom.jpg`);
+        finalImages.add(`${basePath}/${i}.jpg`);
       }
     }
   }
   
-  // 4. Final filtreleme - sadece "product" içeren görseller
-  const productImages = Array.from(images).filter(url => {
-    if (!url || url.length === 0) return false;
-    
-    const lowerUrl = url.toLowerCase();
-    
-    // Hariç tutulacaklar
-    const exclude = ['footer', 'header', 'logo', 'icon', 'banner', 'badge', 'energy', 'certificate', 'payment', 'social', 'static', 'ui', 'sprite', 'button', 'arrow', 'star', 'web/production'];
-    if (exclude.some(pattern => lowerUrl.includes(pattern))) return false;
-    
-    // Sadece "product" içeren yollar
-    return url.includes('/product/');
+  // 4. Mevcut orijinal görselleri de ekle
+  originalProductImages.forEach(img => finalImages.add(img));
+  
+  // 5. Son filtreleme - sadece orijinal ürün görselleri
+  const cleanedImages = Array.from(finalImages).filter(url => {
+    // Kesin orijinal ürün görseli kontrolü - resize yok
+    return /^https:\/\/cdn\.dsmcdn\.com\/ty\d+\/product\/media\/images\/prod\/(PIM|QC)\/\d{8}\/\d{2}\/[a-f0-9-]+\/\d+(_org_zoom)?\.jpg$/.test(url);
   });
   
-  console.log(`🖼️ ${productImages.length} ürün görseli çıkarıldı`);
-  return productImages;
+  console.log(`🖼️ ${cleanedImages.length} ürün görseli çıkarıldı`);
+  return cleanedImages;
 }
