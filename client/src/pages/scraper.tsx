@@ -273,6 +273,7 @@ function ScraperPage({ platform = 'trendyol' }: ScraperPageProps) {
   const [product, setProduct] = useState<any>(null);
   const [result, setResult] = useState<any>(null);
   const [isDownloading, setIsDownloading] = useState(false);
+  const [isExporting, setIsExporting] = useState(false);
   // CSV Download handler
   const handleCSVDownload = async () => {
     try {
