@@ -209,11 +209,11 @@ export function AIAnalysisDisplay({ analysis }: AIAnalysisProps) {
                   </CardHeader>
                   <CardContent>
                     <div className="text-xl font-bold">
-                      {analysis.priceAnalysis.currentPrice} TL
+                      {analysis.priceAnalysis?.currentPrice || '0'} TL
                     </div>
                     <Badge variant="outline" className="mt-2">
-                      {analysis.priceAnalysis.pricePosition === 'ekonomik' ? 'Ekonomik' :
-                       analysis.priceAnalysis.pricePosition === 'orta_segment' ? 'Orta Segment' : 'Premium'}
+                      {analysis.priceAnalysis?.pricePosition === 'ekonomik' ? 'Ekonomik' :
+                       analysis.priceAnalysis?.pricePosition === 'orta_segment' ? 'Orta Segment' : 'Premium'}
                     </Badge>
                   </CardContent>
                 </Card>
@@ -224,10 +224,12 @@ export function AIAnalysisDisplay({ analysis }: AIAnalysisProps) {
                   </CardHeader>
                   <CardContent>
                     <div className="text-xl font-bold text-green-600">
-                      {analysis.priceAnalysis.recommendedPrice} TL
+                      {analysis.priceAnalysis?.recommendedPrice || '0'} TL
                     </div>
                     <div className="text-sm text-gray-500 mt-1">
-                      %{Math.round(((analysis.priceAnalysis.recommendedPrice - analysis.priceAnalysis.currentPrice) / analysis.priceAnalysis.currentPrice) * 100)} değişim
+                      {analysis.priceAnalysis?.recommendedPrice && analysis.priceAnalysis?.currentPrice ? 
+                        `%${Math.round(((analysis.priceAnalysis.recommendedPrice - analysis.priceAnalysis.currentPrice) / analysis.priceAnalysis.currentPrice) * 100)} değişim` : 
+                        'Analiz ediliyor...'}
                     </div>
                   </CardContent>
                 </Card>
@@ -242,7 +244,7 @@ export function AIAnalysisDisplay({ analysis }: AIAnalysisProps) {
                 </CardHeader>
                 <CardContent>
                   <div className="space-y-2">
-                    {analysis.priceAnalysis.priceHistory.map((entry, index) => (
+                    {(analysis.priceAnalysis?.priceHistory || []).map((entry, index) => (
                       <div key={index} className="flex items-center justify-between text-sm">
                         <span>{entry.month}</span>
                         <div className="flex items-center gap-2">
@@ -270,7 +272,7 @@ export function AIAnalysisDisplay({ analysis }: AIAnalysisProps) {
                   </CardHeader>
                   <CardContent>
                     <Badge variant="secondary" className="text-base">
-                      {analysis.visualAnalysis.productStyle}
+                      {analysis.visualAnalysis?.productStyle || 'Belirleniyor...'}
                     </Badge>
                   </CardContent>
                 </Card>
@@ -284,7 +286,7 @@ export function AIAnalysisDisplay({ analysis }: AIAnalysisProps) {
                   </CardHeader>
                   <CardContent>
                     <Badge variant="secondary" className="text-base">
-                      {analysis.visualAnalysis.targetAudience}
+                      {analysis.visualAnalysis?.targetAudience || 'Belirleniyor...'}
                     </Badge>
                   </CardContent>
                 </Card>
@@ -299,7 +301,7 @@ export function AIAnalysisDisplay({ analysis }: AIAnalysisProps) {
                     <div>
                       <span className="text-sm font-medium">Dominant Renkler:</span>
                       <div className="flex flex-wrap gap-1 mt-1">
-                        {analysis.visualAnalysis.dominantColors.map((color, index) => (
+                        {(analysis.visualAnalysis?.dominantColors || []).map((color, index) => (
                           <Badge key={index} variant="outline">{color}</Badge>
                         ))}
                       </div>
@@ -307,7 +309,7 @@ export function AIAnalysisDisplay({ analysis }: AIAnalysisProps) {
                     <div>
                       <span className="text-sm font-medium">Mevcut Varyantlar:</span>
                       <div className="flex flex-wrap gap-1 mt-1">
-                        {analysis.visualAnalysis.colorVariants.map((color, index) => (
+                        {(analysis.visualAnalysis?.colorVariants || []).map((color, index) => (
                           <Badge key={index} variant="secondary">{color}</Badge>
                         ))}
                       </div>
@@ -322,7 +324,7 @@ export function AIAnalysisDisplay({ analysis }: AIAnalysisProps) {
                 </CardHeader>
                 <CardContent>
                   <Badge variant="outline" className="text-base">
-                    {analysis.visualAnalysis.seasonality}
+                    {analysis.visualAnalysis?.seasonality || 'Her Mevsim'}
                   </Badge>
                 </CardContent>
               </Card>
