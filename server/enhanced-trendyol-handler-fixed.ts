@@ -68,11 +68,29 @@ export async function scrapeTrendyolProduct(inputUrl: string) {
     
     const title = cleanTitle;
     
-    const priceText = $('.prc-slg').first().text().trim() || 
-                      $('.pr-in-pr .prc-cnr .prc-dsc').first().text().trim() ||
-                      $('.price-current').first().text().trim();
+    // Enhanced price extraction with multiple selectors
+    const priceSelectors = [
+      '.prc-slg',
+      '.pr-in-pr .prc-cnr .prc-dsc', 
+      '.price-current',
+      '.prc-org',
+      '.prc-dsc',
+      '.product-price',
+      '.price-box .price',
+      '[data-testid="price-current-price"]'
+    ];
     
-    const price = priceText.replace(/[^\d,]/g, '').replace(',', '.') || '99';
+    let priceText = '';
+    for (const selector of priceSelectors) {
+      priceText = $(selector).first().text().trim();
+      if (priceText && priceText.length > 0) break;
+    }
+    
+    // Extract numeric price value
+    const priceMatch = priceText.match(/[\d.,]+/);
+    const price = priceMatch ? priceMatch[0].replace(',', '.') : '99';
+    
+    console.log(`💰 Ham fiyat metni: "${priceText}" -> Çıkarılan fiyat: ${price} TL`);
 
     const basicProductData = { title, price, brand };
     console.log(`🔍 Ürün bilgileri: ${title} - ${brand} - ${price} TL`);
@@ -99,13 +117,14 @@ export async function scrapeTrendyolProduct(inputUrl: string) {
     const allProductImages: string[] = [];
     const colorSpecificImages: Record<string, string[]> = {};
     
-    // Method 1: Deep script data extraction
+    // Method 1: Enhanced script data extraction with image optimization
     const scriptMatches = [
       ...htmlContent.matchAll(/"images":\s*\[([^\]]*)\]/g),
       ...htmlContent.matchAll(/"allImages":\s*\[([^\]]*)\]/g),
       ...htmlContent.matchAll(/"gallery":\s*\[([^\]]*)\]/g),
       ...htmlContent.matchAll(/"variantImages":\s*\[([^\]]*)\]/g),
-      ...htmlContent.matchAll(/"colorImages":\s*\{([^}]*)\}/g)
+      ...htmlContent.matchAll(/"colorImages":\s*\{([^}]*)\}/g),
+      ...htmlContent.matchAll(/https:\/\/cdn\.dsmcdn\.com\/[^"'\s]+\.(?:jpg|jpeg|png|webp)/g)
     ];
     
     scriptMatches.forEach(match => {
@@ -335,6 +354,7 @@ export async function scrapeTrendyolProduct(inputUrl: string) {
     });
     
     console.log(`🎯 ${absoluteImages.length} görsel çıkarıldı`);
+    console.log(`🖼️ İlk 3 görsel: ${absoluteImages.slice(0, 3).join(', ')}`);
     
     const colorVariants = multiVariantData.colors;
     const sizeVariants = multiVariantData.sizes;

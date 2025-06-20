@@ -135,7 +135,24 @@ Gerçekçi veriler kullan ve Türkiye pazarına uygun analiz yap.`;
     const analysisText = response.content[0].text;
     const cleanJson = analysisText.replace(/```json\n?/g, '').replace(/```\n?/g, '').trim();
     
-    const analysis: AIProductAnalysis = JSON.parse(cleanJson);
+    let analysis: AIProductAnalysis;
+    try {
+      analysis = JSON.parse(cleanJson);
+      
+      // Validate and correct the analysis data
+      if (!analysis.priceAnalysis?.currentPrice) {
+        analysis.priceAnalysis.currentPrice = parseFloat(productData.price) || 99;
+      }
+      
+      // Ensure reasonable price recommendations
+      if (analysis.priceAnalysis.recommendedPrice < analysis.priceAnalysis.currentPrice * 0.8) {
+        analysis.priceAnalysis.recommendedPrice = Math.round(analysis.priceAnalysis.currentPrice * 1.1);
+      }
+      
+    } catch (parseError) {
+      console.log('⚠️ JSON parse hatası, fallback kullanılıyor');
+      return generateFallbackAnalysis(productData);
+    }
     
     console.log('✅ AI analizi tamamlandı');
     console.log(`📊 Tahmini yıllık satış: ${analysis.salesPrediction.estimatedYearlySales} adet`);
