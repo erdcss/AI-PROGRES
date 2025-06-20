@@ -422,7 +422,7 @@ export async function scrapeTrendyolProduct(inputUrl: string) {
     ])).filter(img => img && (img.startsWith('http') || img.startsWith('/'))).slice(0, 25);
     
     // Convert relative URLs to absolute URLs
-    const absoluteImages = allImages.map(img => {
+    const absoluteImages = finalImages.map(img => {
       if (img.startsWith('/')) {
         return `https://cdn.dsmcdn.com${img}`;
       }
@@ -442,10 +442,7 @@ export async function scrapeTrendyolProduct(inputUrl: string) {
     
     // Extract comprehensive product features for display
     const productFeatures = extractProductFeatures($, htmlContent);
-    
-    // AI destekli gelişmiş özellik çıkarma
-    console.log('🔍 AI destekli gelişmiş ürün özellikleri çıkarılıyor...');
-    const enhancedFeatures = await extractEnhancedProductFeatures(htmlContent, productDescription);
+    console.log(`🔍 ${productFeatures.length} structured features extracted`);
     
     // AI Destekli Veri Çıkarma ve İyileştirme
     console.log('🤖 AI destekli veri çıkarma ve optimize etme...');
