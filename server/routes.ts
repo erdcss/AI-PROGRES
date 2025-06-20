@@ -1818,6 +1818,25 @@ export async function registerRoutes(app: Express) {
     }
   });
 
+  // Debug extraction endpoint
+  app.post('/api/debug-extract', async (req, res) => {
+    try {
+      const { url } = req.body;
+      
+      if (!url) {
+        return res.status(400).json({ error: 'URL gerekli' });
+      }
+
+      const { debugSimpleExtraction } = await import('./debug-simple-extractor');
+      const result = await debugSimpleExtraction(url);
+      
+      res.json(result);
+    } catch (error) {
+      console.error('Debug extraction hatası:', error);
+      res.status(500).json({ error: 'Debug extraction başarısız' });
+    }
+  });
+
   // Basit Trendyol extraction endpoint'i
   app.post('/api/simple-extract', async (req, res) => {
     try {

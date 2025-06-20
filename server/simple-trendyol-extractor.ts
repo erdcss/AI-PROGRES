@@ -151,7 +151,24 @@ export async function extractSimpleTrendyolData(url: string): Promise<{
       features: features.slice(0, 15) // İlk 15 özellik
     };
     
-    console.log(`✅ Extraction tamamlandı: ${data.variants.length} varyant, ${data.images.length} görsel, ${data.features.length} özellik`);
+    console.log(`✅ Basit extraction tamamlandı:`);
+    console.log(`   - Marka: ${data.brand}`);
+    console.log(`   - Başlık: ${data.title}`);
+    console.log(`   - Görseller: ${data.images.length} adet`);
+    console.log(`   - Varyantlar: ${data.variants.length} adet`);
+    console.log(`   - Özellikler: ${data.features.length} adet`);
+    
+    if (data.images.length > 0) {
+      console.log(`   - İlk görsel: ${data.images[0]}`);
+    }
+    
+    if (data.variants.length > 0) {
+      console.log(`   - İlk varyant: ${data.variants[0].color}-${data.variants[0].size}`);
+    }
+    
+    if (data.features.length > 0) {
+      console.log(`   - İlk özellik: ${data.features[0].key}: ${data.features[0].value}`);
+    }
     
     return {
       success: true,
