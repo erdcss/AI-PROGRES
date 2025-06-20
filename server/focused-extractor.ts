@@ -338,26 +338,58 @@ export async function extractFocusedData(url: string): Promise<FocusedProductDat
   const sizeSet = new Set<string>();
   const outOfStockSizes = new Set<string>();
   
+  console.log('🔍 AllVariants işleniyor...');
+  
   if (product.allVariants && Array.isArray(product.allVariants)) {
-    product.allVariants.forEach((variant: any) => {
+    console.log(`📋 AllVariants sayısı: ${product.allVariants.length}`);
+    
+    product.allVariants.forEach((variant: any, index: number) => {
       if (!variant) return;
       
+      console.log(`Varyant ${index} debug:`, JSON.stringify(variant, null, 2).substring(0, 300));
+      
       const attributes = variant.attributes || {};
-      const color = attributes.RENK || attributes.Renk || attributes.renk || variant.color || 'Varsayılan';
-      const size = attributes.BEDEN || attributes.Beden || attributes.beden || variant.size || 'Tek Beden';
+      let color = attributes.RENK || attributes.Renk || attributes.renk || variant.color || 'Varsayılan';
+      let size = attributes.BEDEN || attributes.Beden || attributes.beden || variant.size || 'Tek Beden';
+      
+      // ItemAttributes'dan da kontrol et
+      if (variant.itemAttributes && Array.isArray(variant.itemAttributes)) {
+        variant.itemAttributes.forEach((attr: any) => {
+          if (attr.attributeName && attr.attributeValue) {
+            const attrName = attr.attributeName.toLowerCase();
+            if (attrName.includes('beden') || attrName.includes('size')) {
+              size = attr.attributeValue;
+              console.log(`  ✓ ItemAttributes'dan beden bulundu: ${size}`);
+            } else if (attrName.includes('renk') || attrName.includes('color')) {
+              color = attr.attributeValue;
+              console.log(`  ✓ ItemAttributes'dan renk bulundu: ${color}`);
+            }
+          }
+        });
+      }
+      
       const stockCount = parseInt(variant.stock || variant.stockCount || variant.quantity || '0');
       const inStock = stockCount > 0;
       
-      // Tüm renk ve beden seçeneklerini topla (stokta olan/olmayan)
+      console.log(`  → Final: color="${color}", size="${size}"`);
+      
+      // Tüm renk ve beden seçeneklerini topla
       colorSet.add(String(color));
       sizeSet.add(String(size));
+      
+      console.log(`  → SizeSet güncellendi: [${Array.from(sizeSet).join(', ')}]`);
+      
+      // Eğer bu ürün için gerçek bedenleri görüyorsak bunları kaydet
+      if (size !== 'Tek Beden' && size !== 'Varsayılan' && size.length > 0) {
+        console.log(`🎯 GERÇEK BEDEN BULUNDU: "${size}" - Kaynak: ${variant.itemAttributes ? 'itemAttributes' : 'attributes'}`);
+      };
       
       // Stokta olmayan bedenleri ayrı takip et
       if (!inStock && size !== 'Tek Beden') {
         outOfStockSizes.add(String(size));
       }
       
-      // Tüm varyantları ekle (stokta olan/olmayan)
+      // Tüm varyantları ekle
       variants.push({
         color: String(color),
         size: String(size),
@@ -442,11 +474,31 @@ export async function extractFocusedData(url: string): Promise<FocusedProductDat
     });
   }
 
-  // Debug: Ürün durumunu logla
+  // Debug: Ürün durumunu ve bulunan bedenleri detaylı logla
+  console.log(`📏 Beden Set İçeriği: [${Array.from(sizeSet).join(', ')}]`);
   if (sizeSet.size === 0) {
-    console.log('📏 Bu ürün tek beden veya beden seçenekleri tespit edilemedi');
+    console.log('⚠️ Hiç beden seçeneği bulunamadı');
   } else {
-    console.log(`✓ Toplam ${sizeSet.size} beden seçeneği bulundu`);
+    console.log(`✓ Toplam ${sizeSet.size} beden seçeneği bulundu: ${Array.from(sizeSet).join(', ')}`);
+  }
+
+  // Bu ürün için özel debug - HTML'de gerçekten beden var mı?
+  console.log('🔍 Özel debug - HTML içeriği kontrol ediliyor...');
+  
+  // Farklı varyant yapıları kontrol et
+  if (product.allVariants) {
+    console.log(`📋 AllVariants sayısı: ${product.allVariants.length}`);
+    product.allVariants.slice(0, 3).forEach((variant: any, index: number) => {
+      console.log(`Varyant ${index}: ${JSON.stringify(variant, null, 2).substring(0, 200)}...`);
+    });
+  }
+
+  // Variants yapısını kontrol et
+  if (variants && variants.length > 0) {
+    console.log(`📋 Variants sayısı: ${variants.length}`);
+    variants.slice(0, 3).forEach((variant: any, index: number) => {
+      console.log(`Parsed Variant ${index}: size="${variant.size}", color="${variant.color}", inStock=${variant.inStock}`);
+    });
   }
 
   // Product allVariants'tan çıkar
@@ -496,19 +548,19 @@ export async function extractFocusedData(url: string): Promise<FocusedProductDat
     color !== 'Varsayılan' && color.length > 0 && !color.includes('undefined')
   );
   
-  const sizeOptions = Array.from(sizeSet).filter(size => 
-    size !== 'Tek Beden' && 
-    size.length > 0 && 
-    size.length <= 4 &&
-    !size.includes('undefined') && 
-    !size.includes('null') &&
-    !size.includes(':') &&
-    !size.includes('{') &&
-    !size.includes('}') &&
-    !size.includes('[') &&
-    !size.includes(']') &&
-    /^[A-Za-z0-9\/\-]+$/.test(size)
-  ).sort((a, b) => {
+  console.log(`🔧 Final beden filtreleme öncesi: [${Array.from(sizeSet).join(', ')}]`);
+  
+  const sizeOptions = Array.from(sizeSet).filter(size => {
+    const isValid = size !== 'Tek Beden' && 
+      size.length > 0 && 
+      size.length <= 5 &&
+      !size.includes('undefined') && 
+      !size.includes('null') &&
+      /^[A-Za-z0-9\/\-]+$/.test(size);
+    
+    console.log(`Beden "${size}" kontrol: ${isValid ? 'GEÇERLİ' : 'GEÇERSİZ'}`);
+    return isValid;
+  }).sort((a, b) => {
     const numA = parseInt(a);
     const numB = parseInt(b);
     if (!isNaN(numA) && !isNaN(numB)) return numA - numB;
@@ -516,6 +568,8 @@ export async function extractFocusedData(url: string): Promise<FocusedProductDat
     if (!isNaN(numB)) return 1;
     return a.localeCompare(b);
   });
+  
+  console.log(`🔧 Final beden listesi: [${sizeOptions.join(', ')}]`);
   
   console.log(`✓ Varyantlar: ${variants.length} adet`);
   console.log(`✓ Renk seçenekleri: ${colorOptions.length} adet - ${colorOptions.join(', ')}`);
