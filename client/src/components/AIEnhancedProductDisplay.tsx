@@ -1,0 +1,401 @@
+import React from 'react';
+import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
+import { Badge } from '@/components/ui/badge';
+import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
+import { Progress } from '@/components/ui/progress';
+import { 
+  Brain, 
+  ImageIcon, 
+  Target, 
+  Palette, 
+  Sparkles,
+  TrendingUp,
+  MapPin,
+  ShoppingCart,
+  Tags,
+  Star
+} from 'lucide-react';
+
+interface AIEnhancedProductDisplayProps {
+  productData: any;
+}
+
+export function AIEnhancedProductDisplay({ productData }: AIEnhancedProductDisplayProps) {
+  if (!productData?.success) {
+    return null;
+  }
+
+  const {
+    title,
+    brand,
+    price,
+    description,
+    images = [],
+    colors = [],
+    sizes = [],
+    materials = [],
+    features = [],
+    category,
+    subcategory,
+    productType,
+    targetAudience,
+    season,
+    shopifyData = {},
+    aiMetrics = {},
+    imageAnalysis = {},
+    aiAnalysis = {}
+  } = productData;
+
+  return (
+    <div className="space-y-6">
+      {/* AI Kalite Özeti */}
+      <Card className="border-2 border-blue-200 bg-blue-50/50">
+        <CardHeader className="pb-3">
+          <CardTitle className="flex items-center gap-2 text-blue-900">
+            <Brain className="h-5 w-5" />
+            AI Destekli Ürün Analizi
+          </CardTitle>
+        </CardHeader>
+        <CardContent className="space-y-4">
+          <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
+            <div className="text-center">
+              <div className="text-2xl font-bold text-blue-600">
+                {(aiMetrics.dataQuality * 100).toFixed(0)}%
+              </div>
+              <div className="text-sm text-gray-600">Veri Kalitesi</div>
+              <Progress value={aiMetrics.dataQuality * 100} className="mt-1" />
+            </div>
+            <div className="text-center">
+              <div className="text-2xl font-bold text-green-600">
+                {(aiMetrics.aiConfidence * 100).toFixed(0)}%
+              </div>
+              <div className="text-sm text-gray-600">AI Güveni</div>
+              <Progress value={aiMetrics.aiConfidence * 100} className="mt-1" />
+            </div>
+            <div className="text-center">
+              <div className="text-2xl font-bold text-purple-600">
+                {images.length}
+              </div>
+              <div className="text-sm text-gray-600">Toplam Görsel</div>
+            </div>
+            <div className="text-center">
+              <div className="text-2xl font-bold text-orange-600">
+                {(aiMetrics.imageQualityScore * 100 / 3).toFixed(0)}%
+              </div>
+              <div className="text-sm text-gray-600">Görsel Kalitesi</div>
+              <Progress value={(aiMetrics.imageQualityScore * 100 / 3)} className="mt-1" />
+            </div>
+          </div>
+        </CardContent>
+      </Card>
+
+      {/* Temel Ürün Bilgileri */}
+      <Card>
+        <CardHeader>
+          <CardTitle className="flex items-center gap-2">
+            <Sparkles className="h-5 w-5" />
+            AI Optimize Edilmiş Ürün Bilgileri
+          </CardTitle>
+        </CardHeader>
+        <CardContent>
+          <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+            <div>
+              <h3 className="font-semibold text-lg mb-2">{title}</h3>
+              <div className="space-y-2">
+                <Badge variant="outline">{brand}</Badge>
+                <Badge variant="secondary">{category}</Badge>
+                <Badge variant="outline">{subcategory}</Badge>
+              </div>
+              <div className="mt-4">
+                <span className="text-2xl font-bold text-green-600">{price} TL</span>
+              </div>
+            </div>
+            <div>
+              <div className="space-y-2">
+                <div className="flex items-center gap-2">
+                  <Target className="h-4 w-4" />
+                  <span className="text-sm">Hedef Kitle: {targetAudience}</span>
+                </div>
+                <div className="flex items-center gap-2">
+                  <Tags className="h-4 w-4" />
+                  <span className="text-sm">Ürün Tipi: {productType}</span>
+                </div>
+                <div className="flex items-center gap-2">
+                  <Star className="h-4 w-4" />
+                  <span className="text-sm">Sezon: {season}</span>
+                </div>
+              </div>
+            </div>
+          </div>
+        </CardContent>
+      </Card>
+
+      {/* AI Gelişmiş Analizler */}
+      <Tabs defaultValue="images" className="w-full">
+        <TabsList className="grid w-full grid-cols-5">
+          <TabsTrigger value="images">AI Görseller</TabsTrigger>
+          <TabsTrigger value="variants">Varyantlar</TabsTrigger>
+          <TabsTrigger value="materials">Malzemeler</TabsTrigger>
+          <TabsTrigger value="shopify">Shopify</TabsTrigger>
+          <TabsTrigger value="ai-analysis">AI Analiz</TabsTrigger>
+        </TabsList>
+
+        <TabsContent value="images">
+          <Card>
+            <CardHeader>
+              <CardTitle className="flex items-center gap-2">
+                <ImageIcon className="h-5 w-5" />
+                AI Destekli Görsel Analizi
+              </CardTitle>
+            </CardHeader>
+            <CardContent>
+              <div className="grid grid-cols-2 md:grid-cols-4 gap-4 mb-4">
+                <div className="text-center">
+                  <div className="text-lg font-semibold">{imageAnalysis.totalImages || images.length}</div>
+                  <div className="text-sm text-gray-600">Toplam Görsel</div>
+                </div>
+                <div className="text-center">
+                  <div className="text-lg font-semibold">{imageAnalysis.highQualityImages || 0}</div>
+                  <div className="text-sm text-gray-600">Yüksek Kalite</div>
+                </div>
+                <div className="text-center">
+                  <div className="text-lg font-semibold">{Object.keys(imageAnalysis.variantImages || {}).length}</div>
+                  <div className="text-sm text-gray-600">Renk Varyantı</div>
+                </div>
+                <div className="text-center">
+                  <div className="text-lg font-semibold">{imageAnalysis.categorizedImages?.main?.length || 0}</div>
+                  <div className="text-sm text-gray-600">Ana Görseller</div>
+                </div>
+              </div>
+              
+              <div className="grid grid-cols-2 md:grid-cols-4 gap-2">
+                {images.slice(0, 8).map((image: string, index: number) => (
+                  <div key={index} className="aspect-square">
+                    <img 
+                      src={image} 
+                      alt={`Ürün görseli ${index + 1}`}
+                      className="w-full h-full object-cover rounded-lg border"
+                      loading="lazy"
+                    />
+                  </div>
+                ))}
+              </div>
+            </CardContent>
+          </Card>
+        </TabsContent>
+
+        <TabsContent value="variants">
+          <Card>
+            <CardHeader>
+              <CardTitle className="flex items-center gap-2">
+                <Palette className="h-5 w-5" />
+                AI Tespit Edilen Varyantlar
+              </CardTitle>
+            </CardHeader>
+            <CardContent>
+              <div className="space-y-4">
+                <div>
+                  <h4 className="font-semibold mb-2">Renkler ({colors.length})</h4>
+                  <div className="flex flex-wrap gap-2">
+                    {colors.map((color: string) => (
+                      <Badge key={color} variant="outline">{color}</Badge>
+                    ))}
+                  </div>
+                </div>
+                
+                <div>
+                  <h4 className="font-semibold mb-2">Bedenler ({sizes.length})</h4>
+                  <div className="flex flex-wrap gap-2">
+                    {sizes.map((size: string) => (
+                      <Badge key={size} variant="secondary">{size}</Badge>
+                    ))}
+                  </div>
+                </div>
+                
+                <div>
+                  <h4 className="font-semibold mb-2">Özellikler</h4>
+                  <div className="flex flex-wrap gap-2">
+                    {features.slice(0, 10).map((feature: string, index: number) => (
+                      <Badge key={index} variant="outline" className="text-xs">
+                        {feature.length > 30 ? feature.substring(0, 30) + '...' : feature}
+                      </Badge>
+                    ))}
+                  </div>
+                </div>
+              </div>
+            </CardContent>
+          </Card>
+        </TabsContent>
+
+        <TabsContent value="materials">
+          <Card>
+            <CardHeader>
+              <CardTitle>AI Tespit Edilen Malzemeler ve Özellikler</CardTitle>
+            </CardHeader>
+            <CardContent>
+              <div className="space-y-4">
+                <div>
+                  <h4 className="font-semibold mb-2">Malzemeler</h4>
+                  <div className="flex flex-wrap gap-2">
+                    {materials.map((material: string) => (
+                      <Badge key={material} variant="outline">{material}</Badge>
+                    ))}
+                  </div>
+                </div>
+                
+                <div>
+                  <h4 className="font-semibold mb-2">AI Optimize Edilmiş Açıklama</h4>
+                  <p className="text-sm text-gray-700 leading-relaxed">
+                    {description?.substring(0, 300)}...
+                  </p>
+                </div>
+              </div>
+            </CardContent>
+          </Card>
+        </TabsContent>
+
+        <TabsContent value="shopify">
+          <Card>
+            <CardHeader>
+              <CardTitle className="flex items-center gap-2">
+                <ShoppingCart className="h-5 w-5" />
+                Shopify Optimizasyonu
+              </CardTitle>
+            </CardHeader>
+            <CardContent>
+              <div className="space-y-4">
+                <div>
+                  <h4 className="font-semibold mb-2">SEO Optimizasyonu</h4>
+                  <div className="space-y-2">
+                    <div>
+                      <span className="text-sm font-medium">SEO Başlık:</span>
+                      <p className="text-sm text-gray-700">{shopifyData.seoTitle}</p>
+                    </div>
+                    <div>
+                      <span className="text-sm font-medium">SEO Açıklama:</span>
+                      <p className="text-sm text-gray-700">{shopifyData.seoDescription}</p>
+                    </div>
+                    <div>
+                      <span className="text-sm font-medium">URL Handle:</span>
+                      <p className="text-sm text-gray-700">{shopifyData.handle}</p>
+                    </div>
+                  </div>
+                </div>
+                
+                <div>
+                  <h4 className="font-semibold mb-2">Shopify Etiketleri</h4>
+                  <div className="flex flex-wrap gap-2">
+                    {shopifyData.tags?.map((tag: string) => (
+                      <Badge key={tag} variant="secondary">{tag}</Badge>
+                    ))}
+                  </div>
+                </div>
+                
+                <div>
+                  <h4 className="font-semibold mb-2">Anahtar Kelimeler</h4>
+                  <div className="flex flex-wrap gap-2">
+                    {shopifyData.keywords?.map((keyword: string) => (
+                      <Badge key={keyword} variant="outline">{keyword}</Badge>
+                    ))}
+                  </div>
+                </div>
+              </div>
+            </CardContent>
+          </Card>
+        </TabsContent>
+
+        <TabsContent value="ai-analysis">
+          <Card>
+            <CardHeader>
+              <CardTitle className="flex items-center gap-2">
+                <TrendingUp className="h-5 w-5" />
+                AI Kapsamlı Ürün Analizi
+              </CardTitle>
+            </CardHeader>
+            <CardContent>
+              {aiAnalysis ? (
+                <div className="space-y-6">
+                  {/* Satış Tahmini */}
+                  {aiAnalysis.salesPrediction && (
+                    <div>
+                      <h4 className="font-semibold mb-3">Satış Tahmini</h4>
+                      <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+                        <div className="text-center p-3 bg-blue-50 rounded-lg">
+                          <div className="text-2xl font-bold text-blue-600">
+                            {aiAnalysis.salesPrediction.estimatedYearlySales?.toLocaleString()}
+                          </div>
+                          <div className="text-sm text-gray-600">Yıllık Satış Tahmini</div>
+                        </div>
+                        <div className="text-center p-3 bg-green-50 rounded-lg">
+                          <div className="text-2xl font-bold text-green-600">
+                            {aiAnalysis.salesPrediction.popularityScore}/10
+                          </div>
+                          <div className="text-sm text-gray-600">Popülerlik Skoru</div>
+                        </div>
+                        <div className="text-center p-3 bg-purple-50 rounded-lg">
+                          <div className="text-2xl font-bold text-purple-600">
+                            {aiAnalysis.salesPrediction.salesTrend}
+                          </div>
+                          <div className="text-sm text-gray-600">Satış Trendi</div>
+                        </div>
+                      </div>
+                    </div>
+                  )}
+
+                  {/* Coğrafi Analiz */}
+                  {aiAnalysis.geographicAnalysis && (
+                    <div>
+                      <h4 className="font-semibold mb-3 flex items-center gap-2">
+                        <MapPin className="h-4 w-4" />
+                        Coğrafi Satış Dağılımı
+                      </h4>
+                      <div className="grid grid-cols-2 md:grid-cols-3 gap-2">
+                        {aiAnalysis.geographicAnalysis.topSellingCities?.slice(0, 6).map((city: any) => (
+                          <div key={city.city} className="p-2 bg-gray-50 rounded">
+                            <div className="font-medium">{city.city}</div>
+                            <div className="text-sm text-gray-600">{city.percentage}%</div>
+                          </div>
+                        ))}
+                      </div>
+                    </div>
+                  )}
+
+                  {/* Fiyat Analizi */}
+                  {aiAnalysis.priceAnalysis && (
+                    <div>
+                      <h4 className="font-semibold mb-3">Fiyat Analizi</h4>
+                      <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
+                        <div className="text-center">
+                          <div className="text-lg font-semibold">{aiAnalysis.priceAnalysis.currentPrice} TL</div>
+                          <div className="text-sm text-gray-600">Mevcut Fiyat</div>
+                        </div>
+                        <div className="text-center">
+                          <div className="text-lg font-semibold">{aiAnalysis.priceAnalysis.recommendedPrice} TL</div>
+                          <div className="text-sm text-gray-600">Önerilen Fiyat</div>
+                        </div>
+                        <div className="text-center">
+                          <div className="text-lg font-semibold">{aiAnalysis.priceAnalysis.pricePosition}</div>
+                          <div className="text-sm text-gray-600">Fiyat Konumu</div>
+                        </div>
+                        <div className="text-center">
+                          <div className="text-lg font-semibold">
+                            {aiAnalysis.priceAnalysis.priceHistory?.length || 0}
+                          </div>
+                          <div className="text-sm text-gray-600">Ay Verisi</div>
+                        </div>
+                      </div>
+                    </div>
+                  )}
+                </div>
+              ) : (
+                <div className="text-center text-gray-500 py-8">
+                  AI analizi yükleniyor...
+                </div>
+              )}
+            </CardContent>
+          </Card>
+        </TabsContent>
+      </Tabs>
+    </div>
+  );
+}

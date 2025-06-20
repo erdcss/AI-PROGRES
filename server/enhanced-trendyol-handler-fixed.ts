@@ -1,5 +1,8 @@
 import * as cheerio from 'cheerio';
 import axios from 'axios';
+import { analyzeProductWithAI } from './ai-product-analyzer';
+import { extractImagesWithAI, detectColorsWithAI } from './ai-enhanced-image-extractor';
+import { extractDataWithAI, optimizeForShopifyWithAI } from './ai-enhanced-data-extractor';
 
 export interface EnhancedVariantData {
   colors: string[];
@@ -113,7 +116,11 @@ export async function scrapeTrendyolProduct(inputUrl: string) {
       console.log(`✅ Mevcut bedenler: ${multiVariantData.availableSizes.join(', ')}`);
     }
     
-    // Extract ALL product images including color variants
+    // 3. AI Destekli Görsel Çıkarma Sistemi
+    console.log('🤖 AI destekli görsel çıkarma başlatılıyor...');
+    const aiImageResult = await extractImagesWithAI(htmlContent, productId);
+    
+    // Extract ALL product images including color variants (geleneksel yöntem)
     const allProductImages: string[] = [];
     const colorSpecificImages: Record<string, string[]> = {};
     
@@ -318,8 +325,20 @@ export async function scrapeTrendyolProduct(inputUrl: string) {
       });
     }
     
-    const cleanImages = Array.from(finalImageSet);
-    console.log(`🖼️ Kapsamlı görsel çıkarma tamamlandı: ${cleanImages.length} toplam görsel (tüm renk varyantları dahil)`);
+    // AI ve geleneksel yöntemleri birleştir
+    const combinedImages = Array.from(new Set([
+      ...aiImageResult.highQualityImages,
+      ...aiImageResult.allImages,
+      ...Array.from(finalImageSet)
+    ]));
+    
+    // AI ile renk tespiti
+    console.log('🎨 AI ile renk tespiti başlatılıyor...');
+    const aiColorMap = await detectColorsWithAI(combinedImages.slice(0, 8));
+    
+    const cleanImages = combinedImages;
+    console.log(`🖼️ AI destekli görsel çıkarma tamamlandı: ${cleanImages.length} toplam görsel (AI kalite skoru: ${aiImageResult.qualityScore.toFixed(2)}/3.0)`);
+    console.log(`🎨 AI renk tespiti: ${Object.keys(aiColorMap).length} görsel analiz edildi`);
     
     if (typeof colorSpecificImages !== 'undefined') {
       console.log(`🎨 Renk özel görseller: ${Object.keys(colorSpecificImages).length} renk için ${Object.values(colorSpecificImages).flat().length} görsel`);
@@ -328,12 +347,22 @@ export async function scrapeTrendyolProduct(inputUrl: string) {
     // Extract category information first
     const categoryInfo = extractCategoryInfo($, htmlContent);
     
+    // AI ile renkleri birleştir
+    const aiDetectedColors = new Set<string>();
+    Object.values(aiColorMap).forEach(colorArray => {
+      colorArray.forEach(color => aiDetectedColors.add(color));
+    });
+    
+    const enhancedColors = Array.from(new Set([...multiVariantData.colors, ...Array.from(aiDetectedColors)]));
+    
     const variantData = {
-      colors: multiVariantData.colors,
+      colors: enhancedColors,
       sizes: multiVariantData.sizes,
       images: cleanImages,
       pricing: multiVariantData.pricing
     };
+    
+    console.log(`✅ AI destekli varyant analizi: ${enhancedColors.length} renk (${aiDetectedColors.size} AI), ${multiVariantData.sizes.length} beden, ${cleanImages.length} görsel`);
 
     // Enhanced product feature extraction
     const productDescription = extractDetailedProductFeatures($, htmlContent);
@@ -378,13 +407,17 @@ export async function scrapeTrendyolProduct(inputUrl: string) {
     try {
       const { generateInstantCSV } = await import('./instant-csv-generator-fixed');
       csvGenerated = await generateInstantCSV({
-        title: basicProductData.title,
-        description: productDescription,
-        brand: basicProductData.brand,
-        price: basicProductData.price,
+        title: aiEnhancedData.cleanTitle,
+        description: shopifyOptimization.optimizedDescription,
+        brand: aiEnhancedData.brand,
+        price: aiEnhancedData.price,
         images: absoluteImages,
-        colors: variantData.colors,
-        sizes: variantData.sizes
+        colors: aiEnhancedData.colors,
+        sizes: aiEnhancedData.sizes,
+        category: aiEnhancedData.category,
+        materials: aiEnhancedData.materials,
+        shopifyTags: shopifyOptimization.optimizedTags,
+        handle: shopifyOptimization.handle
       });
     } catch (error) {
       console.log('⚠️ CSV generation error, using fallback method');
@@ -465,15 +498,18 @@ export async function scrapeTrendyolProduct(inputUrl: string) {
     try {
       const { analyzeProductWithAI } = await import('./ai-product-analyzer');
       aiAnalysis = await analyzeProductWithAI({
-        title: basicProductData.title,
-        brand: basicProductData.brand,
-        price: basicProductData.price,
+        title: aiEnhancedData.cleanTitle,
+        brand: aiEnhancedData.brand,
+        price: aiEnhancedData.price,
         images: absoluteImages,
-        category: categoryInfo,
-        features: productFeatures,
+        category: aiEnhancedData.category,
+        features: aiEnhancedData.features,
+        materials: aiEnhancedData.materials,
+        targetAudience: aiEnhancedData.targetAudience,
+        season: aiEnhancedData.season,
         variants: {
-          colors: multiVariantData.colors,
-          sizes: multiVariantData.sizes
+          colors: aiEnhancedData.colors,
+          sizes: aiEnhancedData.sizes
         }
       });
       console.log('✅ AI analizi başarıyla tamamlandı');
