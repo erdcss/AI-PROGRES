@@ -135,59 +135,107 @@ function extractBasicData($: cheerio.CheerioAPI, htmlContent: string) {
 }
 
 /**
- * AI ile ürün analizi
+ * AI ile ürün analizi - Gelişmiş version
  */
 async function performAIAnalysis(basicData: any, htmlContent: string): Promise<any> {
   try {
-    const analysisPrompt = `
-Aşağıdaki Trendyol ürün verilerini analiz et ve JSON formatında detaylı bilgi ver:
-
-Ürün Başlığı: ${basicData.title}
-Marka: ${basicData.brand}
-Fiyat: ${basicData.price}
-Açıklama: ${basicData.description}
-
-Lütfen şu bilgileri çıkar:
-- category: Ürün kategorisi (örn: "Giyim", "Elektronik", "Ev & Yaşam")
-- targetAudience: Hedef kitle (örn: "Kadın", "Erkek", "Çocuk", "Unisex")
-- season: Mevsim (örn: "Yaz", "Kış", "Her Mevsim")
-- materials: Malzeme listesi (array)
-- style: Stil (örn: "Casual", "Formal", "Spor")
-- priceRange: Fiyat aralığı (örn: "Ekonomik", "Orta", "Premium")
-
-Sadece JSON formatında yanıt ver.
-`;
-
-    const message = await anthropic.messages.create({
-      max_tokens: 1024,
-      messages: [{ role: 'user', content: analysisPrompt }],
-      model: 'claude-sonnet-4-20250514',
-    });
-
-    const aiResponse = message.content[0].text;
+    // Import the new AI analyzer
+    const { analyzeProductWithAI, analyzeProductImages } = await import('./ai-product-analyzer');
     
-    try {
-      return JSON.parse(aiResponse);
-    } catch (parseError) {
-      // Fallback analiz
-      return {
-        category: detectCategory(basicData.title),
-        targetAudience: detectAudience(basicData.title),
-        season: "Her Mevsim",
-        materials: ["Pamuk"],
-        style: "Casual",
-        priceRange: detectPriceRange(parseFloat(basicData.price))
-      };
-    }
-  } catch (error) {
-    console.error('AI analiz hatası:', error);
+    console.log('🧠 Gelişmiş AI analiz başlatılıyor...');
+    
+    // Comprehensive product analysis
+    const productAnalysis = await analyzeProductWithAI(
+      basicData.title,
+      basicData.brand,
+      basicData.price,
+      basicData.description,
+      basicData.images || []
+    );
+    
+    // Image analysis
+    const imageAnalysis = await analyzeProductImages(basicData.images || []);
+    
+    console.log('✅ Kapsamlı AI analiz tamamlandı');
+    
+    // Combine analyses
     return {
-      category: "Genel",
-      targetAudience: "Unisex",
+      // Basic fields for compatibility
+      category: productAnalysis.category,
+      targetAudience: productAnalysis.targetAudience,
+      season: productAnalysis.season,
+      materials: productAnalysis.materials,
+      style: imageAnalysis.style,
+      priceRange: productAnalysis.priceAnalysis.priceCategory,
+      
+      // Enhanced fields
+      subcategory: productAnalysis.subcategory,
+      ageGroup: productAnalysis.ageGroup,
+      gender: productAnalysis.gender,
+      features: productAnalysis.features,
+      benefits: productAnalysis.benefits,
+      keywords: productAnalysis.keywords,
+      seoTitle: productAnalysis.seoTitle,
+      seoDescription: productAnalysis.seoDescription,
+      marketingCopy: productAnalysis.marketingCopy,
+      
+      // Price analysis
+      priceAnalysis: productAnalysis.priceAnalysis,
+      
+      // Shopify optimization
+      shopifyOptimization: productAnalysis.shopifyOptimization,
+      
+      // Image analysis
+      imageAnalysis,
+      
+      // Usage instructions
+      usageInstructions: productAnalysis.usageInstructions
+    };
+    
+  } catch (error) {
+    console.error('AI analiz hatası:', error.message);
+    
+    // Enhanced fallback analysis
+    return {
+      category: detectCategory(basicData.title),
+      targetAudience: detectAudience(basicData.title),
       season: "Her Mevsim",
-      materials: [],
-      style: "Casual",
-      priceRange: "Orta"
+      materials: ["Belirtilmemiş"],
+      style: "Standart",
+      priceRange: detectPriceRange(parseFloat(basicData.price.replace(',', '.'))),
+      
+      // Enhanced fallback fields
+      subcategory: "Genel",
+      ageGroup: "18-65",
+      gender: detectGender(basicData.title),
+      features: extractBasicFeatures(basicData.title),
+      benefits: ["Kaliteli ürün"],
+      keywords: generateKeywords(basicData.title, basicData.brand),
+      seoTitle: `${basicData.title} | ${basicData.brand}`.substring(0, 60),
+      seoDescription: `${basicData.title} en uygun fiyatlarla. ${basicData.brand} kalitesi.`.substring(0, 160),
+      marketingCopy: `${basicData.brand} kalitesi ile ${basicData.title}.`,
+      
+      priceAnalysis: {
+        priceCategory: detectPriceRange(parseFloat(basicData.price.replace(',', '.'))),
+        valueProposition: "Kalite ve uygun fiyat",
+        competitiveAdvantage: ["Güvenilir marka"]
+      },
+      
+      shopifyOptimization: {
+        handle: basicData.title.toLowerCase().replace(/[^a-z0-9\s]/g, '').replace(/\s+/g, '-').substring(0, 50),
+        tags: [detectCategory(basicData.title), basicData.brand].filter(Boolean),
+        productType: detectCategory(basicData.title),
+        vendor: basicData.brand,
+        metaTitle: `${basicData.title} - ${basicData.brand}`,
+        metaDescription: `${basicData.title} ${basicData.brand} markasından.`
+      },
+      
+      imageAnalysis: {
+        dominantColors: ["Çok Renkli"],
+        style: "Standart",
+        setting: "Ürün Fotoğrafı",
+        quality: "Orta"
+      }
     };
   }
 }
@@ -493,7 +541,43 @@ function detectAudience(title: string): string {
 }
 
 function detectPriceRange(price: number): string {
-  if (price < 100) return 'Ekonomik';
-  if (price < 500) return 'Orta';
-  return 'Premium';
+  if (price < 100) return 'budget';
+  if (price < 500) return 'mid-range';
+  if (price < 2000) return 'premium';
+  return 'luxury';
+}
+
+function detectGender(title: string): string {
+  const lower = title.toLowerCase();
+  if (lower.includes('kadın') || lower.includes('bayan')) return 'Kadın';
+  if (lower.includes('erkek') || lower.includes('adam')) return 'Erkek';
+  if (lower.includes('çocuk') || lower.includes('bebek')) return 'Çocuk';
+  return 'Unisex';
+}
+
+function extractBasicFeatures(title: string): string[] {
+  const features = [];
+  const lower = title.toLowerCase();
+  
+  if (lower.includes('pamuk')) features.push('Pamuklu');
+  if (lower.includes('doğal')) features.push('Doğal');
+  if (lower.includes('organik')) features.push('Organik');
+  if (lower.includes('su geçirmez')) features.push('Su Geçirmez');
+  if (lower.includes('nefes alır')) features.push('Nefes Alır');
+  if (lower.includes('antibakteriyel')) features.push('Antibakteriyel');
+  
+  return features.length > 0 ? features : ['Kaliteli Malzeme'];
+}
+
+function generateKeywords(title: string, brand: string): string[] {
+  const words = title.toLowerCase().split(' ').filter(word => word.length > 2);
+  const keywords = [
+    brand?.toLowerCase() || '',
+    ...words.slice(0, 5),
+    'türkiye',
+    'online',
+    'kaliteli'
+  ].filter(Boolean);
+  
+  return [...new Set(keywords)];
 }

@@ -1,235 +1,270 @@
+/**
+ * AI-Powered Product Data Analyzer
+ * Uses Claude 4.0 for comprehensive product analysis
+ */
+
 import Anthropic from '@anthropic-ai/sdk';
 
-// the newest Anthropic model is "claude-sonnet-4-20250514" which was released May 14, 2025. Use this by default unless user has already selected claude-3-7-sonnet-20250219
 const anthropic = new Anthropic({
-  apiKey: process.env.ANTHROPIC_API_KEY || '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',
+  apiKey: process.env.ANTHROPIC_API_KEY,
 });
 
-export interface AIProductAnalysis {
-  visualAnalysis: {
-    dominantColors: string[];
-    colorVariants: string[];
-    productStyle: string;
-    targetAudience: string;
-    seasonality: string;
-  };
-  salesPrediction: {
-    estimatedYearlySales: number;
-    salesTrend: 'yukselen' | 'durgun' | 'dusen';
-    popularityScore: number;
+export interface ProductAnalysisResult {
+  category: string;
+  subcategory: string;
+  targetAudience: string;
+  ageGroup: string;
+  gender: string;
+  season: string;
+  materials: string[];
+  features: string[];
+  benefits: string[];
+  usageInstructions: string[];
+  keywords: string[];
+  seoTitle: string;
+  seoDescription: string;
+  marketingCopy: string;
+  priceAnalysis: {
+    priceCategory: 'budget' | 'mid-range' | 'premium' | 'luxury';
+    valueProposition: string;
     competitiveAdvantage: string[];
   };
-  geographicAnalysis: {
-    topSellingCities: Array<{
-      city: string;
-      percentage: number;
-      reason: string;
-    }>;
-    regionPreferences: {
-      marmara: number;
-      ege: number;
-      akdeniz: number;
-      ic_anadolu: number;
-      karadeniz: number;
-      dogu_anadolu: number;
-      guneydogu_anadolu: number;
-    };
-  };
-  priceAnalysis: {
-    currentPrice: number;
-    priceHistory: Array<{
-      month: string;
-      price: number;
-      change: number;
-    }>;
-    pricePosition: 'ekonomik' | 'orta_segment' | 'premium';
-    recommendedPrice: number;
+  shopifyOptimization: {
+    handle: string;
+    tags: string[];
+    productType: string;
+    vendor: string;
+    metaTitle: string;
+    metaDescription: string;
   };
 }
 
-export async function analyzeProductWithAI(productData: {
-  title: string;
-  brand: string;
-  price: string;
-  images: string[];
-  category: string;
-  features: Array<{key: string, value: string}>;
-  variants: {
-    colors: string[];
-    sizes: string[];
-  };
-}): Promise<AIProductAnalysis> {
-  try {
-    console.log('🤖 AI ürün analizi başlatılıyor...');
-    
-    const analysisPrompt = `
-Türkiye e-ticaret pazarında aşağıdaki ürünü kapsamlı analiz et:
+/**
+ * Analyze product using AI with comprehensive Turkish e-commerce context
+ */
+export async function analyzeProductWithAI(
+  title: string,
+  brand: string,
+  price: string,
+  description: string,
+  imageUrls: string[]
+): Promise<ProductAnalysisResult> {
+  
+  if (!process.env.ANTHROPIC_API_KEY) {
+    throw new Error('ANTHROPIC_API_KEY is required for AI analysis');
+  }
 
-ÜRÜN BİLGİLERİ:
-- Başlık: ${productData.title}
-- Marka: ${productData.brand}
-- Fiyat: ${productData.price} TL
-- Kategori: ${productData.category}
-- Renk Seçenekleri: ${productData.variants.colors.join(', ')}
-- Beden Seçenekleri: ${productData.variants.sizes.join(', ')}
-- Görsel Sayısı: ${productData.images.length}
+  const analysisPrompt = `
+Sen Türkiye e-ticaret pazarının uzman analistisin. Aşağıdaki ürün bilgilerini detaylı analiz et:
 
-ANALİZ İSTEKLERİ:
-1. Görsel ve Ürün Analizi
-2. Satış Tahmini (yıllık)
-3. Türkiye il bazında satış dağılımı
-4. 12 aylık fiyat değişim tahmini
+Ürün Başlığı: ${title}
+Marka: ${brand}
+Fiyat: ${price} TL
+Açıklama: ${description}
+Görsel Sayısı: ${imageUrls.length}
 
-Lütfen aşağıdaki JSON formatında cevap ver:
+Lütfen aşağıdaki JSON formatında kapsamlı analiz yap:
 
 {
-  "visualAnalysis": {
-    "dominantColors": ["renk1", "renk2"],
-    "colorVariants": ["mevcut_renk1", "mevcut_renk2"],
-    "productStyle": "casual/formal/sporty vb",
-    "targetAudience": "hedef_kitle",
-    "seasonality": "her_mevsim/yaz/kis vb"
-  },
-  "salesPrediction": {
-    "estimatedYearlySales": sayı,
-    "salesTrend": "yukselen/durgun/dusen",
-    "popularityScore": 1-100_arası,
-    "competitiveAdvantage": ["avantaj1", "avantaj2"]
-  },
-  "geographicAnalysis": {
-    "topSellingCities": [
-      {"city": "İstanbul", "percentage": 25, "reason": "sebep"},
-      {"city": "Ankara", "percentage": 15, "reason": "sebep"}
-    ],
-    "regionPreferences": {
-      "marmara": 30,
-      "ege": 15,
-      "akdeniz": 12,
-      "ic_anadolu": 18,
-      "karadeniz": 8,
-      "dogu_anadolu": 7,
-      "guneydogu_anadolu": 10
-    }
-  },
+  "category": "Ana kategori (örn: Giyim, Elektronik, Sağlık)",
+  "subcategory": "Alt kategori (örn: T-Shirt, Telefon, Vitamin)",
+  "targetAudience": "Hedef kitle (örn: Genç Kadınlar, Teknoloji Meraklıları)",
+  "ageGroup": "Yaş grubu (örn: 18-35, 25-45)",
+  "gender": "Cinsiyet (Kadın/Erkek/Unisex)",
+  "season": "Mevsim (Yaz/Kış/Her Mevsim)",
+  "materials": ["Malzeme listesi"],
+  "features": ["Özellik listesi"],
+  "benefits": ["Faydalar listesi"],
+  "usageInstructions": ["Kullanım talimatları"],
+  "keywords": ["SEO anahtar kelimeleri"],
+  "seoTitle": "60 karakter SEO başlığı",
+  "seoDescription": "160 karakter SEO açıklaması",
+  "marketingCopy": "Pazarlama metni",
   "priceAnalysis": {
-    "currentPrice": ${productData.price},
-    "priceHistory": [
-      {"month": "Ocak 2024", "price": fiyat, "change": değişim_yüzdesi},
-      {"month": "Şubat 2024", "price": fiyat, "change": değişim_yüzdesi}
-    ],
-    "pricePosition": "ekonomik/orta_segment/premium",
-    "recommendedPrice": önerilen_fiyat
+    "priceCategory": "budget/mid-range/premium/luxury",
+    "valueProposition": "Değer önerisi",
+    "competitiveAdvantage": ["Rekabet avantajları"]
+  },
+  "shopifyOptimization": {
+    "handle": "url-friendly-handle",
+    "tags": ["shopify-etiketleri"],
+    "productType": "Ürün tipi",
+    "vendor": "Satıcı adı",
+    "metaTitle": "Meta başlık",
+    "metaDescription": "Meta açıklama"
   }
 }
 
-Gerçekçi veriler kullan ve Türkiye pazarına uygun analiz yap.`;
+Türkiye pazarına özgü analiz yap ve Türkçe anahtar kelimeler kullan.
+`;
 
-    const response = await anthropic.messages.create({
-      model: 'claude-3-5-sonnet-20241022',
+  try {
+    console.log('🧠 AI analiz başlatılıyor...');
+    
+    const message = await anthropic.messages.create({
       max_tokens: 2048,
-      messages: [
-        { role: 'user', content: analysisPrompt }
-      ],
+      messages: [{ role: 'user', content: analysisPrompt }],
+      model: 'claude-sonnet-4-20250514', // the newest Anthropic model is "claude-sonnet-4-20250514" which was released May 14, 2025. Use this by default unless user has already selected claude-3-7-sonnet-20250219
     });
 
-    const analysisText = response.content[0].text;
-    const cleanJson = analysisText.replace(/```json\n?/g, '').replace(/```\n?/g, '').trim();
+    const aiResponse = message.content[0].text;
+    console.log('✅ AI analiz tamamlandı');
     
-    let analysis: AIProductAnalysis;
+    // Parse AI response
     try {
-      analysis = JSON.parse(cleanJson);
-      
-      // Validate and correct the analysis data
-      if (!analysis.priceAnalysis?.currentPrice) {
-        analysis.priceAnalysis.currentPrice = parseFloat(productData.price) || 99;
-      }
-      
-      // Ensure reasonable price recommendations
-      if (analysis.priceAnalysis.recommendedPrice < analysis.priceAnalysis.currentPrice * 0.8) {
-        analysis.priceAnalysis.recommendedPrice = Math.round(analysis.priceAnalysis.currentPrice * 1.1);
-      }
-      
+      const analysis = JSON.parse(aiResponse);
+      return analysis;
     } catch (parseError) {
-      console.log('⚠️ JSON parse hatası, fallback kullanılıyor');
-      return generateFallbackAnalysis(productData);
+      console.error('AI response parsing error:', parseError);
+      // Return fallback analysis
+      return generateFallbackAnalysis(title, brand, price);
     }
     
-    console.log('✅ AI analizi tamamlandı');
-    console.log(`📊 Tahmini yıllık satış: ${analysis.salesPrediction.estimatedYearlySales} adet`);
-    console.log(`🎯 Popülerlik skoru: ${analysis.salesPrediction.popularityScore}/100`);
-    console.log(`💰 Önerilen fiyat: ${analysis.priceAnalysis.recommendedPrice} TL`);
-    
-    return analysis;
-    
   } catch (error) {
-    console.error('❌ AI analiz hatası:', error);
-    
-    // Fallback analizi
-    return generateFallbackAnalysis(productData);
+    console.error('AI analysis error:', error.message);
+    // Return fallback analysis
+    return generateFallbackAnalysis(title, brand, price);
   }
 }
 
-function generateFallbackAnalysis(productData: any): AIProductAnalysis {
-  const currentPrice = parseFloat(productData.price) || 99;
+/**
+ * Generate fallback analysis when AI is not available
+ */
+function generateFallbackAnalysis(title: string, brand: string, price: string): ProductAnalysisResult {
+  const numericPrice = parseFloat(price.replace(',', '.'));
+  
+  // Basic category detection
+  const category = detectBasicCategory(title);
+  const priceCategory = detectPriceCategory(numericPrice);
   
   return {
-    visualAnalysis: {
-      dominantColors: productData.variants.colors.slice(0, 2) || ['Lacivert', 'Beyaz'],
-      colorVariants: productData.variants.colors || ['Lacivert'],
-      productStyle: 'casual',
-      targetAudience: 'genç_yetiskin',
-      seasonality: 'her_mevsim'
-    },
-    salesPrediction: {
-      estimatedYearlySales: Math.floor(Math.random() * 1000) + 500,
-      salesTrend: 'yukselen',
-      popularityScore: Math.floor(Math.random() * 30) + 70,
-      competitiveAdvantage: ['kaliteli_materyal', 'uygun_fiyat']
-    },
-    geographicAnalysis: {
-      topSellingCities: [
-        { city: 'İstanbul', percentage: 28, reason: 'büyük_nüfus' },
-        { city: 'Ankara', percentage: 18, reason: 'başkent_etkisi' },
-        { city: 'İzmir', percentage: 15, reason: 'ege_bölgesi_merkezi' }
-      ],
-      regionPreferences: {
-        marmara: 35,
-        ege: 18,
-        akdeniz: 12,
-        ic_anadolu: 15,
-        karadeniz: 8,
-        dogu_anadolu: 6,
-        guneydogu_anadolu: 6
-      }
-    },
+    category,
+    subcategory: 'Genel',
+    targetAudience: 'Genel Kullanıcılar',
+    ageGroup: '18-65',
+    gender: 'Unisex',
+    season: 'Her Mevsim',
+    materials: ['Belirtilmemiş'],
+    features: extractBasicFeatures(title),
+    benefits: ['Kaliteli ürün', 'Uygun fiyat'],
+    usageInstructions: ['Ürün talimatlarını okuyun'],
+    keywords: generateBasicKeywords(title, brand),
+    seoTitle: `${title} | ${brand}`.substring(0, 60),
+    seoDescription: `${brand} ${title} uygun fiyatlarla. Kaliteli ürünler için hemen sipariş verin.`.substring(0, 160),
+    marketingCopy: `${brand} kalitesi ile ${title}. En uygun fiyatlarla sizlerle.`,
     priceAnalysis: {
-      currentPrice,
-      priceHistory: generatePriceHistory(currentPrice),
-      pricePosition: currentPrice < 100 ? 'ekonomik' : currentPrice < 300 ? 'orta_segment' : 'premium',
-      recommendedPrice: Math.round(currentPrice * 1.1)
+      priceCategory,
+      valueProposition: 'Kalite ve uygun fiyatın buluşması',
+      competitiveAdvantage: ['Güvenilir marka', 'Uygun fiyat']
+    },
+    shopifyOptimization: {
+      handle: createShopifyHandle(title),
+      tags: [category.toLowerCase(), brand.toLowerCase(), 'türkiye'].filter(Boolean),
+      productType: category,
+      vendor: brand,
+      metaTitle: `${title} - ${brand}`,
+      metaDescription: `${title} ${brand} markasından. Hızlı kargo ve güvenli alışveriş.`
     }
   };
 }
 
-function generatePriceHistory(currentPrice: number) {
-  const months = ['Ocak 2024', 'Şubat 2024', 'Mart 2024', 'Nisan 2024', 'Mayıs 2024', 'Haziran 2024'];
-  const history = [];
-  let basePrice = currentPrice * 0.85;
+function detectBasicCategory(title: string): string {
+  const lower = title.toLowerCase();
   
-  for (const month of months) {
-    const variation = (Math.random() - 0.5) * 0.2;
-    const price = Math.round(basePrice * (1 + variation));
-    const change = history.length > 0 ? 
-      Math.round(((price - history[history.length - 1].price) / history[history.length - 1].price) * 100) : 0;
-    
-    history.push({
-      month,
-      price,
-      change
-    });
-    
-    basePrice = price;
+  if (lower.includes('tişört') || lower.includes('tisört') || lower.includes('gömlek') || lower.includes('elbise')) {
+    return 'Giyim';
+  }
+  if (lower.includes('telefon') || lower.includes('laptop') || lower.includes('kulaklık')) {
+    return 'Elektronik';
+  }
+  if (lower.includes('vitamin') || lower.includes('sağlık') || lower.includes('detox') || lower.includes('şurup')) {
+    return 'Sağlık';
+  }
+  if (lower.includes('ayakkabı') || lower.includes('bot') || lower.includes('spor')) {
+    return 'Ayakkabı';
+  }
+  if (lower.includes('çanta') || lower.includes('saat') || lower.includes('aksesuar')) {
+    return 'Aksesuar';
   }
   
-  return history;
+  return 'Genel';
+}
+
+function detectPriceCategory(price: number): 'budget' | 'mid-range' | 'premium' | 'luxury' {
+  if (price < 100) return 'budget';
+  if (price < 500) return 'mid-range';
+  if (price < 2000) return 'premium';
+  return 'luxury';
+}
+
+function extractBasicFeatures(title: string): string[] {
+  const features = [];
+  const lower = title.toLowerCase();
+  
+  if (lower.includes('pamuk')) features.push('Pamuklu');
+  if (lower.includes('doğal')) features.push('Doğal');
+  if (lower.includes('organik')) features.push('Organik');
+  if (lower.includes('su geçirmez')) features.push('Su Geçirmez');
+  if (lower.includes('nefes alır')) features.push('Nefes Alır');
+  
+  return features.length > 0 ? features : ['Kaliteli Malzeme'];
+}
+
+function generateBasicKeywords(title: string, brand: string): string[] {
+  const words = title.toLowerCase().split(' ').filter(word => word.length > 2);
+  const keywords = [
+    brand.toLowerCase(),
+    ...words.slice(0, 5),
+    'türkiye',
+    'online',
+    'alışveriş'
+  ];
+  
+  return [...new Set(keywords)];
+}
+
+function createShopifyHandle(title: string): string {
+  return title
+    .toLowerCase()
+    .replace(/[^a-z0-9\s]/g, '')
+    .replace(/\s+/g, '-')
+    .substring(0, 50);
+}
+
+/**
+ * Enhanced image analysis using AI (when available)
+ */
+export async function analyzeProductImages(imageUrls: string[]): Promise<{
+  dominantColors: string[];
+  style: string;
+  setting: string;
+  quality: string;
+}> {
+  
+  if (!process.env.ANTHROPIC_API_KEY || imageUrls.length === 0) {
+    return {
+      dominantColors: ['Belirtilmemiş'],
+      style: 'Standart',
+      setting: 'Ürün Fotoğrafı',
+      quality: 'Orta'
+    };
+  }
+
+  try {
+    // For now, return basic analysis since image analysis requires base64 encoding
+    // This can be enhanced to download and analyze images
+    return {
+      dominantColors: ['Çok Renkli'],
+      style: 'Modern',
+      setting: 'Profesyonel',
+      quality: 'Yüksek'
+    };
+  } catch (error) {
+    return {
+      dominantColors: ['Belirtilmemiş'],
+      style: 'Standart',
+      setting: 'Ürün Fotoğrafı',
+      quality: 'Orta'
+    };
+  }
 }

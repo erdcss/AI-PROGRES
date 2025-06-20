@@ -4,6 +4,7 @@ import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Separator } from "@/components/ui/separator";
 import { Download, Package, Tag, Image as ImageIcon, DollarSign, FileText } from "lucide-react";
 import { AIAnalysisDisplay } from "./AIAnalysisDisplay";
+import { EnhancedAIAnalysisDisplay } from "./EnhancedAIAnalysisDisplay";
 import { AIEnhancedProductDisplay } from "./AIEnhancedProductDisplay";
 
 interface ProductDisplayProps {
@@ -300,7 +301,14 @@ export function ProductDisplay({ data }: ProductDisplayProps) {
 
       {/* AI Analysis Section */}
       {data.aiAnalysis && (
-        <AIAnalysisDisplay analysis={data.aiAnalysis} />
+        <>
+          {/* Enhanced AI Analysis if available */}
+          {data.aiAnalysis.subcategory ? (
+            <EnhancedAIAnalysisDisplay analysis={data.aiAnalysis} />
+          ) : (
+            <AIAnalysisDisplay analysis={data.aiAnalysis} />
+          )}
+        </>
       )}
 
       {/* CSV Önizleme ve İndirme */}
