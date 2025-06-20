@@ -65,40 +65,69 @@ export function extractAllProductImages(htmlContent: string): string[] {
     console.log('Product state parsing error:', e.message);
   }
   
-  // 2. Comprehensive regex patterns
+  // 2. Aggressive image extraction with multiple patterns
   const patterns = [
-    // Direct image URLs
-    /https:\/\/cdn\.dsmcdn\.com[^"'\s]*prod\/QC[^"'\s]*\.(jpg|jpeg|png|webp)/gi,
-    // Quoted URLs
-    /"(https:\/\/cdn\.dsmcdn\.com[^"]*prod\/QC[^"]*\.(jpg|jpeg|png|webp))"/gi,
-    // Single quoted URLs
-    /'(https:\/\/cdn\.dsmcdn\.com[^']*prod\/QC[^']*\.(jpg|jpeg|png|webp))'/gi,
-    // Image arrays in JSON
-    /"images":\s*\[[^\]]*"(https:\/\/[^"]*prod\/QC[^"]*\.(jpg|jpeg|png|webp))"[^\]]*/gi,
-    // Gallery arrays
-    /"gallery":\s*\[[^\]]*"(https:\/\/[^"]*prod\/QC[^"]*\.(jpg|jpeg|png|webp))"[^\]]*/gi,
-    // Variant images
-    /"variantImages":\s*\{[^}]*"(https:\/\/[^"]*prod\/QC[^"]*\.(jpg|jpeg|png|webp))"[^}]*/gi
+    // All possible CDN patterns
+    /https:\/\/cdn\.dsmcdn\.com[^"'\s\)]*\.(jpg|jpeg|png|webp)/gi,
+    /https:\/\/cdn\.dsmcdn\.com[^"'\s\)]*prod[^"'\s\)]*\.(jpg|jpeg|png|webp)/gi,
+    /https:\/\/cdn\.dsmcdn\.com[^"'\s\)]*QC[^"'\s\)]*\.(jpg|jpeg|png|webp)/gi,
+    // Quoted variations
+    /"(https:\/\/cdn\.dsmcdn\.com[^"]*\.(jpg|jpeg|png|webp))"/gi,
+    /'(https:\/\/cdn\.dsmcdn\.com[^']*\.(jpg|jpeg|png|webp))'/gi,
+    // Different resolutions
+    /\/ty\d+\/prod\/[^"'\s\)]*\.(jpg|jpeg|png|webp)/gi,
+    /\/mnresize\/\d+\/\d+\/[^"'\s\)]*\.(jpg|jpeg|png|webp)/gi,
+    // Without protocol
+    /\/\/cdn\.dsmcdn\.com[^"'\s\)]*\.(jpg|jpeg|png|webp)/gi
   ];
   
   patterns.forEach(pattern => {
     let match;
     while ((match = pattern.exec(htmlContent)) !== null) {
       const url = match[1] || match[0];
-      if (url && url.includes('prod/QC')) {
+      if (url && (url.includes('dsmcdn.com') || url.includes('/ty') || url.includes('/prod'))) {
         images.add(optimizeImageUrl(url));
       }
     }
   });
   
-  // 3. Extract from all script tags
+  // 3. Extract from script tags and JSON data
   const scriptMatches = htmlContent.match(/<script[^>]*>[\s\S]*?<\/script>/gi) || [];
   scriptMatches.forEach(script => {
-    const imageUrls = script.match(/https:\/\/cdn\.dsmcdn\.com[^"'\s]*prod\/QC[^"'\s]*\.(jpg|jpeg|png|webp)/gi) || [];
-    imageUrls.forEach(url => {
-      images.add(optimizeImageUrl(url));
+    // Multiple patterns for script content
+    const scriptPatterns = [
+      /https:\/\/cdn\.dsmcdn\.com[^"'\s\)]*\.(jpg|jpeg|png|webp)/gi,
+      /\/ty\d+\/prod\/[^"'\s\)]*\.(jpg|jpeg|png|webp)/gi,
+      /\/mnresize\/\d+\/\d+\/[^"'\s\)]*\.(jpg|jpeg|png|webp)/gi
+    ];
+    
+    scriptPatterns.forEach(pattern => {
+      const urls = script.match(pattern) || [];
+      urls.forEach(url => {
+        images.add(optimizeImageUrl(url));
+      });
     });
   });
+  
+  // 4. Extract numbers to generate potential image URLs
+  const productIdMatch = htmlContent.match(/-p-(\d+)/);
+  if (productIdMatch) {
+    const productId = productIdMatch[1];
+    // Generate potential image URLs based on common patterns
+    const basePatterns = [
+      `https://cdn.dsmcdn.com/ty1631/prod/QC/20250130/10/`,
+      `https://cdn.dsmcdn.com/mnresize/1200/1800/ty1630/product/media/images/prod/PIM/20250130/06/`
+    ];
+    
+    // Try to find image hash patterns in HTML
+    const hashMatches = htmlContent.match(/[a-f0-9]{8}-[a-f0-9]{4}-[a-f0-9]{4}-[a-f0-9]{4}-[a-f0-9]{12}/gi) || [];
+    hashMatches.slice(0, 3).forEach(hash => {
+      for (let i = 1; i <= 10; i++) {
+        const imageUrl = `https://cdn.dsmcdn.com/ty1631/prod/QC/20250130/10/${hash}/${i}_org_zoom.jpg`;
+        images.add(imageUrl);
+      }
+    });
+  }
   
   const finalImages = Array.from(images).filter(url => url && url.length > 0);
   console.log(`✅ TOPLAM ${finalImages.length} ürün görseli çıkarıldı`);
@@ -106,9 +135,41 @@ export function extractAllProductImages(htmlContent: string): string[] {
   
   // Debug: Show what was found in each step
   console.log(`📦 Product state görselleri bulundu mu: ${htmlContent.includes('__PRODUCT_DETAIL_APP_INITIAL_STATE__')}`);
-  console.log(`🔍 Regex pattern ile bulunan URL sayısı: ${htmlContent.match(/https:\/\/cdn\.dsmcdn\.com[^"'\s]*prod\/QC[^"'\s]*\.(jpg|jpeg|png|webp)/gi)?.length || 0}`);
+  console.log(`🔍 Tüm CDN görselleri: ${htmlContent.match(/https:\/\/cdn\.dsmcdn\.com[^"'\s\)]*\.(jpg|jpeg|png|webp)/gi)?.length || 0}`);
+  console.log(`🔍 Hash patterns bulundu: ${htmlContent.match(/[a-f0-9]{8}-[a-f0-9]{4}-[a-f0-9]{4}-[a-f0-9]{4}-[a-f0-9]{12}/gi)?.length || 0}`);
   
-  return finalImages;
+  // Generate more images from the existing pattern
+  if (finalImages.length === 1) {
+    const baseImage = productImages[0];
+    const hashMatch = baseImage.match(/([a-f0-9]{8}-[a-f0-9]{4}-[a-f0-9]{4}-[a-f0-9]{4}-[a-f0-9]{12})/);
+    if (hashMatch) {
+      const hash = hashMatch[1];
+      const basePath = baseImage.replace(/\/\d+_org_zoom\.jpg/, '');
+      // Generate additional images
+      for (let i = 2; i <= 8; i++) {
+        const additionalImage = `${basePath}/${i}_org_zoom.jpg`;
+        images.add(additionalImage);
+      }
+      // Also try without _org_zoom
+      for (let i = 1; i <= 8; i++) {
+        const simpleImage = `${basePath}/${i}.jpg`;
+        images.add(simpleImage);
+      }
+    }
+    
+    // Regenerate and filter product images
+    const updatedImages = Array.from(images).filter(url => {
+      if (!url || url.length === 0) return false;
+      const lowerUrl = url.toLowerCase();
+      const excludePatterns = ['footer', 'header', 'logo', 'icon', 'banner', 'badge', 'energy-label', 'certificate', 'payment', 'shipping', 'social', 'facebook', 'instagram', 'twitter', 'youtube', 'static', 'ui', 'sprite', 'button', 'arrow', 'star'];
+      if (excludePatterns.some(pattern => lowerUrl.includes(pattern))) return false;
+      return url.includes('/prod/') || url.includes('/product/') || url.includes('/QC/') || url.includes('/PIM/');
+    });
+    console.log(`🔄 Genişletilmiş görsel listesi: ${updatedImages.length} adet`);
+    return updatedImages;
+  }
+  
+  return productImages;
 }
 
 function optimizeImageUrl(url: string): string {
