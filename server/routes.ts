@@ -1625,6 +1625,73 @@ export async function registerRoutes(app: Express) {
     }
   });
 
+  // Scrapy-style extraction endpoint
+  app.post('/api/scrapy-extract', async (req, res) => {
+    try {
+      const { url } = req.body;
+      
+      if (!url) {
+        return res.status(400).json({ error: 'URL gerekli' });
+      }
+
+      const { scrapyEnhancedExtraction } = await import('./scrapy-enhanced-extractor');
+      const result = await scrapyEnhancedExtraction(url);
+      
+      if (!result.success) {
+        return res.status(400).json({ error: 'Scrapy extraction başarısız' });
+      }
+
+      res.json({
+        success: true,
+        extraction_method: 'scrapy-style',
+        total_variants: result.totalVariants,
+        in_stock_variants: result.inStockVariants,
+        products: result.products,
+        message: `Scrapy-style: ${result.inStockVariants} stokta varyant çıkarıldı`
+      });
+    } catch (error) {
+      console.error('Scrapy extraction hatası:', error);
+      res.status(500).json({ error: 'Extraction hatası' });
+    }
+  });
+
+  // Scrapy-CSV hibrit endpoint
+  app.post('/api/scrapy-csv', async (req, res) => {
+    try {
+      const { url } = req.body;
+      
+      if (!url) {
+        return res.status(400).json({ error: 'URL gerekli' });
+      }
+
+      // Scrapy extraction
+      const { scrapyEnhancedExtraction } = await import('./scrapy-enhanced-extractor');
+      const extractionResult = await scrapyEnhancedExtraction(url);
+      
+      if (!extractionResult.success || extractionResult.products.length === 0) {
+        return res.status(400).json({ error: 'Scrapy extraction başarısız veya varyant bulunamadı' });
+      }
+
+      // CSV oluştur
+      const { generateComprehensiveCSV } = await import('./comprehensive-csv-generator');
+      const csvResult = generateComprehensiveCSV(extractionResult.products);
+      
+      res.json({
+        success: true,
+        method: 'scrapy-csv-hybrid',
+        filename: csvResult.filename,
+        totalVariants: csvResult.totalVariants,
+        inStockVariants: extractionResult.inStockVariants,
+        preview: csvResult.preview,
+        downloadReady: true,
+        message: `Scrapy extraction: ${extractionResult.inStockVariants} stokta varyant → Shopify CSV hazır`
+      });
+    } catch (error) {
+      console.error('Scrapy-CSV hatası:', error);
+      res.status(500).json({ error: 'Scrapy-CSV oluşturulamadı' });
+    }
+  });
+
   // Gelişmiş CSV oluşturma endpoint'i
   app.post('/api/generate-csv', async (req, res) => {
     try {

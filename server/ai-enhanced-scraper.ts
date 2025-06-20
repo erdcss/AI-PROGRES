@@ -1108,20 +1108,36 @@ function extractStockVariants(htmlContent: string) {
               colorVariant.totalStock += variant.stockCount;
             }
             
-            // Varyant fiyatı ile %10 kar marjı hesaplama
-            const variantPrice = variant.price || priceData?.main || '890';
-            const basePrice = parseFloat(variantPrice.toString().replace(/[^\d.]/g, '')) || 890;
+            // Scrapy benzeri fiyat hesaplama
+            let basePrice = 0;
+            
+            // Scrapy'deki price.sellingPrice.value / 100 mantığı
+            if (variant.price?.sellingPrice?.value) {
+              basePrice = variant.price.sellingPrice.value / 100;
+            } else if (variant.price && typeof variant.price === 'number') {
+              basePrice = variant.price;
+            } else if (priceData?.main) {
+              basePrice = parseFloat(priceData.main.toString().replace(/[^\d.]/g, ''));
+            } else {
+              basePrice = 890; // fallback
+            }
+            
             const finalPrice = Math.round(basePrice * 1.10);
             
             variants.stockMatrix[`${variant.color}-${variant.size}`] = {
+              product_title: basicData.title || 'Ürün',
+              brand: basicData.brand || 'Bilinmiyor',
+              variant_name: `${variant.color} ${variant.size}`,
               color: variant.color,
               size: variant.size,
               inStock: variant.inStock,
               stockCount: variant.stockCount,
               originalPrice: basePrice,
               price: finalPrice,
+              variant_price: finalPrice,
               profitMargin: '10%',
-              sku: `${variant.color.toLowerCase().replace(/\s+/g, '-')}-${variant.size.toLowerCase()}`
+              image_urls: [],
+              sku: `${variant.color.toLowerCase().replace(/\s+/g, '-')}-${variant.size.toLowerCase().replace(/\s+/g, '-')}`
             };
             
             console.log(`🎨 ${variant.color} - ${variant.size}: ${variant.inStock ? '✅ Stokta' : '❌ Tükendi'} (${variant.stockCount})`);
