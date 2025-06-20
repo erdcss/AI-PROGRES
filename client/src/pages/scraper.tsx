@@ -758,7 +758,9 @@ function ScraperPage({ platform = 'trendyol' }: ScraperPageProps) {
                                 Renkler ({product.variants.colors.length})
                               </div>
                               <div className="text-xs text-blue-300">
-                                {product.variants.colors.slice(0, 3).join(', ')}
+                                {product.variants.colors.slice(0, 3).map(color => 
+                                  typeof color === 'string' ? color : color?.name || 'Renk'
+                                ).join(', ')}
                                 {product.variants.colors.length > 3 && ` +${product.variants.colors.length - 3}`}
                               </div>
                             </div>
