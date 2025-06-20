@@ -3,6 +3,7 @@ import axios from 'axios';
 import { analyzeProductWithAI } from './ai-product-analyzer';
 import { extractImagesWithAI, detectColorsWithAI } from './ai-enhanced-image-extractor';
 import { extractDataWithAI, optimizeForShopifyWithAI } from './ai-enhanced-data-extractor';
+import { extractEnhancedProductFeatures } from './enhanced-product-features-extractor';
 
 export interface EnhancedVariantData {
   colors: string[];
@@ -397,6 +398,10 @@ export async function scrapeTrendyolProduct(inputUrl: string) {
     // Extract comprehensive product features for display
     const productFeatures = extractProductFeatures($, htmlContent);
     
+    // AI destekli gelişmiş özellik çıkarma
+    console.log('🔍 AI destekli gelişmiş ürün özellikleri çıkarılıyor...');
+    const enhancedFeatures = await extractEnhancedProductFeatures(htmlContent, productDescription);
+    
     // AI Destekli Veri Çıkarma ve İyileştirme
     console.log('🤖 AI destekli veri çıkarma ve optimize etme...');
     
@@ -564,6 +569,16 @@ export async function scrapeTrendyolProduct(inputUrl: string) {
       materials: aiEnhancedData.materials,
       targetAudience: aiEnhancedData.targetAudience,
       season: aiEnhancedData.season,
+      
+      // Gelişmiş ürün özellikleri
+      enhancedFeatures: {
+        basicFeatures: enhancedFeatures.basicFeatures,
+        technicalSpecs: enhancedFeatures.technicalSpecs,
+        materialInfo: enhancedFeatures.materialInfo,
+        careInstructions: enhancedFeatures.careInstructions,
+        sizeGuide: enhancedFeatures.sizeGuide,
+        structuredData: enhancedFeatures.structuredData
+      },
       
       // Shopify optimizasyonu
       shopifyData: {

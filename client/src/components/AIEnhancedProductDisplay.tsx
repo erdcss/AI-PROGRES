@@ -43,7 +43,8 @@ export function AIEnhancedProductDisplay({ productData }: AIEnhancedProductDispl
     shopifyData = {},
     aiMetrics = {},
     imageAnalysis = {},
-    aiAnalysis = {}
+    aiAnalysis = {},
+    enhancedFeatures = {}
   } = productData;
 
   return (
@@ -132,9 +133,10 @@ export function AIEnhancedProductDisplay({ productData }: AIEnhancedProductDispl
 
       {/* AI Gelişmiş Analizler */}
       <Tabs defaultValue="images" className="w-full">
-        <TabsList className="grid w-full grid-cols-5">
+        <TabsList className="grid w-full grid-cols-6">
           <TabsTrigger value="images">AI Görseller</TabsTrigger>
           <TabsTrigger value="variants">Varyantlar</TabsTrigger>
+          <TabsTrigger value="features">Özellikler</TabsTrigger>
           <TabsTrigger value="materials">Malzemeler</TabsTrigger>
           <TabsTrigger value="shopify">Shopify</TabsTrigger>
           <TabsTrigger value="ai-analysis">AI Analiz</TabsTrigger>
@@ -168,8 +170,8 @@ export function AIEnhancedProductDisplay({ productData }: AIEnhancedProductDispl
                 </div>
               </div>
               
-              <div className="grid grid-cols-2 md:grid-cols-4 gap-2">
-                {images.slice(0, 8).map((image: string, index: number) => (
+              <div className="grid grid-cols-2 md:grid-cols-4 gap-2 max-h-96 overflow-y-auto">
+                {images.map((image: string, index: number) => (
                   <div key={index} className="aspect-square">
                     <img 
                       src={image} 
@@ -227,6 +229,69 @@ export function AIEnhancedProductDisplay({ productData }: AIEnhancedProductDispl
           </Card>
         </TabsContent>
 
+        <TabsContent value="features">
+          <Card>
+            <CardHeader>
+              <CardTitle>AI Destekli Ürün Özellikleri</CardTitle>
+            </CardHeader>
+            <CardContent>
+              <div className="space-y-6">
+                {enhancedFeatures.basicFeatures && enhancedFeatures.basicFeatures.length > 0 && (
+                  <div>
+                    <h4 className="font-semibold mb-3">Temel Özellikler</h4>
+                    <div className="grid grid-cols-1 md:grid-cols-2 gap-2">
+                      {enhancedFeatures.basicFeatures.slice(0, 10).map((feature: any, index: number) => (
+                        <div key={index} className="p-2 bg-gray-50 rounded text-sm">
+                          <span className="font-medium">{feature.name}:</span> {feature.value}
+                        </div>
+                      ))}
+                    </div>
+                  </div>
+                )}
+                
+                {enhancedFeatures.technicalSpecs && enhancedFeatures.technicalSpecs.length > 0 && (
+                  <div>
+                    <h4 className="font-semibold mb-3">Teknik Özellikler</h4>
+                    <div className="grid grid-cols-1 md:grid-cols-2 gap-2">
+                      {enhancedFeatures.technicalSpecs.map((feature: any, index: number) => (
+                        <div key={index} className="p-2 bg-blue-50 rounded text-sm">
+                          <span className="font-medium">{feature.name}:</span> {feature.value}
+                        </div>
+                      ))}
+                    </div>
+                  </div>
+                )}
+                
+                {enhancedFeatures.careInstructions && enhancedFeatures.careInstructions.length > 0 && (
+                  <div>
+                    <h4 className="font-semibold mb-3">Bakım Talimatları</h4>
+                    <div className="space-y-1">
+                      {enhancedFeatures.careInstructions.map((feature: any, index: number) => (
+                        <div key={index} className="p-2 bg-green-50 rounded text-sm">
+                          <span className="font-medium">{feature.name}:</span> {feature.value}
+                        </div>
+                      ))}
+                    </div>
+                  </div>
+                )}
+                
+                {enhancedFeatures.sizeGuide && enhancedFeatures.sizeGuide.length > 0 && (
+                  <div>
+                    <h4 className="font-semibold mb-3">Beden Rehberi</h4>
+                    <div className="space-y-1">
+                      {enhancedFeatures.sizeGuide.map((feature: any, index: number) => (
+                        <div key={index} className="p-2 bg-purple-50 rounded text-sm">
+                          <span className="font-medium">{feature.name}:</span> {feature.value}
+                        </div>
+                      ))}
+                    </div>
+                  </div>
+                )}
+              </div>
+            </CardContent>
+          </Card>
+        </TabsContent>
+
         <TabsContent value="materials">
           <Card>
             <CardHeader>
@@ -242,6 +307,40 @@ export function AIEnhancedProductDisplay({ productData }: AIEnhancedProductDispl
                     ))}
                   </div>
                 </div>
+                
+                {enhancedFeatures.materialInfo && enhancedFeatures.materialInfo.length > 0 && (
+                  <div>
+                    <h4 className="font-semibold mb-2">AI Tespit Edilen Malzeme Bilgileri</h4>
+                    <div className="space-y-2">
+                      {enhancedFeatures.materialInfo.map((feature: any, index: number) => (
+                        <div key={index} className="p-3 bg-orange-50 rounded-lg">
+                          <div className="font-medium text-sm">{feature.name}</div>
+                          <div className="text-sm text-gray-600">{feature.value}</div>
+                        </div>
+                      ))}
+                    </div>
+                  </div>
+                )}
+                
+                {enhancedFeatures.structuredData && (
+                  <div>
+                    <h4 className="font-semibold mb-2">Yapılandırılmış Ürün Verisi</h4>
+                    <div className="grid grid-cols-2 gap-2 text-sm">
+                      {enhancedFeatures.structuredData.brand && (
+                        <div><span className="font-medium">Marka:</span> {enhancedFeatures.structuredData.brand}</div>
+                      )}
+                      {enhancedFeatures.structuredData.model && (
+                        <div><span className="font-medium">Model:</span> {enhancedFeatures.structuredData.model}</div>
+                      )}
+                      {enhancedFeatures.structuredData.weight && (
+                        <div><span className="font-medium">Ağırlık:</span> {enhancedFeatures.structuredData.weight}</div>
+                      )}
+                      {enhancedFeatures.structuredData.origin && (
+                        <div><span className="font-medium">Menşei:</span> {enhancedFeatures.structuredData.origin}</div>
+                      )}
+                    </div>
+                  </div>
+                )}
                 
                 <div>
                   <h4 className="font-semibold mb-2">AI Optimize Edilmiş Açıklama</h4>
