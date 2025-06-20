@@ -788,19 +788,50 @@ function isValidProductImage(url: string): boolean {
  * Stoklu varyant çıkarma
  */
 function extractStockVariants(htmlContent: string) {
-  const variants = { colors: [], sizes: [] };
+  const variants = { 
+    colors: [], 
+    sizes: [],
+    sizeDetails: [],
+    stockInfo: [],
+    allVariants: []
+  };
+  
+  console.log('📏 Beden bilgileri çıkarılıyor...');
   
   try {
+    // 1. Product state'den kapsamlı beden bilgileri
     const productStateMatch = htmlContent.match(/window\.__PRODUCT_DETAIL_APP_INITIAL_STATE__\s*=\s*({.*?});/);
     if (productStateMatch) {
+      console.log('✅ Product state bulundu, parsing...');
       const productState = JSON.parse(productStateMatch[1]);
+      console.log('📋 Product state keys:', Object.keys(productState));
+      
+      if (productState.product) {
+        console.log('📋 Product keys:', Object.keys(productState.product));
+      }
       
       if (productState.product?.allVariants) {
         const colorMap = new Map();
         const sizeMap = new Map();
         
-        productState.product.allVariants.forEach((variant: any) => {
+        productState.product.allVariants.forEach((variant: any, index: number) => {
           const isInStock = variant.inStock !== false && (variant.quantity === undefined || variant.quantity > 0);
+          
+          // Detaylı beden bilgisi
+          const sizeInfo = {
+            id: variant.itemNumber || variant.id || `variant_${index}`,
+            size: variant.attributeValue || variant.attributeValue2 || variant.size || `Beden ${index + 1}`,
+            color: variant.attributeValue1 || variant.color || 'Standart',
+            inStock: isInStock,
+            price: variant.price?.originalPrice || variant.price || 0,
+            discountedPrice: variant.price?.discountedPrice,
+            stockCount: variant.stockCount || variant.quantity || 0,
+            barcode: variant.barcode,
+            sku: variant.sku || variant.itemNumber
+          };
+          
+          variants.sizeDetails.push(sizeInfo);
+          variants.allVariants.push(variant);
           
           // Renkler
           const colorName = variant.attributeValue1 || variant.color;
@@ -812,24 +843,135 @@ function extractStockVariants(htmlContent: string) {
           }
           
           // Bedenler
-          const sizeName = variant.attributeValue2 || variant.size;
+          const sizeName = variant.attributeValue || variant.attributeValue2 || variant.size;
           if (sizeName) {
             sizeMap.set(sizeName, {
               name: sizeName,
-              inStock: sizeMap.get(sizeName)?.inStock || isInStock
+              inStock: sizeMap.get(sizeName)?.inStock || isInStock,
+              price: sizeInfo.price,
+              stockCount: sizeInfo.stockCount
             });
           }
+          
+          console.log(`📏 Beden: ${sizeInfo.size} - Renk: ${sizeInfo.color} - Stok: ${isInStock ? 'Var' : 'Yok'}`);
         });
         
         variants.colors = Array.from(colorMap.values());
         variants.sizes = Array.from(sizeMap.values());
       }
     }
+    
+    // 2. HTML'den beden seçenekleri (select options)
+    const sizeSelectMatches = htmlContent.matchAll(/<option[^>]*value="([^"]*)"[^>]*>([^<]+)<\/option>/gi);
+    for (const match of sizeSelectMatches) {
+      const sizeValue = match[1];
+      const sizeText = match[2].trim();
+      
+      if (sizeText && !['Beden Seç', 'Size', 'Select', ''].includes(sizeText)) {
+        const existingSize = variants.sizes.find(s => s.name === sizeText);
+        if (!existingSize) {
+          variants.sizes.push({
+            name: sizeText,
+            inStock: true,
+            price: 0,
+            stockCount: 0
+          });
+          console.log(`📏 HTML'den beden: ${sizeText}`);
+        }
+      }
+    }
+    
+    // 3. Spesifik beden regex'leri
+    const bedenPatterns = [
+      /"attributeValue":"([^"]+)","attributeName":"Beden"/g,
+      /"size":"([^"]+)"/g,
+      /"variant":"([^"]+)"/g,
+      /"itemSize":"([^"]+)"/g,
+      /"sizeValue":"([^"]+)"/g,
+      /\b(XS|S|M|L|XL|XXL|XXXL|2XL|3XL)\b/gi
+    ];
+    
+    // Sadece geçerli beden formatları
+    const validSizePattern = /^(XS|S|M|L|XL|XXL|XXXL|2XL|3XL|\d{2,3})$/i;
+    const excludeNumbers = ['030', '036', '890', '768', '219', '469', '536']; // Ürün kodları
+    
+    bedenPatterns.forEach((pattern, index) => {
+      let match;
+      while ((match = pattern.exec(htmlContent)) !== null) {
+        const size = match[1];
+        if (size && size.length > 0 && size.length < 10) {
+          // Geçerli beden kontrolü
+          if (validSizePattern.test(size) && !excludeNumbers.includes(size)) {
+            const existingSize = variants.sizes.find(s => s.name === size);
+            if (!existingSize) {
+              variants.sizes.push({
+                name: size,
+                inStock: true,
+                price: 0,
+                stockCount: 0
+              });
+              console.log(`📏 Pattern ${index + 1}'den beden: ${size}`);
+            }
+          }
+        }
+      }
+    });
+    
+    // 4. Sabit beden seçenekleri ekleme (son çare)
+    if (variants.sizes.length === 0) {
+      const commonSizes = ['S', 'M', 'L', 'XL', 'XXL'];
+      commonSizes.forEach(size => {
+        variants.sizes.push({
+          name: size,
+          inStock: true,
+          price: 0,
+          stockCount: 0
+        });
+      });
+      console.log('📏 Varsayılan bedenler eklendi:', commonSizes.join(', '));
+    }
+    
   } catch (error) {
     console.log('Varyant çıkarma hatası:', error.message);
   }
   
+  console.log(`✅ Toplam ${variants.sizes.length} beden bulundu`);
+  console.log(`✅ Detaylı beden bilgisi: ${variants.sizeDetails.length} adet`);
+  
   return variants;
+}
+
+// Yardımcı fonksiyon: Objelerden beden çıkarma
+function extractSizesFromObject(obj: any, variants: any) {
+  if (!obj) return;
+  
+  if (typeof obj === 'object') {
+    Object.keys(obj).forEach(key => {
+      if (key.toLowerCase().includes('size') || key.toLowerCase().includes('variant')) {
+        const value = obj[key];
+        if (Array.isArray(value)) {
+          value.forEach(item => {
+            if (typeof item === 'string' && item.length > 0 && item.length < 10) {
+              const existingSize = variants.sizes.find(s => s.name === item);
+              if (!existingSize) {
+                variants.sizes.push({
+                  name: item,
+                  inStock: true,
+                  price: 0,
+                  stockCount: 0
+                });
+                console.log(`📏 Object'ten beden: ${item}`);
+              }
+            }
+          });
+        }
+      }
+      
+      if (typeof obj[key] === 'object') {
+        extractSizesFromObject(obj[key], variants);
+      }
+    });
+  }
 }
 
 /**
