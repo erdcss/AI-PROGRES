@@ -1818,6 +1818,46 @@ export async function registerRoutes(app: Express) {
     }
   });
 
+  // Varyant doğrulama endpoint'i
+  app.post('/api/validate-variants', async (req, res) => {
+    try {
+      const { url } = req.body;
+      
+      if (!url) {
+        return res.status(400).json({ error: 'URL gerekli' });
+      }
+
+      const { aiEnhancedScrape } = await import('./ai-enhanced-scraper');
+      const productData = await aiEnhancedScrape(url);
+      
+      if (!productData.success) {
+        return res.status(400).json({ error: 'Ürün verisi alınamadı' });
+      }
+
+      const { VariantValidator } = await import('./variant-validator');
+      const validation = VariantValidator.validateVariants(productData.variants);
+      
+      res.json({
+        success: true,
+        productInfo: {
+          title: productData.title,
+          brand: productData.brand,
+          price: productData.price
+        },
+        validation,
+        extractedData: {
+          totalColors: productData.variants?.colors?.length || 0,
+          totalSizes: productData.variants?.sizes?.length || 0,
+          totalCombinations: Object.keys(productData.variants?.stockMatrix || {}).length,
+          inStockCombinations: validation.stockValidation.inStockCombinations
+        }
+      });
+    } catch (error) {
+      console.error('Varyant doğrulama hatası:', error);
+      res.status(500).json({ error: 'Varyant doğrulaması başarısız' });
+    }
+  });
+
   const httpServer = createServer(app);
   return httpServer;
 }
