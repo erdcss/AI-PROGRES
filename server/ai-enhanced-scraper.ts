@@ -7,6 +7,69 @@ import * as cheerio from 'cheerio';
 import axios from 'axios';
 import Anthropic from '@anthropic-ai/sdk';
 
+// Sadece orijinal ürün görsellerini çıkarma fonksiyonu
+function extractOriginalProductImages(htmlContent: string): string[] {
+  const images = new Set<string>();
+  
+  // 1. Script verilerinden görsel çıkarma
+  const scriptMatches = htmlContent.matchAll(/"(https?:\/\/[^"]*cdn\.dsmcdn\.com[^"]*\.(?:jpg|jpeg|png|webp)[^"]*)"/gi);
+  for (const match of scriptMatches) {
+    if (match[1]) {
+      images.add(match[1]);
+    }
+  }
+  
+  // 2. HTML img tag'lerinden
+  const imgMatches = htmlContent.match(/<img[^>]+src="([^"]+)"/g);
+  imgMatches?.forEach(match => {
+    const srcMatch = match.match(/src="([^"]+)"/);
+    if (srcMatch && srcMatch[1].includes('dsmcdn.com')) {
+      images.add(srcMatch[1]);
+    }
+  });
+  
+  // 3. Sadece orijinal ürün görselleri filtrele
+  const originalImages = Array.from(images).filter(url => {
+    if (!url || !url.includes('dsmcdn.com')) return false;
+    
+    // Hariç tutulacaklar
+    const excludePatterns = ['mnresize', 'web-pdp', 'cok_satanlar', 'footer', 'header', 'logo', 'icon', 'banner'];
+    if (excludePatterns.some(pattern => url.toLowerCase().includes(pattern))) return false;
+    
+    // Sadece product/media/images yolları
+    return url.includes('/product/media/images/') && (url.includes('/PIM/') || url.includes('/QC/'));
+  });
+  
+  // 4. Varyant üretimi
+  const finalImages = new Set<string>();
+  
+  if (originalImages.length > 0) {
+    const firstImage = originalImages[0];
+    const hashMatch = firstImage.match(/([a-f0-9]{8}-[a-f0-9]{4}-[a-f0-9]{4}-[a-f0-9]{4}-[a-f0-9]{12})/);
+    
+    if (hashMatch) {
+      const basePath = firstImage.replace(/\/\d+(_org_zoom)?\.jpg.*$/, '');
+      
+      // Varyant görselleri üret
+      for (let i = 1; i <= 6; i++) {
+        finalImages.add(`${basePath}/${i}_org_zoom.jpg`);
+        finalImages.add(`${basePath}/${i}.jpg`);
+      }
+    }
+  }
+  
+  // 5. Orijinal görselleri de ekle
+  originalImages.forEach(img => finalImages.add(img));
+  
+  // 6. Final filtreleme
+  const cleanedImages = Array.from(finalImages).filter(url => {
+    const excludePatterns = ['mnresize', 'web-pdp', 'cok_satanlar', 'footer', 'header', 'logo', 'icon'];
+    return !excludePatterns.some(pattern => url.toLowerCase().includes(pattern));
+  });
+  
+  return cleanedImages;
+}
+
 const anthropic = new Anthropic({
   apiKey: process.env.ANTHROPIC_API_KEY,
 });
@@ -80,10 +143,9 @@ export async function aiEnhancedScrape(url: string): Promise<AIEnhancedProductDa
     
     // 2.1. Çoklu görsel çıkarma
     console.log('🖼️ Görsel çıkarma başlatılıyor...');
-    const { extractAllImages } = await import('./multi-image-extractor');
-    const allImages = extractAllImages(htmlContent);
-    console.log(`📸 Çıkarılan görsel sayısı: ${allImages.length}`);
-    basicData.images = Array.isArray(allImages) ? allImages : [allImages].filter(Boolean);
+    const originalImages = extractOriginalProductImages(htmlContent);
+    console.log(`📸 Çıkarılan görsel sayısı: ${originalImages.length}`);
+    basicData.images = originalImages;
     
     // 2.2. Stoklu varyantlar
     console.log('📦 Varyant çıkarma başlatılıyor...');
@@ -130,14 +192,18 @@ export async function aiEnhancedScrape(url: string): Promise<AIEnhancedProductDa
   } catch (error) {
     console.error('AI-destekli scraping hatası:', error.message);
     
-    // Return extracted data even on AI analysis error
+    // Extract basic data even on error
+    const $ = cheerio.load(htmlContent);
+    const fallbackData = extractBasicData($, htmlContent);
+    const fallbackImages = extractOriginalProductImages(htmlContent);
+    
     return {
       success: true,
-      title: basicData?.title || 'Under Armour Erkek UA Sportstyle Logo Update Kısa Kollu Tişört 1382911-036',
-      brand: basicData?.brand || 'Under Armour',
-      price: basicData?.price || '890',
-      description: basicData?.description || 'Under Armour Erkek UA Sportstyle Logo Update Kısa Kollu Tişört 1382911-036 - Profesyonel kalitede ürün.',
-      images: basicData?.images || ['https://cdn.dsmcdn.com/ty1631/prod/QC/20250130/10/2ad4867e-0fc7-3b24-9e8b-9b32084e8030/1_org_zoom.jpg'],
+      title: fallbackData?.title || 'Ürün bilgisi alınamadı',
+      brand: fallbackData?.brand || 'Bilinmiyor',
+      price: fallbackData?.price || '0',
+      description: fallbackData?.description || 'Ürün açıklaması alınamadı',
+      images: fallbackImages || [],
       features: basicData?.features || [
         {key: 'Malzeme', value: '%100 Pamuk'},
         {key: 'Beden', value: 'Regular Fit'},
