@@ -394,6 +394,9 @@ export async function scrapeTrendyolProduct(inputUrl: string) {
     
     console.log(`✅ AI destekli varyant analizi: ${enhancedColors.length} renk (${aiDetectedColors.size} AI), ${sizeCount} beden, ${imageCount} görsel`);
     
+    // Extract comprehensive product features for display
+    const productFeatures = extractProductFeatures($, htmlContent);
+    
     // AI Destekli Veri Çıkarma ve İyileştirme
     console.log('🤖 AI destekli veri çıkarma ve optimize etme...');
     
@@ -515,9 +518,6 @@ export async function scrapeTrendyolProduct(inputUrl: string) {
       csvGenerated = true;
       console.log(`✅ Fallback CSV created: ${csvPath} (${variantData.sizes.length + 1} rows)`);
     }
-    
-    // Extract comprehensive product features for display
-    const productFeatures = extractProductFeatures($, htmlContent);
     
     // AI-powered product analysis
     console.log('🤖 AI destekli ürün analizi başlatılıyor...');
