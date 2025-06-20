@@ -770,7 +770,9 @@ function ScraperPage({ platform = 'trendyol' }: ScraperPageProps) {
                                 Bedenler ({product.variants.sizes.length})
                               </div>
                               <div className="text-xs text-purple-300">
-                                {product.variants.sizes.join(', ')}
+                                {product.variants.sizes.map(size => 
+                                  typeof size === 'string' ? size : size?.name || 'Beden'
+                                ).join(', ')}
                               </div>
                             </div>
                           )}
@@ -785,12 +787,12 @@ function ScraperPage({ platform = 'trendyol' }: ScraperPageProps) {
                           Etiketler ({product.tags.length})
                         </div>
                         <div className="flex flex-wrap gap-1">
-                          {product.tags.slice(0, 6).map((tag: string, index: number) => (
+                          {product.tags.slice(0, 6).map((tag: any, index: number) => (
                             <span
                               key={index}
                               className="px-1.5 py-0.5 bg-yellow-900/30 text-yellow-300 text-xs rounded"
                             >
-                              {tag}
+                              {typeof tag === 'string' ? tag : tag?.name || `Tag ${index + 1}`}
                             </span>
                           ))}
                           {product.tags.length > 6 && (

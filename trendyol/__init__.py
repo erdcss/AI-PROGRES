@@ -1,1 +1,0 @@
-# Trendyol Scrapy Project
