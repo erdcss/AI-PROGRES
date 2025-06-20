@@ -87,7 +87,12 @@ export async function extractFocusedData(url: string): Promise<FocusedProductDat
   
   // 1. Selling price kontrolü
   if (product.price?.sellingPrice?.value) {
-    const originalPrice = product.price.sellingPrice.value / 100;
+    // Fiyat değerini kontrol et - eğer çok küçükse kuruş cinsinden, büyükse TL cinsinden
+    let originalPrice = product.price.sellingPrice.value;
+    if (originalPrice > 1000) {
+      originalPrice = originalPrice / 100; // Kuruş -> TL dönüşümü
+    }
+    
     const currency = product.price.sellingPrice.currency || 'TRY';
     const profitPrice = Math.round(originalPrice * 1.1 * 100) / 100;
     
@@ -103,7 +108,11 @@ export async function extractFocusedData(url: string): Promise<FocusedProductDat
   
   // 2. Original price kontrolü
   if (!foundPrice && product.price?.originalPrice?.value) {
-    const originalPrice = product.price.originalPrice.value / 100;
+    let originalPrice = product.price.originalPrice.value;
+    if (originalPrice > 1000) {
+      originalPrice = originalPrice / 100; // Kuruş -> TL dönüşümü
+    }
+    
     const currency = product.price.originalPrice.currency || 'TRY';
     const profitPrice = Math.round(originalPrice * 1.1 * 100) / 100;
     
