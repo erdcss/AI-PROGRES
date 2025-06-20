@@ -443,20 +443,9 @@ export async function extractFocusedData(url: string): Promise<FocusedProductDat
     return a.localeCompare(b);
   });
   
-  // Stok analizi
-  const inStockVariants = variants.filter(v => v.inStock);
-  const outOfStockVariants = variants.filter(v => !v.inStock);
-  const availableSizes = [...new Set(inStockVariants.map(v => v.size))].filter(s => s !== 'Tek Beden');
-  const unavailableSizes = [...new Set(outOfStockVariants.map(v => v.size))].filter(s => s !== 'Tek Beden');
-  
-  console.log(`✓ Varyantlar: ${variants.length} adet (${inStockVariants.length} stokta, ${outOfStockVariants.length} stokta yok)`);
+  console.log(`✓ Varyantlar: ${variants.length} adet`);
   console.log(`✓ Renk seçenekleri: ${colorOptions.length} adet - ${colorOptions.join(', ')}`);
   console.log(`✓ Beden seçenekleri: ${sizeOptions.length} adet - ${sizeOptions.join(', ')}`);
-  console.log(`✓ Stokta olan bedenler: ${availableSizes.join(', ')}`);
-  
-  if (unavailableSizes.length > 0) {
-    console.log(`⚠️ Stokta olmayan bedenler: ${unavailableSizes.join(', ')}`);
-  }
   
   // 6. ÖZELLİKLER - Tüm ürün özelliklerini çıkar
   const features: Array<{
@@ -561,11 +550,11 @@ export async function extractFocusedData(url: string): Promise<FocusedProductDat
   
   console.log(`✓ Özellikler: ${features.length} adet (kapsamlı)`);
   
-  // Gelişmiş stok analizi
-  const inStockVariants = variants.filter(v => v.inStock);
-  const outOfStockVariants = variants.filter(v => !v.inStock);
-  const availableSizes = [...new Set(inStockVariants.map(v => v.size))].filter(s => s !== 'Tek Beden');
-  const unavailableSizes = [...new Set(outOfStockVariants.map(v => v.size))].filter(s => s !== 'Tek Beden');
+  // Final stok analizi
+  const finalInStockVariants = variants.filter(v => v.inStock);
+  const finalOutOfStockVariants = variants.filter(v => !v.inStock);
+  const finalAvailableSizes = [...new Set(finalInStockVariants.map(v => v.size))].filter(s => s !== 'Tek Beden');
+  const finalUnavailableSizes = [...new Set(finalOutOfStockVariants.map(v => v.size))].filter(s => s !== 'Tek Beden');
   
   const result: FocusedProductData = {
     brand,
@@ -577,10 +566,10 @@ export async function extractFocusedData(url: string): Promise<FocusedProductDat
     variants: variants.slice(0, 30), // İlk 30 varyant
     stockAnalysis: {
       totalVariants: variants.length,
-      inStockVariants: inStockVariants.length,
-      outOfStockVariants: outOfStockVariants.length,
-      availableSizes,
-      unavailableSizes
+      inStockVariants: finalInStockVariants.length,
+      outOfStockVariants: finalOutOfStockVariants.length,
+      availableSizes: finalAvailableSizes,
+      unavailableSizes: finalUnavailableSizes
     },
     features: features.slice(0, 50) // Tüm özellikler (maksimum 50)
   };
