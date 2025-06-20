@@ -320,14 +320,14 @@ function ScraperPage({ platform = 'trendyol' }: ScraperPageProps) {
   const { toast } = useToast();
 
   const handleExportCSV = async () => {
-    if (!productData) return;
+    if (!product) return;
     
     setIsExporting(true);
     try {
       const response = await fetch('/api/export-shopify-csv', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify(productData)
+        body: JSON.stringify(product)
       });
 
       if (response.ok) {
@@ -335,7 +335,7 @@ function ScraperPage({ platform = 'trendyol' }: ScraperPageProps) {
         const url = window.URL.createObjectURL(blob);
         const a = document.createElement('a');
         a.href = url;
-        a.download = `shopify-${productData.brand.toLowerCase()}-${Date.now()}.csv`;
+        a.download = `shopify-${product.brand.toLowerCase()}-${Date.now()}.csv`;
         document.body.appendChild(a);
         a.click();
         window.URL.revokeObjectURL(url);
@@ -343,7 +343,7 @@ function ScraperPage({ platform = 'trendyol' }: ScraperPageProps) {
         
         toast({
           title: 'CSV İndirildi',
-          description: `${productData.brand} ürünü Shopify formatında hazırlandı`,
+          description: `${product.brand} ürünü Shopify formatında hazırlandı`,
         });
       } else {
         throw new Error('CSV oluşturulamadı');
@@ -358,6 +358,8 @@ function ScraperPage({ platform = 'trendyol' }: ScraperPageProps) {
       setIsExporting(false);
     }
   };
+
+
   
   // Get current platform configuration
   const currentPlatform = PlatformLogos[platform as keyof typeof PlatformLogos] || PlatformLogos.trendyol;
@@ -1063,6 +1065,113 @@ function ScraperPage({ platform = 'trendyol' }: ScraperPageProps) {
             </motion.div>
           )}
         </AnimatePresence>
+
+        {/* CSV Dışa Aktarma Bölümü */}
+        {product && (
+          <div className="mt-8 p-6 bg-card rounded-lg border">
+            <div className="flex items-center justify-between mb-4">
+              <h2 className="text-xl font-semibold">Shopify CSV Dışa Aktarma</h2>
+              <Button 
+                onClick={handleExportCSV}
+                disabled={isExporting}
+                className="bg-green-600 hover:bg-green-700"
+              >
+                {isExporting ? 'Hazırlanıyor...' : 'CSV İndir'}
+              </Button>
+            </div>
+
+            {/* CSV Önizleme Tablosu */}
+            <div className="border rounded-lg overflow-hidden">
+              <div className="bg-muted p-3 border-b">
+                <h3 className="font-medium">Önizleme - Shopify Uyumlu Format</h3>
+                <p className="text-sm text-muted-foreground">
+                  {product.sizeOptions?.length || 0} beden varyantı • %10 kar marjı uygulandı
+                </p>
+              </div>
+              
+              <div className="overflow-x-auto max-h-96">
+                <table className="w-full text-sm">
+                  <thead className="bg-muted/50">
+                    <tr>
+                      <th className="p-2 text-left border-r">Handle</th>
+                      <th className="p-2 text-left border-r">Title</th>
+                      <th className="p-2 text-left border-r">Vendor</th>
+                      <th className="p-2 text-left border-r">Beden</th>
+                      <th className="p-2 text-left border-r">SKU</th>
+                      <th className="p-2 text-left border-r">Fiyat</th>
+                      <th className="p-2 text-left border-r">Karşılaştırma Fiyatı</th>
+                      <th className="p-2 text-left">Görsel</th>
+                    </tr>
+                  </thead>
+                  <tbody>
+                    {/* Ana ürün satırı */}
+                    <tr className="border-b bg-blue-50/50">
+                      <td className="p-2 border-r font-medium">
+                        {product.title?.toLowerCase()
+                          .replace(/[^a-z0-9\s-]/g, '')
+                          .replace(/\s+/g, '-')
+                          .substring(0, 30)}
+                      </td>
+                      <td className="p-2 border-r">{product.title}</td>
+                      <td className="p-2 border-r">{product.brand}</td>
+                      <td className="p-2 border-r text-muted-foreground">-</td>
+                      <td className="p-2 border-r text-muted-foreground">-</td>
+                      <td className="p-2 border-r font-medium">{product.price?.withProfit} {product.price?.currency}</td>
+                      <td className="p-2 border-r text-red-600">{product.price?.original} {product.price?.currency}</td>
+                      <td className="p-2">
+                        <img 
+                          src={product.images?.[0]} 
+                          alt="Ana görsel" 
+                          className="w-8 h-8 object-cover rounded"
+                        />
+                      </td>
+                    </tr>
+                    
+                    {/* Beden varyantları */}
+                    {(product.sizeOptions || []).map((size, index) => (
+                      <tr key={size} className="border-b hover:bg-muted/30">
+                        <td className="p-2 border-r text-muted-foreground">-</td>
+                        <td className="p-2 border-r text-muted-foreground">-</td>
+                        <td className="p-2 border-r text-muted-foreground">-</td>
+                        <td className="p-2 border-r font-medium">{size}</td>
+                        <td className="p-2 border-r text-sm">
+                          {product.title?.toLowerCase()
+                            .replace(/[^a-z0-9\s-]/g, '')
+                            .replace(/\s+/g, '-')
+                            .substring(0, 20)}-{size.toLowerCase()}
+                        </td>
+                        <td className="p-2 border-r">{product.price?.withProfit} {product.price?.currency}</td>
+                        <td className="p-2 border-r text-red-600">{product.price?.original} {product.price?.currency}</td>
+                        <td className="p-2">
+                          <img 
+                            src={product.images?.[index] || product.images?.[0]} 
+                            alt={`${size} beden`}
+                            className="w-8 h-8 object-cover rounded"
+                          />
+                        </td>
+                      </tr>
+                    ))}
+                  </tbody>
+                </table>
+              </div>
+            </div>
+
+            <div className="mt-4 p-3 bg-blue-50 rounded-lg border border-blue-200">
+              <div className="flex items-start gap-2">
+                <div className="text-blue-600 mt-0.5">ℹ️</div>
+                <div className="text-sm text-blue-800">
+                  <p className="font-medium mb-1">Shopify Import Bilgileri:</p>
+                  <ul className="space-y-1 text-blue-700">
+                    <li>• Ana ürün + {product.sizeOptions?.length || 0} beden varyantı oluşturulacak</li>
+                    <li>• %10 kar marjı otomatik uygulandı ({product.price?.original} TL → {product.price?.withProfit} TL)</li>
+                    <li>• Her beden için ayrı SKU ve görsel atandı</li>
+                    <li>• Stok miktarı: 10 adet (varsayılan)</li>
+                  </ul>
+                </div>
+              </div>
+            </div>
+          </div>
+        )}
       </div>
     </div>
   );

@@ -15,6 +15,101 @@ import { parseJsonLdProductData, generateTagsFromJsonLd } from "./json-ld-parser
 import { InsertProduct } from "@shared/schema";
 import { getFinalImages } from "./final-image-solution";
 import { extractVariantStockInfo } from "./advanced-size-extractor";
+import { extractFocusedData } from './focused-extractor';
+
+function generateSingleProductShopifyCSV(product: any): string {
+  const handle = product.title.toLowerCase()
+    .replace(/[^a-z0-9\s-]/g, '')
+    .replace(/\s+/g, '-')
+    .substring(0, 50);
+  
+  const bodyHTML = `<h3>Ürün Özellikleri</h3><ul>${product.features.map((f: any) => `<li><strong>${f.key}:</strong> ${f.value}</li>`).join('')}</ul><p>Marka: ${product.brand}</p><p>Beden seçenekleri: ${product.sizeOptions.join(', ')}</p>`;
+
+  const headers = [
+    'Handle', 'Title', 'Body (HTML)', 'Vendor', 'Product Category', 'Type', 'Tags', 'Published',
+    'Option1 Name', 'Option1 Value', 'Variant SKU', 'Variant Grams', 'Variant Inventory Tracker',
+    'Variant Inventory Qty', 'Variant Inventory Policy', 'Variant Fulfillment Service',
+    'Variant Price', 'Variant Compare At Price', 'Variant Requires Shipping', 'Variant Taxable',
+    'Variant Barcode', 'Image Src', 'Image Position', 'Image Alt Text', 'Gift Card',
+    'SEO Title', 'SEO Description', 'Variant Image', 'Variant Weight Unit', 'Cost per item', 'Included / Turkey'
+  ];
+
+  const rows: string[][] = [];
+
+  // Ana ürün satırı
+  rows.push([
+    handle,
+    `"${product.title}"`,
+    `"${bodyHTML}"`,
+    product.brand,
+    'Apparel & Accessories > Clothing',
+    'Giyim',
+    'giyim,moda,stil',
+    'TRUE',
+    'Beden',
+    '',
+    '',
+    '100',
+    'shopify',
+    '10',
+    'deny',
+    'manual',
+    product.price.withProfit.toString(),
+    product.price.original.toString(),
+    'TRUE',
+    'TRUE',
+    '',
+    product.images[0] || '',
+    '1',
+    `"${product.title}"`,
+    'FALSE',
+    `"${product.title}"`,
+    `"${product.brand} ${product.title} - En uygun fiyata satın alın"`,
+    '',
+    'kg',
+    product.price.original.toString(),
+    'TRUE'
+  ]);
+
+  // Beden varyantları
+  product.sizeOptions.forEach((size: string, index: number) => {
+    rows.push([
+      '',
+      '',
+      '',
+      '',
+      '',
+      '',
+      '',
+      '',
+      '',
+      size,
+      `${handle}-${size.toLowerCase()}`,
+      '100',
+      'shopify',
+      '10',
+      'deny',
+      'manual',
+      product.price.withProfit.toString(),
+      product.price.original.toString(),
+      'TRUE',
+      'TRUE',
+      '',
+      product.images[index] || product.images[0] || '',
+      (index + 2).toString(),
+      `"${product.title} - ${size}"`,
+      'FALSE',
+      '',
+      '',
+      '',
+      'kg',
+      product.price.original.toString(),
+      'TRUE'
+    ]);
+  });
+
+  return [headers.join(','), ...rows.map(row => row.join(','))].join('\n');
+}
 
 // CSV preview generator function
 async function generateCSVPreview(csvPath?: string) {
@@ -1937,6 +2032,27 @@ export function registerRoutes(app: Express): Server {
     } catch (error) {
       console.error('Varyant doğrulama hatası:', error);
       res.status(500).json({ error: 'Varyant doğrulaması başarısız' });
+    }
+  });
+
+  // Shopify CSV export endpoint
+  app.post('/api/export-shopify-csv', async (req, res) => {
+    try {
+      const product = req.body;
+      
+      if (!product || !product.brand || !product.title) {
+        return res.status(400).json({ error: 'Invalid product data' });
+      }
+
+      const csvData = generateSingleProductShopifyCSV(product);
+      const filename = `shopify-${product.brand.toLowerCase().replace(/[^a-z0-9]/g, '-')}-${Date.now()}.csv`;
+      
+      res.setHeader('Content-Type', 'text/csv; charset=utf-8');
+      res.setHeader('Content-Disposition', `attachment; filename="${filename}"`);
+      res.send(csvData);
+    } catch (error) {
+      console.error('Shopify CSV export error:', error);
+      res.status(500).json({ error: 'Failed to generate Shopify CSV' });
     }
   });
 
