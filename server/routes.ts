@@ -82,7 +82,7 @@ function normalizeImageUrl(url: string): string {
   return url;
 }
 
-export async function registerRoutes(app: Express) {
+export function registerRoutes(app: Express): Server {
 
   // CSV preview endpoint removed - handled in server/index.ts
 

@@ -149,18 +149,44 @@ export async function extractFocusedData(url: string): Promise<FocusedProductDat
   if (images.length === 0) {
     console.log(`⚠️ JSON'dan görsel bulunamadı, HTML'den regex ile aranıyor...`);
     
-    const imageRegex = /https:\/\/cdn\.dsmcdn\.com\/ty\d+\/product\/media\/images\/[^"'\s]+\.jpg/g;
-    const htmlImages = htmlContent.match(imageRegex) || [];
+    const imageRegexes = [
+      /https:\/\/cdn\.dsmcdn\.com\/ty\d+\/product\/media\/images\/[^"'\s]+\.jpg/g,
+      /https:\/\/cdn\.dsmcdn\.com\/ty\d+\/product\/media\/images\/[^"'\s]+\.jpeg/g,
+      /https:\/\/cdn\.dsmcdn\.com\/ty\d+\/product\/media\/images\/[^"'\s]+\.webp/g,
+      /"url":"(https:\/\/cdn\.dsmcdn\.com[^"]+)"/g
+    ];
     
-    htmlImages.forEach(imageUrl => {
-      if (!images.includes(imageUrl)) {
-        images.push(imageUrl);
-        console.log(`📸 HTML'den görsel: ${imageUrl}`);
-      }
+    imageRegexes.forEach(regex => {
+      const matches = htmlContent.match(regex) || [];
+      matches.forEach(match => {
+        let imageUrl = match;
+        if (match.includes('"url":"')) {
+          imageUrl = match.replace('"url":"', '').replace('"', '');
+        }
+        
+        if (imageUrl.includes('dsmcdn.com') && !images.includes(imageUrl)) {
+          images.push(imageUrl);
+          console.log(`📸 HTML'den görsel: ${imageUrl}`);
+        }
+      });
     });
   }
   
   console.log(`✓ Görseller: ${images.length} adet`);
+  
+  // Debug: Görsel verilerini detaylı logla
+  if (images.length === 0) {
+    console.log(`❌ GÖRSEL BULUNAMADI - Debug bilgileri:`);
+    console.log(`📦 Product var: ${!!product}`);
+    console.log(`🖼️ Product.images var: ${!!product?.images}`);
+    console.log(`📊 Product.images length: ${product?.images?.length || 0}`);
+    
+    if (product?.images && product.images.length > 0) {
+      console.log(`🔍 İlk görsel objesi:`, JSON.stringify(product.images[0], null, 2));
+    }
+  } else {
+    console.log(`✅ İlk görsel: ${images[0]}`);
+  }
   
   // 4. VARYANTLAR
   const variants: Array<{
