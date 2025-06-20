@@ -972,12 +972,20 @@ function extractStockVariants(htmlContent: string) {
               colorVariant.totalStock += variant.stockCount;
             }
             
+            // Varyant fiyatı ile %10 kar marjı hesaplama
+            const variantPrice = variant.price || priceData.main;
+            const basePrice = parseFloat(variantPrice.toString().replace(/[^\d.]/g, ''));
+            const finalPrice = Math.round(basePrice * 1.10);
+            
             variants.stockMatrix[`${variant.color}-${variant.size}`] = {
               color: variant.color,
               size: variant.size,
               inStock: variant.inStock,
               stockCount: variant.stockCount,
-              price: variant.price
+              originalPrice: variantPrice,
+              price: finalPrice,
+              profitMargin: '10%',
+              sku: `${variant.color.toLowerCase().replace(/\s+/g, '-')}-${variant.size.toLowerCase()}`
             };
             
             console.log(`🎨 ${variant.color} - ${variant.size}: ${variant.inStock ? '✅ Stokta' : '❌ Tükendi'} (${variant.stockCount})`);
