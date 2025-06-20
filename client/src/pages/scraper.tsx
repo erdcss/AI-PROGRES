@@ -358,7 +358,7 @@ function ScraperPage({ platform = 'trendyol' }: ScraperPageProps) {
 
   const scrapeMutation = useMutation({
     mutationFn: async (data: { url: string }) => {
-      const response = await apiRequest("POST", "/api/scrape", data);
+      const response = await apiRequest("POST", "/api/extract", data);
       if (!response.ok) {
         const errorData = await response.json().catch(() => ({}));
         throw {
