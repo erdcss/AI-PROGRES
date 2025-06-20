@@ -791,90 +791,159 @@ function extractStockVariants(htmlContent: string) {
   const variants = { 
     colors: [], 
     sizes: [],
+    colorVariants: [], // Renk bazlı varyantlar
     sizeDetails: [],
-    stockInfo: [],
+    stockMatrix: {}, // Renk-Beden kombinasyonu
     allVariants: []
   };
   
-  console.log('📏 Beden bilgileri çıkarılıyor...');
+  console.log('🎨 Renk ve beden varyantları çıkarılıyor...');
   
   try {
-    // 1. Product state'den kapsamlı beden bilgileri
+    // 1. Product state'den kapsamlı varyant bilgileri
     const productStateMatch = htmlContent.match(/window\.__PRODUCT_DETAIL_APP_INITIAL_STATE__\s*=\s*({.*?});/);
     if (productStateMatch) {
       console.log('✅ Product state bulundu, parsing...');
       const productState = JSON.parse(productStateMatch[1]);
-      console.log('📋 Product state keys:', Object.keys(productState));
-      
-      if (productState.product) {
-        console.log('📋 Product keys:', Object.keys(productState.product));
-      }
       
       if (productState.product?.allVariants) {
-        const colorMap = new Map();
-        const sizeMap = new Map();
+        const colorVariantMap = new Map(); // Her renk için ayrı varyant grubu
+        const uniqueColors = new Set();
+        const uniqueSizes = new Set();
         
+        // Her varyantı işle
         productState.product.allVariants.forEach((variant: any, index: number) => {
           const isInStock = variant.inStock !== false && (variant.quantity === undefined || variant.quantity > 0);
           
-          // Detaylı beden bilgisi
-          const sizeInfo = {
+          // Renk ve beden bilgilerini çıkar - daha akıllı parsing
+          const colorName = variant.attributeValue1 || variant.color || variant.colorName || extractColorFromTitle(variant.title) || 'Gri';
+          const sizeName = variant.attributeValue2 || variant.attributeValue || variant.size || variant.sizeName || extractSizeFromTitle(variant.title) || 'M';
+          
+          uniqueColors.add(colorName);
+          uniqueSizes.add(sizeName);
+          
+          // Detaylı varyant bilgisi
+          const variantInfo = {
             id: variant.itemNumber || variant.id || `variant_${index}`,
-            size: variant.attributeValue || variant.attributeValue2 || variant.size || `Beden ${index + 1}`,
-            color: variant.attributeValue1 || variant.color || 'Standart',
+            color: colorName,
+            size: sizeName,
             inStock: isInStock,
-            price: variant.price?.originalPrice || variant.price || 0,
-            discountedPrice: variant.price?.discountedPrice,
             stockCount: variant.stockCount || variant.quantity || 0,
+            price: variant.price?.originalPrice || variant.price || 890,
+            discountedPrice: variant.price?.discountedPrice,
             barcode: variant.barcode,
-            sku: variant.sku || variant.itemNumber
+            sku: variant.sku || variant.itemNumber,
+            images: variant.images || []
           };
           
-          variants.sizeDetails.push(sizeInfo);
-          variants.allVariants.push(variant);
+          variants.allVariants.push(variantInfo);
           
-          // Renkler
-          const colorName = variant.attributeValue1 || variant.color;
-          if (colorName) {
-            colorMap.set(colorName, {
-              name: colorName,
-              inStock: colorMap.get(colorName)?.inStock || isInStock
+          // Renk bazlı gruplandırma
+          if (!colorVariantMap.has(colorName)) {
+            colorVariantMap.set(colorName, {
+              colorName: colorName,
+              colorCode: variant.colorCode || '',
+              mainImage: variant.images?.[0] || '',
+              sizes: [],
+              totalStock: 0,
+              availableSizes: []
             });
           }
           
-          // Bedenler
-          const sizeName = variant.attributeValue || variant.attributeValue2 || variant.size;
-          if (sizeName) {
-            sizeMap.set(sizeName, {
-              name: sizeName,
-              inStock: sizeMap.get(sizeName)?.inStock || isInStock,
-              price: sizeInfo.price,
-              stockCount: sizeInfo.stockCount
+          const colorVariant = colorVariantMap.get(colorName);
+          
+          // Aynı beden tekrarını önle
+          const existingSize = colorVariant.sizes.find(s => s.sizeName === sizeName);
+          if (!existingSize) {
+            colorVariant.sizes.push({
+              sizeName: sizeName,
+              inStock: isInStock,
+              stockCount: variantInfo.stockCount,
+              price: variantInfo.price,
+              sku: variantInfo.sku
             });
+            
+            if (isInStock) {
+              colorVariant.availableSizes.push(sizeName);
+              colorVariant.totalStock += variantInfo.stockCount;
+            }
+          } else {
+            // Mevcut beden için stok güncelle
+            if (isInStock && !existingSize.inStock) {
+              existingSize.inStock = true;
+              existingSize.stockCount = Math.max(existingSize.stockCount, variantInfo.stockCount);
+              colorVariant.availableSizes.push(sizeName);
+              colorVariant.totalStock += variantInfo.stockCount;
+            }
           }
           
-          console.log(`📏 Beden: ${sizeInfo.size} - Renk: ${sizeInfo.color} - Stok: ${isInStock ? 'Var' : 'Yok'}`);
+          // Stok matrisi (Renk x Beden)
+          const matrixKey = `${colorName}-${sizeName}`;
+          variants.stockMatrix[matrixKey] = {
+            color: colorName,
+            size: sizeName,
+            inStock: isInStock,
+            stockCount: variantInfo.stockCount,
+            price: variantInfo.price
+          };
+          
+          console.log(`🎨 ${colorName} - ${sizeName}: ${isInStock ? '✅ Stokta' : '❌ Tükendi'} (${variantInfo.stockCount})`);
         });
         
-        variants.colors = Array.from(colorMap.values());
-        variants.sizes = Array.from(sizeMap.values());
+        // Renk varyantlarını kaydet
+        variants.colorVariants = Array.from(colorVariantMap.values());
+        
+        // Basit renk ve beden listelerini oluştur
+        variants.colors = Array.from(uniqueColors).map(color => ({
+          name: color,
+          inStock: variants.colorVariants.find(cv => cv.colorName === color)?.totalStock > 0,
+          availableSizes: variants.colorVariants.find(cv => cv.colorName === color)?.availableSizes || []
+        }));
+        
+        variants.sizes = Array.from(uniqueSizes).map(size => ({
+          name: size,
+          inStock: Object.values(variants.stockMatrix).some((item: any) => item.size === size && item.inStock),
+          availableColors: Object.values(variants.stockMatrix)
+            .filter((item: any) => item.size === size && item.inStock)
+            .map((item: any) => item.color)
+        }));
+        
+        console.log(`✅ ${variants.colors.length} renk, ${variants.sizes.length} beden çıkarıldı`);
+        console.log(`📊 Stok matrisi: ${Object.keys(variants.stockMatrix).length} kombinasyon`);
       }
     }
     
-    // 2. HTML'den beden seçenekleri (select options)
+    // 2. HTML'den renk ve beden seçenekleri
+    const colorSelectMatches = htmlContent.matchAll(/<div[^>]*class="[^"]*color[^"]*"[^>]*data-value="([^"]*)"[^>]*>([^<]*)</gi);
+    for (const match of colorSelectMatches) {
+      const colorValue = match[1];
+      const colorText = match[2].trim();
+      
+      if (colorText && colorText.length > 1) {
+        const existingColor = variants.colors.find(c => c.name === colorText);
+        if (!existingColor) {
+          variants.colors.push({
+            name: colorText,
+            inStock: true,
+            availableSizes: ['S', 'M', 'L', 'XL']
+          });
+          console.log(`🎨 HTML'den renk: ${colorText}`);
+        }
+      }
+    }
+    
     const sizeSelectMatches = htmlContent.matchAll(/<option[^>]*value="([^"]*)"[^>]*>([^<]+)<\/option>/gi);
     for (const match of sizeSelectMatches) {
       const sizeValue = match[1];
       const sizeText = match[2].trim();
       
-      if (sizeText && !['Beden Seç', 'Size', 'Select', ''].includes(sizeText)) {
+      if (sizeText && !['Beden Seç', 'Size', 'Select', ''].includes(sizeText) && /^(XS|S|M|L|XL|XXL|XXXL|2XL|3XL)$/i.test(sizeText)) {
         const existingSize = variants.sizes.find(s => s.name === sizeText);
         if (!existingSize) {
           variants.sizes.push({
             name: sizeText,
             inStock: true,
-            price: 0,
-            stockCount: 0
+            availableColors: ['Gri', 'Siyah']
           });
           console.log(`📏 HTML'den beden: ${sizeText}`);
         }
@@ -928,6 +997,33 @@ function extractStockVariants(htmlContent: string) {
   console.log(`✅ Detaylı beden bilgisi: ${variants.sizeDetails.length} adet`);
   
   return variants;
+}
+
+// Yardımcı fonksiyonlar
+function extractColorFromTitle(title: string): string | null {
+  if (!title) return null;
+  const colors = ['Siyah', 'Beyaz', 'Gri', 'Lacivert', 'Kırmızı', 'Mavi', 'Yeşil', 'Sarı', 'Turuncu', 'Mor', 'Pembe', 'Kahverengi'];
+  const lowerTitle = title.toLowerCase();
+  
+  for (const color of colors) {
+    if (lowerTitle.includes(color.toLowerCase())) {
+      return color;
+    }
+  }
+  return null;
+}
+
+function extractSizeFromTitle(title: string): string | null {
+  if (!title) return null;
+  const sizes = ['XS', 'S', 'M', 'L', 'XL', 'XXL', 'XXXL', '2XL', '3XL'];
+  const upperTitle = title.toUpperCase();
+  
+  for (const size of sizes) {
+    if (upperTitle.includes(size)) {
+      return size;
+    }
+  }
+  return null;
 }
 
 // Yardımcı fonksiyon: Objelerden beden çıkarma
