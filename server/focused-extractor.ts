@@ -378,8 +378,28 @@ export async function extractFocusedData(url: string): Promise<FocusedProductDat
         });
       }
       
-      const stockCount = parseInt(variant.stock || variant.stockCount || variant.quantity || '0');
-      const inStock = stockCount > 0;
+      // Stok durumu kontrolü - daha detaylı
+      let stockCount = 0;
+      let inStock = false;
+      
+      if (variant.stock !== undefined) {
+        stockCount = parseInt(variant.stock) || 0;
+      } else if (variant.stockCount !== undefined) {
+        stockCount = parseInt(variant.stockCount) || 0;
+      } else if (variant.quantity !== undefined) {
+        stockCount = parseInt(variant.quantity) || 0;
+      }
+      
+      // inStock boolean kontrolü - RAW veriden al
+      if (variant.inStock !== undefined) {
+        inStock = Boolean(variant.inStock);
+        console.log(`  📦 RAW inStock değeri: ${variant.inStock} → ${inStock}`);
+      } else {
+        inStock = stockCount > 0;
+        console.log(`  📦 Stock count'tan hesaplanan: ${stockCount} → ${inStock}`);
+      }
+      
+      console.log(`  📦 Stok Bilgisi: count=${stockCount}, inStock=${inStock}`);
       
       console.log(`  → Final: color="${color}", size="${size}"`);
       
@@ -565,7 +585,18 @@ export async function extractFocusedData(url: string): Promise<FocusedProductDat
   
   console.log(`🔧 Final beden filtreleme öncesi: [${Array.from(sizeSet).join(', ')}]`);
   
-  const sizeOptions = Array.from(sizeSet).filter(size => {
+  // Sadece stokta olan bedenleri al
+  const inStockSizes = new Set<string>();
+  variants.forEach(variant => {
+    if (variant.inStock && variant.size !== 'Tek Beden') {
+      inStockSizes.add(variant.size);
+    }
+  });
+  
+  console.log(`📦 Stokta olan bedenler: [${Array.from(inStockSizes).join(', ')}]`);
+  console.log(`📦 Stokta olmayan bedenler: [${Array.from(outOfStockSizes).join(', ')}]`);
+  
+  const sizeOptions = Array.from(inStockSizes).filter(size => {
     const isValid = size !== 'Tek Beden' && 
       size.length > 0 && 
       size.length <= 5 &&
@@ -573,7 +604,7 @@ export async function extractFocusedData(url: string): Promise<FocusedProductDat
       !size.includes('null') &&
       /^[A-Za-z0-9\/\-]+$/.test(size);
     
-    console.log(`Beden "${size}" kontrol: ${isValid ? 'GEÇERLİ' : 'GEÇERSİZ'}`);
+    console.log(`Beden "${size}" kontrol: ${isValid ? 'GEÇERLİ' : 'GEÇERSİZ'} (Stokta: VAR)`);
     return isValid;
   }).sort((a, b) => {
     const numA = parseInt(a);
@@ -588,7 +619,11 @@ export async function extractFocusedData(url: string): Promise<FocusedProductDat
   
   console.log(`✓ Varyantlar: ${variants.length} adet`);
   console.log(`✓ Renk seçenekleri: ${colorOptions.length} adet - ${colorOptions.join(', ')}`);
-  console.log(`✓ Beden seçenekleri: ${sizeOptions.length} adet - ${sizeOptions.join(', ')}`);
+  console.log(`✓ Beden seçenekleri: ${sizeOptions.length} adet - ${sizeOptions.join(', ')} (SADECE STOKTA OLANLAR)`);
+  
+  if (outOfStockSizes.size > 0) {
+    console.log(`⚠️ Stokta olmayan bedenler CSV'ye eklenmedi: ${Array.from(outOfStockSizes).join(', ')}`);
+  }
   
   // 6. ÖZELLİKLER - Tüm ürün özelliklerini çıkar
   const features: Array<{
