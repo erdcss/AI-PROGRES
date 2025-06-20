@@ -73,12 +73,25 @@ export async function extractFocusedData(url: string): Promise<FocusedProductDat
       let imageUrl = null;
       
       // Farklı görsel formatları kontrol et
-      if (typeof img === 'string' && img.includes('dsmcdn.com')) {
-        imageUrl = img;
-      } else if (img?.url && typeof img.url === 'string' && img.url.includes('dsmcdn.com')) {
-        imageUrl = img.url;
-      } else if (img?.link && typeof img.link === 'string' && img.link.includes('dsmcdn.com')) {
-        imageUrl = img.link;
+      if (typeof img === 'string') {
+        if (img.includes('dsmcdn.com')) {
+          imageUrl = img;
+        } else if (img.startsWith('/')) {
+          // Relative URL'i absolute'a çevir
+          imageUrl = `https://cdn.dsmcdn.com${img}`;
+        }
+      } else if (img?.url && typeof img.url === 'string') {
+        if (img.url.includes('dsmcdn.com')) {
+          imageUrl = img.url;
+        } else if (img.url.startsWith('/')) {
+          imageUrl = `https://cdn.dsmcdn.com${img.url}`;
+        }
+      } else if (img?.link && typeof img.link === 'string') {
+        if (img.link.includes('dsmcdn.com')) {
+          imageUrl = img.link;
+        } else if (img.link.startsWith('/')) {
+          imageUrl = `https://cdn.dsmcdn.com${img.link}`;
+        }
       }
       
       if (imageUrl && !images.includes(imageUrl)) {
@@ -172,6 +185,17 @@ export async function extractFocusedData(url: string): Promise<FocusedProductDat
     });
   }
   
+  // Manuel relative URL dönüştürme - tüm ürünler için
+  if (images.length === 0 && product?.images && Array.isArray(product.images)) {
+    product.images.forEach((img: any, index: number) => {
+      if (typeof img === 'string' && img.startsWith('/')) {
+        const fullUrl = `https://cdn.dsmcdn.com${img}`;
+        images.push(fullUrl);
+        console.log(`📸 Manuel dönüştürme ${index + 1}: ${fullUrl}`);
+      }
+    });
+  }
+  
   console.log(`✓ Görseller: ${images.length} adet`);
   
   // Debug: Görsel verilerini detaylı logla
@@ -183,6 +207,15 @@ export async function extractFocusedData(url: string): Promise<FocusedProductDat
     
     if (product?.images && product.images.length > 0) {
       console.log(`🔍 İlk görsel objesi:`, JSON.stringify(product.images[0], null, 2));
+      
+      // Manuel relative URL dönüştürme
+      product.images.forEach((img: any, index: number) => {
+        if (typeof img === 'string' && img.startsWith('/')) {
+          const fullUrl = `https://cdn.dsmcdn.com${img}`;
+          images.push(fullUrl);
+          console.log(`📸 Manuel dönüştürme ${index + 1}: ${fullUrl}`);
+        }
+      });
     }
   } else {
     console.log(`✅ İlk görsel: ${images[0]}`);
