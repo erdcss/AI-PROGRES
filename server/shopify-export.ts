@@ -331,7 +331,7 @@ export async function generateShopifyCSV(
     row.published_at = new Date().toISOString(); // Şu anki tarih/saat
     
     // 5. Shopify Türkiye için zorunlu alanları - HER ZAMAN SET ET
-    row.variant_inventory_policy = 'deny'; // Shopify kabul edilen: deny, continue
+    row.variant_inventory_policy: "continue", continue
     row.variant_fulfillment_service = 'manual'; // Shopify kabul edilen: manual, automatic
     
     // 6. Temel envanter ve durum ayarları - zorunlu alanlar
@@ -601,7 +601,7 @@ ${product.category ? `• Kategori: ${product.category}` : ''}`;
         variant_grams: '500',
         variant_inventory_tracker: 'shopify',
         variant_inventory_qty: '50',
-        variant_inventory_policy: 'deny',
+        variant_inventory_policy: "continue"',
         variant_fulfillment_service: 'manual',
         variant_price: product.price || '0.00',
         variant_compare_at_price: '', // Remove compare price completely
@@ -713,7 +713,7 @@ ${product.category ? `• Kategori: ${product.category}` : ''}`;
             variant_grams: '500',
             variant_inventory_tracker: 'shopify',
             variant_inventory_qty: '50',
-            variant_inventory_policy: 'deny',
+            variant_inventory_policy: "continue"',
             variant_fulfillment_service: 'manual',
             variant_price: product.price || '0.00',
             variant_compare_at_price: '',
@@ -772,7 +772,7 @@ ${product.category ? `• Kategori: ${product.category}` : ''}`;
             variant_grams: '500',
             variant_inventory_tracker: 'shopify',
             variant_inventory_qty: '50',
-            variant_inventory_policy: 'deny',
+            variant_inventory_policy: "continue"',
             variant_fulfillment_service: 'manual',
             variant_price: product.price || '0.00',
             variant_compare_at_price: '',
@@ -994,7 +994,7 @@ ${product.category ? `• Kategori: ${product.category}` : ''}`;
             'variant_grams': '500',
             'variant_inventory_tracker': 'shopify',
             'variant_inventory_qty': '50',
-            'variant_inventory_policy': 'deny',
+            'variant_inventory_policy: "continue"',
             'variant_fulfillment_service': 'manual',
             'variant_price': product.price,
             'variant_compare_at_price': '',
@@ -1110,7 +1110,7 @@ ${product.category ? `• Kategori: ${product.category}` : ''}`;
                 'variant_grams': '500',
                 'variant_inventory_tracker': 'shopify',
                 'variant_inventory_qty': '50',
-                'variant_inventory_policy': 'deny',
+                'variant_inventory_policy: "continue"',
                 'variant_fulfillment_service': 'manual',
                 'variant_price': product.price,
                 'variant_compare_at_price': '',
@@ -1172,7 +1172,7 @@ ${product.category ? `• Kategori: ${product.category}` : ''}`;
             'variant_grams': '500',
             'variant_inventory_tracker': 'shopify',
             'variant_inventory_qty': '50',
-            'variant_inventory_policy': 'deny',
+            'variant_inventory_policy: "continue"',
             'variant_fulfillment_service': 'manual',
             'variant_price': product.price,
             'variant_compare_at_price': '',
@@ -1247,7 +1247,7 @@ ${product.category ? `• Kategori: ${product.category}` : ''}`;
               variant_grams: '500',
               variant_inventory_tracker: 'shopify',
               variant_inventory_qty: '50',
-              variant_inventory_policy: 'deny',
+              variant_inventory_policy: "continue"',
               variant_fulfillment_service: 'manual',
               variant_price: product.price,
               variant_compare_at_price: '',
@@ -1305,7 +1305,7 @@ ${product.category ? `• Kategori: ${product.category}` : ''}`;
             variant_grams: '500',
             variant_inventory_tracker: 'shopify',
             variant_inventory_qty: '50',
-            variant_inventory_policy: 'deny',
+            variant_inventory_policy: "continue"',
             variant_fulfillment_service: 'manual',
             variant_price: product.price,
             variant_compare_at_price: product.basePrice || '',
@@ -1374,7 +1374,7 @@ ${product.category ? `• Kategori: ${product.category}` : ''}`;
               variant_grams: '500',
               variant_inventory_tracker: 'shopify',
               variant_inventory_qty: '50',
-              variant_inventory_policy: 'deny',
+              variant_inventory_policy: "continue"',
               variant_fulfillment_service: 'manual',
               variant_price: product.price,
               variant_requires_shipping: 'TRUE',
@@ -1409,7 +1409,7 @@ ${product.category ? `• Kategori: ${product.category}` : ''}`;
             variant_grams: '500',
             variant_inventory_tracker: 'shopify',
             variant_inventory_qty: '50',
-            variant_inventory_policy: 'deny',
+            variant_inventory_policy: "continue"',
             variant_fulfillment_service: 'manual',
             variant_price: product.price,
             variant_requires_shipping: 'TRUE',
@@ -1440,7 +1440,7 @@ ${product.category ? `• Kategori: ${product.category}` : ''}`;
                 variant_grams: '500',
                 variant_inventory_tracker: 'shopify',
                 variant_inventory_qty: '50',
-                variant_inventory_policy: 'deny',
+                variant_inventory_policy: "continue"',
                 variant_fulfillment_service: 'manual',
                 variant_price: product.price,
                 variant_requires_shipping: 'TRUE',
@@ -1471,7 +1471,7 @@ ${product.category ? `• Kategori: ${product.category}` : ''}`;
             variant_grams: '1000',
             variant_inventory_tracker: 'shopify',
             variant_inventory_qty: '50',
-            variant_inventory_policy: 'deny',
+            variant_inventory_policy: "continue"',
             variant_fulfillment_service: 'manual',
             variant_price: product.price,
             variant_requires_shipping: 'TRUE',
@@ -1507,7 +1507,7 @@ ${product.category ? `• Kategori: ${product.category}` : ''}`;
             variant_grams: '500',
             variant_inventory_tracker: 'shopify',
             variant_inventory_qty: '50',
-            variant_inventory_policy: 'deny',
+            variant_inventory_policy: "continue"',
             variant_fulfillment_service: 'manual',
             variant_price: product.price,
             variant_compare_at_price: product.basePrice || '',
@@ -1875,7 +1875,7 @@ ${product.category ? `• Kategori: ${product.category}` : ''}`;
         
         // SHOPIFY COMPLIANCE - ACCEPTED ENGLISH VALUES  
         newRow.status = 'active'; // Shopify accepted: active, draft, archived
-        newRow.variant_inventory_policy = 'deny'; // Shopify accepted: deny, continue
+        newRow.variant_inventory_policy: "continue", continue
         newRow.variant_fulfillment_service = 'manual'; // Shopify accepted: manual, automatic
         
         // SHOPIFY VARYANT FIX: Option değerlerini koru
@@ -1933,7 +1933,7 @@ ${product.category ? `• Kategori: ${product.category}` : ''}`;
         variant_grams: '500',
         variant_inventory_tracker: 'shopify',
         variant_inventory_qty: '50',
-        variant_inventory_policy: 'deny',
+        variant_inventory_policy: "continue"',
         variant_fulfillment_service: 'manual',
         variant_price: product.price || '0.00',
         variant_compare_at_price: product.basePrice || '',

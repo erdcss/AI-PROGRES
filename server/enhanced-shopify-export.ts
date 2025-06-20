@@ -293,7 +293,7 @@ export async function generateEnhancedShopifyCSV(
       
       // Envanter ayarları
       variant_inventory_qty: "10",
-      variant_inventory_policy: "deny",
+      variant_inventory_policy: "continue",
       variant_inventory_tracker: "shopify",
       variant_fulfillment_service: "manual",
       

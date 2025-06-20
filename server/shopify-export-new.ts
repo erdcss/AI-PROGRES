@@ -233,7 +233,7 @@ export function generateShopifyCSV(
     row.published_at = new Date().toISOString(); // Şu anki tarih/saat
     
     // 5. Shopify'da varyant ayarları için kritik değişiklikler
-    row.variant_inventory_policy = 'deny'; // Şart
+    row.variant_inventory_policy: "continue"'; // Şart
     row.variant_fulfillment_service = 'manual'; // Şart
     
     // 6. Temel envanter ve durum ayarları
@@ -469,7 +469,7 @@ export function generateShopifyCSV(
             variant_grams: '500',
             variant_inventory_tracker: 'shopify',
             variant_inventory_qty: '50',
-            variant_inventory_policy: 'deny',
+            variant_inventory_policy: "continue"',
             variant_fulfillment_service: 'manual',
             variant_price: product.price,
             variant_requires_shipping: 'TRUE',
@@ -497,7 +497,7 @@ export function generateShopifyCSV(
               variant_grams: '500',
               variant_inventory_tracker: 'shopify',
               variant_inventory_qty: '50',
-              variant_inventory_policy: 'deny',
+              variant_inventory_policy: "continue"',
               variant_fulfillment_service: 'manual',
               variant_price: product.price,
               variant_requires_shipping: 'TRUE',
@@ -532,7 +532,7 @@ export function generateShopifyCSV(
             variant_grams: '500',
             variant_inventory_tracker: 'shopify',
             variant_inventory_qty: '50',
-            variant_inventory_policy: 'deny',
+            variant_inventory_policy: "continue"',
             variant_fulfillment_service: 'manual',
             variant_price: product.price,
             variant_requires_shipping: 'TRUE',
@@ -559,7 +559,7 @@ export function generateShopifyCSV(
               variant_grams: '500',
               variant_inventory_tracker: 'shopify',
               variant_inventory_qty: '50',
-              variant_inventory_policy: 'deny',
+              variant_inventory_policy: "continue"',
               variant_fulfillment_service: 'manual',
               variant_price: product.price,
               variant_requires_shipping: 'TRUE',
@@ -594,7 +594,7 @@ export function generateShopifyCSV(
             variant_grams: '500',
             variant_inventory_tracker: 'shopify',
             variant_inventory_qty: '50',
-            variant_inventory_policy: 'deny',
+            variant_inventory_policy: "continue"',
             variant_fulfillment_service: 'manual',
             variant_price: product.price,
             variant_requires_shipping: 'TRUE',
@@ -625,7 +625,7 @@ export function generateShopifyCSV(
                 variant_grams: '500',
                 variant_inventory_tracker: 'shopify',
                 variant_inventory_qty: '50',
-                variant_inventory_policy: 'deny',
+                variant_inventory_policy: "continue"',
                 variant_fulfillment_service: 'manual',
                 variant_price: product.price,
                 variant_requires_shipping: 'TRUE',
@@ -656,7 +656,7 @@ export function generateShopifyCSV(
             variant_grams: '1000',
             variant_inventory_tracker: 'shopify',
             variant_inventory_qty: '50',
-            variant_inventory_policy: 'deny',
+            variant_inventory_policy: "continue"',
             variant_fulfillment_service: 'manual',
             variant_price: product.price,
             variant_requires_shipping: 'TRUE',
@@ -694,7 +694,7 @@ export function generateShopifyCSV(
             variant_grams: '500',
             variant_inventory_tracker: 'shopify',
             variant_inventory_qty: '50',
-            variant_inventory_policy: 'deny',
+            variant_inventory_policy: "continue"',
             variant_fulfillment_service: 'manual',
             variant_price: product.price,
             variant_requires_shipping: 'TRUE',
