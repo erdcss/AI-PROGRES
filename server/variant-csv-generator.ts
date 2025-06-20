@@ -58,7 +58,7 @@ export function generateVariantCSV(productData: any): { csvContent: string; file
     Tags: tags,
     'Variant Grams': '',
     'Variant Inventory Tracker': 'shopify',
-    'Variant Inventory Policy': 'deny',
+    'Variant Inventory Policy': 'continue',
     'Variant Fulfillment Service': 'manual',
     'Variant Requires Shipping': 'TRUE',
     'Variant Taxable': 'TRUE',

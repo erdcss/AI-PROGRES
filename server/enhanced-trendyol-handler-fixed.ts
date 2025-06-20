@@ -533,7 +533,7 @@ export async function scrapeTrendyolProduct(inputUrl: string) {
           '145',
           'shopify',
           '10',
-          'deny',
+          'continue',
           'manual',
           finalPrice,
           '',

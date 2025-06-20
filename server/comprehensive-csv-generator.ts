@@ -98,7 +98,7 @@ export function generateComprehensiveCSV(scrapyData: ScrapyProductData[]): {
       'Variant Grams': '500',
       'Variant Inventory Tracker': 'shopify',
       'Variant Inventory Qty': product.stockCount.toString(),
-      'Variant Inventory Policy': 'deny',
+      'Variant Inventory Policy': 'continue',
       'Variant Fulfillment Service': 'manual',
       'Variant Price': finalPrice.toString(),
       'Variant Compare At Price': compareAtPrice.toString(),

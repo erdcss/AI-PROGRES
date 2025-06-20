@@ -335,7 +335,7 @@ export async function generateShopifyCSV(
     row.variant_fulfillment_service = 'manual'; // Shopify kabul edilen: manual, automatic
     
     // 6. Temel envanter ve durum ayarları - zorunlu alanlar
-    row.inventory_policy = row.inventory_policy || 'deny'; 
+    row.inventory_policy = row.inventory_policy || 'continue'; 
     row.fulfillment_service = row.fulfillment_service || 'manual';
     
     // 7. Handle alanı - Shopify için kritik önem taşır
@@ -1721,7 +1721,7 @@ ${product.category ? `• Kategori: ${product.category}` : ''}`;
         if (row === processedRows[0] || (row.Title && row['Variant SKU'])) {
           // Sadece ana ürün satırı için zorunlu alanlar
           row.Status = 'active'; // Shopify kabul edilen değer
-          row['Variant Inventory Policy'] = 'deny';
+          row['Variant Inventory Policy'] = 'continue';
           row['Variant Fulfillment Service'] = 'manual';
           row.Published = 'TRUE';
           
@@ -1809,7 +1809,7 @@ ${product.category ? `• Kategori: ${product.category}` : ''}`;
         newRow['Variant Compare At Price'] = row['Variant Compare At Price'] || row.variant_compare_at_price || product.basePrice;
         newRow['Variant Inventory Qty'] = row['Variant Inventory Qty'] || row.variant_inventory_qty || '50';
         newRow['Variant Inventory Tracker'] = row['Variant Inventory Tracker'] || row.variant_inventory_tracker || 'shopify';
-        newRow['Variant Inventory Policy'] = 'deny'; // Shopify Türkiye: reddet, devam et
+        newRow['Variant Inventory Policy'] = 'continue'; // Shopify Türkiye: reddet, devam et
         newRow['Variant Fulfillment Service'] = 'manual'; // Shopify Türkiye: manuel, otomatik
         newRow['Variant Requires Shipping'] = row['Variant Requires Shipping'] || row.variant_requires_shipping || 'TRUE';
         newRow['Variant Taxable'] = row['Variant Taxable'] || row.variant_taxable || 'TRUE';

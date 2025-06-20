@@ -237,7 +237,7 @@ export function generateShopifyCSV(
     row.variant_fulfillment_service = 'manual'; // Şart
     
     // 6. Temel envanter ve durum ayarları
-    row.inventory_policy = 'deny';
+    row.inventory_policy = 'continue';
     row.fulfillment_service = 'manual';
     
     // 7. Handle alanı - Shopify için kritik önem taşır
