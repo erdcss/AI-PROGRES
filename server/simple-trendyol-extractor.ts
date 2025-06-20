@@ -1,5 +1,6 @@
 /**
- * Basit Trendyol Extractor - Sadece temel ürün verilerini çıkarır
+ * Basit Trendyol Extractor - Eski versiyon, artık kullanılmıyor
+ * Yeni sistem: focused-extractor.ts
  */
 
 export interface SimpleTrendyolData {
