@@ -1818,8 +1818,8 @@ export async function registerRoutes(app: Express) {
     }
   });
 
-  // Debug extraction endpoint
-  app.post('/api/debug-extract', async (req, res) => {
+  // Ana extraction endpoint - Sadece istenen 5 veri tipi
+  app.post('/api/extract', async (req, res) => {
     try {
       const { url } = req.body;
       
@@ -1827,13 +1827,23 @@ export async function registerRoutes(app: Express) {
         return res.status(400).json({ error: 'URL gerekli' });
       }
 
-      const { debugSimpleExtraction } = await import('./debug-simple-extractor');
-      const result = await debugSimpleExtraction(url);
+      const { extractFocusedData } = await import('./focused-extractor');
+      const result = await extractFocusedData(url);
       
-      res.json(result);
+      res.json({
+        success: true,
+        brand: result.brand,
+        title: result.title,
+        images: result.images,
+        variants: result.variants,
+        features: result.features
+      });
     } catch (error) {
-      console.error('Debug extraction hatası:', error);
-      res.status(500).json({ error: 'Debug extraction başarısız' });
+      console.error('Extraction hatası:', error);
+      res.status(500).json({ 
+        success: false,
+        error: error.message 
+      });
     }
   });
 
