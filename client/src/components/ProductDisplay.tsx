@@ -90,7 +90,7 @@ export function ProductDisplay({ data }: ProductDisplayProps) {
               <div className="flex flex-wrap gap-2">
                 {data.categories?.map((category, index) => (
                   <Badge key={index} variant="outline" className="border-gray-600 text-gray-300">
-                    {category}
+                    {String(category)}
                   </Badge>
                 )) || <span className="text-gray-500">Kategori bilgisi yok</span>}
               </div>
@@ -101,7 +101,7 @@ export function ProductDisplay({ data }: ProductDisplayProps) {
               <div className="space-y-1 text-sm text-gray-400">
                 {Object.entries(data.attributes || {}).map(([key, value]) => (
                   <div key={key}>
-                    <span className="font-medium">{key}:</span> {value}
+                    <span className="font-medium">{String(key)}:</span> {String(value)}
                   </div>
                 ))}
               </div>
