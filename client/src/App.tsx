@@ -4,6 +4,7 @@ import { QueryClientProvider } from "@tanstack/react-query";
 import { Toaster } from "@/components/ui/toaster";
 import NotFound from "@/pages/not-found";
 import ScraperPage from "@/pages/scraper";
+import PriceComparisonPage from "@/pages/price-comparison";
 import MarketplaceSelection from "@/pages/marketplace-selection";
 import ComingSoon from "@/pages/coming-soon";
 // Removed auto-csv page import
@@ -206,6 +207,11 @@ function Router() {
             </div>
           </PageTransition>
         )}
+      </Route>
+      <Route path="/price-comparison">
+        <PageTransition>
+          <PriceComparisonPage />
+        </PageTransition>
       </Route>
       <Route>
         <PageTransition>
