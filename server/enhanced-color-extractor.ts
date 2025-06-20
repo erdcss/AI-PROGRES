@@ -100,6 +100,29 @@ function extractColorsFromScripts(htmlContent: string, colors: ColorVariant[], c
         });
       }
       
+      // Advanced color extraction from allVariants
+      if (productState.product?.allVariants) {
+        productState.product.allVariants.forEach((variant: any) => {
+          if (variant.attributeValue) {
+            const colorName = variant.attributeValue;
+            const variantImages = variant.images || [];
+            const colorVariant: ColorVariant = {
+              name: colorName,
+              images: variantImages,
+              available: variant.isAvailable !== false,
+              price: variant.price,
+              code: variant.itemNumber
+            };
+            colors.push(colorVariant);
+            
+            if (variantImages.length > 0) {
+              if (!colorImageMap[colorName]) colorImageMap[colorName] = [];
+              colorImageMap[colorName].push(...variantImages);
+            }
+          }
+        });
+      }
+      
       // Variants with color info
       if (productState.product?.variants) {
         productState.product.variants.forEach((variant: any) => {
@@ -134,16 +157,18 @@ function extractColorsFromScripts(htmlContent: string, colors: ColorVariant[], c
     }
   }
   
-  // Merchant data extraction
+  // Merchant data extraction - Enhanced
   const merchantMatches = htmlContent.matchAll(/"merchants":\s*\[([^\]]+)\]/g);
   for (const match of merchantMatches) {
     try {
       const merchantsData = JSON.parse(`[${match[1]}]`);
       merchantsData.forEach((merchant: any) => {
-        if (merchant.url && merchant.url.includes('renk=')) {
+        if (merchant.url) {
           const colorMatch = merchant.url.match(/renk=([^&]+)/);
+          const sizeMatch = merchant.url.match(/beden=([^&]+)/);
+          
           if (colorMatch) {
-            const colorName = decodeURIComponent(colorMatch[1]);
+            const colorName = decodeURIComponent(colorMatch[1]).replace(/\+/g, ' ');
             const colorVariant: ColorVariant = {
               name: colorName,
               images: merchant.image ? [merchant.image] : [],
@@ -155,6 +180,50 @@ function extractColorsFromScripts(htmlContent: string, colors: ColorVariant[], c
             if (merchant.image) {
               if (!colorImageMap[colorName]) colorImageMap[colorName] = [];
               colorImageMap[colorName].push(merchant.image);
+            }
+          } else if (merchant.color || merchant.colorName) {
+            // Direct color from merchant
+            const colorName = merchant.color || merchant.colorName;
+            const colorVariant: ColorVariant = {
+              name: colorName,
+              images: merchant.image ? [merchant.image] : [],
+              available: merchant.isAvailable !== false,
+              price: merchant.price
+            };
+            colors.push(colorVariant);
+            
+            if (merchant.image) {
+              if (!colorImageMap[colorName]) colorImageMap[colorName] = [];
+              colorImageMap[colorName].push(merchant.image);
+            }
+          }
+        }
+      });
+    } catch (e) {}
+  }
+  
+  // Extract from product variants array
+  const variantArrayMatches = htmlContent.matchAll(/"variants":\s*\[([^\]]+)\]/g);
+  for (const match of variantArrayMatches) {
+    try {
+      const variantsData = JSON.parse(`[${match[1]}]`);
+      variantsData.forEach((variant: any) => {
+        if (variant.color || variant.colorName) {
+          const colorName = variant.color || variant.colorName;
+          const colorVariant: ColorVariant = {
+            name: colorName,
+            images: variant.images || (variant.image ? [variant.image] : []),
+            available: variant.isAvailable !== false,
+            price: variant.price
+          };
+          colors.push(colorVariant);
+          
+          if (variant.images || variant.image) {
+            if (!colorImageMap[colorName]) colorImageMap[colorName] = [];
+            if (variant.images) {
+              colorImageMap[colorName].push(...variant.images);
+            } else if (variant.image) {
+              colorImageMap[colorName].push(variant.image);
             }
           }
         }

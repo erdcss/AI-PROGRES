@@ -231,24 +231,42 @@ export function AIEnhancedProductDisplay({ productData }: AIEnhancedProductDispl
                   {colorDetails.colors && colorDetails.colors.length > 0 && (
                     <div className="mt-3">
                       <h5 className="font-medium mb-2">Detaylı Renk Bilgileri</h5>
-                      <div className="grid grid-cols-1 md:grid-cols-2 gap-2">
+                      <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
                         {colorDetails.colors.map((colorInfo: any, index: number) => (
-                          <div key={index} className={`p-2 rounded border ${colorInfo.available ? 'bg-green-50' : 'bg-red-50'}`}>
-                            <div className="flex items-center gap-2">
-                              {colorInfo.hex && (
-                                <div 
-                                  className="w-4 h-4 rounded border" 
-                                  style={{ backgroundColor: colorInfo.hex }}
-                                ></div>
-                              )}
-                              <span className="font-medium">{colorInfo.name}</span>
-                              {!colorInfo.available && (
-                                <span className="text-xs text-red-600">(Stokta Yok)</span>
+                          <div key={index} className={`p-3 rounded border ${colorInfo.available ? 'bg-green-50' : 'bg-red-50'}`}>
+                            <div className="flex items-center justify-between mb-2">
+                              <div className="flex items-center gap-2">
+                                {colorInfo.hex && (
+                                  <div 
+                                    className="w-4 h-4 rounded border" 
+                                    style={{ backgroundColor: colorInfo.hex }}
+                                  ></div>
+                                )}
+                                <span className="font-medium">{colorInfo.name}</span>
+                                {!colorInfo.available && (
+                                  <span className="text-xs text-red-600">(Stokta Yok)</span>
+                                )}
+                              </div>
+                              {colorInfo.price && (
+                                <span className="text-sm font-bold text-green-600">{colorInfo.price} TL</span>
                               )}
                             </div>
                             {colorInfo.images && colorInfo.images.length > 0 && (
-                              <div className="text-xs text-gray-500 mt-1">
-                                {colorInfo.images.length} görsel
+                              <div className="mt-2">
+                                <div className="text-xs text-gray-500 mb-1">
+                                  {colorInfo.images.length} görsel
+                                </div>
+                                <div className="grid grid-cols-3 gap-1">
+                                  {colorInfo.images.slice(0, 3).map((img: string, imgIdx: number) => (
+                                    <img 
+                                      key={imgIdx} 
+                                      src={img} 
+                                      alt={`${colorInfo.name} ${imgIdx + 1}`} 
+                                      className="w-full aspect-square object-cover rounded border"
+                                      loading="lazy"
+                                    />
+                                  ))}
+                                </div>
                               </div>
                             )}
                           </div>
