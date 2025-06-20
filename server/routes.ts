@@ -1818,6 +1818,43 @@ export async function registerRoutes(app: Express) {
     }
   });
 
+  // Basit Trendyol extraction endpoint'i
+  app.post('/api/simple-extract', async (req, res) => {
+    try {
+      const { url } = req.body;
+      
+      if (!url) {
+        return res.status(400).json({ error: 'URL gerekli' });
+      }
+
+      const { extractSimpleTrendyolData } = await import('./simple-trendyol-extractor');
+      const result = await extractSimpleTrendyolData(url);
+      
+      if (!result.success || !result.data) {
+        return res.status(400).json({ 
+          error: result.error || 'Ürün verisi alınamadı'
+        });
+      }
+
+      res.json({
+        success: true,
+        brand: result.data.brand,
+        title: result.data.title,
+        images: result.data.images,
+        variants: result.data.variants,
+        features: result.data.features,
+        summary: {
+          imageCount: result.data.images.length,
+          variantCount: result.data.variants.length,
+          featureCount: result.data.features.length
+        }
+      });
+    } catch (error) {
+      console.error('Basit extraction hatası:', error);
+      res.status(500).json({ error: 'Extraction başarısız' });
+    }
+  });
+
   // Varyant doğrulama endpoint'i
   app.post('/api/validate-variants', async (req, res) => {
     try {
