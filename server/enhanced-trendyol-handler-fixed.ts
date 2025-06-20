@@ -338,7 +338,7 @@ export async function scrapeTrendyolProduct(inputUrl: string) {
     console.log('🎨 AI ile renk tespiti başlatılıyor...');
     const aiColorMap = await detectColorsWithAI(combinedImages.slice(0, 8));
     
-    const cleanImages = combinedImages;
+    const cleanImages = combinedImages.slice(0, 50); // Maksimum 50 görsel için performans
     console.log(`🖼️ AI destekli görsel çıkarma tamamlandı: ${cleanImages.length} toplam görsel (AI kalite skoru: ${aiImageResult.qualityScore.toFixed(2)}/3.0)`);
     console.log(`🎨 AI renk tespiti: ${Object.keys(aiColorMap).length} görsel analiz edildi`);
     

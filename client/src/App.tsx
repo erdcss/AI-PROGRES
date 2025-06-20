@@ -16,6 +16,7 @@ import { Button } from "@/components/ui/button";
 import { Label } from "@/components/ui/label";
 import { Lock, ShieldCheck, AlertCircle } from "lucide-react";
 import { PageTransition } from "@/components/PageTransition";
+import { AIBrandLogo } from "@/components/AILogo";
 
 // Login component with password protection
 function LoginScreen({ onLogin }: { onLogin: () => void }) {
@@ -75,7 +76,10 @@ function LoginScreen({ onLogin }: { onLogin: () => void }) {
   return (
     <div className="flex items-center justify-center min-h-screen bg-gradient-to-b from-slate-900 to-slate-800">
       <Card className="w-[380px] shadow-xl border-slate-700">
-        <CardHeader className="space-y-1">
+        <CardHeader className="space-y-4">
+          <div className="flex justify-center">
+            <AIBrandLogo />
+          </div>
           <CardTitle className="text-2xl text-center">
             <div className="flex items-center justify-center gap-2">
               <Lock className="h-6 w-6 text-blue-500" />
