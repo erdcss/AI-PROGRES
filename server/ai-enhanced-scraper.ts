@@ -13,10 +13,10 @@ function extractOriginalProductImages(htmlContent: string): string[] {
   
   console.log('🔍 Görsel arama başlatılıyor...');
   
-  // 1. Tüm dsmcdn.com görsellerini çıkar
+  // 1. Sadece orijinal ürün görsellerini çıkar (mnresize hariç)
   const allImageMatches = htmlContent.matchAll(/"(https?:\/\/[^"]*cdn\.dsmcdn\.com[^"]*\.(jpg|jpeg|png|webp)[^"]*)"/gi);
   for (const match of allImageMatches) {
-    if (match[1]) {
+    if (match[1] && !match[1].includes('mnresize') && !match[1].includes('seller-store')) {
       images.add(match[1]);
       console.log('📸 Bulunan görsel:', match[1].substring(0, 80) + '...');
     }
@@ -35,34 +35,55 @@ function extractOriginalProductImages(htmlContent: string): string[] {
     }
   }
   
-  // 3. HTML img tag'lerinden
+  // 3. HTML img tag'lerinden (mnresize hariç)
   const imgRegex = /<img[^>]+src=["']([^"']+)["'][^>]*>/gi;
   let imgMatch;
   while ((imgMatch = imgRegex.exec(htmlContent)) !== null) {
     const src = imgMatch[1];
-    if (src && src.includes('dsmcdn.com')) {
+    if (src && src.includes('dsmcdn.com') && !src.includes('mnresize') && !src.includes('seller-store')) {
       images.add(src);
     }
   }
   
   console.log(`🔍 Toplam ${images.size} görsel bulundu`);
   
-  // 4. Filtreleme - sadece ürün görselleri
+  // 4. Filtreleme - sadece benzersiz ürün görselleri
   const productImages = Array.from(images).filter(url => {
     if (!url || !url.includes('dsmcdn.com')) return false;
     
-    // Hariç tutulacaklar - daha az kısıtlayıcı
-    const excludePatterns = ['web-pdp', 'cok_satanlar', 'footer', 'header', 'sprite', 'ui'];
+    // Hariç tutulacaklar - resize ve gereksiz görseller
+    const excludePatterns = ['mnresize', 'web-pdp', 'cok_satanlar', 'footer', 'header', 'sprite', 'ui', 'seller-store'];
     if (excludePatterns.some(pattern => url.toLowerCase().includes(pattern))) return false;
     
-    // Ürün görseli olma ihtimali yüksek olanlar
-    return url.includes('/product/') || url.includes('/prod/') || url.includes('/ty') && url.includes('.jpg');
+    // Sadece orijinal ürün görselleri
+    return (url.includes('/product/media/images/') && (url.includes('/PIM/') || url.includes('/QC/'))) ||
+           (url.includes('/prod/QC/') || url.includes('/prod/PIM/'));
   });
   
-  console.log(`✅ ${productImages.length} ürün görseli filtrelendi`);
-  productImages.forEach((img, i) => console.log(`${i+1}. ${img}`));
+  // 5. Benzersiz görselleri seç (hash bazlı tekrar kontrolü)
+  const uniqueImages = new Set<string>();
+  const seenHashes = new Set<string>();
   
-  return productImages;
+  productImages.forEach(url => {
+    // URL'den hash değerini çıkar
+    const hashMatch = url.match(/([a-f0-9]{8}-[a-f0-9]{4}-[a-f0-9]{4}-[a-f0-9]{4}-[a-f0-9]{12})/);
+    if (hashMatch) {
+      const hash = hashMatch[1];
+      if (!seenHashes.has(hash)) {
+        seenHashes.add(hash);
+        uniqueImages.add(url);
+      }
+    } else {
+      // Hash yoksa direkt ekle
+      uniqueImages.add(url);
+    }
+  });
+  
+  const finalImages = Array.from(uniqueImages);
+  console.log(`✅ ${finalImages.length} benzersiz ürün görseli filtrelendi`);
+  finalImages.forEach((img, i) => console.log(`${i+1}. ${img}`));
+  
+  return finalImages;
 }
 
 const anthropic = new Anthropic({
