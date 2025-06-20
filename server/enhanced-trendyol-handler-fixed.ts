@@ -118,6 +118,7 @@ export async function scrapeTrendyolProduct(inputUrl: string) {
     
     // 3. AI Destekli Görsel Çıkarma Sistemi
     console.log('🤖 AI destekli görsel çıkarma başlatılıyor...');
+    const productId = url.split('-p-')[1]?.split('?')[0] || 'unknown';
     const aiImageResult = await extractImagesWithAI(htmlContent, productId);
     
     // Extract ALL product images including color variants (geleneksel yöntem)
@@ -596,28 +597,6 @@ export async function scrapeTrendyolProduct(inputUrl: string) {
       
       // Kapsamlı AI analizi
       aiAnalysis
-    };
-      aiAnalysis: aiAnalysis,
-      stockInfo: multiVariantData.stockInfo || {},
-      outOfStockSizes: multiVariantData.outOfStockSizes || [],
-      availableSizes: multiVariantData.availableSizes || []
-    };
-
-    console.log(`✅ Ürün anlık olarak işlendi: ${basicProductData.title}`);
-    
-    console.log(`🔍 Kategori bilgisi: ${categoryInfo}`);
-    console.log(`🖼️ İlk görsel URL: ${absoluteImages[0]}`);
-    
-    return {
-      success: true,
-      ...productData,
-      csvGenerated,
-      totalVariants: variantData.colors.length * variantData.sizes.length,
-      variants: {
-        colors: variantData.colors,
-        sizes: variantData.sizes,
-        totalVariants: variantData.colors.length * variantData.sizes.length
-      }
     };
 
   } catch (error) {
