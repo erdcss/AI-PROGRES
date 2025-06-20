@@ -188,7 +188,7 @@ export async function extractFocusedData(url: string): Promise<FocusedProductDat
     console.log(`✅ İlk görsel: ${images[0]}`);
   }
   
-  // 4. VARYANTLAR
+  // 4. VARYANTLAR - Gelişmiş varyant çıkarma
   const variants: Array<{
     color: string;
     size: string;
@@ -201,9 +201,9 @@ export async function extractFocusedData(url: string): Promise<FocusedProductDat
       if (!variant) return;
       
       const attributes = variant.attributes || {};
-      const color = attributes.RENK || attributes.Renk || variant.color || 'Varsayılan';
-      const size = attributes.BEDEN || attributes.Beden || variant.size || 'Tek Beden';
-      const stockCount = parseInt(variant.stock || variant.stockCount || '0');
+      const color = attributes.RENK || attributes.Renk || attributes.renk || variant.color || 'Varsayılan';
+      const size = attributes.BEDEN || attributes.Beden || attributes.beden || variant.size || 'Tek Beden';
+      const stockCount = parseInt(variant.stock || variant.stockCount || variant.quantity || '0');
       const inStock = stockCount > 0;
       
       // Sadece stokta olanları ekle
@@ -218,9 +218,40 @@ export async function extractFocusedData(url: string): Promise<FocusedProductDat
     });
   }
   
+  // Alternatif varyant kaynakları kontrol et
+  if (variants.length === 0) {
+    const alternativeVariantSources = [
+      product.variants,
+      product.options,
+      productState.variants,
+      productState.product?.variants
+    ];
+    
+    alternativeVariantSources.forEach(source => {
+      if (source && Array.isArray(source)) {
+        source.forEach((variant: any) => {
+          if (variant && variant.inStock !== false) {
+            const color = variant.color || variant.renk || 'Varsayılan';
+            const size = variant.size || variant.beden || 'Tek Beden';
+            const stockCount = parseInt(variant.stock || variant.quantity || '1');
+            
+            if (stockCount > 0) {
+              variants.push({
+                color: String(color),
+                size: String(size),
+                inStock: true,
+                stockCount
+              });
+            }
+          }
+        });
+      }
+    });
+  }
+  
   console.log(`✓ Varyantlar: ${variants.length} adet (stokta)`);
   
-  // 5. ÖZELLİKLER
+  // 5. ÖZELLİKLER - Gelişmiş özellik çıkarma
   const features: Array<{
     key: string;
     value: string;
@@ -239,6 +270,51 @@ export async function extractFocusedData(url: string): Promise<FocusedProductDat
           key: key.trim(),
           value: value.trim()
         });
+      }
+    });
+  }
+  
+  // Alternatif özellik kaynakları
+  const alternativeFeatureSources = [
+    product.productAttributes,
+    product.specifications,
+    product.details,
+    productState.productDetail?.attributes,
+    productState.product?.specifications
+  ];
+  
+  alternativeFeatureSources.forEach(source => {
+    if (source && typeof source === 'object') {
+      Object.entries(source).forEach(([key, value]) => {
+        if (key && value && 
+            typeof key === 'string' && typeof value === 'string' &&
+            key.length > 1 && key.length < 50 &&
+            value.length > 1 && value.length < 100 &&
+            !features.some(f => f.key === key)) {
+          features.push({
+            key: key.trim(),
+            value: value.trim()
+          });
+        }
+      });
+    }
+  });
+  
+  // HTML'den özellik çıkarma
+  if (features.length < 5) {
+    const featureMatches = htmlContent.match(/"([^"]{3,30})":"([^"]{2,50})"/g) || [];
+    featureMatches.forEach(match => {
+      const parsed = match.match(/"([^"]+)":"([^"]+)"/);
+      if (parsed && parsed[1] && parsed[2] && features.length < 15) {
+        const key = parsed[1].trim();
+        const value = parsed[2].trim();
+        
+        if (key.length > 2 && value.length > 1 && 
+            !features.some(f => f.key === key) &&
+            !key.includes('url') && !key.includes('id') &&
+            !value.includes('http') && !value.includes('cdn')) {
+          features.push({ key, value });
+        }
       }
     });
   }

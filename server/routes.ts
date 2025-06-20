@@ -5,7 +5,7 @@ import * as cheerio from "cheerio";
 import path from "path";
 import fs from "fs";
 import { storage } from "./storage";
-import { scrapeProductWithPuppeteer } from "./fixed-puppeteer-scraper";
+// import { scrapeProductWithPuppeteer } from "./fixed-puppeteer-scraper";
 import { scrapeWithEnhancedMethod } from "./enhanced-trendyol-scraper";
 import { generateStrictShopifyCSV } from "./strict-csv-generator";
 import { instantCSVGenerator } from "./instant-csv-generator-fixed";
