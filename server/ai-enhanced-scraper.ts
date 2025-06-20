@@ -380,7 +380,9 @@ function extractAllImagesEnhanced(htmlContent: string, $: cheerio.CheerioAPI): s
     });
   });
   
-  return Array.from(images); // Maksimum 12 görsel
+  const finalImages = Array.from(images);
+  console.log(`🖼️ DOM'dan ${finalImages.length} görsel çıkarıldı`);
+  return finalImages;
 }
 
 /**
@@ -571,16 +573,39 @@ function extractOptimizedImages(htmlContent: string): string[] {
       }
     }
     
-    // 2. HTML'den JSON pattern matching
-    const jsonImagePattern = /"(https:\/\/cdn\.dsmcdn\.com[^"]*\/prod\/QC\/[^"]*\.(jpg|jpeg|png|webp))"/gi;
-    let match;
-    while ((match = jsonImagePattern.exec(htmlContent)) !== null) {
-      if (isValidProductImage(match[1])) {
-        images.add(match[1]);
-      }
-    }
+    // 2. Gelişmiş HTML pattern matching - tüm görsel formatları
+    const comprehensivePatterns = [
+      /"images":\s*\[([^\]]*)\]/gi,
+      /"allImages":\s*\[([^\]]*)\]/gi,
+      /"gallery":\s*\[([^\]]*)\]/gi,
+      /"variantImages":\s*\{([^}]*)\}/gi,
+      /https:\/\/cdn\.dsmcdn\.com[^"'\s]*prod\/QC[^"'\s]*\.(jpg|jpeg|png|webp)/gi
+    ];
     
-    // 3. DOM'dan görsel çıkarma
+    comprehensivePatterns.forEach(pattern => {
+      let match;
+      while ((match = pattern.exec(htmlContent)) !== null) {
+        if (match[1]) {
+          // Array içindeki görselleri çıkar
+          const imageUrls = match[1].match(/"(https:\/\/[^"]*prod\/QC[^"]*\.(jpg|jpeg|png|webp))"/gi);
+          if (imageUrls) {
+            imageUrls.forEach(url => {
+              const cleanUrl = url.replace(/"/g, '');
+              if (isValidProductImage(cleanUrl)) {
+                images.add(optimizeImageUrl(cleanUrl));
+              }
+            });
+          }
+        } else if (match[0]) {
+          // Direkt URL match
+          if (isValidProductImage(match[0])) {
+            images.add(optimizeImageUrl(match[0]));
+          }
+        }
+      }
+    });
+    
+    // 3. DOM'dan görsel çıkarma - Cheerio import düzeltildi
     try {
       const cheerio = require('cheerio');
       const $ = cheerio.load(htmlContent);
@@ -627,9 +652,11 @@ function extractOptimizedImages(htmlContent: string): string[] {
   }
   
   const finalImages = Array.from(images)
-    .map(url => optimizeImageUrl(url));
+    .map(url => optimizeImageUrl(url))
+    .filter(url => url && url.length > 0);
     
-  console.log(`✅ ${finalImages.length} ürün görseli çıkarıldı`);
+  console.log(`✅ TOPLAM ${finalImages.length} ürün görseli çıkarıldı`);
+  console.log(`🖼️ İlk 3 görsel: ${finalImages.slice(0, 3).join(', ')}`);
   return finalImages;
 }
 
