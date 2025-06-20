@@ -256,7 +256,7 @@ function extractBasicData($: cheerio.CheerioAPI, htmlContent: string) {
   console.log('📋 Gelişmiş veri çıkarma başlıyor...');
   
   const title = extractEnhancedTitle($) || 'Under Armour Tişört';
-  const brand = extractEnhancedBrand($) || 'Under Armour';
+  const brand = extractEnhancedBrand($, htmlContent) || 'Under Armour';
   const priceData = extractAllPrices($, htmlContent) || {main: '890'};
   const description = extractEnhancedDescription($, title) || 'Profesyonel kalitede ürün.';
   
@@ -997,8 +997,36 @@ function extractStockVariants(htmlContent: string) {
           
           variants.colorVariants = Array.from(colorVariantMap.values());
           
+          // Sadece stokta olan varyantları filtrele
+          const inStockVariants = variants.colorVariants.map(colorVariant => ({
+            ...colorVariant,
+            sizes: colorVariant.sizes.filter(size => size.inStock),
+            availableSizes: colorVariant.sizes.filter(size => size.inStock).map(size => size.sizeName)
+          })).filter(colorVariant => colorVariant.sizes.length > 0);
+          
+          // Stokta olan renkleri güncelle
+          variants.colors = variants.colors.filter(color => 
+            inStockVariants.some(cv => cv.colorName === color.name)
+          );
+          
+          // Stokta olan bedenleri güncelle  
+          variants.sizes = variants.sizes.filter(size => size.inStock);
+          
+          // ColorVariants'ı da stokta olanlarla güncelle
+          variants.colorVariants = inStockVariants;
+          
           console.log(`✅ Kapsamlı sistem: ${variants.colors.length} renk, ${variants.sizes.length} beden oluşturuldu`);
           console.log(`📊 Toplam ${Object.keys(variants.stockMatrix).length} renk-beden kombinasyonu`);
+          console.log(`📦 Stokta olan kombinasyonlar: ${Object.values(variants.stockMatrix).filter((v: any) => v.inStock).length}`);
+          
+          // Stokta olmayan varyantları logla
+          const outOfStockVariants = Object.entries(variants.stockMatrix).filter(([key, value]: any) => !value.inStock);
+          if (outOfStockVariants.length > 0) {
+            console.log(`❌ Stokta olmayan kombinasyonlar:`);
+            outOfStockVariants.forEach(([key, value]) => {
+              console.log(`   ${key}: Stok yok`);
+            });
+          }
         }
       }
     }
@@ -1325,19 +1353,91 @@ function extractColorVariantsWithImages(htmlContent: string, $: cheerio.CheerioA
  */
 function extractEnhancedFeatures(htmlContent: string, $: cheerio.CheerioAPI): Array<{key: string, value: string}> {
   const features: Array<{key: string, value: string}> = [];
+  console.log('📋 Gelişmiş özellik çıkarma başlıyor...');
   
-  // Product state'den özellikler
+  // 1. Product state'den kapsamlı özellikler
   const productStateMatch = htmlContent.match(/window\.__PRODUCT_DETAIL_APP_INITIAL_STATE__\s*=\s*({.*?});/);
   if (productStateMatch) {
     try {
       const productState = JSON.parse(productStateMatch[1]);
+      const product = productState.product;
       
-      if (productState.product?.properties) {
-        productState.product.properties.forEach((prop: any) => {
+      // Ürün özellikleri
+      if (product?.attributes) {
+        product.attributes.forEach((attr: any) => {
+          if (attr.key && attr.value && attr.key !== 'Renk' && attr.key !== 'Beden') {
+            features.push({
+              key: attr.key,
+              value: attr.value.toString()
+            });
+          }
+        });
+      }
+      
+      // Kategori bilgisi
+      if (product?.category?.name) {
+        features.push({ key: 'Kategori', value: product.category.name });
+      }
+      
+      // Cinsiyet
+      if (product?.gender) {
+        const genderText = product.gender === 1 ? 'Erkek' : product.gender === 2 ? 'Kadın' : 'Unisex';
+        features.push({ key: 'Cinsiyet', value: genderText });
+      }
+      
+      // Ürün kodu
+      if (product?.productCode) {
+        features.push({ key: 'Ürün Kodu', value: product.productCode });
+      }
+      
+      // Yaş grubu
+      if (product?.webGender) {
+        features.push({ key: 'Yaş Grubu', value: product.webGender });
+      }
+      
+      console.log(`📋 Product state'den ${features.length} özellik çıkarıldı`);
+    } catch (e) {
+      console.log('Product state parsing hatası:', e.message);
+    }
+  }
+  
+  // 2. HTML tablolarından özellikler
+  $('.product-detail-info table tr, .product-features table tr, .specifications-table tr').each((i, row) => {
+    const cells = $(row).find('td, th');
+    if (cells.length >= 2) {
+      const key = $(cells[0]).text().trim();
+      const value = $(cells[1]).text().trim();
+      
+      if (key && value && key !== value && key.length > 1 && key.length < 50 && value.length > 1 && value.length < 200) {
+        features.push({key, value});
+      }
+    }
+  });
+  
+  // 3. Liste formatındaki özellikler
+  $('.product-properties li, .features-list li, .product-specs li').each((i, item) => {
+    const text = $(item).text().trim();
+    const colonSplit = text.split(':');
+    if (colonSplit.length === 2) {
+      const key = colonSplit[0].trim();
+      const value = colonSplit[1].trim();
+      if (key.length > 1 && value.length > 1 && key.length < 50 && value.length < 200) {
+        features.push({key, value});
+      }
+    }
+  });
+  
+  // 4. JSON-LD structured data
+  const jsonLdMatches = htmlContent.matchAll(/<script[^>]*type="application\/ld\+json"[^>]*>(.*?)<\/script>/gis);
+  for (const match of jsonLdMatches) {
+    try {
+      const jsonData = JSON.parse(match[1]);
+      if (jsonData.additionalProperty) {
+        jsonData.additionalProperty.forEach((prop: any) => {
           if (prop.name && prop.value) {
             features.push({
               key: prop.name,
-              value: prop.value
+              value: prop.value.toString()
             });
           }
         });
@@ -1345,20 +1445,27 @@ function extractEnhancedFeatures(htmlContent: string, $: cheerio.CheerioAPI): Ar
     } catch (e) {}
   }
   
-  // DOM'dan ek özellikler
-  $('.product-detail-info table tr').each((i, row) => {
-    const cells = $(row).find('td');
-    if (cells.length >= 2) {
-      const key = $(cells[0]).text().trim();
-      const value = $(cells[1]).text().trim();
-      
-      if (key && value && key.length < 50 && value.length < 200) {
-        features.push({key, value});
+  // Clean and filter features
+  const cleanedFeatures = features
+    .filter(feature => {
+      // Remove malformed JSON fragments
+      if (feature.key.includes('"') || feature.key.includes('{') || feature.key.includes('}')) {
+        return false;
       }
-    }
-  });
+      if (feature.value.includes('"') || feature.value.includes('{') || feature.value.includes('}')) {
+        return false;
+      }
+      // Keep only meaningful features
+      return feature.key.length >= 2 && feature.key.length <= 50 && 
+             feature.value.length >= 1 && feature.value.length <= 200 &&
+             feature.key !== feature.value;
+    })
+    .filter((feature, index, self) => 
+      index === self.findIndex(f => f.key === feature.key && f.value === feature.value)
+    );
   
-  return features;
+  console.log(`📋 Toplam ${cleanedFeatures.length} temizlenmiş özellik çıkarıldı`);
+  return cleanedFeatures;
 }
 
 // Yardımcı fonksiyonlar
@@ -1395,9 +1502,26 @@ function extractEnhancedTitle($: cheerio.CheerioAPI): string {
   return 'Ürün Başlığı Bulunamadı';
 }
 
-function extractEnhancedBrand($: cheerio.CheerioAPI): string {
+function extractEnhancedBrand($: cheerio.CheerioAPI, htmlContent: string): string {
   console.log('🔍 Marka çıkarma başlıyor...');
   
+  // 1. Product state'den marka
+  const productStateMatch = htmlContent.match(/window\.__PRODUCT_DETAIL_APP_INITIAL_STATE__\s*=\s*({.*?});/);
+  if (productStateMatch) {
+    try {
+      const productState = JSON.parse(productStateMatch[1]);
+      if (productState.product?.brand?.name) {
+        console.log(`✅ Product state'den marka: ${productState.product.brand.name}`);
+        return productState.product.brand.name;
+      }
+      if (productState.product?.metaBrand?.name) {
+        console.log(`✅ Meta brand'den marka: ${productState.product.metaBrand.name}`);
+        return productState.product.metaBrand.name;
+      }
+    } catch (e) {}
+  }
+  
+  // 2. HTML selectors
   const selectors = [
     '.product-brand a',
     '.brand-name', 
@@ -1409,18 +1533,37 @@ function extractEnhancedBrand($: cheerio.CheerioAPI): string {
   
   for (const selector of selectors) {
     const brand = $(selector).first().text().trim();
-    if (brand && brand.length > 1) {
-      console.log(`✅ Marka bulundu: ${brand}`);
+    if (brand && brand.length > 1 && brand.length < 50) {
+      console.log(`✅ HTML'den marka: ${brand}`);
       return brand;
     }
   }
   
-  // Script içinden marka arama
-  const scriptText = $('script').text();
-  const brandMatch = scriptText.match(/"brand":\s*"([^"]+)"/);
-  if (brandMatch && brandMatch[1]) {
-    console.log(`✅ Script'ten marka: ${brandMatch[1]}`);
-    return brandMatch[1];
+  // 3. URL'den marka çıkarma (Trendyol için)
+  const urlMatches = htmlContent.match(/trendyol\.com\/([a-zA-Z0-9-]+)\//);
+  if (urlMatches && urlMatches[1]) {
+    const knownBrands = [
+      'under-armour', 'nike', 'adidas', 'puma', 'reebok', 'new-balance',
+      'sheismono', 'trendyol-collection', 'defacto', 'koton', 'lcw',
+      'tommy-hilfiger', 'calvin-klein', 'lacoste', 'polo-ralph-lauren'
+    ];
+    
+    const urlBrand = urlMatches[1].toLowerCase();
+    if (knownBrands.includes(urlBrand)) {
+      const brandName = urlBrand.replace(/-/g, ' ').replace(/\b\w/g, l => l.toUpperCase());
+      console.log(`✅ URL'den marka: ${brandName}`);
+      return brandName;
+    }
+  }
+  
+  // 4. Title'dan marka çıkarma
+  const titleText = $('title').text() || $('h1').first().text();
+  const titleBrands = ['Under Armour', 'Nike', 'Adidas', 'SHEISMONO'];
+  for (const brand of titleBrands) {
+    if (titleText.includes(brand)) {
+      console.log(`✅ Title'dan marka: ${brand}`);
+      return brand;
+    }
   }
   
   console.log('⚠️ Marka bulunamadı');
