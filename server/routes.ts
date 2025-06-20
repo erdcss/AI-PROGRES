@@ -36,75 +36,75 @@ function generateSingleProductShopifyCSV(product: any): string {
 
   const rows: string[][] = [];
 
-  // Ana ürün satırı
+  // Ana ürün satırı - TAM 31 ALAN
   rows.push([
-    handle,                                           // Handle
-    `"${product.title}"`,                            // Title
-    `"${bodyHTML}"`,                                 // Body (HTML)
-    product.brand,                                   // Vendor
-    'Apparel & Accessories > Clothing',             // Product Category
-    'Giyim',                                        // Type
-    'giyim,moda,stil',                              // Tags
-    'TRUE',                                         // Published
-    'Beden',                                        // Option1 Name
-    '',                                             // Option1 Value
-    '',                                             // Variant SKU
-    '100',                                          // Variant Grams
-    'shopify',                                      // Variant Inventory Tracker
-    '10',                                           // Variant Inventory Qty
-    'continue',                                     // Variant Inventory Policy
-    'manual',                                       // Variant Fulfillment Service
-    product.price.withProfit.toString(),           // Variant Price
-    product.price.original.toString(),             // Variant Compare At Price
-    'TRUE',                                         // Variant Requires Shipping
-    'TRUE',                                         // Variant Taxable
-    '',                                             // Variant Barcode
-    product.images[0] || '',                        // Image Src
-    '1',                                            // Image Position
-    `"${product.title}"`,                          // Image Alt Text
-    'FALSE',                                        // Gift Card
-    `"${product.title}"`,                          // SEO Title
-    `"${product.brand} ${product.title} - En uygun fiyata satın alın"`, // SEO Description
-    '',                                             // Variant Image
-    'kg',                                           // Variant Weight Unit
-    product.price.original.toString(),             // Cost per item
-    'TRUE'                                          // Included / Turkey
+    handle,                                           // 1. Handle
+    `"${product.title}"`,                            // 2. Title
+    `"${bodyHTML}"`,                                 // 3. Body (HTML)
+    product.brand,                                   // 4. Vendor
+    'Apparel & Accessories > Clothing',             // 5. Product Category
+    'Giyim',                                        // 6. Type
+    'giyim,moda,stil',                              // 7. Tags
+    'TRUE',                                         // 8. Published
+    'Beden',                                        // 9. Option1 Name
+    '',                                             // 10. Option1 Value
+    '',                                             // 11. Variant SKU
+    '100',                                          // 12. Variant Grams
+    'shopify',                                      // 13. Variant Inventory Tracker
+    '10',                                           // 14. Variant Inventory Qty
+    'continue',                                     // 15. Variant Inventory Policy
+    'manual',                                       // 16. Variant Fulfillment Service
+    product.price.withProfit.toString(),           // 17. Variant Price
+    product.price.original.toString(),             // 18. Variant Compare At Price
+    'TRUE',                                         // 19. Variant Requires Shipping
+    'TRUE',                                         // 20. Variant Taxable
+    '',                                             // 21. Variant Barcode
+    product.images[0] || '',                        // 22. Image Src
+    '1',                                            // 23. Image Position
+    `"${product.title}"`,                          // 24. Image Alt Text
+    'FALSE',                                        // 25. Gift Card
+    `"${product.title}"`,                          // 26. SEO Title
+    `"${product.brand} ${product.title} - En uygun fiyata satın alın"`, // 27. SEO Description
+    '',                                             // 28. Variant Image
+    'kg',                                           // 29. Variant Weight Unit
+    product.price.original.toString(),             // 30. Cost per item
+    'TRUE'                                          // 31. Included / Turkey
   ]);
 
-  // Beden varyantları
+  // Beden varyantları - TAM 31 ALAN
   product.sizeOptions.forEach((size: string, index: number) => {
     rows.push([
-      '',                                             // Handle
-      '',                                             // Title
-      '',                                             // Body (HTML)
-      '',                                             // Vendor
-      '',                                             // Product Category
-      '',                                             // Type
-      '',                                             // Tags
-      '',                                             // Published
-      '',                                             // Option1 Name
-      size,                                           // Option1 Value
-      `${handle}-${size.toLowerCase()}`,             // Variant SKU
-      '100',                                          // Variant Grams
-      'shopify',                                      // Variant Inventory Tracker
-      '10',                                           // Variant Inventory Qty
-      'continue',                                     // Variant Inventory Policy
-      'manual',                                       // Variant Fulfillment Service
-      product.price.withProfit.toString(),           // Variant Price
-      product.price.original.toString(),             // Variant Compare At Price
-      'TRUE',                                         // Variant Requires Shipping
-      'TRUE',                                         // Variant Taxable
-      '',                                             // Variant Barcode
-      product.images[index] || product.images[0] || '', // Image Src
-      (index + 2).toString(),                        // Image Position
-      `"${product.title} - ${size}"`,                // Image Alt Text
-      'FALSE',                                        // Gift Card
-      '',                                             // SEO Title
-      '',                                             // SEO Description
-      '',                                             // Variant Image
-      'kg',                                           // Variant Weight Unit
-      product.price.original.toString(),             // Cost per item
-      'TRUE'                                          // Included / Turkey
+      '',                                             // 1. Handle
+      '',                                             // 2. Title
+      '',                                             // 3. Body (HTML)
+      '',                                             // 4. Vendor
+      '',                                             // 5. Product Category
+      '',                                             // 6. Type
+      '',                                             // 7. Tags
+      '',                                             // 8. Published
+      '',                                             // 9. Option1 Name
+      size,                                           // 10. Option1 Value
+      `${handle}-${size.toLowerCase()}`,             // 11. Variant SKU
+      '100',                                          // 12. Variant Grams
+      'shopify',                                      // 13. Variant Inventory Tracker
+      '10',                                           // 14. Variant Inventory Qty
+      'continue',                                     // 15. Variant Inventory Policy
+      'manual',                                       // 16. Variant Fulfillment Service
+      product.price.withProfit.toString(),           // 17. Variant Price
+      product.price.original.toString(),             // 18. Variant Compare At Price
+      'TRUE',                                         // 19. Variant Requires Shipping
+      'TRUE',                                         // 20. Variant Taxable
+      '',                                             // 21. Variant Barcode
+      product.images[index] || product.images[0] || '', // 22. Image Src
+      (index + 2).toString(),                        // 23. Image Position
+      `"${product.title} - ${size}"`,                // 24. Image Alt Text
+      'FALSE',                                        // 25. Gift Card
+      '',                                             // 26. SEO Title
+      '',                                             // 27. SEO Description
+      '',                                             // 28. Variant Image
+      'kg',                                           // 29. Variant Weight Unit
+      product.price.original.toString(),             // 30. Cost per item
+      'TRUE'                                          // 31. Included / Turkey
     ]);
   });
 
