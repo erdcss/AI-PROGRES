@@ -403,14 +403,48 @@ export async function extractFocusedData(url: string): Promise<FocusedProductDat
     });
   }
   
-  // Direkt varyant verilerinden beden seçeneklerini çıkar
-  if (product.variants && Array.isArray(product.variants)) {
-    product.variants.forEach((variant: any) => {
-      if (variant.attributes) {
-        Object.values(variant.attributes).forEach((attr: any) => {
-          if (attr && typeof attr === 'string') {
-            const size = attr.trim();
-            if (size.match(/^(XS|S|M|L|XL|XXL|XXXL|\d{2,3}|\d{2,3}\/\d{2,3})$/i)) {
+  // JSON state'ten beden seçeneklerini çıkar
+  try {
+    const stateMatch = htmlContent.match(/window\.__PRODUCT_DETAIL_APP_INITIAL_STATE__\s*=\s*({.*?});/s);
+    if (stateMatch && stateMatch[1]) {
+      const jsonData = JSON.parse(stateMatch[1]);
+      
+      // Product variants'tan beden çıkar
+      if (jsonData.product?.variants) {
+        jsonData.product.variants.forEach((variant: any) => {
+          if (variant.attributeId1 && variant.value1) {
+            const size = variant.value1.trim();
+            if (size.match(/^(XS|S|M|L|XL|XXL|XXXL|\d{2,3})$/i) && size !== 'STD' && size !== 'Tek Beden') {
+              sizeSet.add(size.toUpperCase());
+            }
+          }
+        });
+      }
+      
+      // Product allVariants'tan beden çıkar
+      if (jsonData.product?.allVariants) {
+        jsonData.product.allVariants.forEach((variant: any) => {
+          if (variant.value1) {
+            const size = variant.value1.trim();
+            if (size.match(/^(XS|S|M|L|XL|XXL|XXXL|\d{2,3})$/i) && size !== 'STD' && size !== 'Tek Beden') {
+              sizeSet.add(size.toUpperCase());
+            }
+          }
+        });
+      }
+    }
+  } catch (e) {
+    console.log('JSON parse hatası, devam ediliyor...');
+  }
+
+  // Product allVariants'tan çıkar
+  if (product.allVariants && Array.isArray(product.allVariants)) {
+    product.allVariants.forEach((variant: any) => {
+      if (variant.itemAttributes) {
+        variant.itemAttributes.forEach((attr: any) => {
+          if (attr.attributeValue && typeof attr.attributeValue === 'string') {
+            const size = attr.attributeValue.trim();
+            if (size.match(/^(XS|S|M|L|XL|XXL|XXXL|\d{2,3})$/i) && size !== 'STD') {
               sizeSet.add(size.toUpperCase());
             }
           }
@@ -419,14 +453,14 @@ export async function extractFocusedData(url: string): Promise<FocusedProductDat
     });
   }
 
-  // Allvariants'tan beden çıkar
-  if (product.allVariants && Array.isArray(product.allVariants)) {
-    product.allVariants.forEach((variant: any) => {
-      if (variant.itemAttributes) {
-        variant.itemAttributes.forEach((attr: any) => {
-          if (attr.attributeValue && typeof attr.attributeValue === 'string') {
-            const size = attr.attributeValue.trim();
-            if (size.match(/^(XS|S|M|L|XL|XXL|XXXL|\d{2,3}|\d{2,3}\/\d{2,3})$/i)) {
+  // Variants dizisinden beden çıkar
+  if (product.variants && Array.isArray(product.variants)) {
+    product.variants.forEach((variant: any) => {
+      if (variant.attributes) {
+        Object.values(variant.attributes).forEach((attr: any) => {
+          if (attr && typeof attr === 'string') {
+            const size = attr.trim();
+            if (size.match(/^(XS|S|M|L|XL|XXL|XXXL|\d{2,3})$/i) && size !== 'STD') {
               sizeSet.add(size.toUpperCase());
             }
           }
