@@ -391,16 +391,43 @@ export async function scrapeTrendyolProduct(inputUrl: string) {
     const sizeCount = sizeVariants.length;
     const imageCount = allImages.length;
     
-    console.log(`✅ Otantik çıkarım: ${colorCount} renk, ${sizeCount} beden, ${imageCount} görsel`);
+    console.log(`✅ AI destekli varyant analizi: ${enhancedColors.length} renk (${aiDetectedColors.size} AI), ${sizeCount} beden, ${imageCount} görsel`);
+    
+    // AI Destekli Veri Çıkarma ve İyileştirme
+    console.log('🤖 AI destekli veri çıkarma ve optimize etme...');
+    
+    // Temel veri hazırlama
+    const basicDataForAI = {
+      title,
+      description: productDescription,
+      brand,
+      price,
+      images: absoluteImages,
+      colors: enhancedColors,
+      sizes: multiVariantData.sizes,
+      specifications: productFeatures.reduce((acc: Record<string, string>, feature, index) => {
+        acc[`özellik_${index + 1}`] = feature;
+        return acc;
+      }, {})
+    };
+    
+    // AI ile veri çıkarma ve iyileştirme
+    const aiEnhancedData = await extractDataWithAI(htmlContent, basicDataForAI);
+    
+    // Shopify için optimize etme
+    const shopifyOptimization = await optimizeForShopifyWithAI(aiEnhancedData);
+    
+    console.log('📊 AI destekli ürün verisi:', {
+      title: aiEnhancedData.cleanTitle,
+      category: `${aiEnhancedData.category} > ${aiEnhancedData.subcategory}`,
+      brand: aiEnhancedData.brand,
+      images: absoluteImages.length,
+      aiQuality: `${(aiEnhancedData.dataQuality * 100).toFixed(1)}%`,
+      aiConfidence: `${(aiEnhancedData.aiConfidence * 100).toFixed(1)}%`
+    });
     
     // Process instant CSV generation
-    console.log('🔄 Ürün CSV koleksiyonuna ekleniyor...');
-    console.log('📊 Gönderilen ürün verisi:', {
-      title: basicProductData.title,
-      description: productDescription.substring(0, 100) + '...',
-      brand: basicProductData.brand,
-      images: cleanImages.length
-    });
+    console.log('🔄 AI destekli ürün CSV koleksiyonuna ekliniyor...');
     
     // Generate instant CSV
     let csvGenerated = false;
@@ -517,16 +544,58 @@ export async function scrapeTrendyolProduct(inputUrl: string) {
       console.log('⚠️ AI analizi atlandı:', error.message);
     }
     
-    // Category already extracted above
-    
-    // Final product data assembly with comprehensive information
-    const productData = {
-      title: basicProductData.title,
-      brand: basicProductData.brand,
-      price: basicProductData.price,
-      description: productDescription,
+    return {
+      success: true,
+      // AI ile optimize edilmiş temel veriler
+      title: aiEnhancedData.cleanTitle,
+      brand: aiEnhancedData.brand,
+      price: aiEnhancedData.price,
+      description: shopifyOptimization.optimizedDescription,
       images: absoluteImages,
-      category: categoryInfo,
+      colors: aiEnhancedData.colors,
+      sizes: aiEnhancedData.sizes,
+      features: aiEnhancedData.features,
+      
+      // AI ile çıkarılan ek bilgiler
+      category: aiEnhancedData.category,
+      subcategory: aiEnhancedData.subcategory,
+      productType: aiEnhancedData.productType,
+      materials: aiEnhancedData.materials,
+      targetAudience: aiEnhancedData.targetAudience,
+      season: aiEnhancedData.season,
+      
+      // Shopify optimizasyonu
+      shopifyData: {
+        handle: shopifyOptimization.handle,
+        tags: shopifyOptimization.optimizedTags,
+        seoTitle: shopifyOptimization.seoMetadata.title,
+        seoDescription: shopifyOptimization.seoMetadata.description,
+        keywords: shopifyOptimization.seoMetadata.keywords
+      },
+      
+      // AI kalite metrikleri
+      aiMetrics: {
+        dataQuality: aiEnhancedData.dataQuality,
+        aiConfidence: aiEnhancedData.aiConfidence,
+        imageQualityScore: aiImageResult.qualityScore,
+        extractionMethods: aiEnhancedData.extractionMethod
+      },
+      
+      // Görsel analizi
+      imageAnalysis: {
+        totalImages: aiImageResult.allImages.length,
+        highQualityImages: aiImageResult.highQualityImages.length,
+        categorizedImages: aiImageResult.categorizedImages,
+        variantImages: aiImageResult.variantImages,
+        aiImageAnalysis: aiImageResult.aiAnalysis
+      },
+      
+      // Eski veri yapısı uyumluluğu
+      variants: variantData,
+      categoryInfo,
+      
+      // Kapsamlı AI analizi
+      aiAnalysis
       variants: {
         ...variantData,
         images: absoluteImages

@@ -62,6 +62,8 @@ export function ProductDisplay({ data }: ProductDisplayProps) {
 
   return (
     <div className="space-y-6 p-6 bg-gray-900 text-white">
+      {/* AI Destekli Ürün Gösterimi */}
+      <AIEnhancedProductDisplay productData={data} />
       {/* Ana Ürün Bilgileri */}
       <Card className="bg-gray-800 border-gray-700">
         <CardHeader>
