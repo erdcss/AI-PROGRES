@@ -881,38 +881,27 @@ function extractStockVariants(htmlContent: string) {
       }
     }
     
-    // 3. Spesifik beden regex'leri
-    const bedenPatterns = [
-      /"attributeValue":"([^"]+)","attributeName":"Beden"/g,
-      /"size":"([^"]+)"/g,
-      /"variant":"([^"]+)"/g,
-      /"itemSize":"([^"]+)"/g,
-      /"sizeValue":"([^"]+)"/g,
-      /\b(XS|S|M|L|XL|XXL|XXXL|2XL|3XL)\b/gi
+    // 3. Sadece kesin beden pattern'leri
+    const specificSizePatterns = [
+      /"attributeValue":"(XS|S|M|L|XL|XXL|XXXL|2XL|3XL)","attributeName":"Beden"/gi,
+      /"size":"(XS|S|M|L|XL|XXL|XXXL|2XL|3XL)"/gi,
+      /"variant":"(XS|S|M|L|XL|XXL|XXXL|2XL|3XL)"/gi
     ];
     
-    // Sadece geçerli beden formatları
-    const validSizePattern = /^(XS|S|M|L|XL|XXL|XXXL|2XL|3XL|\d{2,3})$/i;
-    const excludeNumbers = ['030', '036', '890', '768', '219', '469', '536']; // Ürün kodları
-    
-    bedenPatterns.forEach((pattern, index) => {
+    // Kesin beden çıkarma
+    specificSizePatterns.forEach((pattern, index) => {
       let match;
       while ((match = pattern.exec(htmlContent)) !== null) {
-        const size = match[1];
-        if (size && size.length > 0 && size.length < 10) {
-          // Geçerli beden kontrolü
-          if (validSizePattern.test(size) && !excludeNumbers.includes(size)) {
-            const existingSize = variants.sizes.find(s => s.name === size);
-            if (!existingSize) {
-              variants.sizes.push({
-                name: size,
-                inStock: true,
-                price: 0,
-                stockCount: 0
-              });
-              console.log(`📏 Pattern ${index + 1}'den beden: ${size}`);
-            }
-          }
+        const size = match[1].toUpperCase();
+        const existingSize = variants.sizes.find(s => s.name === size);
+        if (!existingSize) {
+          variants.sizes.push({
+            name: size,
+            inStock: true,
+            price: 0,
+            stockCount: 0
+          });
+          console.log(`📏 Kesin pattern'den beden: ${size}`);
         }
       }
     });
