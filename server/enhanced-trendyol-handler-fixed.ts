@@ -596,11 +596,7 @@ export async function scrapeTrendyolProduct(inputUrl: string) {
       
       // Kapsamlı AI analizi
       aiAnalysis
-      variants: {
-        ...variantData,
-        images: absoluteImages
-      },
-      features: productFeatures,
+    };
       aiAnalysis: aiAnalysis,
       stockInfo: multiVariantData.stockInfo || {},
       outOfStockSizes: multiVariantData.outOfStockSizes || [],
