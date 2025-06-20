@@ -1,6 +1,5 @@
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
-import { Progress } from "@/components/ui/progress";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Progress } from "@/components/ui/progress";
@@ -279,11 +278,11 @@ export function EnhancedAIAnalysisDisplay({ analysis }: EnhancedAIAnalysisProps)
               <CardContent className="space-y-2">
                 <div>
                   <span className="text-sm text-gray-400">Stil: </span>
-                  <Badge className="bg-pink-600/20 text-pink-300">{analysis.imageAnalysis.style}</span>
+                  <Badge className="bg-pink-600/20 text-pink-300">{analysis.imageAnalysis.style}</Badge>
                 </div>
                 <div>
                   <span className="text-sm text-gray-400">Kalite: </span>
-                  <Badge variant="outline" className="border-pink-500 text-pink-300">{analysis.imageAnalysis.quality}</span>
+                  <Badge variant="outline" className="border-pink-500 text-pink-300">{analysis.imageAnalysis.quality}</Badge>
                 </div>
                 <div>
                   <span className="text-sm text-gray-400">Renkler: </span>
