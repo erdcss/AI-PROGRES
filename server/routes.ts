@@ -1726,6 +1726,98 @@ export async function registerRoutes(app: Express) {
     }
   });
 
+  // Strict CSV endpoint
+  app.post('/api/strict-csv', async (req, res) => {
+    try {
+      const { url } = req.body;
+      
+      if (!url) {
+        return res.status(400).json({ error: 'URL gerekli' });
+      }
+
+      const { EnhancedTrendyolHandler } = await import('./enhanced-trendyol-handler');
+      const result = await EnhancedTrendyolHandler.extractProduct(url);
+      
+      if (!result.success || !result.data) {
+        return res.status(400).json({ error: result.error || 'Ürün verisi alınamadı' });
+      }
+
+      const { generateStrictCSV } = await import('./strict-csv-generator');
+      const csvResult = generateStrictCSV(result.data);
+      
+      if (!csvResult.success) {
+        return res.status(400).json({ 
+          error: 'CSV oluşturulamadı',
+          validationErrors: csvResult.validationErrors
+        });
+      }
+
+      res.json({
+        success: true,
+        method: 'strict-csv',
+        filename: csvResult.filename,
+        rowCount: csvResult.rowCount,
+        productData: {
+          title: result.data.title,
+          brand: result.data.brand,
+          variantCount: result.data.variants.length,
+          imageCount: result.data.images.length
+        }
+      });
+    } catch (error) {
+      console.error('Strict CSV hatası:', error);
+      res.status(500).json({ error: 'Strict CSV oluşturulamadı' });
+    }
+  });
+
+  // CSV Accumulator endpoint
+  app.post('/api/bulk-csv', async (req, res) => {
+    try {
+      const { urls } = req.body;
+      
+      if (!urls || !Array.isArray(urls) || urls.length === 0) {
+        return res.status(400).json({ error: 'URL listesi gerekli' });
+      }
+
+      const { CSVAccumulator } = await import('./csv-accumulator');
+      const { EnhancedTrendyolHandler } = await import('./enhanced-trendyol-handler');
+      
+      const accumulator = new CSVAccumulator();
+      const results = [];
+      
+      for (const url of urls) {
+        const extractResult = await EnhancedTrendyolHandler.extractProduct(url);
+        if (extractResult.success && extractResult.data) {
+          const addResult = accumulator.addProduct(extractResult.data);
+          results.push({
+            url,
+            success: addResult.success,
+            message: addResult.message
+          });
+        } else {
+          results.push({
+            url,
+            success: false,
+            message: extractResult.error || 'Extraction başarısız'
+          });
+        }
+      }
+      
+      const csvResult = accumulator.generateBulkCSV();
+      
+      res.json({
+        success: csvResult.success,
+        method: 'bulk-csv',
+        filename: csvResult.filename,
+        summary: csvResult.summary,
+        results
+      });
+    } catch (error) {
+      console.error('Bulk CSV hatası:', error);
+      res.status(500).json({ error: 'Bulk CSV oluşturulamadı' });
+    }
+  });
+
   const httpServer = createServer(app);
   return httpServer;
 }
