@@ -38,73 +38,73 @@ function generateSingleProductShopifyCSV(product: any): string {
 
   // Ana ürün satırı
   rows.push([
-    handle,
-    `"${product.title}"`,
-    `"${bodyHTML}"`,
-    product.brand,
-    'Apparel & Accessories > Clothing',
-    'Giyim',
-    'giyim,moda,stil',
-    'TRUE',
-    'Beden',
-    '',
-    '',
-    '100',
-    'shopify',
-    '10',
-    'continue',
-    'manual',
-    product.price.withProfit.toString(),
-    product.price.original.toString(),
-    'TRUE',
-    'TRUE',
-    '',
-    product.images[0] || '',
-    '1',
-    `"${product.title}"`,
-    'FALSE',
-    `"${product.title}"`,
-    `"${product.brand} ${product.title} - En uygun fiyata satın alın"`,
-    '',
-    'kg',
-    product.price.original.toString(),
-    'TRUE'
+    handle,                                           // Handle
+    `"${product.title}"`,                            // Title
+    `"${bodyHTML}"`,                                 // Body (HTML)
+    product.brand,                                   // Vendor
+    'Apparel & Accessories > Clothing',             // Product Category
+    'Giyim',                                        // Type
+    'giyim,moda,stil',                              // Tags
+    'TRUE',                                         // Published
+    'Beden',                                        // Option1 Name
+    '',                                             // Option1 Value
+    '',                                             // Variant SKU
+    '100',                                          // Variant Grams
+    'shopify',                                      // Variant Inventory Tracker
+    '10',                                           // Variant Inventory Qty
+    'continue',                                     // Variant Inventory Policy
+    'manual',                                       // Variant Fulfillment Service
+    product.price.withProfit.toString(),           // Variant Price
+    product.price.original.toString(),             // Variant Compare At Price
+    'TRUE',                                         // Variant Requires Shipping
+    'TRUE',                                         // Variant Taxable
+    '',                                             // Variant Barcode
+    product.images[0] || '',                        // Image Src
+    '1',                                            // Image Position
+    `"${product.title}"`,                          // Image Alt Text
+    'FALSE',                                        // Gift Card
+    `"${product.title}"`,                          // SEO Title
+    `"${product.brand} ${product.title} - En uygun fiyata satın alın"`, // SEO Description
+    '',                                             // Variant Image
+    'kg',                                           // Variant Weight Unit
+    product.price.original.toString(),             // Cost per item
+    'TRUE'                                          // Included / Turkey
   ]);
 
   // Beden varyantları
   product.sizeOptions.forEach((size: string, index: number) => {
     rows.push([
-      '',
-      '',
-      '',
-      '',
-      '',
-      '',
-      '',
-      '',
-      '',
-      size,
-      `${handle}-${size.toLowerCase()}`,
-      '100',
-      'shopify',
-      '10',
-      'continue',
-      'manual',
-      product.price.withProfit.toString(),
-      product.price.original.toString(),
-      'TRUE',
-      'TRUE',
-      '',
-      product.images[index] || product.images[0] || '',
-      (index + 2).toString(),
-      `"${product.title} - ${size}"`,
-      'FALSE',
-      '',
-      '',
-      '',
-      'kg',
-      product.price.original.toString(),
-      'TRUE'
+      '',                                             // Handle
+      '',                                             // Title
+      '',                                             // Body (HTML)
+      '',                                             // Vendor
+      '',                                             // Product Category
+      '',                                             // Type
+      '',                                             // Tags
+      '',                                             // Published
+      '',                                             // Option1 Name
+      size,                                           // Option1 Value
+      `${handle}-${size.toLowerCase()}`,             // Variant SKU
+      '100',                                          // Variant Grams
+      'shopify',                                      // Variant Inventory Tracker
+      '10',                                           // Variant Inventory Qty
+      'continue',                                     // Variant Inventory Policy
+      'manual',                                       // Variant Fulfillment Service
+      product.price.withProfit.toString(),           // Variant Price
+      product.price.original.toString(),             // Variant Compare At Price
+      'TRUE',                                         // Variant Requires Shipping
+      'TRUE',                                         // Variant Taxable
+      '',                                             // Variant Barcode
+      product.images[index] || product.images[0] || '', // Image Src
+      (index + 2).toString(),                        // Image Position
+      `"${product.title} - ${size}"`,                // Image Alt Text
+      'FALSE',                                        // Gift Card
+      '',                                             // SEO Title
+      '',                                             // SEO Description
+      '',                                             // Variant Image
+      'kg',                                           // Variant Weight Unit
+      product.price.original.toString(),             // Cost per item
+      'TRUE'                                          // Included / Turkey
     ]);
   });
 
