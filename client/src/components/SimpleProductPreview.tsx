@@ -64,15 +64,23 @@ export function SimpleProductPreview({ product }: SimpleProductPreviewProps) {
           
           {price && (
             <div>
-              <h3 className="text-sm font-medium text-gray-300 mb-2">Fiyat Bilgisi</h3>
-              <div className="space-y-2">
+              <h3 className="text-sm font-medium text-gray-300 mb-2">💰 Fiyatlandırma</h3>
+              <div className="space-y-3">
                 <div className="flex items-center justify-between bg-gray-800/30 rounded-lg p-3">
-                  <span className="text-gray-400 text-sm">Orijinal Fiyat:</span>
+                  <span className="text-gray-400 text-sm">Trendyol Fiyatı:</span>
                   <span className="text-white font-medium">{price.formatted}</span>
                 </div>
-                <div className="flex items-center justify-between bg-green-900/20 rounded-lg p-3 border border-green-800">
-                  <span className="text-green-400 text-sm">%10 Kar Marjı:</span>
-                  <span className="text-green-300 font-bold">{price.profitFormatted}</span>
+                <div className="flex items-center justify-between bg-green-900/30 rounded-lg p-3 border border-green-700">
+                  <div className="flex flex-col">
+                    <span className="text-green-400 text-sm font-medium">Satış Fiyatımız</span>
+                    <span className="text-green-500 text-xs">(%10 kar dahil)</span>
+                  </div>
+                  <span className="text-green-300 font-bold text-lg">{price.profitFormatted}</span>
+                </div>
+                <div className="text-center bg-blue-900/20 rounded-lg p-2 border border-blue-800">
+                  <span className="text-blue-300 text-xs">
+                    Kar: {(price.withProfit - price.original).toFixed(2)} {price.currency}
+                  </span>
                 </div>
               </div>
             </div>
