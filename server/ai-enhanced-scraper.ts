@@ -72,10 +72,12 @@ export async function aiEnhancedScrape(url: string): Promise<AIEnhancedProductDa
     const basicData = extractBasicData($, htmlContent);
     
     // 2.1. Optimize görsel çıkarma
+    console.log('🖼️ Görsel çıkarma başlatılıyor...');
     const optimizedImages = extractOptimizedImages(htmlContent);
     basicData.images = optimizedImages;
     
     // 2.2. Stoklu varyantlar
+    console.log('📦 Varyant çıkarma başlatılıyor...');
     const stockVariants = extractStockVariants(htmlContent);
     basicData.variants = stockVariants;
     
@@ -339,13 +341,142 @@ function extractAllImagesEnhanced(htmlContent: string, $: cheerio.CheerioAPI): s
 }
 
 /**
- * Optimize görsel çıkarma - Sadece ürün görselleri
+ * Kapsamlı ürün özellikleri çıkarma
+ */
+function extractProductFeatures(htmlContent: string, $: cheerio.CheerioAPI) {
+  const features: Array<{key: string, value: string}> = [];
+  const specifications: Array<{key: string, value: string}> = [];
+  const materials: string[] = [];
+  const careInstructions: string[] = [];
+  
+  try {
+    // Product state'den özellikler
+    const productStateMatch = htmlContent.match(/window\.__PRODUCT_DETAIL_APP_INITIAL_STATE__\s*=\s*({.*?});/);
+    if (productStateMatch) {
+      const productState = JSON.parse(productStateMatch[1]);
+      
+      // Ana ürün özellikleri
+      if (productState.product?.attributes) {
+        Object.entries(productState.product.attributes).forEach(([key, value]: [string, any]) => {
+          if (value && typeof value === 'string') {
+            features.push({ key: key, value: value });
+          }
+        });
+      }
+      
+      // Varyant özellikleri
+      if (productState.product?.allVariants && productState.product.allVariants.length > 0) {
+        const firstVariant = productState.product.allVariants[0];
+        if (firstVariant.attributes) {
+          Object.entries(firstVariant.attributes).forEach(([key, value]: [string, any]) => {
+            if (value && typeof value === 'string') {
+              specifications.push({ key: key, value: value });
+            }
+          });
+        }
+      }
+    }
+    
+    // DOM'dan özellik tabloları
+    $('.product-detail-info table tr, .features-table tr, .specifications tr').each((i, row) => {
+      const $row = $(row);
+      const key = $row.find('td:first, th:first').text().trim();
+      const value = $row.find('td:last, th:last').text().trim();
+      
+      if (key && value && key !== value) {
+        if (isMaterialInfo(key, value)) {
+          materials.push(`${key}: ${value}`);
+        } else if (isCareInstruction(key, value)) {
+          careInstructions.push(`${key}: ${value}`);
+        } else {
+          specifications.push({ key, value });
+        }
+      }
+    });
+    
+    // HTML'den pattern matching ile özellik çıkarma
+    const featurePatterns = [
+      /(?:Malzeme|Material|Kumaş|Fabric|Composition|İçerik)[^:]*:\s*([^,\n\r.]+)/gi,
+      /(?:Pamuk|Cotton|Polyester|Elastan|Spandex|Viscose|Modal|Akrilik)\s*[%]?\s*\d*/gi,
+      /(?:Bakım|Care|Yıkama|Washing)[^:]*:\s*([^,\n\r.]+)/gi,
+      /(?:\d+)°C[^,\n\r.]*/gi,
+      /(?:Beden|Size|Ölçü|Fit|Kalıp)[^:]*:\s*([^,\n\r.]+)/gi,
+      /(?:Yaka|Collar|Kol|Sleeve|Cep|Pocket)[^:]*:\s*([^,\n\r.]+)/gi,
+      /(?:Model|Kod|Code|SKU)[^:]*:\s*([^,\n\r.]+)/gi,
+      /(?:Koleksiyon|Collection|Sezon|Season)[^:]*:\s*([^,\n\r.]+)/gi
+    ];
+    
+    featurePatterns.forEach(pattern => {
+      let match;
+      while ((match = pattern.exec(htmlContent)) !== null) {
+        if (match[1]) {
+          const cleanValue = match[1].trim().replace(/"/g, '');
+          if (cleanValue.length > 2 && cleanValue.length < 100) {
+            features.push({ 
+              key: extractKeyFromMatch(match[0]), 
+              value: cleanValue 
+            });
+          }
+        }
+      }
+    });
+    
+  } catch (error) {
+    console.log('Özellik çıkarma hatası:', error.message);
+  }
+  
+  return {
+    features: removeDuplicateFeatures(features),
+    specifications: removeDuplicateFeatures(specifications),
+    materials: [...new Set(materials)],
+    careInstructions: [...new Set(careInstructions)]
+  };
+}
+
+function isMaterialInfo(key: string, value: string): boolean {
+  const materialKeywords = ['malzeme', 'material', 'kumaş', 'fabric', 'composition', 'içerik', 'pamuk', 'cotton', 'polyester'];
+  return materialKeywords.some(keyword => 
+    key.toLowerCase().includes(keyword) || value.toLowerCase().includes(keyword)
+  );
+}
+
+function isCareInstruction(key: string, value: string): boolean {
+  const careKeywords = ['bakım', 'care', 'yıkama', 'washing', 'ütü', 'iron', 'kurutma', 'dry'];
+  return careKeywords.some(keyword => 
+    key.toLowerCase().includes(keyword) || value.toLowerCase().includes(keyword)
+  );
+}
+
+function extractKeyFromMatch(match: string): string {
+  const colonIndex = match.indexOf(':');
+  if (colonIndex > 0) {
+    return match.substring(0, colonIndex).trim();
+  }
+  return match.split(/\s+/)[0] || 'Özellik';
+}
+
+function removeDuplicateFeatures(features: Array<{key: string, value: string}>): Array<{key: string, value: string}> {
+  const seen = new Set();
+  return features.filter(feature => {
+    const key = `${feature.key}:${feature.value}`.toLowerCase();
+    if (seen.has(key)) {
+      return false;
+    }
+    seen.add(key);
+    return true;
+  });
+}
+
+/**
+ * Gelişmiş ürün görseli çıkarma sistemi
  */
 function extractOptimizedImages(htmlContent: string): string[] {
   const images = new Set<string>();
   
   try {
-    // Product state'den görseller
+    console.log('🖼️ Gelişmiş görsel çıkarma başlatılıyor...');
+    
+    // 1. Product state'den kapsamlı görsel çıkarma
     const productStateMatch = htmlContent.match(/window\.__PRODUCT_DETAIL_APP_INITIAL_STATE__\s*=\s*({.*?});/);
     if (productStateMatch) {
       const productState = JSON.parse(productStateMatch[1]);
@@ -353,19 +484,42 @@ function extractOptimizedImages(htmlContent: string): string[] {
       // Ana ürün görselleri
       if (productState.product?.images) {
         productState.product.images.forEach((img: any) => {
-          const imgUrl = typeof img === 'string' ? img : img?.url;
-          if (imgUrl && imgUrl.includes('prod/QC') && !isExcludedImage(imgUrl)) {
+          const imgUrl = typeof img === 'string' ? img : (img?.url || img?.src);
+          if (imgUrl && isValidProductImage(imgUrl)) {
             images.add(imgUrl);
           }
         });
       }
       
-      // Varyant görselleri (sınırlı)
+      // Galeri görselleri
+      if (productState.product?.gallery) {
+        productState.product.gallery.forEach((img: any) => {
+          const imgUrl = typeof img === 'string' ? img : (img?.url || img?.src);
+          if (imgUrl && isValidProductImage(imgUrl)) {
+            images.add(imgUrl);
+          }
+        });
+      }
+      
+      // Varyant görselleri (tüm renkler)
       if (productState.product?.allVariants) {
-        productState.product.allVariants.slice(0, 3).forEach((variant: any) => {
+        productState.product.allVariants.forEach((variant: any) => {
           if (variant.images) {
-            variant.images.slice(0, 2).forEach((img: string) => {
-              if (img && img.includes('prod/QC') && !isExcludedImage(img)) {
+            variant.images.forEach((img: string) => {
+              if (img && isValidProductImage(img)) {
+                images.add(img);
+              }
+            });
+          }
+        });
+      }
+      
+      // Renk görselleri
+      if (productState.product?.colorImages) {
+        Object.values(productState.product.colorImages).forEach((colorImgs: any) => {
+          if (Array.isArray(colorImgs)) {
+            colorImgs.forEach((img: string) => {
+              if (img && isValidProductImage(img)) {
                 images.add(img);
               }
             });
@@ -373,11 +527,90 @@ function extractOptimizedImages(htmlContent: string): string[] {
         });
       }
     }
+    
+    // 2. HTML'den JSON pattern matching
+    const jsonImagePattern = /"(https:\/\/cdn\.dsmcdn\.com[^"]*\/prod\/QC\/[^"]*\.(jpg|jpeg|png|webp))"/gi;
+    let match;
+    while ((match = jsonImagePattern.exec(htmlContent)) !== null) {
+      if (isValidProductImage(match[1])) {
+        images.add(match[1]);
+      }
+    }
+    
+    // 3. Script'lerden JSON görselleri
+    const scriptMatches = htmlContent.matchAll(/"images":\s*\[([^\]]+)\]/gi);
+    for (const match of scriptMatches) {
+      try {
+        const imageArray = JSON.parse(`[${match[1]}]`);
+        imageArray.forEach((img: string) => {
+          if (img && isValidProductImage(img)) {
+            images.add(img);
+          }
+        });
+      } catch (e) {}
+    }
+    
+    const imageSelectors = [
+      'img[src*="prod/QC"]',
+      'img[data-src*="prod/QC"]', 
+      '.product-image img',
+      '.gallery img',
+      '.image-gallery img'
+    ];
+    
+    imageSelectors.forEach(selector => {
+      $(selector).each((i: number, elem: any) => {
+        const src = $(elem).attr('src') || $(elem).attr('data-src');
+        if (src && isValidProductImage(src)) {
+          images.add(src.startsWith('//') ? 'https:' + src : src);
+        }
+      });
+    });
+    
   } catch (error) {
     console.log('Görsel çıkarma hatası:', error.message);
   }
   
-  return Array.from(images).map(url => optimizeImageUrl(url)).slice(0, 12);
+  const finalImages = Array.from(images)
+    .map(url => optimizeImageUrl(url))
+    .slice(0, 15);
+    
+  console.log(`✅ ${finalImages.length} ürün görseli çıkarıldı`);
+  return finalImages;
+}
+
+/**
+ * Geçerli ürün görseli kontrolü
+ */
+function isValidProductImage(url: string): boolean {
+  if (!url || typeof url !== 'string') return false;
+  
+  // Dahil edilmesi gerekenler
+  const includePatterns = [
+    'prod/QC',
+    'cdn.dsmcdn.com'
+  ];
+  
+  // Hariç tutulacaklar
+  const excludePatterns = [
+    'enerjietiketi',
+    '/50/50/',
+    '/64/64/',
+    '/80/80/',
+    'badge',
+    'icon',
+    'logo',
+    'button',
+    'star',
+    'rating',
+    'watermark',
+    'placeholder'
+  ];
+  
+  const hasIncluded = includePatterns.some(pattern => url.includes(pattern));
+  const hasExcluded = excludePatterns.some(pattern => url.toLowerCase().includes(pattern));
+  
+  return hasIncluded && !hasExcluded;
 }
 
 /**

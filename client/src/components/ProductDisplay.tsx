@@ -277,26 +277,85 @@ export function ProductDisplay({ data }: ProductDisplayProps) {
       </Card>
 
       {/* Ürün Özellikleri */}
-      {data.features && data.features.length > 0 && (
-        <Card className="bg-gray-800 border-gray-700">
-          <CardHeader>
-            <CardTitle className="flex items-center gap-2 text-white">
-              <FileText className="h-5 w-5 text-green-400" />
-              Ürün Özellikleri
-            </CardTitle>
-          </CardHeader>
-          <CardContent>
-            <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
-              {data.features.slice(0, 12).map((feature: any, index: number) => (
-                <div key={index} className="flex justify-between p-2 bg-gray-900 rounded">
-                  <span className="text-gray-400 text-sm">{feature.key}</span>
-                  <span className="text-white text-sm font-medium">{feature.value}</span>
+      {/* Ürün Özellikleri */}
+      <Card className="bg-gray-800 border-gray-700">
+        <CardHeader>
+          <CardTitle className="flex items-center gap-2 text-white">
+            <Info className="h-5 w-5 text-blue-400" />
+            Ürün Özellikleri ({data.features?.length || 0})
+          </CardTitle>
+        </CardHeader>
+        <CardContent>
+          <div className="space-y-4">
+            {/* Ana özellikler */}
+            {data.features && data.features.length > 0 && (
+              <div>
+                <h4 className="text-sm font-semibold text-purple-400 mb-2">Genel Özellikler</h4>
+                <div className="space-y-2">
+                  {data.features.slice(0, 8).map((feature, index) => (
+                    <div key={index} className="flex justify-between py-1.5 border-b border-gray-700">
+                      <span className="text-gray-400 text-sm">{feature.key}:</span>
+                      <span className="text-white text-sm">{feature.value}</span>
+                    </div>
+                  ))}
                 </div>
-              ))}
-            </div>
-          </CardContent>
-        </Card>
-      )}
+              </div>
+            )}
+            
+            {/* Malzeme bilgileri */}
+            {data.materials && data.materials.length > 0 && (
+              <div>
+                <h4 className="text-sm font-semibold text-green-400 mb-2">Malzeme Bilgileri</h4>
+                <div className="space-y-1">
+                  {data.materials.map((material, index) => (
+                    <div key={index} className="text-gray-300 text-sm bg-gray-700 p-2 rounded">
+                      {material}
+                    </div>
+                  ))}
+                </div>
+              </div>
+            )}
+            
+            {/* Bakım talimatları */}
+            {data.careInstructions && data.careInstructions.length > 0 && (
+              <div>
+                <h4 className="text-sm font-semibold text-yellow-400 mb-2">Bakım Talimatları</h4>
+                <div className="space-y-1">
+                  {data.careInstructions.map((instruction, index) => (
+                    <div key={index} className="text-gray-300 text-sm bg-gray-700 p-2 rounded">
+                      {instruction}
+                    </div>
+                  ))}
+                </div>
+              </div>
+            )}
+            
+            {/* Teknik özellikler */}
+            {data.specifications && data.specifications.length > 0 && (
+              <div>
+                <h4 className="text-sm font-semibold text-orange-400 mb-2">Teknik Özellikler</h4>
+                <div className="space-y-2">
+                  {data.specifications.slice(0, 6).map((spec, index) => (
+                    <div key={index} className="flex justify-between py-1.5 border-b border-gray-700">
+                      <span className="text-gray-400 text-sm">{spec.key}:</span>
+                      <span className="text-white text-sm">{spec.value}</span>
+                    </div>
+                  ))}
+                </div>
+              </div>
+            )}
+            
+            {(!data.features || data.features.length === 0) && 
+             (!data.materials || data.materials.length === 0) && 
+             (!data.specifications || data.specifications.length === 0) && (
+              <div className="text-center text-gray-500 py-8">
+                <Info className="h-8 w-8 mx-auto mb-2 opacity-50" />
+                <div>Ürün özellikleri yükleniyor...</div>
+              </div>
+            )}
+          </div>
+        </CardContent>
+      </Card>
 
       {/* AI Analysis Section */}
       {data.aiAnalysis && (
