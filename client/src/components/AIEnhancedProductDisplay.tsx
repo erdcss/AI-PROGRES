@@ -219,8 +219,10 @@ export function AIEnhancedProductDisplay({ productData }: AIEnhancedProductDispl
                 <div>
                   <h4 className="font-semibold mb-2">Renkler ({colors.length})</h4>
                   <div className="flex flex-wrap gap-2">
-                    {colors.map((color: string) => (
-                      <Badge key={color} variant="outline">{color}</Badge>
+                    {colors.map((color: any, index: number) => (
+                      <Badge key={index} variant="outline">
+                        {typeof color === 'string' ? color : color?.name || `Renk ${index + 1}`}
+                      </Badge>
                     ))}
                   </div>
                   
@@ -275,8 +277,10 @@ export function AIEnhancedProductDisplay({ productData }: AIEnhancedProductDispl
                 <div>
                   <h4 className="font-semibold mb-2">Bedenler ({sizes.length})</h4>
                   <div className="flex flex-wrap gap-2">
-                    {sizes.map((size: string) => (
-                      <Badge key={size} variant="secondary">{size}</Badge>
+                    {sizes.map((size: any, index: number) => (
+                      <Badge key={index} variant="secondary">
+                        {typeof size === 'string' ? size : size?.name || `Beden ${index + 1}`}
+                      </Badge>
                     ))}
                   </div>
                 </div>

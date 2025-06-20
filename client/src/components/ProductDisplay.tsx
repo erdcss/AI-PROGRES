@@ -154,7 +154,7 @@ export function ProductDisplay({ data }: ProductDisplayProps) {
                   <div key={colorName} className="border border-gray-600 rounded-lg p-4 bg-gray-750">
                     <div className="flex items-center justify-between mb-3">
                       <div className="flex items-center gap-3">
-                        <h4 className="font-semibold text-white">{colorName}</h4>
+                        <h4 className="font-semibold text-white">{String(colorName)}</h4>
                         <Badge variant="outline" className="border-purple-400 text-purple-400">
                           Model {index + 1}
                         </Badge>
@@ -213,7 +213,7 @@ export function ProductDisplay({ data }: ProductDisplayProps) {
             return (
             <div key={colorName} className="border border-gray-600 rounded-lg p-4">
               <div className="flex items-center justify-between mb-3">
-                <h3 className="font-semibold text-white">{colorName}</h3>
+                <h3 className="font-semibold text-white">{String(colorName)}</h3>
                 <div className="flex items-center gap-2">
                   <DollarSign className="h-4 w-4 text-green-400" />
                   <span className="font-bold text-green-400">
