@@ -1089,6 +1089,36 @@ export async function extractFocusedData(url: string): Promise<FocusedProductDat
 
   console.log(`🔍 Toplam ${features.length} özellik çıkarıldı`);
   
+  // Trendyol spesifik özellik tablosu çıkarımı
+  console.log('🎯 Trendyol Ürün Özellikleri tablosu analizi...');
+  try {
+    const { extractTrendyolAttributes } = await import('./trendyol-attributes-extractor');
+    const trendyolAttributes = await extractTrendyolAttributes(htmlContent);
+    
+    // Trendyol özelliklerini ana feature listesine ekle
+    trendyolAttributes.forEach(attr => {
+      if (!processedKeys.has(attr.key.toLowerCase())) {
+        features.push(attr);
+        processedKeys.add(attr.key.toLowerCase());
+      }
+    });
+    
+    console.log(`✅ Trendyol tablosundan ${trendyolAttributes.length} ek özellik eklendi`);
+  } catch (error) {
+    console.log(`⚠️ Trendyol özellik çıkarımı hatası: ${error.message}`);
+  }
+  
+  // Debug modu - HTML analizi
+  if (features.length < 5) {
+    console.log('🔍 Az özellik bulundu, debug analizi yapılıyor...');
+    try {
+      const { debugTrendyolHTML } = await import('./trendyol-debug-extractor');
+      await debugTrendyolHTML(url);
+    } catch (error) {
+      console.log(`⚠️ Debug analizi hatası: ${error.message}`);
+    }
+  }
+  
   // ÜST DÜZEY KATEGORİ ÇIKARIMI - Gelişmiş Trendyol kategori analizi
   let category = 'Apparel & Accessories > Clothing';
   let categoryFound = false;
