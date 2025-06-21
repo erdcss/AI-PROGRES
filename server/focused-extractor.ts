@@ -764,35 +764,75 @@ export async function extractFocusedData(url: string): Promise<FocusedProductDat
     }
   });
   
-  // HTML'den ürün özellikleri tablosu çıkar - ÖNCE BUNU YAP
-  console.log('📋 HTML tablosundan detaylı özellikler çıkarılıyor...');
+  // Trendyol Ürün Özellikleri Tablosu - Kapsamlı Çıkarma
+  console.log('📋 Trendyol ürün özellikleri tablosu çıkarılıyor...');
   
-  // Ürün özellikleri tablosu için farklı pattern'ler dene
-  const featurePatterns = [
-    // Trendyol ürün özellikleri tablosu
-    /<tr[^>]*>\s*<td[^>]*class="[^"]*feature[^"]*"[^>]*>([^<]+)<\/td>\s*<td[^>]*>([^<]+)<\/td>\s*<\/tr>/gi,
-    // Genel tablo yapısı
+  // Çoklu pattern stratejisi - Trendyol'un farklı sayfa yapıları için
+  const trendyolPatterns = [
+    // 1. Standart tablo yapısı (2 sütunlu)
     /<tr[^>]*>\s*<td[^>]*>([^<]+)<\/td>\s*<td[^>]*>([^<]+)<\/td>\s*<\/tr>/gi,
-    // Başka bir pattern
-    /<div[^>]*class="[^"]*property[^"]*"[^>]*>.*?<span[^>]*>([^<]+)<\/span>.*?<span[^>]*>([^<]+)<\/span>.*?<\/div>/gi
+    // 2. Class'lı tablo yapısı
+    /<tr[^>]*>\s*<td[^>]*class="[^"]*"[^>]*>([^<]+)<\/td>\s*<td[^>]*class="[^"]*"[^>]*>([^<]+)<\/td>\s*<\/tr>/gi,
+    // 3. Div tabanlı satırlar
+    /<div[^>]*class="[^"]*detail-item[^"]*"[^>]*>.*?<span[^>]*>([^<]+)<\/span>.*?<span[^>]*>([^<]+)<\/span>/gi,
+    // 4. Li listesi formatı
+    /<li[^>]*>([^:]+):\s*([^<]+)<\/li>/gi,
+    // 5. Definition list
+    /<dt[^>]*>([^<]+)<\/dt>\s*<dd[^>]*>([^<]+)<\/dd>/gi,
+    // 6. Flexbox yapısı
+    /<div[^>]*class="[^"]*flex[^"]*"[^>]*>.*?<div[^>]*>([^<]+)<\/div>.*?<div[^>]*>([^<]+)<\/div>/gi,
+    // 7. Grid yapısı
+    /<div[^>]*class="[^"]*grid[^"]*"[^>]*>.*?<span[^>]*>([^<]+)<\/span>.*?<span[^>]*>([^<]+)<\/span>/gi
   ];
   
-  featurePatterns.forEach((pattern, index) => {
-    console.log(`  Pattern ${index + 1} deneniyor...`);
+  let totalFeatures = 0;
+  trendyolPatterns.forEach((pattern, index) => {
+    console.log(`  📝 Trendyol pattern ${index + 1} deneniyor...`);
     let match;
-    while ((match = pattern.exec(htmlContent)) !== null) {
-      const key = match[1].trim().replace(/[:\s]+$/, '');
-      const value = match[2].trim();
+    let patternCount = 0;
+    
+    while ((match = pattern.exec(htmlContent)) !== null && totalFeatures < 30) {
+      const rawKey = match[1]?.trim();
+      const rawValue = match[2]?.trim();
       
-      if (key && value && key.length > 1 && value.length > 0 && 
+      if (!rawKey || !rawValue) continue;
+      
+      // Temizleme işlemleri
+      const key = rawKey
+        .replace(/[:\s]+$/, '')
+        .replace(/^\s*[\-\•]\s*/, '')
+        .trim();
+      const value = rawValue
+        .replace(/^\s*:\s*/, '')
+        .replace(/\s+/g, ' ')
+        .trim();
+      
+      // Validasyon
+      if (key && value && 
+          key.length > 1 && key.length < 50 && 
+          value.length > 0 && value.length < 100 &&
           !processedKeys.has(key.toLowerCase()) &&
-          !key.includes('script') && !value.includes('script')) {
+          !/^[0-9\s\-\+\(\)]*$/.test(key) &&
+          !/^[\W\d]*$/.test(key) &&
+          !key.toLowerCase().includes('script') &&
+          !value.toLowerCase().includes('script') &&
+          !key.toLowerCase().includes('fiyat') &&
+          !key.toLowerCase().includes('tl')) {
+        
         features.push({ key, value });
         processedKeys.add(key.toLowerCase());
-        console.log(`    ✓ Tablo'dan özellik: ${key} = ${value}`);
+        patternCount++;
+        totalFeatures++;
+        
+        if (patternCount <= 3) {
+          console.log(`    ✅ ${key}: ${value}`);
+        }
       }
     }
+    console.log(`  📊 Pattern ${index + 1}: ${patternCount} özellik bulundu`);
   });
+  
+  console.log(`🔍 HTML'den toplam ${totalFeatures} özellik çıkarıldı`);
   
   // Product attributes'dan - temel özellikler
   if (product.attributes && typeof product.attributes === 'object') {
