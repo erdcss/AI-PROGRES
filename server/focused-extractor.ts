@@ -766,91 +766,247 @@ export async function extractFocusedData(url: string): Promise<FocusedProductDat
     }
   });
   
-  // Gelişmiş kategori çıkarımı
+  // PROFESYONELKATEGORİ ÇIKARIMI - Trendyol'dan tam kategori ağacı
   let category = 'Apparel & Accessories > Clothing';
   let categoryFound = false;
+  let rawCategoryPath = '';
   
-  console.log('🏷️ Kategori çıkarımı başlatılıyor...');
+  console.log('🏷️ Profesyonel kategori çıkarımı başlatılıyor...');
   
-  // 1. HTML'den breadcrumb çıkarımı - daha kapsamlı
+  // 1. JSON'dan kategori hiyerarşisi çıkarımı
+  const categoryDataSources = [
+    product.category,
+    product.categories,
+    product.categoryHierarchy,
+    product.breadcrumbs,
+    productState.product?.category,
+    productState.product?.categories,
+    productState.productDetail?.category,
+    productState.productDetail?.categories
+  ];
+  
+  categoryDataSources.forEach((catData, index) => {
+    if (catData && !categoryFound) {
+      console.log(`  📂 Kategori kaynağı ${index + 1} kontrol ediliyor...`);
+      
+      if (Array.isArray(catData)) {
+        // Kategori dizisi var
+        const catNames = catData.map(cat => 
+          typeof cat === 'string' ? cat : (cat?.name || cat?.displayName || cat?.title)
+        ).filter(Boolean);
+        
+        if (catNames.length > 0) {
+          rawCategoryPath = catNames.join(' > ');
+          console.log(`    ✓ Kategori dizisi: "${rawCategoryPath}"`);
+          categoryFound = true;
+        }
+      } else if (typeof catData === 'object' && catData !== null) {
+        // Tek kategori objesi
+        const possibleNames = [
+          catData.name,
+          catData.displayName,
+          catData.title,
+          catData.categoryName,
+          catData.fullPath,
+          catData.hierarchyName
+        ].filter(Boolean);
+        
+        if (possibleNames.length > 0) {
+          rawCategoryPath = possibleNames[0];
+          console.log(`    ✓ Kategori objesi: "${rawCategoryPath}"`);
+          categoryFound = true;
+        }
+      } else if (typeof catData === 'string' && catData.length > 3) {
+        rawCategoryPath = catData;
+        console.log(`    ✓ Kategori string: "${rawCategoryPath}"`);
+        categoryFound = true;
+      }
+    }
+  });
+  
+  // 2. HTML'den breadcrumb çıkarımı - gelişmiş
   const breadcrumbPatterns = [
     /<nav[^>]*class="[^"]*breadcrumb[^"]*"[^>]*>(.*?)<\/nav>/is,
     /<div[^>]*class="[^"]*breadcrumb[^"]*"[^>]*>(.*?)<\/div>/is,
     /<ol[^>]*class="[^"]*breadcrumb[^"]*"[^>]*>(.*?)<\/ol>/is,
-    /<ul[^>]*class="[^"]*breadcrumb[^"]*"[^>]*>(.*?)<\/ul>/is
+    /<ul[^>]*class="[^"]*breadcrumb[^"]*"[^>]*>(.*?)<\/ul>/is,
+    /<div[^>]*class="[^"]*category[^"]*"[^>]*>(.*?)<\/div>/is
   ];
   
-  for (const pattern of breadcrumbPatterns) {
-    const match = htmlContent.match(pattern);
-    if (match) {
-      const breadcrumbText = match[1].replace(/<[^>]*>/g, ' ').replace(/\s+/g, ' ').trim();
-      console.log(`  📍 Breadcrumb bulundu: "${breadcrumbText}"`);
-      
-      if (breadcrumbText.includes('Kadın') || breadcrumbText.includes('KADIN')) {
-        if (breadcrumbText.includes('Elbise')) {
-          category = 'Apparel & Accessories > Clothing > Women > Dresses';
+  if (!categoryFound) {
+    for (const pattern of breadcrumbPatterns) {
+      const match = htmlContent.match(pattern);
+      if (match) {
+        const breadcrumbText = match[1].replace(/<[^>]*>/g, ' ').replace(/\s+/g, ' ').trim();
+        
+        if (breadcrumbText.length > 10) {
+          rawCategoryPath = breadcrumbText;
+          console.log(`  📍 HTML breadcrumb: "${breadcrumbText}"`);
           categoryFound = true;
-        } else if (breadcrumbText.includes('Bluz') || breadcrumbText.includes('Gömlek') || breadcrumbText.includes('Tunik')) {
-          category = 'Apparel & Accessories > Clothing > Women > Tops';
-          categoryFound = true;
-        } else if (breadcrumbText.includes('Pantolon') || breadcrumbText.includes('Jean')) {
-          category = 'Apparel & Accessories > Clothing > Women > Pants';
-          categoryFound = true;
-        } else if (breadcrumbText.includes('Ceket') || breadcrumbText.includes('Mont')) {
-          category = 'Apparel & Accessories > Clothing > Women > Outerwear';
-          categoryFound = true;
-        } else if (breadcrumbText.includes('Etek')) {
-          category = 'Apparel & Accessories > Clothing > Women > Skirts';
-          categoryFound = true;
-        } else {
-          category = 'Apparel & Accessories > Clothing > Women';
-          categoryFound = true;
+          break;
         }
-        console.log(`    ✓ Kadın kategorisinden atama: ${category}`);
-      } else if (breadcrumbText.includes('Erkek') || breadcrumbText.includes('ERKEK')) {
-        if (breadcrumbText.includes('Gömlek')) category = 'Apparel & Accessories > Clothing > Men > Shirts';
-        else if (breadcrumbText.includes('Pantolon') || breadcrumbText.includes('Jean')) category = 'Apparel & Accessories > Clothing > Men > Pants';
-        else if (breadcrumbText.includes('Ceket') || breadcrumbText.includes('Mont')) category = 'Apparel & Accessories > Clothing > Men > Outerwear';
-        else category = 'Apparel & Accessories > Clothing > Men';
-        categoryFound = true;
       }
-      break;
     }
   }
   
-  // 2. JSON verisinden kategori çıkarımı  
-  const categoryPaths = [
-    product.category?.name,
-    product.categoryName,
-    product.category?.displayName,
-    product.productCategory,
-    productState.product?.category?.name,
-    productState.productDetail?.category
-  ];
-  
-  for (const catPath of categoryPaths) {
-    if (catPath && typeof catPath === 'string' && catPath.length > 3) {
-      console.log(`  📂 Kategori verisi bulundu: "${catPath}"`);
-      const catLower = catPath.toLowerCase();
-      
-      if (catLower.includes('kadın') || catLower.includes('women') || catLower.includes('kadin')) {
-        if (catLower.includes('elbise') || catLower.includes('dress')) category = 'Apparel & Accessories > Clothing > Women > Dresses';
-        else if (catLower.includes('üst') || catLower.includes('bluz') || catLower.includes('top') || catLower.includes('tişört')) category = 'Apparel & Accessories > Clothing > Women > Tops';
-        else if (catLower.includes('alt') || catLower.includes('pantolon') || catLower.includes('pant') || catLower.includes('jean')) category = 'Apparel & Accessories > Clothing > Women > Pants';
-        else if (catLower.includes('dış giyim') || catLower.includes('ceket') || catLower.includes('outerwear') || catLower.includes('mont')) category = 'Apparel & Accessories > Clothing > Women > Outerwear';
-        else if (catLower.includes('etek') || catLower.includes('skirt')) category = 'Apparel & Accessories > Clothing > Women > Skirts';
-        else category = 'Apparel & Accessories > Clothing > Women';
-        categoryFound = true;
-        break;
-      } else if (catLower.includes('erkek') || catLower.includes('men') || catLower.includes('male')) {
-        if (catLower.includes('gömlek') || catLower.includes('shirt')) category = 'Apparel & Accessories > Clothing > Men > Shirts';
-        else if (catLower.includes('üst') || catLower.includes('top') || catLower.includes('tişört')) category = 'Apparel & Accessories > Clothing > Men > Tops';
-        else if (catLower.includes('alt') || catLower.includes('pantolon') || catLower.includes('pant') || catLower.includes('jean')) category = 'Apparel & Accessories > Clothing > Men > Pants';
-        else if (catLower.includes('dış giyim') || catLower.includes('ceket') || catLower.includes('outerwear') || catLower.includes('mont')) category = 'Apparel & Accessories > Clothing > Men > Outerwear';
-        else category = 'Apparel & Accessories > Clothing > Men';
-        categoryFound = true;
+  // 3. Profesyonel kategori dönüştürme sistemi
+  if (rawCategoryPath && rawCategoryPath.length > 3) {
+    console.log(`  🔄 Ham kategori işleniyor: "${rawCategoryPath}"`);
+    
+    const categoryMap = {
+      // Kadın giyim
+      'kadın': {
+        base: 'Apparel & Accessories > Clothing > Women',
+        subcategories: {
+          'elbise': '> Dresses',
+          'bluz': '> Tops',
+          'gömlek': '> Tops', 
+          'tişört': '> Tops',
+          'tunik': '> Tops',
+          'crop': '> Tops',
+          'pantolon': '> Pants',
+          'jean': '> Pants',
+          'kot': '> Pants',
+          'tayt': '> Pants',
+          'etek': '> Skirts',
+          'şort': '> Shorts',
+          'ceket': '> Outerwear',
+          'mont': '> Outerwear',
+          'blazer': '> Outerwear',
+          'yelek': '> Outerwear',
+          'kaban': '> Outerwear',
+          'kazak': '> Sweaters',
+          'hırka': '> Sweaters',
+          'sweatshirt': '> Sweaters',
+          'hoodie': '> Sweaters',
+          'sütyen': '> Intimates',
+          'külot': '> Intimates',
+          'iç giyim': '> Intimates',
+          'çorap': '> Socks & Hosiery',
+          'ayakkabı': '> Shoes',
+          'sandalet': '> Shoes',
+          'bot': '> Shoes',
+          'sneaker': '> Shoes',
+          'çanta': '> Bags',
+          'takı': '> Jewelry',
+          'saat': '> Watches',
+          'aksesuar': '> Accessories'
+        }
+      },
+      // Erkek giyim
+      'erkek': {
+        base: 'Apparel & Accessories > Clothing > Men',
+        subcategories: {
+          'gömlek': '> Shirts',
+          'tişört': '> Tops',
+          'polo': '> Tops',
+          'tank': '> Tops',
+          'pantolon': '> Pants',
+          'jean': '> Pants',
+          'kot': '> Pants',
+          'şort': '> Shorts',
+          'ceket': '> Outerwear',
+          'mont': '> Outerwear',
+          'blazer': '> Outerwear',
+          'yelek': '> Outerwear',
+          'kazak': '> Sweaters',
+          'hırka': '> Sweaters',
+          'sweatshirt': '> Sweaters',
+          'hoodie': '> Sweaters',
+          'iç giyim': '> Underwear',
+          'boxer': '> Underwear',
+          'çorap': '> Socks',
+          'ayakkabı': '> Shoes',
+          'bot': '> Shoes',
+          'sneaker': '> Shoes',
+          'çanta': '> Bags',
+          'saat': '> Watches',
+          'aksesuar': '> Accessories'
+        }
+      },
+      // Çocuk giyim
+      'çocuk': {
+        base: 'Apparel & Accessories > Clothing > Children',
+        subcategories: {
+          'bebek': '> Baby',
+          'kız': '> Girls',
+          'erkek': '> Boys'
+        }
+      },
+      // Ev & yaşam
+      'ev': {
+        base: 'Home & Garden',
+        subcategories: {
+          'tekstil': '> Home Textiles',
+          'mutfak': '> Kitchen',
+          'banyo': '> Bathroom',
+          'dekorasyon': '> Home Decor'
+        }
+      },
+      // Elektronik
+      'elektronik': {
+        base: 'Electronics',
+        subcategories: {
+          'telefon': '> Mobile Phones',
+          'bilgisayar': '> Computers',
+          'tv': '> TVs'
+        }
+      }
+    };
+    
+    const pathLower = rawCategoryPath.toLowerCase();
+    let foundCategory = false;
+    
+    // Ana kategori tespiti
+    for (const [mainCat, config] of Object.entries(categoryMap)) {
+      if (pathLower.includes(mainCat)) {
+        let finalCategory = config.base;
+        
+        // Alt kategori tespiti
+        for (const [subCat, suffix] of Object.entries(config.subcategories)) {
+          if (pathLower.includes(subCat)) {
+            finalCategory += ' ' + suffix;
+            break;
+          }
+        }
+        
+        category = finalCategory;
+        foundCategory = true;
+        console.log(`    ✅ Profesyonel kategori: "${category}"`);
         break;
       }
+    }
+    
+    if (!foundCategory) {
+      console.log(`    ⚠️ Kategori eşleşmesi bulunamadı, ham kategori korunuyor`);
+      category = rawCategoryPath;
+    }
+    
+    categoryFound = true;
+  }
+  
+  // Fallback: Başlıktan ve özelliklerden kategori çıkarımı
+  if (!categoryFound) {
+    const titleLower = title.toLowerCase();
+    const allText = [title, ...features.map(f => f.value)].join(' ').toLowerCase();
+    
+    // Başlık analizi ile profesyonel kategori belirleme
+    if (titleLower.includes('bluz') || allText.includes('bluz')) {
+      rawCategoryPath = 'Kadın Bluz';
+      categoryFound = true;
+    } else if (titleLower.includes('ceket') || titleLower.includes('blazer')) {
+      rawCategoryPath = 'Kadın Ceket';
+      categoryFound = true;
+    } else if (titleLower.includes('elbise')) {
+      rawCategoryPath = 'Kadın Elbise';
+      categoryFound = true;
+    } else if (titleLower.includes('pantolon') || titleLower.includes('jean')) {
+      rawCategoryPath = 'Kadın Pantolon';
+      categoryFound = true;
+    }
+    
+    if (categoryFound) {
+      console.log(`  📝 Başlık analizinden kategori: "${rawCategoryPath}"`);
     }
   }
   
