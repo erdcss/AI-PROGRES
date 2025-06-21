@@ -966,3 +966,23 @@ export async function extractFocusedData(url: string): Promise<FocusedProductDat
     category
   };
 }
+
+// Helper function for stock filtering
+async function filterOutOfStockSizes(page: any): Promise<{
+  inStockSizes: string[];
+  outOfStockSizes: string[];
+  totalSizes: number;
+  method: string;
+}> {
+  try {
+    // Stock filtering implementation would go here
+    return {
+      inStockSizes: [],
+      outOfStockSizes: [],
+      totalSizes: 0,
+      method: 'placeholder'
+    };
+  } catch (error) {
+    throw new Error(`Stock filtering failed: ${error.message}`);
+  }
+}
