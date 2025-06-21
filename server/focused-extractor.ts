@@ -890,13 +890,13 @@ export async function extractFocusedData(url: string): Promise<FocusedProductDat
     price: priceData,
     images,
     colorOptions,
-    sizeOptions: sortedSizes,
+    sizeOptions: sizeOptions,
     variants,
     stockAnalysis: {
       totalVariants: variants.length,
       inStockVariants: variants.filter(v => v.inStock).length,
       outOfStockVariants: variants.filter(v => !v.inStock).length,
-      availableSizes: sortedSizes,
+      availableSizes: sizeOptions,
       unavailableSizes: Array.from(outOfStockSizes)
     },
     features,
