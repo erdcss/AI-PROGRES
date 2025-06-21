@@ -926,7 +926,8 @@ export async function extractFocusedData(url: string): Promise<FocusedProductDat
           console.log(`  ✓ HTML Basit: ${key} = ${value}`);
         }
       }
-    } catch (error) {
+    }
+  } catch (error) {
     console.log(`⚠️ HTML özellik çıkarımında hata: ${error.message}`);
   }
 
