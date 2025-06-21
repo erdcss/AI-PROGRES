@@ -72,7 +72,7 @@ function generateSingleProductShopifyCSV(product: any): string {
   });
 
   // ADDITIONAL PRODUCT IMAGES - Shopify format
-  console.log(`📊 Shopify variant structure: "${handle}" - ${product.sizeOptions.length} variants created`);
+  console.log(`📊 Shopify variant structure: "${productHandle}" - ${product.sizeOptions.length} variants created`);
   
   // Add remaining product images as media-only rows
   const usedImageCount = Math.min(product.sizeOptions.length, product.images.length);
@@ -83,7 +83,7 @@ function generateSingleProductShopifyCSV(product: any): string {
   additionalImages.forEach((imageUrl: string, index: number) => {
     const imagePosition = usedImageCount + index + 2;
     rows.push([
-      handle,                                         // 1. Handle - CONSISTENT
+      productHandle,                                  // 1. Handle - CONSISTENT
       '',                                             // 2. Title
       '',                                             // 3. Body (HTML)
       '',                                             // 4. Vendor
