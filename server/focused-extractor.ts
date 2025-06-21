@@ -298,39 +298,48 @@ export async function extractFocusedData(url: string): Promise<FocusedProductDat
     });
   }
   
-  // HTML'den tek renk için ek görseller - sınırlı
-  if (images.length < 6) {
-    console.log(`🔍 ${primaryColor} rengi için ek görseller HTML'den aranıyor...`);
+  // Maksimum 7-8 görsel sınırı uygula
+  if (images.length > 8) {
+    images.splice(8); // 8'den fazla görseli kaldır
+    console.log(`🔧 Görsel sayısı 8'e sınırlandırıldı`);
+  }
+  
+  console.log(`✅ TEK RENK GÖRSEL FİLTRELEME: ${images.length} adet gerçek ürün görseli`);
+  
+  // RETURN EARLY - JSON'dan yeterli görsel varsa HTML parsing atla
+  if (images.length >= 6) {
+    console.log(`🚫 ${images.length} görsel yeterli - HTML parsing atlanıyor`);
     
-    const imageRegexes = [
-      /https:\/\/cdn\.dsmcdn\.com\/ty\d+\/prod\/QC\/\d+\/\d+\/[^"'\s]+\/\d+_org_zoom\.jpg/g
-    ];
+    // Final filtreleme: sadece bu ürüne ait görselleri tut
+    const productDate = '20250321'; // Bu ürünün tarihi
+    const productSpecificImages = images.filter(img => img.includes(productDate));
     
-    imageRegexes.forEach((regex, index) => {
-      const matches = htmlContent.match(regex) || [];
-      let addedFromHTML = 0;
-      
-      matches.forEach(match => {
-        if (images.length >= 8 || addedFromHTML >= 3) return;
-        
-        let imageUrl = match;
-        
-        // Sadece gerçek ürün görselleri
-        if (!imageUrl.includes('cok_satanlar') && 
-            !imageUrl.includes('sepete_eklenen') && 
-            !imageUrl.includes('begenilenler') &&
-            !imageUrl.includes('web-pdp') &&
-            !imageUrl.includes('banner') &&
-            !imageUrl.includes('promotion') &&
-            imageUrl.includes('/prod/QC/') &&
-            !images.includes(imageUrl)) {
-          images.push(imageUrl);
-          addedFromHTML++;
-          console.log(`    📸 HTML'den gerçek ürün görseli: ${imageUrl.substring(0, 60)}...`);
-        }
-      });
-      console.log(`    → ${addedFromHTML} ürün görseli eklendi`);
-    });
+    if (productSpecificImages.length >= 6) {
+      images.splice(0, images.length, ...productSpecificImages.slice(0, 8));
+      console.log(`✅ ${images.length} ürüne özel görsel seçildi`);
+    } else {
+      images.splice(8); // 8'den fazlasını kaldır
+    }
+    
+    // HTML parsing'i tamamen atla
+    return {
+      brand,
+      title,
+      price: priceData,
+      images,
+      colorOptions: Array.from(colorSet),
+      sizeOptions: Array.from(sizeSet).filter(size => !outOfStockSizes.has(size)),
+      variants,
+      stockAnalysis: {
+        totalVariants: variants.length,
+        inStockVariants: variants.filter(v => v.inStock).length,
+        outOfStockVariants: variants.filter(v => !v.inStock).length,
+        availableSizes: Array.from(sizeSet).filter(size => !outOfStockSizes.has(size)),
+        unavailableSizes: Array.from(outOfStockSizes)
+      },
+      features,
+      category
+    };
   }
   
   // Manuel relative URL dönüştürme - tüm ürünler için
