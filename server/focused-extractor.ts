@@ -740,9 +740,14 @@ export async function extractFocusedData(url: string): Promise<FocusedProductDat
   // Pattern 7: Add essential missing features with fallback values
   console.log('🔧 Eksik temel özellikleri tamamlama...');
   
-  // Add category (will be set later in the code)
-  if (!processedKeys.has('kategori')) {
-    const categoryValue = productTitle.includes('ayakkabı') ? 'Ayakkabı' : 
+  // Sadece marka ekle
+  if (!processedKeys.has('marka')) {
+    features.push({ key: 'Marka', value: brand });
+    processedKeys.add('marka');
+    console.log(`  ✓ Marka eklendi: "${brand}"`);
+  }
+
+  console.log(`✅ Gerçek ${features.length} özellik hazır`); 
                          productTitle.includes('jean') || productTitle.includes('pantolon') ? 'Pantolon' : 
                          productTitle.includes('elbise') ? 'Elbise' : 'Giyim';
     features.push({ key: 'Kategori', value: categoryValue });
