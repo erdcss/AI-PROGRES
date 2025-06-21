@@ -99,21 +99,55 @@ export async function exportToShopifyCSV(data: FocusedProductData): Promise<{ su
       'Variant Image', 'Variant Weight Unit', 'Variant Tax Code', 'Cost per item', 'Status'
     ];
 
-    // Strict CSV generator kullan
-    console.log(`🔄 Strict CSV generator ile ${data.variants.length} varyant işleniyor...`);
+    // Direct strict CSV generation
+    console.log(`🔄 Creating strict CSV with ${data.variants.length} variants...`);
     
-    const { generateStrictCSV } = await import('./strict-csv-generator');
-    const strictData = convertToStrictFormat(data);
-    const result = generateStrictCSV(strictData);
+    const strictRows: string[][] = [];
     
-    if (!result.success) {
-      throw new Error(`Strict CSV generation failed: ${result.validationErrors.join(', ')}`);
-    }
-    
-    console.log(`✅ Strict CSV generated: ${result.rowCount} rows`);
-    
+    // Headers for strict format
+    const strictHeaders = [
+      'Handle', 'Title', 'Body (HTML)', 'Vendor', 'Product Type', 'Tags', 'Published',
+      'Option1 Name', 'Option1 Value', 'Option2 Name', 'Option2 Value',
+      'Variant SKU', 'Variant Inventory Qty', 'Variant Price', 'Variant Compare At Price',
+      'Cost per item', 'Image Src', 'Image Position', 'Image Alt Text',
+      'SEO Title', 'SEO Description', 'Variant Weight Unit'
+    ];
+
+    data.variants.forEach((variant, variantIndex) => {
+      const isFirst = variantIndex === 0;
+      
+      data.images.forEach((imageUrl, imageIndex) => {
+        const row = [
+          isFirst && imageIndex === 0 ? handle : '', // Handle only in first row
+          isFirst && imageIndex === 0 ? data.title : '', // Title only in first row
+          isFirst && imageIndex === 0 ? description : '', // Body only in first row
+          isFirst && imageIndex === 0 ? data.brand : '', // Vendor only in first row
+          isFirst && imageIndex === 0 ? 'Giyim' : '', // Product Type only in first row
+          isFirst && imageIndex === 0 ? tags : '', // Tags only in first row
+          isFirst && imageIndex === 0 ? 'TRUE' : '', // Published only in first row
+          'Renk', // Option1 Name - EVERY ROW
+          variant.color, // Option1 Value - EVERY ROW
+          'Beden', // Option2 Name - EVERY ROW
+          variant.size, // Option2 Value - EVERY ROW
+          `${handle}-${variant.color.toLowerCase().replace(/\s+/g, '-')}-${variant.size}`, // Variant SKU
+          variant.inStock ? '25' : '0', // Variant Inventory Qty
+          data.price.withProfit.toString(), // Variant Price
+          data.price.original.toString(), // Variant Compare At Price
+          data.price.original.toString(), // Cost per item
+          imageUrl, // Image Src
+          (imageIndex + 1).toString(), // Image Position
+          `${data.title} ${variant.color} ${variant.size}`, // Image Alt Text
+          isFirst && imageIndex === 0 ? seoTitle : '', // SEO Title only in first row
+          isFirst && imageIndex === 0 ? seoDescription : '', // SEO Description only in first row
+          'kg' // Variant Weight Unit
+        ];
+        
+        strictRows.push(row);
+      });
+    });
+
     // CSV dosyasını yazma
-    const csvPath = join(process.cwd(), 'exports', result.filename);
+    const csvPath = join(process.cwd(), 'exports', `${handle}-shopify-strict.csv`);
     
     // Exports klasörünü oluştur
     const exportsDir = join(process.cwd(), 'exports');
@@ -121,12 +155,17 @@ export async function exportToShopifyCSV(data: FocusedProductData): Promise<{ su
       fs.mkdirSync(exportsDir, { recursive: true });
     }
 
-    fs.writeFileSync(csvPath, result.content, 'utf8');
+    // CSV content oluşturma
+    const csvContent = [strictHeaders, ...strictRows]
+      .map(row => row.map(cell => `"${String(cell || '').replace(/"/g, '""')}"`).join(','))
+      .join('\n');
 
-    console.log(`✅ Shopify CSV dosyası oluşturuldu: ${csvPath}`);
-    console.log(`📊 Toplam satır: ${result.rowCount + 1} (başlık dahil)`);
-    console.log(`📸 Her varyant için tüm görseller dahil`);
-    console.log(`🎯 Strict format: Option1/Option2 Name her satırda tekrar`);
+    fs.writeFileSync(csvPath, csvContent, 'utf8');
+
+    console.log(`✅ Strict Shopify CSV created: ${csvPath}`);
+    console.log(`📊 Total rows: ${strictRows.length + 1} (with header)`);
+    console.log(`📸 Images per variant: ${data.images.length}`);
+    console.log(`🎯 Option1/Option2 Names in every row`);
 
     return { success: true, csvPath };
 

@@ -76,47 +76,52 @@ export function generateStrictCSV(productData: StrictProductData): {
 
   validVariants.forEach((variant, index) => {
     const isFirst = index === 0;
-    const baseRow = {
-      Handle: baseHandle,
+    
+    // Her satır için base row oluştur - Option Name'ler HER SATIRDA tekrar
+    const createBaseRow = () => ({
+      Handle: isFirst ? baseHandle : '',
       Title: isFirst ? productData.title : '',
       'Body (HTML)': isFirst ? `<p>${productData.title} - Kaliteli ${productData.brand} ürünü.</p>` : '',
       Vendor: isFirst ? productData.brand : '',
       'Product Type': isFirst ? 'Giyim' : '',
       Tags: isFirst ? `${productData.brand}, Kaliteli, Trendyol` : '',
       Published: isFirst ? 'TRUE' : '',
+      // CRITICAL: Option Name'ler her satırda sabit kalmalı
       'Option1 Name': 'Renk',
       'Option1 Value': variant.color,
-      'Option2 Name': 'Beden',
+      'Option2 Name': 'Beden', 
       'Option2 Value': variant.size,
-      'Variant SKU': `${baseHandle}-${variant.size}`,
+      'Variant SKU': `${baseHandle}-${variant.color.toLowerCase().replace(/\s+/g, '-')}-${variant.size}`,
       'Variant Inventory Qty': `${variant.stock}`,
       'Variant Price': `${Math.round(variant.price * 1.10)}`,
       'Variant Compare At Price': `${Math.round(variant.price * 1.25)}`,
       'Cost per item': `${Math.round(variant.price * 0.8)}`,
-      'Google Shopping / Custom Label 0': '',
-      'Google Shopping / Custom Label 1': '',
-      'Google Shopping / Custom Label 2': '',
+      'Google Shopping / Custom Label 0': variant.color,
+      'Google Shopping / Custom Label 1': variant.size,
+      'Google Shopping / Custom Label 2': productData.brand,
       'Image Src': '',
       'Image Position': '',
-      'Image Alt Text': productData.title,
+      'Image Alt Text': `${productData.title} ${variant.color} ${variant.size}`,
       'Gift Card': 'False',
-      'SEO Title': productData.title,
-      'SEO Description': `${productData.brand} ${productData.title}`,
+      'SEO Title': isFirst ? `${productData.title} | ${productData.brand}` : '',
+      'SEO Description': isFirst ? `${productData.brand} ${productData.title}` : '',
       'Variant Image': '',
       'Variant Weight Unit': 'kg',
       'Included / Turkey': 'True'
-    };
+    });
 
     if (variant.images && variant.images.length > 0) {
+      // Her görsel için ayrı satır ama Option Name'ler her satırda
       variant.images.forEach((imgUrl, i) => {
-        rows.push({
-          ...baseRow,
-          'Image Src': imgUrl,
-          'Image Position': `${i + 1}`
-        });
+        const row = createBaseRow();
+        row['Image Src'] = imgUrl;
+        row['Image Position'] = `${i + 1}`;
+        row['Variant Image'] = imgUrl;
+        rows.push(row);
       });
     } else {
-      rows.push(baseRow);
+      // Görsel yoksa sadece varyant satırı
+      rows.push(createBaseRow());
     }
   });
 
