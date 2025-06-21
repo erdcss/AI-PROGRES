@@ -825,7 +825,7 @@ export async function extractFocusedData(url: string): Promise<FocusedProductDat
 
   // Temel ürün bilgilerini özellik olarak ekle
   const basicFeatures = [
-    { key: 'Kategori', value: category || 'Pantolon' },
+    { key: 'Kategori', value: 'Pantolon' },
     { key: 'Satıcı', value: brand || 'Mavi' },
     { key: 'Materyal', value: 'Denim' },
     { key: 'Paça Tipi', value: 'Dar Paça' },
