@@ -761,24 +761,61 @@ export async function extractFocusedData(url: string): Promise<FocusedProductDat
     }
   });
   
+  // Kategori çıkarımı
+  let category = 'Apparel & Accessories > Clothing';
+  
+  // 1. Breadcrumb'dan kategori çıkar
+  const breadcrumbMatch = htmlContent.match(/<nav[^>]*class="[^"]*breadcrumb[^"]*"[^>]*>(.*?)<\/nav>/is);
+  if (breadcrumbMatch) {
+    const breadcrumbText = breadcrumbMatch[1].replace(/<[^>]*>/g, ' ').trim();
+    if (breadcrumbText.includes('Kadın')) {
+      if (breadcrumbText.includes('Elbise')) category = 'Apparel & Accessories > Clothing > Women > Dresses';
+      else if (breadcrumbText.includes('Bluz')) category = 'Apparel & Accessories > Clothing > Women > Tops';
+      else if (breadcrumbText.includes('Pantolon')) category = 'Apparel & Accessories > Clothing > Women > Pants';
+      else if (breadcrumbText.includes('Ceket')) category = 'Apparel & Accessories > Clothing > Women > Outerwear';
+      else category = 'Apparel & Accessories > Clothing > Women';
+    } else if (breadcrumbText.includes('Erkek')) {
+      if (breadcrumbText.includes('Gömlek')) category = 'Apparel & Accessories > Clothing > Men > Shirts';
+      else if (breadcrumbText.includes('Pantolon')) category = 'Apparel & Accessories > Clothing > Men > Pants';
+      else if (breadcrumbText.includes('Ceket')) category = 'Apparel & Accessories > Clothing > Men > Outerwear';
+      else category = 'Apparel & Accessories > Clothing > Men';
+    }
+  }
+  
+  // 2. Ürün başlığından kategori tahmin et
+  const titleLower = title.toLowerCase();
+  if (titleLower.includes('elbise')) category = 'Apparel & Accessories > Clothing > Women > Dresses';
+  else if (titleLower.includes('bluz') || titleLower.includes('tişört')) category = 'Apparel & Accessories > Clothing > Women > Tops';
+  else if (titleLower.includes('pantolon') || titleLower.includes('jean')) category = 'Apparel & Accessories > Clothing > Women > Pants';
+  else if (titleLower.includes('ceket') || titleLower.includes('blazer')) category = 'Apparel & Accessories > Clothing > Women > Outerwear';
+  else if (titleLower.includes('gömlek')) category = 'Apparel & Accessories > Clothing > Men > Shirts';
+  
+  console.log(`🏷️ Kategori belirlendi: ${category}`);
   console.log(`✓ Özellikler: ${features.length} adet (kapsamlı)`);
-  
-  // Stokta olmayan ürün kontrolü
-  const isOutOfStock = variants.every(v => !v.inStock) || variants.length === 0;
-  
-  const result: FocusedProductData = {
-    brand,
-    title,
-    price: priceData,
-    images: images.slice(0, 10), // İlk 10 görsel
-    colorOptions,
-    sizeOptions,
-    variants: variants.slice(0, 30), // İlk 30 varyant
-    isOutOfStock,
-    features // Tüm özellikler tam liste
-  };
-  
   console.log(`🎯 Focused extraction tamamlandı`);
   
-  return result;
+  return {
+    brand,
+    title,
+    price: {
+      original: price,
+      currency: 'TRY',
+      formatted: `${price} TL`,
+      withProfit: Math.round(price * 1.1),
+      profitFormatted: `${Math.round(price * 1.1)} TL`
+    },
+    images,
+    colorOptions,
+    sizeOptions: sortedSizes,
+    variants,
+    stockAnalysis: {
+      totalVariants: variants.length,
+      inStockVariants: variants.filter(v => v.inStock).length,
+      outOfStockVariants: variants.filter(v => !v.inStock).length,
+      availableSizes: sortedSizes,
+      unavailableSizes: Array.from(outOfStockSizes)
+    },
+    features,
+    category
+  };
 }
