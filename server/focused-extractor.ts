@@ -359,10 +359,10 @@ export async function extractFocusedData(url: string): Promise<FocusedProductDat
       // Varyant "value" alanından beden çıkar - EN ÖNEMLİ!
       if (variant.value && typeof variant.value === 'string') {
         const cleanValue = variant.value.trim();
-        // S, M, L, XL, 2XL, 3XL gibi beden kontrolü
-        if (cleanValue.match(/^(XS|S|M|L|XL|XXL|XXXL|2XL|3XL|4XL|\d{2,3})$/i)) {
-          size = cleanValue.toUpperCase();
-          console.log(`  ✓ VARIANT VALUE'dan beden bulundu: ${size}`);
+        // Jean beden formatları: 32, 32/32, 32/34, 30-32, 36/30 vb.
+        if (cleanValue.match(/^\d{2,3}([\-\/]\d{2,3})?$/)) {
+          size = cleanValue;
+          console.log(`  ✓ VALUE'dan jean bedeni: ${size}`);
         }
       }
 
@@ -373,7 +373,7 @@ export async function extractFocusedData(url: string): Promise<FocusedProductDat
             const attrName = attr.attributeName.toLowerCase();
             if (attrName.includes('beden') || attrName.includes('size')) {
               const attrValue = attr.attributeValue.toString().trim();
-              if (attrValue.match(/^(\d{2,3}[\-\/]?\d{0,3}|\d{2,3})$/)) {
+              if (attrValue.match(/^\d{2,3}([\-\/]\d{2,3})?$/)) {
                 size = attrValue;
                 console.log(`  ✓ ItemAttributes'tan jean bedeni: ${size}`);
               }
