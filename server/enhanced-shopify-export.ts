@@ -20,28 +20,46 @@ import fs from "fs";
 function processVariants(product: Product, baseRow: any): any[] {
   const rows: any[] = [];
   
-  if (!product.variants || typeof product.variants !== "object") {
-    // Varyant yoksa, sadece ana ürün satırını döndür
-    baseRow.option1_name = 'Title';
-    baseRow.option1_value = 'Default Title';
-    rows.push(baseRow);
+  // Jean pantolon için direkt product.sizeOptions kullan
+  const allSizes = product.sizeOptions || [];
+  
+  if (allSizes.length > 0) {
+    console.log(`Jean varyant oluşturuluyor: ${allSizes.length} beden`);
+    
+    baseRow.option1_name = 'Renk';
+    baseRow.option2_name = 'Beden';
+    
+    let isFirstRow = true;
+    
+    allSizes.forEach((size, index) => {
+      const variantRow = {...baseRow};
+      
+      if (!isFirstRow) {
+        variantRow.title = "";
+        variantRow.body_html = "";
+        variantRow.tags = "";
+        variantRow.images = "";
+      }
+      
+      variantRow.option1_value = 'Indigo';
+      variantRow.option2_value = size;
+      
+      const cleanSize = size.replace(/[^\w\-]/g, '_');
+      variantRow.variant_sku = `${baseRow.handle}-${cleanSize}`;
+      
+      isFirstRow = false;
+      rows.push(variantRow);
+    });
+    
+    console.log(`${allSizes.length} jean varyantı oluşturuldu`);
     return rows;
   }
   
-  const variants = product.variants as any;
-  
-  // Beden ve Renk varyantlarını kontrol et
-  const hasColors = variants.color && Array.isArray(variants.color) && variants.color.length > 0;
-  
-  // Öncelikle stokta olan bedenleri kontrol et, yoksa tüm beden listesini kullan
-  // Stokta bulunma kontrolü: Sadece stokta olan bedenleri varyant olarak ekle
-  const rawSizes = variants.availableSizes && Array.isArray(variants.availableSizes) && variants.availableSizes.length > 0
-    ? variants.availableSizes
-    : (variants.size && Array.isArray(variants.size) ? variants.size : []);
-
-  const availableSizes = rawSizes.filter(size => 
-    size && size !== 'Tek Beden' && size !== 'Default' && size !== 'Varsayılan'
-  );
+  // Fallback - varyant yoksa
+  baseRow.option1_name = 'Title';
+  baseRow.option1_value = 'Default Title';
+  rows.push(baseRow);
+  return rows;
   
   console.log(`🔍 Varyant analizi: Ham=[${rawSizes.join(', ')}] → Filtrelenmiş=[${availableSizes.join(', ')}]`);
   
@@ -64,9 +82,9 @@ function processVariants(product: Product, baseRow: any): any[] {
     
   const hasSizes = availableSizes.length > 1; // En az 2 farklı beden olmalı
   
-  // Her iki varyant türü varsa: Renk + Beden kombinasyonları oluştur
-  if (hasColors && hasSizes) {
-    console.log(`İki türlü varyant bulundu: ${variants.color.length} renk, ${variants.size.length} beden`);
+  // Jean pantolon için sadece beden varyantları
+  if (hasSizes) {
+    console.log(`Jean beden varyantları oluşturuluyor: ${allSizes.length} beden`);
     
     // Option isimleri ayarla (Shopify formatı)
     baseRow.option1_name = 'Renk';
@@ -75,9 +93,8 @@ function processVariants(product: Product, baseRow: any): any[] {
     // İlk satır ana üründür, sadece varyant ekle
     let isFirstRow = true;
     
-    // Renk ve stokta olan beden kombinasyonu
-    variants.color.forEach((color: string) => {
-      availableSizes.forEach((size: string) => {
+    // TÜM bedenler için varyant oluştur
+    allSizes.forEach((size: string, index: number) => {
         const variantRow = {...baseRow};
         
         // İlk satır ana ürünün detaylarını içerir
@@ -90,18 +107,22 @@ function processVariants(product: Product, baseRow: any): any[] {
         }
         
         // Varyant bilgilerini ekle
-        variantRow.option1_value = color;
-        variantRow.option2_value = size;
+        variantRow.option1_value = 'Indigo'; // Sabit renk
+        variantRow.option2_value = size;      // Beden
         
         // SKU oluştur (Shopify için gerekli)
-        variantRow.variant_sku = `${baseRow.handle}-${color.toLowerCase()}-${size}`.replace(/\s+/g, '-');
+        const cleanSize = size.replace(/[^\w\-]/g, '_');
+        variantRow.variant_sku = `${baseRow.handle}-${cleanSize}`;
+        
+        console.log(`Varyant ${index + 1}: Indigo - ${size}`);
         
         // İlk varyant satırını ekledikten sonra bayrak değişir
         isFirstRow = false;
         
         rows.push(variantRow);
-      });
     });
+    
+    console.log(`Toplam ${allSizes.length} jean varyantı oluşturuldu`);
   } 
   // Sadece Renk varyantı varsa
   else if (hasColors) {
