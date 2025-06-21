@@ -823,27 +823,16 @@ export async function extractFocusedData(url: string): Promise<FocusedProductDat
     }
   });
 
-  // Temel ürün bilgilerini özellik olarak ekle
+  // Sabit özellikler yerine sadece temel bilgileri ekle
   const basicFeatures = [
-    { key: 'Kategori', value: 'Pantolon' },
-    { key: 'Satıcı', value: brand || 'Mavi' },
-    { key: 'Materyal', value: 'Denim' },
-    { key: 'Paça Tipi', value: 'Dar Paça' },
-    { key: 'Bel', value: 'Normal Bel' },
-    { key: 'Kalıp', value: 'Skinny' },
-    { key: 'Kumaş Tipi', value: 'Denim' },
-    { key: 'Desen', value: 'Düz' },
-    { key: 'Renk', value: 'Mavi' },
-    { key: 'Cep', value: '5 Cep' },
-    { key: 'Ürün Detayı', value: 'Denim Kumaş' },
-    { key: 'Koleksiyon', value: 'Denim' },
-    { key: 'Kalınlık', value: 'Orta' },
-    { key: 'Astar Durumu', value: 'Astarsız' },
-    { key: 'Siluet', value: 'Skinny' },
-    { key: 'Ortam', value: 'Casual/Günlük' },
-    { key: 'Ek Özellik', value: 'Esnek' }
+    { key: 'Kategori', value: category || 'Ürün' },
+    { key: 'Marka', value: brand || 'Bilinmeyen' }
   ];
 
+  // Önce HTML'den çıkarılan gerçek özellikleri ekle
+  console.log(`✅ HTML'den çıkarılan özellik sayısı: ${features.length}`);
+  
+  // Sonra temel bilgileri ekle (sadece yoksa)
   basicFeatures.forEach(({ key, value }) => {
     if (value && !processedKeys.has(key.toLowerCase())) {
       features.push({ key, value: String(value) });

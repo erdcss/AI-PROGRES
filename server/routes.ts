@@ -69,7 +69,7 @@ function generateSingleProductShopifyCSV(product: any): string {
       product.title,                                  // 2. Title - AYNI BAŞLIK
       bodyHTML,                                       // 3. Body (HTML) - Özelliklerle
       product.brand || 'Mavi',                       // 4. Vendor
-      `"jean, erkek, ${product.brand?.toLowerCase() || 'mavi'}, denim, pantolon"`, // 5. Tags
+      `jean, erkek, ${product.brand?.toLowerCase() || 'mavi'}, denim, pantolon`, // 5. Tags
       'TRUE',                                         // 6. Published
       'Renk',                                         // 7. Option1 Name
       'Indigo',                                       // 8. Option1 Value
@@ -84,7 +84,7 @@ function generateSingleProductShopifyCSV(product: any): string {
       product.title,                                  // 17. Image Alt Text
       'FALSE',                                        // 18. Gift Card
       `${product.brand || 'Mavi'} ${product.title.split(' ').slice(0, 3).join(' ')}`, // 19. SEO Title
-      `"${product.brand || 'Mavi'} ${product.title.split(' ').slice(0, 5).join(' ')}, modern kesim ve rahat kalıp."`, // 20. SEO Description
+      `${product.brand || 'Mavi'} ${product.title.split(' ').slice(0, 5).join(' ')}, modern kesim ve rahat kalıp.`, // 20. SEO Description
       product.images[index] || product.images[0] || '', // 21. Variant Image
       'kg',                                           // 22. Variant Weight Unit
       'active',                                       // 23. Status
@@ -129,7 +129,7 @@ function generateSingleProductShopifyCSV(product: any): string {
       '',                                             // 23. Variant Barcode
       imageUrl,                                      // 24. Image Src - PRODUCT IMAGE
       imagePosition.toString(),                      // 25. Image Position
-      `"${product.title} - Additional Image ${index + 1}"`, // 26. Image Alt Text
+      `${product.title} - Additional Image ${index + 1}`, // 26. Image Alt Text
       '',                                             // 27. Gift Card
       '',                                             // 28. SEO Title
       '',                                             // 29. SEO Description
@@ -146,7 +146,15 @@ function generateSingleProductShopifyCSV(product: any): string {
     console.log(`⭐ ${product.images.length} görsel tespit edildi, tamamı CSV'ye ekleniyor!`);
   }
 
-  return rows.map(row => row.join(',')).join('\n');
+  return rows.map(row => 
+    row.map(cell => {
+      // CSV için güvenli format - tırnak ve virgül escape
+      const cleanCell = String(cell || '').replace(/"/g, '""');
+      return cleanCell.includes(',') || cleanCell.includes('"') || cleanCell.includes('\n') 
+        ? `"${cleanCell}"` 
+        : cleanCell;
+    }).join(',')
+  ).join('\n');
 }
 
 // CSV preview generator function
