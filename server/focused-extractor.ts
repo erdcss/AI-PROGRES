@@ -911,40 +911,36 @@ export async function extractFocusedData(url: string): Promise<FocusedProductDat
   console.log(`✓ Özellikler: ${features.length} adet (kapsamlı)`);
   console.log(`🎯 Focused extraction tamamlandı`);
 
-  // GERÇEK STOK FİLTRELEME - Sadece Puppeteer page varsa
-  if (typeof page !== 'undefined' && page) {
-    try {
-      const stockFilter = await filterOutOfStockSizes(page);
-      
-      if (stockFilter.inStockSizes.length > 0) {
-        console.log(`🎯 STOK FİLTRELEME BAŞARILI (${stockFilter.method})`);
-        console.log(`   Toplam: ${stockFilter.totalSizes} → Stokta: ${stockFilter.inStockSizes.length}`);
-        
-        // Sadece stokta olan bedenleri kullan
-        const filteredVariants = variants.filter(v => stockFilter.inStockSizes.includes(v.size));
-        
-        return {
-          brand,
-          title,
-          price: priceData,
-          images,
-          colorOptions,
-          sizeOptions: stockFilter.inStockSizes,
-          variants: filteredVariants,
-          stockAnalysis: {
-            totalVariants: stockFilter.totalSizes,
-            inStockVariants: stockFilter.inStockSizes.length,
-            outOfStockVariants: stockFilter.outOfStockSizes.length,
-            availableSizes: stockFilter.inStockSizes,
-            unavailableSizes: stockFilter.outOfStockSizes
-          },
-          features,
-          category
-        };
-      }
-    } catch (err) {
-      console.log(`⚠️ Stok filtreleme hatası: ${err.message}`);
-    }
+  // MANUEL STOK FİLTRELEME - variants verilerine dayalı
+  console.log('🎯 Manuel stok filtreleme başlatılıyor...');
+  
+  const inStockVariants = variants.filter(v => v.inStock === true);
+  const inStockSizes = [...new Set(inStockVariants.map(v => v.size))];
+  
+  console.log(`📊 Stok analizi: ${variants.length} toplam → ${inStockVariants.length} stokta`);
+  console.log(`🟢 Stokta olan bedenler: ${inStockSizes.join(', ')}`);
+  
+  if (inStockSizes.length > 0 && inStockSizes.length < sortedSizes.length) {
+    console.log('🎯 STOK FİLTRELEME UYGULANIYOR');
+    
+    return {
+      brand,
+      title,
+      price: priceData,
+      images,
+      colorOptions,
+      sizeOptions: inStockSizes,
+      variants: inStockVariants,
+      stockAnalysis: {
+        totalVariants: variants.length,
+        inStockVariants: inStockSizes.length,
+        outOfStockVariants: variants.length - inStockSizes.length,
+        availableSizes: inStockSizes,
+        unavailableSizes: sortedSizes.filter(s => !inStockSizes.includes(s))
+      },
+      features,
+      category
+    };
   }
 
   return {
