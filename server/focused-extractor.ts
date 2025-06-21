@@ -733,36 +733,202 @@ export async function extractFocusedData(url: string): Promise<FocusedProductDat
   
   console.log('🔍 Ürün özellikleri detaylı çıkarım başlatılıyor...');
   
-  // Önce kapsamlı temel bilgileri ekle
-  const expandedFeatures = [
+  // Temel ürün bilgilerini ekle
+  const basicFeatures = [
     { key: 'Marka', value: brand },
-    { key: 'Başlık', value: title },
-    { key: 'Fiyat Orijinal', value: priceData.formatted },
-    { key: 'Fiyat Kar Marjı', value: priceData.profitFormatted },
-    { key: 'Para Birimi', value: priceData.currency },
+    { key: 'Ürün Adı', value: title },
+    { key: 'Orijinal Fiyat', value: priceData.formatted },
+    { key: 'Kar Marjı Fiyat', value: priceData.profitFormatted },
     { key: 'Kategori', value: 'Giyim' },
-    { key: 'Ürün Tipi', value: title.includes('blazer') ? 'Blazer' : title.includes('ceket') ? 'Ceket' : 'Giyim' },
-    { key: 'Satıcı', value: brand },
-    { key: 'Renk Çeşidi', value: colorOptions.length.toString() },
-    { key: 'Beden Çeşidi', value: sizeOptions.length.toString() },
-    { key: 'Toplam Seçenek', value: variants.length.toString() },
-    { key: 'Stokta Mevcut', value: variants.filter(v => v.inStock).length.toString() },
-    { key: 'Toplam Görsel', value: images.length.toString() },
-    { key: 'Durum', value: variants.some(v => v.inStock) ? 'Stokta' : 'Tükendi' },
-    { key: 'Mevcut Renkler', value: colorOptions.length > 0 ? colorOptions.slice(0,3).join(', ') : 'Standart' },
-    { key: 'Mevcut Bedenler', value: sizeOptions.length > 0 ? sizeOptions.slice(0,5).join(', ') : 'Standart' },
-    { key: 'Materyal', value: 'Tekstil' },
-    { key: 'Yaş Grubu', value: 'Yetişkin' },
-    { key: 'Cinsiyet', value: title.toLowerCase().includes('kadın') ? 'Kadın' : title.toLowerCase().includes('erkek') ? 'Erkek' : 'Unisex' },
-    { key: 'Sezon', value: 'Tüm Sezonlar' }
+    { key: 'Tür', value: title.includes('blazer') ? 'Blazer' : title.includes('ceket') ? 'Ceket' : 'Giyim' }
   ];
   
-  expandedFeatures.forEach(({ key, value }) => {
+  basicFeatures.forEach(({ key, value }) => {
     if (value && !processedKeys.has(key.toLowerCase())) {
       features.push({ key, value: String(value) });
       processedKeys.add(key.toLowerCase());
     }
   });
+
+  // Kapsamlı HTML analizi - Trendyol özellik tablosu
+  console.log('🎯 Kapsamlı HTML analizi başlatılıyor...');
+  
+  // HTML içinde tüm tablo yapılarını bul ve analiz et
+  const tableExtractionStrategies = [
+    // Strateji 1: Genel tablo analizi
+    () => {
+      console.log('  📊 Genel tablo analizi...');
+      let foundFeatures = 0;
+      
+      // Tüm table elementlerini bul
+      const tableRegex = /<table[^>]*>([\s\S]*?)<\/table>/gi;
+      let tableMatch;
+      
+      while ((tableMatch = tableRegex.exec(htmlContent)) !== null && foundFeatures < 15) {
+        const tableContent = tableMatch[1];
+        console.log(`    🔍 Tablo bulundu, satırlar analiz ediliyor...`);
+        
+        // Her satırı analiz et
+        const rowRegex = /<tr[^>]*>([\s\S]*?)<\/tr>/gi;
+        let rowMatch;
+        
+        while ((rowMatch = rowRegex.exec(tableContent)) !== null && foundFeatures < 15) {
+          const rowContent = rowMatch[1];
+          
+          // Hücreleri çıkar
+          const cellRegex = /<td[^>]*>([\s\S]*?)<\/td>/gi;
+          const cells = [];
+          let cellMatch;
+          
+          while ((cellMatch = cellRegex.exec(rowContent)) !== null) {
+            const cellText = cellMatch[1]
+              .replace(/<[^>]*>/g, '')
+              .replace(/&nbsp;/g, ' ')
+              .replace(/\s+/g, ' ')
+              .trim();
+            if (cellText && cellText.length > 0) {
+              cells.push(cellText);
+            }
+          }
+          
+          // İki hücreli satır = özellik
+          if (cells.length === 2) {
+            const key = cells[0];
+            const value = cells[1];
+            
+            if (key && value && 
+                key.length > 1 && key.length < 50 &&
+                value.length > 0 && value.length < 100 &&
+                !processedKeys.has(key.toLowerCase()) &&
+                !/^[0-9\s\-\+\(\)]*$/.test(key) &&
+                !key.toLowerCase().includes('fiyat') &&
+                !key.toLowerCase().includes('tl')) {
+              
+              features.push({ key, value });
+              processedKeys.add(key.toLowerCase());
+              foundFeatures++;
+              console.log(`      ✅ ${key}: ${value}`);
+            }
+          }
+        }
+      }
+      console.log(`    📊 Tablo analizinden ${foundFeatures} özellik çıkarıldı`);
+    },
+    
+    // Strateji 2: JSON state analizi  
+    () => {
+      console.log('  ⚡ JSON state analizi...');
+      let foundFeatures = 0;
+      
+      // Trendyol state pattern'leri
+      const statePatterns = [
+        /window\.__PRODUCT_DETAIL_APP_INITIAL_STATE__\s*=\s*({.+?});/s,
+        /window\.__INITIAL_STATE__\s*=\s*({.+?});/s,
+        /"attributes"\s*:\s*({[^}]+})/g
+      ];
+      
+      statePatterns.forEach((pattern, index) => {
+        const matches = [...htmlContent.matchAll(new RegExp(pattern.source, pattern.flags))];
+        
+        matches.forEach(match => {
+          try {
+            const jsonData = JSON.parse(match[1]);
+            console.log(`    💾 State pattern ${index + 1} parse edildi`);
+            
+            // Attributes nesnesini ara
+            const findAttributes = (obj, path = '') => {
+              if (!obj || typeof obj !== 'object') return;
+              
+              for (const [key, value] of Object.entries(obj)) {
+                if (key === 'attributes' && value && typeof value === 'object') {
+                  console.log(`      📋 Attributes bulundu: ${path}`);
+                  Object.entries(value).forEach(([attrKey, attrValue]) => {
+                    if (typeof attrValue === 'string' && 
+                        !processedKeys.has(attrKey.toLowerCase()) &&
+                        foundFeatures < 20) {
+                      features.push({ key: attrKey, value: attrValue });
+                      processedKeys.add(attrKey.toLowerCase());
+                      foundFeatures++;
+                      console.log(`        ✅ ${attrKey}: ${attrValue}`);
+                    }
+                  });
+                } else if (typeof value === 'object' && value !== null) {
+                  findAttributes(value, path + '.' + key);
+                }
+              }
+            };
+            
+            findAttributes(jsonData);
+          } catch (e) {
+            console.log(`    ⚠️ State ${index + 1} parse hatası`);
+          }
+        });
+      });
+      
+      console.log(`    📊 JSON analizinden ${foundFeatures} özellik çıkarıldı`);
+    },
+    
+    // Strateji 3: Bilinen özellik isimleri ile arama
+    () => {
+      console.log('  🔍 Bilinen özellik isimleri araması...');
+      let foundFeatures = 0;
+      
+      const knownFeatures = [
+        'Paça Tipi', 'Materyal', 'Bel', 'Renk', 'Koleksiyon', 'Kumaş Tipi', 
+        'Ortam', 'Desen', 'Kapama Şekli', 'Dokuma Tipi', 'Boy', 'Cep', 'Kalıp', 
+        'Ürün Tipi', 'Persona', 'Menşei', 'Silüet', 'Model', 'Yaş Grubu',
+        'Kemer/Kuşak Durumu', 'Sürdürülebilirlik Detayı', 'Stil', 'Tema',
+        'Astar', 'Yaka Tipi', 'Kol Tipi', 'Fit', 'Tarz'
+      ];
+      
+      knownFeatures.forEach(featureName => {
+        if (!processedKeys.has(featureName.toLowerCase()) && foundFeatures < 20) {
+          // Çoklu pattern arama
+          const patterns = [
+            new RegExp(`"${featureName}"\\s*:\\s*"([^"]+)"`, 'gi'),
+            new RegExp(`'${featureName}'\\s*:\\s*'([^']+)'`, 'gi'),
+            new RegExp(`>${featureName}<[^>]*>\\s*[^<]*([^<]+)`, 'gi'),
+            new RegExp(`${featureName}[\\s]*:[\\s]*([^\\n\\r<]+)`, 'gi')
+          ];
+          
+          for (const pattern of patterns) {
+            const match = pattern.exec(htmlContent);
+            if (match && match[1]) {
+              const value = match[1].trim().replace(/^[:\s]*/, '');
+              if (value && value.length > 0 && value.length < 100) {
+                features.push({ key: featureName, value });
+                processedKeys.add(featureName.toLowerCase());
+                foundFeatures++;
+                console.log(`    ✅ ${featureName}: ${value}`);
+                break;
+              }
+            }
+          }
+        }
+      });
+      
+      console.log(`    📊 Bilinen özelliklerden ${foundFeatures} özellik çıkarıldı`);
+    }
+  ];
+
+  // Tüm stratejileri çalıştır
+  tableExtractionStrategies.forEach(strategy => {
+    try {
+      strategy();
+    } catch (error) {
+      console.log(`  ⚠️ Strateji hatası: ${error.message}`);
+    }
+  });
+
+  // Debug analizi çalıştır
+  try {
+    const { debugTrendyolHTML } = await import('./debug-html-extractor');
+    await debugTrendyolHTML(htmlContent, title);
+  } catch (error) {
+    console.log('⚠️ Debug analizi atlandı');
+  }
+
+  console.log(`🔍 Toplam ${features.length} özellik çıkarıldı`);
   
   // Trendyol Ürün Özellikleri Tablosu - Kapsamlı Çıkarma
   console.log('📋 Trendyol ürün özellikleri tablosu çıkarılıyor...');
