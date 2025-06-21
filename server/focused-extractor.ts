@@ -704,79 +704,31 @@ export async function extractFocusedData(url: string): Promise<FocusedProductDat
     console.log(`⚠️ Stokta olmayan bedenler CSV'ye eklenmedi: ${Array.from(outOfStockSizes).join(', ')}`);
   }
 
-  // 6. ÖZELLİKLER - Gerçek product attributes'dan çıkar
+  // 6. ÖZELLİKLER - Sadece gerçek product attributes
   const features: Array<{ key: string; value: string; }> = [];
   const processedKeys = new Set<string>();
 
-  console.log('🔍 Product attributes ve gerçek özellikler çıkarılıyor...');
-  
-  // Extract all possible features from title and content
-  const extractFromText = (text: string, sourceLabel: string) => {
-    const cleanText = text.toLowerCase();
-    
-    // Colors
-    const colors = ['beyaz', 'siyah', 'mavi', 'kırmızı', 'yeşil', 'sarı', 'pembe', 'mor', 'turuncu', 'gri', 'kahverengi', 'lacivert', 'indigo', 'koyu', 'açık', 'bordo', 'krem', 'bej', 'füme'];
-    colors.forEach(color => {
-      if (cleanText.includes(color) && !processedKeys.has('renk')) {
-        features.push({ key: 'Renk', value: color.charAt(0).toUpperCase() + color.slice(1) });
-        processedKeys.add('renk');
-        console.log(`    ✓ ${sourceLabel} renk: "Renk" = "${color}"`);
+  console.log('🔍 Gerçek product attributes çıkarılıyor...');
+
+  // Product attributes'dan gerçek özellikler
+  if (product.attributes && typeof product.attributes === 'object') {
+    console.log('🏷️ Product attributes bulundu...');
+    Object.entries(product.attributes).forEach(([key, value]) => {
+      if (key && value && 
+          typeof key === 'string' && typeof value === 'string' &&
+          key.length > 1 && key.length < 100 &&
+          value.length > 0 && value.length < 200 &&
+          !processedKeys.has(key.toLowerCase())) {
+
+        features.push({
+          key: key.trim(),
+          value: value.trim()
+        });
+        processedKeys.add(key.toLowerCase());
+        console.log(`  ✓ Gerçek Özellik: ${key} = ${value}`);
       }
     });
-    
-    // Materials
-    const materials = ['denim', 'cotton', 'pamuk', 'rugan', 'deri', 'kumaş', 'polyester', 'elastan', 'viskoz', 'ipek', 'yün', 'keten', 'akrilik', 'naylon', 'spandex', 'modal'];
-    materials.forEach(material => {
-      if (cleanText.includes(material) && !processedKeys.has('materyal')) {
-        features.push({ key: 'Materyal', value: material.charAt(0).toUpperCase() + material.slice(1) });
-        processedKeys.add('materyal');
-        console.log(`    ✓ ${sourceLabel} materyal: "Materyal" = "${material}"`);
-      }
-    });
-    
-    // Patterns/Designs
-    const patterns = ['çizgili', 'desenli', 'düz', 'kareli', 'puantiyeli', 'çiçekli', 'leopar', 'kamuflaj', 'vintage', 'retro'];
-    patterns.forEach(pattern => {
-      if (cleanText.includes(pattern) && !processedKeys.has('desen')) {
-        features.push({ key: 'Desen', value: pattern.charAt(0).toUpperCase() + pattern.slice(1) });
-        processedKeys.add('desen');
-        console.log(`    ✓ ${sourceLabel} desen: "Desen" = "${pattern}"`);
-      }
-    });
-    
-    // Fit/Style for clothing
-    const fits = ['skinny', 'slim', 'regular', 'loose', 'oversized', 'dar', 'bol', 'normal', 'rahat'];
-    fits.forEach(fit => {
-      if (cleanText.includes(fit) && !processedKeys.has('kalıp')) {
-        features.push({ key: 'Kalıp', value: fit.charAt(0).toUpperCase() + fit.slice(1) });
-        processedKeys.add('kalıp');
-        console.log(`    ✓ ${sourceLabel} kalıp: "Kalıp" = "${fit}"`);
-      }
-    });
-    
-    // Heel height for shoes
-    const heelHeights = ['topuklu', 'düz', 'alçak topuk', 'yüksek topuk', 'orta topuk'];
-    heelHeights.forEach(heel => {
-      if (cleanText.includes(heel) && !processedKeys.has('topuk')) {
-        features.push({ key: 'Topuk Tipi', value: heel.charAt(0).toUpperCase() + heel.slice(1) });
-        processedKeys.add('topuk');
-        console.log(`    ✓ ${sourceLabel} topuk: "Topuk Tipi" = "${heel}"`);
-      }
-    });
-    
-    // Extract numeric measurements (cm, mm, %)
-    const measurementRegex = /(\d+(?:[.,]\d+)?)\s*(cm|mm|%)/g;
-    let measureMatch;
-    while ((measureMatch = measurementRegex.exec(cleanText)) !== null) {
-      const value = measureMatch[1];
-      const unit = measureMatch[2];
-      if (unit === 'cm' && !processedKeys.has('topuk_yüksekliği')) {
-        features.push({ key: 'Topuk Yüksekliği', value: `${value} ${unit}` });
-        processedKeys.add('topuk_yüksekliği');
-        console.log(`    ✓ ${sourceLabel} ölçü: "Topuk Yüksekliği" = "${value} ${unit}"`);
-      }
-    }
-  };
+  }
   
   // Sadece marka bilgisini ekle (kritik)
   if (!processedKeys.has('marka')) {
@@ -915,7 +867,7 @@ export async function extractFocusedData(url: string): Promise<FocusedProductDat
   // Initialize category first
   let category = 'Ürün';
 
-  console.log(`✅ HTML'den çıkarılan özellik sayısı: ${features.length}`);
+  console.log(`✅ Gerçek özellik sayısı: ${features.length}`);
 
   // Gelişmiş kategori çıkarımı  
   category = 'Apparel & Accessories > Clothing';
