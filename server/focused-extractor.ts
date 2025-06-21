@@ -1359,10 +1359,10 @@ export async function extractFocusedData(url: string): Promise<FocusedProductDat
     category = 'Apparel & Accessories > Clothing > Tops';
     categoryFound = true;
   } else if (titleLower.includes('pantolon') || titleLower.includes('jean') || titleLower.includes('eşofman')) {
-    category = 'Apparel & Accessories > Clothing > Women > Pants';
+    category = 'Apparel & Accessories > Clothing > Pants';
     categoryFound = true;
   } else if (titleLower.includes('ceket') || titleLower.includes('blazer') || titleLower.includes('mont')) {
-    category = 'Apparel & Accessories > Clothing > Women > Outerwear';
+    category = 'Apparel & Accessories > Clothing > Outerwear';
     categoryFound = true;
   } else if (titleLower.includes('gömlek')) {
     category = 'Apparel & Accessories > Clothing > Men > Shirts';
@@ -1396,6 +1396,6 @@ export async function extractFocusedData(url: string): Promise<FocusedProductDat
       unavailableSizes: Array.from(outOfStockSizes)
     },
     features,
-    category
+    category: categoryFound ? category : 'Apparel & Accessories'
   };
 }

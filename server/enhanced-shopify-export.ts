@@ -62,7 +62,7 @@ function processVariants(product: Product, baseRow: any): any[] {
     }
   }
     
-  const hasSizes = availableSizes.length > 0; // Gerçek beden seçenekleri varsa
+  const hasSizes = availableSizes.length > 1; // En az 2 farklı beden olmalı
   
   // Her iki varyant türü varsa: Renk + Beden kombinasyonları oluştur
   if (hasColors && hasSizes) {
