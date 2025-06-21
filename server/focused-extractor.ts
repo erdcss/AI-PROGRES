@@ -389,11 +389,11 @@ export async function extractFocusedData(url: string): Promise<FocusedProductDat
     if (titleLower.includes('blazer') || titleLower.includes('ceket')) {
       basicCategory = 'Apparel & Accessories > Clothing > Women > Outerwear > Blazers';
     } else if (titleLower.includes('bluz')) {
-      basicCategory = 'Apparel & Accessories > Clothing > Women > Tops > Blouses';
+      basicCategory = 'Apparel & Accessories > Clothing > Tops';
     } else if (titleLower.includes('elbise')) {
-      basicCategory = 'Apparel & Accessories > Clothing > Women > Dresses';
+      basicCategory = 'Apparel & Accessories > Clothing > Dresses';
     } else if (titleLower.includes('pantolon')) {
-      basicCategory = 'Apparel & Accessories > Clothing > Women > Pants';
+      basicCategory = 'Apparel & Accessories > Clothing > Pants';
     } else if (titleLower.includes('yelek')) {
       basicCategory = 'Apparel & Accessories > Clothing > Women > Outerwear > Vests';
     } else if (titleLower.includes('kadın')) {
@@ -1353,10 +1353,10 @@ export async function extractFocusedData(url: string): Promise<FocusedProductDat
   const titleLower = title.toLowerCase();
   
   if (titleLower.includes('elbise')) {
-    category = 'Apparel & Accessories > Clothing > Women > Dresses';
+    category = 'Apparel & Accessories > Clothing > Dresses';
     categoryFound = true;
   } else if (titleLower.includes('bluz') || titleLower.includes('tişört') || titleLower.includes('tshirt')) {
-    category = 'Apparel & Accessories > Clothing > Women > Tops';
+    category = 'Apparel & Accessories > Clothing > Tops';
     categoryFound = true;
   } else if (titleLower.includes('pantolon') || titleLower.includes('jean') || titleLower.includes('eşofman')) {
     category = 'Apparel & Accessories > Clothing > Women > Pants';

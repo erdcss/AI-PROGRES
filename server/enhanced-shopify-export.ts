@@ -35,9 +35,15 @@ function processVariants(product: Product, baseRow: any): any[] {
   
   // Öncelikle stokta olan bedenleri kontrol et, yoksa tüm beden listesini kullan
   // Stokta bulunma kontrolü: Sadece stokta olan bedenleri varyant olarak ekle
-  const availableSizes = variants.availableSizes && Array.isArray(variants.availableSizes) && variants.availableSizes.length > 0
+  const rawSizes = variants.availableSizes && Array.isArray(variants.availableSizes) && variants.availableSizes.length > 0
     ? variants.availableSizes
     : (variants.size && Array.isArray(variants.size) ? variants.size : []);
+
+  const availableSizes = rawSizes.filter(size => 
+    size && size !== 'Tek Beden' && size !== 'Default' && size !== 'Varsayılan'
+  );
+  
+  console.log(`🔍 Varyant analizi: Ham=[${rawSizes.join(', ')}] → Filtrelenmiş=[${availableSizes.join(', ')}]`);
   
   // Stok durumu hakkında log
   if (variants.availableSizes && Array.isArray(variants.availableSizes)) {
@@ -290,8 +296,8 @@ export async function generateEnhancedShopifyCSV(
       price: product.price,
       compare_at_price: product.basePrice,
       
-      // Ürün türü ve kategori
-      standard_product_type: product.category || '',
+      // Ürün türü ve kategori - Shopify uyumlu
+      standard_product_type: product.category || 'Apparel & Accessories',
       custom_product_type: product.productType || '',
       
       // Envanter ayarları
