@@ -1400,6 +1400,9 @@ export async function extractFocusedData(url: string): Promise<FocusedProductDat
   if (titleLower.includes('elbise')) {
     category = 'Apparel & Accessories > Clothing > Dresses';
     categoryFound = true;
+  } else if (titleLower.includes('granola') || titleLower.includes('müsli') || titleLower.includes('tahıl')) {
+    category = 'Food, Beverages & Tobacco > Food Items > Breakfast Foods > Cereal & Granola';
+    categoryFound = true;
   } else if (titleLower.includes('bluz') || titleLower.includes('tişört') || titleLower.includes('tshirt')) {
     category = 'Apparel & Accessories > Clothing > Tops';
     categoryFound = true;
@@ -1410,13 +1413,13 @@ export async function extractFocusedData(url: string): Promise<FocusedProductDat
     category = 'Apparel & Accessories > Clothing > Outerwear';
     categoryFound = true;
   } else if (titleLower.includes('gömlek')) {
-    category = 'Apparel & Accessories > Clothing > Men > Shirts';
+    category = 'Apparel & Accessories > Clothing > Shirts & Tops';
     categoryFound = true;
   } else if (titleLower.includes('etek')) {
-    category = 'Apparel & Accessories > Clothing > Women > Skirts';
+    category = 'Apparel & Accessories > Clothing > Skirts';
     categoryFound = true;
   } else if (titleLower.includes('şort')) {
-    category = 'Apparel & Accessories > Clothing > Women > Shorts';
+    category = 'Apparel & Accessories > Clothing > Shorts';
     categoryFound = true;
   }
   
@@ -1449,10 +1452,28 @@ export async function extractFocusedData(url: string): Promise<FocusedProductDat
   console.log(`✓ Özellikler: ${features.length} adet (kapsamlı)`);
   console.log(`🎯 Focused extraction tamamlandı`);
   
-  // Final kategori kontrolü - JSON response için
-  const jsonCategory = finalCategory && finalCategory !== 'null' && finalCategory !== 'undefined' 
-    ? finalCategory 
-    : 'Apparel & Accessories > Clothing';
+  // Doğrudan Shopify kategori ataması - JSON null sorunu çözümü
+  let jsonCategory;
+  
+  if (titleLower.includes('granola') || titleLower.includes('müsli') || titleLower.includes('kahvaltı') || titleLower.includes('tahıl')) {
+    jsonCategory = 'Food, Beverages & Tobacco > Food Items > Breakfast Foods > Cereal & Granola';
+  } else if (titleLower.includes('blazer') || titleLower.includes('ceket') || titleLower.includes('mont')) {
+    jsonCategory = 'Apparel & Accessories > Clothing > Outerwear';
+  } else if (titleLower.includes('elbise')) {
+    jsonCategory = 'Apparel & Accessories > Clothing > Dresses';
+  } else if (titleLower.includes('pantolon') || titleLower.includes('jean')) {
+    jsonCategory = 'Apparel & Accessories > Clothing > Pants';
+  } else if (titleLower.includes('bluz') || titleLower.includes('tişört')) {
+    jsonCategory = 'Apparel & Accessories > Clothing > Tops';
+  } else if (titleLower.includes('gömlek')) {
+    jsonCategory = 'Apparel & Accessories > Clothing > Shirts & Tops';
+  } else if (titleLower.includes('etek')) {
+    jsonCategory = 'Apparel & Accessories > Clothing > Skirts';
+  } else if (titleLower.includes('şort')) {
+    jsonCategory = 'Apparel & Accessories > Clothing > Shorts';
+  } else {
+    jsonCategory = 'Apparel & Accessories > Clothing';
+  }
 
   console.log(`📤 JSON'a döndürülecek kategori: "${jsonCategory}"`);
   console.log(`📤 JSON'a döndürülecek özellik sayısı: ${features.length}`);
@@ -1473,6 +1494,6 @@ export async function extractFocusedData(url: string): Promise<FocusedProductDat
       unavailableSizes: Array.from(outOfStockSizes)
     },
     features,
-    category: jsonCategory === 'null' ? 'Apparel & Accessories > Clothing' : jsonCategory
+    category: jsonCategory
   };
 }
