@@ -784,11 +784,39 @@ export async function extractFocusedData(url: string): Promise<FocusedProductDat
   
   // 2. Ürün başlığından kategori tahmin et
   const titleLower = title.toLowerCase();
-  if (titleLower.includes('elbise')) category = 'Apparel & Accessories > Clothing > Women > Dresses';
-  else if (titleLower.includes('bluz') || titleLower.includes('tişört')) category = 'Apparel & Accessories > Clothing > Women > Tops';
-  else if (titleLower.includes('pantolon') || titleLower.includes('jean')) category = 'Apparel & Accessories > Clothing > Women > Pants';
-  else if (titleLower.includes('ceket') || titleLower.includes('blazer')) category = 'Apparel & Accessories > Clothing > Women > Outerwear';
-  else if (titleLower.includes('gömlek')) category = 'Apparel & Accessories > Clothing > Men > Shirts';
+  if (titleLower.includes('elbise')) {
+    category = 'Apparel & Accessories > Clothing > Women > Dresses';
+  } else if (titleLower.includes('bluz') || titleLower.includes('tişört') || titleLower.includes('tshirt')) {
+    category = 'Apparel & Accessories > Clothing > Women > Tops';
+  } else if (titleLower.includes('pantolon') || titleLower.includes('jean') || titleLower.includes('eşofman')) {
+    category = 'Apparel & Accessories > Clothing > Women > Pants';
+  } else if (titleLower.includes('ceket') || titleLower.includes('blazer') || titleLower.includes('mont')) {
+    category = 'Apparel & Accessories > Clothing > Women > Outerwear';
+  } else if (titleLower.includes('gömlek')) {
+    category = 'Apparel & Accessories > Clothing > Men > Shirts';
+  } else if (titleLower.includes('etek')) {
+    category = 'Apparel & Accessories > Clothing > Women > Skirts';
+  } else if (titleLower.includes('şort')) {
+    category = 'Apparel & Accessories > Clothing > Women > Shorts';
+  }
+  
+  // 3. Product category'den gelirse kullan
+  if (product.category && product.category.name) {
+    const productCategory = product.category.name.toLowerCase();
+    if (productCategory.includes('kadın')) {
+      if (productCategory.includes('elbise')) category = 'Apparel & Accessories > Clothing > Women > Dresses';
+      else if (productCategory.includes('üst')) category = 'Apparel & Accessories > Clothing > Women > Tops';
+      else if (productCategory.includes('alt')) category = 'Apparel & Accessories > Clothing > Women > Pants';
+      else if (productCategory.includes('dış giyim')) category = 'Apparel & Accessories > Clothing > Women > Outerwear';
+      else category = 'Apparel & Accessories > Clothing > Women';
+    } else if (productCategory.includes('erkek')) {
+      if (productCategory.includes('gömlek')) category = 'Apparel & Accessories > Clothing > Men > Shirts';
+      else if (productCategory.includes('üst')) category = 'Apparel & Accessories > Clothing > Men > Tops';
+      else if (productCategory.includes('alt')) category = 'Apparel & Accessories > Clothing > Men > Pants';
+      else if (productCategory.includes('dış giyim')) category = 'Apparel & Accessories > Clothing > Men > Outerwear';
+      else category = 'Apparel & Accessories > Clothing > Men';
+    }
+  }
   
   console.log(`🏷️ Kategori belirlendi: ${category}`);
   console.log(`✓ Özellikler: ${features.length} adet (kapsamlı)`);

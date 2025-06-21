@@ -108,8 +108,10 @@ function generateSingleProductShopifyCSV(product: any): string {
     ]);
   });
 
-  // Ek görseller için satırlar - sadece görseller
-  for (let i = product.sizeOptions.length; i < product.images.length; i++) {
+  // Tüm ek görseller için satırlar - varyant sayısından sonraki görseller
+  const remainingImages = product.images.slice(product.sizeOptions.length);
+  remainingImages.forEach((imageUrl: string, index: number) => {
+    const imagePosition = product.sizeOptions.length + index + 2;
     rows.push([
       '',                                             // 1. Handle
       '',                                             // 2. Title
@@ -132,9 +134,9 @@ function generateSingleProductShopifyCSV(product: any): string {
       '',                                             // 19. Variant Requires Shipping
       '',                                             // 20. Variant Taxable
       '',                                             // 21. Variant Barcode
-      product.images[i],                             // 22. Image Src
-      (i + 2).toString(),                            // 23. Image Position
-      `"${product.title} - Görsel ${i + 1}"`,       // 24. Image Alt Text
+      imageUrl,                                      // 22. Image Src
+      imagePosition.toString(),                      // 23. Image Position
+      `"${product.title} - Ek Görsel ${imagePosition - 1}"`, // 24. Image Alt Text
       '',                                             // 25. Gift Card
       '',                                             // 26. SEO Title
       '',                                             // 27. SEO Description
@@ -143,7 +145,7 @@ function generateSingleProductShopifyCSV(product: any): string {
       '',                                             // 30. Cost per item
       ''                                              // 31. Included / Turkey
     ]);
-  }
+  });
 
   return [headers.join(','), ...rows.map(row => row.join(','))].join('\n');
 }
