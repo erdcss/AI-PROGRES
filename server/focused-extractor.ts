@@ -966,7 +966,7 @@ export async function extractFocusedData(url: string): Promise<FocusedProductDat
   ];
   
   if (!categoryFound) {
-    console.log('  🔍 HTML gelişmiş kategori analizi...');
+    console.log('  🔍 HTML kategori analizi...');
     
     for (const pattern of advancedBreadcrumbPatterns) {
       const match = htmlContent.match(pattern);
