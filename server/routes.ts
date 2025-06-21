@@ -18,27 +18,20 @@ import { extractVariantStockInfo } from "./advanced-size-extractor";
 import { extractFocusedData } from './focused-extractor';
 
 function generateSingleProductShopifyCSV(product: any): string {
-  const handle = product.title.toLowerCase()
-    .replace(/[^a-z0-9\s-]/g, '')
-    .replace(/\s+/g, '-')
-    .substring(0, 50);
-  
-  const bodyHTML = `<h3>Ürün Özellikleri</h3><ul>${product.features.map((f: any) => `<li><strong>${f.key}:</strong> ${f.value}</li>`).join('')}</ul><p>Marka: ${product.brand}</p><p>Beden seçenekleri: ${product.sizeOptions.join(' ')}</p><p>Görseller: ${product.images.length} adet</p>`;
-
+  // HEADERS - Şablonunuza tam uygun
   const headers = [
-    'Handle', 'Title', 'Body (HTML)', 'Vendor', 'Product Category', 'Type', 'Tags', 'Published',
-    'Option1 Name', 'Option1 Value', 'Option2 Name', 'Option2 Value', 'Variant SKU', 'Variant Grams', 'Variant Inventory Tracker',
-    'Variant Inventory Qty', 'Variant Inventory Policy', 'Variant Fulfillment Service',
-    'Variant Price', 'Variant Compare At Price', 'Variant Requires Shipping', 'Variant Taxable',
-    'Variant Barcode', 'Image Src', 'Image Position', 'Image Alt Text', 'Gift Card',
-    'SEO Title', 'SEO Description', 'Variant Image', 'Variant Weight Unit', 'Cost per item', 'Included / Turkey'
+    'Handle', 'Title', 'Body (HTML)', 'Vendor', 'Tags', 'Published',
+    'Option1 Name', 'Option1 Value', 'Option2 Name', 'Option2 Value', 
+    'Variant SKU', 'Variant Inventory Qty', 'Variant Price', 'Variant Compare At Price',
+    'Image Src', 'Image Position', 'Image Alt Text', 'Gift Card', 
+    'SEO Title', 'SEO Description', 'Variant Image', 'Variant Weight Unit', 'Status'
   ];
 
   const rows: string[][] = [];
   rows.push(headers);
 
   // Handle oluştur (Türkçe karakter temizleme)
-  const handle = product.title.toLowerCase()
+  const productHandle = product.title.toLowerCase()
     .replace(/ç/g, 'c').replace(/ğ/g, 'g').replace(/ı/g, 'i')
     .replace(/ö/g, 'o').replace(/ş/g, 's').replace(/ü/g, 'u')
     .replace(/[^a-z0-9\s]/g, '')
@@ -52,7 +45,7 @@ function generateSingleProductShopifyCSV(product: any): string {
     const variantStock = relatedVariant ? relatedVariant.stockCount : 20;
     
     rows.push([
-      handle,                                         // 1. Handle - AYNI HANDLE
+      productHandle,                                  // 1. Handle - AYNI HANDLE
       product.title,                                  // 2. Title - AYNI BAŞLIK
       `<p>${product.brand} marka orijinal erkek jean pantolon.</p>`, // 3. Body (HTML)
       product.brand || 'Mavi',                       // 4. Vendor
