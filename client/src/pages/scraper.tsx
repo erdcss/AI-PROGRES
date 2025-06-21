@@ -938,6 +938,29 @@ function ScraperPage({ platform = 'trendyol' }: ScraperPageProps) {
                   <div className="space-y-3 border-t border-gray-800 pt-3">
                     <h3 className="text-base font-semibold text-gray-200">Veri Önizleme</h3>
                     
+                    {/* Ürün Özellikleri Önizleme */}
+                    {product.features && product.features.length > 0 && (
+                      <div className="bg-blue-900/20 p-3 rounded border border-blue-800">
+                        <div className="flex items-center justify-between mb-2">
+                          <span className="text-blue-400 text-sm font-medium">Ürün Özellikleri</span>
+                          <span className="text-xs text-blue-300">{product.features.length} özellik</span>
+                        </div>
+                        <div className="max-h-32 overflow-y-auto space-y-1">
+                          {product.features.slice(0, 6).map((feature, index) => (
+                            <div key={index} className="flex justify-between text-xs">
+                              <span className="text-gray-400">{feature.key}:</span>
+                              <span className="text-gray-300 ml-2 text-right">{feature.value}</span>
+                            </div>
+                          ))}
+                          {product.features.length > 6 && (
+                            <div className="text-center pt-1">
+                              <span className="text-xs text-blue-400">+{product.features.length - 6} daha...</span>
+                            </div>
+                          )}
+                        </div>
+                      </div>
+                    )}
+                    
                     {/* Compact Price */}
                     <div className="bg-green-900/20 p-3 rounded border border-green-800">
                       <div className="flex items-center justify-between mb-2">
