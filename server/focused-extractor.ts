@@ -834,22 +834,126 @@ export async function extractFocusedData(url: string): Promise<FocusedProductDat
   
   console.log(`🔍 HTML'den toplam ${totalFeatures} özellik çıkarıldı`);
   
-  // Product attributes'dan - temel özellikler
+  // Trendyol JavaScript state'den detaylı özellik çıkarma
+  console.log('🎯 Trendyol JavaScript state analizi...');
+  const jsStatePatterns = [
+    /window\.__PRODUCT_DETAIL_APP_INITIAL_STATE__\s*=\s*({.+?});/s,
+    /window\.__INITIAL_STATE__\s*=\s*({.+?});/s,
+    /"productDetail"\s*:\s*({.+?})/s,
+    /"attributes"\s*:\s*(\{[^}]+\})/g
+  ];
+  
+  jsStatePatterns.forEach((pattern, index) => {
+    const match = htmlContent.match(pattern);
+    if (match) {
+      console.log(`  💾 JS State pattern ${index + 1} bulundu`);
+      try {
+        const jsonData = JSON.parse(match[1]);
+        
+        // Derin nesne arama fonksiyonu
+        const extractAttributesRecursively = (obj: any, path = '') => {
+          if (!obj || typeof obj !== 'object') return;
+          
+          for (const [key, value] of Object.entries(obj)) {
+            // Attributes objesi bulundu
+            if (key === 'attributes' && value && typeof value === 'object') {
+              console.log(`    📋 Attributes objesi bulundu: ${path}.${key}`);
+              Object.entries(value).forEach(([attrKey, attrValue]) => {
+                if (typeof attrValue === 'string' && 
+                    attrKey.length > 1 && attrValue.length > 0 &&
+                    !processedKeys.has(attrKey.toLowerCase()) &&
+                    totalFeatures < 30) {
+                  features.push({ 
+                    key: attrKey.trim(), 
+                    value: String(attrValue).trim() 
+                  });
+                  processedKeys.add(attrKey.toLowerCase());
+                  totalFeatures++;
+                  console.log(`      ✅ ${attrKey}: ${attrValue}`);
+                }
+              });
+            }
+            // productAttributes da ara
+            else if (key === 'productAttributes' && value && typeof value === 'object') {
+              console.log(`    📋 ProductAttributes bulundu: ${path}.${key}`);
+              Object.entries(value).forEach(([attrKey, attrValue]) => {
+                if (typeof attrValue === 'string' && 
+                    !processedKeys.has(attrKey.toLowerCase()) &&
+                    totalFeatures < 30) {
+                  features.push({ 
+                    key: attrKey.trim(), 
+                    value: String(attrValue).trim() 
+                  });
+                  processedKeys.add(attrKey.toLowerCase());
+                  totalFeatures++;
+                  console.log(`      ✅ ${attrKey}: ${attrValue}`);
+                }
+              });
+            }
+            // Alt nesneleri de ara
+            else if (typeof value === 'object' && value !== null) {
+              extractAttributesRecursively(value, path + '.' + key);
+            }
+          }
+        };
+        
+        extractAttributesRecursively(jsonData);
+      } catch (e) {
+        console.log(`  ⚠️ JS State ${index + 1} parse hatası: ${e.message}`);
+      }
+    }
+  });
+  
+  // Trendyol spesifik string pattern arama
+  console.log('🔍 Trendyol string pattern analizi...');
+  const specificFeatures = [
+    'Paça Tipi', 'Materyal', 'Bel', 'Renk', 'Koleksiyon', 'Kumaş Tipi', 
+    'Ortam', 'Desen', 'Kapama Şekli', 'Dokuma Tipi', 'Boy', 'Cep', 'Kalıp', 
+    'Ürün Tipi', 'Persona', 'Menşei', 'Ek Özellik', 'Kemer/Kuşak Durumu', 
+    'Sürdürülebilirlik Detayı', 'Silüet'
+  ];
+  
+  specificFeatures.forEach(featureName => {
+    // JSON formatında arama
+    const jsonPattern = new RegExp(`"${featureName}"\\s*:\\s*"([^"]+)"`, 'gi');
+    const jsonMatch = jsonPattern.exec(htmlContent);
+    
+    if (jsonMatch && !processedKeys.has(featureName.toLowerCase()) && totalFeatures < 35) {
+      features.push({ key: featureName, value: jsonMatch[1].trim() });
+      processedKeys.add(featureName.toLowerCase());
+      totalFeatures++;
+      console.log(`  ✅ Pattern: ${featureName}: ${jsonMatch[1]}`);
+    }
+    
+    // HTML formatında arama
+    const htmlPattern = new RegExp(`<[^>]*>${featureName}<[^>]*>\\s*<[^>]*>([^<]+)<`, 'gi');
+    const htmlMatch = htmlPattern.exec(htmlContent);
+    
+    if (htmlMatch && !processedKeys.has(featureName.toLowerCase()) && totalFeatures < 35) {
+      features.push({ key: featureName, value: htmlMatch[1].trim() });
+      processedKeys.add(featureName.toLowerCase());
+      totalFeatures++;
+      console.log(`  ✅ HTML: ${featureName}: ${htmlMatch[1]}`);
+    }
+  });
+  
+  // Product nesnesinden direkt attributes
   if (product.attributes && typeof product.attributes === 'object') {
-    console.log('🏷️ Product attributes çıkarılıyor...');
+    console.log('🏷️ Product direkt attributes çıkarılıyor...');
     Object.entries(product.attributes).forEach(([key, value]) => {
       if (key && value && 
           typeof key === 'string' && typeof value === 'string' &&
           key.length > 1 && key.length < 100 &&
           value.length > 0 && value.length < 200 &&
-          !processedKeys.has(key.toLowerCase())) {
+          !processedKeys.has(key.toLowerCase()) && totalFeatures < 35) {
         
         features.push({
           key: key.trim(),
           value: value.trim()
         });
         processedKeys.add(key.toLowerCase());
-        console.log(`  ✓ Attribute: ${key} = ${value}`);
+        totalFeatures++;
+        console.log(`  ✓ Direct: ${key} = ${value}`);
       }
     });
   }
