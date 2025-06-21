@@ -27,7 +27,7 @@ function generateSingleProductShopifyCSV(product: any): string {
 
   const headers = [
     'Handle', 'Title', 'Body (HTML)', 'Vendor', 'Product Category', 'Type', 'Tags', 'Published',
-    'Option1 Name', 'Option1 Value', 'Variant SKU', 'Variant Grams', 'Variant Inventory Tracker',
+    'Option1 Name', 'Option1 Value', 'Option2 Name', 'Option2 Value', 'Variant SKU', 'Variant Grams', 'Variant Inventory Tracker',
     'Variant Inventory Qty', 'Variant Inventory Policy', 'Variant Fulfillment Service',
     'Variant Price', 'Variant Compare At Price', 'Variant Requires Shipping', 'Variant Taxable',
     'Variant Barcode', 'Image Src', 'Image Position', 'Image Alt Text', 'Gift Card',
@@ -46,8 +46,10 @@ function generateSingleProductShopifyCSV(product: any): string {
     'Giyim',                                        // 6. Type
     'giyim;moda;stil',                              // 7. Tags
     'TRUE',                                         // 8. Published
-    'Beden',                                        // 9. Option1 Name
-    '',                                             // 10. Option1 Value
+    'Renk',                                         // 9. Option1 Name - SABİT
+    'Indigo',                                       // 10. Option1 Value - SABİT
+    'Beden',                                        // 11. Option2 Name - SABİT
+    product.sizeOptions[0] || '28/30',              // 12. Option2 Value - SABİT
     '',                                             // 11. Variant SKU
     '100',                                          // 12. Variant Grams
     'shopify',                                      // 13. Variant Inventory Tracker
@@ -87,9 +89,11 @@ function generateSingleProductShopifyCSV(product: any): string {
       '',                                             // 6. Type
       '',                                             // 7. Tags
       '',                                             // 8. Published
-      '',                                             // 9. Option1 Name
-      size,                                           // 10. Option1 Value - VARIANT BİLGİSİ
-      `${handle}-${size.toLowerCase()}`,             // 11. Variant SKU
+      'Renk',                                         // 9. Option1 Name - SABİT
+      'Indigo',                                       // 10. Option1 Value - SABİT
+      'Beden',                                        // 11. Option2 Name - SABİT  
+      size,                                           // 12. Option2 Value - VARIANT BİLGİSİ
+      `${handle}-${size.toLowerCase()}`,             // 13. Variant SKU
       '100',                                          // 12. Variant Grams
       'shopify',                                      // 13. Variant Inventory Tracker
       variantStock.toString(),                        // 14. Variant Inventory Qty - GERÇEK STOK
