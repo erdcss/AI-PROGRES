@@ -42,7 +42,7 @@ function generateSingleProductShopifyCSV(product: any): string {
     `"${product.title}"`,                            // 2. Title
     `"${bodyHTML.replace(/"/g, '""')}"`,            // 3. Body (HTML)
     product.brand,                                   // 4. Vendor
-    'Apparel & Accessories > Clothing',             // 5. Product Category
+    product.category || 'Apparel & Accessories > Clothing', // 5. Product Category
     'Giyim',                                        // 6. Type
     'giyim;moda;stil',                              // 7. Tags
     'TRUE',                                         // 8. Published

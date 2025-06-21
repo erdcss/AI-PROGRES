@@ -37,6 +37,7 @@ export interface FocusedProductData {
     key: string;
     value: string;
   }>;
+  category: string;
 }
 
 export async function extractFocusedData(url: string): Promise<FocusedProductData> {
