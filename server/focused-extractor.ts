@@ -704,18 +704,11 @@ export async function extractFocusedData(url: string): Promise<FocusedProductDat
     console.log(`⚠️ Stokta olmayan bedenler CSV'ye eklenmedi: ${Array.from(outOfStockSizes).join(', ')}`);
   }
 
-  // 6. ÖZELLİKLER - HTML'den gerçek özellikleri çıkar
-  const { extractRealFeaturesFromHTML } = await import('./html-feature-extractor');
-  const features = extractRealFeaturesFromHTML(htmlContent);
-  const processedKeys = new Set<string>(features.map(f => f.key.toLowerCase()));
+  // 6. ÖZELLİKLER - Gerçek product attributes'dan çıkar
+  const features: Array<{ key: string; value: string; }> = [];
+  const processedKeys = new Set<string>();
 
-  console.log('🔍 Gerçek ürün özellikleri çıkarıldı...');
-
-  // Gerçek özellikler çıkarıldı, sadece eksik kritik bilgileri ekle
-
-  // Pattern 3: Comprehensive feature extraction from various sources
-  const productTitle = title.toLowerCase();
-  const productBrand = brand.toLowerCase();
+  console.log('🔍 Product attributes ve gerçek özellikler çıkarılıyor...');
   
   // Extract all possible features from title and content
   const extractFromText = (text: string, sourceLabel: string) => {
@@ -785,72 +778,11 @@ export async function extractFocusedData(url: string): Promise<FocusedProductDat
     }
   };
   
-  // Extract from title
-  extractFromText(title, 'Başlıktan');
-  
-  // Pattern 4: JSON-LD structured data extraction
-  console.log('📄 JSON-LD structured data aranıyor...');
-  const jsonLdRegex = /<script[^>]*type="application\/ld\+json"[^>]*>(.*?)<\/script>/gs;
-  let jsonMatch;
-  while ((jsonMatch = jsonLdRegex.exec(htmlContent)) !== null) {
-    try {
-      const jsonData = JSON.parse(jsonMatch[1]);
-      if (jsonData && typeof jsonData === 'object') {
-        // Extract product properties
-        if (jsonData.color && !processedKeys.has('renk')) {
-          features.push({ key: 'Renk', value: jsonData.color });
-          processedKeys.add('renk');
-          console.log(`    ✓ JSON-LD renk: "Renk" = "${jsonData.color}"`);
-        }
-        if (jsonData.material && !processedKeys.has('materyal')) {
-          features.push({ key: 'Materyal', value: jsonData.material });
-          processedKeys.add('materyal');
-          console.log(`    ✓ JSON-LD materyal: "Materyal" = "${jsonData.material}"`);
-        }
-        if (jsonData.brand && jsonData.brand.name && !processedKeys.has('marka')) {
-          features.push({ key: 'Marka', value: jsonData.brand.name });
-          processedKeys.add('marka');
-          console.log(`    ✓ JSON-LD marka: "Marka" = "${jsonData.brand.name}"`);
-        }
-      }
-    } catch (e) {
-      console.log('    ⚠️ JSON-LD parse error');
-    }
-  }
-  
-  // Pattern 5: Extract from product descriptions in HTML
-  console.log('📝 Ürün açıklamalarından özellik çıkarımı...');
-  const descriptionRegex = /<(?:div|p)[^>]*class="[^"]*(?:description|detail|content|info)[^"]*"[^>]*>(.*?)<\/(?:div|p)>/gs;
-  let descMatch;
-  while ((descMatch = descriptionRegex.exec(htmlContent)) !== null) {
-    const descText = descMatch[1].replace(/<[^>]*>/g, ' ').replace(/\s+/g, ' ').trim();
-    if (descText.length > 10 && descText.length < 1000) {
-      extractFromText(descText, 'Açıklamadan');
-    }
-  }
-
-  // Pattern 6: Extract product attributes from JavaScript objects in HTML
-  console.log('🔍 JavaScript nesnelerinden özellik çıkarımı...');
-  const jsObjectRegex = /(?:product|item|attributes|properties|specs|details)\s*[=:]\s*(\{[^}]*(?:\{[^}]*\}[^}]*)*\})/gs;
-  let jsObjMatch;
-  while ((jsObjMatch = jsObjectRegex.exec(htmlContent)) !== null) {
-    try {
-      const objStr = jsObjMatch[1];
-      // Simple key-value extraction from JS object strings
-      const keyValueRegex = /["']?([a-zA-ZÇĞİÖŞÜçğıöşü]+)["']?\s*[:=]\s*["']([^"']+)["']/g;
-      let kvMatch;
-      while ((kvMatch = keyValueRegex.exec(objStr)) !== null) {
-        const key = kvMatch[1];
-        const value = kvMatch[2];
-        if (key && value && !processedKeys.has(key.toLowerCase())) {
-          features.push({ key, value });
-          processedKeys.add(key.toLowerCase());
-          console.log(`    ✓ JS Object özelliği: "${key}" = "${value}"`);
-        }
-      }
-    } catch (e) {
-      // Continue if parsing fails
-    }
+  // Sadece marka bilgisini ekle (kritik)
+  if (!processedKeys.has('marka')) {
+    features.push({ key: 'Marka', value: brand });
+    processedKeys.add('marka');
+    console.log(`  ✓ Marka: "${brand}"`);
   }
 
   // Pattern 7: Add essential missing features with fallback values
@@ -901,7 +833,7 @@ export async function extractFocusedData(url: string): Promise<FocusedProductDat
     console.log(`    ✓ Mevsim eklendi: "Dört Mevsim"`);
   }
 
-  // Product attributes'dan - temel özellikler
+  // Product attributes'dan gerçek özellikler
   if (product.attributes && typeof product.attributes === 'object') {
     console.log('🏷️ Product attributes çıkarılıyor...');
     Object.entries(product.attributes).forEach(([key, value]) => {
@@ -916,7 +848,7 @@ export async function extractFocusedData(url: string): Promise<FocusedProductDat
           value: value.trim()
         });
         processedKeys.add(key.toLowerCase());
-        console.log(`  ✓ Attribute: ${key} = ${value}`);
+        console.log(`  ✓ Gerçek Attribute: ${key} = ${value}`);
       }
     });
   }
