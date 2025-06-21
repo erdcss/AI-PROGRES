@@ -754,47 +754,81 @@ export async function extractFocusedData(url: string): Promise<FocusedProductDat
     console.log(`  ✓ Marka eklendi: "${brand}"`);
   }
 
-  // Manuel özellik ekleme sistemi - Yatak alezi için
+  // Manuel özellik ekleme sistemi - Ürün tipine göre
+  console.log('🏷️ Manuel özellik sistemi başlatılıyor...');
+  
+  // Yatak alezi için özellikler
   if (title.toLowerCase().includes('yatak') || title.toLowerCase().includes('alez')) {
     console.log('🛏️ Yatak alezi manuel özellikleri ekleniyor...');
     
-    // Materyal çıkarımı
     if (title.toLowerCase().includes('bambu')) {
       features.push({ key: 'Materyal', value: 'Bambu' });
       processedKeys.add('materyal');
       console.log(`  ✓ Materyal: Bambu`);
-    } else if (title.toLowerCase().includes('pamuk')) {
-      features.push({ key: 'Materyal', value: 'Pamuk' });
-      processedKeys.add('materyal');
-      console.log(`  ✓ Materyal: Pamuk`);
     }
     
-    // Su geçirmezlik özelliği
     if (title.toLowerCase().includes('sıvı geçirmez') || title.toLowerCase().includes('su geçirmez')) {
       features.push({ key: 'Özellik', value: 'Su Geçirmez' });
       processedKeys.add('özellik');
       console.log(`  ✓ Özellik: Su Geçirmez`);
     }
     
-    // Sessizlik özelliği
     if (title.toLowerCase().includes('sessiz')) {
       features.push({ key: 'Ses Özelliği', value: 'Ultra Sessiz' });
       processedKeys.add('ses');
       console.log(`  ✓ Ses Özelliği: Ultra Sessiz`);
     }
     
-    // Premium/kalite özelliği
     if (title.toLowerCase().includes('premium')) {
       features.push({ key: 'Kalite', value: 'Premium' });
       processedKeys.add('kalite');
       console.log(`  ✓ Kalite: Premium`);
     }
     
-    // Koruma özelliği
     if (title.toLowerCase().includes('koruyucu')) {
       features.push({ key: 'Fonksiyon', value: 'Yatak Koruyucu' });
       processedKeys.add('fonksiyon');
       console.log(`  ✓ Fonksiyon: Yatak Koruyucu`);
+    }
+  }
+  
+  // Jean için özellikler
+  else if (title.toLowerCase().includes('jean') || title.toLowerCase().includes('kot')) {
+    console.log('👖 Jean manuel özellikleri ekleniyor...');
+    
+    if (title.toLowerCase().includes('skinny')) {
+      features.push({ key: 'Kesim', value: 'Skinny' });
+      processedKeys.add('kesim');
+      console.log(`  ✓ Kesim: Skinny`);
+    }
+    
+    if (title.toLowerCase().includes('slim')) {
+      features.push({ key: 'Kesim', value: 'Slim Fit' });
+      processedKeys.add('kesim');
+      console.log(`  ✓ Kesim: Slim Fit`);
+    }
+    
+    if (title.toLowerCase().includes('yüksek bel')) {
+      features.push({ key: 'Bel Tipi', value: 'Yüksek Bel' });
+      processedKeys.add('bel');
+      console.log(`  ✓ Bel Tipi: Yüksek Bel`);
+    }
+  }
+  
+  // Ayakkabı için özellikler  
+  else if (title.toLowerCase().includes('ayakkabı') || title.toLowerCase().includes('spor ayakkabı')) {
+    console.log('👟 Ayakkabı manuel özellikleri ekleniyor...');
+    
+    if (title.toLowerCase().includes('koşu')) {
+      features.push({ key: 'Tip', value: 'Koşu Ayakkabısı' });
+      processedKeys.add('tip');
+      console.log(`  ✓ Tip: Koşu Ayakkabısı`);
+    }
+    
+    if (title.toLowerCase().includes('nefes alan')) {
+      features.push({ key: 'Özellik', value: 'Nefes Alabilir' });
+      processedKeys.add('özellik');
+      console.log(`  ✓ Özellik: Nefes Alabilir`);
     }
   }
 
