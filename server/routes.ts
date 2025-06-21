@@ -108,10 +108,13 @@ function generateSingleProductShopifyCSV(product: any): string {
     ]);
   });
 
-  // Tüm ek görseller için satırlar - varyant sayısından sonraki görseller
-  const remainingImages = product.images.slice(product.sizeOptions.length);
-  remainingImages.forEach((imageUrl: string, index: number) => {
-    const imagePosition = product.sizeOptions.length + index + 2;
+  // TÜM görseller için ek satırlar - varyantlarda kullanılmayanlar
+  const usedImageCount = Math.min(product.sizeOptions.length, product.images.length);
+  const allRemainingImages = product.images.slice(usedImageCount);
+  
+  // Her görsel için ayrı satır ekle
+  allRemainingImages.forEach((imageUrl: string, index: number) => {
+    const imagePosition = usedImageCount + index + 2;
     rows.push([
       '',                                             // 1. Handle
       '',                                             // 2. Title
@@ -136,7 +139,7 @@ function generateSingleProductShopifyCSV(product: any): string {
       '',                                             // 21. Variant Barcode
       imageUrl,                                      // 22. Image Src
       imagePosition.toString(),                      // 23. Image Position
-      `"${product.title} - Ek Görsel ${imagePosition - 1}"`, // 24. Image Alt Text
+      `"${product.title} - Görsel ${imagePosition - 1}"`, // 24. Image Alt Text
       '',                                             // 25. Gift Card
       '',                                             // 26. SEO Title
       '',                                             // 27. SEO Description
@@ -146,6 +149,11 @@ function generateSingleProductShopifyCSV(product: any): string {
       ''                                              // 31. Included / Turkey
     ]);
   });
+  
+  // Eğer görseller varyantlardan fazlaysa, kalan tüm görselleri de ekle
+  if (product.images.length > product.sizeOptions.length) {
+    console.log(`📸 ${product.images.length - product.sizeOptions.length} ek görsel CSV'ye ekleniyor...`);
+  }
 
   return [headers.join(','), ...rows.map(row => row.join(','))].join('\n');
 }
