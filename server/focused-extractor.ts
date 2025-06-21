@@ -214,7 +214,7 @@ export async function extractFocusedData(url: string): Promise<FocusedProductDat
     }
   }
 
-  console.log(`✓ Fiyat: ${priceData.formatted} → %10 kar: ${priceData.profitFormatted} ${foundPrice ? '(Kaynak: JSON)' : '(Kaynak: HTML)'}`);
+  console.log(`✓ Fiyat: ${priceData.formatted} → %10 kar: ${priceData.profitFormatted} ${foundPrice ? '(Kaynak bulundu)' : '(Varsayılan değer)'}`);
 
   // 4. GÖRSELLER - Gelişmiş görsel çıkarma
   const images: string[] = [];
