@@ -45,6 +45,20 @@ function generateSingleProductShopifyCSV(product: any): string {
   console.log(`Stok filtreleme: ${inStockSizes.length} stokta olan beden`);
   console.log(`Stokta olan bedenler: ${inStockSizes.join(', ')}`);
   
+  // Özellikler metni (CSV için)
+  const featuresText = product.features ? 
+    product.features.map(f => `${f.key}: ${f.value}`).join(' | ') : '';
+
+  // Ürün özellikleri HTML formatında (Body için)
+  let bodyHTML = `<p>${product.brand} marka orijinal erkek jean pantolon.</p>`;
+  if (product.features && product.features.length > 0) {
+    bodyHTML += '<div class="product-features"><h4>Ürün Özellikleri:</h4><ul>';
+    product.features.forEach(feature => {
+      bodyHTML += `<li><strong>${feature.key}:</strong> ${feature.value}</li>`;
+    });
+    bodyHTML += '</ul></div>';
+  }
+
   inStockSizes.forEach((size: string, index: number) => {
     const relatedVariant = product.variants?.find?.((v: any) => v.size === size);
     const variantInStock = relatedVariant ? relatedVariant.inStock : true;
@@ -53,7 +67,7 @@ function generateSingleProductShopifyCSV(product: any): string {
     rows.push([
       productHandle,                                  // 1. Handle - AYNI HANDLE
       product.title,                                  // 2. Title - AYNI BAŞLIK
-      `<p>${product.brand} marka orijinal erkek jean pantolon.</p>`, // 3. Body (HTML)
+      bodyHTML,                                       // 3. Body (HTML) - Özelliklerle
       product.brand || 'Mavi',                       // 4. Vendor
       `"jean, erkek, ${product.brand?.toLowerCase() || 'mavi'}, denim, pantolon"`, // 5. Tags
       'TRUE',                                         // 6. Published
@@ -73,7 +87,8 @@ function generateSingleProductShopifyCSV(product: any): string {
       `"${product.brand || 'Mavi'} ${product.title.split(' ').slice(0, 5).join(' ')}, modern kesim ve rahat kalıp."`, // 20. SEO Description
       product.images[index] || product.images[0] || '', // 21. Variant Image
       'kg',                                           // 22. Variant Weight Unit
-      'active'                                        // 23. Status
+      'active',                                       // 23. Status
+      featuresText                                    // 24. Product Features
     ]);
   });
 
@@ -121,7 +136,8 @@ function generateSingleProductShopifyCSV(product: any): string {
       '',                                             // 30. Variant Image - EMPTY for product images
       '',                                             // 31. Variant Weight Unit
       '',                                             // 32. Cost per item
-      ''                                              // 33. Included / Turkey
+      '',                                             // 33. Included / Turkey  
+      ''                                              // 34. Product Features (boş - ek görseller için)
     ]);
   });
   
