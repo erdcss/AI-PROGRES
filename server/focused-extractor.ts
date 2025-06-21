@@ -112,11 +112,17 @@ export async function extractFocusedData(url: string): Promise<FocusedProductDat
 
   // 1. Selling price kontrolü
   if (product.price?.sellingPrice?.value) {
-    // Fiyat değerini kontrol et - eğer çok küçükse kuruş cinsinden, büyükse TL cinsinden
     let originalPrice = product.price.sellingPrice.value;
-    if (originalPrice > 1000) {
-      originalPrice = originalPrice / 100; // Kuruş -> TL dönüşümü
+    
+    // Fiyat mantığı: Eğer değer çok küçükse (19.99) TL cinsinden, çok büyükse (190000) kuruş cinsinden
+    if (originalPrice < 50) {
+      // 19.99 gibi değerler için: 100 ile çarp (1999 kuruş -> 19.99 TL)
+      originalPrice = originalPrice * 100;
+    } else if (originalPrice >= 10000) {
+      // 190000 gibi değerler için: 100'e böl (190000 kuruş -> 1900 TL)
+      originalPrice = originalPrice / 100;
     }
+    // 50-9999 arası değerler zaten TL cinsinden kabul edilir
 
     const currency = product.price.sellingPrice.currency || 'TRY';
     const profitPrice = Math.round(originalPrice * 1.1 * 100) / 100;
@@ -134,8 +140,12 @@ export async function extractFocusedData(url: string): Promise<FocusedProductDat
   // 2. Original price kontrolü
   if (!foundPrice && product.price?.originalPrice?.value) {
     let originalPrice = product.price.originalPrice.value;
-    if (originalPrice > 1000) {
-      originalPrice = originalPrice / 100; // Kuruş -> TL dönüşümü
+    
+    // Aynı mantığı uygula
+    if (originalPrice < 50) {
+      originalPrice = originalPrice * 100;
+    } else if (originalPrice >= 10000) {
+      originalPrice = originalPrice / 100;
     }
 
     const currency = product.price.originalPrice.currency || 'TRY';
@@ -168,20 +178,39 @@ export async function extractFocusedData(url: string): Promise<FocusedProductDat
 
   // 4. HTML'den fiyat regex ile çıkarma
   if (!foundPrice) {
-    const priceRegex = /"price":\s*(\d+(?:\.\d+)?)/;
-    const priceMatch = htmlContent.match(priceRegex);
-    if (priceMatch) {
-      const originalPrice = parseFloat(priceMatch[1]);
-      const profitPrice = Math.round(originalPrice * 1.1 * 100) / 100;
+    // Birden fazla fiyat formatını dene
+    const pricePatterns = [
+      /"price":\s*(\d+(?:\.\d+)?)/,
+      /"sellingPrice"[^}]*"value":\s*(\d+(?:\.\d+)?)/,
+      /"originalPrice"[^}]*"value":\s*(\d+(?:\.\d+)?)/,
+      /(\d{1,4}(?:\.\d{3})*(?:,\d{2})?)\s*TL/,
+      /TL\s*(\d{1,4}(?:\.\d{3})*(?:,\d{2})?)/
+    ];
 
-      priceData = {
-        original: originalPrice,
-        currency: 'TRY',
-        formatted: formatTurkishPrice(originalPrice),
-        withProfit: profitPrice,
-        profitFormatted: formatTurkishPrice(profitPrice)
-      };
-      foundPrice = true;
+    for (const pattern of pricePatterns) {
+      const priceMatch = htmlContent.match(pattern);
+      if (priceMatch) {
+        let originalPrice = parseFloat(priceMatch[1].replace(/\./g, '').replace(',', '.'));
+        
+        // Fiyat düzeltme mantığı
+        if (originalPrice < 50) {
+          originalPrice = originalPrice * 100;
+        } else if (originalPrice >= 10000) {
+          originalPrice = originalPrice / 100;
+        }
+
+        const profitPrice = Math.round(originalPrice * 1.1 * 100) / 100;
+
+        priceData = {
+          original: originalPrice,
+          currency: 'TRY',
+          formatted: formatTurkishPrice(originalPrice),
+          withProfit: profitPrice,
+          profitFormatted: formatTurkishPrice(profitPrice)
+        };
+        foundPrice = true;
+        break;
+      }
     }
   }
 
