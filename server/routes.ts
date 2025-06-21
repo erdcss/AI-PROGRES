@@ -113,13 +113,14 @@ function generateSingleProductShopifyCSV(product: any): string {
     ]);
   });
 
-  // TÜM EK GÖRSELLERİ EKLE - varyant görsellerinden sonra kalan tüm görseller
+  // TÜM ÜRÜN GÖRSELLERİNİ EKLE - hiç sınırlama yok
   const usedImageCount = Math.min(product.sizeOptions.length, product.images.length);
   const allRemainingImages = product.images.slice(usedImageCount);
   
   console.log(`📊 Görsel bilgileri: Toplam=${product.images.length}, Varyant'ta kullanılan=${usedImageCount}, Kalan=${allRemainingImages.length}`);
+  console.log(`📸 TÜM ${allRemainingImages.length} ek görsel CSV'ye ekleniyor (sınırsız)...`);
   
-  // Her görsel için ayrı satır ekle
+  // Her kalan görsel için ayrı satır ekle
   allRemainingImages.forEach((imageUrl: string, index: number) => {
     const imagePosition = usedImageCount + index + 2;
     rows.push([
@@ -144,7 +145,7 @@ function generateSingleProductShopifyCSV(product: any): string {
       '',                                             // 19. Variant Requires Shipping
       '',                                             // 20. Variant Taxable
       '',                                             // 21. Variant Barcode
-      imageUrl,                                      // 22. Image Src
+      imageUrl,                                      // 22. Image Src - TÜM GÖRSELLER
       imagePosition.toString(),                      // 23. Image Position
       `"${product.title} - Görsel ${imagePosition - 1}"`, // 24. Image Alt Text
       '',                                             // 25. Gift Card
@@ -157,9 +158,9 @@ function generateSingleProductShopifyCSV(product: any): string {
     ]);
   });
   
-  // Eğer görseller varyantlardan fazlaysa, kalan tüm görselleri de ekle
-  if (product.images.length > product.sizeOptions.length) {
-    console.log(`📸 ${product.images.length - product.sizeOptions.length} ek görsel CSV'ye ekleniyor...`);
+  // Eğer 10'dan fazla görsel varsa da tamamını ekle
+  if (product.images.length > 10) {
+    console.log(`⭐ ${product.images.length} görsel tespit edildi, tamamı CSV'ye ekleniyor!`);
   }
 
   return [headers.join(','), ...rows.map(row => row.join(','))].join('\n');
