@@ -909,7 +909,7 @@ export async function extractFocusedData(url: string): Promise<FocusedProductDat
     }
     
     // Basit HTML özellik çıkarımı - sadece mevcut içerikten
-    console.log('📄 HTML'den basit özellik arama...');
+    console.log('📄 HTML den basit ozellik arama...');
     
     // Basit özellik pattern'leri
     const simpleFeatures = htmlContent.match(/(\w+)\s*[:：]\s*([^\n\r<>{};,]{3,50})/g);
