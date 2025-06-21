@@ -1,21 +1,14 @@
-/**
- * Katı CSV oluşturucu - Sadece doğrulanmış verilerle CSV üretir
- */
+// strict-csv-generator.ts
 
 export interface StrictProductData {
   title: string;
   brand: string;
-  price: number;
   variants: Array<{
     color: string;
     size: string;
     stock: number;
     price: number;
-    images: string[];
-  }>;
-  features: Array<{
-    key: string;
-    value: string;
+    images?: string[];
   }>;
 }
 
@@ -35,11 +28,19 @@ export interface StrictCSVRow {
   'Variant Inventory Qty': string;
   'Variant Price': string;
   'Variant Compare At Price': string;
-  'Image Src': string;
   'Cost per item': string;
   'Google Shopping / Custom Label 0': string;
   'Google Shopping / Custom Label 1': string;
   'Google Shopping / Custom Label 2': string;
+  'Image Src': string;
+  'Image Position': string;
+  'Image Alt Text': string;
+  'Gift Card': string;
+  'SEO Title': string;
+  'SEO Description': string;
+  'Variant Image': string;
+  'Variant Weight Unit': string;
+  'Included / Turkey': string;
 }
 
 export function generateStrictCSV(productData: StrictProductData): {
@@ -50,31 +51,16 @@ export function generateStrictCSV(productData: StrictProductData): {
   validationErrors: string[];
 } {
   const errors: string[] = [];
-  
-  // Katı doğrulama
-  if (!productData.title || productData.title.length < 3) {
-    errors.push('Ürün başlığı geçersiz');
-  }
-  
-  if (!productData.brand || productData.brand.length < 2) {
-    errors.push('Marka bilgisi geçersiz');
-  }
-  
-  if (!productData.variants || productData.variants.length === 0) {
-    errors.push('Varyant bilgisi bulunamadı');
-  }
-  
-  const validVariants = productData.variants.filter(v => 
-    v.stock > 0 && 
-    v.price > 0 && 
-    v.color && 
-    v.size
+
+  if (!productData.title || productData.title.length < 3) errors.push("Ürün başlığı eksik");
+  if (!productData.brand || productData.brand.length < 2) errors.push("Marka bilgisi eksik");
+  if (!productData.variants || productData.variants.length === 0) errors.push("Varyant yok");
+
+  const validVariants = productData.variants.filter(
+    (v) => v.stock > 0 && v.price > 0 && v.color && v.size
   );
-  
-  if (validVariants.length === 0) {
-    errors.push('Stokta varyant bulunamadı');
-  }
-  
+  if (validVariants.length === 0) errors.push("Stokta geçerli varyant yok");
+
   if (errors.length > 0) {
     return {
       success: false,
@@ -84,22 +70,13 @@ export function generateStrictCSV(productData: StrictProductData): {
       validationErrors: errors
     };
   }
-  
-  // CSV satırları oluştur
+
   const rows: StrictCSVRow[] = [];
-  const baseHandle = productData.title
-    .toLowerCase()
-    .replace(/[^a-z0-9ğüşıöçĞÜŞİÖÇ\s]/g, '')
-    .replace(/\s+/g, '-')
-    .substring(0, 50);
-  
+  const baseHandle = productData.title.toLowerCase().replace(/[^a-z0-9ğüşıöç\s]/g, '').replace(/\s+/g, '-').substring(0, 50);
+
   validVariants.forEach((variant, index) => {
     const isFirst = index === 0;
-    const finalPrice = Math.round(variant.price * 1.10); // %10 kar
-    const comparePrice = Math.round(variant.price * 1.25); // %25 yüksek
-    const costPrice = Math.round(variant.price * 0.8); // %20 düşük
-    
-    rows.push({
+    const baseRow = {
       Handle: baseHandle,
       Title: isFirst ? productData.title : '',
       'Body (HTML)': isFirst ? `<p>${productData.title} - Kaliteli ${productData.brand} ürünü.</p>` : '',
@@ -111,37 +88,45 @@ export function generateStrictCSV(productData: StrictProductData): {
       'Option1 Value': variant.color,
       'Option2 Name': 'Beden',
       'Option2 Value': variant.size,
-      'Variant SKU': `${baseHandle}-${variant.color.toLowerCase()}-${variant.size.toLowerCase()}`,
-      'Variant Inventory Qty': variant.stock.toString(),
-      'Variant Price': finalPrice.toString(),
-      'Variant Compare At Price': comparePrice.toString(),
-      'Image Src': variant.images[0] || '',
-      'Cost per item': costPrice.toString(),
-      'Google Shopping / Custom Label 0': `Orijinal: ₺${variant.price}`,
-      'Google Shopping / Custom Label 1': `Kar: %10 (₺${finalPrice - variant.price})`,
-      'Google Shopping / Custom Label 2': `Stok: ${variant.stock} adet`
-    });
+      'Variant SKU': `${baseHandle}-${variant.size}`,
+      'Variant Inventory Qty': `${variant.stock}`,
+      'Variant Price': `${Math.round(variant.price * 1.10)}`,
+      'Variant Compare At Price': `${Math.round(variant.price * 1.25)}`,
+      'Cost per item': `${Math.round(variant.price * 0.8)}`,
+      'Google Shopping / Custom Label 0': '',
+      'Google Shopping / Custom Label 1': '',
+      'Google Shopping / Custom Label 2': '',
+      'Image Src': '',
+      'Image Position': '',
+      'Image Alt Text': productData.title,
+      'Gift Card': 'False',
+      'SEO Title': productData.title,
+      'SEO Description': `${productData.brand} ${productData.title}`,
+      'Variant Image': '',
+      'Variant Weight Unit': 'kg',
+      'Included / Turkey': 'True'
+    };
+
+    if (variant.images && variant.images.length > 0) {
+      variant.images.forEach((imgUrl, i) => {
+        rows.push({
+          ...baseRow,
+          'Image Src': imgUrl,
+          'Image Position': `${i + 1}`
+        });
+      });
+    } else {
+      rows.push(baseRow);
+    }
   });
-  
-  // CSV içeriği
-  const headers = Object.keys(rows[0]) as Array<keyof StrictCSVRow>;
-  const csvContent = [
-    headers.join(','),
-    ...rows.map(row => 
-      headers.map(header => {
-        const value = row[header] || '';
-        return `"${value.toString().replace(/"/g, '""')}"`;
-      }).join(',')
-    )
-  ].join('\n');
-  
-  const timestamp = new Date().toISOString().split('T')[0];
-  const filename = `strict-shopify-${baseHandle}-${timestamp}.csv`;
-  
+
+  const headers = Object.keys(rows[0]);
+  const content = [headers.join(','), ...rows.map(row => headers.map(h => `"${(row as any)[h] || ''}"`).join(','))].join('\n');
+
   return {
     success: true,
-    filename,
-    content: csvContent,
+    filename: `${baseHandle}.csv`,
+    content,
     rowCount: rows.length,
     validationErrors: []
   };
