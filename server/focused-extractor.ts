@@ -387,7 +387,7 @@ export async function extractFocusedData(url: string): Promise<FocusedProductDat
     const titleLower = title.toLowerCase();
     
     if (titleLower.includes('blazer') || titleLower.includes('ceket')) {
-      basicCategory = 'Apparel & Accessories > Clothing > Women > Outerwear > Blazers';
+      basicCategory = 'Apparel & Accessories > Clothing > Outerwear';
     } else if (titleLower.includes('bluz')) {
       basicCategory = 'Apparel & Accessories > Clothing > Tops';
     } else if (titleLower.includes('elbise')) {
@@ -395,11 +395,11 @@ export async function extractFocusedData(url: string): Promise<FocusedProductDat
     } else if (titleLower.includes('pantolon')) {
       basicCategory = 'Apparel & Accessories > Clothing > Pants';
     } else if (titleLower.includes('yelek')) {
-      basicCategory = 'Apparel & Accessories > Clothing > Women > Outerwear > Vests';
+      basicCategory = 'Apparel & Accessories > Clothing > Outerwear';
     } else if (titleLower.includes('kadın')) {
-      basicCategory = 'Apparel & Accessories > Clothing > Women';
+      basicCategory = 'Apparel & Accessories > Clothing';
     } else if (titleLower.includes('erkek')) {
-      basicCategory = 'Apparel & Accessories > Clothing > Men';
+      basicCategory = 'Apparel & Accessories > Clothing';
     }
     
     console.log(`✅ Early return kategori: "${basicCategory}"`);
