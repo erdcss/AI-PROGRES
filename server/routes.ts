@@ -35,85 +35,46 @@ function generateSingleProductShopifyCSV(product: any): string {
   ];
 
   const rows: string[][] = [];
+  rows.push(headers);
 
-  // Ana ürün satırı - TAM 31 ALAN
-  rows.push([
-    handle,                                           // 1. Handle
-    `"${product.title}"`,                            // 2. Title
-    `"${bodyHTML.replace(/"/g, '""')}"`,            // 3. Body (HTML)
-    product.brand,                                   // 4. Vendor
-    product.category || 'Apparel & Accessories > Clothing', // 5. Product Category
-    'Giyim',                                        // 6. Type
-    'giyim;moda;stil',                              // 7. Tags
-    'TRUE',                                         // 8. Published
-    'Renk',                                         // 9. Option1 Name - SABİT
-    'Indigo',                                       // 10. Option1 Value - SABİT
-    'Beden',                                        // 11. Option2 Name - SABİT
-    product.sizeOptions[0] || '28/30',              // 12. Option2 Value - SABİT
-    '',                                             // 11. Variant SKU
-    '100',                                          // 12. Variant Grams
-    'shopify',                                      // 13. Variant Inventory Tracker
-    '10',                                           // 14. Variant Inventory Qty
-    'continue',                                     // 15. Variant Inventory Policy
-    'manual',                                       // 16. Variant Fulfillment Service
-    product.price.withProfit.toString(),           // 17. Variant Price
-    product.price.original.toString(),             // 18. Variant Compare At Price
-    'TRUE',                                         // 19. Variant Requires Shipping
-    'TRUE',                                         // 20. Variant Taxable
-    '',                                             // 21. Variant Barcode
-    product.images[0] || '',                        // 22. Image Src
-    '1',                                            // 23. Image Position
-    `"${product.title}"`,                          // 24. Image Alt Text
-    'FALSE',                                        // 25. Gift Card
-    `"${product.title}"`,                          // 26. SEO Title
-    `"${product.brand} ${product.title} - En uygun fiyata satın alın"`, // 27. SEO Description
-    '',                                             // 28. Variant Image
-    'kg',                                           // 29. Variant Weight Unit
-    product.price.original.toString(),             // 30. Cost per item
-    'TRUE'                                          // 31. Included / Turkey
-  ]);
+  // Handle oluştur (Türkçe karakter temizleme)
+  const handle = product.title.toLowerCase()
+    .replace(/ç/g, 'c').replace(/ğ/g, 'g').replace(/ı/g, 'i')
+    .replace(/ö/g, 'o').replace(/ş/g, 's').replace(/ü/g, 'u')
+    .replace(/[^a-z0-9\s]/g, '')
+    .replace(/\s+/g, '-')
+    .substring(0, 50);
 
-  // Beden varyantları - TAM 31 ALAN
+  // HER BEDEN İÇİN AYRI SATIR - Şablonunuzun tam kopyası
   product.sizeOptions.forEach((size: string, index: number) => {
-    // İlgili variant bilgisini bul
-    const relatedVariant = product.variants?.find((v: any) => v.size === size) || null;
+    const relatedVariant = product.variants?.find?.((v: any) => v.size === size);
     const variantInStock = relatedVariant ? relatedVariant.inStock : true;
-    const variantStock = relatedVariant ? relatedVariant.stockCount : 10;
+    const variantStock = relatedVariant ? relatedVariant.stockCount : 20;
     
     rows.push([
-      '',                                             // 1. Handle
-      '',                                             // 2. Title
-      '',                                             // 3. Body (HTML)
-      '',                                             // 4. Vendor
-      '',                                             // 5. Product Category
-      '',                                             // 6. Type
-      '',                                             // 7. Tags
-      '',                                             // 8. Published
-      'Renk',                                         // 9. Option1 Name - SABİT
-      'Indigo',                                       // 10. Option1 Value - SABİT
-      'Beden',                                        // 11. Option2 Name - SABİT  
-      size,                                           // 12. Option2 Value - VARIANT BİLGİSİ
-      `${handle}-${size.toLowerCase()}`,             // 13. Variant SKU
-      '100',                                          // 12. Variant Grams
-      'shopify',                                      // 13. Variant Inventory Tracker
-      variantStock.toString(),                        // 14. Variant Inventory Qty - GERÇEK STOK
-      variantInStock ? 'continue' : 'deny',          // 15. Variant Inventory Policy - STOK DURUMU
-      'manual',                                       // 16. Variant Fulfillment Service
-      product.price.withProfit.toString(),           // 17. Variant Price
-      product.price.original.toString(),             // 18. Variant Compare At Price
-      'TRUE',                                         // 19. Variant Requires Shipping
-      'TRUE',                                         // 20. Variant Taxable
-      relatedVariant?.barcode || '',                 // 21. Variant Barcode - GERÇEK BARKOD
-      product.images[index] || product.images[0] || '', // 22. Image Src
-      (index + 2).toString(),                        // 23. Image Position
-      `"${product.title} - ${size}"`,                // 24. Image Alt Text
-      'FALSE',                                        // 25. Gift Card
-      '',                                             // 26. SEO Title
-      '',                                             // 27. SEO Description
-      product.images[index] || '',                   // 28. Variant Image
-      'kg',                                           // 29. Variant Weight Unit
-      product.price.original.toString(),             // 30. Cost per item
-      'TRUE'                                          // 31. Included / Turkey
+      handle,                                         // 1. Handle - AYNI HANDLE
+      product.title,                                  // 2. Title - AYNI BAŞLIK
+      `<p>${product.brand} marka orijinal erkek jean pantolon.</p>`, // 3. Body (HTML)
+      product.brand || 'Mavi',                       // 4. Vendor
+      `"jean, erkek, ${product.brand?.toLowerCase() || 'mavi'}, denim, pantolon"`, // 5. Tags
+      'TRUE',                                         // 6. Published
+      'Renk',                                         // 7. Option1 Name
+      'Indigo',                                       // 8. Option1 Value
+      'Beden',                                        // 9. Option2 Name
+      size,                                           // 10. Option2 Value - BEDEN
+      `${product.brand?.toLowerCase() || 'mavi'}-${size.replace(/[^\w]/g, '-')}`, // 11. Variant SKU
+      variantStock.toString(),                        // 12. Variant Inventory Qty
+      product.price.original.toString(),             // 13. Variant Price (kar marjı olmadan)
+      product.price.withProfit.toString(),           // 14. Variant Compare At Price (kar marjılı)
+      product.images[index] || product.images[0] || '', // 15. Image Src
+      (index + 1).toString(),                        // 16. Image Position
+      product.title,                                  // 17. Image Alt Text
+      'FALSE',                                        // 18. Gift Card
+      `${product.brand || 'Mavi'} ${product.title.split(' ').slice(0, 3).join(' ')}`, // 19. SEO Title
+      `"${product.brand || 'Mavi'} ${product.title.split(' ').slice(0, 5).join(' ')}, modern kesim ve rahat kalıp."`, // 20. SEO Description
+      product.images[index] || product.images[0] || '', // 21. Variant Image
+      'kg',                                           // 22. Variant Weight Unit
+      'active'                                        // 23. Status
     ]);
   });
 
