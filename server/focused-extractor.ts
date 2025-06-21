@@ -145,9 +145,9 @@ export async function extractFocusedData(url: string): Promise<FocusedProductDat
     priceData = {
       original: originalPrice,
       currency: 'TRY',
-      formatted: `${originalPrice.toFixed(2).replace('.', ',').replace(/\B(?=(\d{3})+(?!\d))/g, '.')} TL`,
+      formatted: formatTurkishPrice(originalPrice),
       withProfit: profitPrice,
-      profitFormatted: `${profitPrice.toFixed(2).replace('.', ',').replace(/\B(?=(\d{3})+(?!\d))/g, '.')} TL`
+      profitFormatted: formatTurkishPrice(profitPrice)
     };
     foundPrice = true;
   }
@@ -163,9 +163,9 @@ export async function extractFocusedData(url: string): Promise<FocusedProductDat
       priceData = {
         original: originalPrice,
         currency: 'TRY',
-        formatted: `${originalPrice.toFixed(2).replace('.', ',').replace(/\B(?=(\d{3})+(?!\d))/g, '.')} TL`,
+        formatted: formatTurkishPrice(originalPrice),
         withProfit: profitPrice,
-        profitFormatted: `${profitPrice.toFixed(2).replace('.', ',').replace(/\B(?=(\d{3})+(?!\d))/g, '.')} TL`
+        profitFormatted: formatTurkishPrice(profitPrice)
       };
       foundPrice = true;
     }
