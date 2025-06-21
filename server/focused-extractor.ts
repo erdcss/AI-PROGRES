@@ -1478,7 +1478,17 @@ export async function extractFocusedData(url: string): Promise<FocusedProductDat
   console.log(`📤 JSON'a döndürülecek kategori: "${jsonCategory}"`);
   console.log(`📤 JSON'a döndürülecek özellik sayısı: ${features.length}`);
 
-  return {
+  // Ensure category is never null - force valid string
+  const finalJsonCategory = String(jsonCategory || 'Apparel & Accessories > Clothing');
+  
+  console.log(`🔧 Final return category check: "${finalJsonCategory}"`);
+  
+  // Verify category value before return
+  if (!finalJsonCategory || finalJsonCategory === 'null' || finalJsonCategory === 'undefined') {
+    console.error('❌ Category is still null after all checks!');
+  }
+
+  const result = {
     brand,
     title,
     price: priceData,
@@ -1494,6 +1504,9 @@ export async function extractFocusedData(url: string): Promise<FocusedProductDat
       unavailableSizes: Array.from(outOfStockSizes)
     },
     features,
-    category: jsonCategory
+    category: finalJsonCategory
   };
+
+  console.log(`🎯 Return object category: "${result.category}"`);
+  return result;
 }
