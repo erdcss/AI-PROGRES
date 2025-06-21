@@ -1375,8 +1375,14 @@ export async function extractFocusedData(url: string): Promise<FocusedProductDat
     categoryFound = true;
   }
   
-  console.log(`🏷️ Kategori belirlendi: ${category}`);
-  console.log(`  ✓ Kategori bulundu: ${categoryFound ? 'EVET' : 'HAYIR'}`);
+  // Kategori final kontrolü
+  if (!category || category === 'undefined' || category === 'null') {
+    category = 'Apparel & Accessories';
+    console.log(`⚠️ Kategori düzeltildi: ${category}`);
+  }
+  
+  console.log(`🏷️ Final kategori: ${category}`);
+  console.log(`  ✓ Kategori durumu: ${categoryFound ? 'BULUNDU' : 'VARSAYILAN'}`);
   console.log(`✓ Özellikler: ${features.length} adet (kapsamlı)`);
   console.log(`🎯 Focused extraction tamamlandı`);
   
@@ -1396,6 +1402,6 @@ export async function extractFocusedData(url: string): Promise<FocusedProductDat
       unavailableSizes: Array.from(outOfStockSizes)
     },
     features,
-    category: category || 'Apparel & Accessories'
+    category: category && category !== 'null' && category !== 'undefined' ? category : 'Apparel & Accessories'
   };
 }
