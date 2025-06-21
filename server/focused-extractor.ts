@@ -704,68 +704,14 @@ export async function extractFocusedData(url: string): Promise<FocusedProductDat
     console.log(`⚠️ Stokta olmayan bedenler CSV'ye eklenmedi: ${Array.from(outOfStockSizes).join(', ')}`);
   }
 
-  // 6. ÖZELLİKLER - Tüm ürün özelliklerini çıkar
-  const features: Array<{
-    key: string;
-    value: string;
-  }> = [];
+  // 6. ÖZELLİKLER - HTML'den gerçek özellikleri çıkar
+  const { extractRealFeaturesFromHTML } = await import('./html-feature-extractor');
+  const features = extractRealFeaturesFromHTML(htmlContent);
+  const processedKeys = new Set<string>(features.map(f => f.key.toLowerCase()));
 
-  const processedKeys = new Set<string>();
+  console.log('🔍 Gerçek ürün özellikleri çıkarıldı...');
 
-  console.log('🔍 Ürün özellikleri detaylı çıkarım başlatılıyor...');
-
-  // HTML'den ürün özellikleri tablosu çıkar - ÖNCE BUNU YAP
-  console.log('📋 HTML tablosundan detaylı özellikler çıkarılıyor...');
-
-  // Simple but effective feature extraction from HTML content
-  console.log('🔍 HTML içerik analizi başlatılıyor...');
-  
-  // Extract all text content and look for key-value pairs
-  const textContent = htmlContent.replace(/<script\b[^<]*(?:(?!<\/script>)<[^<]*)*<\/script>/gi, '')
-                                   .replace(/<style\b[^<]*(?:(?!<\/style>)<[^<]*)*<\/style>/gi, '');
-  
-  // Pattern 1: Direct colon-separated values in clean text
-  const textLines = textContent.split(/\n|<br|<\/p>|<\/div>|<\/td>|<\/th>/i);
-  textLines.forEach(line => {
-    const cleanLine = line.replace(/<[^>]*>/g, ' ').replace(/\s+/g, ' ').trim();
-    if (cleanLine.includes(':') && cleanLine.length < 200) {
-      const parts = cleanLine.split(':');
-      if (parts.length === 2) {
-        const key = parts[0].trim();
-        const value = parts[1].trim();
-        
-        if (key.length > 1 && key.length < 50 && value.length > 0 && value.length < 100) {
-          const validKeywords = ['materyal', 'kumaş', 'renk', 'beden', 'model', 'taban', 'topuk', 'astar', 'desen', 'kalıp', 'paça', 'bel', 'tip', 'cinsiyet', 'yaş', 'mevsim', 'stil', 'boyut', 'ağırlık', 'özellik'];
-          const isValidKey = validKeywords.some(keyword => key.toLowerCase().includes(keyword));
-          
-          if (isValidKey && !processedKeys.has(key.toLowerCase())) {
-            features.push({ key, value });
-            processedKeys.add(key.toLowerCase());
-            console.log(`    ✓ Text özelliği: "${key}" = "${value}"`);
-          }
-        }
-      }
-    }
-  });
-
-  // Pattern 2: Table extraction with more flexible approach
-  const tableMatches = htmlContent.match(/<table[^>]*>[\s\S]*?<\/table>/gi) || [];
-  tableMatches.forEach(table => {
-    const rows = table.match(/<tr[^>]*>[\s\S]*?<\/tr>/gi) || [];
-    rows.forEach(row => {
-      const cells = row.match(/<t[dh][^>]*>[\s\S]*?<\/t[dh]>/gi) || [];
-      if (cells.length >= 2) {
-        const key = cells[0].replace(/<[^>]*>/g, '').trim();
-        const value = cells[1].replace(/<[^>]*>/g, '').trim();
-        
-        if (key && value && key.length > 1 && value.length > 0 && !processedKeys.has(key.toLowerCase())) {
-          features.push({ key, value });
-          processedKeys.add(key.toLowerCase());
-          console.log(`    ✓ Tablo özelliği: "${key}" = "${value}"`);
-        }
-      }
-    });
-  });
+  // Gerçek özellikler çıkarıldı, sadece eksik kritik bilgileri ekle
 
   // Pattern 3: Comprehensive feature extraction from various sources
   const productTitle = title.toLowerCase();
