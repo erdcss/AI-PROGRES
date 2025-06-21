@@ -1396,6 +1396,6 @@ export async function extractFocusedData(url: string): Promise<FocusedProductDat
       unavailableSizes: Array.from(outOfStockSizes)
     },
     features,
-    category: categoryFound ? category : 'Apparel & Accessories'
+    category: category || 'Apparel & Accessories'
   };
 }
