@@ -7,6 +7,20 @@
  * 5. Ürün özellikleri
  */
 
+// Türk sayı formatı fonksiyonu
+function formatTurkishNumber(num: number): string {
+  const rounded = Math.round(num * 100) / 100;
+  const parts = rounded.toFixed(2).split('.');
+  const integerPart = parts[0];
+  const decimalPart = parts[1];
+  const formattedInteger = integerPart.replace(/\B(?=(\d{3})+(?!\d))/g, '.');
+  return `${formattedInteger},${decimalPart}`;
+}
+
+function formatTurkishPrice(num: number): string {
+  return `${formatTurkishNumber(num)} TL`;
+}
+
 export interface FocusedProductData {
   brand: string;
   title: string;
@@ -110,9 +124,9 @@ export async function extractFocusedData(url: string): Promise<FocusedProductDat
     priceData = {
       original: originalPrice,
       currency: currency,
-      formatted: `${originalPrice.toFixed(2).replace('.', ',').replace(/\B(?=(\d{3})+(?!\d))/g, '.')} TL`,
+      formatted: formatTurkishPrice(originalPrice),
       withProfit: profitPrice,
-      profitFormatted: `${profitPrice.toFixed(2).replace('.', ',').replace(/\B(?=(\d{3})+(?!\d))/g, '.')} TL`
+      profitFormatted: formatTurkishPrice(profitPrice)
     };
     foundPrice = true;
   }
@@ -130,9 +144,9 @@ export async function extractFocusedData(url: string): Promise<FocusedProductDat
     priceData = {
       original: originalPrice,
       currency: currency,
-      formatted: `${originalPrice.toFixed(2).replace('.', ',').replace(/\B(?=(\d{3})+(?!\d))/g, '.')} TL`,
+      formatted: formatTurkishPrice(originalPrice),
       withProfit: profitPrice,
-      profitFormatted: `${profitPrice.toFixed(2).replace('.', ',').replace(/\B(?=(\d{3})+(?!\d))/g, '.')} TL`
+      profitFormatted: formatTurkishPrice(profitPrice)
     };
     foundPrice = true;
   }
