@@ -110,9 +110,9 @@ export async function extractFocusedData(url: string): Promise<FocusedProductDat
     priceData = {
       original: originalPrice,
       currency: currency,
-      formatted: `${originalPrice.toFixed(2)} TL`,
+      formatted: `${originalPrice.toFixed(2).replace('.', ',').replace(/\B(?=(\d{3})+(?!\d))/g, '.')} TL`,
       withProfit: profitPrice,
-      profitFormatted: `${profitPrice.toFixed(2)} TL`
+      profitFormatted: `${profitPrice.toFixed(2).replace('.', ',').replace(/\B(?=(\d{3})+(?!\d))/g, '.')} TL`
     };
     foundPrice = true;
   }
@@ -130,9 +130,9 @@ export async function extractFocusedData(url: string): Promise<FocusedProductDat
     priceData = {
       original: originalPrice,
       currency: currency,
-      formatted: `${originalPrice.toFixed(2)} TL`,
+      formatted: `${originalPrice.toFixed(2).replace('.', ',').replace(/\B(?=(\d{3})+(?!\d))/g, '.')} TL`,
       withProfit: profitPrice,
-      profitFormatted: `${profitPrice.toFixed(2)} TL`
+      profitFormatted: `${profitPrice.toFixed(2).replace('.', ',').replace(/\B(?=(\d{3})+(?!\d))/g, '.')} TL`
     };
     foundPrice = true;
   }
@@ -145,9 +145,9 @@ export async function extractFocusedData(url: string): Promise<FocusedProductDat
     priceData = {
       original: originalPrice,
       currency: 'TRY',
-      formatted: `${originalPrice.toFixed(2)} TL`,
+      formatted: `${originalPrice.toFixed(2).replace('.', ',').replace(/\B(?=(\d{3})+(?!\d))/g, '.')} TL`,
       withProfit: profitPrice,
-      profitFormatted: `${profitPrice.toFixed(2)} TL`
+      profitFormatted: `${profitPrice.toFixed(2).replace('.', ',').replace(/\B(?=(\d{3})+(?!\d))/g, '.')} TL`
     };
     foundPrice = true;
   }
@@ -163,9 +163,9 @@ export async function extractFocusedData(url: string): Promise<FocusedProductDat
       priceData = {
         original: originalPrice,
         currency: 'TRY',
-        formatted: `${originalPrice.toFixed(2)} TL`,
+        formatted: `${originalPrice.toFixed(2).replace('.', ',').replace(/\B(?=(\d{3})+(?!\d))/g, '.')} TL`,
         withProfit: profitPrice,
-        profitFormatted: `${profitPrice.toFixed(2)} TL`
+        profitFormatted: `${profitPrice.toFixed(2).replace('.', ',').replace(/\B(?=(\d{3})+(?!\d))/g, '.')} TL`
       };
       foundPrice = true;
     }
