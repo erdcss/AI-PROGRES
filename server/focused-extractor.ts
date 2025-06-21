@@ -1007,10 +1007,23 @@ export async function extractFocusedData(url: string): Promise<FocusedProductDat
     
     if (categoryFound) {
       console.log(`  📝 Başlık analizinden kategori: "${rawCategoryPath}"`);
+      
+      // Başlık analizinden gelen kategoriyi profesyonel sisteme aktar
+      const pathLower = rawCategoryPath.toLowerCase();
+      if (pathLower.includes('kadın') && pathLower.includes('bluz')) {
+        category = 'Apparel & Accessories > Clothing > Women > Tops';
+      } else if (pathLower.includes('kadın') && pathLower.includes('ceket')) {
+        category = 'Apparel & Accessories > Clothing > Women > Outerwear';
+      } else if (pathLower.includes('kadın') && pathLower.includes('elbise')) {
+        category = 'Apparel & Accessories > Clothing > Women > Dresses';
+      } else if (pathLower.includes('kadın') && pathLower.includes('pantolon')) {
+        category = 'Apparel & Accessories > Clothing > Women > Pants';
+      }
+      console.log(`    ✅ Dönüştürülen kategori: "${category}"`);
     }
   }
   
-  // 3. Ürün başlığından kategori tahmin et (her zaman çalışır)
+  // Son fallback - başlık analizi
   console.log(`  📝 Başlık analizi yapılıyor: "${title}"`);
   const titleLower = title.toLowerCase();
   
