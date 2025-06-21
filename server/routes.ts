@@ -57,8 +57,8 @@ function generateSingleProductShopifyCSV(product: any): string {
       size,                                           // 10. Option2 Value - BEDEN
       `${product.brand?.toLowerCase() || 'mavi'}-${size.replace(/[^\w]/g, '-')}`, // 11. Variant SKU
       variantStock.toString(),                        // 12. Variant Inventory Qty
-      product.price.original.toString(),             // 13. Variant Price (kar marjı olmadan)
-      product.price.withProfit.toString(),           // 14. Variant Compare At Price (kar marjılı)
+      product.price.withProfit.toString(),           // 13. Variant Price (kar marjılı fiyat)
+      product.price.original.toString(),             // 14. Variant Compare At Price (orijinal fiyat)
       product.images[index] || product.images[0] || '', // 15. Image Src
       (index + 1).toString(),                        // 16. Image Position
       product.title,                                  // 17. Image Alt Text
@@ -124,7 +124,7 @@ function generateSingleProductShopifyCSV(product: any): string {
     console.log(`⭐ ${product.images.length} görsel tespit edildi, tamamı CSV'ye ekleniyor!`);
   }
 
-  return [headers.join(','), ...rows.map(row => row.join(','))].join('\n');
+  return rows.map(row => row.join(',')).join('\n');
 }
 
 // CSV preview generator function
