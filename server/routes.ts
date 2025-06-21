@@ -23,7 +23,7 @@ function generateSingleProductShopifyCSV(product: any): string {
     .replace(/\s+/g, '-')
     .substring(0, 50);
   
-  const bodyHTML = `<h3>Ürün Özellikleri</h3><ul>${product.features.map((f: any) => `<li><strong>${f.key}:</strong> ${f.value}</li>`).join('')}</ul><p>Marka: ${product.brand}</p><p>Beden seçenekleri: ${product.sizeOptions.join(' ')}</p>`;
+  const bodyHTML = `<h3>Ürün Özellikleri</h3><ul>${product.features.map((f: any) => `<li><strong>${f.key}:</strong> ${f.value}</li>`).join('')}</ul><p>Marka: ${product.brand}</p><p>Beden seçenekleri: ${product.sizeOptions.join(' ')}</p><p>Görseller: ${product.images.length} adet</p>`;
 
   const headers = [
     'Handle', 'Title', 'Body (HTML)', 'Vendor', 'Product Category', 'Type', 'Tags', 'Published',
@@ -40,11 +40,11 @@ function generateSingleProductShopifyCSV(product: any): string {
   rows.push([
     handle,                                           // 1. Handle
     `"${product.title}"`,                            // 2. Title
-    `"${bodyHTML}"`,                                 // 3. Body (HTML)
+    `"${bodyHTML.replace(/"/g, '""')}"`,            // 3. Body (HTML)
     product.brand,                                   // 4. Vendor
     'Apparel & Accessories > Clothing',             // 5. Product Category
     'Giyim',                                        // 6. Type
-    'giyim,moda,stil',                              // 7. Tags
+    'giyim;moda;stil',                              // 7. Tags
     'TRUE',                                         // 8. Published
     'Beden',                                        // 9. Option1 Name
     '',                                             // 10. Option1 Value
@@ -101,12 +101,49 @@ function generateSingleProductShopifyCSV(product: any): string {
       'FALSE',                                        // 25. Gift Card
       '',                                             // 26. SEO Title
       '',                                             // 27. SEO Description
-      '',                                             // 28. Variant Image
+      product.images[index] || '',                   // 28. Variant Image
       'kg',                                           // 29. Variant Weight Unit
       product.price.original.toString(),             // 30. Cost per item
       'TRUE'                                          // 31. Included / Turkey
     ]);
   });
+
+  // Ek görseller için satırlar - sadece görseller
+  for (let i = product.sizeOptions.length; i < product.images.length; i++) {
+    rows.push([
+      '',                                             // 1. Handle
+      '',                                             // 2. Title
+      '',                                             // 3. Body (HTML)
+      '',                                             // 4. Vendor
+      '',                                             // 5. Product Category
+      '',                                             // 6. Type
+      '',                                             // 7. Tags
+      '',                                             // 8. Published
+      '',                                             // 9. Option1 Name
+      '',                                             // 10. Option1 Value
+      '',                                             // 11. Variant SKU
+      '',                                             // 12. Variant Grams
+      '',                                             // 13. Variant Inventory Tracker
+      '',                                             // 14. Variant Inventory Qty
+      '',                                             // 15. Variant Inventory Policy
+      '',                                             // 16. Variant Fulfillment Service
+      '',                                             // 17. Variant Price
+      '',                                             // 18. Variant Compare At Price
+      '',                                             // 19. Variant Requires Shipping
+      '',                                             // 20. Variant Taxable
+      '',                                             // 21. Variant Barcode
+      product.images[i],                             // 22. Image Src
+      (i + 2).toString(),                            // 23. Image Position
+      `"${product.title} - Görsel ${i + 1}"`,       // 24. Image Alt Text
+      '',                                             // 25. Gift Card
+      '',                                             // 26. SEO Title
+      '',                                             // 27. SEO Description
+      '',                                             // 28. Variant Image
+      '',                                             // 29. Variant Weight Unit
+      '',                                             // 30. Cost per item
+      ''                                              // 31. Included / Turkey
+    ]);
+  }
 
   return [headers.join(','), ...rows.map(row => row.join(','))].join('\n');
 }
