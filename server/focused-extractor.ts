@@ -842,23 +842,32 @@ export async function extractFocusedData(url: string): Promise<FocusedProductDat
     }
   });
   
-  // PROFESYONELKATEGORİ ÇIKARIMI - Trendyol'dan tam kategori ağacı
+  // ÜST DÜZEY KATEGORİ ÇIKARIMI - Gelişmiş Trendyol kategori analizi
   let category = 'Apparel & Accessories > Clothing';
   let categoryFound = false;
   let rawCategoryPath = '';
+  let categoryHierarchy: string[] = [];
   
-  console.log('🏷️ Profesyonel kategori çıkarımı başlatılıyor...');
+  console.log('🏷️ Üst düzey kategori çıkarımı başlatılıyor...');
   
-  // 1. JSON'dan kategori hiyerarşisi çıkarımı
+  // 1. Kapsamlı JSON kategori kaynakları - daha derinlemesine
   const categoryDataSources = [
     product.category,
     product.categories,
     product.categoryHierarchy,
     product.breadcrumbs,
+    product.categoryTree,
+    product.categoryPath,
+    product.productCategory,
+    product.mainCategory,
+    product.subCategory,
     productState.product?.category,
     productState.product?.categories,
+    productState.product?.categoryTree,
     productState.productDetail?.category,
-    productState.productDetail?.categories
+    productState.productDetail?.categories,
+    productState.categoryData,
+    productState.breadcrumbData
   ];
   
   categoryDataSources.forEach((catData, index) => {
@@ -866,33 +875,56 @@ export async function extractFocusedData(url: string): Promise<FocusedProductDat
       console.log(`  📂 Kategori kaynağı ${index + 1} kontrol ediliyor...`);
       
       if (Array.isArray(catData)) {
-        // Kategori dizisi var
-        const catNames = catData.map(cat => 
-          typeof cat === 'string' ? cat : (cat?.name || cat?.displayName || cat?.title)
-        ).filter(Boolean);
+        // Kategori dizisi - hiyerarşik yapı
+        const catNames = catData.map(cat => {
+          if (typeof cat === 'string') return cat;
+          return cat?.name || cat?.displayName || cat?.title || cat?.categoryName || cat?.text;
+        }).filter(Boolean);
         
         if (catNames.length > 0) {
+          categoryHierarchy = catNames;
           rawCategoryPath = catNames.join(' > ');
-          console.log(`    ✓ Kategori dizisi: "${rawCategoryPath}"`);
+          console.log(`    ✓ Kategori hiyerarşisi: "${rawCategoryPath}"`);
           categoryFound = true;
         }
       } else if (typeof catData === 'object' && catData !== null) {
-        // Tek kategori objesi
+        // Kategori objesi - daha detaylı analiz
+        const possiblePaths = [
+          catData.fullPath,
+          catData.hierarchyName,
+          catData.breadcrumb,
+          catData.path
+        ].filter(Boolean);
+        
         const possibleNames = [
           catData.name,
           catData.displayName,
           catData.title,
           catData.categoryName,
-          catData.fullPath,
-          catData.hierarchyName
+          catData.text,
+          catData.label
         ].filter(Boolean);
         
-        if (possibleNames.length > 0) {
+        if (possiblePaths.length > 0) {
+          rawCategoryPath = possiblePaths[0];
+          console.log(`    ✓ Kategori path: "${rawCategoryPath}"`);
+          categoryFound = true;
+        } else if (possibleNames.length > 0) {
           rawCategoryPath = possibleNames[0];
           console.log(`    ✓ Kategori objesi: "${rawCategoryPath}"`);
           categoryFound = true;
         }
-      } else if (typeof catData === 'string' && catData.length > 3) {
+        
+        // Alt kategorileri de kontrol et
+        if (catData.children && Array.isArray(catData.children) && catData.children.length > 0) {
+          const childNames = catData.children.map(child => 
+            child?.name || child?.displayName || child?.title
+          ).filter(Boolean);
+          if (childNames.length > 0) {
+            console.log(`    📋 Alt kategoriler: ${childNames.join(', ')}`);
+          }
+        }
+      } else if (typeof catData === 'string' && catData.length > 2) {
         rawCategoryPath = catData;
         console.log(`    ✓ Kategori string: "${rawCategoryPath}"`);
         categoryFound = true;
@@ -900,26 +932,60 @@ export async function extractFocusedData(url: string): Promise<FocusedProductDat
     }
   });
   
-  // 2. HTML'den breadcrumb çıkarımı - gelişmiş
-  const breadcrumbPatterns = [
+  // 2. HTML'den üst düzey breadcrumb ve kategori çıkarımı
+  const advancedBreadcrumbPatterns = [
+    // Trendyol spesifik breadcrumb yapıları
     /<nav[^>]*class="[^"]*breadcrumb[^"]*"[^>]*>(.*?)<\/nav>/is,
     /<div[^>]*class="[^"]*breadcrumb[^"]*"[^>]*>(.*?)<\/div>/is,
     /<ol[^>]*class="[^"]*breadcrumb[^"]*"[^>]*>(.*?)<\/ol>/is,
     /<ul[^>]*class="[^"]*breadcrumb[^"]*"[^>]*>(.*?)<\/ul>/is,
-    /<div[^>]*class="[^"]*category[^"]*"[^>]*>(.*?)<\/div>/is
+    // Kategori linkler
+    /<div[^>]*class="[^"]*category[^"]*"[^>]*>(.*?)<\/div>/is,
+    /<span[^>]*class="[^"]*category[^"]*"[^>]*>(.*?)<\/span>/is,
+    // Navigasyon yapıları
+    /<div[^>]*class="[^"]*navigation[^"]*"[^>]*>(.*?)<\/div>/is,
+    // Meta etiketler
+    /<meta[^>]*property="product:category"[^>]*content="([^"]*)"[^>]*>/is,
+    /<meta[^>]*name="category"[^>]*content="([^"]*)"[^>]*>/is
   ];
   
   if (!categoryFound) {
-    for (const pattern of breadcrumbPatterns) {
+    console.log('  🔍 HTML'den gelişmiş kategori analizi...');
+    
+    for (const pattern of advancedBreadcrumbPatterns) {
       const match = htmlContent.match(pattern);
       if (match) {
-        const breadcrumbText = match[1].replace(/<[^>]*>/g, ' ').replace(/\s+/g, ' ').trim();
+        let breadcrumbText = '';
         
-        if (breadcrumbText.length > 10) {
-          rawCategoryPath = breadcrumbText;
-          console.log(`  📍 HTML breadcrumb: "${breadcrumbText}"`);
-          categoryFound = true;
-          break;
+        if (pattern.toString().includes('meta')) {
+          // Meta etiketlerden direkt kategori al
+          breadcrumbText = match[1];
+        } else {
+          // HTML içeriğinden temizle
+          breadcrumbText = match[1]
+            .replace(/<[^>]*>/g, ' ')
+            .replace(/\s+/g, ' ')
+            .replace(/&amp;/g, '&')
+            .replace(/&gt;/g, '>')
+            .replace(/&lt;/g, '<')
+            .trim();
+        }
+        
+        if (breadcrumbText.length > 8) {
+          // Kategori hiyerarşisini ayrıştır
+          const categoryParts = breadcrumbText.split(/[>\/\-\|]/).map(part => part.trim()).filter(Boolean);
+          if (categoryParts.length > 1) {
+            categoryHierarchy = categoryParts;
+            rawCategoryPath = categoryParts.join(' > ');
+            console.log(`  📍 HTML kategori hiyerarşisi: "${rawCategoryPath}"`);
+            categoryFound = true;
+            break;
+          } else if (breadcrumbText.length > 10) {
+            rawCategoryPath = breadcrumbText;
+            console.log(`  📍 HTML breadcrumb: "${breadcrumbText}"`);
+            categoryFound = true;
+            break;
+          }
         }
       }
     }
@@ -929,103 +995,187 @@ export async function extractFocusedData(url: string): Promise<FocusedProductDat
   if (rawCategoryPath && rawCategoryPath.length > 3) {
     console.log(`  🔄 Ham kategori işleniyor: "${rawCategoryPath}"`);
     
-    const categoryMap = {
-      // Kadın giyim
+    // ÜST DÜZEY KATEGORİ HARİTALAMA SİSTEMİ - Genişletilmiş
+    const advancedCategoryMap = {
+      // Kadın giyim - kapsamlı kategori haritası
       'kadın': {
         base: 'Apparel & Accessories > Clothing > Women',
+        aliases: ['woman', 'women', 'bayan', 'kadin'],
         subcategories: {
+          // Üst giyim
           'elbise': '> Dresses',
-          'bluz': '> Tops',
-          'gömlek': '> Tops', 
-          'tişört': '> Tops',
-          'tunik': '> Tops',
-          'crop': '> Tops',
-          'pantolon': '> Pants',
-          'jean': '> Pants',
-          'kot': '> Pants',
-          'tayt': '> Pants',
+          'bluz': '> Tops > Blouses',
+          'gömlek': '> Tops > Shirts', 
+          'tişört': '> Tops > T-Shirts',
+          'tunik': '> Tops > Tunics',
+          'crop': '> Tops > Crop Tops',
+          'body': '> Tops > Bodysuits',
+          'top': '> Tops',
+          // Alt giyim
+          'pantolon': '> Pants > Trousers',
+          'jean': '> Pants > Jeans',
+          'kot': '> Pants > Jeans',
+          'tayt': '> Pants > Leggings',
           'etek': '> Skirts',
           'şort': '> Shorts',
-          'ceket': '> Outerwear',
-          'mont': '> Outerwear',
-          'blazer': '> Outerwear',
-          'yelek': '> Outerwear',
-          'kaban': '> Outerwear',
-          'kazak': '> Sweaters',
-          'hırka': '> Sweaters',
-          'sweatshirt': '> Sweaters',
-          'hoodie': '> Sweaters',
-          'sütyen': '> Intimates',
-          'külot': '> Intimates',
+          'bermuda': '> Shorts > Bermuda',
+          // Dış giyim
+          'ceket': '> Outerwear > Jackets',
+          'mont': '> Outerwear > Coats',
+          'blazer': '> Outerwear > Blazers',
+          'yelek': '> Outerwear > Vests',
+          'kaban': '> Outerwear > Coats',
+          'trençkot': '> Outerwear > Trench Coats',
+          'palto': '> Outerwear > Overcoats',
+          // Triko
+          'kazak': '> Sweaters > Pullovers',
+          'hırka': '> Sweaters > Cardigans',
+          'sweatshirt': '> Sweaters > Sweatshirts',
+          'hoodie': '> Sweaters > Hoodies',
+          'triko': '> Sweaters',
+          // İç giyim
+          'sütyen': '> Intimates > Bras',
+          'külot': '> Intimates > Panties',
           'iç giyim': '> Intimates',
+          'gecelik': '> Intimates > Sleepwear',
+          'pijama': '> Intimates > Pajamas',
+          // Aksesuar ve ayakkabı
           'çorap': '> Socks & Hosiery',
+          'külotlu çorap': '> Socks & Hosiery > Pantyhose',
           'ayakkabı': '> Shoes',
-          'sandalet': '> Shoes',
-          'bot': '> Shoes',
-          'sneaker': '> Shoes',
+          'sandalet': '> Shoes > Sandals',
+          'bot': '> Shoes > Boots',
+          'sneaker': '> Shoes > Sneakers',
+          'topuklu': '> Shoes > Heels',
           'çanta': '> Bags',
+          'el çantası': '> Bags > Handbags',
+          'sırt çantası': '> Bags > Backpacks',
           'takı': '> Jewelry',
+          'kolye': '> Jewelry > Necklaces',
+          'küpe': '> Jewelry > Earrings',
+          'bileklik': '> Jewelry > Bracelets',
           'saat': '> Watches',
-          'aksesuar': '> Accessories'
+          'aksesuar': '> Accessories',
+          'şapka': '> Accessories > Hats',
+          'kemer': '> Accessories > Belts',
+          'eşarp': '> Accessories > Scarves'
         }
       },
-      // Erkek giyim
+      // Erkek giyim - genişletilmiş
       'erkek': {
         base: 'Apparel & Accessories > Clothing > Men',
+        aliases: ['man', 'men', 'bay'],
         subcategories: {
-          'gömlek': '> Shirts',
-          'tişört': '> Tops',
-          'polo': '> Tops',
-          'tank': '> Tops',
-          'pantolon': '> Pants',
-          'jean': '> Pants',
-          'kot': '> Pants',
+          // Üst giyim
+          'gömlek': '> Shirts > Dress Shirts',
+          'tişört': '> Tops > T-Shirts',
+          'polo': '> Tops > Polo Shirts',
+          'tank': '> Tops > Tank Tops',
+          'sweatshirt': '> Tops > Sweatshirts',
+          'hoodie': '> Tops > Hoodies',
+          // Alt giyim
+          'pantolon': '> Pants > Trousers',
+          'jean': '> Pants > Jeans',
+          'kot': '> Pants > Jeans',
           'şort': '> Shorts',
-          'ceket': '> Outerwear',
-          'mont': '> Outerwear',
-          'blazer': '> Outerwear',
-          'yelek': '> Outerwear',
-          'kazak': '> Sweaters',
-          'hırka': '> Sweaters',
-          'sweatshirt': '> Sweaters',
-          'hoodie': '> Sweaters',
+          'eşofman': '> Activewear > Tracksuits',
+          // Dış giyim
+          'ceket': '> Outerwear > Jackets',
+          'mont': '> Outerwear > Coats',
+          'blazer': '> Outerwear > Blazers',
+          'yelek': '> Outerwear > Vests',
+          'palto': '> Outerwear > Overcoats',
+          // Triko
+          'kazak': '> Sweaters > Pullovers',
+          'hırka': '> Sweaters > Cardigans',
+          'triko': '> Sweaters',
+          // İç giyim
           'iç giyim': '> Underwear',
-          'boxer': '> Underwear',
+          'boxer': '> Underwear > Boxers',
+          'slip': '> Underwear > Briefs',
+          'atlet': '> Underwear > Undershirts',
+          // Aksesuar
           'çorap': '> Socks',
           'ayakkabı': '> Shoes',
-          'bot': '> Shoes',
-          'sneaker': '> Shoes',
+          'bot': '> Shoes > Boots',
+          'sneaker': '> Shoes > Sneakers',
+          'klasik ayakkabı': '> Shoes > Dress Shoes',
           'çanta': '> Bags',
+          'sırt çantası': '> Bags > Backpacks',
+          'evrak çantası': '> Bags > Briefcases',
           'saat': '> Watches',
-          'aksesuar': '> Accessories'
+          'aksesuar': '> Accessories',
+          'kemer': '> Accessories > Belts',
+          'şapka': '> Accessories > Hats',
+          'kravat': '> Accessories > Ties'
         }
       },
-      // Çocuk giyim
+      // Çocuk giyim - detaylandırılmış
       'çocuk': {
         base: 'Apparel & Accessories > Clothing > Children',
+        aliases: ['child', 'kids', 'bebek', 'baby'],
         subcategories: {
-          'bebek': '> Baby',
-          'kız': '> Girls',
-          'erkek': '> Boys'
+          'bebek': '> Baby (0-24M)',
+          'kız çocuk': '> Girls (2-14Y)',
+          'erkek çocuk': '> Boys (2-14Y)',
+          'genç kız': '> Teen Girls (13-16Y)',
+          'genç erkek': '> Teen Boys (13-16Y)',
+          'okul': '> School Uniforms'
         }
       },
-      // Ev & yaşam
+      // Ev & yaşam - genişletilmiş
       'ev': {
         base: 'Home & Garden',
+        aliases: ['home', 'ev eşyası', 'dekorasyon'],
         subcategories: {
-          'tekstil': '> Home Textiles',
-          'mutfak': '> Kitchen',
+          'ev tekstili': '> Home Textiles',
+          'yatak': '> Bedding',
+          'havlu': '> Bath Linens',
+          'perde': '> Window Treatments',
+          'mutfak': '> Kitchen & Dining',
           'banyo': '> Bathroom',
-          'dekorasyon': '> Home Decor'
+          'dekorasyon': '> Home Decor',
+          'mobilya': '> Furniture',
+          'aydınlatma': '> Lighting',
+          'bahçe': '> Garden & Outdoor'
         }
       },
-      // Elektronik
+      // Spor & outdoor
+      'spor': {
+        base: 'Sports & Recreation',
+        aliases: ['sport', 'fitness', 'outdoor'],
+        subcategories: {
+          'spor giyim': '> Athletic Apparel',
+          'ayakkabı': '> Athletic Shoes',
+          'fitness': '> Fitness Equipment',
+          'outdoor': '> Outdoor Recreation',
+          'su sporları': '> Water Sports',
+          'kış sporları': '> Winter Sports'
+        }
+      },
+      // Kozmetik & kişisel bakım
+      'kozmetik': {
+        base: 'Health & Beauty',
+        aliases: ['beauty', 'cosmetics', 'bakım', 'güzellik'],
+        subcategories: {
+          'makyaj': '> Makeup',
+          'cilt bakımı': '> Skincare',
+          'saç bakımı': '> Hair Care',
+          'parfüm': '> Fragrance',
+          'kişisel bakım': '> Personal Care'
+        }
+      },
+      // Elektronik - detaylandırılmış
       'elektronik': {
         base: 'Electronics',
+        aliases: ['electronic', 'teknoloji'],
         subcategories: {
           'telefon': '> Mobile Phones',
           'bilgisayar': '> Computers',
-          'tv': '> TVs'
+          'tv': '> Televisions',
+          'ses sistemi': '> Audio',
+          'oyun': '> Gaming',
+          'aksesuar': '> Electronics Accessories'
         }
       }
     };
@@ -1033,24 +1183,47 @@ export async function extractFocusedData(url: string): Promise<FocusedProductDat
     const pathLower = rawCategoryPath.toLowerCase();
     let foundCategory = false;
     
-    // Ana kategori tespiti
-    for (const [mainCat, config] of Object.entries(categoryMap)) {
-      if (pathLower.includes(mainCat)) {
+    console.log(`  🔄 Kategori analizi: "${rawCategoryPath}"`);
+    
+    // Gelişmiş kategori eşleştirme algoritması
+    for (const [mainCat, config] of Object.entries(advancedCategoryMap)) {
+      // Ana kategori veya alias kontrolü
+      const allMainCats = [mainCat, ...(config.aliases || [])];
+      const mainCatFound = allMainCats.some(cat => pathLower.includes(cat.toLowerCase()));
+      
+      if (mainCatFound) {
         let finalCategory = config.base;
+        let bestMatch = '';
+        let maxMatchLength = 0;
         
-        // Alt kategori tespiti
+        // En iyi alt kategori eşleşmesini bul
         for (const [subCat, suffix] of Object.entries(config.subcategories)) {
-          if (pathLower.includes(subCat)) {
-            finalCategory += ' ' + suffix;
-            break;
+          if (pathLower.includes(subCat.toLowerCase())) {
+            // Daha uzun eşleşme öncelikli (daha spesifik)
+            if (subCat.length > maxMatchLength) {
+              bestMatch = suffix;
+              maxMatchLength = subCat.length;
+            }
           }
+        }
+        
+        if (bestMatch) {
+          finalCategory += ' ' + bestMatch;
+          console.log(`    ✅ Spesifik kategori: "${mainCat}" > "${bestMatch}"`);
+        } else {
+          console.log(`    ✅ Genel kategori: "${mainCat}"`);
         }
         
         category = finalCategory;
         foundCategory = true;
-        console.log(`    ✅ Profesyonel kategori: "${category}"`);
+        console.log(`    🎯 Final kategori: "${category}"`);
         break;
       }
+    }
+    
+    // Hiyerarşi varsa ek bilgi ekle
+    if (categoryHierarchy.length > 0) {
+      console.log(`    📊 Kategori hiyerarşisi: ${categoryHierarchy.join(' → ')}`);
     }
     
     if (!foundCategory) {
