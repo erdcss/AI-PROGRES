@@ -14,6 +14,68 @@ export function extractDirectAttributes(htmlContent: string): DirectAttribute[] 
   
   console.log('🎯 Direct HTML parsing başlatılıyor...');
   
+  // 0. JavaScript state extraction with multiple patterns
+  const statePatterns = [
+    /window\.__PRODUCT_DETAIL_APP_INITIAL_STATE__\s*=\s*({.+?});/s,
+    /window\.__INITIAL_STATE__\s*=\s*({.+?});/s,
+    /"product":\s*({.+?"attributes":\s*\[.+?\])/s
+  ];
+  
+  for (const pattern of statePatterns) {
+    const stateMatch = htmlContent.match(pattern);
+    if (stateMatch) {
+      console.log('📱 JavaScript state bulundu, parse ediliyor...');
+      try {
+        const stateData = JSON.parse(stateMatch[1]);
+        
+        // Direct product attributes
+        if (stateData.product && stateData.product.attributes && Array.isArray(stateData.product.attributes)) {
+          console.log(`  📋 ${stateData.product.attributes.length} özellik bulundu`);
+          
+          stateData.product.attributes.forEach((attr: any) => {
+            if (attr.key && attr.key.name && attr.value && attr.value.name) {
+              const key = String(attr.key.name).trim();
+              const value = String(attr.value.name).trim();
+              
+              if (key && value && !processedKeys.has(key.toLowerCase())) {
+                attributes.push({ key, value });
+                processedKeys.add(key.toLowerCase());
+                console.log(`    ✅ ${key}: ${value}`);
+              }
+            }
+          });
+        }
+        
+        // Alternative: top-level attributes
+        if (stateData.attributes && Array.isArray(stateData.attributes)) {
+          console.log(`  📋 Top-level attributes: ${stateData.attributes.length}`);
+          stateData.attributes.forEach((attr: any) => {
+            if (attr.key && attr.value) {
+              const key = String(attr.key.name || attr.key).trim();
+              const value = String(attr.value.name || attr.value).trim();
+              
+              if (key && value && !processedKeys.has(key.toLowerCase())) {
+                attributes.push({ key, value });
+                processedKeys.add(key.toLowerCase());
+                console.log(`    ✅ Alt: ${key}: ${value}`);
+              }
+            }
+          });
+        }
+        
+        console.log(`🎯 JavaScript state'den ${attributes.length} özellik çıkarıldı`);
+        break; // Successful parse, exit loop
+      } catch (e) {
+        console.log(`⚠️ State parse hatası: ${e.message}`);
+        // Continue to next pattern
+      }
+    }
+  }
+  
+  if (attributes.length === 0) {
+    console.log('❌ JavaScript state'den özellik çıkarılamadı');
+  }
+  
   // 1. Türkçe özellik isimleri ile direkt arama
   const turkishFeatures = {
     'Materyal': ['materyal', 'kumaş', 'fabric', 'material'],
