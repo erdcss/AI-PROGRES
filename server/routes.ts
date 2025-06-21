@@ -24,7 +24,8 @@ function generateSingleProductShopifyCSV(product: any): string {
     'Option1 Name', 'Option1 Value', 'Option2 Name', 'Option2 Value', 
     'Variant SKU', 'Variant Inventory Qty', 'Variant Price', 'Variant Compare At Price',
     'Image Src', 'Image Position', 'Image Alt Text', 'Gift Card', 
-    'SEO Title', 'SEO Description', 'Variant Image', 'Variant Weight Unit', 'Status'
+    'SEO Title', 'SEO Description', 'Variant Image', 'Variant Weight Unit', 'Status',
+    'Product Features'
   ];
 
   const rows: string[][] = [];
