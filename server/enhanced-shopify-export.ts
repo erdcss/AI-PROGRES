@@ -135,43 +135,36 @@ function processVariants(product: Product, baseRow: any): any[] {
       rows.push(variantRow);
     });
   } 
-  // Sadece Beden varyantı varsa
-  else if (hasSizes) {
-    console.log(`Tek türlü varyant bulundu: ${availableSizes.length} beden (stokta olan)`);
+  // Renk ve beden varyantı varsa
+  else if (hasColors && hasSizes) {
+    console.log(`Çoklu varyant: ${product.colorOptions.length} renk x ${allSizes.length} beden`);
     
-    // Option ismini ayarla - sadece gerçek varyant varsa
-    baseRow.option1_name = 'Beden';
+    baseRow.option1_name = 'Renk';
+    baseRow.option2_name = 'Beden';
     
-    // İlk satır ana üründür, tüm detayları içerir
     let isFirstRow = true;
     
-    // Sadece stokta olan bedenler için bir satır oluştur
-    availableSizes.forEach((size: string) => {
-      const variantRow = {...baseRow};
-      
-      // İlk satır dışındaki satırlarda bazı bilgiler tekrarlanmaz
-      if (!isFirstRow) {
-        variantRow.title = "";
-        variantRow.body_html = "";
-        variantRow.tags = "";
-        variantRow.images = "";
-      }
-      
-      // Beden bilgisini ekle
-      variantRow.option1_value = size;
-      
-      // SKU oluştur - özel karakterleri temizle
-      const cleanSize = size.replace(/[^\w\-]/g, '_');
-      variantRow.variant_sku = `${baseRow.handle}-${cleanSize}`;
-      
-      // Debug log
-      console.log(`📦 Varyant ${index + 1}: ${size} -> SKU: ${variantRow.variant_sku}`);
-      
-      isFirstRow = false;
-      rows.push(variantRow);
+    product.colorOptions.forEach(color => {
+      allSizes.forEach((size, sizeIndex) => {
+        const variantRow = {...baseRow};
+        
+        if (!isFirstRow) {
+          variantRow.title = "";
+          variantRow.body_html = "";
+          variantRow.tags = "";
+          variantRow.images = "";
+        }
+        
+        variantRow.option1_value = color;
+        variantRow.option2_value = size;
+        
+        const cleanSize = size.replace(/[^\w\-]/g, '_');
+        variantRow.variant_sku = `${baseRow.handle}-${color.toLowerCase()}-${cleanSize}`;
+        
+        isFirstRow = false;
+        rows.push(variantRow);
+      });
     });
-    
-    console.log(`✅ Toplam ${rows.length - 1} varyant satırı oluşturuldu`);
   } 
   // Varyant yoksa - option alanları tamamen boş
   else {
