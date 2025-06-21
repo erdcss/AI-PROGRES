@@ -113,9 +113,11 @@ function generateSingleProductShopifyCSV(product: any): string {
     ]);
   });
 
-  // TÜM görseller için ek satırlar - varyantlarda kullanılmayanlar
+  // TÜM EK GÖRSELLERİ EKLE - varyant görsellerinden sonra kalan tüm görseller
   const usedImageCount = Math.min(product.sizeOptions.length, product.images.length);
   const allRemainingImages = product.images.slice(usedImageCount);
+  
+  console.log(`📊 Görsel bilgileri: Toplam=${product.images.length}, Varyant'ta kullanılan=${usedImageCount}, Kalan=${allRemainingImages.length}`);
   
   // Her görsel için ayrı satır ekle
   allRemainingImages.forEach((imageUrl: string, index: number) => {
