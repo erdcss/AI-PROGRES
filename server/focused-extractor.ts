@@ -1420,15 +1420,27 @@ export async function extractFocusedData(url: string): Promise<FocusedProductDat
     categoryFound = true;
   }
   
-  // Kategori final kontrolü ve düzeltme
-  const finalCategory = category && 
-                        category !== 'undefined' && 
-                        category !== 'null' && 
-                        category !== null &&
-                        typeof category === 'string' && 
-                        category.length > 5 
-                        ? category 
-                        : 'Apparel & Accessories';
+  // Kategori final kontrolü ve Shopify uyumlu düzeltme
+  let finalCategory = category;
+  
+  // Shopify'da geçersiz kategorileri düzelt
+  if (!finalCategory || 
+      finalCategory === 'undefined' || 
+      finalCategory === 'null' || 
+      finalCategory === null ||
+      finalCategory === 'Müsli ve Granola' ||
+      typeof finalCategory !== 'string' || 
+      finalCategory.length < 5) {
+    
+    // Ürün tipine göre doğru kategori ata
+    if (titleLower.includes('granola') || titleLower.includes('müsli')) {
+      finalCategory = 'Food, Beverages & Tobacco > Food Items > Breakfast Foods > Cereal & Granola';
+    } else if (titleLower.includes('blazer') || titleLower.includes('ceket')) {
+      finalCategory = 'Apparel & Accessories > Clothing > Outerwear';
+    } else {
+      finalCategory = 'Apparel & Accessories > Clothing';
+    }
+  }
   
   console.log(`⚠️ Kategori final: '${category}' → '${finalCategory}'`);
   
@@ -1437,6 +1449,14 @@ export async function extractFocusedData(url: string): Promise<FocusedProductDat
   console.log(`✓ Özellikler: ${features.length} adet (kapsamlı)`);
   console.log(`🎯 Focused extraction tamamlandı`);
   
+  // Final kategori kontrolü - JSON response için
+  const jsonCategory = finalCategory && finalCategory !== 'null' && finalCategory !== 'undefined' 
+    ? finalCategory 
+    : 'Apparel & Accessories > Clothing';
+
+  console.log(`📤 JSON'a döndürülecek kategori: "${jsonCategory}"`);
+  console.log(`📤 JSON'a döndürülecek özellik sayısı: ${features.length}`);
+
   return {
     brand,
     title,
@@ -1453,6 +1473,6 @@ export async function extractFocusedData(url: string): Promise<FocusedProductDat
       unavailableSizes: Array.from(outOfStockSizes)
     },
     features,
-    category: finalCategory
+    category: jsonCategory === 'null' ? 'Apparel & Accessories > Clothing' : jsonCategory
   };
 }
