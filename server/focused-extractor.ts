@@ -188,10 +188,11 @@ export async function extractFocusedData(url: string): Promise<FocusedProductDat
     }
   }
   
-  // Ana ürün görsellerini al - sadece birincil renk için
+  // Ana ürün görsellerini al - sadece tek renk için sınırlı sayıda
   if (product.images && Array.isArray(product.images)) {
-    let imageLimit = 6; // Tek renk için maksimum 6 görsel
+    let imageLimit = 8; // Maksimum 8 gerçek ürün görseli
     let addedImages = 0;
+    const uniqueImages = new Set();
     
     product.images.forEach((img: any) => {
       if (addedImages >= imageLimit) return;
@@ -251,9 +252,11 @@ export async function extractFocusedData(url: string): Promise<FocusedProductDat
             imageUrl = img.url;
           }
           
-          if (imageUrl && !images.includes(imageUrl) && images.length < 8) {
+          // Varyant görsellerini de sınırla ve filtrele
+          if (imageUrl && !images.includes(imageUrl) && images.length < 8 && 
+              imageUrl.includes('/prod/QC/') && !imageUrl.includes('web-pdp')) {
             images.push(imageUrl);
-            console.log(`📸 ${primaryColor} varyant görseli ${index + 1}: ${imageUrl.substring(0, 60)}...`);
+            console.log(`📸 Varyant görseli ${index + 1}: ${imageUrl.substring(60, 100)}...`);
           }
         });
       }
@@ -312,14 +315,18 @@ export async function extractFocusedData(url: string): Promise<FocusedProductDat
         
         let imageUrl = match;
         
-        // Marketing görselleri hariç tut
+        // Sadece gerçek ürün görselleri
         if (!imageUrl.includes('cok_satanlar') && 
             !imageUrl.includes('sepete_eklenen') && 
             !imageUrl.includes('begenilenler') &&
+            !imageUrl.includes('web-pdp') &&
+            !imageUrl.includes('banner') &&
+            !imageUrl.includes('promotion') &&
+            imageUrl.includes('/prod/QC/') &&
             !images.includes(imageUrl)) {
           images.push(imageUrl);
           addedFromHTML++;
-          console.log(`    📸 HTML'den ${primaryColor} görseli: ${imageUrl.substring(0, 60)}...`);
+          console.log(`    📸 HTML'den gerçek ürün görseli: ${imageUrl.substring(0, 60)}...`);
         }
       });
       console.log(`    → ${addedFromHTML} ürün görseli eklendi`);
