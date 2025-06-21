@@ -837,30 +837,35 @@ export async function extractFocusedData(url: string): Promise<FocusedProductDat
     }
   }
   
-  // 3. Ürün başlığından kategori tahmin et (fallback)
-  if (!categoryFound) {
-    console.log(`  📝 Başlık analizi yapılıyor: "${title}"`);
-    const titleLower = title.toLowerCase();
-    
-    if (titleLower.includes('elbise')) {
-      category = 'Apparel & Accessories > Clothing > Women > Dresses';
-    } else if (titleLower.includes('bluz') || titleLower.includes('tişört') || titleLower.includes('tshirt')) {
-      category = 'Apparel & Accessories > Clothing > Women > Tops';
-    } else if (titleLower.includes('pantolon') || titleLower.includes('jean') || titleLower.includes('eşofman')) {
-      category = 'Apparel & Accessories > Clothing > Women > Pants';
-    } else if (titleLower.includes('ceket') || titleLower.includes('blazer') || titleLower.includes('mont')) {
-      category = 'Apparel & Accessories > Clothing > Women > Outerwear';
-    } else if (titleLower.includes('gömlek')) {
-      category = 'Apparel & Accessories > Clothing > Men > Shirts';
-    } else if (titleLower.includes('etek')) {
-      category = 'Apparel & Accessories > Clothing > Women > Skirts';
-    } else if (titleLower.includes('şort')) {
-      category = 'Apparel & Accessories > Clothing > Women > Shorts';
-    }
+  // 3. Ürün başlığından kategori tahmin et (her zaman çalışır)
+  console.log(`  📝 Başlık analizi yapılıyor: "${title}"`);
+  const titleLower = title.toLowerCase();
+  
+  if (titleLower.includes('elbise')) {
+    category = 'Apparel & Accessories > Clothing > Women > Dresses';
+    categoryFound = true;
+  } else if (titleLower.includes('bluz') || titleLower.includes('tişört') || titleLower.includes('tshirt')) {
+    category = 'Apparel & Accessories > Clothing > Women > Tops';
+    categoryFound = true;
+  } else if (titleLower.includes('pantolon') || titleLower.includes('jean') || titleLower.includes('eşofman')) {
+    category = 'Apparel & Accessories > Clothing > Women > Pants';
+    categoryFound = true;
+  } else if (titleLower.includes('ceket') || titleLower.includes('blazer') || titleLower.includes('mont')) {
+    category = 'Apparel & Accessories > Clothing > Women > Outerwear';
+    categoryFound = true;
+  } else if (titleLower.includes('gömlek')) {
+    category = 'Apparel & Accessories > Clothing > Men > Shirts';
+    categoryFound = true;
+  } else if (titleLower.includes('etek')) {
+    category = 'Apparel & Accessories > Clothing > Women > Skirts';
+    categoryFound = true;
+  } else if (titleLower.includes('şort')) {
+    category = 'Apparel & Accessories > Clothing > Women > Shorts';
     categoryFound = true;
   }
   
   console.log(`🏷️ Kategori belirlendi: ${category}`);
+  console.log(`  ✓ Kategori bulundu: ${categoryFound ? 'EVET' : 'HAYIR'}`);
   console.log(`✓ Özellikler: ${features.length} adet (kapsamlı)`);
   console.log(`🎯 Focused extraction tamamlandı`);
   
