@@ -366,17 +366,17 @@ export async function extractFocusedData(url: string): Promise<FocusedProductDat
         }
       }
 
-      // ItemAttributes'dan da kontrol et
-      if (variant.itemAttributes && Array.isArray(variant.itemAttributes)) {
+      // ItemAttributes'tan jean bedeni çıkar - PRİORİTE 3
+      if (size === 'Tek Beden' && variant.itemAttributes && Array.isArray(variant.itemAttributes)) {
         variant.itemAttributes.forEach((attr: any) => {
           if (attr.attributeName && attr.attributeValue) {
             const attrName = attr.attributeName.toLowerCase();
             if (attrName.includes('beden') || attrName.includes('size')) {
-              size = attr.attributeValue;
-              console.log(`  ✓ ItemAttributes'dan beden bulundu: ${size}`);
-            } else if (attrName.includes('renk') || attrName.includes('color')) {
-              color = attr.attributeValue;
-              console.log(`  ✓ ItemAttributes'dan renk bulundu: ${color}`);
+              const attrValue = attr.attributeValue.toString().trim();
+              if (attrValue.match(/^(\d{2,3}[\-\/]?\d{0,3}|\d{2,3})$/)) {
+                size = attrValue;
+                console.log(`  ✓ ItemAttributes'tan jean bedeni: ${size}`);
+              }
             }
           }
         });
@@ -608,7 +608,7 @@ export async function extractFocusedData(url: string): Promise<FocusedProductDat
       !size.includes('null') &&
       /^[A-Za-z0-9\/\-]+$/.test(size);
 
-    console.log(`Beden "${size}" kontrol: ${isValid ? 'GEÇERLİ' : 'GEÇERSİZ'} (Stokta: VAR)`);
+    console.log(`Beden "${size}" kontrol: ${isValid ? 'GEÇERLİ' : 'GEÇERSİZ'}`);
     return isValid;
   }).sort((a, b) => {
     const numA = parseInt(a);
