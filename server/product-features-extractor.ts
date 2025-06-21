@@ -19,12 +19,18 @@ export function extractDetailedFeatures(html: string): ProductFeature[] {
     '.product-detail-attributes table tr',
     '.product-attributes table tr',
     '.attributes-table tr',
+    '.product-detail table tr',
+    '.detail-attributes table tr',
     // Alternatif yapılar
     '.product-detail-section .product-attribute',
     '.product-attributes-container .attribute-row',
+    '.attributes-list .attribute-item',
     // JSON-LD yapısından çıkarma
     '[data-testid="product-attributes"] tr',
-    '.pdp-product-attributes tr'
+    '.pdp-product-attributes tr',
+    // Trendyol specific
+    '.pr-in-at tr',
+    '.pr-in-dt table tr'
   ];
 
   // Her selector'ı dene
@@ -112,12 +118,14 @@ function extractFeaturesFromJsonLd(html: string): ProductFeature[] {
 function extractFeaturesFromText(html: string): ProductFeature[] {
   const features: ProductFeature[] = [];
   
-  // Metin bazlı özellik çıkarma
+  // Daha güçlü metin bazlı özellik çıkarma
   const patterns = [
     // "Materyal: Polyester" formatı
-    /([A-ZÇĞIİÖŞÜa-zçğıiöşü\s]+):\s*([A-ZÇĞIİÖŞÜa-zçğıiöşü0-9\s\/\-\.\,]+)/g,
-    // "Materyal Polyester" formatı (iki nokta olmadan)
-    /([A-ZÇĞIİÖŞÜa-zçğıiöşü\s]{3,20})\s+([A-ZÇĞIİÖŞÜa-zçğıiöşü0-9]{3,30})/g
+    /([A-ZÇĞIİÖŞÜa-zçğıiöşü\s\/]+):\s*([A-ZÇĞIİÖŞÜa-zçğıiöşü0-9\s\/\-\.\,\(\)]+)/g,
+    // HTML attribute pattern for data-attributes
+    /data-attribute-name="([^"]+)"[^>]*data-attribute-value="([^"]+)"/g,
+    // JSON içindeki attribute pattern
+    /"([A-ZÇĞIİÖŞÜa-zçğıiöşü\s\/]+)"\s*:\s*"([A-ZÇĞIİÖŞÜa-zçğıiöşü0-9\s\/\-\.\,\(\)]+)"/g
   ];
   
   patterns.forEach(pattern => {
@@ -126,10 +134,33 @@ function extractFeaturesFromText(html: string): ProductFeature[] {
       const key = match[1].trim();
       const value = match[2].trim();
       
-      // Bazı filtreleme kuralları
+      // Gelişmiş filtreleme kuralları
       if (key.length > 2 && value.length > 1 && 
           !key.includes('http') && !value.includes('http') &&
-          !key.includes('class') && !value.includes('class')) {
+          !key.includes('class') && !value.includes('class') &&
+          !key.includes('script') && !value.includes('script') &&
+          key !== value) {
+        features.push({ key, value });
+      }
+    }
+  });
+  
+  // Özel Trendyol pattern arama
+  const trendyolSpecificPatterns = [
+    /Materyal[:\s]*([A-ZÇĞIİÖŞÜa-zçğıiöşü\s]+)/gi,
+    /Paça Tipi[:\s]*([A-ZÇĞIİÖŞÜa-zçğıiöşü\s]+)/gi,
+    /Bel[:\s]*([A-ZÇĞIİÖŞÜa-zçğıiöşü\s]+)/gi,
+    /Kalıp[:\s]*([A-ZÇĞIİÖŞÜa-zçğıiöşü\s]+)/gi,
+    /Kumaş Tipi[:\s]*([A-ZÇĞIİÖŞÜa-zçğıiöşü\s]+)/gi,
+    /Desen[:\s]*([A-ZÇĞIİÖŞÜa-zçğıiöşü\s]+)/gi
+  ];
+  
+  trendyolSpecificPatterns.forEach(pattern => {
+    let match;
+    while ((match = pattern.exec(html)) !== null) {
+      const key = match[0].split(/[:\s]/)[0].trim();
+      const value = match[1].trim();
+      if (value && value.length > 1) {
         features.push({ key, value });
       }
     }

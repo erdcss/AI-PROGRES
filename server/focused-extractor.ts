@@ -7,6 +7,11 @@
  * 5. Ürün özellikleri
  */
 
+import { Page } from 'puppeteer';
+import * as cheerio from 'cheerio';
+import { filterOutOfStockSizes } from './trendyol-stock-filter';
+import { extractDetailedFeatures, standardizeFeatureKey } from './product-features-extractor';
+
 // Türk sayı formatı fonksiyonu
 function formatTurkishNumber(num: number): string {
   const rounded = Math.round(num * 100) / 100;
