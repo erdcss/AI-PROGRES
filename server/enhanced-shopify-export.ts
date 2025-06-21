@@ -133,7 +133,7 @@ function processVariants(product: Product, baseRow: any): any[] {
   else if (hasSizes) {
     console.log(`Tek türlü varyant bulundu: ${availableSizes.length} beden (stokta olan)`);
     
-    // Option ismini ayarla
+    // Option ismini ayarla - sadece gerçek varyant varsa
     baseRow.option1_name = 'Beden';
     
     // İlk satır ana üründür, tüm detayları içerir
@@ -161,11 +161,14 @@ function processVariants(product: Product, baseRow: any): any[] {
       rows.push(variantRow);
     });
   } 
-  // Varyant yoksa, tek satır oluştur (Default Title)
+  // Varyant yoksa - option alanları tamamen boş
   else {
-    console.log("Varyant bulunamadı, tek satır CSV oluşturuluyor");
-    baseRow.option1_name = 'Title';
-    baseRow.option1_value = 'Default Title';
+    console.log("Varyant bulunamadı - option alanları boş bırakılıyor");
+    baseRow.option1_name = '';
+    baseRow.option1_value = '';
+    baseRow.option2_name = '';
+    baseRow.option2_value = '';
+    baseRow.variant_sku = baseRow.handle;
     rows.push(baseRow);
   }
   
@@ -301,7 +304,7 @@ export async function generateEnhancedShopifyCSV(
       variant_requires_shipping: "TRUE",
       variant_taxable: "TRUE",
       
-      // İlk başta boş, daha sonra processVariants fonksiyonu tarafından doldurulacak
+      // Option alanları - varyanta göre ayarlanacak
       option1_name: '',
       option1_value: '',
       option2_name: '',
