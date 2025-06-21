@@ -267,32 +267,34 @@ export async function extractFocusedData(url: string): Promise<FocusedProductDat
     });
   }
   
-  // Son çare: HTML'den görsel URL'lerini regex ile çıkar
-  if (images.length === 0) {
-    console.log(`⚠️ JSON'dan görsel bulunamadı, HTML'den regex ile aranıyor...`);
-    
-    const imageRegexes = [
-      /https:\/\/cdn\.dsmcdn\.com\/ty\d+\/product\/media\/images\/[^"'\s]+\.jpg/g,
-      /https:\/\/cdn\.dsmcdn\.com\/ty\d+\/product\/media\/images\/[^"'\s]+\.jpeg/g,
-      /https:\/\/cdn\.dsmcdn\.com\/ty\d+\/product\/media\/images\/[^"'\s]+\.webp/g,
-      /"url":"(https:\/\/cdn\.dsmcdn\.com[^"]+)"/g
-    ];
-    
-    imageRegexes.forEach(regex => {
-      const matches = htmlContent.match(regex) || [];
-      matches.forEach(match => {
-        let imageUrl = match;
-        if (match.includes('"url":"')) {
-          imageUrl = match.replace('"url":"', '').replace('"', '');
-        }
-        
-        if (imageUrl.includes('dsmcdn.com') && !images.includes(imageUrl)) {
-          images.push(imageUrl);
-          console.log(`📸 HTML'den görsel: ${imageUrl}`);
-        }
-      });
+  // HTML'den kapsamlı görsel çıkarımı - her zaman çalış
+  console.log(`🔍 HTML'den tüm görseller aranıyor...`);
+  
+  const imageRegexes = [
+    /https:\/\/cdn\.dsmcdn\.com\/ty\d+\/prod\/QC\/\d+\/\d+\/[^"'\s]+\/\d+_org_zoom\.jpg/g,
+    /https:\/\/cdn\.dsmcdn\.com\/ty\d+\/product\/media\/images\/[^"'\s]+\.jpg/g,
+    /https:\/\/cdn\.dsmcdn\.com\/ty\d+\/product\/media\/images\/[^"'\s]+\.jpeg/g,
+    /https:\/\/cdn\.dsmcdn\.com\/ty\d+\/product\/media\/images\/[^"'\s]+\.webp/g,
+    /"url":"(https:\/\/cdn\.dsmcdn\.com[^"]+)"/g,
+    /"image":"(https:\/\/cdn\.dsmcdn\.com[^"]+)"/g
+  ];
+  
+  imageRegexes.forEach((regex, index) => {
+    console.log(`  Regex ${index + 1} deneniyor...`);
+    const matches = htmlContent.match(regex) || [];
+    matches.forEach(match => {
+      let imageUrl = match;
+      if (match.includes('"url":"') || match.includes('"image":"')) {
+        imageUrl = match.replace(/"[^"]*":"/, '').replace('"', '');
+      }
+      
+      if (imageUrl.includes('dsmcdn.com') && !images.includes(imageUrl)) {
+        images.push(imageUrl);
+        console.log(`    📸 HTML'den görsel: ${imageUrl.substring(0, 80)}...`);
+      }
     });
-  }
+    console.log(`    → ${matches.length} match bulundu`);
+  });
   
   // Manuel relative URL dönüştürme - tüm ürünler için
   if (images.length === 0 && product?.images && Array.isArray(product.images)) {
