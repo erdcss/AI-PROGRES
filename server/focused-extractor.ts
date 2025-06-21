@@ -96,25 +96,41 @@ export async function extractFocusedData(url: string): Promise<FocusedProductDat
   // Gelişmiş fiyat çıkarma - çoklu kaynak kontrolü
   let foundPrice = false;
   
-  // 1. Selling price kontrolü
+  // 1. Selling price kontrolü - gelişmiş fiyat algılama
   if (product.price?.sellingPrice?.value) {
-    // Fiyat değerini kontrol et - eğer çok küçükse kuruş cinsinden, büyükse TL cinsinden
     let originalPrice = product.price.sellingPrice.value;
-    if (originalPrice > 1000) {
-      originalPrice = originalPrice / 100; // Kuruş -> TL dönüşümü
+    
+    // Fiyat formatı kontrolü ve düzeltme
+    if (originalPrice < 1) {
+      // 0.1049 gibi decimal formatı -> 104.99 TL'ye çevir
+      originalPrice = originalPrice * 10000;
+    } else if (originalPrice > 10000) {
+      // 104999 gibi kuruş formatı -> 1049.99 TL'ye çevir
+      originalPrice = originalPrice / 100;
+    } else if (originalPrice > 1000 && originalPrice < 10000) {
+      // 1049 gibi format kontrolü - eğer çok yuvarlaksa kuruş olabilir
+      const hasDecimals = (originalPrice % 1) !== 0;
+      if (!hasDecimals && originalPrice > 1000) {
+        originalPrice = originalPrice / 100;
+      }
     }
     
     const currency = product.price.sellingPrice.currency || 'TRY';
-    const profitPrice = Math.round(originalPrice * 1.1 * 100) / 100;
+    const profitPrice = parseFloat((originalPrice * 1.1).toFixed(2));
+    
+    // Format tutarlılığı için yuvarlama
+    const roundedOriginal = parseFloat(originalPrice.toFixed(2));
+    const roundedProfit = parseFloat((roundedOriginal * 1.1).toFixed(2));
     
     priceData = {
-      original: originalPrice,
+      original: roundedOriginal,
       currency: currency,
-      formatted: `${originalPrice.toFixed(2)} TL`,
-      withProfit: profitPrice,
-      profitFormatted: `${profitPrice.toFixed(2)} TL`
+      formatted: `${roundedOriginal.toFixed(2)} TL`,
+      withProfit: roundedProfit,
+      profitFormatted: `${roundedProfit.toFixed(2)} TL`
     };
     foundPrice = true;
+    console.log(`✓ Fiyat dönüştürüldü: ${product.price.sellingPrice.value} -> ${roundedOriginal.toFixed(2)} TL -> %10 kar: ${roundedProfit.toFixed(2)} TL`);
   }
   
   // 2. Original price kontrolü
@@ -152,22 +168,49 @@ export async function extractFocusedData(url: string): Promise<FocusedProductDat
     foundPrice = true;
   }
   
-  // 4. HTML'den fiyat regex ile çıkarma
+  // 4. HTML'den fiyat regex ile çıkarma - gelişmiş pattern'ler
   if (!foundPrice) {
-    const priceRegex = /"price":\s*(\d+(?:\.\d+)?)/;
-    const priceMatch = htmlContent.match(priceRegex);
-    if (priceMatch) {
-      const originalPrice = parseFloat(parseFloat(priceMatch[1]).toFixed(2));
-      const profitPrice = parseFloat((originalPrice * 1.1).toFixed(2));
-      
-      priceData = {
-        original: originalPrice,
-        currency: 'TRY',
-        formatted: `${originalPrice.toFixed(2)} TL`,
-        withProfit: profitPrice,
-        profitFormatted: `${profitPrice.toFixed(2)} TL`
-      };
-      foundPrice = true;
+    const pricePatterns = [
+      /"price":\s*(\d+(?:\.\d+)?)/,
+      /"sellingPrice":\s*(\d+(?:\.\d+)?)/,
+      /"originalPrice":\s*(\d+(?:\.\d+)?)/,
+      /price["\s]*:["\s]*(\d+(?:\.\d+)?)/,
+      /(\d{1,4}[.,]\d{2})\s*TL/,
+      /₺\s*(\d{1,4}[.,]\d{2})/
+    ];
+    
+    for (const pattern of pricePatterns) {
+      const priceMatch = htmlContent.match(pattern);
+      if (priceMatch) {
+        let originalPrice = parseFloat(priceMatch[1].replace(',', '.'));
+        
+        // Fiyat formatı kontrolü
+        if (originalPrice < 1) {
+          originalPrice = originalPrice * 10000;
+        } else if (originalPrice > 10000) {
+          originalPrice = originalPrice / 100;
+        } else if (originalPrice > 1000 && originalPrice < 10000) {
+          const hasDecimals = (originalPrice % 1) !== 0;
+          if (!hasDecimals) {
+            originalPrice = originalPrice / 100;
+          }
+        }
+        
+        // Format tutarlılığı için yuvarlama
+        const roundedOriginal = parseFloat(originalPrice.toFixed(2));
+        const roundedProfit = parseFloat((roundedOriginal * 1.1).toFixed(2));
+        
+        priceData = {
+          original: roundedOriginal,
+          currency: 'TRY',
+          formatted: `${roundedOriginal.toFixed(2)} TL`,
+          withProfit: roundedProfit,
+          profitFormatted: `${roundedProfit.toFixed(2)} TL`
+        };
+        foundPrice = true;
+        console.log(`✓ HTML'den fiyat: ${priceMatch[1]} -> ${roundedOriginal.toFixed(2)} TL -> %10 kar: ${roundedProfit.toFixed(2)} TL`);
+        break;
+      }
     }
   }
   
