@@ -14,18 +14,8 @@ export function extractTrendyolFinalAttributes(htmlContent: string): TrendyolFin
   
   console.log('🎯 Final Trendyol extraction starting...');
   
-  // Multiple regex patterns to capture the state
-  const statePatterns = [
-    /window\.__PRODUCT_DETAIL_APP_INITIAL_STATE__\s*=\s*(\{.*?\});(?:\s*window\.|$)/s,
-    /window\.__PRODUCT_DETAIL_APP_INITIAL_STATE__\s*=\s*(\{.*?\});\s*$/m,
-    /__PRODUCT_DETAIL_APP_INITIAL_STATE__\s*=\s*(\{.*?\})\s*;/s
-  ];
-  
-  let stateMatch = null;
-  for (const pattern of statePatterns) {
-    stateMatch = htmlContent.match(pattern);
-    if (stateMatch) break;
-  }
+  // Extract state with more robust pattern matching
+  const stateMatch = htmlContent.match(/window\.__PRODUCT_DETAIL_APP_INITIAL_STATE__\s*=\s*(\{.*?\});/s);
   
   if (stateMatch) {
     console.log('📱 Found PRODUCT_DETAIL_APP_INITIAL_STATE');
@@ -35,14 +25,14 @@ export function extractTrendyolFinalAttributes(htmlContent: string): TrendyolFin
       
       const stateData = JSON.parse(stateStr);
       
-      if (stateData.product && stateData.product.attributes) {
+      if (stateData.product && stateData.product.attributes && Array.isArray(stateData.product.attributes)) {
         const attrs = stateData.product.attributes;
         console.log(`  📋 Found ${attrs.length} attributes in product`);
         
         attrs.forEach((attr: any, index: number) => {
-          try {
-            const keyName = attr.key?.name;
-            const valueName = attr.value?.name;
+          if (attr && typeof attr === 'object' && attr.key && attr.value) {
+            const keyName = attr.key.name;
+            const valueName = attr.value.name;
             
             if (keyName && valueName) {
               const key = String(keyName).trim();
@@ -54,32 +44,25 @@ export function extractTrendyolFinalAttributes(htmlContent: string): TrendyolFin
                 console.log(`    ✅ ${key}: ${value}`);
               }
             }
-          } catch (e) {
-            console.log(`    ⚠️ Error processing attribute ${index}: ${e.message}`);
           }
         });
       }
       
-      // Also check for variant attributes
-      if (stateData.product && stateData.product.variants) {
+      // Check variants for additional attributes
+      if (stateData.product && stateData.product.variants && Array.isArray(stateData.product.variants)) {
         console.log(`  🎨 Checking ${stateData.product.variants.length} variants`);
-        stateData.product.variants.forEach((variant: any, vIndex: number) => {
-          if (variant.attributes) {
+        stateData.product.variants.forEach((variant: any) => {
+          if (variant && variant.attributes && Array.isArray(variant.attributes)) {
             variant.attributes.forEach((attr: any) => {
-              try {
-                const keyName = attr.key?.name;
-                const valueName = attr.value?.name;
+              if (attr && attr.key && attr.value && attr.key.name && attr.value.name) {
+                const key = String(attr.key.name).trim();
+                const value = String(attr.value.name).trim();
                 
-                if (keyName && valueName && !processedKeys.has(keyName.toLowerCase())) {
-                  const key = String(keyName).trim();
-                  const value = String(valueName).trim();
-                  
+                if (key && value && !processedKeys.has(key.toLowerCase())) {
                   attributes.push({ key, value });
                   processedKeys.add(key.toLowerCase());
                   console.log(`    ✅ Variant ${key}: ${value}`);
                 }
-              } catch (e) {
-                console.log(`    ⚠️ Error processing variant attribute: ${e.message}`);
               }
             });
           }
