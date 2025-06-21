@@ -747,48 +747,7 @@ export async function extractFocusedData(url: string): Promise<FocusedProductDat
     console.log(`  ✓ Marka eklendi: "${brand}"`);
   }
 
-  console.log(`✅ Gerçek ${features.length} özellik hazır`); 
-                         productTitle.includes('jean') || productTitle.includes('pantolon') ? 'Pantolon' : 
-                         productTitle.includes('elbise') ? 'Elbise' : 'Giyim';
-    features.push({ key: 'Kategori', value: categoryValue });
-    processedKeys.add('kategori');
-    console.log(`    ✓ Kategori eklendi: "${categoryValue}"`);
-  }
-  
-  // Add brand
-  if (!processedKeys.has('marka')) {
-    features.push({ key: 'Marka', value: brand });
-    processedKeys.add('marka');
-    console.log(`    ✓ Marka eklendi: "${brand}"`);
-  }
-  
-  // Add gender based on title
-  if (!processedKeys.has('cinsiyet')) {
-    const genderValue = productTitle.includes('kadın') ? 'Kadın' :
-                       productTitle.includes('erkek') ? 'Erkek' : 'Unisex';
-    features.push({ key: 'Cinsiyet', value: genderValue });
-    processedKeys.add('cinsiyet');
-    console.log(`    ✓ Cinsiyet eklendi: "${genderValue}"`);
-  }
-  
-  // Add product type
-  if (!processedKeys.has('ürün_tipi')) {
-    const productType = productTitle.includes('ayakkabı') ? 'Ayakkabı' :
-                       productTitle.includes('jean') ? 'Jean' :
-                       productTitle.includes('pantolon') ? 'Pantolon' :
-                       productTitle.includes('gömlek') ? 'Gömlek' :
-                       productTitle.includes('elbise') ? 'Elbise' : 'Giyim';
-    features.push({ key: 'Ürün Tipi', value: productType });
-    processedKeys.add('ürün_tipi');
-    console.log(`    ✓ Ürün tipi eklendi: "${productType}"`);
-  }
-  
-  // Add season if not present
-  if (!processedKeys.has('mevsim')) {
-    features.push({ key: 'Mevsim', value: 'Dört Mevsim' });
-    processedKeys.add('mevsim');
-    console.log(`    ✓ Mevsim eklendi: "Dört Mevsim"`);
-  }
+  console.log(`✅ Gerçek ${features.length} özellik hazır`);
 
   // Product attributes'dan gerçek özellikler
   if (product.attributes && typeof product.attributes === 'object') {
