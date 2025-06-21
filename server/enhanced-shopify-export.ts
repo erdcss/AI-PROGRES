@@ -160,12 +160,18 @@ function processVariants(product: Product, baseRow: any): any[] {
       // Beden bilgisini ekle
       variantRow.option1_value = size;
       
-      // SKU oluştur
-      variantRow.variant_sku = `${baseRow.handle}-${size}`.replace(/\s+/g, '-');
+      // SKU oluştur - özel karakterleri temizle
+      const cleanSize = size.replace(/[^\w\-]/g, '_');
+      variantRow.variant_sku = `${baseRow.handle}-${cleanSize}`;
+      
+      // Debug log
+      console.log(`📦 Varyant ${index + 1}: ${size} -> SKU: ${variantRow.variant_sku}`);
       
       isFirstRow = false;
       rows.push(variantRow);
     });
+    
+    console.log(`✅ Toplam ${rows.length - 1} varyant satırı oluşturuldu`);
   } 
   // Varyant yoksa - option alanları tamamen boş
   else {
