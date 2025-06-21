@@ -139,8 +139,8 @@ export async function extractFocusedData(url: string): Promise<FocusedProductDat
   
   // 3. Direct price field kontrolü
   if (!foundPrice && product.price && typeof product.price === 'number') {
-    const originalPrice = product.price;
-    const profitPrice = Math.round(originalPrice * 1.1 * 100) / 100;
+    const originalPrice = parseFloat(product.price.toFixed(2));
+    const profitPrice = parseFloat((originalPrice * 1.1).toFixed(2));
     
     priceData = {
       original: originalPrice,
@@ -157,8 +157,8 @@ export async function extractFocusedData(url: string): Promise<FocusedProductDat
     const priceRegex = /"price":\s*(\d+(?:\.\d+)?)/;
     const priceMatch = htmlContent.match(priceRegex);
     if (priceMatch) {
-      const originalPrice = parseFloat(priceMatch[1]);
-      const profitPrice = Math.round(originalPrice * 1.1 * 100) / 100;
+      const originalPrice = parseFloat(parseFloat(priceMatch[1]).toFixed(2));
+      const profitPrice = parseFloat((originalPrice * 1.1).toFixed(2));
       
       priceData = {
         original: originalPrice,
