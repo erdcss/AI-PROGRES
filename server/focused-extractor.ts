@@ -1108,23 +1108,23 @@ export async function extractFocusedData(url: string): Promise<FocusedProductDat
     console.log(`⚠️ Trendyol özellik çıkarımı hatası: ${error.message}`);
   }
   
-  // Direct Trendyol HTML parsing - en etkili yöntem
-  console.log('🎯 Direct Trendyol HTML parsing...');
+  // Final Trendyol attribute extraction
+  console.log('🎯 Final Trendyol attribute extraction...');
   try {
-    const { extractDirectAttributes } = await import('./trendyol-direct-parser');
-    const directAttributes = extractDirectAttributes(htmlContent);
+    const { extractTrendyolFinalAttributes } = await import('./trendyol-final-extractor');
+    const finalAttributes = extractTrendyolFinalAttributes(htmlContent);
     
-    // Direct attributes'ları ana feature listesine ekle
-    directAttributes.forEach(attr => {
+    // Add final attributes to main feature list
+    finalAttributes.forEach(attr => {
       if (!processedKeys.has(attr.key.toLowerCase())) {
         features.push({ key: attr.key, value: attr.value });
         processedKeys.add(attr.key.toLowerCase());
       }
     });
     
-    console.log(`✅ Direct parsing'den ${directAttributes.length} ek özellik eklendi`);
+    console.log(`✅ Final extraction added ${finalAttributes.length} attributes`);
   } catch (error) {
-    console.log(`⚠️ Direct parsing hatası: ${error.message}`);
+    console.log(`⚠️ Final extraction error: ${error.message}`);
   }
   
   // Debug modu - sadece çok az özellik varsa
