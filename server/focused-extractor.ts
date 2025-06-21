@@ -589,18 +589,26 @@ export async function extractFocusedData(url: string): Promise<FocusedProductDat
 
   console.log(`🔧 Final beden filtreleme öncesi: [${Array.from(sizeSet).join(', ')}]`);
 
-  // Sadece stokta olan bedenleri al
-  const inStockSizes = new Set<string>();
-  variants.forEach(variant => {
-    if (variant.inStock && variant.size !== 'Tek Beden') {
-      inStockSizes.add(variant.size);
-    }
-  });
+  // DOĞRUDAN VARIANT VALUE'LARDAN JEAN BEDENLERİNİ ÇEK
+  const directSizes = new Set<string>();
+  
+  if (product.allVariants && Array.isArray(product.allVariants)) {
+    product.allVariants.forEach((variant: any) => {
+      if (variant.value && typeof variant.value === 'string') {
+        const cleanValue = variant.value.trim();
+        // Jean beden pattern: 32, 32/32, 32/34, 30-30, etc.
+        if (cleanValue.match(/^\d{2,3}([\-\/]\d{2,3})?$/)) {
+          directSizes.add(cleanValue);
+          console.log(`📦 DOĞRUDAN YAKALANAN BEDEN: ${cleanValue}`);
+        }
+      }
+    });
+  }
 
-  console.log(`📦 Stokta olan bedenler: [${Array.from(inStockSizes).join(', ')}]`);
-  console.log(`📦 Stokta olmayan bedenler: [${Array.from(outOfStockSizes).join(', ')}]`);
+  console.log(`📦 Toplam yakalanan jean bedeni: ${directSizes.size} adet`);
+  console.log(`📦 Beden listesi: [${Array.from(directSizes).join(', ')}]`);
 
-  const sizeOptions = Array.from(inStockSizes).filter(size => {
+  const sizeOptions = Array.from(directSizes).filter(size => {
     const isValid = size !== 'Tek Beden' && 
       size.length > 0 && 
       size.length <= 5 &&
