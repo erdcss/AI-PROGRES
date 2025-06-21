@@ -173,12 +173,29 @@ export async function extractFocusedData(url: string): Promise<FocusedProductDat
   
   console.log(`✓ Fiyat: ${priceData.formatted} → %10 kar: ${priceData.profitFormatted} ${foundPrice ? '(Kaynak: JSON)' : '(Kaynak: HTML)'}`);
   
-  // 4. GÖRSELLER - Gelişmiş görsel çıkarma
+  // 4. GÖRSELLER - Tek renk seçeneği için görsel çıkarma
   const images: string[] = [];
+  let primaryColorFound = false;
+  let primaryColor = 'default';
   
-  // Ana ürün görselleri
+  // İlk olarak ana rengi tespit et
+  if (product.allVariants && Array.isArray(product.allVariants)) {
+    const firstVariant = product.allVariants[0];
+    if (firstVariant?.color) {
+      primaryColor = firstVariant.color;
+      primaryColorFound = true;
+      console.log(`🎨 Ana renk belirlendi: "${primaryColor}"`);
+    }
+  }
+  
+  // Ana ürün görsellerini al - sadece birincil renk için
   if (product.images && Array.isArray(product.images)) {
+    let imageLimit = 6; // Tek renk için maksimum 6 görsel
+    let addedImages = 0;
+    
     product.images.forEach((img: any) => {
+      if (addedImages >= imageLimit) return;
+      
       let imageUrl = null;
       
       // Farklı görsel formatları kontrol et
@@ -186,7 +203,6 @@ export async function extractFocusedData(url: string): Promise<FocusedProductDat
         if (img.includes('dsmcdn.com')) {
           imageUrl = img;
         } else if (img.startsWith('/')) {
-          // Relative URL'i absolute'a çevir
           imageUrl = `https://cdn.dsmcdn.com${img}`;
         }
       } else if (img?.url && typeof img.url === 'string') {
@@ -204,15 +220,27 @@ export async function extractFocusedData(url: string): Promise<FocusedProductDat
       }
       
       if (imageUrl && !images.includes(imageUrl)) {
-        images.push(imageUrl);
-        console.log(`📸 Ana görsel: ${imageUrl}`);
+        // Renk bazlı filtreleme - sadece marketing görsellerini hariç tut
+        if (!imageUrl.includes('cok_satanlar') && 
+            !imageUrl.includes('sepete_eklenen') && 
+            !imageUrl.includes('begenilenler')) {
+          images.push(imageUrl);
+          addedImages++;
+          console.log(`📸 ${primaryColor} rengi için görsel ${addedImages}: ${imageUrl.substring(0, 60)}...`);
+        }
       }
     });
   }
   
-  // Varyant görselleri
-  if (product.allVariants && Array.isArray(product.allVariants)) {
-    product.allVariants.forEach((variant: any) => {
+  // Sadece birincil renk varyantının görselleri
+  if (product.allVariants && Array.isArray(product.allVariants) && primaryColorFound) {
+    const primaryColorVariants = product.allVariants.filter((variant: any) => 
+      !variant.color || variant.color === primaryColor || variant.color === 'default'
+    );
+    
+    console.log(`🎨 ${primaryColor} rengi için ${primaryColorVariants.length} varyant kontrol ediliyor...`);
+    
+    primaryColorVariants.forEach((variant: any, index: number) => {
       if (variant.images && Array.isArray(variant.images)) {
         variant.images.forEach((img: any) => {
           let imageUrl = null;
@@ -223,9 +251,9 @@ export async function extractFocusedData(url: string): Promise<FocusedProductDat
             imageUrl = img.url;
           }
           
-          if (imageUrl && !images.includes(imageUrl)) {
+          if (imageUrl && !images.includes(imageUrl) && images.length < 8) {
             images.push(imageUrl);
-            console.log(`📸 Varyant görseli: ${imageUrl}`);
+            console.log(`📸 ${primaryColor} varyant görseli ${index + 1}: ${imageUrl.substring(0, 60)}...`);
           }
         });
       }
@@ -267,34 +295,36 @@ export async function extractFocusedData(url: string): Promise<FocusedProductDat
     });
   }
   
-  // HTML'den kapsamlı görsel çıkarımı - her zaman çalış
-  console.log(`🔍 HTML'den tüm görseller aranıyor...`);
-  
-  const imageRegexes = [
-    /https:\/\/cdn\.dsmcdn\.com\/ty\d+\/prod\/QC\/\d+\/\d+\/[^"'\s]+\/\d+_org_zoom\.jpg/g,
-    /https:\/\/cdn\.dsmcdn\.com\/ty\d+\/product\/media\/images\/[^"'\s]+\.jpg/g,
-    /https:\/\/cdn\.dsmcdn\.com\/ty\d+\/product\/media\/images\/[^"'\s]+\.jpeg/g,
-    /https:\/\/cdn\.dsmcdn\.com\/ty\d+\/product\/media\/images\/[^"'\s]+\.webp/g,
-    /"url":"(https:\/\/cdn\.dsmcdn\.com[^"]+)"/g,
-    /"image":"(https:\/\/cdn\.dsmcdn\.com[^"]+)"/g
-  ];
-  
-  imageRegexes.forEach((regex, index) => {
-    console.log(`  Regex ${index + 1} deneniyor...`);
-    const matches = htmlContent.match(regex) || [];
-    matches.forEach(match => {
-      let imageUrl = match;
-      if (match.includes('"url":"') || match.includes('"image":"')) {
-        imageUrl = match.replace(/"[^"]*":"/, '').replace('"', '');
-      }
+  // HTML'den tek renk için ek görseller - sınırlı
+  if (images.length < 6) {
+    console.log(`🔍 ${primaryColor} rengi için ek görseller HTML'den aranıyor...`);
+    
+    const imageRegexes = [
+      /https:\/\/cdn\.dsmcdn\.com\/ty\d+\/prod\/QC\/\d+\/\d+\/[^"'\s]+\/\d+_org_zoom\.jpg/g
+    ];
+    
+    imageRegexes.forEach((regex, index) => {
+      const matches = htmlContent.match(regex) || [];
+      let addedFromHTML = 0;
       
-      if (imageUrl.includes('dsmcdn.com') && !images.includes(imageUrl)) {
-        images.push(imageUrl);
-        console.log(`    📸 HTML'den görsel: ${imageUrl.substring(0, 80)}...`);
-      }
+      matches.forEach(match => {
+        if (images.length >= 8 || addedFromHTML >= 3) return;
+        
+        let imageUrl = match;
+        
+        // Marketing görselleri hariç tut
+        if (!imageUrl.includes('cok_satanlar') && 
+            !imageUrl.includes('sepete_eklenen') && 
+            !imageUrl.includes('begenilenler') &&
+            !images.includes(imageUrl)) {
+          images.push(imageUrl);
+          addedFromHTML++;
+          console.log(`    📸 HTML'den ${primaryColor} görseli: ${imageUrl.substring(0, 60)}...`);
+        }
+      });
+      console.log(`    → ${addedFromHTML} ürün görseli eklendi`);
     });
-    console.log(`    → ${matches.length} match bulundu`);
-  });
+  }
   
   // Manuel relative URL dönüştürme - tüm ürünler için
   if (images.length === 0 && product?.images && Array.isArray(product.images)) {
