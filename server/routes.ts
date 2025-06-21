@@ -117,18 +117,15 @@ function generateSingleProductShopifyCSV(product: any): string {
     ]);
   });
 
-  // TÜM ÜRÜN GÖRSELLERİNİ EKLE - hiç sınırlama yok
-  const usedImageCount = Math.min(product.sizeOptions.length, product.images.length);
-  const allRemainingImages = product.images.slice(usedImageCount);
-  
-  console.log(`📊 Görsel bilgileri: Toplam=${product.images.length}, Varyant'ta kullanılan=${usedImageCount}, Kalan=${allRemainingImages.length}`);
+  // SHOPIFY GÖRSEL OPTIMIZASYONU - Handle gruplandırması için
+  console.log(`📊 Shopify Handle gruplandırması: "${handle}" - ${product.sizeOptions.length} varyant`);
   console.log(`📸 TÜM ${allRemainingImages.length} ek görsel CSV'ye ekleniyor (sınırsız)...`);
   
   // Her kalan görsel için ayrı satır ekle
   allRemainingImages.forEach((imageUrl: string, index: number) => {
     const imagePosition = usedImageCount + index + 2;
     rows.push([
-      '',                                             // 1. Handle
+      handle,                                         // 1. Handle - SAME FOR ALL IMAGES
       '',                                             // 2. Title
       '',                                             // 3. Body (HTML)
       '',                                             // 4. Vendor
@@ -138,27 +135,29 @@ function generateSingleProductShopifyCSV(product: any): string {
       '',                                             // 8. Published
       '',                                             // 9. Option1 Name
       '',                                             // 10. Option1 Value
-      '',                                             // 11. Variant SKU
-      '',                                             // 12. Variant Grams
-      '',                                             // 13. Variant Inventory Tracker
-      '',                                             // 14. Variant Inventory Qty
-      '',                                             // 15. Variant Inventory Policy
-      '',                                             // 16. Variant Fulfillment Service
-      '',                                             // 17. Variant Price
-      '',                                             // 18. Variant Compare At Price
-      '',                                             // 19. Variant Requires Shipping
-      '',                                             // 20. Variant Taxable
-      '',                                             // 21. Variant Barcode
-      imageUrl,                                      // 22. Image Src - TÜM GÖRSELLER
-      imagePosition.toString(),                      // 23. Image Position
-      `"${product.title} - Görsel ${imagePosition - 1}"`, // 24. Image Alt Text
-      '',                                             // 25. Gift Card
-      '',                                             // 26. SEO Title
-      '',                                             // 27. SEO Description
-      '',                                             // 28. Variant Image
-      '',                                             // 29. Variant Weight Unit
-      '',                                             // 30. Cost per item
-      ''                                              // 31. Included / Turkey
+      '',                                             // 11. Option2 Name
+      '',                                             // 12. Option2 Value
+      '',                                             // 13. Variant SKU
+      '',                                             // 14. Variant Grams
+      '',                                             // 15. Variant Inventory Tracker
+      '',                                             // 16. Variant Inventory Qty
+      '',                                             // 17. Variant Inventory Policy
+      '',                                             // 18. Variant Fulfillment Service
+      '',                                             // 19. Variant Price
+      '',                                             // 20. Variant Compare At Price
+      '',                                             // 21. Variant Requires Shipping
+      '',                                             // 22. Variant Taxable
+      '',                                             // 23. Variant Barcode
+      imageUrl,                                      // 24. Image Src - ALL IMAGES
+      imagePosition.toString(),                      // 25. Image Position
+      `"${product.title} - Image ${imagePosition - 1}"`, // 26. Image Alt Text
+      '',                                             // 27. Gift Card
+      '',                                             // 28. SEO Title
+      '',                                             // 29. SEO Description
+      '',                                             // 30. Variant Image
+      '',                                             // 31. Variant Weight Unit
+      '',                                             // 32. Cost per item
+      ''                                              // 33. Included / Turkey
     ]);
   });
   
