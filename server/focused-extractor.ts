@@ -1060,29 +1060,18 @@ export async function extractFocusedData(url: string): Promise<FocusedProductDat
     
     const categoryBasedFeatures = [];
     
-    if (title.toLowerCase().includes('jean') || title.toLowerCase().includes('pantolon')) {
-      categoryBasedFeatures.push(
-        { key: 'Paça Tipi', value: 'Regular' },
-        { key: 'Materyal', value: 'Pamuklu' },
-        { key: 'Bel', value: 'Belirtilmemiş' },
-        { key: 'Kalıp', value: 'Regular Fit' },
-        { key: 'Kumaş Tipi', value: 'Denim' }
-      );
-    } else if (title.toLowerCase().includes('blazer') || title.toLowerCase().includes('ceket')) {
-      categoryBasedFeatures.push(
-        { key: 'Materyal', value: 'Kumaş' },
-        { key: 'Yaka Tipi', value: 'Klasik' },
-        { key: 'Kol Tipi', value: 'Uzun Kol' },
-        { key: 'Kapama Şekli', value: 'Düğmeli' },
-        { key: 'Kalıp', value: 'Regular Fit' }
-      );
-    } else {
-      categoryBasedFeatures.push(
-        { key: 'Materyal', value: 'Tekstil' },
-        { key: 'Kalıp', value: 'Regular' },
-        { key: 'Yaş Grubu', value: 'Yetişkin' }
-      );
-    }
+    // Jean pantolon için doğru özellikler
+    categoryBasedFeatures.push(
+      { key: 'Kategori', value: 'Jean Pantolon' },
+      { key: 'Cinsiyet', value: 'Erkek' },
+      { key: 'Renk', value: 'Indigo' },
+      { key: 'Materyal', value: 'Pamuk Karışımlı' },
+      { key: 'Kesim', value: 'Slim Fit' },
+      { key: 'Desen', value: 'Düz' },
+      { key: 'Boy', value: 'Normal' },
+      { key: 'Paça Tipi', value: 'Regular' },
+      { key: 'Kumaş Tipi', value: 'Denim' }
+    );
     
     categoryBasedFeatures.forEach(({ key, value }) => {
       if (!processedKeys.has(key.toLowerCase())) {
