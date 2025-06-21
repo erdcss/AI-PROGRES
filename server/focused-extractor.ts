@@ -858,7 +858,95 @@ export async function extractFocusedData(url: string): Promise<FocusedProductDat
 
   console.log(`✅ Gerçek ${features.length} özellik hazır`);
 
-  // Product attributes'dan gerçek özellikler
+  // HTML'den Ürün Özellikleri tablosunu çıkar
+  console.log('🏷️ HTML\'den Ürün Özellikleri tablosu aranıyor...');
+  
+  // Özellik tablolarını çıkarmak için çeşitli pattern'ler
+  const featurePatterns = [
+    // Tablo formatında özellikler
+    /<table[^>]*class[^>]*feature[^>]*>.*?<\/table>/gis,
+    /<table[^>]*class[^>]*product.*?detail[^>]*>.*?<\/table>/gis,
+    /<table[^>]*class[^>]*spec[^>]*>.*?<\/table>/gis,
+    
+    // Div formatında özellikler
+    /<div[^>]*class[^>]*feature[^>]*>.*?<\/div>/gis,
+    /<div[^>]*class[^>]*product.*?detail[^>]*>.*?<\/div>/gis,
+    /<div[^>]*class[^>]*specification[^>]*>.*?<\/div>/gis,
+    
+    // Liste formatında özellikler
+    /<ul[^>]*class[^>]*feature[^>]*>.*?<\/ul>/gis,
+    /<dl[^>]*class[^>]*feature[^>]*>.*?<\/dl>/gis
+  ];
+  
+  for (const pattern of featurePatterns) {
+    const matches = htmlContent.match(pattern);
+    if (matches) {
+      console.log(`  📋 Özellik tablosu bulundu: ${matches.length} adet`);
+      
+      for (const match of matches) {
+        // Tablo satırlarını çıkar
+        const rowMatches = match.match(/<tr[^>]*>.*?<\/tr>/gis);
+        if (rowMatches) {
+          for (const row of rowMatches) {
+            // Hücreleri çıkar
+            const cellMatches = row.match(/<t[hd][^>]*>(.*?)<\/t[hd]>/gis);
+            if (cellMatches && cellMatches.length >= 2) {
+              const key = cellMatches[0].replace(/<[^>]*>/g, '').trim();
+              const value = cellMatches[1].replace(/<[^>]*>/g, '').trim();
+              
+              if (key && value && key.length > 1 && value.length > 0 && 
+                  !processedKeys.has(key.toLowerCase())) {
+                features.push({ key, value });
+                processedKeys.add(key.toLowerCase());
+                console.log(`  ✓ HTML Tablo: ${key} = ${value}`);
+              }
+            }
+          }
+        }
+        
+        // Liste formatındaki özellikleri çıkar
+        const listMatches = match.match(/<li[^>]*>(.*?)<\/li>/gis);
+        if (listMatches) {
+          for (const item of listMatches) {
+            const cleanItem = item.replace(/<[^>]*>/g, '').trim();
+            const colonIndex = cleanItem.indexOf(':');
+            if (colonIndex > 0) {
+              const key = cleanItem.substring(0, colonIndex).trim();
+              const value = cleanItem.substring(colonIndex + 1).trim();
+              
+              if (key && value && key.length > 1 && value.length > 0 && 
+                  !processedKeys.has(key.toLowerCase())) {
+                features.push({ key, value });
+                processedKeys.add(key.toLowerCase());
+                console.log(`  ✓ HTML Liste: ${key} = ${value}`);
+              }
+            }
+          }
+        }
+      }
+    }
+  }
+  
+  // Metin içindeki özellik çiftlerini ara
+  const textFeaturePattern = /(\w+(?:\s+\w+)*)\s*[:：]\s*([^\n\r,;]+)/g;
+  const textMatches = htmlContent.match(textFeaturePattern);
+  if (textMatches) {
+    console.log(`  📝 Metin özellik çiftleri bulundu: ${textMatches.length} adet`);
+    
+    for (const match of textMatches.slice(0, 20)) { // İlk 20'sini al
+      const [, key, value] = match.match(/(\w+(?:\s+\w+)*)\s*[:：]\s*([^\n\r,;]+)/) || [];
+      
+      if (key && value && key.length > 1 && value.length > 0 && 
+          key.length < 50 && value.length < 100 &&
+          !processedKeys.has(key.toLowerCase())) {
+        features.push({ key: key.trim(), value: value.trim() });
+        processedKeys.add(key.toLowerCase());
+        console.log(`  ✓ HTML Metin: ${key} = ${value}`);
+      }
+    }
+  }
+
+  // Product attributes'dan gerçek özellikler (eski sistem)
   if (product.attributes && typeof product.attributes === 'object') {
     console.log('🏷️ Product attributes çıkarılıyor...');
     Object.entries(product.attributes).forEach(([key, value]) => {
