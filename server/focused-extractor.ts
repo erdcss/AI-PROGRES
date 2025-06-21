@@ -861,89 +861,73 @@ export async function extractFocusedData(url: string): Promise<FocusedProductDat
   // HTML'den Ürün Özellikleri tablosunu çıkar
   console.log('🏷️ HTML\'den Ürün Özellikleri tablosu aranıyor...');
   
-  // Özellik tablolarını çıkarmak için çeşitli pattern'ler
-  const featurePatterns = [
-    // Tablo formatında özellikler
-    /<table[^>]*class[^>]*feature[^>]*>.*?<\/table>/gis,
-    /<table[^>]*class[^>]*product.*?detail[^>]*>.*?<\/table>/gis,
-    /<table[^>]*class[^>]*spec[^>]*>.*?<\/table>/gis,
+  try {
+    const htmlContent = await page.content();
+    console.log(`📄 HTML içerik uzunluğu: ${htmlContent.length} karakter`);
     
-    // Div formatında özellikler
-    /<div[^>]*class[^>]*feature[^>]*>.*?<\/div>/gis,
-    /<div[^>]*class[^>]*product.*?detail[^>]*>.*?<\/div>/gis,
-    /<div[^>]*class[^>]*specification[^>]*>.*?<\/div>/gis,
+    // Trendyol spesifik özellik selectorları
+    const trendyolSelectors = [
+      '.product-detail-attributes table tr',
+      '.product-features table tr', 
+      '.product-specifications table tr',
+      '.detail-attr-container .detail-attr-item',
+      '[data-testid="product-detail-attributes"] tr',
+      '.pr-in-at table tr'
+    ];
     
-    // Liste formatında özellikler
-    /<ul[^>]*class[^>]*feature[^>]*>.*?<\/ul>/gis,
-    /<dl[^>]*class[^>]*feature[^>]*>.*?<\/dl>/gis
-  ];
-  
-  for (const pattern of featurePatterns) {
-    const matches = htmlContent.match(pattern);
-    if (matches) {
-      console.log(`  📋 Özellik tablosu bulundu: ${matches.length} adet`);
-      
-      for (const match of matches) {
-        // Tablo satırlarını çıkar
-        const rowMatches = match.match(/<tr[^>]*>.*?<\/tr>/gis);
-        if (rowMatches) {
-          for (const row of rowMatches) {
-            // Hücreleri çıkar
-            const cellMatches = row.match(/<t[hd][^>]*>(.*?)<\/t[hd]>/gis);
-            if (cellMatches && cellMatches.length >= 2) {
-              const key = cellMatches[0].replace(/<[^>]*>/g, '').trim();
-              const value = cellMatches[1].replace(/<[^>]*>/g, '').trim();
+    // Her selector'ı dene
+    for (const selector of trendyolSelectors) {
+      try {
+        const elements = await page.$$(selector);
+        if (elements.length > 0) {
+          console.log(`  📋 ${selector} ile ${elements.length} özellik bulundu`);
+          
+          for (const element of elements) {
+            try {
+              const text = await page.evaluate(el => el.textContent, element);
+              const cells = await element.$$('td, th');
               
-              if (key && value && key.length > 1 && value.length > 0 && 
-                  !processedKeys.has(key.toLowerCase())) {
-                features.push({ key, value });
-                processedKeys.add(key.toLowerCase());
-                console.log(`  ✓ HTML Tablo: ${key} = ${value}`);
+              if (cells.length >= 2) {
+                const key = await page.evaluate(el => el.textContent?.trim(), cells[0]);
+                const value = await page.evaluate(el => el.textContent?.trim(), cells[1]);
+                
+                if (key && value && key.length > 1 && value.length > 0 && 
+                    !processedKeys.has(key.toLowerCase())) {
+                  features.push({ key, value });
+                  processedKeys.add(key.toLowerCase());
+                  console.log(`  ✓ Trendyol Tablo: ${key} = ${value}`);
+                }
               }
+            } catch (err) {
+              // Element processing hatası, devam et
             }
           }
         }
+      } catch (err) {
+        // Selector hatası, devam et
+      }
+    }
+    
+    // Basit HTML özellik çıkarımı - sadece mevcut içerikten
+    console.log('📄 HTML'den basit özellik arama...');
+    
+    // Basit özellik pattern'leri
+    const simpleFeatures = htmlContent.match(/(\w+)\s*[:：]\s*([^\n\r<>{};,]{3,50})/g);
+    if (simpleFeatures) {
+      console.log(`  📝 ${simpleFeatures.length} basit özellik bulundu`);
+      
+      for (const match of simpleFeatures.slice(0, 15)) {
+        const [, key, value] = match.match(/(\w+)\s*[:：]\s*([^\n\r<>{};,]{3,50})/) || [];
         
-        // Liste formatındaki özellikleri çıkar
-        const listMatches = match.match(/<li[^>]*>(.*?)<\/li>/gis);
-        if (listMatches) {
-          for (const item of listMatches) {
-            const cleanItem = item.replace(/<[^>]*>/g, '').trim();
-            const colonIndex = cleanItem.indexOf(':');
-            if (colonIndex > 0) {
-              const key = cleanItem.substring(0, colonIndex).trim();
-              const value = cleanItem.substring(colonIndex + 1).trim();
-              
-              if (key && value && key.length > 1 && value.length > 0 && 
-                  !processedKeys.has(key.toLowerCase())) {
-                features.push({ key, value });
-                processedKeys.add(key.toLowerCase());
-                console.log(`  ✓ HTML Liste: ${key} = ${value}`);
-              }
-            }
-          }
+        if (key && value && key.length > 2 && value.length > 2 && 
+            !processedKeys.has(key.toLowerCase())) {
+          features.push({ key: key.trim(), value: value.trim() });
+          processedKeys.add(key.toLowerCase());
+          console.log(`  ✓ HTML Basit: ${key} = ${value}`);
         }
       }
-    }
-  }
-  
-  // Metin içindeki özellik çiftlerini ara
-  const textFeaturePattern = /(\w+(?:\s+\w+)*)\s*[:：]\s*([^\n\r,;]+)/g;
-  const textMatches = htmlContent.match(textFeaturePattern);
-  if (textMatches) {
-    console.log(`  📝 Metin özellik çiftleri bulundu: ${textMatches.length} adet`);
-    
-    for (const match of textMatches.slice(0, 20)) { // İlk 20'sini al
-      const [, key, value] = match.match(/(\w+(?:\s+\w+)*)\s*[:：]\s*([^\n\r,;]+)/) || [];
-      
-      if (key && value && key.length > 1 && value.length > 0 && 
-          key.length < 50 && value.length < 100 &&
-          !processedKeys.has(key.toLowerCase())) {
-        features.push({ key: key.trim(), value: value.trim() });
-        processedKeys.add(key.toLowerCase());
-        console.log(`  ✓ HTML Metin: ${key} = ${value}`);
-      }
-    }
+    } catch (error) {
+    console.log(`⚠️ HTML özellik çıkarımında hata: ${error.message}`);
   }
 
   // Product attributes'dan gerçek özellikler (eski sistem)
