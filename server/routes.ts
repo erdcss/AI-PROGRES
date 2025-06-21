@@ -38,13 +38,10 @@ function generateSingleProductShopifyCSV(product: any): string {
     .replace(/\s+/g, '-')
     .substring(0, 50);
 
-  // SADECE STOKTA OLAN BEDENLER İÇİN SATIRLAR
-  const inStockSizes = product.sizeOptions.filter((size: string) => {
-    const relatedVariant = product.variants?.find?.((v: any) => v.size === size);
-    return relatedVariant ? relatedVariant.inStock : true;
-  });
+  // SADECE STOKTA OLAN BEDENLER İÇİN SATIRLAR - Gerçek stok verisini kullan
+  const inStockSizes = product.sizeOptions || [];
   
-  console.log(`Stok filtreleme: ${product.sizeOptions.length} toplam → ${inStockSizes.length} stokta`);
+  console.log(`Stok filtreleme: ${inStockSizes.length} stokta olan beden`);
   console.log(`Stokta olan bedenler: ${inStockSizes.join(', ')}`);
   
   inStockSizes.forEach((size: string, index: number) => {
