@@ -823,25 +823,13 @@ export async function extractFocusedData(url: string): Promise<FocusedProductDat
     }
   });
 
-  // Sabit özellikler yerine sadece temel bilgileri ekle
-  const basicFeatures = [
-    { key: 'Kategori', value: category || 'Ürün' },
-    { key: 'Marka', value: brand || 'Bilinmeyen' }
-  ];
+  // Initialize category first
+  let category = 'Ürün';
 
-  // Önce HTML'den çıkarılan gerçek özellikleri ekle
   console.log(`✅ HTML'den çıkarılan özellik sayısı: ${features.length}`);
-  
-  // Sonra temel bilgileri ekle (sadece yoksa)
-  basicFeatures.forEach(({ key, value }) => {
-    if (value && !processedKeys.has(key.toLowerCase())) {
-      features.push({ key, value: String(value) });
-      processedKeys.add(key.toLowerCase());
-    }
-  });
 
-  // Gelişmiş kategori çıkarımı
-  let category = 'Apparel & Accessories > Clothing';
+  // Gelişmiş kategori çıkarımı  
+  category = 'Apparel & Accessories > Clothing';
   let categoryFound = false;
 
   console.log('🏷️ Kategori çıkarımı başlatılıyor...');
@@ -1007,7 +995,10 @@ export async function extractFocusedData(url: string): Promise<FocusedProductDat
       availableSizes: sortedSizes,
       unavailableSizes: Array.from(outOfStockSizes)
     },
-    features,
+    features: features.length > 0 ? features : [
+      { key: 'Kategori', value: category || 'Ürün' },
+      { key: 'Marka', value: brand || 'Bilinmeyen' }
+    ],
     category
   };
 }
