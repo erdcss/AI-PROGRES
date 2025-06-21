@@ -733,6 +733,37 @@ export async function extractFocusedData(url: string): Promise<FocusedProductDat
   
   console.log('🔍 Ürün özellikleri detaylı çıkarım başlatılıyor...');
   
+  // Önce kapsamlı temel bilgileri ekle
+  const expandedFeatures = [
+    { key: 'Marka', value: brand },
+    { key: 'Başlık', value: title },
+    { key: 'Fiyat Orijinal', value: priceData.formatted },
+    { key: 'Fiyat Kar Marjı', value: priceData.profitFormatted },
+    { key: 'Para Birimi', value: priceData.currency },
+    { key: 'Kategori', value: 'Giyim' },
+    { key: 'Ürün Tipi', value: title.includes('blazer') ? 'Blazer' : title.includes('ceket') ? 'Ceket' : 'Giyim' },
+    { key: 'Satıcı', value: brand },
+    { key: 'Renk Çeşidi', value: colorOptions.length.toString() },
+    { key: 'Beden Çeşidi', value: sizeOptions.length.toString() },
+    { key: 'Toplam Seçenek', value: variants.length.toString() },
+    { key: 'Stokta Mevcut', value: variants.filter(v => v.inStock).length.toString() },
+    { key: 'Toplam Görsel', value: images.length.toString() },
+    { key: 'Durum', value: variants.some(v => v.inStock) ? 'Stokta' : 'Tükendi' },
+    { key: 'Mevcut Renkler', value: colorOptions.length > 0 ? colorOptions.slice(0,3).join(', ') : 'Standart' },
+    { key: 'Mevcut Bedenler', value: sizeOptions.length > 0 ? sizeOptions.slice(0,5).join(', ') : 'Standart' },
+    { key: 'Materyal', value: 'Tekstil' },
+    { key: 'Yaş Grubu', value: 'Yetişkin' },
+    { key: 'Cinsiyet', value: title.toLowerCase().includes('kadın') ? 'Kadın' : title.toLowerCase().includes('erkek') ? 'Erkek' : 'Unisex' },
+    { key: 'Sezon', value: 'Tüm Sezonlar' }
+  ];
+  
+  expandedFeatures.forEach(({ key, value }) => {
+    if (value && !processedKeys.has(key.toLowerCase())) {
+      features.push({ key, value: String(value) });
+      processedKeys.add(key.toLowerCase());
+    }
+  });
+  
   // HTML'den ürün özellikleri tablosu çıkar - ÖNCE BUNU YAP
   console.log('📋 HTML tablosundan detaylı özellikler çıkarılıyor...');
   
@@ -842,17 +873,31 @@ export async function extractFocusedData(url: string): Promise<FocusedProductDat
     }
   });
   
-  // Temel ürün bilgilerini özellik olarak ekle
-  const basicFeatures = [
-    { key: 'Kategori', value: product.category?.name || product.categoryName },
-    { key: 'Satıcı', value: product.merchant?.name },
+  // Kapsamlı ürün bilgileri
+  const comprehensiveFeatures = [
+    { key: 'Marka', value: brand },
+    { key: 'Başlık', value: title },
+    { key: 'Fiyat', value: priceData.formatted },
+    { key: 'Kar Marjı', value: priceData.profitFormatted },
+    { key: 'Para Birimi', value: priceData.currency },
+    { key: 'Kategori', value: product.category?.name || product.categoryName || 'Giyim' },
+    { key: 'Tür', value: title.includes('blazer') ? 'Blazer' : title.includes('ceket') ? 'Ceket' : 'Giyim' },
+    { key: 'Satıcı', value: product.merchant?.name || brand },
     { key: 'Model', value: product.model },
     { key: 'SKU', value: product.sku },
-    { key: 'Barkod', value: product.barcode }
+    { key: 'Barkod', value: product.barcode },
+    { key: 'Renk Sayısı', value: colorOptions.length.toString() },
+    { key: 'Beden Sayısı', value: sizeOptions.length.toString() },
+    { key: 'Toplam Varyant', value: variants.length.toString() },
+    { key: 'Stokta Varyant', value: variants.filter(v => v.inStock).length.toString() },
+    { key: 'Görsel Sayısı', value: images.length.toString() },
+    { key: 'Stok Durumu', value: variants.some(v => v.inStock) ? 'Stokta' : 'Tükendi' },
+    { key: 'Renk Seçenekleri', value: colorOptions.length > 0 ? colorOptions.join(', ') : 'Tek Renk' },
+    { key: 'Beden Seçenekleri', value: sizeOptions.length > 0 ? sizeOptions.join(', ') : 'Tek Beden' }
   ];
   
-  basicFeatures.forEach(({ key, value }) => {
-    if (value && !processedKeys.has(key.toLowerCase())) {
+  comprehensiveFeatures.forEach(({ key, value }) => {
+    if (value && value !== 'undefined' && value !== 'null' && !processedKeys.has(key.toLowerCase())) {
       features.push({ key, value: String(value) });
       processedKeys.add(key.toLowerCase());
     }
@@ -1375,13 +1420,19 @@ export async function extractFocusedData(url: string): Promise<FocusedProductDat
     categoryFound = true;
   }
   
-  // Kategori final kontrolü
-  if (!category || category === 'undefined' || category === 'null') {
-    category = 'Apparel & Accessories';
-    console.log(`⚠️ Kategori düzeltildi: ${category}`);
-  }
+  // Kategori final kontrolü ve düzeltme
+  const finalCategory = category && 
+                        category !== 'undefined' && 
+                        category !== 'null' && 
+                        category !== null &&
+                        typeof category === 'string' && 
+                        category.length > 5 
+                        ? category 
+                        : 'Apparel & Accessories';
   
-  console.log(`🏷️ Final kategori: ${category}`);
+  console.log(`⚠️ Kategori final: '${category}' → '${finalCategory}'`);
+  
+  console.log(`🏷️ Final kategori: ${finalCategory}`);
   console.log(`  ✓ Kategori durumu: ${categoryFound ? 'BULUNDU' : 'VARSAYILAN'}`);
   console.log(`✓ Özellikler: ${features.length} adet (kapsamlı)`);
   console.log(`🎯 Focused extraction tamamlandı`);
@@ -1402,6 +1453,6 @@ export async function extractFocusedData(url: string): Promise<FocusedProductDat
       unavailableSizes: Array.from(outOfStockSizes)
     },
     features,
-    category: category && category !== 'null' && category !== 'undefined' ? category : 'Apparel & Accessories'
+    category: finalCategory
   };
 }
