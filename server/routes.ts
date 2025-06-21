@@ -38,8 +38,16 @@ function generateSingleProductShopifyCSV(product: any): string {
     .replace(/\s+/g, '-')
     .substring(0, 50);
 
-  // HER BEDEN İÇİN AYRI SATIR - Şablonunuzun tam kopyası
-  product.sizeOptions.forEach((size: string, index: number) => {
+  // SADECE STOKTA OLAN BEDENLER İÇİN SATIRLAR
+  const inStockSizes = product.sizeOptions.filter((size: string) => {
+    const relatedVariant = product.variants?.find?.((v: any) => v.size === size);
+    return relatedVariant ? relatedVariant.inStock : true;
+  });
+  
+  console.log(`Stok filtreleme: ${product.sizeOptions.length} toplam → ${inStockSizes.length} stokta`);
+  console.log(`Stokta olan bedenler: ${inStockSizes.join(', ')}`);
+  
+  inStockSizes.forEach((size: string, index: number) => {
     const relatedVariant = product.variants?.find?.((v: any) => v.size === size);
     const variantInStock = relatedVariant ? relatedVariant.inStock : true;
     const variantStock = relatedVariant ? relatedVariant.stockCount : 20;
@@ -72,7 +80,7 @@ function generateSingleProductShopifyCSV(product: any): string {
   });
 
   // ADDITIONAL PRODUCT IMAGES - Shopify format
-  console.log(`📊 Shopify variant structure: "${productHandle}" - ${product.sizeOptions.length} variants created`);
+  console.log(`📊 Shopify variant structure: "${productHandle}" - ${inStockSizes.length} variants created`);
   
   // Add remaining product images as media-only rows
   const usedImageCount = Math.min(product.sizeOptions.length, product.images.length);
