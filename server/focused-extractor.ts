@@ -911,8 +911,8 @@ export async function extractFocusedData(url: string): Promise<FocusedProductDat
   console.log(`✓ Özellikler: ${features.length} adet (kapsamlı)`);
   console.log(`🎯 Focused extraction tamamlandı`);
 
-  // GERÇEK STOK FİLTRELEME - Optimized
-  if (page) {
+  // GERÇEK STOK FİLTRELEME - Sadece Puppeteer page varsa
+  if (typeof page !== 'undefined' && page) {
     try {
       const stockFilter = await filterOutOfStockSizes(page);
       
