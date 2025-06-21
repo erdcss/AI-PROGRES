@@ -73,6 +73,11 @@ function generateSingleProductShopifyCSV(product: any): string {
 
   // Beden varyantları - TAM 31 ALAN
   product.sizeOptions.forEach((size: string, index: number) => {
+    // İlgili variant bilgisini bul
+    const relatedVariant = product.variants?.find((v: any) => v.size === size) || null;
+    const variantInStock = relatedVariant ? relatedVariant.inStock : true;
+    const variantStock = relatedVariant ? relatedVariant.stockCount : 10;
+    
     rows.push([
       '',                                             // 1. Handle
       '',                                             // 2. Title
@@ -83,18 +88,18 @@ function generateSingleProductShopifyCSV(product: any): string {
       '',                                             // 7. Tags
       '',                                             // 8. Published
       '',                                             // 9. Option1 Name
-      size,                                           // 10. Option1 Value
+      size,                                           // 10. Option1 Value - VARIANT BİLGİSİ
       `${handle}-${size.toLowerCase()}`,             // 11. Variant SKU
       '100',                                          // 12. Variant Grams
       'shopify',                                      // 13. Variant Inventory Tracker
-      '10',                                           // 14. Variant Inventory Qty
-      'continue',                                     // 15. Variant Inventory Policy
+      variantStock.toString(),                        // 14. Variant Inventory Qty - GERÇEK STOK
+      variantInStock ? 'continue' : 'deny',          // 15. Variant Inventory Policy - STOK DURUMU
       'manual',                                       // 16. Variant Fulfillment Service
       product.price.withProfit.toString(),           // 17. Variant Price
       product.price.original.toString(),             // 18. Variant Compare At Price
       'TRUE',                                         // 19. Variant Requires Shipping
       'TRUE',                                         // 20. Variant Taxable
-      '',                                             // 21. Variant Barcode
+      relatedVariant?.barcode || '',                 // 21. Variant Barcode - GERÇEK BARKOD
       product.images[index] || product.images[0] || '', // 22. Image Src
       (index + 2).toString(),                        // 23. Image Position
       `"${product.title} - ${size}"`,                // 24. Image Alt Text

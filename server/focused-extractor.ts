@@ -887,13 +887,7 @@ export async function extractFocusedData(url: string): Promise<FocusedProductDat
   return {
     brand,
     title,
-    price: {
-      original: price,
-      currency: 'TRY',
-      formatted: `${price} TL`,
-      withProfit: Math.round(price * 1.1),
-      profitFormatted: `${Math.round(price * 1.1)} TL`
-    },
+    price: priceData,
     images,
     colorOptions,
     sizeOptions: sortedSizes,
