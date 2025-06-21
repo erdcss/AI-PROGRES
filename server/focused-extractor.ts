@@ -883,6 +883,78 @@ export async function extractFocusedData(url: string): Promise<FocusedProductDat
     }
   }
 
+  // Pattern 6: Extract product attributes from JavaScript objects in HTML
+  console.log('🔍 JavaScript nesnelerinden özellik çıkarımı...');
+  const jsObjectRegex = /(?:product|item|attributes|properties|specs|details)\s*[=:]\s*(\{[^}]*(?:\{[^}]*\}[^}]*)*\})/gs;
+  let jsObjMatch;
+  while ((jsObjMatch = jsObjectRegex.exec(htmlContent)) !== null) {
+    try {
+      const objStr = jsObjMatch[1];
+      // Simple key-value extraction from JS object strings
+      const keyValueRegex = /["']?([a-zA-ZÇĞİÖŞÜçğıöşü]+)["']?\s*[:=]\s*["']([^"']+)["']/g;
+      let kvMatch;
+      while ((kvMatch = keyValueRegex.exec(objStr)) !== null) {
+        const key = kvMatch[1];
+        const value = kvMatch[2];
+        if (key && value && !processedKeys.has(key.toLowerCase())) {
+          features.push({ key, value });
+          processedKeys.add(key.toLowerCase());
+          console.log(`    ✓ JS Object özelliği: "${key}" = "${value}"`);
+        }
+      }
+    } catch (e) {
+      // Continue if parsing fails
+    }
+  }
+
+  // Pattern 7: Add essential missing features with fallback values
+  console.log('🔧 Eksik temel özellikleri tamamlama...');
+  
+  // Add category (will be set later in the code)
+  if (!processedKeys.has('kategori')) {
+    const categoryValue = productTitle.includes('ayakkabı') ? 'Ayakkabı' : 
+                         productTitle.includes('jean') || productTitle.includes('pantolon') ? 'Pantolon' : 
+                         productTitle.includes('elbise') ? 'Elbise' : 'Giyim';
+    features.push({ key: 'Kategori', value: categoryValue });
+    processedKeys.add('kategori');
+    console.log(`    ✓ Kategori eklendi: "${categoryValue}"`);
+  }
+  
+  // Add brand
+  if (!processedKeys.has('marka')) {
+    features.push({ key: 'Marka', value: brand });
+    processedKeys.add('marka');
+    console.log(`    ✓ Marka eklendi: "${brand}"`);
+  }
+  
+  // Add gender based on title
+  if (!processedKeys.has('cinsiyet')) {
+    const genderValue = productTitle.includes('kadın') ? 'Kadın' :
+                       productTitle.includes('erkek') ? 'Erkek' : 'Unisex';
+    features.push({ key: 'Cinsiyet', value: genderValue });
+    processedKeys.add('cinsiyet');
+    console.log(`    ✓ Cinsiyet eklendi: "${genderValue}"`);
+  }
+  
+  // Add product type
+  if (!processedKeys.has('ürün_tipi')) {
+    const productType = productTitle.includes('ayakkabı') ? 'Ayakkabı' :
+                       productTitle.includes('jean') ? 'Jean' :
+                       productTitle.includes('pantolon') ? 'Pantolon' :
+                       productTitle.includes('gömlek') ? 'Gömlek' :
+                       productTitle.includes('elbise') ? 'Elbise' : 'Giyim';
+    features.push({ key: 'Ürün Tipi', value: productType });
+    processedKeys.add('ürün_tipi');
+    console.log(`    ✓ Ürün tipi eklendi: "${productType}"`);
+  }
+  
+  // Add season if not present
+  if (!processedKeys.has('mevsim')) {
+    features.push({ key: 'Mevsim', value: 'Dört Mevsim' });
+    processedKeys.add('mevsim');
+    console.log(`    ✓ Mevsim eklendi: "Dört Mevsim"`);
+  }
+
   // Product attributes'dan - temel özellikler
   if (product.attributes && typeof product.attributes === 'object') {
     console.log('🏷️ Product attributes çıkarılıyor...');

@@ -49,14 +49,16 @@ function generateSingleProductShopifyCSV(product: any): string {
   const featuresText = product.features ? 
     product.features.map(f => `${f.key}: ${f.value}`).join(' | ') : '';
 
-  // Ürün özellikleri HTML formatında (Body için)
-  let bodyHTML = `<p>${product.brand} marka orijinal erkek jean pantolon.</p>`;
+  // Ürün özellikleri HTML formatında (Body için) - sadece özellikler
+  let bodyHTML = '';
   if (product.features && product.features.length > 0) {
-    bodyHTML += '<div class="product-features"><h4>Ürün Özellikleri:</h4><ul>';
+    bodyHTML = '<div class="product-features"><h4>Ürün Özellikleri:</h4><ul>';
     product.features.forEach(feature => {
       bodyHTML += `<li><strong>${feature.key}:</strong> ${feature.value}</li>`;
     });
     bodyHTML += '</ul></div>';
+  } else {
+    bodyHTML = `<p>${product.brand} kaliteli ürün.</p>`;
   }
 
   inStockSizes.forEach((size: string, index: number) => {
