@@ -119,7 +119,12 @@ function generateSingleProductShopifyCSV(product: any): string {
 
   // SHOPIFY GÖRSEL OPTIMIZASYONU - Handle gruplandırması için
   console.log(`📊 Shopify Handle gruplandırması: "${handle}" - ${product.sizeOptions.length} varyant`);
-  console.log(`📸 TÜM ${allRemainingImages.length} ek görsel CSV'ye ekleniyor (sınırsız)...`);
+  
+  // Kalan görselleri hesapla
+  const usedImageCount = Math.min(product.sizeOptions.length, product.images.length);
+  const allRemainingImages = product.images.slice(usedImageCount);
+  
+  console.log(`📸 TÜM ${allRemainingImages.length} ek görsel CSV'ye ekleniyor...`);
   
   // Her kalan görsel için ayrı satır ekle
   allRemainingImages.forEach((imageUrl: string, index: number) => {
