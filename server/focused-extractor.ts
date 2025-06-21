@@ -382,11 +382,27 @@ export async function extractFocusedData(url: string): Promise<FocusedProductDat
       });
     }
     
-    // Kategori belirleme
-    let basicCategory = 'Apparel & Accessories > Clothing > Women > Outerwear';
-    if (title.toLowerCase().includes('blazer') || title.toLowerCase().includes('ceket')) {
-      basicCategory = 'Apparel & Accessories > Clothing > Women > Outerwear';
+    // Gelişmiş kategori belirleme - early return için
+    let basicCategory = 'Apparel & Accessories > Clothing';
+    const titleLower = title.toLowerCase();
+    
+    if (titleLower.includes('blazer') || titleLower.includes('ceket')) {
+      basicCategory = 'Apparel & Accessories > Clothing > Women > Outerwear > Blazers';
+    } else if (titleLower.includes('bluz')) {
+      basicCategory = 'Apparel & Accessories > Clothing > Women > Tops > Blouses';
+    } else if (titleLower.includes('elbise')) {
+      basicCategory = 'Apparel & Accessories > Clothing > Women > Dresses';
+    } else if (titleLower.includes('pantolon')) {
+      basicCategory = 'Apparel & Accessories > Clothing > Women > Pants';
+    } else if (titleLower.includes('yelek')) {
+      basicCategory = 'Apparel & Accessories > Clothing > Women > Outerwear > Vests';
+    } else if (titleLower.includes('kadın')) {
+      basicCategory = 'Apparel & Accessories > Clothing > Women';
+    } else if (titleLower.includes('erkek')) {
+      basicCategory = 'Apparel & Accessories > Clothing > Men';
     }
+    
+    console.log(`✅ Early return kategori: "${basicCategory}"`);
     
     return {
       brand,
@@ -1234,41 +1250,101 @@ export async function extractFocusedData(url: string): Promise<FocusedProductDat
     categoryFound = true;
   }
   
-  // Fallback: Başlıktan ve özelliklerden kategori çıkarımı
+  // Gelişmiş fallback: Başlık ve özellik analizi
   if (!categoryFound) {
-    const titleLower = title.toLowerCase();
-    const allText = [title, ...features.map(f => f.value)].join(' ').toLowerCase();
+    console.log('  🔍 Başlık ve özellik analizine geçiliyor...');
     
-    // Başlık analizi ile profesyonel kategori belirleme
-    if (titleLower.includes('bluz') || allText.includes('bluz')) {
-      rawCategoryPath = 'Kadın Bluz';
-      categoryFound = true;
-    } else if (titleLower.includes('ceket') || titleLower.includes('blazer')) {
-      rawCategoryPath = 'Kadın Ceket';
-      categoryFound = true;
-    } else if (titleLower.includes('elbise')) {
-      rawCategoryPath = 'Kadın Elbise';
-      categoryFound = true;
-    } else if (titleLower.includes('pantolon') || titleLower.includes('jean')) {
-      rawCategoryPath = 'Kadın Pantolon';
-      categoryFound = true;
+    const titleLower = title.toLowerCase();
+    const allText = [title, brand, ...features.map(f => f.value)].join(' ').toLowerCase();
+    
+    console.log(`  📝 Analiz metni: "${allText.substring(0, 100)}..."`);
+    
+    // Kapsamlı ürün tipi analizi
+    const productTypeAnalysis = {
+      'bluz': ['bluz', 'blouse'],
+      'ceket': ['ceket', 'jacket', 'blazer'],
+      'elbise': ['elbise', 'dress'],
+      'pantolon': ['pantolon', 'jean', 'kot', 'trouser'],
+      'yelek': ['yelek', 'vest'],
+      'mont': ['mont', 'coat', 'kaban'],
+      'kazak': ['kazak', 'sweater', 'pullover'],
+      'hırka': ['hırka', 'cardigan'],
+      'gömlek': ['gömlek', 'shirt'],
+      'tişört': ['tişört', 't-shirt', 'tshirt'],
+      'etek': ['etek', 'skirt'],
+      'şort': ['şort', 'short'],
+      'sütyen': ['sütyen', 'bra'],
+      'ayakkabı': ['ayakkabı', 'shoe', 'bot', 'sneaker']
+    };
+    
+    let detectedType = '';
+    let maxMatches = 0;
+    
+    for (const [type, keywords] of Object.entries(productTypeAnalysis)) {
+      const matches = keywords.filter(keyword => allText.includes(keyword)).length;
+      if (matches > maxMatches) {
+        maxMatches = matches;
+        detectedType = type;
+      }
     }
     
-    if (categoryFound) {
-      console.log(`  📝 Başlık analizinden kategori: "${rawCategoryPath}"`);
+    if (detectedType) {
+      // Cinsiyet tespiti
+      const genderAnalysis = {
+        'kadın': ['kadın', 'women', 'woman', 'bayan', 'kadin'],
+        'erkek': ['erkek', 'men', 'man', 'bay'],
+        'çocuk': ['çocuk', 'child', 'kids', 'bebek', 'baby']
+      };
       
-      // Başlık analizinden gelen kategoriyi profesyonel sisteme aktar
-      const pathLower = rawCategoryPath.toLowerCase();
-      if (pathLower.includes('kadın') && pathLower.includes('bluz')) {
-        category = 'Apparel & Accessories > Clothing > Women > Tops';
-      } else if (pathLower.includes('kadın') && pathLower.includes('ceket')) {
-        category = 'Apparel & Accessories > Clothing > Women > Outerwear';
-      } else if (pathLower.includes('kadın') && pathLower.includes('elbise')) {
-        category = 'Apparel & Accessories > Clothing > Women > Dresses';
-      } else if (pathLower.includes('kadın') && pathLower.includes('pantolon')) {
-        category = 'Apparel & Accessories > Clothing > Women > Pants';
+      let detectedGender = 'kadın'; // Default
+      for (const [gender, keywords] of Object.entries(genderAnalysis)) {
+        if (keywords.some(keyword => allText.includes(keyword))) {
+          detectedGender = gender;
+          break;
+        }
       }
-      console.log(`    ✅ Dönüştürülen kategori: "${category}"`);
+      
+      rawCategoryPath = `${detectedGender} ${detectedType}`;
+      categoryFound = true;
+      
+      console.log(`  📝 Tespit edilen: ${detectedGender} > ${detectedType}`);
+      console.log(`  🎯 Ham kategori: "${rawCategoryPath}"`);
+      
+      // Üst düzey kategori sistemine yönlendir
+      const pathLower = rawCategoryPath.toLowerCase();
+      
+      // advancedCategoryMap'i tekrar kullan
+      const quickCategoryMap = {
+        'kadın bluz': 'Apparel & Accessories > Clothing > Women > Tops > Blouses',
+        'kadın ceket': 'Apparel & Accessories > Clothing > Women > Outerwear > Blazers',
+        'kadın elbise': 'Apparel & Accessories > Clothing > Women > Dresses',
+        'kadın pantolon': 'Apparel & Accessories > Clothing > Women > Pants',
+        'kadın yelek': 'Apparel & Accessories > Clothing > Women > Outerwear > Vests',
+        'kadın mont': 'Apparel & Accessories > Clothing > Women > Outerwear > Coats',
+        'kadın gömlek': 'Apparel & Accessories > Clothing > Women > Tops > Shirts',
+        'kadın tişört': 'Apparel & Accessories > Clothing > Women > Tops > T-Shirts',
+        'kadın kazak': 'Apparel & Accessories > Clothing > Women > Sweaters',
+        'kadın sütyen': 'Apparel & Accessories > Clothing > Women > Intimates > Bras',
+        'erkek gömlek': 'Apparel & Accessories > Clothing > Men > Shirts',
+        'erkek ceket': 'Apparel & Accessories > Clothing > Men > Outerwear > Jackets',
+        'erkek pantolon': 'Apparel & Accessories > Clothing > Men > Pants'
+      };
+      
+      const mappedCategory = quickCategoryMap[pathLower];
+      if (mappedCategory) {
+        category = mappedCategory;
+        console.log(`    ✅ Hızlı eşleştirme: "${category}"`);
+      } else {
+        // Genel kategori ataması
+        if (pathLower.includes('kadın')) {
+          category = 'Apparel & Accessories > Clothing > Women';
+        } else if (pathLower.includes('erkek')) {
+          category = 'Apparel & Accessories > Clothing > Men';
+        } else {
+          category = 'Apparel & Accessories > Clothing';
+        }
+        console.log(`    ⚠️ Genel kategori: "${category}"`);
+      }
     }
   }
   
