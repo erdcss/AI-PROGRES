@@ -77,6 +77,9 @@ export async function extractFocusedData(url: string): Promise<FocusedProductDat
   const brand = product.brand?.name || 'Bilinmiyor';
   console.log(`✓ Marka: ${brand}`);
   
+  // Kategori çıkarımı için gerekli değişken
+  let extractedCategory = '';
+  
   // 2. BAŞLIK
   const title = product.name || 'Başlık bulunamadı';
   console.log(`✓ Başlık: ${title}`);
@@ -782,13 +785,26 @@ export async function extractFocusedData(url: string): Promise<FocusedProductDat
       console.log(`  📍 Breadcrumb bulundu: "${breadcrumbText}"`);
       
       if (breadcrumbText.includes('Kadın') || breadcrumbText.includes('KADIN')) {
-        if (breadcrumbText.includes('Elbise')) category = 'Apparel & Accessories > Clothing > Women > Dresses';
-        else if (breadcrumbText.includes('Bluz') || breadcrumbText.includes('Gömlek')) category = 'Apparel & Accessories > Clothing > Women > Tops';
-        else if (breadcrumbText.includes('Pantolon') || breadcrumbText.includes('Jean')) category = 'Apparel & Accessories > Clothing > Women > Pants';
-        else if (breadcrumbText.includes('Ceket') || breadcrumbText.includes('Mont')) category = 'Apparel & Accessories > Clothing > Women > Outerwear';
-        else if (breadcrumbText.includes('Etek')) category = 'Apparel & Accessories > Clothing > Women > Skirts';
-        else category = 'Apparel & Accessories > Clothing > Women';
-        categoryFound = true;
+        if (breadcrumbText.includes('Elbise')) {
+          category = 'Apparel & Accessories > Clothing > Women > Dresses';
+          categoryFound = true;
+        } else if (breadcrumbText.includes('Bluz') || breadcrumbText.includes('Gömlek') || breadcrumbText.includes('Tunik')) {
+          category = 'Apparel & Accessories > Clothing > Women > Tops';
+          categoryFound = true;
+        } else if (breadcrumbText.includes('Pantolon') || breadcrumbText.includes('Jean')) {
+          category = 'Apparel & Accessories > Clothing > Women > Pants';
+          categoryFound = true;
+        } else if (breadcrumbText.includes('Ceket') || breadcrumbText.includes('Mont')) {
+          category = 'Apparel & Accessories > Clothing > Women > Outerwear';
+          categoryFound = true;
+        } else if (breadcrumbText.includes('Etek')) {
+          category = 'Apparel & Accessories > Clothing > Women > Skirts';
+          categoryFound = true;
+        } else {
+          category = 'Apparel & Accessories > Clothing > Women';
+          categoryFound = true;
+        }
+        console.log(`    ✓ Kadın kategorisinden atama: ${category}`);
       } else if (breadcrumbText.includes('Erkek') || breadcrumbText.includes('ERKEK')) {
         if (breadcrumbText.includes('Gömlek')) category = 'Apparel & Accessories > Clothing > Men > Shirts';
         else if (breadcrumbText.includes('Pantolon') || breadcrumbText.includes('Jean')) category = 'Apparel & Accessories > Clothing > Men > Pants';
@@ -800,9 +816,8 @@ export async function extractFocusedData(url: string): Promise<FocusedProductDat
     }
   }
   
-  // 2. JSON verisinden kategori çıkarımı
+  // 2. JSON verisinden kategori çıkarımı  
   const categoryPaths = [
-    extractedCategory,
     product.category?.name,
     product.categoryName,
     product.category?.displayName,
