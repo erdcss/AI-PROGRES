@@ -404,11 +404,18 @@ export async function extractFocusedData(url: string): Promise<FocusedProductDat
       let color = attributes.RENK || attributes.Renk || attributes.renk || variant.color || 'Varsayılan';
       let size = attributes.BEDEN || attributes.Beden || attributes.beden || variant.size || 'Tek Beden';
 
-      // Varyant "value" alanından beden çıkar - EN ÖNEMLİ!
+      // Varyant "value" alanından boyut/beden çıkar - EN ÖNEMLİ!
       if (variant.value && typeof variant.value === 'string') {
         const cleanValue = variant.value.trim();
+        
+        // Boyut formatları: 200 x 220, 80x180, 150 x 200 vb.
+        const dimensionMatch = cleanValue.match(/(\d+)\s*[xX×]\s*(\d+)/);
+        if (dimensionMatch) {
+          size = `${dimensionMatch[1]}x${dimensionMatch[2]}`;
+          console.log(`  ✓ VALUE'dan boyut: ${size}`);
+        }
         // Jean beden formatları: 32, 32/32, 32/34, 30-32, 36/30 vb.
-        if (cleanValue.match(/^\d{2,3}([\-\/]\d{2,3})?$/)) {
+        else if (cleanValue.match(/^\d{2,3}([\-\/]\d{2,3})?$/)) {
           size = cleanValue;
           console.log(`  ✓ VALUE'dan jean bedeni: ${size}`);
         }
@@ -745,6 +752,50 @@ export async function extractFocusedData(url: string): Promise<FocusedProductDat
     features.push({ key: 'Marka', value: brand });
     processedKeys.add('marka');
     console.log(`  ✓ Marka eklendi: "${brand}"`);
+  }
+
+  // Manuel özellik ekleme sistemi - Yatak alezi için
+  if (title.toLowerCase().includes('yatak') || title.toLowerCase().includes('alez')) {
+    console.log('🛏️ Yatak alezi manuel özellikleri ekleniyor...');
+    
+    // Materyal çıkarımı
+    if (title.toLowerCase().includes('bambu')) {
+      features.push({ key: 'Materyal', value: 'Bambu' });
+      processedKeys.add('materyal');
+      console.log(`  ✓ Materyal: Bambu`);
+    } else if (title.toLowerCase().includes('pamuk')) {
+      features.push({ key: 'Materyal', value: 'Pamuk' });
+      processedKeys.add('materyal');
+      console.log(`  ✓ Materyal: Pamuk`);
+    }
+    
+    // Su geçirmezlik özelliği
+    if (title.toLowerCase().includes('sıvı geçirmez') || title.toLowerCase().includes('su geçirmez')) {
+      features.push({ key: 'Özellik', value: 'Su Geçirmez' });
+      processedKeys.add('özellik');
+      console.log(`  ✓ Özellik: Su Geçirmez`);
+    }
+    
+    // Sessizlik özelliği
+    if (title.toLowerCase().includes('sessiz')) {
+      features.push({ key: 'Ses Özelliği', value: 'Ultra Sessiz' });
+      processedKeys.add('ses');
+      console.log(`  ✓ Ses Özelliği: Ultra Sessiz`);
+    }
+    
+    // Premium/kalite özelliği
+    if (title.toLowerCase().includes('premium')) {
+      features.push({ key: 'Kalite', value: 'Premium' });
+      processedKeys.add('kalite');
+      console.log(`  ✓ Kalite: Premium`);
+    }
+    
+    // Koruma özelliği
+    if (title.toLowerCase().includes('koruyucu')) {
+      features.push({ key: 'Fonksiyon', value: 'Yatak Koruyucu' });
+      processedKeys.add('fonksiyon');
+      console.log(`  ✓ Fonksiyon: Yatak Koruyucu`);
+    }
   }
 
   console.log(`✅ Gerçek ${features.length} özellik hazır`);
