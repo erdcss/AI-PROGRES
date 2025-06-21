@@ -117,20 +117,19 @@ function generateSingleProductShopifyCSV(product: any): string {
     ]);
   });
 
-  // SHOPIFY GÖRSEL OPTIMIZASYONU - Handle gruplandırması için
-  console.log(`📊 Shopify Handle gruplandırması: "${handle}" - ${product.sizeOptions.length} varyant`);
+  // ADDITIONAL PRODUCT IMAGES - Shopify format
+  console.log(`📊 Shopify variant structure: "${handle}" - ${product.sizeOptions.length} variants created`);
   
-  // Kalan görselleri hesapla
+  // Add remaining product images as media-only rows
   const usedImageCount = Math.min(product.sizeOptions.length, product.images.length);
-  const allRemainingImages = product.images.slice(usedImageCount);
+  const additionalImages = product.images.slice(usedImageCount);
   
-  console.log(`📸 TÜM ${allRemainingImages.length} ek görsel CSV'ye ekleniyor...`);
+  console.log(`📸 Adding ${additionalImages.length} additional product images...`);
   
-  // Her kalan görsel için ayrı satır ekle
-  allRemainingImages.forEach((imageUrl: string, index: number) => {
+  additionalImages.forEach((imageUrl: string, index: number) => {
     const imagePosition = usedImageCount + index + 2;
     rows.push([
-      handle,                                         // 1. Handle - SAME FOR ALL IMAGES
+      handle,                                         // 1. Handle - CONSISTENT
       '',                                             // 2. Title
       '',                                             // 3. Body (HTML)
       '',                                             // 4. Vendor
@@ -153,13 +152,13 @@ function generateSingleProductShopifyCSV(product: any): string {
       '',                                             // 21. Variant Requires Shipping
       '',                                             // 22. Variant Taxable
       '',                                             // 23. Variant Barcode
-      imageUrl,                                      // 24. Image Src - ALL IMAGES
+      imageUrl,                                      // 24. Image Src - PRODUCT IMAGE
       imagePosition.toString(),                      // 25. Image Position
-      `"${product.title} - Image ${imagePosition - 1}"`, // 26. Image Alt Text
+      `"${product.title} - Additional Image ${index + 1}"`, // 26. Image Alt Text
       '',                                             // 27. Gift Card
       '',                                             // 28. SEO Title
       '',                                             // 29. SEO Description
-      '',                                             // 30. Variant Image
+      '',                                             // 30. Variant Image - EMPTY for product images
       '',                                             // 31. Variant Weight Unit
       '',                                             // 32. Cost per item
       ''                                              // 33. Included / Turkey
