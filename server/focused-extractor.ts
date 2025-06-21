@@ -754,12 +754,13 @@ export async function extractFocusedData(url: string): Promise<FocusedProductDat
     console.log(`  ✓ Marka eklendi: "${brand}"`);
   }
 
-  // Manuel özellik ekleme sistemi - Ürün tipine göre
+  // Manuel özellik ekleme sistemi - Her ürün için çalışır
   console.log('🏷️ Manuel özellik sistemi başlatılıyor...');
+  console.log(`📝 Title debug: "${title}"`);
   
   // Yatak alezi için özellikler
   if (title.toLowerCase().includes('yatak') || title.toLowerCase().includes('alez')) {
-    console.log('🛏️ Yatak alezi manuel özellikleri ekleniyor...');
+    console.log('🛏️ Yatak alezi tespit edildi, manuel özellikler ekleniyor...');
     
     if (title.toLowerCase().includes('bambu')) {
       features.push({ key: 'Materyal', value: 'Bambu' });
@@ -789,6 +790,29 @@ export async function extractFocusedData(url: string): Promise<FocusedProductDat
       features.push({ key: 'Fonksiyon', value: 'Yatak Koruyucu' });
       processedKeys.add('fonksiyon');
       console.log(`  ✓ Fonksiyon: Yatak Koruyucu`);
+    }
+  }
+  
+  // Kozmetik ürünleri için özellikler
+  else if (title.toLowerCase().includes('maskara') || title.toLowerCase().includes('makyaj')) {
+    console.log('💄 Kozmetik ürünü tespit edildi, manuel özellikler ekleniyor...');
+    
+    if (title.toLowerCase().includes('siyah')) {
+      features.push({ key: 'Renk', value: 'Siyah' });
+      processedKeys.add('renk');
+      console.log(`  ✓ Renk: Siyah`);
+    }
+    
+    if (title.toLowerCase().includes('telescopic') || title.toLowerCase().includes('uzatıcı')) {
+      features.push({ key: 'Özellik', value: 'Uzatıcı' });
+      processedKeys.add('özellik');
+      console.log(`  ✓ Özellik: Uzatıcı`);
+    }
+    
+    if (title.toLowerCase().includes('gold') || title.toLowerCase().includes('altın')) {
+      features.push({ key: 'Seri', value: 'Gold Serisi' });
+      processedKeys.add('seri');
+      console.log(`  ✓ Seri: Gold Serisi`);
     }
   }
   
