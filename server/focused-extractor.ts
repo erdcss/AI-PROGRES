@@ -1045,26 +1045,6 @@ export async function extractFocusedData(url: string): Promise<FocusedProductDat
   }
 
   console.log(`🔍 Toplam ${features.length} özellik çıkarıldı`);
-
-
-    { key: 'SKU', value: product.sku },
-    { key: 'Barkod', value: product.barcode },
-    { key: 'Renk Sayısı', value: colorOptions.length.toString() },
-    { key: 'Beden Sayısı', value: sizeOptions.length.toString() },
-    { key: 'Toplam Varyant', value: variants.length.toString() },
-    { key: 'Stokta Varyant', value: variants.filter(v => v.inStock).length.toString() },
-    { key: 'Görsel Sayısı', value: images.length.toString() },
-    { key: 'Stok Durumu', value: variants.some(v => v.inStock) ? 'Stokta' : 'Tükendi' },
-    { key: 'Renk Seçenekleri', value: colorOptions.length > 0 ? colorOptions.join(', ') : 'Tek Renk' },
-    { key: 'Beden Seçenekleri', value: sizeOptions.length > 0 ? sizeOptions.join(', ') : 'Tek Beden' }
-  ];
-  
-  comprehensiveFeatures.forEach(({ key, value }) => {
-    if (value && value !== 'undefined' && value !== 'null' && !processedKeys.has(key.toLowerCase())) {
-      features.push({ key, value: String(value) });
-      processedKeys.add(key.toLowerCase());
-    }
-  });
   
   // ÜST DÜZEY KATEGORİ ÇIKARIMI - Gelişmiş Trendyol kategori analizi
   let category = 'Apparel & Accessories > Clothing';
