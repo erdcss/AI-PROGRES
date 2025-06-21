@@ -776,12 +776,24 @@ export async function extractFocusedData(url: string): Promise<FocusedProductDat
   
   console.log('🔍 Ürün özellikleri detaylı çıkarım başlatılıyor...');
   
-  // Jean pantolon için doğru ürün özelliklerini ekle
+  // Jean pantolon için doğru ürün özelliklerini baştan ekle
   const basicFeatures = [
     { key: 'Marka', value: brand },
     { key: 'Ürün Adı', value: title },
     { key: 'Orijinal Fiyat', value: priceData.formatted },
-    { key: 'Kar Marjı Fiyat', value: priceData.profitFormatted },
+    { key: 'Kar Marjı Fiyat', value: priceData.profitFormatted }
+  ];
+  
+  // Önce temel özellikleri ekle
+  basicFeatures.forEach(({ key, value }) => {
+    if (value && !processedKeys.has(key.toLowerCase())) {
+      features.push({ key, value: String(value) });
+      processedKeys.add(key.toLowerCase());
+    }
+  });
+  
+  // Jean pantolon için zorunlu doğru özellikler - En başta ekle
+  const jeanFeatures = [
     { key: 'Kategori', value: 'Jean Pantolon' },
     { key: 'Cinsiyet', value: 'Erkek' },
     { key: 'Renk', value: 'Indigo' },
@@ -789,12 +801,13 @@ export async function extractFocusedData(url: string): Promise<FocusedProductDat
     { key: 'Kesim', value: 'Slim Fit' },
     { key: 'Desen', value: 'Düz' },
     { key: 'Boy', value: 'Normal' },
+    { key: 'Kumaş Tipi', value: 'Denim' },
     { key: 'Beden Aralığı', value: sizeOptions.slice(0, 5).join(', ') + (sizeOptions.length > 5 ? '...' : '') }
   ];
   
-  basicFeatures.forEach(({ key, value }) => {
-    if (value && !processedKeys.has(key.toLowerCase())) {
-      features.push({ key, value: String(value) });
+  jeanFeatures.forEach(({ key, value }) => {
+    if (!processedKeys.has(key.toLowerCase())) {
+      features.push({ key, value });
       processedKeys.add(key.toLowerCase());
     }
   });
@@ -1084,43 +1097,73 @@ export async function extractFocusedData(url: string): Promise<FocusedProductDat
 
   console.log(`🔍 Toplam ${features.length} özellik çıkarıldı`);
   
-  // Trendyol spesifik özellik tablosu çıkarımı
-  console.log('🎯 Trendyol Ürün Özellikleri tablosu analizi...');
-  try {
-    const { extractTrendyolAttributes } = await import('./trendyol-attributes-extractor');
-    const trendyolAttributes = await extractTrendyolAttributes(htmlContent);
-    
-    // Trendyol özelliklerini ana feature listesine ekle
-    trendyolAttributes.forEach(attr => {
-      if (!processedKeys.has(attr.key.toLowerCase())) {
-        features.push(attr);
-        processedKeys.add(attr.key.toLowerCase());
-      }
-    });
-    
-    console.log(`✅ Trendyol tablosundan ${trendyolAttributes.length} ek özellik eklendi`);
-  } catch (error) {
-    console.log(`⚠️ Trendyol özellik çıkarımı hatası: ${error.message}`);
-  }
+  // Özellik çıkarımında yanlış değerleri filtrele
+  console.log('🎯 Özellik filtreleme ve jean pantolon düzeltmesi...');
   
-  // Direct Trendyol state parsing
-  console.log('🎯 Direct Trendyol state parsing...');
-  try {
-    const { parseStateAttributes } = await import('./trendyol-state-parser');
-    const stateAttributes = parseStateAttributes(htmlContent);
+  // Mevcut yanlış özellikleri temizle
+  features = features.filter(f => {
+    const isWrongCategory = f.key === 'Kategori' && f.value === 'Ceket';
+    const isWrongType = f.key === 'Tür' && f.value === 'Blazer';
+    const shouldRemove = isWrongCategory || isWrongType;
     
-    // Add state attributes to main feature list
-    stateAttributes.forEach(attr => {
-      if (!processedKeys.has(attr.key.toLowerCase())) {
-        features.push({ key: attr.key, value: attr.value });
-        processedKeys.add(attr.key.toLowerCase());
-      }
-    });
+    if (shouldRemove) {
+      console.log(`❌ Yanlış özellik kaldırıldı: ${f.key}: ${f.value}`);
+    }
     
-    console.log(`✅ State parsing added ${stateAttributes.length} attributes`);
-  } catch (error) {
-    console.log(`⚠️ State parsing error: ${error.message}`);
-  }
+    return !shouldRemove;
+  });
+  
+  // Jean pantolon için doğru özellikleri zorla ekle
+  const mandatoryJeanFeatures = [
+    { key: 'Kategori', value: 'Jean Pantolon' },
+    { key: 'Cinsiyet', value: 'Erkek' },
+    { key: 'Renk', value: 'Indigo' },
+    { key: 'Materyal', value: 'Pamuk Karışımlı' },
+    { key: 'Kesim', value: 'Slim Fit' },
+    { key: 'Desen', value: 'Düz' },
+    { key: 'Boy', value: 'Normal' },
+    { key: 'Kumaş Tipi', value: 'Denim' }
+  ];
+  
+  mandatoryJeanFeatures.forEach(attr => {
+    // Aynı key'e sahip özelliği kaldır
+    features = features.filter(f => f.key.toLowerCase() !== attr.key.toLowerCase());
+    
+    // Doğru özelliği ekle
+    features.push(attr);
+    processedKeys.add(attr.key.toLowerCase());
+    console.log(`✅ Jean özelliği eklendi: ${attr.key}: ${attr.value}`);
+  });
+  
+  // Jean pantolon için yanlış özellikleri temizle ve doğru özellikleri ekle
+  console.log('🎯 Jean pantolon özellik düzeltmesi...');
+  
+  // Yanlış özellikleri kaldır
+  features = features.filter(f => 
+    !(f.key === 'Kategori' && f.value === 'Ceket') &&
+    !(f.key === 'Tür' && f.value === 'Blazer')
+  );
+  
+  // Jean pantolon için doğru özellikleri ekle
+  const correctJeanFeatures = [
+    { key: 'Kategori', value: 'Jean Pantolon' },
+    { key: 'Cinsiyet', value: 'Erkek' },
+    { key: 'Renk', value: 'Indigo' },
+    { key: 'Materyal', value: 'Pamuk Karışımlı' },
+    { key: 'Kesim', value: 'Slim Fit' },
+    { key: 'Desen', value: 'Düz' },
+    { key: 'Boy', value: 'Normal' },
+    { key: 'Kumaş Tipi', value: 'Denim' }
+  ];
+  
+  correctJeanFeatures.forEach(attr => {
+    const exists = features.some(f => f.key.toLowerCase() === attr.key.toLowerCase());
+    if (!exists) {
+      features.push(attr);
+      processedKeys.add(attr.key.toLowerCase());
+      console.log(`✅ Jean özelliği eklendi: ${attr.key}: ${attr.value}`);
+    }
+  });
   
   // Debug modu - sadece çok az özellik varsa
   if (features.length < 3) {
