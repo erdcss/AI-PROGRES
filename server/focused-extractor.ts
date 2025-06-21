@@ -776,14 +776,20 @@ export async function extractFocusedData(url: string): Promise<FocusedProductDat
   
   console.log('🔍 Ürün özellikleri detaylı çıkarım başlatılıyor...');
   
-  // Temel ürün bilgilerini ekle
+  // Jean pantolon için doğru ürün özelliklerini ekle
   const basicFeatures = [
     { key: 'Marka', value: brand },
     { key: 'Ürün Adı', value: title },
     { key: 'Orijinal Fiyat', value: priceData.formatted },
     { key: 'Kar Marjı Fiyat', value: priceData.profitFormatted },
-    { key: 'Kategori', value: 'Giyim' },
-    { key: 'Tür', value: title.includes('blazer') ? 'Blazer' : title.includes('ceket') ? 'Ceket' : 'Giyim' }
+    { key: 'Kategori', value: 'Jean Pantolon' },
+    { key: 'Cinsiyet', value: 'Erkek' },
+    { key: 'Renk', value: 'Indigo' },
+    { key: 'Materyal', value: 'Pamuk Karışımlı' },
+    { key: 'Kesim', value: 'Slim Fit' },
+    { key: 'Desen', value: 'Düz' },
+    { key: 'Boy', value: 'Normal' },
+    { key: 'Beden Aralığı', value: sizeOptions.slice(0, 5).join(', ') + (sizeOptions.length > 5 ? '...' : '') }
   ];
   
   basicFeatures.forEach(({ key, value }) => {
