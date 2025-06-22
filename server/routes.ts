@@ -2210,65 +2210,66 @@ export function registerRoutes(app: Express): Server {
       
       const productDescription = `${productData.brand} ${productData.title}. ${featuresDescription}`;
       
-      // Create CSV rows for each variant
-      uniqueRealVariants.forEach((variant, variantIndex) => {
-        if (productData.images?.length > 0) {
-          productData.images.forEach((imgUrl, imgIndex) => {
-            const isFirst = variantIndex === 0 && imgIndex === 0;
-            csvRows.push([
-              baseHandle,
-              isFirst ? productData.title : '',
-              isFirst ? productDescription : '',
-              isFirst ? productData.brand : '',
-              isFirst ? 'Genel' : '',
-              isFirst && productData.features ? productData.features.map(f => f.key).join(', ') : '',
-              isFirst ? 'TRUE' : '',
-              isFirst ? 'Renk' : '',
-              variant.color,
-              isFirst ? 'Beden' : '',
-              variant.size,
-              `${baseHandle}-${variant.color.toLowerCase()}-${variant.size.toLowerCase()}-${imgIndex}`,
-              variant.inStock ? '25' : '0',
-              (productData.price?.withProfit || 0).toFixed(2).replace('.', ',').replace(/,/g, '.').replace(/\./g, ','),
-              '',
-              (productData.price?.original || 0).toFixed(2).replace('.', ',').replace(/,/g, '.').replace(/\./g, ','),
-              imgUrl,
-              String(imgIndex + 1),
-              `${productData.title} ${variant.color} ${variant.size}`,
-              isFirst ? `${productData.title} | ${productData.brand}` : '',
-              isFirst ? productDescription.substring(0, 160) : '',
-              'kg',
-              'active'
-            ]);
-          });
-        } else {
+      // Create CSV rows - single variant row + image rows (Shopify standard)
+      const mainVariant = uniqueRealVariants[0];
+      
+      // Main product row with first image
+      csvRows.push([
+        baseHandle,
+        productData.title,
+        productDescription,
+        productData.brand,
+        'Genel',
+        productData.features ? productData.features.map(f => `${f.key}: ${f.value}`).join(', ') : '',
+        'TRUE',
+        'Renk',
+        mainVariant.color,
+        'Beden',
+        mainVariant.size,
+        `${baseHandle}-${mainVariant.color.toLowerCase()}-${mainVariant.size.toLowerCase()}`,
+        mainVariant.inStock ? '25' : '0',
+        (productData.price?.withProfit || 0).toFixed(2).replace('.', ',').replace(/,/g, '.').replace(/\./g, ','),
+        '',
+        (productData.price?.original || 0).toFixed(2).replace('.', ',').replace(/,/g, '.').replace(/\./g, ','),
+        productData.images?.[0] || '',
+        productData.images?.length > 0 ? '1' : '',
+        `${productData.title} ${mainVariant.color} ${mainVariant.size}`,
+        `${productData.title} | ${productData.brand}`,
+        productDescription.substring(0, 160),
+        'kg',
+        'active'
+      ]);
+      
+      // Additional image rows (no variant info, just images)
+      if (productData.images && productData.images.length > 1) {
+        for (let i = 1; i < productData.images.length; i++) {
           csvRows.push([
             baseHandle,
-            variantIndex === 0 ? productData.title : '',
-            variantIndex === 0 ? productDescription : '',
-            variantIndex === 0 ? productData.brand : '',
-            variantIndex === 0 ? 'Genel' : '',
-            variantIndex === 0 && productData.features ? productData.features.map(f => f.key).join(', ') : '',
-            variantIndex === 0 ? 'TRUE' : '',
-            variantIndex === 0 ? 'Renk' : '',
-            variant.color,
-            variantIndex === 0 ? 'Beden' : '',
-            variant.size,
-            `${baseHandle}-${variant.color.toLowerCase()}-${variant.size.toLowerCase()}`,
-            variant.inStock ? '25' : '0',
-            (productData.price?.withProfit || 0).toFixed(2).replace('.', ',').replace(/,/g, '.').replace(/\./g, ','),
-            '',
-            (productData.price?.original || 0).toFixed(2).replace('.', ',').replace(/,/g, '.').replace(/\./g, ','),
             '',
             '',
-            `${productData.title} ${variant.color} ${variant.size}`,
-            variantIndex === 0 ? `${productData.title} | ${productData.brand}` : '',
-            variantIndex === 0 ? productDescription.substring(0, 160) : '',
-            'kg',
-            'active'
+            '',
+            '',
+            '',
+            '',
+            '',
+            '',
+            '',
+            '',
+            '',
+            '',
+            '',
+            '',
+            '',
+            productData.images[i],
+            String(i + 1),
+            '',
+            '',
+            '',
+            '',
+            ''
           ]);
         }
-      });
+      }
       
       // Force exactly 23 columns and handle price formatting
       const csvContent = csvRows.map((row, rowIndex) => {
