@@ -1487,15 +1487,15 @@ export async function extractFocusedData(url: string): Promise<FocusedProductDat
       title,
       price: priceData,
       images,
-      colorOptions,
-      sizeOptions: inStockSizes,
-      variants: inStockVariants,
+      colorOptions: finalColors,
+      sizeOptions: finalSizes,
+      variants: organizedVariants,
       stockAnalysis: {
-        totalVariants: variants.length,
-        inStockVariants: inStockSizes.length,
-        outOfStockVariants: variants.length - inStockSizes.length,
-        availableSizes: inStockSizes,
-        unavailableSizes: sortedSizes.filter(s => !inStockSizes.includes(s))
+        totalVariants: organizedVariants.length,
+        inStockVariants: organizedVariants.filter(v => v.inStock).length,
+        outOfStockVariants: organizedVariants.filter(v => !v.inStock).length,
+        availableSizes: finalSizes,
+        unavailableSizes: []
       },
       features,
       category
@@ -1507,15 +1507,15 @@ export async function extractFocusedData(url: string): Promise<FocusedProductDat
     title,
     price: priceData,
     images,
-    colorOptions,
-    sizeOptions: sortedSizes,
-    variants,
+    colorOptions: finalColors,
+    sizeOptions: finalSizes,
+    variants: organizedVariants,
     stockAnalysis: {
-      totalVariants: variants.length,
-      inStockVariants: variants.filter(v => v.inStock).length,
-      outOfStockVariants: variants.filter(v => !v.inStock).length,
-      availableSizes: sortedSizes,
-      unavailableSizes: Array.from(outOfStockSizes)
+      totalVariants: organizedVariants.length,
+      inStockVariants: organizedVariants.filter(v => v.inStock).length,
+      outOfStockVariants: organizedVariants.filter(v => !v.inStock).length,
+      availableSizes: finalSizes,
+      unavailableSizes: []
     },
     features: features.length > 0 ? features : [
       { key: 'Kategori', value: category || 'Ürün' },
