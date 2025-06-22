@@ -2161,35 +2161,63 @@ export function registerRoutes(app: Express): Server {
         uniqueVariants.push({ color: 'Varsayılan', size: 'Tek Beden', inStock: true });
       }
       
-      // Create single variant with all images
+      // Create single product with variant options filled in all rows
       if (productData.images?.length > 0) {
-        productData.images.forEach((imgUrl, imgIndex) => {
+        // First row with all product info and first image
+        csvRows.push([
+          baseHandle,
+          productData.title,
+          productData.brand + ' ' + productData.title,
+          productData.brand,
+          'Genel',
+          '',
+          'TRUE',
+          'Renk',
+          'Varsayılan',
+          'Beden',
+          'Tek Beden',
+          baseHandle + '-default',
+          '25',
+          (productData.price?.withProfit || 0).toFixed(2).replace('.', ',').replace(/,/g, '.').replace(/\./g, ','),
+          '',
+          (productData.price?.original || 0).toFixed(2).replace('.', ',').replace(/,/g, '.').replace(/\./g, ','),
+          productData.images[0],
+          '1',
+          productData.title + ' Varsayılan Tek Beden',
+          productData.title + ' | ' + productData.brand,
+          productData.brand + ' ' + productData.title,
+          'kg',
+          'active'
+        ]);
+        
+        // Additional images as separate rows (keeping same variant)
+        for (let i = 1; i < productData.images.length; i++) {
           csvRows.push([
             baseHandle,
-            imgIndex === 0 ? productData.title : '',
-            imgIndex === 0 ? productData.brand + ' ' + productData.title : '',
-            imgIndex === 0 ? productData.brand : '',
-            imgIndex === 0 ? 'Genel' : '',
             '',
-            imgIndex === 0 ? 'TRUE' : '',
-            imgIndex === 0 ? 'Renk' : '',
-            imgIndex === 0 ? 'Varsayılan' : '',
-            imgIndex === 0 ? 'Beden' : '',
-            imgIndex === 0 ? 'Tek Beden' : '',
-            baseHandle + '-default-' + imgIndex,
-            '25',
-            (productData.price?.withProfit || 0).toFixed(2).replace('.', ',').replace(/,/g, '.').replace(/\./g, ','),
             '',
-            (productData.price?.original || 0).toFixed(2).replace('.', ',').replace(/,/g, '.').replace(/\./g, ','),
-            imgUrl,
-            String(imgIndex + 1),
-            productData.title + ' Varsayılan Tek Beden',
-            imgIndex === 0 ? productData.title + ' | ' + productData.brand : '',
-            imgIndex === 0 ? productData.brand + ' ' + productData.title : '',
-            'kg',
-            'active'
+            '',
+            '',
+            '',
+            '',
+            '',
+            '',
+            '',
+            '',
+            '',
+            '',
+            '',
+            '',
+            '',
+            productData.images[i],
+            String(i + 1),
+            '',
+            '',
+            '',
+            '',
+            ''
           ]);
-        });
+        }
       } else {
         // Single variant without images
         csvRows.push([
