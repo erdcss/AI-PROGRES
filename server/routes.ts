@@ -2114,24 +2114,110 @@ export function registerRoutes(app: Express): Server {
     }
   });
 
-  // Shopify CSV export endpoint
+  // Fixed Shopify CSV export endpoint
   app.post('/api/export-shopify-csv', async (req, res) => {
     try {
-      const product = req.body;
+      const productData = req.body;
       
-      if (!product || !product.brand || !product.title) {
+      if (!productData || !productData.brand || !productData.title) {
         return res.status(400).json({ error: 'Invalid product data' });
       }
 
-      const csvData = generateSingleProductShopifyCSV(product);
-      const filename = `shopify-${product.brand.toLowerCase().replace(/[^a-z0-9]/g, '-')}-${Date.now()}.csv`;
+      const baseHandle = productData.title.toLowerCase()
+        .replace(/[^\w\s-]/g, '')
+        .replace(/\s+/g, '-')
+        .substring(0, 50);
+      
+      const headers = [
+        'Handle', 'Title', 'Body (HTML)', 'Vendor', 'Product Type', 'Tags', 'Published',
+        'Option1 Name', 'Option1 Value', 'Option2 Name', 'Option2 Value',
+        'Variant SKU', 'Variant Inventory Qty', 'Variant Price', 'Variant Compare At Price',
+        'Cost per item', 'Image Src', 'Image Position', 'Image Alt Text',
+        'SEO Title', 'SEO Description', 'Variant Weight Unit', 'Status'
+      ];
+      
+      const rows = [];
+      const variants = productData.variants?.length > 0 ? productData.variants : [
+        { color: 'Varsayılan', size: 'Tek Beden', inStock: true }
+      ];
+      
+      variants.forEach((variant, variantIndex) => {
+        const isFirstVariant = variantIndex === 0;
+        
+        if (productData.images?.length > 0) {
+          productData.images.forEach((imgUrl, imgIndex) => {
+            const isFirstRow = isFirstVariant && imgIndex === 0;
+            const row = [
+              baseHandle,
+              isFirstRow ? productData.title : '',
+              isFirstRow ? `${productData.brand} ${productData.title}` : '',
+              isFirstRow ? productData.brand : '',
+              isFirstRow ? 'Genel' : '',
+              '',
+              isFirstRow ? 'TRUE' : '',
+              isFirstRow ? 'Renk' : '',
+              variant.color || 'Varsayılan',
+              isFirstRow ? 'Beden' : '',
+              variant.size || 'Tek Beden',
+              `${baseHandle}-${variant.color || 'default'}-${variant.size || 'default'}`.toLowerCase(),
+              variant.inStock ? '25' : '0',
+              productData.price?.withProfit?.toFixed(2)?.replace('.', ',') || '0,00',
+              '',
+              productData.price?.original?.toFixed(2)?.replace('.', ',') || '0,00',
+              imgUrl,
+              imgIndex + 1,
+              `${productData.title} ${variant.color} ${variant.size}`,
+              isFirstRow ? `${productData.title} | ${productData.brand}` : '',
+              isFirstRow ? `${productData.brand} ${productData.title}` : '',
+              'kg',
+              'etkin'
+            ];
+            rows.push(row);
+          });
+        } else {
+          const row = [
+            baseHandle,
+            isFirstVariant ? productData.title : '',
+            isFirstVariant ? `${productData.brand} ${productData.title}` : '',
+            isFirstVariant ? productData.brand : '',
+            isFirstVariant ? 'Genel' : '',
+            '',
+            isFirstVariant ? 'TRUE' : '',
+            isFirstVariant ? 'Renk' : '',
+            variant.color || 'Varsayılan',
+            isFirstVariant ? 'Beden' : '',
+            variant.size || 'Tek Beden',
+            `${baseHandle}-${variant.color || 'default'}-${variant.size || 'default'}`.toLowerCase(),
+            variant.inStock ? '25' : '0',
+            productData.price?.withProfit?.toFixed(2)?.replace('.', ',') || '0,00',
+            '',
+            productData.price?.original?.toFixed(2)?.replace('.', ',') || '0,00',
+            '',
+            '',
+            `${productData.title} ${variant.color} ${variant.size}`,
+            isFirstVariant ? `${productData.title} | ${productData.brand}` : '',
+            isFirstVariant ? `${productData.brand} ${productData.title}` : '',
+            'kg',
+            'etkin'
+          ];
+          rows.push(row);
+        }
+      });
+      
+      const csvContent = [
+        headers.join(','),
+        ...rows.map(row => row.map(cell => `"${String(cell || '')}"`).join(','))
+      ].join('\n');
+      
+      console.log(`CSV oluşturuldu: ${rows.length} satır`);
       
       res.setHeader('Content-Type', 'text/csv; charset=utf-8');
-      res.setHeader('Content-Disposition', `attachment; filename="${filename}"`);
-      res.send(csvData);
+      res.setHeader('Content-Disposition', `attachment; filename="${baseHandle}.csv"`);
+      res.send('\uFEFF' + csvContent);
+      
     } catch (error) {
-      console.error('Shopify CSV export error:', error);
-      res.status(500).json({ error: 'Failed to generate Shopify CSV' });
+      console.error('CSV export error:', error);
+      res.status(500).json({ error: error.message });
     }
   });
 
