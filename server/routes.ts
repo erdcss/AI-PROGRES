@@ -2170,7 +2170,7 @@ export function registerRoutes(app: Express): Server {
               isFirstRow ? `${productData.title} | ${productData.brand}` : '',
               isFirstRow ? `${productData.brand} ${productData.title}` : '',
               'kg',
-              'etkin'
+              'active'
             ];
             rows.push(row);
           });
@@ -2198,7 +2198,7 @@ export function registerRoutes(app: Express): Server {
             isFirstVariant ? `${productData.title} | ${productData.brand}` : '',
             isFirstVariant ? `${productData.brand} ${productData.title}` : '',
             'kg',
-            'etkin'
+            'active'
           ];
           rows.push(row);
         }
