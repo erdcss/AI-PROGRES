@@ -2204,9 +2204,20 @@ export function registerRoutes(app: Express): Server {
         }
       });
       
+      // Debug and fix column count
+      console.log(`First row length: ${rows[0]?.length}, Header length: ${headers.length}`);
+      
+      // Ensure all rows have exactly 23 columns to match header
+      const normalizedRows = rows.map((row, index) => {
+        if (row.length !== 23) {
+          console.log(`Row ${index} has ${row.length} columns, adjusting to 23`);
+        }
+        return row.slice(0, 23); // Ensure exactly 23 columns
+      });
+      
       const csvContent = [
         headers.join(','),
-        ...rows.map(row => row.map(cell => `"${String(cell || '')}"`).join(','))
+        ...normalizedRows.map(row => row.map(cell => `"${String(cell || '')}"`).join(','))
       ].join('\n');
       
       console.log(`CSV oluşturuldu: ${rows.length} satır`);
