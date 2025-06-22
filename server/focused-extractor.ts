@@ -392,6 +392,45 @@ export async function extractFocusedData(url: string): Promise<FocusedProductDat
 
   console.log('🔍 AllVariants işleniyor...');
 
+  // Önce renk seçeneklerini çıkar
+  const colorOptions = await page.evaluate(() => {
+    const colors: string[] = [];
+    
+    // Trendyol renk seçici stratejileri
+    const colorSelectors = [
+      'button[data-testid*="color"]',
+      '[class*="color-option"] button',
+      '[class*="colorOption"] button',
+      '.pr-in-cn button',
+      '.color-variant button',
+      '[data-variant="color"] button'
+    ];
+    
+    for (const selector of colorSelectors) {
+      const buttons = document.querySelectorAll(selector);
+      if (buttons.length > 0) {
+        buttons.forEach(button => {
+          const colorText = button.getAttribute('title') || 
+                           button.getAttribute('aria-label') || 
+                           button.textContent?.trim();
+          if (colorText && colorText.length > 0 && colorText !== 'undefined') {
+            colors.push(colorText);
+          }
+        });
+        break;
+      }
+    }
+    
+    return [...new Set(colors)];
+  });
+
+  // Beden filtreleme sistemi
+  console.log('🎯 Manuel stok filtreleme başlatılıyor...');
+  const stockFilterResult = await filterOutOfStockSizes(page);
+  console.log(`📊 Stok analizi: ${stockFilterResult.totalSizes} toplam → ${stockFilterResult.inStockSizes.length} stokta`);
+  console.log(`🟢 Stokta olan bedenler: ${stockFilterResult.inStockSizes.join(', ')}`);
+
+  // AllVariants verisi varsa işle
   if (product.allVariants && Array.isArray(product.allVariants)) {
     console.log(`📋 AllVariants sayısı: ${product.allVariants.length}`);
 
@@ -493,8 +532,37 @@ export async function extractFocusedData(url: string): Promise<FocusedProductDat
     });
   }
 
+  // Stok filtreleme sonuçlarını varyantlara entegre et
+  const finalColors = colorOptions.length > 0 ? colorOptions : Array.from(colorSet);
+  const finalSizes = stockFilterResult.inStockSizes.length > 0 ? stockFilterResult.inStockSizes : Array.from(sizeSet);
+  
+  console.log(`🎨 Final renkler: ${finalColors.join(', ')}`);
+  console.log(`📏 Final bedenler: ${finalSizes.join(', ')}`);
+  
+  // Varyantları yeniden düzenle
+  const organizedVariants: Array<{color: string, size: string, inStock: boolean, stockCount: number}> = [];
+  
+  // Eğer gerçek varyant verisi varsa kullan
+  if (variants.length > 0) {
+    variants.forEach(variant => {
+      organizedVariants.push(variant);
+    });
+  } else {
+    // Yoksa stok filtreleme sonuçlarından oluştur
+    for (const color of finalColors.length > 0 ? finalColors : ['Varsayılan']) {
+      for (const size of finalSizes.length > 0 ? finalSizes : ['Tek Beden']) {
+        organizedVariants.push({
+          color,
+          size,
+          inStock: true,
+          stockCount: 0
+        });
+      }
+    }
+  }
+  
   // Alternatif varyant kaynakları kontrol et
-  if (variants.length === 0) {
+  if (organizedVariants.length === 0) {
     const alternativeVariantSources = [
       product.variants,
       product.options,

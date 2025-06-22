@@ -2161,20 +2161,12 @@ export function registerRoutes(app: Express): Server {
         uniqueVariants.push({ color: 'Varsayılan', size: 'Tek Beden', inStock: true });
       }
       
-      // Extract real variants from product data
+      // Extract and organize real variants from product data
       const realVariants = [];
-      const colors = new Set();
-      const sizes = new Set();
       
-      // Get all unique colors and sizes from variants
+      // Get all variants from product data
       if (productData.variants && productData.variants.length > 0) {
         productData.variants.forEach(variant => {
-          if (variant.color && variant.color !== 'Varsayılan') {
-            colors.add(variant.color);
-          }
-          if (variant.size && variant.size !== 'Tek Beden') {
-            sizes.add(variant.size);
-          }
           if (variant.inStock) {
             realVariants.push({
               color: variant.color || 'Varsayılan',
@@ -2201,6 +2193,9 @@ export function registerRoutes(app: Express): Server {
         }
       });
       
+      console.log(`📊 CSV Varyant özeti: ${uniqueRealVariants.length} benzersiz varyant`);
+      uniqueRealVariants.forEach(v => console.log(`  - ${v.color} / ${v.size}`));
+      
       // Create product description with features
       const featuresDescription = productData.features && productData.features.length > 0 
         ? '<h3>Ürün Özellikleri:</h3><ul>' + 
@@ -2210,37 +2205,39 @@ export function registerRoutes(app: Express): Server {
       
       const productDescription = `${productData.brand} ${productData.title}. ${featuresDescription}`;
       
-      // Create CSV rows - single variant row + image rows (Shopify standard)
-      const mainVariant = uniqueRealVariants[0];
+      // Create CSV rows for each variant (Shopify multi-variant structure)
+      uniqueRealVariants.forEach((variant, variantIndex) => {
+        const isFirstVariant = variantIndex === 0;
+        
+        // Main variant row with first image
+        csvRows.push([
+          baseHandle,
+          isFirstVariant ? productData.title : '',
+          isFirstVariant ? productDescription : '',
+          isFirstVariant ? productData.brand : '',
+          isFirstVariant ? 'Genel' : '',
+          isFirstVariant && productData.features ? productData.features.map(f => `${f.key}: ${f.value}`).join(', ') : '',
+          isFirstVariant ? 'TRUE' : '',
+          isFirstVariant ? 'Renk' : '',
+          variant.color,
+          isFirstVariant ? 'Beden' : '',
+          variant.size,
+          `${baseHandle}-${variant.color.toLowerCase().replace(/\s+/g, '-')}-${variant.size.toLowerCase().replace(/\s+/g, '-')}`,
+          variant.inStock ? '25' : '0',
+          (productData.price?.withProfit || 0).toFixed(2).replace('.', ',').replace(/,/g, '.').replace(/\./g, ','),
+          '',
+          (productData.price?.original || 0).toFixed(2).replace('.', ',').replace(/,/g, '.').replace(/\./g, ','),
+          productData.images?.[0] || '',
+          productData.images?.length > 0 ? '1' : '',
+          `${productData.title} ${variant.color} ${variant.size}`,
+          isFirstVariant ? `${productData.title} | ${productData.brand}` : '',
+          isFirstVariant ? productDescription.substring(0, 160) : '',
+          'kg',
+          'active'
+        ]);
+      });
       
-      // Main product row with first image
-      csvRows.push([
-        baseHandle,
-        productData.title,
-        productDescription,
-        productData.brand,
-        'Genel',
-        productData.features ? productData.features.map(f => `${f.key}: ${f.value}`).join(', ') : '',
-        'TRUE',
-        'Renk',
-        mainVariant.color,
-        'Beden',
-        mainVariant.size,
-        `${baseHandle}-${mainVariant.color.toLowerCase()}-${mainVariant.size.toLowerCase()}`,
-        mainVariant.inStock ? '25' : '0',
-        (productData.price?.withProfit || 0).toFixed(2).replace('.', ',').replace(/,/g, '.').replace(/\./g, ','),
-        '',
-        (productData.price?.original || 0).toFixed(2).replace('.', ',').replace(/,/g, '.').replace(/\./g, ','),
-        productData.images?.[0] || '',
-        productData.images?.length > 0 ? '1' : '',
-        `${productData.title} ${mainVariant.color} ${mainVariant.size}`,
-        `${productData.title} | ${productData.brand}`,
-        productDescription.substring(0, 160),
-        'kg',
-        'active'
-      ]);
-      
-      // Additional image rows (no variant info, just images)
+      // Additional image rows (attached to first variant)
       if (productData.images && productData.images.length > 1) {
         for (let i = 1; i < productData.images.length; i++) {
           csvRows.push([
