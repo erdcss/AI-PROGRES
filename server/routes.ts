@@ -2114,7 +2114,7 @@ export function registerRoutes(app: Express): Server {
     }
   });
 
-  // Fixed Shopify CSV export endpoint
+  // Fixed Shopify CSV export with exact column alignment
   app.post('/api/export-shopify-csv', async (req, res) => {
     try {
       const productData = req.body;
@@ -2128,6 +2128,53 @@ export function registerRoutes(app: Express): Server {
         .replace(/\s+/g, '-')
         .substring(0, 50);
       
+      // Shopify CSV structure with exactly 23 columns
+      const createRow = (variant, variantIndex, imgUrl = '', imgPosition = '') => {
+        const isFirst = variantIndex === 0 && (!imgUrl || imgPosition === '1' || imgPosition === 1);
+        
+        return [
+          baseHandle,
+          isFirst ? productData.title : '',
+          isFirst ? `${productData.brand} ${productData.title}` : '',
+          isFirst ? productData.brand : '',
+          isFirst ? 'Genel' : '',
+          '',
+          isFirst ? 'TRUE' : '',
+          isFirst ? 'Renk' : '',
+          variant.color || 'Varsayılan',
+          isFirst ? 'Beden' : '',
+          variant.size || 'Tek Beden',
+          `${baseHandle}-${variant.color || 'default'}-${variant.size || 'default'}`.toLowerCase(),
+          variant.inStock ? '25' : '0',
+          productData.price?.withProfit?.toFixed(2)?.replace('.', ',') || '0,00',
+          '',
+          productData.price?.original?.toFixed(2)?.replace('.', ',') || '0,00',
+          imgUrl,
+          imgPosition,
+          `${productData.title} ${variant.color} ${variant.size}`,
+          isFirst ? `${productData.title} | ${productData.brand}` : '',
+          isFirst ? `${productData.brand} ${productData.title}` : '',
+          'kg',
+          'active'
+        ];
+      };
+      
+      const variants = productData.variants?.length > 0 ? productData.variants : [
+        { color: 'Varsayılan', size: 'Tek Beden', inStock: true }
+      ];
+      
+      const rows = [];
+      
+      variants.forEach((variant, variantIndex) => {
+        if (productData.images?.length > 0) {
+          productData.images.forEach((imgUrl, imgIndex) => {
+            rows.push(createRow(variant, variantIndex, imgUrl, imgIndex + 1));
+          });
+        } else {
+          rows.push(createRow(variant, variantIndex));
+        }
+      });
+      
       const headers = [
         'Handle', 'Title', 'Body (HTML)', 'Vendor', 'Product Type', 'Tags', 'Published',
         'Option1 Name', 'Option1 Value', 'Option2 Name', 'Option2 Value',
@@ -2136,86 +2183,20 @@ export function registerRoutes(app: Express): Server {
         'SEO Title', 'SEO Description', 'Variant Weight Unit', 'Status'
       ];
       
-      const rows = [];
-      const variants = productData.variants?.length > 0 ? productData.variants : [
-        { color: 'Varsayılan', size: 'Tek Beden', inStock: true }
-      ];
-      
-      variants.forEach((variant, variantIndex) => {
-        const isFirstVariant = variantIndex === 0;
-        
-        if (productData.images?.length > 0) {
-          productData.images.forEach((imgUrl, imgIndex) => {
-            const isFirstRow = isFirstVariant && imgIndex === 0;
-            const row = [
-              baseHandle, // 1
-              isFirstRow ? productData.title : '', // 2
-              isFirstRow ? `${productData.brand} ${productData.title}` : '', // 3
-              isFirstRow ? productData.brand : '', // 4
-              isFirstRow ? 'Genel' : '', // 5
-              '', // 6 Tags
-              isFirstRow ? 'TRUE' : '', // 7 Published
-              isFirstRow ? 'Renk' : '', // 8 Option1 Name
-              variant.color || 'Varsayılan', // 9 Option1 Value
-              isFirstRow ? 'Beden' : '', // 10 Option2 Name
-              variant.size || 'Tek Beden', // 11 Option2 Value
-              `${baseHandle}-${variant.color || 'default'}-${variant.size || 'default'}`.toLowerCase(), // 12 Variant SKU
-              variant.inStock ? '25' : '0', // 13 Variant Inventory Qty
-              productData.price?.withProfit?.toFixed(2)?.replace('.', ',') || '0,00', // 14 Variant Price
-              '', // 15 Variant Compare At Price
-              productData.price?.original?.toFixed(2)?.replace('.', ',') || '0,00', // 16 Cost per item
-              imgUrl, // 17 Image Src
-              imgIndex + 1, // 18 Image Position
-              `${productData.title} ${variant.color} ${variant.size}`, // 19 Image Alt Text
-              isFirstRow ? `${productData.title} | ${productData.brand}` : '', // 20 SEO Title
-              isFirstRow ? `${productData.brand} ${productData.title}` : '', // 21 SEO Description
-              'kg', // 22 Variant Weight Unit
-              'active' // 23 Status
-            ];
-            rows.push(row);
-          });
-        } else {
-          const row = [
-            baseHandle, // 1
-            isFirstVariant ? productData.title : '', // 2
-            isFirstVariant ? `${productData.brand} ${productData.title}` : '', // 3
-            isFirstVariant ? productData.brand : '', // 4
-            isFirstVariant ? 'Genel' : '', // 5
-            '', // 6 Tags
-            isFirstVariant ? 'TRUE' : '', // 7 Published
-            isFirstVariant ? 'Renk' : '', // 8 Option1 Name
-            variant.color || 'Varsayılan', // 9 Option1 Value
-            isFirstVariant ? 'Beden' : '', // 10 Option2 Name
-            variant.size || 'Tek Beden', // 11 Option2 Value
-            `${baseHandle}-${variant.color || 'default'}-${variant.size || 'default'}`.toLowerCase(), // 12 Variant SKU
-            variant.inStock ? '25' : '0', // 13 Variant Inventory Qty
-            productData.price?.withProfit?.toFixed(2)?.replace('.', ',') || '0,00', // 14 Variant Price
-            '', // 15 Variant Compare At Price
-            productData.price?.original?.toFixed(2)?.replace('.', ',') || '0,00', // 16 Cost per item
-            '', // 17 Image Src (empty for no image)
-            '', // 18 Image Position (empty for no image)
-            `${productData.title} ${variant.color} ${variant.size}`, // 19 Image Alt Text
-            isFirstVariant ? `${productData.title} | ${productData.brand}` : '', // 20 SEO Title
-            isFirstVariant ? `${productData.brand} ${productData.title}` : '', // 21 SEO Description
-            'kg', // 22 Variant Weight Unit
-            'active' // 23 Status
-          ];
-          rows.push(row);
+      // Build CSV with strict column enforcement
+      const csvRows = [headers];
+      rows.forEach(row => {
+        // Ensure exactly 23 columns by slicing and padding
+        const normalizedRow = row.slice(0, 23);
+        while (normalizedRow.length < 23) {
+          normalizedRow.push('');
         }
+        csvRows.push(normalizedRow);
       });
       
-      // Force normalize all rows to exactly 23 columns
-      const normalizedRows = rows.map(row => {
-        const fixedRow = row.slice(0, 23); // Take only first 23 elements
-        return fixedRow;
-      });
-      
-      const csvContent = [
-        headers.join(','),
-        ...normalizedRows.map(row => row.map(cell => `"${String(cell || '')}"`).join(','))
-      ].join('\n');
-      
-      console.log(`CSV oluşturuldu: ${rows.length} satır`);
+      const csvContent = csvRows.map(row => 
+        row.map(cell => `"${String(cell || '')}"`).join(',')
+      ).join('\n');
       
       res.setHeader('Content-Type', 'text/csv; charset=utf-8');
       res.setHeader('Content-Disposition', `attachment; filename="${baseHandle}.csv"`);
