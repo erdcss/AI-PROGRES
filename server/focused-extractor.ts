@@ -1017,63 +1017,78 @@ export async function extractFocusedData(url: string): Promise<FocusedProductDat
     console.log(`⚠️ İleri düzey özellik çıkarımında hata: ${error.message}`);
   }
 
-  // Basit HTML özellik çıkarımı - Puppeteer page kullanmadan
+  // HTML'den pattern matching ile özellik çıkarımı
   try {
-    console.log('📄 HTML içeriği direkt olarak özellik arama...');
+    console.log('📄 HTML pattern matching ile özellik arama...');
     
-    // HTML'i zaten fetch edilen içerikten al
+    // URL'den yeniden HTML çek ve işle
+    const htmlResponse = await fetch(url, {
+      headers: {
+        'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36',
+        'Accept': 'text/html,application/xhtml+xml,application/xml;q=0.9,*/*;q=0.8',
+        'Accept-Language': 'tr-TR,tr;q=0.9'
+      }
+    });
     
-    // Trendyol özellik pattern'leri
-    const trendyolPatterns = [
-      // Özellik tabloları
-      /<tr[^>]*>\s*<td[^>]*>([^<]+)<\/td>\s*<td[^>]*>([^<]+)<\/td>\s*<\/tr>/gi,
-      // Liste öğeleri
-      /<li[^>]*>([^:]+):\s*([^<]+)<\/li>/gi,
-      // Div öğeleri
-      /<div[^>]*class="[^"]*attr[^"]*"[^>]*>([^:]+):\s*([^<]+)<\/div>/gi
-    ];
-    
-    for (const pattern of trendyolPatterns) {
-      let match;
-      while ((match = pattern.exec(htmlContent)) !== null) {
-        const key = match[1]?.trim();
-        const value = match[2]?.trim();
-        
-        if (key && value && key.length > 1 && value.length > 0 && 
-            !processedKeys.has(key.toLowerCase())) {
-          features.push({ key, value });
-          processedKeys.add(key.toLowerCase());
-          console.log(`  ✓ HTML Pattern: ${key} = ${value}`);
+    if (htmlResponse.ok) {
+      const fullHtmlContent = await htmlResponse.text();
+      
+      // Trendyol özellik table pattern'leri
+      const trendyolPatterns = [
+        // Özellik tabloları - farklı formatlar
+        /<tr[^>]*>\s*<td[^>]*class="[^"]*name[^"]*"[^>]*>([^<]+)<\/td>\s*<td[^>]*>([^<]+)<\/td>\s*<\/tr>/gi,
+        /<tr[^>]*>\s*<td[^>]*>([^<]+)<\/td>\s*<td[^>]*>([^<]+)<\/td>\s*<\/tr>/gi,
+        // Liste formatları
+        /<li[^>]*>([^:]+):\s*([^<]+)<\/li>/gi,
+        // Div attribute formatları
+        /<div[^>]*class="[^"]*attr[^"]*"[^>]*>([^:]+):\s*([^<]+)<\/div>/gi,
+        // Span formatları
+        /<span[^>]*class="[^"]*feature[^"]*"[^>]*>([^:]+):\s*([^<]+)<\/span>/gi
+      ];
+      
+      let totalFound = 0;
+      for (const pattern of trendyolPatterns) {
+        let match;
+        while ((match = pattern.exec(fullHtmlContent)) !== null) {
+          const key = match[1]?.trim().replace(/\s+/g, ' ');
+          const value = match[2]?.trim().replace(/\s+/g, ' ');
+          
+          if (key && value && key.length > 1 && value.length > 0 && 
+              key.length < 50 && value.length < 100 &&
+              !processedKeys.has(key.toLowerCase())) {
+            features.push({ key, value });
+            processedKeys.add(key.toLowerCase());
+            totalFound++;
+            console.log(`  ✓ HTML Table: ${key} = ${value}`);
+          }
         }
       }
-    }
-    
-    // Anahtar kelime bazlı özellik arama
-    const featureKeywords = [
-      'Materyal', 'Kumaş', 'Renk', 'Beden', 'Model', 'Tip', 'Cinsiyet', 
-      'Yaş Grubu', 'Mevsim', 'Stil', 'Kol Tipi', 'Yaka Tipi', 'Kesim',
-      'Ağırlık', 'Boyut', 'Uzunluk', 'Genişlik', 'Yükseklik'
-    ];
-    
-    for (const keyword of featureKeywords) {
-      const keywordPattern = new RegExp(`${keyword}\\s*[:：]\\s*([^\\n\\r<>{}]{2,50})`, 'gi');
-      const matches = htmlContent.match(keywordPattern);
       
-      if (matches) {
-        matches.forEach(match => {
-          const parts = match.split(/[:：]/);
-          if (parts.length >= 2) {
-            const key = parts[0].trim();
-            const value = parts[1].trim();
-            
-            if (!processedKeys.has(key.toLowerCase())) {
-              features.push({ key, value });
-              processedKeys.add(key.toLowerCase());
-              console.log(`  ✓ Keyword Match: ${key} = ${value}`);
-            }
-          }
-        });
+      // Anahtar kelime bazlı özellik arama - başlıktan çıkarım
+      console.log('🔍 Başlık bazlı özellik çıkarımı...');
+      
+      const titleFeatures = [
+        // Kumaş özellikleri
+        { pattern: /\b(pamuk|modal|polyester|viskon|elastan|spandex|likra)\b/i, key: 'Kumaş' },
+        // Renk özellikleri  
+        { pattern: /\b(siyah|beyaz|gri|mavi|kırmızı|yeşil|sarı|mor|pembe|turuncu|lacivert|kahverengi|açık gri|koyu gri)\b/i, key: 'Renk' },
+        // Kesim özellikleri
+        { pattern: /\b(slim|skinny|straight|regular|düz paça|bol|dar|wide|crop)\b/i, key: 'Kesim' },
+        // Özellik türleri
+        { pattern: /\b(cepli|cepsiz|fermuarlı|düğmeli|lastikli|bel|yüksek bel|normal bel)\b/i, key: 'Özellik' }
+      ];
+      
+      for (const { pattern, key } of titleFeatures) {
+        const match = title.match(pattern);
+        if (match && !processedKeys.has(key.toLowerCase())) {
+          const value = match[0].charAt(0).toUpperCase() + match[0].slice(1).toLowerCase();
+          features.push({ key, value });
+          processedKeys.add(key.toLowerCase());
+          console.log(`  ✓ Başlık Çıkarımı: ${key} = ${value}`);
+        }
       }
+      
+      console.log(`📊 HTML pattern matching: ${totalFound} özellik bulundu`);
     }
     
   } catch (error) {
