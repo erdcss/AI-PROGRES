@@ -2161,91 +2161,114 @@ export function registerRoutes(app: Express): Server {
         uniqueVariants.push({ color: 'Varsayılan', size: 'Tek Beden', inStock: true });
       }
       
-      // Create single product with variant options filled in all rows
-      if (productData.images?.length > 0) {
-        // First row with all product info and first image
-        csvRows.push([
-          baseHandle,
-          productData.title,
-          productData.brand + ' ' + productData.title,
-          productData.brand,
-          'Genel',
-          '',
-          'TRUE',
-          'Renk',
-          'Varsayılan',
-          'Beden',
-          'Tek Beden',
-          baseHandle + '-default',
-          '25',
-          (productData.price?.withProfit || 0).toFixed(2).replace('.', ',').replace(/,/g, '.').replace(/\./g, ','),
-          '',
-          (productData.price?.original || 0).toFixed(2).replace('.', ',').replace(/,/g, '.').replace(/\./g, ','),
-          productData.images[0],
-          '1',
-          productData.title + ' Varsayılan Tek Beden',
-          productData.title + ' | ' + productData.brand,
-          productData.brand + ' ' + productData.title,
-          'kg',
-          'active'
-        ]);
-        
-        // Additional images as separate rows (keeping same variant)
-        for (let i = 1; i < productData.images.length; i++) {
+      // Extract real variants from product data
+      const realVariants = [];
+      const colors = new Set();
+      const sizes = new Set();
+      
+      // Get all unique colors and sizes from variants
+      if (productData.variants && productData.variants.length > 0) {
+        productData.variants.forEach(variant => {
+          if (variant.color && variant.color !== 'Varsayılan') {
+            colors.add(variant.color);
+          }
+          if (variant.size && variant.size !== 'Tek Beden') {
+            sizes.add(variant.size);
+          }
+          if (variant.inStock) {
+            realVariants.push({
+              color: variant.color || 'Varsayılan',
+              size: variant.size || 'Tek Beden',
+              inStock: variant.inStock
+            });
+          }
+        });
+      }
+      
+      // If no real variants found, use default
+      if (realVariants.length === 0) {
+        realVariants.push({ color: 'Varsayılan', size: 'Tek Beden', inStock: true });
+      }
+      
+      // Remove duplicate variant combinations
+      const uniqueRealVariants = [];
+      const seenVariantCombos = new Set();
+      realVariants.forEach(variant => {
+        const combo = `${variant.color}-${variant.size}`;
+        if (!seenVariantCombos.has(combo)) {
+          seenVariantCombos.add(combo);
+          uniqueRealVariants.push(variant);
+        }
+      });
+      
+      // Create product description with features
+      const featuresDescription = productData.features && productData.features.length > 0 
+        ? '<h3>Ürün Özellikleri:</h3><ul>' + 
+          productData.features.map(f => `<li><strong>${f.key}:</strong> ${f.value}</li>`).join('') + 
+          '</ul>'
+        : '';
+      
+      const productDescription = `${productData.brand} ${productData.title}. ${featuresDescription}`;
+      
+      // Create CSV rows for each variant
+      uniqueRealVariants.forEach((variant, variantIndex) => {
+        if (productData.images?.length > 0) {
+          productData.images.forEach((imgUrl, imgIndex) => {
+            const isFirst = variantIndex === 0 && imgIndex === 0;
+            csvRows.push([
+              baseHandle,
+              isFirst ? productData.title : '',
+              isFirst ? productDescription : '',
+              isFirst ? productData.brand : '',
+              isFirst ? 'Genel' : '',
+              isFirst && productData.features ? productData.features.map(f => f.key).join(', ') : '',
+              isFirst ? 'TRUE' : '',
+              isFirst ? 'Renk' : '',
+              variant.color,
+              isFirst ? 'Beden' : '',
+              variant.size,
+              `${baseHandle}-${variant.color.toLowerCase()}-${variant.size.toLowerCase()}-${imgIndex}`,
+              variant.inStock ? '25' : '0',
+              (productData.price?.withProfit || 0).toFixed(2).replace('.', ',').replace(/,/g, '.').replace(/\./g, ','),
+              '',
+              (productData.price?.original || 0).toFixed(2).replace('.', ',').replace(/,/g, '.').replace(/\./g, ','),
+              imgUrl,
+              String(imgIndex + 1),
+              `${productData.title} ${variant.color} ${variant.size}`,
+              isFirst ? `${productData.title} | ${productData.brand}` : '',
+              isFirst ? productDescription.substring(0, 160) : '',
+              'kg',
+              'active'
+            ]);
+          });
+        } else {
           csvRows.push([
             baseHandle,
+            variantIndex === 0 ? productData.title : '',
+            variantIndex === 0 ? productDescription : '',
+            variantIndex === 0 ? productData.brand : '',
+            variantIndex === 0 ? 'Genel' : '',
+            variantIndex === 0 && productData.features ? productData.features.map(f => f.key).join(', ') : '',
+            variantIndex === 0 ? 'TRUE' : '',
+            variantIndex === 0 ? 'Renk' : '',
+            variant.color,
+            variantIndex === 0 ? 'Beden' : '',
+            variant.size,
+            `${baseHandle}-${variant.color.toLowerCase()}-${variant.size.toLowerCase()}`,
+            variant.inStock ? '25' : '0',
+            (productData.price?.withProfit || 0).toFixed(2).replace('.', ',').replace(/,/g, '.').replace(/\./g, ','),
+            '',
+            (productData.price?.original || 0).toFixed(2).replace('.', ',').replace(/,/g, '.').replace(/\./g, ','),
             '',
             '',
-            '',
-            '',
-            '',
-            '',
-            '',
-            '',
-            '',
-            '',
-            '',
-            '',
-            '',
-            '',
-            '',
-            productData.images[i],
-            String(i + 1),
-            '',
-            '',
-            '',
-            '',
-            ''
+            `${productData.title} ${variant.color} ${variant.size}`,
+            variantIndex === 0 ? `${productData.title} | ${productData.brand}` : '',
+            variantIndex === 0 ? productDescription.substring(0, 160) : '',
+            'kg',
+            'active'
           ]);
         }
-      } else {
-        // Single variant without images
-        csvRows.push([
-          baseHandle,
-          productData.title,
-          productData.brand + ' ' + productData.title,
-          productData.brand,
-          'Genel',
-          '',
-          'TRUE',
-          'Renk',
-          'Varsayılan',
-          'Beden',
-          'Tek Beden',
-          baseHandle + '-default',
-          '25',
-          (productData.price?.withProfit || 0).toFixed(2).replace('.', ',').replace(/,/g, '.').replace(/\./g, ','),
-          '',
-          (productData.price?.original || 0).toFixed(2).replace('.', ',').replace(/,/g, '.').replace(/\./g, ','),
-          '',
-          '',
-          productData.title + ' Varsayılan Tek Beden',
-          productData.title + ' | ' + productData.brand,
-          productData.brand + ' ' + productData.title,
-          'kg',
-          'active'
-        ]);
-      }
+      });
       
       // Force exactly 23 columns and handle price formatting
       const csvContent = csvRows.map((row, rowIndex) => {
