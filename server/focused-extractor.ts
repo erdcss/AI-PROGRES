@@ -858,35 +858,59 @@ export async function extractFocusedData(url: string): Promise<FocusedProductDat
 
   console.log(`✅ Gerçek ${features.length} özellik hazır`);
 
-  // HTML'den Ürün Özellikleri tablosunu çıkar
-  console.log('🏷️ HTML\'den Ürün Özellikleri tablosu aranıyor...');
+  // İleri düzey Trendyol özellik çıkarım sistemi
+  console.log('🚀 İleri düzey Trendyol özellik çıkarımı başlatılıyor...');
   
   try {
-    const htmlContent = await page.content();
-    console.log(`📄 HTML içerik uzunluğu: ${htmlContent.length} karakter`);
+    // Önce sayfayı scroll et ve özellik bölümüne git
+    await page.evaluate(() => {
+      const productDetails = document.querySelector('[data-testid="product-detail-attributes"]') ||
+                           document.querySelector('.product-detail-attributes') ||
+                           document.querySelector('.product-features') ||
+                           document.querySelector('.detail-attr-container');
+      if (productDetails) {
+        productDetails.scrollIntoView({ behavior: 'smooth' });
+      }
+    });
     
-    // Trendyol spesifik özellik selectorları
-    const trendyolSelectors = [
-      '.product-detail-attributes table tr',
-      '.product-features table tr', 
-      '.product-specifications table tr',
-      '.detail-attr-container .detail-attr-item',
+    await page.waitForTimeout(2000); // Scroll için bekle
+    
+    // Gelişmiş Trendyol özellik selectors
+    const advancedSelectors = [
+      // Ana özellik tabloları
       '[data-testid="product-detail-attributes"] tr',
-      '.pr-in-at table tr'
+      '.product-detail-attributes tbody tr',
+      '.pr-in-at tbody tr',
+      '.detail-attr-container .detail-attr-item',
+      
+      // Özellik listeleri
+      '.product-features-list li',
+      '.specification-list .spec-item',
+      '.attributes-list .attribute-item',
+      
+      // Tablo formatları
+      'table[class*="feature"] tr',
+      'table[class*="spec"] tr',
+      'table[class*="detail"] tr',
+      
+      // Div formatları
+      '.feature-row',
+      '.spec-row',
+      '.attr-row'
     ];
     
-    // Her selector'ı dene
-    for (const selector of trendyolSelectors) {
+    console.log(`📋 ${advancedSelectors.length} gelişmiş selector test ediliyor...`);
+    
+    for (const selector of advancedSelectors) {
       try {
         const elements = await page.$$(selector);
         if (elements.length > 0) {
-          console.log(`  📋 ${selector} ile ${elements.length} özellik bulundu`);
+          console.log(`  ✅ ${selector} ile ${elements.length} özellik bulundu`);
           
           for (const element of elements) {
             try {
-              const text = await page.evaluate(el => el.textContent, element);
+              // Tablo satırları için
               const cells = await element.$$('td, th');
-              
               if (cells.length >= 2) {
                 const key = await page.evaluate(el => el.textContent?.trim(), cells[0]);
                 const value = await page.evaluate(el => el.textContent?.trim(), cells[1]);
@@ -895,11 +919,27 @@ export async function extractFocusedData(url: string): Promise<FocusedProductDat
                     !processedKeys.has(key.toLowerCase())) {
                   features.push({ key, value });
                   processedKeys.add(key.toLowerCase());
-                  console.log(`  ✓ Trendyol Tablo: ${key} = ${value}`);
+                  console.log(`  ✓ Tablo Özelliği: ${key} = ${value}`);
+                }
+              }
+              
+              // Liste öğeleri için
+              else {
+                const text = await page.evaluate(el => el.textContent?.trim(), element);
+                if (text && text.includes(':')) {
+                  const [key, ...valueParts] = text.split(':');
+                  const value = valueParts.join(':').trim();
+                  
+                  if (key && value && key.length > 1 && value.length > 0 && 
+                      !processedKeys.has(key.toLowerCase())) {
+                    features.push({ key: key.trim(), value });
+                    processedKeys.add(key.toLowerCase());
+                    console.log(`  ✓ Liste Özelliği: ${key.trim()} = ${value}`);
+                  }
                 }
               }
             } catch (err) {
-              // Element processing hatası, devam et
+              // Element işleme hatası, devam et
             }
           }
         }
@@ -908,27 +948,73 @@ export async function extractFocusedData(url: string): Promise<FocusedProductDat
       }
     }
     
-    // Basit HTML özellik çıkarımı - sadece mevcut içerikten
-    console.log('📄 HTML den basit ozellik arama...');
+    // JavaScript ile dinamik özellik çıkarımı
+    console.log('⚡ JavaScript ile dinamik özellik arama...');
     
-    // Basit özellik pattern'leri
-    const simpleFeatures = htmlContent.match(/(\w+)\s*[:：]\s*([^\n\r<>{};,]{3,50})/g);
-    if (simpleFeatures) {
-      console.log(`  📝 ${simpleFeatures.length} basit özellik bulundu`);
+    const dynamicFeatures = await page.evaluate(() => {
+      const features = [];
       
-      for (const match of simpleFeatures.slice(0, 15)) {
-        const [, key, value] = match.match(/(\w+)\s*[:：]\s*([^\n\r<>{};,]{3,50})/) || [];
+      // Tüm tablolar için özellik arama
+      const tables = document.querySelectorAll('table');
+      tables.forEach(table => {
+        const rows = table.querySelectorAll('tr');
+        rows.forEach(row => {
+          const cells = row.querySelectorAll('td, th');
+          if (cells.length >= 2) {
+            const key = cells[0].textContent?.trim();
+            const value = cells[1].textContent?.trim();
+            
+            if (key && value && key.length > 1 && value.length > 0) {
+              features.push({ key, value, source: 'dynamic-table' });
+            }
+          }
+        });
+      });
+      
+      // Özellik anahtar kelimeleri için metin arama
+      const featureKeywords = [
+        'Materyal', 'Kumaş', 'Renk', 'Beden', 'Marka', 'Model', 
+        'Özellik', 'Tip', 'Cinsiyet', 'Yaş', 'Mevsim', 'Stil',
+        'Ağırlık', 'Boyut', 'Uzunluk', 'En', 'Boy', 'Kalınlık'
+      ];
+      
+      const allText = document.body.textContent || '';
+      featureKeywords.forEach(keyword => {
+        const regex = new RegExp(`${keyword}\\s*[:：]\\s*([^\\n\\r,;]{2,50})`, 'gi');
+        const matches = allText.match(regex);
         
-        if (key && value && key.length > 2 && value.length > 2 && 
-            !processedKeys.has(key.toLowerCase())) {
-          features.push({ key: key.trim(), value: value.trim() });
-          processedKeys.add(key.toLowerCase());
-          console.log(`  ✓ HTML Basit: ${key} = ${value}`);
+        if (matches) {
+          matches.forEach(match => {
+            const parts = match.split(/[:：]/);
+            if (parts.length >= 2) {
+              const key = parts[0].trim();
+              const value = parts[1].trim();
+              
+              if (key && value) {
+                features.push({ key, value, source: 'dynamic-text' });
+              }
+            }
+          });
         }
-      }
+      });
+      
+      return features;
+    });
+    
+    if (dynamicFeatures.length > 0) {
+      console.log(`  🎯 JavaScript ile ${dynamicFeatures.length} özellik bulundu`);
+      
+      dynamicFeatures.forEach(({ key, value, source }) => {
+        if (!processedKeys.has(key.toLowerCase())) {
+          features.push({ key, value });
+          processedKeys.add(key.toLowerCase());
+          console.log(`  ✓ ${source}: ${key} = ${value}`);
+        }
+      });
     }
+    
   } catch (error) {
-    console.log(`⚠️ HTML özellik çıkarımında hata: ${error.message}`);
+    console.log(`⚠️ İleri düzey özellik çıkarımında hata: ${error.message}`);
   }
 
   // Product attributes'dan gerçek özellikler (eski sistem)
