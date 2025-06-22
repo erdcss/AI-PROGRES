@@ -2148,71 +2148,66 @@ export function registerRoutes(app: Express): Server {
           productData.images.forEach((imgUrl, imgIndex) => {
             const isFirstRow = isFirstVariant && imgIndex === 0;
             const row = [
-              baseHandle,
-              isFirstRow ? productData.title : '',
-              isFirstRow ? `${productData.brand} ${productData.title}` : '',
-              isFirstRow ? productData.brand : '',
-              isFirstRow ? 'Genel' : '',
-              '',
-              isFirstRow ? 'TRUE' : '',
-              isFirstRow ? 'Renk' : '',
-              variant.color || 'Varsayılan',
-              isFirstRow ? 'Beden' : '',
-              variant.size || 'Tek Beden',
-              `${baseHandle}-${variant.color || 'default'}-${variant.size || 'default'}`.toLowerCase(),
-              variant.inStock ? '25' : '0',
-              productData.price?.withProfit?.toFixed(2)?.replace('.', ',') || '0,00',
-              '',
-              productData.price?.original?.toFixed(2)?.replace('.', ',') || '0,00',
-              imgUrl,
-              imgIndex + 1,
-              `${productData.title} ${variant.color} ${variant.size}`,
-              isFirstRow ? `${productData.title} | ${productData.brand}` : '',
-              isFirstRow ? `${productData.brand} ${productData.title}` : '',
-              'kg',
-              'active'
+              baseHandle, // 1
+              isFirstRow ? productData.title : '', // 2
+              isFirstRow ? `${productData.brand} ${productData.title}` : '', // 3
+              isFirstRow ? productData.brand : '', // 4
+              isFirstRow ? 'Genel' : '', // 5
+              '', // 6 Tags
+              isFirstRow ? 'TRUE' : '', // 7 Published
+              isFirstRow ? 'Renk' : '', // 8 Option1 Name
+              variant.color || 'Varsayılan', // 9 Option1 Value
+              isFirstRow ? 'Beden' : '', // 10 Option2 Name
+              variant.size || 'Tek Beden', // 11 Option2 Value
+              `${baseHandle}-${variant.color || 'default'}-${variant.size || 'default'}`.toLowerCase(), // 12 Variant SKU
+              variant.inStock ? '25' : '0', // 13 Variant Inventory Qty
+              productData.price?.withProfit?.toFixed(2)?.replace('.', ',') || '0,00', // 14 Variant Price
+              '', // 15 Variant Compare At Price
+              productData.price?.original?.toFixed(2)?.replace('.', ',') || '0,00', // 16 Cost per item
+              imgUrl, // 17 Image Src
+              imgIndex + 1, // 18 Image Position
+              `${productData.title} ${variant.color} ${variant.size}`, // 19 Image Alt Text
+              isFirstRow ? `${productData.title} | ${productData.brand}` : '', // 20 SEO Title
+              isFirstRow ? `${productData.brand} ${productData.title}` : '', // 21 SEO Description
+              'kg', // 22 Variant Weight Unit
+              'active' // 23 Status
             ];
             rows.push(row);
           });
         } else {
           const row = [
-            baseHandle,
-            isFirstVariant ? productData.title : '',
-            isFirstVariant ? `${productData.brand} ${productData.title}` : '',
-            isFirstVariant ? productData.brand : '',
-            isFirstVariant ? 'Genel' : '',
-            '',
-            isFirstVariant ? 'TRUE' : '',
-            isFirstVariant ? 'Renk' : '',
-            variant.color || 'Varsayılan',
-            isFirstVariant ? 'Beden' : '',
-            variant.size || 'Tek Beden',
-            `${baseHandle}-${variant.color || 'default'}-${variant.size || 'default'}`.toLowerCase(),
-            variant.inStock ? '25' : '0',
-            productData.price?.withProfit?.toFixed(2)?.replace('.', ',') || '0,00',
-            '',
-            productData.price?.original?.toFixed(2)?.replace('.', ',') || '0,00',
-            '',
-            '',
-            `${productData.title} ${variant.color} ${variant.size}`,
-            isFirstVariant ? `${productData.title} | ${productData.brand}` : '',
-            isFirstVariant ? `${productData.brand} ${productData.title}` : '',
-            'kg',
-            'active'
+            baseHandle, // 1
+            isFirstVariant ? productData.title : '', // 2
+            isFirstVariant ? `${productData.brand} ${productData.title}` : '', // 3
+            isFirstVariant ? productData.brand : '', // 4
+            isFirstVariant ? 'Genel' : '', // 5
+            '', // 6 Tags
+            isFirstVariant ? 'TRUE' : '', // 7 Published
+            isFirstVariant ? 'Renk' : '', // 8 Option1 Name
+            variant.color || 'Varsayılan', // 9 Option1 Value
+            isFirstVariant ? 'Beden' : '', // 10 Option2 Name
+            variant.size || 'Tek Beden', // 11 Option2 Value
+            `${baseHandle}-${variant.color || 'default'}-${variant.size || 'default'}`.toLowerCase(), // 12 Variant SKU
+            variant.inStock ? '25' : '0', // 13 Variant Inventory Qty
+            productData.price?.withProfit?.toFixed(2)?.replace('.', ',') || '0,00', // 14 Variant Price
+            '', // 15 Variant Compare At Price
+            productData.price?.original?.toFixed(2)?.replace('.', ',') || '0,00', // 16 Cost per item
+            '', // 17 Image Src (empty for no image)
+            '', // 18 Image Position (empty for no image)
+            `${productData.title} ${variant.color} ${variant.size}`, // 19 Image Alt Text
+            isFirstVariant ? `${productData.title} | ${productData.brand}` : '', // 20 SEO Title
+            isFirstVariant ? `${productData.brand} ${productData.title}` : '', // 21 SEO Description
+            'kg', // 22 Variant Weight Unit
+            'active' // 23 Status
           ];
           rows.push(row);
         }
       });
       
-      // Debug and fix column count
-      console.log(`First row length: ${rows[0]?.length}, Header length: ${headers.length}`);
-      
-      // Ensure all rows have exactly 23 columns to match header
-      const normalizedRows = rows.map((row, index) => {
-        if (row.length !== 23) {
-          console.log(`Row ${index} has ${row.length} columns, adjusting to 23`);
-        }
-        return row.slice(0, 23); // Ensure exactly 23 columns
+      // Force normalize all rows to exactly 23 columns
+      const normalizedRows = rows.map(row => {
+        const fixedRow = row.slice(0, 23); // Take only first 23 elements
+        return fixedRow;
       });
       
       const csvContent = [
