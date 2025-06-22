@@ -1064,8 +1064,15 @@ export async function extractFocusedData(url: string): Promise<FocusedProductDat
           const key = match[1]?.trim().replace(/\s+/g, ' ');
           const value = match[2]?.trim().replace(/\s+/g, ' ');
           
+          // Hatalı değerleri filtrele
           if (key && value && key.length > 1 && value.length > 0 && 
               key.length < 50 && value.length < 100 &&
+              !value.includes('function()') && 
+              !value.includes('object') &&
+              !value.includes('{') &&
+              !value.includes('}') &&
+              !key.includes('script') &&
+              !key.includes('style') &&
               !processedKeys.has(key.toLowerCase())) {
             features.push({ key, value });
             processedKeys.add(key.toLowerCase());
@@ -1090,7 +1097,22 @@ export async function extractFocusedData(url: string): Promise<FocusedProductDat
           while ((match = keywordPattern.exec(fullHtmlContent)) !== null) {
             const value = match[1]?.trim().replace(/\s+/g, ' ');
             
+            // Sıkı hatalı değer filtreleme
             if (value && value.length > 0 && value.length < 100 &&
+                !value.includes('function') && 
+                !value.includes('object') &&
+                !value.includes('{') &&
+                !value.includes('}') &&
+                !value.includes('null') &&
+                !value.includes('undefined') &&
+                !value.includes('sent:') &&
+                !value.includes('()') &&
+                !value.includes('[object') &&
+                !value.includes('script') &&
+                !value.includes('var ') &&
+                !value.includes('const ') &&
+                !value.includes('let ') &&
+                !/^\d+,\w+:/.test(value) && // "0,sent:" formatını engelle
                 !processedKeys.has(keyword.toLowerCase())) {
               features.push({ key: keyword, value });
               processedKeys.add(keyword.toLowerCase());
@@ -1130,6 +1152,46 @@ export async function extractFocusedData(url: string): Promise<FocusedProductDat
       }
       
       console.log(`📊 HTML pattern matching: ${totalFound} özellik bulundu`);
+      console.log(`📄 HTML içerik boyutu: ${Math.round(fullHtmlContent.length / 1024)}KB`);
+      
+      // HTML içeriğinde Trendyol özellik tablosu arama
+      const propertyTableMatch = fullHtmlContent.match(/<table[^>]*class="[^"]*product[^"]*"[^>]*>.*?<\/table>/gi) ||
+                                  fullHtmlContent.match(/<div[^>]*class="[^"]*product-detail-attributes[^"]*"[^>]*>.*?<\/div>/gi) ||
+                                  fullHtmlContent.match(/<section[^>]*>.*?Ürün Özellikleri.*?<\/section>/gi);
+      
+      if (propertyTableMatch) {
+        console.log(`🔍 ${propertyTableMatch.length} özellik tablosu/bölümü bulundu`);
+        
+        // Her tablo/bölümden özellik çıkar
+        propertyTableMatch.forEach((tableContent, index) => {
+          const tableFeatures = tableContent.match(/<tr[^>]*>\s*<td[^>]*>([^<]+)<\/td>\s*<td[^>]*>([^<]+)<\/td>\s*<\/tr>/gi);
+          if (tableFeatures) {
+            console.log(`  📋 Tablo ${index + 1}: ${tableFeatures.length} özellik satırı`);
+            
+            tableFeatures.forEach(row => {
+              const rowMatch = row.match(/<td[^>]*>([^<]+)<\/td>\s*<td[^>]*>([^<]+)<\/td>/);
+              if (rowMatch) {
+                const key = rowMatch[1]?.trim();
+                const value = rowMatch[2]?.trim();
+                
+                if (key && value && !processedKeys.has(key.toLowerCase()) &&
+                    !value.includes('function') && !value.includes('object')) {
+                  features.push({ key, value });
+                  processedKeys.add(key.toLowerCase());
+                  totalFound++;
+                  console.log(`    ✓ Tablo Özelliği: ${key} = ${value}`);
+                }
+              }
+            });
+          }
+        });
+      }
+      
+      // Debug için HTML içeriğinden örnek özellik araması
+      const samplePropertySearch = fullHtmlContent.match(/Kalıp|Materyal|Renk|Cep|Paça/gi);
+      if (samplePropertySearch) {
+        console.log(`🔍 HTML'de bulunan örnek özellik kelimeleri: ${samplePropertySearch.slice(0, 5).join(', ')}`);
+      }
     }
     
   } catch (error) {
