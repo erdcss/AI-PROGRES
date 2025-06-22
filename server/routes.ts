@@ -2204,14 +2204,26 @@ export function registerRoutes(app: Express): Server {
         }
       });
       
-      // Convert to CSV string ensuring exactly 23 columns per row
-      const csvContent = csvRows.map(row => {
-        // Ensure exactly 23 columns
-        const normalizedRow = row.slice(0, 23);
-        while (normalizedRow.length < 23) {
-          normalizedRow.push('');
+      // Force exactly 23 columns and handle price formatting
+      const csvContent = csvRows.map((row, rowIndex) => {
+        if (rowIndex === 0) {
+          // Header row
+          return row.join(',');
         }
-        return normalizedRow.map(cell => '"' + String(cell).replace(/"/g, '""') + '"').join(',');
+        
+        // Data rows - force exactly 23 fields
+        const fields = [];
+        for (let i = 0; i < 23; i++) {
+          let value = row[i] || '';
+          
+          // Handle price fields (columns 13, 15) - remove commas to prevent splitting
+          if (i === 13 || i === 15) {
+            value = String(value).replace(/,/g, '.');
+          }
+          
+          fields.push('"' + String(value).replace(/"/g, '""') + '"');
+        }
+        return fields.join(',');
       }).join('\n');
       
       res.setHeader('Content-Type', 'text/csv; charset=utf-8');
