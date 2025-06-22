@@ -1017,6 +1017,69 @@ export async function extractFocusedData(url: string): Promise<FocusedProductDat
     console.log(`⚠️ İleri düzey özellik çıkarımında hata: ${error.message}`);
   }
 
+  // Basit HTML özellik çıkarımı - Puppeteer page kullanmadan
+  try {
+    console.log('📄 HTML içeriği direkt olarak özellik arama...');
+    
+    // HTML'i zaten fetch edilen içerikten al
+    
+    // Trendyol özellik pattern'leri
+    const trendyolPatterns = [
+      // Özellik tabloları
+      /<tr[^>]*>\s*<td[^>]*>([^<]+)<\/td>\s*<td[^>]*>([^<]+)<\/td>\s*<\/tr>/gi,
+      // Liste öğeleri
+      /<li[^>]*>([^:]+):\s*([^<]+)<\/li>/gi,
+      // Div öğeleri
+      /<div[^>]*class="[^"]*attr[^"]*"[^>]*>([^:]+):\s*([^<]+)<\/div>/gi
+    ];
+    
+    for (const pattern of trendyolPatterns) {
+      let match;
+      while ((match = pattern.exec(htmlContent)) !== null) {
+        const key = match[1]?.trim();
+        const value = match[2]?.trim();
+        
+        if (key && value && key.length > 1 && value.length > 0 && 
+            !processedKeys.has(key.toLowerCase())) {
+          features.push({ key, value });
+          processedKeys.add(key.toLowerCase());
+          console.log(`  ✓ HTML Pattern: ${key} = ${value}`);
+        }
+      }
+    }
+    
+    // Anahtar kelime bazlı özellik arama
+    const featureKeywords = [
+      'Materyal', 'Kumaş', 'Renk', 'Beden', 'Model', 'Tip', 'Cinsiyet', 
+      'Yaş Grubu', 'Mevsim', 'Stil', 'Kol Tipi', 'Yaka Tipi', 'Kesim',
+      'Ağırlık', 'Boyut', 'Uzunluk', 'Genişlik', 'Yükseklik'
+    ];
+    
+    for (const keyword of featureKeywords) {
+      const keywordPattern = new RegExp(`${keyword}\\s*[:：]\\s*([^\\n\\r<>{}]{2,50})`, 'gi');
+      const matches = htmlContent.match(keywordPattern);
+      
+      if (matches) {
+        matches.forEach(match => {
+          const parts = match.split(/[:：]/);
+          if (parts.length >= 2) {
+            const key = parts[0].trim();
+            const value = parts[1].trim();
+            
+            if (!processedKeys.has(key.toLowerCase())) {
+              features.push({ key, value });
+              processedKeys.add(key.toLowerCase());
+              console.log(`  ✓ Keyword Match: ${key} = ${value}`);
+            }
+          }
+        });
+      }
+    }
+    
+  } catch (error) {
+    console.log(`⚠️ HTML pattern çıkarımında hata: ${error.message}`);
+  }
+
   // Product attributes'dan gerçek özellikler (eski sistem)
   if (product.attributes && typeof product.attributes === 'object') {
     console.log('🏷️ Product attributes çıkarılıyor...');
