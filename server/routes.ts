@@ -1961,7 +1961,7 @@ export function registerRoutes(app: Express): Server {
     }
   });
 
-  // Ana extraction endpoint - Sadece istenen 5 veri tipi
+  // Enhanced extraction endpoint with fallback
   app.post('/api/extract', async (req, res) => {
     try {
       const { url } = req.body;
@@ -1970,23 +1970,54 @@ export function registerRoutes(app: Express): Server {
         return res.status(400).json({ error: 'URL gerekli' });
       }
 
-      const { extractFocusedData } = await import('./focused-extractor');
-      const result = await extractFocusedData(url);
+      console.log(`🎯 Extract request: ${url}`);
       
-      res.json({
-        success: true,
-        brand: result.brand,
-        title: result.title,
-        price: result.price,
-        images: result.images,
-        colorOptions: result.colorOptions,
-        sizeOptions: result.sizeOptions,
-        variants: result.variants,
-        isOutOfStock: result.isOutOfStock,
-        features: result.features
-      });
+      try {
+        const { extractFocusedData } = await import('./focused-extractor');
+        const result = await extractFocusedData(url);
+        
+        if (result && result.title && result.brand) {
+          console.log(`✅ Focused extraction successful: ${result.features?.length || 0} features`);
+          return res.json({
+            success: true,
+            brand: result.brand,
+            title: result.title,
+            price: result.price,
+            images: result.images,
+            colorOptions: result.colorOptions,
+            sizeOptions: result.sizeOptions,
+            variants: result.variants,
+            features: result.features
+          });
+        }
+      } catch (focusedError) {
+        console.log(`⚠️ Focused extraction failed: ${focusedError.message}`);
+      }
+      
+      // Fallback to AI Enhanced Scraper
+      console.log('🔄 Using AI Enhanced Scraper fallback...');
+      const { aiEnhancedScrape } = await import('./ai-enhanced-scraper');
+      const fallbackResult = await aiEnhancedScrape(url);
+      
+      if (fallbackResult && fallbackResult.success) {
+        console.log(`✅ AI Enhanced Scraper successful`);
+        return res.json({
+          success: true,
+          brand: fallbackResult.brand,
+          title: fallbackResult.title,
+          price: fallbackResult.price,
+          images: fallbackResult.images,
+          colorOptions: fallbackResult.colorOptions || [],
+          sizeOptions: fallbackResult.sizeOptions || [],
+          variants: fallbackResult.variants || [],
+          features: fallbackResult.features || []
+        });
+      }
+      
+      throw new Error('All extraction methods failed');
+      
     } catch (error) {
-      console.error('Extraction hatası:', error);
+      console.error('Extraction error:', error);
       res.status(500).json({ 
         success: false,
         error: error.message 
