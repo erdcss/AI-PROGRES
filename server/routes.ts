@@ -2144,65 +2144,80 @@ export function registerRoutes(app: Express): Server {
         'SEO Title', 'SEO Description', 'Variant Weight Unit', 'Status'
       ]);
       
-      variants.forEach((variant, variantIndex) => {
-        if (productData.images?.length > 0) {
-          productData.images.forEach((imgUrl, imgIndex) => {
-            const isFirst = variantIndex === 0 && imgIndex === 0;
-            
-            csvRows.push([
-              baseHandle,
-              isFirst ? productData.title : '',
-              isFirst ? productData.brand + ' ' + productData.title : '',
-              isFirst ? productData.brand : '',
-              isFirst ? 'Genel' : '',
-              '',
-              isFirst ? 'TRUE' : '',
-              isFirst ? 'Renk' : '',
-              variant.color || 'Varsayılan',
-              isFirst ? 'Beden' : '',
-              variant.size || 'Tek Beden',
-              baseHandle + '-' + (variant.color || 'default').toLowerCase() + '-' + (variant.size || 'default').toLowerCase(),
-              variant.inStock ? '25' : '0',
-              (productData.price?.withProfit || 0).toFixed(2).replace('.', ',').replace(/,/g, '.').replace(/\./g, ','),
-              '',
-              (productData.price?.original || 0).toFixed(2).replace('.', ',').replace(/,/g, '.').replace(/\./g, ','),
-              imgUrl,
-              String(imgIndex + 1),
-              productData.title + ' ' + (variant.color || 'Varsayılan') + ' ' + (variant.size || 'Tek Beden'),
-              isFirst ? productData.title + ' | ' + productData.brand : '',
-              isFirst ? productData.brand + ' ' + productData.title : '',
-              'kg',
-              'active'
-            ]);
-          });
-        } else {
+      // Remove duplicate variants - group by unique color/size combinations
+      const uniqueVariants = [];
+      const seenCombinations = new Set();
+      
+      variants.forEach(variant => {
+        const combination = `${variant.color || 'Varsayılan'}-${variant.size || 'Tek Beden'}`;
+        if (!seenCombinations.has(combination)) {
+          seenCombinations.add(combination);
+          uniqueVariants.push(variant);
+        }
+      });
+      
+      // If no unique variants found, create one default
+      if (uniqueVariants.length === 0) {
+        uniqueVariants.push({ color: 'Varsayılan', size: 'Tek Beden', inStock: true });
+      }
+      
+      // Create single variant with all images
+      if (productData.images?.length > 0) {
+        productData.images.forEach((imgUrl, imgIndex) => {
           csvRows.push([
             baseHandle,
-            variantIndex === 0 ? productData.title : '',
-            variantIndex === 0 ? productData.brand + ' ' + productData.title : '',
-            variantIndex === 0 ? productData.brand : '',
-            variantIndex === 0 ? 'Genel' : '',
+            imgIndex === 0 ? productData.title : '',
+            imgIndex === 0 ? productData.brand + ' ' + productData.title : '',
+            imgIndex === 0 ? productData.brand : '',
+            imgIndex === 0 ? 'Genel' : '',
             '',
-            variantIndex === 0 ? 'TRUE' : '',
-            variantIndex === 0 ? 'Renk' : '',
-            variant.color || 'Varsayılan',
-            variantIndex === 0 ? 'Beden' : '',
-            variant.size || 'Tek Beden',
-            baseHandle + '-' + (variant.color || 'default').toLowerCase() + '-' + (variant.size || 'default').toLowerCase(),
-            variant.inStock ? '25' : '0',
+            imgIndex === 0 ? 'TRUE' : '',
+            imgIndex === 0 ? 'Renk' : '',
+            imgIndex === 0 ? 'Varsayılan' : '',
+            imgIndex === 0 ? 'Beden' : '',
+            imgIndex === 0 ? 'Tek Beden' : '',
+            baseHandle + '-default-' + imgIndex,
+            '25',
             (productData.price?.withProfit || 0).toFixed(2).replace('.', ',').replace(/,/g, '.').replace(/\./g, ','),
             '',
             (productData.price?.original || 0).toFixed(2).replace('.', ',').replace(/,/g, '.').replace(/\./g, ','),
-            '',
-            '',
-            productData.title + ' ' + (variant.color || 'Varsayılan') + ' ' + (variant.size || 'Tek Beden'),
-            variantIndex === 0 ? productData.title + ' | ' + productData.brand : '',
-            variantIndex === 0 ? productData.brand + ' ' + productData.title : '',
+            imgUrl,
+            String(imgIndex + 1),
+            productData.title + ' Varsayılan Tek Beden',
+            imgIndex === 0 ? productData.title + ' | ' + productData.brand : '',
+            imgIndex === 0 ? productData.brand + ' ' + productData.title : '',
             'kg',
             'active'
           ]);
-        }
-      });
+        });
+      } else {
+        // Single variant without images
+        csvRows.push([
+          baseHandle,
+          productData.title,
+          productData.brand + ' ' + productData.title,
+          productData.brand,
+          'Genel',
+          '',
+          'TRUE',
+          'Renk',
+          'Varsayılan',
+          'Beden',
+          'Tek Beden',
+          baseHandle + '-default',
+          '25',
+          (productData.price?.withProfit || 0).toFixed(2).replace('.', ',').replace(/,/g, '.').replace(/\./g, ','),
+          '',
+          (productData.price?.original || 0).toFixed(2).replace('.', ',').replace(/,/g, '.').replace(/\./g, ','),
+          '',
+          '',
+          productData.title + ' Varsayılan Tek Beden',
+          productData.title + ' | ' + productData.brand,
+          productData.brand + ' ' + productData.title,
+          'kg',
+          'active'
+        ]);
+      }
       
       // Force exactly 23 columns and handle price formatting
       const csvContent = csvRows.map((row, rowIndex) => {
