@@ -2016,7 +2016,13 @@ export function registerRoutes(app: Express): Server {
           colorOptions: fallbackResult.colorOptions || ['Varsayılan'],
           sizeOptions: fallbackResult.sizeOptions || ['Tek Beden'],
           variants: fallbackResult.variants || [],
-          features: fallbackResult.features || []
+          features: (fallbackResult.features || []).filter(f => 
+            f && f.key && f.value &&
+            typeof f.key === 'string' && typeof f.value === 'string' &&
+            f.key.length < 30 && f.value.length < 50 &&
+            !f.key.includes('webUrl') && !f.key.includes('navigation') &&
+            !f.key.includes('unitText') && !f.value.includes('"id"')
+          ).slice(0, 15)
         });
       }
       

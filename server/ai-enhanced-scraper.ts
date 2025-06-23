@@ -226,11 +226,13 @@ export async function aiEnhancedScrape(url: string): Promise<AIEnhancedProductDa
       price: fallbackData?.price || '0',
       description: fallbackData?.description || 'Ürün açıklaması alınamadı',
       images: fallbackImages || [],
-      features: Array.isArray(basicData?.features) ? basicData.features : [
+      features: Array.isArray(basicData?.features) ? 
+        basicData.features.filter((f, index, self) => 
+          f.key && f.value && 
+          index === self.findIndex(item => item.key === f.key)
+        ).slice(0, 20) : [
         {key: 'Malzeme', value: '%100 Pamuk'},
-        {key: 'Beden', value: 'Regular Fit'},
-        {key: 'Yaka', value: 'Bisiklet Yaka'},
-        {key: 'Kol', value: 'Kısa Kol'}
+        {key: 'Beden', value: 'Regular Fit'}
       ],
       specifications: Array.isArray(basicData?.specifications) ? basicData.specifications : [
         {key: 'Model', value: '1382911-036'},

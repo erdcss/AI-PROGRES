@@ -896,47 +896,39 @@ export async function extractFocusedData(url: string): Promise<FocusedProductDat
     console.log(`⚠️ Stokta olmayan bedenler CSV'ye eklenmedi: ${Array.from(outOfStockSizes).join(', ')}`);
   }
 
-  // 6. ÖZELLİKLER - Trendyol özellik tablosu çıkarma
+  // 6. ÖZELLİKLER - Temiz ve filtrelenmiş özellik çıkarma
   const features: Array<{ key: string; value: string; }> = [];
   const processedKeys = new Set<string>();
 
-  console.log('🔍 Trendyol ürün özellikleri çıkarılıyor...');
+  console.log('🔍 Temiz ürün özellikleri çıkarılıyor...');
 
-  // Trendyol özellik tablosu arama
-  const productDetailsMatch = htmlContent.match(/<table[^>]*class="[^"]*product[^"]*"[^>]*>(.*?)<\/table>/gis);
-  if (productDetailsMatch) {
-    console.log('✅ Ürün detay tablosu bulundu');
-    
-    productDetailsMatch.forEach(tableHtml => {
-      const rowMatches = tableHtml.match(/<tr[^>]*>(.*?)<\/tr>/gis);
-      if (rowMatches) {
-        rowMatches.forEach(row => {
-          const cellMatches = row.match(/<t[dh][^>]*>(.*?)<\/t[dh]>/gis);
-          if (cellMatches && cellMatches.length >= 2) {
-            const key = cellMatches[0].replace(/<[^>]*>/g, '').trim();
-            const value = cellMatches[1].replace(/<[^>]*>/g, '').trim();
-            
-            if (key && value && !processedKeys.has(key.toLowerCase())) {
-              features.push({ key, value });
-              processedKeys.add(key.toLowerCase());
-              console.log(`  ✓ ${key}: ${value}`);
-            }
-          }
-        });
+  // Product attributes'dan temiz özellikler
+  if (product.attributes && typeof product.attributes === 'object') {
+    Object.entries(product.attributes).forEach(([key, value]) => {
+      if (key && value && typeof value === 'string' && 
+          key.length < 50 && value.length < 100 &&
+          !key.includes('webUrl') && !key.includes('navigation') &&
+          !key.includes('id') && !key.includes('unitText') &&
+          !processedKeys.has(key.toLowerCase())) {
+        
+        const cleanKey = key.trim().replace(/[",]/g, '');
+        const cleanValue = value.trim().replace(/[",]/g, '');
+        
+        if (cleanKey && cleanValue) {
+          features.push({ key: cleanKey, value: cleanValue });
+          processedKeys.add(cleanKey.toLowerCase());
+          console.log(`  ✓ ${cleanKey}: ${cleanValue}`);
+        }
       }
     });
   }
 
-  // Product attributes'dan ek özellikler
-  if (product.attributes && typeof product.attributes === 'object') {
-    Object.entries(product.attributes).forEach(([key, value]) => {
-      if (key && value && typeof value === 'string' && 
-          !processedKeys.has(key.toLowerCase())) {
-        features.push({ key: key.trim(), value: value.trim() });
-        processedKeys.add(key.toLowerCase());
-        console.log(`  ✓ Attribute: ${key} = ${value}`);
-      }
-    });
+  // Varsayılan özellikler ekle (eğer hiç özellik yoksa)
+  if (features.length === 0) {
+    features.push(
+      { key: 'Marka', value: brand },
+      { key: 'Ürün Tipi', value: category || 'Giyim' }
+    );
   }
   
   // Sadece marka bilgisini ekle (kritik)
