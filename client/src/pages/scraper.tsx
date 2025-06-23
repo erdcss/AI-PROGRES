@@ -635,19 +635,56 @@ function ScraperPage({ platform = 'trendyol' }: ScraperPageProps) {
           animate={product ? { y: -20, scale: 0.95, opacity: 0.8 } : { y: 0, scale: 1, opacity: 1 }}
           className=""
         >
-          <div className="text-center mb-6">
-            <div className="flex justify-center mb-4">
-              {currentPlatform.logo}
+          <div className="bg-gradient-to-br from-gray-800/50 to-gray-900/50 backdrop-blur-sm rounded-2xl border border-gray-700 p-8 mb-6">
+            {/* Header Row */}
+            <div className="flex items-center justify-between mb-6">
+              <div className="flex items-center gap-6">
+                {/* Logo */}
+                <div className="relative">
+                  <div className="w-12 h-12 bg-gradient-to-br from-red-500 via-red-600 to-orange-500 rounded-2xl flex items-center justify-center shadow-xl">
+                    <span className="text-white font-bold text-xl">T</span>
+                  </div>
+                  <div className="absolute -top-1 -right-1 bg-green-400 rounded-full p-1 animate-pulse">
+                    <div className="h-2 w-2 bg-white rounded-full"></div>
+                  </div>
+                </div>
+                
+                {/* Brand & Title */}
+                <div>
+                  <div className="flex items-center gap-3 mb-1">
+                    <h1 className="text-xl font-bold text-red-400">Trendyol</h1>
+                    <span className="text-gray-500">•</span>
+                    <h2 className="text-xl font-bold bg-gradient-to-r from-white to-gray-300 bg-clip-text text-transparent">
+                      Ürün Aktarıcı
+                    </h2>
+                  </div>
+                  <p className="text-sm text-gray-400">
+                    Trendyol ürün verilerini Shopify'a uyumlu formata dönüştürün
+                  </p>
+                </div>
+              </div>
+              
+              {/* Version & Developer Info */}
+              <div className="text-right text-xs text-gray-500 space-y-1">
+                <div className="flex items-center gap-2 justify-end">
+                  <div className="h-1.5 w-1.5 bg-green-400 rounded-full animate-pulse"></div>
+                  <span>trendyol.com için optimize edilmiştir</span>
+                </div>
+                <div>ERDEM ÇALIŞKAN tarafından geliştirilmiştir</div>
+                <div className="flex items-center gap-2 justify-end">
+                  <div className="h-1.5 w-1.5 bg-purple-400 rounded-full"></div>
+                  <span className="font-mono text-purple-300">Versiyon 0.13.1006</span>
+                </div>
+              </div>
             </div>
-            <h1 className="text-2xl font-bold mb-2">Ürün Aktarıcı</h1>
-            <p className="text-sm text-gray-400">
-              {currentPlatform.name} ürün verilerini Shopify'a uyumlu formata dönüştürün
-            </p>
-            <p className="text-xs text-gray-500 mt-2">
-              {currentPlatform.domain} için optimize edilmiştir
-            </p>
-            <p className="text-xs text-gray-500 mt-1">ERDEM ÇALIŞGAN tarafından geliştirilmiştir</p>
-            <p className="text-xs text-gray-600 mt-1">Versiyon 0.13.1006</p>
+            
+            {/* Info Badge */}
+            <div className="text-center">
+              <div className="inline-flex items-center gap-2 bg-gray-700/30 px-4 py-2 rounded-lg text-gray-300 text-sm">
+                <div className="h-2 w-2 bg-blue-400 rounded-full animate-pulse"></div>
+                <span>AI destekli analiz ve Shopify uyumlu CSV dönüştürme</span>
+              </div>
+            </div>
           </div>
 
           {error && (
