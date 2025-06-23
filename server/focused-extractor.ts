@@ -11,7 +11,7 @@ import { Page } from 'puppeteer';
 import * as cheerio from 'cheerio';
 import { filterOutOfStockSizes } from './trendyol-stock-filter';
 import { extractDetailedFeatures, standardizeFeatureKey } from './product-features-extractor';
-import { TrendyolAttribute, TRENDYOL_ATTRIBUTES_MAPPING, convertAttributesToDescription, filterValidAttributes } from './trendyol-attribute-mapper';
+// import { TrendyolAttribute, TRENDYOL_ATTRIBUTES_MAPPING, convertAttributesToDescription, filterValidAttributes } from './trendyol-attribute-mapper';
 
 // Türk sayı formatı fonksiyonu
 function formatTurkishNumber(num: number): string {

@@ -210,7 +210,7 @@ export async function aiEnhancedScrape(url: string): Promise<AIEnhancedProductDa
       title: basicData.title,
       brand: basicData.brand,
       price: basicData.price,
-      description: convertAttributesToDescription(finalFeatures.map(f => ({ name: f.key, value: f.value }))),
+      description: finalFeatures.map(f => `${f.key}: ${f.value}`).join(' | '),
       images: Array.isArray(basicData.images) ? basicData.images : [],
       features: finalFeatures,
       specifications: Array.isArray(basicData.specifications) ? basicData.specifications : [],
@@ -226,9 +226,10 @@ export async function aiEnhancedScrape(url: string): Promise<AIEnhancedProductDa
     console.error('AI-destekli scraping hatası:', error.message);
     
     // Extract basic data even on error
-    const $ = cheerio.load(htmlContent);
-    const fallbackData = extractBasicData($, htmlContent);
-    const fallbackImages = extractOriginalProductImages(htmlContent);
+    const fallbackHTML = htmlContent || '';
+    const $ = cheerio.load(fallbackHTML);
+    const fallbackData = extractBasicData($, fallbackHTML);
+    const fallbackImages = extractOriginalProductImages(fallbackHTML);
     
     return {
       success: true,
