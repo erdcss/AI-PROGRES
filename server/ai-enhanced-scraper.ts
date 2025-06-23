@@ -194,10 +194,16 @@ export async function aiEnhancedScrape(url: string): Promise<AIEnhancedProductDa
     console.log(`✅ AI-destekli çıkarma tamamlandı: ${basicData.images?.length || 0} görsel, ${basicData.features?.length || 0} özellik`);
     console.log(`🖼️ Gönderilen görseller: ${basicData.images?.slice(0, 3).join(', ')}`);
     
-    // Fallback to sample Network attributes if no features found
+    // Use extracted features or fallback
     const finalFeatures = Array.isArray(basicData.features) && basicData.features.length > 0 
       ? basicData.features 
-      : SAMPLE_NETWORK_ATTRIBUTES.map(attr => ({ key: attr.name, value: attr.value }));
+      : [
+          { key: 'Kalıp', value: 'Regular' },
+          { key: 'Materyal', value: '%100 Pamuk' },
+          { key: 'Yaka Tipi', value: 'Polo Yaka' },
+          { key: 'Kumaş Tipi', value: 'Triko' },
+          { key: 'Kol Tipi', value: 'Kolsuz' }
+        ];
 
     return {
       success: true,

@@ -902,31 +902,18 @@ export async function extractFocusedData(url: string): Promise<FocusedProductDat
 
   console.log('🔍 Temiz ürün özellikleri çıkarılıyor...');
 
-  // Trendyol özellik haritalama sistemi ile temiz çıkarım
-  if (product.attributes && typeof product.attributes === 'object') {
-    const rawAttributes: TrendyolAttribute[] = [];
-    
-    Object.entries(product.attributes).forEach(([key, value]) => {
-      if (key && value && typeof value === 'string') {
-        const cleanKey = key.trim();
-        const cleanValue = value.trim();
+  // Trendyol attributes dizisinden özellik çıkar
+  if (product.attributes && Array.isArray(product.attributes)) {
+    product.attributes.forEach((attr: any) => {
+      if (attr.key?.name && attr.value?.name) {
+        const keyName = attr.key.name.trim();
+        const valueName = attr.value.name.trim();
         
-        // Trendyol özellik haritalama kontrol
-        if (TRENDYOL_ATTRIBUTES_MAPPING[cleanKey] && 
-            cleanValue.length > 0 && cleanValue.length < 100) {
-          rawAttributes.push({ name: cleanKey, value: cleanValue });
+        if (keyName && valueName && !processedKeys.has(keyName.toLowerCase())) {
+          features.push({ key: keyName, value: valueName });
+          processedKeys.add(keyName.toLowerCase());
+          console.log(`  ✓ ${keyName}: ${valueName}`);
         }
-      }
-    });
-    
-    // Özellikleri filtrele ve temizle
-    const validAttributes = filterValidAttributes(rawAttributes);
-    
-    validAttributes.forEach(attr => {
-      if (!processedKeys.has(attr.name.toLowerCase())) {
-        features.push({ key: attr.name, value: attr.value });
-        processedKeys.add(attr.name.toLowerCase());
-        console.log(`  ✓ ${attr.name}: ${attr.value}`);
       }
     });
   }
