@@ -276,12 +276,19 @@ function extractBasicData($: cheerio.CheerioAPI, htmlContent: string) {
     brand,
     price: priceData.main,
     description,
-    images: [], // Bu optimize edilmiş fonksiyondan gelecek
-    features: productFeatures.features,
+    images: [],
+    features: productFeatures.features.filter(f => 
+      f && f.key && f.value &&
+      typeof f.key === 'string' && typeof f.value === 'string' &&
+      f.key.length < 30 && f.value.length < 50 &&
+      !f.key.includes('webUrl') && !f.key.includes('navigation') &&
+      !f.key.includes('unitText') && !f.value.includes('"id"') &&
+      !f.value.includes('navigationGwUrl')
+    ).slice(0, 10),
     specifications: productFeatures.specifications,
     materials: productFeatures.materials,
     careInstructions: productFeatures.careInstructions,
-    variants: { colors: [], sizes: [] } // Bu stock variants'tan gelecek
+    variants: { colors: [], sizes: [] }
   };
 }
 

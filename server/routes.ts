@@ -2016,13 +2016,17 @@ export function registerRoutes(app: Express): Server {
           colorOptions: fallbackResult.colorOptions || ['Varsayılan'],
           sizeOptions: fallbackResult.sizeOptions || ['Tek Beden'],
           variants: fallbackResult.variants || [],
-          features: (fallbackResult.features || []).filter(f => 
-            f && f.key && f.value &&
-            typeof f.key === 'string' && typeof f.value === 'string' &&
-            f.key.length < 30 && f.value.length < 50 &&
-            !f.key.includes('webUrl') && !f.key.includes('navigation') &&
-            !f.key.includes('unitText') && !f.value.includes('"id"')
-          ).slice(0, 15)
+          features: (fallbackResult.features || []).filter(f => {
+            if (!f || !f.key || !f.value || typeof f.key !== 'string' || typeof f.value !== 'string') return false;
+            
+            const validFeatures = ['Kalıp', 'Materyal', 'Kumaş', 'Renk', 'Beden', 'Yaka', 'Kol', 'Desen', 'Boy', 'Cep'];
+            const invalidPatterns = ['size:', 'color:', 'margin:', 'font-', 'px;', 'schema', 'https:', '//', 'webUrl', 'navigation', 'unitText', '"id"'];
+            
+            const hasValidFeature = validFeatures.some(vf => f.key.includes(vf));
+            const hasInvalidPattern = invalidPatterns.some(ip => f.key.includes(ip) || f.value.includes(ip));
+            
+            return hasValidFeature && !hasInvalidPattern && f.key.length < 30 && f.value.length < 50;
+          }).slice(0, 10)
         });
       }
       
