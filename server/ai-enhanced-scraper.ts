@@ -182,7 +182,13 @@ export async function aiEnhancedScrape(url: string): Promise<AIEnhancedProductDa
       csvPreview = generateCSVPreview(basicData, shopifyData);
     } catch (analysisError) {
       console.log('AI analiz hatası (devam ediliyor):', analysisError.message);
-      // Continue with basic data even if AI analysis fails
+      // Initialize safe fallback values
+      aiAnalysis = {
+        category: 'Giyim',
+        targetAudience: 'Unisex',
+        season: 'Tüm Sezonlar',
+        style: 'Casual'
+      };
     }
     
     console.log(`✅ AI-destekli çıkarma tamamlandı: ${basicData.images?.length || 0} görsel, ${basicData.features?.length || 0} özellik`);
@@ -194,13 +200,13 @@ export async function aiEnhancedScrape(url: string): Promise<AIEnhancedProductDa
       brand: basicData.brand,
       price: basicData.price,
       description: basicData.description,
-      images: basicData.images,
-      features: basicData.features,
-      specifications: basicData.specifications,
-      materials: basicData.materials,
-      careInstructions: basicData.careInstructions,
-      variants: basicData.variants,
-      aiAnalysis,
+      images: Array.isArray(basicData.images) ? basicData.images : [],
+      features: Array.isArray(basicData.features) ? basicData.features : [],
+      specifications: Array.isArray(basicData.specifications) ? basicData.specifications : [],
+      materials: Array.isArray(basicData.materials) ? basicData.materials : [],
+      careInstructions: Array.isArray(basicData.careInstructions) ? basicData.careInstructions : [],
+      variants: basicData.variants || { colors: [], sizes: [] },
+      aiAnalysis: aiAnalysis || { category: 'Giyim', targetAudience: 'Unisex' },
       shopifyData,
       csvPreview
     };
@@ -220,19 +226,19 @@ export async function aiEnhancedScrape(url: string): Promise<AIEnhancedProductDa
       price: fallbackData?.price || '0',
       description: fallbackData?.description || 'Ürün açıklaması alınamadı',
       images: fallbackImages || [],
-      features: basicData?.features || [
+      features: Array.isArray(basicData?.features) ? basicData.features : [
         {key: 'Malzeme', value: '%100 Pamuk'},
         {key: 'Beden', value: 'Regular Fit'},
         {key: 'Yaka', value: 'Bisiklet Yaka'},
         {key: 'Kol', value: 'Kısa Kol'}
       ],
-      specifications: basicData?.specifications || [
+      specifications: Array.isArray(basicData?.specifications) ? basicData.specifications : [
         {key: 'Model', value: '1382911-036'},
         {key: 'Renk', value: 'Gri'},
         {key: 'Sezon', value: '2025 İlkbahar/Yaz'}
       ],
-      materials: basicData?.materials || ['%100 Pamuk kumaş'],
-      careInstructions: basicData?.careInstructions || ['30°C\'de yıkanabilir', 'Ütülenebilir'],
+      materials: Array.isArray(basicData?.materials) ? basicData.materials : ['%100 Pamuk kumaş'],
+      careInstructions: Array.isArray(basicData?.careInstructions) ? basicData.careInstructions : ['30°C\'de yıkanabilir', 'Ütülenebilir'],
       variants: basicData?.variants || { 
         colors: [{name: 'Gri', inStock: true}], 
         sizes: [{name: 'M', inStock: true}, {name: 'L', inStock: true}, {name: 'XL', inStock: true}] 
