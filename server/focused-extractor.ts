@@ -18,12 +18,106 @@ function formatTurkishNumber(num: number): string {
   const parts = rounded.toFixed(2).split('.');
   const integerPart = parts[0];
   const decimalPart = parts[1];
+  
+  // Türk sayı formatı: 1.000.000,99 (nokta binlik ayırıcı, virgül ondalık ayırıcı)
   const formattedInteger = integerPart.replace(/\B(?=(\d{3})+(?!\d))/g, '.');
   return `${formattedInteger},${decimalPart}`;
 }
 
 function formatTurkishPrice(num: number): string {
   return `${formatTurkishNumber(num)} TL`;
+}
+
+// Gelişmiş fiyat çıkarma fonksiyonu
+function extractPriceFromContent(htmlContent: string, product: any): {price: number, found: boolean} {
+  console.log('💰 Gelişmiş fiyat çıkarma başlatılıyor...');
+  
+  // 1. JSON'dan fiyat çıkarma - öncelikli
+  const jsonPricePatterns = [
+    /"price":\s*(\d+(?:\.\d+)?)/,
+    /"sellingPrice"[^}]*"value":\s*(\d+(?:\.\d+)?)/,
+    /"originalPrice"[^}]*"value":\s*(\d+(?:\.\d+)?)/,
+    /"amount":\s*(\d+(?:\.\d+)?)/,
+    /"priceValue":\s*(\d+(?:\.\d+)?)/
+  ];
+  
+  for (const pattern of jsonPricePatterns) {
+    const match = htmlContent.match(pattern);
+    if (match) {
+      let price = parseFloat(match[1]);
+      
+      // Türk Lirası fiyat düzeltmeleri
+      if (price < 10) {
+        price = price * 100; // 4.29 → 429
+      } else if (price > 100000) {
+        price = price / 100; // 42999 → 429.99
+      }
+      
+      console.log(`  ✅ JSON'dan fiyat: ${price} TL`);
+      return {price, found: true};
+    }
+  }
+  
+  // 2. HTML'den Türk Lirası fiyat formatları
+  const turkishPricePatterns = [
+    // 1.999,99 TL formatı
+    /(\d{1,3}(?:\.\d{3})*,\d{2})\s*TL/,
+    // 999,99 TL formatı
+    /(\d+,\d{2})\s*TL/,
+    // TL 1.999,99 formatı
+    /TL\s*(\d{1,3}(?:\.\d{3})*,\d{2})/,
+    // ₺ sembollü format
+    /₺\s*(\d{1,3}(?:\.\d{3})*,\d{2})/,
+    // Span/div içinde fiyat
+    /<[^>]*class="[^"]*price[^"]*"[^>]*>.*?(\d{1,3}(?:\.\d{3})*,\d{2}).*?TL/,
+    // Data attribute'larda fiyat
+    /data-price="(\d+(?:\.\d+)?)"/
+  ];
+  
+  for (const pattern of turkishPricePatterns) {
+    const match = htmlContent.match(pattern);
+    if (match) {
+      let priceStr = match[1];
+      
+      // Türk formatından sayıya çevirme: 1.999,99 → 1999.99
+      let price = parseFloat(priceStr.replace(/\./g, '').replace(',', '.'));
+      
+      if (price > 10 && price < 1000000) {
+        console.log(`  ✅ HTML'den Türk fiyat formatı: ${price} TL`);
+        return {price, found: true};
+      }
+    }
+  }
+  
+  // 3. Product objesinden fiyat
+  if (product) {
+    const productPriceFields = [
+      product.price,
+      product.sellingPrice,
+      product.originalPrice,
+      product.amount,
+      product.priceValue
+    ];
+    
+    for (const priceField of productPriceFields) {
+      if (priceField && typeof priceField === 'number' && priceField > 0) {
+        let price = priceField;
+        
+        // Fiyat düzeltmeleri
+        if (price < 10) {
+          price = price * 100;
+        } else if (price > 100000) {
+          price = price / 100;
+        }
+        
+        console.log(`  ✅ Product objesinden fiyat: ${price} TL`);
+        return {price, found: true};
+      }
+    }
+  }
+  
+  console.log('  ⚠️ Fiyat bulunamadı, varsayılan değer kullanılacak');
+  return {price: 99.99, found: false};
 }
 
 export interface FocusedProductData {
@@ -706,7 +800,7 @@ export async function extractFocusedData(url: string): Promise<FocusedProductDat
   }
 
   // Renk ve beden seçeneklerini arraye çevir
-  const colorOptions = Array.from(colorSet).filter(color => 
+  const extractedColors = Array.from(colorSet).filter(color => 
     color !== 'Varsayılan' && color.length > 0 && !color.includes('undefined')
   );
 
@@ -772,7 +866,7 @@ export async function extractFocusedData(url: string): Promise<FocusedProductDat
   console.log(`🔧 Final beden listesi: [${sortedSizes.join(', ')}]`);
 
   console.log(`✓ Varyantlar: ${variants.length} adet`);
-  console.log(`✓ Renk seçenekleri: ${colorOptions.length} adet - ${colorOptions.join(', ')}`);
+  console.log(`✓ Renk seçenekleri: ${extractedColors.length} adet - ${extractedColors.join(', ')}`);
   console.log(`✓ Beden seçenekleri: ${sizeOptions.length} adet - ${sizeOptions.join(', ')} (SADECE STOKTA OLANLAR)`);
 
   if (outOfStockSizes.size > 0) {
@@ -1487,7 +1581,7 @@ export async function extractFocusedData(url: string): Promise<FocusedProductDat
       title,
       price: priceData,
       images,
-      colorOptions: finalColors,
+      colorOptions: extractedColors,
       sizeOptions: finalSizes,
       variants: organizedVariants,
       stockAnalysis: {
