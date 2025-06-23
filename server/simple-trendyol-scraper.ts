@@ -129,20 +129,87 @@ export async function simpleTrendyolScrape(url: string): Promise<SimpleTrendyolD
     const images: string[] = [];
     const imageSet = new Set<string>();
     
-    // JSON'dan görselleri al
+    // Kapsamlı görsel çıkarımı - JSON'dan
     try {
       const imageStateMatch = html.match(/window\.__PRODUCT_DETAIL_APP_INITIAL_STATE__\s*=\s*({.*?});/s);
       if (imageStateMatch) {
         const imageData = JSON.parse(imageStateMatch[1]);
+        console.log(`🔍 JSON'dan görsel arama başlatılıyor...`);
         
+        // Ana ürün görselleri - direkt images dizisi
         if (imageData.product?.images && Array.isArray(imageData.product.images)) {
-          imageData.product.images.forEach((img: any) => {
-            if (img.url && typeof img.url === 'string') {
-              const imageUrl = img.url.startsWith('//') ? 'https:' + img.url : img.url;
-              if (imageUrl.includes('cdn.dsmcdn.com') && !imageSet.has(imageUrl)) {
-                imageSet.add(imageUrl);
-                images.push(imageUrl);
-                console.log(`📸 JSON görsel: ${imageUrl.substring(0, 80)}...`);
+          console.log(`📸 Ana ürün: ${imageData.product.images.length} görsel bulundu`);
+          imageData.product.images.forEach((img: any, index: number) => {
+            let imageUrl = '';
+            
+            // String veya object kontrolü
+            if (typeof img === 'string') {
+              imageUrl = img;
+            } else if (img?.url) {
+              imageUrl = img.url;
+            }
+            
+            if (imageUrl) {
+              // Full URL oluştur
+              if (imageUrl.startsWith('/')) {
+                imageUrl = 'https://cdn.dsmcdn.com' + imageUrl;
+              } else if (imageUrl.startsWith('//')) {
+                imageUrl = 'https:' + imageUrl;
+              }
+              
+              // Yüksek kaliteye çevir
+              const highQualityUrl = imageUrl
+                .replace('/mnresize/170/247/', '/mnresize/1200/1800/')
+                .replace('/mnresize/200/300/', '/mnresize/1200/1800/');
+              
+              if (!imageSet.has(highQualityUrl)) {
+                imageSet.add(highQualityUrl);
+                images.push(highQualityUrl);
+                console.log(`   ${index + 1}. ${highQualityUrl.split('/').pop()}`);
+              }
+            }
+          });
+        }
+        
+        // Varyant görselleri
+        if (imageData.product?.allVariants && Array.isArray(imageData.product.allVariants)) {
+          imageData.product.allVariants.forEach((variant: any) => {
+            if (variant.images && Array.isArray(variant.images)) {
+              variant.images.forEach((vImg: any) => {
+                let variantUrl = vImg.url || vImg.imageUrl || vImg;
+                if (variantUrl && typeof variantUrl === 'string') {
+                  if (variantUrl.startsWith('//')) {
+                    variantUrl = 'https:' + variantUrl;
+                  }
+                  
+                  const highQualityVariantUrl = variantUrl
+                    .replace('/mnresize/170/247/', '/mnresize/1200/1800/')
+                    .replace('_200x200.jpg', '_org_zoom.jpg');
+                  
+                  if (highQualityVariantUrl.includes('cdn.dsmcdn.com') && !imageSet.has(highQualityVariantUrl)) {
+                    imageSet.add(highQualityVariantUrl);
+                    images.push(highQualityVariantUrl);
+                    console.log(`   📸 Varyant görsel: ${highQualityVariantUrl.substring(50, 100)}...`);
+                  }
+                }
+              });
+            }
+          });
+        }
+        
+        // Galeri görselleri
+        if (imageData.product?.productDetail?.gallery && Array.isArray(imageData.product.productDetail.gallery)) {
+          imageData.product.productDetail.gallery.forEach((galImg: any) => {
+            let galleryUrl = galImg.url || galImg.imageUrl || galImg;
+            if (galleryUrl && typeof galleryUrl === 'string') {
+              if (galleryUrl.startsWith('//')) {
+                galleryUrl = 'https:' + galleryUrl;
+              }
+              
+              if (galleryUrl.includes('cdn.dsmcdn.com') && !imageSet.has(galleryUrl)) {
+                imageSet.add(galleryUrl);
+                images.push(galleryUrl);
+                console.log(`   📸 Galeri görsel: ${galleryUrl.substring(50, 100)}...`);
               }
             }
           });
@@ -152,20 +219,24 @@ export async function simpleTrendyolScrape(url: string): Promise<SimpleTrendyolD
       console.log(`⚠️ Görsel JSON parse hatası: ${e.message}`);
     }
     
-    // Fallback: DOM'dan görsel toplama
-    if (images.length < 3) {
-      $('img').each((i, img) => {
-        const src = $(img).attr('src') || $(img).attr('data-src') || '';
-        if (src.includes('cdn.dsmcdn.com') && src.includes('prod') && images.length < 8) {
-          const fullUrl = src.startsWith('//') ? 'https:' + src : src;
-          if (fullUrl.includes('_org_zoom.jpg') && !imageSet.has(fullUrl)) {
-            imageSet.add(fullUrl);
-            images.push(fullUrl);
-            console.log(`📸 DOM görsel: ${fullUrl.substring(0, 80)}...`);
-          }
+    // Regex ile path-only görsel URL'leri bul
+    const pathPattern = /\/ty\d+\/prod\/[^"'\s,\]]+\.jpg/g;
+    const pathMatches = html.match(pathPattern);
+    if (pathMatches) {
+      console.log(`🔍 ${pathMatches.length} görsel path bulundu`);
+      pathMatches.forEach((path, index) => {
+        const fullUrl = 'https://cdn.dsmcdn.com/mnresize/1200/1800' + path;
+        if (!imageSet.has(fullUrl)) {
+          imageSet.add(fullUrl);
+          images.push(fullUrl);
+          console.log(`   ${images.length}. ${path.split('/').pop()}`);
         }
       });
     }
+    
+    // Benzersiz görselleri filtrele ve sırala
+    const uniqueImages = Array.from(new Set(images)).slice(0, 8);
+    console.log(`✅ Toplam ${uniqueImages.length} benzersiz görsel bulundu`);
     
     // 3. Özellikler - Düzeltilmiş JSON parsing
     const features: Array<{key: string, value: string}> = [];
@@ -304,7 +375,7 @@ export async function simpleTrendyolScrape(url: string): Promise<SimpleTrendyolD
       title,
       brand,
       price: priceObject,
-      images,
+      images: uniqueImages,
       features,
       variants
     };
