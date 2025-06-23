@@ -5,7 +5,13 @@
 export interface SimpleProductData {
   title: string;
   brand: string;
-  price: string;
+  price: {
+    original: number;
+    currency: string;
+    formatted: string;
+    withProfit: number;
+    profitFormatted: string;
+  };
   images: string[];
   features: Array<{key: string, value: string}>;
   variants: Array<{color: string, size: string, inStock: boolean}>;
@@ -22,13 +28,9 @@ export function generateSimpleCSV(data: SimpleProductData): string {
     .map(f => `${f.key}: ${f.value}`)
     .join(' | ');
   
-  // Fiyat hesaplama (%10 kar marjı) - Türk formatı
-  const originalPrice = parseFloat(data.price.replace(/[^\d,]/g, '').replace(',', '.')) || 1924;
-  const profitPrice = Math.round(originalPrice * 1.10 * 100) / 100;
-  const formattedPrice = profitPrice.toLocaleString('tr-TR', {
-    minimumFractionDigits: 2,
-    maximumFractionDigits: 2
-  }).replace('.', ',') + ' TL';
+  // Kar marjlı fiyat - direkt obje'den al
+  const profitPrice = data.price.withProfit;
+  const formattedPrice = data.price.profitFormatted;
   
   // CSV başlıkları
   const headers = [
