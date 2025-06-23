@@ -341,3 +341,12 @@ export class EnhancedTrendyolHandler {
     return [...new Set(categories)]; // Tekrarları kaldır
   }
 }
+
+// Export the main function for external use
+export async function scrapeTrendyolProduct(url: string): Promise<{
+  success: boolean;
+  data?: TrendyolProductData;
+  error?: string;
+}> {
+  return EnhancedTrendyolHandler.extractProduct(url);
+}

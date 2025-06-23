@@ -1,4 +1,4 @@
-import { scrapeTrendyolProduct } from './enhanced-trendyol-handler';
+import { scrapeTrendyolProduct } from './enhanced-trendyol-handler-fixed';
 import { generateVariantSpecificCSV } from './variant-specific-csv-generator';
 import fs from 'fs';
 import path from 'path';
