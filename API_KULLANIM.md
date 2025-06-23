@@ -14,7 +14,7 @@ POST /api/extract
 
 ## Kullanım
 ```bash
-curl -X POST http://localhost:5000/api/extract \
+curl -X POST http://localhost:3000/api/extract \
   -H "Content-Type: application/json" \
   -d '{"url": "https://www.trendyol.com/ÜRÜN-LINKI"}'
 ```

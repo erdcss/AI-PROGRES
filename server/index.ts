@@ -271,10 +271,10 @@ app.use((req, res, next) => {
     serveStatic(app);
   }
 
-  // Serving the app on port 5000
+  // Serving the app on port 3000
   // this serves both the API and the client.
-  // Port 5000 is expected by the Replit workflow
-  const port = 5000;
+  // Port 3000 is expected by the deployment
+  const port = process.env.PORT || 3000;
   
   // Graceful shutdown handling
   process.on('SIGTERM', () => {

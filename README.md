@@ -98,7 +98,7 @@ npm run db:push
 npm run dev
 ```
 
-Uygulama varsayılan olarak 5000 portunda çalışacaktır: http://localhost:5000
+Uygulama varsayılan olarak 3000 portunda çalışacaktır: http://localhost:3000
 
 ## Kullanım
 
