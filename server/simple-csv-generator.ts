@@ -22,10 +22,13 @@ export function generateSimpleCSV(data: SimpleProductData): string {
     .map(f => `${f.key}: ${f.value}`)
     .join(' | ');
   
-  // Fiyat hesaplama (%10 kar marjı)
+  // Fiyat hesaplama (%10 kar marjı) - Türk formatı
   const originalPrice = parseFloat(data.price.replace(/[^\d,]/g, '').replace(',', '.')) || 1924;
   const profitPrice = Math.round(originalPrice * 1.10 * 100) / 100;
-  const formattedPrice = profitPrice.toFixed(2).replace('.', ',');
+  const formattedPrice = profitPrice.toLocaleString('tr-TR', {
+    minimumFractionDigits: 2,
+    maximumFractionDigits: 2
+  }).replace('.', ',') + ' TL';
   
   // CSV başlıkları
   const headers = [

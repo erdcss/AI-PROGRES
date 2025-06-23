@@ -1994,10 +1994,10 @@ export function registerRoutes(app: Express): Server {
         console.log(`⚠️ Focused extraction failed: ${focusedError.message}`);
       }
       
-      // Fallback to AI Enhanced Scraper
-      console.log('🔄 Using AI Enhanced Scraper fallback...');
-      const { aiEnhancedScrape } = await import('./ai-enhanced-scraper');
-      const fallbackResult = await aiEnhancedScrape(url);
+      // Use Simple Scraper
+      console.log('🔄 Using Simple Scraper...');
+      const { simpleTrendyolScrape } = await import('./simple-trendyol-scraper');
+      const fallbackResult = await simpleTrendyolScrape(url);
       
       if (fallbackResult && fallbackResult.success) {
         console.log(`✅ AI Enhanced Scraper successful`);
