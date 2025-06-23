@@ -486,37 +486,26 @@ export async function extractFocusedData(url: string): Promise<FocusedProductDat
 
   console.log('🔍 AllVariants işleniyor...');
 
-  // Önce renk seçeneklerini çıkar
-  const colorOptions = await page.evaluate(() => {
-    const colors: string[] = [];
-    
-    // Trendyol renk seçici stratejileri
-    const colorSelectors = [
-      'button[data-testid*="color"]',
-      '[class*="color-option"] button',
-      '[class*="colorOption"] button',
-      '.pr-in-cn button',
-      '.color-variant button',
-      '[data-variant="color"] button'
-    ];
-    
-    for (const selector of colorSelectors) {
-      const buttons = document.querySelectorAll(selector);
-      if (buttons.length > 0) {
-        buttons.forEach(button => {
-          const colorText = button.getAttribute('title') || 
-                           button.getAttribute('aria-label') || 
-                           button.textContent?.trim();
-          if (colorText && colorText.length > 0 && colorText !== 'undefined') {
-            colors.push(colorText);
-          }
-        });
-        break;
+  // Basit renk ve beden çıkarma
+  const detectedColors = new Set<string>();
+  const detectedSizes = new Set<string>();
+
+  // AllVariants'tan renk ve beden çıkar
+  if (product.allVariants && Array.isArray(product.allVariants)) {
+    product.allVariants.forEach((variant: any) => {
+      if (variant.attributes) {
+        const color = variant.attributes.RENK || variant.attributes.renk || variant.attributes.color;
+        const size = variant.attributes.BEDEN || variant.attributes.beden || variant.attributes.size;
+        
+        if (color && typeof color === 'string') {
+          detectedColors.add(color);
+        }
+        if (size && typeof size === 'string') {
+          detectedSizes.add(size);
+        }
       }
-    }
-    
-    return [...new Set(colors)];
-  });
+    });
+  }
 
   // Beden filtreleme sistemi
   console.log('🎯 Manuel stok filtreleme başlatılıyor...');
@@ -873,28 +862,45 @@ export async function extractFocusedData(url: string): Promise<FocusedProductDat
     console.log(`⚠️ Stokta olmayan bedenler CSV'ye eklenmedi: ${Array.from(outOfStockSizes).join(', ')}`);
   }
 
-  // 6. ÖZELLİKLER - Sadece gerçek product attributes
+  // 6. ÖZELLİKLER - Trendyol özellik tablosu çıkarma
   const features: Array<{ key: string; value: string; }> = [];
   const processedKeys = new Set<string>();
 
-  console.log('🔍 Gerçek product attributes çıkarılıyor...');
+  console.log('🔍 Trendyol ürün özellikleri çıkarılıyor...');
 
-  // Product attributes'dan gerçek özellikler
-  if (product.attributes && typeof product.attributes === 'object') {
-    console.log('🏷️ Product attributes bulundu...');
-    Object.entries(product.attributes).forEach(([key, value]) => {
-      if (key && value && 
-          typeof key === 'string' && typeof value === 'string' &&
-          key.length > 1 && key.length < 100 &&
-          value.length > 0 && value.length < 200 &&
-          !processedKeys.has(key.toLowerCase())) {
-
-        features.push({
-          key: key.trim(),
-          value: value.trim()
+  // Trendyol özellik tablosu arama
+  const productDetailsMatch = htmlContent.match(/<table[^>]*class="[^"]*product[^"]*"[^>]*>(.*?)<\/table>/gis);
+  if (productDetailsMatch) {
+    console.log('✅ Ürün detay tablosu bulundu');
+    
+    productDetailsMatch.forEach(tableHtml => {
+      const rowMatches = tableHtml.match(/<tr[^>]*>(.*?)<\/tr>/gis);
+      if (rowMatches) {
+        rowMatches.forEach(row => {
+          const cellMatches = row.match(/<t[dh][^>]*>(.*?)<\/t[dh]>/gis);
+          if (cellMatches && cellMatches.length >= 2) {
+            const key = cellMatches[0].replace(/<[^>]*>/g, '').trim();
+            const value = cellMatches[1].replace(/<[^>]*>/g, '').trim();
+            
+            if (key && value && !processedKeys.has(key.toLowerCase())) {
+              features.push({ key, value });
+              processedKeys.add(key.toLowerCase());
+              console.log(`  ✓ ${key}: ${value}`);
+            }
+          }
         });
+      }
+    });
+  }
+
+  // Product attributes'dan ek özellikler
+  if (product.attributes && typeof product.attributes === 'object') {
+    Object.entries(product.attributes).forEach(([key, value]) => {
+      if (key && value && typeof value === 'string' && 
+          !processedKeys.has(key.toLowerCase())) {
+        features.push({ key: key.trim(), value: value.trim() });
         processedKeys.add(key.toLowerCase());
-        console.log(`  ✓ Gerçek Özellik: ${key} = ${value}`);
+        console.log(`  ✓ Attribute: ${key} = ${value}`);
       }
     });
   }
@@ -1579,16 +1585,22 @@ export async function extractFocusedData(url: string): Promise<FocusedProductDat
     return {
       brand,
       title,
-      price: priceData,
+      price: {
+        original: priceNum,
+        currency: 'TRY',
+        formatted: formatTurkishPrice(priceNum),
+        withProfit: priceWithProfit,
+        profitFormatted: formatTurkishPrice(priceWithProfit)
+      },
       images,
-      colorOptions: extractedColors,
-      sizeOptions: finalSizes,
+      colorOptions: Array.from(detectedColors),
+      sizeOptions: Array.from(detectedSizes),
       variants: organizedVariants,
       stockAnalysis: {
         totalVariants: organizedVariants.length,
         inStockVariants: organizedVariants.filter(v => v.inStock).length,
         outOfStockVariants: organizedVariants.filter(v => !v.inStock).length,
-        availableSizes: finalSizes,
+        availableSizes: Array.from(detectedSizes),
         unavailableSizes: []
       },
       features,
