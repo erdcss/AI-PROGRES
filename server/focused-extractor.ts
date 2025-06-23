@@ -230,7 +230,6 @@ export async function extractFocusedData(url: string): Promise<FocusedProductDat
   };
 
   console.log(`✓ Fiyat: ${priceData.formatted} → %10 kar: ${priceData.profitFormatted}`);
-      // 190000 gibi değerler için: 100'e böl (190000 kuruş -> 1900 TL)
       originalPrice = originalPrice / 100;
     }
     // 50-9999 arası değerler zaten TL cinsinden kabul edilir
