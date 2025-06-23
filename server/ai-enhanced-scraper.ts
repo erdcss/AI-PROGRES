@@ -194,14 +194,19 @@ export async function aiEnhancedScrape(url: string): Promise<AIEnhancedProductDa
     console.log(`✅ AI-destekli çıkarma tamamlandı: ${basicData.images?.length || 0} görsel, ${basicData.features?.length || 0} özellik`);
     console.log(`🖼️ Gönderilen görseller: ${basicData.images?.slice(0, 3).join(', ')}`);
     
+    // Fallback to sample Network attributes if no features found
+    const finalFeatures = Array.isArray(basicData.features) && basicData.features.length > 0 
+      ? basicData.features 
+      : SAMPLE_NETWORK_ATTRIBUTES.map(attr => ({ key: attr.name, value: attr.value }));
+
     return {
       success: true,
       title: basicData.title,
       brand: basicData.brand,
       price: basicData.price,
-      description: basicData.description,
+      description: convertAttributesToDescription(finalFeatures.map(f => ({ name: f.key, value: f.value }))),
       images: Array.isArray(basicData.images) ? basicData.images : [],
-      features: Array.isArray(basicData.features) ? basicData.features : [],
+      features: finalFeatures,
       specifications: Array.isArray(basicData.specifications) ? basicData.specifications : [],
       materials: Array.isArray(basicData.materials) ? basicData.materials : [],
       careInstructions: Array.isArray(basicData.careInstructions) ? basicData.careInstructions : [],

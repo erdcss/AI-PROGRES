@@ -11,6 +11,7 @@ import { Page } from 'puppeteer';
 import * as cheerio from 'cheerio';
 import { filterOutOfStockSizes } from './trendyol-stock-filter';
 import { extractDetailedFeatures, standardizeFeatureKey } from './product-features-extractor';
+import { TrendyolAttribute, TRENDYOL_ATTRIBUTES_MAPPING, convertAttributesToDescription, filterValidAttributes } from './trendyol-attribute-mapper';
 
 // Türk sayı formatı fonksiyonu
 function formatTurkishNumber(num: number): string {
@@ -901,37 +902,31 @@ export async function extractFocusedData(url: string): Promise<FocusedProductDat
 
   console.log('🔍 Temiz ürün özellikleri çıkarılıyor...');
 
-  // Product attributes'dan SADECE temiz özellikler - JSON artıklarını tamamen filtrele
+  // Trendyol özellik haritalama sistemi ile temiz çıkarım
   if (product.attributes && typeof product.attributes === 'object') {
+    const rawAttributes: TrendyolAttribute[] = [];
+    
     Object.entries(product.attributes).forEach(([key, value]) => {
-      if (key && value && typeof value === 'string' && 
-          key.length > 2 && key.length < 30 && 
-          value.length > 1 && value.length < 50 &&
-          !key.includes('webUrl') && !key.includes('navigation') &&
-          !key.includes('id') && !key.includes('unitText') &&
-          !key.includes('"') && !value.includes('"') &&
-          !value.includes('navigationGwUrl') && !value.includes('https://') &&
-          !value.includes('{') && !value.includes('}') &&
-          !processedKeys.has(key.toLowerCase())) {
-        
-        // Sadece basit string değerler kabul et
+      if (key && value && typeof value === 'string') {
         const cleanKey = key.trim();
         const cleanValue = value.trim();
         
-        // Sadece gerçek ürün özellikleri kabul et
-        const validFeatures = ['Kalıp', 'Materyal', 'Kumaş', 'Renk', 'Beden', 'Yaka', 'Kol', 'Desen', 'Boy', 'Cep', 'Paça'];
-        const invalidPatterns = ['size:', 'color:', 'margin:', 'font-', 'px;', 'schema', 'https:', '//'];
-        
-        const isValidFeature = validFeatures.some(vf => cleanKey.includes(vf)) &&
-                              !invalidPatterns.some(ip => cleanValue.includes(ip)) &&
-                              !cleanValue.includes('px') && !cleanValue.includes('#') &&
-                              !cleanValue.includes('margin') && !cleanValue.includes('font');
-        
-        if (cleanKey && cleanValue && isValidFeature) {
-          features.push({ key: cleanKey, value: cleanValue });
-          processedKeys.add(cleanKey.toLowerCase());
-          console.log(`  ✓ ${cleanKey}: ${cleanValue}`);
+        // Trendyol özellik haritalama kontrol
+        if (TRENDYOL_ATTRIBUTES_MAPPING[cleanKey] && 
+            cleanValue.length > 0 && cleanValue.length < 100) {
+          rawAttributes.push({ name: cleanKey, value: cleanValue });
         }
+      }
+    });
+    
+    // Özellikleri filtrele ve temizle
+    const validAttributes = filterValidAttributes(rawAttributes);
+    
+    validAttributes.forEach(attr => {
+      if (!processedKeys.has(attr.name.toLowerCase())) {
+        features.push({ key: attr.name, value: attr.value });
+        processedKeys.add(attr.name.toLowerCase());
+        console.log(`  ✓ ${attr.name}: ${attr.value}`);
       }
     });
   }
