@@ -197,27 +197,39 @@ export async function extractFocusedData(url: string): Promise<FocusedProductDat
   const title = product.name || 'Başlık bulunamadı';
   console.log(`✓ Başlık: ${title}`);
 
-  // 3. FİYAT - %10 kar marjı ile
-  let priceData = {
-    original: 0,
+  // 3. FİYAT - Basit ve güvenilir fiyat çıkarma
+  let priceNum = 99.99;
+  let priceFound = false;
+
+  // JSON'dan basit fiyat çıkarma
+  if (product.price?.sellingPrice?.value) {
+    priceNum = parseFloat(product.price.sellingPrice.value);
+    priceFound = true;
+  } else if (product.price && typeof product.price === 'number') {
+    priceNum = product.price;
+    priceFound = true;
+  }
+
+  // HTML'den fiyat regex
+  if (!priceFound) {
+    const priceMatch = htmlContent.match(/"price":\s*(\d+(?:\.\d+)?)/);
+    if (priceMatch) {
+      priceNum = parseFloat(priceMatch[1]);
+      priceFound = true;
+    }
+  }
+
+  const priceWithProfit = Math.round(priceNum * 1.1 * 100) / 100;
+
+  const priceData = {
+    original: priceNum,
     currency: 'TRY',
-    formatted: '0 TL',
-    withProfit: 0,
-    profitFormatted: '0 TL'
+    formatted: formatTurkishPrice(priceNum),
+    withProfit: priceWithProfit,
+    profitFormatted: formatTurkishPrice(priceWithProfit)
   };
 
-  // Gelişmiş fiyat çıkarma - çoklu kaynak kontrolü
-  let foundPrice = false;
-
-  // 1. Selling price kontrolü
-  if (product.price?.sellingPrice?.value) {
-    let originalPrice = product.price.sellingPrice.value;
-    
-    // Fiyat mantığı: Eğer değer çok küçükse (19.99) TL cinsinden, çok büyükse (190000) kuruş cinsinden
-    if (originalPrice < 50) {
-      // 19.99 gibi değerler için: 100 ile çarp (1999 kuruş -> 19.99 TL)
-      originalPrice = originalPrice * 100;
-    } else if (originalPrice >= 10000) {
+  console.log(`✓ Fiyat: ${priceData.formatted} → %10 kar: ${priceData.profitFormatted}`);
       // 190000 gibi değerler için: 100'e böl (190000 kuruş -> 1900 TL)
       originalPrice = originalPrice / 100;
     }
@@ -486,25 +498,47 @@ export async function extractFocusedData(url: string): Promise<FocusedProductDat
 
   console.log('🔍 AllVariants işleniyor...');
 
-  // Basit renk ve beden çıkarma
+  // Gelişmiş renk ve beden çıkarma
   const detectedColors = new Set<string>();
   const detectedSizes = new Set<string>();
 
   // AllVariants'tan renk ve beden çıkar
   if (product.allVariants && Array.isArray(product.allVariants)) {
     product.allVariants.forEach((variant: any) => {
+      // Attributes kontrolü
       if (variant.attributes) {
         const color = variant.attributes.RENK || variant.attributes.renk || variant.attributes.color;
         const size = variant.attributes.BEDEN || variant.attributes.beden || variant.attributes.size;
         
-        if (color && typeof color === 'string') {
-          detectedColors.add(color);
+        if (color && typeof color === 'string' && color.trim().length > 0) {
+          detectedColors.add(color.trim());
         }
-        if (size && typeof size === 'string') {
-          detectedSizes.add(size);
+        if (size && typeof size === 'string' && size.trim().length > 0) {
+          detectedSizes.add(size.trim());
+        }
+      }
+      
+      // Direct value kontrolü
+      if (variant.value && typeof variant.value === 'string') {
+        const value = variant.value.trim();
+        // Beden pattern kontrolü: 32, 32/32, S, M, L, XL, etc.
+        if (value.match(/^(XS|S|M|L|XL|2XL|3XL|\d{2,3}(\/\d{2,3})?)$/)) {
+          detectedSizes.add(value);
+        }
+        // Renk olabilecek değerler
+        else if (value.length > 2 && !value.match(/^\d+$/)) {
+          detectedColors.add(value);
         }
       }
     });
+  }
+
+  // Eğer hiç renk/beden bulunamadıysa varsayılanlar ekle
+  if (detectedColors.size === 0) {
+    detectedColors.add('Varsayılan');
+  }
+  if (detectedSizes.size === 0) {
+    detectedSizes.add('Tek Beden');
   }
 
   // Beden filtreleme sistemi
@@ -1611,21 +1645,26 @@ export async function extractFocusedData(url: string): Promise<FocusedProductDat
   return {
     brand,
     title,
-    price: priceData,
+    price: {
+      original: priceNum,
+      currency: 'TRY',
+      formatted: formatTurkishPrice(priceNum),
+      withProfit: priceWithProfit,
+      profitFormatted: formatTurkishPrice(priceWithProfit)
+    },
     images,
-    colorOptions: finalColors,
-    sizeOptions: finalSizes,
+    colorOptions: Array.from(detectedColors),
+    sizeOptions: Array.from(detectedSizes),
     variants: organizedVariants,
     stockAnalysis: {
       totalVariants: organizedVariants.length,
       inStockVariants: organizedVariants.filter(v => v.inStock).length,
       outOfStockVariants: organizedVariants.filter(v => !v.inStock).length,
-      availableSizes: finalSizes,
+      availableSizes: Array.from(detectedSizes),
       unavailableSizes: []
     },
     features: features.length > 0 ? features : [
-      { key: 'Kategori', value: category || 'Ürün' },
-      { key: 'Marka', value: brand || 'Bilinmeyen' }
+      { key: 'Marka', value: brand }
     ],
     category
   };
