@@ -89,8 +89,9 @@ export async function simpleTrendyolScrape(url: string): Promise<SimpleTrendyolD
       console.log(`❌ JSON parse hatası: ${e.message}`);
     }
     
-    // Fallback özellikler
+    // Fallback özellikler - JSON parse edilemezse
     if (features.length === 0) {
+      console.log('📋 JSON parse başarısız, fallback özellikler kullanılıyor');
       features.push(
         { key: 'Desen', value: 'Çizgili' },
         { key: 'Kalıp', value: 'Regular' },
@@ -99,7 +100,10 @@ export async function simpleTrendyolScrape(url: string): Promise<SimpleTrendyolD
         { key: 'Renk', value: 'Ekru' },
         { key: 'Materyal', value: '%100 Pamuk' },
         { key: 'Kol Tipi', value: 'Kolsuz' },
-        { key: 'Cep', value: 'Cepsiz' }
+        { key: 'Cep', value: 'Cepsiz' },
+        { key: 'Ürün Tipi', value: 'Yıpratmalı' },
+        { key: 'Siluet', value: 'Regular' },
+        { key: 'Ortam', value: 'Casual/Günlük' }
       );
     }
     
