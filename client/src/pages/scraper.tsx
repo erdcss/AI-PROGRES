@@ -25,7 +25,8 @@ import {
   RefreshCcw,
   Image as ImageIcon,
   Clipboard,
-  Download
+  Download,
+  Home
 } from "lucide-react";
 import {
   Alert,
@@ -36,7 +37,7 @@ import { ScrollArea } from "@/components/ui/scroll-area";
 import { useState, useEffect } from "react";
 import { ProductDisplay } from "@/components/ProductDisplay";
 import { SimpleProductPreview } from "@/components/SimpleProductPreview";
-import { Link } from "wouter";
+import { Link, useLocation } from "wouter";
 
 // Platform logo configuration
 const PlatformLogos = {
@@ -627,7 +628,17 @@ function ScraperPage({ platform = 'trendyol' }: ScraperPageProps) {
 
   return (
     <div className="min-h-screen bg-black text-white p-4 relative">
-
+      {/* Navigation Header */}
+      <div className="max-w-2xl mx-auto mb-6">
+        <Button
+          variant="ghost"
+          onClick={() => setLocation("/")}
+          className="text-gray-400 hover:text-white flex items-center gap-2"
+        >
+          <Home className="h-4 w-4" />
+          <span>Marketplace Seçimi</span>
+        </Button>
+      </div>
       
       <div className="max-w-2xl mx-auto space-y-6">
         <motion.div
