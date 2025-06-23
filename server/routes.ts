@@ -1972,27 +1972,8 @@ export function registerRoutes(app: Express): Server {
 
       console.log(`🎯 Extract request: ${url}`);
       
-      try {
-        const { extractFocusedData } = await import('./focused-extractor');
-        const result = await extractFocusedData(url);
-        
-        if (result && result.title && result.brand) {
-          console.log(`✅ Focused extraction successful: ${result.features?.length || 0} features`);
-          return res.json({
-            success: true,
-            brand: result.brand,
-            title: result.title,
-            price: result.price,
-            images: result.images,
-            colorOptions: result.colorOptions,
-            sizeOptions: result.sizeOptions,
-            variants: result.variants,
-            features: result.features
-          });
-        }
-      } catch (focusedError) {
-        console.log(`⚠️ Focused extraction failed: ${focusedError.message}`);
-      }
+      // Skip focused extractor, go directly to simple scraper
+      console.log(`📊 Using simple scraper for: ${url}`);
       
       // Use Simple Scraper
       console.log('🔄 Using Simple Scraper...');
@@ -2000,35 +1981,18 @@ export function registerRoutes(app: Express): Server {
       const fallbackResult = await simpleTrendyolScrape(url);
       
       if (fallbackResult && fallbackResult.success) {
-        console.log(`✅ AI Enhanced Scraper successful`);
+        console.log(`✅ Simple Scraper successful: ${fallbackResult.features.length} features`);
         return res.json({
           success: true,
           brand: fallbackResult.brand,
           title: fallbackResult.title,
-          price: fallbackResult.price || {
-            original: 99.99,
-            currency: 'TRY',
-            formatted: '99,99 TL',
-            withProfit: 109.99,
-            profitFormatted: '109,99 TL'
-          },
+          price: fallbackResult.price,
           images: fallbackResult.images,
-          colorOptions: fallbackResult.colorOptions || ['Varsayılan'],
-          sizeOptions: fallbackResult.sizeOptions || ['Tek Beden'],
-          variants: fallbackResult.variants || [],
-          features: (fallbackResult.features || []).filter(f => {
-            if (!f || !f.key || !f.value || typeof f.key !== 'string' || typeof f.value !== 'string') return false;
-            
-            const validFeatures = ['Kalıp', 'Materyal', 'Kumaş', 'Renk', 'Beden', 'Yaka', 'Kol', 'Desen', 'Boy', 'Cep'];
-            const invalidPatterns = ['size:', 'color:', 'margin:', 'font-', 'px;', 'schema', 'https:', '//', 'webUrl', 'navigation', 'unitText', '"id"'];
-            
-            const hasValidFeature = validFeatures.some(vf => f.key.includes(vf));
-            const hasInvalidPattern = invalidPatterns.some(ip => f.key.includes(ip) || f.value.includes(ip));
-            
-            return hasValidFeature && !hasInvalidPattern && f.key.length < 30 && f.value.length < 50;
-          }).slice(0, 10)
+          features: fallbackResult.features,
+          variants: fallbackResult.variants
         });
       }
+
       
       throw new Error('All extraction methods failed');
       

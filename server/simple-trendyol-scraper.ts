@@ -50,27 +50,43 @@ export async function simpleTrendyolScrape(url: string): Promise<SimpleTrendyolD
       }
     });
     
-    // 3. Özellikler - JSON'dan
+    // 3. Özellikler - Düzeltilmiş JSON parsing
     const features: Array<{key: string, value: string}> = [];
     
     try {
-      const productMatch = html.match(/window\.__PRODUCT_DETAIL_APP_INITIAL_STATE__\s*=\s*({.*?});/s);
-      if (productMatch) {
-        const productData = JSON.parse(productMatch[1]);
+      // Trendyol JSON'ını daha güvenli parse et
+      const stateStart = html.indexOf('window.__PRODUCT_DETAIL_APP_INITIAL_STATE__');
+      if (stateStart !== -1) {
+        const jsonStart = html.indexOf('=', stateStart) + 1;
+        const jsonEnd = html.indexOf('};', jsonStart) + 1;
+        const jsonString = html.substring(jsonStart, jsonEnd).trim();
+        
+        const productData = JSON.parse(jsonString);
+        console.log(`📦 Product data parsed successfully`);
         
         if (productData.product?.attributes && Array.isArray(productData.product.attributes)) {
-          productData.product.attributes.forEach((attr: any) => {
+          console.log(`🏷️ Found ${productData.product.attributes.length} attributes in array`);
+          
+          productData.product.attributes.forEach((attr: any, index: number) => {
             if (attr.key?.name && attr.value?.name) {
-              features.push({
-                key: attr.key.name,
-                value: attr.value.name
-              });
+              const keyName = attr.key.name.trim();
+              const valueName = attr.value.name.trim();
+              
+              // Geçerli özellik kontrolü
+              if (keyName.length > 0 && valueName.length > 0 && 
+                  !keyName.includes('"') && !valueName.includes('"')) {
+                features.push({
+                  key: keyName,
+                  value: valueName
+                });
+                console.log(`  ✓ ${keyName}: ${valueName}`);
+              }
             }
           });
         }
       }
     } catch (e) {
-      console.log('JSON parse hatası, fallback kullanılıyor');
+      console.log(`❌ JSON parse hatası: ${e.message}`);
     }
     
     // Fallback özellikler
