@@ -48,109 +48,129 @@ export function SimpleProductPreview({ product }: SimpleProductPreviewProps) {
       initial={{ opacity: 0, y: 20 }}
       animate={{ opacity: 1, y: 0 }}
       transition={{ duration: 0.5 }}
-      className="w-full bg-gray-900/50 rounded-xl border border-gray-800 p-6 space-y-6"
+      className="w-full bg-gradient-to-br from-slate-800/95 to-slate-900/95 backdrop-blur-xl border border-slate-700/50 shadow-2xl rounded-3xl overflow-hidden"
     >
-      {/* Header */}
-      <div className="flex items-center gap-3">
-        <Package className="h-6 w-6 text-blue-400" />
-        <h2 className="text-xl font-semibold text-white">Ürün Ön İzlemesi</h2>
-      </div>
-
-      {/* Basic Info Grid */}
-      <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-        <div className="space-y-4">
-          <div>
-            <h3 className="text-sm font-medium text-gray-300 mb-2">Marka</h3>
-            <p className="text-lg font-semibold text-white">{brand}</p>
-          </div>
-          
-          <div>
-            <h3 className="text-sm font-medium text-gray-300 mb-2">Ürün Başlığı</h3>
-            <p className="text-white text-sm leading-relaxed">{title}</p>
-          </div>
-          
-          {price && (
-            <div>
-              <h3 className="text-sm font-medium text-gray-300 mb-2">💰 Fiyatlandırma</h3>
-              <div className="space-y-3">
-                <div className="flex items-center justify-between bg-gray-800/30 rounded-lg p-3">
-                  <span className="text-gray-400 text-sm">Trendyol Fiyatı:</span>
-                  <span className="text-white font-medium">{price.formatted}</span>
+      {/* Modern Header with Background Pattern */}
+      <div className="relative">
+        <div className="absolute inset-0 bg-gradient-to-r from-green-500/10 to-emerald-500/10"></div>
+        <div className="relative p-8 border-b border-slate-700/50">
+          <div className="flex items-center justify-between">
+            <div className="flex items-center gap-6">
+              <div className="relative">
+                <div className="bg-gradient-to-br from-green-500 to-emerald-600 p-4 rounded-2xl shadow-lg">
+                  <Package className="h-8 w-8 text-white" />
                 </div>
-                <div className="flex items-center justify-between bg-green-900/30 rounded-lg p-3 border border-green-700">
-                  <div className="flex flex-col">
-                    <span className="text-green-400 text-sm font-medium">Satış Fiyatımız</span>
-                    <span className="text-green-500 text-xs">(%10 kar dahil)</span>
-                  </div>
-                  <span className="text-green-300 font-bold text-lg">{price.profitFormatted}</span>
+                <div className="absolute -top-2 -right-2 bg-blue-500 rounded-full p-1 animate-pulse">
+                  <div className="h-3 w-3 bg-white rounded-full"></div>
                 </div>
-                <div className="text-center bg-blue-900/20 rounded-lg p-2 border border-blue-800">
-                  <span className="text-blue-300 text-xs">
-                    Kar: {(price.withProfit - price.original).toFixed(2)} {price.currency}
-                  </span>
-                </div>
+              </div>
+              <div>
+                <h2 className="text-3xl font-bold bg-gradient-to-r from-white to-slate-300 bg-clip-text text-transparent">
+                  Ürün Başarıyla Çıkarıldı
+                </h2>
+                <p className="text-slate-400 text-lg mt-1">AI destekli analiz tamamlandı</p>
               </div>
             </div>
-          )}
-        </div>
-
-        {/* Color and Size Options */}
-        {(colorOptions?.length > 0 || sizeOptions?.length > 0) && (
-          <div className="space-y-3">
-            {colorOptions?.length > 0 && (
-              <div>
-                <h3 className="text-sm font-medium text-gray-300 mb-2">
-                  Renk Seçenekleri ({colorOptions.length})
-                </h3>
-                <div className="flex flex-wrap gap-2">
-                  {colorOptions.map((color, index) => (
-                    <span
-                      key={index}
-                      className="px-3 py-1 bg-blue-900/20 text-blue-300 text-sm rounded-lg border border-blue-800"
-                    >
-                      {color}
-                    </span>
-                  ))}
-                </div>
-              </div>
-            )}
-            
-            {sizeOptions?.length > 0 && (
-              <div>
-                <h3 className="text-sm font-medium text-gray-300 mb-2">
-                  Beden Seçenekleri ({sizeOptions.length})
-                  {stockAnalysis && stockAnalysis.outOfStockVariants > 0 && (
-                    <span className="text-red-400 text-xs ml-2">
-                      ({stockAnalysis.unavailableSizes.length} stokta yok)
-                    </span>
-                  )}
-                </h3>
-                <div className="flex flex-wrap gap-2">
-                  {sizeOptions.map((size, index) => {
-                    const isAvailable = stockAnalysis?.availableSizes.includes(size) ?? true;
-                    const isUnavailable = stockAnalysis?.unavailableSizes.includes(size) ?? false;
-                    
-                    return (
-                      <span
-                        key={index}
-                        className={`px-3 py-1 text-sm rounded-lg border ${
-                          isUnavailable 
-                            ? 'bg-red-900/20 text-red-300 border-red-800 line-through' 
-                            : isAvailable 
-                              ? 'bg-green-900/20 text-green-300 border-green-800'
-                              : 'bg-purple-900/20 text-purple-300 border-purple-800'
-                        }`}
-                      >
-                        {size}
-                        {isUnavailable && <span className="ml-1 text-xs">(stokta yok)</span>}
-                      </span>
-                    );
-                  })}
-                </div>
-              </div>
-            )}
           </div>
-        )}
+        </div>
+      </div>
+
+      {/* Modern Product Info Grid */}
+      <div className="p-8 space-y-8">
+        <div className="grid grid-cols-1 lg:grid-cols-2 gap-8">
+          {/* Enhanced Basic Info */}
+          <div className="bg-gradient-to-br from-slate-700/30 to-slate-800/30 backdrop-blur-sm p-8 rounded-2xl border border-slate-600/30">
+            <h3 className="text-xl font-bold text-white mb-6 flex items-center gap-3">
+              <div className="bg-blue-500 p-2 rounded-lg">
+                <Package className="h-5 w-5 text-white" />
+              </div>
+              Ürün Bilgileri
+            </h3>
+            <div className="space-y-4">
+              <div className="flex justify-between items-center p-3 bg-slate-800/50 rounded-lg">
+                <span className="text-slate-400 font-medium">Marka:</span>
+                <span className="text-white font-bold bg-gradient-to-r from-blue-400 to-purple-400 bg-clip-text text-transparent">
+                  {brand}
+                </span>
+              </div>
+              <div className="p-3 bg-slate-800/50 rounded-lg">
+                <span className="text-slate-400 font-medium block mb-2">Başlık:</span>
+                <span className="text-white text-sm leading-relaxed">
+                  {title}
+                </span>
+              </div>
+              {price && (
+                <div className="space-y-3">
+                  <div className="flex justify-between items-center p-3 bg-orange-500/10 border border-orange-500/20 rounded-lg">
+                    <span className="text-orange-400 font-medium">Orijinal Fiyat:</span>
+                    <span className="text-orange-300 font-bold text-lg">{price.formatted}</span>
+                  </div>
+                  <div className="flex justify-between items-center p-3 bg-green-500/10 border border-green-500/20 rounded-lg">
+                    <span className="text-green-400 font-medium">Kar Marjlı Fiyat:</span>
+                    <span className="text-green-300 font-bold text-xl">{price.profitFormatted}</span>
+                  </div>
+                  <div className="text-center p-2 bg-blue-500/10 rounded-lg">
+                    <span className="text-blue-300 text-sm font-medium">
+                      %10 Kar Marjı Eklendi
+                    </span>
+                  </div>
+                </div>
+              )}
+            </div>
+          </div>
+
+          {/* Enhanced Stats */}
+          <div className="bg-gradient-to-br from-slate-700/30 to-slate-800/30 backdrop-blur-sm p-8 rounded-2xl border border-slate-600/30">
+            <h3 className="text-xl font-bold text-white mb-6 flex items-center gap-3">
+              <div className="bg-purple-500 p-2 rounded-lg">
+                <Palette className="h-5 w-5 text-white" />
+              </div>
+              AI Analiz Sonuçları
+            </h3>
+            <div className="grid grid-cols-2 gap-6">
+              <motion.div
+                whileHover={{ scale: 1.05 }}
+                className="text-center p-4 bg-blue-500/10 border border-blue-500/20 rounded-xl"
+              >
+                <div className="text-3xl font-bold text-blue-400 mb-2">{images.length}</div>
+                <div className="text-slate-300 font-medium">Yüksek Kalite</div>
+                <div className="text-slate-400 text-sm">Görsel</div>
+              </motion.div>
+              <motion.div
+                whileHover={{ scale: 1.05 }}
+                className="text-center p-4 bg-green-500/10 border border-green-500/20 rounded-xl"
+              >
+                <div className="text-3xl font-bold text-green-400 mb-2">{features.length}</div>
+                <div className="text-slate-300 font-medium">Detaylı</div>
+                <div className="text-slate-400 text-sm">Özellik</div>
+              </motion.div>
+              <motion.div
+                whileHover={{ scale: 1.05 }}
+                className="text-center p-4 bg-purple-500/10 border border-purple-500/20 rounded-xl"
+              >
+                <div className="text-3xl font-bold text-purple-400 mb-2">{variants.length}</div>
+                <div className="text-slate-300 font-medium">Toplam</div>
+                <div className="text-slate-400 text-sm">Varyant</div>
+              </motion.div>
+              <motion.div
+                whileHover={{ scale: 1.05 }}
+                className="text-center p-4 bg-orange-500/10 border border-orange-500/20 rounded-xl"
+              >
+                <div className="text-3xl font-bold text-orange-400 mb-2">
+                  {variants.filter(v => v.inStock).length}
+                </div>
+                <div className="text-slate-300 font-medium">Mevcut</div>
+                <div className="text-slate-400 text-sm">Stokta</div>
+              </motion.div>
+            </div>
+            <div className="mt-6 p-4 bg-gradient-to-r from-green-500/10 to-blue-500/10 border border-green-500/20 rounded-xl">
+              <div className="flex items-center justify-center gap-2 text-green-300">
+                <div className="h-2 w-2 bg-green-400 rounded-full animate-pulse"></div>
+                <span className="font-medium">Shopify Formatında Hazır</span>
+              </div>
+            </div>
+          </div>
+        </div>
 
         {/* Summary Card */}
         <div className="bg-gray-800/50 rounded-lg p-4 space-y-3">
