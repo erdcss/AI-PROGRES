@@ -218,10 +218,12 @@ router.post('/api/shopify/add-product', async (req, res) => {
       images: (productData.images || []).slice(0, 3).map(img => ({ src: img }))
     };
 
+    console.log('Creating Shopify product:', shopifyProduct.title);
+    
     const response = await fetch('https://turmarkt.myshopify.com/admin/api/2024-01/products.json', {
       method: 'POST',
       headers: {
-        'X-Shopify-Access-Token': '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',
+        'X-Shopify-Access-Token': process.env.SHOPIFY_ACCESS_TOKEN || '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',
         'Content-Type': 'application/json',
       },
       body: JSON.stringify({ product: shopifyProduct })
@@ -229,6 +231,19 @@ router.post('/api/shopify/add-product', async (req, res) => {
 
     if (response.ok) {
       const result = await response.json();
+      console.log('✅ Shopify product created:', result.product.id);
+      
+      // Telegram bildirimi gönder
+      try {
+        await telegramIntegration.sendNewProductNotification(
+          productData,
+          productData.variants || []
+        );
+        console.log('✅ Telegram notification sent');
+      } catch (telegramError) {
+        console.log('Telegram notification failed:', telegramError.message);
+      }
+      
       res.json({
         success: true,
         shopifyProductId: result.product.id,
@@ -239,6 +254,7 @@ router.post('/api/shopify/add-product', async (req, res) => {
       });
     } else {
       const errorText = await response.text();
+      console.log('❌ Shopify API error:', errorText);
       res.status(response.status).json({
         success: false,
         error: `Shopify API hatası: ${errorText}`,

@@ -339,6 +339,7 @@ export class TelegramIntegration {
   // Test connection
   async testConnection(): Promise<boolean> {
     if (!this.bot) {
+      console.log('Bot not initialized');
       return false;
     }
 
@@ -347,7 +348,7 @@ export class TelegramIntegration {
       console.log('Telegram bot test successful:', me.username);
       return true;
     } catch (error) {
-      console.error('Telegram bot test failed:', error);
+      console.error('Telegram bot test failed:', error.message);
       return false;
     }
   }
