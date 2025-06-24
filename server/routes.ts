@@ -16,6 +16,7 @@ import { InsertProduct } from "@shared/schema";
 import { getFinalImages } from "./final-image-solution";
 import { extractVariantStockInfo } from "./advanced-size-extractor";
 import { extractFocusedData } from './focused-extractor';
+import { dailyScheduler } from './scheduler';
 
 function generateSingleProductShopifyCSV(product: any): string {
   // HEADERS - Şablonunuza tam uygun
@@ -2295,6 +2296,51 @@ export function registerRoutes(app: Express): Server {
   });
 
   const httpServer = createServer(app);
+  // E-posta raporu endpoint'leri
+  app.post('/api/email/test-report', async (req, res) => {
+    try {
+      console.log('📧 Test daily report requested');
+      const success = await dailyScheduler.sendTestReport();
+      
+      res.json({ 
+        success, 
+        message: success ? 'Test raporu gönderildi' : 'Test raporu gönderilemedi' 
+      });
+    } catch (error) {
+      console.error('Test report error:', error);
+      res.status(500).json({ 
+        success: false, 
+        message: 'Test raporu hatası: ' + error.message 
+      });
+    }
+  });
+
+  app.post('/api/email/set-recipient', async (req, res) => {
+    try {
+      const { email } = req.body;
+      
+      if (!email || !email.includes('@')) {
+        return res.status(400).json({ 
+          success: false, 
+          message: 'Geçerli e-posta adresi gerekli' 
+        });
+      }
+      
+      dailyScheduler.setReportEmail(email);
+      
+      res.json({ 
+        success: true, 
+        message: `Günlük rapor e-postası ${email} olarak ayarlandı` 
+      });
+    } catch (error) {
+      console.error('Set recipient error:', error);
+      res.status(500).json({ 
+        success: false, 
+        message: 'E-posta ayarlama hatası: ' + error.message 
+      });
+    }
+  });
+
   return httpServer;
 }
 
