@@ -1,4 +1,4 @@
-const nodemailer = require('nodemailer');
+import nodemailer from 'nodemailer';
 
 // Gmail SMTP configuration
 const createGmailTransporter = () => {
@@ -7,7 +7,7 @@ const createGmailTransporter = () => {
     return null;
   }
 
-  const transporter = nodemailer.createTransporter({
+  const transporter = nodemailer.createTransport({
     service: 'gmail',
     auth: {
       user: process.env.GMAIL_USER,
@@ -52,6 +52,10 @@ export async function sendEmail(params: EmailParams): Promise<boolean> {
       return false;
     }
 
+    // Verify connection first
+    await transporter.verify();
+    console.log('Gmail connection verified');
+
     await transporter.sendMail({
       from: params.from,
       to: params.to,
@@ -64,6 +68,9 @@ export async function sendEmail(params: EmailParams): Promise<boolean> {
     return true;
   } catch (error) {
     console.error('Gmail email error:', error);
+    if (error.code === 'EAUTH') {
+      console.log('🔐 Gmail authentication failed - please check credentials');
+    }
     return false;
   }
 }

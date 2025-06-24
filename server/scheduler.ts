@@ -58,7 +58,15 @@ class DailyScheduler {
   // Test için manuel rapor gönderme
   async sendTestReport(): Promise<boolean> {
     console.log('🧪 Sending test daily report...');
-    return await this.sendDailyReport();
+    try {
+      const reportData = await generateDailyReport();
+      const success = await sendDailyReport(reportData, this.reportEmail);
+      console.log(`Test report result: ${success ? 'SUCCESS' : 'FAILED'}`);
+      return success;
+    } catch (error) {
+      console.error('Test report error:', error);
+      return false;
+    }
   }
 
   // Scheduler'ı durdur
