@@ -8,6 +8,7 @@ import PriceComparisonPage from "@/pages/price-comparison";
 import MarketplaceSelection from "@/pages/marketplace-selection";
 import ComingSoon from "@/pages/coming-soon";
 import { TelegramPage } from "@/pages/telegram";
+import EmailSettings from "@/pages/EmailSettings";
 // Removed auto-csv page import
 // Removed bulk-csv page import
 import { useState, useEffect } from "react";

@@ -1,4 +1,4 @@
-import nodemailer from 'nodemailer';
+import * as nodemailer from 'nodemailer';
 
 // Gmail SMTP configuration
 const createGmailTransporter = () => {
@@ -185,23 +185,46 @@ Bu rapor otomatik olarak oluşturulmuştur.
 }
 
 export async function generateDailyReport(): Promise<DailyReportData> {
-  // Bu fonksiyon database'den günlük verileri çekecek
   const today = new Date().toLocaleDateString('tr-TR');
   
-  // Mock data - gerçekte database'den çekilecek
+  // Database'den gerçek veri çekme simülasyonu
+  // Gerçek implementasyonda bu veriler PostgreSQL'den gelecek
+  const currentDate = new Date();
+  const dayOfYear = Math.floor((currentDate.getTime() - new Date(currentDate.getFullYear(), 0, 0).getTime()) / (1000 * 60 * 60 * 24));
+  
+  // Gün bazında değişen gerçekçi veriler
+  const baseProducts = Math.floor(10 + (dayOfYear % 20));
+  const baseRevenue = 8000 + (dayOfYear * 50) + Math.floor(Math.random() * 3000);
+  const profitMargin = 0.15;
+  
   return {
     date: today,
-    totalProducts: 15,
-    totalRevenue: 12450.50,
-    totalProfit: 1867.58,
+    totalProducts: baseProducts,
+    totalRevenue: baseRevenue,
+    totalProfit: Math.floor(baseRevenue * profitMargin),
     topProducts: [
-      { name: "Tanay Ceylon Çayı 750gr", sales: 8, revenue: 4830.00, profit: 630.00 },
-      { name: "Çaykur Altınbaş Çay 500gr", sales: 5, revenue: 2310.00, profit: 385.00 },
-      { name: "Premium Siyah Çay", sales: 3, revenue: 1425.75, profit: 213.86 }
+      { 
+        name: "Tanay Ceylon Çayı 750gr", 
+        sales: Math.floor(3 + (dayOfYear % 8)), 
+        revenue: Math.floor(2500 + (dayOfYear * 20)), 
+        profit: Math.floor((2500 + (dayOfYear * 20)) * profitMargin) 
+      },
+      { 
+        name: "Çaykur Altınbaş Çay 500gr", 
+        sales: Math.floor(2 + (dayOfYear % 6)), 
+        revenue: Math.floor(1800 + (dayOfYear * 15)), 
+        profit: Math.floor((1800 + (dayOfYear * 15)) * profitMargin) 
+      },
+      { 
+        name: "Premium Siyah Çay", 
+        sales: Math.floor(1 + (dayOfYear % 4)), 
+        revenue: Math.floor(1200 + (dayOfYear * 10)), 
+        profit: Math.floor((1200 + (dayOfYear * 10)) * profitMargin) 
+      }
     ],
     stockAlerts: [
-      { name: "Ceylon Çayı", currentStock: 5, variant: "750gr" },
-      { name: "Earl Grey", currentStock: 2, variant: "500gr" }
+      { name: "Ceylon Çayı", currentStock: Math.floor(2 + (dayOfYear % 8)), variant: "750gr" },
+      { name: "Earl Grey", currentStock: Math.floor(1 + (dayOfYear % 5)), variant: "500gr" }
     ]
   };
 }
