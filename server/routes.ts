@@ -272,6 +272,21 @@ export function registerRoutes(app: Express): Server {
           const result = await scrapeWithEnhancedMethod(url);
           
           if (result) {
+            console.log("Enhanced scraper başarılı:", result.title);
+            
+            // Generate CSV data using instant CSV generator
+            const { instantCSVGenerator } = await import('./instant-csv-generator-fixed');
+            const csvResult = await instantCSVGenerator.generateInstantCSV({
+              title: result.title,
+              brand: result.brand,
+              price: result.price,
+              description: result.description,
+              images: result.images,
+              variants: result.variants,
+              attributes: result.attributes,
+              url: url
+            });
+            
             // Ensure safe data structure
             const safeResult = {
               success: true,
@@ -281,7 +296,10 @@ export function registerRoutes(app: Express): Server {
               description: result.description || 'Açıklama bulunamadı',
               images: Array.isArray(result.images) ? result.images : [],
               variants: result.variants || { colors: [], sizes: [], stockMap: {} },
-              attributes: result.attributes || {}
+              attributes: result.attributes || {},
+              csvGenerated: csvResult?.success || false,
+              csvPath: csvResult?.csvPath || null,
+              totalProducts: 1
             };
             
             return res.status(200).json(safeResult);
