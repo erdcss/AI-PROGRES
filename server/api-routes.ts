@@ -160,14 +160,57 @@ router.post('/api/shopify/add-product', async (req, res) => {
   try {
     const { productData } = req.body;
     
-    if (!productData) {
-      return res.status(400).json({ success: false, error: 'Product data gerekli' });
+    if (!productData || !productData.success) {
+      return res.status(400).json({ success: false, error: 'Geçerli product data gerekli' });
     }
 
-    const { createProductInShopify } = await import('./shopify-product-creator');
-    const result = await createProductInShopify(productData);
-    
-    res.json(result);
+    // Doğrudan Shopify API çağrısı
+    const shopifyProduct = {
+      title: `${productData.title || 'Ürün'}`,
+      body_html: `<p><strong>${productData.title || 'Ürün'}</strong></p><p>Marka: ${productData.brand || 'Bilinmeyen'}</p><p><em>Trendyol'dan otomatik aktarılmıştır. %15 kar marjı eklenmiştir.</em></p>`,
+      vendor: productData.brand || 'Genel',
+      product_type: 'Trendyol Import',
+      tags: `${productData.brand || 'genel'}, trendyol, import`,
+      variants: [{
+        option1: 'Varsayılan',
+        price: productData.price?.withProfit?.toFixed(2) || '100.00',
+        sku: `TY-${Date.now()}`,
+        inventory_quantity: 20,
+        inventory_management: 'shopify',
+        inventory_policy: 'deny'
+      }],
+      options: [{ name: 'Tip', values: ['Varsayılan'] }],
+      status: 'active',
+      images: (productData.images || []).slice(0, 3).map(img => ({ src: img }))
+    };
+
+    const response = await fetch('https://turmarkt.com/admin/api/2024-01/products.json', {
+      method: 'POST',
+      headers: {
+        'X-Shopify-Access-Token': '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',
+        'Content-Type': 'application/json',
+      },
+      body: JSON.stringify({ product: shopifyProduct })
+    });
+
+    if (response.ok) {
+      const result = await response.json();
+      res.json({
+        success: true,
+        shopifyProductId: result.product.id,
+        adminUrl: `https://turmarkt.com/admin/products/${result.product.id}`,
+        storeUrl: `https://turmarkt.com/products/${result.product.handle}`,
+        message: 'Ürün başarıyla Shopify\'a eklendi',
+        product: result.product
+      });
+    } else {
+      const errorText = await response.text();
+      res.status(response.status).json({
+        success: false,
+        error: `Shopify API hatası: ${errorText}`,
+        status: response.status
+      });
+    }
   } catch (error) {
     res.status(500).json({ success: false, error: error.message });
   }
