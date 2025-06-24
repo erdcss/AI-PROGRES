@@ -7,11 +7,14 @@ const createGmailTransporter = () => {
     return null;
   }
 
+  // Gmail app password should not have spaces
+  const cleanPassword = process.env.GMAIL_APP_PASSWORD?.replace(/\s/g, '') || '';
+  
   const transporter = nodemailer.createTransport({
     service: 'gmail',
     auth: {
       user: process.env.GMAIL_USER,
-      pass: process.env.GMAIL_APP_PASSWORD
+      pass: cleanPassword
     }
   });
   

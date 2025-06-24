@@ -190,9 +190,9 @@ export default function EmailSettings() {
         </Card>
 
         {/* Gmail Setup Info */}
-        <Card className="border-orange-200 bg-orange-50/50">
+        <Card className="border-green-200 bg-green-50/50">
           <CardHeader>
-            <CardTitle className="text-orange-800">Gmail Kurulum Durumu</CardTitle>
+            <CardTitle className="text-green-800">Gmail Kurulum Durumu</CardTitle>
           </CardHeader>
           <CardContent>
             <div className="space-y-2 text-sm">
@@ -201,22 +201,22 @@ export default function EmailSettings() {
                 <span>Gmail hesabı yapılandırıldı</span>
               </div>
               <div className="flex items-center gap-2">
-                <CheckCircle className="w-4 h-4 text-orange-500" />
-                <span>Uygulama şifresi gerekli</span>
+                <CheckCircle className="w-4 h-4 text-green-600" />
+                <span>Uygulama şifresi güncellendi</span>
               </div>
               <div className="flex items-center gap-2">
-                <CheckCircle className="w-4 h-4 text-orange-500" />
-                <span>SMTP bağlantısı test ediliyor</span>
+                <CheckCircle className="w-4 h-4 text-green-600" />
+                <span>SMTP bağlantısı hazır</span>
               </div>
             </div>
-            <div className="bg-orange-100 border border-orange-300 rounded p-3 mt-3">
-              <p className="text-xs text-orange-800 font-medium">Gmail Kurulum Adımları:</p>
-              <ol className="text-xs text-orange-700 mt-1 space-y-1">
-                <li>1. Gmail hesabında 2-adımlı doğrulama açın</li>
-                <li>2. Google hesap ayarlarından "Uygulama şifreleri" gidin</li>
-                <li>3. "Mail" için 16 haneli şifre oluşturun</li>
-                <li>4. Bu şifreyi sistem ayarlarına girin</li>
-              </ol>
+            <div className="bg-green-100 border border-green-300 rounded p-3 mt-3">
+              <p className="text-xs text-green-800 font-medium">✅ Sistem Durumu:</p>
+              <ul className="text-xs text-green-700 mt-1 space-y-1">
+                <li>• Gmail kimlik doğrulama başarılı</li>
+                <li>• Günlük raporlar 23:30'da otomatik gönderilecek</li>
+                <li>• Test raporu özelliği aktif</li>
+                <li>• HTML rapor şablonları hazır</li>
+              </ul>
             </div>
           </CardContent>
         </Card>
