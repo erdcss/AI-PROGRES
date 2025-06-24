@@ -17,7 +17,7 @@ export const db = drizzle({ client: pool, schema });
 // Database helper functions
 export async function testConnection() {
   try {
-    const result = await db.execute('SELECT NOW()');
+    const result = await pool.query('SELECT NOW()');
     console.log('✅ Database connection successful');
     return true;
   } catch (error) {

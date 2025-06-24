@@ -1,6 +1,6 @@
 import { memorySystem } from './memory-system';
 import { shopifyIntegration } from './shopify-integration';
-import { enhancedScraper } from './enhanced-trendyol-scraper';
+import { scrapeProductData } from './enhanced-scraper-integration';
 
 export class MonitoringService {
   private isRunning = false;
@@ -91,8 +91,7 @@ export class MonitoringService {
   // Trendyol'dan ürün verilerini çek
   private async scrapeProductData(url: string): Promise<any> {
     try {
-      const scrapedData = await enhancedScraper.scrapeProduct(url);
-      return scrapedData;
+      return await scrapeProductData(url);
     } catch (error) {
       console.error('Scraping hatası:', error);
       return null;
