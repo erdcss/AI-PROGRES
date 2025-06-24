@@ -292,17 +292,32 @@ router.post('/api/shopify/add-product', async (req, res) => {
       const result = await response.json();
       console.log('✅ Shopify product created:', result.product.id);
       
-      // Telegram bildirimi gönder - düzeltilmiş versiyon
+      // Telegram bildirimi gönder
       try {
-        const telegramService = require('./telegram-integration');
-        await telegramService.telegramIntegration.sendNewProductNotification(
-          productData,
-          productData.variants || []
-        );
+        const TelegramBot = require('node-telegram-bot-api');
+        const token = '7687164814:AAGw-Z0yBYuyfbkA-4bIWhJg_WxxWj14hxk';
+        const bot = new TelegramBot(token, { polling: false });
+        
+        const profitAmount = (productData.price?.withProfit || 0) - (productData.price?.original || 0);
+        const profitPercentage = productData.price?.original ? ((profitAmount / productData.price.original) * 100).toFixed(1) : '15.0';
+        
+        const message = 
+          `🆕 <b>YENİ ÜRÜN YÜKLENDİ</b>\n\n` +
+          `📦 <b>Ürün:</b> ${productData.title || 'Bilinmeyen Ürün'}\n` +
+          `🏢 <b>Marka:</b> ${productData.brand || 'Bilinmeyen Marka'}\n` +
+          `🌐 <b>Kaynak Site:</b> Trendyol\n` +
+          `💰 <b>Alış Fiyatı:</b> ${productData.price?.original?.toFixed(2) || '0.00'} TL\n` +
+          `💵 <b>Satış Fiyatı:</b> ${productData.price?.withProfit?.toFixed(2) || '0.00'} TL\n` +
+          `📈 <b>Kar Miktarı:</b> ${profitAmount.toFixed(2)} TL\n` +
+          `📊 <b>Kar Oranı:</b> %${profitPercentage}\n\n` +
+          `⚡ <b>Shopify'a başarıyla eklendi</b>\n` +
+          `🆔 <b>Product ID:</b> ${result.product.id}`;
+        
+        // Send to chat ID 1219880063 (user who sent /start)
+        await bot.sendMessage(1219880063, message, { parse_mode: 'HTML' });
         console.log('✅ Telegram notification sent successfully');
       } catch (telegramError) {
         console.error('Telegram notification failed:', telegramError.message);
-        // Telegram hatası ürün eklemeyi engellemez
       }
       
       res.json({
