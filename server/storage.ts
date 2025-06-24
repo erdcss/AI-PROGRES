@@ -1,53 +1,28 @@
-import { products, type Product, type InsertProduct } from "@shared/schema";
+import { eq, and, or, ilike, desc, asc, gte, lte, sql } from "drizzle-orm";
+import { db } from "./db";
+import { memorySystem } from "./memory-system";
+import { products, productVariants } from "@shared/schema";
 
-export interface IStorage {
-  saveProduct(product: InsertProduct): Promise<Product>;
-  getProduct(url: string): Promise<Product | undefined>;
-  updateProductAttributes(id: number, attributes: Record<string, string>): Promise<void>;
-  reset(): void;
-  addToHistory(url: string): void;
-  getHistory(): string[];
+// Legacy storage interface for backward compatibility
+interface IStorage {
+  addProduct(productData: any): Promise<any>;
+  getProduct(identifier: string): Promise<any>;
+  getAllProducts(): Promise<any[]>;
+  updateProduct(identifier: string, updates: any): Promise<any>;
+  deleteProduct(identifier: string): Promise<boolean>;
+  getUrlHistory(): Promise<string[]>;
+  getProductCount(): Promise<number>;
+  searchProducts(query: string): Promise<any[]>;
+  getProductsByCategory(category: string): Promise<any[]>;
+  getProductsByBrand(brand: string): Promise<any[]>;
+  getProductsByPriceRange(minPrice: number, maxPrice: number): Promise<any[]>;
+  getRecentProducts(limit: number): Promise<any[]>;
+  clearMemory(): Promise<void>;
+  getMemoryStats(): Promise<any>;
 }
 
-export class MemStorage implements IStorage {
-  private products: Map<string, Product>;
-  private currentId: number;
-  private urlHistory: string[];
-
-  constructor() {
-    this.products = new Map();
-    this.currentId = 1;
-    this.urlHistory = [];
-  }
-
-  async saveProduct(insertProduct: InsertProduct): Promise<Product> {
-    const id = this.currentId++;
-    
-    // Video alanı için undefined değerini null olarak ayarla (type hatası gidermek için)
-    const videoValue = insertProduct.video === undefined ? null : insertProduct.video;
-    
-    // Null olmaması gereken alanlar için varsayılan değerler belirle
-    const basePrice = insertProduct.basePrice || "0";
-    const category = insertProduct.category || "Other";
-    const subcategory = insertProduct.subcategory || "";
-    const productType = insertProduct.productType || "";
-    const tags = Array.isArray(insertProduct.tags) ? insertProduct.tags : ["turmarkt"];
-    
-    const product: Product = { 
-      ...insertProduct, 
-      id, 
-      video: videoValue,
-      basePrice,
-      category,
-      subcategory,
-      productType,
-      tags
-    };
-    
-    // URL'yi normalize et - parametrelerin bir kısmını kaldır
-    const normalizedUrl = this.normalizeUrl(product.url);
-    
-    // Hem orijinal URL'yi hem de normalize edilmiş URL'yi ekle
+// Enhanced Database Storage with Memory System Integration
+class DatabaseStorage implements IStorage {
     this.products.set(product.url, product);
     this.products.set(normalizedUrl, product);
     
