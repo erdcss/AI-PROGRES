@@ -111,7 +111,7 @@ export function SimpleProductPreview({ product }: SimpleProductPreviewProps) {
                   </div>
                   <div className="text-center p-2 bg-blue-500/10 rounded-lg">
                     <span className="text-blue-300 text-sm font-medium">
-                      %10 Kar Marjı Eklendi
+                      %15 Kar Marjı Eklendi
                     </span>
                   </div>
                 </div>

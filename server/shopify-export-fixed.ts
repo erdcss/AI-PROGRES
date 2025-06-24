@@ -109,10 +109,10 @@ export async function generateShopifyCSV(
     }
   }
 
-  // Fiyata %10 kar ekle
+  // Fiyata %15 kar ekle
   if (cleanPrice && !isNaN(parseFloat(cleanPrice))) {
     const basePrice = parseFloat(cleanPrice);
-    const priceWithProfit = (basePrice * 1.10).toFixed(2);
+    const priceWithProfit = (basePrice * 1.15).toFixed(2);
     product.price = priceWithProfit;
     console.log(`💰 Fiyat kar marjı ile güncellendi: ${basePrice} -> ${priceWithProfit}`);
   }

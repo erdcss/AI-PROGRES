@@ -95,7 +95,7 @@ export async function simpleTrendyolScrape(url: string): Promise<SimpleTrendyolD
         // Fiyat objesini oluştur (%10 kar marjı ile)
         if (rawPrice > 0) {
           originalPrice = rawPrice;
-          const profitPrice = Math.round(rawPrice * 1.10 * 100) / 100;
+          const profitPrice = Math.round(rawPrice * 1.150 * 100) / 100;
           
           priceObject = {
             original: rawPrice,

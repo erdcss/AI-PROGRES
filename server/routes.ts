@@ -565,10 +565,10 @@ export function registerRoutes(app: Express): Server {
           // JSON-LD'den kapsamlı ürün bilgilerini oluştur
           if (jsonldData) {
             try {
-              // Fiyata %10 kar marjı ekle
+              // Fiyata %15 kar marjı ekle
               const originalPrice = parseFloat(jsonldData.price) || 0;
-              const priceWithProfit = (originalPrice * 1.10).toFixed(2);
-              console.log(`FİYAT GÜNCELLEME: ${originalPrice} TL + %10 kar = ${priceWithProfit} TL`);
+              const priceWithProfit = (originalPrice * 1.15).toFixed(2);
+              console.log(`FİYAT GÜNCELLEME: ${originalPrice} TL + %15 kar = ${priceWithProfit} TL`);
               
               // JSON-LD'den etiketler oluştur
               const jsonTags = generateTagsFromJsonLd(jsonldData);

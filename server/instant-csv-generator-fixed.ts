@@ -52,8 +52,8 @@ class InstantCSVGenerator {
       }
       
       const basePrice = parseFloat(cleanPrice);
-      const priceWithMargin = (basePrice * 1.10).toFixed(2);
-      console.log(`💰 Price with 10% margin: ${basePrice} -> ${priceWithMargin}`);
+      const priceWithMargin = (basePrice * 1.15).toFixed(2);
+      console.log(`💰 Price with 15% margin: ${basePrice} -> ${priceWithMargin}`);
       
       // Generate CSV content
       const csvRows = [];
