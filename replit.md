@@ -117,3 +117,32 @@ The application follows a full-stack architecture with clear separation of conce
 ## User Preferences
 
 Preferred communication style: Simple, everyday language.
+
+## Advanced Memory System Features
+
+The application now includes a comprehensive memory system that provides:
+
+1. **PostgreSQL Integration**: All product data is stored securely in a PostgreSQL database with proper schema design
+2. **Real-time Monitoring**: Automatic price and stock tracking every 5 minutes for all saved products
+3. **Shopify Synchronization**: Direct API integration to automatically update Shopify when changes are detected
+4. **Memory Dashboard**: Web interface at `/memory` for system management and monitoring
+5. **Change History**: Complete audit trail of all price and stock changes with timestamps
+6. **Smart Alerts**: Automatic notifications when products go out of stock or prices change
+
+## Technical Implementation
+
+- **Database Schema**: Products, variants, price history, stock history, sync logs, monitoring schedules
+- **Memory System**: Advanced product tracking with variant-level granularity
+- **Shopify API**: Complete integration for product creation and real-time updates
+- **Monitoring Service**: Background service for continuous product monitoring
+- **API Endpoints**: Full REST API for memory system management
+
+## Usage Instructions
+
+1. Use the main scraper at `/` to extract products from Trendyol
+2. Access the memory dashboard at `/memory` to manage saved products
+3. Configure Shopify API keys via the secrets interface
+4. Enable monitoring to start automatic price/stock tracking
+5. Products will sync automatically to Shopify when changes are detected
+
+The system is designed to handle the specific use case: "If a black shoe size 35 goes out of stock on Trendyol, automatically update Shopify stock to zero."

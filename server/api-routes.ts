@@ -2,7 +2,7 @@ import { Router } from 'express';
 import { memorySystem } from './memory-system';
 import { shopifyIntegration } from './shopify-integration';
 import { monitoringService } from './monitoring-service';
-import { storage } from './storage';
+import { storage } from './storage-fixed';
 
 const router = Router();
 

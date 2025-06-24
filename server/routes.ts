@@ -4,7 +4,7 @@ import { z } from "zod";
 import * as cheerio from "cheerio";
 import path from "path";
 import fs from "fs";
-import { storage } from "./storage";
+import { storage } from "./storage-fixed";
 // import { scrapeProductWithPuppeteer } from "./fixed-puppeteer-scraper";
 import { scrapeWithEnhancedMethod } from "./enhanced-trendyol-scraper";
 import { generateStrictShopifyCSV } from "./strict-csv-generator";
