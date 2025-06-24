@@ -131,6 +131,13 @@ export class MonitoringService {
         const updated = await shopifyIntegration.updateProductPrice(product, newVariant);
         if (updated) {
           console.log(`💰 Shopify fiyat güncellendi: ${newVariant.color} ${newVariant.size}`);
+          
+          // Telegram bildirimi gönder
+          await telegramIntegration.sendPriceChangeNotification(
+            product.title,
+            parseFloat(oldVariant.trendyolPrice) * 1.15, // 15% margin
+            parseFloat(newVariant.trendyolPrice) * 1.15
+          );
         }
       }
 
@@ -147,6 +154,22 @@ export class MonitoringService {
         const updated = await shopifyIntegration.updateVariantStatus(product, newVariant);
         if (updated) {
           console.log(`🔄 Shopify varyant durumu güncellendi: ${newVariant.color} ${newVariant.size}`);
+          
+          // Telegram bildirimi gönder
+          if (newVariant.inStock) {
+            await telegramIntegration.sendNotification(
+              `✅ STOK GERİ GELDİ\n\n` +
+              `📦 Ürün: ${product.title}\n` +
+              `🎯 Varyant: ${newVariant.color} ${newVariant.size}\n` +
+              `✅ Stok durumu: Mevcut\n\n` +
+              `⚡ Shopify otomatik güncellendi`
+            );
+          } else {
+            await telegramIntegration.sendStockOutNotification(
+              product.title, 
+              `${newVariant.color} ${newVariant.size}`
+            );
+          }
         }
       }
     }
