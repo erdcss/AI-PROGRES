@@ -267,39 +267,31 @@ export function registerRoutes(app: Express): Server {
       if (url.includes('trendyol.com')) {
         console.log("Trendyol ürün verisi işleniyor...");
         
-        if (url.includes('modagen')) {
-          const { handleModagenProduct } = await import('./modagen-handler');
-          const result = await handleModagenProduct(url, productId || '');
-          return res.status(200).json(result);
+        try {
+          // Use enhanced scraper
+          const result = await scrapeWithEnhancedMethod(url);
+          
+          if (result) {
+            // Ensure safe data structure
+            const safeResult = {
+              success: true,
+              title: result.title || 'Başlık bulunamadı',
+              brand: result.brand || 'Marka bulunamadı',
+              price: result.price?.toString() || '0',
+              description: result.description || 'Açıklama bulunamadı',
+              images: Array.isArray(result.images) ? result.images : [],
+              variants: result.variants || { colors: [], sizes: [], stockMap: {} },
+              attributes: result.attributes || {}
+            };
+            
+            return res.status(200).json(safeResult);
+          }
+        } catch (error) {
+          console.log("Enhanced scraper hatası:", error);
         }
-        
-        // AI Enhanced Scraper kullan
-        const { aiEnhancedScrape } = await import('./ai-enhanced-scraper');
-        const result = await aiEnhancedScrape(url);
-        
-        // Ensure safe data structure
-        const safeResult = {
-          success: result?.success !== false,
-          title: result?.title || 'Başlık bulunamadı',
-          brand: result?.brand || 'Marka bulunamadı',
-          price: result?.price || '0',
-          description: result?.description || 'Açıklama bulunamadı',
-          images: Array.isArray(result?.images) ? result.images : [],
-          features: Array.isArray(result?.features) ? result.features : [],
-          specifications: Array.isArray(result?.specifications) ? result.specifications : [],
-          materials: Array.isArray(result?.materials) ? result.materials : [],
-          careInstructions: Array.isArray(result?.careInstructions) ? result.careInstructions : [],
-          variants: result?.variants || { colors: [], sizes: [] },
-          aiAnalysis: result?.aiAnalysis || null,
-          shopifyData: result?.shopifyData || null,
-          csvPreview: result?.csvPreview || null
-        };
-        
-        return res.status(200).json(safeResult);
       }
       
-      // Continue with original flow for non-Trendyol URLs
-      let htmlContent;
+      // Continue with original scraping methods
       
       if (productId) {
         try {
@@ -489,7 +481,11 @@ export function registerRoutes(app: Express): Server {
       if (!htmlContent) {
         try {
           console.log("Puppeteer kullanılıyor");
-          htmlContent = await scrapeProductWithPuppeteer(url);
+          const { scrapeWithEnhancedMethod } = await import('./enhanced-trendyol-scraper');
+          const puppeteerResult = await scrapeWithEnhancedMethod(url);
+          if (puppeteerResult) {
+            htmlContent = JSON.stringify(puppeteerResult);
+          }
         } catch (puppeteerError: any) {
           console.log(`Puppeteer hatası: ${puppeteerError.message}`);
         }
