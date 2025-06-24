@@ -109,10 +109,20 @@ export function SimpleProductPreview({ product }: SimpleProductPreviewProps) {
                     <span className="text-green-400 font-medium">Kar Marjlı Fiyat:</span>
                     <span className="text-green-300 font-bold text-xl">{price.profitFormatted}</span>
                   </div>
-                  <div className="text-center p-2 bg-blue-500/10 rounded-lg">
-                    <span className="text-blue-300 text-sm font-medium">
-                      %15 Kar Marjı Eklendi
-                    </span>
+                  <div className="grid grid-cols-2 gap-3">
+                    <div className="text-center p-2 bg-blue-500/10 rounded-lg">
+                      <span className="text-blue-300 text-sm font-medium">
+                        %15 Kar Marjı
+                      </span>
+                    </div>
+                    <div className="text-center p-2 bg-purple-500/10 rounded-lg">
+                      <span className="text-purple-300 text-sm font-medium">
+                        Kar: {((price.withProfit - price.original) || 0).toLocaleString('tr-TR', {
+                          minimumFractionDigits: 2,
+                          maximumFractionDigits: 2
+                        })} TL
+                      </span>
+                    </div>
                   </div>
                 </div>
               )}
