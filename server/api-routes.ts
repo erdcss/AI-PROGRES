@@ -158,7 +158,7 @@ router.post('/api/shopify/demo-sync', async (req, res) => {
 // Gerçek ürün Shopify'a ekleme endpoint
 router.post('/api/shopify/add-product', async (req, res) => {
   try {
-    const { productData } = req.body;
+    const productData = req.body.productData || req.body;
     
     if (!productData || !productData.success) {
       return res.status(400).json({ success: false, error: 'Geçerli product data gerekli' });
