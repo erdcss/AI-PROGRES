@@ -1,0 +1,128 @@
+// Lipton CSV template generator - uses the exact format from the provided template
+import slugify from 'slugify';
+
+export function generateLiptonTemplateCSV(productData: any): string {
+  if (!productData || !productData.success) {
+    throw new Error('Invalid product data');
+  }
+
+  const { title, brand, price, images, features, variants, colors, sizes } = productData;
+  
+  // Generate handle like Lipton template
+  const handle = slugify(title, { 
+    lower: true, 
+    strict: true,
+    remove: /[*+~.()'"!:@]/g 
+  }).substring(0, 50) + '-';
+
+  // Create HTML body like Lipton template
+  const bodyHtml = `${brand} ${title}. <h3>Ürün Özellikleri:</h3><ul>${
+    features.map((f: any) => `<li><strong>${f.key}:</strong> ${f.value}</li>`).join('')
+  }</ul>`;
+
+  // Create tags like Lipton template
+  const tags = features.map((f: any) => `${f.key}: ${f.value}`).join(', ');
+
+  const rows: string[][] = [];
+  
+  // Header row - exactly like Lipton template
+  const csvHeader = [
+    'Handle', 'Title', 'Body (HTML)', 'Vendor', 'Product Type', 'Tags',
+    'Published', 'Option1 Name', 'Option1 Value', 'Option2 Name', 'Option2 Value',
+    'Variant SKU', 'Variant Inventory Qty', 'Variant Price', 'Variant Compare At Price',
+    'Cost per item', 'Image Src', 'Image Position', 'Image Alt Text',
+    'SEO Title', 'SEO Description', 'Variant Weight Unit', 'Status'
+  ];
+  
+  rows.push(csvHeader);
+
+  // Determine variants structure
+  let productVariants: Array<{color: string, size: string, stock: number}> = [];
+  
+  if (variants && variants.length > 0) {
+    productVariants = variants.filter((v: any) => v.stock > 0);
+  } else if (colors.length > 0 || sizes.length > 0) {
+    const colorsToUse = colors.length > 0 ? colors : ['Varsayılan'];
+    const sizesToUse = sizes.length > 0 ? sizes : ['Standart'];
+    
+    colorsToUse.forEach((color: string) => {
+      sizesToUse.forEach((size: string) => {
+        productVariants.push({ color, size, stock: 25 });
+      });
+    });
+  } else {
+    productVariants = [{ color: 'Varsayılan', size: 'Standart', stock: 25 }];
+  }
+
+  // Main product row (first variant)
+  if (productVariants.length > 0) {
+    const firstVariant = productVariants[0];
+    const variantSku = `${handle}${slugify(firstVariant.color, {lower: true})}-${slugify(firstVariant.size, {lower: true})}`;
+    const imageAltText = `${title} ${firstVariant.color} ${firstVariant.size}`;
+    const seoTitle = `${title} | ${brand}`;
+    const seoDescription = bodyHtml.substring(0, 160) + '...';
+
+    rows.push([
+      handle,
+      title,
+      bodyHtml,
+      brand,
+      'Genel', // Product Type like Lipton
+      tags,
+      'TRUE', // Published
+      'Renk', // Option1 Name
+      firstVariant.color, // Option1 Value
+      'Beden', // Option2 Name
+      firstVariant.size, // Option2 Value
+      variantSku, // Variant SKU
+      firstVariant.stock.toString(), // Variant Inventory Qty
+      price.withProfit.toFixed(2), // Variant Price
+      '', // Variant Compare At Price
+      price.original.toFixed(2), // Cost per item
+      images[0] || '', // Image Src
+      '1', // Image Position
+      imageAltText, // Image Alt Text
+      seoTitle, // SEO Title
+      seoDescription, // SEO Description
+      'kg', // Variant Weight Unit (like Lipton)
+      'active' // Status
+    ]);
+  }
+
+  // Additional image rows - exactly like Lipton template
+  if (images && images.length > 1) {
+    images.slice(1).forEach((imageUrl: string, index: number) => {
+      if (imageUrl) {
+        rows.push([
+          handle, '', '', '', '', '', '', '', '', '', '', '', '', '', '', '',
+          imageUrl, (index + 2).toString(), '', '', '', '', ''
+        ]);
+      }
+    });
+  }
+
+  // Additional variant rows (if multiple variants)
+  if (productVariants.length > 1) {
+    productVariants.slice(1).forEach((variant) => {
+      const variantSku = `${handle}${slugify(variant.color, {lower: true})}-${slugify(variant.size, {lower: true})}`;
+      const imageAltText = `${title} ${variant.color} ${variant.size}`;
+
+      rows.push([
+        handle, '', '', '', '', '', '', '', variant.color, '', variant.size,
+        variantSku, variant.stock.toString(), price.withProfit.toFixed(2), '',
+        price.original.toFixed(2), '', '', imageAltText, '', '', '', ''
+      ]);
+    });
+  }
+
+  // Convert to CSV string with proper escaping
+  return rows.map(row => 
+    row.map(cell => {
+      const cellStr = String(cell || '');
+      if (cellStr.includes(',') || cellStr.includes('"') || cellStr.includes('\n')) {
+        return `"${cellStr.replace(/"/g, '""')}"`;
+      }
+      return cellStr;
+    }).join(',')
+  ).join('\n');
+}
