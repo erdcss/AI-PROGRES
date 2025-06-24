@@ -82,6 +82,17 @@ export class MonitoringService {
 
       // İzleme programını güncelle
       await memorySystem.updateMonitoringSchedule(product.id);
+      
+      // Periyodik özet gönder (her 10 ürün kontrolünde bir)
+      if (Math.random() < 0.1) { // %10 olasılıkla
+        const stats = await memorySystem.getStats();
+        await telegramIntegration.sendMonitoringSummary({
+          totalProducts: stats.totalProducts,
+          inStockProducts: stats.activeProducts,
+          outOfStockProducts: stats.outOfStockProducts,
+          priceChanges: stats.recentPriceChanges
+        });
+      }
 
     } catch (error) {
       console.error(`❌ ${product.title} kontrol hatası:`, error);
@@ -133,10 +144,11 @@ export class MonitoringService {
           console.log(`💰 Shopify fiyat güncellendi: ${newVariant.color} ${newVariant.size}`);
           
           // Telegram bildirimi gönder
-          await telegramIntegration.sendPriceChangeNotification(
+          await telegramIntegration.sendDetailedPriceChangeNotification(
             product.title,
-            parseFloat(oldVariant.trendyolPrice) * 1.15, // 15% margin
-            parseFloat(newVariant.trendyolPrice) * 1.15
+            newVariant,
+            parseFloat(oldVariant.trendyolPrice),
+            parseFloat(newVariant.trendyolPrice)
           );
         }
       }
@@ -157,17 +169,16 @@ export class MonitoringService {
           
           // Telegram bildirimi gönder
           if (newVariant.inStock) {
-            await telegramIntegration.sendNotification(
-              `✅ STOK GERİ GELDİ\n\n` +
-              `📦 Ürün: ${product.title}\n` +
-              `🎯 Varyant: ${newVariant.color} ${newVariant.size}\n` +
-              `✅ Stok durumu: Mevcut\n\n` +
-              `⚡ Shopify otomatik güncellendi`
+            await telegramIntegration.sendDetailedStockNotification(
+              product.title, 
+              newVariant,
+              'back'
             );
           } else {
-            await telegramIntegration.sendStockOutNotification(
+            await telegramIntegration.sendDetailedStockNotification(
               product.title, 
-              `${newVariant.color} ${newVariant.size}`
+              newVariant,
+              'out'
             );
           }
         }

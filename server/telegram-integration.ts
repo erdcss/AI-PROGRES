@@ -155,6 +155,172 @@ export class TelegramIntegration {
     }
   }
 
+  // Send new product upload notification with detailed info
+  async sendNewProductNotification(product: any, variants: any[]) {
+    if (!this.bot || !this.chatId) {
+      console.log('Telegram not configured for new product notification');
+      return;
+    }
+
+    const firstVariant = variants[0] || {};
+    const totalVariants = variants.length;
+    const inStockVariants = variants.filter(v => v.inStock).length;
+    const originalPrice = parseFloat(firstVariant.trendyolPrice || 0);
+    const sellingPrice = originalPrice * 1.15;
+    const profitAmount = sellingPrice - originalPrice;
+    const profitMargin = '15%';
+
+    let variantList = '';
+    variants.slice(0, 5).forEach((variant, index) => {
+      const stockStatus = variant.inStock ? '✅' : '❌';
+      variantList += `${stockStatus} ${variant.color || 'Renk Yok'} - ${variant.size || 'Beden Yok'}\n`;
+    });
+    if (totalVariants > 5) {
+      variantList += `...ve ${totalVariants - 5} varyant daha`;
+    }
+
+    const message = 
+      `🆕 YENİ ÜRÜN YÜKLENDİ\n\n` +
+      `📦 Ürün: ${product.title}\n` +
+      `🌐 Kaynak Site: Trendyol\n` +
+      `💰 Alış Fiyatı: ${originalPrice.toFixed(2)} TL\n` +
+      `💵 Satış Fiyatı: ${sellingPrice.toFixed(2)} TL\n` +
+      `📈 Kar Miktarı: ${profitAmount.toFixed(2)} TL\n` +
+      `📊 Kar Oranı: ${profitMargin}\n` +
+      `🎯 Toplam Varyant: ${totalVariants}\n` +
+      `✅ Stokta Olan: ${inStockVariants}\n\n` +
+      `📋 Varyantlar:\n${variantList}\n\n` +
+      `⚡ Shopify'a otomatik yüklendi`;
+
+    try {
+      await this.bot.sendMessage(this.chatId, message);
+      console.log('New product notification sent via Telegram');
+    } catch (error) {
+      console.error('Failed to send new product notification:', error);
+    }
+  }
+
+  // Send detailed price change notification
+  async sendDetailedPriceChangeNotification(productName: string, variant: any, oldPrice: number, newPrice: number) {
+    if (!this.bot || !this.chatId) {
+      console.log('Telegram not configured for price change notification');
+      return;
+    }
+
+    const direction = newPrice > oldPrice ? '📈 ARTTI' : '📉 DÜŞTÜ';
+    const difference = Math.abs(newPrice - oldPrice).toFixed(2);
+    const percentage = (Math.abs(newPrice - oldPrice) / oldPrice * 100).toFixed(1);
+    
+    const oldSellingPrice = oldPrice * 1.15;
+    const newSellingPrice = newPrice * 1.15;
+    const oldProfit = oldSellingPrice - oldPrice;
+    const newProfit = newSellingPrice - newPrice;
+
+    const message = 
+      `💰 FİYAT DEĞİŞİKLİĞİ ${direction}\n\n` +
+      `📦 Ürün: ${productName}\n` +
+      `🎯 Varyant: ${variant.color || 'Renk Yok'} - ${variant.size || 'Beden Yok'}\n` +
+      `🌐 Kaynak: Trendyol\n\n` +
+      `💵 ESKİ FİYATLAR:\n` +
+      `   Alış: ${oldPrice.toFixed(2)} TL\n` +
+      `   Satış: ${oldSellingPrice.toFixed(2)} TL\n` +
+      `   Kar: ${oldProfit.toFixed(2)} TL\n\n` +
+      `💵 YENİ FİYATLAR:\n` +
+      `   Alış: ${newPrice.toFixed(2)} TL\n` +
+      `   Satış: ${newSellingPrice.toFixed(2)} TL\n` +
+      `   Kar: ${newProfit.toFixed(2)} TL\n\n` +
+      `📊 Değişim: ${difference} TL (${percentage}%)\n` +
+      `⚡ Shopify otomatik güncellendi`;
+
+    try {
+      await this.bot.sendMessage(this.chatId, message);
+      console.log('Detailed price change notification sent via Telegram');
+    } catch (error) {
+      console.error('Failed to send detailed price change notification:', error);
+    }
+  }
+
+  // Send detailed stock change notification
+  async sendDetailedStockNotification(productName: string, variant: any, stockChange: 'out' | 'back') {
+    if (!this.bot || !this.chatId) {
+      console.log('Telegram not configured for stock notification');
+      return;
+    }
+
+    const originalPrice = parseFloat(variant.trendyolPrice || 0);
+    const sellingPrice = originalPrice * 1.15;
+    const profitAmount = sellingPrice - originalPrice;
+
+    const statusIcon = stockChange === 'out' ? '🚨' : '✅';
+    const statusText = stockChange === 'out' ? 'STOKTAN ÇIKTI' : 'STOK GERİ GELDİ';
+    const stockStatus = stockChange === 'out' ? 'Tükendi' : 'Mevcut';
+
+    const message = 
+      `${statusIcon} ${statusText}\n\n` +
+      `📦 Ürün: ${productName}\n` +
+      `🎯 Varyant: ${variant.color || 'Renk Yok'} - ${variant.size || 'Beden Yok'}\n` +
+      `🌐 Kaynak Site: Trendyol\n` +
+      `📦 Stok Durumu: ${stockStatus}\n\n` +
+      `💰 Fiyat Bilgileri:\n` +
+      `   Alış: ${originalPrice.toFixed(2)} TL\n` +
+      `   Satış: ${sellingPrice.toFixed(2)} TL\n` +
+      `   Kar: ${profitAmount.toFixed(2)} TL (%15)\n\n` +
+      `⚡ Shopify otomatik güncellendi`;
+
+    try {
+      await this.bot.sendMessage(this.chatId, message);
+      console.log('Detailed stock notification sent via Telegram');
+    } catch (error) {
+      console.error('Failed to send detailed stock notification:', error);
+    }
+  }
+
+  // Send system activity notification
+  async sendSystemActivity(activity: string, details?: any) {
+    if (!this.bot || !this.chatId) {
+      console.log('Telegram not configured for system activity');
+      return;
+    }
+
+    const timestamp = new Date().toLocaleString('tr-TR');
+    let message = `🔄 SİSTEM AKTİVİTESİ\n\n${activity}\n\n🕐 Zaman: ${timestamp}`;
+
+    if (details) {
+      message += `\n\n📋 Detaylar: ${JSON.stringify(details, null, 2)}`;
+    }
+
+    try {
+      await this.bot.sendMessage(this.chatId, message);
+      console.log('System activity notification sent via Telegram');
+    } catch (error) {
+      console.error('Failed to send system activity notification:', error);
+    }
+  }
+
+  // Send monitoring summary
+  async sendMonitoringSummary(summary: any) {
+    if (!this.bot || !this.chatId) {
+      console.log('Telegram not configured for monitoring summary');
+      return;
+    }
+
+    const message = 
+      `📊 İZLEME ÖZETİ\n\n` +
+      `📦 Toplam Ürün: ${summary.totalProducts || 0}\n` +
+      `✅ Stokta Olan: ${summary.inStockProducts || 0}\n` +
+      `❌ Stokta Olmayan: ${summary.outOfStockProducts || 0}\n` +
+      `💰 Fiyat Değişimi: ${summary.priceChanges || 0}\n` +
+      `🔄 Son Kontrol: ${new Date().toLocaleString('tr-TR')}\n\n` +
+      `⚡ Sistem aktif olarak çalışıyor`;
+
+    try {
+      await this.bot.sendMessage(this.chatId, message);
+      console.log('Monitoring summary sent via Telegram');
+    } catch (error) {
+      console.error('Failed to send monitoring summary:', error);
+    }
+  }
+
   // Send general notification
   async sendNotification(message: string) {
     if (!this.bot || !this.chatId) {

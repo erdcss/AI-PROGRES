@@ -7,6 +7,7 @@ import ScraperPage from "@/pages/scraper";
 import PriceComparisonPage from "@/pages/price-comparison";
 import MarketplaceSelection from "@/pages/marketplace-selection";
 import ComingSoon from "@/pages/coming-soon";
+import { TelegramPage } from "@/pages/telegram";
 // Removed auto-csv page import
 // Removed bulk-csv page import
 import { useState, useEffect } from "react";
@@ -211,6 +212,11 @@ function Router() {
       <Route path="/price-comparison">
         <PageTransition>
           <PriceComparisonPage />
+        </PageTransition>
+      </Route>
+      <Route path="/telegram">
+        <PageTransition>
+          <TelegramPage />
         </PageTransition>
       </Route>
       <Route>
