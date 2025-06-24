@@ -220,6 +220,11 @@ function Router() {
           <TelegramPage />
         </PageTransition>
       </Route>
+      <Route path="/email">
+        <PageTransition>
+          <EmailSettings />
+        </PageTransition>
+      </Route>
       <Route>
         <PageTransition>
           <NotFound />

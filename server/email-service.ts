@@ -1,4 +1,4 @@
-import * as nodemailer from 'nodemailer';
+const nodemailer = require('nodemailer');
 
 // Gmail SMTP configuration
 const createGmailTransporter = () => {
@@ -7,13 +7,15 @@ const createGmailTransporter = () => {
     return null;
   }
 
-  return nodemailer.createTransporter({
+  const transporter = nodemailer.createTransporter({
     service: 'gmail',
     auth: {
       user: process.env.GMAIL_USER,
       pass: process.env.GMAIL_APP_PASSWORD
     }
   });
+  
+  return transporter;
 };
 
 interface DailyReportData {
