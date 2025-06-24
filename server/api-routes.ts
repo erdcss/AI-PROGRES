@@ -220,10 +220,10 @@ router.post('/api/shopify/add-product', async (req, res) => {
 
     console.log('Creating Shopify product:', shopifyProduct.title);
     
-    const response = await fetch('https://turmarkt.myshopify.com/admin/api/2024-01/products.json', {
+    const response = await fetch('https://kr5xdy-x7.myshopify.com/admin/api/2024-01/products.json', {
       method: 'POST',
       headers: {
-        'X-Shopify-Access-Token': process.env.SHOPIFY_ACCESS_TOKEN || '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',
+        'X-Shopify-Access-Token': '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',
         'Content-Type': 'application/json',
       },
       body: JSON.stringify({ product: shopifyProduct })
@@ -247,8 +247,8 @@ router.post('/api/shopify/add-product', async (req, res) => {
       res.json({
         success: true,
         shopifyProductId: result.product.id,
-        adminUrl: `https://turmarkt.myshopify.com/admin/products/${result.product.id}`,
-        storeUrl: `https://turmarkt.myshopify.com/products/${result.product.handle}`,
+        adminUrl: `https://kr5xdy-x7.myshopify.com/admin/products/${result.product.id}`,
+        storeUrl: `https://kr5xdy-x7.myshopify.com/products/${result.product.handle}`,
         message: 'Ürün başarıyla Shopify\'a eklendi',
         product: result.product
       });
