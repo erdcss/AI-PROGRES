@@ -271,10 +271,9 @@ app.use((req, res, next) => {
     serveStatic(app);
   }
 
-  // Serving the app on port 3000
+  // Serving the app on port 5000 for Replit workflow compatibility
   // this serves both the API and the client.
-  // Port 3000 is expected by the deployment
-  const port = process.env.PORT || 3000;
+  const port = process.env.PORT || 5000;
   
   // Graceful shutdown handling
   process.on('SIGTERM', () => {
@@ -306,7 +305,7 @@ app.use((req, res, next) => {
 
   server.listen(port, "0.0.0.0", () => {
     log(`serving on port ${port}`);
-    console.log(`Server is running at http://localhost:${port}`);
-    console.log(`Please visit the application at http://localhost:${port}`);
+    console.log(`Server is running at http://0.0.0.0:${port}`);
+    console.log(`Please visit the application at http://0.0.0.0:${port}`);
   });
 })();
