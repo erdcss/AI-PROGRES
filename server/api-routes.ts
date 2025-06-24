@@ -189,7 +189,7 @@ router.post('/api/shopify/demo-sync', async (req, res) => {
   }
 });
 
-// Gerçek ürün Shopify'a ekleme endpoint
+// Gerçek ürün Shopify'a ekleme endpoint - Tam template formatında
 router.post('/api/shopify/add-product', async (req, res) => {
   try {
     const productData = req.body.productData || req.body;
@@ -198,24 +198,83 @@ router.post('/api/shopify/add-product', async (req, res) => {
       return res.status(400).json({ success: false, error: 'Geçerli product data gerekli' });
     }
 
-    // Doğrudan Shopify API çağrısı
-    const shopifyProduct = {
-      title: `${productData.title || 'Ürün'}`,
-      body_html: `<p><strong>${productData.title || 'Ürün'}</strong></p><p>Marka: ${productData.brand || 'Bilinmeyen'}</p><p><em>Trendyol'dan otomatik aktarılmıştır. %15 kar marjı eklenmiştir.</em></p>`,
-      vendor: productData.brand || 'Genel',
-      product_type: 'Trendyol Import',
-      tags: `${productData.brand || 'genel'}, trendyol, import`,
-      variants: [{
-        option1: 'Varsayılan',
+    // Özellikler HTML formatında hazırla
+    let featuresHtml = '';
+    if (productData.features && productData.features.length > 0) {
+      featuresHtml = '<h3>Ürün Özellikleri:</h3><ul>';
+      productData.features.forEach(feature => {
+        featuresHtml += `<li><strong>${feature.key}:</strong> ${feature.value}</li>`;
+      });
+      featuresHtml += '</ul>';
+    }
+
+    // Detaylı HTML açıklama - template formatına uygun
+    const bodyHtml = `${productData.brand || 'Marka'} ${productData.title || 'Ürün'}. ${featuresHtml}<p><em>Trendyol'dan aktarılmıştır. %15 kar marjı eklenmiştir.</em></p>`;
+
+    // Varyantları işle
+    const variants = [];
+    const optionValues = new Set();
+    
+    if (productData.variants && productData.variants.length > 0) {
+      productData.variants.forEach((variant, index) => {
+        const optionValue = variant.size || variant.color || 'Standart';
+        optionValues.add(optionValue);
+        variants.push({
+          option1: optionValue,
+          price: productData.price?.withProfit?.toFixed(2) || '100.00',
+          sku: `${productData.brand?.toUpperCase() || 'BRAND'}-${Date.now()}-${index}`,
+          inventory_quantity: variant.stockCount || 20,
+          inventory_management: 'shopify',
+          inventory_policy: 'deny',
+          cost: productData.price?.original?.toFixed(2) || '85.00'
+        });
+      });
+    } else {
+      optionValues.add('Standart');
+      variants.push({
+        option1: 'Standart',
         price: productData.price?.withProfit?.toFixed(2) || '100.00',
-        sku: `TY-${Date.now()}`,
+        sku: `${productData.brand?.toUpperCase() || 'BRAND'}-${Date.now()}`,
         inventory_quantity: 20,
         inventory_management: 'shopify',
-        inventory_policy: 'deny'
-      }],
-      options: [{ name: 'Tip', values: ['Varsayılan'] }],
+        inventory_policy: 'deny',
+        cost: productData.price?.original?.toFixed(2) || '85.00'
+      });
+    }
+
+    // SEO başlık ve açıklama
+    const seoTitle = `${productData.title} - ${productData.brand} | Turmarkt`;
+    const seoDescription = `${productData.title} ürününü Turmarkt'tan satın alın. ${productData.brand} markası, kaliteli ve uygun fiyatlı ürünler.`;
+
+    // Shopify product objesi - tam template formatında
+    const shopifyProduct = {
+      title: productData.title || 'Ürün',
+      body_html: bodyHtml,
+      vendor: productData.brand || 'Genel',
+      product_type: 'Çay & Gıda',
+      tags: `${productData.brand?.toLowerCase() || 'genel'}, trendyol, import, ${productData.features?.map(f => f.value.toLowerCase()).join(', ') || ''}`,
+      variants: variants,
+      options: [{ name: 'Varyant', values: Array.from(optionValues) }],
       status: 'active',
-      images: (productData.images || []).slice(0, 3).map(img => ({ src: img }))
+      images: (productData.images || []).slice(0, 5).map((img, index) => ({ 
+        src: img,
+        position: index + 1,
+        alt: `${productData.title} - Görsel ${index + 1}`
+      })),
+      metafields: [
+        {
+          namespace: 'custom',
+          key: 'seo_title',
+          value: seoTitle,
+          type: 'single_line_text_field'
+        },
+        {
+          namespace: 'custom', 
+          key: 'seo_description',
+          value: seoDescription,
+          type: 'multi_line_text_field'
+        }
+      ]
     };
 
     console.log('Creating Shopify product:', shopifyProduct.title);
@@ -233,15 +292,17 @@ router.post('/api/shopify/add-product', async (req, res) => {
       const result = await response.json();
       console.log('✅ Shopify product created:', result.product.id);
       
-      // Telegram bildirimi gönder
+      // Telegram bildirimi gönder - düzeltilmiş versiyon
       try {
-        await telegramIntegration.sendNewProductNotification(
+        const telegramService = require('./telegram-integration');
+        await telegramService.telegramIntegration.sendNewProductNotification(
           productData,
           productData.variants || []
         );
-        console.log('✅ Telegram notification sent');
+        console.log('✅ Telegram notification sent successfully');
       } catch (telegramError) {
-        console.log('Telegram notification failed:', telegramError.message);
+        console.error('Telegram notification failed:', telegramError.message);
+        // Telegram hatası ürün eklemeyi engellemez
       }
       
       res.json({
