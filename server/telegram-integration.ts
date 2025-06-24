@@ -11,10 +11,10 @@ export class TelegramIntegration {
   }
 
   private initializeBot() {
-    const token = process.env.TELEGRAM_BOT_TOKEN;
+    const token = '7687164814:AAGw-Z0yBYuyfbkA-4bIWhJg_WxxWj14hxk';
     
     if (!token) {
-      console.log('Telegram bot token not found in environment variables');
+      console.log('Telegram bot token not found');
       return;
     }
 
@@ -22,7 +22,7 @@ export class TelegramIntegration {
       this.bot = new TelegramBot(token, { polling: true });
       this.setupEventHandlers();
       this.isConnected = true;
-      console.log('Telegram bot initialized successfully');
+      console.log('Telegram bot initialized with user token');
     } catch (error) {
       console.error('Failed to initialize Telegram bot:', error);
     }
