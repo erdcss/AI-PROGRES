@@ -16,8 +16,8 @@ export class ShopifyIntegration {
   private apiVersion: string = '2024-01';
 
   constructor(shopifyDomain?: string, accessToken?: string) {
-    this.shopifyDomain = shopifyDomain || process.env.SHOPIFY_STORE_DOMAIN || '';
-    this.accessToken = accessToken || process.env.SHOPIFY_ACCESS_TOKEN || '';
+    this.shopifyDomain = shopifyDomain || process.env.SHOPIFY_STORE_DOMAIN || 'turmarkt.com';
+    this.accessToken = accessToken || process.env.SHOPIFY_ACCESS_TOKEN || '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';
   }
 
   private get baseUrl(): string {

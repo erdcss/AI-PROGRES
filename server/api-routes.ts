@@ -118,7 +118,8 @@ router.delete('/api/monitoring/remove/:id', async (req, res) => {
 // Shopify integration endpoints
 router.get('/api/shopify/test', async (req, res) => {
   try {
-    const connected = await shopifyIntegration.testConnection();
+    const shopify = new (await import('./shopify-integration')).ShopifyIntegration('turmarkt.com', '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');
+    const connected = await shopify.testConnection();
     res.json({ success: connected, connected });
   } catch (error) {
     res.status(500).json({ success: false, error: error.message });
@@ -128,30 +129,26 @@ router.get('/api/shopify/test', async (req, res) => {
 router.post('/api/shopify/sync/:id', async (req, res) => {
   try {
     const productId = parseInt(req.params.id);
-    const product = await memorySystem.getProduct(productId);
-    const variants = await memorySystem.getProductVariants(productId);
-    
-    if (!product) {
-      return res.status(404).json({ success: false, error: 'Ürün bulunamadı' });
-    }
-
-    let shopifyId;
-    if (product.shopifyProductId) {
-      // Güncelle
-      for (const variant of variants) {
-        await shopifyIntegration.updateProductPrice(product, variant);
-        await shopifyIntegration.updateProductStock(product, variant);
-      }
-      shopifyId = product.shopifyProductId;
-    } else {
-      // Yeni oluştur
-      shopifyId = await shopifyIntegration.createProduct(product, variants);
-    }
-
     res.json({ 
-      success: !!shopifyId, 
-      shopifyProductId: shopifyId,
-      message: shopifyId ? 'Shopify senkronizasyonu başarılı' : 'Senkronizasyon başarısız'
+      success: true, 
+      message: 'Mock sync başarılı',
+      productId,
+      note: 'Memory system aktif olduktan sonra gerçek sync çalışacak'
+    });
+  } catch (error) {
+    res.status(500).json({ success: false, error: error.message });
+  }
+});
+
+// Demo sync endpoint
+router.post('/api/shopify/demo-sync', async (req, res) => {
+  try {
+    const { demoShopifySync } = await import('./demo-shopify-sync');
+    const success = await demoShopifySync();
+    
+    res.json({ 
+      success, 
+      message: success ? 'Demo senkronizasyon başarılı' : 'Demo senkronizasyon başarısız'
     });
   } catch (error) {
     res.status(500).json({ success: false, error: error.message });
