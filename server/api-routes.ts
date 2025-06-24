@@ -155,6 +155,24 @@ router.post('/api/shopify/demo-sync', async (req, res) => {
   }
 });
 
+// Gerçek ürün Shopify'a ekleme endpoint
+router.post('/api/shopify/add-product', async (req, res) => {
+  try {
+    const { productData } = req.body;
+    
+    if (!productData) {
+      return res.status(400).json({ success: false, error: 'Product data gerekli' });
+    }
+
+    const { createProductInShopify } = await import('./shopify-product-creator');
+    const result = await createProductInShopify(productData);
+    
+    res.json(result);
+  } catch (error) {
+    res.status(500).json({ success: false, error: error.message });
+  }
+});
+
 // Bulk sync all products
 router.post('/api/shopify/sync-all', async (req, res) => {
   try {
