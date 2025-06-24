@@ -3,6 +3,7 @@ import { memorySystem } from './memory-system';
 import { shopifyIntegration } from './shopify-integration';
 import { monitoringService } from './monitoring-service';
 import { storage } from './storage-fixed';
+import { telegramIntegration } from './telegram-integration';
 
 const router = Router();
 
@@ -110,6 +111,39 @@ router.delete('/api/monitoring/remove/:id', async (req, res) => {
     } else {
       res.status(400).json({ success: false, error: 'Ürün çıkarılamadı' });
     }
+  } catch (error) {
+    res.status(500).json({ success: false, error: error.message });
+  }
+});
+
+// Telegram integration endpoints
+router.get('/api/telegram/status', async (req, res) => {
+  try {
+    const status = telegramIntegration.getStatus();
+    const isConnected = await telegramIntegration.testConnection();
+    
+    res.json({
+      success: true,
+      status: {
+        ...status,
+        connectionTest: isConnected
+      }
+    });
+  } catch (error) {
+    res.status(500).json({ success: false, error: error.message });
+  }
+});
+
+router.post('/api/telegram/test', async (req, res) => {
+  try {
+    await telegramIntegration.sendNotification(
+      '🧪 TEST MESAJI\n\n' +
+      '✅ Telegram entegrasyonu çalışıyor!\n' +
+      '📱 Bildirimler bu chat\'e gelecek\n' +
+      `🕐 Zaman: ${new Date().toLocaleString('tr-TR')}`
+    );
+    
+    res.json({ success: true, message: 'Test mesajı gönderildi' });
   } catch (error) {
     res.status(500).json({ success: false, error: error.message });
   }

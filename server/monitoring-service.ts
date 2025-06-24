@@ -1,5 +1,6 @@
 import { memorySystem } from './memory-system';
 import { shopifyIntegration } from './shopify-integration';
+import { telegramIntegration } from './telegram-integration';
 import { scrapeProductData } from './enhanced-scraper-integration';
 
 export class MonitoringService {

@@ -211,3 +211,11 @@ The system now demonstrates complete end-to-end functionality for the requested 
 - Real Product: Çaykur tea with 985.67 TL pricing (15% margin applied)
 - CSV Template: Updated to use Lipton template format for consistent product uploads
 - Template Features: Professional HTML descriptions, proper image positioning, SEO-ready structure
+
+## Telegram Integration (In Progress)
+
+The user has requested Telegram integration to be added to the system. This will allow:
+- Real-time notifications when products go out of stock
+- Instant alerts when prices change on Trendyol
+- Direct product monitoring updates via Telegram bot
+- Integration with the existing monitoring service
