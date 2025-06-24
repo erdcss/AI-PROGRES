@@ -2,7 +2,7 @@ import { sendDailyReport, generateDailyReport } from './email-service';
 
 class DailyScheduler {
   private intervalId: NodeJS.Timeout | null = null;
-  private reportEmail: string = process.env.GMAIL_USER || 'admin@turmarkt.com'; // Gmail hesabı
+  private reportEmail: string = 'e2943592@gmail.com'; // Güncellenmiş email
 
   constructor() {
     this.startDailyScheduler();

@@ -209,13 +209,13 @@ export default function EmailSettings() {
                 <span>SMTP bağlantısı hazır</span>
               </div>
             </div>
-            <div className="bg-green-100 border border-green-300 rounded p-3 mt-3">
-              <p className="text-xs text-green-800 font-medium">✅ Sistem Durumu:</p>
-              <ul className="text-xs text-green-700 mt-1 space-y-1">
-                <li>• Gmail kimlik doğrulama başarılı</li>
-                <li>• Günlük raporlar 23:30'da otomatik gönderilecek</li>
-                <li>• Test raporu özelliği aktif</li>
-                <li>• HTML rapor şablonları hazır</li>
+            <div className="bg-orange-100 border border-orange-300 rounded p-3 mt-3">
+              <p className="text-xs text-orange-800 font-medium">⚠️ Kimlik Doğrulama Gerekli:</p>
+              <ul className="text-xs text-orange-700 mt-1 space-y-1">
+                <li>• Gmail uygulama şifresi yenilenmeli</li>
+                <li>• Mevcut şifre Google tarafından reddediliyor</li>
+                <li>• Yeni 16 haneli şifre oluşturun</li>
+                <li>• Sistem hazır, sadece kimlik doğrulama eksik</li>
               </ul>
             </div>
           </CardContent>
