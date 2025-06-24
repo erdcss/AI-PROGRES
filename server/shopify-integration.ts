@@ -21,7 +21,10 @@ export class ShopifyIntegration {
   }
 
   private get baseUrl(): string {
-    return `https://${this.shopifyDomain}/admin/api/${this.apiVersion}`;
+    const domain = this.shopifyDomain.includes('.myshopify.com') 
+      ? this.shopifyDomain 
+      : `${this.shopifyDomain}.myshopify.com`;
+    return `https://${domain}/admin/api/${this.apiVersion}`;
   }
 
   private get headers() {
