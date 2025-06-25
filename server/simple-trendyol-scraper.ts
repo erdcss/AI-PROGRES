@@ -6,7 +6,7 @@ import axios from 'axios';
 import * as cheerio from 'cheerio';
 import { extractTrendyolPrice } from './fixed-price-extractor';
 import { extractMainProductImages } from './main-product-images-extractor';
-import { extractProductFeatures } from './product-features-extractor';
+import { extractCleanFeatures } from './clean-features-extractor';
 
 export interface SimpleTrendyolData {
   success: boolean;
@@ -94,14 +94,14 @@ export async function simpleTrendyolScrape(url: string): Promise<SimpleTrendyolD
     let variants: Array<{color: string, size: string, inStock: boolean}> = [];
     
     try {
-      // Advanced feature extraction
-      const advancedFeatures = extractProductFeatures(html);
-      features = advancedFeatures.map(f => ({
+      // Clean feature extraction (removes garbled data)
+      const cleanFeatures = extractCleanFeatures(html);
+      features = cleanFeatures.map(f => ({
         key: f.key,
         value: f.value
       }));
       
-      console.log(`🎯 Gelişmiş özellik çıkarma: ${features.length} özellik bulundu`);
+      console.log(`🧹 Temiz özellik çıkarma: ${features.length} özellik bulundu`);
       
       // Real size extraction
       const { extractRealSizes } = await import('./real-size-extractor');

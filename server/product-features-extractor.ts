@@ -169,38 +169,7 @@ export function extractProductFeatures(html: string): ProductFeature[] {
     }
   });
 
-  // 5. Text pattern extraction for common features
-  const htmlText = $.text();
-  const featurePatterns = [
-    { pattern: /Materyal[:\s]*([^\n\r,;\.]{2,50})/gi, key: 'Materyal' },
-    { pattern: /Kumaş[:\s]*([^\n\r,;\.]{2,50})/gi, key: 'Kumaş' },
-    { pattern: /Kalıp[:\s]*([^\n\r,;\.]{2,30})/gi, key: 'Kalıp' },
-    { pattern: /Kol\s+Tipi[:\s]*([^\n\r,;\.]{2,30})/gi, key: 'Kol Tipi' },
-    { pattern: /Yaka\s+Tipi[:\s]*([^\n\r,;\.]{2,30})/gi, key: 'Yaka Tipi' },
-    { pattern: /Desen[:\s]*([^\n\r,;\.]{2,30})/gi, key: 'Desen' },
-    { pattern: /Kapama\s+Şekli[:\s]*([^\n\r,;\.]{2,30})/gi, key: 'Kapama Şekli' },
-    { pattern: /Cep\s+Tipi[:\s]*([^\n\r,;\.]{2,30})/gi, key: 'Cep Tipi' },
-    { pattern: /Boy[:\s]*([^\n\r,;\.]{2,30})/gi, key: 'Boy' },
-    { pattern: /Renk[:\s]*([^\n\r,;\.]{2,30})/gi, key: 'Renk' }
-  ];
-
-  featurePatterns.forEach(({ pattern, key }) => {
-    let match;
-    while ((match = pattern.exec(htmlText)) !== null) {
-      const value = match[1].trim();
-      const featureKey = `${key}:${value}`;
-      
-      if (value && !featureMap.has(featureKey) && value.length > 1 && value.length < 100) {
-        features.push({
-          key,
-          value,
-          category: categorizeFeature(key)
-        });
-        featureMap.add(featureKey);
-        console.log(`✅ Pattern özellik: ${key}: ${value}`);
-      }
-    }
-  });
+  // Skip pattern extraction - causes garbled data
 
   console.log(`🎯 Toplam ${features.length} benzersiz özellik çıkarıldı`);
   return features;
