@@ -8,7 +8,7 @@ import { storage } from "./storage-fixed";
 // import { scrapeProductWithPuppeteer } from "./fixed-puppeteer-scraper";
 import { scrapeWithEnhancedMethod } from "./enhanced-trendyol-scraper";
 import { generateStrictShopifyCSV } from "./strict-csv-generator";
-import { instantCSVGenerator } from "./instant-csv-generator-fixed";
+import { instantCSVGenerator } from "./instant-csv-generator-working";
 import { getCategoryConfig } from "./category-mapping";
 import { cleanTrendyolAttributes } from "./clean-attributes";
 import { parseJsonLdProductData, generateTagsFromJsonLd } from "./json-ld-parser";
@@ -275,8 +275,8 @@ export function registerRoutes(app: Express): Server {
           if (result) {
             console.log("Enhanced scraper başarılı:", result.title);
             
-            // Generate CSV data using instant CSV generator with real variant data
-            const { instantCSVGenerator } = await import('./instant-csv-generator-fixed');
+            // Generate CSV data using working instant CSV generator
+            const { instantCSVGenerator } = await import('./instant-csv-generator-working');
             
             // Extract real color and size data from result
             let realColors = [];

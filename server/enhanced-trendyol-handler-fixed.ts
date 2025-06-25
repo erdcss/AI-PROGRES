@@ -483,8 +483,8 @@ export async function scrapeTrendyolProduct(inputUrl: string) {
     // Generate instant CSV
     let csvGenerated = false;
     try {
-      const { generateInstantCSV } = await import('./instant-csv-generator-fixed');
-      csvGenerated = await generateInstantCSV({
+      const { instantCSVGenerator } = await import('./instant-csv-generator-working');
+      const csvResult = await instantCSVGenerator.generateInstantCSV({
         title: aiEnhancedData.cleanTitle,
         description: shopifyOptimization.optimizedDescription,
         brand: aiEnhancedData.brand,
