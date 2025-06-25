@@ -4,6 +4,7 @@
 
 import axios from 'axios';
 import * as cheerio from 'cheerio';
+import { extractTrendyolPrice } from './fixed-price-extractor';
 
 export interface SimpleTrendyolData {
   success: boolean;
