@@ -29,17 +29,17 @@ export function detectAuthenticVariants(extractedVariants: any[]): FixedVariantD
   
   // Determine if product has real color variants
   const hasRealColors = colorsFromVariants.length > 1;
-  const finalColors = hasRealColors ? colorsFromVariants : ['Tek Renk'];
+  const finalColors = hasRealColors ? colorsFromVariants : [];
   
-  // Determine if product has real size variants
-  const hasRealSizes = sizesFromVariants.length > 0;
-  const finalSizes = hasRealSizes ? sizesFromVariants : ['Standart'];
+  // Determine if product has real size variants  
+  const hasRealSizes = sizesFromVariants.length > 1;
+  const finalSizes = hasRealSizes ? sizesFromVariants : [];
   
-  const totalVariants = finalColors.length * finalSizes.length;
+  const totalVariants = Math.max(finalColors.length, 1) * Math.max(finalSizes.length, 1);
   
   console.log(`✅ Otantik varyant tespiti tamamlandı:`);
-  console.log(`   - Renkler: ${finalColors.length} (${hasRealColors ? 'gerçek' : 'tek renk'})`);
-  console.log(`   - Bedenler: ${finalSizes.length} (${hasRealSizes ? 'gerçek' : 'standart'})`);
+  console.log(`   - Renkler: ${finalColors.length} (${hasRealColors ? 'gerçek varyantlar' : 'varyant yok'})`);
+  console.log(`   - Bedenler: ${finalSizes.length} (${hasRealSizes ? 'gerçek varyantlar' : 'varyant yok'})`);
   console.log(`   - Toplam varyant: ${totalVariants}`);
   
   return {

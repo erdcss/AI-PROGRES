@@ -36,22 +36,37 @@ export function generateLiptonTemplateCSV(productData: any): string {
   
   rows.push(csvHeader);
 
-  // Determine variants structure
+  // Determine variants structure - improved logic
   let productVariants: Array<{color: string, size: string, stock: number}> = [];
   
   if (variants && variants.length > 0) {
     productVariants = variants.filter((v: any) => v.stock > 0);
-  } else if (colors.length > 0 || sizes.length > 0) {
-    const colorsToUse = colors.length > 0 ? colors : ['Varsayılan'];
-    const sizesToUse = sizes.length > 0 ? sizes : ['Standart'];
-    
-    colorsToUse.forEach((color: string) => {
-      sizesToUse.forEach((size: string) => {
-        productVariants.push({ color, size, stock: 25 });
-      });
-    });
   } else {
-    productVariants = [{ color: 'Varsayılan', size: 'Standart', stock: 25 }];
+    // Sadece gerçek varyantlar varsa kullan
+    const hasRealColors = colors.length > 1;
+    const hasRealSizes = sizes.length > 1;
+    
+    if (hasRealColors && hasRealSizes) {
+      // Hem renk hem beden varyantı var
+      colors.forEach((color: string) => {
+        sizes.forEach((size: string) => {
+          productVariants.push({ color, size, stock: 25 });
+        });
+      });
+    } else if (hasRealColors) {
+      // Sadece renk varyantı var
+      colors.forEach((color: string) => {
+        productVariants.push({ color, size: '', stock: 25 });
+      });
+    } else if (hasRealSizes) {
+      // Sadece beden varyantı var
+      sizes.forEach((size: string) => {
+        productVariants.push({ color: '', size, stock: 25 });
+      });
+    } else {
+      // Varyant yok - tek ürün
+      productVariants = [{ color: '', size: '', stock: 25 }];
+    }
   }
 
   // Main product row (first variant)
@@ -62,6 +77,28 @@ export function generateLiptonTemplateCSV(productData: any): string {
     const seoTitle = `${title} | ${brand}`;
     const seoDescription = bodyHtml.substring(0, 160) + '...';
 
+    // Option fields - only set if there are real variants
+    const hasColors = productVariants.some(v => v.color);
+    const hasSizes = productVariants.some(v => v.size);
+    
+    let option1Name = '';
+    let option1Value = '';
+    let option2Name = '';
+    let option2Value = '';
+    
+    if (hasColors && hasSizes) {
+      option1Name = 'Renk';
+      option1Value = firstVariant.color;
+      option2Name = 'Beden';
+      option2Value = firstVariant.size;
+    } else if (hasColors) {
+      option1Name = 'Renk';
+      option1Value = firstVariant.color;
+    } else if (hasSizes) {
+      option1Name = 'Beden';
+      option1Value = firstVariant.size;
+    }
+
     rows.push([
       handle,
       title,
@@ -70,10 +107,10 @@ export function generateLiptonTemplateCSV(productData: any): string {
       'Genel', // Product Type like Lipton
       tags,
       'TRUE', // Published
-      'Renk', // Option1 Name
-      firstVariant.color, // Option1 Value
-      'Beden', // Option2 Name
-      firstVariant.size, // Option2 Value
+      option1Name, // Option1 Name
+      option1Value, // Option1 Value
+      option2Name, // Option2 Name
+      option2Value, // Option2 Value
       variantSku, // Variant SKU
       firstVariant.stock.toString(), // Variant Inventory Qty
       price.withProfit.toFixed(2), // Variant Price

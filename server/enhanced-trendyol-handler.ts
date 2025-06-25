@@ -245,8 +245,14 @@ export class EnhancedTrendyolHandler {
     
     product.allVariants.forEach((variant: any) => {
       const attributes = variant.attributes || {};
-      const color = attributes.RENK || attributes.Renk || variant.color || 'Varsayılan';
-      const size = attributes.BEDEN || attributes.Beden || variant.size || 'Tek Beden';
+      const color = attributes.RENK || attributes.Renk || variant.color || '';
+      const size = attributes.BEDEN || attributes.Beden || variant.size || '';
+      
+      // Skip variants with default/empty values
+      if (!color || color.toLowerCase().includes('varsayılan') || 
+          !size || size.toLowerCase().includes('standart') || size.toLowerCase().includes('tek beden')) {
+        return;
+      }
       
       const stock = variant.stock || variant.stockCount || 0;
       const inStock = stock > 0;
