@@ -146,4 +146,28 @@ router.get('/api/import/stats', async (req, res) => {
   }
 });
 
+// Test monitoring endpoint
+router.post('/api/test-monitor', async (req, res) => {
+  try {
+    console.log('🔍 Test monitoring request received');
+    
+    // Import and run simple test monitoring
+    const { runTestMonitoring } = await import('./simple-test-monitor');
+    const result = await runTestMonitoring();
+    
+    res.json({
+      success: true,
+      message: 'Test monitoring tamamlandı, Telegram raporunu kontrol edin',
+      ...result
+    });
+    
+  } catch (error) {
+    console.error('❌ Test monitoring error:', error);
+    res.status(500).json({
+      success: false,
+      message: `Test başarısız: ${error.message}`
+    });
+  }
+});
+
 export default router;
