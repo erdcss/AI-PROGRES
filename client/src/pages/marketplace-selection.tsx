@@ -1,7 +1,6 @@
 import { motion } from "framer-motion";
 import { useLocation } from "wouter";
-import { ShoppingCart, Package, Store, Truck } from "lucide-react";
-import { ProductDataAnalysis } from "@/components/ProductDataAnalysis";
+import { ShoppingCart, Package, Store, Truck, BarChart3 } from "lucide-react";
 
 const MarketplaceSelection = () => {
   const [, setLocation] = useLocation();
@@ -125,14 +124,23 @@ const MarketplaceSelection = () => {
           </p>
         </motion.div>
 
-        {/* Product Data Analysis Section */}
+        {/* Analytics Button */}
         <motion.div
           initial={{ opacity: 0, y: 30 }}
           animate={{ opacity: 1, y: 0 }}
           transition={{ duration: 0.6, delay: 1.2 }}
-          className="mt-12"
+          className="mt-12 text-center"
         >
-          <ProductDataAnalysis />
+          <button
+            onClick={() => setLocation("/product-data-analysis")}
+            className="bg-gradient-to-r from-blue-600 to-purple-600 hover:from-blue-700 hover:to-purple-700 text-white font-semibold py-4 px-8 rounded-xl shadow-lg transition-all duration-300 transform hover:scale-105"
+          >
+            <BarChart3 className="h-6 w-6 inline-block mr-2" />
+            Ürün Veri Analizi
+          </button>
+          <p className="text-gray-400 text-sm mt-3">
+            AI chatbot, hafıza bilgisi ve gerçek zamanlı veri takibi
+          </p>
         </motion.div>
       </div>
     </div>

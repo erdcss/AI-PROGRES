@@ -20,6 +20,7 @@ import { Label } from "@/components/ui/label";
 import { Lock, ShieldCheck, AlertCircle } from "lucide-react";
 import { PageTransition } from "@/components/PageTransition";
 import { AIBrandLogo } from "@/components/AILogo";
+import ProductDataAnalysisPage from "@/pages/product-data-analysis";
 
 // Login component with password protection
 function LoginScreen({ onLogin }: { onLogin: () => void }) {
