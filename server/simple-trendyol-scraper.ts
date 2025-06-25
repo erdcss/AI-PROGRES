@@ -7,6 +7,8 @@ import * as cheerio from 'cheerio';
 import { extractTrendyolPrice } from './fixed-price-extractor';
 import { extractMainProductImages } from './main-product-images-extractor';
 import { extractWorkingFeatures } from './working-feature-extractor';
+import { extractEnhancedAttributes } from './enhanced-attribute-extractor';
+import { extractDirectTrendyolAttributes } from './direct-trendyol-extractor';
 
 export interface SimpleTrendyolData {
   success: boolean;
@@ -94,14 +96,25 @@ export async function simpleTrendyolScrape(url: string): Promise<SimpleTrendyolD
     let variants: Array<{color: string, size: string, inStock: boolean}> = [];
     
     try {
-      // Working feature extraction with comprehensive methods
-      const workingFeatures = extractWorkingFeatures(html);
-      features = workingFeatures.map(f => ({
-        key: f.key,
-        value: f.value
-      }));
+      // Enhanced attribute extraction - targets structured product data
+      const enhancedAttributes = extractEnhancedAttributes(html);
       
-      console.log(`🎯 Working özellik çıkarma: ${features.length} özellik bulundu`);
+      // If enhanced extraction finds attributes, use those
+      if (enhancedAttributes.length > 0) {
+        features = enhancedAttributes.map(attr => ({
+          key: attr.key,
+          value: attr.value
+        }));
+        console.log(`🎯 Enhanced özellik çıkarma: ${features.length} özellik bulundu`);
+      } else {
+        // Fallback to working feature extraction
+        const workingFeatures = extractWorkingFeatures(html);
+        features = workingFeatures.map(f => ({
+          key: f.key,
+          value: f.value
+        }));
+        console.log(`🎯 Working özellik çıkarma (fallback): ${features.length} özellik bulundu`);
+      }
       
       // Real size extraction
       const { extractRealSizes } = await import('./real-size-extractor');

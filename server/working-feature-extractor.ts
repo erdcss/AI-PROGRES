@@ -17,10 +17,10 @@ export function extractWorkingFeatures(html: string): ProductFeature[] {
 
   console.log('🔍 Working feature extraction başlatıldı...');
 
-  // Method 1: Extract from window.__PRODUCT_DETAIL_APP_INITIAL_STATE__ or similar
+  // Method 1: Extract from product attributes structure
   const scriptContent = html;
   
-  // Look for product data in script tags
+  // Look for product data in script tags with detailed attributes
   const productDataMatch = scriptContent.match(/window\.__PRODUCT_DETAIL_APP_INITIAL_STATE__\s*=\s*({.*?});/s);
   if (productDataMatch) {
     try {
@@ -54,16 +54,50 @@ export function extractWorkingFeatures(html: string): ProductFeature[] {
     }
   }
 
-  // Method 2: Look for product attributes in any script tag containing "attributes"
+  // Method 1.5: Look for structured product info data
+  const productInfoMatch = scriptContent.match(/"productInfo":\s*({[^}]*"attributes"[^}]*})/);
+  if (productInfoMatch) {
+    try {
+      const productInfoStr = productInfoMatch[1];
+      // Find attributes array within productInfo
+      const attributesMatch = productInfoStr.match(/"attributes":\s*(\[[^\]]*\])/);
+      if (attributesMatch) {
+        const attributes = JSON.parse(attributesMatch[1]);
+        attributes.forEach((attr: any) => {
+          if (attr.key && attr.value) {
+            const key = cleanKey(attr.key);
+            const value = String(attr.value).trim();
+            
+            if (isValidFeature(key, value)) {
+              const featureKey = `${key}:${value}`;
+              if (!featureMap.has(featureKey)) {
+                features.push({
+                  key: key,
+                  value: value,
+                  category: categorizeFeature(key)
+                });
+                featureMap.add(featureKey);
+                console.log(`✅ Product Info: ${key} = ${value}`);
+              }
+            }
+          }
+        });
+      }
+    } catch (e) {
+      console.log('❌ Error parsing productInfo attributes');
+    }
+  }
+
+  // Method 2: Look for product attributes in script tags with enhanced parsing
   $('script').each((i, script) => {
     const content = $(script).html();
-    if (content && content.includes('"attributes"') && content.includes('"key"') && content.includes('"value"')) {
+    if (content && content.includes('"attributes"')) {
       
-      // Extract attributes using regex
-      const attributeRegex = /"key"\s*:\s*"([^"]+)"[^}]*"value"\s*:\s*"([^"]+)"/g;
+      // Look for detailed attribute objects with key-value pairs
+      const detailedAttributeRegex = /"key"\s*:\s*"([^"]+)"[^}]*"value"\s*:\s*"([^"]+)"/g;
       let match;
       
-      while ((match = attributeRegex.exec(content)) !== null) {
+      while ((match = detailedAttributeRegex.exec(content)) !== null) {
         const [, key, value] = match;
         const cleanedKey = cleanKey(key);
         const cleanedValue = String(value).trim();
@@ -77,8 +111,39 @@ export function extractWorkingFeatures(html: string): ProductFeature[] {
               category: categorizeFeature(cleanedKey)
             });
             featureMap.add(featureKey);
-            console.log(`✅ Script Attr: ${cleanedKey} = ${cleanedValue}`);
+            console.log(`✅ Script Detailed: ${cleanedKey} = ${cleanedValue}`);
           }
+        }
+      }
+
+      // Look for productInfo with attributes array
+      const productInfoRegex = /"productInfo"\s*:\s*{[^}]*"attributes"\s*:\s*(\[[^\]]+\])/g;
+      let productInfoMatch;
+      
+      while ((productInfoMatch = productInfoRegex.exec(content)) !== null) {
+        try {
+          const attributesArray = JSON.parse(productInfoMatch[1]);
+          attributesArray.forEach((attr: any) => {
+            if (attr && typeof attr === 'object' && attr.key && attr.value) {
+              const key = cleanKey(String(attr.key));
+              const value = String(attr.value).trim();
+              
+              if (isValidFeature(key, value)) {
+                const featureKey = `${key}:${value}`;
+                if (!featureMap.has(featureKey)) {
+                  features.push({
+                    key: key,
+                    value: value,
+                    category: categorizeFeature(key)
+                  });
+                  featureMap.add(featureKey);
+                  console.log(`✅ ProductInfo Array: ${key} = ${value}`);
+                }
+              }
+            }
+          });
+        } catch (e) {
+          // Continue parsing other patterns
         }
       }
     }
@@ -178,15 +243,45 @@ function isValidFeature(key: string, value: string): boolean {
     if (pattern.test(value.toLowerCase())) return false;
   }
   
-  // Only allow meaningful product attributes
+  // Only allow meaningful product attributes - expanded list
   const validKeyPatterns = [
-    /materyal/i, /kumaş/i, /renk/i, /kalıp/i, /kol/i, /yaka/i,
-    /desen/i, /kapama/i, /yıkama/i, /marka/i, /beden/i, /boy/i,
-    /astar/i, /koleksiyon/i, /cep/i, /ortam/i, /siluet/i,
-    /kalınlık/i, /dokuma/i, /persona/i, /kemer/i, /kuşak/i,
-    /sürdürülebilirlik/i, /detay/i, /tipi/i, /boyu/i, /durumu/i,
-    /ürün/i, /ek/i, /özellik/i, /bileşen/i, /talimat/i,
-    /fabric/i, /material/i, /cotton/i, /polyester/i, /composition/i
+    // Material and fabric
+    /materyal/i, /kumaş/i, /fabric/i, /material/i, /cotton/i, /polyester/i, /composition/i,
+    /dokuma/i, /doku/i, /astar/i, /katman/i, /coating/i, /elastan/i, /spandex/i,
+    
+    // Design and style
+    /renk/i, /color/i, /kalıp/i, /fit/i, /kol/i, /sleeve/i, /yaka/i, /collar/i,
+    /desen/i, /pattern/i, /kapama/i, /closure/i, /siluet/i, /silhouette/i,
+    /tasarım/i, /design/i, /stil/i, /style/i, /model/i, /tip/i, /type/i,
+    
+    // Size and measurements  
+    /beden/i, /size/i, /boy/i, /height/i, /en/i, /width/i, /uzunluk/i, /length/i,
+    /ölçü/i, /measure/i, /kalınlık/i, /thickness/i, /çap/i, /diameter/i,
+    
+    // Care and maintenance
+    /yıkama/i, /wash/i, /bakım/i, /care/i, /temizlik/i, /clean/i,
+    /ütü/i, /iron/i, /kurutma/i, /dry/i, /bleach/i, /deterjan/i,
+    
+    // Brand and collection
+    /marka/i, /brand/i, /koleksiyon/i, /collection/i, /seri/i, /series/i,
+    /sezon/i, /season/i, /yıl/i, /year/i,
+    
+    // Product details
+    /cep/i, /pocket/i, /detay/i, /detail/i, /özellik/i, /feature/i,
+    /bileşen/i, /component/i, /aksesuar/i, /accessory/i, /kemer/i, /belt/i,
+    /kuşak/i, /sash/i, /fermuar/i, /zipper/i, /düğme/i, /button/i,
+    
+    // Usage and occasion
+    /ortam/i, /environment/i, /mevsim/i, /season/i, /kullanım/i, /usage/i,
+    /durum/i, /occasion/i, /aktivite/i, /activity/i, /spor/i, /sport/i,
+    
+    // Technical specifications
+    /sürdürülebilirlik/i, /sustainability/i, /sertifika/i, /certificate/i,
+    /standart/i, /standard/i, /kalite/i, /quality/i, /test/i, /norm/i,
+    
+    // Product type
+    /ürün/i, /product/i, /kategori/i, /category/i, /grup/i, /group/i,
+    /alt kategori/i, /subcategory/i, /tür/i, /cinsi/i, /çeşit/i, /variety/i
   ];
   
   return validKeyPatterns.some(pattern => pattern.test(key));
