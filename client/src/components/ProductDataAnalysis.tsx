@@ -64,6 +64,14 @@ interface Product {
   trendyolUrl?: string;
 }
 
+interface ScheduledTask {
+  name: string;
+  description: string;
+  time: string;
+  isActive: boolean;
+  nextRun: string;
+}
+
 interface ChatMessage {
   id: string;
   type: 'user' | 'ai';
@@ -105,6 +113,12 @@ export const ProductDataAnalysis: React.FC = () => {
   const { data: changesData } = useQuery({
     queryKey: ['/api/analysis/product-changes'],
     refetchInterval: 30000,
+  });
+
+  // Fetch scheduled tasks
+  const { data: scheduledTasks } = useQuery<ScheduledTask[]>({
+    queryKey: ['/api/scheduler/status'],
+    refetchInterval: 30000, // Refresh every 30 seconds
   });
 
   // Use real data from API
@@ -361,7 +375,7 @@ export const ProductDataAnalysis: React.FC = () => {
           </Card>
         </motion.div>
 
-        {/* Daily Operations */}
+        {/* Scheduled Tasks */}
         <motion.div
           initial={{ opacity: 0, x: 20 }}
           animate={{ opacity: 1, x: 0 }}
@@ -371,40 +385,45 @@ export const ProductDataAnalysis: React.FC = () => {
             <CardHeader className="pb-4">
               <CardTitle className="flex items-center gap-3 text-xl font-bold text-white">
                 <div className="w-10 h-10 bg-gradient-to-br from-green-500 to-emerald-600 rounded-xl flex items-center justify-center">
-                  <Calendar className="h-5 w-5 text-white" />
+                  <Clock className="h-5 w-5 text-white" />
                 </div>
-                Günlük Sistem İşlemleri
+                Zamanlı Görevler
               </CardTitle>
-              <p className="text-gray-400 text-sm">Otomatik monitoring ve senkronizasyon durumu</p>
+              <p className="text-gray-400 text-sm">Otomatik zamanlama ve sistem görevleri</p>
             </CardHeader>
             <CardContent>
               <ScrollArea className="h-80">
-                <div className="space-y-3">
-                  {dailyOperations.length > 0 ? dailyOperations.map((operation) => (
-                    <div key={operation.id} className="flex items-center gap-4 p-4 rounded-xl bg-white/5 border border-white/10">
-                      <div className={`p-2 rounded-lg ${
-                        operation.status === 'completed' ? 'bg-green-500/20 text-green-400' : 
-                        operation.status === 'pending' ? 'bg-yellow-500/20 text-yellow-400' : 'bg-red-500/20 text-red-400'
-                      }`}>
-                        {getOperationIcon(operation.type)}
+                <div className="space-y-4">
+                  {scheduledTasks && scheduledTasks.length > 0 ? scheduledTasks.map((task, index) => (
+                    <div key={index} className="p-4 rounded-xl bg-white/5 border border-white/10">
+                      <div className="flex items-center justify-between mb-3">
+                        <div className="flex items-center gap-3">
+                          <div className={`p-2 rounded-lg ${
+                            task.isActive ? 'bg-green-500/20 text-green-400' : 'bg-gray-500/20 text-gray-400'
+                          }`}>
+                            <Clock className="h-4 w-4" />
+                          </div>
+                          <div>
+                            <h4 className="font-semibold text-white">{task.name}</h4>
+                            <p className="text-sm text-gray-400">{task.description}</p>
+                          </div>
+                        </div>
+                        <Badge variant={task.isActive ? "default" : "secondary"} className="bg-green-500/20 text-green-400 border-green-500/30">
+                          {task.isActive ? 'Aktif' : 'Pasif'}
+                        </Badge>
                       </div>
-                      <div className="flex-1 min-w-0">
-                        <p className="text-sm font-semibold text-white truncate">{operation.details}</p>
-                        <p className="text-xs text-gray-400 mt-1">{operation.timestamp}</p>
+                      <div className="flex items-center justify-between text-sm">
+                        <span className="text-gray-300">Zamanlama: {task.time}</span>
+                        <span className="text-gray-300">Sonraki Çalışma: {task.nextRun}</span>
                       </div>
-                      <Badge variant={
-                        operation.status === 'completed' ? 'default' : 
-                        operation.status === 'pending' ? 'secondary' : 'destructive'
-                      } className="font-medium">
-                        {operation.status === 'completed' ? 'Tamamlandı' : 
-                         operation.status === 'pending' ? 'Bekliyor' : 'Hata'}
-                      </Badge>
                     </div>
                   )) : (
                     <div className="text-center py-8">
-                      <Clock className="h-12 w-12 text-gray-500 mx-auto mb-3" />
-                      <p className="text-gray-400 font-medium">Henüz günlük işlem kaydı yok</p>
-                      <p className="text-sm text-gray-500 mt-1">İlk monitoring 12:00'da başlayacak</p>
+                      <div className="w-16 h-16 mx-auto mb-4 bg-gray-500/20 rounded-full flex items-center justify-center">
+                        <Clock className="h-8 w-8 text-gray-400" />
+                      </div>
+                      <p className="text-gray-400 font-medium">Zamanlı görevler yükleniyor...</p>
+                      <p className="text-sm text-gray-500 mt-1">Sistem başlatılıyor</p>
                     </div>
                   )}
                 </div>
@@ -414,13 +433,63 @@ export const ProductDataAnalysis: React.FC = () => {
         </motion.div>
       </div>
 
+      {/* System Operations Section */}
+      <motion.div
+        initial={{ opacity: 0, y: 20 }}
+        animate={{ opacity: 1, y: 0 }}
+        transition={{ duration: 0.6, delay: 0.4 }}
+      >
+        <Card className="bg-white/5 backdrop-blur-md border-white/10">
+          <CardHeader className="pb-4">
+            <CardTitle className="flex items-center gap-3 text-xl font-bold text-white">
+              <div className="w-10 h-10 bg-gradient-to-br from-orange-500 to-red-600 rounded-xl flex items-center justify-center">
+                <Calendar className="h-5 w-5 text-white" />
+              </div>
+              Günlük Sistem İşlemleri
+            </CardTitle>
+            <p className="text-gray-400 text-sm">Otomatik monitoring ve senkronizasyon durumu</p>
+          </CardHeader>
+          <CardContent>
+            <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+              {dailyOperations.length > 0 ? dailyOperations.map((operation) => (
+                <div key={operation.id} className="flex items-center gap-4 p-4 rounded-xl bg-white/5 border border-white/10">
+                  <div className={`p-2 rounded-lg ${
+                    operation.status === 'completed' ? 'bg-green-500/20 text-green-400' : 
+                    operation.status === 'pending' ? 'bg-yellow-500/20 text-yellow-400' : 'bg-red-500/20 text-red-400'
+                  }`}>
+                    {getOperationIcon(operation.type)}
+                  </div>
+                  <div className="flex-1 min-w-0">
+                    <p className="text-sm font-semibold text-white truncate">{operation.details}</p>
+                    <p className="text-xs text-gray-400 mt-1">{operation.timestamp}</p>
+                  </div>
+                  <Badge variant={
+                    operation.status === 'completed' ? 'default' : 
+                    operation.status === 'pending' ? 'secondary' : 'destructive'
+                  } className="font-medium">
+                    {operation.status === 'completed' ? 'Tamamlandı' : 
+                     operation.status === 'pending' ? 'Bekliyor' : 'Hata'}
+                  </Badge>
+                </div>
+              )) : (
+                <div className="text-center py-8 col-span-2">
+                  <Clock className="h-12 w-12 text-gray-500 mx-auto mb-3" />
+                  <p className="text-gray-400 font-medium">Henüz günlük işlem kaydı yok</p>
+                  <p className="text-sm text-gray-500 mt-1">İlk monitoring 12:00'da başlayacak</p>
+                </div>
+              )}
+            </div>
+          </CardContent>
+        </Card>
+      </motion.div>
+
       {/* Product List and Changes */}
       <div className="grid grid-cols-1 xl:grid-cols-2 gap-8">
         {/* Recent Products */}
         <motion.div
           initial={{ opacity: 0, y: 20 }}
           animate={{ opacity: 1, y: 0 }}
-          transition={{ duration: 0.6, delay: 0.4 }}
+          transition={{ duration: 0.6, delay: 0.5 }}
         >
           <Card className="bg-white/5 backdrop-blur-md border-white/10">
             <CardHeader className="pb-4">
@@ -428,18 +497,109 @@ export const ProductDataAnalysis: React.FC = () => {
                 <div className="w-10 h-10 bg-gradient-to-br from-indigo-500 to-purple-600 rounded-xl flex items-center justify-center">
                   <Package className="h-5 w-5 text-white" />
                 </div>
-                Hafızadaki Ürünler
+                Son Eklenen Ürünler
               </CardTitle>
-              <p className="text-gray-400 text-sm">Son eklenen ve güncellenen ürünler</p>
+              <p className="text-gray-400 text-sm">Hafızaya kaydedilen ürün listesi</p>
             </CardHeader>
             <CardContent>
               <ScrollArea className="h-80">
                 <div className="space-y-4">
                   {recentProducts.length > 0 ? recentProducts.map((product) => (
                     <div key={product.id} className="p-4 rounded-xl bg-white/5 border border-white/10">
-                      <div className="flex justify-between items-start mb-3">
-                        <h4 className="font-semibold text-white text-sm leading-relaxed truncate flex-1 pr-3">
-                          {product.title}
+                      <div className="flex items-center justify-between mb-2">
+                        <h4 className="font-semibold text-white truncate flex-1">{product.title}</h4>
+                        <Badge variant={product.stockStatus ? "default" : "destructive"} className="ml-2">
+                          {product.stockStatus ? 'Stokta' : 'Tükendi'}
+                        </Badge>
+                      </div>
+                      <div className="flex items-center justify-between text-sm">
+                        <span className="text-gray-300">{product.brand}</span>
+                        <div className="flex items-center gap-2">
+                          <span className="text-green-400 font-medium">{product.currentPrice}</span>
+                          {product.trendyolUrl && (
+                            <a 
+                              href={product.trendyolUrl} 
+                              target="_blank" 
+                              rel="noopener noreferrer"
+                              className="text-blue-400 hover:text-blue-300"
+                            >
+                              <ExternalLink className="h-4 w-4" />
+                            </a>
+                          )}
+                        </div>
+                      </div>
+                      <p className="text-xs text-gray-500 mt-2">Son kontrol: {product.lastChecked}</p>
+                    </div>
+                  )) : (
+                    <div className="text-center py-8">
+                      <Package className="h-12 w-12 text-gray-500 mx-auto mb-3" />
+                      <p className="text-gray-400 font-medium">Henüz ürün kaydı yok</p>
+                      <p className="text-sm text-gray-500 mt-1">Ana sayfadan ürün ekleyerek başlayın</p>
+                    </div>
+                  )}
+                </div>
+              </ScrollArea>
+            </CardContent>
+          </Card>
+        </motion.div>
+
+        {/* Product Changes */}
+        <motion.div
+          initial={{ opacity: 0, y: 20 }}
+          animate={{ opacity: 1, y: 0 }}
+          transition={{ duration: 0.6, delay: 0.6 }}
+        >
+          <Card className="bg-white/5 backdrop-blur-md border-white/10">
+            <CardHeader className="pb-4">
+              <CardTitle className="flex items-center gap-3 text-xl font-bold text-white">
+                <div className="w-10 h-10 bg-gradient-to-br from-orange-500 to-red-600 rounded-xl flex items-center justify-center">
+                  <TrendingUp className="h-5 w-5 text-white" />
+                </div>
+                Fiyat & Stok Değişimleri
+              </CardTitle>
+              <p className="text-gray-400 text-sm">Gerçek zamanlı takip ve değişiklikler</p>
+            </CardHeader>
+            <CardContent>
+              <ScrollArea className="h-80">
+                <div className="space-y-4">
+                  {productChanges.length > 0 ? productChanges.map((change) => (
+                    <div key={change.id} className="p-4 rounded-xl bg-white/5 border border-white/10">
+                      <div className="flex items-start gap-3">
+                        <div className={`p-2 rounded-lg ${getChangeColor(change.changeType)}`}>
+                          {getChangeIcon(change.changeType)}
+                        </div>
+                        <div className="flex-1 min-w-0">
+                          <h4 className="font-semibold text-white text-sm truncate">{change.productName}</h4>
+                          <div className="flex items-center gap-2 mt-1">
+                            <span className="text-gray-400 text-xs">{change.oldValue}</span>
+                            <span className="text-gray-500">→</span>
+                            <span className="text-white text-xs font-medium">{change.newValue}</span>
+                            {change.percentage && (
+                              <Badge variant="outline" className="text-xs">
+                                {change.percentage > 0 ? '+' : ''}{change.percentage}%
+                              </Badge>
+                            )}
+                          </div>
+                          <p className="text-xs text-gray-500 mt-1">{change.timestamp}</p>
+                        </div>
+                      </div>
+                    </div>
+                  )) : (
+                    <div className="text-center py-8">
+                      <TrendingUp className="h-12 w-12 text-gray-500 mx-auto mb-3" />
+                      <p className="text-gray-400 font-medium">Henüz değişiklik kaydı yok</p>
+                      <p className="text-sm text-gray-500 mt-1">Monitoring başladığında görünecek</p>
+                    </div>
+                  )}
+                </div>
+              </ScrollArea>
+            </CardContent>
+          </Card>
+        </motion.div>
+      </div>
+    </div>
+  );
+};
                         </h4>
                         <div className="flex items-center gap-2 shrink-0">
                           <Badge 
