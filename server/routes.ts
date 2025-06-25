@@ -19,6 +19,7 @@ import { extractFocusedData } from './focused-extractor';
 import { dailyScheduler } from './scheduler';
 import dataAnalysisRoutes from './data-analysis-routes';
 import { testImageExtraction } from './direct-image-test';
+import { initializeScheduler, getSchedulerStatus, executeTaskManually } from './simple-scheduler';
 
 
 function generateSingleProductShopifyCSV(product: any): string {
@@ -2443,6 +2444,58 @@ export function registerRoutes(app: Express): Server {
       res.status(500).json({ error: 'Health check failed' });
     }
   });
+
+  // Scheduled tasks API endpoints
+  app.get('/api/scheduler/status', (req, res) => {
+    try {
+      const status = getSchedulerStatus();
+      res.json({
+        success: true,
+        data: status
+      });
+    } catch (error) {
+      console.error('Scheduler status error:', error);
+      res.status(500).json({
+        success: false,
+        message: 'Zamanlı görev durumu alınamadı'
+      });
+    }
+  });
+
+  app.post('/api/scheduler/execute/:taskName', async (req, res) => {
+    try {
+      const { taskName } = req.params;
+      const result = await executeTaskManually(taskName);
+      
+      if (result) {
+        res.json({
+          success: true,
+          message: `Görev başarıyla çalıştırıldı: ${taskName}`
+        });
+      } else {
+        res.status(400).json({
+          success: false,
+          message: `Görev çalıştırılamadı: ${taskName}`
+        });
+      }
+    } catch (error) {
+      console.error('Manual task execution error:', error);
+      res.status(500).json({
+        success: false,
+        message: 'Görev çalıştırılırken hata oluştu'
+      });
+    }
+  });
+
+  // Initialize scheduler system on server start
+  setTimeout(() => {
+    try {
+      initializeScheduler();
+      console.log('✅ Zamanlı görevler sistemi başlatıldı');
+    } catch (error) {
+      console.error('❌ Zamanlı görevler başlatma hatası:', error);
+    }
+  }, 3000);
 
   return httpServer;
 }
