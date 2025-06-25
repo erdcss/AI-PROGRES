@@ -233,6 +233,11 @@ function Router() {
           <ProductDataAnalysisPage />
         </PageTransition>
       </Route>
+      <Route path="/data-analysis">
+        <PageTransition>
+          <ProductDataAnalysisPage />
+        </PageTransition>
+      </Route>
       <Route path="/scheduler">
         <PageTransition>
           <SchedulerPage />

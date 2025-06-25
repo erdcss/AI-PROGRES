@@ -119,10 +119,12 @@ export const ProductDataAnalysis: React.FC = () => {
   });
 
   // Fetch scheduled tasks
-  const { data: scheduledTasks } = useQuery<ScheduledTask[]>({
+  const { data: schedulerData } = useQuery<{status: ScheduledTask[]}>({
     queryKey: ['/api/scheduler/status'],
     refetchInterval: 30000, // Refresh every 30 seconds
   });
+  
+  const scheduledTasks = schedulerData?.status || [];
   
   // Live countdown for next scheduled task
   useEffect(() => {
