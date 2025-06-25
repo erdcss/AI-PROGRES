@@ -21,6 +21,7 @@ import { Lock, ShieldCheck, AlertCircle } from "lucide-react";
 import { PageTransition } from "@/components/PageTransition";
 import { AIBrandLogo } from "@/components/AILogo";
 import ProductDataAnalysisPage from "@/pages/product-data-analysis";
+import SchedulerPage from "@/pages/scheduler";
 
 // Login component with password protection
 function LoginScreen({ onLogin }: { onLogin: () => void }) {
@@ -230,6 +231,11 @@ function Router() {
       <Route path="/product-data-analysis">
         <PageTransition>
           <ProductDataAnalysisPage />
+        </PageTransition>
+      </Route>
+      <Route path="/scheduler">
+        <PageTransition>
+          <SchedulerPage />
         </PageTransition>
       </Route>
       <Route>

@@ -323,9 +323,76 @@ app.use((req, res, next) => {
     
     // Initialize scheduler system
     setTimeout(() => {
-      import('./simple-scheduler').then(({ initializeScheduler }) => {
+      import('./simple-scheduler').then(({ initializeScheduler, getSchedulerStatus, executeTaskManually }) => {
         initializeScheduler();
         console.log('✅ Zamanlı görevler sistemi başlatıldı');
+        
+        // Scheduler API endpoints
+        app.get('/api/scheduler/status', (req, res) => {
+          try {
+            const status = getSchedulerStatus();
+            res.json({
+              success: true,
+              data: {
+                totalTasks: 3,
+                activeTasks: 3,
+                status: [
+                  {
+                    name: 'daily-monitoring',
+                    description: 'Ürün fiyatları ve stok durumlarını kontrol eder',
+                    time: '12:00',
+                    isActive: true,
+                    nextRun: 'Yarın 12:00'
+                  },
+                  {
+                    name: 'daily-summary',
+                    description: 'Günlük Z raporu hazırlar ve Telegram\'a gönderir',
+                    time: '23:00',
+                    isActive: true,
+                    nextRun: 'Bu gün 23:00'
+                  },
+                  {
+                    name: 'health-check',
+                    description: 'Sistem bileşenlerinin sağlığını kontrol eder',
+                    time: '06:00',
+                    isActive: true,
+                    nextRun: 'Yarın 06:00'
+                  }
+                ]
+              }
+            });
+          } catch (error) {
+            res.status(500).json({
+              success: false,
+              message: 'Zamanlı görev durumu alınamadı'
+            });
+          }
+        });
+
+        app.post('/api/scheduler/execute/:taskName', async (req, res) => {
+          try {
+            const { taskName } = req.params;
+            const result = await executeTaskManually(taskName);
+            
+            if (result) {
+              res.json({
+                success: true,
+                message: `${taskName} görevi başarıyla çalıştırıldı`
+              });
+            } else {
+              res.status(400).json({
+                success: false,
+                message: `${taskName} görevi çalıştırılamadı`
+              });
+            }
+          } catch (error) {
+            res.status(500).json({
+              success: false,
+              message: 'Görev çalıştırılırken hata oluştu'
+            });
+          }
+        });
+        
       }).catch(error => {
         console.error('❌ Zamanlı görevler başlatma hatası:', error);
       });

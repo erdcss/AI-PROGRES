@@ -76,7 +76,7 @@ export default function SchedulerPage() {
   };
 
   const getTaskDisplayName = (taskName: string) => {
-    const names = {
+    const names: Record<string, string> = {
       'daily-monitoring': 'Günlük İzleme',
       'daily-summary': 'Günlük Özet',
       'health-check': 'Sistem Kontrolü'
