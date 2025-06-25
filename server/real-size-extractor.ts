@@ -82,12 +82,39 @@ export function extractRealSizes(html: string): RealSizeResult {
     }
   });
 
-  // Method 4: Script data mining for size arrays
-  console.log('📏 Method 4: Script verilerinde beden dizileri aranıyor...');
+  // Method 4: Trendyol specific variants JSON parsing
+  console.log('📏 Method 4: Trendyol variant JSON verisi aranıyor...');
   $('script').each((i, elem) => {
     const scriptContent = $(elem).html() || '';
     
-    // Size dizilerini ara
+    // Trendyol'un özel variants JSON yapısını ara
+    const variantJsonMatch = scriptContent.match(/"variants":\[([^\]]+)\]/);
+    if (variantJsonMatch) {
+      try {
+        const variantJson = `[${variantJsonMatch[1]}]`;
+        const variants = JSON.parse(variantJson);
+        
+        variants.forEach((variant: any) => {
+          if (variant.value && variant.hasOwnProperty('inStock')) {
+            const size = variant.value.toString();
+            const inStock = Boolean(variant.inStock);
+            
+            if (size && /^(XS|S|M|L|XL|XXL|\d{2,3})$/.test(size) && !sizesSet.has(size)) {
+              sizesSet.add(size);
+              sizes.push({
+                size: size,
+                inStock: inStock
+              });
+              console.log(`📏 Trendyol JSON beden bulundu: ${size} (${inStock ? 'Stokta' : 'Stok yok'})`);
+            }
+          }
+        });
+      } catch (e) {
+        console.log('⚠️ Trendyol variant JSON parse hatası');
+      }
+    }
+
+    // Fallback: Size dizilerini ara
     const sizeArrayMatches = scriptContent.match(/sizes?["':]?\s*\[([^\]]+)\]/gi);
     if (sizeArrayMatches) {
       sizeArrayMatches.forEach(match => {
@@ -99,34 +126,9 @@ export function extractRealSizes(html: string): RealSizeResult {
               sizesSet.add(cleanSize);
               sizes.push({
                 size: cleanSize,
-                inStock: true // Script verilerinde stok bilgisi genelde yok
+                inStock: true
               });
               console.log(`📏 Script beden bulundu: ${cleanSize}`);
-            }
-          });
-        }
-      });
-    }
-
-    // Variant objects içinde beden ara
-    const variantMatches = scriptContent.match(/variants?["':]?\s*\[([^\]]+)\]/gi);
-    if (variantMatches) {
-      variantMatches.forEach(match => {
-        // Size properties ara
-        const sizeProps = match.match(/["']?size["']?\s*:\s*["']([^"']+)["']/gi);
-        if (sizeProps) {
-          sizeProps.forEach(prop => {
-            const sizeMatch = prop.match(/["']([^"']+)["']$/);
-            if (sizeMatch) {
-              const size = sizeMatch[1];
-              if (size && !sizesSet.has(size)) {
-                sizesSet.add(size);
-                sizes.push({
-                  size: size,
-                  inStock: true
-                });
-                console.log(`📏 Variant beden bulundu: ${size}`);
-              }
             }
           });
         }
