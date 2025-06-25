@@ -233,6 +233,7 @@ async function tryAlternativeEndpoints(url: string): Promise<TrendyolProductData
 async function parseProductData(html: string, url: string): Promise<TrendyolProductData | null> {
   try {
     const $ = cheerio.load(html);
+    console.log(`🔍 Parsing product data from ${html.length} bytes of HTML`);
     
     // Extract basic product info
     const title = $('h1.pr-new-br, h1[data-testid="product-title"], .product-title h1').first().text().trim() ||
@@ -266,9 +267,9 @@ async function parseProductData(html: string, url: string): Promise<TrendyolProd
       }
     });
 
-    // Use simple variant extraction for now
-    const { extractVariantsSimple } = await import('./simple-variant-fix');
-    const variants = extractVariantsSimple(html);
+    // Use working variant extraction
+    const { extractWorkingVariants } = await import('./working-variant-extractor');
+    const variants = extractWorkingVariants(html);
 
     // Extract description
     const description = $('.product-detail-description, .pr-in-dt-cn, [data-testid="description"]').first().text().trim() ||
