@@ -19,6 +19,7 @@ import { extractFocusedData } from './focused-extractor';
 import { dailyScheduler } from './scheduler';
 import dataAnalysisRoutes from './data-analysis-routes';
 import { testImageExtraction } from './direct-image-test';
+import { testRoutes } from './test-enhanced-extractor';
 
 function generateSingleProductShopifyCSV(product: any): string {
   // HEADERS - Şablonunuza tam uygun
@@ -2416,6 +2417,9 @@ export function registerRoutes(app: Express): Server {
       });
     }
   });
+
+  // Enhanced product extraction test
+  app.use('/api', testRoutes);
 
   // System connection test endpoints
   app.post('/api/system/test-connections', async (req, res) => {

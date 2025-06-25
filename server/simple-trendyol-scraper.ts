@@ -88,57 +88,70 @@ export async function simpleTrendyolScrape(url: string): Promise<SimpleTrendyolD
     
     console.log(`✅ Found ${images.length} unique images`);
     
-    // Features extraction
-    const features: Array<{key: string, value: string}> = [];
-    
-    try {
-      $('.detail-attr').each((i, el) => {
-        const key = $(el).find('.detail-attr-item-key').text().trim();
-        const value = $(el).find('.detail-attr-item-value').text().trim();
-        
-        if (key && value) {
-          features.push({ key, value });
-        }
-      });
-      
-      if (features.length === 0) {
-        // Fallback feature extraction
-        $('li').each((i, el) => {
-          const text = $(el).text().trim();
-          if (text.includes(':') && text.length < 100) {
-            const [key, value] = text.split(':');
-            if (key && value) {
-              features.push({ 
-                key: key.trim(), 
-                value: value.trim() 
-              });
-            }
-          }
-        });
-      }
-    } catch (e) {
-      console.log(`⚠️ Feature extraction error: ${e.message}`);
-    }
-    
-    console.log(`📋 Extracted ${features.length} features`);
-    
-    // Gerçek varyant algılama
+    // Gelişmiş varyant ve özellik çıkarma
+    let features: Array<{key: string, value: string}> = [];
     let variants: Array<{color: string, size: string, inStock: boolean}> = [];
     
     try {
-      const { detectProductVariants } = await import('./simple-variant-detector');
-      const variantResult = detectProductVariants(html);
+      const { extractEnhancedProductData } = await import('./enhanced-product-extractor');
+      const enhancedData = extractEnhancedProductData(html);
       
-      if (variantResult.hasVariants) {
-        variants = variantResult.variants;
-        console.log(`✅ Gerçek varyantlar algılandı: ${variants.length} varyant`);
-      } else {
-        console.log('🚫 Üründe gerçek varyant seçenekleri yok, varyant oluşturulmayacak');
-        variants = []; // Boş array döndür
+      // Gelişmiş özellikler
+      features = enhancedData.features.map(f => ({
+        key: f.key,
+        value: f.value
+      }));
+      
+      // Gerçek varyantlar
+      variants = enhancedData.variants;
+      
+      console.log(`📋 Gelişmiş sistem: ${features.length} özellik, ${variants.length} varyant çıkarıldı`);
+      
+      if (enhancedData.specifications.brand) {
+        console.log(`🏷️ Marka tespit edildi: ${enhancedData.specifications.brand}`);
       }
+      
+      if (enhancedData.hasRealVariants) {
+        console.log(`✅ Gerçek varyantlar algılandı`);
+      } else {
+        console.log('🚫 Üründe gerçek varyant seçenekleri yok');
+      }
+      
     } catch (e: any) {
-      console.log(`⚠️ Varyant algılama hatası: ${e.message}`);
-      variants = []; // Hata durumunda boş array
+      console.log(`⚠️ Gelişmiş çıkarma hatası: ${e.message}`);
+      
+      // Fallback: Basit özellik çıkarma
+      try {
+        $('.detail-attr').each((i, el) => {
+          const key = $(el).find('.detail-attr-item-key').text().trim();
+          const value = $(el).find('.detail-attr-item-value').text().trim();
+          
+          if (key && value) {
+            features.push({ key, value });
+          }
+        });
+        
+        if (features.length === 0) {
+          $('li').each((i, el) => {
+            const text = $(el).text().trim();
+            if (text.includes(':') && text.length < 100) {
+              const [key, value] = text.split(':');
+              if (key && value) {
+                features.push({ 
+                  key: key.trim(), 
+                  value: value.trim() 
+                });
+              }
+            }
+          });
+        }
+        
+        console.log(`📋 Fallback: ${features.length} özellik çıkarıldı`);
+      } catch (fallbackError: any) {
+        console.log(`⚠️ Fallback çıkarma hatası: ${fallbackError.message}`);
+      }
+      
+      variants = []; // Hata durumunda boş varyant array
     }
     
     console.log(`👕 Created ${variants.length} variants`);
