@@ -542,9 +542,12 @@ function ScraperPage({ platform = 'trendyol' }: ScraperPageProps) {
   const [isUploadingToShopify, setIsUploadingToShopify] = useState(false);
 
   const uploadToShopify = async () => {
-    if (!result?.productInfo) {
+    // Her iki veri formatını da kontrol et
+    const productData = result?.productInfo || result;
+    
+    if (!productData || !productData.title) {
       toast({
-        title: "Hata",
+        title: "Hata", 
         description: "Shopify'a yüklemek için önce ürün çekin",
         variant: "destructive"
       });
@@ -554,38 +557,38 @@ function ScraperPage({ platform = 'trendyol' }: ScraperPageProps) {
     setIsUploadingToShopify(true);
     
     try {
-      console.log('Shopify API yüklemesi başlatılıyor...', result.productInfo);
+      console.log('Shopify API yüklemesi başlatılıyor...', productData);
       
       // Fiyat verilerini düzelt
-      const originalPrice = result.productInfo.price?.original || result.productInfo.price?.withProfit / 1.15 || 0;
-      const profitPrice = result.productInfo.price?.withProfit || originalPrice * 1.15;
+      const originalPrice = productData.price?.original || productData.price?.withProfit / 1.15 || 0;
+      const profitPrice = productData.price?.withProfit || originalPrice * 1.15;
       
-      const productData = {
+      const shopifyData = {
         success: true,
-        title: result.productInfo.title,
-        brand: result.productInfo.brand,
+        title: productData.title,
+        brand: productData.brand,
         price: {
           original: originalPrice,
           withProfit: profitPrice
         },
-        features: result.productInfo.features || [],
-        variants: result.productInfo.variants?.length > 0 ? result.productInfo.variants : [{
+        features: productData.features || [],
+        variants: productData.variants?.length > 0 ? productData.variants : [{
           color: "Varsayılan",
           size: "Standart", 
           inStock: true,
           stockCount: 10
         }],
-        images: result.productInfo.images || []
+        images: productData.images || []
       };
 
-      console.log('Gönderilen product data:', productData);
+      console.log('Gönderilen shopify data:', shopifyData);
       
       const response = await fetch('/api/shopify/add-product', {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
         },
-        body: JSON.stringify({ productData }),
+        body: JSON.stringify({ productData: shopifyData }),
       });
 
       console.log('Response status:', response.status);
