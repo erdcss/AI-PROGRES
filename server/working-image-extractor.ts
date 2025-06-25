@@ -23,13 +23,14 @@ export async function extractProductImages(url: string): Promise<string[]> {
     
     console.log(`📄 HTML size: ${Math.round(html.length / 1024)}KB`);
     
-    // Method 1: Direct CDN URL extraction with regex
+    // Method 1: Direct CDN URL extraction with regex - More comprehensive
     const cdnRegex = /https:\/\/cdn\.dsmcdn\.com\/[^"'\s]*\.(?:jpg|jpeg|png|webp)/gi;
     const cdnMatches = html.match(cdnRegex) || [];
     console.log(`📸 Method 1 - CDN regex: Found ${cdnMatches.length} URLs`);
     
-    cdnMatches.forEach(url => {
-      if (url.includes('_org_zoom') || url.includes('_large') || url.includes('/prod/')) {
+    cdnMatches.forEach((url: string) => {
+      // Accept all quality levels, not just zoom and large
+      if (!url.includes('icon') && !url.includes('logo') && !url.includes('badge')) {
         images.add(url);
       }
     });
@@ -91,7 +92,8 @@ export async function extractProductImages(url: string): Promise<string[]> {
       !url.includes('logo') && 
       !url.includes('badge') &&
       !url.includes('_thumb') &&
-      (url.includes('_org_zoom') || url.includes('_large') || url.includes('/prod/'))
+      url.includes('dsmcdn.com') &&
+      (url.includes('.jpg') || url.includes('.jpeg') || url.includes('.png') || url.includes('.webp'))
     );
     
     console.log(`✅ Total unique quality images found: ${imageArray.length}`);
@@ -101,7 +103,7 @@ export async function extractProductImages(url: string): Promise<string[]> {
     
     return imageArray;
     
-  } catch (error) {
+  } catch (error: any) {
     console.error(`❌ Image extraction error: ${error.message}`);
     return [];
   }

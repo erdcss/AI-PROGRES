@@ -5,7 +5,7 @@
 import axios from 'axios';
 import * as cheerio from 'cheerio';
 import { extractTrendyolPrice } from './fixed-price-extractor';
-import { extractProductImages } from './working-image-extractor';
+import { extractImagesDirectly } from './final-image-solution';
 
 export interface SimpleTrendyolData {
   success: boolean;
@@ -79,12 +79,12 @@ export async function simpleTrendyolScrape(url: string): Promise<SimpleTrendyolD
         brand = priceResult.brand;
         console.log(`✅ Price extracted: ${priceObject.formatted} → ${priceObject.profitFormatted}`);
       }
-    } catch (e) {
+    } catch (e: any) {
       console.log(`⚠️ Price extraction error: ${e.message}`);
     }
     
-    // Use the working image extractor
-    const images = await extractProductImages(url);
+    // Use the direct image extractor
+    const images = await extractImagesDirectly(url);
     
     console.log(`✅ Found ${images.length} unique images`);
     
