@@ -57,7 +57,13 @@ class InstantCSVGenerator {
       
       // Create variants or single product
       if (!hasColorVariants && !hasSizeVariants) {
-        // Single product without variants
+        // Single product without variants - but check if we have any colors at all
+        let option1Name = '', option1Value = '';
+        if (realColors.length > 0 && realColors[0] !== 'Standart') {
+          option1Name = 'Renk';
+          option1Value = realColors[0];
+        }
+        
         const row = [
           handle,
           `${brand.toUpperCase()} ${product.title}`,
@@ -67,7 +73,7 @@ class InstantCSVGenerator {
           'Giyim',
           `${brand.toLowerCase()},fashion,clothing`,
           'TRUE',
-          '', '', '', '', '', '', // Empty option fields
+          option1Name, option1Value, '', '', '', '', // Use real color if available
           `${handle}-default`,
           '145', 'shopify', '10', 'continue', 'manual',
           priceWithProfit, '', 'TRUE', 'TRUE', '',
