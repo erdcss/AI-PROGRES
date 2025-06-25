@@ -26,6 +26,7 @@ import {
   Image as ImageIcon,
   Clipboard,
   Download,
+  Upload,
   Home
 } from "lucide-react";
 import {
