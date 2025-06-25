@@ -1127,7 +1127,7 @@ function ScraperPage({ platform = 'trendyol' }: ScraperPageProps) {
                       </div>
                       <div className="text-center">
                         <span className="text-xs text-green-500 bg-green-900/30 px-2 py-1 rounded">
-                          %10 kar marjı dahil
+                          %15 kar marjı dahil
                         </span>
                       </div>
                     </div>
@@ -1296,7 +1296,7 @@ function ScraperPage({ platform = 'trendyol' }: ScraperPageProps) {
               <div className="bg-muted p-3 border-b">
                 <h3 className="font-medium">Önizleme - Shopify Uyumlu Format</h3>
                 <p className="text-sm text-muted-foreground">
-                  {product.sizeOptions?.length || 0} beden varyantı • %10 kar marjı uygulandı
+                  {product.sizeOptions?.length || 0} beden varyantı • %15 kar marjı uygulandı
                 </p>
               </div>
               
@@ -1374,7 +1374,7 @@ function ScraperPage({ platform = 'trendyol' }: ScraperPageProps) {
                   <p className="font-medium mb-1">Shopify Import Bilgileri:</p>
                   <ul className="space-y-1 text-blue-700">
                     <li>• Ana ürün + {product.sizeOptions?.length || 0} beden varyantı oluşturulacak</li>
-                    <li>• %10 kar marjı otomatik uygulandı ({product.price?.original} TL → {product.price?.withProfit} TL)</li>
+                    <li>• %15 kar marjı otomatik uygulandı ({product.price?.original} TL → {product.price?.withProfit} TL)</li>
                     <li>• Her beden için ayrı SKU ve görsel atandı</li>
                     <li>• Stok miktarı: 10 adet (varsayılan)</li>
                   </ul>
