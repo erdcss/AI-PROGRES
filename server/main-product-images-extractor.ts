@@ -40,31 +40,34 @@ export async function extractMainProductImages(url: string): Promise<string[]> {
       }
     });
 
-    // Eğer galeri görsellerinde bulamazsak, ana görsel alanına bak
+    // Eğer galeri görsellerinde bulamazsak, regex ile CDN görsellerini bul
     if (mainImages.length === 0) {
-      console.log('🔍 Ana galeri bulunamadı, alternatif yöntemlerle arıyor...');
+      console.log('🔍 Ana galeri bulunamadı, kapsamlı görsel çıkarımına geçiliyor...');
       
-      // Ana ürün görseli için farklı selector'lar dene
-      const selectors = [
-        'img[data-testid="product-image"]',
-        '.product-detail-image img',
-        '.product-gallery img',
-        '.image-gallery img'
-      ];
-
-      for (const selector of selectors) {
-        const images = $(selector);
-        if (images.length > 0) {
-          console.log(`✅ ${selector} ile ${images.length} görsel bulundu`);
-          images.each((index, element) => {
-            const src = $(element).attr('src');
-            if (src && src.includes('cdn.dsmcdn.com') && !mainImages.includes(src)) {
-              const largeImageUrl = src.replace(/\/\d+_\d+\./, '/1_org_zoom.');
-              mainImages.push(largeImageUrl);
-            }
-          });
-          break;
-        }
+      // Regex ile tüm CDN görsellerini bul
+      const cdnPattern = /https:\/\/cdn\.dsmcdn\.com[^"'\s]*\.jpg/g;
+      const matches = html.match(cdnPattern);
+      
+      console.log(`🔍 HTML'de ${matches ? matches.length : 0} toplam CDN görseli bulundu`);
+      
+      if (matches && matches.length > 0) {
+        const uniqueMatches = Array.from(new Set(matches))
+          .filter(img => 
+            !img.includes('icon') && 
+            !img.includes('logo') && 
+            !img.includes('badge') &&
+            !img.includes('thumb') &&
+            !img.includes('sprite')
+          )
+          .slice(0, 7);
+        
+        mainImages.push(...uniqueMatches);
+        console.log(`✅ Regex ile ${uniqueMatches.length} ana görsel bulundu`);
+        
+        // Log first few images for debugging
+        uniqueMatches.slice(0, 3).forEach((img, i) => {
+          console.log(`📸 Ana görsel ${i + 1}: ${img}`);
+        });
       }
     }
 
