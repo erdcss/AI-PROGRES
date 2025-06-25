@@ -120,7 +120,7 @@ async function tryDesktopScraping(url: string): Promise<TrendyolProductData | nu
     debug(`Desktop content alındı: ${content.length} bytes`);
 
     if (content.length > 10000) {
-      return parseProductData(content, url);
+      return await parseProductData(content, url);
     }
 
     return null;
@@ -171,7 +171,7 @@ async function tryMobileScraping(url: string): Promise<TrendyolProductData | nul
     debug(`Mobile content alındı: ${content.length} bytes`);
 
     if (content.length > 5000) {
-      return parseProductData(content, url);
+      return await parseProductData(content, url);
     }
 
     return null;
@@ -230,7 +230,7 @@ async function tryAlternativeEndpoints(url: string): Promise<TrendyolProductData
 /**
  * Parse product data from HTML content
  */
-function parseProductData(html: string, url: string): TrendyolProductData | null {
+async function parseProductData(html: string, url: string): Promise<TrendyolProductData | null> {
   try {
     const $ = cheerio.load(html);
     
@@ -266,9 +266,9 @@ function parseProductData(html: string, url: string): TrendyolProductData | null
       }
     });
 
-    // Use the new real variant extractor
-    const { extractRealVariants } = require('./real-variant-extractor');
-    const variants = extractRealVariants(content);
+    // Use simple variant extraction for now
+    const { extractVariantsSimple } = await import('./simple-variant-fix');
+    const variants = extractVariantsSimple(content);
 
     // Extract description
     const description = $('.product-detail-description, .pr-in-dt-cn, [data-testid="description"]').first().text().trim() ||

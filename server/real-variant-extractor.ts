@@ -7,9 +7,7 @@ export interface VariantData {
   stockMap: Record<string, boolean>;
 }
 
-module.exports = { extractRealVariants };
-
-function extractRealVariants(html: string): VariantData {
+export function extractRealVariants(html: string): VariantData {
   const $ = cheerio.load(html);
   const colors: string[] = [];
   const sizes: string[] = [];
