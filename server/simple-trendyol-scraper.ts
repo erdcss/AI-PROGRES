@@ -6,6 +6,7 @@ import axios from 'axios';
 import * as cheerio from 'cheerio';
 import { extractTrendyolPrice } from './fixed-price-extractor';
 import { extractMainProductImages } from './main-product-images-extractor';
+import { extractProductFeatures } from './product-features-extractor';
 
 export interface SimpleTrendyolData {
   success: boolean;
@@ -93,45 +94,33 @@ export async function simpleTrendyolScrape(url: string): Promise<SimpleTrendyolD
     let variants: Array<{color: string, size: string, inStock: boolean}> = [];
     
     try {
-      // İlk olarak Trendyol-specific extractor dene
-      const { extractTrendyolSpecificData } = await import('./trendyol-specific-extractor');
-      const trendyolData = extractTrendyolSpecificData(html);
+      // Advanced feature extraction
+      const advancedFeatures = extractProductFeatures(html);
+      features = advancedFeatures.map(f => ({
+        key: f.key,
+        value: f.value
+      }));
       
-      if (trendyolData.features.length > 0 || trendyolData.variants.length > 0) {
-        console.log('🎯 Trendyol-specific extractor kullanılıyor...');
-        
-        features = trendyolData.features.map(f => ({
-          key: f.key,
-          value: f.value
-        }));
-        
-        variants = trendyolData.variants.map(v => ({
-          color: 'Standart', // Default color for size-only variants
-          size: v.size,
-          inStock: v.inStock
-        }));
-        
-        console.log(`🎯 Trendyol-specific: ${features.length} özellik, ${variants.length} varyant çıkarıldı`);
-      } else {
-        // Fallback to enhanced extractor
-        const { extractEnhancedProductData } = await import('./enhanced-product-extractor');
-        const enhancedData = extractEnhancedProductData(html);
-        
-        features = enhancedData.features.map(f => ({
-          key: f.key,
-          value: f.value
-        }));
-        
-        variants = enhancedData.variants;
-        
-        console.log(`📋 Enhanced fallback: ${features.length} özellik, ${variants.length} varyant çıkarıldı`);
-      }
+      console.log(`🎯 Gelişmiş özellik çıkarma: ${features.length} özellik bulundu`);
+      
+      // Real size extraction
+      const { extractRealSizes } = await import('./real-size-extractor');
+      const realSizeResult = extractRealSizes(html);
+      
+      variants = realSizeResult.sizes.map(sizeData => ({
+        color: 'Standart',
+        size: sizeData.size,
+        inStock: sizeData.inStock
+      }));
+      
+      console.log(`🎯 Gelişmiş sistem: ${features.length} özellik, ${variants.length} varyant çıkarıldı`);
       
     } catch (e: any) {
       console.log(`⚠️ Gelişmiş çıkarma hatası: ${e.message}`);
       
       // Fallback: Basit özellik çıkarma
       try {
+        const $ = cheerio.load(html);
         $('.detail-attr').each((i, el) => {
           const key = $(el).find('.detail-attr-item-key').text().trim();
           const value = $(el).find('.detail-attr-item-value').text().trim();
