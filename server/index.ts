@@ -2,6 +2,7 @@ import express, { type Request, Response, NextFunction } from "express";
 import { registerRoutes } from "./routes";
 import { setupVite, serveStatic, log } from "./vite";
 import apiRoutes from "./api-routes";
+import importRoutes from "./import-route";
 import * as pathModule from "path";
 import { fileURLToPath } from 'url';
 import * as fs from 'fs';
@@ -251,6 +252,9 @@ app.use((req, res, next) => {
 });
 
 (async () => {
+  // Add import routes
+  app.use(importRoutes);
+  
   const server = await registerRoutes(app);
 
   // Serve static CSV files from temp and exports directories
