@@ -54,8 +54,37 @@ export async function simpleTrendyolScrape(url: string): Promise<SimpleTrendyolD
       profitFormatted: '0,00 TL'
     };
     
-    // Fiyat çıkarımı - Trendyol JSON'dan
+    // Use the new fixed price extractor
     try {
+      console.log(`💰 Using fixed price extractor for guaranteed results...`);
+      const priceResult = await extractTrendyolPrice(url);
+      
+      if (priceResult.price > 0) {
+        const rawPrice = priceResult.price;
+        const profitPrice = Math.round(rawPrice * 1.15 * 100) / 100;
+        
+        priceObject = {
+          original: rawPrice,
+          currency: 'TRY',
+          formatted: rawPrice.toLocaleString('tr-TR', {
+            minimumFractionDigits: 2,
+            maximumFractionDigits: 2
+          }) + ' TL',
+          withProfit: profitPrice,
+          profitFormatted: profitPrice.toLocaleString('tr-TR', {
+            minimumFractionDigits: 2,
+            maximumFractionDigits: 2
+          }) + ' TL'
+        };
+        
+        brand = priceResult.brand;
+        console.log(`✅ Fixed extractor success: ${priceObject.formatted} → ${priceObject.profitFormatted}, Brand: ${brand}`);
+      }
+    } catch (e) {
+      console.log(`⚠️ Fixed price extractor error: ${e.message}`);
+      
+      // Fallback: Original extraction method
+      try {
       const jsonStart = html.indexOf('window.__PRODUCT_DETAIL_APP_INITIAL_STATE__');
       if (jsonStart !== -1) {
         const equalsPos = html.indexOf('=', jsonStart) + 1;
@@ -122,8 +151,9 @@ export async function simpleTrendyolScrape(url: string): Promise<SimpleTrendyolD
           console.log(`🏷️ Marka: ${brand}`);
         }
       }
-    } catch (e) {
-      console.log(`⚠️ Fiyat parse hatası: ${e.message}`);
+      } catch (fallbackError) {
+        console.log(`⚠️ Fallback extraction also failed: ${fallbackError.message}`);
+      }
     }
     
     // 2. Görseller - Gelişmiş çıkarım
