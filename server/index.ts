@@ -1,6 +1,7 @@
 import express, { type Request, Response, NextFunction } from "express";
 import { registerRoutes } from "./routes";
 import { setupVite, serveStatic, log } from "./vite";
+import apiRoutes from "./api-routes";
 import * as pathModule from "path";
 import { fileURLToPath } from 'url';
 import * as fs from 'fs';
@@ -18,6 +19,9 @@ app.use((req, res, next) => {
 
 app.use(express.json({ limit: '50mb' }));
 app.use(express.urlencoded({ extended: false, limit: '50mb' }));
+
+// API routes entegrasyonu
+app.use('/', apiRoutes);
 
 // Sync CSV download endpoint
 app.get('/api/download/:filename', (req, res) => {

@@ -554,36 +554,51 @@ function ScraperPage({ platform = 'trendyol' }: ScraperPageProps) {
     setIsUploadingToShopify(true);
     
     try {
-      console.log('Shopify API yüklemesi başlatılıyor...');
+      console.log('Shopify API yüklemesi başlatılıyor...', result.productInfo);
+      
+      // Fiyat verilerini düzelt
+      const originalPrice = result.productInfo.price?.original || result.productInfo.price?.withProfit / 1.15 || 0;
+      const profitPrice = result.productInfo.price?.withProfit || originalPrice * 1.15;
+      
+      const productData = {
+        success: true,
+        title: result.productInfo.title,
+        brand: result.productInfo.brand,
+        price: {
+          original: originalPrice,
+          withProfit: profitPrice
+        },
+        features: result.productInfo.features || [],
+        variants: result.productInfo.variants?.length > 0 ? result.productInfo.variants : [{
+          color: "Varsayılan",
+          size: "Standart", 
+          inStock: true,
+          stockCount: 10
+        }],
+        images: result.productInfo.images || []
+      };
+
+      console.log('Gönderilen product data:', productData);
       
       const response = await fetch('/api/shopify/add-product', {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
         },
-        body: JSON.stringify({
-          productData: {
-            success: true,
-            title: result.productInfo.title,
-            brand: result.productInfo.brand,
-            price: {
-              original: parseFloat(result.productInfo.price?.toString() || '0') / 1.15,
-              withProfit: parseFloat(result.productInfo.price?.toString() || '0')
-            },
-            features: result.productInfo.features || [],
-            variants: result.productInfo.variants || [{ 
-              color: "Varsayılan", 
-              size: "Varsayılan", 
-              stockCount: 10 
-            }],
-            images: result.productInfo.images || []
-          }
-        }),
+        body: JSON.stringify({ productData }),
       });
 
+      console.log('Response status:', response.status);
+      
       if (!response.ok) {
-        const errorData = await response.json();
-        throw new Error(errorData.error || 'Shopify yükleme başarısız');
+        const contentType = response.headers.get('content-type');
+        if (contentType && contentType.includes('application/json')) {
+          const errorData = await response.json();
+          throw new Error(errorData.error || 'Shopify yükleme başarısız');
+        } else {
+          const errorText = await response.text();
+          throw new Error(`Server hatası: ${response.status}`);
+        }
       }
 
       const data = await response.json();
