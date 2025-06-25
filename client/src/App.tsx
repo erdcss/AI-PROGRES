@@ -226,6 +226,12 @@ function Router() {
           <EmailSettings />
         </PageTransition>
       </Route>
+      
+      <Route path="/product-data-analysis">
+        <PageTransition>
+          <ProductDataAnalysisPage />
+        </PageTransition>
+      </Route>
       <Route>
         <PageTransition>
           <NotFound />

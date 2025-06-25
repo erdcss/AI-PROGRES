@@ -82,11 +82,11 @@ router.get('/api/analysis/recent-products', async (req, res) => {
         id: products.id,
         title: products.title,
         brand: products.brand,
-        lastChecked: products.updatedAt
+        updatedAt: products.updatedAt
       })
       .from(products)
       .orderBy(desc(products.updatedAt))
-      .limit(10);
+      .limit(5);
 
     const productsWithVariants = await Promise.all(
       recentProducts.map(async (product) => {
@@ -102,10 +102,13 @@ router.get('/api/analysis/recent-products', async (req, res) => {
 
         const variant = variants[0];
         return {
-          ...product,
-          currentPrice: variant?.shopifyPrice || '0',
-          originalPrice: variant?.trendyolPrice || '0',
-          stockStatus: variant?.inStock || false
+          id: product.id.toString(),
+          title: product.title || 'Ürün adı bulunamadı',
+          brand: product.brand || 'Marka belirtilmemiş',
+          currentPrice: variant?.shopifyPrice ? `${parseFloat(variant.shopifyPrice).toLocaleString('tr-TR')} TL` : '0 TL',
+          originalPrice: variant?.trendyolPrice ? `${parseFloat(variant.trendyolPrice).toLocaleString('tr-TR')} TL` : '0 TL',
+          stockStatus: variant?.inStock ?? true,
+          lastChecked: product.updatedAt?.toISOString() || new Date().toISOString()
         };
       })
     );
@@ -118,7 +121,8 @@ router.get('/api/analysis/recent-products', async (req, res) => {
     console.error('Recent products error:', error);
     res.status(500).json({
       success: false,
-      message: 'Failed to fetch recent products'
+      message: 'Failed to fetch recent products',
+      products: []
     });
   }
 });

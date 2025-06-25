@@ -73,7 +73,7 @@ export const ProductDataAnalysis: React.FC = () => {
     {
       id: '1',
       type: 'ai',
-      content: 'Merhaba! Ürün verileriniz hakkında sorularınızı yanıtlayabilirim. Hangi konuda yardım istersiniz?',
+      content: 'Merhaba! Sistem hafızasındaki ürün verileriniz hakkında sorularınızı yanıtlayabilirim. Fiyat değişimleri, stok durumu, Shopify senkronizasyonu gibi konularda yardımcı olabilirim.',
       timestamp: new Date().toLocaleTimeString('tr-TR')
     }
   ]);
@@ -226,230 +226,316 @@ export const ProductDataAnalysis: React.FC = () => {
   };
 
   return (
-    <motion.div
-      initial={{ opacity: 0, y: 20 }}
-      animate={{ opacity: 1, y: 0 }}
-      transition={{ duration: 0.5 }}
-      className="w-full max-w-7xl mx-auto p-6"
-    >
-      <Card className="bg-gradient-to-br from-blue-50 to-indigo-100 border-blue-200">
-        <CardHeader>
-          <CardTitle className="flex items-center gap-2 text-2xl font-bold text-blue-900">
-            <BarChart3 className="h-8 w-8" />
-            Ürün Veri Analizi
-          </CardTitle>
-        </CardHeader>
-        <CardContent className="space-y-6">
-          {/* AI Chatbot Section */}
-          <Card className="border-2 border-blue-200">
-            <CardHeader className="pb-3">
-              <CardTitle className="flex items-center gap-2 text-lg text-blue-800">
-                <Bot className="h-5 w-5" />
-                AI Chat Botu
+    <div className="w-full space-y-8">
+      {/* Header Section */}
+      <motion.div
+        initial={{ opacity: 0, y: -20 }}
+        animate={{ opacity: 1, y: 0 }}
+        transition={{ duration: 0.5 }}
+        className="text-center space-y-4"
+      >
+        <div className="inline-flex items-center gap-3 px-6 py-3 bg-white/10 backdrop-blur-sm rounded-2xl border border-white/20">
+          <BarChart3 className="h-8 w-8 text-blue-400" />
+          <h1 className="text-3xl font-bold text-white tracking-tight">Sistem Hafıza Durumu</h1>
+        </div>
+        <p className="text-lg text-gray-300 max-w-2xl mx-auto leading-relaxed">
+          Gerçek zamanlı ürün takibi, AI destekli analiz ve otomatik Shopify senkronizasyonu
+        </p>
+      </motion.div>
+
+      {/* Stats Overview */}
+      <motion.div
+        initial={{ opacity: 0, y: 20 }}
+        animate={{ opacity: 1, y: 0 }}
+        transition={{ duration: 0.6, delay: 0.1 }}
+        className="grid grid-cols-1 md:grid-cols-3 gap-6"
+      >
+        <Card className="bg-white/5 backdrop-blur-md border-white/10">
+          <CardContent className="p-6 text-center">
+            <div className="w-16 h-16 mx-auto mb-4 bg-gradient-to-br from-blue-500 to-purple-600 rounded-2xl flex items-center justify-center">
+              <Database className="h-8 w-8 text-white" />
+            </div>
+            <h3 className="text-2xl font-bold text-white mb-2">
+              {memoryStats?.totalProducts?.toLocaleString('tr-TR') || '0'}
+            </h3>
+            <p className="text-gray-300 font-medium">Toplam Ürün</p>
+            <p className="text-sm text-gray-400 mt-1">Hafızada kayıtlı</p>
+          </CardContent>
+        </Card>
+
+        <Card className="bg-white/5 backdrop-blur-md border-white/10">
+          <CardContent className="p-6 text-center">
+            <div className="w-16 h-16 mx-auto mb-4 bg-gradient-to-br from-green-500 to-teal-600 rounded-2xl flex items-center justify-center">
+              <Package className="h-8 w-8 text-white" />
+            </div>
+            <h3 className="text-2xl font-bold text-white mb-2">
+              {memoryStats?.totalVariants?.toLocaleString('tr-TR') || '0'}
+            </h3>
+            <p className="text-gray-300 font-medium">Ürün Varyantı</p>
+            <p className="text-sm text-gray-400 mt-1">Renk/beden seçenekleri</p>
+          </CardContent>
+        </Card>
+
+        <Card className="bg-white/5 backdrop-blur-md border-white/10">
+          <CardContent className="p-6 text-center">
+            <div className="w-16 h-16 mx-auto mb-4 bg-gradient-to-br from-orange-500 to-red-600 rounded-2xl flex items-center justify-center">
+              <Clock className="h-8 w-8 text-white" />
+            </div>
+            <h3 className="text-lg font-bold text-white mb-2">Aktif</h3>
+            <p className="text-gray-300 font-medium">Günlük Monitoring</p>
+            <p className="text-sm text-gray-400 mt-1">12:00 ve 23:00 otomatik</p>
+          </CardContent>
+        </Card>
+      </motion.div>
+
+      <div className="grid grid-cols-1 xl:grid-cols-2 gap-8">
+        {/* AI Chatbot Section */}
+        <motion.div
+          initial={{ opacity: 0, x: -20 }}
+          animate={{ opacity: 1, x: 0 }}
+          transition={{ duration: 0.6, delay: 0.2 }}
+        >
+          <Card className="bg-white/5 backdrop-blur-md border-white/10 h-full">
+            <CardHeader className="pb-4">
+              <CardTitle className="flex items-center gap-3 text-xl font-bold text-white">
+                <div className="w-10 h-10 bg-gradient-to-br from-purple-500 to-pink-600 rounded-xl flex items-center justify-center">
+                  <Brain className="h-5 w-5 text-white" />
+                </div>
+                AI Veri Asistanı
               </CardTitle>
+              <p className="text-gray-400 text-sm">Ürün verileriniz hakkında soru sorun</p>
             </CardHeader>
             <CardContent className="space-y-4">
-              <ScrollArea className="h-64 border rounded-lg p-4 bg-white">
-                <div className="space-y-3">
+              <ScrollArea className="h-80 bg-black/20 rounded-lg p-4 border border-white/10">
+                <div className="space-y-4">
                   {chatMessages.map((message) => (
                     <div
                       key={message.id}
                       className={`flex ${message.type === 'user' ? 'justify-end' : 'justify-start'}`}
                     >
                       <div
-                        className={`max-w-[70%] p-3 rounded-lg ${
+                        className={`max-w-[85%] p-4 rounded-2xl ${
                           message.type === 'user'
-                            ? 'bg-blue-500 text-white'
-                            : 'bg-gray-100 text-gray-800'
+                            ? 'bg-gradient-to-r from-blue-600 to-purple-600 text-white shadow-lg'
+                            : 'bg-white/10 backdrop-blur-sm text-gray-100 border border-white/10'
                         }`}
                       >
-                        <p className="text-sm">{message.content}</p>
-                        <p className="text-xs opacity-70 mt-1">{message.timestamp}</p>
+                        <p className="text-sm leading-relaxed font-medium">{message.content}</p>
+                        <p className="text-xs opacity-70 mt-2 font-normal">{message.timestamp}</p>
                       </div>
                     </div>
                   ))}
                   {isTyping && (
                     <div className="flex justify-start">
-                      <div className="bg-gray-100 p-3 rounded-lg">
-                        <div className="flex space-x-1">
-                          <div className="w-2 h-2 bg-gray-400 rounded-full animate-bounce"></div>
-                          <div className="w-2 h-2 bg-gray-400 rounded-full animate-bounce" style={{ animationDelay: '0.1s' }}></div>
-                          <div className="w-2 h-2 bg-gray-400 rounded-full animate-bounce" style={{ animationDelay: '0.2s' }}></div>
+                      <div className="bg-white/10 backdrop-blur-sm p-4 rounded-2xl border border-white/10">
+                        <div className="flex space-x-2">
+                          <div className="w-2 h-2 bg-blue-400 rounded-full animate-bounce"></div>
+                          <div className="w-2 h-2 bg-blue-400 rounded-full animate-bounce" style={{ animationDelay: '0.1s' }}></div>
+                          <div className="w-2 h-2 bg-blue-400 rounded-full animate-bounce" style={{ animationDelay: '0.2s' }}></div>
                         </div>
                       </div>
                     </div>
                   )}
                 </div>
               </ScrollArea>
-              <div className="flex gap-2">
+              <div className="flex gap-3">
                 <Input
-                  placeholder="Ürün verileriniz hakkında soru sorun..."
+                  placeholder="Örnek: Hafızada kaç ürün var? Fiyat değişimleri nasıl?"
                   value={newMessage}
                   onChange={(e) => setNewMessage(e.target.value)}
                   onKeyPress={(e) => e.key === 'Enter' && handleSendMessage()}
-                  className="flex-1"
+                  className="flex-1 bg-white/10 border-white/20 text-white placeholder-gray-400 font-medium"
                 />
-                <Button onClick={handleSendMessage} size="icon" className="bg-blue-500 hover:bg-blue-600">
+                <Button 
+                  onClick={handleSendMessage} 
+                  size="icon" 
+                  className="bg-gradient-to-r from-blue-600 to-purple-600 hover:from-blue-700 hover:to-purple-700 border-none"
+                >
                   <Send className="h-4 w-4" />
                 </Button>
               </div>
             </CardContent>
           </Card>
+        </motion.div>
 
-          <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-            {/* Memory Information */}
-            <Card>
-              <CardHeader>
-                <CardTitle className="flex items-center gap-2 text-lg">
-                  <Database className="h-5 w-5 text-blue-600" />
-                  Hafıza Bilgisi
-                </CardTitle>
-              </CardHeader>
-              <CardContent>
-                <div className="space-y-4">
-                  <div className="flex justify-between items-center">
-                    <span className="text-sm font-medium">Toplam Ürün:</span>
-                    <Badge variant="secondary" className="text-lg font-bold">
-                      {memoryStats?.totalProducts?.toLocaleString('tr-TR') || '0'}
-                    </Badge>
-                  </div>
-                  <div className="flex justify-between items-center">
-                    <span className="text-sm font-medium">Toplam Varyant:</span>
-                    <Badge variant="secondary" className="text-lg font-bold">
-                      {memoryStats?.totalVariants?.toLocaleString('tr-TR') || '0'}
-                    </Badge>
-                  </div>
-                  <div className="flex justify-between items-center">
-                    <span className="text-sm font-medium">Son Güncelleme:</span>
-                    <span className="text-sm text-gray-600">
-                      {new Date().toLocaleString('tr-TR')}
-                    </span>
-                  </div>
-                  <Separator />
-                  <div className="text-center">
-                    <p className="text-sm text-gray-600">
-                      Veriler gerçek zamanlı olarak güncelleniyor
-                    </p>
-                  </div>
+        {/* Daily Operations */}
+        <motion.div
+          initial={{ opacity: 0, x: 20 }}
+          animate={{ opacity: 1, x: 0 }}
+          transition={{ duration: 0.6, delay: 0.3 }}
+        >
+          <Card className="bg-white/5 backdrop-blur-md border-white/10 h-full">
+            <CardHeader className="pb-4">
+              <CardTitle className="flex items-center gap-3 text-xl font-bold text-white">
+                <div className="w-10 h-10 bg-gradient-to-br from-green-500 to-emerald-600 rounded-xl flex items-center justify-center">
+                  <Calendar className="h-5 w-5 text-white" />
                 </div>
-              </CardContent>
-            </Card>
+                Günlük Sistem İşlemleri
+              </CardTitle>
+              <p className="text-gray-400 text-sm">Otomatik monitoring ve senkronizasyon durumu</p>
+            </CardHeader>
+            <CardContent>
+              <ScrollArea className="h-80">
+                <div className="space-y-3">
+                  {dailyOperations.length > 0 ? dailyOperations.map((operation) => (
+                    <div key={operation.id} className="flex items-center gap-4 p-4 rounded-xl bg-white/5 border border-white/10">
+                      <div className={`p-2 rounded-lg ${
+                        operation.status === 'completed' ? 'bg-green-500/20 text-green-400' : 
+                        operation.status === 'pending' ? 'bg-yellow-500/20 text-yellow-400' : 'bg-red-500/20 text-red-400'
+                      }`}>
+                        {getOperationIcon(operation.type)}
+                      </div>
+                      <div className="flex-1 min-w-0">
+                        <p className="text-sm font-semibold text-white truncate">{operation.details}</p>
+                        <p className="text-xs text-gray-400 mt-1">{operation.timestamp}</p>
+                      </div>
+                      <Badge variant={
+                        operation.status === 'completed' ? 'default' : 
+                        operation.status === 'pending' ? 'secondary' : 'destructive'
+                      } className="font-medium">
+                        {operation.status === 'completed' ? 'Tamamlandı' : 
+                         operation.status === 'pending' ? 'Bekliyor' : 'Hata'}
+                      </Badge>
+                    </div>
+                  )) : (
+                    <div className="text-center py-8">
+                      <Clock className="h-12 w-12 text-gray-500 mx-auto mb-3" />
+                      <p className="text-gray-400 font-medium">Henüz günlük işlem kaydı yok</p>
+                      <p className="text-sm text-gray-500 mt-1">İlk monitoring 12:00'da başlayacak</p>
+                    </div>
+                  )}
+                </div>
+              </ScrollArea>
+            </CardContent>
+          </Card>
+        </motion.div>
+      </div>
 
-            {/* Daily Operations */}
-            <Card>
-              <CardHeader>
-                <CardTitle className="flex items-center gap-2 text-lg">
-                  <Calendar className="h-5 w-5 text-green-600" />
-                  Günlük İşlemler
-                </CardTitle>
-              </CardHeader>
-              <CardContent>
-                <ScrollArea className="h-48">
-                  <div className="space-y-3">
-                    {dailyOperations.map((operation) => (
-                      <div key={operation.id} className="flex items-center gap-3 p-2 rounded-lg bg-gray-50">
-                        <div className={`p-1 rounded ${
-                          operation.status === 'completed' ? 'bg-green-100' : 
-                          operation.status === 'pending' ? 'bg-yellow-100' : 'bg-red-100'
-                        }`}>
-                          {getOperationIcon(operation.type)}
-                        </div>
-                        <div className="flex-1 min-w-0">
-                          <p className="text-sm font-medium truncate">{operation.details}</p>
-                          <p className="text-xs text-gray-500">{operation.timestamp}</p>
-                        </div>
-                        <Badge variant={
-                          operation.status === 'completed' ? 'default' : 
-                          operation.status === 'pending' ? 'secondary' : 'destructive'
-                        }>
-                          {operation.status === 'completed' ? 'Tamamlandı' : 
-                           operation.status === 'pending' ? 'Bekliyor' : 'Hata'}
+      {/* Product List and Changes */}
+      <div className="grid grid-cols-1 xl:grid-cols-2 gap-8">
+        {/* Recent Products */}
+        <motion.div
+          initial={{ opacity: 0, y: 20 }}
+          animate={{ opacity: 1, y: 0 }}
+          transition={{ duration: 0.6, delay: 0.4 }}
+        >
+          <Card className="bg-white/5 backdrop-blur-md border-white/10">
+            <CardHeader className="pb-4">
+              <CardTitle className="flex items-center gap-3 text-xl font-bold text-white">
+                <div className="w-10 h-10 bg-gradient-to-br from-indigo-500 to-purple-600 rounded-xl flex items-center justify-center">
+                  <Package className="h-5 w-5 text-white" />
+                </div>
+                Hafızadaki Ürünler
+              </CardTitle>
+              <p className="text-gray-400 text-sm">Son eklenen ve güncellenen ürünler</p>
+            </CardHeader>
+            <CardContent>
+              <ScrollArea className="h-80">
+                <div className="space-y-4">
+                  {recentProducts.length > 0 ? recentProducts.map((product) => (
+                    <div key={product.id} className="p-4 rounded-xl bg-white/5 border border-white/10">
+                      <div className="flex justify-between items-start mb-3">
+                        <h4 className="font-semibold text-white text-sm leading-relaxed truncate flex-1 pr-3">
+                          {product.title}
+                        </h4>
+                        <Badge 
+                          variant={product.stockStatus ? 'default' : 'destructive'} 
+                          className="font-medium shrink-0"
+                        >
+                          {product.stockStatus ? 'Stokta' : 'Tükendi'}
                         </Badge>
                       </div>
-                    ))}
-                  </div>
-                </ScrollArea>
-              </CardContent>
-            </Card>
-          </div>
-
-          <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-            {/* Product List */}
-            <Card>
-              <CardHeader>
-                <CardTitle className="flex items-center gap-2 text-lg">
-                  <Package className="h-5 w-5 text-purple-600" />
-                  Ürün Listesi
-                </CardTitle>
-              </CardHeader>
-              <CardContent>
-                <ScrollArea className="h-64">
-                  <div className="space-y-3">
-                    {recentProducts.map((product) => (
-                      <div key={product.id} className="p-3 rounded-lg border bg-white">
-                        <div className="flex justify-between items-start mb-2">
-                          <h4 className="font-medium text-sm truncate flex-1">{product.title}</h4>
-                          <Badge variant={product.stockStatus ? 'default' : 'destructive'} className="ml-2">
-                            {product.stockStatus ? 'Stokta' : 'Tükendi'}
-                          </Badge>
-                        </div>
-                        <p className="text-xs text-gray-600 mb-2">{product.brand}</p>
-                        <div className="flex justify-between items-center text-xs">
-                          <span className="font-medium text-green-600">{product.currentPrice}</span>
-                          <span className="text-gray-500">Son kontrol: {product.lastChecked}</span>
-                        </div>
+                      <div className="flex items-center justify-between mb-2">
+                        <span className="text-sm text-gray-300 font-medium">{product.brand}</span>
+                        <span className="text-lg font-bold text-green-400">{product.currentPrice}</span>
                       </div>
-                    ))}
-                  </div>
-                </ScrollArea>
-              </CardContent>
-            </Card>
+                      <div className="text-xs text-gray-400">
+                        Son kontrol: {new Date(product.lastChecked).toLocaleString('tr-TR')}
+                      </div>
+                    </div>
+                  )) : (
+                    <div className="text-center py-8">
+                      <Package className="h-12 w-12 text-gray-500 mx-auto mb-3" />
+                      <p className="text-gray-400 font-medium">Henüz ürün kaydı yok</p>
+                      <p className="text-sm text-gray-500 mt-1">İlk ürünü ekledikten sonra burada görünecek</p>
+                    </div>
+                  )}
+                </div>
+              </ScrollArea>
+            </CardContent>
+          </Card>
+        </motion.div>
 
-            {/* Data Changes */}
-            <Card>
-              <CardHeader>
-                <CardTitle className="flex items-center gap-2 text-lg">
-                  <TrendingUp className="h-5 w-5 text-red-600" />
-                  Veri Değişimleri
-                </CardTitle>
-              </CardHeader>
-              <CardContent>
-                <ScrollArea className="h-64">
-                  <div className="space-y-3">
-                    {productChanges.map((change) => (
-                      <div key={change.id} className="p-3 rounded-lg border bg-white">
-                        <div className="flex items-start justify-between mb-2">
-                          <h4 className="font-medium text-sm truncate flex-1">{change.productName}</h4>
-                          <div className="flex items-center gap-1">
-                            {getChangeIcon(change.changeType)}
-                            {change.percentage && (
-                              <span className={`text-xs font-bold ${
-                                change.percentage > 0 ? 'text-red-600' : 'text-green-600'
-                              }`}>
-                                {change.percentage > 0 ? '+' : ''}{change.percentage.toFixed(1)}%
-                              </span>
-                            )}
-                          </div>
-                        </div>
-                        <div className="flex justify-between items-center text-xs">
-                          <div className="flex gap-2">
-                            <span className="text-gray-500">{change.oldValue}</span>
-                            <span>→</span>
-                            <span className={getChangeColor(change.changeType).split(' ')[0]}>
-                              {change.newValue}
+        {/* Price and Stock Changes */}
+        <motion.div
+          initial={{ opacity: 0, y: 20 }}
+          animate={{ opacity: 1, y: 0 }}
+          transition={{ duration: 0.6, delay: 0.5 }}
+        >
+          <Card className="bg-white/5 backdrop-blur-md border-white/10">
+            <CardHeader className="pb-4">
+              <CardTitle className="flex items-center gap-3 text-xl font-bold text-white">
+                <div className="w-10 h-10 bg-gradient-to-br from-red-500 to-pink-600 rounded-xl flex items-center justify-center">
+                  <TrendingUp className="h-5 w-5 text-white" />
+                </div>
+                Fiyat ve Stok Değişimleri
+              </CardTitle>
+              <p className="text-gray-400 text-sm">Otomatik monitoring ile tespit edilen değişiklikler</p>
+            </CardHeader>
+            <CardContent>
+              <ScrollArea className="h-80">
+                <div className="space-y-4">
+                  {productChanges.length > 0 ? productChanges.map((change) => (
+                    <div key={change.id} className="p-4 rounded-xl bg-white/5 border border-white/10">
+                      <div className="flex items-start justify-between mb-3">
+                        <h4 className="font-semibold text-white text-sm leading-relaxed truncate flex-1 pr-3">
+                          {change.productName}
+                        </h4>
+                        <div className="flex items-center gap-2 shrink-0">
+                          {getChangeIcon(change.changeType)}
+                          {change.percentage && (
+                            <span className={`text-sm font-bold px-2 py-1 rounded-lg ${
+                              change.percentage > 0 
+                                ? 'text-red-300 bg-red-500/20' 
+                                : 'text-green-300 bg-green-500/20'
+                            }`}>
+                              {change.percentage > 0 ? '+' : ''}{change.percentage.toFixed(1)}%
                             </span>
-                          </div>
+                          )}
                         </div>
-                        <p className="text-xs text-gray-500 mt-1">{change.timestamp}</p>
                       </div>
-                    ))}
-                  </div>
-                </ScrollArea>
-              </CardContent>
-            </Card>
-          </div>
-        </CardContent>
-      </Card>
-    </motion.div>
+                      <div className="flex items-center justify-between mb-2">
+                        <div className="flex items-center gap-3 text-sm">
+                          <span className="text-gray-400 font-medium">{change.oldValue}</span>
+                          <ArrowUp className="h-4 w-4 text-gray-500 rotate-90" />
+                          <span className={`font-semibold ${
+                            change.changeType.includes('increase') || change.changeType === 'stock_in'
+                              ? 'text-green-400' 
+                              : change.changeType.includes('decrease') || change.changeType === 'stock_out'
+                              ? 'text-red-400'
+                              : 'text-gray-300'
+                          }`}>
+                            {change.newValue}
+                          </span>
+                        </div>
+                      </div>
+                      <div className="text-xs text-gray-400">
+                        {new Date(change.timestamp).toLocaleString('tr-TR')}
+                      </div>
+                    </div>
+                  )) : (
+                    <div className="text-center py-8">
+                      <TrendingUp className="h-12 w-12 text-gray-500 mx-auto mb-3" />
+                      <p className="text-gray-400 font-medium">Henüz değişiklik kaydı yok</p>
+                      <p className="text-sm text-gray-500 mt-1">Monitoring başladığında değişiklikler burada görünecek</p>
+                    </div>
+                  )}
+                </div>
+              </ScrollArea>
+            </CardContent>
+          </Card>
+        </motion.div>
+      </div>
+    </div>
   );
 };
