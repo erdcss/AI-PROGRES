@@ -209,7 +209,7 @@ router.post('/api/shopify/add-product', async (req, res) => {
     }
 
     // Detaylı HTML açıklama - template formatına uygun
-    const bodyHtml = `${productData.brand || 'Marka'} ${productData.title || 'Ürün'}. ${featuresHtml}<p><em>Trendyol'dan aktarılmıştır. %15 kar marjı eklenmiştir.</em></p>`;
+    const bodyHtml = `${productData.brand || 'Marka'} ${productData.title || 'Ürün'}. ${featuresHtml}`;
 
     // Varyantları işle
     const variants = [];
