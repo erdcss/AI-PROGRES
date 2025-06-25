@@ -16,30 +16,49 @@ export function extractCleanFeatures(html: string): CleanProductFeature[] {
   const features: CleanProductFeature[] = [];
   const featureMap = new Set<string>();
 
-  // 1. Extract from structured attribute tables
-  $('table, .attribute-table, .product-attributes').each((i, table) => {
-    $(table).find('tr').each((j, row) => {
-      const cells = $(row).find('td, th');
-      if (cells.length >= 2) {
-        const key = $(cells[0]).text().trim();
-        const value = $(cells[1]).text().trim();
-        
-        if (isValidFeature(key, value)) {
-          const featureKey = `${key}:${value}`;
-          if (!featureMap.has(featureKey)) {
-            features.push({
-              key: cleanFeatureKey(key),
-              value: value,
-              category: categorizeFeature(key)
-            });
-            featureMap.add(featureKey);
-          }
-        }
+  // 1. Extract from Trendyol product specifications section (like Scrapy example)
+  $('.product-detail .product-detail-specs .row, .detail-attr-container .detail-attr').each((i, row) => {
+    // Method 1: Using column-based layout (col-lg-4, col-md-4 etc.)
+    const key1 = $(row).find('.col-lg-4, .col-md-4, .detail-attr-item-key').first().text().trim();
+    const value1 = $(row).find('.col-lg-8, .col-md-8, .detail-attr-item-value').first().text().trim();
+    
+    if (key1 && value1 && isValidFeature(key1, value1)) {
+      const featureKey = `${key1}:${value1}`;
+      if (!featureMap.has(featureKey)) {
+        features.push({
+          key: cleanFeatureKey(key1),
+          value: value1,
+          category: categorizeFeature(key1)
+        });
+        featureMap.add(featureKey);
+        console.log(`✅ Spec özellik: ${key1}: ${value1}`);
       }
-    });
+    }
   });
 
-  // 2. Extract from JSON-LD structured data
+  // 2. Extract from attribute lists and tables
+  $('table tr, .attributes tr, .product-attributes tr').each((i, row) => {
+    const cells = $(row).find('td, th');
+    if (cells.length >= 2) {
+      const key = $(cells[0]).text().trim();
+      const value = $(cells[1]).text().trim();
+      
+      if (isValidFeature(key, value)) {
+        const featureKey = `${key}:${value}`;
+        if (!featureMap.has(featureKey)) {
+          features.push({
+            key: cleanFeatureKey(key),
+            value: value,
+            category: categorizeFeature(key)
+          });
+          featureMap.add(featureKey);
+          console.log(`✅ Table özellik: ${key}: ${value}`);
+        }
+      }
+    }
+  });
+
+  // 3. Extract from JSON-LD structured data (clean version)
   $('script[type="application/ld+json"]').each((i, script) => {
     try {
       const jsonText = $(script).html();
@@ -62,6 +81,7 @@ export function extractCleanFeatures(html: string): CleanProductFeature[] {
                     category: categorizeFeature(key)
                   });
                   featureMap.add(featureKey);
+                  console.log(`✅ JSON-LD özellik: ${key}: ${value}`);
                 }
               }
             }
@@ -73,15 +93,16 @@ export function extractCleanFeatures(html: string): CleanProductFeature[] {
     }
   });
 
-  // 3. Extract from product specification sections
-  $('.product-specs, .specifications, .product-details').each((i, section) => {
-    $(section).find('.spec-item, .detail-item').each((j, item) => {
-      const keyEl = $(item).find('.spec-key, .detail-key, .label');
-      const valueEl = $(item).find('.spec-value, .detail-value, .value');
-      
-      if (keyEl.length && valueEl.length) {
-        const key = keyEl.text().trim();
-        const value = valueEl.text().trim();
+  // 4. Extract from general product detail sections
+  $('.product-detail-container, .product-info, .product-specs').find('div, li, p').each((i, item) => {
+    const text = $(item).text().trim();
+    
+    // Look for key:value patterns
+    if (text.includes(':') && text.length < 150 && text.length > 10) {
+      const parts = text.split(':');
+      if (parts.length === 2) {
+        const key = parts[0].trim();
+        const value = parts[1].trim();
         
         if (isValidFeature(key, value)) {
           const featureKey = `${key}:${value}`;
@@ -92,10 +113,11 @@ export function extractCleanFeatures(html: string): CleanProductFeature[] {
               category: categorizeFeature(key)
             });
             featureMap.add(featureKey);
+            console.log(`✅ Pattern özellik: ${key}: ${value}`);
           }
         }
       }
-    });
+    }
   });
 
   console.log(`✅ ${features.length} temiz özellik çıkarıldı`);
