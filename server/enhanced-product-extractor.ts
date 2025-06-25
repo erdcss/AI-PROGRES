@@ -42,10 +42,10 @@ export function extractEnhancedProductData(html: string): EnhancedProductData {
   // 1. Özellikler (Features) çıkarma
   const features: ProductFeature[] = [];
   
-  // Trendyol özellik tabloları
-  $('.detail-attr, .product-detail-attributes, .pr-in-at').each((i, el) => {
-    const keyEl = $(el).find('.detail-attr-item-key, .attr-key, dt');
-    const valueEl = $(el).find('.detail-attr-item-value, .attr-value, dd');
+  // Trendyol özellik tabloları - Gelişmiş selector'lar
+  $('.detail-attr, .product-detail-attributes, .pr-in-at, .detail-attr-item').each((i, el) => {
+    const keyEl = $(el).find('.detail-attr-item-key, .attr-key, dt, .detail-attr-key');
+    const valueEl = $(el).find('.detail-attr-item-value, .attr-value, dd, .detail-attr-value');
     
     if (keyEl.length && valueEl.length) {
       const key = keyEl.text().trim();
@@ -61,8 +61,42 @@ export function extractEnhancedProductData(html: string): EnhancedProductData {
     }
   });
   
+  // Gelişmiş özellik çıkarma - Trendyol'un yeni yapısı
+  $('.product-detail-module .detail-attribute-list li, .detail-attr-list li').each((i, el) => {
+    const key = $(el).find('.detail-attr-item-key, .attr-name, .attribute-name').text().trim();
+    const value = $(el).find('.detail-attr-item-value, .attr-value, .attribute-value').text().trim();
+    
+    if (key && value) {
+      features.push({
+        key,
+        value,
+        category: categorizeFeature(key)
+      });
+    }
+  });
+  
+  // JSON-LD yapılandırılmış veri arama
+  $('script[type="application/ld+json"]').each((i, el) => {
+    try {
+      const jsonData = JSON.parse($(el).html() || '{}');
+      if (jsonData.additionalProperty && Array.isArray(jsonData.additionalProperty)) {
+        jsonData.additionalProperty.forEach((prop: any) => {
+          if (prop.name && prop.value) {
+            features.push({
+              key: prop.name,
+              value: String(prop.value),
+              category: categorizeFeature(prop.name)
+            });
+          }
+        });
+      }
+    } catch (e) {
+      // JSON parse hatası
+    }
+  });
+  
   // Ürün açıklama listelerinden özellik çıkarma
-  $('.pr-in-dt-cn ul li, .product-description li').each((i, el) => {
+  $('.pr-in-dt-cn ul li, .product-description li, .product-detail ul li, .product-features li').each((i, el) => {
     const text = $(el).text().trim();
     if (text.includes(':') && text.length < 150) {
       const [key, ...valueParts] = text.split(':');
@@ -73,6 +107,64 @@ export function extractEnhancedProductData(html: string): EnhancedProductData {
           key: key.trim(),
           value: value,
           category: categorizeFeature(key.trim())
+        });
+      }
+    }
+  });
+  
+  // Tablo formatındaki özellikler
+  $('table tr, .table tr, .product-table tr').each((i, el) => {
+    const cells = $(el).find('td, th');
+    if (cells.length >= 2) {
+      const key = $(cells[0]).text().trim();
+      const value = $(cells[1]).text().trim();
+      
+      if (key && value && key.length < 50 && value.length < 200) {
+        features.push({
+          key,
+          value,
+          category: categorizeFeature(key)
+        });
+      }
+    }
+  });
+  
+  // HTML içinde metin kalıpları ile özellik arama
+  const htmlText = $.text();
+  const featurePatterns = [
+    /Kalıp\s*:?\s*([^\n\r,;]+)/gi,
+    /Materyal\s*:?\s*([^\n\r,;]+)/gi,
+    /Cep\s*:?\s*([^\n\r,;]+)/gi,
+    /Astar\s*Durumu\s*:?\s*([^\n\r,;]+)/gi,
+    /Kol\s*Tipi\s*:?\s*([^\n\r,;]+)/gi,
+    /Desen\s*:?\s*([^\n\r,;]+)/gi,
+    /Yaka\s*Tipi\s*:?\s*([^\n\r,;]+)/gi,
+    /Kumaş\s*Tipi\s*:?\s*([^\n\r,;]+)/gi,
+    /Renk\s*:?\s*([^\n\r,;]+)/gi,
+    /Kapama\s*Şekli\s*:?\s*([^\n\r,;]+)/gi,
+    /Kol\s*Boyu\s*:?\s*([^\n\r,;]+)/gi,
+    /Koleksiyon\s*:?\s*([^\n\r,;]+)/gi,
+    /Kalınlık\s*:?\s*([^\n\r,;]+)/gi,
+    /Boy\s*:?\s*([^\n\r,;]+)/gi,
+    /Siluet\s*:?\s*([^\n\r,;]+)/gi,
+    /Ortam\s*:?\s*([^\n\r,;]+)/gi,
+    /Ek\s*Özellik\s*:?\s*([^\n\r,;]+)/gi,
+    /Dokuma\s*Tipi\s*:?\s*([^\n\r,;]+)/gi,
+    /Sürdürülebilirlik\s*Detayı\s*:?\s*([^\n\r,;]+)/gi
+  ];
+  
+  featurePatterns.forEach(pattern => {
+    let match;
+    while ((match = pattern.exec(htmlText)) !== null) {
+      const fullMatch = match[0];
+      const value = match[1]?.trim();
+      const key = fullMatch.split(':')[0]?.trim();
+      
+      if (key && value && value.length < 100) {
+        features.push({
+          key,
+          value,
+          category: categorizeFeature(key)
         });
       }
     }
@@ -147,18 +239,36 @@ function detectRealVariants($: cheerio.CheerioAPI, html: string): { hasRealVaria
   let realColors: string[] = [];
   let realSizes: string[] = [];
   
-  // 1. Renk seçici butonları
-  $('.pr-in-dt-sz-wr .pr-in-dt-cl, .variant-color, .color-variant').each((i, el) => {
-    const colorText = $(el).attr('title') || $(el).attr('data-color') || $(el).text().trim();
+  // 1. Renk seçici butonları - Gelişmiş selectors
+  $('.pr-in-dt-sz-wr .pr-in-dt-cl, .variant-color, .color-variant, .color-option, .product-color').each((i, el) => {
+    const colorText = $(el).attr('title') || $(el).attr('data-color') || $(el).attr('data-value') || $(el).text().trim();
     if (colorText && colorText.length > 1 && colorText.length < 30) {
       realColors.push(colorText);
     }
   });
   
-  // 2. Beden seçici butonları
-  $('.pr-in-dt-sz-wr .pr-in-dt-sz, .variant-size, .size-variant').each((i, el) => {
-    const sizeText = $(el).attr('title') || $(el).attr('data-size') || $(el).text().trim();
+  // 2. Beden seçici butonları - Gelişmiş selectors
+  $('.pr-in-dt-sz-wr .pr-in-dt-sz, .variant-size, .size-variant, .size-option, .product-size, .size-selector span').each((i, el) => {
+    const sizeText = $(el).attr('title') || $(el).attr('data-size') || $(el).attr('data-value') || $(el).text().trim();
     if (sizeText && sizeText.length > 0 && sizeText.length < 10) {
+      realSizes.push(sizeText);
+    }
+  });
+  
+  // 3. Data attribute'lardan beden çıkarma
+  $('[data-size], [data-option-value]').each((i, el) => {
+    const sizeData = $(el).attr('data-size') || $(el).attr('data-option-value');
+    if (sizeData && /^[0-9]{2,3}$/.test(sizeData)) { // 36, 42 gibi sayısal bedenler
+      realSizes.push(sizeData);
+    }
+  });
+  
+  // 4. Stok durumu ile beden tespiti
+  $('.size-list li, .variant-list li, .size-option').each((i, el) => {
+    const sizeText = $(el).find('span, .size-text').text().trim();
+    const isInStock = !$(el).hasClass('disabled') && !$(el).hasClass('soldout') && !$(el).hasClass('unavailable');
+    
+    if (sizeText && /^[0-9]{2,3}$/.test(sizeText) && isInStock) {
       realSizes.push(sizeText);
     }
   });

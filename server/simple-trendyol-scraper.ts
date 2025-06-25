@@ -93,28 +93,38 @@ export async function simpleTrendyolScrape(url: string): Promise<SimpleTrendyolD
     let variants: Array<{color: string, size: string, inStock: boolean}> = [];
     
     try {
-      const { extractEnhancedProductData } = await import('./enhanced-product-extractor');
-      const enhancedData = extractEnhancedProductData(html);
+      // İlk olarak Trendyol-specific extractor dene
+      const { extractTrendyolSpecificData } = await import('./trendyol-specific-extractor');
+      const trendyolData = extractTrendyolSpecificData(html);
       
-      // Gelişmiş özellikler
-      features = enhancedData.features.map(f => ({
-        key: f.key,
-        value: f.value
-      }));
-      
-      // Gerçek varyantlar
-      variants = enhancedData.variants;
-      
-      console.log(`📋 Gelişmiş sistem: ${features.length} özellik, ${variants.length} varyant çıkarıldı`);
-      
-      if (enhancedData.specifications.brand) {
-        console.log(`🏷️ Marka tespit edildi: ${enhancedData.specifications.brand}`);
-      }
-      
-      if (enhancedData.hasRealVariants) {
-        console.log(`✅ Gerçek varyantlar algılandı`);
+      if (trendyolData.features.length > 0 || trendyolData.variants.length > 0) {
+        console.log('🎯 Trendyol-specific extractor kullanılıyor...');
+        
+        features = trendyolData.features.map(f => ({
+          key: f.key,
+          value: f.value
+        }));
+        
+        variants = trendyolData.variants.map(v => ({
+          color: 'Standart', // Default color for size-only variants
+          size: v.size,
+          inStock: v.inStock
+        }));
+        
+        console.log(`🎯 Trendyol-specific: ${features.length} özellik, ${variants.length} varyant çıkarıldı`);
       } else {
-        console.log('🚫 Üründe gerçek varyant seçenekleri yok');
+        // Fallback to enhanced extractor
+        const { extractEnhancedProductData } = await import('./enhanced-product-extractor');
+        const enhancedData = extractEnhancedProductData(html);
+        
+        features = enhancedData.features.map(f => ({
+          key: f.key,
+          value: f.value
+        }));
+        
+        variants = enhancedData.variants;
+        
+        console.log(`📋 Enhanced fallback: ${features.length} özellik, ${variants.length} varyant çıkarıldı`);
       }
       
     } catch (e: any) {
