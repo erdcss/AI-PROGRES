@@ -1,4 +1,5 @@
 import { sendDailyReport, generateDailyReport } from './email-service';
+import { sendDailyReportSendGrid } from './sendgrid-service';
 
 class DailyScheduler {
   private intervalId: NodeJS.Timeout | null = null;
@@ -37,17 +38,26 @@ class DailyScheduler {
 
   async sendDailyReport(): Promise<boolean> {
     try {
-      console.log('📊 Generating daily report...');
+      console.log('📊 Günlük rapor gönderiliyor...');
       
-      const reportData = await generateDailyReport();
-      const success = await sendDailyReport(reportData, this.reportEmail);
+      // SendGrid ile gönderim önceliği
+      const sendGridSuccess = await sendDailyReportSendGrid(this.reportEmail);
       
-      if (success) {
-        console.log(`✅ Daily report sent successfully to ${this.reportEmail}`);
+      if (sendGridSuccess) {
+        console.log('✅ SendGrid ile günlük rapor başarıyla gönderildi');
         return true;
       } else {
-        console.log('❌ Failed to send daily report');
-        return false;
+        console.log('⚠️ SendGrid başarısız, Gmail alternatifi deneniyor...');
+        const reportData = await generateDailyReport();
+        const gmailSuccess = await sendDailyReport(reportData, this.reportEmail);
+        
+        if (gmailSuccess) {
+          console.log('✅ Gmail ile günlük rapor başarıyla gönderildi');
+          return true;
+        } else {
+          console.log('❌ Tüm email servisleri başarısız');
+          return false;
+        }
       }
     } catch (error) {
       console.error('Daily report error:', error);

@@ -2300,16 +2300,40 @@ export function registerRoutes(app: Express): Server {
   app.post('/api/email/test-report', async (req, res) => {
     try {
       console.log('📧 Test daily report requested');
+      
+      // SendGrid ile öncelikli test
+      const { testSendGridEmail } = await import('./sendgrid-service');
+      console.log('🧪 Testing SendGrid email...');
+      const sendGridResult = await testSendGridEmail('e2943592@gmail.com');
+      
+      if (sendGridResult.success) {
+        console.log('✅ SendGrid test successful');
+        res.json({ 
+          success: true, 
+          message: 'SendGrid test email gönderildi',
+          service: 'SendGrid'
+        });
+        return;
+      }
+      
+      // SendGrid başarısızsa Gmail alternatifi
+      console.log('⚠️ SendGrid failed, trying Gmail...');
       const success = await dailyScheduler.sendTestReport();
       
       res.json({ 
         success, 
-        message: success ? 'Test raporu gönderildi' : 'Test raporu gönderilemedi' 
+        message: success ? 'Gmail test email gönderildi' : 'Tüm email servisleri başarısız',
+        service: success ? 'Gmail' : 'None'
       });
+      
     } catch (error) {
       console.error('Test report error:', error);
       res.status(500).json({ 
         success: false, 
+        message: 'Test email gönderilemedi' 
+      });
+    }
+  });ccess: false, 
         message: 'Test raporu hatası: ' + error.message 
       });
     }

@@ -189,33 +189,33 @@ export default function EmailSettings() {
           </CardContent>
         </Card>
 
-        {/* Gmail Setup Info */}
-        <Card className="border-green-200 bg-green-50/50">
+        {/* SendGrid Setup Info */}
+        <Card className="border-blue-200 bg-blue-50/50">
           <CardHeader>
-            <CardTitle className="text-green-800">Gmail Kurulum Durumu</CardTitle>
+            <CardTitle className="text-blue-800">SendGrid Email Sistemi</CardTitle>
           </CardHeader>
           <CardContent>
             <div className="space-y-2 text-sm">
               <div className="flex items-center gap-2">
-                <CheckCircle className="w-4 h-4 text-green-600" />
-                <span>Gmail hesabı yapılandırıldı</span>
+                <CheckCircle className="w-4 h-4 text-blue-600" />
+                <span>SendGrid entegrasyonu hazır</span>
               </div>
               <div className="flex items-center gap-2">
-                <CheckCircle className="w-4 h-4 text-green-600" />
-                <span>Uygulama şifresi güncellendi</span>
+                <CheckCircle className="w-4 h-4 text-blue-600" />
+                <span>Günlük 100 email limiti</span>
               </div>
               <div className="flex items-center gap-2">
-                <CheckCircle className="w-4 h-4 text-green-600" />
-                <span>SMTP bağlantısı hazır</span>
+                <CheckCircle className="w-4 h-4 text-blue-600" />
+                <span>Gmail alternatif sistemi</span>
               </div>
             </div>
-            <div className="bg-orange-100 border border-orange-300 rounded p-3 mt-3">
-              <p className="text-xs text-orange-800 font-medium">⚠️ Kimlik Doğrulama Gerekli:</p>
-              <ul className="text-xs text-orange-700 mt-1 space-y-1">
-                <li>• Gmail uygulama şifresi yenilenmeli</li>
-                <li>• Mevcut şifre Google tarafından reddediliyor</li>
-                <li>• Yeni 16 haneli şifre oluşturun</li>
-                <li>• Sistem hazır, sadece kimlik doğrulama eksik</li>
+            <div className="bg-blue-100 border border-blue-300 rounded p-3 mt-3">
+              <p className="text-xs text-blue-800 font-medium">🚀 SendGrid Avantajları:</p>
+              <ul className="text-xs text-blue-700 mt-1 space-y-1">
+                <li>• Daha güvenilir email teslimatı</li>
+                <li>• Uygulama şifresi gerektirmez</li>
+                <li>• Profesyonel email altyapısı</li>
+                <li>• Gmail alternatif desteği</li>
               </ul>
             </div>
           </CardContent>
