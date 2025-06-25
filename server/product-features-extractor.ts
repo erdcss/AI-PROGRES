@@ -18,12 +18,13 @@ export function extractProductFeatures(html: string): ProductFeature[] {
 
   console.log('🔍 Gelişmiş ürün özellikleri çıkarılıyor...');
 
-  // 1. JSON-LD structured data extraction
+  // 1. Enhanced JSON-LD structured data extraction
   $('script[type="application/ld+json"]').each((i, el) => {
     try {
       const jsonContent = $(el).html() || '';
       const jsonData = JSON.parse(jsonContent);
       
+      // Extract additionalProperty array
       if (jsonData.additionalProperty && Array.isArray(jsonData.additionalProperty)) {
         jsonData.additionalProperty.forEach((prop: any) => {
           if (prop.name && (prop.value || prop.unitText)) {
@@ -43,6 +44,8 @@ export function extractProductFeatures(html: string): ProductFeature[] {
           }
         });
       }
+      
+      // Skip nested extraction to avoid noise - focus on additionalProperty
       
       // Extract brand information
       if (jsonData.brand) {
