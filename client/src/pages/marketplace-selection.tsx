@@ -1,6 +1,7 @@
 import { motion } from "framer-motion";
 import { useLocation } from "wouter";
 import { ShoppingCart, Package, Store, Truck } from "lucide-react";
+import { ProductDataAnalysis } from "@/components/ProductDataAnalysis";
 
 const MarketplaceSelection = () => {
   const [, setLocation] = useLocation();

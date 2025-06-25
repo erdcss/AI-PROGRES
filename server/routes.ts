@@ -2331,6 +2331,9 @@ export function registerRoutes(app: Express): Server {
     }
   });
 
+  // Add data analysis routes
+  app.use(dataAnalysisRoutes);
+  
   const httpServer = createServer(app);
   // E-posta raporu endpoint'leri
   app.post('/api/email/test-report', async (req, res) => {
