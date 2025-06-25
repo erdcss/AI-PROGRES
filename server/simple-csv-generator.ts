@@ -23,10 +23,19 @@ export function generateSimpleCSV(data: SimpleProductData): string {
     .replace(/\s+/g, '-')
     .substring(0, 50);
   
-  // Özelliklerden açıklama oluştur
-  const description = data.features
-    .map(f => `${f.key}: ${f.value}`)
-    .join(' | ');
+  // Özelliklerden gelişmiş HTML açıklama oluştur
+  const featuresHTML = data.features.length > 0 
+    ? `<h3>Ürün Özellikleri</h3><ul>${data.features.map(f => `<li><strong>${f.key}:</strong> ${f.value}</li>`).join('')}</ul>`
+    : '';
+  
+  const description = `${featuresHTML}<p>Bu ürün Trendyol'dan otomatik olarak içe aktarılmıştır.</p>`;
+  
+  // Tags oluştur - özelliklerden
+  const tags = data.features
+    .filter(f => f.key && f.value)
+    .map(f => `${f.key}:${f.value}`)
+    .slice(0, 10) // İlk 10 özellik
+    .join(', ');
   
   // Kar marjlı fiyat - direkt obje'den al
   const profitPrice = data.price.withProfit;
@@ -51,7 +60,7 @@ export function generateSimpleCSV(data: SimpleProductData): string {
     data.brand,
     'Apparel & Accessories > Clothing',
     'Giyim',
-    `${data.brand.toLowerCase()},giyim,moda`,
+    tags,
     'TRUE',
     'Renk',
     'Beyaz',

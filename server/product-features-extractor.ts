@@ -1,6 +1,6 @@
 /**
- * Trendyol Ürün Özellikleri Çıkarıcısı
- * Gelişmiş HTML parsing ile ürün özelliklerini detaylı çıkarır
+ * Advanced Product Features Extractor for Trendyol
+ * Extracts comprehensive product specifications and features
  */
 
 import * as cheerio from 'cheerio';
@@ -9,253 +9,227 @@ export interface ProductFeature {
   key: string;
   value: string;
   category?: string;
-  source?: string;
 }
 
-/**
- * Ana özellik çıkarma fonksiyonu - tüm kaynakları tarar
- */
-export function extractDetailedFeatures(htmlContent: string, $?: cheerio.CheerioAPI): ProductFeature[] {
-  if (!$) {
-    $ = cheerio.load(htmlContent);
-  }
-  
+export function extractProductFeatures(html: string): ProductFeature[] {
+  const $ = cheerio.load(html);
   const features: ProductFeature[] = [];
-  const processedKeys = new Set<string>();
+  const featureMap = new Set<string>();
 
-  console.log('🔍 Detaylı özellik çıkarma başlatılıyor...');
+  console.log('🔍 Gelişmiş ürün özellikleri çıkarılıyor...');
 
-  // 1. Trendyol "Ürün Özellikleri" tablosu - En yüksek öncelik
-  const trendyolTableFeatures = extractTrendyolProductTable($, htmlContent);
-  trendyolTableFeatures.forEach(feature => {
-    const key = standardizeFeatureKey(feature.key);
-    if (!processedKeys.has(key.toLowerCase())) {
-      features.push({ ...feature, key, category: 'Ürün Özellikleri' });
-      processedKeys.add(key.toLowerCase());
-    }
-  });
-
-  // 2. JSON verilerinden özellik çıkarma
-  const jsonFeatures = extractFromJSON(htmlContent);
-  jsonFeatures.forEach(feature => {
-    const key = standardizeFeatureKey(feature.key);
-    if (!processedKeys.has(key.toLowerCase())) {
-      features.push({ ...feature, key, category: 'Ürün Detayı' });
-      processedKeys.add(key.toLowerCase());
-    }
-  });
-
-  console.log(`✅ Toplam ${features.length} özellik çıkarıldı`);
-  features.forEach(f => console.log(`  ${f.key}: ${f.value}`));
-
-  return features;
-}
-
-/**
- * Trendyol "Ürün Özellikleri" tablosunu tam olarak çıkarma
- */
-function extractTrendyolProductTable($: cheerio.CheerioAPI, htmlContent: string): ProductFeature[] {
-  const features: ProductFeature[] = [];
-  
-  console.log('📋 Trendyol Ürün Özellikleri tablosu taranıyor...');
-
-  // Trendyol'daki "Ürün Özellikleri" bölümünü hedefle
-  const productDetailSelectors = [
-    // Ana ürün detay konteynerleri
-    '.product-detail-tab-content',
-    '.product-detail-attributes',
-    '.product-attributes',
-    '.product-detail-section',
-    '[data-fragment-name="ProductDetailAttributes"]',
-    
-    // Tablo yapıları
-    'table[class*="product-detail"]',
-    'table[class*="attributes"]',
-    'div[class*="product-detail"] table',
-    
-    // Tab içerikleri
-    '.tab-content .tab-pane table',
-    '.product-detail .tab-content table'
-  ];
-
-  // Her selector için kontrol et
-  for (const selector of productDetailSelectors) {
-    const container = $(selector);
-    if (container.length > 0) {
-      console.log(`  ✅ ${selector} ile konteyner bulundu`);
+  // 1. JSON-LD structured data extraction
+  $('script[type="application/ld+json"]').each((i, el) => {
+    try {
+      const jsonContent = $(el).html() || '';
+      const jsonData = JSON.parse(jsonContent);
       
-      // Tablolar içindeki satırları kontrol et
-      container.find('table tr, .attribute-row, .detail-row').each((i, row) => {
-        const $row = $(row);
-        
-        // Farklı hücre yapılarını kontrol et
-        const cells = $row.find('td, th, .attribute-key, .attribute-value, .detail-key, .detail-value');
-        
-        if (cells.length >= 2) {
-          const key = $(cells[0]).text().trim();
-          const value = $(cells[1]).text().trim();
-          
-          if (key && value && key.length > 1 && value.length > 0) {
-            features.push({
-              key: key,
-              value: value,
-              source: 'trendyol-table'
-            });
-            console.log(`    ✅ ${key}: ${value}`);
-          }
-        }
-      });
-      
-      if (features.length > 0) break;
-    }
-  }
-
-  // HTML pattern matching ile Trendyol özellik tablosu arama
-  if (features.length === 0) {
-    console.log('  🔍 HTML pattern matching ile özellik arama...');
-    
-    // Trendyol'daki özellik tablosu HTML pattern'leri
-    const patterns = [
-      // Standard tablo pattern
-      /<table[^>]*class="[^"]*product[^"]*"[^>]*>(.*?)<\/table>/gis,
-      /<table[^>]*class="[^"]*detail[^"]*"[^>]*>(.*?)<\/table>/gis,
-      /<table[^>]*class="[^"]*attribute[^"]*"[^>]*>(.*?)<\/table>/gis,
-      
-      // Div tablosu pattern
-      /<div[^>]*class="[^"]*product-detail[^"]*"[^>]*>(.*?)<\/div>/gis,
-      /<div[^>]*class="[^"]*attributes[^"]*"[^>]*>(.*?)<\/div>/gis,
-      
-      // Fragment pattern
-      /data-fragment-name="ProductDetailAttributes"[^>]*>(.*?)<\/div>/gis
-    ];
-    
-    for (const pattern of patterns) {
-      let match;
-      while ((match = pattern.exec(htmlContent)) !== null) {
-        const content = match[1];
-        
-        // İçerik Trendyol özellik anahtarları içeriyor mu kontrol et
-        if (content.includes('Kalıp') || content.includes('Materyal') || 
-            content.includes('Kumaş') || content.includes('Yaka')) {
-          
-          console.log(`    📍 Pattern ile özellik tablosu bulundu`);
-          
-          // Satır satır işle
-          const rowPattern = /<tr[^>]*>(.*?)<\/tr>/gis;
-          let rowMatch;
-          
-          while ((rowMatch = rowPattern.exec(content)) !== null) {
-            const rowContent = rowMatch[1];
+      if (jsonData.additionalProperty && Array.isArray(jsonData.additionalProperty)) {
+        jsonData.additionalProperty.forEach((prop: any) => {
+          if (prop.name && (prop.value || prop.unitText)) {
+            const key = String(prop.name).trim();
+            const value = String(prop.value || prop.unitText).trim();
+            const featureKey = `${key}:${value}`;
             
-            // Hücreleri çıkar
-            const cellPattern = /<t[dh][^>]*>(.*?)<\/t[dh]>/gis;
-            const cells: string[] = [];
-            let cellMatch;
-            
-            while ((cellMatch = cellPattern.exec(rowContent)) !== null) {
-              const cellText = cellMatch[1].replace(/<[^>]*>/g, '').trim();
-              if (cellText) cells.push(cellText);
-            }
-            
-            // 2 hücre varsa özellik olarak ekle
-            if (cells.length >= 2) {
+            if (key && value && !featureMap.has(featureKey) && key.length < 50 && value.length < 200) {
               features.push({
-                key: cells[0],
-                value: cells[1],
-                source: 'pattern-match'
+                key,
+                value,
+                category: categorizeFeature(key)
               });
-              console.log(`    📝 Pattern: ${cells[0]}: ${cells[1]}`);
+              featureMap.add(featureKey);
+              console.log(`✅ JSON-LD özellik: ${key}: ${value}`);
             }
           }
+        });
+      }
+      
+      // Extract brand information
+      if (jsonData.brand) {
+        let brandName = '';
+        if (typeof jsonData.brand === 'string') {
+          brandName = jsonData.brand;
+        } else if (jsonData.brand.name) {
+          brandName = jsonData.brand.name;
+        }
+        
+        if (brandName && !featureMap.has(`Marka:${brandName}`)) {
+          features.push({
+            key: 'Marka',
+            value: brandName,
+            category: 'Marka'
+          });
+          featureMap.add(`Marka:${brandName}`);
+          console.log(`✅ Marka: ${brandName}`);
         }
       }
+      
+    } catch (e) {
+      // JSON parse error, continue
     }
-  }
+  });
 
-  return features;
-}
+  // 2. Extract from product detail attributes
+  $('.detail-attr-item, .pr-in-at-item, .product-attribute').each((i, el) => {
+    const keyEl = $(el).find('.detail-attr-item-key, .attr-key, .attribute-key');
+    const valueEl = $(el).find('.detail-attr-item-value, .attr-value, .attribute-value');
+    
+    if (keyEl.length && valueEl.length) {
+      const key = keyEl.text().trim();
+      const value = valueEl.text().trim();
+      const featureKey = `${key}:${value}`;
+      
+      if (key && value && !featureMap.has(featureKey) && key.length < 50 && value.length < 200) {
+        features.push({
+          key,
+          value,
+          category: categorizeFeature(key)
+        });
+        featureMap.add(featureKey);
+        console.log(`✅ Detay özellik: ${key}: ${value}`);
+      }
+    }
+  });
 
-/**
- * JSON verilerinden özellik çıkarma
- */
-function extractFromJSON(htmlContent: string): ProductFeature[] {
-  const features: ProductFeature[] = [];
-  
-  console.log('📦 JSON verilerinden özellik çıkarma...');
-
-  // Trendyol product state JSON'u
-  const jsonPatterns = [
-    /window\.__PRODUCT_DETAIL_APP_INITIAL_STATE__\s*=\s*({.*?});/s,
-    /window\.__INITIAL_STATE__\s*=\s*({.*?});/s,
-    /"productDetail":\s*({.*?})/s,
-    /"attributes":\s*({.*?})/s
-  ];
-
-  for (const pattern of jsonPatterns) {
-    const match = htmlContent.match(pattern);
-    if (match) {
+  // 3. Extract from script content - Trendyol specific patterns
+  $('script').each((i, el) => {
+    const scriptContent = $(el).html() || '';
+    
+    // Look for product attributes in scripts
+    const attributeMatches = scriptContent.match(/"attributes":\s*\[([^\]]+)\]/);
+    if (attributeMatches) {
       try {
-        const jsonData = JSON.parse(match[1]);
+        const attrContent = attributeMatches[1];
+        // Parse individual attributes
+        const matches = attrContent.matchAll(/{[^}]*"key":\s*"([^"]+)"[^}]*"value":\s*"([^"]+)"[^}]*}/g);
         
-        // Attributes çıkarma
-        if (jsonData.attributes) {
-          Object.entries(jsonData.attributes).forEach(([key, value]) => {
-            if (typeof value === 'string' && value.length > 0) {
-              features.push({
-                key: key,
-                value: value,
-                source: 'json-attributes'
-              });
-            }
-          });
+        for (const match of matches) {
+          const [, key, value] = match;
+          const featureKey = `${key}:${value}`;
+          
+          if (key && value && !featureMap.has(featureKey) && key.length < 50 && value.length < 200) {
+            features.push({
+              key: key.trim(),
+              value: value.trim(),
+              category: categorizeFeature(key)
+            });
+            featureMap.add(featureKey);
+            console.log(`✅ Script özellik: ${key}: ${value}`);
+          }
         }
-        
-        // Product detail attributes
-        if (jsonData.productDetail?.attributes) {
-          Object.entries(jsonData.productDetail.attributes).forEach(([key, value]) => {
-            if (typeof value === 'string' && value.length > 0) {
-              features.push({
-                key: key,
-                value: value,
-                source: 'json-product-detail'
-              });
-            }
-          });
-        }
-        
-      } catch (error) {
-        console.log('JSON parsing hatası:', error.message);
+      } catch (e) {
+        // Parse error, continue
       }
     }
-  }
+    
+    // Look for productDetails object
+    const productDetailsMatch = scriptContent.match(/"productDetails":\s*{([^}]+)}/);
+    if (productDetailsMatch) {
+      try {
+        const detailsContent = productDetailsMatch[1];
+        const detailMatches = detailsContent.matchAll(/"([^"]+)":\s*"([^"]+)"/g);
+        
+        for (const match of detailMatches) {
+          const [, key, value] = match;
+          const featureKey = `${key}:${value}`;
+          
+          if (key && value && !featureMap.has(featureKey) && key.length < 50 && value.length < 200) {
+            features.push({
+              key: formatFeatureKey(key),
+              value: value.trim(),
+              category: categorizeFeature(key)
+            });
+            featureMap.add(featureKey);
+            console.log(`✅ Detay özellik: ${key}: ${value}`);
+          }
+        }
+      } catch (e) {
+        // Parse error, continue
+      }
+    }
+  });
 
+  // 4. Extract from meta properties and data attributes
+  $('[data-attribute], [data-property]').each((i, el) => {
+    const key = $(el).attr('data-attribute') || $(el).attr('data-property');
+    const value = $(el).text().trim() || $(el).attr('data-value');
+    const featureKey = `${key}:${value}`;
+    
+    if (key && value && !featureMap.has(featureKey) && key.length < 50 && value.length < 200) {
+      features.push({
+        key: formatFeatureKey(key),
+        value: String(value).trim(),
+        category: categorizeFeature(key)
+      });
+      featureMap.add(featureKey);
+      console.log(`✅ Data özellik: ${key}: ${value}`);
+    }
+  });
+
+  // 5. Text pattern extraction for common features
+  const htmlText = $.text();
+  const featurePatterns = [
+    { pattern: /Materyal[:\s]*([^\n\r,;\.]{2,50})/gi, key: 'Materyal' },
+    { pattern: /Kumaş[:\s]*([^\n\r,;\.]{2,50})/gi, key: 'Kumaş' },
+    { pattern: /Kalıp[:\s]*([^\n\r,;\.]{2,30})/gi, key: 'Kalıp' },
+    { pattern: /Kol\s+Tipi[:\s]*([^\n\r,;\.]{2,30})/gi, key: 'Kol Tipi' },
+    { pattern: /Yaka\s+Tipi[:\s]*([^\n\r,;\.]{2,30})/gi, key: 'Yaka Tipi' },
+    { pattern: /Desen[:\s]*([^\n\r,;\.]{2,30})/gi, key: 'Desen' },
+    { pattern: /Kapama\s+Şekli[:\s]*([^\n\r,;\.]{2,30})/gi, key: 'Kapama Şekli' },
+    { pattern: /Cep\s+Tipi[:\s]*([^\n\r,;\.]{2,30})/gi, key: 'Cep Tipi' },
+    { pattern: /Boy[:\s]*([^\n\r,;\.]{2,30})/gi, key: 'Boy' },
+    { pattern: /Renk[:\s]*([^\n\r,;\.]{2,30})/gi, key: 'Renk' }
+  ];
+
+  featurePatterns.forEach(({ pattern, key }) => {
+    let match;
+    while ((match = pattern.exec(htmlText)) !== null) {
+      const value = match[1].trim();
+      const featureKey = `${key}:${value}`;
+      
+      if (value && !featureMap.has(featureKey) && value.length > 1 && value.length < 100) {
+        features.push({
+          key,
+          value,
+          category: categorizeFeature(key)
+        });
+        featureMap.add(featureKey);
+        console.log(`✅ Pattern özellik: ${key}: ${value}`);
+      }
+    }
+  });
+
+  console.log(`🎯 Toplam ${features.length} benzersiz özellik çıkarıldı`);
   return features;
 }
 
-/**
- * Özellik anahtarlarını standartlaştırma
- */
-export function standardizeFeatureKey(key: string): string {
-  if (!key) return '';
+function categorizeFeature(key: string): string {
+  const normalizedKey = key.toLowerCase().replace(/[^a-zçğüöş]/g, '');
   
-  const keyMap: { [key: string]: string } = {
-    'kalip': 'Kalıp',
-    'materyal': 'Materyal',
-    'kumaş tipi': 'Kumaş Tipi',
-    'kumas tipi': 'Kumaş Tipi',
-    'kol tipi': 'Kol Tipi',
-    'yaka tipi': 'Yaka Tipi',
-    'ürün tipi': 'Ürün Tipi',
-    'urun tipi': 'Ürün Tipi',
-    'siluet': 'Siluet',
-    'boy': 'Boy',
-    'desen': 'Desen',
-    'renk': 'Renk',
-    'cep': 'Cep',
-    'kemer/kuşak durumu': 'Kemer/Kuşak Durumu',
-    'kutu durumu': 'Kutu Durumu'
-  };
+  if (normalizedKey.includes('marka') || normalizedKey.includes('brand')) return 'Marka';
+  if (normalizedKey.includes('renk') || normalizedKey.includes('color')) return 'Renk';
+  if (normalizedKey.includes('materyal') || normalizedKey.includes('material') || 
+      normalizedKey.includes('kumaş') || normalizedKey.includes('fabric') ||
+      normalizedKey.includes('bileşen') || normalizedKey.includes('composition')) return 'Materyal';
+  if (normalizedKey.includes('beden') || normalizedKey.includes('size') ||
+      normalizedKey.includes('ölçü') || normalizedKey.includes('boy')) return 'Beden';
+  if (normalizedKey.includes('model') || normalizedKey.includes('tip') ||
+      normalizedKey.includes('type') || normalizedKey.includes('style')) return 'Model';
+  if (normalizedKey.includes('kalip') || normalizedKey.includes('siluet') ||
+      normalizedKey.includes('kesim') || normalizedKey.includes('fit')) return 'Tasarım';
+  if (normalizedKey.includes('kol') || normalizedKey.includes('yaka') ||
+      normalizedKey.includes('cep') || normalizedKey.includes('kapama')) return 'Detay';
+  if (normalizedKey.includes('desen') || normalizedKey.includes('pattern') ||
+      normalizedKey.includes('motif') || normalizedKey.includes('baskı')) return 'Desen';
   
-  const normalizedKey = key.toLowerCase().trim();
-  return keyMap[normalizedKey] || key.trim();
+  return 'Genel';
+}
+
+function formatFeatureKey(key: string): string {
+  return key
+    .replace(/([a-z])([A-Z])/g, '$1 $2') // camelCase to spaces
+    .replace(/_/g, ' ') // underscores to spaces
+    .split(' ')
+    .map(word => word.charAt(0).toUpperCase() + word.slice(1).toLowerCase())
+    .join(' ');
 }

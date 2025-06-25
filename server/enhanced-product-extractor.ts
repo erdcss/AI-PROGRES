@@ -75,23 +75,137 @@ export function extractEnhancedProductData(html: string): EnhancedProductData {
     }
   });
   
-  // JSON-LD yapılandırılmış veri arama
+  // JSON-LD yapılandırılmış veri arama - Gelişmiş
   $('script[type="application/ld+json"]').each((i, el) => {
     try {
       const jsonData = JSON.parse($(el).html() || '{}');
+      
+      // additionalProperty array'i
       if (jsonData.additionalProperty && Array.isArray(jsonData.additionalProperty)) {
         jsonData.additionalProperty.forEach((prop: any) => {
-          if (prop.name && prop.value) {
-            features.push({
-              key: prop.name,
-              value: String(prop.value),
-              category: categorizeFeature(prop.name)
-            });
+          if (prop.name && (prop.value || prop.unitText)) {
+            const key = prop.name;
+            const value = prop.value || prop.unitText;
+            
+            if (key && value && key.length < 50 && String(value).length < 200) {
+              features.push({
+                key,
+                value: String(value),
+                category: categorizeFeature(key)
+              });
+              console.log(`✅ JSON-LD özellik: ${key}: ${value}`);
+            }
           }
         });
       }
+      
+      // Product specifications
+      if (jsonData.model && jsonData.model.length > 0) {
+        features.push({
+          key: 'Model',
+          value: jsonData.model,
+          category: 'Model'
+        });
+      }
+      
+      if (jsonData.brand && typeof jsonData.brand === 'object' && jsonData.brand.name) {
+        features.push({
+          key: 'Marka',
+          value: jsonData.brand.name,
+          category: 'Marka'
+        });
+      }
+      
+      if (jsonData.color && jsonData.color.length > 0) {
+        features.push({
+          key: 'Renk',
+          value: jsonData.color,
+          category: 'Renk'
+        });
+      }
+      
+      if (jsonData.material && jsonData.material.length > 0) {
+        features.push({
+          key: 'Materyal',
+          value: jsonData.material,
+          category: 'Materyal'
+        });
+      }
+      
     } catch (e) {
-      // JSON parse hatası
+      console.log('JSON-LD parse hatası:', e);
+    }
+  });
+  
+  // Script içindeki product data'dan özellik çıkarma
+  $('script').each((i, elem) => {
+    const scriptContent = $(elem).html() || '';
+    
+    // Trendyol product data JSON'unu ara
+    const productDataMatch = scriptContent.match(/"product":\s*({[^}]+})/);
+    if (productDataMatch) {
+      try {
+        const productData = JSON.parse(productDataMatch[1]);
+        
+        // Özellikler çıkar
+        if (productData.attributes && Array.isArray(productData.attributes)) {
+          productData.attributes.forEach((attr: any) => {
+            if (attr.key && attr.value) {
+              features.push({
+                key: attr.key,
+                value: String(attr.value),
+                category: categorizeFeature(attr.key)
+              });
+            }
+          });
+        }
+        
+        // Brand bilgisi
+        if (productData.brand) {
+          features.push({
+            key: 'Marka',
+            value: productData.brand,
+            category: 'Marka'
+          });
+        }
+        
+        // Category bilgisi
+        if (productData.category) {
+          features.push({
+            key: 'Kategori',
+            value: productData.category,
+            category: 'Kategori'
+          });
+        }
+      } catch (e) {
+        // JSON parse hatası
+      }
+    }
+    
+    // Attributes array'ini ara
+    const attributesMatch = scriptContent.match(/"attributes":\s*\[([^\]]+)\]/);
+    if (attributesMatch) {
+      try {
+        const attributesJson = `[${attributesMatch[1]}]`;
+        const attributes = JSON.parse(attributesJson);
+        
+        attributes.forEach((attr: any) => {
+          if (attr.key && attr.value) {
+            const key = attr.key.replace(/[^a-zA-ZÇĞÜÖŞçğüöş\s]/g, '').trim();
+            const value = String(attr.value).replace(/[^a-zA-ZÇĞÜÖŞçğüöş0-9\s%.,/-]/g, '').trim();
+            
+            if (key && value && key.length < 50 && value.length < 200) {
+              features.push({
+                key,
+                value,
+                category: categorizeFeature(key)
+              });
+            }
+          }
+        });
+      } catch (e) {
+        // JSON parse hatası
+      }
     }
   });
   
