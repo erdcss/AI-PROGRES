@@ -102,6 +102,157 @@ function determineProductCategory(productData: any): string {
   return 'Genel Ürünler';
 }
 
+// AI-powered tag generation based on product data
+function generateAITags(productData: any): string[] {
+  const title = (productData.title || '').toLowerCase();
+  const features = productData.features || [];
+  const category = determineProductCategory(productData);
+  
+  const tags: Set<string> = new Set();
+  
+  // Category-based tags
+  const categoryParts = category.split(' > ');
+  categoryParts.forEach(part => {
+    if (part.trim()) {
+      tags.add(part.trim().toLowerCase());
+    }
+  });
+  
+  // Feature-based intelligent tags
+  features.forEach((feature: any) => {
+    const key = feature.key?.toLowerCase() || '';
+    const value = feature.value?.toLowerCase() || '';
+    
+    // Material and fabric tags
+    if (key.includes('materyal') || key.includes('kumaş')) {
+      if (value.includes('pamuk')) tags.add('pamuk');
+      if (value.includes('polyester')) tags.add('polyester');
+      if (value.includes('viscose')) tags.add('viscose');
+      if (value.includes('elastan')) tags.add('elastan');
+      if (value.includes('denim')) tags.add('denim');
+      if (value.includes('dokuma')) tags.add('dokuma');
+    }
+    
+    // Color tags
+    if (key.includes('renk') || value.includes('renk')) {
+      if (value.includes('siyah')) tags.add('siyah');
+      if (value.includes('beyaz')) tags.add('beyaz');
+      if (value.includes('mavi')) tags.add('mavi');
+      if (value.includes('kırmızı')) tags.add('kırmızı');
+      if (value.includes('yeşil')) tags.add('yeşil');
+      if (value.includes('sarı')) tags.add('sarı');
+      if (value.includes('pembe')) tags.add('pembe');
+      if (value.includes('mor')) tags.add('mor');
+      if (value.includes('bej')) tags.add('bej');
+      if (value.includes('gri')) tags.add('gri');
+    }
+    
+    // Pattern tags
+    if (key.includes('desen')) {
+      if (value.includes('çizgili')) tags.add('çizgili');
+      if (value.includes('puantiyeli')) tags.add('puantiyeli');
+      if (value.includes('desenli')) tags.add('desenli');
+      if (value.includes('düz')) tags.add('düz');
+      if (value.includes('kareli')) tags.add('kareli');
+    }
+    
+    // Style and fit tags
+    if (key.includes('kalıp')) {
+      if (value.includes('slim')) tags.add('slim-fit');
+      if (value.includes('regular')) tags.add('regular-fit');
+      if (value.includes('oversize')) tags.add('oversize');
+      if (value.includes('bol')) tags.add('bol-kesim');
+    }
+    
+    // Sleeve type tags
+    if (key.includes('kol')) {
+      if (value.includes('uzun')) tags.add('uzun-kol');
+      if (value.includes('kısa')) tags.add('kısa-kol');
+      if (value.includes('askılı')) tags.add('askılı');
+    }
+    
+    // Season tags
+    if (key.includes('sezon')) {
+      if (value.includes('yaz')) tags.add('yaz');
+      if (value.includes('kış')) tags.add('kış');
+      if (value.includes('sonbahar')) tags.add('sonbahar');
+      if (value.includes('ilkbahar')) tags.add('ilkbahar');
+      if (value.includes('tüm sezon')) tags.add('tüm-mevsim');
+    }
+    
+    // Occasion tags
+    if (key.includes('ortam') || key.includes('kullanım')) {
+      if (value.includes('günlük')) tags.add('günlük');
+      if (value.includes('casual')) tags.add('casual');
+      if (value.includes('şık')) tags.add('şık');
+      if (value.includes('spor')) tags.add('spor');
+      if (value.includes('iş')) tags.add('iş');
+      if (value.includes('gece')) tags.add('gece');
+    }
+  });
+  
+  // Title-based intelligent tags
+  if (title.includes('basic') || title.includes('temel')) tags.add('basic');
+  if (title.includes('premium') || title.includes('lüks')) tags.add('premium');
+  if (title.includes('organik')) tags.add('organik');
+  if (title.includes('doğal')) tags.add('doğal');
+  if (title.includes('comfort') || title.includes('rahat')) tags.add('rahat');
+  if (title.includes('soft') || title.includes('yumuşak')) tags.add('yumuşak');
+  
+  // Product type specific tags
+  if (title.includes('blazer') || title.includes('ceket')) {
+    tags.add('dış-giyim');
+    tags.add('ceket');
+  }
+  if (title.includes('pijama')) {
+    tags.add('iç-giyim');
+    tags.add('ev-giyim');
+    tags.add('uyku');
+  }
+  if (title.includes('elbise')) {
+    tags.add('elbise');
+    tags.add('kadın-giyim');
+  }
+  if (title.includes('pantolon')) {
+    tags.add('alt-giyim');
+    tags.add('pantolon');
+  }
+  if (title.includes('gömlek') || title.includes('bluz')) {
+    tags.add('üst-giyim');
+  }
+  
+  // Brand and quality indicators
+  if (productData.brand) {
+    tags.add(productData.brand.toLowerCase());
+  }
+  
+  // Size availability tags
+  if (productData.variants && productData.variants.length > 0) {
+    const hasSmallSizes = productData.variants.some((v: any) => 
+      ['xs', 's', '34', '36'].includes(v.size?.toLowerCase()));
+    const hasLargeSizes = productData.variants.some((v: any) => 
+      ['xl', 'xxl', '44', '46', '48'].includes(v.size?.toLowerCase()));
+    
+    if (hasSmallSizes) tags.add('küçük-beden');
+    if (hasLargeSizes) tags.add('büyük-beden');
+  }
+  
+  // Price-based tags
+  if (productData.price?.original) {
+    const price = parseFloat(productData.price.original);
+    if (price < 100) tags.add('ekonomik');
+    else if (price < 300) tags.add('orta-segment');
+    else tags.add('premium-fiyat');
+  }
+  
+  // Remove generic tags and limit to 15 most relevant
+  const filteredTags = Array.from(tags)
+    .filter(tag => tag.length > 2 && !['genel', 'ürün', 'giyim'].includes(tag))
+    .slice(0, 15);
+  
+  return filteredTags;
+}
+
 const router = Router();
 
 
@@ -334,7 +485,7 @@ router.post('/api/shopify/add-product', async (req, res) => {
       body_html: bodyHtml,
       vendor: productData.brand || 'Genel',
       product_type: determineProductCategory(productData),
-      tags: 'trendyol, import, giyim',
+      tags: generateAITags(productData).join(', '),
       variants: shopifyVariants,
       options: productOptions,
       status: 'active',

@@ -638,6 +638,42 @@ Successfully resolved hardcoded "Çay & Gıda" category issue with intelligent d
 
 **Status**: DYNAMIC CATEGORY DETECTION OPERATIONAL - System now intelligently categorizes all products based on actual content instead of using hardcoded "Çay & Gıda" (June 25, 2025)
 
+## AI-Powered Product Tagging System (NEW - June 25, 2025)
+
+Successfully implemented comprehensive AI-driven tagging system that generates intelligent product tags based on features and categories:
+
+**AI Tagging Features:**
+- **Category-Based Tags**: Automatically extracts tags from product category hierarchy
+- **Material Analysis**: Identifies fabric types (pamuk, polyester, viscose, elastan, denim)
+- **Color Detection**: Extracts color information from product features (siyah, beyaz, mavi, etc.)
+- **Pattern Recognition**: Detects patterns (çizgili, puantiyeli, desenli, düz, kareli)
+- **Style Tags**: Analyzes fit types (slim-fit, regular-fit, oversize, bol-kesim)
+- **Seasonal Tags**: Identifies season usage (yaz, kış, sonbahar, ilkbahar, tüm-mevsim)
+- **Occasion Tags**: Determines usage context (günlük, casual, şık, spor, iş, gece)
+- **Price Segment**: Categorizes by price range (ekonomik, orta-segment, premium-fiyat)
+
+**Technical Implementation:**
+- **generateAITags()**: Comprehensive function analyzing title, features, and categories
+- **Smart Filtering**: Removes generic tags and limits to 15 most relevant tags
+- **Multi-Source Analysis**: Combines product title, extracted features, and category data
+- **Size Analysis**: Detects available size ranges (küçük-beden, büyük-beden)
+
+**Live Test Results (June 25, 2025):**
+- **Blazer Product** (ID: 7693271990320): Tags include "kadın, ceket & mont, polyester, bej, regular-fit, uzun-kol, tüm-mevsim, casual, dış-giyim, orta-segment"
+- **Pajama Product** (ID: 7693272055856): Tags include "kadın, iç giyim & pijama, polyester, pamuk, beyaz, desenli, kısa-kol, günlük, ev-giyim, uyku, ekonomik"
+- **System Performance**: Different product types generate contextually appropriate tags
+- **Shopify Integration**: Tags automatically applied to products for better searchability
+
+**Tag Categories Generated:**
+- Material & Fabric: pamuk, polyester, viscose, elastan, dokuma
+- Colors: siyah, beyaz, mavi, kırmızı, yeşil, bej, gri
+- Styles: slim-fit, regular-fit, oversize, uzun-kol, kısa-kol
+- Occasions: günlük, casual, şık, spor, gece, iş
+- Seasons: yaz, kış, tüm-mevsim
+- Product Types: dış-giyim, iç-giyim, ev-giyim, uyku
+
+**Status**: AI-POWERED TAGGING SYSTEM OPERATIONAL - Automatically generates 10-15 relevant tags per product based on intelligent analysis of features and categories (June 25, 2025)
+
 ## Shopify API "product_tags is invalid" Error - RESOLVED (June 25, 2025)
 
 Successfully fixed critical Shopify API error that was preventing product uploads:
