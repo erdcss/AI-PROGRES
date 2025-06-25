@@ -181,6 +181,36 @@ The system can now automatically transfer any Trendyol product to your Shopify s
 
 **LATEST CONFIRMATION (June 25, 2025)**: User confirmed "program doğru çalışıyor" (program working correctly) after successful test with Grimelange t-shirt - automatic extraction, Shopify upload (ID: 7692976357424), and Telegram notification all functioning perfectly.
 
+## Daily Automated Monitoring System (NEW - June 25, 2025)
+
+Implemented comprehensive daily monitoring and reporting system:
+
+**12:00 Daily Monitoring:**
+- Automatically checks all products in memory system database
+- Extracts current price and stock data from source websites
+- Compares with stored data to detect changes
+- Updates Shopify products via API when changes detected
+- Logs all changes in price and stock history tables
+- Handles product discontinuation detection
+
+**23:00 Daily Reports:**
+- Sends detailed Telegram reports of all daily activities
+- Includes statistics: total products, checks performed, changes detected
+- Lists price changes with old → new values
+- Reports stock changes by variant (color/size combinations)
+- Shows discontinued products
+- Provides next check/report schedule
+
+**Key Features:**
+- Automated price updates with 15% profit margin maintained
+- Real-time stock synchronization between Trendyol and Shopify
+- Variant-level stock tracking (e.g., "Black size 35" out of stock)
+- Comprehensive change logging for audit trail
+- Error handling for network issues and discontinued products
+- Rate limiting between requests to avoid blocking
+
+**Implementation Status:** ACTIVE - System automatically schedules daily monitoring and reporting tasks on server startup. The monitoring system fulfills the exact requirement: "If a black shoe size 35 goes out of stock on Trendyol, automatically update Shopify stock to zero."
+
 ## Automatic Stock Management System (NEW - June 25, 2025)
 
 Successfully implemented comprehensive variant-level stock tracking with automatic Shopify synchronization:

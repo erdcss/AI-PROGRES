@@ -311,5 +311,10 @@ app.use((req, res, next) => {
     log(`serving on port ${port}`);
     console.log(`Server is running at http://0.0.0.0:${port}`);
     console.log(`Please visit the application at http://0.0.0.0:${port}`);
+    
+    // Initialize daily monitoring system
+    import('./daily-monitor').then(({ dailyMonitor }) => {
+      dailyMonitor.start();
+    }).catch(console.error);
   });
 })();

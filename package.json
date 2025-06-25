@@ -70,6 +70,7 @@
     "lucide-react": "^0.453.0",
     "memorystore": "^1.6.7",
     "node-fetch": "^3.3.2",
+    "node-schedule": "^2.1.1",
     "node-telegram-bot-api": "^0.66.0",
     "nodemailer": "^7.0.3",
     "passport": "^0.7.0",
