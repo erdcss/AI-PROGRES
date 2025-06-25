@@ -538,6 +538,74 @@ function ScraperPage({ platform = 'trendyol' }: ScraperPageProps) {
     }
   };
 
+  const [isUploadingToShopify, setIsUploadingToShopify] = useState(false);
+
+  const uploadToShopify = async () => {
+    if (!result?.productInfo) {
+      toast({
+        title: "Hata",
+        description: "Shopify'a yüklemek için önce ürün çekin",
+        variant: "destructive"
+      });
+      return;
+    }
+
+    setIsUploadingToShopify(true);
+    
+    try {
+      console.log('Shopify API yüklemesi başlatılıyor...');
+      
+      const response = await fetch('/api/shopify/add-product', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({
+          productData: {
+            success: true,
+            title: result.productInfo.title,
+            brand: result.productInfo.brand,
+            price: {
+              original: parseFloat(result.productInfo.price?.toString() || '0') / 1.15,
+              withProfit: parseFloat(result.productInfo.price?.toString() || '0')
+            },
+            features: result.productInfo.features || [],
+            variants: result.productInfo.variants || [{ 
+              color: "Varsayılan", 
+              size: "Varsayılan", 
+              stockCount: 10 
+            }],
+            images: result.productInfo.images || []
+          }
+        }),
+      });
+
+      if (!response.ok) {
+        const errorData = await response.json();
+        throw new Error(errorData.error || 'Shopify yükleme başarısız');
+      }
+
+      const data = await response.json();
+      
+      toast({
+        title: "Shopify'a başarıyla yüklendi!",
+        description: `Ürün ID: ${data.shopifyProductId}`,
+      });
+      
+      console.log('Shopify yükleme başarılı:', data);
+      
+    } catch (error) {
+      console.error('Shopify yükleme hatası:', error);
+      toast({
+        title: "Shopify yükleme hatası",
+        description: error instanceof Error ? error.message : "Ürün Shopify'a yüklenemedi",
+        variant: "destructive"
+      });
+    } finally {
+      setIsUploadingToShopify(false);
+    }
+  };
+
   const [csvPreview, setCsvPreview] = useState<any[]>([]);
   const [showCsvPreview, setShowCsvPreview] = useState(false);
 
@@ -1106,16 +1174,32 @@ function ScraperPage({ platform = 'trendyol' }: ScraperPageProps) {
                         {/* CSV Content Preview */}
                         <CSVPreview csvPath={product.csvInfo?.filename || 'shopify-urunler.csv'} />
                         
-                        {/* Enhanced Download Button */}
-                        <div className="mt-3">
+                        {/* Enhanced Download and Upload Buttons */}
+                        <div className="mt-3 space-y-2">
                           <button
                             onClick={() => handleCSVDownload()}
                             className="w-full bg-blue-600 hover:bg-blue-700 text-white px-4 py-2 rounded text-sm font-medium transition-colors flex items-center justify-center gap-2"
                           >
-                            <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 10v6m0 0l-3-3m3 3l3-3m2 8H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z" />
-                            </svg>
+                            <Download className="w-4 h-4" />
                             CSV İndir (shopify-urunler.csv)
+                          </button>
+                          
+                          <button
+                            onClick={uploadToShopify}
+                            disabled={isUploadingToShopify}
+                            className="w-full bg-green-600 hover:bg-green-700 disabled:bg-green-400 text-white px-4 py-2 rounded text-sm font-medium transition-colors flex items-center justify-center gap-2"
+                          >
+                            {isUploadingToShopify ? (
+                              <>
+                                <RefreshCcw className="w-4 h-4 animate-spin" />
+                                Shopify'a Yükleniyor...
+                              </>
+                            ) : (
+                              <>
+                                <Upload className="w-4 h-4" />
+                                Shopify'a Yükle
+                              </>
+                            )}
                           </button>
                         </div>
                       </div>
@@ -1144,13 +1228,34 @@ function ScraperPage({ platform = 'trendyol' }: ScraperPageProps) {
           <div className="mt-8 p-6 bg-card rounded-lg border">
             <div className="flex items-center justify-between mb-4">
               <h2 className="text-xl font-semibold">Shopify CSV Dışa Aktarma</h2>
-              <Button 
-                onClick={handleExportCSV}
-                disabled={isExporting}
-                className="bg-green-600 hover:bg-green-700"
-              >
-                {isExporting ? 'Hazırlanıyor...' : 'CSV İndir'}
-              </Button>
+              <div className="flex gap-2">
+                <Button 
+                  onClick={handleExportCSV}
+                  disabled={isExporting}
+                  className="bg-blue-600 hover:bg-blue-700"
+                >
+                  <Download className="w-4 h-4 mr-2" />
+                  {isExporting ? 'Hazırlanıyor...' : 'CSV İndir'}
+                </Button>
+                
+                <Button 
+                  onClick={uploadToShopify}
+                  disabled={isUploadingToShopify}
+                  className="bg-green-600 hover:bg-green-700 disabled:bg-green-400"
+                >
+                  {isUploadingToShopify ? (
+                    <>
+                      <RefreshCcw className="w-4 h-4 mr-2 animate-spin" />
+                      Yükleniyor...
+                    </>
+                  ) : (
+                    <>
+                      <Upload className="w-4 h-4 mr-2" />
+                      Shopify'a Yükle
+                    </>
+                  )}
+                </Button>
+              </div>
             </div>
 
             {/* CSV Önizleme Tablosu */}
