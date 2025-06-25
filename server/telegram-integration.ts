@@ -235,10 +235,10 @@ export class TelegramIntegration {
     const difference = Math.abs(newPrice - oldPrice).toFixed(2);
     const percentage = (Math.abs(newPrice - oldPrice) / oldPrice * 100).toFixed(1);
     
-    const oldSellingPrice = oldPrice * 1.15;
-    const newSellingPrice = newPrice * 1.15;
-    const oldProfit = oldSellingPrice - oldPrice;
-    const newProfit = newSellingPrice - newPrice;
+    const oldSellingPrice = Math.round(oldPrice * 1.15 * 100) / 100;
+    const newSellingPrice = Math.round(newPrice * 1.15 * 100) / 100;
+    const oldProfit = Math.round((oldSellingPrice - oldPrice) * 100) / 100;
+    const newProfit = Math.round((newSellingPrice - newPrice) * 100) / 100;
 
     const message = 
       `💰 FİYAT DEĞİŞİKLİĞİ ${direction}\n\n` +
@@ -248,13 +248,13 @@ export class TelegramIntegration {
       `💵 ESKİ FİYATLAR:\n` +
       `   Alış: ${oldPrice.toFixed(2)} TL\n` +
       `   Satış: ${oldSellingPrice.toFixed(2)} TL\n` +
-      `   Kar: ${oldProfit.toFixed(2)} TL\n\n` +
+      `   Kar: ${oldProfit.toFixed(2)} TL (%15)\n\n` +
       `💵 YENİ FİYATLAR:\n` +
       `   Alış: ${newPrice.toFixed(2)} TL\n` +
       `   Satış: ${newSellingPrice.toFixed(2)} TL\n` +
-      `   Kar: ${newProfit.toFixed(2)} TL\n\n` +
+      `   Kar: ${newProfit.toFixed(2)} TL (%15)\n\n` +
       `📊 Değişim: ${difference} TL (${percentage}%)\n` +
-      `⚡ Shopify otomatik güncellendi`;
+      `⚡ Shopify otomatik %15 kar marjı ile güncellendi`;
 
     try {
       await this.bot.sendMessage(this.chatId, message);

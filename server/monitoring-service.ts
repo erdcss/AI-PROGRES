@@ -139,9 +139,16 @@ export class MonitoringService {
 
       // Fiyat değişikliği kontrolü
       if (parseFloat(oldVariant.trendyolPrice) !== parseFloat(newVariant.trendyolPrice)) {
+        // %15 kar marjı ile Shopify fiyatını hesapla
+        const newTrendyolPrice = parseFloat(newVariant.trendyolPrice);
+        const newShopifyPrice = Math.round(newTrendyolPrice * 1.15 * 100) / 100;
+        
+        // Shopify price field'ını güncelle
+        newVariant.shopifyPrice = newShopifyPrice.toString();
+        
         const updated = await shopifyIntegration.updateProductPrice(product, newVariant);
         if (updated) {
-          console.log(`💰 Shopify fiyat güncellendi: ${newVariant.color} ${newVariant.size}`);
+          console.log(`💰 Shopify fiyat güncellendi: ${newVariant.color} ${newVariant.size} - Trendyol: ${newTrendyolPrice} TL → Shopify: ${newShopifyPrice} TL (%15 kar marjı)`);
           
           // Telegram bildirimi gönder
           await telegramIntegration.sendDetailedPriceChangeNotification(

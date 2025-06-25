@@ -434,15 +434,23 @@ router.post('/api/telegram/manual-price-test', async (req, res) => {
     
     await telegramIntegration.sendPriceChangeNotification(productName, oldPrice, newPrice);
     
+    // %15 kar marjı hesaplama
+    const oldShopifyPrice = Math.round(oldPrice * 1.15 * 100) / 100;
+    const newShopifyPrice = Math.round(newPrice * 1.15 * 100) / 100;
+    
     res.json({ 
       success: true, 
-      message: 'Price change notification sent',
+      message: 'Price change notification sent with 15% profit margin',
       change: {
         product: productName,
         oldPrice,
         newPrice,
+        oldShopifyPrice,
+        newShopifyPrice,
         difference: newPrice - oldPrice,
-        percentage: ((newPrice - oldPrice) / oldPrice * 100).toFixed(2)
+        shopifyDifference: newShopifyPrice - oldShopifyPrice,
+        percentage: ((newPrice - oldPrice) / oldPrice * 100).toFixed(2),
+        profitMargin: '15%'
       }
     });
   } catch (error) {
