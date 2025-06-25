@@ -198,6 +198,15 @@ router.post('/api/shopify/add-product', async (req, res) => {
       return res.status(400).json({ success: false, error: 'Geçerli product data gerekli' });
     }
 
+    // Shopify varyant fixer'ı kullan
+    const { ShopifyVariantFixer } = await import('./shopify-variant-fixer');
+    
+    // Varyant verilerini temizle ve doğrula
+    const rawVariants = productData.variants || [];
+    const cleanVariants = ShopifyVariantFixer.cleanAndDeduplicateVariants(rawVariants);
+    
+    console.log(`🔧 Varyant temizleme: ${rawVariants.length} → ${cleanVariants.length} benzersiz varyant`);
+
     // Özellikler HTML formatında hazırla
     let featuresHtml = '';
     if (productData.features && productData.features.length > 0) {
@@ -211,50 +220,24 @@ router.post('/api/shopify/add-product', async (req, res) => {
     // Detaylı HTML açıklama - template formatına uygun
     const bodyHtml = `${productData.brand || 'Marka'} ${productData.title || 'Ürün'}. ${featuresHtml}`;
 
-    // Varyantları işle
-    const variants = [];
-    const optionValues = new Set();
-    
-    if (productData.variants && productData.variants.length > 0) {
-      productData.variants.forEach((variant, index) => {
-        const optionValue = variant.size || variant.color || 'Standart';
-        optionValues.add(optionValue);
-        variants.push({
-          option1: optionValue,
-          price: productData.price?.withProfit?.toFixed(2) || '100.00',
-          sku: `${productData.brand?.toUpperCase() || 'BRAND'}-${Date.now()}-${index}`,
-          inventory_quantity: variant.stockCount || 20,
-          inventory_management: 'shopify',
-          inventory_policy: 'deny',
-          cost: productData.price?.original?.toFixed(2) || '85.00'
-        });
-      });
-    } else {
-      optionValues.add('Standart');
-      variants.push({
-        option1: 'Standart',
-        price: productData.price?.withProfit?.toFixed(2) || '100.00',
-        sku: `${productData.brand?.toUpperCase() || 'BRAND'}-${Date.now()}`,
-        inventory_quantity: 20,
-        inventory_management: 'shopify',
-        inventory_policy: 'deny',
-        cost: productData.price?.original?.toFixed(2) || '85.00'
-      });
-    }
+    // Varyantları Shopify formatında hazırla
+    const basePrice = productData.price?.withProfit || 100;
+    const shopifyVariants = ShopifyVariantFixer.createShopifyVariants(cleanVariants, basePrice);
+    const productOptions = ShopifyVariantFixer.createProductOptions(cleanVariants);
 
     // SEO başlık ve açıklama
     const seoTitle = `${productData.title} - ${productData.brand} | Turmarkt`;
     const seoDescription = `${productData.title} ürününü Turmarkt'tan satın alın. ${productData.brand} markası, kaliteli ve uygun fiyatlı ürünler.`;
 
-    // Shopify product objesi - tam template formatında
+    // Shopify product objesi - varyant fixer ile oluşturulan verilerle
     const shopifyProduct = {
       title: productData.title || 'Ürün',
       body_html: bodyHtml,
       vendor: productData.brand || 'Genel',
       product_type: 'Çay & Gıda',
       tags: `${productData.brand?.toLowerCase() || 'genel'}, trendyol, import, ${productData.features?.map(f => f.value.toLowerCase()).join(', ') || ''}`,
-      variants: variants,
-      options: [{ name: 'Varyant', values: Array.from(optionValues) }],
+      variants: shopifyVariants,
+      options: productOptions,
       status: 'active',
       images: (productData.images || []).slice(0, 5).map((img, index) => ({ 
         src: img,
@@ -276,6 +259,16 @@ router.post('/api/shopify/add-product', async (req, res) => {
         }
       ]
     };
+
+    // Shopify verilerini doğrula
+    const validation = ShopifyVariantFixer.validateShopifyData(shopifyProduct);
+    if (!validation.isValid) {
+      console.error('❌ Shopify veri doğrulama hatası:', validation.errors);
+      return res.status(400).json({ 
+        success: false, 
+        error: `Varyant hatası: ${validation.errors.join(', ')}` 
+      });
+    }
 
     console.log('Creating Shopify product:', shopifyProduct.title);
     
