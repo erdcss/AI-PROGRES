@@ -1,0 +1,23 @@
+{
+  "url": "https://www.trendyol.com/merry-see/orme-yumusak-kisa-kol-kiraz-baskli-sortlu-pijama-takimi-p-799009898",
+  "htmlSize": 334043,
+  "scriptTags": 58,
+  "potentialDataSources": [
+    "Script 5: attributes",
+    "Script 13: attributes",
+    "Script 16: attributes",
+    "Script 17: attributes",
+    "Script 19: attributes",
+    "Script 21: attributes",
+    "Script 43: attributes",
+    "Script 56: attributes"
+  ],
+  "jsonStructures": [],
+  "attributeContainers": [
+    "[data-testid*=\"product\"]: 1 elements",
+    "[class*=\"product-detail\"]: 9 elements",
+    "[id*=\"product\"]: 10 elements",
+    "[id*=\"detail\"]: 5 elements"
+  ],
+  "suspiciousElements": []
+}

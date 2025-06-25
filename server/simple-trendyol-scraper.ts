@@ -9,6 +9,8 @@ import { extractMainProductImages } from './main-product-images-extractor';
 import { extractWorkingFeatures } from './working-feature-extractor';
 import { extractEnhancedAttributes } from './enhanced-attribute-extractor';
 import { extractDirectTrendyolAttributes } from './direct-trendyol-extractor';
+import { analyzeProductHTML } from './html-analyzer';
+import { extractTargetedAttributes } from './targeted-attribute-extractor';
 
 export interface SimpleTrendyolData {
   success: boolean;
@@ -96,24 +98,45 @@ export async function simpleTrendyolScrape(url: string): Promise<SimpleTrendyolD
     let variants: Array<{color: string, size: string, inStock: boolean}> = [];
     
     try {
-      // Enhanced attribute extraction - targets structured product data
-      const enhancedAttributes = extractEnhancedAttributes(html);
+      // Try targeted extraction first - uses script analysis data
+      const targetedAttributes = extractTargetedAttributes(html);
       
-      // If enhanced extraction finds attributes, use those
-      if (enhancedAttributes.length > 0) {
-        features = enhancedAttributes.map(attr => ({
+      if (targetedAttributes.length > 0) {
+        features = targetedAttributes.map(attr => ({
           key: attr.key,
           value: attr.value
         }));
-        console.log(`🎯 Enhanced özellik çıkarma: ${features.length} özellik bulundu`);
+        console.log(`🎯 Targeted extraction: ${features.length} özellik bulundu`);
       } else {
-        // Fallback to working feature extraction
-        const workingFeatures = extractWorkingFeatures(html);
-        features = workingFeatures.map(f => ({
-          key: f.key,
-          value: f.value
-        }));
-        console.log(`🎯 Working özellik çıkarma (fallback): ${features.length} özellik bulundu`);
+        // Try direct Trendyol extraction
+        const directAttributes = extractDirectTrendyolAttributes(html);
+        
+        if (directAttributes.length > 0) {
+          features = directAttributes.map(attr => ({
+            key: attr.key,
+            value: attr.value
+          }));
+          console.log(`🎯 Direct Trendyol çıkarma: ${features.length} özellik bulundu`);
+        } else {
+          // Try enhanced attribute extraction
+          const enhancedAttributes = extractEnhancedAttributes(html);
+          
+          if (enhancedAttributes.length > 0) {
+            features = enhancedAttributes.map(attr => ({
+              key: attr.key,
+              value: attr.value
+            }));
+            console.log(`🎯 Enhanced özellik çıkarma: ${features.length} özellik bulundu`);
+          } else {
+            // Final fallback to working feature extraction
+            const workingFeatures = extractWorkingFeatures(html);
+            features = workingFeatures.map(f => ({
+              key: f.key,
+              value: f.value
+            }));
+            console.log(`🎯 Working özellik çıkarma (fallback): ${features.length} özellik bulundu`);
+          }
+        }
       }
       
       // Real size extraction
