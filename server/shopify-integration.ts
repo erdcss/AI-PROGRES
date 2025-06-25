@@ -89,33 +89,41 @@ export class ShopifyIntegration {
 
   // Ürün fiyatını güncelleme
   async updateProductPrice(product: Product, variant: ProductVariant): Promise<boolean> {
-    if (!product.shopifyProductId || !variant.shopifyVariantId) {
-      console.log(`⚠️ Shopify ID'leri eksik: Product ${product.shopifyProductId}, Variant ${variant.shopifyVariantId}`);
-      return false;
-    }
-
     try {
+      // Önce ürünün gerçek Shopify ID'sini bul
+      const productsResponse = await axios.get(
+        `${this.baseUrl}/products.json?title=${encodeURIComponent(product.title)}`,
+        { headers: this.headers }
+      );
+
+      if (!productsResponse.data.products || productsResponse.data.products.length === 0) {
+        console.log(`❌ Shopify'da ürün bulunamadı: ${product.title}`);
+        return false;
+      }
+
+      const shopifyProduct = productsResponse.data.products[0];
+      const shopifyVariant = shopifyProduct.variants[0]; // İlk varyantı al
+
+      console.log(`🔍 Shopify Product ID: ${shopifyProduct.id}, Variant ID: ${shopifyVariant.id}`);
+
       const updateData = {
         variant: {
-          id: parseInt(variant.shopifyVariantId),
+          id: shopifyVariant.id,
           price: variant.shopifyPrice
         }
       };
 
       const response = await axios.put(
-        `${this.baseUrl}/variants/${variant.shopifyVariantId}.json`,
+        `${this.baseUrl}/variants/${shopifyVariant.id}.json`,
         updateData,
         { headers: this.headers }
       );
 
-      await this.logSync('update_price', product.id, variant.id, 'success', updateData, response.data);
-      
-      console.log(`💰 Shopify fiyat güncellendi: ${variant.color} ${variant.size} → ${variant.shopifyPrice} TL`);
+      console.log(`💰 Shopify fiyat güncellendi: ${product.title} → ${variant.shopifyPrice} TL`);
       return true;
 
     } catch (error: any) {
       console.error(`❌ Shopify fiyat güncelleme hatası:`, error.response?.data || error.message);
-      await this.logSync('update_price', product.id, variant.id, 'failed', null, null, error.message);
       return false;
     }
   }
