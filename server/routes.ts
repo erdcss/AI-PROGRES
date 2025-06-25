@@ -275,10 +275,7 @@ export function registerRoutes(app: Express): Server {
           if (result) {
             console.log("Enhanced scraper başarılı:", result.title);
             
-            // Debug DOM structure for better variant extraction
-            const { debugTrendyolStructure } = await import('./debug-trendyol-structure');
-            const debugResult = await debugTrendyolStructure(url);
-            console.log('🔍 Debug result:', debugResult);
+            // Real variant extraction is now handled in the enhanced scraper
             
             // Generate CSV data using working instant CSV generator
             const { instantCSVGenerator } = await import('./instant-csv-generator-working');

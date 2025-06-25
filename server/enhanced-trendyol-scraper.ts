@@ -266,8 +266,9 @@ function parseProductData(html: string, url: string): TrendyolProductData | null
       }
     });
 
-    // Real stock detection
-    const variants = extractRealStockData($);
+    // Use the new real variant extractor
+    const { extractRealVariants } = require('./real-variant-extractor');
+    const variants = extractRealVariants(content);
 
     // Extract description
     const description = $('.product-detail-description, .pr-in-dt-cn, [data-testid="description"]').first().text().trim() ||
