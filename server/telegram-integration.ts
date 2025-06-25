@@ -347,16 +347,22 @@ export class TelegramIntegration {
 
   // Send general notification
   async sendNotification(message: string) {
+    console.log('📱 Telegram notification attempt - bot:', !!this.bot, 'chatId:', !!this.chatId);
+    
     if (!this.bot || !this.chatId) {
-      console.log('Telegram not configured for general notification');
+      console.log('❌ Telegram not configured - Bot token:', !!this.bot, 'Chat ID:', !!this.chatId);
+      console.log('💡 Kullanıcı botla /start komutu göndermeli');
       return;
     }
 
     try {
-      await this.bot.sendMessage(this.chatId, message);
-      console.log('General notification sent via Telegram');
+      await this.bot.sendMessage(this.chatId, message, { 
+        parse_mode: 'HTML',
+        disable_web_page_preview: true 
+      });
+      console.log('✅ General notification sent via Telegram');
     } catch (error) {
-      console.error('Failed to send Telegram notification:', error);
+      console.error('❌ Failed to send Telegram notification:', error);
     }
   }
 

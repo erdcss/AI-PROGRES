@@ -314,13 +314,15 @@ router.post('/api/shopify/add-product', async (req, res) => {
           `🆔 <b>Product ID:</b> ${result.product.id}\n` +
           `🔗 <b>Admin URL:</b> kr5xdy-x7.myshopify.com/admin/products/${result.product.id}`;
         
-        // Telegram bildirimi gönder (telegramIntegration kullanarak)
-        const { telegramIntegration } = await import('./telegram-integration');
-        await telegramIntegration.sendNotification(message);
-        console.log('✅ Telegram notification sent successfully');
-      } catch (telegramError) {
-        console.error('Telegram notification failed:', telegramError.message);
-      }
+        // Telegram bildirimi gönder
+        try {
+          const telegramModule = await import('./telegram-integration');
+          const telegramIntegration = telegramModule.telegramIntegration || telegramModule.default;
+          await telegramIntegration.sendNotification(message);
+          console.log('✅ Telegram notification sent successfully');
+        } catch (telegramError) {
+          console.error('Telegram notification error details:', telegramError);
+        }
       
       res.json({
         success: true,
@@ -407,8 +409,14 @@ router.post('/api/telegram/csv-download-notification', async (req, res) => {
       `📊 <b>Kar Oranı:</b> %${profitPercentage}\n\n` +
       `📁 <b>CSV dosyası indirildi ve Shopify yüklemesi için hazır</b>`;
     
-    const { telegramIntegration } = await import('./telegram-integration');
-    await telegramIntegration.sendNotification(message);
+    try {
+      const telegramModule = await import('./telegram-integration');
+      const telegramIntegration = telegramModule.telegramIntegration || telegramModule.default;
+      await telegramIntegration.sendNotification(message);
+      console.log('✅ CSV Telegram notification sent successfully');
+    } catch (telegramError) {
+      console.error('CSV Telegram notification error:', telegramError);
+    }
     
     res.json({ success: true, message: 'CSV download notification sent' });
   } catch (error) {
