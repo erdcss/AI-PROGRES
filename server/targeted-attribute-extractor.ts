@@ -70,63 +70,94 @@ export function extractTargetedAttributes(html: string): TargetedAttribute[] {
       // Continue with other methods
     }
 
-    // Method 2: Extract specific attribute patterns from script content
+    // Method 2: Extract complete attribute arrays with proper bracket matching
     const attributePatterns = [
-      /"attributes"\s*:\s*\[([^\]]+)\]/g,
-      /"productAttributes"\s*:\s*\[([^\]]+)\]/g,
-      /"specifications"\s*:\s*\[([^\]]+)\]/g,
-      /"features"\s*:\s*\[([^\]]+)\]/g
+      /"attributes"\s*:\s*(\[[\s\S]*?\])/g,
+      /"productAttributes"\s*:\s*(\[[\s\S]*?\])/g,
+      /"specifications"\s*:\s*(\[[\s\S]*?\])/g,
+      /"features"\s*:\s*(\[[\s\S]*?\])/g
     ];
 
     attributePatterns.forEach(pattern => {
       let match;
       while ((match = pattern.exec(content)) !== null) {
         try {
-          const attributesStr = `[${match[1]}]`;
-          console.log(`🔍 Found pattern match in script ${scriptIndex}: ${attributesStr.substring(0, 100)}...`);
+          let attributesStr = match[1];
+          console.log(`🔍 Found pattern match in script ${scriptIndex}: ${attributesStr.substring(0, 150)}...`);
           
-          const attributesData = JSON.parse(attributesStr);
+          // Find the complete array by counting brackets
+          let startPos = match.index + match[0].indexOf('[');
+          let bracketCount = 0;
+          let endPos = startPos;
           
-          if (Array.isArray(attributesData)) {
-            attributesData.forEach((attr: any) => {
-              if (attr && typeof attr === 'object') {
-                let key = '';
-                let value = '';
-                
-                // Handle different attribute object structures
-                if (attr.key && attr.value) {
-                  key = String(attr.key);
-                  value = String(attr.value);
-                } else if (attr.name && attr.value) {
-                  key = String(attr.name);
-                  value = String(attr.value);
-                } else if (attr.label && attr.text) {
-                  key = String(attr.label);
-                  value = String(attr.text);
-                } else if (attr.attributeName && attr.attributeValue) {
-                  key = String(attr.attributeName);
-                  value = String(attr.attributeValue);
-                }
-                
-                if (key && value) {
-                  const cleanedKey = cleanAttributeKey(key);
-                  const cleanedValue = cleanAttributeValue(value);
+          for (let i = startPos; i < content.length; i++) {
+            if (content[i] === '[') bracketCount++;
+            if (content[i] === ']') {
+              bracketCount--;
+              if (bracketCount === 0) {
+                endPos = i + 1;
+                break;
+              }
+            }
+          }
+          
+          if (endPos > startPos) {
+            attributesStr = content.substring(startPos, endPos);
+            console.log(`🔧 Complete array extracted: ${attributesStr.substring(0, 200)}...`);
+            
+            const attributesData = JSON.parse(attributesStr);
+            
+            if (Array.isArray(attributesData)) {
+              attributesData.forEach((attr: any) => {
+                if (attr && typeof attr === 'object') {
+                  let key = '';
+                  let value = '';
                   
-                  if (isValidAttribute(cleanedKey, cleanedValue)) {
-                    const attrKey = `${cleanedKey}:${cleanedValue}`;
-                    if (!attributeMap.has(attrKey)) {
-                      attributes.push({
-                        key: cleanedKey,
-                        value: cleanedValue,
-                        category: categorizeAttribute(cleanedKey)
-                      });
-                      attributeMap.add(attrKey);
-                      console.log(`🎯 Pattern Script ${scriptIndex}: ${cleanedKey} = ${cleanedValue}`);
+                  // Handle Trendyol's nested attribute structure
+                  if (attr.key && attr.value) {
+                    // Handle nested objects like {"key":{"id":33,"name":"Desen"},"value":{"id":1011,"name":"Desenli"}}
+                    if (typeof attr.key === 'object' && attr.key.name) {
+                      key = String(attr.key.name);
+                    } else {
+                      key = String(attr.key);
+                    }
+                    
+                    if (typeof attr.value === 'object' && attr.value.name) {
+                      value = String(attr.value.name);
+                    } else {
+                      value = String(attr.value);
+                    }
+                  } else if (attr.name && attr.value) {
+                    key = String(attr.name);
+                    value = String(attr.value);
+                  } else if (attr.label && attr.text) {
+                    key = String(attr.label);
+                    value = String(attr.text);
+                  } else if (attr.attributeName && attr.attributeValue) {
+                    key = String(attr.attributeName);
+                    value = String(attr.attributeValue);
+                  }
+                  
+                  if (key && value) {
+                    const cleanedKey = cleanAttributeKey(key);
+                    const cleanedValue = cleanAttributeValue(value);
+                    
+                    if (isValidAttribute(cleanedKey, cleanedValue)) {
+                      const attrKey = `${cleanedKey}:${cleanedValue}`;
+                      if (!attributeMap.has(attrKey)) {
+                        attributes.push({
+                          key: cleanedKey,
+                          value: cleanedValue,
+                          category: categorizeAttribute(cleanedKey)
+                        });
+                        attributeMap.add(attrKey);
+                        console.log(`🎯 Pattern Script ${scriptIndex}: ${cleanedKey} = ${cleanedValue}`);
+                      }
                     }
                   }
                 }
-              }
-            });
+              });
+            }
           }
         } catch (e) {
           console.log(`❌ JSON parse error in script ${scriptIndex}: ${e}`);
