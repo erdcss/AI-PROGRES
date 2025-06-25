@@ -27,21 +27,45 @@ export async function extractTrendyolPrice(url: string): Promise<{price: number,
     
     // Method 1: Direct regex search for prices in HTML
     console.log(`💰 Method 1: Regex price search`);
-    const priceMatches = html.match(/(\d{1,4}(?:[.,]\d{3})*(?:[.,]\d{2})?)\s*(?:TL|₺)/gi);
+    const priceMatches = html.match(/(\d{1,3}(?:[.,]\d{3})*(?:[.,]\d{2})?)\s*(?:TL|₺)/gi);
     if (priceMatches && priceMatches.length > 0) {
       console.log(`Found ${priceMatches.length} price matches:`, priceMatches.slice(0, 5));
       
       // Parse and find the most likely product price
       const prices = priceMatches.map(match => {
         let cleanPrice = match.replace(/TL|₺/gi, '').trim();
-        // Handle Turkish format: 1.299,99 -> 1299.99
+        console.log(`🔍 Processing price: "${cleanPrice}"`);
+        
+        // Turkish number format handling
+        // Case 1: 14.681 (thousands separator with dot) -> 14681
+        // Case 2: 1.299,99 (thousands separator with dot, decimal with comma) -> 1299.99
+        // Case 3: 639,99 (decimal with comma) -> 639.99
+        
         if (cleanPrice.includes('.') && cleanPrice.includes(',')) {
+          // Format: 1.299,99 (thousands separator + decimal)
           cleanPrice = cleanPrice.replace(/\./g, '').replace(',', '.');
+          console.log(`📊 Thousands+decimal format: ${cleanPrice}`);
+        } else if (cleanPrice.includes('.') && !cleanPrice.includes(',')) {
+          // Check if it's thousands separator (no decimal part after)
+          const parts = cleanPrice.split('.');
+          if (parts.length === 2 && parts[1].length === 3) {
+            // Format: 14.681 (thousands separator)
+            cleanPrice = cleanPrice.replace(/\./g, '');
+            console.log(`📊 Thousands separator format: ${cleanPrice}`);
+          } else {
+            // Format: 14.68 (decimal separator)
+            console.log(`📊 Decimal format: ${cleanPrice}`);
+          }
         } else if (cleanPrice.includes(',')) {
+          // Format: 639,99 (decimal with comma)
           cleanPrice = cleanPrice.replace(',', '.');
+          console.log(`📊 Comma decimal format: ${cleanPrice}`);
         }
-        return parseFloat(cleanPrice.replace(/[^\d.]/g, ''));
-      }).filter(p => p > 0 && p < 50000); // Reasonable price range
+        
+        const parsedPrice = parseFloat(cleanPrice.replace(/[^\d.]/g, ''));
+        console.log(`💰 Final parsed price: ${parsedPrice}`);
+        return parsedPrice;
+      }).filter(p => p > 0 && p < 100000); // Extended price range for furniture
       
       if (prices.length > 0) {
         // Take the most common price or median price

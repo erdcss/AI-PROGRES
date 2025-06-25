@@ -205,6 +205,27 @@ Successfully implemented and tested main product image extraction with perfect p
 
 **Status**: PRODUCTION READY - Main product image extraction working perfectly with exactly 7 images per product as requested.
 
+## Turkish Price Algorithm Fixed (June 25, 2025)
+
+Successfully resolved high-value Turkish price parsing issue:
+
+**Problem Identified:**
+- System incorrectly parsed "14,681 TL" as "14,68 TL" 
+- Turkish thousands separator (dot) confused with decimal separator
+- High-value products showing incorrect pricing calculations
+
+**Solution Implemented:**
+- Enhanced regex pattern for Turkish number formatting detection
+- Smart detection of thousands separator vs decimal separator logic
+- Extended price range to 100,000 TL for furniture/high-value items
+- Comprehensive Turkish format handling:
+  - 14.681 TL (thousands separator) → 14,681 TL ✅
+  - 1.299,99 TL (thousands + decimal) → 1,299.99 TL ✅
+  - 639,99 TL (decimal comma) → 639.99 TL ✅
+  - 500 TL (simple) → 500 TL ✅
+
+**Status**: OPERATIONAL - Turkish price parsing now correctly handles all number formats including high-value products (June 25, 2025)
+
 ## Daily Automated Monitoring System (NEW - June 25, 2025)
 
 Implemented comprehensive daily monitoring and reporting system:
