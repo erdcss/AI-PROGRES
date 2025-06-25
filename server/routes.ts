@@ -18,6 +18,7 @@ import { extractVariantStockInfo } from "./advanced-size-extractor";
 import { extractFocusedData } from './focused-extractor';
 import { dailyScheduler } from './scheduler';
 import dataAnalysisRoutes from './data-analysis-routes';
+import { testImageExtraction } from './direct-image-test';
 
 function generateSingleProductShopifyCSV(product: any): string {
   // HEADERS - Şablonunuza tam uygun
@@ -2334,6 +2335,21 @@ export function registerRoutes(app: Express): Server {
 
   // Add data analysis routes
   app.use(dataAnalysisRoutes);
+  
+  // Image debugging endpoint
+  app.post("/api/debug-images", async (req, res) => {
+    try {
+      const { url } = req.body;
+      if (!url) {
+        return res.status(400).json({ error: "URL required" });
+      }
+      
+      const result = await testImageExtraction(url);
+      res.json(result);
+    } catch (error) {
+      res.status(500).json({ error: error.message });
+    }
+  });
   
   const httpServer = createServer(app);
   // E-posta raporu endpoint'leri

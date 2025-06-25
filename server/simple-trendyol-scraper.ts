@@ -5,6 +5,7 @@
 import axios from 'axios';
 import * as cheerio from 'cheerio';
 import { extractTrendyolPrice } from './fixed-price-extractor';
+import { extractProductImages } from './working-image-extractor';
 
 export interface SimpleTrendyolData {
   success: boolean;
@@ -82,40 +83,8 @@ export async function simpleTrendyolScrape(url: string): Promise<SimpleTrendyolD
       console.log(`⚠️ Price extraction error: ${e.message}`);
     }
     
-    // Image extraction
-    const images: string[] = [];
-    const imageSet = new Set<string>();
-    
-    try {
-      const imageStateMatch = html.match(/window\.__PRODUCT_DETAIL_APP_INITIAL_STATE__\s*=\s*({.*?});/s);
-      if (imageStateMatch) {
-        const imageData = JSON.parse(imageStateMatch[1]);
-        console.log(`🔍 Extracting images from JSON...`);
-        
-        if (imageData.product?.images && Array.isArray(imageData.product.images)) {
-          console.log(`📸 Found ${imageData.product.images.length} images`);
-          imageData.product.images.forEach((img: any) => {
-            let imageUrl = '';
-            
-            if (typeof img === 'string') {
-              imageUrl = img;
-            } else if (img?.url) {
-              imageUrl = img.url;
-            }
-            
-            if (imageUrl && !imageSet.has(imageUrl)) {
-              if (!imageUrl.startsWith('http')) {
-                imageUrl = 'https://cdn.dsmcdn.com' + imageUrl;
-              }
-              imageSet.add(imageUrl);
-              images.push(imageUrl);
-            }
-          });
-        }
-      }
-    } catch (e) {
-      console.log(`⚠️ Image extraction error: ${e.message}`);
-    }
+    // Use the working image extractor
+    const images = await extractProductImages(url);
     
     console.log(`✅ Found ${images.length} unique images`);
     
