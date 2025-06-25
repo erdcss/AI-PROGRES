@@ -1,5 +1,4 @@
 import { Router } from 'express';
-import { shopifyImporter } from './shopify-import';
 import * as path from 'path';
 
 const router = Router();
@@ -96,10 +95,24 @@ router.post('/api/import/shopify', async (req, res) => {
   try {
     console.log('📊 Shopify import request received');
     
-    res.json({
-      success: true,
-      message: 'Import initiated, check Telegram for progress updates'
-    });
+    // Import the processing function dynamically
+    const { processShopifyCSVData } = await import('./process-shopify-data');
+    const result = await processShopifyCSVData();
+    
+    if (result.success) {
+      // Send Telegram notification
+      const { sendTelegramNotification } = await import('./telegram-integration');
+      await sendTelegramNotification(
+        `📊 SHOPIFY ÜRÜN İTHALATI TAMAMLANDI\n\n` +
+        `✅ ${result.imported} ürün hafızaya eklendi\n` +
+        `📁 Toplam CSV satırı: ${result.totalLines.toLocaleString()}\n` +
+        `🔄 Bu ürünler günlük izleme sistemine dahil edildi\n` +
+        `📅 12:00'da otomatik fiyat/stok kontrolleri başlayacak\n\n` +
+        `Sistem tamamen hazır!`
+      );
+    }
+    
+    res.json(result);
     
   } catch (error) {
     console.error('❌ Import route error:', error);
@@ -113,10 +126,16 @@ router.post('/api/import/shopify', async (req, res) => {
 // Get import statistics
 router.get('/api/import/stats', async (req, res) => {
   try {
-    const stats = await shopifyImporter.getImportStats();
+    const { db } = await import('./db');
+    const { products, productVariants } = await import('../shared/schema');
+    
+    const totalProducts = await db.select().from(products);
+    const totalVariants = await db.select().from(productVariants);
+    
     res.json({
       success: true,
-      ...stats
+      totalProducts: totalProducts.length,
+      totalVariants: totalVariants.length
     });
   } catch (error) {
     console.error('❌ Stats error:', error);
