@@ -1,6 +1,6 @@
 import { scheduleJob } from 'node-schedule';
 import { db } from './db';
-import { products, variants, priceHistory, stockHistory } from '../shared/schema';
+import { products, productVariants, priceHistory, stockHistory } from '../shared/schema';
 import { eq, desc } from 'drizzle-orm';
 import axios from 'axios';
 
@@ -106,55 +106,60 @@ class DailyMonitor {
         return result;
       }
 
-      // Check price changes
+      // Check price changes (using first variant)
       const currentPrice = currentData.price?.original || 0;
-      if (Math.abs(currentPrice - product.currentPrice) > 0.01) {
+      const firstVariant = productVariantsList?.[0];
+      if (firstVariant && Math.abs(currentPrice - parseFloat(firstVariant.trendyolPrice.toString())) > 0.01) {
         result.changes.priceChanged = true;
-        result.changes.oldPrice = product.currentPrice;
+        result.changes.oldPrice = parseFloat(firstVariant.trendyolPrice.toString());
         result.changes.newPrice = currentPrice;
         
         // Update price in database
         await db.update(products)
-          .set({ currentPrice })
+          .set({ updatedAt: new Date() })
           .where(eq(products.id, product.id));
           
-        // Log price history
-        await db.insert(priceHistory).values({
-          productId: product.id,
-          oldPrice: product.currentPrice,
-          newPrice: currentPrice,
-          changeType: 'price_update',
-          source: 'daily_check'
-        });
+        // Log price history (using first variant for compatibility)
+        const firstVariant = productVariantsList[0];
+        if (firstVariant) {
+          await db.insert(priceHistory).values({
+            variantId: firstVariant.id,
+            oldPrice: firstVariant.trendyolPrice.toString(),
+            newPrice: currentPrice.toString(),
+            changeType: currentPrice > parseFloat(firstVariant.trendyolPrice.toString()) ? 'increase' : 'decrease',
+            changeAmount: (currentPrice - parseFloat(firstVariant.trendyolPrice.toString())).toString(),
+            changePercentage: (((currentPrice - parseFloat(firstVariant.trendyolPrice.toString())) / parseFloat(firstVariant.trendyolPrice.toString())) * 100).toString()
+          });
+        }
       }
 
       // Check stock changes for variants
-      const productVariants = await db.select().from(variants).where(eq(variants.productId, product.id));
+      const productVariantsList = await db.select().from(productVariants).where(eq(productVariants.productId, product.id));
       
-      for (const variant of productVariants) {
+      for (const variant of productVariantsList) {
         const currentStock = this.getVariantStock(currentData, variant.color, variant.size);
         
-        if (currentStock !== variant.stock) {
+        if (currentStock !== variant.stockCount) {
           result.changes.stockChanged = true;
           result.changes.stockChanges.push({
             variantId: variant.id,
             color: variant.color,
             size: variant.size,
-            oldStock: variant.stock,
+            oldStock: variant.stockCount,
             newStock: currentStock
           });
           
           // Update variant stock
-          await db.update(variants)
-            .set({ stock: currentStock })
-            .where(eq(variants.id, variant.id));
+          await db.update(productVariants)
+            .set({ stockCount: currentStock })
+            .where(eq(productVariants.id, variant.id));
             
           // Log stock history
           await db.insert(stockHistory).values({
             variantId: variant.id,
-            oldStock: variant.stock,
+            oldStock: variant.stockCount,
             newStock: currentStock,
-            changeType: currentStock === 0 ? 'out_of_stock' : currentStock > variant.stock ? 'restock' : 'stock_decrease'
+            changeType: currentStock === 0 ? 'out_of_stock' : currentStock > variant.stockCount ? 'restock' : 'stock_decrease'
           });
         }
       }
