@@ -82,7 +82,8 @@ router.get('/api/analysis/recent-products', async (req, res) => {
         id: products.id,
         title: products.title,
         brand: products.brand,
-        updatedAt: products.updatedAt
+        updatedAt: products.updatedAt,
+        trendyolUrl: products.trendyolUrl
       })
       .from(products)
       .orderBy(desc(products.updatedAt))
@@ -104,11 +105,12 @@ router.get('/api/analysis/recent-products', async (req, res) => {
         return {
           id: product.id.toString(),
           title: product.title || 'Ürün adı bulunamadı',
-          brand: product.brand || 'Marka belirtilmemiş',
-          currentPrice: variant?.shopifyPrice ? `${parseFloat(variant.shopifyPrice).toLocaleString('tr-TR')} TL` : '0 TL',
-          originalPrice: variant?.trendyolPrice ? `${parseFloat(variant.trendyolPrice).toLocaleString('tr-TR')} TL` : '0 TL',
+          brand: product.brand || 'Genel',
+          currentPrice: variant?.shopifyPrice ? `${parseFloat(variant.shopifyPrice).toLocaleString('tr-TR')} TL` : 'Fiyat belirlenmemiş',
+          originalPrice: variant?.trendyolPrice ? `${parseFloat(variant.trendyolPrice).toLocaleString('tr-TR')} TL` : 'Orijinal fiyat yok',
           stockStatus: variant?.inStock ?? true,
-          lastChecked: product.updatedAt?.toISOString() || new Date().toISOString()
+          lastChecked: product.updatedAt?.toISOString() || new Date().toISOString(),
+          trendyolUrl: product.trendyolUrl || null
         };
       })
     );
@@ -139,7 +141,8 @@ router.get('/api/analysis/product-changes', async (req, res) => {
         oldValue: '1,299.99 TL',
         newValue: '1,399.99 TL',
         timestamp: new Date(Date.now() - 7200000).toISOString(),
-        percentage: 7.69
+        percentage: 7.69,
+        productUrl: 'https://www.trendyol.com/nike/air-max-270-erkek-spor-ayakkabi-p-12345'
       },
       {
         id: '2',
@@ -148,7 +151,8 @@ router.get('/api/analysis/product-changes', async (req, res) => {
         oldValue: '1,899.99 TL',
         newValue: '1,699.99 TL',
         timestamp: new Date(Date.now() - 5400000).toISOString(),
-        percentage: -10.53
+        percentage: -10.53,
+        productUrl: 'https://www.trendyol.com/adidas/ultraboost-22-kadin-kosu-ayakkabi-p-67890'
       },
       {
         id: '3',
@@ -156,7 +160,8 @@ router.get('/api/analysis/product-changes', async (req, res) => {
         changeType: 'stock_out',
         oldValue: 'Stokta',
         newValue: 'Tükendi',
-        timestamp: new Date(Date.now() - 3600000).toISOString()
+        timestamp: new Date(Date.now() - 3600000).toISOString(),
+        productUrl: 'https://www.trendyol.com/zara/denim-jacket-erkek-ceket-p-11111'
       }
     ];
 

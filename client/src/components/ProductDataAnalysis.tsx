@@ -22,7 +22,8 @@ import {
   XCircle,
   ArrowUp,
   ArrowDown,
-  Minus
+  Minus,
+  ExternalLink
 } from "lucide-react";
 import { useQuery } from "@tanstack/react-query";
 import { motion } from "framer-motion";
@@ -49,6 +50,7 @@ interface ProductChange {
   newValue: string;
   timestamp: string;
   percentage?: number;
+  productUrl?: string;
 }
 
 interface Product {
@@ -59,6 +61,7 @@ interface Product {
   originalPrice: string;
   stockStatus: boolean;
   lastChecked: string;
+  trendyolUrl?: string;
 }
 
 interface ChatMessage {
@@ -438,19 +441,34 @@ export const ProductDataAnalysis: React.FC = () => {
                         <h4 className="font-semibold text-white text-sm leading-relaxed truncate flex-1 pr-3">
                           {product.title}
                         </h4>
-                        <Badge 
-                          variant={product.stockStatus ? 'default' : 'destructive'} 
-                          className="font-medium shrink-0"
-                        >
-                          {product.stockStatus ? 'Stokta' : 'Tükendi'}
-                        </Badge>
+                        <div className="flex items-center gap-2 shrink-0">
+                          <Badge 
+                            variant={product.stockStatus ? 'default' : 'destructive'} 
+                            className="font-medium"
+                          >
+                            {product.stockStatus ? 'Stokta' : 'Tükendi'}
+                          </Badge>
+                          {product.trendyolUrl && (
+                            <Button
+                              size="sm"
+                              variant="outline"
+                              className="h-8 w-8 p-0 bg-white/10 border-white/20 hover:bg-white/20"
+                              onClick={() => window.open(product.trendyolUrl, '_blank')}
+                            >
+                              <ExternalLink className="h-3 w-3 text-white" />
+                            </Button>
+                          )}
+                        </div>
                       </div>
-                      <div className="flex items-center justify-between mb-2">
+                      <div className="flex items-center justify-between mb-3">
                         <span className="text-sm text-gray-300 font-medium">{product.brand}</span>
                         <span className="text-lg font-bold text-green-400">{product.currentPrice}</span>
                       </div>
                       <div className="text-xs text-gray-400">
                         Son kontrol: {new Date(product.lastChecked).toLocaleString('tr-TR')}
+                      </div>
+                      <div className="text-xs text-gray-500 mt-1">
+                        Orijinal fiyat: {product.originalPrice}
                       </div>
                     </div>
                   )) : (
@@ -501,6 +519,17 @@ export const ProductDataAnalysis: React.FC = () => {
                             }`}>
                               {change.percentage > 0 ? '+' : ''}{change.percentage.toFixed(1)}%
                             </span>
+                          )}
+                          {change.productUrl && (
+                            <Button
+                              size="sm"
+                              variant="outline"
+                              className="h-8 w-8 p-0 bg-white/10 border-white/20 hover:bg-white/20"
+                              onClick={() => window.open(change.productUrl, '_blank')}
+                              title="Ürün sayfasını aç"
+                            >
+                              <ExternalLink className="h-3 w-3 text-white" />
+                            </Button>
                           )}
                         </div>
                       </div>
