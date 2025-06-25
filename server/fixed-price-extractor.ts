@@ -25,9 +25,9 @@ export async function extractTrendyolPrice(url: string): Promise<{price: number,
     let price = 0;
     let brand = 'Network';
     
-    // Method 1: Direct regex search for prices in HTML - Enhanced for all numbers
-    console.log(`💰 Method 1: Enhanced regex price search`);
-    const priceMatches = html.match(/(\d{1,6}(?:[.,]\d{3})*(?:[.,]\d{1,2})?)\s*(?:TL|₺)/gi);
+    // Method 1: Direct regex search for prices in HTML - Enhanced for maximum numbers
+    console.log(`💰 Method 1: Maximum number detection system`);
+    const priceMatches = html.match(/(\d{1,10}(?:[.,]\d{3})*(?:[.,]\d{1,3})?)\s*(?:TL|₺|Türk\s*Lirası)/gi);
     if (priceMatches && priceMatches.length > 0) {
       console.log(`Found ${priceMatches.length} price matches:`, priceMatches.slice(0, 5));
       
@@ -65,7 +65,7 @@ export async function extractTrendyolPrice(url: string): Promise<{price: number,
         const parsedPrice = parseFloat(cleanPrice.replace(/[^\d.]/g, ''));
         console.log(`💰 Final parsed price: ${parsedPrice}`);
         return parsedPrice;
-      }).filter(p => p > 0 && p < 1000000); // Extended range for all products including luxury items
+      }).filter(p => p > 0 && p < 10000000); // Maximum range for all possible products including real estate
       
       if (prices.length > 0) {
         // Take the most common price or median price
@@ -93,7 +93,7 @@ export async function extractTrendyolPrice(url: string): Promise<{price: number,
             for (const [key, value] of Object.entries(obj)) {
               const currentPath = path ? `${path}.${key}` : key;
               
-              if (typeof value === 'number' && value > 0 && value < 1000000) {
+              if (typeof value === 'number' && value > 0 && value < 10000000) {
                 if (key.toLowerCase().includes('price') || key.toLowerCase().includes('fiyat')) {
                   console.log(`💰 Found price at ${currentPath}: ${value}`);
                   return value;
@@ -176,9 +176,9 @@ export async function extractTrendyolPrice(url: string): Promise<{price: number,
     
     // Method 3: Aggressive number extraction if previous methods failed
     if (price === 0) {
-      console.log(`💰 Method 3: Aggressive number extraction`);
-      // Extract all numbers with Turkish formatting from entire HTML
-      const allNumbers = html.match(/\d{1,6}(?:[.,]\d{3})*(?:[.,]\d{1,2})?/g);
+      console.log(`💰 Method 3: Maximum aggressive number extraction`);
+      // Extract all numbers with Turkish formatting from entire HTML - Enhanced for maximum values
+      const allNumbers = html.match(/\d{1,10}(?:[.,]\d{3})*(?:[.,]\d{1,3})?/g);
       if (allNumbers && allNumbers.length > 0) {
         console.log(`Found ${allNumbers.length} potential numbers:`, allNumbers.slice(0, 10));
         
@@ -186,20 +186,35 @@ export async function extractTrendyolPrice(url: string): Promise<{price: number,
           let cleanNum = num;
           console.log(`🔍 Processing candidate: "${cleanNum}"`);
           
+          // Advanced Turkish number format processing
           if (cleanNum.includes('.') && cleanNum.includes(',')) {
+            // Format: 1.234.567,89 or 2.500.000,00
             cleanNum = cleanNum.replace(/\./g, '').replace(',', '.');
+            console.log(`📊 Complex Turkish format: ${cleanNum}`);
           } else if (cleanNum.includes('.') && !cleanNum.includes(',')) {
             const parts = cleanNum.split('.');
             if (parts.length === 2 && parts[1].length === 3) {
+              // Format: 14.681 (thousands separator)
               cleanNum = cleanNum.replace(/\./g, '');
+              console.log(`📊 Thousands separator format: ${cleanNum}`);
+            } else if (parts.length === 3 && parts[1].length === 3 && parts[2].length === 3) {
+              // Format: 2.500.000 (millions)
+              cleanNum = cleanNum.replace(/\./g, '');
+              console.log(`📊 Millions format: ${cleanNum}`);
+            } else if (parts.length === 4 && parts[1].length === 3 && parts[2].length === 3 && parts[3].length === 3) {
+              // Format: 1.000.000.000 (billions)
+              cleanNum = cleanNum.replace(/\./g, '');
+              console.log(`📊 Billions format: ${cleanNum}`);
             }
           } else if (cleanNum.includes(',')) {
+            // Format: 639,99 (decimal comma)
             cleanNum = cleanNum.replace(',', '.');
+            console.log(`📊 Comma decimal format: ${cleanNum}`);
           }
           
           const parsed = parseFloat(cleanNum.replace(/[^\d.]/g, ''));
           return parsed;
-        }).filter(p => p >= 10 && p < 1000000); // Reasonable product price range
+        }).filter(p => p >= 10 && p < 10000000); // Maximum product price range including real estate
         
         if (candidatePrices.length > 0) {
           // Take median price from candidates
