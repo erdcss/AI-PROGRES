@@ -281,3 +281,6 @@ Successfully added Shopify API upload button next to CSV download button:
 - **Error Handling**: Comprehensive error management and user notifications
 - **Telegram Notifications**: Automatic notifications sent when products are uploaded
 - **Complete Workflow**: Extract product → Download CSV OR Upload to Shopify directly
+- **Live Test Success**: Biodermine product successfully uploaded (ID: 7692939427888)
+- **Price Calculation**: 395 TL → 454,25 TL (15% profit margin applied)
+- **Feature Integration**: Product features, images, and variants properly transferred

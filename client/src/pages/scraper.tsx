@@ -525,6 +525,20 @@ function ScraperPage({ platform = 'trendyol' }: ScraperPageProps) {
       document.body.removeChild(a);
       window.URL.revokeObjectURL(url);
       
+      // Telegram bildirimi gönder
+      const productData = result?.productInfo || result;
+      if (productData) {
+        try {
+          await fetch('/api/telegram/csv-download-notification', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ productData })
+          });
+        } catch (telegramError) {
+          console.warn('Telegram bildirimi gönderilemedi:', telegramError);
+        }
+      }
+      
       toast({
         title: "CSV başarıyla indirildi",
         description: `${filename} Shopify formatında hazır`

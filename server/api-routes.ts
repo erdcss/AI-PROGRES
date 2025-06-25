@@ -302,7 +302,7 @@ router.post('/api/shopify/add-product', async (req, res) => {
         const profitPercentage = productData.price?.original ? ((profitAmount / productData.price.original) * 100).toFixed(1) : '15.0';
         
         const message = 
-          `🆕 <b>YENİ ÜRÜN YÜKLENDİ</b>\n\n` +
+          `🛒 <b>SHOPIFY'A YÜKLENDİ</b>\n\n` +
           `📦 <b>Ürün:</b> ${productData.title || 'Bilinmeyen Ürün'}\n` +
           `🏢 <b>Marka:</b> ${productData.brand || 'Bilinmeyen Marka'}\n` +
           `🌐 <b>Kaynak Site:</b> Trendyol\n` +
@@ -311,7 +311,8 @@ router.post('/api/shopify/add-product', async (req, res) => {
           `📈 <b>Kar Miktarı:</b> ${profitAmount.toFixed(2)} TL\n` +
           `📊 <b>Kar Oranı:</b> %${profitPercentage}\n\n` +
           `⚡ <b>Shopify'a başarıyla eklendi</b>\n` +
-          `🆔 <b>Product ID:</b> ${result.product.id}`;
+          `🆔 <b>Product ID:</b> ${result.product.id}\n` +
+          `🔗 <b>Admin URL:</b> kr5xdy-x7.myshopify.com/admin/products/${result.product.id}`;
         
         // Telegram bildirimi gönder (telegramIntegration kullanarak)
         const { telegramIntegration } = await import('./telegram-integration');
@@ -379,6 +380,39 @@ router.post('/api/shopify/sync-all', async (req, res) => {
       message: `${syncedCount} ürün senkronize edildi, ${errors} hata`
     });
   } catch (error) {
+    res.status(500).json({ success: false, error: error.message });
+  }
+});
+
+// CSV indirme bildirimi endpoint
+router.post('/api/telegram/csv-download-notification', async (req, res) => {
+  try {
+    const { productData } = req.body;
+    
+    if (!productData) {
+      return res.status(400).json({ success: false, error: 'Product data required' });
+    }
+    
+    const profitAmount = (productData.price?.withProfit || 0) - (productData.price?.original || 0);
+    const profitPercentage = productData.price?.original ? ((profitAmount / productData.price.original) * 100).toFixed(1) : '15.0';
+    
+    const message = 
+      `📥 <b>CSV İNDİRİLDİ</b>\n\n` +
+      `📦 <b>Ürün:</b> ${productData.title || 'Bilinmeyen Ürün'}\n` +
+      `🏢 <b>Marka:</b> ${productData.brand || 'Bilinmeyen Marka'}\n` +
+      `🌐 <b>Kaynak Site:</b> Trendyol\n` +
+      `💰 <b>Alış Fiyatı:</b> ${productData.price?.original?.toFixed(2) || '0.00'} TL\n` +
+      `💵 <b>Satış Fiyatı:</b> ${productData.price?.withProfit?.toFixed(2) || '0.00'} TL\n` +
+      `📈 <b>Kar Miktarı:</b> ${profitAmount.toFixed(2)} TL\n` +
+      `📊 <b>Kar Oranı:</b> %${profitPercentage}\n\n` +
+      `📁 <b>CSV dosyası indirildi ve Shopify yüklemesi için hazır</b>`;
+    
+    const { telegramIntegration } = await import('./telegram-integration');
+    await telegramIntegration.sendNotification(message);
+    
+    res.json({ success: true, message: 'CSV download notification sent' });
+  } catch (error) {
+    console.error('CSV download notification error:', error);
     res.status(500).json({ success: false, error: error.message });
   }
 });
