@@ -268,7 +268,7 @@ async function parseProductData(html: string, url: string): Promise<TrendyolProd
 
     // Use simple variant extraction for now
     const { extractVariantsSimple } = await import('./simple-variant-fix');
-    const variants = extractVariantsSimple(content);
+    const variants = extractVariantsSimple(html);
 
     // Extract description
     const description = $('.product-detail-description, .pr-in-dt-cn, [data-testid="description"]').first().text().trim() ||
