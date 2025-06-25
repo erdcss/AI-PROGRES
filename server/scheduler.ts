@@ -1,5 +1,7 @@
 import { sendDailyReport, generateDailyReport } from './email-service';
 import { sendDailyReportSendGrid } from './sendgrid-service';
+import { telegramIntegration } from './telegram-integration';
+import { sendTelegramZReport } from './telegram-z-report';
 
 class DailyScheduler {
   private intervalId: NodeJS.Timeout | null = null;
@@ -45,6 +47,10 @@ class DailyScheduler {
       
       if (sendGridSuccess) {
         console.log('✅ SendGrid ile günlük rapor başarıyla gönderildi');
+        
+        // Telegram Z raporu gönder
+        await sendTelegramZReport();
+        
         return true;
       } else {
         console.log('⚠️ SendGrid başarısız, Gmail alternatifi deneniyor...');
@@ -53,9 +59,25 @@ class DailyScheduler {
         
         if (gmailSuccess) {
           console.log('✅ Gmail ile günlük rapor başarıyla gönderildi');
+          
+          // Telegram Z raporu gönder
+          await sendTelegramZReport();
+          
           return true;
         } else {
           console.log('❌ Tüm email servisleri başarısız');
+          
+          // Telegram'da hata bildirimi ve yine de Z raporu dene
+          await sendTelegramZReport();
+          await telegramIntegration.sendNotification(
+            '⚠️ EMAIL SERVİSİ HATASI\n\n' +
+            `📧 Hedef: ${this.reportEmail}\n` +
+            `🕰️ Zaman: ${new Date().toLocaleString('tr-TR')}\n` +
+            '❌ Email gönderilemedi\n' +
+            '✅ Telegram raporu gönderildi\n\n' +
+            '🔧 Email ayarlarını kontrol edin'
+          );
+          
           return false;
         }
       }
@@ -71,6 +93,18 @@ class DailyScheduler {
     try {
       const reportData = await generateDailyReport();
       const success = await sendDailyReport(reportData, this.reportEmail);
+      
+      // Test Telegram bildirimi
+      if (success) {
+        await telegramIntegration.sendNotification(
+          '🧪 TEST Z RAPORU\n\n' +
+          `📧 Email: ${this.reportEmail}\n` +
+          `🕰️ Test Zamanı: ${new Date().toLocaleString('tr-TR')}\n` +
+          '✅ Test raporu başarıyla gönderildi\n\n' +
+          '📋 Bu bir test mesajıdır. Günlük raporlar 23:30\'da otomatik gönderilecek.'
+        );
+      }
+      
       console.log(`Test report result: ${success ? 'SUCCESS' : 'FAILED'}`);
       return success;
     } catch (error) {

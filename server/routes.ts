@@ -2333,10 +2333,6 @@ export function registerRoutes(app: Express): Server {
         message: 'Test email gönderilemedi' 
       });
     }
-  });ccess: false, 
-        message: 'Test raporu hatası: ' + error.message 
-      });
-    }
   });
 
   app.post('/api/email/set-recipient', async (req, res) => {
