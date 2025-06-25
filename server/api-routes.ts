@@ -420,4 +420,35 @@ router.post('/api/telegram/csv-download-notification', async (req, res) => {
   }
 });
 
+// Manual Telegram price change test endpoint
+router.post('/api/telegram/manual-price-test', async (req, res) => {
+  try {
+    const { productName, oldPrice, newPrice } = req.body;
+    
+    if (!productName || !oldPrice || !newPrice) {
+      return res.status(400).json({ success: false, error: 'Missing required fields' });
+    }
+    
+    const telegramModule = await import('./telegram-integration');
+    const telegramIntegration = telegramModule.telegramIntegration || telegramModule.default;
+    
+    await telegramIntegration.sendPriceChangeNotification(productName, oldPrice, newPrice);
+    
+    res.json({ 
+      success: true, 
+      message: 'Price change notification sent',
+      change: {
+        product: productName,
+        oldPrice,
+        newPrice,
+        difference: newPrice - oldPrice,
+        percentage: ((newPrice - oldPrice) / oldPrice * 100).toFixed(2)
+      }
+    });
+  } catch (error) {
+    console.error('Manual price test error:', error);
+    res.status(500).json({ success: false, error: error.message });
+  }
+});
+
 export default router;
