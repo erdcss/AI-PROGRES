@@ -746,4 +746,65 @@ router.post('/api/scheduler/execute/:taskName', async (req, res) => {
   }
 });
 
+// Scheduler API endpoints
+router.get('/api/scheduler/status', (req, res) => {
+  res.json({
+    success: true,
+    data: {
+      totalTasks: 3,
+      activeTasks: 3,
+      status: [
+        {
+          name: 'daily-monitoring',
+          description: 'Ürün fiyatları ve stok durumlarını kontrol eder',
+          time: '12:00',
+          isActive: true,
+          nextRun: 'Yarın 12:00'
+        },
+        {
+          name: 'daily-summary',
+          description: 'Günlük Z raporu hazırlar ve Telegram\'a gönderir',
+          time: '23:00',
+          isActive: true,
+          nextRun: 'Bu gün 23:00'
+        },
+        {
+          name: 'health-check',
+          description: 'Sistem bileşenlerinin sağlığını kontrol eder',
+          time: '06:00',
+          isActive: true,
+          nextRun: 'Yarın 06:00'
+        }
+      ]
+    }
+  });
+});
+
+router.post('/api/scheduler/execute/:taskName', async (req, res) => {
+  try {
+    const { taskName } = req.params;
+    
+    // Import and execute task manually
+    const { executeTaskManually } = await import('./simple-scheduler');
+    const result = await executeTaskManually(taskName);
+    
+    if (result) {
+      res.json({
+        success: true,
+        message: `${taskName} görevi başarıyla çalıştırıldı`
+      });
+    } else {
+      res.status(400).json({
+        success: false,
+        message: `${taskName} görevi çalıştırılamadı`
+      });
+    }
+  } catch (error) {
+    res.status(500).json({
+      success: false,
+      message: 'Görev çalıştırılırken hata oluştu'
+    });
+  }
+});
+
 export default router;
