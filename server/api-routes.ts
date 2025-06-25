@@ -293,37 +293,32 @@ router.post('/api/shopify/add-product', async (req, res) => {
       console.log('✅ Shopify product created:', result.product.id);
       
       // Telegram bildirimi gönder
-      try {
-        const TelegramBot = require('node-telegram-bot-api');
-        const token = '7687164814:AAGw-Z0yBYuyfbkA-4bIWhJg_WxxWj14hxk';
-        const bot = new TelegramBot(token, { polling: false });
-        
-        const profitAmount = (productData.price?.withProfit || 0) - (productData.price?.original || 0);
-        const profitPercentage = productData.price?.original ? ((profitAmount / productData.price.original) * 100).toFixed(1) : '15.0';
-        
-        const message = 
-          `🛒 <b>SHOPIFY'A YÜKLENDİ</b>\n\n` +
-          `📦 <b>Ürün:</b> ${productData.title || 'Bilinmeyen Ürün'}\n` +
-          `🏢 <b>Marka:</b> ${productData.brand || 'Bilinmeyen Marka'}\n` +
-          `🌐 <b>Kaynak Site:</b> Trendyol\n` +
-          `💰 <b>Alış Fiyatı:</b> ${productData.price?.original?.toFixed(2) || '0.00'} TL\n` +
-          `💵 <b>Satış Fiyatı:</b> ${productData.price?.withProfit?.toFixed(2) || '0.00'} TL\n` +
-          `📈 <b>Kar Miktarı:</b> ${profitAmount.toFixed(2)} TL\n` +
-          `📊 <b>Kar Oranı:</b> %${profitPercentage}\n\n` +
-          `⚡ <b>Shopify'a başarıyla eklendi</b>\n` +
-          `🆔 <b>Product ID:</b> ${result.product.id}\n` +
-          `🔗 <b>Admin URL:</b> kr5xdy-x7.myshopify.com/admin/products/${result.product.id}`;
-        
-        // Telegram bildirimi gönder
-        try {
-          const telegramModule = await import('./telegram-integration');
-          const telegramIntegration = telegramModule.telegramIntegration || telegramModule.default;
-          await telegramIntegration.sendNotification(message);
-          console.log('✅ Telegram notification sent successfully');
-        } catch (telegramError) {
-          console.error('Telegram notification error details:', telegramError);
-        }
+      const profitAmount = (productData.price?.withProfit || 0) - (productData.price?.original || 0);
+      const profitPercentage = productData.price?.original ? ((profitAmount / productData.price.original) * 100).toFixed(1) : '15.0';
       
+      const message = 
+        `🛒 <b>SHOPIFY'A YÜKLENDİ</b>\n\n` +
+        `📦 <b>Ürün:</b> ${productData.title || 'Bilinmeyen Ürün'}\n` +
+        `🏢 <b>Marka:</b> ${productData.brand || 'Bilinmeyen Marka'}\n` +
+        `🌐 <b>Kaynak Site:</b> Trendyol\n` +
+        `💰 <b>Alış Fiyatı:</b> ${productData.price?.original?.toFixed(2) || '0.00'} TL\n` +
+        `💵 <b>Satış Fiyatı:</b> ${productData.price?.withProfit?.toFixed(2) || '0.00'} TL\n` +
+        `📈 <b>Kar Miktarı:</b> ${profitAmount.toFixed(2)} TL\n` +
+        `📊 <b>Kar Oranı:</b> %${profitPercentage}\n\n` +
+        `⚡ <b>Shopify'a başarıyla eklendi</b>\n` +
+        `🆔 <b>Product ID:</b> ${result.product.id}\n` +
+        `🔗 <b>Admin URL:</b> kr5xdy-x7.myshopify.com/admin/products/${result.product.id}`;
+      
+      // Telegram bildirimi gönder
+      try {
+        const telegramModule = await import('./telegram-integration');
+        const telegramIntegration = telegramModule.telegramIntegration || telegramModule.default;
+        await telegramIntegration.sendNotification(message);
+        console.log('✅ Telegram notification sent successfully');
+      } catch (telegramError) {
+        console.error('Telegram notification error details:', telegramError);
+      }
+    
       res.json({
         success: true,
         shopifyProductId: result.product.id,
