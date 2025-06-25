@@ -122,48 +122,23 @@ export async function simpleTrendyolScrape(url: string): Promise<SimpleTrendyolD
     
     console.log(`📋 Extracted ${features.length} features`);
     
-    // Variant extraction
-    const variants: Array<{color: string, size: string, inStock: boolean}> = [];
+    // Gerçek varyant algılama
+    let variants: Array<{color: string, size: string, inStock: boolean}> = [];
     
     try {
-      // Simple variant detection
-      const colors = ['Siyah', 'Beyaz', 'Mavi', 'Kırmızı', 'Yeşil', 'Sarı', 'Mor', 'Gri', 'Lacivert'];
-      const sizes = ['XS', 'S', 'M', 'L', 'XL', 'XXL', '36', '37', '38', '39', '40', '41', '42', '43', '44'];
+      const { detectProductVariants } = await import('./simple-variant-detector');
+      const variantResult = detectProductVariants(html);
       
-      let foundColors: string[] = [];
-      let foundSizes: string[] = [];
-      
-      // Look for colors and sizes in HTML
-      const lowerHtml = html.toLowerCase();
-      colors.forEach(color => {
-        if (lowerHtml.includes(color.toLowerCase())) {
-          foundColors.push(color);
-        }
-      });
-      
-      sizes.forEach(size => {
-        if (lowerHtml.includes(size.toLowerCase())) {
-          foundSizes.push(size);
-        }
-      });
-      
-      if (foundColors.length === 0) foundColors = ['Standart'];
-      if (foundSizes.length === 0) foundSizes = ['Standart'];
-      
-      // Create variants
-      foundColors.forEach(color => {
-        foundSizes.forEach(size => {
-          variants.push({
-            color,
-            size,
-            inStock: true
-          });
-        });
-      });
-      
-    } catch (e) {
-      console.log(`⚠️ Variant extraction error: ${e.message}`);
-      variants.push({ color: 'Standart', size: 'Standart', inStock: true });
+      if (variantResult.hasVariants) {
+        variants = variantResult.variants;
+        console.log(`✅ Gerçek varyantlar algılandı: ${variants.length} varyant`);
+      } else {
+        console.log('🚫 Üründe gerçek varyant seçenekleri yok, varyant oluşturulmayacak');
+        variants = []; // Boş array döndür
+      }
+    } catch (e: any) {
+      console.log(`⚠️ Varyant algılama hatası: ${e.message}`);
+      variants = []; // Hata durumunda boş array
     }
     
     console.log(`👕 Created ${variants.length} variants`);
