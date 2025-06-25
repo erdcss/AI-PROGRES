@@ -804,4 +804,143 @@ router.post('/api/scheduler/execute/:taskName', async (req, res) => {
   }
 });
 
+// Memory Management API Endpoints
+// Hafızadaki tüm ürünleri temizle
+router.post('/api/memory/clear-all', async (req, res) => {
+  try {
+    const db = (await import('./db')).db;
+    const { products, productVariants, priceHistory, stockHistory, shopifySyncLogs, monitoringSchedules } = await import('@shared/schema');
+    
+    // Tüm tabloları temizle (foreign key kısıtlamaları nedeniyle sırayla)
+    await db.delete(priceHistory);
+    await db.delete(stockHistory); 
+    await db.delete(shopifySyncLogs);
+    await db.delete(monitoringSchedules);
+    await db.delete(productVariants);
+    await db.delete(products);
+    
+    console.log('🗑️ Hafızadaki tüm ürünler temizlendi');
+    
+    // Telegram bildirimi gönder
+    try {
+      const telegramModule = await import('./telegram-integration');
+      const telegramIntegration = telegramModule.telegramIntegration || telegramModule.default;
+      await telegramIntegration.sendNotification(
+        `🗑️ <b>HAFIZA TEMİZLENDİ</b>\n\n` +
+        `✅ Tüm ürünler hafızadan silindi\n` +
+        `📊 Sistem yeni ürün transferleri için hazır\n\n` +
+        `📝 <i>Artık başarılı veri aktarımları otomatik olarak hafızaya eklenecek</i>`
+      );
+    } catch (telegramError) {
+      console.error('Telegram bildirim hatası:', telegramError);
+    }
+    
+    res.json({ 
+      success: true, 
+      message: 'Hafızadaki tüm ürünler başarıyla temizlendi'
+    });
+  } catch (error) {
+    console.error('Hafıza temizleme hatası:', error);
+    res.status(500).json({ 
+      success: false, 
+      error: 'Hafıza temizlenirken hata oluştu: ' + error.message 
+    });
+  }
+});
+
+// Başarılı transfer sonrası ürünü hafızaya ekle
+router.post('/api/memory/add-product', async (req, res) => {
+  try {
+    const { productData, transferType } = req.body; // transferType: 'csv' veya 'shopify'
+    
+    if (!productData || !transferType) {
+      return res.status(400).json({ 
+        success: false, 
+        error: 'Product data ve transfer type gerekli' 
+      });
+    }
+    
+    const db = (await import('./db')).db;
+    const { products, productVariants, insertProductSchema, insertProductVariantSchema } = await import('@shared/schema');
+    
+    // Ürün verisini veritabanı formatına dönüştür
+    const productToInsert = {
+      trendyolUrl: productData.url || '',
+      trendyolProductId: productData.productId || '',
+      shopifyProductId: productData.shopifyProductId || null,
+      title: productData.title || '',
+      brand: productData.brand || '',
+      description: productData.description || '',
+      category: productData.category || '',
+      images: productData.images || [],
+      features: productData.features || {},
+      colorOptions: productData.variants?.map(v => v.color).filter(Boolean) || [],
+      sizeOptions: productData.variants?.map(v => v.size).filter(Boolean) || [],
+      isActive: true,
+      profitMargin: '15.00',
+      syncStatus: transferType === 'shopify' ? 'synced' : 'pending'
+    };
+    
+    // Ürünü veritabanına ekle
+    const [insertedProduct] = await db.insert(products).values(productToInsert).returning();
+    
+    // Varyantları ekle
+    if (productData.variants && productData.variants.length > 0) {
+      for (const variant of productData.variants) {
+        const variantToInsert = {
+          productId: insertedProduct.id,
+          shopifyVariantId: variant.shopifyVariantId || null,
+          color: variant.color || 'Varsayılan',
+          size: variant.size || 'Tek Beden',
+          sku: variant.sku || '',
+          trendyolPrice: variant.originalPrice || 0,
+          shopifyPrice: variant.salePrice || 0,
+          stockCount: variant.stock || 0,
+          inStock: (variant.stock || 0) > 0
+        };
+        
+        await db.insert(productVariants).values(variantToInsert);
+      }
+    }
+    
+    console.log(`✅ Ürün hafızaya eklendi: ${productData.title} (${transferType})`);
+    
+    // Telegram bildirimi gönder
+    try {
+      const telegramModule = await import('./telegram-integration');
+      const telegramIntegration = telegramModule.telegramIntegration || telegramModule.default;
+      
+      const transferTypeText = transferType === 'csv' ? 'CSV İNDİRİLDİ' : 'SHOPIFY YÜKLEME';
+      const profitAmount = (productData.price?.withProfit || 0) - (productData.price?.original || 0);
+      
+      await telegramIntegration.sendNotification(
+        `💾 <b>${transferTypeText} - HAFIZAYA EKLENDİ</b>\n\n` +
+        `📦 <b>Ürün:</b> ${productData.title}\n` +
+        `🏢 <b>Marka:</b> ${productData.brand}\n` +
+        `💰 <b>Alış:</b> ${productData.price?.original?.toFixed(2)} TL\n` +
+        `💵 <b>Satış:</b> ${productData.price?.withProfit?.toFixed(2)} TL\n` +
+        `📈 <b>Kar:</b> ${profitAmount.toFixed(2)} TL\n` +
+        `📊 <b>Varyant:</b> ${productData.variants?.length || 0} adet\n\n` +
+        `🔍 <b>Artık bu ürün anlık takip edilecek!</b>\n` +
+        `📱 Ürün analiz sayfasında değişimleri izleyebilirsiniz`
+      );
+    } catch (telegramError) {
+      console.error('Telegram bildirim hatası:', telegramError);
+    }
+    
+    res.json({ 
+      success: true, 
+      message: 'Ürün başarıyla hafızaya eklendi',
+      productId: insertedProduct.id,
+      transferType
+    });
+  } catch (error) {
+    console.error('Hafızaya ürün ekleme hatası:', error);
+    res.status(500).json({ 
+      success: false, 
+      error: 'Ürün hafızaya eklenirken hata oluştu: ' + error.message 
+    });
+  }
+});
+
 export default router;
