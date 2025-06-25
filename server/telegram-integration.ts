@@ -17,6 +17,8 @@ export class TelegramIntegration {
       console.log('Telegram bot token not found');
       return;
     }
+    
+    console.log('Initializing Telegram bot with new token...');
 
     try {
       // Çakışmayı önlemek için önceki instance'ları temizle
