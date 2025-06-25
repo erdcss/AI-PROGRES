@@ -17,6 +17,7 @@ import { getFinalImages } from "./final-image-solution";
 import { extractVariantStockInfo } from "./advanced-size-extractor";
 import { extractFocusedData } from './focused-extractor';
 import { dailyScheduler } from './scheduler';
+import dataAnalysisRoutes from './data-analysis-routes';
 
 function generateSingleProductShopifyCSV(product: any): string {
   // HEADERS - Şablonunuza tam uygun
