@@ -1619,6 +1619,19 @@ export function registerRoutes(app: Express): Server {
       });
       
       if (result.success) {
+        // Telegram bildirimi gönder
+        try {
+          const { sendCSVUploadNotification } = await import('./csv-telegram-notifier');
+          await sendCSVUploadNotification({
+            totalProducts: result.totalProducts,
+            totalVariants: result.totalVariants,
+            filename: result.filename,
+            uploadedToShopify: false
+          });
+        } catch (telegramError) {
+          console.error('CSV Telegram bildirimi başarısız:', telegramError);
+        }
+        
         res.json({
           success: true,
           message: `${result.totalProducts} ürün başarıyla işlendi`,

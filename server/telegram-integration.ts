@@ -19,10 +19,23 @@ export class TelegramIntegration {
     }
 
     try {
-      this.bot = new TelegramBot(token, { polling: true });
+      // Çakışmayı önlemek için önceki instance'ları temizle
+      if (this.bot) {
+        this.bot.stopPolling();
+      }
+      
+      this.bot = new TelegramBot(token, { 
+        polling: {
+          interval: 3000,
+          autoStart: false
+        }
+      });
       this.setupEventHandlers();
+      
+      // Telegram bot'u direkt başlat
       this.isConnected = true;
       console.log('Telegram bot initialized with user token');
+      
     } catch (error) {
       console.error('Failed to initialize Telegram bot:', error);
     }
@@ -103,6 +116,17 @@ export class TelegramIntegration {
     });
 
     console.log('Telegram event handlers set up');
+  }
+
+  private restartBot() {
+    if (this.bot) {
+      this.bot.stopPolling();
+      setTimeout(() => {
+        if (this.bot) {
+          this.bot.startPolling({ restart: true });
+        }
+      }, 3000);
+    }
   }
 
   // Send stock out notification

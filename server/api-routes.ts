@@ -313,8 +313,9 @@ router.post('/api/shopify/add-product', async (req, res) => {
           `⚡ <b>Shopify'a başarıyla eklendi</b>\n` +
           `🆔 <b>Product ID:</b> ${result.product.id}`;
         
-        // Send to chat ID 1219880063 (user who sent /start)
-        await bot.sendMessage(1219880063, message, { parse_mode: 'HTML' });
+        // Telegram bildirimi gönder (telegramIntegration kullanarak)
+        const { telegramIntegration } = await import('./telegram-integration');
+        await telegramIntegration.sendNotification(message);
         console.log('✅ Telegram notification sent successfully');
       } catch (telegramError) {
         console.error('Telegram notification failed:', telegramError.message);
