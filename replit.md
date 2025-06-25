@@ -608,6 +608,36 @@ Successfully implemented advanced targeted attribute extraction system with comp
 
 **Status**: ADVANCED FEATURE EXTRACTION OPERATIONAL - System now captures 17-24+ authentic Turkish product specifications per product with comprehensive JSON parsing (June 25, 2025)
 
+## Dynamic Product Category Detection System (COMPLETED - June 25, 2025)
+
+Successfully resolved hardcoded "Çay & Gıda" category issue with intelligent dynamic categorization:
+
+**Problem Solved:**
+- System was assigning all products to fixed "Çay & Gıda" (Tea & Food) category regardless of actual product type
+- Users receiving incorrect product organization categories in CSV exports and Shopify uploads
+- Need for intelligent category detection based on actual product content
+
+**Solution Implemented:**
+- **Dynamic Category Function**: Created comprehensive `determineProductCategory()` function in api-routes.ts
+- **Smart Analysis**: Analyzes product title, features, and attributes to determine correct category
+- **Comprehensive Mapping**: Supports clothing, electronics, home goods, cosmetics, food, sports, books categories
+- **Feature-Based Detection**: Uses extracted product attributes like "Kalıp", "Kol Tipi", "Yaka Tipi" for clothing categorization
+
+**Category Detection Logic:**
+- **Clothing**: Blazer → "Giyim > Kadın > Ceket & Mont", Pajama → "Giyim > Kadın > İç Giyim & Pijama"
+- **Home**: Furniture → "Ev & Yaşam > Mobilya", Bedding → "Ev & Yaşam > Yatak Odası"
+- **Electronics**: Phone → "Elektronik > Telefon & Aksesuar", Computer → "Elektronik > Bilgisayar"
+- **Food**: Tea → "Gıda & İçecek > İçecek > Çay & Kahve", General food → "Gıda & İçecek > Temel Gıda"
+- **Beauty**: Cosmetics → "Kozmetik & Kişisel Bakım > Makyaj", Skincare → "Kozmetik & Kişisel Bakım > Cilt Bakımı"
+
+**Live Test Results (June 25, 2025):**
+- **Blazer Product**: Correctly categorized as "Giyim > Kadın > Ceket & Mont" (Shopify ID: 7693270679600)
+- **Pajama Product**: Correctly categorized as "Giyim > Kadın > İç Giyim & Pijama" (Shopify ID: 7693270908976)
+- **System Performance**: Dynamic detection working across different product categories
+- **Telegram Notifications**: Successful upload confirmations sent for both test products
+
+**Status**: DYNAMIC CATEGORY DETECTION OPERATIONAL - System now intelligently categorizes all products based on actual content instead of using hardcoded "Çay & Gıda" (June 25, 2025)
+
 ## Shopify API "product_tags is invalid" Error - RESOLVED (June 25, 2025)
 
 Successfully fixed critical Shopify API error that was preventing product uploads:
