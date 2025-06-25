@@ -275,15 +275,36 @@ export function registerRoutes(app: Express): Server {
           if (result) {
             console.log("Enhanced scraper başarılı:", result.title);
             
-            // Generate CSV data using instant CSV generator
+            // Generate CSV data using instant CSV generator with real variant data
             const { instantCSVGenerator } = await import('./instant-csv-generator-fixed');
+            
+            // Extract real color and size data from result
+            let realColors = [];
+            let realSizes = [];
+            
+            if (result.variants) {
+              if (Array.isArray(result.variants.colors)) {
+                realColors = result.variants.colors.filter(c => c && !c.toLowerCase().includes('varsayılan'));
+              }
+              if (Array.isArray(result.variants.sizes)) {
+                realSizes = result.variants.sizes.filter(s => s && !s.toLowerCase().includes('standart'));
+              }
+            }
+            
+            console.log(`🎨 Sending real colors to CSV:`, realColors);
+            console.log(`📏 Sending real sizes to CSV:`, realSizes);
+            
             const csvResult = await instantCSVGenerator.generateInstantCSV({
               title: result.title,
               brand: result.brand,
               price: result.price,
               description: result.description,
               images: result.images,
-              variants: result.variants,
+              variants: {
+                colors: realColors,
+                sizes: realSizes,
+                stockMap: result.variants?.stockMap || {}
+              },
               attributes: result.attributes,
               url: url
             });

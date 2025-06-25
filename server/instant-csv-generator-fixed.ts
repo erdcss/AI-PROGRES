@@ -211,41 +211,76 @@ class InstantCSVGenerator {
         }).join(','));
         
       } else {
-        // Create variants for actual combinations
+        // Create variants for actual combinations - using real color names
         console.log(`📦 Creating variants: ${hasColorVariants ? realColors.length + ' colors' : 'single color'} × ${hasSizeVariants ? realSizes.length + ' sizes' : 'single size'}`);
+        console.log(`🎨 Real colors found:`, realColors);
+        console.log(`📏 Real sizes found:`, realSizes);
         
         let variantCount = 0;
-        const colorsToProcess = hasColorVariants ? realColors : [''];
-        const sizesToProcess = hasSizeVariants ? realSizes : [''];
+        const colorsToProcess = hasColorVariants ? realColors : [];
+        const sizesToProcess = hasSizeVariants ? realSizes : [];
         
-        for (const color of colorsToProcess) {
-          for (const size of sizesToProcess) {
-            variantCount++;
-            const isMainVariant = variantCount === 1;
-            
-            let option1Name, option1Value, option2Name, option2Value;
-            
-            if (hasColorVariants && hasSizeVariants) {
-              option1Name = 'Color';
-              option1Value = color;
-              option2Name = 'Size';
-              option2Value = size;
-            } else if (hasColorVariants) {
-              option1Name = 'Color';
-              option1Value = color;
-              option2Name = '';
-              option2Value = '';
-            } else if (hasSizeVariants) {
-              option1Name = 'Size';
-              option1Value = size;
-              option2Name = '';
-              option2Value = '';
-            } else {
-              option1Name = 'Title';
-              option1Value = 'Default Title';
-              option2Name = '';
-              option2Value = '';
+        // If no real variants, create single product without options
+        if (!hasColorVariants && !hasSizeVariants) {
+          const row = [
+            handle,
+            productTitle,
+            bodyHtml,
+            brand,
+            'Giyim',
+            tags,
+            'TRUE',
+            '', // Empty option1_name
+            '', // Empty option1_value
+            '', // Empty option2_name
+            '', // Empty option2_value
+            `${handle}-default`,
+            inventory,
+            priceWithProfit,
+            '',
+            originalPrice,
+            product.images.length > 0 ? product.images[0] : '',
+            'g',
+            ''
+          ];
+          
+          csvRows.push(row.map(cell => {
+            const cellStr = String(cell || '');
+            if (cellStr.includes(',') || cellStr.includes('"') || cellStr.includes('\n')) {
+              return `"${cellStr.replace(/"/g, '""')}"`;
             }
+            return cellStr;
+          }).join(','));
+        } else {
+          // Create real variants
+          for (const color of (colorsToProcess.length > 0 ? colorsToProcess : [''])) {
+            for (const size of (sizesToProcess.length > 0 ? sizesToProcess : [''])) {
+              variantCount++;
+              const isMainVariant = variantCount === 1;
+              
+              let option1Name, option1Value, option2Name, option2Value;
+              
+              if (hasColorVariants && hasSizeVariants) {
+                option1Name = 'Renk';
+                option1Value = color;
+                option2Name = 'Beden';
+                option2Value = size;
+              } else if (hasColorVariants) {
+                option1Name = 'Renk';
+                option1Value = color;
+                option2Name = '';
+                option2Value = '';
+              } else if (hasSizeVariants) {
+                option1Name = 'Beden';
+                option1Value = size;
+                option2Name = '';
+                option2Value = '';
+              } else {
+                option1Name = '';
+                option1Value = '';
+                option2Name = '';
+                option2Value = '';
+              }
             
             // Use variant-specific pricing if available
             let variantPrice = priceWithMargin;
@@ -308,6 +343,17 @@ class InstantCSVGenerator {
               }
               return cellStr;
             }).join(','));
+          }
+        }
+      }
+      
+      const csvContent = csvRows.join('\n');
+      fs.writeFileSync(outputPath, csvContent, 'utf-8');
+      
+      console.log(`✅ CSV created: ${outputPath} (${csvRows.length} rows)`);
+      
+              }
+            }
           }
         }
       }
