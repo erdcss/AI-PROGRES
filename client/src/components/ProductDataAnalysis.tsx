@@ -92,7 +92,7 @@ export const ProductDataAnalysis: React.FC = () => {
   ]);
   const [newMessage, setNewMessage] = useState('');
   const [isTyping, setIsTyping] = useState(false);
-  const [isClearingMemory, setIsClearingMemory] = useState(false);
+  const [timeToNext, setTimeToNext] = useState('');
 
   // Fetch memory statistics
   const { data: memoryStats } = useQuery<MemoryStats>({
@@ -123,6 +123,36 @@ export const ProductDataAnalysis: React.FC = () => {
     queryKey: ['/api/scheduler/status'],
     refetchInterval: 30000, // Refresh every 30 seconds
   });
+  
+  // Live countdown for next scheduled task
+  useEffect(() => {
+    const updateCountdown = () => {
+      if (!scheduledTasks || scheduledTasks.length === 0) return;
+      
+      const now = new Date();
+      const nextTask = scheduledTasks
+        .filter(task => task.isActive)
+        .sort((a, b) => new Date(a.nextRun).getTime() - new Date(b.nextRun).getTime())[0];
+      
+      if (nextTask) {
+        const nextRunTime = new Date(nextTask.nextRun);
+        const diff = nextRunTime.getTime() - now.getTime();
+        
+        if (diff > 0) {
+          const hours = Math.floor(diff / (1000 * 60 * 60));
+          const minutes = Math.floor((diff % (1000 * 60 * 60)) / (1000 * 60));
+          const seconds = Math.floor((diff % (1000 * 60)) / 1000);
+          setTimeToNext(`${hours}s ${minutes}d ${seconds}sn`);
+        } else {
+          setTimeToNext('Çalışıyor...');
+        }
+      }
+    };
+    
+    updateCountdown();
+    const interval = setInterval(updateCountdown, 1000);
+    return () => clearInterval(interval);
+  }, [scheduledTasks]);
 
   // Use real data from API
   const dailyOperations: DailyOperation[] = dailyOpsData?.operations || [];
@@ -281,25 +311,11 @@ export const ProductDataAnalysis: React.FC = () => {
           Gerçek zamanlı ürün takibi, AI destekli analiz ve otomatik Shopify senkronizasyonu
         </p>
         
-        {/* Memory Management Actions */}
+        {/* Product Changes Count */}
         <div className="flex justify-center gap-4 mt-4">
-          <Button
-            onClick={handleClearMemory}
-            disabled={isClearingMemory}
-            variant="destructive"
-            className="bg-red-600/80 hover:bg-red-700 text-white border border-red-500/50 backdrop-blur-sm"
-          >
-            {isClearingMemory ? (
-              <RefreshCw className="h-4 w-4 mr-2 animate-spin" />
-            ) : (
-              <Trash2 className="h-4 w-4 mr-2" />
-            )}
-            {isClearingMemory ? 'Temizleniyor...' : 'Hafızayı Temizle'}
-          </Button>
-          
           <Badge variant="secondary" className="bg-white/10 text-white border-white/20 px-4 py-2">
-            <Clock className="h-4 w-4 mr-2" />
-            Son güncelleme: {memoryStats?.lastUpdate ? new Date(memoryStats.lastUpdate).toLocaleString('tr-TR') : 'Bilinmiyor'}
+            <TrendingUp className="h-4 w-4 mr-2" />
+            Değişiklik Gözlemlenen Ürünler: {productChanges?.length || 0}
           </Badge>
         </div>
       </motion.div>
@@ -433,13 +449,86 @@ export const ProductDataAnalysis: React.FC = () => {
                 </div>
                 Zamanlı Görevler
               </CardTitle>
-              <p className="text-gray-400 text-sm">Otomatik zamanlama ve sistem görevleri</p>
+              <div className="flex items-center justify-between">
+                <p className="text-gray-400 text-sm">Otomatik zamanlama ve sistem görevleri</p>
+                {timeToNext && (
+                  <Badge variant="outline" className="bg-blue-500/20 text-blue-400 border-blue-500/30">
+                    <Clock className="h-3 w-3 mr-1" />
+                    Sonraki: {timeToNext}
+                  </Badge>
+                )}
+              </div>
             </CardHeader>
             <CardContent>
               <ScrollArea className="h-80">
                 <div className="space-y-4">
-                  {scheduledTasks && scheduledTasks.length > 0 ? scheduledTasks.map((task, index) => (
-                    <div key={index} className="p-4 rounded-xl bg-white/5 border border-white/10">
+                  {/* Fixed 3 programmed tasks */}
+                  <div className="p-4 rounded-xl bg-white/5 border border-white/10">
+                    <div className="flex items-center justify-between mb-3">
+                      <div className="flex items-center gap-3">
+                        <div className="p-2 rounded-lg bg-blue-500/20 text-blue-400">
+                          <TrendingUp className="h-4 w-4" />
+                        </div>
+                        <div>
+                          <h4 className="font-semibold text-white">Günlük Ürün İzleme</h4>
+                          <p className="text-sm text-gray-400">Fiyat ve stok değişikliklerini kontrol eder</p>
+                        </div>
+                      </div>
+                      <Badge variant="default" className="bg-green-500/20 text-green-400 border-green-500/30">
+                        Aktif
+                      </Badge>
+                    </div>
+                    <div className="flex items-center justify-between text-sm">
+                      <span className="text-gray-300">Zamanlama: Her gün 12:00</span>
+                      <span className="text-blue-400">Otomatik Shopify Sync</span>
+                    </div>
+                  </div>
+
+                  <div className="p-4 rounded-xl bg-white/5 border border-white/10">
+                    <div className="flex items-center justify-between mb-3">
+                      <div className="flex items-center gap-3">
+                        <div className="p-2 rounded-lg bg-orange-500/20 text-orange-400">
+                          <MessageSquare className="h-4 w-4" />
+                        </div>
+                        <div>
+                          <h4 className="font-semibold text-white">Z Raporu Gönderimi</h4>
+                          <p className="text-sm text-gray-400">Günlük satış ve sistem raporu</p>
+                        </div>
+                      </div>
+                      <Badge variant="default" className="bg-green-500/20 text-green-400 border-green-500/30">
+                        Aktif
+                      </Badge>
+                    </div>
+                    <div className="flex items-center justify-between text-sm">
+                      <span className="text-gray-300">Zamanlama: Her gün 23:00</span>
+                      <span className="text-orange-400">Telegram + Email</span>
+                    </div>
+                  </div>
+
+                  <div className="p-4 rounded-xl bg-white/5 border border-white/10">
+                    <div className="flex items-center justify-between mb-3">
+                      <div className="flex items-center gap-3">
+                        <div className="p-2 rounded-lg bg-purple-500/20 text-purple-400">
+                          <CheckCircle className="h-4 w-4" />
+                        </div>
+                        <div>
+                          <h4 className="font-semibold text-white">Sistem Sağlık Kontrolü</h4>
+                          <p className="text-sm text-gray-400">API bağlantıları ve sistem durumu</p>
+                        </div>
+                      </div>
+                      <Badge variant="default" className="bg-green-500/20 text-green-400 border-green-500/30">
+                        Aktif
+                      </Badge>
+                    </div>
+                    <div className="flex items-center justify-between text-sm">
+                      <span className="text-gray-300">Zamanlama: Her gün 06:00</span>
+                      <span className="text-purple-400">Telegram Bildirimi</span>
+                    </div>
+                  </div>
+
+                  {/* Dynamic tasks from API if any */}
+                  {scheduledTasks && scheduledTasks.length > 0 && scheduledTasks.map((task, index) => (
+                    <div key={index} className="p-4 rounded-xl bg-white/5 border border-white/10 opacity-75">
                       <div className="flex items-center justify-between mb-3">
                         <div className="flex items-center gap-3">
                           <div className={`p-2 rounded-lg ${
@@ -452,24 +541,16 @@ export const ProductDataAnalysis: React.FC = () => {
                             <p className="text-sm text-gray-400">{task.description}</p>
                           </div>
                         </div>
-                        <Badge variant={task.isActive ? "default" : "secondary"} className="bg-green-500/20 text-green-400 border-green-500/30">
+                        <Badge variant={task.isActive ? "default" : "secondary"} className="bg-gray-500/20 text-gray-400 border-gray-500/30">
                           {task.isActive ? 'Aktif' : 'Pasif'}
                         </Badge>
                       </div>
                       <div className="flex items-center justify-between text-sm">
                         <span className="text-gray-300">Zamanlama: {task.time}</span>
-                        <span className="text-gray-300">Sonraki Çalışma: {task.nextRun}</span>
+                        <span className="text-gray-300">Sonraki: {task.nextRun}</span>
                       </div>
                     </div>
-                  )) : (
-                    <div className="text-center py-8">
-                      <div className="w-16 h-16 mx-auto mb-4 bg-gray-500/20 rounded-full flex items-center justify-center">
-                        <Clock className="h-8 w-8 text-gray-400" />
-                      </div>
-                      <p className="text-gray-400 font-medium">Zamanlı görevler yükleniyor...</p>
-                      <p className="text-sm text-gray-500 mt-1">Sistem başlatılıyor</p>
-                    </div>
-                  )}
+                  ))}
                 </div>
               </ScrollArea>
             </CardContent>
@@ -541,14 +622,14 @@ export const ProductDataAnalysis: React.FC = () => {
                 <div className="w-10 h-10 bg-gradient-to-br from-indigo-500 to-purple-600 rounded-xl flex items-center justify-center">
                   <Package className="h-5 w-5 text-white" />
                 </div>
-                Son Eklenen Ürünler
+                Son 3 Ürün
               </CardTitle>
-              <p className="text-gray-400 text-sm">Hafızaya kaydedilen ürün listesi</p>
+              <p className="text-gray-400 text-sm">En son eklenen 3 ürün</p>
             </CardHeader>
             <CardContent>
               <ScrollArea className="h-80">
                 <div className="space-y-4">
-                  {recentProducts.length > 0 ? recentProducts.map((product) => (
+                  {recentProducts.length > 0 ? recentProducts.slice(0, 3).map((product) => (
                     <div key={product.id} className="p-4 rounded-xl bg-white/5 border border-white/10">
                       <div className="flex items-center justify-between mb-2">
                         <h4 className="font-semibold text-white truncate flex-1">{product.title}</h4>
