@@ -4,6 +4,7 @@
  */
 
 import * as cheerio from 'cheerio';
+import { extractRealSizes, type RealSizeData } from './real-size-extractor';
 
 export interface TrendyolFeature {
   key: string;
@@ -134,38 +135,20 @@ export function extractTrendyolSpecificData(html: string): TrendyolSpecificData 
     }
   });
   
-  // 3. Beden seçeneklerini ara
-  const sizePatterns = [
-    /36.*?stok/i,
-    /42.*?stok/i,
-    /(?:beden|size).*?36/i,
-    /(?:beden|size).*?42/i
-  ];
+  // 3. Gerçek beden seçeneklerini çıkar
+  console.log('🎯 Gerçek beden seçenekleri çıkarılıyor...');
+  const realSizeResult = extractRealSizes(html);
   
-  sizePatterns.forEach(pattern => {
-    const match = htmlText.match(pattern);
-    if (match) {
-      const sizeText = match[0];
-      if (sizeText.includes('36')) {
-        variants.push({ size: '36', inStock: true });
-        console.log('📏 Beden 36 stokta bulundu');
-      }
-      if (sizeText.includes('42')) {
-        variants.push({ size: '42', inStock: true });
-        console.log('📏 Beden 42 stokta bulundu');
-      }
-    }
-  });
+  // Convert to TrendyolVariant format
+  const realVariants: TrendyolVariant[] = realSizeResult.sizes.map(size => ({
+    size: size.size,
+    inStock: size.inStock
+  }));
   
-  // 4. DOM içinde beden seçici arama
-  $('button, span, div').each((i, el) => {
-    const text = $(el).text().trim();
-    if (/^(36|42)$/.test(text) && !$(el).hasClass('disabled')) {
-      const size = text;
-      if (!variants.find(v => v.size === size)) {
-        variants.push({ size, inStock: true });
-        console.log(`📏 DOM'da beden ${size} bulundu`);
-      }
+  // Combine with any existing variants
+  realVariants.forEach(realVariant => {
+    if (!variants.find(v => v.size === realVariant.size)) {
+      variants.push(realVariant);
     }
   });
   
