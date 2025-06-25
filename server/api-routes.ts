@@ -702,4 +702,48 @@ router.post('/api/telegram/manual-price-test', async (req, res) => {
   }
 });
 
+// Scheduled tasks API endpoints
+router.get('/api/scheduler/status', (req, res) => {
+  try {
+    const { getSchedulerStatus } = require('./simple-scheduler');
+    const status = getSchedulerStatus();
+    res.json({
+      success: true,
+      data: status
+    });
+  } catch (error) {
+    console.error('Scheduler status error:', error);
+    res.status(500).json({
+      success: false,
+      message: 'Zamanlı görev durumu alınamadı'
+    });
+  }
+});
+
+router.post('/api/scheduler/execute/:taskName', async (req, res) => {
+  try {
+    const { executeTaskManually } = require('./simple-scheduler');
+    const { taskName } = req.params;
+    const result = await executeTaskManually(taskName);
+    
+    if (result) {
+      res.json({
+        success: true,
+        message: `Görev başarıyla çalıştırıldı: ${taskName}`
+      });
+    } else {
+      res.status(400).json({
+        success: false,
+        message: `Görev çalıştırılamadı: ${taskName}`
+      });
+    }
+  } catch (error) {
+    console.error('Manual task execution error:', error);
+    res.status(500).json({
+      success: false,
+      message: 'Görev çalıştırılırken hata oluştu'
+    });
+  }
+});
+
 export default router;

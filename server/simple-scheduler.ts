@@ -39,8 +39,8 @@ function getMillisecondsUntilTime(timeString: string): number {
 // Send Telegram notification
 async function sendNotification(message: string): Promise<void> {
   try {
-    const telegramBot = require('./telegram-integration');
-    await telegramBot.sendGeneralNotification(message);
+    const { telegramIntegration } = await import('./telegram-integration');
+    await telegramIntegration.sendGeneralNotification(message);
     console.log('✅ Telegram bildirimi gönderildi');
   } catch (error) {
     console.error('❌ Telegram bildirimi hatası:', error);

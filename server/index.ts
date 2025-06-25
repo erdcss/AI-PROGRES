@@ -320,5 +320,15 @@ app.use((req, res, next) => {
     import('./daily-monitor').then(({ dailyMonitor }) => {
       dailyMonitor.start();
     }).catch(console.error);
+    
+    // Initialize scheduler system
+    setTimeout(() => {
+      import('./simple-scheduler').then(({ initializeScheduler }) => {
+        initializeScheduler();
+        console.log('✅ Zamanlı görevler sistemi başlatıldı');
+      }).catch(error => {
+        console.error('❌ Zamanlı görevler başlatma hatası:', error);
+      });
+    }, 3000);
   });
 })();
