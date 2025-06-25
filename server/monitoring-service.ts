@@ -7,7 +7,7 @@ export class MonitoringService {
   private isRunning = false;
   private intervalId: NodeJS.Timeout | null = null;
 
-  constructor(private checkInterval: number = 60000) {} // Default 1 minute
+  constructor(private checkInterval: number = 30000) {} // Default 30 seconds for testing
 
   // Monitoring service başlat
   start(): void {
