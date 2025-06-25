@@ -943,4 +943,71 @@ router.post('/api/memory/add-product', async (req, res) => {
   }
 });
 
+// Memory management endpoints
+router.post('/memory/clear-all', async (req, res) => {
+  try {
+    const { db } = await import('./db');
+    const { products, productVariants } = await import('../shared/schema');
+    
+    // Delete all product variants first (foreign key constraint)
+    await db.delete(productVariants);
+    
+    // Delete all products
+    await db.delete(products);
+    
+    console.log('✅ Tüm ürünler hafızadan temizlendi');
+    
+    // Send Telegram notification
+    try {
+      const telegramModule = await import('./telegram-integration');
+      const telegramIntegration = telegramModule.telegramIntegration || telegramModule.default;
+      
+      await telegramIntegration.sendNotification(
+        `🧹 <b>HAFIZA TEMİZLENDİ</b>\n\n` +
+        `✅ Tüm ürünler hafızadan silindi\n` +
+        `📊 Sistem yeni ürün transferleri için hazır\n` +
+        `🔄 Anlık takip sistemi sıfırlandı\n\n` +
+        `💡 Yeni ürün transferleri otomatik olarak hafızaya eklenecek`
+      );
+    } catch (telegramError) {
+      console.error('Telegram bildirim hatası:', telegramError);
+    }
+    
+    res.json({ 
+      success: true, 
+      message: 'Hafızadaki tüm ürünler başarıyla temizlendi' 
+    });
+  } catch (error) {
+    console.error('Hafıza temizleme hatası:', error);
+    res.status(500).json({ 
+      success: false, 
+      error: 'Hafıza temizlenirken hata oluştu: ' + error.message 
+    });
+  }
+});
+
+// Get real-time memory statistics
+router.get('/memory/stats', async (req, res) => {
+  try {
+    const { db } = await import('./db');
+    const { products, productVariants } = await import('../shared/schema');
+    const { count } = await import('drizzle-orm');
+    
+    const totalProducts = await db.select({ count: count() }).from(products);
+    const totalVariants = await db.select({ count: count() }).from(productVariants);
+    
+    res.json({
+      totalProducts: totalProducts[0]?.count || 0,
+      totalVariants: totalVariants[0]?.count || 0,
+      lastUpdate: new Date().toISOString()
+    });
+  } catch (error) {
+    console.error('Hafıza istatistikleri hatası:', error);
+    res.status(500).json({ 
+      success: false, 
+      error: 'Hafıza istatistikleri alınırken hata oluştu' 
+    });
+  }
+});
+
 export default router;

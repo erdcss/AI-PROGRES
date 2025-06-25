@@ -304,6 +304,30 @@ function ScraperPage({ platform = 'trendyol' }: ScraperPageProps) {
       link.click();
       document.body.removeChild(link);
       
+      // Başarılı CSV indirme sonrası ürünü hafızaya ekle
+      if (product) {
+        try {
+          const memoryResponse = await fetch('/api/memory/add-product', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ 
+              productData: product, 
+              transferType: 'csv' 
+            })
+          });
+          
+          if (memoryResponse.ok) {
+            console.log('✅ Ürün CSV indirme sonrası hafızaya eklendi');
+            toast({
+              title: "CSV İndirildi ve Hafızaya Eklendi",
+              description: "Ürün artık anlık takip edilecek",
+            });
+          }
+        } catch (memoryError) {
+          console.error('Hafızaya ekleme hatası:', memoryError);
+        }
+      }
+      
       console.log('CSV indirme başarılı');
     } catch (error) {
       console.error('CSV indirme hatası:', error);
@@ -620,9 +644,34 @@ function ScraperPage({ platform = 'trendyol' }: ScraperPageProps) {
 
       const data = await response.json();
       
+      // Başarılı Shopify yükleme sonrası ürünü hafızaya ekle
+      if (product) {
+        try {
+          const productDataWithShopifyId = {
+            ...product,
+            shopifyProductId: data.shopifyProductId
+          };
+          
+          const memoryResponse = await fetch('/api/memory/add-product', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ 
+              productData: productDataWithShopifyId, 
+              transferType: 'shopify' 
+            })
+          });
+          
+          if (memoryResponse.ok) {
+            console.log('✅ Ürün Shopify yükleme sonrası hafızaya eklendi');
+          }
+        } catch (memoryError) {
+          console.error('Hafızaya ekleme hatası:', memoryError);
+        }
+      }
+      
       toast({
-        title: "Shopify'a başarıyla yüklendi!",
-        description: `Ürün ID: ${data.shopifyProductId}`,
+        title: "Shopify'a başarıyla yüklendi ve hafızaya eklendi!",
+        description: `Ürün ID: ${data.shopifyProductId} - Artık anlık takip edilecek`,
       });
       
       console.log('Shopify yükleme başarılı:', data);

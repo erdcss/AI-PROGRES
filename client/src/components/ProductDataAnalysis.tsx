@@ -23,7 +23,9 @@ import {
   ArrowUp,
   ArrowDown,
   Minus,
-  ExternalLink
+  ExternalLink,
+  Trash2,
+  RefreshCw
 } from "lucide-react";
 import { useQuery } from "@tanstack/react-query";
 import { motion } from "framer-motion";
@@ -90,10 +92,11 @@ export const ProductDataAnalysis: React.FC = () => {
   ]);
   const [newMessage, setNewMessage] = useState('');
   const [isTyping, setIsTyping] = useState(false);
+  const [isClearingMemory, setIsClearingMemory] = useState(false);
 
   // Fetch memory statistics
   const { data: memoryStats } = useQuery<MemoryStats>({
-    queryKey: ['/api/analysis/memory-stats'],
+    queryKey: ['/api/memory/stats'],
     refetchInterval: 30000, // Refresh every 30 seconds
   });
 
@@ -176,6 +179,46 @@ export const ProductDataAnalysis: React.FC = () => {
     }
   };
 
+  const handleClearMemory = async () => {
+    if (!confirm('Hafızadaki tüm ürünleri silmek istediğinizden emin misiniz? Bu işlem geri alınamaz.')) {
+      return;
+    }
+
+    setIsClearingMemory(true);
+    try {
+      const response = await fetch('/api/memory/clear-all', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' }
+      });
+
+      if (response.ok) {
+        // Başarılı mesajı chatbot'a ekle
+        const successMessage: ChatMessage = {
+          id: Date.now().toString(),
+          type: 'ai',
+          content: '✅ Hafızadaki tüm ürünler başarıyla temizlendi. Sistem yeni ürün transferleri için hazır.',
+          timestamp: new Date().toLocaleTimeString('tr-TR')
+        };
+        setChatMessages(prev => [...prev, successMessage]);
+        
+        // Verileri yenile
+        window.location.reload();
+      } else {
+        throw new Error('Hafıza temizleme başarısız');
+      }
+    } catch (error) {
+      const errorMessage: ChatMessage = {
+        id: Date.now().toString(),
+        type: 'ai',
+        content: '❌ Hafıza temizlenirken hata oluştu. Lütfen tekrar deneyin.',
+        timestamp: new Date().toLocaleTimeString('tr-TR')
+      };
+      setChatMessages(prev => [...prev, errorMessage]);
+    } finally {
+      setIsClearingMemory(false);
+    }
+  };
+
   const getChangeIcon = (changeType: string) => {
     switch (changeType) {
       case 'price_increase':
@@ -237,6 +280,28 @@ export const ProductDataAnalysis: React.FC = () => {
         <p className="text-lg text-gray-300 max-w-2xl mx-auto leading-relaxed">
           Gerçek zamanlı ürün takibi, AI destekli analiz ve otomatik Shopify senkronizasyonu
         </p>
+        
+        {/* Memory Management Actions */}
+        <div className="flex justify-center gap-4 mt-4">
+          <Button
+            onClick={handleClearMemory}
+            disabled={isClearingMemory}
+            variant="destructive"
+            className="bg-red-600/80 hover:bg-red-700 text-white border border-red-500/50 backdrop-blur-sm"
+          >
+            {isClearingMemory ? (
+              <RefreshCw className="h-4 w-4 mr-2 animate-spin" />
+            ) : (
+              <Trash2 className="h-4 w-4 mr-2" />
+            )}
+            {isClearingMemory ? 'Temizleniyor...' : 'Hafızayı Temizle'}
+          </Button>
+          
+          <Badge variant="secondary" className="bg-white/10 text-white border-white/20 px-4 py-2">
+            <Clock className="h-4 w-4 mr-2" />
+            Son güncelleme: {memoryStats?.lastUpdate ? new Date(memoryStats.lastUpdate).toLocaleString('tr-TR') : 'Bilinmiyor'}
+          </Badge>
+        </div>
       </motion.div>
 
       {/* Stats Overview */}
