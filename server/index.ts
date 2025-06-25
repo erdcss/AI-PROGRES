@@ -323,36 +323,33 @@ app.use((req, res, next) => {
     
     // Scheduler API endpoints
     app.get('/api/scheduler/status', (req, res) => {
-      res.json({
-        success: true,
-        data: {
-          totalTasks: 3,
-          activeTasks: 3,
-          status: [
-            {
-              name: 'daily-monitoring',
-              description: 'Ürün fiyatları ve stok durumlarını kontrol eder',
-              time: '12:00',
-              isActive: true,
-              nextRun: 'Yarın 12:00'
-            },
-            {
-              name: 'daily-summary',
-              description: 'Günlük Z raporu hazırlar ve Telegram\'a gönderir',
-              time: '23:00',
-              isActive: true,
-              nextRun: 'Bu gün 23:00'
-            },
-            {
-              name: 'health-check',
-              description: 'Sistem bileşenlerinin sağlığını kontrol eder',
-              time: '06:00',
-              isActive: true,
-              nextRun: 'Yarın 06:00'
-            }
-          ]
-        }
-      });
+      try {
+        res.json([
+          {
+            name: 'daily-monitoring',
+            description: 'Ürün fiyatları ve stok durumlarını kontrol eder',
+            time: '12:00',
+            isActive: true,
+            nextRun: 'Yarın 12:00'
+          },
+          {
+            name: 'daily-summary',
+            description: 'Günlük Z raporu hazırlar ve Telegram\'a gönderir',
+            time: '23:00',
+            isActive: true,
+            nextRun: 'Bu gün 23:00'
+          },
+          {
+            name: 'health-check',
+            description: 'Sistem bileşenlerinin sağlığını kontrol eder',
+            time: '06:00',
+            isActive: true,
+            nextRun: 'Yarın 06:00'
+          }
+        ]);
+      } catch (error) {
+        res.status(500).json({ error: 'Scheduler status fetch failed' });
+      }
     });
 
     app.post('/api/scheduler/execute/:taskName', async (req, res) => {

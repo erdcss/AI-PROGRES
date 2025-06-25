@@ -703,14 +703,11 @@ router.post('/api/telegram/manual-price-test', async (req, res) => {
 });
 
 // Scheduled tasks API endpoints
-router.get('/api/scheduler/status', (req, res) => {
+router.get('/api/scheduler/status', async (req, res) => {
   try {
-    const { getSchedulerStatus } = require('./simple-scheduler');
-    const status = getSchedulerStatus();
-    res.json({
-      success: true,
-      data: status
-    });
+    const schedulerModule = await import('./simple-scheduler');
+    const status = schedulerModule.getSchedulerStatus ? schedulerModule.getSchedulerStatus() : [];
+    res.json(status);
   } catch (error) {
     console.error('Scheduler status error:', error);
     res.status(500).json({
