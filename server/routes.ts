@@ -2417,6 +2417,30 @@ export function registerRoutes(app: Express): Server {
     }
   });
 
+  // System connection test endpoints
+  app.post('/api/system/test-connections', async (req, res) => {
+    try {
+      const { connectionStrengthener } = await import('./connection-strengthener');
+      await connectionStrengthener.reinforceConnections();
+      const results = await connectionStrengthener.performFullConnectionTest();
+      res.json(results);
+    } catch (error) {
+      console.error('Connection test error:', error);
+      res.status(500).json({ error: 'Connection test failed' });
+    }
+  });
+
+  app.get('/api/system/health', async (req, res) => {
+    try {
+      const { systemHealthMonitor } = await import('./system-health-monitor');
+      const health = await systemHealthMonitor.performHealthCheck();
+      res.json(health);
+    } catch (error) {
+      console.error('Health check error:', error);
+      res.status(500).json({ error: 'Health check failed' });
+    }
+  });
+
   return httpServer;
 }
 
