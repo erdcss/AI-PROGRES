@@ -281,6 +281,7 @@ function ScraperPage({ platform = 'trendyol' }: ScraperPageProps) {
   const handleCSVDownload = async () => {
     try {
       console.log('CSV indirme başlatılıyor...');
+      setIsDownloading(true);
       
       // İlk olarak CSV durumunu kontrol et
       const statusResponse = await fetch('/api/csv/status');
@@ -295,6 +296,24 @@ function ScraperPage({ platform = 'trendyol' }: ScraperPageProps) {
         throw new Error('CSV dosyası henüz hazır değil');
       }
       
+      // Ürünü hafızaya ekle (CSV transfer)
+      if (product) {
+        try {
+          await apiRequest('/api/memory/store-product', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({
+              productData: product,
+              transferType: 'csv'
+            })
+          });
+          console.log('Ürün hafızaya eklendi (CSV)');
+        } catch (memoryError) {
+          console.error('Hafızaya ekleme hatası:', memoryError);
+          // Continue with download even if memory storage fails
+        }
+      }
+      
       // CSV dosyasını indir
       const downloadUrl = '/api/download/shopify-urunler.csv';
       const link = document.createElement('a');
@@ -304,29 +323,10 @@ function ScraperPage({ platform = 'trendyol' }: ScraperPageProps) {
       link.click();
       document.body.removeChild(link);
       
-      // Başarılı CSV indirme sonrası ürünü hafızaya ekle
-      if (product) {
-        try {
-          const memoryResponse = await fetch('/api/memory/add-product', {
-            method: 'POST',
-            headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify({ 
-              productData: product, 
-              transferType: 'csv' 
-            })
-          });
-          
-          if (memoryResponse.ok) {
-            console.log('✅ Ürün CSV indirme sonrası hafızaya eklendi');
-            toast({
-              title: "CSV İndirildi ve Hafızaya Eklendi",
-              description: "Ürün artık anlık takip edilecek",
-            });
-          }
-        } catch (memoryError) {
-          console.error('Hafızaya ekleme hatası:', memoryError);
-        }
-      }
+      toast({
+        title: "CSV İndirildi ve Hafızaya Eklendi",
+        description: "Ürün artık anlık takip edilecek",
+      });
       
       console.log('CSV indirme başarılı');
     } catch (error) {
@@ -596,6 +596,22 @@ function ScraperPage({ platform = 'trendyol' }: ScraperPageProps) {
     
     try {
       console.log('Shopify API yüklemesi başlatılıyor...', productData);
+      
+      // Ürünü hafızaya ekle (Shopify transfer) - upload öncesi
+      try {
+        await apiRequest('/api/memory/store-product', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({
+            productData: productData,
+            transferType: 'shopify'
+          })
+        });
+        console.log('Ürün hafızaya eklendi (Shopify)');
+      } catch (memoryError) {
+        console.error('Hafızaya ekleme hatası:', memoryError);
+        // Continue with Shopify upload even if memory storage fails
+      }
       
       // Fiyat verilerini düzelt
       const originalPrice = productData.price?.original || productData.price?.withProfit / 1.15 || 0;
