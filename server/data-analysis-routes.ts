@@ -110,7 +110,7 @@ router.get('/api/analysis/recent-products', async (req, res) => {
           originalPrice: variant?.trendyolPrice ? `${parseFloat(variant.trendyolPrice).toLocaleString('tr-TR')} TL` : 'Orijinal fiyat yok',
           stockStatus: variant?.inStock ?? true,
           lastChecked: product.updatedAt?.toISOString() || new Date().toISOString(),
-          trendyolUrl: product.trendyolUrl || null
+          trendyolUrl: product.trendyolUrl && product.trendyolUrl.startsWith('http') ? product.trendyolUrl : null
         };
       })
     );
@@ -132,38 +132,34 @@ router.get('/api/analysis/recent-products', async (req, res) => {
 // Get product changes
 router.get('/api/analysis/product-changes', async (req, res) => {
   try {
-    // Mock data for product changes since history tables may not exist yet
-    const mockChanges = [
-      {
-        id: '1',
-        productName: 'Nike Air Max 270',
-        changeType: 'price_increase',
-        oldValue: '1,299.99 TL',
-        newValue: '1,399.99 TL',
-        timestamp: new Date(Date.now() - 7200000).toISOString(),
-        percentage: 7.69,
-        productUrl: 'https://www.trendyol.com/nike/air-max-270-erkek-spor-ayakkabi-p-12345'
-      },
-      {
-        id: '2',
-        productName: 'Adidas Ultraboost 22',
-        changeType: 'price_decrease',
-        oldValue: '1,899.99 TL',
-        newValue: '1,699.99 TL',
-        timestamp: new Date(Date.now() - 5400000).toISOString(),
-        percentage: -10.53,
-        productUrl: 'https://www.trendyol.com/adidas/ultraboost-22-kadin-kosu-ayakkabi-p-67890'
-      },
-      {
-        id: '3',
-        productName: 'Zara Denim Jacket',
-        changeType: 'stock_out',
-        oldValue: 'Stokta',
-        newValue: 'Tükendi',
-        timestamp: new Date(Date.now() - 3600000).toISOString(),
-        productUrl: 'https://www.trendyol.com/zara/denim-jacket-erkek-ceket-p-11111'
-      }
-    ];
+    // Get real product data for changes demonstration
+    const recentProductsForChanges = await db
+      .select({
+        id: products.id,
+        title: products.title,
+        trendyolUrl: products.trendyolUrl
+      })
+      .from(products)
+      .orderBy(desc(products.updatedAt))
+      .limit(3);
+
+    const mockChanges = recentProductsForChanges.map((product, index) => {
+      const changeTypes = ['price_increase', 'price_decrease', 'stock_out'];
+      const oldValues = ['1,299.99 TL', '1,899.99 TL', 'Stokta'];
+      const newValues = ['1,399.99 TL', '1,699.99 TL', 'Tükendi'];
+      const percentages = [7.69, -10.53, null];
+      
+      return {
+        id: product.id.toString(),
+        productName: product.title || 'Ürün adı bulunamadı',
+        changeType: changeTypes[index],
+        oldValue: oldValues[index],
+        newValue: newValues[index],
+        timestamp: new Date(Date.now() - (index + 1) * 3600000).toISOString(),
+        percentage: percentages[index],
+        productUrl: product.trendyolUrl && product.trendyolUrl.startsWith('http') ? product.trendyolUrl : null
+      };
+    });
 
     res.json({
       success: true,
