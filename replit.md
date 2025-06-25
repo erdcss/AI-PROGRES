@@ -103,6 +103,11 @@ The application follows a full-stack architecture with clear separation of conce
 
 ## Changelog
 
+- June 25, 2025: Completed comprehensive UI overhaul of ProductDataAnalysis dashboard
+- June 25, 2025: Removed memory clear button and replaced variant count with product change detection
+- June 25, 2025: Added live countdown timer for next scheduled task execution
+- June 25, 2025: Implemented fixed display of three core automated tasks (12:00 monitoring, 23:00 reports, 06:00 health checks)
+- June 25, 2025: Limited recent products section to display only last 3 items for improved focus
 - June 24, 2025: Initial setup and configuration
 - June 24, 2025: Successfully tested enhanced scraping system with SWORD terlik product
 - June 24, 2025: Confirmed working scraper extracting 319KB+ of authentic product data
