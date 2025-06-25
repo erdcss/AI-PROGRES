@@ -157,12 +157,13 @@ export const ProductDataAnalysis: React.FC = () => {
       const aiResponse: ChatMessage = {
         id: (Date.now() + 1).toString(),
         type: 'ai',
-        content: data.response || 'Üzgünüm, şu anda yanıt veremiyorum.',
+        content: data.response || 'Üzgünüm, bir hata oluştu.',
         timestamp: new Date().toLocaleTimeString('tr-TR')
       };
-      
+
       setChatMessages(prev => [...prev, aiResponse]);
     } catch (error) {
+      console.error('Chat error:', error);
       const errorResponse: ChatMessage = {
         id: (Date.now() + 1).toString(),
         type: 'ai',
@@ -170,31 +171,9 @@ export const ProductDataAnalysis: React.FC = () => {
         timestamp: new Date().toLocaleTimeString('tr-TR')
       };
       setChatMessages(prev => [...prev, errorResponse]);
+    } finally {
+      setIsTyping(false);
     }
-    
-    setIsTyping(false);
-  };
-
-  const generateAIResponse = (message: string): string => {
-    const lowerMessage = message.toLowerCase();
-    
-    if (lowerMessage.includes('kaç') && lowerMessage.includes('ürün')) {
-      return `Hafızada toplam ${memoryStats?.totalProducts || 0} ürün ve ${memoryStats?.totalVariants || 0} varyant bulunuyor. Bu ürünler günlük olarak fiyat ve stok kontrolünden geçiyor.`;
-    }
-    
-    if (lowerMessage.includes('fiyat') && lowerMessage.includes('değişim')) {
-      return 'Son 24 saatte 2 üründe fiyat değişimi tespit edildi. Nike Air Max 270 %7.69 artış, Adidas Ultraboost 22 %10.53 düşüş gösterdi.';
-    }
-    
-    if (lowerMessage.includes('stok')) {
-      return 'Toplam 1,245 ürün içerisinde 1,198 ürün stokta, 47 ürün tükendi. Stok durumu sürekli izleniyor ve Shopify otomatik güncelleniyor.';
-    }
-    
-    if (lowerMessage.includes('shopify')) {
-      return 'Shopify entegrasyonu aktif. Fiyat ve stok değişimleri otomatik olarak senkronize ediliyor. Son senkronizasyon 15 dakika önce yapıldı.';
-    }
-    
-    return 'Bu konuda size yardımcı olabilirim. Ürün sayısı, fiyat değişimleri, stok durumu, Shopify senkronizasyonu hakkında sorularınızı yanıtlayabilirim.';
   };
 
   const getChangeIcon = (changeType: string) => {
@@ -589,134 +568,6 @@ export const ProductDataAnalysis: React.FC = () => {
                       <TrendingUp className="h-12 w-12 text-gray-500 mx-auto mb-3" />
                       <p className="text-gray-400 font-medium">Henüz değişiklik kaydı yok</p>
                       <p className="text-sm text-gray-500 mt-1">Monitoring başladığında görünecek</p>
-                    </div>
-                  )}
-                </div>
-              </ScrollArea>
-            </CardContent>
-          </Card>
-        </motion.div>
-      </div>
-    </div>
-  );
-};
-                        </h4>
-                        <div className="flex items-center gap-2 shrink-0">
-                          <Badge 
-                            variant={product.stockStatus ? 'default' : 'destructive'} 
-                            className="font-medium"
-                          >
-                            {product.stockStatus ? 'Stokta' : 'Tükendi'}
-                          </Badge>
-                          {product.trendyolUrl && (
-                            <Button
-                              size="sm"
-                              variant="outline"
-                              className="h-8 w-8 p-0 bg-white/10 border-white/20 hover:bg-white/20"
-                              onClick={() => window.open(product.trendyolUrl, '_blank')}
-                            >
-                              <ExternalLink className="h-3 w-3 text-white" />
-                            </Button>
-                          )}
-                        </div>
-                      </div>
-                      <div className="flex items-center justify-between mb-3">
-                        <span className="text-sm text-gray-300 font-medium">{product.brand}</span>
-                        <span className="text-lg font-bold text-green-400">{product.currentPrice}</span>
-                      </div>
-                      <div className="text-xs text-gray-400">
-                        Son kontrol: {new Date(product.lastChecked).toLocaleString('tr-TR')}
-                      </div>
-                      <div className="text-xs text-gray-500 mt-1">
-                        Orijinal fiyat: {product.originalPrice}
-                      </div>
-                    </div>
-                  )) : (
-                    <div className="text-center py-8">
-                      <Package className="h-12 w-12 text-gray-500 mx-auto mb-3" />
-                      <p className="text-gray-400 font-medium">Henüz ürün kaydı yok</p>
-                      <p className="text-sm text-gray-500 mt-1">İlk ürünü ekledikten sonra burada görünecek</p>
-                    </div>
-                  )}
-                </div>
-              </ScrollArea>
-            </CardContent>
-          </Card>
-        </motion.div>
-
-        {/* Price and Stock Changes */}
-        <motion.div
-          initial={{ opacity: 0, y: 20 }}
-          animate={{ opacity: 1, y: 0 }}
-          transition={{ duration: 0.6, delay: 0.5 }}
-        >
-          <Card className="bg-white/5 backdrop-blur-md border-white/10">
-            <CardHeader className="pb-4">
-              <CardTitle className="flex items-center gap-3 text-xl font-bold text-white">
-                <div className="w-10 h-10 bg-gradient-to-br from-red-500 to-pink-600 rounded-xl flex items-center justify-center">
-                  <TrendingUp className="h-5 w-5 text-white" />
-                </div>
-                Fiyat ve Stok Değişimleri
-              </CardTitle>
-              <p className="text-gray-400 text-sm">Otomatik monitoring ile tespit edilen değişiklikler</p>
-            </CardHeader>
-            <CardContent>
-              <ScrollArea className="h-80">
-                <div className="space-y-4">
-                  {productChanges.length > 0 ? productChanges.map((change) => (
-                    <div key={change.id} className="p-4 rounded-xl bg-white/5 border border-white/10">
-                      <div className="flex items-start justify-between mb-3">
-                        <h4 className="font-semibold text-white text-sm leading-relaxed truncate flex-1 pr-3">
-                          {change.productName}
-                        </h4>
-                        <div className="flex items-center gap-2 shrink-0">
-                          {getChangeIcon(change.changeType)}
-                          {change.percentage && (
-                            <span className={`text-sm font-bold px-2 py-1 rounded-lg ${
-                              change.percentage > 0 
-                                ? 'text-red-300 bg-red-500/20' 
-                                : 'text-green-300 bg-green-500/20'
-                            }`}>
-                              {change.percentage > 0 ? '+' : ''}{change.percentage.toFixed(1)}%
-                            </span>
-                          )}
-                          {change.productUrl && (
-                            <Button
-                              size="sm"
-                              variant="outline"
-                              className="h-8 w-8 p-0 bg-white/10 border-white/20 hover:bg-white/20"
-                              onClick={() => window.open(change.productUrl, '_blank')}
-                              title="Ürün sayfasını aç"
-                            >
-                              <ExternalLink className="h-3 w-3 text-white" />
-                            </Button>
-                          )}
-                        </div>
-                      </div>
-                      <div className="flex items-center justify-between mb-2">
-                        <div className="flex items-center gap-3 text-sm">
-                          <span className="text-gray-400 font-medium">{change.oldValue}</span>
-                          <ArrowUp className="h-4 w-4 text-gray-500 rotate-90" />
-                          <span className={`font-semibold ${
-                            change.changeType.includes('increase') || change.changeType === 'stock_in'
-                              ? 'text-green-400' 
-                              : change.changeType.includes('decrease') || change.changeType === 'stock_out'
-                              ? 'text-red-400'
-                              : 'text-gray-300'
-                          }`}>
-                            {change.newValue}
-                          </span>
-                        </div>
-                      </div>
-                      <div className="text-xs text-gray-400">
-                        {new Date(change.timestamp).toLocaleString('tr-TR')}
-                      </div>
-                    </div>
-                  )) : (
-                    <div className="text-center py-8">
-                      <TrendingUp className="h-12 w-12 text-gray-500 mx-auto mb-3" />
-                      <p className="text-gray-400 font-medium">Henüz değişiklik kaydı yok</p>
-                      <p className="text-sm text-gray-500 mt-1">Monitoring başladığında değişiklikler burada görünecek</p>
                     </div>
                   )}
                 </div>
