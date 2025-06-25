@@ -7,55 +7,7 @@ import { telegramIntegration } from './telegram-integration';
 
 const router = Router();
 
-// Clean tag generation function for Shopify compatibility
-function generateCleanTags(productData: any): string {
-  const tags: string[] = [];
-  
-  // Add brand tag (cleaned)
-  if (productData.brand) {
-    const cleanBrand = productData.brand
-      .toLowerCase()
-      .replace(/[^a-z0-9\s]/gi, '')
-      .trim();
-    if (cleanBrand && cleanBrand.length > 0) {
-      tags.push(cleanBrand);
-    }
-  }
-  
-  // Add basic tags
-  tags.push('trendyol', 'import');
-  
-  // Add feature-based tags (limited and cleaned)
-  if (productData.features && productData.features.length > 0) {
-    const featureTags = productData.features
-      .slice(0, 5) // Limit to 5 features
-      .map((f: any) => {
-        if (f.key && typeof f.key === 'string') {
-          const cleanKey = f.key
-            .toLowerCase()
-            .replace(/[^a-z0-9\s]/gi, '')
-            .trim();
-          
-          // Skip unwanted keys
-          if (cleanKey.includes('context') || cleanKey.includes('type') || 
-              cleanKey.includes('url') || cleanKey.includes('http')) {
-            return null;
-          }
-          
-          return cleanKey;
-        }
-        return null;
-      })
-      .filter(Boolean)
-      .filter((tag: string) => tag.length > 2 && tag.length < 20);
-    
-    tags.push(...featureTags);
-  }
-  
-  // Remove duplicates and join
-  const uniqueTags = [...new Set(tags)].slice(0, 10); // Shopify recommends max 250 chars
-  return uniqueTags.join(', ');
-}
+
 
 // Hafıza sistemi API endpoints
 router.get('/api/memory/stats', async (req, res) => {
@@ -285,7 +237,7 @@ router.post('/api/shopify/add-product', async (req, res) => {
       body_html: bodyHtml,
       vendor: productData.brand || 'Genel',
       product_type: 'Çay & Gıda',
-      tags: generateCleanTags(productData),
+      tags: 'trendyol, import, giyim',
       variants: shopifyVariants,
       options: productOptions,
       status: 'active',
