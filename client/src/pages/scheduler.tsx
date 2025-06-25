@@ -2,8 +2,9 @@ import { useState, useEffect } from 'react';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
-import { Clock, Play, CheckCircle, AlertCircle } from 'lucide-react';
+import { Clock, Play, CheckCircle, AlertCircle, Home, ArrowLeft } from 'lucide-react';
 import { toast } from '@/hooks/use-toast';
+import { Link } from 'wouter';
 
 interface TaskStatus {
   name: string;
