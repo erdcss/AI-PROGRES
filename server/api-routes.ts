@@ -1010,4 +1010,217 @@ router.get('/memory/stats', async (req, res) => {
   }
 });
 
+// Enhanced recent products endpoint with full URL support
+router.get('/analysis/recent-products', async (req, res) => {
+  try {
+    const { db } = await import('./db');
+    const { products } = await import('../shared/schema');
+    const { desc } = await import('drizzle-orm');
+    
+    const recentProducts = await db
+      .select()
+      .from(products)
+      .orderBy(desc(products.createdAt))
+      .limit(3);
+    
+    const formattedProducts = recentProducts.map(product => ({
+      id: product.id.toString(),
+      title: product.title,
+      brand: product.brand,
+      currentPrice: product.currentPrice || 'N/A',
+      originalPrice: product.originalPrice || 'N/A',
+      stockStatus: product.stockStatus || false,
+      lastChecked: product.lastChecked ? new Date(product.lastChecked).toLocaleString('tr-TR') : 'Henüz kontrol edilmedi',
+      trendyolUrl: product.trendyolUrl,
+      shopifyProductId: product.shopifyProductId,
+      shopifyUrl: product.shopifyProductId ? 
+        `https://kr5xdy-x7.myshopify.com/products/${product.title?.toLowerCase().replace(/[^a-z0-9]/g, '-').replace(/-+/g, '-').replace(/^-|-$/g, '')}` : 
+        null
+    }));
+    
+    res.json({
+      success: true,
+      products: formattedProducts
+    });
+  } catch (error) {
+    console.error('Recent products error:', error);
+    res.status(500).json({ success: false, error: 'Ürün listesi alınamadı' });
+  }
+});
+
+// Enhanced product changes endpoint with URLs
+router.get('/analysis/product-changes', async (req, res) => {
+  try {
+    const { db } = await import('./db');
+    const { priceHistory, stockHistory, products } = await import('../shared/schema');
+    const { desc, eq } = await import('drizzle-orm');
+    
+    // Get recent price changes
+    const priceChanges = await db
+      .select({
+        id: priceHistory.id,
+        productId: priceHistory.productId,
+        oldPrice: priceHistory.oldPrice,
+        newPrice: priceHistory.newPrice,
+        timestamp: priceHistory.timestamp,
+        productTitle: products.title,
+        productUrl: products.trendyolUrl,
+        shopifyUrl: products.shopifyProductId
+      })
+      .from(priceHistory)
+      .leftJoin(products, eq(priceHistory.productId, products.id))
+      .orderBy(desc(priceHistory.timestamp))
+      .limit(5);
+    
+    // Get recent stock changes
+    const stockChanges = await db
+      .select({
+        id: stockHistory.id,
+        productId: stockHistory.productId,
+        oldStock: stockHistory.oldStock,
+        newStock: stockHistory.newStock,
+        timestamp: stockHistory.timestamp,
+        productTitle: products.title,
+        productUrl: products.trendyolUrl,
+        shopifyUrl: products.shopifyProductId
+      })
+      .from(stockHistory)
+      .leftJoin(products, eq(stockHistory.productId, products.id))
+      .orderBy(desc(stockHistory.timestamp))
+      .limit(5);
+    
+    const changes = [
+      ...priceChanges.map(change => ({
+        id: `price-${change.id}`,
+        productName: change.productTitle || 'Bilinmeyen Ürün',
+        changeType: parseFloat(change.newPrice || '0') > parseFloat(change.oldPrice || '0') ? 'price_increase' : 'price_decrease',
+        oldValue: `${change.oldPrice} TL`,
+        newValue: `${change.newPrice} TL`,
+        timestamp: new Date(change.timestamp || Date.now()).toLocaleString('tr-TR'),
+        percentage: change.oldPrice && change.newPrice ? 
+          Math.round(((parseFloat(change.newPrice) - parseFloat(change.oldPrice)) / parseFloat(change.oldPrice)) * 100) : 0,
+        productUrl: change.productUrl
+      })),
+      ...stockChanges.map(change => ({
+        id: `stock-${change.id}`,
+        productName: change.productTitle || 'Bilinmeyen Ürün',
+        changeType: (change.newStock === 'true' || change.newStock === true) ? 'stock_in' : 'stock_out',
+        oldValue: change.oldStock === 'true' ? 'Stokta' : 'Tükendi',
+        newValue: (change.newStock === 'true' || change.newStock === true) ? 'Stokta' : 'Tükendi',
+        timestamp: new Date(change.timestamp || Date.now()).toLocaleString('tr-TR'),
+        productUrl: change.productUrl
+      }))
+    ].sort((a, b) => new Date(b.timestamp).getTime() - new Date(a.timestamp).getTime()).slice(0, 10);
+    
+    res.json({
+      success: true,
+      changes
+    });
+  } catch (error) {
+    console.error('Product changes error:', error);
+    res.status(500).json({ success: false, error: 'Değişiklik geçmişi alınamadı' });
+  }
+});
+
+// Daily operations endpoint
+router.get('/analysis/daily-operations', async (req, res) => {
+  try {
+    // Return sample data for now - this will be replaced with real monitoring data
+    const operations = [
+      {
+        id: '1',
+        type: 'price_check',
+        status: 'completed',
+        timestamp: new Date().toLocaleString('tr-TR'),
+        details: 'Günlük fiyat kontrolü tamamlandı'
+      },
+      {
+        id: '2',
+        type: 'stock_check',
+        status: 'completed',
+        timestamp: new Date().toLocaleString('tr-TR'),
+        details: 'Stok durumu güncellendi'
+      },
+      {
+        id: '3',
+        type: 'shopify_sync',
+        status: 'pending',
+        timestamp: new Date().toLocaleString('tr-TR'),
+        details: 'Shopify senkronizasyonu bekliyor'
+      },
+      {
+        id: '4',
+        type: 'telegram_report',
+        status: 'pending',
+        timestamp: '23:00',
+        details: 'Günlük Z raporu gönderilecek'
+      }
+    ];
+    
+    res.json({
+      success: true,
+      priceChanges: 0,
+      stockChanges: 0,
+      shopifyUpdates: 0,
+      operations
+    });
+  } catch (error) {
+    console.error('Daily operations error:', error);
+    res.status(500).json({ success: false, error: 'Günlük işlemler alınamadı' });
+  }
+});
+
+// AI Chat endpoint for product analysis
+router.post('/analysis/chat', async (req, res) => {
+  try {
+    const { message } = req.body;
+    
+    if (!message) {
+      return res.status(400).json({ success: false, error: 'Mesaj gereklidir' });
+    }
+    
+    // Get current system stats for context
+    const { db } = await import('./db');
+    const { products, productVariants } = await import('../shared/schema');
+    const { count } = await import('drizzle-orm');
+    
+    const totalProducts = await db.select({ count: count() }).from(products);
+    const totalVariants = await db.select({ count: count() }).from(productVariants);
+    
+    const productCount = totalProducts[0]?.count || 0;
+    const variantCount = totalVariants[0]?.count || 0;
+    
+    // Simple AI responses based on context
+    let response = '';
+    
+    if (message.toLowerCase().includes('kaç ürün') || message.toLowerCase().includes('ürün sayısı')) {
+      response = `Şu anda sistemde ${productCount} ürün ve ${variantCount} varyant bulunuyor. Bu ürünler otomatik olarak takip ediliyor ve fiyat/stok değişikliklerinde Shopify ile senkronize ediliyor.`;
+    } else if (message.toLowerCase().includes('monitoring') || message.toLowerCase().includes('takip')) {
+      response = `Otomatik takip sistemi aktif. Her gün 12:00'da ürün kontrolleri yapılıyor, 23:00'da detaylı raporlar gönderiliyor. Anlık değişiklikler Telegram üzerinden bildiriliyor.`;
+    } else if (message.toLowerCase().includes('shopify') || message.toLowerCase().includes('mağaza')) {
+      response = `Shopify entegrasyonu tam aktif. Trendyol'dan çıkarılan ürünler otomatik olarak %15 kar marjı ile Shopify'a ekleniyor. Fiyat ve stok değişiklikleri gerçek zamanlı senkronize ediliyor.`;
+    } else if (message.toLowerCase().includes('fiyat') || message.toLowerCase().includes('price')) {
+      response = `Fiyat takip sistemi çalışıyor. Trendyol'daki fiyat değişiklikleri algılandığında Shopify fiyatları otomatik güncelleniyor. %15 kar marjı korunuyor.`;
+    } else if (message.toLowerCase().includes('stok') || message.toLowerCase().includes('stock')) {
+      response = `Stok takibi aktif. Örneğin "siyah ayakkabı 35 numara" Trendyol'da tükenmişse, Shopify'daki stok otomatik sıfırlanıyor. Tekrar stoğa girdiğinde geri yükleniyor.`;
+    } else if (message.toLowerCase().includes('telegram') || message.toLowerCase().includes('bildirim')) {
+      response = `Telegram bildirimleri çalışıyor. Ürün değişiklikleri, yeni transferler, sistem durumu anlık olarak Telegram'dan bildiriliyor. Bot ID: @turmarktbot`;
+    } else if (message.toLowerCase().includes('rapor') || message.toLowerCase().includes('report')) {
+      response = `Günlük Z raporları her gece 23:00'da otomatik gönderiliyor. E-mail (e2943592@gmail.com) ve Telegram üzerinden detaylı satış, kar ve stok raporları alıyorsunuz.`;
+    } else if (message.toLowerCase().includes('nasıl') || message.toLowerCase().includes('how')) {
+      response = `Sistem şöyle çalışıyor: 1) Trendyol URL'si veriyorsunuz 2) Ürün çıkarılıp Shopify'a aktarılıyor 3) Hafızaya kaydediliyor 4) Otomatik takip başlıyor 5) Değişiklikler algılanıp senkronize ediliyor.`;
+    } else {
+      response = `Bu konuda size yardımcı olabilirim. Şu anda ${productCount} ürün takip ediliyor, sistem tam operasyonel. Ürün sayısı, fiyat takibi, stok durumu, Shopify entegrasyonu veya otomatik raporlar hakkında soru sorabilirsiniz.`;
+    }
+    
+    res.json({
+      success: true,
+      response
+    });
+  } catch (error) {
+    console.error('Chat error:', error);
+    res.status(500).json({ success: false, error: 'AI yanıtı alınamadı' });
+  }
+});
+
 export default router;

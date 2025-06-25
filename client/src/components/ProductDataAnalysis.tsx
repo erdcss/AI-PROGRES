@@ -25,7 +25,9 @@ import {
   Minus,
   ExternalLink,
   Trash2,
-  RefreshCw
+  RefreshCw,
+  ShoppingCart,
+  Globe
 } from "lucide-react";
 import { useQuery } from "@tanstack/react-query";
 import { motion } from "framer-motion";
@@ -64,6 +66,8 @@ interface Product {
   stockStatus: boolean;
   lastChecked: string;
   trendyolUrl?: string;
+  shopifyProductId?: string;
+  shopifyUrl?: string;
 }
 
 interface ScheduledTask {
@@ -643,16 +647,30 @@ export const ProductDataAnalysis: React.FC = () => {
                         <span className="text-gray-300">{product.brand}</span>
                         <div className="flex items-center gap-2">
                           <span className="text-green-400 font-medium">{product.currentPrice}</span>
-                          {product.trendyolUrl && (
-                            <a 
-                              href={product.trendyolUrl} 
-                              target="_blank" 
-                              rel="noopener noreferrer"
-                              className="text-blue-400 hover:text-blue-300"
-                            >
-                              <ExternalLink className="h-4 w-4" />
-                            </a>
-                          )}
+                          <div className="flex items-center gap-1">
+                            {product.trendyolUrl && (
+                              <a 
+                                href={product.trendyolUrl} 
+                                target="_blank" 
+                                rel="noopener noreferrer"
+                                className="text-blue-400 hover:text-blue-300 transition-colors"
+                                title="Trendyol'da Görüntüle"
+                              >
+                                <Globe className="h-4 w-4" />
+                              </a>
+                            )}
+                            {product.shopifyUrl && (
+                              <a 
+                                href={product.shopifyUrl} 
+                                target="_blank" 
+                                rel="noopener noreferrer"
+                                className="text-green-400 hover:text-green-300 transition-colors"
+                                title="Shopify'da Görüntüle"
+                              >
+                                <ShoppingCart className="h-4 w-4" />
+                              </a>
+                            )}
+                          </div>
                         </div>
                       </div>
                       <p className="text-xs text-gray-500 mt-2">Son kontrol: {product.lastChecked}</p>
@@ -696,7 +714,20 @@ export const ProductDataAnalysis: React.FC = () => {
                           {getChangeIcon(change.changeType)}
                         </div>
                         <div className="flex-1 min-w-0">
-                          <h4 className="font-semibold text-white text-sm truncate">{change.productName}</h4>
+                          <div className="flex items-center gap-2">
+                            <h4 className="font-semibold text-white text-sm truncate flex-1">{change.productName}</h4>
+                            {change.productUrl && (
+                              <a 
+                                href={change.productUrl} 
+                                target="_blank" 
+                                rel="noopener noreferrer"
+                                className="text-blue-400 hover:text-blue-300 transition-colors"
+                                title="Ürünü Görüntüle"
+                              >
+                                <ExternalLink className="h-3 w-3" />
+                              </a>
+                            )}
+                          </div>
                           <div className="flex items-center gap-2 mt-1">
                             <span className="text-gray-400 text-xs">{change.oldValue}</span>
                             <span className="text-gray-500">→</span>
