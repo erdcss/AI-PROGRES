@@ -128,21 +128,141 @@ export class ShopifyIntegration {
     }
   }
 
-  // Ürün stokunu güncelleme
-  async updateProductStock(product: Product, variant: ProductVariant): Promise<boolean> {
-    if (!product.shopifyProductId || !variant.shopifyVariantId) {
-      console.log(`⚠️ Shopify ID'leri eksik: Product ${product.shopifyProductId}, Variant ${variant.shopifyVariantId}`);
-      return false;
-    }
-
+  // Varyant stokunu sıfıra çek (ürün stoktan çıktığında)
+  async setVariantStockToZero(product: Product, variant: ProductVariant): Promise<boolean> {
     try {
-      // Önce inventory item ID'yi al
-      const variantResponse = await axios.get(
-        `${this.baseUrl}/variants/${variant.shopifyVariantId}.json`,
+      // Önce ürünün gerçek Shopify ID'sini bul
+      const productsResponse = await axios.get(
+        `${this.baseUrl}/products.json?title=${encodeURIComponent(product.title)}`,
         { headers: this.headers }
       );
 
-      const inventoryItemId = variantResponse.data.variant.inventory_item_id;
+      if (!productsResponse.data.products || productsResponse.data.products.length === 0) {
+        console.log(`❌ Shopify'da ürün bulunamadı: ${product.title}`);
+        return false;
+      }
+
+      const shopifyProduct = productsResponse.data.products[0];
+      const shopifyVariant = shopifyProduct.variants.find(v => 
+        v.option1?.toLowerCase().includes(variant.color?.toLowerCase() || '') ||
+        v.option2?.toLowerCase().includes(variant.size?.toLowerCase() || '')
+      ) || shopifyProduct.variants[0];
+
+      // Inventory item ID'yi al
+      const inventoryItemId = shopifyVariant.inventory_item_id;
+      
+      // Inventory level'ları al
+      const inventoryResponse = await axios.get(
+        `${this.baseUrl}/inventory_levels.json?inventory_item_ids=${inventoryItemId}`,
+        { headers: this.headers }
+      );
+
+      if (inventoryResponse.data.inventory_levels.length > 0) {
+        const inventoryLevel = inventoryResponse.data.inventory_levels[0];
+        const locationId = inventoryLevel.location_id;
+
+        // Stoku sıfırla
+        const updateData = {
+          location_id: locationId,
+          inventory_item_id: inventoryItemId,
+          available: 0
+        };
+
+        await axios.post(
+          `${this.baseUrl}/inventory_levels/set.json`,
+          updateData,
+          { headers: this.headers }
+        );
+
+        console.log(`📦 Shopify stok sıfırlandı: ${variant.color} ${variant.size}`);
+        return true;
+      }
+
+      return false;
+    } catch (error: any) {
+      console.error(`❌ Shopify stok sıfırlama hatası:`, error.response?.data || error.message);
+      return false;
+    }
+  }
+
+  // Varyant stokunu restore et (ürün tekrar stoka girdiğinde)
+  async restoreVariantStock(product: Product, variant: ProductVariant): Promise<boolean> {
+    try {
+      // Önce ürünün gerçek Shopify ID'sini bul
+      const productsResponse = await axios.get(
+        `${this.baseUrl}/products.json?title=${encodeURIComponent(product.title)}`,
+        { headers: this.headers }
+      );
+
+      if (!productsResponse.data.products || productsResponse.data.products.length === 0) {
+        return false;
+      }
+
+      const shopifyProduct = productsResponse.data.products[0];
+      const shopifyVariant = shopifyProduct.variants.find(v => 
+        v.option1?.toLowerCase().includes(variant.color?.toLowerCase() || '') ||
+        v.option2?.toLowerCase().includes(variant.size?.toLowerCase() || '')
+      ) || shopifyProduct.variants[0];
+
+      // Inventory item ID'yi al
+      const inventoryItemId = shopifyVariant.inventory_item_id;
+      
+      // Inventory level'ları al
+      const inventoryResponse = await axios.get(
+        `${this.baseUrl}/inventory_levels.json?inventory_item_ids=${inventoryItemId}`,
+        { headers: this.headers }
+      );
+
+      if (inventoryResponse.data.inventory_levels.length > 0) {
+        const inventoryLevel = inventoryResponse.data.inventory_levels[0];
+        const locationId = inventoryLevel.location_id;
+
+        // Stoku restore et (varsayılan 25 adet)
+        const restoreAmount = variant.stockCount || 25;
+        const updateData = {
+          location_id: locationId,
+          inventory_item_id: inventoryItemId,
+          available: restoreAmount
+        };
+
+        await axios.post(
+          `${this.baseUrl}/inventory_levels/set.json`,
+          updateData,
+          { headers: this.headers }
+        );
+
+        console.log(`📦 Shopify stok restore edildi: ${variant.color} ${variant.size} → ${restoreAmount}`);
+        return true;
+      }
+
+      return false;
+    } catch (error: any) {
+      console.error(`❌ Shopify stok restore hatası:`, error.response?.data || error.message);
+      return false;
+    }
+  }
+
+  // Ürün stokunu güncelleme
+  async updateProductStock(product: Product, variant: ProductVariant): Promise<boolean> {
+    try {
+      // Önce ürünün gerçek Shopify ID'sini bul
+      const productsResponse = await axios.get(
+        `${this.baseUrl}/products.json?title=${encodeURIComponent(product.title)}`,
+        { headers: this.headers }
+      );
+
+      if (!productsResponse.data.products || productsResponse.data.products.length === 0) {
+        return false;
+      }
+
+      const shopifyProduct = productsResponse.data.products[0];
+      const shopifyVariant = shopifyProduct.variants.find(v => 
+        v.option1?.toLowerCase().includes(variant.color?.toLowerCase() || '') ||
+        v.option2?.toLowerCase().includes(variant.size?.toLowerCase() || '')
+      ) || shopifyProduct.variants[0];
+
+      // Inventory item ID'yi al
+      const inventoryItemId = shopifyVariant.inventory_item_id;
       
       // Inventory level'ları al
       const inventoryResponse = await axios.get(

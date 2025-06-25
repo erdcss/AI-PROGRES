@@ -140,15 +140,39 @@ export class TelegramIntegration {
     }
 
     const message = 
-      `🚨 STOK UYARISI\n\n` +
+      `🚨 STOK TÜKENDİ\n\n` +
       `📦 Ürün: ${productName}\n` +
       `🎯 Varyant: ${variant}\n` +
-      `❌ Stok durumu: Tükendi\n\n` +
-      `⚡ Shopify otomatik güncellendi`;
+      `❌ Durum: Trendyol'da stoktan çıktı\n` +
+      `📦 Shopify Stok: 0 (otomatik sıfırlandı)\n\n` +
+      `⚡ Sistem otomatik güncelleme yaptı`;
 
     try {
       await this.bot.sendMessage(this.chatId, message);
       console.log('Stock out notification sent via Telegram');
+    } catch (error) {
+      console.error('Failed to send Telegram notification:', error);
+    }
+  }
+
+  // Send stock restore notification
+  async sendStockRestoreNotification(productName: string, variant: string) {
+    if (!this.bot || !this.chatId) {
+      console.log('Telegram not configured for stock restore notification');
+      return;
+    }
+
+    const message = 
+      `✅ STOK YENİDEN MEVCUT\n\n` +
+      `📦 Ürün: ${productName}\n` +
+      `🎯 Varyant: ${variant}\n` +
+      `✅ Durum: Trendyol'da tekrar stoka girdi\n` +
+      `📦 Shopify Stok: Restore edildi\n\n` +
+      `⚡ Sistem otomatik güncelleme yaptı`;
+
+    try {
+      await this.bot.sendMessage(this.chatId, message);
+      console.log('Stock restore notification sent via Telegram');
     } catch (error) {
       console.error('Failed to send Telegram notification:', error);
     }

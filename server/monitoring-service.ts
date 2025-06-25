@@ -160,34 +160,44 @@ export class MonitoringService {
         }
       }
 
-      // Stok değişikliği kontrolü
-      if (oldVariant.stockCount !== newVariant.stockCount) {
-        const updated = await shopifyIntegration.updateProductStock(product, newVariant);
-        if (updated) {
-          console.log(`📦 Shopify stok güncellendi: ${newVariant.color} ${newVariant.size}`);
+      // Stok durumu değişikliği kontrolü (Trendyol stoktan çıktığında Shopify'da sıfırla)
+      if (oldVariant.inStock !== newVariant.inStock) {
+        if (!newVariant.inStock) {
+          // Ürün stoktan çıktı - Shopify'da stok sıfırla
+          console.log(`🚨 Stoktan çıktı: ${newVariant.color} ${newVariant.size}`);
+          
+          const stockUpdated = await shopifyIntegration.setVariantStockToZero(product, newVariant);
+          if (stockUpdated) {
+            console.log(`📦 Shopify stok sıfırlandı: ${newVariant.color} ${newVariant.size}`);
+            
+            // Telegram bildirimi gönder
+            await telegramIntegration.sendStockOutNotification(
+              product.title,
+              `${newVariant.color} - ${newVariant.size}`
+            );
+          }
+        } else {
+          // Ürün tekrar stoka girdi
+          console.log(`✅ Stoka geri döndü: ${newVariant.color} ${newVariant.size}`);
+          
+          const stockUpdated = await shopifyIntegration.restoreVariantStock(product, newVariant);
+          if (stockUpdated) {
+            console.log(`📦 Shopify stok restore edildi: ${newVariant.color} ${newVariant.size}`);
+            
+            // Telegram bildirimi gönder
+            await telegramIntegration.sendStockRestoreNotification(
+              product.title,
+              `${newVariant.color} - ${newVariant.size}`
+            );
+          }
         }
       }
 
-      // Stok durumu değişikliği kontrolü
-      if (oldVariant.inStock !== newVariant.inStock) {
-        const updated = await shopifyIntegration.updateVariantStatus(product, newVariant);
+      // Stok miktarı değişikliği kontrolü
+      if (oldVariant.stockCount !== newVariant.stockCount && newVariant.inStock) {
+        const updated = await shopifyIntegration.updateProductStock(product, newVariant);
         if (updated) {
-          console.log(`🔄 Shopify varyant durumu güncellendi: ${newVariant.color} ${newVariant.size}`);
-          
-          // Telegram bildirimi gönder
-          if (newVariant.inStock) {
-            await telegramIntegration.sendDetailedStockNotification(
-              product.title, 
-              newVariant,
-              'back'
-            );
-          } else {
-            await telegramIntegration.sendDetailedStockNotification(
-              product.title, 
-              newVariant,
-              'out'
-            );
-          }
+          console.log(`📦 Shopify stok güncellendi: ${newVariant.color} ${newVariant.size} → ${newVariant.stockCount}`);
         }
       }
     }

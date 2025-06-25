@@ -179,6 +179,16 @@ The system can now automatically transfer any Trendyol product to your Shopify s
 
 **CONFIRMED WORKING BY USER** - All systems operational as of June 25, 2025
 
+## Automatic Stock Management System (NEW - June 25, 2025)
+
+Successfully implemented comprehensive variant-level stock tracking with automatic Shopify synchronization:
+- **Stock Depletion Detection**: When any variant goes out of stock on Trendyol, system automatically sets Shopify stock to 0
+- **Stock Restoration**: When variant returns to stock on Trendyol, system restores Shopify inventory 
+- **Variant-Specific Tracking**: Monitors individual color/size combinations (e.g., "Black shoe size 35")
+- **Real-time Notifications**: Telegram alerts for all stock changes with detailed variant information
+- **Dynamic ID Resolution**: System finds correct Shopify product/variant IDs automatically
+- **Inventory API Integration**: Uses Shopify Inventory Levels API for precise stock control
+
 The complete e-commerce automation system is ready for deployment:
 - Trendyol product extraction with AI enhancement
 - Shopify API integration with real-time sync
