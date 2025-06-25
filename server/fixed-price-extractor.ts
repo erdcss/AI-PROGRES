@@ -25,9 +25,9 @@ export async function extractTrendyolPrice(url: string): Promise<{price: number,
     let price = 0;
     let brand = 'Network';
     
-    // Method 1: Direct regex search for prices in HTML
-    console.log(`💰 Method 1: Regex price search`);
-    const priceMatches = html.match(/(\d{1,3}(?:[.,]\d{3})*(?:[.,]\d{2})?)\s*(?:TL|₺)/gi);
+    // Method 1: Direct regex search for prices in HTML - Enhanced for all numbers
+    console.log(`💰 Method 1: Enhanced regex price search`);
+    const priceMatches = html.match(/(\d{1,6}(?:[.,]\d{3})*(?:[.,]\d{1,2})?)\s*(?:TL|₺)/gi);
     if (priceMatches && priceMatches.length > 0) {
       console.log(`Found ${priceMatches.length} price matches:`, priceMatches.slice(0, 5));
       
@@ -65,7 +65,7 @@ export async function extractTrendyolPrice(url: string): Promise<{price: number,
         const parsedPrice = parseFloat(cleanPrice.replace(/[^\d.]/g, ''));
         console.log(`💰 Final parsed price: ${parsedPrice}`);
         return parsedPrice;
-      }).filter(p => p > 0 && p < 100000); // Extended price range for furniture
+      }).filter(p => p > 0 && p < 1000000); // Extended range for all products including luxury items
       
       if (prices.length > 0) {
         // Take the most common price or median price
@@ -93,7 +93,7 @@ export async function extractTrendyolPrice(url: string): Promise<{price: number,
             for (const [key, value] of Object.entries(obj)) {
               const currentPath = path ? `${path}.${key}` : key;
               
-              if (typeof value === 'number' && value > 0 && value < 50000) {
+              if (typeof value === 'number' && value > 0 && value < 1000000) {
                 if (key.toLowerCase().includes('price') || key.toLowerCase().includes('fiyat')) {
                   console.log(`💰 Found price at ${currentPath}: ${value}`);
                   return value;
@@ -170,6 +170,42 @@ export async function extractTrendyolPrice(url: string): Promise<{price: number,
             console.log(`✅ Method 3 success: ${price} TL`);
             break;
           }
+        }
+      }
+    }
+    
+    // Method 3: Aggressive number extraction if previous methods failed
+    if (price === 0) {
+      console.log(`💰 Method 3: Aggressive number extraction`);
+      // Extract all numbers with Turkish formatting from entire HTML
+      const allNumbers = html.match(/\d{1,6}(?:[.,]\d{3})*(?:[.,]\d{1,2})?/g);
+      if (allNumbers && allNumbers.length > 0) {
+        console.log(`Found ${allNumbers.length} potential numbers:`, allNumbers.slice(0, 10));
+        
+        const candidatePrices = allNumbers.map(num => {
+          let cleanNum = num;
+          console.log(`🔍 Processing candidate: "${cleanNum}"`);
+          
+          if (cleanNum.includes('.') && cleanNum.includes(',')) {
+            cleanNum = cleanNum.replace(/\./g, '').replace(',', '.');
+          } else if (cleanNum.includes('.') && !cleanNum.includes(',')) {
+            const parts = cleanNum.split('.');
+            if (parts.length === 2 && parts[1].length === 3) {
+              cleanNum = cleanNum.replace(/\./g, '');
+            }
+          } else if (cleanNum.includes(',')) {
+            cleanNum = cleanNum.replace(',', '.');
+          }
+          
+          const parsed = parseFloat(cleanNum.replace(/[^\d.]/g, ''));
+          return parsed;
+        }).filter(p => p >= 10 && p < 1000000); // Reasonable product price range
+        
+        if (candidatePrices.length > 0) {
+          // Take median price from candidates
+          candidatePrices.sort((a, b) => a - b);
+          price = candidatePrices[Math.floor(candidatePrices.length / 2)];
+          console.log(`✅ Method 3 success: ${price} TL (from ${candidatePrices.length} candidates)`);
         }
       }
     }
