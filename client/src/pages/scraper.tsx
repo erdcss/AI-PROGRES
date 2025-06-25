@@ -299,13 +299,9 @@ function ScraperPage({ platform = 'trendyol' }: ScraperPageProps) {
       // Ürünü hafızaya ekle (CSV transfer)
       if (product) {
         try {
-          await apiRequest('/api/memory/store-product', {
-            method: 'POST',
-            headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify({
-              productData: product,
-              transferType: 'csv'
-            })
+          await apiRequest('POST', '/api/memory/store-product', {
+            productData: product,
+            transferType: 'csv'
           });
           console.log('Ürün hafızaya eklendi (CSV)');
         } catch (memoryError) {
@@ -599,13 +595,9 @@ function ScraperPage({ platform = 'trendyol' }: ScraperPageProps) {
       
       // Ürünü hafızaya ekle (Shopify transfer) - upload öncesi
       try {
-        await apiRequest('/api/memory/store-product', {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({
-            productData: productData,
-            transferType: 'shopify'
-          })
+        await apiRequest('POST', '/api/memory/store-product', {
+          productData: productData,
+          transferType: 'shopify'
         });
         console.log('Ürün hafızaya eklendi (Shopify)');
       } catch (memoryError) {
