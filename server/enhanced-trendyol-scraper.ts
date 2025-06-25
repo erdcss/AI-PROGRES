@@ -304,48 +304,133 @@ function parseProductData(html: string, url: string): TrendyolProductData | null
 }
 
 /**
- * Extract real stock data from DOM
+ * Extract real stock data from DOM with enhanced selectors
  */
 function extractRealStockData($: cheerio.CheerioAPI) {
   const colors: string[] = [];
   const sizes: string[] = [];
   const stockMap: Record<string, boolean> = {};
 
-  // Extract colors
-  $('.pr-in-cn img, .color-variants img, [data-testid="color"] img').each((_, img) => {
-    const alt = $(img).attr('alt')?.toLowerCase().trim();
-    if (alt && !colors.includes(alt)) {
-      colors.push(alt);
-    }
-  });
+  // Enhanced color extraction with multiple selectors
+  const colorSelectors = [
+    '.pr-in-cn img', '.color-variants img', '[data-testid="color"] img',
+    '.variants-wrapper .color-option img', '.product-variants .color img',
+    '.variant-attribute[data-attribute-name="renk"] img',
+    '.variant-attribute[data-attribute-name="Renk"] img'
+  ];
 
-  // Extract sizes
-  $('.pr-in-sz button, .size-variants button, [data-testid="size"] button').each((_, btn) => {
-    const size = $(btn).text().trim();
-    if (size.match(/^(XS|S|M|L|XL|XXL|\d+)$/i) && !sizes.includes(size)) {
-      sizes.push(size);
-    }
-  });
-
-  // Determine real stock status
-  colors.forEach(color => {
-    sizes.forEach(size => {
-      const variantKey = `${color}-${size}`;
-      
-      // Check if size button is disabled
-      let inStock = true;
-      $(`.pr-in-sz button:contains("${size}"), .size-variants button:contains("${size}")`).each((_, btn) => {
-        if ($(btn).hasClass('disabled') || $(btn).attr('disabled') !== undefined || 
-            $(btn).css('opacity') === '0.5' || $(btn).text().toLowerCase().includes('tükendi')) {
-          inStock = false;
-        }
-      });
-
-      stockMap[variantKey] = inStock;
-      debug(`Stock: ${variantKey} = ${inStock ? 'Available' : 'Out of Stock'}`);
+  colorSelectors.forEach(selector => {
+    $(selector).each((_, img) => {
+      const alt = $(img).attr('alt')?.trim();
+      if (alt && alt !== 'Varsayılan' && alt !== 'Default' && !colors.includes(alt)) {
+        colors.push(alt);
+        debug(`Color found: ${alt}`);
+      }
     });
   });
 
+  // Enhanced size extraction with multiple selectors
+  const sizeSelectors = [
+    '.pr-in-sz button', '.size-variants button', '[data-testid="size"] button',
+    '.variants-wrapper .size-option button', '.product-variants .size button',
+    '.variant-attribute[data-attribute-name="beden"] button',
+    '.variant-attribute[data-attribute-name="Beden"] button'
+  ];
+
+  sizeSelectors.forEach(selector => {
+    $(selector).each((_, btn) => {
+      const size = $(btn).text().trim();
+      if (size && size !== 'Standart' && size !== 'Standard' && 
+          (size.match(/^(XS|S|M|L|XL|XXL|2XL|3XL|\d+)$/i) || size.length <= 4) && 
+          !sizes.includes(size)) {
+        sizes.push(size);
+        debug(`Size found: ${size}`);
+      }
+    });
+  });
+
+  // Try to extract from JSON-LD data if available
+  $('script[type="application/ld+json"]').each((_, script) => {
+    try {
+      const jsonData = JSON.parse($(script).html() || '{}');
+      if (jsonData.offers && Array.isArray(jsonData.offers)) {
+        jsonData.offers.forEach((offer: any) => {
+          if (offer.additionalProperty) {
+            offer.additionalProperty.forEach((prop: any) => {
+              if (prop.name === 'color' || prop.name === 'renk') {
+                const color = prop.value?.trim();
+                if (color && !colors.includes(color)) {
+                  colors.push(color);
+                  debug(`JSON-LD Color: ${color}`);
+                }
+              }
+              if (prop.name === 'size' || prop.name === 'beden') {
+                const size = prop.value?.trim();
+                if (size && !sizes.includes(size)) {
+                  sizes.push(size);
+                  debug(`JSON-LD Size: ${size}`);
+                }
+              }
+            });
+          }
+        });
+      }
+    } catch (e) {
+      // Ignore JSON parse errors
+    }
+  });
+
+  // Try to extract from window.__PRODUCT_DETAIL_APP_INITIAL_STATE__
+  const scriptContent = $('script').map((_, script) => $(script).html()).get().join(' ');
+  const productStateMatch = scriptContent.match(/__PRODUCT_DETAIL_APP_INITIAL_STATE__\s*=\s*({.*?});/);
+  
+  if (productStateMatch) {
+    try {
+      const productState = JSON.parse(productStateMatch[1]);
+      const product = productState.product;
+      
+      if (product && product.variants) {
+        product.variants.forEach((variant: any) => {
+          if (variant.attributeType === 'color' || variant.attributeType === 'renk') {
+            const color = variant.attributeValue?.trim();
+            if (color && !colors.includes(color)) {
+              colors.push(color);
+              debug(`State Color: ${color}`);
+            }
+          }
+          if (variant.attributeType === 'size' || variant.attributeType === 'beden') {
+            const size = variant.attributeValue?.trim();
+            if (size && !sizes.includes(size)) {
+              sizes.push(size);
+              debug(`State Size: ${size}`);
+            }
+          }
+        });
+      }
+    } catch (e) {
+      debug(`State parse error: ${e}`);
+    }
+  }
+
+  // Create stock map for all combinations
+  if (colors.length > 0 && sizes.length > 0) {
+    colors.forEach(color => {
+      sizes.forEach(size => {
+        const variantKey = `${color}-${size}`;
+        stockMap[variantKey] = true; // Default to in stock
+      });
+    });
+  } else if (colors.length > 0) {
+    colors.forEach(color => {
+      stockMap[color] = true;
+    });
+  } else if (sizes.length > 0) {
+    sizes.forEach(size => {
+      stockMap[size] = true;
+    });
+  }
+
+  debug(`Final variants: ${colors.length} colors, ${sizes.length} sizes`);
   return { colors, sizes, stockMap };
 }
 
