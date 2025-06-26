@@ -87,7 +87,7 @@ export async function cleanScrape(url: string): Promise<CleanProductData> {
     // Extract product-only images (no duplicates or resized versions)
     console.log('🎯 Starting product-only image extraction...');
     const { getProductOnlyImages } = await import('./product-only-images');
-    const images = await getProductOnlyImages(url);
+    const images = await getProductOnlyImages(processedUrl);
     
     console.log(`📸 Product-only images: ${images.length}`);
     

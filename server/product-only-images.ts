@@ -31,7 +31,11 @@ export async function extractProductOnlyImages(url: string): Promise<string[]> {
       // Must have product path structure with _org_zoom.jpg for highest quality
       return img.includes('_org_zoom.jpg') && 
              img.includes('/prod/') && 
-             /ty\d+\/prod/.test(img);
+             /ty\d+\/prod/.test(img) &&
+             !img.includes('icon') &&
+             !img.includes('logo') &&
+             !img.includes('badge') &&
+             !img.includes('thumb');
     });
     
     console.log(`🎯 Product images after filtering: ${productImages.length}`);
