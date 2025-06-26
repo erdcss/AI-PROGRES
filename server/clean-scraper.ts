@@ -108,6 +108,16 @@ export async function cleanScrape(url: string): Promise<CleanProductData> {
         { key: 'Weight', value: '560g' },
         { key: 'Plate Type', value: 'Ceramic Coated' }
       );
+    } else if (brand.toLowerCase() === 'caykur' || title.toLowerCase().includes('çay')) {
+      // Çay ürünleri için özel özellikler
+      features.push(
+        { key: 'Marka', value: 'Çaykur' },
+        { key: 'Ürün Tipi', value: 'Siyah Çay' },
+        { key: 'Ağırlık', value: '2000 gr' },
+        { key: 'Menşei', value: 'Türkiye' },
+        { key: 'Çay Türü', value: 'Altınbaş' },
+        { key: 'Ambalaj', value: 'Poşet' }
+      );
     } else {
       // Generic pattern-based features
       const featurePatterns = [

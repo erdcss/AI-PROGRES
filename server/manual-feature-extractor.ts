@@ -182,7 +182,14 @@ export async function extractAllFeatures(url: string): Promise<ProductFeature[]>
       if (matches) {
         matches.forEach(match => {
           const value = match.replace(/materyal|kumaş|fabric|composition|bileşen|malzeme/gi, '').replace(/[:=\-]/g, '').trim();
-          if (value && value.length > 2) {
+          // Çay ürünleri için anlamsız değerleri filtrele
+          const invalidValues = ['açıcı', 'boyası', 'tipi', 'bileşeni', 'composition', 'li', 'ı', 'si'];
+          const isValidValue = value && 
+                              value.length > 3 && 
+                              !invalidValues.some(invalid => value.toLowerCase().includes(invalid)) &&
+                              !value.match(/^[a-z]{1,3}$/i); // 1-3 harf olan değerleri reddet
+          
+          if (isValidValue) {
             features.push({
               key: index < 6 ? 'Materyal' : 'Bileşen',
               value: value,
