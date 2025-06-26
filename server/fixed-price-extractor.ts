@@ -31,11 +31,16 @@ export async function extractTrendyolPrice(url: string): Promise<{price: number,
     // Method 1: Extract from URL path
     const urlParts = url.split('/');
     console.log(`🔍 URL parts:`, urlParts);
-    if (urlParts.length > 3) {
-      const brandFromUrl = urlParts[3]; // https://www.trendyol.com/braun/...
-      if (brandFromUrl && brandFromUrl !== 'www.trendyol.com' && brandFromUrl.length > 1 && brandFromUrl.length < 30) {
+    // URL format: https://www.trendyol.com/braun/product-name
+    // Index:         0    1   2              3     4
+    
+    // Look for the brand after trendyol.com
+    const trendyolIndex = urlParts.findIndex(part => part === 'www.trendyol.com');
+    if (trendyolIndex >= 0 && urlParts.length > trendyolIndex + 1) {
+      const brandFromUrl = urlParts[trendyolIndex + 1]; // Next element after trendyol.com
+      if (brandFromUrl && brandFromUrl.length > 1 && brandFromUrl.length < 30 && !brandFromUrl.includes('-p-')) {
         brand = brandFromUrl.charAt(0).toUpperCase() + brandFromUrl.slice(1);
-        console.log(`✅ Brand from URL: ${brand}`);
+        console.log(`✅ Brand from URL (index ${trendyolIndex + 1}): ${brand}`);
       }
     }
     

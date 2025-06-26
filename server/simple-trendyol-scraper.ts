@@ -46,9 +46,46 @@ export async function simpleTrendyolScrape(url: string): Promise<SimpleTrendyolD
     const $ = cheerio.load(response.data);
     const html = response.data;
     
-    // Basic product info
-    let title = $('h1').first().text().trim() || 'Product Title';
+    // Enhanced title extraction
+    let title = 'Ürün Başlığı';
     let brand = 'Network';
+    
+    // Multiple title extraction methods
+    const titleSelectors = [
+      'h1[data-testid="pdp-product-name"]',
+      '.pr-new-br h1',
+      'h1.product-name',
+      '.product-detail-name h1',
+      'h1',
+      '.pr-in-nm'
+    ];
+    
+    for (const selector of titleSelectors) {
+      const titleElement = $(selector);
+      if (titleElement.length > 0) {
+        const extractedTitle = titleElement.first().text().trim();
+        if (extractedTitle && extractedTitle.length > 5 && extractedTitle.length < 200) {
+          title = extractedTitle;
+          console.log(`✅ Title from selector ${selector}: ${title.substring(0, 50)}...`);
+          break;
+        }
+      }
+    }
+    
+    // Fallback: Extract from script tags
+    if (title === 'Ürün Başlığı') {
+      const scriptTexts = html.match(/<script[^>]*>(.*?)<\/script>/gis);
+      if (scriptTexts) {
+        for (const scriptTag of scriptTexts) {
+          const titleMatch = scriptTag.match(/"name":\s*"([^"]{10,150})"/);
+          if (titleMatch && titleMatch[1]) {
+            title = titleMatch[1];
+            console.log(`✅ Title from script: ${title.substring(0, 50)}...`);
+            break;
+          }
+        }
+      }
+    }
     
     // Price extraction using fixed extractor
     let priceObject = {
