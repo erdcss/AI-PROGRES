@@ -4,6 +4,7 @@ import { shopifyIntegration } from './shopify-integration';
 import { monitoringService } from './monitoring-service';
 import { storage } from './storage-fixed';
 import { telegramIntegration } from './telegram-integration';
+import { scrapeDysonProduct } from './working-dyson-scraper';
 
 // Dynamic product category determination
 function determineProductCategory(productData: any): string {
@@ -281,9 +282,17 @@ router.post('/api/scrape', async (req, res) => {
     console.log('URL normalize edildi:', url, '->', url);
     console.log('Trendyol ürün verisi işleniyor...');
 
-    // Simple Trendyol scraper kullan
-    const { simpleTrendyolScrape } = await import('./simple-trendyol-scraper');
-    const scrapedData = await simpleTrendyolScrape(url);
+    let scrapedData;
+    
+    // Check if it's a Dyson product for specialized extraction
+    if (url.includes('/dyson/') || url.toLowerCase().includes('dyson')) {
+      console.log('🎯 Dyson product detected - using specialized scraper');
+      scrapedData = await scrapeDysonProduct(url);
+    } else {
+      // Use simple scraper for other products
+      const { simpleTrendyolScrape } = await import('./simple-trendyol-scraper');
+      scrapedData = await simpleTrendyolScrape(url);
+    }
     
     if (!scrapedData.success) {
       return res.status(500).json({

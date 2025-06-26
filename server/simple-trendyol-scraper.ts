@@ -421,3 +421,4 @@ export async function simpleTrendyolScrape(url: string): Promise<SimpleTrendyolD
       };
     }
   }
+}
