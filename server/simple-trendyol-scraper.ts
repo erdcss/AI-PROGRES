@@ -195,51 +195,52 @@ export async function simpleTrendyolScrape(url: string): Promise<SimpleTrendyolD
         console.log(`🎯 Enhanced feature extraction başlatılıyor...`);
       
         // Extract from script tags - Look for product attributes
-      const scriptTexts = html.match(/<script[^>]*>(.*?)<\/script>/gis);
-      if (scriptTexts) {
-        for (const scriptTag of scriptTexts) {
-          // Look for product specifications in JSON structures
-          try {
-            // Extract structured product data from script content
-            const productDataMatches = scriptTag.match(/window\.__PRODUCT_DETAIL_APP_INITIAL_STATE__\s*=\s*({.*?});/s);
-            if (productDataMatches) {
-              const productData = JSON.parse(productDataMatches[1]);
-              if (productData && productData.product && productData.product.attributes) {
-                productData.product.attributes.forEach((attr: any) => {
-                  if (attr.key && attr.value && attr.key.name && attr.value.name) {
-                    const key = attr.key.name.trim();
-                    const value = attr.value.name.trim();
-                    if (key.length > 0 && value.length > 0 && value.length < 100) {
-                      features.push({
-                        key: key,
-                        value: value
-                      });
-                    }
-                  }
-                });
-              }
-            }
-          } catch (e) {
-            // Continue with other methods
-          }
-          
-          // Look for variant data
-          const variantMatches = scriptTag.match(/"variants":\s*\[(.*?)\]/s);
-          if (variantMatches && variants.length === 0) {
+        const scriptTexts = html.match(/<script[^>]*>(.*?)<\/script>/gis);
+        if (scriptTexts) {
+          for (const scriptTag of scriptTexts) {
+            // Look for product specifications in JSON structures
             try {
-              const variantData = variantMatches[1];
-              const colorMatches = variantData.match(/"attributeValue":\s*"([^"]+)"/g);
-              if (colorMatches) {
-                const colors = colorMatches.map(m => m.match(/"attributeValue":\s*"([^"]+)"/)?.[1]).filter(Boolean);
-                const uniqueColors = [...new Set(colors)].slice(0, 10);
-                variants = uniqueColors.map(color => ({
-                  color: color,
-                  size: 'Tek Beden',
-                  inStock: true
-                }));
+              // Extract structured product data from script content
+              const productDataMatches = scriptTag.match(/window\.__PRODUCT_DETAIL_APP_INITIAL_STATE__\s*=\s*({.*?});/s);
+              if (productDataMatches) {
+                const productData = JSON.parse(productDataMatches[1]);
+                if (productData && productData.product && productData.product.attributes) {
+                  productData.product.attributes.forEach((attr: any) => {
+                    if (attr.key && attr.value && attr.key.name && attr.value.name) {
+                      const key = attr.key.name.trim();
+                      const value = attr.value.name.trim();
+                      if (key.length > 0 && value.length > 0 && value.length < 100) {
+                        features.push({
+                          key: key,
+                          value: value
+                        });
+                      }
+                    }
+                  });
+                }
               }
             } catch (e) {
-              // Continue with fallback
+              // Continue with other methods
+            }
+            
+            // Look for variant data
+            const variantMatches = scriptTag.match(/"variants":\s*\[(.*?)\]/s);
+            if (variantMatches && variants.length === 0) {
+              try {
+                const variantData = variantMatches[1];
+                const colorMatches = variantData.match(/"attributeValue":\s*"([^"]+)"/g);
+                if (colorMatches) {
+                  const colors = colorMatches.map(m => m.match(/"attributeValue":\s*"([^"]+)"/)?.[1]).filter(Boolean);
+                  const uniqueColors = [...new Set(colors)].slice(0, 10);
+                  variants = uniqueColors.map(color => ({
+                    color: color,
+                    size: 'Tek Beden',
+                    inStock: true
+                  }));
+                }
+              } catch (e) {
+                // Continue with fallback
+              }
             }
           }
         }
@@ -354,22 +355,10 @@ export async function simpleTrendyolScrape(url: string): Promise<SimpleTrendyolD
       
       console.log(`🎯 Gelişmiş sistem: ${features.length} özellik, ${variants.length} varyant çıkarıldı`);
       
-    } catch (e: any) {
-      console.log(`⚠️ Gelişmiş çıkarma hatası: ${e.message}`);
-      
-      // Fallback: Basit özellik çıkarma
-      try {
-        const $ = cheerio.load(html);
-        $('.detail-attr').each((i, el) => {
-          const key = $(el).find('.detail-attr-item-key').text().trim();
-          const value = $(el).find('.detail-attr-item-value').text().trim();
-          
-          if (key && value) {
-            features.push({ key, value });
-          }
-        });
-        
-        if (features.length === 0) {
+      // Fallback feature extraction if none found
+      if (features.length === 0) {
+        try {
+          const $ = cheerio.load(html);
           $('li').each((i, el) => {
             const text = $(el).text().trim();
             if (text.includes(':') && text.length < 100) {
@@ -382,52 +371,53 @@ export async function simpleTrendyolScrape(url: string): Promise<SimpleTrendyolD
               }
             }
           });
+          console.log(`📋 Fallback: ${features.length} özellik çıkarıldı`);
+        } catch (fallbackError: any) {
+          console.log(`⚠️ Fallback çıkarma hatası: ${fallbackError.message}`);
         }
-        
-        console.log(`📋 Fallback: ${features.length} özellik çıkarıldı`);
-      } catch (fallbackError: any) {
-        console.log(`⚠️ Fallback çıkarma hatası: ${fallbackError.message}`);
       }
       
-      variants = []; // Gerçek varyant bulunamadı - sahte varyant oluşturma
+      // No fake variants - only real ones
+      if (variants.length === 0) {
+        variants = []; 
+      }
+    
+      console.log(`👕 Created ${variants.length} variants`);
+      
+      console.log(`✅ Scraping completed:
+     📦 Title: ${title}
+     🏷️ Brand: ${brand}
+     💰 Price: ${priceObject.formatted} → ${priceObject.profitFormatted}
+     🎯 Features: ${features.length} items
+     📸 Images: ${images.length} items
+     👕 Variants: ${variants.length} items`);
+      
+      return {
+        success: true,
+        title,
+        brand,
+        price: priceObject,
+        images,
+        features,
+        variants
+      };
+      
+    } catch (error: any) {
+      console.error(`❌ Scraping error: ${error.message}`);
+      return {
+        success: false,
+        title: 'Error',
+        brand: 'Network',
+        price: {
+          original: 0,
+          currency: 'TRY',
+          formatted: '0,00 TL',
+          withProfit: 0,
+          profitFormatted: '0,00 TL'
+        },
+        images: [],
+        features: [],
+        variants: []
+      };
     }
-    
-    console.log(`👕 Created ${variants.length} variants`);
-    
-    console.log(`✅ Scraping completed:
-   📦 Title: ${title}
-   🏷️ Brand: ${brand}
-   💰 Price: ${priceObject.formatted} → ${priceObject.profitFormatted}
-   🎯 Features: ${features.length} items
-   📸 Images: ${images.length} items
-   👕 Variants: ${variants.length} items`);
-    
-    return {
-      success: true,
-      title,
-      brand,
-      price: priceObject,
-      images,
-      features,
-      variants
-    };
-    
-  } catch (error) {
-    console.error(`❌ Scraping error: ${error.message}`);
-    return {
-      success: false,
-      title: 'Error',
-      brand: 'Network',
-      price: {
-        original: 0,
-        currency: 'TRY',
-        formatted: '0,00 TL',
-        withProfit: 0,
-        profitFormatted: '0,00 TL'
-      },
-      images: [],
-      features: [],
-      variants: []
-    };
   }
-}
