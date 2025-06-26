@@ -25,54 +25,54 @@ export async function extractTrendyolPrice(url: string): Promise<{price: number,
     let price = 0;
     let brand = 'Network';
     
-    // Method 1: Direct regex search for prices in HTML - Enhanced for maximum numbers
-    console.log(`💰 Method 1: Maximum number detection system`);
-    const priceMatches = html.match(/(\d{1,10}(?:[.,]\d{3})*(?:[.,]\d{1,3})?)\s*(?:TL|₺|Türk\s*Lirası)/gi);
-    if (priceMatches && priceMatches.length > 0) {
-      console.log(`Found ${priceMatches.length} price matches:`, priceMatches.slice(0, 5));
-      
-      // Parse and find the most likely product price
-      const prices = priceMatches.map(match => {
-        let cleanPrice = match.replace(/TL|₺/gi, '').trim();
-        console.log(`🔍 Processing price: "${cleanPrice}"`);
+    // Method 1: Enhanced HTML price detection with multiple patterns
+    console.log(`💰 Method 1: Advanced price pattern detection`);
+    
+    // Multiple regex patterns for different price formats
+    const patterns = [
+      /(\d{1,10}(?:[.,]\d{3})*(?:[.,]\d{1,3})?)\s*(?:TL|₺|Türk\s*Lirası)/gi,
+      /"price"[:\s]*"?(\d+(?:[.,]\d+)?)"?/gi,
+      /"currentPrice"[:\s]*"?(\d+(?:[.,]\d+)?)"?/gi,
+      /discountPrice[:\s]*"?(\d+(?:[.,]\d+)?)"?/gi,
+      /originalPrice[:\s]*"?(\d+(?:[.,]\d+)?)"?/gi,
+      /\b(\d{2,7}[.,]\d{2})\s*TL/gi,
+      /₺\s*(\d{2,7}(?:[.,]\d{2})?)/gi
+    ];
+    
+    let allPrices: number[] = [];
+    
+    patterns.forEach((pattern, index) => {
+      const matches = html.match(pattern);
+      if (matches && matches.length > 0) {
+        console.log(`Pattern ${index + 1} found ${matches.length} matches:`, matches.slice(0, 3));
         
-        // Turkish number format handling
-        // Case 1: 14.681 (thousands separator with dot) -> 14681
-        // Case 2: 1.299,99 (thousands separator with dot, decimal with comma) -> 1299.99
-        // Case 3: 639,99 (decimal with comma) -> 639.99
-        
-        if (cleanPrice.includes('.') && cleanPrice.includes(',')) {
-          // Format: 1.299,99 (thousands separator + decimal)
-          cleanPrice = cleanPrice.replace(/\./g, '').replace(',', '.');
-          console.log(`📊 Thousands+decimal format: ${cleanPrice}`);
-        } else if (cleanPrice.includes('.') && !cleanPrice.includes(',')) {
-          // Check if it's thousands separator (no decimal part after)
-          const parts = cleanPrice.split('.');
-          if (parts.length === 2 && parts[1].length === 3) {
-            // Format: 14.681 (thousands separator)
-            cleanPrice = cleanPrice.replace(/\./g, '');
-            console.log(`📊 Thousands separator format: ${cleanPrice}`);
-          } else {
-            // Format: 14.68 (decimal separator)
-            console.log(`📊 Decimal format: ${cleanPrice}`);
+        const prices = matches.map((match: string) => {
+          let cleanPrice = match.replace(/[^0-9.,]/g, '').trim();
+          
+          // Handle Turkish number formatting
+          if (cleanPrice.includes('.') && cleanPrice.includes(',')) {
+            cleanPrice = cleanPrice.replace(/\./g, '').replace(',', '.');
+          } else if (cleanPrice.includes('.') && !cleanPrice.includes(',')) {
+            const parts = cleanPrice.split('.');
+            if (parts.length === 2 && parts[1].length === 3) {
+              cleanPrice = cleanPrice.replace(/\./g, '');
+            }
+          } else if (cleanPrice.includes(',')) {
+            cleanPrice = cleanPrice.replace(',', '.');
           }
-        } else if (cleanPrice.includes(',')) {
-          // Format: 639,99 (decimal with comma)
-          cleanPrice = cleanPrice.replace(',', '.');
-          console.log(`📊 Comma decimal format: ${cleanPrice}`);
-        }
+          
+          const parsedPrice = parseFloat(cleanPrice);
+          return isNaN(parsedPrice) ? 0 : parsedPrice;
+        }).filter((p: number) => p > 10 && p < 1000000); // Realistic price range
         
-        const parsedPrice = parseFloat(cleanPrice.replace(/[^\d.]/g, ''));
-        console.log(`💰 Final parsed price: ${parsedPrice}`);
-        return parsedPrice;
-      }).filter(p => p > 0 && p < 10000000); // Maximum range for all possible products including real estate
-      
-      if (prices.length > 0) {
-        // Take the most common price or median price
-        prices.sort((a, b) => a - b);
-        price = prices[Math.floor(prices.length / 2)]; // Median price
-        console.log(`✅ Method 1 success: ${price} TL`);
+        allPrices.push(...prices);
       }
+    });
+    
+    if (allPrices.length > 0) {
+      allPrices.sort((a: number, b: number) => a - b);
+      price = allPrices[Math.floor(allPrices.length / 2)];
+      console.log(`✅ Method 1 success: ${price} TL from ${allPrices.length} candidates`);
     }
     
     // Method 2: JSON extraction if regex failed
@@ -108,17 +108,39 @@ export async function extractTrendyolPrice(url: string): Promise<{price: number,
           
           price = findPriceInObject(jsonData);
           
-          // Also try to extract brand
-          const findBrandInObject = (obj: any): string => {
+          // Enhanced brand extraction with multiple search patterns
+          const findBrandInObject = (obj: any, path = ''): string => {
             if (typeof obj !== 'object' || obj === null) return 'Network';
             
             for (const [key, value] of Object.entries(obj)) {
+              const currentPath = path ? `${path}.${key}` : key;
+              
+              // Direct brand name checks
+              if (key === 'brandName' && typeof value === 'string') {
+                console.log(`🏷️ Brand found at ${currentPath}: ${value}`);
+                return value;
+              }
+              
+              if (key === 'name' && path.includes('brand') && typeof value === 'string') {
+                console.log(`🏷️ Brand name found at ${currentPath}: ${value}`);
+                return value;
+              }
+              
+              // Brand object with name property
               if (key.toLowerCase().includes('brand') && typeof value === 'object' && value !== null) {
                 if ((value as any).name && typeof (value as any).name === 'string') {
+                  console.log(`🏷️ Brand object found at ${currentPath}: ${(value as any).name}`);
                   return (value as any).name;
                 }
-              } else if (typeof value === 'object') {
-                const found = findBrandInObject(value);
+                if ((value as any).brandName && typeof (value as any).brandName === 'string') {
+                  console.log(`🏷️ Brand object found at ${currentPath}: ${(value as any).brandName}`);
+                  return (value as any).brandName;
+                }
+              }
+              
+              // Recursive search
+              if (typeof value === 'object') {
+                const found = findBrandInObject(value, currentPath);
                 if (found !== 'Network') return found;
               }
             }
@@ -128,6 +150,7 @@ export async function extractTrendyolPrice(url: string): Promise<{price: number,
           const foundBrand = findBrandInObject(jsonData);
           if (foundBrand !== 'Network') {
             brand = foundBrand;
+            console.log(`✅ Brand extracted: ${brand}`);
           }
           
           if (price > 0) {
