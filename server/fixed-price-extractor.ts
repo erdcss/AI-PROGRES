@@ -23,7 +23,57 @@ export async function extractTrendyolPrice(url: string): Promise<{price: number,
     const $ = cheerio.load(html);
     
     let price = 0;
-    let brand = 'Network';
+    let brand = 'Marka Bilinmiyor';
+    
+    // Brand extraction first
+    console.log(`🏷️ Brand detection starting...`);
+    
+    // Method 1: Extract from URL path
+    const urlParts = url.split('/');
+    console.log(`🔍 URL parts:`, urlParts);
+    if (urlParts.length > 3) {
+      const brandFromUrl = urlParts[3]; // https://www.trendyol.com/braun/...
+      if (brandFromUrl && brandFromUrl !== 'www.trendyol.com' && brandFromUrl.length > 1 && brandFromUrl.length < 30) {
+        brand = brandFromUrl.charAt(0).toUpperCase() + brandFromUrl.slice(1);
+        console.log(`✅ Brand from URL: ${brand}`);
+      }
+    }
+    
+    // Method 2: Extract from meta tags and JSON-LD
+    const brandSelectors = [
+      'meta[property="product:brand"]',
+      'meta[name="brand"]',
+      '[data-testid="product-brand"]',
+      '.product-brand',
+      '.brand-name'
+    ];
+    
+    for (const selector of brandSelectors) {
+      const brandElement = $(selector);
+      if (brandElement.length > 0) {
+        const extractedBrand = brandElement.attr('content') || brandElement.text().trim();
+        if (extractedBrand && extractedBrand.length > 1 && extractedBrand.length < 50) {
+          brand = extractedBrand;
+          console.log(`✅ Brand from selector ${selector}: ${brand}`);
+          break;
+        }
+      }
+    }
+    
+    // Method 3: Extract from script JSON data
+    if (brand === 'Marka Bilinmiyor') {
+      const scriptTexts = $('script').map((i, el) => $(el).text()).get();
+      for (const script of scriptTexts) {
+        const brandMatch = script.match(/"brand"[:\s]*"([^"]+)"/i) || 
+                          script.match(/"vendor"[:\s]*"([^"]+)"/i) ||
+                          script.match(/vendor[:\s]*["']([^"']+)["']/i);
+        if (brandMatch && brandMatch[1] && brandMatch[1] !== 'Network') {
+          brand = brandMatch[1];
+          console.log(`✅ Brand from script: ${brand}`);
+          break;
+        }
+      }
+    }
     
     // Method 1: Enhanced HTML price detection with multiple patterns
     console.log(`💰 Method 1: Advanced price pattern detection`);
@@ -251,8 +301,8 @@ export async function extractTrendyolPrice(url: string): Promise<{price: number,
     console.log(`🎯 Final result: Price=${price} TL, Brand=${brand}`);
     return { price, brand };
     
-  } catch (error) {
+  } catch (error: any) {
     console.error(`❌ Price extraction error: ${error.message}`);
-    return { price: 0, brand: 'Network' };
+    return { price: 0, brand: 'Hata' };
   }
 }

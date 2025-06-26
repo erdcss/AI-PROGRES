@@ -108,35 +108,91 @@ export async function simpleTrendyolScrape(url: string): Promise<SimpleTrendyolD
     let variants: Array<{color: string, size: string, inStock: boolean}> = [];
     
     try {
-      // Quick HTML pattern extraction for speed
-      const featurePatterns = [
-        { key: 'Materyal', pattern: /Materyal[:\s]*([^<>\n,]+)/i },
-        { key: 'Kumaş', pattern: /Kumaş[:\s]*([^<>\n,]+)/i },
-        { key: 'Kalıp', pattern: /Kalıp[:\s]*([^<>\n,]+)/i },
-        { key: 'Yıkama', pattern: /Yıkama[:\s]*([^<>\n,]+)/i },
-        { key: 'Marka', pattern: /vendor["\s:]*["']([^"']+)/i }
-      ];
+      // Enhanced feature extraction from script data
+      console.log(`🎯 Enhanced feature extraction başlatılıyor...`);
       
-      featurePatterns.forEach(({key, pattern}) => {
-        const match = html.match(pattern);
-        if (match && match[1]) {
-          features.push({
-            key: key,
-            value: match[1].trim()
-          });
+      // Extract from script tags - Look for product attributes
+      const scriptTexts = html.match(/<script[^>]*>(.*?)<\/script>/gis);
+      if (scriptTexts) {
+        for (const scriptTag of scriptTexts) {
+          // Look for attributes in JSON structures
+          const attributeMatches = scriptTag.match(/"attributes":\s*\[(.*?)\]/s);
+          if (attributeMatches) {
+            try {
+              const attributesText = attributeMatches[1];
+              const attrPairs = attributeMatches[1].match(/"name":\s*"([^"]+)"[^}]*"value":\s*"([^"]+)"/g);
+              if (attrPairs) {
+                attrPairs.forEach(pair => {
+                  const nameMatch = pair.match(/"name":\s*"([^"]+)"/);
+                  const valueMatch = pair.match(/"value":\s*"([^"]+)"/);
+                  if (nameMatch && valueMatch) {
+                    features.push({
+                      key: nameMatch[1],
+                      value: valueMatch[1]
+                    });
+                  }
+                });
+              }
+            } catch (e) {
+              // Continue with fallback
+            }
+          }
+          
+          // Look for variant data
+          const variantMatches = scriptTag.match(/"variants":\s*\[(.*?)\]/s);
+          if (variantMatches && variants.length === 0) {
+            try {
+              const variantData = variantMatches[1];
+              const colorMatches = variantData.match(/"attributeValue":\s*"([^"]+)"/g);
+              if (colorMatches) {
+                const colors = colorMatches.map(m => m.match(/"attributeValue":\s*"([^"]+)"/)?.[1]).filter(Boolean);
+                const uniqueColors = [...new Set(colors)].slice(0, 10);
+                variants = uniqueColors.map(color => ({
+                  color: color,
+                  size: 'Tek Beden',
+                  inStock: true
+                }));
+              }
+            } catch (e) {
+              // Continue with fallback
+            }
+          }
         }
-      });
+      }
       
-      // Quick size extraction
-      const sizePattern = /\b(3[0-9]|4[0-9]|5[0-9])\b/g;
-      const sizeMatches = html.match(sizePattern);
-      if (sizeMatches) {
-        const uniqueSizes = sizeMatches.filter((size, index, arr) => arr.indexOf(size) === index).slice(0, 10);
-        variants = uniqueSizes.map(size => ({
-          color: 'Standart',
-          size: size,
-          inStock: true
-        }));
+      // Fallback: Pattern-based extraction
+      if (features.length === 0) {
+        const featurePatterns = [
+          { key: 'Materyal', pattern: /Materyal[:\s]*([^<>\n,]+)/i },
+          { key: 'Kumaş', pattern: /Kumaş[:\s]*([^<>\n,]+)/i },
+          { key: 'Kalıp', pattern: /Kalıp[:\s]*([^<>\n,]+)/i },
+          { key: 'Yıkama', pattern: /Yıkama[:\s]*([^<>\n,]+)/i },
+          { key: 'Beden', pattern: /Beden[:\s]*([^<>\n,]+)/i }
+        ];
+        
+        featurePatterns.forEach(({key, pattern}) => {
+          const match = html.match(pattern);
+          if (match && match[1]) {
+            features.push({
+              key: key,
+              value: match[1].trim()
+            });
+          }
+        });
+      }
+      
+      // Size extraction fallback
+      if (variants.length === 0) {
+        const sizePattern = /\b(3[0-9]|4[0-9]|5[0-9]|XS|S|M|L|XL|XXL)\b/g;
+        const sizeMatches = html.match(sizePattern);
+        if (sizeMatches) {
+          const uniqueSizes = sizeMatches.filter((size: string, index: number, arr: string[]) => arr.indexOf(size) === index).slice(0, 8);
+          variants = uniqueSizes.map((size: string) => ({
+            color: 'Standart',
+            size: size,
+            inStock: true
+          }));
+        }
       }
       
       console.log(`🎯 Gelişmiş sistem: ${features.length} özellik, ${variants.length} varyant çıkarıldı`);
