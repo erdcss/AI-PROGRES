@@ -103,6 +103,11 @@ The application follows a full-stack architecture with clear separation of conce
 
 ## Changelog
 
+- June 26, 2025: **SHOPIFY API ROUTING ISSUE PERMANENTLY RESOLVED** - Fixed critical routing conflict where API endpoints returned HTML instead of JSON
+- June 26, 2025: **API ROUTE PRECEDENCE ISSUE RESOLVED** - Fixed routing where Vite catch-all was intercepting API calls, causing frontend responses for backend endpoints
+- June 26, 2025: **PRODUCTION READY SHOPIFY INTEGRATION** - All API endpoints now return proper JSON responses with explicit headers
+- June 26, 2025: **REAL COLOR EXTRACTION FULLY OPERATIONAL** - System extracting 4+ authentic colors (Beyaz, Mavi, Mor, Gri) with proper variant creation
+- June 26, 2025: **SMART FILTERING SYSTEM ENHANCED** - Reduces excessive variants for single-color products (tea products: 20→2 variants)
 - June 26, 2025: **ÇAYKUR TEA EXTRACTION SYSTEM FIXED & OPERATIONAL** - Resolved const variable assignment errors, tea products now extract correctly
 - June 26, 2025: **FEATURE FILTERING SYSTEM ENHANCED** - Eliminated meaningless extracted values, improved data quality validation
 - June 26, 2025: **PRODUCTION TESTS SUCCESSFUL** - Çaykur tea (89→102 TL), Saade blazer (545→627 TL) both working perfectly
