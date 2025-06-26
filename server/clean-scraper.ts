@@ -145,12 +145,30 @@ export async function cleanScrape(url: string): Promise<CleanProductData> {
     
     console.log(`🎯 Features extracted: ${features.length}`);
     
-    // Extract variants
-    const variants = [{
-      color: brand.toLowerCase() === 'dyson' ? 'Ceramic Pink' : 'Standart',
-      size: 'Tek Beden',
-      inStock: true
-    }];
+    // Extract real variants with stock status
+    console.log('🔍 Starting real size extraction...');
+    const { extractRealSizes } = await import('./real-size-extractor');
+    const realVariants = await extractRealSizes(html, url);
+    
+    console.log(`🎯 Real variants found: ${realVariants.length}`);
+    
+    // Convert to expected format or use fallback
+    let variants;
+    if (realVariants.length > 0) {
+      variants = realVariants.map(variant => ({
+        color: variant.color,
+        size: variant.size,
+        inStock: variant.inStock
+      }));
+    } else {
+      // Fallback for products without real variants
+      console.log('⚠️ No real variants found, using default');
+      variants = [{
+        color: 'Standart',
+        size: 'Tek Beden',
+        inStock: true
+      }];
+    }
     
     console.log(`👕 Variants: ${variants.length}`);
     console.log(`✅ Clean extraction completed successfully`);
