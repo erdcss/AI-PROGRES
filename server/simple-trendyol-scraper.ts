@@ -180,27 +180,29 @@ export async function simpleTrendyolScrape(url: string): Promise<SimpleTrendyolD
       const scriptTexts = html.match(/<script[^>]*>(.*?)<\/script>/gis);
       if (scriptTexts) {
         for (const scriptTag of scriptTexts) {
-          // Look for attributes in JSON structures
-          const attributeMatches = scriptTag.match(/"attributes":\s*\[(.*?)\]/s);
-          if (attributeMatches) {
-            try {
-              const attributesText = attributeMatches[1];
-              const attrPairs = attributeMatches[1].match(/"name":\s*"([^"]+)"[^}]*"value":\s*"([^"]+)"/g);
-              if (attrPairs) {
-                attrPairs.forEach(pair => {
-                  const nameMatch = pair.match(/"name":\s*"([^"]+)"/);
-                  const valueMatch = pair.match(/"value":\s*"([^"]+)"/);
-                  if (nameMatch && valueMatch) {
-                    features.push({
-                      key: nameMatch[1],
-                      value: valueMatch[1]
-                    });
+          // Look for product specifications in JSON structures
+          try {
+            // Extract structured product data from script content
+            const productDataMatches = scriptTag.match(/window\.__PRODUCT_DETAIL_APP_INITIAL_STATE__\s*=\s*({.*?});/s);
+            if (productDataMatches) {
+              const productData = JSON.parse(productDataMatches[1]);
+              if (productData && productData.product && productData.product.attributes) {
+                productData.product.attributes.forEach((attr: any) => {
+                  if (attr.key && attr.value && attr.key.name && attr.value.name) {
+                    const key = attr.key.name.trim();
+                    const value = attr.value.name.trim();
+                    if (key.length > 0 && value.length > 0 && value.length < 100) {
+                      features.push({
+                        key: key,
+                        value: value
+                      });
+                    }
                   }
                 });
               }
-            } catch (e) {
-              // Continue with fallback
             }
+          } catch (e) {
+            // Continue with other methods
           }
           
           // Look for variant data
@@ -225,23 +227,60 @@ export async function simpleTrendyolScrape(url: string): Promise<SimpleTrendyolD
         }
       }
       
-      // Fallback: Pattern-based extraction
+      // Enhanced JSON-LD extraction
       if (features.length === 0) {
-        const featurePatterns = [
-          { key: 'Materyal', pattern: /Materyal[:\s]*([^<>\n,]+)/i },
-          { key: 'Kumaş', pattern: /Kumaş[:\s]*([^<>\n,]+)/i },
-          { key: 'Kalıp', pattern: /Kalıp[:\s]*([^<>\n,]+)/i },
-          { key: 'Yıkama', pattern: /Yıkama[:\s]*([^<>\n,]+)/i },
-          { key: 'Beden', pattern: /Beden[:\s]*([^<>\n,]+)/i }
+        const jsonLdMatches = html.match(/<script[^>]*type=["']application\/ld\+json["'][^>]*>(.*?)<\/script>/gis);
+        if (jsonLdMatches) {
+          jsonLdMatches.forEach(script => {
+            try {
+              const jsonContent = script.replace(/<script[^>]*>|<\/script>/gi, '');
+              const data = JSON.parse(jsonContent);
+              if (data && typeof data === 'object') {
+                // Extract product features from JSON-LD
+                const extractFeatures = (obj: any, prefix = '') => {
+                  for (const [key, value] of Object.entries(obj)) {
+                    if (typeof value === 'string' && value.length > 0 && value.length < 100) {
+                      if (key.toLowerCase().includes('material') || key.toLowerCase().includes('fabric') || 
+                          key.toLowerCase().includes('color') || key.toLowerCase().includes('size')) {
+                        features.push({
+                          key: key.charAt(0).toUpperCase() + key.slice(1),
+                          value: value
+                        });
+                      }
+                    } else if (typeof value === 'object' && value !== null) {
+                      extractFeatures(value, `${prefix}${key}.`);
+                    }
+                  }
+                };
+                extractFeatures(data);
+              }
+            } catch (e) {
+              // Continue with next script
+            }
+          });
+        }
+      }
+      
+      // Advanced pattern-based extraction for specific product attributes
+      if (features.length === 0) {
+        const advancedPatterns = [
+          { key: 'Materyal', pattern: /(?:Materyal|Material)[:\s]*([A-Za-zÇĞİÖŞÜçğıöşü0-9%\s,]+?)(?:[,\.]|$)/i },
+          { key: 'Kumaş Tipi', pattern: /(?:Kumaş|Fabric)[:\s]*([A-Za-zÇĞİÖŞÜçğıöşü\s]+?)(?:[,\.]|$)/i },
+          { key: 'Renk', pattern: /(?:Renk|Color)[:\s]*([A-Za-zÇĞİÖŞÜçğıöşü\s]+?)(?:[,\.]|$)/i },
+          { key: 'Beden', pattern: /(?:Beden|Size)[:\s]*([A-Za-z0-9\s\-]+?)(?:[,\.]|$)/i },
+          { key: 'Marka', pattern: /(?:Marka|Brand)[:\s]*([A-Za-zÇĞİÖŞÜçğıöşü\s&]+?)(?:[,\.]|$)/i }
         ];
         
-        featurePatterns.forEach(({key, pattern}) => {
-          const match = html.match(pattern);
-          if (match && match[1]) {
-            features.push({
-              key: key,
-              value: match[1].trim()
-            });
+        advancedPatterns.forEach(({key, pattern}) => {
+          const matches = html.match(pattern);
+          if (matches && matches[1]) {
+            const cleanValue = matches[1].trim().replace(/[<>]/g, '');
+            if (cleanValue && cleanValue.length > 1 && cleanValue.length < 50) {
+              features.push({
+                key: key,
+                value: cleanValue
+              });
+            }
           }
         });
       }
