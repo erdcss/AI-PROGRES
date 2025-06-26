@@ -5,6 +5,7 @@ import { monitoringService } from './monitoring-service';
 import { storage } from './storage-fixed';
 import { telegramIntegration } from './telegram-integration';
 import { cleanScrape } from './clean-scraper';
+import { getSystemStatus, sendStatusToTelegram } from './simple-system-status';
 
 // Dynamic product category determination
 function determineProductCategory(productData: any): string {
@@ -1282,6 +1283,43 @@ router.post('/analysis/chat', async (req, res) => {
   } catch (error) {
     console.error('Chat error:', error);
     res.status(500).json({ success: false, error: 'AI yanıtı alınamadı' });
+  }
+});
+
+// System status JSON endpoint
+router.get('/system/status', async (req, res) => {
+  try {
+    const status = await getSystemStatus();
+    res.json(status);
+  } catch (error) {
+    res.status(500).json({ 
+      error: 'Sistem durumu alınamadı',
+      timestamp: new Date().toISOString()
+    });
+  }
+});
+
+// System status report to Telegram
+router.post('/system/report', async (req, res) => {
+  try {
+    const success = await sendStatusToTelegram();
+    
+    if (success) {
+      res.json({ 
+        success: true, 
+        message: 'Sistem durum raporu Telegram\'a gönderildi' 
+      });
+    } else {
+      res.status(500).json({ 
+        success: false, 
+        error: 'Rapor gönderilemedi' 
+      });
+    }
+  } catch (error) {
+    res.status(500).json({ 
+      success: false, 
+      error: `Rapor oluşturma hatası: ${error}` 
+    });
   }
 });
 

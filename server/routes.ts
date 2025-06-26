@@ -2512,6 +2512,20 @@ export function registerRoutes(app: Express): Server {
     }
   });
 
+  // System status JSON endpoint
+  app.get('/api/system/status', async (req, res) => {
+    try {
+      const { getSystemStatus } = await import('./simple-system-status');
+      const status = await getSystemStatus();
+      res.json(status);
+    } catch (error) {
+      res.status(500).json({ 
+        error: 'Sistem durumu alınamadı',
+        timestamp: new Date().toISOString()
+      });
+    }
+  });
+
   // Initialize scheduler system on server start
   setTimeout(() => {
     try {
