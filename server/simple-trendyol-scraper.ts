@@ -402,7 +402,7 @@ export async function simpleTrendyolScrape(url: string): Promise<SimpleTrendyolD
         variants
       };
       
-  } catch (error: any) {
+    } catch (error: any) {
     console.error(`❌ Simple scraper error: ${error.message}`);
     return {
       success: false,
