@@ -78,12 +78,12 @@ export async function cleanScrape(url: string): Promise<CleanProductData> {
     const { extractManualPrice } = await import('./manual-price-extractor');
     const priceObject = await extractManualPrice(html, url);
     
-    // Extract images dynamically based on product
-    console.log('🎯 Starting dynamic image extraction...');
-    const { getProductImages } = await import('./dynamic-image-extractor');
-    const images = await getProductImages(url);
+    // Extract product-only images (no duplicates or resized versions)
+    console.log('🎯 Starting product-only image extraction...');
+    const { getProductOnlyImages } = await import('./product-only-images');
+    const images = await getProductOnlyImages(url);
     
-    console.log(`📸 Images found: ${images.length}`);
+    console.log(`📸 Product-only images: ${images.length}`);
     
     // Extract comprehensive features
     const features: Array<{key: string, value: string}> = [];
