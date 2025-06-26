@@ -27,9 +27,15 @@ export interface CleanProductData {
 
 export async function cleanScrape(url: string): Promise<CleanProductData> {
   try {
-    console.log(`🔧 Clean scraper processing: ${url}`);
+    // URL formatını düzelt
+    let processedUrl = url;
+    if (!url.startsWith('http://') && !url.startsWith('https://')) {
+      processedUrl = 'https://' + url;
+    }
     
-    const response = await axios.get(url, {
+    console.log(`🔧 Clean scraper processing: ${processedUrl}`);
+    
+    const response = await axios.get(processedUrl, {
       headers: {
         'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36',
         'Accept': 'text/html,application/xhtml+xml,application/xml;q=0.9,image/webp,*/*;q=0.8',
@@ -76,7 +82,7 @@ export async function cleanScrape(url: string): Promise<CleanProductData> {
     
     // Enhanced manual price extraction
     const { extractManualPrice } = await import('./manual-price-extractor');
-    const priceObject = await extractManualPrice(html, url);
+    const priceObject = await extractManualPrice(html, processedUrl);
     
     // Extract product-only images (no duplicates or resized versions)
     console.log('🎯 Starting product-only image extraction...');
