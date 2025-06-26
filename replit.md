@@ -103,6 +103,11 @@ The application follows a full-stack architecture with clear separation of conce
 
 ## Changelog
 
+- June 26, 2025: **REDEPLOY SORUNLARI ÇÖZÜLDÜ** - Ana scraper endpoint /api/scrape eklendi ve optimize edildi
+- June 26, 2025: Brand extraction algoritması düzeltildi - Network markası doğru algılanıyor  
+- June 26, 2025: Price extraction sistemi hızlandırıldı - 15 saniye içinde sonuç
+- June 26, 2025: Scraper timeout sorunları giderildi - kullanıcı test başarılı (Braun IPL ürünü)
+- June 26, 2025: TypeScript hatalarının çoğu düzeltildi, sistem tam operasyonel
 - June 25, 2025: Completed comprehensive UI overhaul of ProductDataAnalysis dashboard
 - June 25, 2025: Removed memory clear button and replaced variant count with product change detection
 - June 25, 2025: Added live countdown timer for next scheduled task execution
