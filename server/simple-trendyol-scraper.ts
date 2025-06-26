@@ -72,16 +72,44 @@ export async function simpleTrendyolScrape(url: string): Promise<SimpleTrendyolD
       }
     }
     
-    // Fallback: Extract from script tags
+    // Enhanced fallback: Extract from script tags and meta
     if (title === 'Ürün Başlığı') {
-      const scriptTexts = html.match(/<script[^>]*>(.*?)<\/script>/gis);
-      if (scriptTexts) {
-        for (const scriptTag of scriptTexts) {
-          const titleMatch = scriptTag.match(/"name":\s*"([^"]{10,150})"/);
-          if (titleMatch && titleMatch[1]) {
-            title = titleMatch[1];
-            console.log(`✅ Title from script: ${title.substring(0, 50)}...`);
-            break;
+      // Try meta tags first
+      const metaTitle = $('meta[property="og:title"]').attr('content') || 
+                       $('meta[name="twitter:title"]').attr('content') ||
+                       $('title').text().trim();
+      
+      if (metaTitle && metaTitle.length > 5 && metaTitle.includes('Trendyol')) {
+        // Extract clean title from page title
+        const cleanTitle = metaTitle.replace(/\s*-\s*Trendyol.*$/, '').trim();
+        if (cleanTitle.length > 5) {
+          title = cleanTitle;
+          console.log(`✅ Title from meta: ${title.substring(0, 50)}...`);
+        }
+      }
+      
+      // Script tag extraction as final fallback
+      if (title === 'Ürün Başlığı') {
+        const scriptTexts = html.match(/<script[^>]*>(.*?)<\/script>/gis);
+        if (scriptTexts) {
+          for (const scriptTag of scriptTexts) {
+            // Look for product name in various JSON structures
+            const titlePatterns = [
+              /"name":\s*"([^"]{10,150})"/,
+              /"productName":\s*"([^"]{10,150})"/,
+              /"title":\s*"([^"]{10,150})"/,
+              /"displayName":\s*"([^"]{10,150})"/
+            ];
+            
+            for (const pattern of titlePatterns) {
+              const titleMatch = scriptTag.match(pattern);
+              if (titleMatch && titleMatch[1] && !titleMatch[1].includes('Özyürek')) {
+                title = titleMatch[1];
+                console.log(`✅ Title from script pattern: ${title.substring(0, 50)}...`);
+                break;
+              }
+            }
+            if (title !== 'Ürün Başlığı') break;
           }
         }
       }

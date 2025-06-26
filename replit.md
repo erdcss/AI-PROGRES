@@ -103,6 +103,10 @@ The application follows a full-stack architecture with clear separation of conce
 
 ## Changelog
 
+- June 26, 2025: **CRITICAL BRAND DETECTION FIXED** - Hardcoded "Network" fallback completely removed
+- June 26, 2025: **Dynamic URL parsing implemented** - Brands now correctly extracted (Nike, Caykur, Braun)
+- June 26, 2025: **Enhanced title extraction system** - Multiple fallback methods for accurate product titles
+- June 26, 2025: **Production-ready extraction engine** - Live tests successful with authentic product data
 - June 26, 2025: **REDEPLOY SORUNLARI ÇÖZÜLDÜ** - Ana scraper endpoint /api/scrape eklendi ve optimize edildi
 - June 26, 2025: Brand extraction algoritması düzeltildi - Network markası doğru algılanıyor  
 - June 26, 2025: Price extraction sistemi hızlandırıldı - 15 saniye içinde sonuç
