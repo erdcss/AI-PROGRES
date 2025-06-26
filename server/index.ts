@@ -21,6 +21,33 @@ app.use((req, res, next) => {
 app.use(express.json({ limit: '50mb' }));
 app.use(express.urlencoded({ extended: false, limit: '50mb' }));
 
+// CRITICAL FIX: Explicit API route handling before any other middleware
+// This prevents Vite catch-all from intercepting API calls
+app.all('/api/shopify/*', (req, res, next) => {
+  res.setHeader('Content-Type', 'application/json');
+  next();
+});
+
+app.all('/api/system/*', (req, res, next) => {
+  res.setHeader('Content-Type', 'application/json');
+  next();
+});
+
+app.all('/api/analysis/*', (req, res, next) => {
+  res.setHeader('Content-Type', 'application/json');
+  next();
+});
+
+app.all('/api/scheduler/*', (req, res, next) => {
+  res.setHeader('Content-Type', 'application/json');
+  next();
+});
+
+app.all('/api/memory/*', (req, res, next) => {
+  res.setHeader('Content-Type', 'application/json');
+  next();
+});
+
 // API routes entegrasyonu - MUST be before other routes
 app.use('/api', apiRoutes);
 
