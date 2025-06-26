@@ -4,6 +4,8 @@
 
 import axios from 'axios';
 import * as cheerio from 'cheerio';
+import { extractRealColors } from './fixed-color-extractor';
+import { extractProductFeatures } from './fixed-feature-extractor';
 
 export interface CleanProductData {
   success: boolean;
@@ -119,49 +121,38 @@ export async function cleanScrape(url: string): Promise<CleanProductData> {
         { key: 'Ambalaj', value: 'Poşet' }
       );
     } else {
-      // Use manual feature extractor for better results
+      // Use fixed feature extractor for better results
       try {
-        const { extractAllFeatures } = await import('./manual-feature-extractor');
-        const extractedFeatures = await extractAllFeatures(url);
+        const extractedFeatures = await extractProductFeatures(html, title);
         
         if (extractedFeatures.length > 0) {
           extractedFeatures.forEach(feature => {
-            const invalidPatterns = ['açıcı', 'boyası', 'tipi', 'bileşeni', 'composition', 'yoksa neden', 'yaziyorsunuz', 'anlamiyorum', 'cidden'];
-            const isValid = feature.value && 
-                           feature.value.length > 2 && 
-                           feature.value.length < 100 &&
-                           !invalidPatterns.some(invalid => feature.value.toLowerCase().includes(invalid));
-            
-            if (isValid) {
-              features.push({
-                key: feature.key,
-                value: feature.value
-              });
-            }
+            features.push({
+              key: feature.key,
+              value: feature.value
+            });
           });
         }
       } catch (error) {
-        console.log('⚠️ Feature extraction error, using defaults');
+        console.log('⚠️ Fixed feature extraction error, using defaults');
       }
       
       // Default features if none found
       if (features.length === 0) {
         features.push(
           { key: 'Brand', value: brand },
-          { key: 'Type', value: 'Premium Product' },
-          { key: 'Quality', value: 'High Quality' }
+          { key: 'Type', value: 'Product' }
         );
       }
     }
     
     console.log(`🎯 Features extracted: ${features.length}`);
     
-    // Extract real colors first
-    console.log('🎨 Starting real color extraction...');
-    const { extractRealColors } = await import('./real-color-extractor');
+    // Extract real colors using fixed extractor
+    console.log('🎨 Starting fixed color extraction...');
     const realColors = await extractRealColors(html, url, title);
     
-    console.log(`🎨 Real colors found: ${realColors.length}`);
+    console.log(`🎨 Fixed colors found: ${realColors.length}`);
     
     // Extract real sizes
     console.log('🔍 Starting real size extraction...');
