@@ -28,19 +28,35 @@ export async function extractTrendyolPrice(url: string): Promise<{price: number,
     // Brand extraction first
     console.log(`🏷️ Brand detection starting...`);
     
-    // Method 1: Extract from URL path
-    const urlParts = url.split('/');
+    // Method 1: Extract from URL path - FIX COMPLETE REWRITE
+    const urlParts = url.split('/').filter(part => part && part.length > 0);
     console.log(`🔍 URL parts:`, urlParts);
-    // URL format: https://www.trendyol.com/braun/product-name
-    // Index:         0    1   2              3     4
     
-    // Look for the brand after trendyol.com
-    const trendyolIndex = urlParts.findIndex(part => part === 'www.trendyol.com');
-    if (trendyolIndex >= 0 && urlParts.length > trendyolIndex + 1) {
-      const brandFromUrl = urlParts[trendyolIndex + 1]; // Next element after trendyol.com
-      if (brandFromUrl && brandFromUrl.length > 1 && brandFromUrl.length < 30 && !brandFromUrl.includes('-p-')) {
-        brand = brandFromUrl.charAt(0).toUpperCase() + brandFromUrl.slice(1);
-        console.log(`✅ Brand from URL (index ${trendyolIndex + 1}): ${brand}`);
+    // Find brand position: after www.trendyol.com, usually index 2
+    // URL: https://www.trendyol.com/adidas/product-name-p-123
+    // Parts: ["https:", "www.trendyol.com", "adidas", "product-name-p-123"] 
+    
+    if (urlParts.length >= 3 && urlParts[1] === 'www.trendyol.com') {
+      const brandCandidate = urlParts[2];
+      console.log(`🔍 Brand candidate from URL: "${brandCandidate}"`);
+      
+      if (brandCandidate && 
+          brandCandidate.length > 1 && 
+          brandCandidate.length < 30 && 
+          !brandCandidate.includes('-p-') &&
+          brandCandidate !== 'www.trendyol.com') {
+        brand = brandCandidate.charAt(0).toUpperCase() + brandCandidate.slice(1);
+        console.log(`✅ Brand extracted from URL: ${brand}`);
+      }
+    }
+    
+    // FALLBACK: Remove hardcoded Network completely
+    if (brand === 'Marka Bilinmiyor' || brand === 'Network') {
+      // Try alternative URL parsing
+      const match = url.match(/trendyol\.com\/([^\/]+)\//);
+      if (match && match[1] && match[1].length > 1) {
+        brand = match[1].charAt(0).toUpperCase() + match[1].slice(1);
+        console.log(`✅ Brand from regex match: ${brand}`);
       }
     }
     
@@ -80,28 +96,87 @@ export async function extractTrendyolPrice(url: string): Promise<{price: number,
       }
     }
     
-    // Method 1: Enhanced HTML price detection with multiple patterns
-    console.log(`💰 Method 1: Advanced price pattern detection`);
+    // Method 1: AGGRESSIVE Price detection with DOM selectors FIRST
+    console.log(`💰 Method 1: DOM-based price detection`);
     
-    // Multiple regex patterns for different price formats
-    const patterns = [
-      /(\d{1,10}(?:[.,]\d{3})*(?:[.,]\d{1,3})?)\s*(?:TL|₺|Türk\s*Lirası)/gi,
-      /"price"[:\s]*"?(\d+(?:[.,]\d+)?)"?/gi,
-      /"currentPrice"[:\s]*"?(\d+(?:[.,]\d+)?)"?/gi,
-      /discountPrice[:\s]*"?(\d+(?:[.,]\d+)?)"?/gi,
-      /originalPrice[:\s]*"?(\d+(?:[.,]\d+)?)"?/gi,
-      /\b(\d{2,7}[.,]\d{2})\s*TL/gi,
-      /₺\s*(\d{2,7}(?:[.,]\d{2})?)/gi
+    // Price selector attempts
+    const priceSelectors = [
+      '.prc-dsc', // Discounted price
+      '.prc-org', // Original price  
+      '.product-price',
+      '[data-testid="price-current"]',
+      '[data-testid="price-original"]',
+      '.current-price',
+      '.price-current',
+      '.sale-price',
+      '.price'
     ];
     
-    let allPrices: number[] = [];
-    
-    patterns.forEach((pattern, index) => {
-      const matches = html.match(pattern);
-      if (matches && matches.length > 0) {
-        console.log(`Pattern ${index + 1} found ${matches.length} matches:`, matches.slice(0, 3));
+    for (const selector of priceSelectors) {
+      const priceElement = $(selector);
+      if (priceElement.length > 0) {
+        const priceText = priceElement.text().trim();
+        console.log(`🔍 Price selector ${selector}: "${priceText}"`);
         
-        const prices = matches.map((match: string) => {
+        // Extract number from price text
+        const priceMatch = priceText.match(/(\d{1,6}(?:[.,]\d{1,3})?)/);
+        if (priceMatch) {
+          const extractedPrice = parseFloat(priceMatch[1].replace(',', '.'));
+          if (extractedPrice > 1 && extractedPrice < 100000) {
+            price = extractedPrice;
+            console.log(`✅ Price found via DOM selector: ${price} TL`);
+            break;
+          }
+        }
+      }
+    }
+    
+    // Method 2: Script-based price extraction if DOM failed
+    if (price === 0) {
+      console.log(`💰 Method 2: Script-based price detection`);
+      
+      const scriptTexts = $('script').map((i, el) => $(el).text()).get();
+      for (const script of scriptTexts) {
+        // Look for JSON price data
+        const pricePatterns = [
+          /"price"[:\s]*(\d+(?:\.\d+)?)/gi,
+          /"currentPrice"[:\s]*(\d+(?:\.\d+)?)/gi,
+          /"originalPrice"[:\s]*(\d+(?:\.\d+)?)/gi,
+          /price[:\s]*(\d+(?:\.\d+)?)/gi
+        ];
+        
+        for (const pattern of pricePatterns) {
+          const matches = [...script.matchAll(pattern)];
+          if (matches.length > 0) {
+            const prices = matches.map(m => parseFloat(m[1])).filter(p => p > 1 && p < 100000);
+            if (prices.length > 0) {
+              price = Math.max(...prices); // Take highest price found
+              console.log(`✅ Price found in script: ${price} TL`);
+              break;
+            }
+          }
+        }
+        if (price > 0) break;
+      }
+    }
+    
+    // Method 3: HTML text pattern matching as final fallback  
+    if (price === 0) {
+      console.log(`💰 Method 3: HTML pattern matching`);
+      
+      const patterns = [
+        /(\d{1,6}(?:[.,]\d{1,3})?)\s*(?:TL|₺)/gi,
+        /\b(\d{2,6}[.,]\d{2})\s*TL/gi
+      ];
+      
+      let allPrices: number[] = [];
+      
+      patterns.forEach((pattern, index) => {
+        const matches = html.match(pattern);
+        if (matches && matches.length > 0) {
+          console.log(`Pattern ${index + 1} found ${matches.length} matches:`, matches.slice(0, 3));
+          
+          const prices = matches.map((match: string) => {
           let cleanPrice = match.replace(/[^0-9.,]/g, '').trim();
           
           // Handle Turkish number formatting

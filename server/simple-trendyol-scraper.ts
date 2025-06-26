@@ -246,17 +246,52 @@ export async function simpleTrendyolScrape(url: string): Promise<SimpleTrendyolD
         });
       }
       
-      // Size extraction fallback
+      // REAL variant detection - only create if actual variants exist
       if (variants.length === 0) {
-        const sizePattern = /\b(3[0-9]|4[0-9]|5[0-9]|XS|S|M|L|XL|XXL)\b/g;
-        const sizeMatches = html.match(sizePattern);
-        if (sizeMatches) {
-          const uniqueSizes = sizeMatches.filter((size: string, index: number, arr: string[]) => arr.indexOf(size) === index).slice(0, 8);
-          variants = uniqueSizes.map((size: string) => ({
-            color: 'Standart',
-            size: size,
-            inStock: true
-          }));
+        console.log(`🔍 Checking for real variants...`);
+        
+        // Look for actual Trendyol variant selectors
+        const $ = cheerio.load(html);
+        const colorSelectors = $('.pr-in-dt-cl, .variants-content, [data-testid="variants"]').length;
+        const sizeSelectors = $('.pr-in-dt-sz, .size-variants, [data-testid="sizes"]').length;
+        
+        console.log(`🎨 Color selectors found: ${colorSelectors}`);
+        console.log(`📏 Size selectors found: ${sizeSelectors}`);
+        
+        // Only create variants if actual selectors exist
+        if (colorSelectors > 0 || sizeSelectors > 0) {
+          console.log(`✅ Real variants detected, creating variants...`);
+          
+          // Try to extract real variant data from script tags
+          const scriptTexts = $('script').map((i, el) => $(el).text()).get();
+          let realVariants = [];
+          
+          for (const script of scriptTexts) {
+            const variantMatch = script.match(/"variants"\s*:\s*(\[.*?\])/);
+            if (variantMatch) {
+              try {
+                const variantData = JSON.parse(variantMatch[1]);
+                if (Array.isArray(variantData) && variantData.length > 0) {
+                  realVariants = variantData.slice(0, 5).map((v: any) => ({
+                    color: v.color || v.attributeValue || 'Standart',
+                    size: v.size || v.value || 'Tek Beden',
+                    inStock: v.inStock !== false
+                  }));
+                  break;
+                }
+              } catch (e) {
+                console.log(`⚠️ Variant parsing error: ${e}`);
+              }
+            }
+          }
+          
+          if (realVariants.length > 0) {
+            variants = realVariants;
+            console.log(`✅ Found ${variants.length} real variants`);
+          }
+        } else {
+          console.log(`🚫 No real variant selectors found - product has no variants`);
+          variants = []; // No fake variants
         }
       }
       
@@ -297,7 +332,7 @@ export async function simpleTrendyolScrape(url: string): Promise<SimpleTrendyolD
         console.log(`⚠️ Fallback çıkarma hatası: ${fallbackError.message}`);
       }
       
-      variants = []; // Hata durumunda boş varyant array
+      variants = []; // Gerçek varyant bulunamadı - sahte varyant oluşturma
     }
     
     console.log(`👕 Created ${variants.length} variants`);
