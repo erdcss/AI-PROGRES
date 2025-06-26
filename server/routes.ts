@@ -2490,8 +2490,8 @@ export function registerRoutes(app: Express): Server {
   // System status report endpoint
   app.post('/api/system/report', async (req, res) => {
     try {
-      const { sendSystemStatusToTelegram } = await import('./system-status-reporter');
-      const success = await sendSystemStatusToTelegram();
+      const { sendStatusToTelegram } = await import('./simple-system-status');
+      const success = await sendStatusToTelegram();
       
       if (success) {
         res.json({ 

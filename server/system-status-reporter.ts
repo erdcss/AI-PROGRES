@@ -191,17 +191,12 @@ export async function sendSystemStatusToTelegram(): Promise<boolean> {
     const status = await generateSystemStatusReport();
     const message = formatSystemStatusForTelegram(status);
     
-    // Telegram mesajı gönder
-    const telegramModule = await import('./telegram-integration');
-    const success = await telegramModule.sendTelegramMessage(message);
+    // Telegram integration'ı direkt kullan
+    const { telegramIntegration } = await import('./telegram-integration');
+    await telegramIntegration.sendNotification(message);
     
-    if (success) {
-      console.log('✅ Sistem durum raporu Telegram\'a gönderildi');
-      return true;
-    } else {
-      console.log('❌ Telegram raporu gönderilemedi');
-      return false;
-    }
+    console.log('✅ Sistem durum raporu Telegram\'a gönderildi');
+    return true;
   } catch (error) {
     console.error('❌ Sistem raporu oluşturma hatası:', error);
     return false;

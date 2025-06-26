@@ -422,3 +422,14 @@ export class TelegramIntegration {
 
 // Export singleton instance
 export const telegramIntegration = new TelegramIntegration();
+
+// Export convenience function for backward compatibility
+export async function sendTelegramMessage(message: string): Promise<boolean> {
+  try {
+    await telegramIntegration.sendNotification(message);
+    return true;
+  } catch (error) {
+    console.error('Failed to send Telegram message:', error);
+    return false;
+  }
+}
