@@ -2030,10 +2030,10 @@ export function registerRoutes(app: Express): Server {
       // Skip focused extractor, go directly to simple scraper
       console.log(`📊 Using simple scraper for: ${url}`);
       
-      // Use Simple Scraper
-      console.log('🔄 Using Simple Scraper...');
-      const { simpleTrendyolScrape } = await import('./simple-trendyol-scraper');
-      const fallbackResult = await simpleTrendyolScrape(url);
+      // Use Clean Scraper
+      console.log('🔧 Using Clean Scraper...');
+      const { cleanScrape } = await import('./clean-scraper');
+      const fallbackResult = await cleanScrape(url);
       
       if (fallbackResult && fallbackResult.success) {
         console.log(`✅ Simple Scraper successful: ${fallbackResult.features.length} features`);
