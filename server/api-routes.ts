@@ -6,6 +6,7 @@ import { storage } from './storage-fixed';
 import { telegramIntegration } from './telegram-integration';
 import { cleanScrape } from './clean-scraper';
 import { getSystemStatus, sendStatusToTelegram } from './simple-system-status';
+import { ManualColorOverride, generateColorSelectionData, type ManualColorSelection } from './manual-color-override';
 
 // Dynamic product category determination
 function determineProductCategory(productData: any): string {
@@ -502,6 +503,34 @@ router.post('/api/shopify/demo-sync', async (req, res) => {
   }
 });
 
+// Manuel renk seçimi için varyant limitini kontrol etme endpoint'i
+router.post('/color-selection', async (req, res) => {
+  try {
+    const { colors, sizes } = req.body;
+    
+    if (!colors || !sizes) {
+      return res.status(400).json({ 
+        success: false, 
+        error: 'Renk ve beden listesi gerekli' 
+      });
+    }
+
+    const selectionData = generateColorSelectionData(colors, sizes);
+    
+    res.json({
+      success: true,
+      data: selectionData
+    });
+    
+  } catch (error) {
+    console.error('Color selection error:', error);
+    res.status(500).json({ 
+      success: false, 
+      error: 'Manuel renk seçimi hatası' 
+    });
+  }
+});
+
 // Gerçek ürün Shopify'a ekleme endpoint - Tam template formatında
 router.post('/shopify/add-product', async (req, res) => {
   try {
@@ -515,14 +544,51 @@ router.post('/shopify/add-product', async (req, res) => {
       return res.status(400).json({ success: false, error: 'Geçerli product data gerekli' });
     }
 
+    // Manuel renk seçimi kontrolü
+    const manualSelection = req.body.manualSelection || {
+      selectedColors: [],
+      selectedSizes: [],
+      maxVariants: 99
+    };
+
+    // Varyant verilerini otomatik çıkar
+    const rawVariants = productData.variants || [];
+    
+    // Renk ve beden listelerini çıkar
+    const extractedColors = [...new Set(rawVariants.map(v => v.color).filter(Boolean))];
+    const extractedSizes = [...new Set(rawVariants.map(v => v.size).filter(Boolean))];
+    
+    console.log(`📊 Çıkarılan varyantlar: ${extractedColors.length} renk x ${extractedSizes.length} beden = ${extractedColors.length * extractedSizes.length} toplam varyant`);
+    
+    // Manuel filtre uygula
+    const colorOverride = ManualColorOverride.filterVariants(
+      extractedColors, 
+      extractedSizes, 
+      manualSelection
+    );
+    
+    console.log(`🎨 Manuel filtre sonucu: ${colorOverride.message}`);
+    
     // Shopify varyant fixer'ı kullan
     const { ShopifyVariantFixer } = await import('./shopify-variant-fixer');
     
-    // Varyant verilerini temizle ve doğrula
-    const rawVariants = productData.variants || [];
-    const cleanVariants = ShopifyVariantFixer.cleanAndDeduplicateVariants(rawVariants);
+    // Filtrelenmiş varyantları oluştur
+    const filteredVariants = [];
+    for (const color of colorOverride.filteredColors) {
+      for (const size of colorOverride.filteredSizes) {
+        const originalVariant = rawVariants.find(v => v.color === color && v.size === size);
+        filteredVariants.push({
+          color,
+          size,
+          inStock: originalVariant?.inStock || true,
+          price: originalVariant?.price || productData.price?.withProfit || 100
+        });
+      }
+    }
     
-    console.log(`🔧 Varyant temizleme: ${rawVariants.length} → ${cleanVariants.length} benzersiz varyant`);
+    const cleanVariants = ShopifyVariantFixer.cleanAndDeduplicateVariants(filteredVariants);
+    
+    console.log(`🔧 Varyant temizleme: ${rawVariants.length} → ${filteredVariants.length} → ${cleanVariants.length} son varyant`);
 
     // Özellikler HTML formatında hazırla
     let featuresHtml = '';
