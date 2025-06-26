@@ -11,11 +11,17 @@ export interface ColorVariant {
   imageUrl?: string;
 }
 
-export async function extractRealColors(html: string, url: string): Promise<ColorVariant[]> {
+export async function extractRealColors(html: string, url: string, productTitle?: string): Promise<ColorVariant[]> {
   console.log('🎨 Real color extraction starting...');
   
   const $ = cheerio.load(html);
   const colors: ColorVariant[] = [];
+  
+  // Determine if this is a single-color product type
+  const singleColorProducts = ['çay', 'kahve', 'gıda', 'yiyecek', 'içecek', 'vitamin', 'suplement'];
+  const isSingleColorProduct = productTitle && singleColorProducts.some(type => 
+    productTitle.toLowerCase().includes(type)
+  );
   
   try {
     // Method 1: Trendyol color selector buttons
@@ -160,6 +166,32 @@ export async function extractRealColors(html: string, url: string): Promise<Colo
     
     // Sort colors by name
     uniqueColors.sort((a, b) => a.color.localeCompare(b.color, 'tr'));
+    
+    // Apply smart filtering for single-color products
+    if (isSingleColorProduct && uniqueColors.length > 3) {
+      console.log(`🎯 Single-color product detected, filtering ${uniqueColors.length} colors to most relevant`);
+      // For food/beverage products, keep only natural/package colors
+      const relevantColors = uniqueColors.filter(color => {
+        const colorName = color.color.toLowerCase();
+        return colorName.includes('beyaz') || colorName.includes('siyah') || 
+               colorName.includes('kahverengi') || colorName.includes('doğal') ||
+               colorName.includes('standart') || colorName.includes('tek') ||
+               colorName.includes('brown') || colorName.includes('white') ||
+               colorName.includes('black');
+      });
+      
+      if (relevantColors.length > 0) {
+        const filteredResult = relevantColors.slice(0, 1); // Keep only the most relevant one
+        console.log(`✅ Filtered to ${filteredResult.length} relevant color(s)`);
+        filteredResult.forEach((color, index) => {
+          console.log(`   🎨 ${index + 1}. ${color.color} ${color.available ? '(Mevcut)' : '(Tükendi)'}`);
+        });
+        return filteredResult;
+      } else {
+        console.log(`✅ Using default color for single-color product`);
+        return [{ color: 'Standart', available: true }]; // Default for single-color products
+      }
+    }
     
     console.log(`✅ Real colors extracted: ${uniqueColors.length} colors`);
     uniqueColors.forEach((color, index) => {

@@ -594,9 +594,25 @@ router.post('/api/shopify/add-product', async (req, res) => {
       body: JSON.stringify({ product: shopifyProduct })
     });
 
+    console.log('Shopify API response status:', response.status);
+    
     if (response.ok) {
       const result = await response.json();
-      console.log('✅ Shopify product created:', result.product.id);
+      console.log('✅ Shopify product created successfully');
+      console.log('Product ID:', result?.product?.id);
+      
+      // Safely extract product data
+      const productId = result?.product?.id;
+      const productHandle = result?.product?.handle;
+      
+      if (!productId) {
+        console.error('❌ No product ID in Shopify response:', result);
+        return res.status(500).json({
+          success: false,
+          error: 'Shopify API yanıtında product ID bulunamadı',
+          response: result
+        });
+      }
       
       // Telegram bildirimi gönder
       const profitAmount = (productData.price?.withProfit || 0) - (productData.price?.original || 0);
@@ -612,8 +628,8 @@ router.post('/api/shopify/add-product', async (req, res) => {
         `📈 <b>Kar Miktarı:</b> ${profitAmount.toFixed(2)} TL\n` +
         `📊 <b>Kar Oranı:</b> %${profitPercentage}\n\n` +
         `⚡ <b>Shopify'a başarıyla eklendi</b>\n` +
-        `🆔 <b>Product ID:</b> ${result.product.id}\n` +
-        `🔗 <b>Admin URL:</b> kr5xdy-x7.myshopify.com/admin/products/${result.product.id}`;
+        `🆔 <b>Product ID:</b> ${productId}\n` +
+        `🔗 <b>Admin URL:</b> kr5xdy-x7.myshopify.com/admin/products/${productId}`;
       
       // Telegram bildirimi gönder
       try {
@@ -622,20 +638,20 @@ router.post('/api/shopify/add-product', async (req, res) => {
         await telegramIntegration.sendNotification(message);
         console.log('✅ Telegram notification sent successfully');
       } catch (telegramError) {
-        console.error('Telegram notification error details:', telegramError);
+        console.error('Telegram notification error:', telegramError);
       }
     
       res.json({
         success: true,
-        shopifyProductId: result.product.id,
-        adminUrl: `https://kr5xdy-x7.myshopify.com/admin/products/${result.product.id}`,
-        storeUrl: `https://kr5xdy-x7.myshopify.com/products/${result.product.handle}`,
+        shopifyProductId: productId,
+        adminUrl: `https://kr5xdy-x7.myshopify.com/admin/products/${productId}`,
+        storeUrl: productHandle ? `https://kr5xdy-x7.myshopify.com/products/${productHandle}` : null,
         message: 'Ürün başarıyla Shopify\'a eklendi',
         product: result.product
       });
     } else {
       const errorText = await response.text();
-      console.log('❌ Shopify API error:', errorText);
+      console.error('❌ Shopify API error:', response.status, errorText);
       res.status(response.status).json({
         success: false,
         error: `Shopify API hatası: ${errorText}`,

@@ -159,7 +159,7 @@ export async function cleanScrape(url: string): Promise<CleanProductData> {
     // Extract real colors first
     console.log('🎨 Starting real color extraction...');
     const { extractRealColors } = await import('./real-color-extractor');
-    const realColors = await extractRealColors(html, url);
+    const realColors = await extractRealColors(html, url, title);
     
     console.log(`🎨 Real colors found: ${realColors.length}`);
     
