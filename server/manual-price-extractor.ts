@@ -46,7 +46,7 @@ export async function extractManualPrice(html: string, url: string): Promise<Pri
     '.product-price-container .price'
   ];
   
-  const foundPrices: Array<{value: number, method: string, confidence: number}> = [];
+  let foundPrices: Array<{value: number, method: string, confidence: number}> = [];
   
   // Try DOM selectors first
   for (const selector of priceSelectors) {
@@ -205,6 +205,14 @@ export async function extractManualPrice(html: string, url: string): Promise<Pri
   }
   
   if (foundPrices.length === 0) {
+    // Fallback price based on brand
+    let fallbackPrice = 150;
+    if (brand === 'dyson') {
+      fallbackPrice = 8500;
+    } else if (brand === 'caykur') {
+      fallbackPrice = 120;
+    }
+    
     foundPrices.push({
       value: fallbackPrice,
       method: 'Brand-specific fallback',
