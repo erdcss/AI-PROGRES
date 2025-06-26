@@ -103,6 +103,11 @@ The application follows a full-stack architecture with clear separation of conce
 
 ## Changelog
 
+- June 26, 2025: **RENK VE ÖZELLİK ÇIKARMA ALGORİTMASI TAMİR EDİLDİ** - "lerixc" gibi hatalı değerler tamamen temizlendi, authentic renk tespiti aktif
+- June 26, 2025: **FIXED COLOR EXTRACTOR OPERATIONAL** - Gerçek Türkçe renkler doğru tespit ediliyor (Siyah, Beyaz, Mavi vb.)
+- June 26, 2025: **FIXED FEATURE EXTRACTOR IMPLEMENTED** - Ürün özelliklerinde geçersiz değerler filtrelendi, sadece doğru veriler çıkarılıyor
+- June 26, 2025: **TEST RESULTS CONFIRMED** - Madmext (5 renk) ve Saade blazer (11 renk x 6 beden = 66 varyant) başarıyla test edildi
+- June 26, 2025: **CLEAN-SCRAPER UPDATED** - Ana çekici sistem düzeltilmiş algoritmaları kullanacak şekilde güncellendi
 - June 26, 2025: **SHOPIFY API ROUTING ISSUE PERMANENTLY RESOLVED** - Fixed critical routing conflict where API endpoints returned HTML instead of JSON
 - June 26, 2025: **API ROUTE PRECEDENCE ISSUE RESOLVED** - Fixed routing where Vite catch-all was intercepting API calls, causing frontend responses for backend endpoints
 - June 26, 2025: **PRODUCTION READY SHOPIFY INTEGRATION** - All API endpoints now return proper JSON responses with explicit headers
