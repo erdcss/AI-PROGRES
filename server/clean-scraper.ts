@@ -78,22 +78,10 @@ export async function cleanScrape(url: string): Promise<CleanProductData> {
     const { extractManualPrice } = await import('./manual-price-extractor');
     const priceObject = await extractManualPrice(html, url);
     
-    // Extract images
-    const images: string[] = [];
-    const imagePattern = /https:\/\/cdn\.dsmcdn\.com[^"'\s]*\.jpg/g;
-    const imageMatches = html.match(imagePattern);
-    
-    if (imageMatches) {
-      const uniqueImages = [...new Set(imageMatches)]
-        .filter(img => 
-          !img.includes('icon') && 
-          !img.includes('logo') && 
-          !img.includes('badge') &&
-          !img.includes('thumb')
-        )
-        .slice(0, 7);
-      images.push(...uniqueImages);
-    }
+    // Extract images dynamically based on product
+    console.log('🎯 Starting dynamic image extraction...');
+    const { getProductImages } = await import('./dynamic-image-extractor');
+    const images = await getProductImages(url);
     
     console.log(`📸 Images found: ${images.length}`);
     
