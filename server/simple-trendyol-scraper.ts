@@ -402,23 +402,22 @@ export async function simpleTrendyolScrape(url: string): Promise<SimpleTrendyolD
         variants
       };
       
-    } catch (error: any) {
-      console.error(`❌ Scraping error: ${error.message}`);
-      return {
-        success: false,
-        title: 'Error',
-        brand: 'Network',
-        price: {
-          original: 0,
-          currency: 'TRY',
-          formatted: '0,00 TL',
-          withProfit: 0,
-          profitFormatted: '0,00 TL'
-        },
-        images: [],
-        features: [],
-        variants: []
-      };
-    }
+  } catch (error: any) {
+    console.error(`❌ Simple scraper error: ${error.message}`);
+    return {
+      success: false,
+      title: 'Error',
+      brand: 'Unknown',
+      price: {
+        original: 0,
+        currency: 'TRY',
+        formatted: '0,00 TL',
+        withProfit: 0,
+        profitFormatted: '0,00 TL'
+      },
+      images: [],
+      features: [],
+      variants: []
+    };
   }
 }

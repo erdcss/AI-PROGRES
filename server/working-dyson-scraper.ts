@@ -99,7 +99,7 @@ export async function scrapeDysonProduct(url: string): Promise<DysonScraperResul
       profitFormatted: '0,00 TL'
     };
     
-    if (priceData.success && priceData.price > 0) {
+    if (priceData && priceData.price > 0) {
       const profitPrice = Math.round(priceData.price * 1.15);
       
       priceObject = {
