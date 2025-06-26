@@ -74,56 +74,9 @@ export async function cleanScrape(url: string): Promise<CleanProductData> {
       }
     }
     
-    // Enhanced price extraction
-    let price = 250; // Default for testing
-    const pricePatterns = [
-      /(\d{1,3}(?:\.\d{3})*(?:,\d{2})?)\s*TL/g,
-      /TL\s*(\d{1,3}(?:\.\d{3})*(?:,\d{2})?)/g,
-      /"price":\s*(\d+(?:\.\d+)?)/g,
-      /"amount":\s*(\d+(?:\.\d+)?)/g
-    ];
-    
-    const foundPrices: number[] = [];
-    
-    pricePatterns.forEach(pattern => {
-      let match;
-      while ((match = pattern.exec(html)) !== null) {
-        const priceStr = match[1];
-        if (priceStr) {
-          let numPrice = 0;
-          if (priceStr.includes('.') && priceStr.includes(',')) {
-            numPrice = parseFloat(priceStr.replace(/\./g, '').replace(',', '.'));
-          } else if (priceStr.includes(',')) {
-            numPrice = parseFloat(priceStr.replace(',', '.'));
-          } else if (priceStr.includes('.') && priceStr.length > 6) {
-            numPrice = parseInt(priceStr.replace(/\./g, ''));
-          } else {
-            numPrice = parseFloat(priceStr);
-          }
-          
-          if (numPrice > 1 && numPrice < 100000) {
-            foundPrices.push(numPrice);
-          }
-        }
-      }
-    });
-    
-    if (foundPrices.length > 0) {
-      foundPrices.sort((a, b) => a - b);
-      const median = foundPrices[Math.floor(foundPrices.length / 2)];
-      price = median;
-      console.log(`💰 Price extracted: ${price} TL from ${foundPrices.length} candidates`);
-    }
-    
-    const profitPrice = Math.round(price * 1.15);
-    
-    const priceObject = {
-      original: price,
-      currency: 'TRY',
-      formatted: `${price.toLocaleString('tr-TR', { minimumFractionDigits: 2 })} TL`,
-      withProfit: profitPrice,
-      profitFormatted: `${profitPrice.toLocaleString('tr-TR', { minimumFractionDigits: 2 })} TL`
-    };
+    // Enhanced manual price extraction
+    const { extractManualPrice } = await import('./manual-price-extractor');
+    const priceObject = await extractManualPrice(html, url);
     
     // Extract images
     const images: string[] = [];
