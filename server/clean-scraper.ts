@@ -119,30 +119,30 @@ export async function cleanScrape(url: string): Promise<CleanProductData> {
         { key: 'Ambalaj', value: 'Poşet' }
       );
     } else {
-      // Generic pattern-based features
-      const featurePatterns = [
-        { key: 'Renk', pattern: /Renk[:\s]*([A-Za-zÇĞİÖŞÜçğıöşü\s]+)/i },
-        { key: 'Material', pattern: /Material[:\s]*([A-Za-z\s]+)/i },
-        { key: 'Materyal', pattern: /Materyal[:\s]*([A-Za-zÇĞİÖŞÜçğıöşü\s]+)/i },
-        { key: 'Kumaş', pattern: /Kumaş[:\s]*([A-Za-zÇĞİÖŞÜçğıöşü\s]+)/i }
-      ];
-      
-      featurePatterns.forEach(pattern => {
-        const match = html.match(pattern.pattern);
-        if (match && match[1]) {
-          const value = match[1].trim();
-          // Filter out meaningless and invalid values
-          const invalidPatterns = ['açıcı', 'boyası', 'tipi', 'bileşeni', 'composition', 'yoksa neden', 'yaziyorsunuz', 'anlamiyorum', 'cidden'];
-          const isValid = value.length > 2 && 
-                         value.length < 50 &&
-                         !invalidPatterns.some(invalid => value.toLowerCase().includes(invalid)) &&
-                         !value.match(/^[a-z]{1,3}$/i); // Reject 1-3 letter values
-          
-          if (isValid) {
-            features.push({ key: pattern.key, value });
-          }
+      // Use manual feature extractor for better results
+      try {
+        const { extractAllFeatures } = await import('./manual-feature-extractor');
+        const extractedFeatures = await extractAllFeatures(url);
+        
+        if (extractedFeatures.length > 0) {
+          extractedFeatures.forEach(feature => {
+            const invalidPatterns = ['açıcı', 'boyası', 'tipi', 'bileşeni', 'composition', 'yoksa neden', 'yaziyorsunuz', 'anlamiyorum', 'cidden'];
+            const isValid = feature.value && 
+                           feature.value.length > 2 && 
+                           feature.value.length < 100 &&
+                           !invalidPatterns.some(invalid => feature.value.toLowerCase().includes(invalid));
+            
+            if (isValid) {
+              features.push({
+                key: feature.key,
+                value: feature.value
+              });
+            }
+          });
         }
-      });
+      } catch (error) {
+        console.log('⚠️ Feature extraction error, using defaults');
+      }
       
       // Default features if none found
       if (features.length === 0) {
@@ -156,23 +156,50 @@ export async function cleanScrape(url: string): Promise<CleanProductData> {
     
     console.log(`🎯 Features extracted: ${features.length}`);
     
-    // Extract real variants with stock status
+    // Extract real colors first
+    console.log('🎨 Starting real color extraction...');
+    const { extractRealColors } = await import('./real-color-extractor');
+    const realColors = await extractRealColors(html, url);
+    
+    console.log(`🎨 Real colors found: ${realColors.length}`);
+    
+    // Extract real sizes
     console.log('🔍 Starting real size extraction...');
     const { extractRealSizes } = await import('./real-size-extractor');
-    const realVariants = await extractRealSizes(html, url);
+    const realSizes = await extractRealSizes(html, url);
     
-    console.log(`🎯 Real variants found: ${realVariants.length}`);
+    console.log(`📏 Real sizes found: ${realSizes.length}`);
     
-    // Convert to expected format or use fallback
-    let variants;
-    if (realVariants.length > 0) {
-      variants = realVariants.map(variant => ({
-        color: variant.color,
-        size: variant.size,
-        inStock: variant.inStock
+    // Create variants by combining colors and sizes
+    let variants = [];
+    
+    if (realColors.length > 0 && realSizes.length > 0) {
+      // Combine each color with each size
+      for (const color of realColors) {
+        for (const sizeVariant of realSizes) {
+          variants.push({
+            color: color.color,
+            size: sizeVariant.size,
+            inStock: color.available && sizeVariant.inStock
+          });
+        }
+      }
+    } else if (realColors.length > 0) {
+      // Only colors available, use default size
+      variants = realColors.map(color => ({
+        color: color.color,
+        size: 'Tek Beden',
+        inStock: color.available
+      }));
+    } else if (realSizes.length > 0) {
+      // Only sizes available, use default color
+      variants = realSizes.map(sizeVariant => ({
+        color: 'Standart',
+        size: sizeVariant.size,
+        inStock: sizeVariant.inStock
       }));
     } else {
-      // Fallback for products without real variants
+      // No real variants found, use fallback
       console.log('⚠️ No real variants found, using default');
       variants = [{
         color: 'Standart',
