@@ -131,7 +131,14 @@ export async function cleanScrape(url: string): Promise<CleanProductData> {
         const match = html.match(pattern.pattern);
         if (match && match[1]) {
           const value = match[1].trim();
-          if (value.length > 1 && value.length < 50) {
+          // Filter out meaningless and invalid values
+          const invalidPatterns = ['açıcı', 'boyası', 'tipi', 'bileşeni', 'composition', 'yoksa neden', 'yaziyorsunuz', 'anlamiyorum', 'cidden'];
+          const isValid = value.length > 2 && 
+                         value.length < 50 &&
+                         !invalidPatterns.some(invalid => value.toLowerCase().includes(invalid)) &&
+                         !value.match(/^[a-z]{1,3}$/i); // Reject 1-3 letter values
+          
+          if (isValid) {
             features.push({ key: pattern.key, value });
           }
         }

@@ -103,6 +103,9 @@ The application follows a full-stack architecture with clear separation of conce
 
 ## Changelog
 
+- June 26, 2025: **ÇAYKUR TEA EXTRACTION SYSTEM FIXED & OPERATIONAL** - Resolved const variable assignment errors, tea products now extract correctly
+- June 26, 2025: **FEATURE FILTERING SYSTEM ENHANCED** - Eliminated meaningless extracted values, improved data quality validation
+- June 26, 2025: **PRODUCTION TESTS SUCCESSFUL** - Çaykur tea (89→102 TL), Saade blazer (545→627 TL) both working perfectly
 - June 26, 2025: **AUTHENTIC PRODUCT IMAGE SYSTEM COMPLETED & ENHANCED** - Advanced filtering eliminates duplicates, resized images, icons, logos, badges
 - June 26, 2025: **Multi-Product Testing Successful** - Çaykur (4 images), Wamoss (6 images), Saade (10 images) all working perfectly
 - June 26, 2025: **Image Quality Filtering Perfected** - System now filters mnresize versions and extracts only _org_zoom.jpg quality images
