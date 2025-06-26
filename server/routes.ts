@@ -2487,6 +2487,31 @@ export function registerRoutes(app: Express): Server {
     }
   });
 
+  // System status report endpoint
+  app.post('/api/system/report', async (req, res) => {
+    try {
+      const { sendSystemStatusToTelegram } = await import('./system-status-reporter');
+      const success = await sendSystemStatusToTelegram();
+      
+      if (success) {
+        res.json({ 
+          success: true, 
+          message: 'Sistem durum raporu Telegram\'a gönderildi' 
+        });
+      } else {
+        res.status(500).json({ 
+          success: false, 
+          error: 'Rapor gönderilemedi' 
+        });
+      }
+    } catch (error) {
+      res.status(500).json({ 
+        success: false, 
+        error: `Rapor oluşturma hatası: ${error}` 
+      });
+    }
+  });
+
   // Initialize scheduler system on server start
   setTimeout(() => {
     try {
