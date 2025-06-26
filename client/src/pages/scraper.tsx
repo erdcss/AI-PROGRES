@@ -38,6 +38,7 @@ import { ScrollArea } from "@/components/ui/scroll-area";
 import { useState, useEffect } from "react";
 import { ProductDisplay } from "@/components/ProductDisplay";
 import { SimpleProductPreview } from "@/components/SimpleProductPreview";
+import { VariantDisplay } from "@/components/VariantDisplay";
 import { Link, useLocation } from "wouter";
 
 // Platform logo configuration
@@ -1306,9 +1307,19 @@ function ScraperPage({ platform = 'trendyol' }: ScraperPageProps) {
               initial={{ opacity: 0, y: 20 }}
               animate={{ opacity: 1, y: 0 }}
               exit={{ opacity: 0, y: -20 }}
-              className="mt-8"
+              className="mt-8 space-y-6"
             >
               <SimpleProductPreview product={result} />
+              
+              {/* Varyant Bilgileri */}
+              {result.variants && result.variants.length > 0 && (
+                <VariantDisplay 
+                  variants={result.variants}
+                  title="Ürün Varyantları"
+                  showPricing={true}
+                  showInventory={true}
+                />
+              )}
             </motion.div>
           )}
         </AnimatePresence>

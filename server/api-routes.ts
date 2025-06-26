@@ -532,7 +532,7 @@ router.post('/color-selection', async (req, res) => {
 });
 
 // Gerçek ürün Shopify'a ekleme endpoint - Tam template formatında
-router.post('/shopify/add-product', async (req, res) => {
+router.post('/shopify-upload', async (req, res) => {
   try {
     // Force JSON response headers
     res.setHeader('Content-Type', 'application/json; charset=utf-8');
