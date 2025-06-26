@@ -28,8 +28,10 @@ export async function extractProductOnlyImages(url: string): Promise<string[]> {
     
     // Filter to get only product images with proper path structure
     const productImages = allImages.filter(img => {
-      // Must have product path structure: ty[number]/prod/QC/[date]/[hash]/[id]_org_zoom.jpg
-      return /ty\d+\/prod\/QC\/\d{8}\/\d{2}\/[a-f0-9-]+\/\d+_org_zoom\.jpg/.test(img);
+      // Must have product path structure with _org_zoom.jpg for highest quality
+      return img.includes('_org_zoom.jpg') && 
+             img.includes('/prod/') && 
+             /ty\d+\/prod/.test(img);
     });
     
     console.log(`🎯 Product images after filtering: ${productImages.length}`);
