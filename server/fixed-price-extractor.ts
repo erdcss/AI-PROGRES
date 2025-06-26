@@ -4,6 +4,48 @@
 import axios from 'axios';
 import * as cheerio from 'cheerio';
 
+// Enhanced Turkish price parsing function
+function extractPriceFromText(text: string): number {
+  if (!text || text.length === 0) return 0;
+  
+  // Remove currency symbols and extra spaces
+  const cleanText = text.replace(/[₺TL\s]/g, '').trim();
+  
+  // Handle different Turkish number formats
+  let priceMatch = cleanText.match(/(\d{1,7}(?:[.,]\d{1,3})?)/);
+  if (!priceMatch) return 0;
+  
+  let cleanNumber = priceMatch[1];
+  
+  // Turkish number format handling
+  if (cleanNumber.includes(',') && cleanNumber.includes('.')) {
+    // Format: 1.234,56 -> 1234.56
+    cleanNumber = cleanNumber.replace(/\./g, '').replace(',', '.');
+  } else if (cleanNumber.includes(',') && !cleanNumber.includes('.')) {
+    // Format: 123,45 -> 123.45 OR 1.234 -> 1234
+    const parts = cleanNumber.split(',');
+    if (parts[1] && parts[1].length <= 2) {
+      // Decimal comma: 123,45 -> 123.45
+      cleanNumber = cleanNumber.replace(',', '.');
+    } else {
+      // Thousands separator: 1,234 -> 1234
+      cleanNumber = cleanNumber.replace(',', '');
+    }
+  } else if (cleanNumber.includes('.')) {
+    const parts = cleanNumber.split('.');
+    if (parts[1] && parts[1].length <= 2) {
+      // Already in correct format: 123.45
+      // Keep as is
+    } else {
+      // Thousands separator: 1.234 -> 1234
+      cleanNumber = cleanNumber.replace(/\./g, '');
+    }
+  }
+  
+  const finalPrice = parseFloat(cleanNumber);
+  return isNaN(finalPrice) ? 0 : finalPrice;
+}
+
 export async function extractTrendyolPrice(url: string): Promise<{price: number, brand: string}> {
   try {
     console.log(`🔍 Fixed price extractor başlatılıyor: ${url}`);
@@ -97,39 +139,47 @@ export async function extractTrendyolPrice(url: string): Promise<{price: number,
       }
     }
     
-    // Method 1: AGGRESSIVE Price detection with DOM selectors FIRST
+    // Method 1: ENHANCED DOM-based price detection
     console.log(`💰 Method 1: DOM-based price detection`);
     
-    // Price selector attempts
+    // Comprehensive price selector list for maximum coverage
     const priceSelectors = [
-      '.prc-dsc', // Discounted price
-      '.prc-org', // Original price  
+      '.prc-dsc', // Discounted price (primary)
+      '.prc-org', // Original price (primary)
+      '.prc-slg', // Sale price
       '.product-price',
       '[data-testid="price-current"]',
       '[data-testid="price-original"]',
       '.current-price',
       '.price-current',
       '.sale-price',
-      '.price'
+      '.price',
+      '.price-wrapper .price',
+      '.product-detail-price',
+      '.price-box .price',
+      '.final-price',
+      '.regular-price',
+      'span[class*="price"]',
+      'div[class*="price"]'
     ];
     
     for (const selector of priceSelectors) {
-      const priceElement = $(selector);
-      if (priceElement.length > 0) {
-        const priceText = priceElement.text().trim();
-        console.log(`🔍 Price selector ${selector}: "${priceText}"`);
-        
-        // Extract number from price text
-        const priceMatch = priceText.match(/(\d{1,6}(?:[.,]\d{1,3})?)/);
-        if (priceMatch) {
-          const extractedPrice = parseFloat(priceMatch[1].replace(',', '.'));
-          if (extractedPrice > 1 && extractedPrice < 100000) {
-            price = extractedPrice;
+      const priceElements = $(selector);
+      priceElements.each((i, element) => {
+        const priceText = $(element).text().trim();
+        if (priceText && priceText.length > 0) {
+          console.log(`🔍 Price selector ${selector}: "${priceText}"`);
+          
+          // Enhanced Turkish price parsing
+          const cleanPrice = extractPriceFromText(priceText);
+          if (cleanPrice > 0 && cleanPrice < 1000000) {
+            price = cleanPrice;
             console.log(`✅ Price found via DOM selector: ${price} TL`);
-            break;
+            return false; // Break out of each loop
           }
         }
-      }
+      });
+      if (price > 0) break;
     }
     
     // Method 2: Script-based price extraction if DOM failed
@@ -179,30 +229,9 @@ export async function extractTrendyolPrice(url: string): Promise<{price: number,
           console.log(`Pattern ${index + 1} found ${matches.length} matches:`, matches.slice(0, 3));
           
           const prices = matches.map((match: string) => {
-            const numMatch = match.match(/(\d{1,6}(?:[.,]\d{1,3})?)/);
-            if (numMatch) {
-              let cleanNumber = numMatch[1];
-              
-              // Handle Turkish number formatting
-              if (cleanNumber.includes(',') && cleanNumber.includes('.')) {
-                // Format: 1.234,56 -> 1234.56
-                cleanNumber = cleanNumber.replace(/\./g, '').replace(',', '.');
-              } else if (cleanNumber.includes(',')) {
-                // Format: 123,45 -> 123.45
-                cleanNumber = cleanNumber.replace(',', '.');
-              } else if (cleanNumber.includes('.') && cleanNumber.split('.')[1]?.length <= 2) {
-                // Format: 123.45 -> 123.45 (already correct)
-                // Keep as is
-              } else if (cleanNumber.includes('.')) {
-                // Format: 1.234 -> 1234 (thousands separator)
-                cleanNumber = cleanNumber.replace(/\./g, '');
-              }
-              
-              const parsedPrice = parseFloat(cleanNumber);
-              return parsedPrice;
-            }
-            return 0;
-          }).filter((p: number) => p > 1 && p < 100000);
+            const extractedPrice = extractPriceFromText(match);
+            return extractedPrice;
+          }).filter((p: number) => p > 0.5 && p < 2000000);
           
           allPrices.push(...prices);
         }

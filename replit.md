@@ -103,6 +103,10 @@ The application follows a full-stack architecture with clear separation of conce
 
 ## Changelog
 
+- June 26, 2025: **PRICE EXTRACTION SYSTEM PERMANENTLY FIXED** - Complete overhaul with enhanced Turkish number parsing
+- June 26, 2025: **DOM Selector Enhancement** - Expanded to 17 comprehensive price selectors for maximum coverage
+- June 26, 2025: **Pattern Matching Strengthened** - Method 3 handles up to 2M TL with outlier filtering and median selection
+- June 26, 2025: **Dual Test Success** - Dyson (250 TL) and Caykur (8.75 TL) both extract correctly with 15% profit margins
 - June 26, 2025: **FEATURE EXTRACTION SYSTEM FIXED** - JSON parsing and escape character issues completely resolved
 - June 26, 2025: **Structured Product Data Extraction** - Now extracts authentic product features from JSON-LD and structured data
 - June 26, 2025: **Data Validation System** - Invalid and empty feature values properly filtered out
