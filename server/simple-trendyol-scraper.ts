@@ -11,6 +11,7 @@ import { extractEnhancedAttributes } from './enhanced-attribute-extractor';
 import { extractDirectTrendyolAttributes } from './direct-trendyol-extractor';
 import { analyzeProductHTML } from './html-analyzer';
 import { extractTargetedAttributes } from './targeted-attribute-extractor';
+import { extractAllFeatures } from './manual-feature-extractor';
 
 export interface SimpleTrendyolData {
   success: boolean;
@@ -173,10 +174,27 @@ export async function simpleTrendyolScrape(url: string): Promise<SimpleTrendyolD
     let variants: Array<{color: string, size: string, inStock: boolean}> = [];
     
     try {
-      // Enhanced feature extraction from script data
-      console.log(`🎯 Enhanced feature extraction başlatılıyor...`);
+      // Manual comprehensive feature extraction
+      console.log(`🎯 Manuel comprehensive özellik çıkarma başlatılıyor...`);
       
-      // Extract from script tags - Look for product attributes
+      try {
+        const manualFeatures = await extractAllFeatures(url);
+        if (manualFeatures && manualFeatures.length > 0) {
+          features = manualFeatures.map(f => ({
+            key: f.key,
+            value: f.value
+          }));
+          console.log(`✅ Manuel extractor: ${features.length} comprehensive özellik bulundu`);
+        }
+      } catch (error) {
+        console.log(`⚠️ Manuel extractor hatası: ${error}`);
+      }
+      
+      // Enhanced feature extraction from script data (fallback)
+      if (features.length < 10) {
+        console.log(`🎯 Enhanced feature extraction başlatılıyor...`);
+      
+        // Extract from script tags - Look for product attributes
       const scriptTexts = html.match(/<script[^>]*>(.*?)<\/script>/gis);
       if (scriptTexts) {
         for (const scriptTag of scriptTexts) {
