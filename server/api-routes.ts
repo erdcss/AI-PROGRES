@@ -503,8 +503,12 @@ router.post('/api/shopify/demo-sync', async (req, res) => {
 });
 
 // Gerçek ürün Shopify'a ekleme endpoint - Tam template formatında
-router.post('/api/shopify/add-product', async (req, res) => {
+router.post('/shopify/add-product', async (req, res) => {
   try {
+    // Force JSON response headers
+    res.setHeader('Content-Type', 'application/json; charset=utf-8');
+    res.setHeader('Cache-Control', 'no-cache');
+    
     const productData = req.body.productData || req.body;
     
     if (!productData || !productData.success) {

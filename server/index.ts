@@ -21,35 +21,7 @@ app.use((req, res, next) => {
 app.use(express.json({ limit: '50mb' }));
 app.use(express.urlencoded({ extended: false, limit: '50mb' }));
 
-// CRITICAL FIX: Explicit API route handling before any other middleware
-// This prevents Vite catch-all from intercepting API calls
-app.all('/api/shopify/*', (req, res, next) => {
-  res.setHeader('Content-Type', 'application/json');
-  next();
-});
-
-app.all('/api/system/*', (req, res, next) => {
-  res.setHeader('Content-Type', 'application/json');
-  next();
-});
-
-app.all('/api/analysis/*', (req, res, next) => {
-  res.setHeader('Content-Type', 'application/json');
-  next();
-});
-
-app.all('/api/scheduler/*', (req, res, next) => {
-  res.setHeader('Content-Type', 'application/json');
-  next();
-});
-
-app.all('/api/memory/*', (req, res, next) => {
-  res.setHeader('Content-Type', 'application/json');
-  next();
-});
-
-// API routes entegrasyonu - MUST be before other routes
-app.use('/api', apiRoutes);
+// Remove duplicate API registrations - will be handled in async block
 
 // Sync CSV download endpoint
 app.get('/api/download/:filename', (req, res) => {
@@ -279,6 +251,10 @@ app.use((req, res, next) => {
 });
 
 (async () => {
+  // CRITICAL: API routes MUST be registered before any other middleware
+  // to prevent Vite catch-all from intercepting API calls
+  app.use('/api', apiRoutes);
+  
   // Add import routes
   app.use(importRoutes);
   
