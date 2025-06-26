@@ -255,6 +255,67 @@ function generateAITags(productData: any): string[] {
 
 const router = Router();
 
+// Ana Trendyol scraper endpoint
+router.post('/api/scrape', async (req, res) => {
+  try {
+    console.log('Scrape isteği alındı');
+    const { url } = req.body;
+    
+    if (!url || typeof url !== 'string') {
+      return res.status(400).json({
+        success: false,
+        message: 'Geçersiz URL',
+        details: ['URL parametresi gereklidir']
+      });
+    }
+
+    // URL validation
+    if (!url.includes('trendyol.com')) {
+      return res.status(400).json({
+        success: false,
+        message: 'Geçersiz URL',
+        details: ['Sadece Trendyol URL\'leri desteklenmektedir']
+      });
+    }
+
+    console.log('URL normalize edildi:', url, '->', url);
+    console.log('Trendyol ürün verisi işleniyor...');
+
+    // Simple Trendyol scraper kullan
+    const { simpleTrendyolScrape } = await import('./simple-trendyol-scraper');
+    const scrapedData = await simpleTrendyolScrape(url);
+    
+    if (!scrapedData.success) {
+      return res.status(500).json({
+        success: false,
+        message: 'Ürün verisi çıkarılamadı',
+        details: ['Scraping işlemi başarısız oldu']
+      });
+    }
+
+    console.log(`✅ Ürün başarıyla çıkarıldı: ${scrapedData.title}`);
+
+    res.json({
+      success: true,
+      title: scrapedData.title,
+      brand: scrapedData.brand,
+      price: scrapedData.price,
+      images: scrapedData.images,
+      features: scrapedData.features,
+      variants: scrapedData.variants,
+      extractionTime: new Date().toISOString()
+    });
+
+  } catch (error: any) {
+    console.error('Scraper hatası:', error);
+    res.status(500).json({
+      success: false,
+      message: 'Sistem hatası',
+      details: [error.message || 'Bilinmeyen hata']
+    });
+  }
+});
+
 
 
 // Hafıza sistemi API endpoints

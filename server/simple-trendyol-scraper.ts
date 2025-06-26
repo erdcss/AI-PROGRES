@@ -88,66 +88,56 @@ export async function simpleTrendyolScrape(url: string): Promise<SimpleTrendyolD
       console.log(`⚠️ Price extraction error: ${e.message}`);
     }
     
-    // Use the main product image extractor (only main product images, no variants)
-    const images = await extractMainProductImages(url);
+    // Quick image extraction from HTML
+    let images: string[] = [];
+    try {
+      const imageMatches = html.match(/https:\/\/cdn\.dsmcdn\.com[^"'\s]*\.jpg/g);
+      if (imageMatches) {
+        images = imageMatches
+          .filter(img => img.includes('_org_zoom.jpg') || img.includes('_zoom.jpg'))
+          .slice(0, 7);
+      }
+      console.log(`✅ Found ${images.length} product images`);
+    } catch (e) {
+      console.log('Image extraction fallback');
+      images = [];
+    }
     
-    console.log(`✅ Found ${images.length} unique images`);
-    
-    // Gelişmiş varyant ve özellik çıkarma
+    // Quick feature and variant extraction
     let features: Array<{key: string, value: string}> = [];
     let variants: Array<{color: string, size: string, inStock: boolean}> = [];
     
     try {
-      // Try targeted extraction first - uses script analysis data
-      const targetedAttributes = extractTargetedAttributes(html);
+      // Quick HTML pattern extraction for speed
+      const featurePatterns = [
+        { key: 'Materyal', pattern: /Materyal[:\s]*([^<>\n,]+)/i },
+        { key: 'Kumaş', pattern: /Kumaş[:\s]*([^<>\n,]+)/i },
+        { key: 'Kalıp', pattern: /Kalıp[:\s]*([^<>\n,]+)/i },
+        { key: 'Yıkama', pattern: /Yıkama[:\s]*([^<>\n,]+)/i },
+        { key: 'Marka', pattern: /vendor["\s:]*["']([^"']+)/i }
+      ];
       
-      if (targetedAttributes.length > 0) {
-        features = targetedAttributes.map(attr => ({
-          key: attr.key,
-          value: attr.value
-        }));
-        console.log(`🎯 Targeted extraction: ${features.length} özellik bulundu`);
-      } else {
-        // Try direct Trendyol extraction
-        const directAttributes = extractDirectTrendyolAttributes(html);
-        
-        if (directAttributes.length > 0) {
-          features = directAttributes.map(attr => ({
-            key: attr.key,
-            value: attr.value
-          }));
-          console.log(`🎯 Direct Trendyol çıkarma: ${features.length} özellik bulundu`);
-        } else {
-          // Try enhanced attribute extraction
-          const enhancedAttributes = extractEnhancedAttributes(html);
-          
-          if (enhancedAttributes.length > 0) {
-            features = enhancedAttributes.map(attr => ({
-              key: attr.key,
-              value: attr.value
-            }));
-            console.log(`🎯 Enhanced özellik çıkarma: ${features.length} özellik bulundu`);
-          } else {
-            // Final fallback to working feature extraction
-            const workingFeatures = extractWorkingFeatures(html);
-            features = workingFeatures.map(f => ({
-              key: f.key,
-              value: f.value
-            }));
-            console.log(`🎯 Working özellik çıkarma (fallback): ${features.length} özellik bulundu`);
-          }
+      featurePatterns.forEach(({key, pattern}) => {
+        const match = html.match(pattern);
+        if (match && match[1]) {
+          features.push({
+            key: key,
+            value: match[1].trim()
+          });
         }
+      });
+      
+      // Quick size extraction
+      const sizePattern = /\b(3[0-9]|4[0-9]|5[0-9])\b/g;
+      const sizeMatches = html.match(sizePattern);
+      if (sizeMatches) {
+        const uniqueSizes = sizeMatches.filter((size, index, arr) => arr.indexOf(size) === index).slice(0, 10);
+        variants = uniqueSizes.map(size => ({
+          color: 'Standart',
+          size: size,
+          inStock: true
+        }));
       }
-      
-      // Real size extraction
-      const { extractRealSizes } = await import('./real-size-extractor');
-      const realSizeResult = extractRealSizes(html);
-      
-      variants = realSizeResult.sizes.map(sizeData => ({
-        color: 'Standart',
-        size: sizeData.size,
-        inStock: sizeData.inStock
-      }));
       
       console.log(`🎯 Gelişmiş sistem: ${features.length} özellik, ${variants.length} varyant çıkarıldı`);
       
