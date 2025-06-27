@@ -860,20 +860,21 @@ function ScraperPage({ platform = 'trendyol' }: ScraperPageProps) {
           </div>
 
           {error && (
-            <div className="mb-4">
-              <Alert variant="destructive">
+            <div className="mb-6">
+              <Alert variant="destructive" className="bg-gradient-to-br from-red-900/40 to-red-800/40 backdrop-blur-sm border border-red-500/30 shadow-2xl rounded-2xl">
                 {getErrorIcon(error.status)}
-                <AlertTitle>{getErrorTitle(error.status)}</AlertTitle>
-                <AlertDescription className="mt-2 space-y-2">
-                  <p>{error.message}</p>
+                <AlertTitle className="text-red-100 font-semibold">{getErrorTitle(error.status)}</AlertTitle>
+                <AlertDescription className="mt-3 space-y-3 text-red-100">
+                  <p className="font-medium">{error.message}</p>
                   {error.solution && (
-                    <p className="text-sm mt-2 p-2 bg-red-900/50 rounded-md">
-                      <strong>Çözüm önerisi:</strong> {error.solution}
-                    </p>
+                    <div className="p-3 bg-red-900/30 rounded-xl border border-red-600/30">
+                      <strong className="text-red-200">Çözüm önerisi:</strong>
+                      <span className="ml-2 text-red-100">{error.solution}</span>
+                    </div>
                   )}
                   {error.details && (
-                    <p className="text-xs mt-1 text-gray-400">
-                      Teknik detay: {error.details}
+                    <p className="text-sm text-red-300 bg-red-950/30 p-2 rounded-lg border border-red-700/20">
+                      <strong>Teknik detay:</strong> {error.details}
                     </p>
                   )}
                 </AlertDescription>
@@ -1016,8 +1017,8 @@ function ScraperPage({ platform = 'trendyol' }: ScraperPageProps) {
               exit={{ opacity: 0, y: -50 }}
               transition={{ duration: 0.2 }}
             >
-              <Card className="bg-gray-900 border-gray-800">
-                <CardContent className="p-6">
+              <Card className="bg-gradient-to-br from-blue-900/40 to-indigo-900/40 backdrop-blur-sm border border-blue-500/30 shadow-2xl">
+                <CardContent className="p-8">
                   {/* Product Brand and Title Header */}
                   <div className="mb-6 text-center border-b border-gray-800 pb-4">
                     <div className="text-lg font-bold text-blue-400 mb-2">
@@ -1047,7 +1048,7 @@ function ScraperPage({ platform = 'trendyol' }: ScraperPageProps) {
                     
                     {/* Compact Main Image Display */}
                     {product.images && product.images.length > 0 && (
-                      <div className="bg-gray-900 rounded-lg p-2">
+                      <div className="bg-gradient-to-br from-blue-900/20 to-indigo-900/20 backdrop-blur-sm rounded-2xl p-4 border border-blue-500/20">
                         <div className="aspect-square w-48 mx-auto mb-3 relative group">
                           <img
                             id="mainProductImage"
@@ -1077,7 +1078,7 @@ function ScraperPage({ platform = 'trendyol' }: ScraperPageProps) {
                         </div>
                         
                         {/* Compact Images Grid */}
-                        <div className="bg-gray-800/20 p-2 rounded border border-gray-700">
+                        <div className="bg-gradient-to-br from-blue-900/30 to-indigo-900/30 backdrop-blur-sm p-3 rounded-xl border border-blue-500/30">
                           <div className="flex items-center justify-between mb-2">
                             <span className="text-xs font-medium text-gray-300">
                               Tüm Görseller ({product.images?.length || 0})
@@ -1157,15 +1158,15 @@ function ScraperPage({ platform = 'trendyol' }: ScraperPageProps) {
                   </div>
 
                   {/* Compact Data Preview */}
-                  <div className="space-y-3 border-t border-gray-800 pt-3">
-                    <h3 className="text-base font-semibold text-gray-200">Veri Önizleme</h3>
+                  <div className="space-y-4 border-t border-blue-500/20 pt-6">
+                    <h3 className="text-lg font-semibold text-white">Veri Önizleme</h3>
                     
                     {/* Ürün Özellikleri Önizleme */}
                     {product.features && product.features.length > 0 && (
-                      <div className="bg-blue-900/20 p-3 rounded border border-blue-800">
-                        <div className="flex items-center justify-between mb-2">
-                          <span className="text-blue-400 text-sm font-medium">Ürün Özellikleri</span>
-                          <span className="text-xs text-blue-300">{product.features.length} özellik</span>
+                      <div className="bg-gradient-to-br from-blue-900/30 to-indigo-900/30 backdrop-blur-sm p-4 rounded-xl border border-blue-500/30">
+                        <div className="flex items-center justify-between mb-3">
+                          <span className="text-blue-300 text-sm font-semibold">Ürün Özellikleri</span>
+                          <span className="text-xs text-blue-200 bg-blue-800/40 px-2 py-1 rounded-lg">{product.features.length} özellik</span>
                         </div>
                         <div className="max-h-32 overflow-y-auto space-y-1">
                           {product.features.slice(0, 6).map((feature, index) => (
@@ -1184,16 +1185,16 @@ function ScraperPage({ platform = 'trendyol' }: ScraperPageProps) {
                     )}
                     
                     {/* Compact Price */}
-                    <div className="bg-green-900/20 p-3 rounded border border-green-800">
-                      <div className="flex items-center justify-between mb-2">
-                        <span className="text-gray-400 text-sm">Trendyol Fiyatı</span>
-                        <span className="text-sm font-medium text-gray-300">
+                    <div className="bg-gradient-to-br from-green-900/30 to-emerald-900/30 backdrop-blur-sm p-4 rounded-xl border border-green-500/30">
+                      <div className="flex items-center justify-between mb-3">
+                        <span className="text-gray-300 text-sm">Trendyol Fiyatı</span>
+                        <span className="text-sm font-semibold text-white bg-gray-800/40 px-3 py-1 rounded-lg">
                           {typeof product.price === 'object' ? product.price.formatted : `${product.price} TL`}
                         </span>
                       </div>
-                      <div className="flex items-center justify-between mb-1">
-                        <span className="text-green-400 text-sm font-medium">Satış Fiyatımız</span>
-                        <span className="text-lg font-bold text-green-300">
+                      <div className="flex items-center justify-between mb-2">
+                        <span className="text-green-300 text-sm font-semibold">Satış Fiyatımız</span>
+                        <span className="text-lg font-bold text-green-200 bg-green-800/40 px-3 py-1 rounded-lg">
                           {typeof product.price === 'object' ? product.price.profitFormatted : `${Math.ceil(parseFloat(product.price) * 1.1)} TL`}
                         </span>
                       </div>
@@ -1280,28 +1281,28 @@ function ScraperPage({ platform = 'trendyol' }: ScraperPageProps) {
                         <CSVPreview csvPath={product.csvInfo?.filename || 'shopify-urunler.csv'} />
                         
                         {/* Enhanced Download and Upload Buttons */}
-                        <div className="mt-3 space-y-2">
+                        <div className="mt-4 space-y-3">
                           <button
                             onClick={() => handleCSVDownload()}
-                            className="w-full bg-blue-600 hover:bg-blue-700 text-white px-4 py-2 rounded text-sm font-medium transition-colors flex items-center justify-center gap-2"
+                            className="w-full bg-gradient-to-r from-blue-600 to-indigo-600 hover:from-blue-700 hover:to-indigo-700 text-white px-6 py-3 rounded-xl text-sm font-semibold transition-all duration-200 flex items-center justify-center gap-2 shadow-lg hover:shadow-xl transform hover:scale-105 border border-blue-500/20"
                           >
-                            <Download className="w-4 h-4" />
+                            <Download className="w-5 h-5" />
                             CSV İndir (shopify-urunler.csv)
                           </button>
                           
                           <button
                             onClick={uploadToShopify}
                             disabled={isUploadingToShopify}
-                            className="w-full bg-green-600 hover:bg-green-700 disabled:bg-green-400 text-white px-4 py-2 rounded text-sm font-medium transition-colors flex items-center justify-center gap-2"
+                            className="w-full bg-gradient-to-r from-green-600 to-emerald-600 hover:from-green-700 hover:to-emerald-700 disabled:from-green-400 disabled:to-emerald-400 text-white px-6 py-3 rounded-xl text-sm font-semibold transition-all duration-200 flex items-center justify-center gap-2 shadow-lg hover:shadow-xl transform hover:scale-105 disabled:scale-100 border border-green-500/20"
                           >
                             {isUploadingToShopify ? (
                               <>
-                                <RefreshCcw className="w-4 h-4 animate-spin" />
+                                <RefreshCcw className="w-5 h-5 animate-spin" />
                                 Shopify'a Yükleniyor...
                               </>
                             ) : (
                               <>
-                                <Upload className="w-4 h-4" />
+                                <Upload className="w-5 h-5" />
                                 Shopify'a Yükle
                               </>
                             )}
