@@ -26,7 +26,8 @@ export class ErrorDetectionSystem {
     });
 
     process.on('unhandledRejection', (reason, promise) => {
-      this.handleCriticalError('Unhandled Rejection', new Error(String(reason)));
+      console.log('🚨 Critical Unhandled Rejection:', reason);
+      filteredNotifier.sendSystemError('Critical Unhandled Rejection', String(reason));
     });
 
     // Database connection monitoring

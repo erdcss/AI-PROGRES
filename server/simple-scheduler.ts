@@ -1,4 +1,6 @@
 // Simple scheduling system for automated tasks
+import { filteredNotifier } from './filtered-telegram-notifier';
+
 let activeTimers: Map<string, NodeJS.Timeout> = new Map();
 
 export const scheduler = {
@@ -9,7 +11,7 @@ export const scheduler = {
       clearTimeout(timer);
     }
     activeTimers.clear();
-    startAllTasks();
+    initializeScheduler();
   }
 };
 
@@ -170,7 +172,7 @@ function scheduleTask(taskConfig: any, handler: () => Promise<void>): void {
         scheduleNext();
       } catch (error) {
         console.error(`❌ Görev hatası: ${taskConfig.name}`, error);
-        await sendNotification(`❌ **Görev Hatası**\n\nGörev: ${taskConfig.description}\nHata: ${error instanceof Error ? error.message : 'Bilinmeyen hata'}\nZaman: ${new Date().toLocaleString('tr-TR')}`);
+        filteredNotifier.sendTaskCompletionReport(taskConfig.name, 'error', error instanceof Error ? error.message : 'Bilinmeyen hata');
         // Still schedule next occurrence even if current one failed
         scheduleNext();
       }
@@ -214,7 +216,7 @@ export function initializeScheduler(): void {
 
 ✅ Sistem 7/24 otomatik çalışmaya başladı!`;
 
-    await sendNotification(initMessage);
+    filteredNotifier.sendTaskCompletionReport('system-init', 'success', 'Sistem başlatıldı');
   }, 2000);
 }
 
