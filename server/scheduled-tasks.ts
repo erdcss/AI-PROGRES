@@ -254,33 +254,8 @@ export function initializeScheduledTasks(): void {
     }
   });
   
-  // Send initialization notification
-  const taskList = allTasks.map(task => `• ${task.description}`).join('\n');
-  const initMessage = `⏰ **ZAMANLI GÖREVLER AKTİF**
-
-📋 **Zamanlanan Görevler:**
-${taskList}
-
-🚀 **Durum:** Tüm görevler başarıyla zamanlandı
-⏰ **Başlangıç:** ${new Date().toLocaleString('tr-TR')}
-
-📅 **Görev Programı:**
-• 06:00, 12:00, 18:00, 00:00: Sistem sağlık kontrolü
-• 12:00: Günlük izleme raporu
-• 23:00: Günlük Z raporu
-• Pazar 20:00: Haftalık özet
-
-✅ Sistem 7/24 otomatik çalışmaya başladı!`;
-
-  // Send notification after a short delay to ensure system is ready
-  setTimeout(async () => {
-    try {
-      await sendTelegramNotification(initMessage);
-      console.log('✅ Zamanlı görevler başlatma bildirimi gönderildi');
-    } catch (error) {
-      console.error('❌ Başlatma bildirimi hatası:', error);
-    }
-  }, 2000);
+  // Startup notification disabled per user request
+  console.log('🚫 Başlatma bildirimi devre dışı bırakıldı - kullanıcı talebi');
   
   console.log(`✅ ${allTasks.length} zamanlı görev başarıyla kuruldu`);
 }
