@@ -33,6 +33,13 @@ export class FilteredTelegramNotifier {
   async sendTaskCompletionReport(taskName: string, status: 'success' | 'error', details: string) {
     if (!this.shouldNotify() || !this.bot) return;
 
+    // BLOKLANACAKlar: Sistem başlatma bildirimleri
+    const blockedTasks = ['system-init', 'scheduler-init', 'startup-notification'];
+    if (blockedTasks.includes(taskName)) {
+      console.log(`🚫 Başlatma bildirimi engellendi: ${taskName}`);
+      return;
+    }
+
     const statusIcon = status === 'success' ? '✅' : '❌';
     const taskDisplayName = this.getTaskDisplayName(taskName);
     

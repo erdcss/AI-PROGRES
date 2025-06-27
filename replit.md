@@ -103,6 +103,7 @@ The application follows a full-stack architecture with clear separation of conce
 
 ## Changelog
 
+- June 27, 2025: **OTOMATİK BAŞLATMA BİLDİRİMLERİ ENGELLENDİ** - Zamanlı görev sistemi başlatma bildirimleri filtrelenmiş bildirim sisteminde bloklandı
 - June 27, 2025: **SİSTEM TAM OPERASYONEL** - Tüm sistemler çalışıyor: hata tespiti (0 hata), filtrelenmiş bildirimler, zamanlayıcı (3 görev), hafıza sistemi, API endpoint'leri (470ms yanıt)
 - June 27, 2025: **İLERİ DÜZEY SİSTEM DURUMU VE HATA MERKEZİ SAYFASI EKLENDI** - Marketplace sayfasına "Sistem Durumu & Hata Merkezi" butonu eklendi, detaylı sistem izleme dashboard'u
 - June 27, 2025: **FİLTRELENMİŞ TELEGRAM BİLDİRİM SİSTEMİ KURULDU** - Sadece görev tamamlama, sistem hataları ve 23:00 Z raporu gönderen akıllı bildirim sistemi

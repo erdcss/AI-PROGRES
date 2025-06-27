@@ -201,23 +201,7 @@ export function initializeScheduler(): void {
   scheduleTask(TASKS.HEALTH_CHECK, executeHealthCheck);
   
   console.log(`✅ ${Object.keys(TASKS).length} zamanlı görev başarıyla kuruldu`);
-  
-  // Send initialization notification
-  setTimeout(async () => {
-    const initMessage = `⏰ **ZAMANLI GÖREVLER AKTİF**
-
-📋 **Zamanlanan Görevler:**
-• 06:00: Sistem sağlık kontrolü
-• 12:00: Günlük izleme raporu
-• 23:00: Günlük Z raporu
-
-🚀 **Durum:** Tüm görevler başarıyla zamanlandı
-⏰ **Başlangıç:** ${new Date().toLocaleString('tr-TR')}
-
-✅ Sistem 7/24 otomatik çalışmaya başladı!`;
-
-    filteredNotifier.sendTaskCompletionReport('system-init', 'success', 'Sistem başlatıldı');
-  }, 2000);
+  console.log('✅ Zamanlı görevler sistemi başlatıldı');
 }
 
 // Get status of scheduled tasks
