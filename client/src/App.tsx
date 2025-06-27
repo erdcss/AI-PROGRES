@@ -22,6 +22,7 @@ import { PageTransition } from "@/components/PageTransition";
 import { AIBrandLogo } from "@/components/AILogo";
 import ProductDataAnalysisPage from "@/pages/product-data-analysis";
 import SchedulerPage from "@/pages/scheduler";
+import SystemStatusPage from "@/pages/system-status";
 
 // Login component with password protection
 function LoginScreen({ onLogin }: { onLogin: () => void }) {
@@ -241,6 +242,11 @@ function Router() {
       <Route path="/scheduler">
         <PageTransition>
           <SchedulerPage />
+        </PageTransition>
+      </Route>
+      <Route path="/system-status">
+        <PageTransition>
+          <SystemStatusPage />
         </PageTransition>
       </Route>
       <Route>
