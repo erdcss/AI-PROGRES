@@ -808,8 +808,8 @@ function ScraperPage({ platform = 'trendyol' }: ScraperPageProps) {
             className=""
           >
             <div className="bg-gradient-to-br from-blue-900/40 to-indigo-900/40 backdrop-blur-sm rounded-2xl border border-blue-500/30 p-8 mb-6 shadow-2xl">
-            {/* Header Row */}
-            <div className="flex items-center justify-between mb-6">
+              {/* Header Row */}
+              <div className="flex items-center justify-between mb-6">
               <div className="flex items-center gap-6">
                 {/* Logo */}
                 <div className="relative">
@@ -935,7 +935,6 @@ function ScraperPage({ platform = 'trendyol' }: ScraperPageProps) {
               <div className="absolute inset-0 bg-gradient-to-r from-blue-600/10 to-indigo-600/10 rounded-2xl blur-xl opacity-0 group-focus-within:opacity-100 transition-opacity duration-300 -z-10"></div>
             </div>
           </form>
-            </div>
           </motion.div>
 
         {/* CSV Önizleme Tablosu */}
