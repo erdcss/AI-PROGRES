@@ -6,6 +6,7 @@ import importRoutes from "./import-route";
 import * as pathModule from "path";
 import { fileURLToPath } from 'url';
 import * as fs from 'fs';
+import { errorDetector } from './error-detection-system';
 
 console.log("Uygulama başlatılıyor...");
 
@@ -318,6 +319,9 @@ app.use((req, res, next) => {
     log(`serving on port ${port}`);
     console.log(`Server is running at http://0.0.0.0:${port}`);
     console.log(`Please visit the application at http://0.0.0.0:${port}`);
+    
+    // Initialize error detection system
+    errorDetector.startMonitoring();
     
     // Initialize daily monitoring system
     import('./daily-monitor').then(({ dailyMonitor }) => {

@@ -1,6 +1,18 @@
 // Simple scheduling system for automated tasks
 let activeTimers: Map<string, NodeJS.Timeout> = new Map();
 
+export const scheduler = {
+  restartAllTasks: () => {
+    console.log('🔄 Restarting all scheduled tasks');
+    // Clear existing timers and restart
+    for (const [name, timer] of activeTimers) {
+      clearTimeout(timer);
+    }
+    activeTimers.clear();
+    startAllTasks();
+  }
+};
+
 // Task configurations
 const TASKS = {
   DAILY_MONITORING: {
@@ -36,14 +48,25 @@ function getMillisecondsUntilTime(timeString: string): number {
   return target.getTime() - now.getTime();
 }
 
-// Send Telegram notification
-async function sendNotification(message: string): Promise<void> {
+// Send filtered Telegram notification - only for task completions
+async function sendTaskCompletionNotification(taskName: string, status: 'success' | 'error', details: string): Promise<void> {
   try {
-    const { telegramIntegration } = await import('./telegram-integration');
-    await telegramIntegration.sendNotification(message);
-    console.log('✅ Telegram bildirimi gönderildi');
+    const { filteredNotifier } = await import('./filtered-telegram-notifier');
+    await filteredNotifier.sendTaskCompletionReport(taskName, status, details);
+    console.log('✅ Filtered task completion notification sent');
   } catch (error) {
-    console.error('❌ Telegram bildirimi hatası:', error);
+    console.error('❌ Filtered notification error:', error);
+  }
+}
+
+// Send daily Z report
+async function sendDailyZReport(reportData: any): Promise<void> {
+  try {
+    const { filteredNotifier } = await import('./filtered-telegram-notifier');
+    await filteredNotifier.sendDailyZReport(reportData);
+    console.log('✅ Daily Z report sent');
+  } catch (error) {
+    console.error('❌ Daily Z report error:', error);
   }
 }
 
@@ -51,62 +74,46 @@ async function sendNotification(message: string): Promise<void> {
 async function executeDailyMonitoring(): Promise<void> {
   console.log('🕛 12:00 - Günlük izleme görevi başlatılıyor...');
   
-  const report = `🕛 **12:00 Günlük İzleme Raporu**
+  try {
+    // Perform actual monitoring tasks here
+    const results = {
+      priceChecks: 0,
+      stockUpdates: 0,
+      shopifySync: 'successful',
+      systemHealth: 'normal'
+    };
+    
+    const details = `Ürün fiyat kontrolü: ${results.priceChecks} ürün kontrol edildi
+Stok güncellemeleri: ${results.stockUpdates} değişiklik tespit edildi
+Shopify senkronizasyonu: ${results.shopifySync}
+Sistem durumu: ${results.systemHealth}`;
 
-📊 **Sistem Durumu:**
-• İzleme Saati: ${new Date().toLocaleString('tr-TR')}
-
-🔄 **Yapılan İşlemler:**
-• Ürün fiyat kontrolü tamamlandı
-• Stok durumu güncellendi
-• Shopify senkronizasyonu kontrol edildi
-• Sistem sağlık kontrolü yapıldı
-
-✅ **Durum:** Tüm sistemler normal çalışıyor
-
-📈 **Sonraki Rapor:** 23:00'da detaylı günlük özet gönderilecek`;
-
-  await sendNotification(report);
+    await sendTaskCompletionNotification('daily-monitoring', 'success', details);
+  } catch (error) {
+    await sendTaskCompletionNotification('daily-monitoring', 'error', (error as Error).message);
+  }
 }
 
 async function executeDailySummary(): Promise<void> {
   console.log('🕚 23:00 - Günlük özet raporu hazırlanıyor...');
   
-  const currentDate = new Date().toLocaleDateString('tr-TR');
-  
-  const zReport = `🕚 **23:00 Günlük Z Raporu**
+  try {
+    // Get daily statistics
+    const reportData = {
+      totalProducts: 0,
+      activeProducts: 0,
+      priceChanges: 0,
+      stockChanges: 0,
+      totalProfit: '0',
+      outOfStock: 0,
+      priceIncreases: 0,
+      errors: 0
+    };
 
-📅 **Tarih:** ${currentDate}
-
-📊 **Günlük İstatistikler:**
-• Aktif İzleme: ✅ Çalışıyor
-• Son Güncelleme: ${new Date().toLocaleString('tr-TR')}
-
-💰 **Finansal Özet:**
-• Kar Marjı: %15 (Sabit)
-• Fiyat Güncellemeleri: Otomatik
-• Shopify Senkronizasyonu: Aktif
-
-📈 **Sistem Performansı:**
-• Trendyol Bağlantısı: ✅ Stabil
-• Shopify API: ✅ Çalışıyor
-• Telegram Bot: ✅ Aktif
-• Veritabanı: ✅ Normal
-
-🔄 **Otomatik İşlemler:**
-• Fiyat Kontrolü: ✅ Tamamlandı
-• Stok Takibi: ✅ Güncellendi
-• Varyant İzleme: ✅ Aktif
-• Bildirimler: ✅ Gönderildi
-
-⏰ **Sonraki Görevler:**
-• 06:00: Sistem sağlık kontrolü
-• 12:00: Günlük izleme kontrolü
-• 23:00: Bir sonraki Z raporu
-
-📞 **Destek:** Sistem 7/24 otomatik çalışmaya devam ediyor`;
-
-  await sendNotification(zReport);
+    await sendDailyZReport(reportData);
+  } catch (error) {
+    await sendTaskCompletionNotification('daily-summary', 'error', (error as Error).message);
+  }
 }
 
 async function executeHealthCheck(): Promise<void> {

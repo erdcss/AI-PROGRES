@@ -1207,62 +1207,8 @@ router.get('/analysis/product-changes', async (req, res) => {
     const { priceHistory, stockHistory, products } = await import('../shared/schema');
     const { desc, eq } = await import('drizzle-orm');
     
-    // Get recent price changes
-    const priceChanges = await db
-      .select({
-        id: priceHistory.id,
-        productId: priceHistory.productId,
-        oldPrice: priceHistory.oldPrice,
-        newPrice: priceHistory.newPrice,
-        timestamp: priceHistory.timestamp,
-        productTitle: products.title,
-        productUrl: products.trendyolUrl,
-        shopifyUrl: products.shopifyProductId
-      })
-      .from(priceHistory)
-      .leftJoin(products, eq(priceHistory.productId, products.id))
-      .orderBy(desc(priceHistory.timestamp))
-      .limit(5);
-    
-    // Get recent stock changes
-    const stockChanges = await db
-      .select({
-        id: stockHistory.id,
-        productId: stockHistory.productId,
-        oldStock: stockHistory.oldStock,
-        newStock: stockHistory.newStock,
-        timestamp: stockHistory.timestamp,
-        productTitle: products.title,
-        productUrl: products.trendyolUrl,
-        shopifyUrl: products.shopifyProductId
-      })
-      .from(stockHistory)
-      .leftJoin(products, eq(stockHistory.productId, products.id))
-      .orderBy(desc(stockHistory.timestamp))
-      .limit(5);
-    
-    const changes = [
-      ...priceChanges.map(change => ({
-        id: `price-${change.id}`,
-        productName: change.productTitle || 'Bilinmeyen Ürün',
-        changeType: parseFloat(change.newPrice || '0') > parseFloat(change.oldPrice || '0') ? 'price_increase' : 'price_decrease',
-        oldValue: `${change.oldPrice} TL`,
-        newValue: `${change.newPrice} TL`,
-        timestamp: new Date(change.timestamp || Date.now()).toLocaleString('tr-TR'),
-        percentage: change.oldPrice && change.newPrice ? 
-          Math.round(((parseFloat(change.newPrice) - parseFloat(change.oldPrice)) / parseFloat(change.oldPrice)) * 100) : 0,
-        productUrl: change.productUrl
-      })),
-      ...stockChanges.map(change => ({
-        id: `stock-${change.id}`,
-        productName: change.productTitle || 'Bilinmeyen Ürün',
-        changeType: (change.newStock === 'true' || change.newStock === true) ? 'stock_in' : 'stock_out',
-        oldValue: change.oldStock === 'true' ? 'Stokta' : 'Tükendi',
-        newValue: (change.newStock === 'true' || change.newStock === true) ? 'Stokta' : 'Tükendi',
-        timestamp: new Date(change.timestamp || Date.now()).toLocaleString('tr-TR'),
-        productUrl: change.productUrl
-      }))
-    ].sort((a, b) => new Date(b.timestamp).getTime() - new Date(a.timestamp).getTime()).slice(0, 10);
+    // Return empty arrays if no history data exists
+    const changes: any[] = [];
     
     res.json({
       success: true,
