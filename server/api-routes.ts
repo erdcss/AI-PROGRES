@@ -1012,10 +1012,13 @@ router.post('/api/memory/add-product', async (req, res) => {
     const db = (await import('./db')).db;
     const { products, productVariants, insertProductSchema, insertProductVariantSchema } = await import('@shared/schema');
     
+    // Benzersiz ID oluştur (timestamp + random)
+    const uniqueProductId = `TM-${Date.now()}-${Math.random().toString(36).substr(2, 9).toUpperCase()}`;
+    
     // Ürün verisini veritabanı formatına dönüştür
     const productToInsert = {
-      trendyolUrl: productData.url || '',
-      trendyolProductId: productData.productId || '',
+      trendyolUrl: productData.url || productData.trendyolUrl || '',
+      trendyolProductId: uniqueProductId, // Benzersiz ID sistemi
       shopifyProductId: productData.shopifyProductId || null,
       title: productData.title || '',
       brand: productData.brand || '',

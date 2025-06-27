@@ -97,6 +97,7 @@ export const ProductDataAnalysis: React.FC = () => {
   const [newMessage, setNewMessage] = useState('');
   const [isTyping, setIsTyping] = useState(false);
   const [timeToNext, setTimeToNext] = useState('');
+  const [isClearingMemory, setIsClearingMemory] = useState(false);
 
   // Fetch memory statistics
   const { data: memoryStats } = useQuery<MemoryStats>({
@@ -348,14 +349,14 @@ export const ProductDataAnalysis: React.FC = () => {
 
         <Card className="bg-white/5 backdrop-blur-md border-white/10">
           <CardContent className="p-6 text-center">
-            <div className="w-16 h-16 mx-auto mb-4 bg-gradient-to-br from-green-500 to-teal-600 rounded-2xl flex items-center justify-center">
-              <Package className="h-8 w-8 text-white" />
+            <div className="w-16 h-16 mx-auto mb-4 bg-gradient-to-br from-orange-500 to-red-600 rounded-2xl flex items-center justify-center">
+              <TrendingUp className="h-8 w-8 text-white" />
             </div>
             <h3 className="text-2xl font-bold text-white mb-2">
-              {memoryStats?.totalVariants?.toLocaleString('tr-TR') || '0'}
+              {(changesData?.priceChanges?.length || 0) + (changesData?.stockChanges?.length || 0)}
             </h3>
-            <p className="text-gray-300 font-medium">Ürün Varyantı</p>
-            <p className="text-sm text-gray-400 mt-1">Renk/beden seçenekleri</p>
+            <p className="text-gray-300 font-medium">Toplam Değişiklik</p>
+            <p className="text-sm text-gray-400 mt-1">Fiyat/stok değişimleri</p>
           </CardContent>
         </Card>
 
