@@ -787,26 +787,27 @@ function ScraperPage({ platform = 'trendyol' }: ScraperPageProps) {
   };
 
   return (
-    <div className="min-h-screen bg-gradient-to-br from-slate-900 via-blue-900 to-indigo-900 text-white p-4 relative">
-      {/* Navigation Header */}
-      <div className="max-w-2xl mx-auto mb-6">
-        <Button
-          variant="ghost"
-          onClick={() => setLocation("/")}
-          className="text-gray-400 hover:text-white flex items-center gap-2"
-        >
-          <Home className="h-4 w-4" />
-          <span>Marketplace Seçimi</span>
-        </Button>
-      </div>
-      
-      <div className="max-w-2xl mx-auto space-y-6">
-        <motion.div
-          initial={false}
-          animate={product ? { y: -20, scale: 0.95, opacity: 0.8 } : { y: 0, scale: 1, opacity: 1 }}
-          className=""
-        >
-          <div className="bg-gradient-to-br from-blue-900/40 to-indigo-900/40 backdrop-blur-sm rounded-2xl border border-blue-500/30 p-8 mb-6 shadow-2xl">
+    <div className="fixed inset-0 bg-gradient-to-br from-slate-900 via-blue-900 to-indigo-900 text-white overflow-auto">
+      <div className="min-h-full p-4 relative">
+        {/* Navigation Header */}
+        <div className="max-w-2xl mx-auto mb-6">
+          <Button
+            variant="ghost"
+            onClick={() => setLocation("/")}
+            className="text-gray-400 hover:text-white flex items-center gap-2"
+          >
+            <Home className="h-4 w-4" />
+            <span>Marketplace Seçimi</span>
+          </Button>
+        </div>
+        
+        <div className="max-w-2xl mx-auto space-y-6">
+          <motion.div
+            initial={false}
+            animate={product ? { y: -20, scale: 0.95, opacity: 0.8 } : { y: 0, scale: 1, opacity: 1 }}
+            className=""
+          >
+            <div className="bg-gradient-to-br from-blue-900/40 to-indigo-900/40 backdrop-blur-sm rounded-2xl border border-blue-500/30 p-8 mb-6 shadow-2xl">
             {/* Header Row */}
             <div className="flex items-center justify-between mb-6">
               <div className="flex items-center gap-6">
@@ -881,47 +882,61 @@ function ScraperPage({ platform = 'trendyol' }: ScraperPageProps) {
           )}
 
           <form onSubmit={onSubmit} className="space-y-4">
-            <div className="relative">
-              {form.watch("url") && (
+            <div className="relative group">
+              {/* URL Input Container with Enhanced Styling */}
+              <div className="relative bg-gradient-to-r from-gray-900/80 to-gray-800/80 backdrop-blur-sm rounded-2xl border border-blue-500/30 shadow-2xl transition-all duration-300 group-hover:border-blue-400/50 group-focus-within:border-blue-400/70 group-focus-within:shadow-blue-500/20">
+                
+                {/* Clear Button */}
+                {form.watch("url") && (
+                  <Button
+                    type="button"
+                    variant="ghost"
+                    size="icon"
+                    className="absolute left-3 top-1/2 transform -translate-y-1/2 h-8 w-8 z-10 bg-gradient-to-r from-red-500/20 to-red-600/20 hover:from-red-500/30 hover:to-red-600/30 text-red-300 hover:text-red-200 border border-red-500/30 hover:border-red-400/50 rounded-xl transition-all duration-200"
+                    onClick={() => form.setValue("url", "")}
+                  >
+                    <XCircle className="h-4 w-4" />
+                  </Button>
+                )}
+                
+                {/* Paste Button */}
                 <Button
                   type="button"
                   variant="ghost"
                   size="icon"
-                  className="absolute left-1 top-1/2 transform -translate-y-1/2 h-7 w-7 z-10 bg-[#0f3e6c] hover:bg-[#1a4d7c] text-white border-none"
-                  onClick={() => form.setValue("url", "")}
+                  className="absolute left-[52px] top-1/2 transform -translate-y-1/2 h-8 w-8 z-10 bg-gradient-to-r from-blue-600/30 to-indigo-600/30 hover:from-blue-500/40 hover:to-indigo-500/40 text-blue-200 hover:text-blue-100 border border-blue-500/40 hover:border-blue-400/60 rounded-xl transition-all duration-200"
+                  onClick={handlePaste}
                 >
-                  <XCircle className="h-3.5 w-3.5" />
+                  <Clipboard className="h-4 w-4" />
                 </Button>
-              )}
+                
+                {/* Enhanced Input Field */}
+                <Input
+                  placeholder="🔗 Trendyol ürün URL'sini buraya yapıştırın..."
+                  {...form.register("url")}
+                  className="h-14 pl-[100px] pr-16 bg-transparent border-none text-sm font-medium text-gray-100 placeholder:text-gray-400 focus:ring-0 focus:outline-none rounded-2xl"
+                />
+                
+                {/* Enhanced Submit Button */}
+                <Button
+                  type="submit"
+                  className="absolute right-3 top-1/2 transform -translate-y-1/2 h-8 w-12 bg-gradient-to-r from-blue-600 via-blue-700 to-indigo-700 hover:from-blue-500 hover:via-blue-600 hover:to-indigo-600 text-white border border-blue-500/50 hover:border-blue-400/70 rounded-xl shadow-lg hover:shadow-blue-500/25 transition-all duration-200 disabled:opacity-50 disabled:cursor-not-allowed"
+                  disabled={scrapeMutation.isPending}
+                >
+                  {scrapeMutation.isPending ? (
+                    <Loader2 className="w-4 h-4 animate-spin" />
+                  ) : (
+                    <ArrowRight className="w-4 h-4" />
+                  )}
+                </Button>
+              </div>
               
-              <Button
-                type="button"
-                variant="ghost"
-                size="icon"
-                className="absolute left-[40px] top-1/2 transform -translate-y-1/2 h-7 w-7 z-10 bg-[#0f3e6c] hover:bg-[#1a4d7c] text-white border-none"
-                onClick={handlePaste}
-              >
-                <Clipboard className="h-3.5 w-3.5" />
-              </Button>
-              <Input
-                placeholder="Ürün URL'sini girin..."
-                {...form.register("url")}
-                className={`text-xs p-4 bg-gray-900 border-gray-800 rounded-lg w-full truncate pr-12 pl-[80px]`}
-              />
-              <Button
-                type="submit"
-                className="absolute right-2 top-1/2 transform -translate-y-1/2"
-                disabled={scrapeMutation.isPending}
-              >
-                {scrapeMutation.isPending ? (
-                  <Loader2 className="w-4 h-4 animate-spin" />
-                ) : (
-                  <ArrowRight className="w-4 h-4" />
-                )}
-              </Button>
+              {/* Subtle Glow Effect */}
+              <div className="absolute inset-0 bg-gradient-to-r from-blue-600/10 to-indigo-600/10 rounded-2xl blur-xl opacity-0 group-focus-within:opacity-100 transition-opacity duration-300 -z-10"></div>
             </div>
           </form>
-        </motion.div>
+            </div>
+          </motion.div>
 
         {/* CSV Önizleme Tablosu */}
         <AnimatePresence>
@@ -1451,6 +1466,7 @@ function ScraperPage({ platform = 'trendyol' }: ScraperPageProps) {
             </div>
           </div>
         )}
+      </div>
       </div>
     </div>
   );
