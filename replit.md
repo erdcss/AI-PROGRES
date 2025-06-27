@@ -103,6 +103,9 @@ The application follows a full-stack architecture with clear separation of conce
 
 ## Changelog
 
+- June 27, 2025: **FİLTRELENMİŞ TELEGRAM BİLDİRİM SİSTEMİ KURULDU** - Sadece görev tamamlama, sistem hataları ve 23:00 Z raporu gönderen akıllı bildirim sistemi
+- June 27, 2025: **HATA TESPİT VE DÜZELTME SİSTEMİ AKTİF** - Otomatik hata yakalama, kurtarma mekanizmaları, Telegram hata bildirimlerli 7/24 izleme
+- June 27, 2025: **ZAMANLIDA GÖREV BİLDİRİMLERİ FİLTRELENDİ** - 12:00 izleme, 23:00 Z raporu, 06:00 sağlık kontrolü sadece tamamlama durumunda bildirim
 - June 27, 2025: **İLERİ DÜZEY HAFIZA SİSTEMİ KURULDU** - CSV/Shopify otomatik hafıza kaydetme, benzersiz ID sistemi, hafıza temizleme, fiyat/stok değişiklik takibi aktif
 - June 27, 2025: **BENZERSIZ ID SİSTEMİ** - Her ürün için TM-timestamp-randomcode formatında benzersiz kimlik numarası
 - June 27, 2025: **OTOMATİK HAFIZA ENTEGRASYONU** - CSV indirme ve Shopify yükleme işlemlerinde ürünler otomatik hafızaya kaydediliyor
