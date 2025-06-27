@@ -1096,7 +1096,7 @@ router.post('/api/memory/add-product', async (req, res) => {
 });
 
 // Memory management endpoints
-router.post('/memory/clear-all', async (req, res) => {
+router.post('/api/memory/clear-all', async (req, res) => {
   try {
     const { db } = await import('./db');
     const { products, productVariants } = await import('../shared/schema');

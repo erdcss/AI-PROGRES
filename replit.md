@@ -103,6 +103,11 @@ The application follows a full-stack architecture with clear separation of conce
 
 ## Changelog
 
+- June 27, 2025: **İLERİ DÜZEY HAFIZA SİSTEMİ KURULDU** - CSV/Shopify otomatik hafıza kaydetme, benzersiz ID sistemi, hafıza temizleme, fiyat/stok değişiklik takibi aktif
+- June 27, 2025: **BENZERSIZ ID SİSTEMİ** - Her ürün için TM-timestamp-randomcode formatında benzersiz kimlik numarası
+- June 27, 2025: **OTOMATİK HAFIZA ENTEGRASYONU** - CSV indirme ve Shopify yükleme işlemlerinde ürünler otomatik hafızaya kaydediliyor
+- June 27, 2025: **ÜRÜN ANALİZ SAYFASI GÜNCELLENDİ** - Varyant sayısı kaldırıldı, toplam fiyat/stok değişiklik sayısı eklendi
+- June 27, 2025: **HAFIZA TEMİZLEME API** - /api/memory/clear-all endpoint ile sistemdeki tüm ürün verileri temizlenebiliyor
 - June 26, 2025: **RENK VE ÖZELLİK ÇIKARMA ALGORİTMASI TAMİR EDİLDİ** - "lerixc" gibi hatalı değerler tamamen temizlendi, authentic renk tespiti aktif
 - June 26, 2025: **FIXED COLOR EXTRACTOR OPERATIONAL** - Gerçek Türkçe renkler doğru tespit ediliyor (Siyah, Beyaz, Mavi vb.)
 - June 26, 2025: **FIXED FEATURE EXTRACTOR IMPLEMENTED** - Ürün özelliklerinde geçersiz değerler filtrelendi, sadece doğru veriler çıkarılıyor

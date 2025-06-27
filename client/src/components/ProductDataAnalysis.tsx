@@ -353,7 +353,7 @@ export const ProductDataAnalysis: React.FC = () => {
               <TrendingUp className="h-8 w-8 text-white" />
             </div>
             <h3 className="text-2xl font-bold text-white mb-2">
-              {(changesData?.priceChanges?.length || 0) + (changesData?.stockChanges?.length || 0)}
+              {productChanges?.length || 0}
             </h3>
             <p className="text-gray-300 font-medium">Toplam Değişiklik</p>
             <p className="text-sm text-gray-400 mt-1">Fiyat/stok değişimleri</p>
