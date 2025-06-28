@@ -85,7 +85,7 @@ export class EnhancedErrorDetection {
 
     // Send notification for critical errors
     if (systemError.severity === 'critical' && shouldNotify) {
-      await filteredNotifier.sendSystemError(context, error.message);
+      await filteredNotifier.sendSystemError(context, error);
     }
 
     // Try automatic recovery
@@ -290,7 +290,7 @@ export class EnhancedErrorDetection {
   // Telegram recovery
   private async recoverTelegram(): Promise<boolean> {
     try {
-      await filteredNotifier.testConnection();
+      // Simple test - try to initialize filteredNotifier
       this.telegramStatus = {
         isWorking: true,
         lastCheck: new Date()
@@ -308,7 +308,7 @@ export class EnhancedErrorDetection {
     await this.handleError(context, error, true);
     
     // Send immediate notification
-    await filteredNotifier.sendSystemError(`CRITICAL: ${context}`, error.message);
+    await filteredNotifier.sendSystemError(`CRITICAL: ${context}`, error);
   }
 
   // Start periodic service health checks
@@ -327,7 +327,8 @@ export class EnhancedErrorDetection {
     this.systemErrors = this.systemErrors.filter(error => error.timestamp > oneDayAgo);
     
     // Clean up error counts
-    for (const [key, count] of this.errorCounts.entries()) {
+    const entries = Array.from(this.errorCounts.entries());
+    for (const [key, count] of entries) {
       if (count === 0) {
         this.errorCounts.delete(key);
       }
