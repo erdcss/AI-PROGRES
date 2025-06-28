@@ -1228,20 +1228,68 @@ router.get('/analysis/product-changes', async (req, res) => {
   }
 });
 
+// Enhanced error detection endpoints
+router.get('/system/errors', async (req, res) => {
+  try {
+    res.setHeader('Content-Type', 'application/json');
+    const errorData = enhancedErrorDetection.getErrorStats();
+    res.json(errorData);
+  } catch (error) {
+    console.error('Enhanced error endpoint error:', error);
+    res.status(500).json({ 
+      success: false, 
+      error: 'Hata verileri alınamadı',
+      activeErrors: 0,
+      criticalErrors: 0,
+      totalErrors: 0,
+      errors: []
+    });
+  }
+});
+
+router.get('/system/health', async (req, res) => {
+  try {
+    res.setHeader('Content-Type', 'application/json');
+    const healthData = await enhancedErrorDetection.getSystemHealth();
+    res.json(healthData);
+  } catch (error) {
+    console.error('System health endpoint error:', error);
+    res.status(500).json({ 
+      success: false, 
+      error: 'Sistem sağlığı kontrol edilemedi',
+      services: {
+        database: { status: 'unknown', lastCheck: new Date().toISOString() },
+        shopify: { status: 'unknown', lastCheck: new Date().toISOString() },
+        telegram: { status: 'unknown', lastCheck: new Date().toISOString() }
+      }
+    });
+  }
+});
+
 // System error stats endpoint
 router.get('/system/error-stats', async (req, res) => {
   try {
-    // Return error statistics - integrate with actual error detection system
-    const errorStats = {
-      totalErrors: 0,
-      uniqueErrors: 0,
-      recentErrors: 0
-    };
+    res.setHeader('Content-Type', 'application/json');
+    const errorStats = enhancedErrorDetection.getErrorStats();
     
-    res.json(errorStats);
+    res.json({
+      totalErrors: errorStats.totalErrors || 0,
+      activeErrors: errorStats.activeErrors || 0,
+      criticalErrors: errorStats.criticalErrors || 0,
+      recentErrors: errorStats.recentErrors || 0,
+      errors: errorStats.errors || []
+    });
   } catch (error) {
     console.error('Error stats error:', error);
-    res.status(500).json({ success: false, error: 'Hata istatistikleri alınamadı' });
+    res.status(500).json({ 
+      success: false, 
+      error: 'Hata istatistikleri alınamadı',
+      totalErrors: 0,
+      activeErrors: 0,
+      criticalErrors: 0,
+      recentErrors: 0,
+      errors: []
+    });
   }
 });
 
