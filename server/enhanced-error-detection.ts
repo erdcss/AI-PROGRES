@@ -85,7 +85,7 @@ export class EnhancedErrorDetection {
 
     // Send notification for critical errors
     if (systemError.severity === 'critical' && shouldNotify) {
-      await filteredNotifier.sendSystemError(context, error);
+      await filteredNotifier.sendSystemError(error, context);
     }
 
     // Try automatic recovery
@@ -308,7 +308,8 @@ export class EnhancedErrorDetection {
     await this.handleError(context, error, true);
     
     // Send immediate notification
-    await filteredNotifier.sendSystemError(`CRITICAL: ${context}`, error);
+    const criticalError = new Error(`CRITICAL: ${context} - ${error.message}`);
+    await filteredNotifier.sendSystemError(criticalError, context);
   }
 
   // Start periodic service health checks

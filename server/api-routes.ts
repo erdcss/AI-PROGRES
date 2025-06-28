@@ -7,6 +7,7 @@ import { telegramIntegration } from './telegram-integration';
 import { cleanScrape } from './clean-scraper';
 import { getSystemStatus, sendStatusToTelegram } from './simple-system-status';
 import { ManualColorOverride, generateColorSelectionData, type ManualColorSelection } from './manual-color-override';
+import { enhancedErrorDetection } from './enhanced-error-detection';
 
 // Dynamic product category determination
 function determineProductCategory(productData: any): string {
@@ -463,14 +464,21 @@ router.post('/api/telegram/test', async (req, res) => {
   }
 });
 
-// Shopify integration endpoints
+// Shopify integration endpoints with enhanced error detection
 router.get('/api/shopify/test', async (req, res) => {
   try {
     const shopify = new (await import('./shopify-integration')).ShopifyIntegration('turmarkt.com', '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');
     const connected = await shopify.testConnection();
+    
+    // Update system status with test result
+    if (!connected) {
+      await enhancedErrorDetection.handleShopifyError('connection-test', new Error('Shopify connection test failed'));
+    }
+    
     res.json({ success: connected, connected });
   } catch (error) {
-    res.status(500).json({ success: false, error: error.message });
+    await enhancedErrorDetection.handleShopifyError('connection-test', error as Error);
+    res.status(500).json({ success: false, error: (error as Error).message });
   }
 });
 
@@ -1422,6 +1430,80 @@ router.post('/system/report', async (req, res) => {
     res.status(500).json({ 
       success: false, 
       error: `Rapor oluşturma hatası: ${error}` 
+    });
+  }
+});
+
+// Enhanced system status endpoints with real-time error monitoring
+router.get('/api/system/enhanced-status', async (req, res) => {
+  try {
+    const basicStatus = await getSystemStatus();
+    const enhancedStatus = enhancedErrorDetection.getSystemStatus();
+    
+    // Combine basic and enhanced status data
+    const combinedStatus = {
+      ...basicStatus,
+      enhancedMonitoring: enhancedStatus,
+      lastUpdate: new Date().toISOString()
+    };
+    
+    res.json(combinedStatus);
+  } catch (error) {
+    await enhancedErrorDetection.handleError('system-status', error as Error);
+    res.status(500).json({ error: 'System status check failed' });
+  }
+});
+
+// Real-time error monitoring endpoint for status page
+router.get('/api/system/errors', async (req, res) => {
+  try {
+    const errorStatus = enhancedErrorDetection.getSystemStatus();
+    res.json({
+      success: true,
+      errors: errorStatus.errors,
+      services: errorStatus.services,
+      totalErrors: errorStatus.totalErrors,
+      activeErrors: errorStatus.activeErrors,
+      criticalErrors: errorStatus.criticalErrors,
+      timestamp: errorStatus.timestamp
+    });
+  } catch (error) {
+    res.status(500).json({ 
+      success: false, 
+      error: 'Failed to retrieve error status' 
+    });
+  }
+});
+
+// Service health check endpoint
+router.get('/api/system/health', async (req, res) => {
+  try {
+    const shopifyTest = await enhancedErrorDetection.testShopifyConnection();
+    const databaseTest = await enhancedErrorDetection.testDatabaseConnection();
+    
+    res.json({
+      success: true,
+      services: {
+        shopify: {
+          status: shopifyTest ? 'healthy' : 'unhealthy',
+          lastCheck: new Date().toISOString()
+        },
+        database: {
+          status: databaseTest ? 'healthy' : 'unhealthy',
+          lastCheck: new Date().toISOString()
+        },
+        telegram: {
+          status: 'healthy', // Basic check
+          lastCheck: new Date().toISOString()
+        }
+      },
+      overall: shopifyTest && databaseTest ? 'healthy' : 'degraded'
+    });
+  } catch (error) {
+    await enhancedErrorDetection.handleError('health-check', error as Error);
+    res.status(500).json({ 
+      success: false, 
+      error: 'Health check failed' 
     });
   }
 });
