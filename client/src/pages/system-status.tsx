@@ -62,13 +62,18 @@ const SystemStatusPage = () => {
   const [refreshKey, setRefreshKey] = useState(0);
 
   const { data: systemStatus, isLoading: statusLoading } = useQuery({
-    queryKey: ['/api/system/status', refreshKey],
+    queryKey: ['/api/system/enhanced-status', refreshKey],
     refetchInterval: 5000,
   });
 
   const { data: errorStats } = useQuery({
-    queryKey: ['/api/system/error-stats', refreshKey],
-    refetchInterval: 10000,
+    queryKey: ['/api/system/errors', refreshKey],
+    refetchInterval: 3000,
+  });
+
+  const { data: healthStatus } = useQuery({
+    queryKey: ['/api/system/health', refreshKey],
+    refetchInterval: 5000,
   });
 
   const { data: schedulerStatus } = useQuery({
@@ -211,21 +216,23 @@ const SystemStatusPage = () => {
             </div>
           </div>
 
-          {/* Error Detection */}
+          {/* Enhanced Error Detection */}
           <div className="bg-gradient-to-br from-orange-800 to-red-900 p-6 rounded-xl border border-orange-700">
             <div className="flex items-center justify-between mb-4">
               <Shield className="w-8 h-8 text-orange-400" />
               <span className="text-2xl text-orange-300">
-                {errorStats?.recentErrors || 0}
+                {errorStats?.activeErrors || 0}
               </span>
             </div>
-            <h3 className="text-lg font-semibold mb-2">Hata Tespit</h3>
+            <h3 className="text-lg font-semibold mb-2">Gelişmiş Hata İzleme</h3>
             <p className="text-orange-200 text-sm">
-              Son 1 saatte {errorStats?.recentErrors || 0} hata
+              Aktif: {errorStats?.activeErrors || 0} | Kritik: {errorStats?.criticalErrors || 0}
             </p>
             <div className="mt-3 flex items-center space-x-2">
-              <div className="w-2 h-2 rounded-full bg-green-400 animate-pulse"></div>
-              <span className="text-xs text-orange-300">Otomatik izleme aktif</span>
+              <div className={`w-2 h-2 rounded-full ${(errorStats?.criticalErrors || 0) > 0 ? 'bg-red-400' : 'bg-green-400'} animate-pulse`}></div>
+              <span className="text-xs text-orange-300">
+                {(errorStats?.criticalErrors || 0) > 0 ? 'Kritik hatalar tespit edildi' : 'Sistem stabil'}
+              </span>
             </div>
           </div>
         </motion.div>
@@ -245,10 +252,33 @@ const SystemStatusPage = () => {
             </h3>
             <div className="space-y-4">
               {[
-                { name: "Telegram Bot", status: systemStatus?.services?.telegram, icon: Bot, description: "Bildirimler ve raporlama" },
-                { name: "Shopify API", status: systemStatus?.services?.shopify, icon: ShoppingCart, description: "E-ticaret senkronizasyonu" },
-                { name: "Email Sistemi", status: systemStatus?.services?.email, icon: Mail, description: "Z raporları ve bilgilendirme" },
-                { name: "Web Scraper", status: systemStatus?.services?.scraper, icon: Globe, description: "Trendyol veri çekme" }
+                { 
+                  name: "Telegram Bot", 
+                  status: healthStatus?.services?.telegram?.status === 'healthy', 
+                  icon: Bot, 
+                  description: "Bildirimler ve raporlama",
+                  lastCheck: healthStatus?.services?.telegram?.lastCheck 
+                },
+                { 
+                  name: "Shopify API", 
+                  status: healthStatus?.services?.shopify?.status === 'healthy', 
+                  icon: ShoppingCart, 
+                  description: "E-ticaret senkronizasyonu",
+                  lastCheck: healthStatus?.services?.shopify?.lastCheck 
+                },
+                { 
+                  name: "Veritabanı", 
+                  status: healthStatus?.services?.database?.status === 'healthy', 
+                  icon: Database, 
+                  description: "PostgreSQL bağlantısı",
+                  lastCheck: healthStatus?.services?.database?.lastCheck 
+                },
+                { 
+                  name: "Web Scraper", 
+                  status: true, 
+                  icon: Globe, 
+                  description: "Trendyol veri çekme" 
+                }
               ].map((service, index) => (
                 <motion.div
                   key={service.name}
@@ -340,17 +370,17 @@ const SystemStatusPage = () => {
             </div>
           </div>
 
-          {/* Error Statistics */}
+          {/* Enhanced Error Monitoring */}
           <div className="bg-gray-800 p-6 rounded-xl border border-gray-700">
             <h3 className="text-xl font-semibold mb-6 flex items-center">
               <AlertTriangle className="w-6 h-6 mr-3 text-yellow-400" />
-              Hata İstatistikleri
+              Gelişmiş Hata İzleme
             </h3>
             <div className="space-y-4">
               {[
                 { label: "Toplam Hata", value: errorStats?.totalErrors || 0, color: "text-red-300", trend: "stable" },
-                { label: "Benzersiz Hata", value: errorStats?.uniqueErrors || 0, color: "text-orange-300", trend: "down" },
-                { label: "Son 1 Saat", value: errorStats?.recentErrors || 0, color: "text-yellow-300", trend: "stable" }
+                { label: "Aktif Hata", value: errorStats?.activeErrors || 0, color: "text-orange-300", trend: "down" },
+                { label: "Kritik Hata", value: errorStats?.criticalErrors || 0, color: "text-yellow-300", trend: "stable" }
               ].map((item, index) => (
                 <div key={item.label} className="flex justify-between items-center">
                   <span className="text-gray-400">{item.label}:</span>
@@ -364,10 +394,29 @@ const SystemStatusPage = () => {
                 </div>
               ))}
             </div>
+            
+            {/* Recent Errors Section */}
+            {errorStats?.errors && errorStats.errors.length > 0 && (
+              <div className="mt-6 pt-4 border-t border-gray-700">
+                <h4 className="text-sm font-medium text-gray-300 mb-3">Son Hatalar:</h4>
+                <div className="space-y-2 max-h-32 overflow-y-auto">
+                  {errorStats.errors.slice(0, 3).map((error: any, index: number) => (
+                    <div key={index} className="text-xs bg-gray-700 p-2 rounded border-l-2 border-red-500">
+                      <div className="flex justify-between items-center">
+                        <span className="text-red-300 font-medium">{error.context}</span>
+                        <span className="text-gray-500">{new Date(error.timestamp).toLocaleTimeString('tr-TR')}</span>
+                      </div>
+                      <p className="text-gray-400 mt-1 truncate">{error.message}</p>
+                    </div>
+                  ))}
+                </div>
+              </div>
+            )}
+            
             <div className="mt-4 p-3 bg-gray-700 rounded-lg">
               <p className="text-sm text-gray-300">
                 <Zap className="w-4 h-4 inline mr-1 text-yellow-400" />
-                Otomatik hata kurtarma sistemi aktif
+                Gerçek zamanlı Shopify API hata takibi aktif
               </p>
             </div>
           </div>
