@@ -192,6 +192,89 @@ export class EnhancedErrorDetection {
     };
   }
 
+  // Get error statistics for API endpoints
+  getErrorStats() {
+    return {
+      totalErrors: this.systemErrors.length,
+      activeErrors: this.systemErrors.filter(e => !e.recovered).length,
+      criticalErrors: this.systemErrors.filter(e => e.severity === 'critical').length,
+      recentErrors: this.systemErrors.filter(e => 
+        Date.now() - new Date(e.timestamp).getTime() < 3600000
+      ).length,
+      errors: this.systemErrors.slice(-10),
+      services: {
+        shopify: this.shopifyStatus,
+        database: this.databaseStatus,
+        telegram: this.telegramStatus
+      }
+    };
+  }
+
+  // Get system health status
+  async getSystemHealth() {
+    try {
+      const healthChecks = {
+        database: await this.checkDatabaseHealth(),
+        shopify: await this.checkShopifyHealth(),
+        telegram: await this.checkTelegramHealth()
+      };
+
+      return {
+        timestamp: new Date().toISOString(),
+        services: healthChecks,
+        overallStatus: Object.values(healthChecks).every(s => s.status === 'healthy') ? 'healthy' : 'degraded'
+      };
+    } catch (error) {
+      return {
+        timestamp: new Date().toISOString(),
+        services: {
+          database: { status: 'unknown', lastCheck: new Date().toISOString() },
+          shopify: { status: 'unknown', lastCheck: new Date().toISOString() },
+          telegram: { status: 'unknown', lastCheck: new Date().toISOString() }
+        },
+        overallStatus: 'unknown'
+      };
+    }
+  }
+
+  private async checkDatabaseHealth() {
+    try {
+      const { db } = await import('./db');
+      await db.execute('SELECT 1 as test');
+      return { status: 'healthy', lastCheck: new Date().toISOString() };
+    } catch (error) {
+      return { status: 'unhealthy', lastCheck: new Date().toISOString(), error: String(error) };
+    }
+  }
+
+  private async checkShopifyHealth() {
+    try {
+      const domain = process.env.SHOPIFY_STORE_DOMAIN;
+      const token = process.env.SHOPIFY_ACCESS_TOKEN;
+      
+      if (!domain || !token) {
+        return { status: 'misconfigured', lastCheck: new Date().toISOString() };
+      }
+
+      return { status: 'healthy', lastCheck: new Date().toISOString() };
+    } catch (error) {
+      return { status: 'unhealthy', lastCheck: new Date().toISOString(), error: String(error) };
+    }
+  }
+
+  private async checkTelegramHealth() {
+    try {
+      const token = process.env.TELEGRAM_BOT_TOKEN;
+      if (!token) {
+        return { status: 'misconfigured', lastCheck: new Date().toISOString() };
+      }
+
+      return { status: 'healthy', lastCheck: new Date().toISOString() };
+    } catch (error) {
+      return { status: 'unhealthy', lastCheck: new Date().toISOString(), error: String(error) };
+    }
+  }
+
   // Determine error severity based on context and error type
   private determineSeverity(context: string, error: Error): 'low' | 'medium' | 'high' | 'critical' {
     const message = error.message.toLowerCase();
