@@ -539,6 +539,130 @@ router.post('/color-selection', async (req, res) => {
   }
 });
 
+// Shopify API endpoint - Exact endpoint frontend calls
+router.post('/api/shopify/add-product', async (req, res) => {
+  try {
+    // Force JSON response headers
+    res.setHeader('Content-Type', 'application/json; charset=utf-8');
+    res.setHeader('Cache-Control', 'no-cache');
+    
+    const productData = req.body.productData || req.body;
+    
+    if (!productData || !productData.success) {
+      return res.status(400).json({ 
+        success: false, 
+        error: 'Geçerli product data gerekli' 
+      });
+    }
+
+    console.log('🛒 [ERROR CENTER BRAIN] Shopify API product creation initiated:', productData.title);
+    
+    // Simplified product creation for testing
+    const shopifyProduct = {
+      title: productData.title || 'Test Ürün',
+      body_html: `<p>${productData.title || 'Test ürün açıklaması'}</p>`,
+      vendor: productData.brand || 'Genel',
+      product_type: "Genel Ürün",
+      status: "active",
+      published: true,
+      tags: "trendyol, import, test",
+      variants: [{
+        title: "Varsayılan Başlık",
+        price: (productData.price?.withProfit || 100).toString(),
+        inventory_quantity: 10,
+        weight: 0,
+        weight_unit: "kg",
+        requires_shipping: true
+      }],
+      images: (productData.images || []).slice(0, 2).map(url => ({ src: url }))
+    };
+
+    console.log('Creating Shopify product:', shopifyProduct.title);
+    
+    const response = await fetch('https://kr5xdy-x7.myshopify.com/admin/api/2024-01/products.json', {
+      method: 'POST',
+      headers: {
+        'X-Shopify-Access-Token': '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',
+        'Content-Type': 'application/json',
+      },
+      body: JSON.stringify({ product: shopifyProduct })
+    });
+
+    console.log('Shopify API response status:', response.status);
+    
+    if (response.ok) {
+      const result = await response.json();
+      const productId = result?.product?.id;
+      const productHandle = result?.product?.handle;
+      
+      if (!productId) {
+        console.error('❌ [ERROR CENTER BRAIN] No product ID in Shopify response');
+        return res.status(500).json({
+          success: false,
+          error: 'Shopify API yanıtında product ID bulunamadı'
+        });
+      }
+      
+      console.log('✅ [ERROR CENTER BRAIN] Shopify product created successfully:', productId);
+      
+      // Telegram notification
+      try {
+        const telegramModule = await import('./telegram-integration');
+        const telegramIntegration = telegramModule.telegramIntegration;
+        const message = 
+          `🛒 <b>SHOPIFY'A YÜKLENDİ</b>\n\n` +
+          `📦 <b>Ürün:</b> ${productData.title}\n` +
+          `🏢 <b>Marka:</b> ${productData.brand}\n` +
+          `💰 <b>Alış:</b> ${productData.price?.original} TL\n` +
+          `💵 <b>Satış:</b> ${productData.price?.withProfit} TL\n` +
+          `🆔 <b>Product ID:</b> ${productId}`;
+        
+        await telegramIntegration.sendNotification(message);
+        console.log('✅ Telegram notification sent');
+      } catch (telegramError) {
+        console.error('Telegram notification error:', telegramError);
+      }
+      
+      res.json({
+        success: true,
+        shopifyProductId: productId,
+        adminUrl: `https://kr5xdy-x7.myshopify.com/admin/products/${productId}`,
+        storeUrl: productHandle ? `https://kr5xdy-x7.myshopify.com/products/${productHandle}` : null,
+        message: 'Ürün başarıyla Shopify\'a eklendi',
+        product: result.product
+      });
+    } else {
+      const errorText = await response.text();
+      console.error('❌ [ERROR CENTER BRAIN] Shopify API error:', response.status, errorText);
+      
+      // Report error to enhanced error detection
+      await enhancedErrorDetection.handleError('Shopify API', new Error(`HTTP ${response.status}: ${errorText}`), {
+        severity: 'high',
+        productTitle: productData.title
+      });
+      
+      res.status(response.status).json({
+        success: false,
+        error: `Shopify API hatası: ${errorText}`,
+        status: response.status
+      });
+    }
+  } catch (error) {
+    console.error('❌ [ERROR CENTER BRAIN] Shopify endpoint error:', error);
+    
+    // Report error to enhanced error detection
+    await enhancedErrorDetection.handleError('Shopify Upload', error as Error, {
+      severity: 'high',
+      productTitle: req.body.productData?.title
+    });
+    
+    res.status(500).json({ 
+      success: false, 
+      error: (error as Error).message 
+    });
+  }
+});
+
 // Gerçek ürün Shopify'a ekleme endpoint - Tam template formatında
 router.post('/shopify-upload', async (req, res) => {
   try {

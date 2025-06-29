@@ -255,14 +255,16 @@ app.use((req, res, next) => {
   // CRITICAL: API routes MUST be registered before any other middleware
   // to prevent Vite catch-all from intercepting API calls
   
-  // Force JSON responses for all API routes
-  app.use('/api', (req, res, next) => {
+  // Force JSON responses for all API routes with higher priority
+  app.use('/api/*', (req, res, next) => {
     res.setHeader('Content-Type', 'application/json; charset=utf-8');
     res.setHeader('Cache-Control', 'no-cache');
+    res.setHeader('X-API-Route', 'true');
     next();
   });
   
-  app.use('/api', apiRoutes);
+  // Ensure API routes are processed before any catch-all
+  app.use(apiRoutes);
   
   // Add import routes
   app.use(importRoutes);
