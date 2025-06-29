@@ -70,13 +70,36 @@ export async function extractRealSizes(html: string, url: string): Promise<RealV
                                   item.available !== false &&
                                   item.isAvailable !== false;
                     
+                    // Only add if it looks like a real size/color variant
                     if (size && size.length > 0) {
-                      variants.push({
-                        color: color || 'Standart',
-                        size: size,
-                        inStock: inStock,
-                        variantId: item.id || item.variantId || item.attributeId
-                      });
+                      // Filter out fake size values like "0.0", "20", "34.99", "AZ"
+                      const isValidSize = (
+                        // Standard clothing sizes
+                        size.match(/^(XS|S|M|L|XL|XXL|XXXL|2XL|3XL)$/i) ||
+                        // Shoe sizes (28-54)
+                        (size.match(/^\d{2}$/) && parseInt(size) >= 28 && parseInt(size) <= 54) ||
+                        // European clothing sizes (34-56)
+                        (size.match(/^\d{2}$/) && parseInt(size) >= 34 && parseInt(size) <= 56) ||
+                        // Other valid size patterns
+                        size.match(/^(Tek Beden|One Size|OS)$/i) ||
+                        size.match(/^\d+\/\d+$/) // Size like "38/40"
+                      );
+                      
+                      // Don't add random numbers or invalid patterns
+                      const isInvalidSize = (
+                        size.match(/^\d+\.\d+$/) ||  // Decimal numbers like "34.99"
+                        size.match(/^[A-Z]{1,3}$/) && !size.match(/^(XS|S|M|L|XL|XXL|XXXL|OS)$/i) || // Random letters like "AZ"
+                        parseFloat(size) < 10 && !size.match(/^[XS|S|M|L]/) // Small numbers that aren't sizes
+                      );
+                      
+                      if (isValidSize && !isInvalidSize) {
+                        variants.push({
+                          color: color || 'Standart',
+                          size: size,
+                          inStock: inStock,
+                          variantId: item.id || item.variantId || item.attributeId
+                        });
+                      }
                     }
                   } catch (parseError) {
                     // Continue with next item
@@ -89,22 +112,35 @@ export async function extractRealSizes(html: string, url: string): Promise<RealV
           }
         }
         
-        // Also look for direct size/color arrays in script
+        // Look for direct size/color arrays in script - but be more selective
         const directSizePattern = /"([XS|S|M|L|XL|XXL|XXXL|\d+])"/g;
         let sizeMatch;
         const foundSizes = new Set<string>();
         
-        while ((sizeMatch = directSizePattern.exec(scriptContent)) !== null) {
-          const size = sizeMatch[1];
-          if (size && !foundSizes.has(size) && 
-              (size.match(/^(XS|S|M|L|XL|XXL|XXXL)$/) || 
-               size.match(/^\d{1,3}$/) && parseInt(size) >= 28 && parseInt(size) <= 54)) {
-            foundSizes.add(size);
-            variants.push({
-              color: 'Standart',
-              size: size,
-              inStock: true
-            });
+        // Only process if this looks like a clothing/shoe product
+        const productTitle = scriptContent.toLowerCase();
+        const isClothingProduct = productTitle.includes('elbise') || 
+                                productTitle.includes('tişört') || 
+                                productTitle.includes('pantolon') ||
+                                productTitle.includes('ayakkabı') ||
+                                productTitle.includes('çanta') ||
+                                productTitle.includes('gömlek') ||
+                                productTitle.includes('mont') ||
+                                productTitle.includes('ceket');
+        
+        if (isClothingProduct) {
+          while ((sizeMatch = directSizePattern.exec(scriptContent)) !== null) {
+            const size = sizeMatch[1];
+            if (size && !foundSizes.has(size) && 
+                (size.match(/^(XS|S|M|L|XL|XXL|XXXL)$/) || 
+                 size.match(/^\d{1,2}$/) && parseInt(size) >= 28 && parseInt(size) <= 54)) {
+              foundSizes.add(size);
+              variants.push({
+                color: 'Standart',
+                size: size,
+                inStock: true
+              });
+            }
           }
         }
       }

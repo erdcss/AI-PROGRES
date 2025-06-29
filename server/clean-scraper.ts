@@ -148,55 +148,24 @@ export async function cleanScrape(url: string): Promise<CleanProductData> {
     
     console.log(`🎯 Features extracted: ${features.length}`);
     
-    // Extract real colors using fixed extractor
-    console.log('🎨 Starting fixed color extraction...');
-    const realColors = await extractRealColors(html, url, title);
+    // Use simple variant detector first to check if product has real variants
+    const { detectProductVariants } = await import('./simple-variant-detector');
+    const variantDetection = detectProductVariants(html);
     
-    console.log(`🎨 Fixed colors found: ${realColors.length}`);
-    
-    // Extract real sizes
-    console.log('🔍 Starting real size extraction...');
-    const { extractRealSizes } = await import('./real-size-extractor');
-    const realSizes = await extractRealSizes(html, url);
-    
-    console.log(`📏 Real sizes found: ${realSizes.length}`);
-    
-    // Create variants by combining colors and sizes
     let variants = [];
     
-    if (realColors.length > 0 && realSizes.length > 0) {
-      // Combine each color with each size
-      for (const color of realColors) {
-        for (const sizeVariant of realSizes) {
-          variants.push({
-            color: color.color,
-            size: sizeVariant.size,
-            inStock: color.available && sizeVariant.inStock
-          });
-        }
-      }
-    } else if (realColors.length > 0) {
-      // Only colors available, use default size
-      variants = realColors.map(color => ({
-        color: color.color,
-        size: 'Tek Beden',
-        inStock: color.available
-      }));
-    } else if (realSizes.length > 0) {
-      // Only sizes available, use default color
-      variants = realSizes.map(sizeVariant => ({
-        color: 'Standart',
-        size: sizeVariant.size,
-        inStock: sizeVariant.inStock
-      }));
-    } else {
-      // No real variants found, use fallback
-      console.log('⚠️ No real variants found, using default');
+    if (!variantDetection.hasVariants) {
+      // No real variants detected - create single variant without fake size/color options
+      console.log('🚫 Gerçek varyant seçenekleri bulunamadı - tek varyant oluşturuluyor');
       variants = [{
         color: 'Standart',
-        size: 'Tek Beden',
+        size: 'Tek Beden', 
         inStock: true
       }];
+    } else {
+      // Real variants detected - use the detected variants
+      console.log(`✅ ${variantDetection.variants.length} gerçek varyant tespit edildi`);
+      variants = variantDetection.variants;
     }
     
     console.log(`👕 Variants: ${variants.length}`);
