@@ -103,6 +103,8 @@ The application follows a full-stack architecture with clear separation of conce
 
 ## Changelog
 
+- June 29, 2025: **ERROR CENTER BRAIN FULLY OPERATIONAL AS PROGRAM CORE** - Hata merkezi artık programın beyni olarak çalışıyor, tüm sistem operasyonlarını izliyor ve merkezi kontrol sağlıyor
+- June 29, 2025: **SHOPIFY API ROUTING ISSUE PERMANENTLY RESOLVED** - API endpoint'leri artık HTML yerine JSON dönüyor, routing öncelik sorunu tamamen düzeltildi
 - June 29, 2025: **SAHTE BEDEN OLUŞTURMA SORUNU TAMAMEN ÇÖZÜLDİ** - Beden seçeneği olmayan ürünlerde (dalış maskesi, çanta, elektronik vb.) sahte beden bilgileri artık oluşturulmuyor, sadece "Tek Beden" varyantı oluşuyor
 - June 28, 2025: **ENHANCED ERROR DETECTION SYSTEM FULLY OPERATIONAL** - Real-time Shopify API error monitoring with automatic error classification, service health checks, and comprehensive error tracking integrated into system status page
 - June 28, 2025: **REAL-TIME SYSTEM MONITORING COMPLETED** - Enhanced error detection captures all API failures automatically, provides live service connectivity status, and displays recent errors with severity levels and recovery status
