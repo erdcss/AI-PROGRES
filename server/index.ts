@@ -254,6 +254,14 @@ app.use((req, res, next) => {
 (async () => {
   // CRITICAL: API routes MUST be registered before any other middleware
   // to prevent Vite catch-all from intercepting API calls
+  
+  // Force JSON responses for all API routes
+  app.use('/api', (req, res, next) => {
+    res.setHeader('Content-Type', 'application/json; charset=utf-8');
+    res.setHeader('Cache-Control', 'no-cache');
+    next();
+  });
+  
   app.use('/api', apiRoutes);
   
   // Add import routes

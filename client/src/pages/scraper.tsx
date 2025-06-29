@@ -686,10 +686,32 @@ function ScraperPage({ platform = 'trendyol' }: ScraperPageProps) {
       console.log('Shopify yükleme başarılı:', data);
       
     } catch (error) {
-      console.error('Shopify yükleme hatası:', error);
+      const errorMessage = error instanceof Error ? error.message : String(error);
+      console.error('Shopify yükleme hatası:', {
+        error: errorMessage,
+        stack: error instanceof Error ? error.stack : undefined,
+        productData: productData?.title || 'Unknown'
+      });
+      
+      // Enhanced error detection sistemine hata bildir
+      try {
+        await fetch('/api/system/report-error', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({
+            context: 'Shopify Upload',
+            error: errorMessage,
+            productTitle: productData?.title || 'Unknown Product',
+            severity: 'high'
+          })
+        });
+      } catch (reportError) {
+        console.warn('Error reporting failed:', reportError);
+      }
+      
       toast({
         title: "Shopify yükleme hatası",
-        description: error instanceof Error ? error.message : "Ürün Shopify'a yüklenemedi",
+        description: errorMessage,
         variant: "destructive"
       });
     } finally {

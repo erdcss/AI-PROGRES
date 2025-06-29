@@ -1536,6 +1536,29 @@ router.get('/api/system/enhanced-status', async (req, res) => {
   }
 });
 
+// Error reporting endpoint - Hata merkezi beyni
+router.post('/api/system/report-error', async (req, res) => {
+  try {
+    const { context, error, productTitle, severity = 'medium', details } = req.body;
+    
+    // Enhanced error detection sistemine rapor et
+    await enhancedErrorDetection.handleError(context || 'Unknown Context', new Error(error || 'Unknown Error'), {
+      severity,
+      productTitle,
+      timestamp: new Date().toISOString(),
+      userAgent: req.headers['user-agent'],
+      ...details
+    });
+    
+    console.log(`🚨 [ERROR CENTER BRAIN] ${severity.toUpperCase()}: ${context} - ${error}`);
+    
+    res.json({ success: true, message: 'Error reported to system brain' });
+  } catch (reportError) {
+    console.error('Error reporting failed:', reportError);
+    res.status(500).json({ success: false, error: 'Error reporting failed' });
+  }
+});
+
 // Real-time error monitoring endpoint for status page
 router.get('/api/system/errors', async (req, res) => {
   try {
