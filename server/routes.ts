@@ -2544,8 +2544,8 @@ export function registerRoutes(app: Express): Server {
       
       // Send Telegram notification with results
       try {
-        const { sendMessage } = await import('./telegram-integration');
-        await sendMessage(`🔄 Günlük Ürün Güncellemeleri Tamamlandı\n\n${report}`);
+        const telegramModule = await import('./telegram-integration');
+        await telegramModule.sendMessage(`🔄 Günlük Ürün Güncellemeleri Tamamlandı\n\n${report}`);
       } catch (telegramError) {
         console.error('Telegram notification failed:', telegramError);
       }
