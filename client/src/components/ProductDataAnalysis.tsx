@@ -69,6 +69,7 @@ interface Product {
   title: string;
   brand: string;
   currentPrice: string;
+  originalPrice?: string;
   sourceUrl?: string;
   sourcePlatform?: string;
   trendyolUrl?: string;
