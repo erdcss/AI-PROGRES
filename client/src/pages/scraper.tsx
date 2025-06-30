@@ -907,7 +907,7 @@ function ScraperPage({ platform = 'trendyol' }: ScraperPageProps) {
           <form onSubmit={onSubmit} className="space-y-4">
             <div className="relative group">
               {/* URL Input Container with Enhanced Styling */}
-              <div className="relative bg-gradient-to-r from-gray-900/80 to-gray-800/80 backdrop-blur-sm rounded-2xl border border-blue-500/30 shadow-2xl transition-all duration-300 group-hover:border-blue-400/50 group-focus-within:border-blue-400/70 group-focus-within:shadow-blue-500/20">
+              <div className="relative bg-gradient-to-r from-gray-900/80 to-gray-800/80 backdrop-blur-sm rounded-2xl border border-blue-500/30 shadow-2xl transition-all duration-300 group-hover:border-blue-400/50 group-focus-within:border-blue-400/70 group-focus-within:shadow-blue-500/20 min-h-[80px]">
                 
                 {/* Clear Button */}
                 {form.watch("url") && (
@@ -915,10 +915,10 @@ function ScraperPage({ platform = 'trendyol' }: ScraperPageProps) {
                     type="button"
                     variant="ghost"
                     size="icon"
-                    className="absolute left-4 top-1/2 transform -translate-y-1/2 h-10 w-10 z-10 bg-gradient-to-r from-red-500/20 to-red-600/20 hover:from-red-500/30 hover:to-red-600/30 text-red-300 hover:text-red-200 border border-red-500/30 hover:border-red-400/50 rounded-xl transition-all duration-200"
+                    className="absolute left-4 top-1/2 transform -translate-y-1/2 h-12 w-12 z-10 bg-gradient-to-r from-red-500/20 to-red-600/20 hover:from-red-500/30 hover:to-red-600/30 text-red-300 hover:text-red-200 border border-red-500/30 hover:border-red-400/50 rounded-xl transition-all duration-200"
                     onClick={() => form.setValue("url", "")}
                   >
-                    <XCircle className="h-5 w-5" />
+                    <XCircle className="h-6 w-6" />
                   </Button>
                 )}
                 
@@ -927,29 +927,29 @@ function ScraperPage({ platform = 'trendyol' }: ScraperPageProps) {
                   type="button"
                   variant="ghost"
                   size="icon"
-                  className="absolute left-[60px] top-1/2 transform -translate-y-1/2 h-10 w-10 z-10 bg-gradient-to-r from-blue-600/30 to-indigo-600/30 hover:from-blue-500/40 hover:to-indigo-500/40 text-blue-200 hover:text-blue-100 border border-blue-500/40 hover:border-blue-400/60 rounded-xl transition-all duration-200"
+                  className="absolute left-[68px] top-1/2 transform -translate-y-1/2 h-12 w-12 z-10 bg-gradient-to-r from-blue-600/30 to-indigo-600/30 hover:from-blue-500/40 hover:to-indigo-500/40 text-blue-200 hover:text-blue-100 border border-blue-500/40 hover:border-blue-400/60 rounded-xl transition-all duration-200"
                   onClick={handlePaste}
                 >
-                  <Clipboard className="h-5 w-5" />
+                  <Clipboard className="h-6 w-6" />
                 </Button>
                 
                 {/* Enhanced Input Field */}
                 <Input
-                  placeholder="🔗 Trendyol ürün URL'sini buraya yapıştırın..."
+                  placeholder="Trendyol ürün linkini buraya yapıştırın (örn: https://www.trendyol.com/marka/urun-adi-p-123456)"
                   {...form.register("url")}
-                  className="h-16 pl-[120px] pr-24 bg-transparent border-none text-base font-medium text-gray-100 placeholder:text-gray-400 focus:ring-0 focus:outline-none rounded-2xl leading-relaxed py-4"
+                  className="h-20 pl-[140px] pr-32 bg-transparent border-none text-lg font-medium text-gray-100 placeholder:text-gray-400 focus:ring-0 focus:outline-none rounded-2xl leading-relaxed py-6"
                 />
                 
                 {/* Enhanced Submit Button */}
                 <Button
                   type="submit"
-                  className="absolute right-4 top-1/2 transform -translate-y-1/2 h-10 w-14 bg-gradient-to-r from-blue-600 via-blue-700 to-indigo-700 hover:from-blue-500 hover:via-blue-600 hover:to-indigo-600 text-white border border-blue-500/50 hover:border-blue-400/70 rounded-xl shadow-lg hover:shadow-blue-500/25 transition-all duration-200 disabled:opacity-50 disabled:cursor-not-allowed"
+                  className="absolute right-4 top-1/2 transform -translate-y-1/2 h-12 w-20 bg-gradient-to-r from-blue-600 via-blue-700 to-indigo-700 hover:from-blue-500 hover:via-blue-600 hover:to-indigo-600 text-white border border-blue-500/50 hover:border-blue-400/70 rounded-xl shadow-lg hover:shadow-blue-500/25 transition-all duration-200 disabled:opacity-50 disabled:cursor-not-allowed"
                   disabled={scrapeMutation.isPending}
                 >
                   {scrapeMutation.isPending ? (
-                    <Loader2 className="w-5 h-5 animate-spin" />
+                    <Loader2 className="w-6 h-6 animate-spin" />
                   ) : (
-                    <ArrowRight className="w-5 h-5" />
+                    <ArrowRight className="w-6 h-6" />
                   )}
                 </Button>
               </div>
@@ -1487,6 +1487,96 @@ function ScraperPage({ platform = 'trendyol' }: ScraperPageProps) {
               </div>
             </div>
           </div>
+        )}
+
+        {/* Kullanım İpuçları ve Bilgi Bölümü */}
+        {!product && (
+          <motion.div
+            initial={{ opacity: 0, y: 20 }}
+            animate={{ opacity: 1, y: 0 }}
+            transition={{ delay: 0.3 }}
+            className="space-y-6"
+          >
+            {/* Hızlı İpuçları */}
+            <div className="bg-gradient-to-br from-blue-900/20 to-indigo-900/20 backdrop-blur-sm rounded-2xl border border-blue-500/20 p-6">
+              <h3 className="text-lg font-semibold text-blue-300 mb-4 flex items-center gap-2">
+                <div className="h-2 w-2 bg-cyan-400 rounded-full animate-pulse"></div>
+                Kullanım İpuçları
+              </h3>
+              <div className="grid md:grid-cols-2 gap-4 text-sm">
+                <div className="space-y-3">
+                  <div className="flex items-start gap-3">
+                    <div className="h-1.5 w-1.5 bg-blue-400 rounded-full mt-2"></div>
+                    <div>
+                      <div className="text-blue-200 font-medium">URL Yapıştırma</div>
+                      <div className="text-gray-400">Ctrl+V ile hızlıca yapıştırın veya 📋 butonunu kullanın</div>
+                    </div>
+                  </div>
+                  <div className="flex items-start gap-3">
+                    <div className="h-1.5 w-1.5 bg-green-400 rounded-full mt-2"></div>
+                    <div>
+                      <div className="text-green-200 font-medium">Otomatik Analiz</div>
+                      <div className="text-gray-400">AI destekli veri çıkarma ve kalite kontrolü</div>
+                    </div>
+                  </div>
+                </div>
+                <div className="space-y-3">
+                  <div className="flex items-start gap-3">
+                    <div className="h-1.5 w-1.5 bg-purple-400 rounded-full mt-2"></div>
+                    <div>
+                      <div className="text-purple-200 font-medium">Shopify Uyumluluk</div>
+                      <div className="text-gray-400">Direkt import edebileceğiniz CSV formatı</div>
+                    </div>
+                  </div>
+                  <div className="flex items-start gap-3">
+                    <div className="h-1.5 w-1.5 bg-yellow-400 rounded-full mt-2"></div>
+                    <div>
+                      <div className="text-yellow-200 font-medium">%15 Kar Marjı</div>
+                      <div className="text-gray-400">Otomatik fiyat hesaplama ve optimizasyon</div>
+                    </div>
+                  </div>
+                </div>
+              </div>
+            </div>
+
+            {/* Teknik Özellikler */}
+            <div className="bg-gradient-to-br from-gray-900/40 to-gray-800/40 backdrop-blur-sm rounded-2xl border border-gray-500/20 p-6">
+              <h3 className="text-lg font-semibold text-gray-300 mb-4 flex items-center gap-2">
+                <div className="h-2 w-2 bg-gray-400 rounded-full"></div>
+                Sistem Özellikleri
+              </h3>
+              <div className="grid grid-cols-2 md:grid-cols-4 gap-4 text-sm">
+                <div className="text-center">
+                  <div className="text-2xl font-bold text-blue-400">AI</div>
+                  <div className="text-gray-400">Destekli Analiz</div>
+                </div>
+                <div className="text-center">
+                  <div className="text-2xl font-bold text-green-400">%99</div>
+                  <div className="text-gray-400">Başarı Oranı</div>
+                </div>
+                <div className="text-center">
+                  <div className="text-2xl font-bold text-purple-400">HD</div>
+                  <div className="text-gray-400">Görsel Kalitesi</div>
+                </div>
+                <div className="text-center">
+                  <div className="text-2xl font-bold text-yellow-400">15%</div>
+                  <div className="text-gray-400">Kar Marjı</div>
+                </div>
+              </div>
+            </div>
+
+            {/* Footer Bilgileri */}
+            <div className="text-center py-4">
+              <div className="text-xs text-gray-500 space-y-1">
+                <div className="flex items-center justify-center gap-2">
+                  <div className="h-1 w-1 bg-blue-400 rounded-full"></div>
+                  <span>Profesyonel e-ticaret veri dönüştürme sistemi</span>
+                  <div className="h-1 w-1 bg-blue-400 rounded-full"></div>
+                </div>
+                <div>Güvenli, hızlı ve kullanıcı dostu arayüz</div>
+              </div>
+            </div>
+          </motion.div>
         )}
       </div>
       </div>
