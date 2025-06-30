@@ -17,6 +17,10 @@ export const products = pgTable('products', {
   features: jsonb('features').notNull().default({}),
   colorOptions: text('color_options').array().notNull().default([]),
   sizeOptions: text('size_options').array().notNull().default([]),
+  originalPrice: decimal('original_price', { precision: 10, scale: 2 }),
+  currentPrice: decimal('current_price', { precision: 10, scale: 2 }),
+  stockStatus: text('stock_status').notNull().default('in_stock'), // in_stock, out_of_stock, low_stock
+  lastChecked: timestamp('last_checked'),
   isActive: boolean('is_active').notNull().default(true),
   profitMargin: decimal('profit_margin', { precision: 5, scale: 2 }).notNull().default('15.00'),
   createdAt: timestamp('created_at').notNull().defaultNow(),

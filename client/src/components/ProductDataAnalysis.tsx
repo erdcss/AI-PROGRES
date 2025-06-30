@@ -711,35 +711,71 @@ export const ProductDataAnalysis: React.FC = () => {
                   {productChanges.length > 0 ? productChanges.map((change) => (
                     <div key={change.id} className="p-4 rounded-xl bg-white/5 border border-white/10">
                       <div className="flex items-start gap-3">
-                        <div className={`p-2 rounded-lg ${getChangeColor(change.changeType)}`}>
-                          {getChangeIcon(change.changeType)}
+                        <div className="p-2 rounded-lg bg-blue-500/20 text-blue-400">
+                          <TrendingUp className="h-4 w-4" />
                         </div>
                         <div className="flex-1 min-w-0">
-                          <div className="flex items-center gap-2">
-                            <h4 className="font-semibold text-white text-sm truncate flex-1">{change.productName}</h4>
-                            {change.productUrl && (
-                              <a 
-                                href={change.productUrl} 
-                                target="_blank" 
-                                rel="noopener noreferrer"
-                                className="text-blue-400 hover:text-blue-300 transition-colors"
-                                title="Ürünü Görüntüle"
-                              >
-                                <ExternalLink className="h-3 w-3" />
-                              </a>
-                            )}
+                          <div className="flex items-center justify-between mb-2">
+                            <h4 className="font-semibold text-white text-sm truncate flex-1">{change.productTitle}</h4>
+                            <div className="flex items-center gap-1 ml-2">
+                              {change.trendyolUrl && (
+                                <a 
+                                  href={change.trendyolUrl} 
+                                  target="_blank" 
+                                  rel="noopener noreferrer"
+                                  className="text-orange-400 hover:text-orange-300 transition-colors p-1 rounded"
+                                  title="Trendyol'da Görüntüle"
+                                >
+                                  <Globe className="h-4 w-4" />
+                                </a>
+                              )}
+                              {change.shopifyUrl && (
+                                <a 
+                                  href={change.shopifyUrl} 
+                                  target="_blank" 
+                                  rel="noopener noreferrer"
+                                  className="text-green-400 hover:text-green-300 transition-colors p-1 rounded"
+                                  title="Shopify Admin'de Görüntüle"
+                                >
+                                  <ShoppingCart className="h-4 w-4" />
+                                </a>
+                              )}
+                              {change.shopifyStoreUrl && (
+                                <a 
+                                  href={change.shopifyStoreUrl} 
+                                  target="_blank" 
+                                  rel="noopener noreferrer"
+                                  className="text-purple-400 hover:text-purple-300 transition-colors p-1 rounded"
+                                  title="Shopify Mağaza'da Görüntüle"
+                                >
+                                  <ExternalLink className="h-4 w-4" />
+                                </a>
+                              )}
+                            </div>
                           </div>
-                          <div className="flex items-center gap-2 mt-1">
-                            <span className="text-gray-400 text-xs">{change.oldValue}</span>
-                            <span className="text-gray-500">→</span>
-                            <span className="text-white text-xs font-medium">{change.newValue}</span>
-                            {change.percentage && (
-                              <Badge variant="outline" className="text-xs">
-                                {change.percentage > 0 ? '+' : ''}{change.percentage}%
-                              </Badge>
-                            )}
+                          <div className="text-xs text-gray-300 mb-2">{change.brand}</div>
+                          <div className="space-y-1">
+                            <div className="flex items-center gap-2">
+                              <span className="text-gray-400 text-xs">Fiyat:</span>
+                              <span className="text-gray-400 text-xs">{change.oldPrice}</span>
+                              <span className="text-gray-500">→</span>
+                              <span className="text-green-400 text-xs font-medium">{change.newPrice}</span>
+                              {change.priceChange !== 'Hesaplanamadı' && (
+                                <Badge variant="outline" className="text-xs bg-green-500/20 text-green-400 border-green-500/30">
+                                  {change.priceChange}
+                                </Badge>
+                              )}
+                            </div>
+                            <div className="flex items-center gap-2">
+                              <span className="text-gray-400 text-xs">Stok:</span>
+                              <span className="text-gray-400 text-xs">{change.oldStock}</span>
+                              <span className="text-gray-500">→</span>
+                              <span className={`text-xs font-medium ${change.newStock === 'Stokta' ? 'text-green-400' : 'text-red-400'}`}>
+                                {change.newStock}
+                              </span>
+                            </div>
                           </div>
-                          <p className="text-xs text-gray-500 mt-1">{change.timestamp}</p>
+                          <p className="text-xs text-gray-500 mt-2">{change.timestamp}</p>
                         </div>
                       </div>
                     </div>

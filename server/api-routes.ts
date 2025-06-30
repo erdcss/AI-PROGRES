@@ -110,149 +110,59 @@ function determineProductCategory(productData: any): string {
 function generateAITags(productData: any): string[] {
   const title = (productData.title || '').toLowerCase();
   const features = productData.features || [];
-  const category = determineProductCategory(productData);
-  
   const tags: Set<string> = new Set();
   
-  // Category-based tags
-  const categoryParts = category.split(' > ');
-  categoryParts.forEach(part => {
-    if (part.trim()) {
-      tags.add(part.trim().toLowerCase());
-    }
-  });
+  // Sadece ürüne özel marka bilgisi
+  if (productData.brand && productData.brand !== 'Genel-markalar' && productData.brand !== 'Genel') {
+    tags.add(productData.brand);
+  }
   
-  // Feature-based intelligent tags
+  // Ürün başlığından sadece spesifik ürün kelimeleri
+  const productKeywords = title.match(/\b(dalış|maskesi|şnorkel|snorkel|silikon|çay|altınbaş|tiryaki|blazer|ceket|kruvaze|crop|pijama|elbise|pantolon|gömlek|bluz)\b/g);
+  if (productKeywords) {
+    productKeywords.forEach(keyword => tags.add(keyword));
+  }
+  
+  // Özelliklerden sadece materyal ve renk
   features.forEach((feature: any) => {
     const key = feature.key?.toLowerCase() || '';
     const value = feature.value?.toLowerCase() || '';
     
-    // Material and fabric tags
+    // Sadece asıl materyal bilgileri
     if (key.includes('materyal') || key.includes('kumaş')) {
+      if (value.includes('silikon')) tags.add('silikon');
       if (value.includes('pamuk')) tags.add('pamuk');
       if (value.includes('polyester')) tags.add('polyester');
-      if (value.includes('viscose')) tags.add('viscose');
-      if (value.includes('elastan')) tags.add('elastan');
-      if (value.includes('denim')) tags.add('denim');
-      if (value.includes('dokuma')) tags.add('dokuma');
+      if (value.includes('plastik')) tags.add('plastik');
+      if (value.includes('cam')) tags.add('cam');
     }
     
-    // Color tags
-    if (key.includes('renk') || value.includes('renk')) {
-      if (value.includes('siyah')) tags.add('siyah');
-      if (value.includes('beyaz')) tags.add('beyaz');
-      if (value.includes('mavi')) tags.add('mavi');
-      if (value.includes('kırmızı')) tags.add('kırmızı');
-      if (value.includes('yeşil')) tags.add('yeşil');
-      if (value.includes('sarı')) tags.add('sarı');
-      if (value.includes('pembe')) tags.add('pembe');
-      if (value.includes('mor')) tags.add('mor');
-      if (value.includes('bej')) tags.add('bej');
-      if (value.includes('gri')) tags.add('gri');
-    }
-    
-    // Pattern tags
-    if (key.includes('desen')) {
-      if (value.includes('çizgili')) tags.add('çizgili');
-      if (value.includes('puantiyeli')) tags.add('puantiyeli');
-      if (value.includes('desenli')) tags.add('desenli');
-      if (value.includes('düz')) tags.add('düz');
-      if (value.includes('kareli')) tags.add('kareli');
-    }
-    
-    // Style and fit tags
-    if (key.includes('kalıp')) {
-      if (value.includes('slim')) tags.add('slim-fit');
-      if (value.includes('regular')) tags.add('regular-fit');
-      if (value.includes('oversize')) tags.add('oversize');
-      if (value.includes('bol')) tags.add('bol-kesim');
-    }
-    
-    // Sleeve type tags
-    if (key.includes('kol')) {
-      if (value.includes('uzun')) tags.add('uzun-kol');
-      if (value.includes('kısa')) tags.add('kısa-kol');
-      if (value.includes('askılı')) tags.add('askılı');
-    }
-    
-    // Season tags
-    if (key.includes('sezon')) {
-      if (value.includes('yaz')) tags.add('yaz');
-      if (value.includes('kış')) tags.add('kış');
-      if (value.includes('sonbahar')) tags.add('sonbahar');
-      if (value.includes('ilkbahar')) tags.add('ilkbahar');
-      if (value.includes('tüm sezon')) tags.add('tüm-mevsim');
-    }
-    
-    // Occasion tags
-    if (key.includes('ortam') || key.includes('kullanım')) {
-      if (value.includes('günlük')) tags.add('günlük');
-      if (value.includes('casual')) tags.add('casual');
-      if (value.includes('şık')) tags.add('şık');
-      if (value.includes('spor')) tags.add('spor');
-      if (value.includes('iş')) tags.add('iş');
-      if (value.includes('gece')) tags.add('gece');
+    // Sadece ana renk bilgisi
+    if (key.includes('renk') && !value.includes('çok') && !value.includes('karma')) {
+      const colors = value.match(/\b(siyah|beyaz|mavi|kırmızı|yeşil|bej|gri|pembe|mor|sarı)\b/g);
+      if (colors) {
+        colors.forEach(color => tags.add(color));
+      }
     }
   });
   
-  // Title-based intelligent tags
-  if (title.includes('basic') || title.includes('temel')) tags.add('basic');
-  if (title.includes('premium') || title.includes('lüks')) tags.add('premium');
-  if (title.includes('organik')) tags.add('organik');
-  if (title.includes('doğal')) tags.add('doğal');
-  if (title.includes('comfort') || title.includes('rahat')) tags.add('rahat');
-  if (title.includes('soft') || title.includes('yumuşak')) tags.add('yumuşak');
-  
-  // Product type specific tags
-  if (title.includes('blazer') || title.includes('ceket')) {
+  // Sadece ürüne özel kategoriler
+  if (title.includes('dalış') || title.includes('maskesi')) {
+    tags.add('su-sporları');
+  } else if (title.includes('çay') || title.includes('kahve')) {
+    tags.add('içecek');
+  } else if (title.includes('blazer') || title.includes('ceket')) {
     tags.add('dış-giyim');
-    tags.add('ceket');
-  }
-  if (title.includes('pijama')) {
-    tags.add('iç-giyim');
-    tags.add('ev-giyim');
-    tags.add('uyku');
-  }
-  if (title.includes('elbise')) {
-    tags.add('elbise');
-    tags.add('kadın-giyim');
-  }
-  if (title.includes('pantolon')) {
-    tags.add('alt-giyim');
-    tags.add('pantolon');
-  }
-  if (title.includes('gömlek') || title.includes('bluz')) {
-    tags.add('üst-giyim');
   }
   
-  // Brand and quality indicators
-  if (productData.brand) {
-    tags.add(productData.brand.toLowerCase());
-  }
-  
-  // Size availability tags
-  if (productData.variants && productData.variants.length > 0) {
-    const hasSmallSizes = productData.variants.some((v: any) => 
-      ['xs', 's', '34', '36'].includes(v.size?.toLowerCase()));
-    const hasLargeSizes = productData.variants.some((v: any) => 
-      ['xl', 'xxl', '44', '46', '48'].includes(v.size?.toLowerCase()));
-    
-    if (hasSmallSizes) tags.add('küçük-beden');
-    if (hasLargeSizes) tags.add('büyük-beden');
-  }
-  
-  // Price-based tags
-  if (productData.price?.original) {
-    const price = parseFloat(productData.price.original);
-    if (price < 100) tags.add('ekonomik');
-    else if (price < 300) tags.add('orta-segment');
-    else tags.add('premium-fiyat');
-  }
-  
-  // Remove generic tags and limit to 15 most relevant
+  // Genel etiketleri filtrele, sadece ürüne özel olanları tut
   const filteredTags = Array.from(tags)
-    .filter(tag => tag.length > 2 && !['genel', 'ürün', 'giyim'].includes(tag))
-    .slice(0, 15);
+    .filter(tag => 
+      tag && 
+      tag.length > 2 && 
+      !['import', 'trendyol', 'genel', 'ürün', 'kaliteli', 'özel'].includes(tag.toLowerCase())
+    )
+    .slice(0, 6); // Maksimum 6 etiket
   
   return filteredTags;
 }
@@ -1311,14 +1221,17 @@ router.get('/analysis/recent-products', async (req, res) => {
       id: product.id.toString(),
       title: product.title,
       brand: product.brand,
-      currentPrice: product.currentPrice || 'N/A',
-      originalPrice: product.originalPrice || 'N/A',
-      stockStatus: product.stockStatus || false,
+      currentPrice: product.currentPrice ? `${product.currentPrice} TL` : 'Henüz güncellenmedi',
+      originalPrice: product.originalPrice ? `${product.originalPrice} TL` : 'Henüz güncellenmedi',
+      stockStatus: product.stockStatus === 'in_stock' ? 'Stokta' : 'Stok Yok',
       lastChecked: product.lastChecked ? new Date(product.lastChecked).toLocaleString('tr-TR') : 'Henüz kontrol edilmedi',
       trendyolUrl: product.trendyolUrl,
       shopifyProductId: product.shopifyProductId,
       shopifyUrl: product.shopifyProductId ? 
-        `https://kr5xdy-x7.myshopify.com/products/${product.title?.toLowerCase().replace(/[^a-z0-9]/g, '-').replace(/-+/g, '-').replace(/^-|-$/g, '')}` : 
+        `https://kr5xdy-x7.myshopify.com/admin/products/${product.shopifyProductId}` : 
+        null,
+      shopifyStoreUrl: product.shopifyProductId ? 
+        `https://kr5xdy-x7.myshopify.com/products/${product.title?.toLowerCase().replace(/[^a-z0-9çğıöşü]/g, '-').replace(/-+/g, '-').replace(/^-|-$/g, '')}` : 
         null
     }));
     
@@ -1336,11 +1249,38 @@ router.get('/analysis/recent-products', async (req, res) => {
 router.get('/analysis/product-changes', async (req, res) => {
   try {
     const { db } = await import('./db');
-    const { priceHistory, stockHistory, products } = await import('../shared/schema');
-    const { desc, eq } = await import('drizzle-orm');
+    const { products } = await import('../shared/schema');
+    const { desc, isNotNull } = await import('drizzle-orm');
     
-    // Return empty arrays if no history data exists
-    const changes: any[] = [];
+    // Get products with price and stock information for change tracking
+    const productsWithChanges = await db
+      .select()
+      .from(products)
+      .where(isNotNull(products.shopifyProductId))
+      .orderBy(desc(products.updatedAt))
+      .limit(5);
+    
+    const changes = productsWithChanges.map(product => ({
+      id: product.id.toString(),
+      productTitle: product.title,
+      brand: product.brand,
+      oldPrice: product.originalPrice ? `${product.originalPrice} TL` : 'Henüz tespit edilmedi',
+      newPrice: product.currentPrice ? `${product.currentPrice} TL` : 'Henüz güncellenmedi',
+      priceChange: product.originalPrice && product.currentPrice ? 
+        (((product.currentPrice - product.originalPrice) / product.originalPrice) * 100).toFixed(1) + '%' : 
+        'Hesaplanamadı',
+      oldStock: 'Önceki stok durumu izleniyor',
+      newStock: product.stockStatus === 'in_stock' ? 'Stokta' : 'Stok Yok',
+      changeType: 'price',
+      timestamp: product.updatedAt ? new Date(product.updatedAt).toLocaleString('tr-TR') : 'Bilinmiyor',
+      trendyolUrl: product.trendyolUrl,
+      shopifyUrl: product.shopifyProductId ? 
+        `https://kr5xdy-x7.myshopify.com/admin/products/${product.shopifyProductId}` : 
+        null,
+      shopifyStoreUrl: product.shopifyProductId ? 
+        `https://kr5xdy-x7.myshopify.com/products/${product.title?.toLowerCase().replace(/[^a-z0-9çğıöşü]/g, '-').replace(/-+/g, '-').replace(/^-|-$/g, '')}` : 
+        null
+    }));
     
     res.json({
       success: true,
