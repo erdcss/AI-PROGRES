@@ -39,6 +39,7 @@ import { useState, useEffect } from "react";
 import { ProductDisplay } from "@/components/ProductDisplay";
 import { SimpleProductPreview } from "@/components/SimpleProductPreview";
 import { VariantDisplay } from "@/components/VariantDisplay";
+import { RealTimeClock } from "@/components/RealTimeClock";
 import { Link, useLocation } from "wouter";
 
 // Platform logo configuration
@@ -856,6 +857,11 @@ function ScraperPage({ platform = 'trendyol' }: ScraperPageProps) {
                     Trendyol ürün verilerini Shopify'a uyumlu formata dönüştürün
                   </p>
                 </div>
+              </div>
+              
+              {/* Real-time Clock */}
+              <div className="flex justify-center mt-6">
+                <RealTimeClock />
               </div>
               
               {/* Version & Developer Info */}
