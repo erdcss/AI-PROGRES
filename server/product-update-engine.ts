@@ -91,8 +91,8 @@ export class ProductUpdateEngine {
         await db
           .update(products)
           .set({
-            currentPrice: newPrice,
-            originalPrice: newData.originalPrice,
+            currentPrice: newPrice.toString(),
+            originalPrice: newData.originalPrice.toString(),
             lastChecked: new Date()
           })
           .where(eq(products.id, productId));

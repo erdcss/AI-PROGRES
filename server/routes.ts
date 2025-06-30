@@ -12,7 +12,7 @@ import { instantCSVGenerator } from "./instant-csv-generator-working";
 import { getCategoryConfig } from "./category-mapping";
 import { cleanTrendyolAttributes } from "./clean-attributes";
 import { parseJsonLdProductData, generateTagsFromJsonLd } from "./json-ld-parser";
-import { InsertProduct } from "@shared/schema";
+import { InsertProduct, products as productsTable } from "@shared/schema";
 import { getFinalImages } from "./final-image-solution";
 import { extractVariantStockInfo } from "./advanced-size-extractor";
 import { extractFocusedData } from './focused-extractor';
@@ -21,6 +21,7 @@ import dataAnalysisRoutes from './data-analysis-routes';
 import memoryStatusRoutes from './memory-status-api';
 import { testImageExtraction } from './direct-image-test';
 import { initializeScheduler, getSchedulerStatus, executeTaskManually } from './simple-scheduler';
+import { db } from './db';
 
 
 function generateSingleProductShopifyCSV(product: any): string {
