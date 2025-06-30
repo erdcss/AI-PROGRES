@@ -1204,29 +1204,42 @@ router.get('/memory/stats', async (req, res) => {
   }
 });
 
-// Enhanced recent products endpoint with full URL support
+// Enhanced recent products endpoint - simplified (title, price, links only)
 router.get('/analysis/recent-products', async (req, res) => {
   try {
     const { db } = await import('./db');
-    const { products } = await import('../shared/schema');
-    const { desc } = await import('drizzle-orm');
+    const { products, productVariants } = await import('../shared/schema');
+    const { desc, eq } = await import('drizzle-orm');
     
-    const recentProducts = await db
-      .select()
+    // Get recent products with their first variant for price info
+    const recentProductsQuery = await db
+      .select({
+        id: products.id,
+        title: products.title,
+        brand: products.brand,
+        trendyolUrl: products.trendyolUrl,
+        shopifyProductId: products.shopifyProductId,
+        variantPrice: productVariants.shopifyPrice
+      })
       .from(products)
+      .leftJoin(productVariants, eq(products.id, productVariants.productId))
       .orderBy(desc(products.createdAt))
       .limit(3);
     
-    const formattedProducts = recentProducts.map(product => ({
+    // Group by product to get unique products with their first variant price
+    const uniqueProducts = recentProductsQuery.reduce((acc, product) => {
+      if (!acc.find(p => p.id === product.id)) {
+        acc.push(product);
+      }
+      return acc;
+    }, [] as typeof recentProductsQuery);
+    
+    const formattedProducts = uniqueProducts.map(product => ({
       id: product.id.toString(),
       title: product.title,
       brand: product.brand,
-      currentPrice: product.currentPrice ? `${product.currentPrice} TL` : 'Henüz güncellenmedi',
-      originalPrice: product.originalPrice ? `${product.originalPrice} TL` : 'Henüz güncellenmedi',
-      stockStatus: product.stockStatus === 'in_stock' ? 'Stokta' : 'Stok Yok',
-      lastChecked: product.lastChecked ? new Date(product.lastChecked).toLocaleString('tr-TR') : 'Henüz kontrol edilmedi',
+      currentPrice: product.variantPrice ? `${Number(product.variantPrice)} TL` : 'Fiyat Belirlenmemiş',
       trendyolUrl: product.trendyolUrl,
-      shopifyProductId: product.shopifyProductId,
       shopifyUrl: product.shopifyProductId ? 
         `https://kr5xdy-x7.myshopify.com/admin/products/${product.shopifyProductId}` : 
         null,

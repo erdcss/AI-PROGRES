@@ -67,12 +67,10 @@ interface Product {
   title: string;
   brand: string;
   currentPrice: string;
-  originalPrice: string;
-  stockStatus: boolean;
-  lastChecked: string;
   trendyolUrl?: string;
   shopifyProductId?: string;
   shopifyUrl?: string;
+  shopifyStoreUrl?: string;
 }
 
 interface ScheduledTask {
@@ -645,9 +643,6 @@ export const ProductDataAnalysis: React.FC = () => {
                     <div key={product.id} className="p-4 rounded-xl bg-white/5 border border-white/10">
                       <div className="flex items-center justify-between mb-2">
                         <h4 className="font-semibold text-white truncate flex-1">{product.title}</h4>
-                        <Badge variant={product.stockStatus ? "default" : "destructive"} className="ml-2">
-                          {product.stockStatus ? 'Stokta' : 'Tükendi'}
-                        </Badge>
                       </div>
                       <div className="flex items-center justify-between text-sm">
                         <span className="text-gray-300">{product.brand}</span>
@@ -659,7 +654,7 @@ export const ProductDataAnalysis: React.FC = () => {
                                 href={product.trendyolUrl} 
                                 target="_blank" 
                                 rel="noopener noreferrer"
-                                className="text-blue-400 hover:text-blue-300 transition-colors"
+                                className="text-orange-400 hover:text-orange-300 transition-colors p-1 rounded"
                                 title="Trendyol'da Görüntüle"
                               >
                                 <Globe className="h-4 w-4" />
@@ -670,16 +665,26 @@ export const ProductDataAnalysis: React.FC = () => {
                                 href={product.shopifyUrl} 
                                 target="_blank" 
                                 rel="noopener noreferrer"
-                                className="text-green-400 hover:text-green-300 transition-colors"
-                                title="Shopify'da Görüntüle"
+                                className="text-green-400 hover:text-green-300 transition-colors p-1 rounded"
+                                title="Shopify Admin'de Görüntüle"
                               >
                                 <ShoppingCart className="h-4 w-4" />
+                              </a>
+                            )}
+                            {product.shopifyStoreUrl && (
+                              <a 
+                                href={product.shopifyStoreUrl} 
+                                target="_blank" 
+                                rel="noopener noreferrer"
+                                className="text-purple-400 hover:text-purple-300 transition-colors p-1 rounded"
+                                title="Shopify Mağaza'da Görüntüle"
+                              >
+                                <ExternalLink className="h-4 w-4" />
                               </a>
                             )}
                           </div>
                         </div>
                       </div>
-                      <p className="text-xs text-gray-500 mt-2">Son kontrol: {product.lastChecked}</p>
                     </div>
                   )) : (
                     <div className="text-center py-8">
