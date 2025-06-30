@@ -124,7 +124,7 @@ export const ProductDataAnalysis: React.FC = () => {
     refetchInterval: 60000,
   });
 
-  const products = Array.isArray(productsData) ? productsData : (productsData?.products || []);
+  const products = Array.isArray(productsData) ? productsData : ((productsData as any)?.products || []);
 
   // Fetch product changes
   const { data: changesData, refetch: refetchChanges } = useQuery({
@@ -296,8 +296,8 @@ export const ProductDataAnalysis: React.FC = () => {
   };
 
   const totalProducts = memoryStats?.totalProducts || 0;
-  const changesCount = Array.isArray(changesData) ? changesData.length : (changesData?.changes?.length || 0);
-  const changes = Array.isArray(changesData) ? changesData : (changesData?.changes || []);
+  const changesCount = Array.isArray(changesData) ? changesData.length : ((changesData as any)?.changes?.length || 0);
+  const changes = Array.isArray(changesData) ? changesData : ((changesData as any)?.changes || []);
   const nextTask = scheduledTasks.filter(task => task.isActive)
     .sort((a, b) => new Date(a.nextRun).getTime() - new Date(b.nextRun).getTime())[0];
 
