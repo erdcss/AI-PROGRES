@@ -2513,6 +2513,9 @@ export function registerRoutes(app: Express): Server {
     }
   });
 
+  // Memory status routes
+  app.use('/api/memory-status', memoryStatusRoutes);
+
   // System status JSON endpoint
   app.get('/api/system/status', async (req, res) => {
     try {

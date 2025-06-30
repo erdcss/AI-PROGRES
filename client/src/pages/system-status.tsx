@@ -24,7 +24,11 @@ import {
   Eye,
   Server,
   Globe,
-  BarChart3
+  BarChart3,
+  Package,
+  ExternalLink,
+  Layers,
+  CircleDot
 } from "lucide-react";
 import { useQuery } from "@tanstack/react-query";
 
@@ -84,6 +88,24 @@ const SystemStatusPage = () => {
   const { data: memoryStats } = useQuery({
     queryKey: ['/api/memory/stats', refreshKey],
     refetchInterval: 10000,
+  });
+
+  // Stokta olmayan ürünler query'si
+  const { data: outOfStockProducts, isLoading: outOfStockLoading } = useQuery({
+    queryKey: ['/api/memory-status/out-of-stock', refreshKey],
+    refetchInterval: 30000,
+  });
+
+  // Stokta olmayan varyantlar query'si
+  const { data: outOfStockVariants, isLoading: variantsLoading } = useQuery({
+    queryKey: ['/api/memory-status/out-of-stock-variants', refreshKey],
+    refetchInterval: 30000,
+  });
+
+  // Son yüklenen ürünler query'si
+  const { data: recentUploads, isLoading: uploadsLoading } = useQuery({
+    queryKey: ['/api/memory-status/recent-uploads', refreshKey],
+    refetchInterval: 30000,
   });
 
   const formatUptime = (seconds: number) => {
@@ -512,6 +534,228 @@ const SystemStatusPage = () => {
                 <div className="flex justify-between">
                   <span className="text-sm text-gray-400">Sistem Skoru:</span>
                   <span className="text-sm text-purple-300">A+</span>
+                </div>
+              </div>
+            </div>
+          </div>
+        </motion.div>
+
+        {/* System Memory Status Section */}
+        <motion.div
+          initial={{ opacity: 0, y: 20 }}
+          animate={{ opacity: 1, y: 0 }}
+          transition={{ delay: 0.8 }}
+          className="mt-8"
+        >
+          <div className="bg-gradient-to-r from-purple-900/50 to-blue-900/50 backdrop-blur-sm rounded-xl p-6 border border-purple-500/20">
+            <div className="flex items-center justify-between mb-6">
+              <div className="flex items-center space-x-3">
+                <Package className="w-6 h-6 text-purple-400" />
+                <h2 className="text-xl font-bold text-white">System Memory Status</h2>
+              </div>
+              <div className="flex items-center space-x-2 text-sm text-gray-400">
+                <Eye className="w-4 h-4" />
+                <span>Gerçek Zamanlı Hafıza Durumu</span>
+              </div>
+            </div>
+
+            <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
+              {/* Stokta Olmayan Ürünler */}
+              <div className="bg-gray-800/50 rounded-lg p-5 border border-red-500/20">
+                <div className="flex items-center justify-between mb-4">
+                  <h3 className="text-lg font-semibold text-red-400">Stokta Olmayan Ürünler</h3>
+                  <CircleDot className="w-5 h-5 text-red-400" />
+                </div>
+                
+                {outOfStockLoading ? (
+                  <div className="flex items-center justify-center py-8">
+                    <RefreshCw className="w-6 h-6 animate-spin text-red-400" />
+                  </div>
+                ) : (
+                  <div className="space-y-3">
+                    {outOfStockProducts?.products?.length > 0 ? (
+                      outOfStockProducts.products.slice(0, 5).map((product: any, index: number) => (
+                        <div key={index} className="bg-gray-900/50 rounded-lg p-3 border border-red-500/10">
+                          <div className="flex items-start justify-between">
+                            <div className="flex-1">
+                              <h4 className="text-sm font-medium text-white truncate">
+                                {product.title}
+                              </h4>
+                              <p className="text-xs text-gray-400 mt-1">
+                                {product.brand} • {product.currentPrice} TL
+                              </p>
+                            </div>
+                            <div className="ml-3">
+                              {product.sourceUrl && (
+                                <a
+                                  href={product.sourceUrl}
+                                  target="_blank"
+                                  rel="noopener noreferrer"
+                                  className="inline-flex items-center px-2 py-1 bg-orange-600 hover:bg-orange-700 text-white text-xs rounded transition-colors"
+                                >
+                                  <ExternalLink className="w-3 h-3 mr-1" />
+                                  Trendyol
+                                </a>
+                              )}
+                            </div>
+                          </div>
+                        </div>
+                      ))
+                    ) : (
+                      <div className="text-center py-6 text-gray-400">
+                        <Package className="w-8 h-8 mx-auto mb-2 opacity-50" />
+                        <p className="text-sm">Stokta olmayan ürün yok</p>
+                      </div>
+                    )}
+                    
+                    {outOfStockProducts?.products?.length > 5 && (
+                      <div className="text-center pt-2">
+                        <span className="text-xs text-gray-500">
+                          +{outOfStockProducts.products.length - 5} ürün daha
+                        </span>
+                      </div>
+                    )}
+                  </div>
+                )}
+              </div>
+
+              {/* Stokta Olmayan Varyantlar */}
+              <div className="bg-gray-800/50 rounded-lg p-5 border border-yellow-500/20">
+                <div className="flex items-center justify-between mb-4">
+                  <h3 className="text-lg font-semibold text-yellow-400">Stokta Olmayan Varyantlar</h3>
+                  <Layers className="w-5 h-5 text-yellow-400" />
+                </div>
+                
+                {variantsLoading ? (
+                  <div className="flex items-center justify-center py-8">
+                    <RefreshCw className="w-6 h-6 animate-spin text-yellow-400" />
+                  </div>
+                ) : (
+                  <div className="space-y-3">
+                    {outOfStockVariants?.variants?.length > 0 ? (
+                      outOfStockVariants.variants.slice(0, 5).map((variant: any, index: number) => (
+                        <div key={index} className="bg-gray-900/50 rounded-lg p-3 border border-yellow-500/10">
+                          <div className="flex items-start justify-between">
+                            <div className="flex-1">
+                              <h4 className="text-sm font-medium text-white truncate">
+                                {variant.productTitle}
+                              </h4>
+                              <p className="text-xs text-gray-400 mt-1">
+                                {variant.color} • {variant.size} • {variant.price} TL
+                              </p>
+                            </div>
+                            <div className="ml-3">
+                              {variant.sourceUrl && (
+                                <a
+                                  href={variant.sourceUrl}
+                                  target="_blank"
+                                  rel="noopener noreferrer"
+                                  className="inline-flex items-center px-2 py-1 bg-orange-600 hover:bg-orange-700 text-white text-xs rounded transition-colors"
+                                >
+                                  <ExternalLink className="w-3 h-3 mr-1" />
+                                  Trendyol
+                                </a>
+                              )}
+                            </div>
+                          </div>
+                        </div>
+                      ))
+                    ) : (
+                      <div className="text-center py-6 text-gray-400">
+                        <Layers className="w-8 h-8 mx-auto mb-2 opacity-50" />
+                        <p className="text-sm">Stokta olmayan varyant yok</p>
+                      </div>
+                    )}
+                    
+                    {outOfStockVariants?.variants?.length > 5 && (
+                      <div className="text-center pt-2">
+                        <span className="text-xs text-gray-500">
+                          +{outOfStockVariants.variants.length - 5} varyant daha
+                        </span>
+                      </div>
+                    )}
+                  </div>
+                )}
+              </div>
+
+              {/* Son Yüklenen Ürünler */}
+              <div className="bg-gray-800/50 rounded-lg p-5 border border-green-500/20">
+                <div className="flex items-center justify-between mb-4">
+                  <h3 className="text-lg font-semibold text-green-400">Son 3 Yüklenen Ürün</h3>
+                  <TrendingUp className="w-5 h-5 text-green-400" />
+                </div>
+                
+                {uploadsLoading ? (
+                  <div className="flex items-center justify-center py-8">
+                    <RefreshCw className="w-6 h-6 animate-spin text-green-400" />
+                  </div>
+                ) : (
+                  <div className="space-y-3">
+                    {recentUploads?.products?.length > 0 ? (
+                      recentUploads.products.slice(0, 3).map((product: any, index: number) => (
+                        <div key={index} className="bg-gray-900/50 rounded-lg p-3 border border-green-500/10">
+                          <div className="flex items-start justify-between">
+                            <div className="flex-1">
+                              <h4 className="text-sm font-medium text-white truncate">
+                                {product.title}
+                              </h4>
+                              <p className="text-xs text-gray-400 mt-1">
+                                {product.brand} • {product.currentPrice} TL
+                              </p>
+                              <div className="flex items-center space-x-2 mt-2">
+                                {product.sourceUrl && (
+                                  <a
+                                    href={product.sourceUrl}
+                                    target="_blank"
+                                    rel="noopener noreferrer"
+                                    className="inline-flex items-center px-2 py-1 bg-orange-600 hover:bg-orange-700 text-white text-xs rounded transition-colors"
+                                  >
+                                    <ExternalLink className="w-3 h-3 mr-1" />
+                                    Trendyol
+                                  </a>
+                                )}
+                                {product.hasShopifyId && (
+                                  <span className="inline-flex items-center px-2 py-1 bg-green-600 text-white text-xs rounded">
+                                    <CheckCircle className="w-3 h-3 mr-1" />
+                                    Shopify
+                                  </span>
+                                )}
+                              </div>
+                            </div>
+                          </div>
+                        </div>
+                      ))
+                    ) : (
+                      <div className="text-center py-6 text-gray-400">
+                        <TrendingUp className="w-8 h-8 mx-auto mb-2 opacity-50" />
+                        <p className="text-sm">Henüz yüklenen ürün yok</p>
+                      </div>
+                    )}
+                  </div>
+                )}
+              </div>
+            </div>
+
+            {/* Memory Status Summary */}
+            <div className="mt-6 bg-gray-800/30 rounded-lg p-4 border border-purple-500/10">
+              <div className="grid grid-cols-3 gap-4 text-center">
+                <div>
+                  <div className="text-2xl font-bold text-red-400">
+                    {outOfStockProducts?.products?.length || 0}
+                  </div>
+                  <div className="text-xs text-gray-400">Stoksuz Ürün</div>
+                </div>
+                <div>
+                  <div className="text-2xl font-bold text-yellow-400">
+                    {outOfStockVariants?.variants?.length || 0}
+                  </div>
+                  <div className="text-xs text-gray-400">Stoksuz Varyant</div>
+                </div>
+                <div>
+                  <div className="text-2xl font-bold text-green-400">
+                    {recentUploads?.products?.length || 0}
+                  </div>
+                  <div className="text-xs text-gray-400">Son Yükleme</div>
                 </div>
               </div>
             </div>

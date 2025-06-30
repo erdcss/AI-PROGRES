@@ -124,7 +124,7 @@ router.get('/recent-uploads', async (req, res) => {
       success: true,
       products: recentUploads.map(product => ({
         ...product,
-        sourcePlatform: product.sourcePlatform || detectPlatformFromUrl(product.sourceUrl || ''),
+        sourcePlatform: product.sourcePlatform || 'trendyol',
         sourceUrl: product.sourceUrl || product.sourceUrl, // Trendyol linki
         hasShopifyId: !!product.shopifyProductId
       }))
