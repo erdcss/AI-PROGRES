@@ -908,31 +908,7 @@ router.get('/api/scheduler/status', async (req, res) => {
   }
 });
 
-router.post('/api/scheduler/execute/:taskName', async (req, res) => {
-  try {
-    const { executeTaskManually } = require('./simple-scheduler');
-    const { taskName } = req.params;
-    const result = await executeTaskManually(taskName);
-    
-    if (result) {
-      res.json({
-        success: true,
-        message: `Görev başarıyla çalıştırıldı: ${taskName}`
-      });
-    } else {
-      res.status(400).json({
-        success: false,
-        message: `Görev çalıştırılamadı: ${taskName}`
-      });
-    }
-  } catch (error) {
-    console.error('Manual task execution error:', error);
-    res.status(500).json({
-      success: false,
-      message: 'Görev çalıştırılırken hata oluştu'
-    });
-  }
-});
+// Scheduler execute endpoint removed - handled in routes.ts
 
 // Scheduler API endpoints
 router.get('/api/scheduler/status', (req, res) => {

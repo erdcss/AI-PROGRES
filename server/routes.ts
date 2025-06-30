@@ -2482,9 +2482,16 @@ export function registerRoutes(app: Express): Server {
       }
     } catch (error) {
       console.error('Manual task execution error:', error);
+      console.error('Error details:', {
+        message: error.message,
+        stack: error.stack,
+        taskName
+      });
       res.status(500).json({
         success: false,
-        message: 'Görev çalıştırılırken hata oluştu'
+        message: 'Görev çalıştırılırken hata oluştu',
+        error: error.message,
+        details: error.stack
       });
     }
   });
@@ -2554,7 +2561,14 @@ export function registerRoutes(app: Express): Server {
         success: true,
         message: `Updated ${results.length} products`,
         results: results,
-        report: report
+        report: report,
+        summary: {
+          total: results.length,
+          successful: results.filter(r => r.success).length,
+          failed: results.filter(r => !r.success).length,
+          priceIncreased: results.filter(r => r.action === 'price_increased').length,
+          archived: results.filter(r => r.action === 'archived').length
+        }
       });
       
     } catch (error: any) {
