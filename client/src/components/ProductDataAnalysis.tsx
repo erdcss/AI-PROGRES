@@ -695,11 +695,11 @@ export const ProductDataAnalysis: React.FC = () => {
                         )}
                         <div className="flex items-center justify-between">
                           {/* Trendyol Product View Button */}
-                          {product.sourceUrl && product.sourcePlatform === 'trendyol' && (
+                          {(product.sourceUrl || product.sourcePlatform === 'trendyol') && (
                             <Button
                               size="sm"
                               className="bg-orange-500/20 hover:bg-orange-500/30 text-orange-400 border border-orange-500/30"
-                              onClick={() => window.open(product.sourceUrl, '_blank')}
+                              onClick={() => window.open(product.sourceUrl || `https://www.trendyol.com/sr?q=${encodeURIComponent(product.title)}`, '_blank')}
                             >
                               <Eye className="h-3 w-3 mr-1" />
                               Trendyol'da Gör

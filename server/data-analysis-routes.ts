@@ -84,6 +84,7 @@ router.get('/api/analysis/recent-products', async (req, res) => {
         brand: products.brand,
         updatedAt: products.updatedAt,
         trendyolUrl: products.trendyolUrl,
+        sourceUrl: products.sourceUrl,
         shopifyProductId: products.shopifyProductId,
         originalPrice: products.originalPrice
       })
@@ -102,7 +103,7 @@ router.get('/api/analysis/recent-products', async (req, res) => {
           .limit(1);
 
         const variant = variants[0];
-        const sourceUrl = product.trendyolUrl && product.trendyolUrl.startsWith('http') ? product.trendyolUrl : null;
+        const sourceUrl = product.sourceUrl || (product.trendyolUrl && product.trendyolUrl.startsWith('http') ? product.trendyolUrl : null);
         const sourcePlatform = sourceUrl ? (
           sourceUrl.includes('trendyol.com') ? 'trendyol' :
           sourceUrl.includes('hepsiburada.com') ? 'hepsiburada' :
