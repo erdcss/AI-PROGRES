@@ -106,33 +106,52 @@ export const ProductDataAnalysis: React.FC = () => {
   const [isTyping, setIsTyping] = useState(false);
   const [timeToNext, setTimeToNext] = useState('');
   const [isClearingMemory, setIsClearingMemory] = useState(false);
+  const [isRefreshing, setIsRefreshing] = useState(false);
+
+  // Refresh all data function
+  const handleRefreshAll = async () => {
+    setIsRefreshing(true);
+    try {
+      await Promise.all([
+        refetchMemoryStats(),
+        refetchDailyOps(),
+        refetchProducts(),
+        refetchChanges(),
+        refetchScheduler()
+      ]);
+    } catch (error) {
+      console.error('Refresh failed:', error);
+    } finally {
+      setIsRefreshing(false);
+    }
+  };
 
   // Fetch memory statistics
-  const { data: memoryStats } = useQuery<MemoryStats>({
+  const { data: memoryStats, refetch: refetchMemoryStats } = useQuery<MemoryStats>({
     queryKey: ['/api/memory/stats'],
     refetchInterval: 30000, // Refresh every 30 seconds
   });
 
   // Fetch daily operations
-  const { data: dailyOpsData } = useQuery({
+  const { data: dailyOpsData, refetch: refetchDailyOps } = useQuery({
     queryKey: ['/api/analysis/daily-operations'],
     refetchInterval: 60000, // Refresh every minute
   });
 
   // Fetch recent products
-  const { data: productsData } = useQuery({
+  const { data: productsData, refetch: refetchProducts } = useQuery({
     queryKey: ['/api/analysis/recent-products'],
     refetchInterval: 60000,
   });
 
   // Fetch product changes
-  const { data: changesData } = useQuery({
+  const { data: changesData, refetch: refetchChanges } = useQuery({
     queryKey: ['/api/analysis/product-changes'],
     refetchInterval: 30000,
   });
 
   // Fetch scheduled tasks
-  const { data: schedulerData } = useQuery<{status: ScheduledTask[]}>({
+  const { data: schedulerData, refetch: refetchScheduler } = useQuery<{status: ScheduledTask[]}>({
     queryKey: ['/api/scheduler/status'],
     refetchInterval: 30000, // Refresh every 30 seconds
   });
@@ -310,7 +329,20 @@ export const ProductDataAnalysis: React.FC = () => {
   };
 
   return (
-    <div className="w-full space-y-8">
+    <div className="w-full space-y-8 relative">
+      {/* Refresh Button - Top Right Corner */}
+      <div className="absolute top-0 right-0 z-10">
+        <Button
+          onClick={handleRefreshAll}
+          disabled={isRefreshing}
+          className="bg-white/10 hover:bg-white/20 border border-white/20 text-white"
+          size="sm"
+        >
+          <RefreshCw className={`h-4 w-4 mr-2 ${isRefreshing ? 'animate-spin' : ''}`} />
+          {isRefreshing ? 'Yenileniyor...' : 'Sayfayı Yenile'}
+        </Button>
+      </div>
+      
       {/* Header Section */}
       <motion.div
         initial={{ opacity: 0, y: -20 }}
@@ -660,7 +692,19 @@ export const ProductDataAnalysis: React.FC = () => {
                             <span className="text-blue-400 font-medium">{product.originalPrice}</span>
                           </div>
                         )}
-                        <div className="flex items-center justify-end">
+                        <div className="flex items-center justify-between">
+                          {/* Trendyol Product View Button */}
+                          {product.sourceUrl && product.sourcePlatform === 'trendyol' && (
+                            <Button
+                              size="sm"
+                              className="bg-orange-500/20 hover:bg-orange-500/30 text-orange-400 border border-orange-500/30"
+                              onClick={() => window.open(product.sourceUrl, '_blank')}
+                            >
+                              <Eye className="h-3 w-3 mr-1" />
+                              Trendyol'da Gör
+                            </Button>
+                          )}
+                          
                           <div className="flex items-center gap-1">
                             {product.sourceUrl && (
                               <a 
