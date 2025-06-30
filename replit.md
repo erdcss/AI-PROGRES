@@ -103,6 +103,10 @@ The application follows a full-stack architecture with clear separation of conce
 
 ## Changelog
 
+- June 30, 2025: **DASHBOARD DATA INTEGRATION COMPLETED** - ProductDataAnalysis dashboard now displays authentic database data with clickable Trendyol and Shopify links for both "Son 3 Ürün" and "Fiyat & Stok Değişimleri" sections
+- June 30, 2025: **REAL DATABASE CONNECTIVITY IMPLEMENTED** - API endpoints updated to return genuine product data instead of mock data, with proper Trendyol source links and Shopify admin/store page links
+- June 30, 2025: **ENHANCED PRODUCT SCHEMA UPDATES** - Added originalPrice, currentPrice, stockStatus, and lastChecked fields to products table for comprehensive tracking
+- June 30, 2025: **CLICKABLE LINKS INTEGRATION** - Both recent products and price changes sections now feature functional Trendyol (orange), Shopify Admin (green), and Shopify Store (purple) links
 - June 29, 2025: **ERROR CENTER BRAIN FULLY OPERATIONAL AS PROGRAM CORE** - Hata merkezi artık programın beyni olarak çalışıyor, tüm sistem operasyonlarını izliyor ve merkezi kontrol sağlıyor
 - June 29, 2025: **SHOPIFY API ROUTING ISSUE PERMANENTLY RESOLVED** - API endpoint'leri artık HTML yerine JSON dönüyor, routing öncelik sorunu tamamen düzeltildi
 - June 29, 2025: **SAHTE BEDEN OLUŞTURMA SORUNU TAMAMEN ÇÖZÜLDİ** - Beden seçeneği olmayan ürünlerde (dalış maskesi, çanta, elektronik vb.) sahte beden bilgileri artık oluşturulmuyor, sadece "Tek Beden" varyantı oluşuyor

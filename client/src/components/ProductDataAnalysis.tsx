@@ -48,13 +48,18 @@ interface DailyOperation {
 
 interface ProductChange {
   id: string;
-  productName: string;
-  changeType: 'price_increase' | 'price_decrease' | 'stock_in' | 'stock_out';
-  oldValue: string;
-  newValue: string;
+  productTitle: string;
+  brand: string;
+  oldPrice: string;
+  newPrice: string;
+  priceChange: string;
+  oldStock: string;
+  newStock: string;
+  changeType: string;
   timestamp: string;
-  percentage?: number;
-  productUrl?: string;
+  trendyolUrl?: string;
+  shopifyUrl?: string;
+  shopifyStoreUrl?: string;
 }
 
 interface Product {

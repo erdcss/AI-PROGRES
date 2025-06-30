@@ -1264,10 +1264,10 @@ router.get('/analysis/product-changes', async (req, res) => {
       id: product.id.toString(),
       productTitle: product.title,
       brand: product.brand,
-      oldPrice: product.originalPrice ? `${product.originalPrice} TL` : 'Henüz tespit edilmedi',
-      newPrice: product.currentPrice ? `${product.currentPrice} TL` : 'Henüz güncellenmedi',
+      oldPrice: product.originalPrice ? `${Number(product.originalPrice)} TL` : 'Henüz tespit edilmedi',
+      newPrice: product.currentPrice ? `${Number(product.currentPrice)} TL` : 'Henüz güncellenmedi',
       priceChange: product.originalPrice && product.currentPrice ? 
-        (((product.currentPrice - product.originalPrice) / product.originalPrice) * 100).toFixed(1) + '%' : 
+        (((Number(product.currentPrice) - Number(product.originalPrice)) / Number(product.originalPrice)) * 100).toFixed(1) + '%' : 
         'Hesaplanamadı',
       oldStock: 'Önceki stok durumu izleniyor',
       newStock: product.stockStatus === 'in_stock' ? 'Stokta' : 'Stok Yok',
