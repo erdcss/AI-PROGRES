@@ -2,6 +2,7 @@ import { Router } from 'express';
 import { db } from './db';
 import { products, productVariants, stockHistory, priceHistory } from '@shared/schema';
 import { eq, and, desc, sql, or } from 'drizzle-orm';
+import { productUpdateEngine } from './product-update-engine';
 // Platform detection will be handled in frontend
 
 const router = Router();
@@ -230,6 +231,198 @@ router.get('/memory-overview', async (req, res) => {
     res.status(500).json({ 
       success: false, 
       error: 'Sistem hafıza özeti alınamadı' 
+    });
+  }
+});
+
+// Tek ürün güncelleme endpoint'i
+router.post('/update-product/:id', async (req, res) => {
+  try {
+    const productId = parseInt(req.params.id);
+    
+    if (isNaN(productId)) {
+      return res.status(400).json({
+        success: false,
+        error: 'Geçersiz ürün ID'
+      });
+    }
+
+    const result = await productUpdateEngine.processProductUpdate(productId);
+    
+    res.json({
+      success: result.success,
+      result: result
+    });
+  } catch (error) {
+    console.error('Product update error:', error);
+    res.status(500).json({
+      success: false,
+      error: 'Ürün güncelleme hatası'
+    });
+  }
+});
+
+// Toplu ürün güncelleme endpoint'i
+router.post('/bulk-update', async (req, res) => {
+  try {
+    const { productIds } = req.body;
+    
+    if (!Array.isArray(productIds) || productIds.length === 0) {
+      return res.status(400).json({
+        success: false,
+        error: 'Ürün ID listesi gerekli'
+      });
+    }
+
+    const results = await productUpdateEngine.processBulkUpdates(productIds);
+    const report = productUpdateEngine.generateUpdateReport(results);
+    
+    res.json({
+      success: true,
+      results: results,
+      report: report,
+      summary: {
+        total: results.length,
+        successful: results.filter(r => r.success).length,
+        failed: results.filter(r => !r.success).length,
+        priceIncreased: results.filter(r => r.action === 'price_increased').length,
+        archived: results.filter(r => r.action === 'archived').length
+      }
+    });
+  } catch (error) {
+    console.error('Bulk update error:', error);
+    res.status(500).json({
+      success: false,
+      error: 'Toplu güncelleme hatası'
+    });
+  }
+});
+
+// Tüm aktif ürünleri güncelle (12:00 zamanlanmış görev için)
+router.post('/update-all-products', async (req, res) => {
+  try {
+    // Tüm aktif ürünleri al
+    const activeProducts = await db
+      .select({ id: products.id })
+      .from(products)
+      .where(eq(products.isActive, true));
+
+    const productIds = activeProducts.map(p => p.id);
+    
+    if (productIds.length === 0) {
+      return res.json({
+        success: true,
+        message: 'Güncellenecek aktif ürün bulunamadı',
+        results: [],
+        report: 'Hiç aktif ürün yok'
+      });
+    }
+
+    const results = await productUpdateEngine.processBulkUpdates(productIds);
+    const report = productUpdateEngine.generateUpdateReport(results);
+    
+    res.json({
+      success: true,
+      results: results,
+      report: report,
+      summary: {
+        total: results.length,
+        successful: results.filter(r => r.success).length,
+        failed: results.filter(r => !r.success).length,
+        priceIncreased: results.filter(r => r.action === 'price_increased').length,
+        archived: results.filter(r => r.action === 'archived').length
+      }
+    });
+  } catch (error) {
+    console.error('Update all products error:', error);
+    res.status(500).json({
+      success: false,
+      error: 'Tüm ürün güncelleme hatası'
+    });
+  }
+});
+
+// Tüm ürünleri güncelle - Scheduler tarafından kullanılır
+router.post('/update-all-products', async (req, res) => {
+  try {
+    console.log('🔄 Tüm ürünler için güncelleme işlemi başlatılıyor...');
+    
+    // Aktif ürünleri al
+    const activeProducts = await db
+      .select({
+        id: products.id,
+        title: products.title,
+        trendyolUrl: products.trendyolUrl
+      })
+      .from(products)
+      .where(eq(products.isActive, true));
+
+    console.log(`📊 ${activeProducts.length} aktif ürün bulundu`);
+
+    const results = [];
+    let successful = 0;
+    let failed = 0;
+    let priceIncreased = 0;
+    let archived = 0;
+
+    // Her ürün için güncelleme işlemi
+    for (const product of activeProducts) {
+      try {
+        const updateResult = await productUpdateEngine.processProductUpdate(product.id);
+        results.push(updateResult);
+        
+        if (updateResult.success) {
+          successful++;
+          if (updateResult.action === 'price_increased') {
+            priceIncreased++;
+          } else if (updateResult.action === 'archived') {
+            archived++;
+          }
+        } else {
+          failed++;
+        }
+        
+        // Rate limiting - her ürün arasında 2 saniye bekle
+        await new Promise(resolve => setTimeout(resolve, 2000));
+        
+      } catch (error) {
+        console.error(`❌ Ürün güncelleme hatası (ID: ${product.id}):`, error);
+        failed++;
+        results.push({
+          success: false,
+          productId: product.id,
+          productTitle: product.title,
+          updatedFields: [],
+          archivedVariants: [],
+          errors: [(error as Error).message],
+          action: 'error' as const
+        });
+      }
+    }
+
+    const summary = {
+      total: activeProducts.length,
+      successful,
+      failed,
+      priceIncreased,
+      archived,
+      timestamp: new Date().toISOString()
+    };
+
+    console.log('✅ Toplu güncelleme tamamlandı:', summary);
+
+    res.json({
+      success: true,
+      summary,
+      results: results.slice(0, 10) // Sadece ilk 10 sonucu döndür
+    });
+
+  } catch (error) {
+    console.error('Toplu güncelleme hatası:', error);
+    res.status(500).json({
+      success: false,
+      error: 'Toplu güncelleme işlemi başarısız',
+      details: (error as Error).message
     });
   }
 });
