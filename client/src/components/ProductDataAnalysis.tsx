@@ -57,6 +57,8 @@ interface ProductChange {
   newStock: string;
   changeType: string;
   timestamp: string;
+  sourceUrl?: string;
+  sourcePlatform?: string;
   trendyolUrl?: string;
   shopifyUrl?: string;
   shopifyStoreUrl?: string;
@@ -67,6 +69,8 @@ interface Product {
   title: string;
   brand: string;
   currentPrice: string;
+  sourceUrl?: string;
+  sourcePlatform?: string;
   trendyolUrl?: string;
   shopifyProductId?: string;
   shopifyUrl?: string;
@@ -738,13 +742,23 @@ export const ProductDataAnalysis: React.FC = () => {
                           <div className="flex items-center justify-between mb-2">
                             <h4 className="font-semibold text-white text-sm truncate flex-1">{change.productTitle}</h4>
                             <div className="flex items-center gap-1 ml-2">
-                              {change.trendyolUrl && (
+                              {change.sourceUrl && (
                                 <a 
-                                  href={change.trendyolUrl} 
+                                  href={change.sourceUrl} 
                                   target="_blank" 
                                   rel="noopener noreferrer"
-                                  className="text-orange-400 hover:text-orange-300 transition-colors p-1 rounded"
-                                  title="Trendyol'da Görüntüle"
+                                  className={`transition-colors p-1 rounded ${
+                                    change.sourcePlatform === 'trendyol' ? 'text-orange-400 hover:text-orange-300' :
+                                    change.sourcePlatform === 'hepsiburada' ? 'text-red-400 hover:text-red-300' :
+                                    change.sourcePlatform === 'n11' ? 'text-purple-400 hover:text-purple-300' :
+                                    'text-blue-400 hover:text-blue-300'
+                                  }`}
+                                  title={`${
+                                    change.sourcePlatform === 'trendyol' ? 'Trendyol' :
+                                    change.sourcePlatform === 'hepsiburada' ? 'Hepsiburada' :
+                                    change.sourcePlatform === 'n11' ? 'N11' :
+                                    'Kaynak Platform'
+                                  }'da Görüntüle`}
                                 >
                                   <Globe className="h-4 w-4" />
                                 </a>

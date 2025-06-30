@@ -83,8 +83,7 @@ router.get('/api/analysis/recent-products', async (req, res) => {
         title: products.title,
         brand: products.brand,
         updatedAt: products.updatedAt,
-        sourceUrl: products.sourceUrl,
-        sourcePlatform: products.sourcePlatform,
+        trendyolUrl: products.trendyolUrl,
         shopifyProductId: products.shopifyProductId
       })
       .from(products)
@@ -102,13 +101,21 @@ router.get('/api/analysis/recent-products', async (req, res) => {
           .limit(1);
 
         const variant = variants[0];
+        const sourceUrl = product.trendyolUrl && product.trendyolUrl.startsWith('http') ? product.trendyolUrl : null;
+        const sourcePlatform = sourceUrl ? (
+          sourceUrl.includes('trendyol.com') ? 'trendyol' :
+          sourceUrl.includes('hepsiburada.com') ? 'hepsiburada' :
+          sourceUrl.includes('n11.com') ? 'n11' :
+          'trendyol'
+        ) : 'trendyol';
+
         return {
           id: product.id.toString(),
           title: product.title || 'Ürün adı bulunamadı',
           brand: product.brand || 'Genel',
           currentPrice: variant?.shopifyPrice ? `${parseFloat(variant.shopifyPrice).toLocaleString('tr-TR')} TL` : 'Fiyat belirlenmemiş',
-          sourceUrl: product.sourceUrl && product.sourceUrl.startsWith('http') ? product.sourceUrl : null,
-          sourcePlatform: product.sourcePlatform || 'trendyol',
+          sourceUrl: sourceUrl,
+          sourcePlatform: sourcePlatform,
           shopifyUrl: product.shopifyProductId ? 
             `https://kr5xdy-x7.myshopify.com/admin/products/${product.shopifyProductId}` : 
             null,
@@ -141,7 +148,7 @@ router.get('/api/analysis/product-changes', async (req, res) => {
       .select({
         id: products.id,
         title: products.title,
-        sourceUrl: products.sourceUrl
+        trendyolUrl: products.trendyolUrl
       })
       .from(products)
       .orderBy(desc(products.updatedAt))
@@ -161,8 +168,13 @@ router.get('/api/analysis/product-changes', async (req, res) => {
         newValue: newValues[index],
         timestamp: new Date(Date.now() - (index + 1) * 3600000).toISOString(),
         percentage: percentages[index],
-        sourceUrl: product.sourceUrl && product.sourceUrl.startsWith('http') ? product.sourceUrl : null,
-        sourcePlatform: 'trendyol'
+        sourceUrl: product.trendyolUrl && product.trendyolUrl.startsWith('http') ? product.trendyolUrl : null,
+        sourcePlatform: product.trendyolUrl && product.trendyolUrl.startsWith('http') ? (
+          product.trendyolUrl.includes('trendyol.com') ? 'trendyol' :
+          product.trendyolUrl.includes('hepsiburada.com') ? 'hepsiburada' :
+          product.trendyolUrl.includes('n11.com') ? 'n11' :
+          'trendyol'
+        ) : 'trendyol'
       };
     });
 
