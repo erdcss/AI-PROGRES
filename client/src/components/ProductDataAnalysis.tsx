@@ -27,7 +27,8 @@ import {
   Trash2,
   RefreshCw,
   ShoppingCart,
-  Globe
+  Globe,
+  Eye
 } from "lucide-react";
 import { useQuery } from "@tanstack/react-query";
 import { motion } from "framer-motion";
@@ -189,11 +190,11 @@ export const ProductDataAnalysis: React.FC = () => {
   }, [scheduledTasks]);
 
   // Use real data from API
-  const dailyOperations: DailyOperation[] = dailyOpsData?.operations || [];
+  const dailyOperations: DailyOperation[] = (dailyOpsData as any)?.operations || [];
 
-  const productChanges: ProductChange[] = changesData?.changes || [];
+  const productChanges: ProductChange[] = (changesData as any)?.changes || [];
 
-  const recentProducts: Product[] = productsData?.products || [];
+  const recentProducts: Product[] = (productsData as any)?.products || [];
 
   const handleSendMessage = async () => {
     if (!newMessage.trim()) return;
