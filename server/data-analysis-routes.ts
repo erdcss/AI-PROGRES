@@ -74,7 +74,7 @@ router.get('/api/analysis/daily-operations', async (req, res) => {
   }
 });
 
-// Get recent products
+// Get recent products - simplified (title, price, links only)
 router.get('/api/analysis/recent-products', async (req, res) => {
   try {
     const recentProducts = await db
@@ -83,19 +83,18 @@ router.get('/api/analysis/recent-products', async (req, res) => {
         title: products.title,
         brand: products.brand,
         updatedAt: products.updatedAt,
-        trendyolUrl: products.trendyolUrl
+        trendyolUrl: products.trendyolUrl,
+        shopifyProductId: products.shopifyProductId
       })
       .from(products)
       .orderBy(desc(products.updatedAt))
-      .limit(5);
+      .limit(3);
 
     const productsWithVariants = await Promise.all(
       recentProducts.map(async (product) => {
         const variants = await db
           .select({
-            shopifyPrice: productVariants.shopifyPrice,
-            trendyolPrice: productVariants.trendyolPrice,
-            inStock: productVariants.inStock
+            shopifyPrice: productVariants.shopifyPrice
           })
           .from(productVariants)
           .where(eq(productVariants.productId, product.id))
@@ -107,10 +106,13 @@ router.get('/api/analysis/recent-products', async (req, res) => {
           title: product.title || 'Ürün adı bulunamadı',
           brand: product.brand || 'Genel',
           currentPrice: variant?.shopifyPrice ? `${parseFloat(variant.shopifyPrice).toLocaleString('tr-TR')} TL` : 'Fiyat belirlenmemiş',
-          originalPrice: variant?.trendyolPrice ? `${parseFloat(variant.trendyolPrice).toLocaleString('tr-TR')} TL` : 'Orijinal fiyat yok',
-          stockStatus: variant?.inStock ?? true,
-          lastChecked: product.updatedAt?.toISOString() || new Date().toISOString(),
-          trendyolUrl: product.trendyolUrl && product.trendyolUrl.startsWith('http') ? product.trendyolUrl : null
+          trendyolUrl: product.trendyolUrl && product.trendyolUrl.startsWith('http') ? product.trendyolUrl : null,
+          shopifyUrl: product.shopifyProductId ? 
+            `https://kr5xdy-x7.myshopify.com/admin/products/${product.shopifyProductId}` : 
+            null,
+          shopifyStoreUrl: product.shopifyProductId ? 
+            `https://kr5xdy-x7.myshopify.com/products/${product.title?.toLowerCase().replace(/[^a-z0-9çğıöşü]/g, '-').replace(/-+/g, '-').replace(/^-|-$/g, '')}` : 
+            null
         };
       })
     );
