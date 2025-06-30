@@ -3,6 +3,8 @@ import { registerRoutes } from "./routes";
 import { setupVite, serveStatic, log } from "./vite";
 import apiRoutes from "./api-routes";
 import importRoutes from "./import-route";
+import dataAnalysisRoutes from './data-analysis-routes';
+import memoryStatusRoutes from './memory-status-api';
 import * as pathModule from "path";
 import { fileURLToPath } from 'url';
 import * as fs from 'fs';
@@ -265,6 +267,12 @@ app.use((req, res, next) => {
   
   // Ensure API routes are processed before any catch-all
   app.use(apiRoutes);
+  
+  // Add data analysis routes with explicit API prefix
+  app.use('/api/analysis', dataAnalysisRoutes);
+  
+  // Add memory status routes with explicit API prefix  
+  app.use('/api', memoryStatusRoutes);
   
   // Add import routes
   app.use(importRoutes);
