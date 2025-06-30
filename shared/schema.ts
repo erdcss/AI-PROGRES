@@ -21,6 +21,10 @@ export const products = pgTable('products', {
   currentPrice: decimal('current_price', { precision: 10, scale: 2 }),
   stockStatus: text('stock_status').notNull().default('in_stock'), // in_stock, out_of_stock, low_stock
   lastChecked: timestamp('last_checked'),
+  sourceUrl: text('source_url'), // Platform kaynak URL'si
+  sourcePlatform: text('source_platform').notNull().default('trendyol'), // trendyol, hepsiburada, n11
+  shopifyUrl: text('shopify_url'), // Shopify admin URL'si  
+  shopifyStoreUrl: text('shopify_store_url'), // Shopify mağaza URL'si
   isActive: boolean('is_active').notNull().default(true),
   profitMargin: decimal('profit_margin', { precision: 5, scale: 2 }).notNull().default('15.00'),
   createdAt: timestamp('created_at').notNull().defaultNow(),

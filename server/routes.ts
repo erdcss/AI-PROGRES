@@ -18,6 +18,7 @@ import { extractVariantStockInfo } from "./advanced-size-extractor";
 import { extractFocusedData } from './focused-extractor';
 import { dailyScheduler } from './scheduler';
 import dataAnalysisRoutes from './data-analysis-routes';
+import memoryStatusRoutes from './memory-status-api';
 import { testImageExtraction } from './direct-image-test';
 import { initializeScheduler, getSchedulerStatus, executeTaskManually } from './simple-scheduler';
 
