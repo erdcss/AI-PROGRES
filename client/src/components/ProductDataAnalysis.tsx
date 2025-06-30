@@ -172,9 +172,13 @@ export const ProductDataAnalysis: React.FC = () => {
         if (diff > 0) {
           const hours = Math.floor(diff / (1000 * 60 * 60));
           const minutes = Math.floor((diff % (1000 * 60 * 60)) / (1000 * 60));
-          setTimeToNext(`${hours}s ${minutes}dk`);
+          if (hours > 0) {
+            setTimeToNext(`Sıradaki görevin başlamasına ${hours}:${minutes.toString().padStart(2, '0')} saat kaldı`);
+          } else {
+            setTimeToNext(`Sıradaki görevin başlamasına ${minutes} dakika kaldı`);
+          }
         } else {
-          setTimeToNext('Şimdi');
+          setTimeToNext('Yakında başlayacak');
         }
       }
     };
@@ -563,7 +567,8 @@ export const ProductDataAnalysis: React.FC = () => {
             <CardContent>
               <ScrollArea className="h-64">
                 <div className="space-y-4">
-                  {changes?.map((change: ProductChange) => (
+                  {changes && changes.length > 0 ? (
+                    changes.map((change: ProductChange) => (
                     <div key={change.id} className="p-4 bg-slate-800/50 rounded-lg border border-slate-600/30">
                       <div className="flex justify-between items-start mb-3">
                         <div>
@@ -633,9 +638,10 @@ export const ProductDataAnalysis: React.FC = () => {
                         </div>
                       </div>
                     </div>
-                  )) || (
+                    ))
+                  ) : (
                     <div className="text-center text-gray-500 py-8">
-                      Henüz değişiklik bulunmuyor
+                      Fiyat veya stok değişikliği bulunmuyor
                     </div>
                   )}
                 </div>
