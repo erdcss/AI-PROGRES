@@ -569,81 +569,81 @@ export const ProductDataAnalysis: React.FC = () => {
                 <div className="space-y-4">
                   {changes && changes.length > 0 ? (
                     changes.map((change: ProductChange) => (
-                    <div key={change.id} className="p-4 bg-slate-800/50 rounded-lg border border-slate-600/30">
-                      <div className="flex justify-between items-start mb-3">
-                        <div>
-                          <h4 className="font-medium text-white text-sm">{change.productTitle}</h4>
-                          <p className="text-xs text-gray-400">{change.brand}</p>
+                        <div key={change.id} className="p-4 bg-slate-800/50 rounded-lg border border-slate-600/30">
+                          <div className="flex justify-between items-start mb-3">
+                            <div>
+                              <h4 className="font-medium text-white text-sm">{change.productTitle}</h4>
+                              <p className="text-xs text-gray-400">{change.brand}</p>
+                            </div>
+                            <Badge variant="outline" className="text-xs border-yellow-500/50 text-yellow-300">
+                              {change.changeType}
+                            </Badge>
+                          </div>
+                          <div className="grid grid-cols-2 gap-4 text-sm">
+                            <div>
+                              <p className="text-gray-400">Fiyat:</p>
+                              <p className="text-white">
+                                <span className="text-red-400">{change.oldPrice}</span>
+                                <span className="text-gray-500 mx-2">→</span>
+                                <span className="text-green-400">{change.newPrice}</span>
+                              </p>
+                            </div>
+                            <div>
+                              <p className="text-gray-400">Stok:</p>
+                              <p className="text-white">
+                                <span className="text-gray-300">{change.oldStock}</span>
+                                <span className="text-gray-500 mx-2">→</span>
+                                <span className="text-cyan-400">{change.newStock}</span>
+                              </p>
+                            </div>
+                          </div>
+                          <div className="flex justify-between items-center mt-3 pt-3 border-t border-slate-600/30">
+                            <p className="text-xs text-gray-500">{change.timestamp}</p>
+                            <div className="flex gap-2">
+                              {change.sourceUrl && (
+                                <a
+                                  href={change.sourceUrl}
+                                  target="_blank"
+                                  rel="noopener noreferrer"
+                                  className={`text-xs px-2 py-1 rounded ${getPlatformLinkColor(getPlatformName(change.sourceUrl))} bg-slate-700/50 hover:bg-slate-600/50 transition-colors`}
+                                >
+                                  {getPlatformName(change.sourceUrl) === 'trendyol' ? 'Trendyol' : 
+                                   getPlatformName(change.sourceUrl) === 'hepsiburada' ? 'Hepsiburada' :
+                                   getPlatformName(change.sourceUrl) === 'n11' ? 'N11' : 'Kaynak'}
+                                  <ExternalLink className="w-3 h-3 ml-1 inline" />
+                                </a>
+                              )}
+                              {change.shopifyUrl && (
+                                <a
+                                  href={change.shopifyUrl}
+                                  target="_blank"
+                                  rel="noopener noreferrer"
+                                  className="text-xs px-2 py-1 rounded text-green-400 hover:text-green-300 bg-slate-700/50 hover:bg-slate-600/50 transition-colors"
+                                >
+                                  Shopify
+                                  <ExternalLink className="w-3 h-3 ml-1 inline" />
+                                </a>
+                              )}
+                              {change.shopifyStoreUrl && (
+                                <a
+                                  href={change.shopifyStoreUrl}
+                                  target="_blank"
+                                  rel="noopener noreferrer"
+                                  className="text-xs px-2 py-1 rounded text-purple-400 hover:text-purple-300 bg-slate-700/50 hover:bg-slate-600/50 transition-colors"
+                                >
+                                  Mağaza
+                                  <ExternalLink className="w-3 h-3 ml-1 inline" />
+                                </a>
+                              )}
+                            </div>
+                          </div>
                         </div>
-                        <Badge variant="outline" className="text-xs border-yellow-500/50 text-yellow-300">
-                          {change.changeType}
-                        </Badge>
+                      ))
+                    ) : (
+                      <div className="text-center text-gray-500 py-8">
+                        Fiyat veya stok değişikliği bulunmuyor
                       </div>
-                      <div className="grid grid-cols-2 gap-4 text-sm">
-                        <div>
-                          <p className="text-gray-400">Fiyat:</p>
-                          <p className="text-white">
-                            <span className="text-red-400">{change.oldPrice}</span>
-                            <span className="text-gray-500 mx-2">→</span>
-                            <span className="text-green-400">{change.newPrice}</span>
-                          </p>
-                        </div>
-                        <div>
-                          <p className="text-gray-400">Stok:</p>
-                          <p className="text-white">
-                            <span className="text-gray-300">{change.oldStock}</span>
-                            <span className="text-gray-500 mx-2">→</span>
-                            <span className="text-cyan-400">{change.newStock}</span>
-                          </p>
-                        </div>
-                      </div>
-                      <div className="flex justify-between items-center mt-3 pt-3 border-t border-slate-600/30">
-                        <p className="text-xs text-gray-500">{change.timestamp}</p>
-                        <div className="flex gap-2">
-                          {change.sourceUrl && (
-                            <a
-                              href={change.sourceUrl}
-                              target="_blank"
-                              rel="noopener noreferrer"
-                              className={`text-xs px-2 py-1 rounded ${getPlatformLinkColor(getPlatformName(change.sourceUrl))} bg-slate-700/50 hover:bg-slate-600/50 transition-colors`}
-                            >
-                              {getPlatformName(change.sourceUrl) === 'trendyol' ? 'Trendyol' : 
-                               getPlatformName(change.sourceUrl) === 'hepsiburada' ? 'Hepsiburada' :
-                               getPlatformName(change.sourceUrl) === 'n11' ? 'N11' : 'Kaynak'}
-                              <ExternalLink className="w-3 h-3 ml-1 inline" />
-                            </a>
-                          )}
-                          {change.shopifyUrl && (
-                            <a
-                              href={change.shopifyUrl}
-                              target="_blank"
-                              rel="noopener noreferrer"
-                              className="text-xs px-2 py-1 rounded text-green-400 hover:text-green-300 bg-slate-700/50 hover:bg-slate-600/50 transition-colors"
-                            >
-                              Shopify
-                              <ExternalLink className="w-3 h-3 ml-1 inline" />
-                            </a>
-                          )}
-                          {change.shopifyStoreUrl && (
-                            <a
-                              href={change.shopifyStoreUrl}
-                              target="_blank"
-                              rel="noopener noreferrer"
-                              className="text-xs px-2 py-1 rounded text-purple-400 hover:text-purple-300 bg-slate-700/50 hover:bg-slate-600/50 transition-colors"
-                            >
-                              Mağaza
-                              <ExternalLink className="w-3 h-3 ml-1 inline" />
-                            </a>
-                          )}
-                        </div>
-                      </div>
-                    </div>
-                    ))
-                  ) : (
-                    <div className="text-center text-gray-500 py-8">
-                      Fiyat veya stok değişikliği bulunmuyor
-                    </div>
-                  )}
+                    )}
                 </div>
               </ScrollArea>
             </CardContent>
