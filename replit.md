@@ -103,6 +103,8 @@ The application follows a full-stack architecture with clear separation of conce
 
 ## Changelog
 
+- June 30, 2025: **PLATFORM DETECTION SYSTEM OPERATIONAL** - Implemented automatic source platform identification from URLs with color-coded links in dashboard (orange=Trendyol, red=Hepsiburada, purple=N11, green=Shopify Admin, blue=Shopify Store)
+- June 30, 2025: **DASHBOARD PLATFORM LINKS ENHANCED** - Both "Son 3 Ürün" and "Fiyat & Stok Değişimleri" sections now display platform-specific colored links based on product source URL detection
 - June 30, 2025: **TRENDYOL SCRAPER PAGE UX ENHANCEMENT COMPLETED** - Enhanced user interface with larger input fields, improved buttons, usage tips, and system feature highlights for better user experience
 - June 30, 2025: **URL INPUT INTERFACE ENHANCED** - Increased input field height to 80px, larger buttons (12x12), improved placeholder text with examples, and better visual hierarchy
 - June 30, 2025: **USER GUIDANCE SYSTEM ADDED** - Implemented usage tips section, system specifications display, and footer information for improved user onboarding
