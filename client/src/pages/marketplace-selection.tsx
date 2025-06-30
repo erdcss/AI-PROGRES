@@ -1,6 +1,7 @@
 import { motion } from "framer-motion";
 import { useLocation } from "wouter";
 import { ShoppingCart, Package, Store, Truck, BarChart3, Shield } from "lucide-react";
+import { RealTimeClock } from "@/components/RealTimeClock";
 
 const MarketplaceSelection = () => {
   const [, setLocation] = useLocation();
@@ -59,6 +60,11 @@ const MarketplaceSelection = () => {
           <p className="text-xl text-gray-300">
             Ürün verilerini çekmek istediğiniz platformu seçin
           </p>
+          
+          {/* Real-time Clock */}
+          <div className="flex justify-center mt-6">
+            <RealTimeClock />
+          </div>
         </motion.div>
 
         <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6">

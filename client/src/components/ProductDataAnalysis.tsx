@@ -108,6 +108,7 @@ export const ProductDataAnalysis: React.FC = () => {
   const [timeToNext, setTimeToNext] = useState('');
   const [isClearingMemory, setIsClearingMemory] = useState(false);
   const [isRefreshing, setIsRefreshing] = useState(false);
+  const [currentDateTime, setCurrentDateTime] = useState('');
 
   // Refresh all data function
   const handleRefreshAll = async () => {
@@ -159,6 +160,21 @@ export const ProductDataAnalysis: React.FC = () => {
   
   const scheduledTasks = schedulerData?.status || [];
   
+  // Update current date and time every second
+  useEffect(() => {
+    const updateDateTime = () => {
+      const now = new Date();
+      const dateStr = now.toLocaleDateString('tr-TR');
+      const timeStr = now.toLocaleTimeString('tr-TR');
+      setCurrentDateTime(`${dateStr} ${timeStr}`);
+    };
+
+    updateDateTime(); // Initial update
+    const dateTimeInterval = setInterval(updateDateTime, 1000);
+
+    return () => clearInterval(dateTimeInterval);
+  }, []);
+
   // Live countdown for next scheduled task
   useEffect(() => {
     const updateCountdown = () => {
@@ -359,11 +375,11 @@ export const ProductDataAnalysis: React.FC = () => {
           Gerçek zamanlı ürün takibi, AI destekli analiz ve otomatik Shopify senkronizasyonu
         </p>
         
-        {/* Product Changes Count */}
+        {/* Current Date and Time */}
         <div className="flex justify-center gap-4 mt-4">
           <Badge variant="secondary" className="bg-white/10 text-white border-white/20 px-4 py-2">
-            <TrendingUp className="h-4 w-4 mr-2" />
-            Değişiklik Gözlemlenen Ürünler: {productChanges?.length || 0}
+            <Clock className="h-4 w-4 mr-2" />
+            {currentDateTime}
           </Badge>
         </div>
       </motion.div>
@@ -396,19 +412,49 @@ export const ProductDataAnalysis: React.FC = () => {
             <h3 className="text-2xl font-bold text-white mb-2">
               {productChanges?.length || 0}
             </h3>
-            <p className="text-gray-300 font-medium">Toplam Değişiklik</p>
-            <p className="text-sm text-gray-400 mt-1">Fiyat/stok değişimleri</p>
+            <p className="text-gray-300 font-medium">Değişen Ürünler</p>
+            <p className="text-sm text-gray-400 mt-1">Fiyat/stok değişiklikleri</p>
           </CardContent>
         </Card>
 
         <Card className="bg-white/5 backdrop-blur-md border-white/10">
           <CardContent className="p-6 text-center">
-            <div className="w-16 h-16 mx-auto mb-4 bg-gradient-to-br from-orange-500 to-red-600 rounded-2xl flex items-center justify-center">
+            <div className="w-16 h-16 mx-auto mb-4 bg-gradient-to-br from-green-500 to-blue-600 rounded-2xl flex items-center justify-center">
               <Clock className="h-8 w-8 text-white" />
             </div>
-            <h3 className="text-lg font-bold text-white mb-2">Aktif</h3>
-            <p className="text-gray-300 font-medium">Günlük Monitoring</p>
-            <p className="text-sm text-gray-400 mt-1">12:00 ve 23:00 otomatik</p>
+            <h3 className="text-lg font-bold text-white mb-2">
+              {(() => {
+                const nextTask = scheduledTasks
+                  .filter(task => task.isActive)
+                  .sort((a, b) => new Date(a.nextRun).getTime() - new Date(b.nextRun).getTime())[0];
+                
+                if (nextTask) {
+                  return new Date(nextTask.nextRun).toLocaleTimeString('tr-TR', { hour: '2-digit', minute: '2-digit' });
+                }
+                return '12:00';
+              })()}
+            </h3>
+            <p className="text-gray-300 font-medium">Sonraki Görev</p>
+            <p className="text-sm text-gray-400 mt-1">
+              {(() => {
+                const nextTask = scheduledTasks
+                  .filter(task => task.isActive)
+                  .sort((a, b) => new Date(a.nextRun).getTime() - new Date(b.nextRun).getTime())[0];
+                
+                if (nextTask) {
+                  const taskName = nextTask.name === 'morning-analysis' ? 'Sabah Analizi' :
+                                  nextTask.name === 'daily-updates' ? 'Günlük Güncelleme' :
+                                  nextTask.name === 'evening-reports' ? 'Akşam Raporu' : nextTask.description;
+                  return taskName;
+                }
+                return 'Günlük Güncelleme';
+              })()}
+            </p>
+            {timeToNext && (
+              <p className="text-xs text-green-400 mt-2 font-medium">
+                Kalan: {timeToNext}
+              </p>
+            )}
           </CardContent>
         </Card>
       </motion.div>
