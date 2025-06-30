@@ -2513,8 +2513,61 @@ export function registerRoutes(app: Express): Server {
     }
   });
 
-  // Memory status routes
-  app.use('/api/memory-status', memoryStatusRoutes);
+  // CRITICAL: Product update endpoint for scheduler system
+  app.post('/api/memory/update-all-products', async (req, res) => {
+    try {
+      console.log('🔄 Scheduler initiated product update process...');
+      
+      const { productUpdateEngine } = await import('./product-update-engine');
+      
+      // Get all products from database that need updates
+      const products = await db.select().from(productsTable);
+      
+      if (products.length === 0) {
+        return res.json({
+          success: true,
+          message: 'No products found for update',
+          results: []
+        });
+      }
+      
+      console.log(`📊 Processing ${products.length} products for updates...`);
+      
+      // Process updates for all products
+      const productIds = products.map(p => p.id);
+      const results = await productUpdateEngine.processBulkUpdates(productIds);
+      
+      // Generate summary report
+      const report = productUpdateEngine.generateUpdateReport(results);
+      console.log('📋 Update Report:\n' + report);
+      
+      // Send Telegram notification with results
+      try {
+        const { sendMessage } = await import('./telegram-integration');
+        await sendMessage(`🔄 Günlük Ürün Güncellemeleri Tamamlandı\n\n${report}`);
+      } catch (telegramError) {
+        console.error('Telegram notification failed:', telegramError);
+      }
+      
+      res.json({
+        success: true,
+        message: `Updated ${results.length} products`,
+        results: results,
+        report: report
+      });
+      
+    } catch (error: any) {
+      console.error('❌ Product update process failed:', error);
+      res.status(500).json({
+        success: false,
+        message: 'Product update failed',
+        error: error.message
+      });
+    }
+  });
+
+  // Memory status routes - CRITICAL: Register BEFORE catch-all routes
+  app.use('/api/memory', memoryStatusRoutes);
 
   // System status JSON endpoint
   app.get('/api/system/status', async (req, res) => {
