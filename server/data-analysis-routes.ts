@@ -6,7 +6,7 @@ import { eq, desc, gte, sql } from 'drizzle-orm';
 const router = Router();
 
 // Get memory statistics
-router.get('/api/analysis/memory-stats', async (req, res) => {
+router.get('/memory-stats', async (req, res) => {
   try {
     const productCount = await db.select({ count: sql`count(*)` }).from(products);
     const variantCount = await db.select({ count: sql`count(*)` }).from(productVariants);
@@ -27,7 +27,7 @@ router.get('/api/analysis/memory-stats', async (req, res) => {
 });
 
 // Get daily operations
-router.get('/api/analysis/daily-operations', async (req, res) => {
+router.get('/daily-operations', async (req, res) => {
   try {
     const today = new Date();
     today.setHours(0, 0, 0, 0);
@@ -75,7 +75,7 @@ router.get('/api/analysis/daily-operations', async (req, res) => {
 });
 
 // Get recent products - simplified (title, price, links only)
-router.get('/api/analysis/recent-products', async (req, res) => {
+router.get('/recent-products', async (req, res) => {
   try {
     const recentProducts = await db
       .select({
@@ -144,7 +144,7 @@ router.get('/api/analysis/recent-products', async (req, res) => {
 });
 
 // Get product changes
-router.get('/api/analysis/product-changes', async (req, res) => {
+router.get('/product-changes', async (req, res) => {
   try {
     // Get real product data for changes demonstration
     const recentProductsForChanges = await db
@@ -195,7 +195,7 @@ router.get('/api/analysis/product-changes', async (req, res) => {
 });
 
 // AI Chat endpoint
-router.post('/api/analysis/chat', async (req, res) => {
+router.post('/chat', async (req, res) => {
   try {
     const { message } = req.body;
     
