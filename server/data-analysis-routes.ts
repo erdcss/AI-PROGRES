@@ -84,7 +84,8 @@ router.get('/api/analysis/recent-products', async (req, res) => {
         brand: products.brand,
         updatedAt: products.updatedAt,
         trendyolUrl: products.trendyolUrl,
-        shopifyProductId: products.shopifyProductId
+        shopifyProductId: products.shopifyProductId,
+        originalPrice: products.originalPrice
       })
       .from(products)
       .orderBy(desc(products.updatedAt))
@@ -114,6 +115,7 @@ router.get('/api/analysis/recent-products', async (req, res) => {
           title: product.title || 'Ürün adı bulunamadı',
           brand: product.brand || 'Genel',
           currentPrice: variant?.shopifyPrice ? `${parseFloat(variant.shopifyPrice).toLocaleString('tr-TR')} TL` : 'Fiyat belirlenmemiş',
+          originalPrice: product.originalPrice ? `${parseFloat(product.originalPrice.toString()).toLocaleString('tr-TR')} TL` : 'Alış fiyatı belirlenmemiş',
           sourceUrl: sourceUrl,
           sourcePlatform: sourcePlatform,
           shopifyUrl: product.shopifyProductId ? 

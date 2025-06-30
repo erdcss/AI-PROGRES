@@ -648,10 +648,18 @@ export const ProductDataAnalysis: React.FC = () => {
                       <div className="flex items-center justify-between mb-2">
                         <h4 className="font-semibold text-white truncate flex-1">{product.title}</h4>
                       </div>
-                      <div className="flex items-center justify-between text-sm">
-                        <span className="text-gray-300">{product.brand}</span>
-                        <div className="flex items-center gap-2">
+                      <div className="space-y-2">
+                        <div className="flex items-center justify-between text-sm">
+                          <span className="text-gray-300">{product.brand}</span>
                           <span className="text-green-400 font-medium">{product.currentPrice}</span>
+                        </div>
+                        {product.originalPrice && (
+                          <div className="flex items-center justify-between text-xs">
+                            <span className="text-gray-400">Alış Fiyatı:</span>
+                            <span className="text-blue-400 font-medium">{product.originalPrice}</span>
+                          </div>
+                        )}
+                        <div className="flex items-center justify-end">
                           <div className="flex items-center gap-1">
                             {product.sourceUrl && (
                               <a 

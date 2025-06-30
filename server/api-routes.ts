@@ -1035,7 +1035,7 @@ router.post('/api/memory/add-product', async (req, res) => {
     
     // Ürün verisini veritabanı formatına dönüştür
     const productToInsert = {
-      trendyolUrl: productData.url || productData.trendyolUrl || '',
+      trendyolUrl: productData.url || productData.trendyolUrl || `generated-${uniqueProductId}`,
       trendyolProductId: uniqueProductId, // Benzersiz ID sistemi
       shopifyProductId: productData.shopifyProductId || null,
       title: productData.title || '',
@@ -1046,6 +1046,10 @@ router.post('/api/memory/add-product', async (req, res) => {
       features: productData.features || {},
       colorOptions: productData.variants?.map(v => v.color).filter(Boolean) || [],
       sizeOptions: productData.variants?.map(v => v.size).filter(Boolean) || [],
+      originalPrice: productData.price?.original || 0,
+      currentPrice: productData.price?.withProfit || 0,
+      stockStatus: 'in_stock',
+      lastChecked: new Date(),
       isActive: true,
       profitMargin: '15.00',
       syncStatus: transferType === 'shopify' ? 'synced' : 'pending'
@@ -1060,13 +1064,13 @@ router.post('/api/memory/add-product', async (req, res) => {
         const variantToInsert = {
           productId: insertedProduct.id,
           shopifyVariantId: variant.shopifyVariantId || null,
-          color: variant.color || 'Varsayılan',
+          color: variant.color || 'Standart',
           size: variant.size || 'Tek Beden',
           sku: variant.sku || '',
-          trendyolPrice: variant.originalPrice || 0,
-          shopifyPrice: variant.salePrice || 0,
-          stockCount: variant.stock || 0,
-          inStock: (variant.stock || 0) > 0
+          trendyolPrice: productData.price?.original || 0,
+          shopifyPrice: productData.price?.withProfit || 0,
+          stockCount: variant.inStock ? 100 : 0,
+          inStock: variant.inStock || false
         };
         
         await db.insert(productVariants).values(variantToInsert);
