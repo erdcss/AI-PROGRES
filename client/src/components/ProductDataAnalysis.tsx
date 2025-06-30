@@ -124,6 +124,8 @@ export const ProductDataAnalysis: React.FC = () => {
     refetchInterval: 60000,
   });
 
+  const products = Array.isArray(productsData) ? productsData : (productsData?.products || []);
+
   // Fetch product changes
   const { data: changesData, refetch: refetchChanges } = useQuery({
     queryKey: ['/api/analysis/product-changes'],
@@ -290,7 +292,8 @@ export const ProductDataAnalysis: React.FC = () => {
   };
 
   const totalProducts = memoryStats?.totalProducts || 0;
-  const changesCount = changesData?.length || 0;
+  const changesCount = Array.isArray(changesData) ? changesData.length : (changesData?.changes?.length || 0);
+  const changes = Array.isArray(changesData) ? changesData : (changesData?.changes || []);
   const nextTask = scheduledTasks.filter(task => task.isActive)
     .sort((a, b) => new Date(a.nextRun).getTime() - new Date(b.nextRun).getTime())[0];
 
@@ -406,7 +409,7 @@ export const ProductDataAnalysis: React.FC = () => {
               <CardContent>
                 <ScrollArea className="h-48">
                   <div className="space-y-4">
-                    {productsData?.slice(0, 3).map((product: Product) => (
+                    {products?.slice(0, 3).map((product: Product) => (
                       <div key={product.id} className="p-3 bg-slate-800/50 rounded-lg border border-slate-600/30">
                         <div className="flex justify-between items-start mb-2">
                           <h4 className="font-medium text-white text-sm leading-tight">{product.title}</h4>
@@ -560,7 +563,7 @@ export const ProductDataAnalysis: React.FC = () => {
             <CardContent>
               <ScrollArea className="h-64">
                 <div className="space-y-4">
-                  {changesData?.map((change: ProductChange) => (
+                  {changes?.map((change: ProductChange) => (
                     <div key={change.id} className="p-4 bg-slate-800/50 rounded-lg border border-slate-600/30">
                       <div className="flex justify-between items-start mb-3">
                         <div>
