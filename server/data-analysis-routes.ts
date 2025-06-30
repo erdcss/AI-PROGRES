@@ -83,7 +83,8 @@ router.get('/api/analysis/recent-products', async (req, res) => {
         title: products.title,
         brand: products.brand,
         updatedAt: products.updatedAt,
-        trendyolUrl: products.trendyolUrl,
+        sourceUrl: products.sourceUrl,
+        sourcePlatform: products.sourcePlatform,
         shopifyProductId: products.shopifyProductId
       })
       .from(products)
@@ -106,7 +107,8 @@ router.get('/api/analysis/recent-products', async (req, res) => {
           title: product.title || 'Ürün adı bulunamadı',
           brand: product.brand || 'Genel',
           currentPrice: variant?.shopifyPrice ? `${parseFloat(variant.shopifyPrice).toLocaleString('tr-TR')} TL` : 'Fiyat belirlenmemiş',
-          trendyolUrl: product.trendyolUrl && product.trendyolUrl.startsWith('http') ? product.trendyolUrl : null,
+          sourceUrl: product.sourceUrl && product.sourceUrl.startsWith('http') ? product.sourceUrl : null,
+          sourcePlatform: product.sourcePlatform || 'trendyol',
           shopifyUrl: product.shopifyProductId ? 
             `https://kr5xdy-x7.myshopify.com/admin/products/${product.shopifyProductId}` : 
             null,
@@ -139,7 +141,7 @@ router.get('/api/analysis/product-changes', async (req, res) => {
       .select({
         id: products.id,
         title: products.title,
-        trendyolUrl: products.trendyolUrl
+        sourceUrl: products.sourceUrl
       })
       .from(products)
       .orderBy(desc(products.updatedAt))
@@ -159,7 +161,8 @@ router.get('/api/analysis/product-changes', async (req, res) => {
         newValue: newValues[index],
         timestamp: new Date(Date.now() - (index + 1) * 3600000).toISOString(),
         percentage: percentages[index],
-        productUrl: product.trendyolUrl && product.trendyolUrl.startsWith('http') ? product.trendyolUrl : null
+        sourceUrl: product.sourceUrl && product.sourceUrl.startsWith('http') ? product.sourceUrl : null,
+        sourcePlatform: 'trendyol'
       };
     });
 

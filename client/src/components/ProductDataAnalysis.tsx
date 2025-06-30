@@ -649,13 +649,23 @@ export const ProductDataAnalysis: React.FC = () => {
                         <div className="flex items-center gap-2">
                           <span className="text-green-400 font-medium">{product.currentPrice}</span>
                           <div className="flex items-center gap-1">
-                            {product.trendyolUrl && (
+                            {product.sourceUrl && (
                               <a 
-                                href={product.trendyolUrl} 
+                                href={product.sourceUrl} 
                                 target="_blank" 
                                 rel="noopener noreferrer"
-                                className="text-orange-400 hover:text-orange-300 transition-colors p-1 rounded"
-                                title="Trendyol'da Görüntüle"
+                                className={`transition-colors p-1 rounded ${
+                                  product.sourcePlatform === 'trendyol' ? 'text-orange-400 hover:text-orange-300' :
+                                  product.sourcePlatform === 'hepsiburada' ? 'text-red-400 hover:text-red-300' :
+                                  product.sourcePlatform === 'n11' ? 'text-purple-400 hover:text-purple-300' :
+                                  'text-blue-400 hover:text-blue-300'
+                                }`}
+                                title={`${
+                                  product.sourcePlatform === 'trendyol' ? 'Trendyol' :
+                                  product.sourcePlatform === 'hepsiburada' ? 'Hepsiburada' :
+                                  product.sourcePlatform === 'n11' ? 'N11' :
+                                  'Kaynak Platform'
+                                }'da Görüntüle`}
                               >
                                 <Globe className="h-4 w-4" />
                               </a>
