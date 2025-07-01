@@ -23,6 +23,7 @@ import { AIBrandLogo } from "@/components/AILogo";
 import ProductDataAnalysisPage from "@/pages/product-data-analysis";
 import SchedulerPage from "@/pages/scheduler";
 import SystemStatusPage from "@/pages/system-status";
+import ReplitAgent from "@/pages/replit-agent";
 
 // Login component with password protection
 function LoginScreen({ onLogin }: { onLogin: () => void }) {
@@ -247,6 +248,11 @@ function Router() {
       <Route path="/system-status">
         <PageTransition>
           <SystemStatusPage />
+        </PageTransition>
+      </Route>
+      <Route path="/replit-agent">
+        <PageTransition>
+          <ReplitAgent />
         </PageTransition>
       </Route>
       <Route>

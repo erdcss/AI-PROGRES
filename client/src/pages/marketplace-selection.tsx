@@ -1,6 +1,6 @@
 import { motion } from "framer-motion";
 import { useLocation } from "wouter";
-import { ShoppingCart, Package, Store, Truck, BarChart3, Shield } from "lucide-react";
+import { ShoppingCart, Package, Store, Truck, BarChart3, Shield, Bot } from "lucide-react";
 import { RealTimeClock } from "@/components/RealTimeClock";
 
 const MarketplaceSelection = () => {
@@ -152,6 +152,14 @@ const MarketplaceSelection = () => {
             >
               <Shield className="h-6 w-6 inline-block mr-2" />
               Sistem Durumu & Hata Merkezi
+            </button>
+            
+            <button
+              onClick={() => setLocation("/replit-agent")}
+              className="bg-gradient-to-r from-orange-600 to-red-600 hover:from-orange-700 hover:to-red-700 text-white font-semibold py-4 px-8 rounded-xl shadow-lg transition-all duration-300 transform hover:scale-105"
+            >
+              <Bot className="h-6 w-6 inline-block mr-2" />
+              Replit.Agent
             </button>
           </div>
           

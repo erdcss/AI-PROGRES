@@ -5,6 +5,7 @@ import apiRoutes from "./api-routes";
 import importRoutes from "./import-route";
 import dataAnalysisRoutes from './data-analysis-routes';
 import memoryStatusRoutes from './memory-status-api';
+import replitAgentRoutes from './replit-agent-routes';
 import * as pathModule from "path";
 import { fileURLToPath } from 'url';
 import * as fs from 'fs';
