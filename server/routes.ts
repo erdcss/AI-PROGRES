@@ -2092,43 +2092,21 @@ export function registerRoutes(app: Express): Server {
       if (fallbackResult && fallbackResult.success) {
         console.log(`✅ Clean Scraper successful: ${fallbackResult.features.length} features`);
         
-        // Always enhance with manual feature extraction for better results
-        console.log('🚀 Enhancing with manual feature extraction...');
-        const manualResult = await manualFeatureExtraction(url);
+        // Use Clean Scraper only for maximum accuracy
+        // Manual extraction disabled due to irrelevant features (e.g., "kumaş kaplı sandalyeler" for Stanley thermos)
+        console.log('✅ Using Clean Scraper features only for accuracy');
         
-        if (manualResult.success) {
-          console.log(`✅ Manual extraction results: ${manualResult.features.length} features vs Clean Scraper ${fallbackResult.features.length}`);
-          
-          // Always use manual features if available, as they provide richer data
-          if (manualResult.features.length >= 3) {
-            // Use enhanced manual results for rich feature extraction
-            return res.json({
-              success: true,
-              brand: fallbackResult.brand,
-              title: fallbackResult.title,
-              price: fallbackResult.price,
-              images: fallbackResult.images,
-              features: manualResult.features, // Use enhanced manual features
-              variants: fallbackResult.variants,
-              extractionMethod: 'enhanced-manual',
-              featureCount: manualResult.features.length,
-              processingTime: manualResult.processingTime,
-              manualEnhancement: true
-            });
-          }
-        } else {
-          // Fallback to clean scraper results
-          return res.json({
-            success: true,
-            brand: fallbackResult.brand,
-            title: fallbackResult.title,
-            price: fallbackResult.price,
-            images: fallbackResult.images,
-            features: fallbackResult.features,
-            variants: fallbackResult.variants,
-            extractionMethod: 'clean-scraper'
-          });
-        }
+        // Return clean scraper results directly for accurate feature extraction
+        return res.json({
+          success: true,
+          brand: fallbackResult.brand,
+          title: fallbackResult.title,
+          price: fallbackResult.price,
+          images: fallbackResult.images,
+          features: fallbackResult.features,
+          variants: fallbackResult.variants,
+          extractionMethod: 'clean-scraper'
+        });
       }
 
       
