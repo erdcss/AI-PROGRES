@@ -2121,6 +2121,28 @@ export function registerRoutes(app: Express): Server {
     }
   });
 
+  // Precise feature extraction endpoint (Clean Scraper based)
+  app.post('/api/precise-features', async (req, res) => {
+    try {
+      const { url } = req.body;
+      
+      if (!url) {
+        return res.status(400).json({ error: 'URL gerekli' });
+      }
+
+      const { preciseFeatureExtraction } = await import('./precise-feature-extractor');
+      const result = await preciseFeatureExtraction(url);
+      
+      res.json(result);
+    } catch (error) {
+      console.error('Precise feature extraction error:', error);
+      res.status(500).json({ 
+        success: false,
+        error: error instanceof Error ? error.message : 'Unknown error'
+      });
+    }
+  });
+
   // Görsel debug endpoint
   app.post('/api/debug-images', async (req, res) => {
     try {

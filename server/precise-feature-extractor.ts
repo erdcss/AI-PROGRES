@@ -48,29 +48,45 @@ export async function preciseFeatureExtraction(url: string): Promise<PreciseExtr
     const $ = cheerio.load(htmlContent);
     const features: ProductFeature[] = [];
     
-    console.log('\n🎯 PRECISE EXTRACTION METHODS:\n');
+    console.log('\n🎯 PRECISE FEATURE EXTRACTION (Clean Scraper Based):\n');
     
-    // METHOD 1: JSON-LD Product Schema
-    console.log('1️⃣ JSON-LD Product Schema extraction...');
-    extractFromJsonLD($, features);
+    // Use Clean Scraper for maximum accuracy
+    // Manual extraction produces irrelevant features like "kumaş kaplı sandalyeler" for Stanley thermos
+    console.log('🔧 Using Clean Scraper method for accurate feature detection...');
     
-    // METHOD 2: Trendyol Product Data Scripts
-    console.log('2️⃣ Trendyol product data scripts...');
-    extractFromTrendyolScripts($, features);
-    
-    // METHOD 3: Product Attribute Tables  
-    console.log('3️⃣ Structured attribute tables...');
-    extractFromAttributeTables($, features);
-    
-    // METHOD 4: Product Detail Sections
-    console.log('4️⃣ Product detail sections...');
-    extractFromDetailSections($, features);
+    try {
+      const { enhancedTrendyolScraper } = await import('./enhanced-trendyol-scraper');
+      const cleanResult = await enhancedTrendyolScraper(url);
+      
+      if (cleanResult.success && cleanResult.features) {
+        console.log(`✅ Clean Scraper found ${cleanResult.features.length} accurate features`);
+        
+        // Convert to PreciseFeature format with high confidence
+        cleanResult.features.forEach(feature => {
+          features.push({
+            key: feature.key,
+            value: feature.value,
+            confidence: 0.95, // High confidence for Clean Scraper
+            source: 'clean-scraper-precise'
+          });
+        });
+      } else {
+        console.log('⚠️ Clean Scraper failed, using fallback methods...');
+        
+        // Fallback to targeted extraction only if Clean Scraper fails
+        extractFromAttributeTables($, features);
+        extractFromDetailSections($, features);
+      }
+    } catch (error) {
+      console.log(`⚠️ Clean Scraper import failed: ${error.message}, using fallback...`);
+      extractFromAttributeTables($, features);
+    }
     
     // Clean and deduplicate features
     const cleanFeatures = cleanAndDeduplicateFeatures(features);
     
     const processingTime = Date.now() - startTime;
-    console.log(`\n✅ Precise extraction completed: ${cleanFeatures.length} authentic features (${processingTime}ms)`);
+    console.log(`\n✅ Precise extraction completed: ${cleanFeatures.length} accurate features (${processingTime}ms)`);
     
     return {
       success: true,
