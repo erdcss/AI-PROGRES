@@ -6,6 +6,7 @@ import importRoutes from "./import-route";
 import dataAnalysisRoutes from './data-analysis-routes';
 import memoryStatusRoutes from './memory-status-api';
 import replitAgentRoutes from './replit-agent-routes';
+import sosRoutes from './sos-routes';
 import * as pathModule from "path";
 import { fileURLToPath } from 'url';
 import * as fs from 'fs';
@@ -277,6 +278,7 @@ app.use((req, res, next) => {
   
   // Add Replit Agent routes
   app.use('/api/agent', replitAgentRoutes);
+app.use('/api/sos', sosRoutes);
   
   // Add import routes
   app.use(importRoutes);

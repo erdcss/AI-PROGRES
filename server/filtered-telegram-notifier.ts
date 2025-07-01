@@ -108,6 +108,14 @@ export class FilteredTelegramNotifier {
     await this.sendMessage(message);
   }
 
+  // S.O.S Critical Notifications
+  async sendSOSAlert(message: string) {
+    if (!this.bot) return;
+
+    const sosMessage = `🚨 **S.O.S ALERT**\n\n${message}\n\n⚠️ Kritik işlem gerçekleştirildi!`;
+    await this.sendMessage(sosMessage);
+  }
+
   private async sendMessage(message: string) {
     try {
       await this.bot!.sendMessage(this.chatId, message, { parse_mode: 'Markdown' });
