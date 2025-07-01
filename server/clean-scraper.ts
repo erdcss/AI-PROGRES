@@ -8,6 +8,7 @@ import { extractRealColors } from './fixed-color-extractor';
 import { extractProductFeatures } from './fixed-feature-extractor';
 import { advancedAntiBot } from './advanced-anti-bot-scraper';
 import { ultimateBypass } from './ultimate-bypass-scraper';
+import { enhancedCLNKScraper } from './enhanced-clnk-scraper';
 
 export interface CleanProductData {
   success: boolean;
@@ -38,6 +39,56 @@ export async function cleanScrape(url: string): Promise<CleanProductData> {
     }
     
     console.log(`🔧 Clean scraper processing: ${processedUrl}`);
+    
+    // CLNK özel işlem kontrolü - debug ekli
+    console.log(`🔍 URL debug: ${processedUrl}, includes /clnk/: ${processedUrl.includes('/clnk/')}, includes clnk: ${processedUrl.includes('clnk')}`);
+    
+    if (processedUrl.includes('/clnk/') || processedUrl.includes('clnk')) {
+      console.log('🎯 CLNK ürünü tespit edildi, enhanced scraper ile görsel ve özellik çıkarılıyor...');
+      
+      const clnkResult = await enhancedCLNKScraper(processedUrl);
+      if (clnkResult.success) {
+        console.log(`✅ Enhanced CLNK: ${clnkResult.images.length} görsel, ${clnkResult.features.length} özellik`);
+        
+        // Temel bilgiler için normal scraper çalıştır
+        const basicResult = await ultimateBypass(processedUrl);
+        if (basicResult.success && basicResult.html) {
+          const $ = cheerio.load(basicResult.html);
+          
+          // Title çıkar
+          let title = 'CLNK Product';
+          const titleSelectors = ['h1[data-testid="pdp-product-name"]', '.pr-new-br h1', 'h1.product-name', 'h1'];
+          for (const selector of titleSelectors) {
+            const titleText = $(selector).first().text().trim();
+            if (titleText && titleText.length > 5) {
+              title = titleText;
+              break;
+            }
+          }
+          
+          // Brand çıkar
+          const brand = processedUrl.includes('/clnk/') ? 'Clnk' : 'CLNK';
+          
+          // Price çıkar
+          const price = await extractPriceWithAllMethods(basicResult.html, processedUrl);
+          
+          // CLNK verilerini birleştir
+          return {
+            success: true,
+            title,
+            brand,
+            price,
+            images: clnkResult.images,
+            features: clnkResult.features,
+            variants: [{
+              color: 'Standart',
+              size: 'Tek Beden',
+              inStock: true
+            }]
+          };
+        }
+      }
+    }
     
     // Try ultimate bypass system first
     const ultimateResult = await ultimateBypass(processedUrl);
