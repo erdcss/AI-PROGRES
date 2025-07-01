@@ -20,7 +20,7 @@ async function extractCLNKImages(html: string, url: string): Promise<string[]> {
   const $ = cheerio.load(html);
   const images: string[] = [];
   
-  // CLNK ürünleri için özel selektörler
+  // CLNK ürünleri için kapsamlı selektörler
   const imageSelectors = [
     '.gallery-modal img',
     '.product-gallery img', 
@@ -29,7 +29,16 @@ async function extractCLNKImages(html: string, url: string): Promise<string[]> {
     '.image-gallery img',
     '[data-testid="product-image"] img',
     '.pdp-gallery img',
-    '.product-detail-images img'
+    '.product-detail-images img',
+    // CLNK boutique özel selektörler
+    '.boutique-product-images img',
+    '.merchant-gallery img',
+    '.product-photo img',
+    '.main-image img',
+    '.zoom-image img',
+    'img[src*="cdn.dsmcdn.com"]',
+    'img[data-src*="cdn.dsmcdn.com"]',
+    'img[data-original*="cdn.dsmcdn.com"]'
   ];
   
   // Her selektör için görsel ara
@@ -50,22 +59,55 @@ async function extractCLNKImages(html: string, url: string): Promise<string[]> {
     });
   });
   
-  // Script içindeki görselleri ara
+  // Script içindeki görselleri ara (Gelişmiş)
   const scriptTexts = $('script').map((_, script) => $(script).html()).get();
   
   for (const scriptText of scriptTexts) {
-    if (scriptText && scriptText.includes('images')) {
-      // JSON yapılarındaki görselleri bul
-      const imageRegex = /https:\/\/cdn\.dsmcdn\.com[^"'\s]*\.(?:jpg|jpeg|png)/gi;
-      const matches = scriptText.match(imageRegex);
+    if (scriptText && (scriptText.includes('images') || scriptText.includes('cdn.dsmcdn.com'))) {
+      // Kapsamlı görsel regex'i
+      const imageRegexes = [
+        /https:\/\/cdn\.dsmcdn\.com[^"'\s]*\.(?:jpg|jpeg|png)/gi,
+        /"url":\s*"(https:\/\/cdn\.dsmcdn\.com[^"]*\.(?:jpg|jpeg|png))"/gi,
+        /"src":\s*"(https:\/\/cdn\.dsmcdn\.com[^"]*\.(?:jpg|jpeg|png))"/gi,
+        /"image":\s*"(https:\/\/cdn\.dsmcdn\.com[^"]*\.(?:jpg|jpeg|png))"/gi,
+        /cdn\.dsmcdn\.com[^"'\s]*\/[^"'\s]*\.(?:jpg|jpeg|png)/gi
+      ];
       
-      if (matches) {
-        matches.forEach(match => {
-          if (match.includes('_org_zoom.jpg')) {
-            images.push(match);
+      imageRegexes.forEach(regex => {
+        let match;
+        while ((match = regex.exec(scriptText)) !== null) {
+          const imageUrl = match[1] || match[0];
+          if (imageUrl && imageUrl.includes('cdn.dsmcdn.com')) {
+            // URL'yi tam format'a çevir
+            const fullUrl = imageUrl.startsWith('http') ? imageUrl : `https://${imageUrl}`;
+            // Yüksek kaliteye çevir
+            if (fullUrl.includes('_org_zoom.jpg')) {
+              images.push(fullUrl);
+            } else {
+              const highQuality = fullUrl.replace(/(_\d+x\d+)?\.(jpg|jpeg|png)$/i, '_org_zoom.jpg');
+              images.push(highQuality);
+            }
           }
-        });
-      }
+        }
+      });
+    }
+  }
+  
+  // Eğer hala görsel yoksa, tüm CDN linklerini tara
+  if (images.length === 0) {
+    console.log('🔍 Tüm HTML içeriğinde CDN arama yapılıyor...');
+    const allCdnRegex = /https?:\/\/cdn\.dsmcdn\.com[^"'\s]*\.(?:jpg|jpeg|png)/gi;
+    const allMatches = html.match(allCdnRegex);
+    
+    if (allMatches) {
+      allMatches.forEach(match => {
+        if (match.includes('_org_zoom.jpg') || match.includes('zoom')) {
+          images.push(match);
+        } else {
+          const highQuality = match.replace(/(_\d+x\d+)?\.(jpg|jpeg|png)$/i, '_org_zoom.jpg');
+          images.push(highQuality);
+        }
+      });
     }
   }
   
