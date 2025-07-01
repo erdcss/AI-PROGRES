@@ -43,7 +43,7 @@ interface CodeBlock {
   filename?: string;
 }
 
-// AI Chat endpoint with comprehensive capabilities
+// AI Chat endpoint with comprehensive capabilities and fallback system
 router.post('/chat', async (req, res) => {
   try {
     const { message, context, conversationHistory } = req.body;
@@ -52,6 +52,39 @@ router.post('/chat', async (req, res) => {
       return res.status(400).json({
         success: false,
         error: 'Mesaj gerekli'
+      });
+    }
+
+    // Check if API key is available
+    if (!process.env.ANTHROPIC_API_KEY || process.env.ANTHROPIC_API_KEY.length < 10) {
+      return res.json({
+        success: true,
+        response: `🤖 **Replit Agent - Fallback Mode**
+
+Merhaba! Şu anda AI API bağlantısı mevcut değil, ancak size yardımcı olmaya devam edebilirim.
+
+**📋 Önerilerim:**
+
+**Kod Geliştirme İçin:**
+- **TypeScript hatalarını gidermek**: \`npm run type-check\` komutu çalıştırın
+- **React bileşeni oluşturmak**: shadcn/ui bileşenlerini kullanın
+- **API endpoint eklemek**: server/routes.ts dosyasına yeni route ekleyin
+- **Database şeması güncellemek**: shared/schema.ts dosyasını düzenleyin
+
+**Mevcut Sistem:**
+${context?.currentFile ? `- Açık dosya: ${context.currentFile}` : ''}
+${context?.systemInfo ? `- Sistem durumu: ${context.systemInfo.systemStatus}` : ''}
+${context?.systemInfo ? `- Toplam ürün: ${context.systemInfo.totalProducts}` : ''}
+
+**🔧 Hızlı Çözümler:**
+- Dosya sistemi explorer kullanarak dosyaları görüntüleyin
+- Knowledge base'den proje dokümantasyonunu inceleyin
+- Memory context'den sistem durumunu kontrol edin
+
+Tam AI desteği için lütfen geçerli bir Anthropic API anahtarı sağlayın.`,
+        codeBlocks: [],
+        fileChanges: [],
+        timestamp: new Date().toISOString()
       });
     }
 
@@ -130,10 +163,35 @@ ${context?.systemInfo ? `- Toplam ürün: ${context.systemInfo.totalProducts}` :
 
   } catch (error) {
     console.error('AI Chat error:', error);
-    res.status(500).json({
-      success: false,
-      error: 'AI yanıtı alınamadı',
-      details: error instanceof Error ? error.message : 'Unknown error'
+    
+    // Enhanced fallback response for API errors
+    const fallbackResponse = `🤖 **Replit Agent - Teknik Destek**
+
+Şu anda AI API ile bağlantı sorunu yaşıyorum, ancak size yardımcı olmaya devam edebilirim.
+
+**🔧 Genel Kod Yardımı:**
+
+**TypeScript/React İçin:**
+- Component oluşturma: \`function MyComponent() { return <div>Content</div>; }\`
+- State kullanımı: \`const [value, setValue] = useState('')\`
+- API çağrısı: \`useQuery({ queryKey: ['/api/endpoint'] })\`
+
+**Express.js API İçin:**
+- Route ekleme: \`router.get('/api/endpoint', (req, res) => { res.json({success: true}); })\`
+- Middleware: \`app.use(express.json())\`
+
+**Database (Drizzle) İçin:**
+- Tablo tanımı: \`export const table = pgTable('name', { id: serial('id').primaryKey() })\`
+- Sorgu: \`await db.select().from(table)\`
+
+Tam AI desteği için API anahtarını kontrol ediniz.`;
+
+    res.json({
+      success: true,
+      response: fallbackResponse,
+      codeBlocks: [],
+      fileChanges: [],
+      timestamp: new Date().toISOString()
     });
   }
 });
@@ -182,6 +240,53 @@ function extractFileChanges(text: string) {
   
   return fileChanges;
 }
+
+// API Key configuration endpoint
+router.post('/configure-api', async (req, res) => {
+  try {
+    const { apiKey } = req.body;
+    
+    if (!apiKey || !apiKey.startsWith('sk-ant-')) {
+      return res.status(400).json({
+        success: false,
+        error: 'Geçerli bir Anthropic API anahtarı gerekli (sk-ant- ile başlamalı)'
+      });
+    }
+
+    // Update the environment variable
+    process.env.ANTHROPIC_API_KEY = apiKey;
+    
+    res.json({
+      success: true,
+      message: 'API anahtarı başarıyla güncellendi'
+    });
+  } catch (error) {
+    res.status(500).json({
+      success: false,
+      error: 'API anahtarı güncellenirken hata oluştu'
+    });
+  }
+});
+
+// Get API key status
+router.get('/api-status', async (req, res) => {
+  try {
+    const hasValidKey = process.env.ANTHROPIC_API_KEY && 
+                       process.env.ANTHROPIC_API_KEY.length > 10 && 
+                       process.env.ANTHROPIC_API_KEY.startsWith('sk-ant-');
+    
+    res.json({
+      success: true,
+      hasValidKey,
+      keyPrefix: hasValidKey ? process.env.ANTHROPIC_API_KEY.substring(0, 10) + '...' : null
+    });
+  } catch (error) {
+    res.status(500).json({
+      success: false,
+      error: 'API anahtarı durumu kontrol edilemedi'
+    });
+  }
+});
 
 // Get knowledge base
 router.get('/knowledge', async (req, res) => {

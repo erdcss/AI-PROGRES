@@ -137,6 +137,9 @@ Ben gelişmiş AI kod asistanınızım. Size nasıl yardımcı olabilirim?
   const [knowledge, setKnowledge] = useState<KnowledgeItem[]>([]);
   const [memoryContext, setMemoryContext] = useState<MemoryContext | null>(null);
   const [activeTab, setActiveTab] = useState<'files' | 'knowledge' | 'memory'>('files');
+  const [apiKeyStatus, setApiKeyStatus] = useState<{hasValidKey: boolean, keyPrefix?: string} | null>(null);
+  const [showApiConfig, setShowApiConfig] = useState(false);
+  const [newApiKey, setNewApiKey] = useState('');
   const { toast } = useToast();
   const messagesEndRef = useRef<HTMLDivElement>(null);
 
@@ -270,6 +273,59 @@ Ben gelişmiş AI kod asistanınızım. Size nasıl yardımcı olabilirim?
     }
   };
 
+  // Check API key status
+  const checkApiStatus = async () => {
+    try {
+      const response = await fetch('/api/agent/api-status');
+      if (response.ok) {
+        const data = await response.json();
+        setApiKeyStatus(data);
+      }
+    } catch (error) {
+      console.error('Failed to check API status:', error);
+    }
+  };
+
+  // Configure API key
+  const configureApiKey = async () => {
+    if (!newApiKey.trim() || !newApiKey.startsWith('sk-ant-')) {
+      toast({
+        title: "Hata",
+        description: "Geçerli bir Anthropic API anahtarı girin (sk-ant- ile başlamalı)",
+        variant: "destructive"
+      });
+      return;
+    }
+
+    try {
+      const response = await fetch('/api/agent/configure-api', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({ apiKey: newApiKey }),
+      });
+
+      if (response.ok) {
+        toast({
+          title: "Başarılı",
+          description: "API anahtarı güncellendi. AI özellikler artık kullanılabilir.",
+        });
+        setNewApiKey('');
+        setShowApiConfig(false);
+        checkApiStatus();
+      } else {
+        throw new Error('API key update failed');
+      }
+    } catch (error) {
+      toast({
+        title: "Hata",
+        description: "API anahtarı güncellenirken bir hata oluştu",
+        variant: "destructive"
+      });
+    }
+  };
+
   // Send message to agent with conversation history
   const sendMessage = async () => {
     if (!newMessage.trim() || isLoading) return;
@@ -349,6 +405,7 @@ Ben gelişmiş AI kod asistanınızım. Size nasıl yardımcı olabilirim?
     loadFileSystem();
     loadKnowledge();
     loadMemoryContext();
+    checkApiStatus();
   }, []);
 
   return (
