@@ -445,48 +445,7 @@ async function parseProductData(html: string, url: string): Promise<TrendyolProd
       debug(`Enhanced feature extraction error: ${enhancedError}`);
     }
 
-    // Method 3: Comprehensive HTML pattern scanning for all product features
-    try {
-      const fullHTML = $.html();
-      const targetFeatures = [
-        'Bağlama Şekli', 'Materyal', 'Taban Tipi', 'Koleksiyon', 'Dış Materyal',
-        'Renk', 'Saya Materyali', 'Astar Materyali', 'İç Taban Materyali',
-        'Taban Materyali', 'Topuk Boyu', 'Persona', 'Ek Özellik',
-        'Sürdürülebilirlik Detayı', 'Topuk Tipi', 'Ortam', 'Desen',
-        'Kumaş Tipi', 'Ürün Detayı', 'Menşei', 'Kutu Durumu',
-        'Materyal Bileşeni', 'Yıkama Talimatları'
-      ];
-
-      targetFeatures.forEach(feature => {
-        if (!attributes[feature]) {
-          // Create flexible pattern for each feature
-          const escapedFeature = feature.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
-          const pattern = new RegExp(`${escapedFeature}[\\s:]*([^<>\\n]{2,100})`, 'gi');
-          const matches = fullHTML.match(pattern);
-          
-          if (matches && matches.length > 0) {
-            const match = matches[0];
-            const colonIndex = match.indexOf(':');
-            const spaceIndex = match.indexOf(' ', feature.length);
-            const splitIndex = colonIndex > 0 ? colonIndex : spaceIndex;
-            
-            if (splitIndex > 0 && splitIndex < match.length - 1) {
-              const value = match.substring(splitIndex + 1).trim()
-                .replace(/[<>]/g, '')
-                .replace(/&quot;/g, '"')
-                .replace(/&amp;/g, '&');
-              
-              if (value && value.length > 1 && value.length < 200 && isValidFeatureValue(value)) {
-                attributes[feature] = value;
-                debug(`Pattern scan found: ${feature} = ${value}`);
-              }
-            }
-          }
-        }
-      });
-    } catch (patternError) {
-      debug(`Pattern scanning error: ${patternError}`);
-    }
+    // Method 3: DISABLED FOR SPEED - Skip slow HTML pattern scanning
 
     debug(`Ürün başarıyla parse edildi: ${title}`);
     debug(`Price extracted: ${price} TL`);

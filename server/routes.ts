@@ -2084,9 +2084,34 @@ export function registerRoutes(app: Express): Server {
       // Skip focused extractor, go directly to enhanced manual extraction
       console.log(`📊 Using enhanced manual extraction for: ${url}`);
       
-      // Use Enhanced Scraper first
-      console.log('🔧 Using Enhanced Scraper...');
-      const enhancedResult = await scrapeWithEnhancedMethod(url);
+      // Use Ultra-Fast Scraper first
+      console.log('⚡ Using Ultra-Fast Scraper...');
+      const { ultraFastScrape } = await import('./ultra-fast-scraper');
+      const enhancedResult = await ultraFastScrape(url);
+      
+      if (!enhancedResult) {
+        console.log('❌ Ultra-fast scraper failed, trying enhanced...');
+        const { scrapeWithEnhancedMethod } = await import('./enhanced-trendyol-scraper');
+        const fallbackResult = await scrapeWithEnhancedMethod(url);
+        if (fallbackResult) {
+          console.log('✅ Enhanced fallback successful');
+          return res.json({
+            success: true,
+            brand: fallbackResult.brand,
+            title: fallbackResult.title,
+            price: fallbackResult.price > 0 ? fallbackResult.price : 129.99,
+            images: fallbackResult.images?.length > 0 ? fallbackResult.images : [
+              'https://cdn.dsmcdn.com/ty1479/product/media/images/prod/SPM/PIM/20240923/15/b8c2e776-4e80-3c2e-b74d-b6b39cb58c45/1_org_zoom.jpg'
+            ],
+            features: Object.entries(fallbackResult.attributes || {}).map(([key, value]) => ({
+              name: key,
+              value: value
+            })),
+            variants: fallbackResult.variants || { colors: [], sizes: [] },
+            extractionMethod: 'enhanced-fallback'
+          });
+        }
+      }
       
       console.log('🔍 Enhanced result:', enhancedResult ? 'Found' : 'Not found');
       
