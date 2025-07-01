@@ -34,7 +34,6 @@ export async function ultraFastScrape(url: string): Promise<UltraFastProductData
     });
     
     const html = response.data;
-    const $ = cheerio.load(html);
     
     // ULTRA-SPEED: Extract only core data with zero processing overhead
     
@@ -44,8 +43,10 @@ export async function ultraFastScrape(url: string): Promise<UltraFastProductData
     // 2. Lightning brand - URL extraction
     const brand = url.split('/')[3] || 'Brand';
     
-    // 3. Lightning price - single regex match
-    const price = parseFloat(html.match(/"salePrice":(\d+(?:\.\d+)?)/)?.[1] || '0');
+    // 3. Lightning price - comprehensive fast extraction
+    const priceMatches = html.match(/\b\d{2,4}\.\d{1,2}\b/g) || [];
+    const price = priceMatches.length > 0 ? 
+      Math.max(...priceMatches.map(p => parseFloat(p)).filter(p => p > 10 && p < 10000)) : 0;
     
     // 4. Lightning images - top 5 only
     const images = (html.match(/https:\/\/cdn\.dsmcdn\.com[^"'\s]*_org_zoom\.jpg/g) || []).slice(0, 5);
