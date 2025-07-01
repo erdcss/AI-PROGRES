@@ -950,22 +950,22 @@ function ScraperPage({ platform = 'trendyol' }: ScraperPageProps) {
             </div>
           </div>
 
-          {error && (
+          {mainError && (
             <div className="mb-6">
               <Alert variant="destructive" className="bg-gradient-to-br from-red-900/40 to-red-800/40 backdrop-blur-sm border border-red-500/30 shadow-2xl rounded-2xl">
-                {getErrorIcon(error.status)}
-                <AlertTitle className="text-red-100 font-semibold">{getErrorTitle(error.status)}</AlertTitle>
+                {getErrorIcon(mainError.status)}
+                <AlertTitle className="text-red-100 font-semibold">{getErrorTitle(mainError.status)}</AlertTitle>
                 <AlertDescription className="mt-3 space-y-3 text-red-100">
-                  <p className="font-medium">{error.message}</p>
-                  {error.solution && (
+                  <p className="font-medium">{mainError.message}</p>
+                  {mainError.solution && (
                     <div className="p-3 bg-red-900/30 rounded-xl border border-red-600/30">
                       <strong className="text-red-200">Çözüm önerisi:</strong>
-                      <span className="ml-2 text-red-100">{error.solution}</span>
+                      <span className="ml-2 text-red-100">{mainError.solution}</span>
                     </div>
                   )}
-                  {error.details && (
+                  {mainError.details && (
                     <p className="text-sm text-red-300 bg-red-950/30 p-2 rounded-lg border border-red-700/20">
-                      <strong>Teknik detay:</strong> {error.details}
+                      <strong>Teknik detay:</strong> {mainError.details}
                     </p>
                   )}
                 </AlertDescription>
@@ -1370,21 +1370,26 @@ function ScraperPage({ platform = 'trendyol' }: ScraperPageProps) {
                     
                     {/* Ürün Özellikleri Önizleme */}
                     {product.features && product.features.length > 0 && (
-                      <div className="bg-gradient-to-br from-blue-900/30 to-indigo-900/30 backdrop-blur-sm p-4 rounded-xl border border-blue-500/30">
-                        <div className="flex items-center justify-between mb-3">
-                          <span className="text-blue-300 text-sm font-semibold">Ürün Özellikleri</span>
-                          <span className="text-xs text-blue-200 bg-blue-800/40 px-2 py-1 rounded-lg">{product.features.length} özellik</span>
+                      <div className="bg-gradient-to-br from-emerald-900/40 to-teal-900/40 backdrop-blur-sm p-5 rounded-xl border border-emerald-500/40 shadow-lg">
+                        <div className="flex items-center justify-between mb-4">
+                          <span className="text-emerald-300 text-base font-bold flex items-center gap-2">
+                            <svg className="w-5 h-5" fill="currentColor" viewBox="0 0 20 20">
+                              <path fillRule="evenodd" d="M3 4a1 1 0 011-1h12a1 1 0 011 1v2a1 1 0 01-1 1H4a1 1 0 01-1-1V4zm0 4a1 1 0 011-1h12a1 1 0 011 1v2a1 1 0 01-1 1H4a1 1 0 01-1-1V8zm0 4a1 1 0 011-1h12a1 1 0 011 1v2a1 1 0 01-1 1H4a1 1 0 01-1-1v-2z" clipRule="evenodd" />
+                            </svg>
+                            Ürün Özellikleri
+                          </span>
+                          <span className="text-sm text-emerald-200 bg-emerald-800/50 px-3 py-1 rounded-full font-medium">{product.features.length} özellik</span>
                         </div>
-                        <div className="max-h-32 overflow-y-auto space-y-1">
-                          {product.features.slice(0, 6).map((feature, index) => (
-                            <div key={index} className="flex justify-between text-xs">
-                              <span className="text-gray-400">{feature.key}:</span>
-                              <span className="text-gray-300 ml-2 text-right">{feature.value}</span>
+                        <div className="max-h-40 overflow-y-auto space-y-2">
+                          {product.features.slice(0, 10).map((feature, index) => (
+                            <div key={index} className="flex justify-between items-center bg-emerald-800/20 p-2 rounded-lg">
+                              <span className="text-emerald-200 font-medium">{feature.key}:</span>
+                              <span className="text-white ml-2 text-right font-semibold">{feature.value}</span>
                             </div>
                           ))}
-                          {product.features.length > 6 && (
-                            <div className="text-center pt-1">
-                              <span className="text-xs text-blue-400">+{product.features.length - 6} daha...</span>
+                          {product.features.length > 10 && (
+                            <div className="text-center pt-2">
+                              <span className="text-sm text-emerald-400 bg-emerald-900/30 px-3 py-1 rounded-full">+{product.features.length - 10} daha...</span>
                             </div>
                           )}
                         </div>
