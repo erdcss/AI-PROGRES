@@ -51,32 +51,118 @@ export async function hyperFastScrape(url: string): Promise<HyperFastProductData
       transformResponse: (data) => data // Skip any transformations
     });
     
-    // STEP 4: Hyper-fast regex extraction (single pass)
+    // STEP 4: Real data extraction with speed optimization
     const html = response.data;
     if (!html) return null;
     
-    // Pre-compiled regex patterns for speed
-    const titleMatch = html.match(/<h1[^>]*>([^<]+)/);
-    const priceMatches = html.match(/\b\d{2,4}\.\d{1,2}\b/g);
-    const imageMatches = html.match(/https:\/\/cdn\.dsmcdn\.com[^"'\s]*_org_zoom\.jpg/g);
+    // Real title extraction from multiple sources
+    const titlePatterns = [
+      /<h1[^>]*class="[^"]*pr-new-br[^"]*"[^>]*>([^<]+)/,
+      /<h1[^>]*>([^<]+)/,
+      /<title>([^<]+)</
+    ];
     
-    const title = titleMatch?.[1]?.trim() || 'Product';
-    const price = priceMatches ? Math.max(...priceMatches.map(p => parseFloat(p)).filter(p => p > 10 && p < 10000)) : 0;
-    const images = imageMatches?.slice(0, 2) || []; // Only 2 images for speed
+    let title = 'Product';
+    for (const pattern of titlePatterns) {
+      const match = html.match(pattern);
+      if (match?.[1]) {
+        title = match[1].trim().replace(/\s+/g, ' ');
+        if (!title.includes('Trendyol') && title.length > 10) break;
+      }
+    }
     
-    // Minimal data structure
+    // Enhanced price extraction with Turkish formatting
+    const pricePatterns = [
+      /price[":]*\s*(\d{1,3}(?:\.\d{3})*,?\d{0,2})/gi,
+      /(\d{1,3}(?:\.\d{3})*,?\d{0,2})\s*TL/gi,
+      /\b(\d{2,4}(?:\.\d{3})*(?:,\d{2})?)\b/g
+    ];
+    
+    let price = 0;
+    for (const pattern of pricePatterns) {
+      const matches = html.match(pattern);
+      if (matches) {
+        const prices = matches.map((p: string) => {
+          const numStr = p.replace(/[^\d.,]/g, '');
+          if (numStr.includes('.') && numStr.includes(',')) {
+            return parseFloat(numStr.replace(/\./g, '').replace(',', '.'));
+          }
+          return parseFloat(numStr.replace(',', '.'));
+        }).filter((p: number) => p > 10 && p < 10000);
+        
+        if (prices.length > 0) {
+          price = Math.max(...prices);
+          break;
+        }
+      }
+    }
+    
+    // Enhanced image extraction
+    const imagePatterns = [
+      /https:\/\/cdn\.dsmcdn\.com[^"'\s]*_org_zoom\.jpg/g,
+      /https:\/\/cdn\.dsmcdn\.com[^"'\s]*\.jpg/g
+    ];
+    
+    let images: string[] = [];
+    for (const pattern of imagePatterns) {
+      const matches = html.match(pattern);
+      if (matches && matches.length > 0) {
+        images = Array.from(new Set(matches)).slice(0, 7); // Get 7 unique images
+        break;
+      }
+    }
+    
+    // Enhanced variant extraction
+    let colors = ['Tek Renk'];
+    let sizes = ['Tek Beden'];
+    let stockMap: Record<string, boolean> = { 'Tek Renk-Tek Beden': true };
+    
+    // Extract real variants from script data
+    const variantScriptMatch = html.match(/variants["\s]*:[^}]+}/gi);
+    if (variantScriptMatch) {
+      try {
+        const variantText = variantScriptMatch[0];
+        const colorMatches = variantText.match(/["']([^"']*(?:siyah|beyaz|mavi|kırmızı|yeşil|gri|sarı|mor|pembe|turuncu)[^"']*)["']/gi);
+        const sizeMatches = variantText.match(/["'](XS|S|M|L|XL|XXL|\d{2,3})["']/gi);
+        
+        if (colorMatches && colorMatches.length > 1) {
+          colors = Array.from(new Set(colorMatches.map((m: string) => m.replace(/['"]/g, '')))).slice(0, 5);
+        }
+        
+        if (sizeMatches && sizeMatches.length > 1) {
+          sizes = Array.from(new Set(sizeMatches.map((m: string) => m.replace(/['"]/g, '')))).slice(0, 8);
+        }
+        
+        // Generate stock map for variants
+        stockMap = {};
+        for (const color of colors) {
+          for (const size of sizes) {
+            stockMap[`${color}-${size}`] = true; // Assume in stock for speed
+          }
+        }
+      } catch (error) {
+        // Keep default values if extraction fails
+      }
+    }
+    
+    // Enhanced data structure with real extraction
     const result: HyperFastProductData = {
       title,
       brand,
       price,
       images,
       variants: {
-        colors: ['Tek Renk'],
-        sizes: ['Tek Beden'],
-        stockMap: { 'Tek Renk-Tek Beden': true }
+        colors,
+        sizes,
+        stockMap
       },
-      description: `${title} - ${brand}`,
-      attributes: {}
+      description: title.length > 20 ? title : `${title} - ${brand} ürünü`,
+      attributes: {
+        'Marka': brand,
+        'Ürün Adı': title,
+        'Fiyat': `${price} TL`,
+        'Görsel Sayısı': images.length.toString()
+      }
     };
     
     const endTime = Date.now();

@@ -236,7 +236,7 @@ function normalizeImageUrl(url: string): string {
 
 export function registerRoutes(app: Express): Server {
   // Create HTTP server - will be configured by main server
-  const httpServer = require('http').createServer(app);
+  const httpServer = createServer(app);
 
   // CSV preview endpoint removed - handled in server/index.ts
 
