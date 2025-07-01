@@ -7,13 +7,13 @@ import fs from "fs";
 import { storage } from "./storage-fixed";
 // import { scrapeProductWithPuppeteer } from "./fixed-puppeteer-scraper";
 import { scrapeWithEnhancedMethod } from "./enhanced-trendyol-scraper";
-import { generateStrictShopifyCSV } from "./strict-csv-generator";
+import { generateStrictCSV } from "./strict-csv-generator";
 import { instantCSVGenerator } from "./instant-csv-generator-working";
 import { getCategoryConfig } from "./category-mapping";
 import { cleanTrendyolAttributes } from "./clean-attributes";
 import { parseJsonLdProductData, generateTagsFromJsonLd } from "./json-ld-parser";
 import { InsertProduct, products as productsTable } from "@shared/schema";
-import { getFinalImages } from "./final-image-solution";
+// import { getFinalImages } from "./final-image-solution";
 import { extractVariantStockInfo } from "./advanced-size-extractor";
 import { extractFocusedData } from './focused-extractor';
 import { dailyScheduler } from './scheduler';
@@ -56,13 +56,13 @@ function generateSingleProductShopifyCSV(product: any): string {
   
   // Özellikler metni (CSV için)
   const featuresText = product.features ? 
-    product.features.map(f => `${f.key}: ${f.value}`).join(' | ') : '';
+    product.features.map((f: any) => `${f.key}: ${f.value}`).join(' | ') : '';
 
   // Ürün özellikleri HTML formatında (Body için) - sadece özellikler
   let bodyHTML = '';
   if (product.features && product.features.length > 0) {
     bodyHTML = '<div class="product-features"><h4>Ürün Özellikleri:</h4><ul>';
-    product.features.forEach(feature => {
+    product.features.forEach((feature: any) => {
       bodyHTML += `<li><strong>${feature.key}:</strong> ${feature.value}</li>`;
     });
     bodyHTML += '</ul></div>';
@@ -235,8 +235,8 @@ function normalizeImageUrl(url: string): string {
 }
 
 export function registerRoutes(app: Express): Server {
-  // Create HTTP server
-  const httpServer = app.listen(0);
+  // Create HTTP server - will be configured by main server
+  const httpServer = require('http').createServer(app);
 
   // CSV preview endpoint removed - handled in server/index.ts
 
@@ -247,7 +247,7 @@ export function registerRoutes(app: Express): Server {
       console.log("🧪 Manual feature test başlatılıyor...");
       
       // Use provided URL or default to a test URL
-      const testUrl = url || "https://www.trendyol.com/stanley/classic-seri-termos-1-0lt-matte-black-p-365983942";
+      const testUrl = (typeof url === 'string' ? url : "https://www.trendyol.com/stanley/classic-seri-termos-1-0lt-matte-black-p-365983942");
       
       console.log(`📍 Test URL: ${testUrl}`);
       
