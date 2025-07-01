@@ -23,6 +23,7 @@ import { testImageExtraction } from './direct-image-test';
 import { initializeScheduler, getSchedulerStatus, executeTaskManually } from './simple-scheduler';
 import { db } from './db';
 import { manualFeatureExtraction } from './manual-feature-test';
+import { preciseFeatureExtraction } from './precise-feature-extractor';
 
 
 function generateSingleProductShopifyCSV(product: any): string {
@@ -257,6 +258,31 @@ export function registerRoutes(app: Express): Server {
       console.error("❌ Manuel test hatası:", error);
       res.status(500).json({
         error: "Manuel test sırasında hata oluştu",
+        details: error instanceof Error ? error.message : 'Bilinmeyen hata'
+      });
+    }
+  });
+
+  // Precise feature testing endpoint
+  app.post("/api/test-precise-features", async (req, res) => {
+    try {
+      const { url } = req.body;
+      console.log("🎯 Precise feature test başlatılıyor...");
+      
+      // Use provided URL or default to a test URL
+      const testUrl = url || "https://www.trendyol.com/stanley/classic-seri-termos-1-0lt-matte-black-p-365983942";
+      
+      console.log(`📍 Test URL: ${testUrl}`);
+      
+      const result = await preciseFeatureExtraction(testUrl);
+      
+      console.log(`✅ Precise test tamamlandı: ${result.features.length} özellik, ${result.processingTime}ms`);
+      
+      res.json(result);
+    } catch (error) {
+      console.error("❌ Precise test hatası:", error);
+      res.status(500).json({
+        error: "Precise test sırasında hata oluştu",
         details: error instanceof Error ? error.message : 'Bilinmeyen hata'
       });
     }
