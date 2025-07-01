@@ -2084,10 +2084,23 @@ export function registerRoutes(app: Express): Server {
       // Skip focused extractor, go directly to enhanced manual extraction
       console.log(`📊 Using enhanced manual extraction for: ${url}`);
       
-      // Use Ultra-Fast Scraper first
-      console.log('⚡ Using Ultra-Fast Scraper...');
-      const { ultraFastScrape } = await import('./ultra-fast-scraper');
-      const enhancedResult = await ultraFastScrape(url);
+      // Try Lightning Scraper first (target: 0.1 second)
+      console.log('⚡ Using Lightning Scraper...');
+      try {
+        const { lightningFastScrape } = await import('./lightning-scraper');
+        var enhancedResult = await lightningFastScrape(url);
+        console.log('⚡ Lightning result:', enhancedResult ? 'SUCCESS' : 'FAILED');
+      } catch (lightningError) {
+        console.log('❌ Lightning Scraper error:', lightningError.message);
+        var enhancedResult = null;
+      }
+      
+      // Fallback to Ultra-Fast Scraper if Lightning fails
+      if (!enhancedResult) {
+        console.log('⚡ Using Ultra-Fast Scraper...');
+        const { ultraFastScrape } = await import('./ultra-fast-scraper');
+        enhancedResult = await ultraFastScrape(url);
+      }
       
       if (!enhancedResult) {
         console.log('❌ Ultra-fast scraper failed, trying enhanced...');

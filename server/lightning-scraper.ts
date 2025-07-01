@@ -31,33 +31,30 @@ export async function lightningFastScrape(url: string): Promise<LightningProduct
     // STEP 2: Extract brand from URL (0ms processing)
     const brand = url.split('/')[3] || 'Brand';
     
-    // STEP 3: Direct API call to product endpoint (fastest possible)
-    const apiUrl = `https://public-mdc.trendyol.com/discovery-web-productgw-service/api/productDetail/${productId}`;
-    
-    const response = await axios.get(apiUrl, {
-      timeout: 2000, // 2 second max
-      headers: {
-        'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36',
-        'Accept': 'application/json',
-      },
+    // STEP 3: Ultra-lightning fetch (minimum possible settings)
+    const response = await axios.get(url, {
+      timeout: 300, // 0.3 second max for speed
+      headers: { 'User-Agent': 'Mozilla' }, // Minimal header
       maxRedirects: 0,
-      validateStatus: () => true
+      validateStatus: () => true,
+      decompress: false, // Skip compression for speed
+      responseType: 'text'
     });
     
-    // STEP 4: Lightning data extraction (minimal JSON parsing)
-    const data = response.data;
-    if (!data || !data.result) return null;
+    // STEP 4: Lightning regex extraction (no DOM parsing)
+    const html = response.data;
+    if (!html) return null;
     
-    const product = data.result;
+    // Lightning title extraction
+    const title = html.match(/<h1[^>]*>([^<]+)/)?.[1]?.trim() || 'Product';
     
-    const title = product.name || 'Product';
-    const price = product.price?.sellingPrice || product.price?.originalPrice || 0;
+    // Lightning price extraction - same as ultra-fast but faster
+    const priceMatches = html.match(/\b\d{2,4}\.\d{1,2}\b/g) || [];
+    const price = priceMatches.length > 0 ? 
+      Math.max(...priceMatches.map((p: string) => parseFloat(p)).filter((p: number) => p > 10 && p < 10000)) : 0;
     
-    // Quick image extraction - first 5 only
-    const images = (product.images || [])
-      .slice(0, 5)
-      .map((img: any) => img.url || '')
-      .filter((url: string) => url.includes('cdn.dsmcdn.com'));
+    // Lightning image extraction - top 3 for speed
+    const images = (html.match(/https:\/\/cdn\.dsmcdn\.com[^"'\s]*_org_zoom\.jpg/g) || []).slice(0, 3);
     
     // Minimal variants - default values for speed
     const colors = ['Tek Renk'];
