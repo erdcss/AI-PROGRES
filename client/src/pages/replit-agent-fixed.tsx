@@ -440,6 +440,25 @@ Ben gelişmiş AI kod asistanınızım. Size nasıl yardımcı olabilirim?
             
             <div className="flex items-center space-x-6">
               <RealTimeClock />
+              
+              {/* API Status & Configuration */}
+              <div className="flex items-center space-x-2">
+                {apiKeyStatus?.hasValidKey ? (
+                  <div className="flex items-center space-x-2 bg-green-600/20 border border-green-500/30 px-3 py-1 rounded-lg">
+                    <div className="w-2 h-2 bg-green-500 rounded-full"></div>
+                    <span className="text-green-300 text-xs">AI Aktif</span>
+                  </div>
+                ) : (
+                  <button
+                    onClick={() => setShowApiConfig(true)}
+                    className="flex items-center space-x-2 bg-orange-600/20 border border-orange-500/30 hover:bg-orange-600/30 px-3 py-1 rounded-lg transition-colors"
+                  >
+                    <div className="w-2 h-2 bg-orange-500 rounded-full"></div>
+                    <span className="text-orange-300 text-xs">API Yapılandır</span>
+                  </button>
+                )}
+              </div>
+              
               <div className="flex items-center space-x-2 text-sm text-white/60">
                 <div className="w-2 h-2 bg-green-500 rounded-full animate-pulse"></div>
                 <span>Aktif</span>
@@ -447,6 +466,60 @@ Ben gelişmiş AI kod asistanınızım. Size nasıl yardımcı olabilirim?
             </div>
           </div>
         </div>
+
+        {/* API Configuration Modal */}
+        {showApiConfig && (
+          <div className="fixed inset-0 bg-black/50 backdrop-blur-sm z-50 flex items-center justify-center p-4">
+            <motion.div
+              initial={{ opacity: 0, scale: 0.9 }}
+              animate={{ opacity: 1, scale: 1 }}
+              className="bg-gradient-to-br from-gray-900 to-gray-800 rounded-xl border border-gray-700/50 p-6 max-w-md w-full"
+            >
+              <div className="flex items-center justify-between mb-4">
+                <h3 className="text-lg font-semibold text-white">🤖 AI API Yapılandırması</h3>
+                <button
+                  onClick={() => setShowApiConfig(false)}
+                  className="text-gray-400 hover:text-white"
+                >
+                  <X className="w-5 h-5" />
+                </button>
+              </div>
+              
+              <div className="space-y-4">
+                <div>
+                  <label className="block text-sm font-medium text-white/80 mb-2">
+                    Anthropic API Anahtarı
+                  </label>
+                  <input
+                    type="password"
+                    value={newApiKey}
+                    onChange={(e) => setNewApiKey(e.target.value)}
+                    placeholder="sk-ant-api03-..."
+                    className="w-full bg-gray-700/50 border border-gray-600 rounded-lg px-3 py-2 text-white placeholder-gray-400 focus:outline-none focus:border-orange-500"
+                  />
+                  <p className="text-xs text-gray-400 mt-1">
+                    console.anthropic.com adresinden API anahtarı alabilirsiniz
+                  </p>
+                </div>
+                
+                <div className="flex space-x-3">
+                  <button
+                    onClick={() => setShowApiConfig(false)}
+                    className="flex-1 bg-gray-600/50 hover:bg-gray-600/70 text-white px-4 py-2 rounded-lg transition-colors"
+                  >
+                    İptal
+                  </button>
+                  <button
+                    onClick={configureApiKey}
+                    className="flex-1 bg-orange-600 hover:bg-orange-700 text-white px-4 py-2 rounded-lg transition-colors"
+                  >
+                    Kaydet
+                  </button>
+                </div>
+              </div>
+            </motion.div>
+          </div>
+        )}
 
         <div className="max-w-7xl mx-auto p-6 grid grid-cols-1 lg:grid-cols-3 gap-6 h-[calc(100vh-100px)]">
           {/* Enhanced Side Panel with Tabs */}

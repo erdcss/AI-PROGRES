@@ -278,7 +278,7 @@ router.get('/api-status', async (req, res) => {
     res.json({
       success: true,
       hasValidKey,
-      keyPrefix: hasValidKey ? process.env.ANTHROPIC_API_KEY.substring(0, 10) + '...' : null
+      keyPrefix: hasValidKey ? process.env.ANTHROPIC_API_KEY?.substring(0, 10) + '...' : null
     });
   } catch (error) {
     res.status(500).json({
