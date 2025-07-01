@@ -123,12 +123,12 @@ ${context?.systemInfo ? `- Toplam ürün: ${context.systemInfo.totalProducts}` :
     // Prepare conversation history for context (without system message)
     let messages: any[] = [];
 
-    // Add conversation history if provided
+    // Add conversation history if provided (filter out system messages)
     if (conversationHistory && Array.isArray(conversationHistory)) {
       conversationHistory.forEach((msg: any) => {
-        if (msg.type === 'user') {
+        if (msg.type === 'user' && msg.role !== 'system') {
           messages.push({ role: 'user', content: msg.content });
-        } else if (msg.type === 'agent') {
+        } else if (msg.type === 'agent' && msg.role !== 'system') {
           messages.push({ role: 'assistant', content: msg.content });
         }
       });
@@ -136,6 +136,9 @@ ${context?.systemInfo ? `- Toplam ürün: ${context.systemInfo.totalProducts}` :
 
     // Add current message
     messages.push({ role: 'user', content: message });
+
+    // Filter out any system messages that might have slipped through
+    messages = messages.filter(msg => msg.role !== 'system');
 
     // Call Anthropic API with dynamic client
     const anthropicClient = getAnthropicClient();
