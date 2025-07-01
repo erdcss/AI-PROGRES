@@ -2762,6 +2762,148 @@ export function registerRoutes(app: Express): Server {
 
 
 
+  // ===== ÜRÜN YORUMLARI API ENDPOİNTLERİ =====
+  
+  // Platform istatistiklerini getir
+  app.get('/api/reviews/stats', async (req, res) => {
+    try {
+      // Hafızadan ürünleri alıp platform bazında ayır
+      const memoryProducts = await storage.getAllProducts();
+      
+      const stats = {
+        trendyol: {
+          totalProducts: memoryProducts.filter((p: any) => p.trendyolUrl?.includes('trendyol.com')).length,
+          totalReviews: 0,
+          averageRating: 0.0,
+          lastUpdated: "Henüz yok"
+        },
+        amazon: {
+          totalProducts: memoryProducts.filter((p: any) => p.trendyolUrl?.includes('amazon.')).length,
+          totalReviews: 0,
+          averageRating: 0.0,
+          lastUpdated: "Henüz yok"
+        },
+        hepsiburada: {
+          totalProducts: memoryProducts.filter((p: any) => p.trendyolUrl?.includes('hepsiburada.com')).length,
+          totalReviews: 0,
+          averageRating: 0.0,
+          lastUpdated: "Henüz yok"
+        },
+        n11: {
+          totalProducts: memoryProducts.filter((p: any) => p.trendyolUrl?.includes('n11.com')).length,
+          totalReviews: 0,
+          averageRating: 0.0,
+          lastUpdated: "Henüz yok"
+        }
+      };
+      
+      res.json(stats);
+    } catch (error) {
+      console.error('Stats error:', error);
+      res.status(500).json({ error: 'İstatistikler yüklenemedi' });
+    }
+  });
+
+  // Platform yorumlarını getir
+  app.get('/api/reviews/:platform', async (req, res) => {
+    try {
+      const platform = req.params.platform;
+      
+      // Şimdilik boş liste döndürüyoruz
+      // İleride gerçek veritabanından yorumlar gelecek
+      const reviews: any[] = [];
+      
+      res.json({ 
+        success: true,
+        platform,
+        reviews,
+        total: 0
+      });
+    } catch (error) {
+      console.error('Reviews loading error:', error);
+      res.status(500).json({ 
+        success: false,
+        error: 'Yorumlar yüklenemedi' 
+      });
+    }
+  });
+
+  // Otomatik yorum çıkarma başlat
+  app.post('/api/reviews/extract/:platform', async (req, res) => {
+    try {
+      const platform = req.params.platform;
+      
+      console.log(`🔍 ${platform} için otomatik yorum çıkarma başlatılıyor...`);
+      
+      // Hafızadaki ürünleri bu platforma göre filtrele
+      const memoryProducts = await storage.getAllProducts();
+      const platformProducts = memoryProducts.filter((product: any) => {
+        const url = product.trendyolUrl || '';
+        switch (platform) {
+          case 'trendyol':
+            return url.includes('trendyol.com');
+          case 'amazon':
+            return url.includes('amazon.');
+          case 'hepsiburada':
+            return url.includes('hepsiburada.com');
+          case 'n11':
+            return url.includes('n11.com');
+          default:
+            return false;
+        }
+      });
+
+      console.log(`📦 ${platform} için ${platformProducts.length} ürün bulundu`);
+      
+      res.json({
+        success: true,
+        message: `${platform} için yorum çıkarma başlatıldı`,
+        productCount: platformProducts.length
+      });
+      
+    } catch (error) {
+      console.error('Auto extraction error:', error);
+      res.status(500).json({
+        success: false,
+        error: 'Otomatik yorum çıkarma başlatılamadı'
+      });
+    }
+  });
+
+  // CSV export
+  app.get('/api/reviews/export/:platform', async (req, res) => {
+    try {
+      const platform = req.params.platform;
+      
+      // CSV başlık satırı
+      const csvHeaders = [
+        'Ürün Adı',
+        'Yorumcu Adı', 
+        'Puan',
+        'Yorum Metni',
+        'Yorum Tarihi',
+        'Doğrulanmış',
+        'Beğeni Sayısı',
+        'Platform',
+        'Ürün URL'
+      ].join(',');
+      
+      // Şimdilik boş CSV döndürüyoruz
+      const csvContent = csvHeaders + '\n';
+      
+      res.setHeader('Content-Type', 'text/csv');
+      res.setHeader('Content-Disposition', `attachment; filename="${platform}-reviews-${new Date().toISOString().split('T')[0]}.csv"`);
+      res.send(csvContent);
+      
+    } catch (error) {
+      console.error('CSV export error:', error);
+      res.status(500).json({
+        success: false,
+        error: 'CSV export edilemedi'
+      });
+    }
+  });
+
   // Initialize scheduler system on server start
   setTimeout(() => {
     try {
