@@ -280,6 +280,9 @@ function ScraperPage({ platform = 'trendyol' }: ScraperPageProps) {
   const [result, setResult] = useState<any>(null);
   const [isDownloading, setIsDownloading] = useState(false);
   const [isExporting, setIsExporting] = useState(false);
+  const [manualTestResult, setManualTestResult] = useState<any>(null);
+  const [trendyolTestResult, setTrendyolTestResult] = useState<any>(null);
+  
   // CSV Download handler
   const handleCSVDownload = async () => {
     try {
@@ -636,8 +639,6 @@ function ScraperPage({ platform = 'trendyol' }: ScraperPageProps) {
     }
   };
 
-  const [isUploadingToShopify, setIsUploadingToShopify] = useState(false);
-
   const uploadToShopify = async () => {
     // Her iki veri formatını da kontrol et
     const productData = result?.productInfo || result;
@@ -783,7 +784,7 @@ function ScraperPage({ platform = 'trendyol' }: ScraperPageProps) {
 
   const [csvPreview, setCsvPreview] = useState<any[]>([]);
   const [showCsvPreview, setShowCsvPreview] = useState(false);
-  const [manualTestResult, setManualTestResult] = useState<any>(null);
+  const [error, setError] = useState<any>(null);
 
   const previewCSV = async () => {
     if (extractedProducts.length === 0) {

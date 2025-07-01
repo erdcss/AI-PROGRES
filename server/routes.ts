@@ -2698,6 +2698,28 @@ export function registerRoutes(app: Express): Server {
       console.error('❌ Manuel özellik testi hatası:', error);
       res.status(500).json({
         success: false,
+        error: 'Test failed'
+      });
+    }
+  });
+
+  // Trendyol properties extraction test endpoint
+  app.post('/api/trendyol-properties', async (req, res) => {
+    try {
+      const { trendyolPropertiesExtractor } = await import('./trendyol-properties-extractor');
+      const { url } = req.body;
+      
+      const testUrl = url || 'https://www.trendyol.com/stanley/the-legendary-classic-bottle-1-9l-2-0qt-p-968131';
+      console.log(`🏷️ Trendyol özellik tablosu testi başlatılıyor: ${testUrl}`);
+      
+      const result = await trendyolPropertiesExtractor.extractTrendyolProperties(testUrl);
+      
+      console.log(`✅ Trendyol test tamamlandı: ${result.totalFound} özellik çıkarıldı`);
+      res.json(result);
+    } catch (error) {
+      console.error('❌ Trendyol özellik testi hatası:', error);
+      res.status(500).json({
+        success: false,
         error: error instanceof Error ? error.message : 'Test hatası',
         features: [],
         extractionMethod: 'manual-multi-method',
@@ -2738,36 +2760,7 @@ export function registerRoutes(app: Express): Server {
     }
   });
 
-  // Trendyol properties extraction endpoint (Ürün Özellikleri tablosu - specialized)
-  app.post('/api/trendyol-properties', async (req, res) => {
-    try {
-      const { url } = req.body;
-      
-      if (!url) {
-        return res.status(400).json({ 
-          success: false, 
-          error: 'URL gereklidir' 
-        });
-      }
-      
-      console.log(`🏷️ Trendyol özellikleri çıkarılıyor...`);
-      console.log(`📍 URL: ${url}`);
-      
-      // Import Trendyol properties extractor
-      const { trendyolPropertiesExtractor } = await import('./trendyol-properties-extractor');
-      const result = await trendyolPropertiesExtractor.extractTrendyolProperties(url);
-      
-      res.json(result);
-      
-    } catch (error) {
-      console.error('❌ Trendyol özellikleri çıkarma hatası:', error);
-      res.status(500).json({ 
-        success: false, 
-        error: 'Trendyol özellikleri çıkarma başarısız oldu',
-        details: error instanceof Error ? error.message : 'Bilinmeyen hata'
-      });
-    }
-  });
+
 
   // Initialize scheduler system on server start
   setTimeout(() => {
