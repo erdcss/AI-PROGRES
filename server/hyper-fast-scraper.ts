@@ -55,19 +55,23 @@ export async function hyperFastScrape(url: string): Promise<HyperFastProductData
     const html = response.data;
     if (!html) return null;
     
-    // Real title extraction from multiple sources
+    // Enhanced title extraction with multiple fallbacks
     const titlePatterns = [
-      /<h1[^>]*class="[^"]*pr-new-br[^"]*"[^>]*>([^<]+)/,
-      /<h1[^>]*>([^<]+)/,
-      /<title>([^<]+)</
+      /<h1[^>]*class="[^"]*pr-new-br[^"]*"[^>]*>([^<]+)/i,
+      /<h1[^>]*>([^<]+)<\/h1>/i,
+      /"name"\s*:\s*"([^"]+)"/i,
+      /<title>([^<-]+)/i
     ];
     
     let title = 'Product';
     for (const pattern of titlePatterns) {
       const match = html.match(pattern);
       if (match?.[1]) {
-        title = match[1].trim().replace(/\s+/g, ' ');
-        if (!title.includes('Trendyol') && title.length > 10) break;
+        const extracted = match[1].trim().replace(/\s+/g, ' ').replace(/&quot;/g, '"');
+        if (!extracted.includes('Trendyol') && !extracted.includes('sayfa') && extracted.length > 10) {
+          title = extracted;
+          break;
+        }
       }
     }
     
