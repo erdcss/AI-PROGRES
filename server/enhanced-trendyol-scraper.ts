@@ -387,23 +387,49 @@ async function parseProductData(html: string, url: string): Promise<TrendyolProd
         const content = $(script).html();
         if (content) {
           try {
-            // Look for attribute patterns in JSON
+            // Look for comprehensive attribute patterns in JSON
             const attributeMatches = content.match(/"attributes":\s*\[(.*?)\]/s);
             if (attributeMatches) {
               const attributeText = attributeMatches[1];
-              // Extract key-value pairs from attribute JSON
-              const keyValuePattern = /"key":\s*{[^}]*"name":\s*"([^"]+)"[^}]*},\s*"value":\s*{[^}]*"name":\s*"([^"]+)"/g;
+              
+              // Enhanced pattern matching for nested attributes
+              const enhancedKeyValuePattern = /"key":\s*\{[^}]*"name":\s*"([^"]+)"[^}]*\},\s*"value":\s*\{[^}]*"name":\s*"([^"]+)"/g;
               let match;
-              while ((match = keyValuePattern.exec(attributeText)) !== null) {
+              let featureCount = 0;
+              
+              while ((match = enhancedKeyValuePattern.exec(attributeText)) !== null && featureCount < 25) {
                 const [, key, value] = match;
-                if (key && value && key !== 'undefined' && value !== 'undefined') {
+                if (key && value && key !== 'undefined' && value !== 'undefined' && 
+                    !key.includes('null') && !value.includes('null')) {
                   attributes[key] = value;
                   debug(`Enhanced feature found: ${key} = ${value}`);
+                  featureCount++;
+                }
+              }
+              
+              // Additional comprehensive pattern extraction
+              const comprehensivePattern = /"([^"]+)":\s*"([^"]+)"/g;
+              const allRelevantKeys = [
+                'Bağlama Şekli', 'Materyal', 'Taban Tipi', 'Koleksiyon', 'Dış Materyal', 
+                'Renk', 'Saya Materyali', 'Astar Materyali', 'İç Taban Materyali', 
+                'Taban Materyali', 'Topuk Boyu', 'Persona', 'Ek Özellik', 
+                'Sürdürülebilirlik Detayı', 'Topuk Tipi', 'Ortam', 'Desen', 
+                'Kumaş Tipi', 'Ürün Detayı', 'Menşei', 'Kutu Durumu', 
+                'Materyal Bileşeni', 'Yıkama Talimatları', 'Beden', 'Form'
+              ];
+              
+              while ((match = comprehensivePattern.exec(attributeText)) !== null && featureCount < 25) {
+                const [, key, value] = match;
+                if (allRelevantKeys.some(k => key.toLowerCase().includes(k.toLowerCase()) || k.toLowerCase().includes(key.toLowerCase())) && 
+                    !attributes[key] && value.length > 1 && value.length < 100) {
+                  attributes[key] = value;
+                  debug(`Comprehensive feature found: ${key} = ${value}`);
+                  featureCount++;
                 }
               }
             }
           } catch (jsonError) {
-            // Ignore JSON parsing errors
+            debug(`JSON parsing error: ${jsonError}`);
           }
         }
       });
@@ -438,6 +464,49 @@ async function parseProductData(html: string, url: string): Promise<TrendyolProd
       debug(`Enhanced feature extraction error: ${enhancedError}`);
     }
 
+    // Method 3: Comprehensive HTML pattern scanning for all product features
+    try {
+      const fullHTML = $.html();
+      const targetFeatures = [
+        'Bağlama Şekli', 'Materyal', 'Taban Tipi', 'Koleksiyon', 'Dış Materyal',
+        'Renk', 'Saya Materyali', 'Astar Materyali', 'İç Taban Materyali',
+        'Taban Materyali', 'Topuk Boyu', 'Persona', 'Ek Özellik',
+        'Sürdürülebilirlik Detayı', 'Topuk Tipi', 'Ortam', 'Desen',
+        'Kumaş Tipi', 'Ürün Detayı', 'Menşei', 'Kutu Durumu',
+        'Materyal Bileşeni', 'Yıkama Talimatları'
+      ];
+
+      targetFeatures.forEach(feature => {
+        if (!attributes[feature]) {
+          // Create flexible pattern for each feature
+          const escapedFeature = feature.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+          const pattern = new RegExp(`${escapedFeature}[\\s:]*([^<>\\n]{2,100})`, 'gi');
+          const matches = fullHTML.match(pattern);
+          
+          if (matches && matches.length > 0) {
+            const match = matches[0];
+            const colonIndex = match.indexOf(':');
+            const spaceIndex = match.indexOf(' ', feature.length);
+            const splitIndex = colonIndex > 0 ? colonIndex : spaceIndex;
+            
+            if (splitIndex > 0 && splitIndex < match.length - 1) {
+              const value = match.substring(splitIndex + 1).trim()
+                .replace(/[<>]/g, '')
+                .replace(/&quot;/g, '"')
+                .replace(/&amp;/g, '&');
+              
+              if (value && value.length > 1 && value.length < 200 && isValidFeatureValue(value)) {
+                attributes[feature] = value;
+                debug(`Pattern scan found: ${feature} = ${value}`);
+              }
+            }
+          }
+        }
+      });
+    } catch (patternError) {
+      debug(`Pattern scanning error: ${patternError}`);
+    }
+
     debug(`Ürün başarıyla parse edildi: ${title}`);
     debug(`Price extracted: ${price} TL`);
     debug(`Images extracted: ${images.length} images`);
@@ -459,6 +528,51 @@ async function parseProductData(html: string, url: string): Promise<TrendyolProd
     debug(`Parse hatası: ${error}`);
     return null;
   }
+}
+
+/**
+ * Validates if a feature value is authentic and useful
+ */
+function isValidFeatureValue(value: string): boolean {
+  if (!value || typeof value !== 'string') return false;
+  
+  const trimmedValue = value.trim().toLowerCase();
+  
+  // Reject empty or too short values
+  if (trimmedValue.length < 2) return false;
+  
+  // Reject common fake/invalid values
+  const invalidValues = [
+    'null', 'undefined', 'none', 'n/a', 'na', 'yok', 'belirtilmemiş',
+    'unknown', 'bilinmiyor', 'var', 'hayır değil', 'evet değil',
+    'true', 'false', '0', '1', 'x', 'xx', 'xxx', 'test', 'sample',
+    'örnek', 'deneme', 'default', 'varsayılan', 'geçerli değil',
+    'invalid', 'error', 'hata', 'loading', 'yükleniyor', 'bekliyor',
+    'pending', 'processing', 'işleniyor', 'temp', 'geçici', 'temporary',
+    'coming soon', 'yakında', 'tbd', 'to be determined', 'belirlenecek'
+  ];
+  
+  if (invalidValues.includes(trimmedValue)) return false;
+  
+  // Reject values that are just numbers (except for percentage values)
+  if (/^\d+$/.test(trimmedValue) && !value.includes('%')) return false;
+  
+  // Reject values that look like URLs, emails, or code
+  if (trimmedValue.includes('http') || 
+      trimmedValue.includes('@') || 
+      trimmedValue.includes('javascript') ||
+      trimmedValue.includes('function') ||
+      trimmedValue.includes('script')) return false;
+  
+  // Reject values that are too long (likely descriptions, not attributes)
+  if (value.length > 150) return false;
+  
+  // Reject values that contain too many special characters
+  const specialCharCount = (value.match(/[^a-zA-Z0-9\sğüşıöçĞÜŞIÖÇ%,.-]/g) || []).length;
+  if (specialCharCount > value.length * 0.3) return false;
+  
+  // Accept valid-looking Turkish product feature values
+  return true;
 }
 
 /**
