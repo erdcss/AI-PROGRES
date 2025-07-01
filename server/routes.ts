@@ -410,68 +410,166 @@ export function registerRoutes(app: Express): Server {
           });
         }
       }
-              attributes: result.attributes,
-              url: url
-            });
+      
+      // Return error if no valid URL or unsupported platform
+      return res.status(400).json({
+        success: false,
+        message: 'Unsupported URL format or platform'
+      });
+    } catch (error) {
+      console.error('Extract endpoint error:', error);
+      return res.status(500).json({
+        success: false,
+        message: 'Internal server error'
+      });
+    }
+  });
+
+  // Manual extraction endpoint for testing products with real data
+  app.post('/api/extract-manual', async (req, res) => {
+    try {
+      const { url } = req.body;
+      
+      if (!url) {
+        return res.status(400).json({
+          success: false,
+          message: 'URL is required'
+        });
+      }
+      
+      console.log('🧪 MANUAL EXTRACTION TEST for:', url);
+      
+      // Enhanced product data extraction for Trendyol products
+      if (url.includes('trendyol.com')) {
+        try {
+          // Use multi-scraper system for data extraction
+          const { hyperFastScrape } = await import('./hyper-fast-scraper');
+          const { lightningFastScrape } = await import('./lightning-scraper');
+          const { scrapeWithEnhancedMethod } = await import('./enhanced-trendyol-scraper');
+          
+          console.log("🚀 Using Hyper-Fast Scraper...");
+          const hyperResult = await hyperFastScrape(url);
+          
+          if (hyperResult && hyperResult.title) {
+            console.log("🚀 Hyper result: SUCCESS");
             
-            // Ensure safe data structure
-            const safeResult = {
+            // Apply 15% profit margin
+            const priceWithProfit = Math.round(hyperResult.price * 1.15 * 100) / 100;
+            
+            return res.json({
               success: true,
-              title: result.title || 'Başlık bulunamadı',
-              brand: result.brand || 'Marka bulunamadı',
-              price: result.price?.toString() || '0',
-              description: result.description || 'Açıklama bulunamadı',
-              images: Array.isArray(result.images) ? result.images : [],
-              variants: result.variants || { colors: [], sizes: [], stockMap: {} },
-              attributes: result.attributes || {},
-              csvGenerated: csvResult?.success || false,
-              csvPath: csvResult?.csvPath || null,
-              totalProducts: 1
-            };
-            
-            return res.status(200).json(safeResult);
+              extractionMethod: 'hyper-fast-scraper',
+              brand: hyperResult.brand,
+              title: hyperResult.title,
+              price: priceWithProfit,
+              images: hyperResult.images,
+              features: [],
+              variants: hyperResult.variants
+            });
           }
+          
+          console.log("⚡ Hyper failed, trying Lightning Scraper...");
+          const lightningResult = await lightningFastScrape(url);
+          
+          if (lightningResult && lightningResult.title) {
+            console.log("⚡ Lightning result: SUCCESS");
+            
+            const priceWithProfit = Math.round(lightningResult.price * 1.15 * 100) / 100;
+            
+            return res.json({
+              success: true,
+              extractionMethod: 'lightning-scraper',
+              brand: lightningResult.brand,
+              title: lightningResult.title,
+              price: priceWithProfit,
+              images: lightningResult.images,
+              features: [],
+              variants: lightningResult.variants
+            });
+          }
+          
+          console.log("🔍 Both fast scrapers failed, using Enhanced Scraper...");
+          const enhancedResult = await scrapeWithEnhancedMethod(url);
+          
+          if (enhancedResult && enhancedResult.title) {
+            console.log("🔍 Enhanced result: Found");
+            console.log("✅ Enhanced Scraper successful:", enhancedResult.title);
+            
+            const priceWithProfit = Math.round(enhancedResult.price * 1.15 * 100) / 100;
+            
+            console.log(`🎯 Returning enhanced data: ${enhancedResult.price} TL, ${enhancedResult.images.length} images`);
+            
+            return res.json({
+              success: true,
+              extractionMethod: 'enhanced-scraper-fixed',
+              brand: enhancedResult.brand,
+              title: enhancedResult.title,
+              price: priceWithProfit,
+              images: enhancedResult.images,
+              features: [],
+              variants: enhancedResult.variants
+            });
+          }
+          
+          return res.status(404).json({
+            success: false,
+            message: 'All extraction methods failed'
+          });
+          
         } catch (error) {
-          console.log("Enhanced scraper hatası:", error);
+          console.error('Extraction error:', error);
+          return res.status(500).json({
+            success: false,
+            message: 'Product extraction failed',
+            error: error instanceof Error ? error.message : 'Unknown error'
+          });
         }
       }
       
-      // Continue with original scraping methods
+      return res.status(400).json({
+        success: false,
+        message: 'Unsupported URL format or platform'
+      });
       
-      if (productId) {
-        try {
-          const mobileApiUrl = `https://m.trendyol.com/mweb/product/${productId}`;
-          console.log(`Mobil API stratejisi deneniyor: ${mobileApiUrl}`);
-          
-          const response = await fetch(mobileApiUrl, {
-            headers: {
-              'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/121.0.0.0 Safari/537.36',
-              'Accept': 'text/html,application/xhtml+xml,application/xml;q=0.9,image/webp,*/*;q=0.8',
-              'Accept-Language': 'tr-TR,tr;q=0.9,en-US;q=0.8,en;q=0.7',
-              'Cache-Control': 'no-cache'
-            }
-          });
-          
-          if (response.ok) {
-            const pageContent = await response.text();
-            const cheerio = await import('cheerio');
-            const $ = cheerio.load(pageContent);
-            
-            // Extract basic product info
-            const title = $('h1').first().text().trim() || 
-                         $('.product-title').text().trim() ||
-                         url.split('/').pop()?.split('-').map((word: string) => 
-                           word.charAt(0).toUpperCase() + word.slice(1)
-                         ).join(' ') || 'Ürün';
-            
-            const brand = url.split('/')[3] || 'Marka';
-            const priceText = $('.prc-dsc, .prc-slg, .price').first().text().trim();
-            const price = priceText.match(/[\d,]+/) ? 
-                         parseInt(priceText.replace(/[^\d]/g, '')) : 150;
-            
-            // Extract images
-            const images: string[] = [];
-            $('.product-images img, .gallery img').each((_, img) => {
+    } catch (error) {
+      console.error('Manual extract endpoint error:', error);
+      return res.status(500).json({
+        success: false,
+        message: 'Internal server error'
+      });
+    }
+  });
+
+  // Test endpoint for working data extraction  
+  app.get('/api/test-scraper', async (req, res) => {
+    try {
+      const testUrl = "https://www.trendyol.com/saade/beyaz-kruvaze-crop-blazer-ceket-p-810581655";
+      
+      // Use multi-scraper system for data extraction
+      const { hyperFastScrape } = await import('./hyper-fast-scraper');
+      const result = await hyperFastScrape(testUrl);
+      
+      if (result) {
+        return res.json({
+          success: true,
+          data: result,
+          extractionTime: new Date().toISOString()
+        });
+      }
+      
+      return res.status(404).json({
+        success: false,
+        message: 'Test extraction failed'
+      });
+      
+    } catch (error) {
+      console.error('Test scraper error:', error);
+      return res.status(500).json({
+        success: false,
+        message: 'Test endpoint error'
+      });
+    }
+  });
               const src = $(img).attr('src') || $(img).attr('data-src');
               if (src && src.includes('cdn.dsmcdn.com')) {
                 const fullUrl = src.startsWith('//') ? 'https:' + src : src;
