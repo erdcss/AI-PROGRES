@@ -358,7 +358,13 @@ Ne yapmak istiyorsunuz?`,
   }, []);
 
   return (
-    <div className="min-h-screen bg-gradient-to-br from-gray-900 via-blue-900 to-purple-900">
+    <div className="min-h-screen w-full bg-gradient-to-br from-gray-900 via-blue-900 to-purple-900 fixed inset-0 overflow-y-auto">
+      {/* Background Effects */}
+      <div className="absolute inset-0 bg-[url('data:image/svg+xml,%3Csvg width=%2260%22 height=%2260%22 viewBox=%220 0 60 60%22 xmlns=%22http://www.w3.org/2000/svg%22%3E%3Cg fill=%22none%22 fill-rule=%22evenodd%22%3E%3Cg fill=%22%239C92AC%22 fill-opacity=%220.1%22%3E%3Ccircle cx=%2230%22 cy=%2230%22 r=%221%22/%3E%3C/g%3E%3C/g%3E%3C/svg%3E')] opacity-20"></div>
+      <div className="absolute top-0 left-1/4 w-96 h-96 bg-purple-500/10 rounded-full blur-3xl"></div>
+      <div className="absolute bottom-0 right-1/4 w-96 h-96 bg-blue-500/10 rounded-full blur-3xl"></div>
+      
+      <div className="relative z-10 min-h-screen">
       {/* Header */}
       <div className="bg-black/20 backdrop-blur-sm border-b border-white/10 p-4">
         <div className="max-w-7xl mx-auto flex items-center justify-between">
@@ -790,6 +796,7 @@ Ne yapmak istiyorsunuz?`,
             </div>
           </div>
         </div>
+      </div>
       </div>
     </div>
   );

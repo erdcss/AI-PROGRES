@@ -161,6 +161,17 @@ const MarketplaceSelection = () => {
               <Bot className="h-6 w-6 inline-block mr-2" />
               Replit.Agent
             </button>
+
+            <button
+              onClick={() => setLocation("/sos-control")}
+              className="bg-gradient-to-r from-red-600 to-red-800 hover:from-red-700 hover:to-red-900 text-white font-semibold py-4 px-8 rounded-xl shadow-lg transition-all duration-300 transform hover:scale-105 relative overflow-hidden border-2 border-red-500/30"
+            >
+              <div className="absolute inset-0 bg-red-500/10 animate-pulse"></div>
+              <div className="relative z-10 flex items-center">
+                <Shield className="h-6 w-6 inline-block mr-2" />
+                S.O.S Kontrol Merkezi
+              </div>
+            </button>
           </div>
           
           <div className="flex flex-col sm:flex-row gap-4 justify-center text-gray-400 text-sm">
