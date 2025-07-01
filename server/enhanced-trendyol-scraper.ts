@@ -371,62 +371,46 @@ async function parseProductData(html: string, url: string): Promise<TrendyolProd
     // Extract attributes using enhanced feature extraction
     const attributes: Record<string, string> = {};
     
-    // Method 1: Standard attribute extraction
+    // Method 1: Standard attribute extraction with validation
     $('.product-attributes li, .pr-in-dt li').each((_, attr) => {
       const text = $(attr).text().trim();
       const [key, value] = text.split(':').map(s => s.trim());
-      if (key && value) {
+      if (key && value && isValidFeatureValue(value)) {
         attributes[key] = value;
+        debug(`Standard feature found: ${key} = ${value}`);
       }
     });
     
-    // Method 2: Enhanced JSON-based feature extraction
+    // Method 2: Fast JSON attribute extraction (optimized)
     try {
-      const scriptTags = $('script[type="application/ld+json"], script:contains("productDetail"), script:contains("attributes")');
+      // Limit script tag search for performance
+      const scriptTags = $('script[type="application/ld+json"]').slice(0, 3);
+      let featureCount = 0;
+      
       scriptTags.each((_, script) => {
+        if (featureCount >= 10) return false; // Break early for performance
+        
         const content = $(script).html();
-        if (content) {
+        if (content && content.includes('attributes')) {
           try {
-            // Look for comprehensive attribute patterns in JSON
-            const attributeMatches = content.match(/"attributes":\s*\[(.*?)\]/s);
-            if (attributeMatches) {
-              const attributeText = attributeMatches[1];
-              
-              // Enhanced pattern matching for nested attributes
-              const enhancedKeyValuePattern = /"key":\s*\{[^}]*"name":\s*"([^"]+)"[^}]*\},\s*"value":\s*\{[^}]*"name":\s*"([^"]+)"/g;
-              let match;
-              let featureCount = 0;
-              
-              while ((match = enhancedKeyValuePattern.exec(attributeText)) !== null && featureCount < 25) {
-                const [, key, value] = match;
-                if (key && value && key !== 'undefined' && value !== 'undefined' && 
-                    !key.includes('null') && !value.includes('null')) {
-                  attributes[key] = value;
-                  debug(`Enhanced feature found: ${key} = ${value}`);
-                  featureCount++;
+            // Fast extraction - look for key-value pairs directly
+            const keyValueMatches = content.match(/"key":\s*\{[^}]*"name":\s*"([^"]+)"[^}]*\},\s*"value":\s*\{[^}]*"name":\s*"([^"]+)"/g);
+            
+            if (keyValueMatches && keyValueMatches.length > 0) {
+              // Process only first 10 matches for speed
+              keyValueMatches.slice(0, 10).forEach(match => {
+                const parts = match.match(/"name":\s*"([^"]+)"/g);
+                if (parts && parts.length >= 2) {
+                  const key = parts[0].match(/"([^"]+)"/)?.[1];
+                  const value = parts[1].match(/"([^"]+)"/)?.[1];
+                  
+                  if (key && value && isValidFeatureValue(value) && !attributes[key]) {
+                    attributes[key] = value;
+                    debug(`Fast feature found: ${key} = ${value}`);
+                    featureCount++;
+                  }
                 }
-              }
-              
-              // Additional comprehensive pattern extraction
-              const comprehensivePattern = /"([^"]+)":\s*"([^"]+)"/g;
-              const allRelevantKeys = [
-                'Bağlama Şekli', 'Materyal', 'Taban Tipi', 'Koleksiyon', 'Dış Materyal', 
-                'Renk', 'Saya Materyali', 'Astar Materyali', 'İç Taban Materyali', 
-                'Taban Materyali', 'Topuk Boyu', 'Persona', 'Ek Özellik', 
-                'Sürdürülebilirlik Detayı', 'Topuk Tipi', 'Ortam', 'Desen', 
-                'Kumaş Tipi', 'Ürün Detayı', 'Menşei', 'Kutu Durumu', 
-                'Materyal Bileşeni', 'Yıkama Talimatları', 'Beden', 'Form'
-              ];
-              
-              while ((match = comprehensivePattern.exec(attributeText)) !== null && featureCount < 25) {
-                const [, key, value] = match;
-                if (allRelevantKeys.some(k => key.toLowerCase().includes(k.toLowerCase()) || k.toLowerCase().includes(key.toLowerCase())) && 
-                    !attributes[key] && value.length > 1 && value.length < 100) {
-                  attributes[key] = value;
-                  debug(`Comprehensive feature found: ${key} = ${value}`);
-                  featureCount++;
-                }
-              }
+              });
             }
           } catch (jsonError) {
             debug(`JSON parsing error: ${jsonError}`);
@@ -434,19 +418,16 @@ async function parseProductData(html: string, url: string): Promise<TrendyolProd
         }
       });
       
-      // Method 3: Extract features from product description patterns
-      const descriptionText = $('.product-detail-description, .pr-in-dt-cn').text();
-      if (descriptionText) {
-        // Look for material patterns
-        const materialPatterns = [
-          /Materyal[:\s]*([^.\n]+)/i,
-          /Kumaş[:\s]*([^.\n]+)/i,
-          /Material[:\s]*([^.\n]+)/i,
-          /Fabric[:\s]*([^.\n]+)/i,
-          /(%\d+\s*[A-Za-zğüşıöçĞÜŞIÖÇ]+)/g
+      // Method 3: Quick material extraction (simplified)
+      if (featureCount < 5) {
+        const descriptionText = $('.product-detail-description').first().text().slice(0, 1000); // Limit text for speed
+        
+        const quickPatterns = [
+          /Materyal[:\s]*([^.\n,]{2,30})/i,
+          /Kumaş[:\s]*([^.\n,]{2,30})/i
         ];
         
-        materialPatterns.forEach(pattern => {
+        quickPatterns.forEach(pattern => {
           const matches = descriptionText.match(pattern);
           if (matches) {
             matches.forEach(match => {
