@@ -2707,6 +2707,37 @@ export function registerRoutes(app: Express): Server {
     }
   });
 
+  // Detailed feature extraction endpoint (Ürün Özellikleri tablosu)
+  app.post('/api/detailed-features', async (req, res) => {
+    try {
+      const { url } = req.body;
+      
+      if (!url) {
+        return res.status(400).json({ 
+          success: false, 
+          error: 'URL gereklidir' 
+        });
+      }
+      
+      console.log(`🎯 Detaylı özellik çıkarma başlatılıyor...`);
+      console.log(`📍 URL: ${url}`);
+      
+      // Import detailed extractor
+      const { detailedFeatureExtractor } = await import('./detailed-feature-extractor');
+      const result = await detailedFeatureExtractor.extractDetailedFeatures(url);
+      
+      res.json(result);
+      
+    } catch (error) {
+      console.error('❌ Detaylı özellik çıkarma hatası:', error);
+      res.status(500).json({ 
+        success: false, 
+        error: 'Detaylı özellik çıkarma başarısız oldu',
+        details: error instanceof Error ? error.message : 'Bilinmeyen hata'
+      });
+    }
+  });
+
   // Initialize scheduler system on server start
   setTimeout(() => {
     try {
