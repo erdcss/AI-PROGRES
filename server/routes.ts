@@ -2084,15 +2084,28 @@ export function registerRoutes(app: Express): Server {
       // Skip focused extractor, go directly to enhanced manual extraction
       console.log(`📊 Using enhanced manual extraction for: ${url}`);
       
-      // Try Lightning Scraper first (target: 0.1 second)
-      console.log('⚡ Using Lightning Scraper...');
+      // Try Hyper-Fast Scraper first (target: 0.1 second)
+      console.log('🚀 Using Hyper-Fast Scraper...');
       try {
-        const { lightningFastScrape } = await import('./lightning-scraper');
-        var enhancedResult = await lightningFastScrape(url);
-        console.log('⚡ Lightning result:', enhancedResult ? 'SUCCESS' : 'FAILED');
-      } catch (lightningError) {
-        console.log('❌ Lightning Scraper error:', lightningError.message);
+        const { hyperFastScrape } = await import('./hyper-fast-scraper');
+        var enhancedResult = await hyperFastScrape(url);
+        console.log('🚀 Hyper result:', enhancedResult ? 'SUCCESS' : 'FAILED');
+      } catch (hyperError) {
+        console.log('❌ Hyper-Fast Scraper error:', hyperError.message);
         var enhancedResult = null;
+      }
+      
+      // Fallback to Lightning Scraper if Hyper fails
+      if (!enhancedResult) {
+        console.log('⚡ Using Lightning Scraper...');
+        try {
+          const { lightningFastScrape } = await import('./lightning-scraper');
+          enhancedResult = await lightningFastScrape(url);
+          console.log('⚡ Lightning result:', enhancedResult ? 'SUCCESS' : 'FAILED');
+        } catch (lightningError) {
+          console.log('❌ Lightning Scraper error:', lightningError.message);
+          enhancedResult = null;
+        }
       }
       
       // Fallback to Ultra-Fast Scraper if Lightning fails
