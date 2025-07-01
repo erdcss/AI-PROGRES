@@ -3,7 +3,6 @@
  * Tests product feature extraction manually from a Trendyol product
  */
 
-import puppeteer from 'puppeteer';
 import * as cheerio from 'cheerio';
 
 interface ProductFeature {
