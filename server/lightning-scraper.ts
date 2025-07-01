@@ -45,21 +45,81 @@ export async function lightningFastScrape(url: string): Promise<LightningProduct
     const html = response.data;
     if (!html) return null;
     
-    // Lightning title extraction
-    const title = html.match(/<h1[^>]*>([^<]+)/)?.[1]?.trim() || 'Product';
+    // Enhanced title extraction with multiple patterns
+    let title = html.match(/<h1[^>]*class="[^"]*pr-new-br[^"]*"[^>]*>([^<]+)/)?.[1]?.trim() ||
+                html.match(/<title>([^<]*Trendyol[^<]*)<\/title>/)?.[1]?.replace(/\s*-\s*Trendyol.*$/, '').trim() ||
+                html.match(/<h1[^>]*>([^<]+)/)?.[1]?.trim() || 'Product';
     
-    // Lightning price extraction - same as ultra-fast but faster
-    const priceMatches = html.match(/\b\d{2,4}\.\d{1,2}\b/g) || [];
-    const price = priceMatches.length > 0 ? 
-      Math.max(...priceMatches.map((p: string) => parseFloat(p)).filter((p: number) => p > 10 && p < 10000)) : 0;
+    // Enhanced price extraction with Turkish number format support
+    const pricePatterns = [
+      /(\d{1,3}(?:\.\d{3})*(?:,\d{2})?)\s*TL/g,
+      /price[^>]*>([^<]*\d[^<]*)/gi,
+      /\b(\d{2,6}(?:[.,]\d{2})?)\s*TL/g
+    ];
     
-    // Lightning image extraction - top 3 for speed
-    const images = (html.match(/https:\/\/cdn\.dsmcdn\.com[^"'\s]*_org_zoom\.jpg/g) || []).slice(0, 3);
+    let price = 0;
+    for (const pattern of pricePatterns) {
+      const matches = [...html.matchAll(pattern)];
+      if (matches.length > 0) {
+        const prices = matches.map(match => {
+          const priceStr = match[1].replace(/\./g, '').replace(',', '.');
+          return parseFloat(priceStr);
+        }).filter(p => p > 10 && p < 100000);
+        
+        if (prices.length > 0) {
+          price = Math.max(...prices);
+          break;
+        }
+      }
+    }
     
-    // Minimal variants - default values for speed
-    const colors = ['Tek Renk'];
-    const sizes = ['Tek Beden'];
-    const stockMap = { 'Tek Renk-Tek Beden': true };
+    // Enhanced image extraction with better patterns
+    const imagePatterns = [
+      /https:\/\/cdn\.dsmcdn\.com\/ty\d+\/product[^"'\s]*_org_zoom\.jpg/g,
+      /https:\/\/cdn\.dsmcdn\.com\/ty\d+\/pim[^"'\s]*_org_zoom\.jpg/g,
+      /https:\/\/cdn\.dsmcdn\.com[^"'\s]*_org_zoom\.jpg/g
+    ];
+    
+    let images: string[] = [];
+    for (const pattern of imagePatterns) {
+      const matches = html.match(pattern);
+      if (matches && matches.length > 0) {
+        const uniqueImages = matches.filter((img, index, arr) => arr.indexOf(img) === index);
+        images = uniqueImages.slice(0, 5);
+        break;
+      }
+    }
+    
+    // Enhanced variant extraction with real data detection
+    const colorMatches = html.match(/variants.*?colors.*?\[([^\]]+)\]/);
+    const sizeMatches = html.match(/variants.*?sizes.*?\[([^\]]+)\]/);
+    
+    let colors = ['Tek Renk'];
+    let sizes = ['Tek Beden'];
+    
+    if (colorMatches) {
+      const colorData = colorMatches[1];
+      const extractedColors = [...colorData.matchAll(/"name":"([^"]+)"/g)].map(m => m[1]);
+      if (extractedColors.length > 0) {
+        colors = extractedColors;
+      }
+    }
+    
+    if (sizeMatches) {
+      const sizeData = sizeMatches[1];
+      const extractedSizes = [...sizeData.matchAll(/"name":"([^"]+)"/g)].map(m => m[1]);
+      if (extractedSizes.length > 0) {
+        sizes = extractedSizes;
+      }
+    }
+    
+    // Build stock map for variants
+    const stockMap: Record<string, boolean> = {};
+    for (const color of colors) {
+      for (const size of sizes) {
+        stockMap[`${color}-${size}`] = true; // Default to in stock
+      }
+    }
     
     // Skip complex attributes for speed
     const attributes: Record<string, string> = {};

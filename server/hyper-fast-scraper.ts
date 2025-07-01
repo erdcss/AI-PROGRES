@@ -111,7 +111,7 @@ export async function hyperFastScrape(url: string): Promise<HyperFastProductData
     for (const pattern of imagePatterns) {
       const matches = html.match(pattern);
       if (matches && matches.length > 0) {
-        images = Array.from(new Set(matches)).slice(0, 7); // Get 7 unique images
+        images = Array.from(new Set(matches)).filter((img): img is string => typeof img === 'string').slice(0, 7); // Get 7 unique images
         break;
       }
     }
