@@ -16,8 +16,8 @@ router.post('/disconnect-shopify', async (req, res) => {
     process.env.SHOPIFY_DISABLE = 'true';
     
     // Send Telegram notification
-    await filteredTelegramNotifier.sendMessage(
-      '🚨 S.O.S ALERT: Shopify API bağlantısı devre dışı bırakıldı. Otomatik senkronizasyon durduruldu.'
+    await filteredTelegramNotifier.sendSOSAlert(
+      'Shopify API bağlantısı devre dışı bırakıldı. Otomatik senkronizasyon durduruldu.'
     );
     
     console.log('✅ Shopify bağlantısı devre dışı bırakıldı');
@@ -44,8 +44,8 @@ router.post('/disconnect-telegram', async (req, res) => {
     console.log('🚨 S.O.S: Telegram bağlantısı kesiliyor...');
     
     // Send final notification before disconnecting
-    await filteredTelegramNotifier.sendMessage(
-      '🚨 S.O.S ALERT: Telegram bot bağlantısı devre dışı bırakılıyor. Bu son bildirimdir.'
+    await filteredTelegramNotifier.sendSOSAlert(
+      'Telegram bot bağlantısı devre dışı bırakılıyor. Bu son bildirimdir.'
     );
     
     // Disable Telegram functionality
@@ -121,9 +121,8 @@ router.post('/emergency-reset', async (req, res) => {
     delete process.env.TELEGRAM_DISABLE;
     
     // Send emergency notification
-    await filteredTelegramNotifier.sendNotification(
-      '🔄 S.O.S: ACİL SİSTEM RESET tamamlandı. Tüm bağlantılar yeniden etkinleştirildi.',
-      'critical'
+    await filteredTelegramNotifier.sendSOSAlert(
+      'ACİL SİSTEM RESET tamamlandı. Tüm bağlantılar yeniden etkinleştirildi.'
     );
     
     console.log('✅ Acil sistem reset tamamlandı');
