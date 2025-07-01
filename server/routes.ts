@@ -2738,6 +2738,37 @@ export function registerRoutes(app: Express): Server {
     }
   });
 
+  // Trendyol properties extraction endpoint (Ürün Özellikleri tablosu - specialized)
+  app.post('/api/trendyol-properties', async (req, res) => {
+    try {
+      const { url } = req.body;
+      
+      if (!url) {
+        return res.status(400).json({ 
+          success: false, 
+          error: 'URL gereklidir' 
+        });
+      }
+      
+      console.log(`🏷️ Trendyol özellikleri çıkarılıyor...`);
+      console.log(`📍 URL: ${url}`);
+      
+      // Import Trendyol properties extractor
+      const { trendyolPropertiesExtractor } = await import('./trendyol-properties-extractor');
+      const result = await trendyolPropertiesExtractor.extractTrendyolProperties(url);
+      
+      res.json(result);
+      
+    } catch (error) {
+      console.error('❌ Trendyol özellikleri çıkarma hatası:', error);
+      res.status(500).json({ 
+        success: false, 
+        error: 'Trendyol özellikleri çıkarma başarısız oldu',
+        details: error instanceof Error ? error.message : 'Bilinmeyen hata'
+      });
+    }
+  });
+
   // Initialize scheduler system on server start
   setTimeout(() => {
     try {

@@ -501,9 +501,39 @@ function ScraperPage({ platform = 'trendyol' }: ScraperPageProps) {
     }
   });
 
+  const trendyolTestMutation = useMutation({
+    mutationFn: async (data?: { url?: string }) => {
+      const response = await apiRequest("POST", "/api/trendyol-properties", data || {});
+      if (!response.ok) {
+        const errorData = await response.json().catch(() => ({}));
+        throw new Error(errorData.error || `HTTP ${response.status}: ${response.statusText}`);
+      }
+      return response.json();
+    },
+    onSuccess: (data) => {
+      setTrendyolTestResult(data);
+      toast({
+        title: "Trendyol Test Tamamlandı",
+        description: `${data.totalFound} özellik çıkarıldı (${data.extractionTime}ms)`
+      });
+    },
+    onError: (error: any) => {
+      toast({
+        title: "Trendyol Test Hatası",
+        description: error.message,
+        variant: "destructive"
+      });
+    }
+  });
+
   const testManualFeatures = () => {
     const currentUrl = form.getValues("url");
     manualTestMutation.mutate(currentUrl ? { url: currentUrl } : {});
+  };
+
+  const testTrendyolProperties = () => {
+    const currentUrl = form.getValues("url");
+    trendyolTestMutation.mutate(currentUrl ? { url: currentUrl } : {});
   };
 
   const onSubmit = form.handleSubmit((data) => {
@@ -997,8 +1027,8 @@ function ScraperPage({ platform = 'trendyol' }: ScraperPageProps) {
             </div>
           </form>
 
-          {/* Manual Feature Test Button */}
-          <div className="mt-4 text-center">
+          {/* Manual Feature Test Buttons */}
+          <div className="mt-4 flex gap-3 justify-center">
             <Button
               onClick={testManualFeatures}
               disabled={manualTestMutation.isPending}
@@ -1013,6 +1043,24 @@ function ScraperPage({ platform = 'trendyol' }: ScraperPageProps) {
                 <>
                   <TestTube className="w-4 h-4 mr-2" />
                   Manuel Özellik Testi
+                </>
+              )}
+            </Button>
+            
+            <Button
+              onClick={testTrendyolProperties}
+              disabled={trendyolTestMutation.isPending}
+              className="bg-gradient-to-r from-orange-600 to-red-700 hover:from-orange-700 hover:to-red-800 text-white border border-orange-500/50 hover:border-orange-400/70 rounded-xl px-6 py-2 text-sm font-medium transition-all duration-200"
+            >
+              {trendyolTestMutation.isPending ? (
+                <>
+                  <Loader2 className="w-4 h-4 mr-2 animate-spin" />
+                  Trendyol test...
+                </>
+              ) : (
+                <>
+                  <TestTube className="w-4 h-4 mr-2" />
+                  Trendyol Özellik Tablosu
                 </>
               )}
             </Button>
