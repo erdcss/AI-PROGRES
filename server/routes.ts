@@ -2598,6 +2598,34 @@ export function registerRoutes(app: Express): Server {
     }
   });
 
+  // Manual feature extraction test endpoint
+  app.post('/api/test-manual-features', async (req, res) => {
+    try {
+      const { manualFeatureExtraction, testStanleyProduct } = await import('./manual-feature-test');
+      const { url } = req.body;
+      
+      if (url) {
+        console.log(`🧪 Manuel özellik testi başlatılıyor: ${url}`);
+        const result = await manualFeatureExtraction(url);
+        res.json(result);
+      } else {
+        console.log('🧪 Stanley ürünü ile test yapılıyor...');
+        const result = await testStanleyProduct();
+        res.json(result);
+      }
+    } catch (error) {
+      console.error('❌ Manuel özellik testi hatası:', error);
+      res.status(500).json({
+        success: false,
+        error: error instanceof Error ? error.message : 'Test hatası',
+        features: [],
+        extractionMethod: 'manual-multi-method',
+        processingTime: 0,
+        htmlSize: 0
+      });
+    }
+  });
+
   // Initialize scheduler system on server start
   setTimeout(() => {
     try {

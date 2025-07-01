@@ -812,6 +812,11 @@ function ScraperPage({ platform = 'trendyol' }: ScraperPageProps) {
   return (
     <div className="fixed inset-0 bg-gradient-to-br from-slate-900 via-blue-900 to-indigo-900 text-white overflow-auto">
       <div className="min-h-full p-4 relative">
+        {/* Real-time Clock - Top Right */}
+        <div className="absolute top-4 right-4 z-10">
+          <RealTimeClock />
+        </div>
+        
         {/* Navigation Header */}
         <div className="max-w-2xl mx-auto mb-6">
           <Button
@@ -857,11 +862,6 @@ function ScraperPage({ platform = 'trendyol' }: ScraperPageProps) {
                     Trendyol ürün verilerini Shopify'a uyumlu formata dönüştürün
                   </p>
                 </div>
-              </div>
-              
-              {/* Real-time Clock */}
-              <div className="flex justify-center mt-6">
-                <RealTimeClock />
               </div>
               
               {/* Version & Developer Info */}
