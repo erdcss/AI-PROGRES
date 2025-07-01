@@ -9,6 +9,7 @@ import { extractProductFeatures } from './fixed-feature-extractor';
 import { advancedAntiBot } from './advanced-anti-bot-scraper';
 import { ultimateBypass } from './ultimate-bypass-scraper';
 import { enhancedCLNKScraper } from './enhanced-clnk-scraper';
+import { extractManualPrice } from './manual-price-extractor';
 
 export interface CleanProductData {
   success: boolean;
@@ -70,14 +71,20 @@ export async function cleanScrape(url: string): Promise<CleanProductData> {
           const brand = processedUrl.includes('/clnk/') ? 'Clnk' : 'CLNK';
           
           // Price çıkar
-          const price = await extractPriceWithAllMethods(basicResult.html, processedUrl);
+          const price = await extractManualPrice(basicResult.html, processedUrl);
           
           // CLNK verilerini birleştir
           return {
             success: true,
             title,
             brand,
-            price,
+            price: {
+              original: price.original,
+              currency: price.currency,
+              formatted: price.formatted,
+              withProfit: price.withProfit,
+              profitFormatted: price.profitFormatted
+            },
             images: clnkResult.images,
             features: clnkResult.features,
             variants: [{
