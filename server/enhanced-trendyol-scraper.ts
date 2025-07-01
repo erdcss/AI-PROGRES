@@ -247,25 +247,118 @@ async function parseProductData(html: string, url: string): Promise<TrendyolProd
     const brand = $('.product-brand, .pr-new-br a, [data-testid="brand-name"]').first().text().trim() ||
                   url.split('/')[3] || 'Unknown';
 
-    // Extract price
+    // Extract price using enhanced multi-method approach
     let price = 0;
-    const priceText = $('.prc-box-dscntd, .prc-box-sllng, [data-testid="price"], .price').first().text().trim();
-    const priceMatch = priceText.match(/[\d,]+/);
-    if (priceMatch) {
-      price = parseFloat(priceMatch[0].replace(',', '.'));
+    
+    // Method 1: Standard price selectors
+    const priceSelectors = [
+      '.prc-box-dscntd',
+      '.prc-box-sllng', 
+      '[data-testid="price"]',
+      '.price',
+      '.product-price-container .price',
+      '.pr-bx-w .prc-slg',
+      '.discount-price',
+      '.current-price',
+      '.sale-price'
+    ];
+    
+    for (const selector of priceSelectors) {
+      const priceElement = $(selector).first();
+      if (priceElement.length) {
+        const priceText = priceElement.text().trim();
+        const priceMatch = priceText.match(/[\d.,]+/);
+        if (priceMatch) {
+          const cleanPrice = priceMatch[0].replace(/[.,](\d{1,2})$/, '.$1').replace(/[.,]/g, '');
+          const parsedPrice = parseFloat(cleanPrice) / (cleanPrice.length > 4 ? 100 : 1);
+          if (parsedPrice > 0) {
+            price = parsedPrice;
+            debug(`Price found with ${selector}: ${price} TL`);
+            break;
+          }
+        }
+      }
+    }
+    
+    // Method 2: JSON-based price extraction if standard method fails
+    if (price === 0) {
+      const scriptTags = $('script:contains("price"), script:contains("currentPrice"), script:contains("originalPrice")');
+      scriptTags.each((_, script) => {
+        const content = $(script).html();
+        if (content && price === 0) {
+          // Look for price patterns in JSON
+          const pricePatterns = [
+            /"price":\s*(\d+(?:\.\d+)?)/,
+            /"currentPrice":\s*(\d+(?:\.\d+)?)/,
+            /"originalPrice":\s*(\d+(?:\.\d+)?)/,
+            /"sellingPrice":\s*(\d+(?:\.\d+)?)/
+          ];
+          
+          for (const pattern of pricePatterns) {
+            const match = content.match(pattern);
+            if (match) {
+              const foundPrice = parseFloat(match[1]);
+              if (foundPrice > 0) {
+                price = foundPrice;
+                debug(`Price found in JSON: ${price} TL`);
+                break;
+              }
+            }
+          }
+        }
+      });
+    }
+    
+    // Method 3: Meta tag price extraction
+    if (price === 0) {
+      const metaPrice = $('meta[property="product:price:amount"], meta[name="price"]').attr('content');
+      if (metaPrice) {
+        const parsedMetaPrice = parseFloat(metaPrice);
+        if (parsedMetaPrice > 0) {
+          price = parsedMetaPrice;
+          debug(`Price found in meta tag: ${price} TL`);
+        }
+      }
     }
 
-    // Extract images
+    // Extract images using enhanced multi-method approach
     const images: string[] = [];
-    $('img[data-testid="product-image"], .product-images img, .pr-in-img img').each((_, img) => {
+    const uniqueImages = new Set<string>();
+    
+    // Method 1: Standard image selectors
+    $('img[data-testid="product-image"], .product-images img, .pr-in-img img, .gallery-image img').each((_, img) => {
       const src = $(img).attr('src') || $(img).attr('data-src');
-      if (src && src.includes('cdn')) {
-        const optimizedSrc = src.replace(/\/\d+_\d+\./, '/_org.');
-        if (!images.includes(optimizedSrc)) {
-          images.push(optimizedSrc);
+      if (src && src.includes('cdn.dsmcdn.com')) {
+        // Convert to high quality version
+        const highQualitySrc = src.replace(/(_\d+x\d+|_mnr|_thumb|_small)/g, '').replace(/\.jpg$/, '_org_zoom.jpg');
+        uniqueImages.add(highQualitySrc);
+      }
+    });
+    
+    // Method 2: Extract from JSON data in script tags
+    const scriptTags = $('script:contains("images"), script:contains("gallery"), script:contains("cdn.dsmcdn.com")');
+    scriptTags.each((_, script) => {
+      const content = $(script).html();
+      if (content) {
+        // Extract CDN image URLs
+        const imagePattern = /https:\/\/cdn\.dsmcdn\.com[^"'\s]*\.jpg/g;
+        const matches = content.match(imagePattern);
+        if (matches) {
+          matches.forEach(url => {
+            // Filter out unwanted image types and convert to high quality
+            if (!url.includes('icon') && !url.includes('logo') && !url.includes('badge') && !url.includes('thumb')) {
+              const highQualityUrl = url.replace(/(_\d+x\d+|_mnr|_thumb|_small)/g, '').replace(/\.jpg$/, '_org_zoom.jpg');
+              uniqueImages.add(highQualityUrl);
+            }
+          });
         }
       }
     });
+    
+    // Convert Set to Array and limit to 7 main product images
+    images.push(...Array.from(uniqueImages).slice(0, 7));
+    
+    debug(`Images extracted: ${images.length} high-quality images`);
 
     // Use working variant extraction
     const { extractWorkingVariants } = await import('./working-variant-extractor');
@@ -275,8 +368,10 @@ async function parseProductData(html: string, url: string): Promise<TrendyolProd
     const description = $('.product-detail-description, .pr-in-dt-cn, [data-testid="description"]').first().text().trim() ||
                        $('meta[name="description"]').attr('content') || '';
 
-    // Extract attributes
+    // Extract attributes using enhanced feature extraction
     const attributes: Record<string, string> = {};
+    
+    // Method 1: Standard attribute extraction
     $('.product-attributes li, .pr-in-dt li').each((_, attr) => {
       const text = $(attr).text().trim();
       const [key, value] = text.split(':').map(s => s.trim());
@@ -284,8 +379,69 @@ async function parseProductData(html: string, url: string): Promise<TrendyolProd
         attributes[key] = value;
       }
     });
+    
+    // Method 2: Enhanced JSON-based feature extraction
+    try {
+      const scriptTags = $('script[type="application/ld+json"], script:contains("productDetail"), script:contains("attributes")');
+      scriptTags.each((_, script) => {
+        const content = $(script).html();
+        if (content) {
+          try {
+            // Look for attribute patterns in JSON
+            const attributeMatches = content.match(/"attributes":\s*\[(.*?)\]/s);
+            if (attributeMatches) {
+              const attributeText = attributeMatches[1];
+              // Extract key-value pairs from attribute JSON
+              const keyValuePattern = /"key":\s*{[^}]*"name":\s*"([^"]+)"[^}]*},\s*"value":\s*{[^}]*"name":\s*"([^"]+)"/g;
+              let match;
+              while ((match = keyValuePattern.exec(attributeText)) !== null) {
+                const [, key, value] = match;
+                if (key && value && key !== 'undefined' && value !== 'undefined') {
+                  attributes[key] = value;
+                  debug(`Enhanced feature found: ${key} = ${value}`);
+                }
+              }
+            }
+          } catch (jsonError) {
+            // Ignore JSON parsing errors
+          }
+        }
+      });
+      
+      // Method 3: Extract features from product description patterns
+      const descriptionText = $('.product-detail-description, .pr-in-dt-cn').text();
+      if (descriptionText) {
+        // Look for material patterns
+        const materialPatterns = [
+          /Materyal[:\s]*([^.\n]+)/i,
+          /Kumaş[:\s]*([^.\n]+)/i,
+          /Material[:\s]*([^.\n]+)/i,
+          /Fabric[:\s]*([^.\n]+)/i,
+          /(%\d+\s*[A-Za-zğüşıöçĞÜŞIÖÇ]+)/g
+        ];
+        
+        materialPatterns.forEach(pattern => {
+          const matches = descriptionText.match(pattern);
+          if (matches) {
+            matches.forEach(match => {
+              if (match.includes('%')) {
+                attributes['Materyal Bileşeni'] = match.trim();
+              } else {
+                attributes['Kumaş Tipi'] = match.replace(/^[^:]*:\s*/, '').trim();
+              }
+            });
+          }
+        });
+      }
+      
+    } catch (enhancedError) {
+      debug(`Enhanced feature extraction error: ${enhancedError}`);
+    }
 
     debug(`Ürün başarıyla parse edildi: ${title}`);
+    debug(`Price extracted: ${price} TL`);
+    debug(`Images extracted: ${images.length} images`);
+    debug(`Attributes extracted: ${Object.keys(attributes).length} features`);
     debug(`Variants: ${variants.colors.length} renk, ${variants.sizes.length} beden`);
     debug(`Stock map entries: ${Object.keys(variants.stockMap).length}`);
 
