@@ -213,18 +213,18 @@ function CSVPreview({ csvPath }: { csvPath: string }) {
             <table className="w-full text-xs border border-gray-600 rounded">
               <thead className="bg-gray-700 sticky top-0">
                 <tr>
-                {result.csvData.headers.slice(0, 6).map((header: string, index: number) => (
+                {(result?.csvData || csvData)?.headers?.slice(0, 6).map((header: string, index: number) => (
                   <th key={index} className="text-left p-2 text-gray-300 border-r border-gray-600 min-w-[100px]">
                     {header.length > 15 ? header.substring(0, 15) + '...' : header}
                   </th>
                 ))}
-                {result.csvData.headers.length > 6 && (
-                  <th className="text-left p-2 text-gray-400">+{result.csvData.headers.length - 6} daha</th>
+                {((result?.csvData || csvData)?.headers?.length || 0) > 6 && (
+                  <th className="text-left p-2 text-gray-400">+{((result?.csvData || csvData)?.headers?.length || 0) - 6} daha</th>
                 )}
               </tr>
             </thead>
             <tbody>
-              {result.csvData.rows.map((row: string[], rowIndex: number) => (
+              {(result?.csvData || csvData)?.rows?.map((row: string[], rowIndex: number) => (
                 <tr key={rowIndex} className="border-b border-gray-600 hover:bg-gray-700/30">
                   {row.slice(0, 6).map((cell: string, cellIndex: number) => (
                     <td key={cellIndex} className="p-2 text-gray-300 border-r border-gray-600 max-w-[120px] truncate" title={cell}>
@@ -333,14 +333,14 @@ function ScraperPage({ platform = 'trendyol' }: ScraperPageProps) {
       console.log('CSV indirme başarılı');
     } catch (error) {
       console.error('CSV indirme hatası:', error);
-      setError({
+      setMainError({
         message: `CSV indirme hatası: ${error.message}`,
         details: 'CSV dosyası henüz hazır olmayabilir. Lütfen önce bir ürün çekin.'
       });
     }
   };
 
-  const [error, setError] = useState<{
+  const [mainError, setMainError] = useState<{
     message: string;
     status?: number;
     details?: string;
@@ -404,7 +404,7 @@ function ScraperPage({ platform = 'trendyol' }: ScraperPageProps) {
   useEffect(() => {
     const subscription = form.watch((value, { name, type }) => {
       if (type === "change" && name === "url") {
-        setError(null);
+        setMainError(null);
       }
     });
     return () => subscription.unsubscribe();
@@ -458,7 +458,7 @@ function ScraperPage({ platform = 'trendyol' }: ScraperPageProps) {
         setProduct(data);
       }
       
-      setError(null);
+      setMainError(null);
       toast({
         title: "Başarılı",
         description: data.csvGenerated ? "Ürün verisi çekildi ve CSV oluşturuldu" : "Ürün verisi başarıyla çekildi"
@@ -784,7 +784,7 @@ function ScraperPage({ platform = 'trendyol' }: ScraperPageProps) {
 
   const [csvPreview, setCsvPreview] = useState<any[]>([]);
   const [showCsvPreview, setShowCsvPreview] = useState(false);
-  const [error, setError] = useState<any>(null);
+  const [isUploadingToShopify, setIsUploadingToShopify] = useState(false);
 
   const previewCSV = async () => {
     if (extractedProducts.length === 0) {
