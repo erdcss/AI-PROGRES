@@ -476,6 +476,36 @@ function ScraperPage({ platform = 'trendyol' }: ScraperPageProps) {
     }
   });
 
+  const manualTestMutation = useMutation({
+    mutationFn: async (data?: { url?: string }) => {
+      const response = await apiRequest("POST", "/api/test-manual-features", data || {});
+      if (!response.ok) {
+        const errorData = await response.json().catch(() => ({}));
+        throw new Error(errorData.error || `HTTP ${response.status}: ${response.statusText}`);
+      }
+      return response.json();
+    },
+    onSuccess: (data) => {
+      setManualTestResult(data);
+      toast({
+        title: "Manuel Test Tamamlandı",
+        description: `${data.features.length} özellik çıkarıldı (${data.processingTime}ms)`
+      });
+    },
+    onError: (error: any) => {
+      toast({
+        title: "Manuel Test Hatası",
+        description: error.message,
+        variant: "destructive"
+      });
+    }
+  });
+
+  const testManualFeatures = () => {
+    const currentUrl = form.getValues("url");
+    manualTestMutation.mutate(currentUrl ? { url: currentUrl } : {});
+  };
+
   const onSubmit = form.handleSubmit((data) => {
     scrapeMutation.mutate(data);
   });
@@ -723,6 +753,7 @@ function ScraperPage({ platform = 'trendyol' }: ScraperPageProps) {
 
   const [csvPreview, setCsvPreview] = useState<any[]>([]);
   const [showCsvPreview, setShowCsvPreview] = useState(false);
+  const [manualTestResult, setManualTestResult] = useState<any>(null);
 
   const previewCSV = async () => {
     if (extractedProducts.length === 0) {
@@ -965,7 +996,105 @@ function ScraperPage({ platform = 'trendyol' }: ScraperPageProps) {
               <div className="absolute inset-0 bg-gradient-to-r from-blue-600/10 to-indigo-600/10 rounded-2xl blur-xl opacity-0 group-focus-within:opacity-100 transition-opacity duration-300 -z-10"></div>
             </div>
           </form>
+
+          {/* Manual Feature Test Button */}
+          <div className="mt-4 text-center">
+            <Button
+              onClick={testManualFeatures}
+              disabled={manualTestMutation.isPending}
+              className="bg-gradient-to-r from-emerald-600 to-teal-700 hover:from-emerald-700 hover:to-teal-800 text-white border border-emerald-500/50 hover:border-emerald-400/70 rounded-xl px-6 py-2 text-sm font-medium transition-all duration-200"
+            >
+              {manualTestMutation.isPending ? (
+                <>
+                  <Loader2 className="w-4 h-4 mr-2 animate-spin" />
+                  Test yapılıyor...
+                </>
+              ) : (
+                <>
+                  <TestTube className="w-4 h-4 mr-2" />
+                  Manuel Özellik Testi
+                </>
+              )}
+            </Button>
+          </div>
           </motion.div>
+
+        {/* Manual Test Results */}
+        <AnimatePresence>
+          {manualTestResult && (
+            <motion.div
+              initial={{ opacity: 0, y: 50 }}
+              animate={{ opacity: 1, y: 0 }}
+              exit={{ opacity: 0, y: -50 }}
+              transition={{ duration: 0.3 }}
+              className="mb-6"
+            >
+              <Card className="bg-gradient-to-br from-emerald-900/40 to-teal-900/40 backdrop-blur-sm border border-emerald-500/30 shadow-2xl">
+                <CardContent className="p-6">
+                  <div className="flex justify-between items-center mb-4">
+                    <h3 className="text-lg font-semibold text-emerald-300 flex items-center gap-2">
+                      <TestTube className="h-5 w-5" />
+                      Manuel Test Sonuçları
+                    </h3>
+                    <Button 
+                      variant="ghost" 
+                      size="sm" 
+                      onClick={() => setManualTestResult(null)}
+                      className="text-emerald-400 hover:text-emerald-300"
+                    >
+                      <XCircle className="h-4 w-4" />
+                    </Button>
+                  </div>
+                  
+                  <div className="space-y-4">
+                    {/* Test Statistics */}
+                    <div className="grid grid-cols-2 md:grid-cols-4 gap-4 text-sm">
+                      <div className="text-center p-3 bg-emerald-900/20 rounded-lg border border-emerald-600/20">
+                        <div className="text-2xl font-bold text-emerald-400">{manualTestResult.features.length}</div>
+                        <div className="text-emerald-300">Özellik</div>
+                      </div>
+                      <div className="text-center p-3 bg-emerald-900/20 rounded-lg border border-emerald-600/20">
+                        <div className="text-2xl font-bold text-emerald-400">{manualTestResult.processingTime}ms</div>
+                        <div className="text-emerald-300">İşlem Süresi</div>
+                      </div>
+                      <div className="text-center p-3 bg-emerald-900/20 rounded-lg border border-emerald-600/20">
+                        <div className="text-2xl font-bold text-emerald-400">{Math.round(manualTestResult.htmlSize / 1024)}KB</div>
+                        <div className="text-emerald-300">HTML Boyutu</div>
+                      </div>
+                      <div className="text-center p-3 bg-emerald-900/20 rounded-lg border border-emerald-600/20">
+                        <div className="text-2xl font-bold text-emerald-400">{manualTestResult.success ? '✓' : '✗'}</div>
+                        <div className="text-emerald-300">Durum</div>
+                      </div>
+                    </div>
+                    
+                    {/* Features List */}
+                    {manualTestResult.features && manualTestResult.features.length > 0 && (
+                      <div>
+                        <h4 className="text-md font-medium text-emerald-300 mb-3">Çıkarılan Özellikler:</h4>
+                        <div className="max-h-48 overflow-y-auto">
+                          <div className="grid gap-2">
+                            {manualTestResult.features.slice(0, 20).map((feature: any, index: number) => (
+                              <div key={index} className="p-2 bg-emerald-900/10 rounded border border-emerald-600/20 text-sm">
+                                <span className="text-emerald-400 font-medium">{feature.key}:</span>
+                                <span className="text-emerald-200 ml-2">{feature.value}</span>
+                                <span className="text-emerald-500 ml-2 text-xs">({Math.round(feature.confidence * 100)}%)</span>
+                              </div>
+                            ))}
+                          </div>
+                          {manualTestResult.features.length > 20 && (
+                            <p className="text-emerald-400 text-sm mt-2 text-center">
+                              ... ve {manualTestResult.features.length - 20} özellik daha
+                            </p>
+                          )}
+                        </div>
+                      </div>
+                    )}
+                  </div>
+                </CardContent>
+              </Card>
+            </motion.div>
+          )}
+        </AnimatePresence>
 
         {/* CSV Önizleme Tablosu */}
         <AnimatePresence>

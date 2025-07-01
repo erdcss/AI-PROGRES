@@ -22,6 +22,7 @@ import memoryStatusRoutes from './memory-status-api';
 import { testImageExtraction } from './direct-image-test';
 import { initializeScheduler, getSchedulerStatus, executeTaskManually } from './simple-scheduler';
 import { db } from './db';
+import { manualFeatureExtraction } from './manual-feature-test';
 
 
 function generateSingleProductShopifyCSV(product: any): string {
@@ -235,6 +236,31 @@ function normalizeImageUrl(url: string): string {
 export function registerRoutes(app: Express): Server {
 
   // CSV preview endpoint removed - handled in server/index.ts
+
+  // Manual feature testing endpoint
+  app.post("/api/test-manual-features", async (req, res) => {
+    try {
+      const { url } = req.body;
+      console.log("🧪 Manual feature test başlatılıyor...");
+      
+      // Use provided URL or default to a test URL
+      const testUrl = url || "https://www.trendyol.com/stanley/classic-seri-termos-1-0lt-matte-black-p-365983942";
+      
+      console.log(`📍 Test URL: ${testUrl}`);
+      
+      const result = await manualFeatureExtraction(testUrl);
+      
+      console.log(`✅ Manuel test tamamlandı: ${result.features.length} özellik, ${result.processingTime}ms`);
+      
+      res.json(result);
+    } catch (error) {
+      console.error("❌ Manuel test hatası:", error);
+      res.status(500).json({
+        error: "Manuel test sırasında hata oluştu",
+        details: error instanceof Error ? error.message : 'Bilinmeyen hata'
+      });
+    }
+  });
 
   // Ürün çekme endpoint'i - test modu tamamen kaldırıldı
   app.post('/api/scrape', async (req, res) => {
