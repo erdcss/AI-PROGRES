@@ -444,12 +444,32 @@ export function registerRoutes(app: Express): Server {
       // Enhanced product data extraction for Trendyol products
       if (url.includes('trendyol.com')) {
         try {
-          // Use multi-scraper system for data extraction
+          // Use proven clean-scraper for authentic data extraction
+          console.log("🧹 Using proven Clean Scraper for authentic data...");
+          const { cleanScrape } = await import('./clean-scraper');
+          const cleanResult = await cleanScrape(url);
+          
+          if (cleanResult.success) {
+            console.log("🧹 Clean Scraper SUCCESS - authentic data extracted");
+            
+            return res.json({
+              success: true,
+              extractionMethod: 'clean-scraper',
+              brand: cleanResult.brand,
+              title: cleanResult.title,
+              price: cleanResult.price.withProfit,
+              images: cleanResult.images,
+              features: cleanResult.features,
+              variants: cleanResult.variants
+            });
+          }
+          
+          // Fallback to fast scrapers if clean-scraper fails
           const { hyperFastScrape } = await import('./hyper-fast-scraper');
           const { lightningFastScrape } = await import('./lightning-scraper');
           const { scrapeWithEnhancedMethod } = await import('./enhanced-trendyol-scraper');
           
-          console.log("🚀 Using Hyper-Fast Scraper...");
+          console.log("🚀 Clean failed, trying Hyper-Fast Scraper...");
           const hyperResult = await hyperFastScrape(url);
           
           if (hyperResult && hyperResult.title) {
