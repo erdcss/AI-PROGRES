@@ -1,0 +1,1766 @@
+import type { Express } from "express";
+import express from "express";
+import cheerio from "cheerio";
+import { Product, InsertProduct, insertProductSchema, urlSchema } from "@shared/schema";
+import { storage } from "./storage";
+import { createObjectCsvWriter } from "csv-writer";
+import { BotProtectionError, NetworkError, ProductDataError, TrendyolScrapingError, URLValidationError, handleError } from "./errors";
+import { scrapeProductWithPuppeteer } from "./puppeteer-scraper";
+import { getCategoryConfig } from "./category-mapping";
+import fetch from "node-fetch";
+import { promises as fs } from "fs";
+import path from "path";
+
+function debug(message: string, ...args: any[]) {
+  // Only log in development or when DEBUG env var is set
+  if (process.env.NODE_ENV === 'development' || process.env.DEBUG) {
+    console.log(`[DEBUG] ${message}`, ...args);
+  }
+}
+
+function cleanPrice(price: string): number {
+  // Normalize price removing any non-numeric characters (except '.')
+  const cleanedPrice = price.replace(/[^\d.]/g, '');
+  return parseFloat(cleanedPrice);
+}
+
+async function fetchProductPage(url: string): Promise<cheerio.CheerioAPI> {
+  // Trendyol bot koruması için geliştirilmiş stealth modu - Mobil tarayıcılara odaklanın
+  const userAgents = [
+    // Mobil kullanıcı ajanları - bot korumasına karşı daha etkilidir
+    'Mozilla/5.0 (iPhone; CPU iPhone OS 17_5 like Mac OS X) AppleWebKit/605.1.15 (KHTML, like Gecko) CriOS/124.0.6367.83 Mobile/15E148 Safari/604.1',
+    'Mozilla/5.0 (iPhone; CPU iPhone OS 17_5 like Mac OS X) AppleWebKit/605.1.15 (KHTML, like Gecko) Version/17.5 Mobile/15E148 Safari/604.1',
+    'Mozilla/5.0 (Linux; Android 14; SM-S918B) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/124.0.6367.95 Mobile Safari/537.36',
+    'Mozilla/5.0 (iPad; CPU OS 17_5 like Mac OS X) AppleWebKit/605.1.15 (KHTML, like Gecko) Version/17.5 Mobile/15E148 Safari/604.1',
+    'Mozilla/5.0 (Android 14; Mobile; rv:124.0) Gecko/124.0 Firefox/124.0',
+  ];
+  
+  const randomUserAgent = userAgents[Math.floor(Math.random() * userAgents.length)];
+  
+  // Rastgele gecikme ekleyerek doğal kullanıcı davranışı simülasyonu
+  const delay = Math.floor(Math.random() * 1500) + 1000; // 1000-2500ms arası rastgele bekleme (daha uzun)
+  
+  try {
+    // URL'yi normalize et
+    if (!url.startsWith('http')) {
+      url = 'https://www.' + url.replace(/^www\./, '');
+    }
+
+    debug(`Fetching URL: ${url}`);
+    debug(`Kullanılan User-Agent: ${randomUserAgent}`);
+    debug(`İstek öncesi bekleme: ${delay}ms`);
+    
+    // Bot korumasını atlatmak için rastgele gecikme ekle
+    await new Promise(resolve => setTimeout(resolve, delay));
+    
+    // Trendyol için geçerli görünen session ID ve visitor ID oluştur
+    const sessionId = Math.random().toString(36).substring(2, 15);
+    const visitorId = Math.random().toString(36).substring(2, 22);
+    const cookieValue = `_gcl_au=1.1.${Math.floor(Math.random() * 1000000000)}.${Math.floor(Date.now() / 1000)}; sid=${sessionId}; vid=${visitorId}`;
+
+    // Trendyol'un mobil API'sini kullanmayı deneyelim
+    // Ürün ID'sini URL'den çıkaralım
+    const productIdMatch = url.match(/p-(\d+)/);
+    if (productIdMatch && productIdMatch[1]) {
+      const productId = productIdMatch[1];
+      try {
+        // NOT: API endpoint URL güncellenebilir - Trendyol bunu sık sık değiştirebilir
+        // Yeni mobil API endpoint'i (m.trendyol.com API'yi kullanıyor)
+        const mobileUrl = `https://m.trendyol.com/mweb/product/${productId}`;
+        
+        debug(`Mobil site URL kullanılıyor: ${mobileUrl}`);
+        
+        // @ts-ignore - node-fetch tiplemesi farklı olduğu için
+        const mobileResponse = await fetch(mobileUrl, {
+          headers: {
+            'User-Agent': 'Mozilla/5.0 (iPhone; CPU iPhone OS 16_6_1 like Mac OS X) AppleWebKit/605.1.15 (KHTML, like Gecko) Version/16.6 Mobile/15E148 Safari/604.1',
+            'Accept': 'text/html,application/xhtml+xml,application/xml;q=0.9,*/*;q=0.8',
+            'Accept-Language': 'tr-TR,tr;q=0.9',
+            'Cache-Control': 'no-cache',
+            'Pragma': 'no-cache',
+            'Referer': 'https://www.google.com/',
+            'Connection': 'keep-alive',
+            'Cookie': cookieValue,
+            'Upgrade-Insecure-Requests': '1',
+            'Sec-Fetch-Dest': 'document',
+            'Sec-Fetch-Mode': 'navigate',
+            'Sec-Fetch-Site': 'none',
+            'Sec-Fetch-User': '?1'
+          }
+        });
+        
+        // Mobil site başarılıysa işle
+        if (mobileResponse.ok) {
+          const mobileHtml = await mobileResponse.text();
+          
+          if (mobileHtml && mobileHtml.length > 5000) {
+            debug('Mobil site yanıtı başarılı, veri alındı');
+            
+            // Mobil HTML'i Cheerio ile yükle
+            return cheerio.load(mobileHtml);
+          }
+        }
+      
+        // Eğer mobil site başarısız olursa, eski API endpoint'ini deneyelim
+        const apiUrl = `https://public.trendyol.com/discovery-web-productgw-service/api/productDetail/${productId}`;
+        
+        debug(`Eski API kullanılıyor: ${apiUrl}`);
+        
+        try {
+          // @ts-ignore - node-fetch tiplemesi farklı olduğu için
+          const apiResponse = await fetch(apiUrl, {
+            headers: {
+              'User-Agent': randomUserAgent,
+              'Accept': 'application/json',
+              'Accept-Language': 'tr-TR,tr;q=0.9,en-US;q=0.8,en;q=0.7',
+              'Cache-Control': 'no-cache',
+              'Pragma': 'no-cache',
+              'Referer': url,
+              'Origin': 'https://www.trendyol.com',
+              'X-Application-Id': 'WebBrowser',
+              'Sec-Fetch-Dest': 'empty',
+              'Sec-Fetch-Mode': 'cors',
+              'Sec-Fetch-Site': 'same-site',
+              'Connection': 'keep-alive',
+              'Cookie': cookieValue
+            }
+          });
+          
+          if (apiResponse.ok) {
+            const data = await apiResponse.json() as Record<string, any>;
+            if (data && data.result) {
+              debug('API isteği başarılı, veri alındı');
+              // API yanıtını HTML'e dönüştür
+              const productData = data.result as Record<string, any>;
+              
+              // Temel HTML şablonu oluştur
+              const htmlTemplate = `
+                <html>
+                  <head>
+                    <title>${productData.name || 'Ürün'}</title>
+                    <script type="application/ld+json">${JSON.stringify(productData)}</script>
+                  </head>
+                  <body>
+                    <h1 class="product-name">${productData.name || ''}</h1>
+                    <div class="product-description">${productData.description || ''}</div>
+                    <div class="product-price">${productData.price?.salePrice || productData.price?.originalPrice || ''}</div>
+                    <div class="images-container">
+                      ${(productData.images || []).map((img: any) => `<img src="${img.url || ''}" alt="${productData.name || 'Ürün'}" />`).join('')}
+                    </div>
+                  </body>
+                </html>
+              `;
+              
+              // HTML'i Cheerio ile yükle
+              return cheerio.load(htmlTemplate);
+            }
+          }
+        } catch (innerApiError: any) {
+          debug(`İç API hatası: ${innerApiError?.message || 'Bilinmeyen hata'}`);
+        }
+        
+        debug('Tüm API istekleri başarısız oldu, normal HTML isteğine dönülüyor');
+      } catch (apiError: any) {
+        debug(`API hatası: ${apiError?.message || 'Bilinmeyen hata'}`);
+        debug('Normal HTML isteğine dönülüyor');
+      }
+    }
+    
+    // Alternatif tarayıcı seçeneği (rotasyon yapmak için)
+    const browsers = [
+      {
+        userAgent: 'Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/605.1.15 (KHTML, like Gecko) Version/17.0 Safari/605.1.15',
+        referer: 'https://www.google.com/search?q=trendyol+%C3%BCr%C3%BCnler',
+        mobile: false
+      },
+      {
+        userAgent: 'Mozilla/5.0 (iPhone; CPU iPhone OS 17_4_1 like Mac OS X) AppleWebKit/605.1.15 (KHTML, like Gecko) Version/17.4 Mobile/15E148 Safari/604.1',
+        referer: 'https://www.google.com/search?q=trendyol',
+        mobile: true
+      },
+      {
+        userAgent: 'Mozilla/5.0 (iPad; CPU OS 17_4_1 like Mac OS X) AppleWebKit/605.1.15 (KHTML, like Gecko) Version/17.0 Mobile/15E148 Safari/604.1',
+        referer: 'https://duckduckgo.com/?q=trendyol',
+        mobile: true
+      },
+      {
+        userAgent: 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/122.0.0.0 Safari/537.36',
+        referer: 'https://yandex.com/search/?text=trendyol',
+        mobile: false
+      },
+      {
+        userAgent: 'Mozilla/5.0 (Windows NT 10.0; Win64; x64; rv:123.0) Gecko/20100101 Firefox/123.0',
+        referer: 'https://www.bing.com/search?q=trendyol',
+        mobile: false
+      }
+    ];
+    
+    // Philips sayfaları için belirli tarayıcılar daha iyi çalışıyor
+    let browser;
+    if (url.includes('philips') || url.includes('espresso') || url.includes('kahve') || url.toLowerCase().includes('makine')) {
+      // iPad veya iPhone ajanları seç (mobil site daha fazla bilgi verebiliyor)
+      const mobileOptions = browsers.filter(b => b.mobile);
+      browser = mobileOptions[Math.floor(Math.random() * mobileOptions.length)];
+      debug(`Özel ürün tespit edildi (Philips/Elektronik), mobil tarayıcı kullanılıyor: ${browser.userAgent}`);
+    } else {
+      // Rastgele bir tarayıcı seç
+      browser = browsers[Math.floor(Math.random() * browsers.length)];
+      debug(`Standart ürün, seçilen tarayıcı: ${browser.userAgent}, ${browser.mobile ? 'Mobil' : 'Masaüstü'}`);
+    }
+    
+    // Akıllı User-Agent rotasyonu
+    // @ts-ignore - node-fetch tiplemesi farklı olduğu için
+    const response = await fetch(url, {
+      headers: {
+        'User-Agent': browser.userAgent,
+        'Accept': 'text/html,application/xhtml+xml,application/xml;q=0.9,image/avif,image/webp,image/apng,*/*;q=0.8,application/signed-exchange;v=b3;q=0.7',
+        'Accept-Language': 'tr-TR,tr;q=0.9,en-US;q=0.8,en;q=0.7',
+        'Cache-Control': 'no-cache',
+        'Pragma': 'no-cache',
+        'Sec-Fetch-Dest': 'document',
+        'Sec-Fetch-Mode': 'navigate',
+        'Sec-Fetch-Site': 'cross-site',
+        'Sec-Fetch-User': '?1',
+        'Upgrade-Insecure-Requests': '1',
+        'Referer': browser.referer,
+        'Connection': 'keep-alive',
+        'Cookie': cookieValue,
+        'DNT': '1',
+        'Sec-CH-UA-Mobile': browser.mobile ? '?1' : '?0',
+        'Sec-CH-UA-Platform': browser.mobile ? '"iOS"' : '"Windows"'
+      },
+      // @ts-ignore - node-fetch tiplemesi farklı olduğu için
+      follow: 10,
+      redirect: 'follow'
+    });
+
+    if (!response.ok) {
+      debug(`HTTP error! status: ${response.status}`);
+      throw new Error(`HTTP error! status: ${response.status}`);
+    }
+
+    const html = await response.text();
+
+    if (!html || html.length < 1000) {
+      debug("Sayfa içeriği çok kısa veya boş");
+      throw new Error("Sayfa içeriği geçersiz");
+    }
+
+    debug(`HTML içeriği başarıyla alındı (${html.length} bytes)`);
+
+    // Ürün sayfası kontrolü ekle
+    const $ = cheerio.load(html);
+    // Ürün sayfası tespiti için genişletilmiş selektor listesi
+    const isProductPage = 
+      $('.pr-new-br').length > 0 || 
+      $('.product-detail-container').length > 0 ||
+      $('.product-container').length > 0 ||
+      $('.pdp-container').length > 0 ||
+      $('.prc-cntr').length > 0 ||
+      $('[data-tracker-id="ProductDetail"]').length > 0 ||
+      $('head title').text().includes('Trendyol');
+
+    // Daha esnek bir yaklaşım - sayfa yüklendiyse devam et
+    if (!isProductPage) {
+      debug("Tipik ürün sayfası selektörleri bulunamadı, ancak devam ediliyor");
+    }
+
+    return $;
+  } catch (error: any) {
+    debug(`Veri çekme hatası: ${error.message}`);
+    debug(`URL: ${url}`);
+    debug(`Stack trace: ${error.stack}`);
+    
+    throw error; // Hata bilgilerini yukarıya aktar
+  }
+}
+
+function normalizeImageUrl(url: string): string {
+  try {
+    if (url.includes('mnresize')) {
+      // Yüksek kalite için thumbnail yerine orijinal resim URL'sini elde et
+      return url.replace(/&mnresize=\d+&mnq=\d+/g, '');
+    }
+    
+    // Boyut sınırlamalarını kaldır (daha büyük boyutlara izin ver)
+    if (url.includes('trendyol.com')) {
+      return url.replace(/\/\d+x\d+\//g, '/original/');
+    }
+    
+    // "w_" ve "h_" stilindeki boyut sınırlamalarını kaldır
+    if (url.includes('w_') && url.includes('h_')) {
+      return url.replace(/w_\d+,h_\d+/g, 'w_1000,h_1000');
+    }
+    
+    // URL'nin geçerli olup olmadığını kontrol et
+    try {
+      new URL(url);
+      return url;
+    } catch (urlError) {
+      debug(`Geçersiz URL oluşturuldu, varsayılan görsel kullanılıyor: ${url}`);
+      return 'https://i.trendyol.com/mnresize/400/400/assets/product/media/images/defaultImage.png';
+    }
+  } catch (error: any) {
+    debug(`URL normalizasyon hatası: ${error.message}, varsayılan görsel kullanılıyor`);
+    return 'https://i.trendyol.com/mnresize/400/400/assets/product/media/images/defaultImage.png';
+  }
+}
+
+function extractCategories($: cheerio.CheerioAPI): { categories: string[], fullPath: string[], breadcrumbPath: string[] } {
+  const categories: string[] = [];
+  const fullPath: string[] = [];
+  const breadcrumbPath: string[] = [];
+  
+  // Breadcrumb'dan kategorileri bul (ilk olarak bu yöntemi dene)
+  $('.product-path span').each((_, element) => {
+    const category = $(element).text().trim();
+    if (category && category !== '/' && category !== '>' && !category.includes('Trendyol')) {
+      categories.push(category);
+      fullPath.push(category);
+    }
+  });
+  
+  // Alternatif breadcrumb seçicileri
+  if (categories.length === 0) {
+    $('.breadcrumb-wrapper a, .breadcrumb a, .crumb a').each((_, element) => {
+      const category = $(element).text().trim();
+      if (category && !category.includes('Trendyol') && !category.includes('Anasayfa') && category !== '/') {
+        categories.push(category);
+        fullPath.push(category);
+      }
+    });
+  }
+  
+  // Breadcrumb path'i al (orijinal formatta)
+  const breadcrumbText = $('.product-path').text().trim() || $('.breadcrumb').text().trim();
+  if (breadcrumbText) {
+    breadcrumbPath.push(breadcrumbText.replace(/\s+/g, ' '));
+  }
+  
+  // Eğer mobile breadcrumb bulunamazsa, script'ten al
+  if (categories.length === 0) {
+    try {
+      // Kategori bilgisinin bulunabileceği script etiketlerini tara
+      $('script').each((_, element) => {
+        const content = $(element).html();
+        if (content && (content.includes('window.__PRODUCT_DETAIL_APP_INITIAL_STATE__') || content.includes('__INITIAL_STATE__'))) {
+          try {
+            // @ts-ignore - s flag desteği için
+            const match = content.match(/window\.__PRODUCT_DETAIL_APP_INITIAL_STATE__\s*=\s*({.*?});/s) || 
+                        content.match(/window\.__INITIAL_STATE__\s*=\s*({.*?});/s);
+            
+            if (match && match[1]) {
+              const state = JSON.parse(match[1]);
+              
+              // Kategori bilgisini bul
+              if (state.product && state.product.category) {
+                const categoryData = state.product.category;
+                
+                // Kategori hiyerarşisi bulundu mu?
+                if (categoryData.hierarchy && Array.isArray(categoryData.hierarchy)) {
+                  categoryData.hierarchy.forEach((cat: any) => {
+                    if (cat.name) {
+                      categories.push(cat.name);
+                      fullPath.push(cat.name);
+                    }
+                  });
+                  debug(`Script'ten kategori hiyerarşisi bulundu: ${categories.join(' > ')}`);
+                } else if (categoryData.name) {
+                  // Sadece ana kategori adı var
+                  categories.push(categoryData.name);
+                  fullPath.push(categoryData.name);
+                  debug(`Script'ten tek kategori bulundu: ${categoryData.name}`);
+                }
+              }
+            }
+          } catch (error) {
+            debug(`State parse hatası: ${error}`);
+          }
+        }
+      });
+    } catch (error) {
+      debug(`Script kategori çıkarma hatası: ${error}`);
+    }
+  }
+  
+  // Sayfa başlığından kategori çıkarmayı dene (son çare)
+  if (categories.length === 0) {
+    const title = $('title').text().trim();
+    const titleMatch = title.match(/^(.*?)\s*-\s*Trendyol/i);
+    if (titleMatch && titleMatch[1]) {
+      categories.push(titleMatch[1].trim());
+      fullPath.push(titleMatch[1].trim());
+      debug(`Sayfa başlığından kategori çıkarıldı: ${titleMatch[1]}`);
+    }
+  }
+
+  // Hala kategori bulunamadıysa, ürün başlığından ipucu ara
+  if (categories.length === 0) {
+    const productTitle = $('.pr-new-br').text().trim() || $('.prdct-desc-cntnr-name').text().trim();
+    if (productTitle) {
+      let defaultCategory = 'Diğer';
+      if (productTitle.toLowerCase().includes('saat')) defaultCategory = 'Saat';
+      else if (productTitle.toLowerCase().includes('ayakkabı')) defaultCategory = 'Ayakkabı';
+      else if (productTitle.toLowerCase().includes('çanta')) defaultCategory = 'Çanta';
+      categories.push(defaultCategory);
+      fullPath.push(defaultCategory);
+      debug(`Ürün başlığından varsayılan kategori belirlendi: ${defaultCategory}`);
+    }
+  }
+
+  return {
+    categories: categories.length > 0 ? categories : ['Diğer'],
+    fullPath: fullPath.length > 0 ? fullPath : ['Diğer'],
+    breadcrumbPath: breadcrumbPath.length > 0 ? breadcrumbPath : ['Trendyol > Diğer']
+  };
+}
+
+async function scrapeProduct(url: string): Promise<InsertProduct> {
+  debug("Scraping başlatıldı");
+
+  try {
+    let $;
+    
+    // Trendyol URL'sinde ürün ID'sini bul
+    const productIdMatch = url.match(/p-(\d+)/);
+    const productId = productIdMatch ? productIdMatch[1] : null;
+    
+    // Ürün tipini belirle - özel işlem gerektiren ürünler için
+    const isPhilipsLattego = url.toLowerCase().includes('philips') && 
+                           (url.toLowerCase().includes('lattego') || 
+                            url.toLowerCase().includes('espresso') || 
+                            url.toLowerCase().includes('kahve'));
+                            
+    const isElectronicProduct = url.toLowerCase().includes('elektronik') || 
+                               url.toLowerCase().includes('philips') ||
+                               url.toLowerCase().includes('dyson') ||
+                               url.toLowerCase().includes('makine') ||
+                               url.toLowerCase().includes('robot');
+                               
+    const useAdvancedStrategy = isPhilipsLattego || isElectronicProduct;
+    
+    // Önce mobil web (mweb) API'yi dene - en güvenilir ve anti-bot çalışan yöntem
+    if (productId && useAdvancedStrategy) {
+      debug("Gelişmiş mobil API stratejisi kullanılıyor");
+      try {
+        const mwebUrl = `https://m.trendyol.com/mweb/product/${productId}`;
+        debug(`Mobil mweb endpoint kullanılıyor: ${mwebUrl}`);
+        
+        const mobileUserAgent = 'Mozilla/5.0 (iPhone; CPU iPhone OS 17_5 like Mac OS X) AppleWebKit/605.1.15 (KHTML, like Gecko) CriOS/124.0.6367.83 Mobile/15E148 Safari/604.1';
+        
+        const mwebResponse = await fetch(mwebUrl, {
+          headers: {
+            'User-Agent': mobileUserAgent,
+            'Accept': 'text/html,application/xhtml+xml,application/xml;q=0.9,*/*;q=0.8',
+            'Accept-Language': 'tr-TR,tr;q=0.9,en-US;q=0.8,en;q=0.7',
+            'Cache-Control': 'no-cache',
+            'Referer': 'https://www.google.com/search?q=trendyol+philips',
+            'Pragma': 'no-cache'
+          }
+        });
+        
+        if (mwebResponse.ok) {
+          const mwebHtml = await mwebResponse.text();
+          if (mwebHtml && mwebHtml.length > 5000) {
+            $ = cheerio.load(mwebHtml);
+            debug("Mobil mweb HTML başarıyla yüklendi");
+            
+            // Boş veri kontrolü
+            if ($('body').text().trim().length < 500) {
+              debug("Mobil mweb HTML çok kısa, veri yeterli değil");
+              $ = null; // Veri kısa/yetersiz, diğer yöntemlere geç
+            }
+          }
+        }
+      } catch (mwebError: any) {
+        debug(`Mobil mweb hatası: ${mwebError.message}`);
+        $ = null;
+      }
+    }
+    
+    // Özel ürünler için Puppeteer kullan
+    if (!$ && isPhilipsLattego) {
+      debug("Philips/Elektronik ürün tespit edildi, Puppeteer kullanılıyor");
+      try {
+        const puppeteerHtml = await scrapeProductWithPuppeteer(url);
+        if (puppeteerHtml && puppeteerHtml.length > 5000) {
+          $ = cheerio.load(puppeteerHtml);
+          debug("Puppeteer ile veri alındı");
+        } else {
+          debug("Puppeteer verisi yetersiz");
+        }
+      } catch (puppeteerError) {
+        debug(`Puppeteer hatası: ${puppeteerError}`);
+        debug(`Puppeteer hatası: ${JSON.stringify(puppeteerError)}`);
+        debug("Puppeteer hatası, Cheerio'ya düşüyor");
+      }
+    }
+    
+    // Son çare: Normal fetch ile dene 
+    if (!$) {
+      debug("Normal fetch stratejisi kullanılıyor");
+      $ = await fetchProductPage(url); // Fallback to normal fetch
+    }
+
+    // Ürün verilerini parse et
+    let productData = $('script').map((_, element) => {
+      const content = $(element).html() || '';
+      if (content.includes('window.__PRODUCT_DETAIL_APP_INITIAL_STATE__')) {
+        try {
+          // @ts-ignore - s flag desteği için
+          const match = content.match(/window\.__PRODUCT_DETAIL_APP_INITIAL_STATE__\s*=\s*({.*?});/s);
+          if (match) {
+            return JSON.parse(match[1]);
+          }
+        } catch (error) {
+          debug(`State parse hatası: ${error}`);
+        }
+      }
+      return null;
+    }).get().find(data => data !== null);
+
+    if (!productData || !productData.product) {
+      // JSON-LD formatında ürün verisi olup olmadığını kontrol et
+      let jsonldData = null;
+      try {
+        const jsonlds = $('script[type="application/ld+json"]').toArray();
+        for (const element of jsonlds) {
+          const content = $(element).html();
+          if (content && content.includes('"@type":"Product"')) {
+            const parsedData = JSON.parse(content);
+            if (parsedData["@type"] === "Product") {
+              jsonldData = parsedData;
+              debug("JSON-LD ürün verisi bulundu");
+              break;
+            }
+          }
+        }
+      } catch (error) {
+        debug(`JSON-LD parse hatası: ${error}`);
+      }
+      
+      // JSON-LD'den ürün verisi oluştur
+      if (jsonldData) {
+        productData = {
+          product: {
+            brand: { name: jsonldData.brand?.name || "Bilinmeyen Marka" },
+            name: jsonldData.name,
+            description: jsonldData.description,
+            price: { 
+              discountedPrice: { 
+                value: parseFloat(jsonldData.offers?.price || "0") 
+              } 
+            },
+            images: Array.isArray(jsonldData.image) ? jsonldData.image : [jsonldData.image],
+            attributes: {}
+          }
+        };
+        
+        // Özellikleri ekle
+        if (jsonldData.additionalProperty && Array.isArray(jsonldData.additionalProperty)) {
+          jsonldData.additionalProperty.forEach((prop: any) => {
+            if (prop.name && prop.unitText) {
+              productData.product.attributes[prop.name] = prop.unitText;
+              debug(`Özellik bulundu (JSON-LD): ${prop.name} = ${prop.unitText}`);
+            }
+          });
+        }
+        
+        debug("JSON-LD'den ürün verisi oluşturuldu");
+      } else {
+        // Ürün verisi scriptlerden bulunamadıysa manuel olarak HTML'den çıkarıyoruz
+        debug("Script'ten ürün verisi bulunamadı, HTML'den çıkarılıyor");
+      
+      const brand = $('.prdct-desc-cntnr-ttl').text().trim() || 
+                  $('.brand-name').text().trim() || 
+                  $('.pr-new-br').text().trim() || 
+                  $('.product-name').text().trim().split(' ')[0] || "Bilinmeyen Marka";
+      
+      const productName = $('.prdct-desc-cntnr-name').text().trim() || 
+                         $('.product-name').text().trim() || 
+                         $('h1').text().trim();
+                         
+      const priceText = $('.prc-box-dscntd').text().trim() || 
+                       $('.prc-box-sllng').text().trim() || 
+                       $('.product-price').text().trim();
+      
+      const priceValue = priceText.replace(/[^\d,]/g, '').replace(',', '.');
+      const price = parseFloat(priceValue) || 100;
+      
+      productData = {
+        product: {
+          brand: { name: brand },
+          name: productName,
+          price: { discountedPrice: { value: price } },
+          description: $('.product-description').text().trim() || $('.detail-desc-cont').text().trim() || "",
+          images: []
+        }
+      };
+      
+      // Görselleri çek
+      $('.product-slide img, .gallery-modal img, .product-img img, .product-image').each((_, img) => {
+        const imgSrc = $(img).attr('src') || $(img).attr('data-src') || "";
+        if (imgSrc) {
+          if (!productData.product.images) productData.product.images = [];
+          productData.product.images.push(imgSrc);
+        }
+      });
+      
+      debug("Manuel oluşturulan ürün verisi: " + JSON.stringify({
+        brand: brand,
+        name: productName,
+        price: price,
+        imageCount: productData.product.images?.length || 0
+      }));
+    }
+
+    const brand = productData.product.brand?.name || $('.pr-new-br span').first().text().trim() ||
+                  $('h1.pr-new-br').first().text().trim();
+    debug(`Marka: ${brand}`);
+
+    const productName = productData.product.name || $('.prdct-desc-cntnr-name').text().trim() ||
+                       $('.pr-in-w').first().text().trim()
+                       .replace(/\d+(\.\d+)?\s*TL.*$/, '')
+                       .replace(/\d+,\d+.*$/, '')
+                       .replace(/\d+\.?\d*,?\d*\s*(TL)?/g, '')  // More comprehensive price removal
+                       .replace(new RegExp(brand, 'gi'), '')
+                       .trim();
+    debug(`Ürün adı: ${productName}`);
+
+    let title = '';
+    if (brand && productName) {
+      // Put brand at the start, clean up the title
+      title = `${brand} ${productName}`
+        .replace(/\d+\.?\d*,?\d*\s*(TL)?/g, '')  // Remove any remaining price
+        .replace(/\s+/g, ' ')  // Normalize spaces
+        .replace(new RegExp(`${brand}.*${brand}`, 'gi'), brand)  // Remove duplicate brand mentions
+        .replace(/(.+?)\s+\1/gi, '$1')  // Remove duplicate phrases
+        .replace(/\s*,\s*$/, '')  // Remove trailing comma
+        .trim();
+        
+      // Özel başlık temizleme işlemleri (hatalı birleşmeler için)
+      // Trendyol'dan gelen ürün isimlerinde sık karşılaşılan sorunları düzeltelim
+      
+      // İlk olarak, HTML içeriğinden doğru ürün adını almaya çalışalım
+      // Trendyol'un HTML'inden gerçek ürün adını ayrıştır
+      const rawProductName = productData.product.name || productName;
+      
+      // Eğer ürün adını doğrudan alabilirsek, daha iyi temizleme yapabiliriz
+      debug(`Original product name from raw HTML: ${rawProductName}`);
+      
+      // Yaygın kelimeler arasındaki sorunları düzelt - özellikle Trendyol'da birleşik yazılabilenler
+      const commonWords = [
+        "Kulaklık", "Karışık", "Renk", "Kılıf", "Çanta", "Hediyeli", "Uyumlu", "Kapak", 
+        "Kablosuz", "Bluetooth", "Android", "Telefon", "Şarj", "Kapaklı", "Kablo",
+        "Kutu", "Cihaz", "Set", "Takım", "Stereo", "Mikrofon"
+      ];
+      
+      // Özel kelime temizliği yapalım - yaygın problemleri düzeltelim
+      const fixMappings: Record<string, string> = {
+        // Boşluk sorunları
+        "Kablo suz": "Kablosuz",
+        "Ren kKılıf": "Renk Kılıf", 
+        "Renk ılıf": "Renk Kılıf",
+        "Ren k Kılıf": "Renk Kılıf",
+        "K kılıf": "Kılıf",
+        
+        // Çok görülen boşluk sorunları
+        " K ": " ",  // Tekil K harfi temizliği
+        "Renkk": "Renk",
+        "Ren k": "Renk",
+        "kK": "k K",
+        
+        // Birleşik kelimeler 
+        "RenkKılıf": "Renk Kılıf",
+        "KarışıkRenk": "Karışık Renk",
+        
+        // Harf kayıpları
+        "Kulaklı ": "Kulaklık ",
+        "Kulaklı": "Kulaklık",
+        "Kulaklık arışık": "Kulaklık Karışık",
+        "arışık": "Karışık",
+        "ılıf": "Kılıf",
+        
+        // Gereksiz marka bilgileri
+        "Bilinmeyen Mar ka ": "",
+        "Bilinmeyen Marka ": "",
+        "Marka ": ""
+      };
+      
+      // Başlık içindeki özel problemleri önce düzeltelim
+      for (const [problem, fix] of Object.entries(fixMappings)) {
+        title = title.replace(new RegExp(problem, 'gi'), fix);
+      }
+      
+      // Ön temizleme - temel boşluk ve karakter düzeltmeleri
+      title = title
+        // Kelimeler arasında bir karakter eksik olma durumunu düzelt
+        .replace(/([a-zışğüöçâîû])([A-ZİŞĞÜÖÇÂÎÛ])/g, '$1 $2')
+        // Yumuşak g/ğ sorununu düzelt
+        .replace(/([a-zışüöçâîû])ğ/gi, '$1 ğ')
+        // K harfi özellikle sorun oluşturduğundan onu düzelt
+        .replace(/([a-zışğüöçâîû])k([aıoueiöüğ])/gi, '$1 k$2')
+        // Harf kayıplarını düzelt
+        .replace(/\bılıf\b/gi, "Kılıf") 
+        .replace(/\barışık\b/gi, "Karışık")
+        .replace(/\bulaklık\b/gi, "Kulaklık")
+        .replace(/\bediyeli\b/gi, "Hediyeli");
+      
+      // Boşlukları normalleştir
+      title = title.replace(/\s+/g, ' ').trim();
+      
+      // Ortak kelimeleri içeren sorunları özel olarak düzelt
+      for (const word of commonWords) {
+        const lowerWord = word.toLowerCase();
+        
+        // Bu metni karakter bazlı kontrol ederek, içinde geçen her türlü birleşik hali düzelt
+        // Örneğin "kulaklıkkılıf" -> "kulaklık kılıf"
+        
+        // Kelimenin başını kontrol et
+        const startRegex = new RegExp(`\\b${lowerWord}([a-zışğüöçâîû])`, 'gi');
+        title = title.replace(startRegex, `${word} $1`);
+        
+        // Kelimenin sonunu kontrol et - "arışık" gibi sorunlar için
+        // Örnekler: "kulaklıkarışık" => "kulaklık karışık", "karışıkrenk" => "karışık renk"
+        const endRegex = new RegExp(`([a-zışğüöçâîû])${lowerWord}\\b`, 'gi');
+        title = title.replace(endRegex, `$1 ${lowerWord}`);
+        
+        // Kelime ortada ise
+        const midRegex = new RegExp(`([a-zışğüöçâîû])${lowerWord}([a-zışğüöçâîû])`, 'gi');
+        title = title.replace(midRegex, `$1 ${lowerWord} $2`);
+      }
+      
+      // İlave düzeltmeler - yan yana kapital harflerden oluşan sorunlar için 
+      // Örnek: "RenkKılıf" -> "Renk Kılıf"
+      title = title.replace(/([A-ZİŞĞÜÖÇÂÎÛ])([A-ZİŞĞÜÖÇÂÎÛ][a-zışğüöçâîû]+)/g, '$1 $2');
+       
+      // Son boşluk normalizasyonu
+      title = title.replace(/\s+/g, ' ').trim();
+      
+      debug(`Başlık temizlendi: ${title}`);
+    } else {
+      throw new ProductDataError("Ürün başlığı oluşturulamadı", "title");
+    }
+
+    if (!title) {
+      throw new ProductDataError("Ürün başlığı bulunamadı", "title");
+    }
+
+    // Fiyat bilgisini al
+    const price = productData.product.price?.discountedPrice?.value || 
+                  productData.product.price?.sellingPrice?.value;
+
+    if (!price) {
+      throw new ProductDataError("Ürün fiyatı bulunamadı", "price");
+    }
+
+    const basePrice = price;
+    const finalPrice = (basePrice * 1.10).toFixed(2);
+    debug(`İşlenmiş fiyat: ${finalPrice} (baz: ${basePrice}, kar marjı: %10)`);
+
+    // Kategori bilgisini güncelle
+    let categoryInfo = extractCategories($);
+    
+    // Eğer kategori hala bulunamadıysa productData'dan doğrudan çekmeyi dene
+    if (categoryInfo.categories.length === 1 && categoryInfo.categories[0] === 'Diğer') {
+      try {
+        if (productData.product.category && productData.product.category.hierarchy) {
+          const hierarchy = productData.product.category.hierarchy;
+          const categories: string[] = [];
+          const fullPath: string[] = [];
+          
+          debug(`Ürün JSON state'inden kategori hiyerarşisi bulundu`);
+          
+          // Kategori hiyerarşisini düzleştirme
+          if (Array.isArray(hierarchy)) {
+            hierarchy.forEach((cat: any) => {
+              if (cat.name) {
+                categories.push(cat.name);
+                fullPath.push(cat.name);
+              }
+            });
+          } else if (typeof hierarchy === 'object') {
+            // Nesne olarak sunulmuş kategori hiyerarşisi
+            for (const key in hierarchy) {
+              if (Object.prototype.hasOwnProperty.call(hierarchy, key) && hierarchy[key]?.name) {
+                categories.push(hierarchy[key].name);
+                fullPath.push(hierarchy[key].name);
+              }
+            }
+          }
+          
+          if (categories.length > 0) {
+            // let kullandığımız için yeni değerleri atayabiliriz
+            categoryInfo = {
+              categories,
+              fullPath,
+              breadcrumbPath: [`Trendyol > ${categories.join(' > ')}`]
+            };
+            debug(`JSON state'den çekilen kategoriler: ${categories.join(' > ')}`);
+          }
+        } else {
+          // Kategori bulunamadı, en azından ürün adını kategori olarak kullan
+          categoryInfo.categories.push(productName);
+        }
+      } catch (error) {
+        debug(`Kategori çıkarma hatası: ${error}`);
+      }
+    }
+
+    // Trendyol ürün özelliklerini (varsa) çıkart
+    const attributes: Record<string, string> = {};
+    let attributeFound = false;
+    
+    // 1. Scriptlerden özellik bilgilerini çek (en ideal yöntem)
+    if (productData.product.attributes) {
+      productData.product.attributes.forEach((attr: any) => {
+        if (attr.key && attr.value) {
+          attributes[attr.key] = attr.value;
+          attributeFound = true;
+          debug(`Özellik bulundu (script): ${attr.key} = ${attr.value}`);
+        }
+      });
+    }
+    
+    // 2. HTML'den özellik bilgilerini çek
+    if (!attributeFound) {
+      $('.detail-attr-container').each((_, container) => {
+        const key = $('.detail-attr-item:nth-child(1)', container).text().trim();
+        const value = $('.detail-attr-item:nth-child(2)', container).text().trim();
+        
+        if (key && value) {
+          attributes[key] = value;
+          attributeFound = true;
+          debug(`Özellik bulundu (HTML): ${key} = ${value}`);
+        }
+      });
+      
+      // Alternatif seçiciler
+      if (!attributeFound) {
+        $('.product-feature-container .feature-item').each((_, item) => {
+          const key = $('.feature-name', item).text().trim();
+          const value = $('.feature-value', item).text().trim();
+          
+          if (key && value) {
+            attributes[key] = value;
+            attributeFound = true;
+            debug(`Özellik bulundu (alternatif): ${key} = ${value}`);
+          }
+        });
+      }
+    }
+    
+    // Trendyol ürün görsellerini çek
+    const images: string[] = [];
+    
+    // Scriptlerden görseller (en iyi kalite)
+    if (productData.product.images && Array.isArray(productData.product.images)) {
+      productData.product.images.forEach((img: any) => {
+        let imgUrl = (typeof img === 'string') ? img : img.url || '';
+        if (imgUrl) {
+          imgUrl = normalizeImageUrl(imgUrl);
+          if (imgUrl && !images.includes(imgUrl)) {
+            images.push(imgUrl);
+          }
+        }
+      });
+    }
+    
+    // Script'ten görsel alınamadıysa DOM'dan al
+    if (images.length === 0) {
+      $('img.product-image, img.detail-slide-img, img.gallery-modal-content-img, .product-img img').each((_, img) => {
+        let imgUrl = $(img).attr('src') || $(img).attr('data-src') || '';
+        // data-src'den tüm varyasyonları dene
+        if (!imgUrl) {
+          const keys = Object.keys($(img).get(0).attribs).filter(key => key.startsWith('data-') && key.includes('src'));
+          for (const key of keys) {
+            imgUrl = $(img).attr(key) || '';
+            if (imgUrl) break;
+          }
+        }
+        
+        if (imgUrl) {
+          imgUrl = normalizeImageUrl(imgUrl);
+          if (imgUrl && !images.includes(imgUrl)) {
+            images.push(imgUrl);
+          }
+        }
+      });
+    }
+    
+    // En az 1 görsel garantiye al
+    if (images.length === 0) {
+      debug("Ürün görseli bulunamadı, varsayılan görsel kullanılıyor");
+      images.push('https://i.trendyol.com/mnresize/400/400/assets/product/media/images/defaultImage.png');
+    }
+    
+    // Görsellerin tekrarlanmamasını sağla
+    const uniqueImages = [...new Set(images)];
+    debug(`Alınan görseller: ${uniqueImages.length} adet`);
+    
+    // Beden ve renk varyasyonlarını çek
+    const variants: any = {
+      colors: [],
+      sizes: [],
+      stockInfo: {}
+    };
+    
+    // Renk varyasyonlarını çek
+    if (productData.product.variants) {
+      const allColors = new Set<string>();
+      
+      // 1. Scriptlerden renk bilgilerini al
+      if (Array.isArray(productData.product.variants)) {
+        productData.product.variants.forEach((variant: any) => {
+          if (variant.attributeName && variant.attributeName.toLowerCase().includes('renk') && variant.attributeValue) {
+            allColors.add(variant.attributeValue);
+          }
+        });
+      }
+      
+      // 2. HTML'den renk bilgilerini al (script ile bulunamazsa)
+      if (allColors.size === 0) {
+        $('.slc-img .vrnts-lnk:not(.vrnt-lnk-none)').each((_, item) => {
+          const colorText = $(item).text().trim() || $(item).attr('title') || '';
+          if (colorText) {
+            allColors.add(colorText);
+          }
+        });
+      }
+      
+      // 3. Özellik bilgilerinden renk çıkar (hiçbir yolla bulunamazsa)
+      if (allColors.size === 0 && attributes['Renk']) {
+        allColors.add(attributes['Renk']);
+      }
+      
+      variants.colors = Array.from(allColors);
+      debug(`Bulunan renkler: ${variants.colors.join(', ')}`);
+      
+      // Beden varyasyonlarını çek ve stok bilgisini al
+      const allSizes = new Set<string>();
+      const stockInfo: Record<string, {inStock: boolean, sellable: boolean, stock: number}> = {};
+      
+      // Script varyasyonlarından beden ve stok bilgisi çek
+      if (Array.isArray(productData.product.allVariants)) {
+        productData.product.allVariants.forEach((variant: any) => {
+          if (variant.value || variant.attributeValue) {
+            const sizeKey = variant.value || variant.attributeValue;
+            stockInfo[sizeKey] = {
+              inStock: variant.inStock || false,
+              sellable: variant.sellable || false,
+              stock: variant.stock || 0
+            };
+
+            if (variant.inStock || variant.sellable) {
+              allSizes.add(sizeKey);
+            }
+          }
+        });
+      }
+
+      // Bulunan tüm bedenleri variants objesine ekle
+      variants.sizes = Array.from(allSizes);
+      variants.stockInfo = stockInfo;
+
+      debug(`Tüm bulunan bedenler: ${variants.sizes.join(', ')}`);
+      debug(`Stok bilgileri: ${JSON.stringify(stockInfo, null, 2)}`);
+    }
+
+    // Kategori konfigürasyonunu al
+    const categoryConfig = getCategoryConfig(categoryInfo.categories);
+    
+    // Ürün nesnesini oluştur
+    const product: InsertProduct = {
+      url,
+      title,
+      description: productData.product.description || $('.product-description').text().trim() || "",
+      price: finalPrice.toString(),
+      basePrice: basePrice.toString(),
+      images: uniqueImages,
+      video: null,
+      variants,
+      attributes,
+      categories: categoryInfo.categories,
+      tags: []
+    };
+    
+    // Etiketleri oluştur ve ürüne ekle
+    product.tags = generateProductTags(product, categoryConfig);
+    debug(`Oluşturulan etiketler: ${product.tags.join(', ')}`);
+
+    return product;
+
+  } catch (error: any) {
+    if (error instanceof ProductDataError) {
+      throw error;
+    }
+    throw new TrendyolScrapingError("Ürün verisi işlenirken hata oluştu", {
+      status: 500,
+      statusText: "Processing Error",
+      details: error.message
+    });
+  }
+}
+
+function parseCategoryPath(categories: string[]): string {
+  // Sadeleştirilmiş kategori yolu (en fazla 3 kategori alınır)
+  const maxCategories = Math.min(categories.length, 3);
+  const selectedCategories = categories.slice(0, maxCategories);
+  
+  return selectedCategories
+    .map(cat => cat.trim())
+    .filter(cat => cat && !cat.includes('>'))
+    .join(' ) ');
+}
+
+// Ürün özelliklerinden anahtar kelimeleri çıkaran yardımcı fonksiyon
+function extractKeywordsFromAttributes(attributes: Record<string, string>): string[] {
+  const keywords: Set<string> = new Set();
+  
+  // Özellik isimlerinden ve değerlerinden anahtar kelimeleri çıkar
+  for (const [key, value] of Object.entries(attributes)) {
+    if (!key || !value) continue;
+    
+    const lowerKey = key.toLowerCase();
+    const lowerValue = value.toLowerCase();
+    
+    // Önemli özellikler
+    if (lowerKey.includes('renk') || lowerKey.includes('color')) {
+      keywords.add(value.trim());
+      keywords.add(`${value.trim()}_renk`);
+    }
+    
+    if (lowerKey.includes('materyal') || lowerKey.includes('malzeme') || lowerKey.includes('material')) {
+      keywords.add(value.trim());
+      keywords.add(`${value.trim()}_malzeme`);
+    }
+    
+    if (lowerKey.includes('marka') || lowerKey.includes('brand')) {
+      keywords.add(value.trim());
+      keywords.add(`${value.trim()}_marka`);
+    }
+    
+    // Elektronik ürün özellikleri
+    if (lowerKey.includes('güç') || lowerKey.includes('watt') || lowerKey.includes('power')) {
+      keywords.add(value.trim());
+    }
+    
+    if (lowerKey.includes('model') || lowerKey.includes('seri')) {
+      keywords.add(value.trim());
+    }
+  }
+  
+  return Array.from(keywords);
+}
+
+// Ürün başlığından anahtar kelimeleri çıkaran yardımcı fonksiyon
+function extractKeywordsFromTitle(title: string): string[] {
+  const keywords: Set<string> = new Set();
+  const words = title.toLowerCase().split(/\s+/);
+  
+  // Önemli anahtar kelimeleri ürün başlığından çıkar
+  const importantKeywords = [
+    "bluetooth", "kablosuz", "wireless", "kulaklık", "kulaklik", "stereo",
+    "kapak", "kılıf", "kilif", "çanta", "canta", "cüzdan", "cuzdan",
+    "ayakkabı", "ayakkabi", "spor", "günlük", "gunluk", "casual",
+    "hediye", "set", "takım", "takim", "oyuncak", "bebek", "çocuk", "cocuk",
+    "saat", "bileklik", "kolye", "küpe", "kupe",
+    "kadın", "kadin", "erkek", "unisex",
+    "şarj", "sarj", "adaptör", "adaptor",
+    "kahve", "espresso", "coffee", "lattego"
+  ];
+  
+  // Renk anahtar kelimeleri
+  const colorKeywords = [
+    "siyah", "beyaz", "kırmızı", "kirmizi", "mavi", "yeşil", "yesil", "sarı", "sari",
+    "mor", "turuncu", "gri", "lacivert", "pembe", "kahverengi", "bej", "turkuaz",
+    "bordo", "haki", "gümüş", "gumus", "altın", "altin", "bakır", "bakir"
+  ];
+  
+  const materialKeywords = [
+    "deri", "kumaş", "kumas", "pamuk", "yün", "yun", "naylon", "polyester",
+    "metal", "ahşap", "ahsap", "plastik", "silikon", "cam", "porselen"
+  ];
+  
+  // Başlıktan kelime gruplarını çıkar
+  for (let i = 0; i < words.length; i++) {
+    const word = words[i];
+    
+    // Önemli anahtar kelimeler
+    if (importantKeywords.some(k => word.includes(k))) {
+      keywords.add(word);
+    }
+    
+    // Renk kelimeleri
+    if (colorKeywords.some(k => word.includes(k))) {
+      keywords.add(word);
+      keywords.add(`${word}_renk`);
+    }
+    
+    // Malzeme kelimeleri
+    if (materialKeywords.some(k => word.includes(k))) {
+      keywords.add(word);
+      keywords.add(`${word}_malzeme`);
+    }
+    
+    // İki kelimelik gruplar
+    if (i < words.length - 1) {
+      const phrase = `${word} ${words[i+1]}`;
+      if (phrase.length > 5) {
+        if (colorKeywords.some(k => phrase.includes(k))) {
+          keywords.add(phrase);
+          keywords.add(`${phrase}_renk`);
+        } else if (materialKeywords.some(k => phrase.includes(k))) {
+          keywords.add(phrase);
+          keywords.add(`${phrase}_malzeme`);
+        } else if (importantKeywords.some(k => phrase.includes(k))) {
+          keywords.add(phrase);
+        }
+      }
+    }
+  }
+  
+  return Array.from(keywords);
+}
+
+// Ürün için etiket oluşturan fonksiyon
+function generateProductTags(product: InsertProduct, categoryConfig: any): string[] {
+  const tags: Set<string> = new Set();
+  
+  // Etiket temizleme fonksiyonu
+  const cleanTag = (tag: string): string => {
+    return tag
+      .replace(/trendyol/gi, '')  // "Trendyol" kelimesini kaldır
+      .replace(/\s+/g, ' ')       // Fazla boşlukları normalleştir
+      .trim()                    // Başlangıç ve sondaki boşlukları temizle
+      .toLowerCase()             // Küçük harfe çevir
+      .slice(0, 20);             // Maksimum 20 karakter (Shopify sınırı)
+  };
+  
+  // 1. İlk etiket her zaman ana kategori olmalı
+  if (product.categories && product.categories.length > 0) {
+    const mainCategory = cleanTag(product.categories[0]);
+    if (mainCategory) tags.add(mainCategory);
+    
+    // Ana kategoriden sonra alt kategorileri ekle (en fazla 3 kategori)
+    const maxCategories = Math.min(product.categories.length, 3);
+    for (let i = 1; i < maxCategories; i++) {
+      const subCategory = cleanTag(product.categories[i]);
+      if (subCategory) tags.add(subCategory);
+    }
+  }
+  
+  // 2. Özelliklerden önemli etiketleri çıkar
+  const attributeKeywords = extractKeywordsFromAttributes(product.attributes || {});
+  for (const keyword of attributeKeywords) {
+    const tag = cleanTag(keyword);
+    if (tag) tags.add(tag);
+  }
+  
+  // 3. Başlıktan önemli anahtar kelimeleri çıkar
+  const titleKeywords = extractKeywordsFromTitle(product.title);
+  for (const keyword of titleKeywords) {
+    const tag = cleanTag(keyword);
+    if (tag) tags.add(tag);
+  }
+  
+  // 4. Varyasyonlardan renk bilgilerini ekle
+  if (product.variants && product.variants.colors && Array.isArray(product.variants.colors)) {
+    for (const color of product.variants.colors) {
+      const colorTag = cleanTag(color);
+      if (colorTag) tags.add(colorTag);
+    }
+  }
+  
+  // 5. Kategori yapılandırmasından gelen özel etiketleri ekle
+  if (categoryConfig && categoryConfig.tags && Array.isArray(categoryConfig.tags)) {
+    for (const tag of categoryConfig.tags) {
+      const cleanedTag = cleanTag(tag);
+      if (cleanedTag) tags.add(cleanedTag);
+    }
+  }
+  
+  // En önemli 3 etiketi döndür
+  return Array.from(tags).slice(0, 3);
+}
+
+export function registerRoutes(app: Express) {
+  // Ürün çekmeyi dene
+  app.post('/api/scrape', async (req, res) => {
+    const validation = urlSchema.safeParse(req.body);
+
+    if (!validation.success) {
+      return res.status(400).json({ 
+        message: "Geçersiz URL",
+        details: validation.error.errors 
+      });
+    }
+
+    const { url } = validation.data;
+
+    try {
+      const product = await scrapeProduct(url);
+      const savedProduct = await storage.saveProduct(product);
+      
+      // Özel Shopify CSV dönüşümü uygula
+      // NOT: Bu kısım doğrudan routes.ts'den shopify-export.ts'ye taşınabilir
+      
+      // URL'yi geçmişe ekle
+      storage.addToHistory(url);
+      
+      return res.status(200).json(savedProduct);
+    } catch (error: any) {
+      const errorResponse = handleError(error);
+      return res.status(errorResponse.status).json(errorResponse.body);
+    }
+  });
+
+  // Geçmiş URL'leri listele
+  app.get('/api/history', (_req, res) => {
+    try {
+      const history = storage.getHistory();
+      return res.status(200).json({ urls: history });
+    } catch (error: any) {
+      return res.status(500).json({ 
+        message: "Geçmiş yüklenirken hata oluştu",
+        error: error.message 
+      });
+    }
+  });
+
+  // Kayıtlı ürünü ID'ye göre getir
+  app.get('/api/product/:id', async (req, res) => {
+    try {
+      const { id } = req.params;
+      const product = await storage.getProduct(id);
+      
+      if (!product) {
+        return res.status(404).json({
+          message: "Ürün bulunamadı"
+        });
+      }
+      
+      return res.status(200).json(product);
+    } catch (error: any) {
+      return res.status(500).json({ 
+        message: "Ürün yüklenirken hata oluştu",
+        error: error.message 
+      });
+    }
+  });
+
+  // CSV dönüşüm API'si
+  app.post('/api/convert-csv', async (req, res) => {
+    try {
+      const { urls } = req.body;
+      
+      if (!Array.isArray(urls) || urls.length === 0) {
+        return res.status(400).json({
+          message: "Geçerli bir URL listesi gerekli"
+        });
+      }
+      
+      // İşlem sırasında oluşan hataları topla
+      const errors: Array<{url: string, error: string}> = [];
+      const successProducts: Product[] = [];
+      
+      // Her URL için işlem yap
+      for (const url of urls) {
+        try {
+          const product = await storage.getProduct(url);
+          if (product) {
+            successProducts.push(product);
+          } else {
+            // Ürün bulunamadıysa, yeniden çekmeyi dene
+            try {
+              const newProduct = await scrapeProduct(url);
+              const savedProduct = await storage.saveProduct(newProduct);
+              successProducts.push(savedProduct);
+            } catch (scrapeError: any) {
+              errors.push({
+                url,
+                error: scrapeError.message || "Ürün çekilemedi"
+              });
+            }
+          }
+        } catch (productError: any) {
+          errors.push({
+            url,
+            error: productError.message || "Ürün işlenemedi"
+          });
+        }
+      }
+      
+      if (successProducts.length === 0) {
+        return res.status(400).json({
+          message: "Hiçbir ürün dönüştürülemedi",
+          errors
+        });
+      }
+      
+      // CSV dosya adı için timestamp
+      const timestamp = new Date().toISOString().replace(/[:.]/g, '-');
+      const csvFilename = `shopify_export_${timestamp}.csv`;
+      const csvFilePath = `${csvFilename}`;
+      
+      // CSV yazıcı konfigürasyonu
+      const csvWriter = createObjectCsvWriter({
+        path: csvFilePath,
+        header: [
+          { id: 'handle', title: 'Handle' },
+          { id: 'title', title: 'Title' },
+          { id: 'body', title: 'Body (HTML)' },
+          { id: 'vendor', title: 'Vendor' },
+          { id: 'product_type', title: 'Type' },
+          { id: 'tags', title: 'Tags' },
+          { id: 'published', title: 'Published' },
+          { id: 'option1_name', title: 'Option1 Name' },
+          { id: 'option1_value', title: 'Option1 Value' },
+          { id: 'option2_name', title: 'Option2 Name' },
+          { id: 'option2_value', title: 'Option2 Value' },
+          { id: 'option3_name', title: 'Option3 Name' },
+          { id: 'option3_value', title: 'Option3 Value' },
+          { id: 'variant_sku', title: 'Variant SKU' },
+          { id: 'variant_grams', title: 'Variant Grams' },
+          { id: 'variant_inventory_tracker', title: 'Variant Inventory Tracker' },
+          { id: 'variant_inventory_qty', title: 'Variant Inventory Qty' },
+          { id: 'variant_inventory_policy', title: 'Variant Inventory Policy' },
+          { id: 'variant_fulfillment_service', title: 'Variant Fulfillment Service' },
+          { id: 'variant_price', title: 'Variant Price' },
+          { id: 'variant_compare_at_price', title: 'Variant Compare At Price' },
+          { id: 'variant_requires_shipping', title: 'Variant Requires Shipping' },
+          { id: 'variant_taxable', title: 'Variant Taxable' },
+          { id: 'variant_barcode', title: 'Variant Barcode' },
+          { id: 'image_src', title: 'Image Src' },
+          { id: 'image_position', title: 'Image Position' },
+          { id: 'image_alt_text', title: 'Image Alt Text' },
+          { id: 'gift_card', title: 'Gift Card' },
+          { id: 'seo_title', title: 'SEO Title' },
+          { id: 'seo_description', title: 'SEO Description' },
+          { id: 'variant_image', title: 'Variant Image' },
+          { id: 'variant_weight_unit', title: 'Variant Weight Unit' },
+          { id: 'variant_tax_code', title: 'Variant Tax Code' },
+          { id: 'cost_per_item', title: 'Cost per item' },
+          { id: 'status', title: 'Status' },
+          { id: 'collection', title: 'Collection' },
+          { id: 'published_at', title: 'Published At' },
+          { id: 'published_scope', title: 'Published Scope' },
+        ]
+      });
+      
+      // CSV satırlarını oluştur
+      const csvRows: any[] = [];
+      
+      const routerCleanProductTitle = (title: string): string => {
+        // Başlık temizleme fonksiyonu
+        return title
+          .replace(/\s+/g, ' ') // Çoklu boşlukları tek boşluğa dönüştür
+          .replace(/trendyol/gi, '') // "Trendyol" kelimesini kaldır
+          .trim(); // Başındaki ve sonundaki boşlukları temizle
+      };
+      
+      // Her ürün için veri dönüşümü
+      for (const product of successProducts) {
+        const handle = product.title.toLowerCase()
+          .replace(/[^\p{L}\p{N}]+/gu, '-') // Özel karakterleri tire ile değiştir (Unicode destekli)
+          .replace(/-+/g, '-') // Ardışık tireleri tek tireye dönüştür
+          .replace(/^-|-$/g, ''); // Başındaki ve sonundaki tireleri kaldır
+        
+        const cleanedTitle = routerCleanProductTitle(product.title);
+        const categoryPath = parseCategoryPath(product.categories || []);
+        
+        // Varsayılan satır (ana ürün)
+        const baseRow = {
+          handle,
+          title: cleanedTitle,
+          body: product.description || "",
+          vendor: "turmarkt", // Kullanıcı isteği: Tüm ürünler için vendor "turmarkt" olacak
+          product_type: categoryPath || "Diğer",
+          tags: product.tags.join(', ') || "",
+          published: "TRUE",
+          option1_name: "",
+          option1_value: "",
+          option2_name: "",
+          option2_value: "",
+          option3_name: "",
+          option3_value: "",
+          variant_sku: "",
+          variant_grams: "0",
+          variant_inventory_tracker: "shopify",
+          variant_inventory_qty: "10",
+          variant_inventory_policy: "deny",
+          variant_fulfillment_service: "manual",
+          variant_price: product.price,
+          variant_compare_at_price: "",
+          variant_requires_shipping: "TRUE",
+          variant_taxable: "TRUE",
+          variant_barcode: "",
+          image_src: "",
+          image_position: "",
+          image_alt_text: "",
+          gift_card: "FALSE",
+          seo_title: cleanedTitle,
+          seo_description: product.description?.substring(0, 160) || "",
+          variant_image: "",
+          variant_weight_unit: "g",
+          variant_tax_code: "",
+          cost_per_item: product.basePrice || "",
+          status: "active",
+          collection: product.categories?.[0] || "Diğer",
+          published_at: new Date().toISOString(),
+          published_scope: "web"
+        };
+        
+        // Varyant oluşturma
+        const variants = product.variants || {};
+        const colors = variants.colors || [];
+        const sizes = variants.sizes || [];
+        
+        // Variant bilgilerini sakla
+        let hasVariants = false;
+        
+        // Varyasyonlar
+        if (colors.length > 0 || sizes.length > 0) {
+          hasVariants = true;
+          
+          // Renk ve beden seçenekleri mevcutsa
+          if (colors.length > 0 && sizes.length > 0) {
+            baseRow.option1_name = "Renk";
+            baseRow.option2_name = "Beden";
+            
+            // Her renk ve beden kombinasyonu için varyant satırı ekle
+            for (let i = 0; i < colors.length; i++) {
+              for (let j = 0; j < sizes.length; j++) {
+                const variantRow = {
+                  ...baseRow,
+                  option1_value: colors[i],
+                  option2_value: sizes[j],
+                  variant_price: product.price,
+                  // İlk satır dışında bazı alanları boşalt (Shopify formatı gerektiriyor)
+                  title: i === 0 && j === 0 ? baseRow.title : "",
+                  body: i === 0 && j === 0 ? baseRow.body : "",
+                  product_type: i === 0 && j === 0 ? baseRow.product_type : "",
+                  tags: i === 0 && j === 0 ? baseRow.tags : ""
+                };
+                csvRows.push(variantRow);
+              }
+            }
+          }
+          // Sadece renk varyantı varsa
+          else if (colors.length > 0) {
+            baseRow.option1_name = "Renk";
+            
+            // Her renk için varyant satırı ekle
+            for (let i = 0; i < colors.length; i++) {
+              const variantRow = {
+                ...baseRow,
+                option1_value: colors[i],
+                variant_price: product.price,
+                title: i === 0 ? baseRow.title : "",
+                body: i === 0 ? baseRow.body : "",
+                product_type: i === 0 ? baseRow.product_type : "",
+                tags: i === 0 ? baseRow.tags : ""
+              };
+              csvRows.push(variantRow);
+            }
+          }
+          // Sadece beden varyantı varsa
+          else if (sizes.length > 0) {
+            baseRow.option1_name = "Beden";
+            
+            // Her beden için varyant satırı ekle
+            for (let i = 0; i < sizes.length; i++) {
+              const variantRow = {
+                ...baseRow,
+                option1_value: sizes[i],
+                variant_price: product.price,
+                title: i === 0 ? baseRow.title : "",
+                body: i === 0 ? baseRow.body : "",
+                product_type: i === 0 ? baseRow.product_type : "",
+                tags: i === 0 ? baseRow.tags : ""
+              };
+              csvRows.push(variantRow);
+            }
+          }
+        } else {
+          // Varyant yoksa
+          baseRow.option1_name = "Title";
+          baseRow.option1_value = "Default Title";
+          csvRows.push(baseRow);
+        }
+        
+        // Görselleri ekle - Shopify formatına uygun olarak görseller ana ürün ve varyant bilgilerinden ayırılmalı
+        const images = product.images || [];
+        
+        if (images.length > 0) {
+          for (let i = 0; i < images.length; i++) {
+            const imgUrl = images[i];
+            if (!imgUrl) continue; // Boş URL'leri atla
+            
+            // Shopify mevcut CSV spesifikasyonuna göre (2024)
+            // Görsel satırları varyant bilgisi içermemeli
+            const imageRow = {
+              handle,
+              image_src: imgUrl,
+              image_position: (i + 1).toString(),
+              image_alt_text: cleanedTitle
+            };
+            
+            csvRows.push(imageRow);
+          }
+        }
+      }
+      
+      try {
+        // CSV dosyasına yaz
+        await csvWriter.writeRecords(csvRows);
+        
+        // CSV dosyasını oku
+        const fileBuffer = await fs.readFile(csvFilePath);
+        
+        // Dosyayı sil
+        await fs.unlink(csvFilePath).catch(() => {
+          // Silme hatası önemli değil, devam et
+        });
+        
+        // CSV içeriğini yanıt olarak gönder
+        res.setHeader('Content-Type', 'text/csv');
+        res.setHeader('Content-Disposition', `attachment; filename=${csvFilename}`);
+        return res.send(fileBuffer);
+        
+      } catch (fileError: any) {
+        return res.status(500).json({
+          message: "CSV dosyası oluşturulurken hata oluştu",
+          error: fileError.message,
+          errors
+        });
+      }
+      
+    } catch (error: any) {
+      return res.status(500).json({
+        message: "CSV dönüştürme hatası",
+        error: error.message
+      });
+    }
+  });
+  
+  // Gelişmiş CSV dönüşüm yardımcısı - mevcut bir CSV dosyasını alıp düzeltir
+  app.post('/api/fix-csv', express.json({ limit: '50mb' }), async (req, res) => {
+    try {
+      const { csvData } = req.body;
+      
+      if (!csvData) {
+        return res.status(400).json({
+          message: "CSV verisi gerekli"
+        });
+      }
+      
+      // CSV verilerini parse et
+      const rows = csvData.split('\n');
+      const headers = rows[0].split(',');
+      
+      // Başlıkları kontrol et ve düzelt
+      const correctHeaders = [
+        'Handle', 'Title', 'Body (HTML)', 'Vendor', 'Type', 'Tags', 'Published',
+        'Option1 Name', 'Option1 Value', 'Option2 Name', 'Option2 Value', 'Option3 Name', 'Option3 Value',
+        'Variant SKU', 'Variant Grams', 'Variant Inventory Tracker', 'Variant Inventory Qty',
+        'Variant Inventory Policy', 'Variant Fulfillment Service', 'Variant Price', 'Variant Compare At Price',
+        'Variant Requires Shipping', 'Variant Taxable', 'Variant Barcode', 'Image Src', 'Image Position',
+        'Image Alt Text', 'Gift Card', 'SEO Title', 'SEO Description', 'Variant Image',
+        'Variant Weight Unit', 'Variant Tax Code', 'Cost per item', 'Status'
+      ];
+      
+      // Başlık eşleştirme tablosu
+      const headerMapping: {[key: string]: string} = {
+        'Tanıtıcı': 'Handle',
+        'Başlık': 'Title',
+        'İçerik': 'Body (HTML)',
+        'Satıcı': 'Vendor',
+        'Tür': 'Type',
+        'Etiketler': 'Tags',
+        'Yayınlandı': 'Published',
+        'Seçenek1 Adı': 'Option1 Name',
+        'Seçenek1 Değeri': 'Option1 Value',
+        'Seçenek2 Adı': 'Option2 Name',
+        'Seçenek2 Değeri': 'Option2 Value',
+        'Seçenek3 Adı': 'Option3 Name',
+        'Seçenek3 Değeri': 'Option3 Value',
+        'Varyant SKU': 'Variant SKU',
+        'Varyant Gram': 'Variant Grams',
+        'Varyant Envanter Takipçisi': 'Variant Inventory Tracker',
+        'Varyant Envanter Miktarı': 'Variant Inventory Qty',
+        'Varyant Envanter Politikası': 'Variant Inventory Policy',
+        'Varyant Karşılama Hizmeti': 'Variant Fulfillment Service',
+        'Varyant Fiyatı': 'Variant Price',
+        'Varyant Karşılaştırma Fiyatı': 'Variant Compare At Price',
+        'Varyant Nakliye Gerektirir': 'Variant Requires Shipping',
+        'Varyant Vergilendirilebilir': 'Variant Taxable',
+        'Varyant Barkodu': 'Variant Barcode',
+        'Görsel Kaynağı': 'Image Src',
+        'Görsel Konumu': 'Image Position',
+        'Görsel Alt Metni': 'Image Alt Text',
+        'Hediye Kartı': 'Gift Card',
+        'SEO Başlığı': 'SEO Title',
+        'SEO Açıklaması': 'SEO Description',
+        'Varyant Görseli': 'Variant Image',
+        'Varyant Ağırlık Birimi': 'Variant Weight Unit',
+        'Varyant Vergi Kodu': 'Variant Tax Code',
+        'Birim başına maliyet': 'Cost per item',
+        'Durum': 'Status',
+        'Koleksiyon': 'Collection',
+        'Published At': 'Published At',
+        'Published Scope': 'Published Scope'
+      };
+      
+      // Başlıkları eşleştir
+      const mappedHeaders = headers.map(header => {
+        const cleanHeader = header.trim().replace(/^"|"$/g, ''); // Çift tırnakları kaldır
+        return headerMapping[cleanHeader] || cleanHeader;
+      });
+      
+      // CSV verilerini yeniden oluştur
+      let fixedRows = [mappedHeaders.join(',')];
+      
+      // Header'ı geç, veri satırlarını düzelt
+      for (let i = 1; i < rows.length; i++) {
+        if (!rows[i].trim()) continue; // Boş satırları atla
+        
+        const row = rows[i];
+        // CSV satırını daha düzgün parse et (tırnak içindeki virgülleri dikkate alarak)
+        
+        // Her satırı işle
+        // Burada basit olarak satırı olduğu gibi ekliyoruz, gerçek uygulamada 
+        // daha karmaşık bir CSV parsing ve field manipulation gerekebilir
+        fixedRows.push(row);
+      }
+      
+      // Yeni CSV verisi oluştur
+      const fixedCsvData = fixedRows.join('\n');
+      
+      // Dosyaya yaz
+      const timestamp = new Date().toISOString().replace(/[:.]/g, '-');
+      const csvFilename = `shopify_fixed_output_${timestamp}.csv`;
+      const csvFilePath = `./${csvFilename}`;
+      
+      await fs.writeFile(csvFilePath, fixedCsvData);
+      
+      // CSV dosyasını yanıt olarak gönder
+      res.setHeader('Content-Type', 'text/csv');
+      res.setHeader('Content-Disposition', `attachment; filename=${csvFilename}`);
+      
+      const fileBuffer = await fs.readFile(csvFilePath);
+      
+      // Dosyayı sil
+      await fs.unlink(csvFilePath).catch(() => {
+        // Silme hatası önemli değil
+      });
+      
+      return res.send(fileBuffer);
+      
+    } catch (error: any) {
+      return res.status(500).json({
+        message: "CSV düzeltme hatası",
+        error: error.message
+      });
+    }
+  });
+
+  // Excel/CSV içe aktarma API'si
+  app.post('/api/import-excel', express.json({ limit: '50mb' }), async (req, res) => {
+    try {
+      const { csvData } = req.body;
+      
+      if (!csvData) {
+        return res.status(400).json({
+          message: "CSV verisi gerekli"
+        });
+      }
+      
+      // CSV verilerini parse et
+      const rows = csvData.split('\n');
+      const headers = rows[0].split(',').map((h: string) => h.trim().replace(/^"|"$/g, ''));
+      
+      // URL sütununu bul
+      const urlIndex = headers.findIndex((h: string) => 
+        h.toLowerCase().includes('url') || 
+        h.toLowerCase().includes('link') || 
+        h.toLowerCase().includes('trendyol')
+      );
+      
+      if (urlIndex === -1) {
+        return res.status(400).json({
+          message: "CSV içinde URL sütunu bulunamadı"
+        });
+      }
+      
+      // URL'leri topla
+      const urls: string[] = [];
+      
+      // Header satırını atla, veri satırlarını işle
+      for (let i = 1; i < rows.length; i++) {
+        if (!rows[i].trim()) continue; // Boş satırları atla
+        
+        const values = rows[i].split(',');
+        if (values.length <= urlIndex) continue; // Geçersiz satırları atla
+        
+        const url = values[urlIndex].trim().replace(/^"|"$/g, '');
+        if (url && url.includes('trendyol.com')) {
+          urls.push(url);
+        }
+      }
+      
+      if (urls.length === 0) {
+        return res.status(400).json({
+          message: "Geçerli Trendyol URL'leri bulunamadı"
+        });
+      }
+      
+      // Scrape işlemini başlat
+      const results: any[] = [];
+      const errors: any[] = [];
+      
+      for (const url of urls) {
+        try {
+          // Önce veritabanında kontrol et
+          let product = await storage.getProduct(url);
+          
+          if (!product) {
+            // Veritabanında yoksa yeni scrape yap
+            const scrapedProduct = await scrapeProduct(url);
+            product = await storage.saveProduct(scrapedProduct);
+            
+            // URL'yi geçmişe ekle
+            storage.addToHistory(url);
+          }
+          
+          results.push({
+            url,
+            success: true,
+            title: product.title
+          });
+          
+        } catch (error: any) {
+          errors.push({
+            url,
+            success: false,
+            error: error.message || "Bilinmeyen hata"
+          });
+        }
+      }
+      
+      return res.status(200).json({
+        message: `${results.length} ürün başarıyla çekildi, ${errors.length} ürün hatası`,
+        results,
+        errors
+      });
+      
+    } catch (error: any) {
+      return res.status(500).json({
+        message: "Excel/CSV içe aktarma hatası",
+        error: error.message
+      });
+    }
+  });
+
+  return app;
+}
