@@ -324,47 +324,92 @@ export function registerRoutes(app: Express): Server {
 
       // Enhanced product data extraction for Trendyol products
       if (url.includes('trendyol.com')) {
-        console.log("Trendyol ürün verisi işleniyor...");
+        console.log("📊 Using enhanced manual extraction for:", url);
         
         try {
-          // Use enhanced scraper
-          const result = await scrapeWithEnhancedMethod(url);
+          // Use multi-scraper system for data extraction
+          const { hyperFastScrape } = await import('./hyper-fast-scraper');
+          const { lightningFastScrape } = await import('./lightning-scraper');
+          const { scrapeWithEnhancedMethod } = await import('./enhanced-trendyol-scraper');
           
-          if (result) {
-            console.log("Enhanced scraper başarılı:", result.title);
+          console.log("🚀 Using Hyper-Fast Scraper...");
+          const hyperResult = await hyperFastScrape(url);
+          
+          if (hyperResult) {
+            console.log("🚀 Hyper result: SUCCESS");
             
-            // Real variant extraction is now handled in the enhanced scraper
+            // Apply 15% profit margin
+            const priceWithProfit = Math.round(hyperResult.price * 1.15 * 100) / 100;
             
-            // Generate CSV data using working instant CSV generator
-            const { instantCSVGenerator } = await import('./instant-csv-generator-working');
+            return res.json({
+              success: true,
+              extractionMethod: 'hyper-fast-scraper',
+              brand: hyperResult.brand,
+              title: hyperResult.title,
+              price: priceWithProfit,
+              images: hyperResult.images,
+              features: [],
+              variants: hyperResult.variants
+            });
+          }
+          
+          console.log("⚡ Hyper failed, trying Lightning Scraper...");
+          const lightningResult = await lightningFastScrape(url);
+          
+          if (lightningResult) {
+            console.log("⚡ Lightning result: SUCCESS");
             
-            // Extract real color and size data from result
-            let realColors = [];
-            let realSizes = [];
+            const priceWithProfit = Math.round(lightningResult.price * 1.15 * 100) / 100;
             
-            if (result.variants) {
-              if (Array.isArray(result.variants.colors)) {
-                realColors = result.variants.colors.filter(c => c && !c.toLowerCase().includes('varsayılan'));
-              }
-              if (Array.isArray(result.variants.sizes)) {
-                realSizes = result.variants.sizes.filter(s => s && !s.toLowerCase().includes('standart'));
-              }
-            }
+            return res.json({
+              success: true,
+              extractionMethod: 'lightning-scraper',
+              brand: lightningResult.brand,
+              title: lightningResult.title,
+              price: priceWithProfit,
+              images: lightningResult.images,
+              features: [],
+              variants: lightningResult.variants
+            });
+          }
+          
+          console.log("🔍 Both fast scrapers failed, using Enhanced Scraper...");
+          const enhancedResult = await scrapeWithEnhancedMethod(url);
+          
+          if (enhancedResult) {
+            console.log("🔍 Enhanced result: Found");
+            console.log("✅ Enhanced Scraper successful:", enhancedResult.title);
             
-            console.log(`🎨 Sending real colors to CSV:`, realColors);
-            console.log(`📏 Sending real sizes to CSV:`, realSizes);
+            const priceWithProfit = Math.round(enhancedResult.price * 1.15 * 100) / 100;
             
-            const csvResult = await instantCSVGenerator.generateInstantCSV({
-              title: result.title,
-              brand: result.brand,
-              price: result.price,
-              description: result.description,
-              images: result.images,
-              variants: {
-                colors: realColors,
-                sizes: realSizes,
-                stockMap: result.variants?.stockMap || {}
-              },
+            console.log(`🎯 Returning enhanced data: ${enhancedResult.price} TL, ${enhancedResult.images.length} images`);
+            
+            return res.json({
+              success: true,
+              extractionMethod: 'enhanced-scraper-fixed',
+              brand: enhancedResult.brand,
+              title: enhancedResult.title,
+              price: priceWithProfit,
+              images: enhancedResult.images,
+              features: [],
+              variants: enhancedResult.variants
+            });
+          }
+          
+          return res.status(404).json({
+            success: false,
+            message: 'All extraction methods failed'
+          });
+          
+        } catch (error) {
+          console.error('Extraction error:', error);
+          return res.status(500).json({
+            success: false,
+            message: 'Product extraction failed',
+            error: error instanceof Error ? error.message : 'Unknown error'
+          });
+        }
+      }
               attributes: result.attributes,
               url: url
             });
