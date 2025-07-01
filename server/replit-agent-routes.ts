@@ -6,10 +6,12 @@ import { promisify } from 'util';
 
 const router = Router();
 
-// Initialize Anthropic client
-const anthropic = new Anthropic({
-  apiKey: process.env.ANTHROPIC_API_KEY,
-});
+// Initialize Anthropic client dynamically
+const getAnthropicClient = () => {
+  return new Anthropic({
+    apiKey: process.env.ANTHROPIC_API_KEY,
+  });
+};
 
 // The newest Anthropic model is "claude-sonnet-4-20250514", not "claude-3-7-sonnet-20250219"
 const DEFAULT_MODEL_STR = "claude-sonnet-4-20250514";
@@ -118,13 +120,8 @@ ${context?.systemInfo ? `- Toplam ürün: ${context.systemInfo.totalProducts}` :
 - Dosya değişikliği gerekiyorsa belirt
 - Türkçe açıklama yap ama kod yorumları İngilizce olabilir`;
 
-    // Prepare conversation history for context
-    let messages: any[] = [
-      {
-        role: 'system',
-        content: systemPrompt
-      }
-    ];
+    // Prepare conversation history for context (without system message)
+    let messages: any[] = [];
 
     // Add conversation history if provided
     if (conversationHistory && Array.isArray(conversationHistory)) {
@@ -140,10 +137,12 @@ ${context?.systemInfo ? `- Toplam ürün: ${context.systemInfo.totalProducts}` :
     // Add current message
     messages.push({ role: 'user', content: message });
 
-    // Call Anthropic API
-    const response = await anthropic.messages.create({
+    // Call Anthropic API with dynamic client
+    const anthropicClient = getAnthropicClient();
+    const response = await anthropicClient.messages.create({
       model: DEFAULT_MODEL_STR,
       max_tokens: 4000,
+      system: systemPrompt,
       messages: messages
     });
 
