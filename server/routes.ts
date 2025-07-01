@@ -239,9 +239,9 @@ export function registerRoutes(app: Express): Server {
   // CSV preview endpoint removed - handled in server/index.ts
 
   // Manual feature testing endpoint
-  app.post("/api/test-manual-features", async (req, res) => {
+  app.get("/api/test-manual-features", async (req, res) => {
     try {
-      const { url } = req.body;
+      const { url } = req.query;
       console.log("🧪 Manual feature test başlatılıyor...");
       
       // Use provided URL or default to a test URL

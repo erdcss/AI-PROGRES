@@ -465,7 +465,7 @@ function ScraperPage({ platform = 'trendyol' }: ScraperPageProps) {
       });
     },
     onError: (error: any) => {
-      setError({
+      setMainError({
         message: error.message,
         status: error.status,
         details: error.details,
