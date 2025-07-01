@@ -6,6 +6,8 @@ import axios from 'axios';
 import * as cheerio from 'cheerio';
 import { extractRealColors } from './fixed-color-extractor';
 import { extractProductFeatures } from './fixed-feature-extractor';
+import { advancedAntiBot } from './advanced-anti-bot-scraper';
+import { ultimateBypass } from './ultimate-bypass-scraper';
 
 export interface CleanProductData {
   success: boolean;
@@ -37,36 +39,29 @@ export async function cleanScrape(url: string): Promise<CleanProductData> {
     
     console.log(`🔧 Clean scraper processing: ${processedUrl}`);
     
-    // Anti-bot delay
-    await new Promise(resolve => setTimeout(resolve, Math.random() * 2000 + 1000));
+    // Try ultimate bypass system first
+    const ultimateResult = await ultimateBypass(processedUrl);
+    let html = '';
     
-    const response = await axios.get(processedUrl, {
-      headers: {
-        'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/122.0.0.0 Safari/537.36',
-        'Accept': 'text/html,application/xhtml+xml,application/xml;q=0.9,image/avif,image/webp,image/apng,*/*;q=0.8,application/signed-exchange;v=b3;q=0.7',
-        'Accept-Language': 'tr-TR,tr;q=0.9,en-US;q=0.8,en;q=0.7',
-        'Accept-Encoding': 'gzip, deflate, br',
-        'Cache-Control': 'no-cache',
-        'Pragma': 'no-cache',
-        'Sec-Fetch-Dest': 'document',
-        'Sec-Fetch-Mode': 'navigate',
-        'Sec-Fetch-Site': 'none',
-        'Sec-Fetch-User': '?1',
-        'Upgrade-Insecure-Requests': '1',
-        'sec-ch-ua': '"Chromium";v="122", "Not(A:Brand";v="24", "Google Chrome";v="122"',
-        'sec-ch-ua-mobile': '?0',
-        'sec-ch-ua-platform': '"Windows"',
-        'Referer': 'https://www.google.com/',
-        'Connection': 'keep-alive'
-      },
-      timeout: 30000,
-      maxRedirects: 5,
-      validateStatus: function (status) {
-        return status >= 200 && status < 300;
+    if (ultimateResult.success && ultimateResult.html) {
+      console.log(`✅ Ultimate bypass successful with ${ultimateResult.method}: ${ultimateResult.html.length} chars`);
+      html = ultimateResult.html;
+    } else {
+      console.log(`❌ Ultimate bypass failed: ${ultimateResult.error}`);
+      
+      // Fallback to advanced anti-bot
+      console.log(`🔄 Trying fallback anti-bot system...`);
+      const antiBot = await advancedAntiBot(processedUrl);
+      
+      if (antiBot.success && antiBot.html) {
+        console.log(`✅ Fallback anti-bot successful: ${antiBot.html.length} chars`);
+        html = antiBot.html;
+      } else {
+        console.log(`❌ All bypass methods failed`);
+        throw new Error(`Request failed with status code 403`);
       }
-    });
+    }
     
-    const html = response.data;
     const $ = cheerio.load(html);
     
     console.log(`📄 HTML loaded: ${html.length} characters`);
