@@ -16,12 +16,11 @@ interface SimpleProductPreviewProps {
     images: string[];
     colorOptions?: string[];
     sizeOptions?: string[];
-    variants: Array<{
-      color: string;
-      size: string;
-      inStock: boolean;
-      stockCount: number;
-    }>;
+    variants: {
+      colors: string[];
+      sizes: string[];
+      stockMap: Record<string, boolean>;
+    };
     stockAnalysis?: {
       totalVariants: number;
       inStockVariants: number;
@@ -42,6 +41,41 @@ export function SimpleProductPreview({ product }: SimpleProductPreviewProps) {
   }
 
   const { brand, title, price, images, colorOptions, sizeOptions, variants, stockAnalysis, features } = product;
+
+  // Handle variants format (object)
+  const getVariantCount = () => {
+    if (variants && variants.colors && variants.sizes) {
+      return variants.colors.length * variants.sizes.length;
+    }
+    return 0;
+  };
+
+  const getInStockCount = () => {
+    if (variants && variants.stockMap) {
+      return Object.values(variants.stockMap).filter(Boolean).length;
+    }
+    return 0;
+  };
+
+  const getVariantArray = () => {
+    if (variants && variants.colors && variants.sizes) {
+      // Convert object format to array format for display
+      const variantArray = [];
+      for (const color of variants.colors) {
+        for (const size of variants.sizes) {
+          const key = `${color}-${size}`;
+          variantArray.push({
+            color,
+            size,
+            inStock: variants.stockMap[key] || false,
+            stockCount: variants.stockMap[key] ? 1 : 0
+          });
+        }
+      }
+      return variantArray;
+    }
+    return [];
+  };
 
   return (
     <motion.div
@@ -158,7 +192,7 @@ export function SimpleProductPreview({ product }: SimpleProductPreviewProps) {
                 whileHover={{ scale: 1.05 }}
                 className="text-center p-4 bg-purple-500/10 border border-purple-500/20 rounded-xl"
               >
-                <div className="text-3xl font-bold text-purple-400 mb-2">{variants.length}</div>
+                <div className="text-3xl font-bold text-purple-400 mb-2">{getVariantCount()}</div>
                 <div className="text-slate-300 font-medium">Toplam</div>
                 <div className="text-slate-400 text-sm">Varyant</div>
               </motion.div>
@@ -167,7 +201,7 @@ export function SimpleProductPreview({ product }: SimpleProductPreviewProps) {
                 className="text-center p-4 bg-orange-500/10 border border-orange-500/20 rounded-xl"
               >
                 <div className="text-3xl font-bold text-orange-400 mb-2">
-                  {variants.filter(v => v.inStock).length}
+                  {getInStockCount()}
                 </div>
                 <div className="text-slate-300 font-medium">Mevcut</div>
                 <div className="text-slate-400 text-sm">Stokta</div>
@@ -199,7 +233,7 @@ export function SimpleProductPreview({ product }: SimpleProductPreviewProps) {
                 <Palette className="h-4 w-4 text-green-400" />
                 <span className="text-gray-400 text-sm">Varyantlar</span>
               </div>
-              <span className="text-green-400 font-medium">{variants.length}</span>
+              <span className="text-green-400 font-medium">{getVariantCount()}</span>
             </div>
             
             <div className="flex items-center justify-between">
@@ -242,14 +276,14 @@ export function SimpleProductPreview({ product }: SimpleProductPreviewProps) {
       )}
 
       {/* Variants Section */}
-      {variants.length > 0 && (
+      {getVariantCount() > 0 && (
         <div>
           <h3 className="text-sm font-medium text-gray-300 mb-3 flex items-center gap-2">
             <Palette className="h-4 w-4" />
-            Varyantlar ({variants.length})
+            Varyantlar ({getVariantCount()})
           </h3>
           <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-3">
-            {variants.slice(0, 9).map((variant, index) => (
+            {getVariantArray().slice(0, 9).map((variant, index) => (
               <div key={index} className="bg-gray-800/30 rounded-lg p-3">
                 <div className="flex justify-between items-center mb-1">
                   <span className="text-white text-sm font-medium">
