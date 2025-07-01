@@ -97,7 +97,32 @@ const RealTimeClock = () => {
 
 const ReplitAgent = () => {
   const [, setLocation] = useLocation();
-  const [messages, setMessages] = useState<ChatMessage[]>([]);
+  const [messages, setMessages] = useState<ChatMessage[]>([
+    {
+      id: 'welcome',
+      type: 'agent',
+      content: `🤖 **Merhaba! Replit.Agent ile tanışın**
+
+Ben gelişmiş AI kod asistanınızım. Size nasıl yardımcı olabilirim?
+
+**🛠️ Yeteneklerim:**
+• **Kod yazma & düzenleme** - TypeScript, React, Node.js ve daha fazlası
+• **Bug tespit & düzeltme** - Hataları bulup çözüm öneriyorum
+• **API geliştirme** - REST endpoint'leri, database sorguları
+• **UI/UX tasarım** - React bileşenleri, responsive tasarım
+• **Sistem optimizasyonu** - Performance iyileştirmeleri
+
+**💡 Örnek Sorular:**
+• "Bu dosyayı optimize et ve performansını artır"
+• "Yeni bir kullanıcı auth sistemi oluştur"
+• "Bu hatayı nasıl çözebilirim?"
+• "Database şemasını güncelle"
+• "Modern bir dashboard tasarla"
+
+**📋 Hızlı başlangıç için aşağıdaki butonları kullanabilir ya da direkt soru sorabilirsiniz!**`,
+      timestamp: new Date().toISOString()
+    }
+  ]);
   const [newMessage, setNewMessage] = useState('');
   const [isLoading, setIsLoading] = useState(false);
   const [currentDateTime, setCurrentDateTime] = useState('');
@@ -636,16 +661,40 @@ const ReplitAgent = () => {
                       <div className="flex-1">
                         <p className="text-sm leading-relaxed whitespace-pre-wrap">{message.content}</p>
                         
-                        {/* Code blocks */}
+                        {/* Enhanced Code blocks */}
                         {message.codeBlocks && message.codeBlocks.map((block, index) => (
-                          <div key={index} className="mt-3 bg-gray-900 rounded-lg overflow-hidden">
-                            <div className="flex items-center justify-between bg-gray-800 px-3 py-2">
-                              <span className="text-xs text-gray-400">{block.language}</span>
-                              {block.filename && (
-                                <span className="text-xs text-gray-400">{block.filename}</span>
-                              )}
+                          <div key={index} className="mt-3 bg-gradient-to-br from-gray-900 to-gray-800 rounded-lg border border-gray-700/50 overflow-hidden">
+                            <div className="flex items-center justify-between bg-gray-800/50 px-3 py-2 border-b border-gray-700/50">
+                              <div className="flex items-center space-x-2">
+                                <span className="text-xs text-blue-400 font-semibold uppercase">{block.language}</span>
+                                {block.filename && (
+                                  <span className="text-xs text-green-400 bg-green-400/10 px-2 py-1 rounded">
+                                    📁 {block.filename}
+                                  </span>
+                                )}
+                              </div>
+                              <button
+                                onClick={() => {
+                                  navigator.clipboard.writeText(block.code);
+                                  setCopiedId(`${message.id}-${index}`);
+                                  setTimeout(() => setCopiedId(null), 2000);
+                                }}
+                                className="text-gray-400 hover:text-white text-xs px-2 py-1 rounded hover:bg-gray-700/50 transition-colors flex items-center space-x-1"
+                              >
+                                {copiedId === `${message.id}-${index}` ? (
+                                  <>
+                                    <Check className="w-3 h-3" />
+                                    <span>Kopyalandı</span>
+                                  </>
+                                ) : (
+                                  <>
+                                    <Copy className="w-3 h-3" />
+                                    <span>Kopyala</span>
+                                  </>
+                                )}
+                              </button>
                             </div>
-                            <pre className="p-3 text-sm overflow-x-auto">
+                            <pre className="p-3 text-sm text-gray-300 overflow-x-auto font-mono">
                               <code>{block.code}</code>
                             </pre>
                           </div>
