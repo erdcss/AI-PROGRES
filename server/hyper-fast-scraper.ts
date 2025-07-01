@@ -40,10 +40,10 @@ export async function hyperFastScrape(url: string): Promise<HyperFastProductData
     // STEP 2: Extract brand from URL (0ms processing)
     const brand = url.split('/')[3] || 'Brand';
     
-    // STEP 3: Hyper-minimal fetch with optimal timeout
+    // STEP 3: Fast but realistic fetch 
     const response = await axios.get(url, {
-      timeout: 250, // 250ms balanced timeout
-      headers: { 'User-Agent': 'Mozilla' }, // Minimal but valid header
+      timeout: 800, // 800ms realistic timeout for Turkey network
+      headers: { 'User-Agent': 'Mozilla/5.0' }, // Minimal but valid header
       maxRedirects: 0,
       validateStatus: () => true,
       decompress: false,

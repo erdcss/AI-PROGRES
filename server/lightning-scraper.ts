@@ -33,7 +33,7 @@ export async function lightningFastScrape(url: string): Promise<LightningProduct
     
     // STEP 3: Ultra-lightning fetch (minimum possible settings)
     const response = await axios.get(url, {
-      timeout: 300, // 0.3 second max for speed
+      timeout: 1000, // 1 second max for realistic speed
       headers: { 'User-Agent': 'Mozilla' }, // Minimal header
       maxRedirects: 0,
       validateStatus: () => true,
