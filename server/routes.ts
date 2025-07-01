@@ -2055,25 +2055,54 @@ export function registerRoutes(app: Express): Server {
 
       console.log(`🎯 Extract request: ${url}`);
       
-      // Skip focused extractor, go directly to simple scraper
-      console.log(`📊 Using simple scraper for: ${url}`);
+      // Skip focused extractor, go directly to enhanced manual extraction
+      console.log(`📊 Using enhanced manual extraction for: ${url}`);
       
-      // Use Clean Scraper
+      // Use Clean Scraper first
       console.log('🔧 Using Clean Scraper...');
       const { cleanScrape } = await import('./clean-scraper');
       const fallbackResult = await cleanScrape(url);
       
       if (fallbackResult && fallbackResult.success) {
-        console.log(`✅ Simple Scraper successful: ${fallbackResult.features.length} features`);
-        return res.json({
-          success: true,
-          brand: fallbackResult.brand,
-          title: fallbackResult.title,
-          price: fallbackResult.price,
-          images: fallbackResult.images,
-          features: fallbackResult.features,
-          variants: fallbackResult.variants
-        });
+        console.log(`✅ Clean Scraper successful: ${fallbackResult.features.length} features`);
+        
+        // Always enhance with manual feature extraction for better results
+        console.log('🚀 Enhancing with manual feature extraction...');
+        const manualResult = await manualFeatureExtraction(url);
+        
+        if (manualResult.success) {
+          console.log(`✅ Manual extraction results: ${manualResult.features.length} features vs Clean Scraper ${fallbackResult.features.length}`);
+          
+          // Always use manual features if available, as they provide richer data
+          if (manualResult.features.length >= 3) {
+            // Use enhanced manual results for rich feature extraction
+            return res.json({
+              success: true,
+              brand: fallbackResult.brand,
+              title: fallbackResult.title,
+              price: fallbackResult.price,
+              images: fallbackResult.images,
+              features: manualResult.features, // Use enhanced manual features
+              variants: fallbackResult.variants,
+              extractionMethod: 'enhanced-manual',
+              featureCount: manualResult.features.length,
+              processingTime: manualResult.processingTime,
+              manualEnhancement: true
+            });
+          }
+        } else {
+          // Fallback to clean scraper results
+          return res.json({
+            success: true,
+            brand: fallbackResult.brand,
+            title: fallbackResult.title,
+            price: fallbackResult.price,
+            images: fallbackResult.images,
+            features: fallbackResult.features,
+            variants: fallbackResult.variants,
+            extractionMethod: 'clean-scraper'
+          });
+        }
       }
 
       
