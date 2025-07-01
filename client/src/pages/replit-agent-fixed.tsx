@@ -245,14 +245,15 @@ const ReplitAgent = () => {
     }
   };
 
-  // Send message to agent
+  // Send message to agent with conversation history
   const sendMessage = async () => {
     if (!newMessage.trim() || isLoading) return;
 
+    const messageToSend = newMessage;
     const userMessage: ChatMessage = {
       id: Date.now().toString(),
       type: 'user',
-      content: newMessage,
+      content: messageToSend,
       timestamp: new Date().toISOString()
     };
 
@@ -267,14 +268,15 @@ const ReplitAgent = () => {
           'Content-Type': 'application/json',
         },
         body: JSON.stringify({
-          message: newMessage,
+          message: messageToSend,
           context: {
             currentFile: selectedFile,
             systemInfo: {
               totalProducts: memoryContext?.totalProducts || 0,
               systemStatus: memoryContext?.systemStatus || 'Unknown'
             }
-          }
+          },
+          conversationHistory: messages.slice(-10) // Send last 10 messages for context
         }),
       });
 
@@ -293,10 +295,11 @@ const ReplitAgent = () => {
         throw new Error('Agent response failed');
       }
     } catch (error) {
+      console.error('Chat error:', error);
       const errorMessage: ChatMessage = {
         id: (Date.now() + 1).toString(),
         type: 'agent',
-        content: 'Üzgünüm, bir hata oluştu. Lütfen tekrar deneyin.',
+        content: '🤖 Özür dilerim, şu anda bir teknik sorun yaşıyorum. Lütfen birkaç saniye sonra tekrar deneyin. Eğer sorun devam ederse, farklı bir şekilde sorunuzu ifade etmeyi deneyebilirsiniz.',
         timestamp: new Date().toISOString()
       };
       setMessages(prev => [...prev, errorMessage]);
@@ -715,23 +718,74 @@ const ReplitAgent = () => {
                 </button>
               </div>
               
-              {/* Quick suggestions */}
-              <div className="mt-3 flex flex-wrap gap-2">
-                {[
-                  "Yeni bir React bileşeni oluştur",
-                  "API endpoint'i düzelt",
-                  "Database şemasını güncelle",
-                  "CSS stil sorunu çöz",
-                  "TypeScript hatalarını gider"
-                ].map((suggestion) => (
-                  <button
-                    key={suggestion}
-                    onClick={() => setNewMessage(suggestion)}
-                    className="text-xs bg-white/10 hover:bg-white/20 text-white/70 hover:text-white px-3 py-1 rounded-full transition-colors"
-                  >
-                    {suggestion}
-                  </button>
-                ))}
+              {/* Enhanced Quick Actions */}
+              <div className="mt-3 space-y-2">
+                <div className="text-xs text-white/60 mb-2">💡 Hızlı İşlemler:</div>
+                <div className="flex flex-wrap gap-2">
+                  {[
+                    { text: "🔧 Bu dosyayı optimize et", icon: "⚡" },
+                    { text: "🐛 Hataları bul ve düzelt", icon: "🔍" },
+                    { text: "📝 Kod açıklaması ekle", icon: "💬" },
+                    { text: "🚀 Yeni API endpoint oluştur", icon: "🆕" },
+                    { text: "🎨 UI bileşeni tasarla", icon: "🎭" },
+                    { text: "🗄️ Database sorgusu yaz", icon: "💾" }
+                  ].map((suggestion) => (
+                    <button
+                      key={suggestion.text}
+                      onClick={() => setNewMessage(suggestion.text)}
+                      className="text-xs bg-gradient-to-r from-orange-600/20 to-red-600/20 hover:from-orange-600/30 hover:to-red-600/30 text-white/80 hover:text-white px-3 py-2 rounded-lg transition-all duration-200 border border-orange-500/20 hover:border-orange-500/30 flex items-center space-x-1"
+                    >
+                      <span>{suggestion.icon}</span>
+                      <span>{suggestion.text}</span>
+                    </button>
+                  ))}
+                </div>
+                
+                {/* Context-aware suggestions */}
+                {selectedFile && (
+                  <div className="mt-2">
+                    <div className="text-xs text-orange-400 mb-1">📁 {selectedFile} için:</div>
+                    <div className="flex flex-wrap gap-2">
+                      {[
+                        "Bu dosyayı refactor et",
+                        "Performance iyileştirmesi yap",
+                        "Test kodu ekle",
+                        "Type safety artır"
+                      ].map((suggestion) => (
+                        <button
+                          key={suggestion}
+                          onClick={() => setNewMessage(`${suggestion}: ${selectedFile}`)}
+                          className="text-xs bg-blue-600/20 hover:bg-blue-600/30 text-blue-300 hover:text-blue-200 px-2 py-1 rounded-md transition-colors border border-blue-500/30"
+                        >
+                          {suggestion}
+                        </button>
+                      ))}
+                    </div>
+                  </div>
+                )}
+                
+                {/* Memory context suggestions */}
+                {memoryContext && memoryContext.totalProducts > 0 && (
+                  <div className="mt-2">
+                    <div className="text-xs text-purple-400 mb-1">📊 Sistem için:</div>
+                    <div className="flex flex-wrap gap-2">
+                      {[
+                        "Ürün analizi yap",
+                        "Database optimizasyonu",
+                        "Shopify entegrasyonu geliştir",
+                        "Telegram bildirimleri iyileştir"
+                      ].map((suggestion) => (
+                        <button
+                          key={suggestion}
+                          onClick={() => setNewMessage(suggestion)}
+                          className="text-xs bg-purple-600/20 hover:bg-purple-600/30 text-purple-300 hover:text-purple-200 px-2 py-1 rounded-md transition-colors border border-purple-500/30"
+                        >
+                          {suggestion}
+                        </button>
+                      ))}
+                    </div>
+                  </div>
+                )}
               </div>
             </div>
           </div>

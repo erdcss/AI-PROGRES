@@ -1,9 +1,19 @@
 import { Router } from 'express';
 import * as fs from 'fs';
 import * as path from 'path';
+import Anthropic from '@anthropic-ai/sdk';
 import { promisify } from 'util';
 
 const router = Router();
+
+// Initialize Anthropic client
+const anthropic = new Anthropic({
+  apiKey: process.env.ANTHROPIC_API_KEY,
+});
+
+// The newest Anthropic model is "claude-sonnet-4-20250514", not "claude-3-7-sonnet-20250219"
+const DEFAULT_MODEL_STR = "claude-sonnet-4-20250514";
+
 const readFile = promisify(fs.readFile);
 const writeFile = promisify(fs.writeFile);
 const readdir = promisify(fs.readdir);
@@ -31,6 +41,146 @@ interface CodeBlock {
   language: string;
   code: string;
   filename?: string;
+}
+
+// AI Chat endpoint with comprehensive capabilities
+router.post('/chat', async (req, res) => {
+  try {
+    const { message, context, conversationHistory } = req.body;
+
+    if (!message || typeof message !== 'string') {
+      return res.status(400).json({
+        success: false,
+        error: 'Mesaj gerekli'
+      });
+    }
+
+    // Build system prompt with project context
+    const systemPrompt = `Sen Replit.Agent'sın - gelişmiş bir AI kod asistanısın. Türkçe olarak yanıt ver.
+
+**Yeteneklerin:**
+- Her türlü programlama dilinde kod yazma ve düzenleme
+- Bug analizi ve düzeltme önerileri
+- Kod optimizasyonu ve refactoring
+- API ve veritabanı tasarımı
+- Frontend ve backend geliştirme
+- TypeScript, React, Node.js, SQL uzmanı
+- Sistem mimarisi ve tasarım desenleri
+
+**Mevcut Proje Bağlamı:**
+- E-ticaret otomasyon sistemi (Trendyol → Shopify)
+- Tech Stack: TypeScript, React, Express.js, PostgreSQL, Drizzle ORM
+- Özellikler: Ürün scraping, AI analizi, otomatik fiyatlandırma, Telegram bildirimleri
+- API Endpoints: /api/scrape, /api/shopify/*, /api/analysis/*, /api/memory/*
+
+**Kullanıcı Konteksti:**
+${context?.currentFile ? `- Şu anda açık dosya: ${context.currentFile}` : ''}
+${context?.systemInfo ? `- Sistem durumu: ${context.systemInfo.systemStatus}` : ''}
+${context?.systemInfo ? `- Toplam ürün: ${context.systemInfo.totalProducts}` : ''}
+
+**Davranış Kuralları:**
+- Pratik, uygulanabilir çözümler sun
+- Kod örnekleri verirken tam kod blokları kullan
+- Hataları tespit ettiğinde düzeltme önerileri sun
+- Dosya değişikliği gerekiyorsa belirt
+- Türkçe açıklama yap ama kod yorumları İngilizce olabilir`;
+
+    // Prepare conversation history for context
+    let messages: any[] = [
+      {
+        role: 'system',
+        content: systemPrompt
+      }
+    ];
+
+    // Add conversation history if provided
+    if (conversationHistory && Array.isArray(conversationHistory)) {
+      conversationHistory.forEach((msg: any) => {
+        if (msg.type === 'user') {
+          messages.push({ role: 'user', content: msg.content });
+        } else if (msg.type === 'agent') {
+          messages.push({ role: 'assistant', content: msg.content });
+        }
+      });
+    }
+
+    // Add current message
+    messages.push({ role: 'user', content: message });
+
+    // Call Anthropic API
+    const response = await anthropic.messages.create({
+      model: DEFAULT_MODEL_STR,
+      max_tokens: 4000,
+      messages: messages
+    });
+
+    const responseText = (response.content[0] as any)?.text || 'Yanıt alınamadı';
+
+    // Parse response for code blocks and file changes
+    const codeBlocks = extractCodeBlocks(responseText);
+    const fileChanges = extractFileChanges(responseText);
+
+    res.json({
+      success: true,
+      response: responseText,
+      codeBlocks,
+      fileChanges,
+      timestamp: new Date().toISOString()
+    });
+
+  } catch (error) {
+    console.error('AI Chat error:', error);
+    res.status(500).json({
+      success: false,
+      error: 'AI yanıtı alınamadı',
+      details: error instanceof Error ? error.message : 'Unknown error'
+    });
+  }
+});
+
+// Extract code blocks from AI response
+function extractCodeBlocks(text: string) {
+  const codeBlocks: Array<{language: string, code: string, filename?: string}> = [];
+  const codeBlockRegex = /```(\w+)?\s*([\s\S]*?)```/g;
+  
+  let match;
+  while ((match = codeBlockRegex.exec(text)) !== null) {
+    const language = match[1] || 'text';
+    const code = match[2].trim();
+    
+    // Check if filename is mentioned in the code block
+    const filenameMatch = code.match(/^\/\/ (.+\.(ts|tsx|js|jsx|css|html|json))/);
+    const filename = filenameMatch ? filenameMatch[1] : undefined;
+    
+    codeBlocks.push({ language, code, filename });
+  }
+  
+  return codeBlocks;
+}
+
+// Extract file change suggestions from AI response
+function extractFileChanges(text: string) {
+  const fileChanges: Array<{type: string, path: string, description: string}> = [];
+  
+  // Look for file modification suggestions
+  const fileChangePatterns = [
+    /Dosyayı?\s+([^\s]+\.(ts|tsx|js|jsx|css|html|json))\s+(?:güncelleyin?|değiştirin?|düzenleyin?)/gi,
+    /([^\s]+\.(ts|tsx|js|jsx|css|html|json))\s+dosyasını?\s+(?:güncelleyin?|değiştirin?|düzenleyin?)/gi
+  ];
+  
+  fileChangePatterns.forEach(pattern => {
+    let match;
+    while ((match = pattern.exec(text)) !== null) {
+      const path = match[1];
+      fileChanges.push({
+        type: 'modify',
+        path,
+        description: `${path} dosyasını güncelle`
+      });
+    }
+  });
+  
+  return fileChanges;
 }
 
 // Get knowledge base
