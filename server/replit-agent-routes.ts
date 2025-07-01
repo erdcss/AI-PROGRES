@@ -33,6 +33,61 @@ interface CodeBlock {
   filename?: string;
 }
 
+// Get knowledge base
+router.get('/knowledge', async (req, res) => {
+  try {
+    const knowledge = [
+      {
+        title: "E-ticaret Otomasyon Sistemi",
+        content: "Trendyol'dan Shopify'a otomatik ürün aktarımı, fiyat ve stok takibi, Telegram bildirimleri. 15% kar marjı ile otomatik fiyatlandırma.",
+        category: "System Overview",
+        lastUpdated: new Date().toISOString()
+      },
+      {
+        title: "Database Yapısı",
+        content: "PostgreSQL + Drizzle ORM. Ana tablolar: products, productVariants, priceHistory, stockHistory. Memory sistem ile real-time tracking.",
+        category: "Database",
+        lastUpdated: new Date().toISOString()
+      },
+      {
+        title: "API Endpoints",
+        content: "Express.js routes: /api/scrape (ürün çekme), /api/shopify/* (Shopify ops), /api/analysis/* (dashboard), /api/memory/* (hafıza). TypeScript + validation.",
+        category: "API",
+        lastUpdated: new Date().toISOString()
+      },
+      {
+        title: "AI Entegrasyonu",
+        content: "Anthropic Claude API ile akıllı ürün kategorilendirme, etiketleme, feature extraction. Automatic Türkçe content generation.",
+        category: "AI",
+        lastUpdated: new Date().toISOString()
+      },
+      {
+        title: "Frontend Stack",
+        content: "React + TypeScript + Tailwind CSS + Framer Motion + shadcn/ui. Wouter routing, React Query, real-time updates, responsive design.",
+        category: "Frontend",
+        lastUpdated: new Date().toISOString()
+      },
+      {
+        title: "Automation Features",
+        content: "Scheduled tasks: 12:00 monitoring, 23:00 reports. Real-time Shopify sync, Telegram notifications, error detection, price/stock tracking.",
+        category: "Automation",
+        lastUpdated: new Date().toISOString()
+      }
+    ];
+
+    res.json({
+      success: true,
+      knowledge
+    });
+  } catch (error) {
+    console.error('Knowledge base error:', error);
+    res.status(500).json({
+      success: false,
+      error: 'Bilgi bankası yüklenemedi'
+    });
+  }
+});
+
 // Get file system structure
 router.get('/files', async (req, res) => {
   try {

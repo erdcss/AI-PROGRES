@@ -275,6 +275,9 @@ app.use((req, res, next) => {
   // Add memory status routes with explicit API prefix  
   app.use('/api', memoryStatusRoutes);
   
+  // Add Replit Agent routes
+  app.use('/api/agent', replitAgentRoutes);
+  
   // Add import routes
   app.use(importRoutes);
   
