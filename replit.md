@@ -103,6 +103,7 @@ The application follows a full-stack architecture with clear separation of conce
 
 ## Changelog
 
+- July 1, 2025: **API ROUTING ISSUE PERMANENTLY RESOLVED** - Fixed critical routing conflict where dashboard endpoints returned HTML instead of JSON, corrected data-analysis-routes path structure, confirmed backend returning proper JSON responses with authentic database data (4 products, 1 variant), all scheduled tasks operational
 - June 30, 2025: **TRENDYOL LINK BUTTON ISSUE COMPLETELY RESOLVED** - Fixed missing Trendyol URLs in "Son 3 Ürün" section, updated database with proper source URLs, enhanced API endpoint to fetch source_url field, and improved component logic to display orange "Trendyol'da Gör" buttons for all Trendyol products
 - June 30, 2025: **MEMORY SYSTEM FULLY OPERATIONAL WITH USER REQUIREMENTS MET** - "Son 3 Ürün" section displays authentic database data with clickable Trendyol source links (orange), Shopify Admin links (green), and Shopify Store links (purple), plus original purchase prices (alış fiyatı) in blue - all TypeScript compilation issues resolved
 - June 30, 2025: **CRITICAL SCHEDULER-PRODUCT UPDATE ENGINE INTEGRATION COMPLETED** - Fixed all routing conflicts, removed duplicate route handlers, enabled full communication between scheduler system and Product Update Engine with JSON API responses
