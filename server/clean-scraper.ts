@@ -71,6 +71,7 @@ export async function cleanScrape(url: string): Promise<CleanProductData> {
           const brand = processedUrl.includes('/clnk/') ? 'Clnk' : 'CLNK';
           
           // Price çıkar
+          const { extractManualPrice } = await import('./manual-price-extractor');
           const price = await extractManualPrice(basicResult.html, processedUrl);
           
           // CLNK verilerini birleştir
@@ -155,9 +156,15 @@ export async function cleanScrape(url: string): Promise<CleanProductData> {
       }
     }
     
-    // Enhanced manual price extraction
+    // Enhanced manual price extraction with better Trendyol support
     const { extractManualPrice } = await import('./manual-price-extractor');
     const priceObject = await extractManualPrice(html, processedUrl);
+    
+    // Extract the actual price value from the price object
+    const originalPrice = priceObject.original || 0;
+    const finalPrice = Math.round(originalPrice * 1.15); // Apply 15% profit margin
+    
+    console.log(`💰 Price extraction: ${originalPrice} TL → ${finalPrice} TL (15% profit applied)`);
     
     // Extract product-only images (no duplicates or resized versions)
     console.log('🎯 Starting product-only image extraction...');
@@ -248,7 +255,7 @@ export async function cleanScrape(url: string): Promise<CleanProductData> {
       success: true,
       title,
       brand,
-      price: priceObject,
+      price: finalPrice,
       images,
       features,
       variants
