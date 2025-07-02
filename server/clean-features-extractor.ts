@@ -1,184 +1,186 @@
-/**
- * Clean Product Features Extractor
- * Only extracts meaningful, valid product specifications
- */
-
+// Clean Features Extractor - Quality-focused product specifications
 import * as cheerio from 'cheerio';
 
-export interface CleanProductFeature {
+export interface ProductFeature {
   key: string;
   value: string;
-  category?: string;
 }
 
-export function extractCleanFeatures(html: string): CleanProductFeature[] {
+export function extractCleanTrendyolFeatures(html: string, brand: string): ProductFeature[] {
   const $ = cheerio.load(html);
-  const features: CleanProductFeature[] = [];
-  const featureMap = new Set<string>();
-
-  // 1. Extract from Trendyol product specifications section (like Scrapy example)
-  $('.product-detail .product-detail-specs .row, .detail-attr-container .detail-attr').each((i, row) => {
-    // Method 1: Using column-based layout (col-lg-4, col-md-4 etc.)
-    const key1 = $(row).find('.col-lg-4, .col-md-4, .detail-attr-item-key').first().text().trim();
-    const value1 = $(row).find('.col-lg-8, .col-md-8, .detail-attr-item-value').first().text().trim();
+  const features: ProductFeature[] = [];
+  
+  console.log('🧹 Clean Features Extractor: Starting quality extraction...');
+  
+  // Add brand as first feature
+  features.push({ key: 'Marka', value: brand });
+  
+  // Method 1: Direct table cell extraction - most reliable for Trendyol
+  console.log('📊 Extracting from product specification tables...');
+  
+  $('table tr').each((_, row) => {
+    const $row = $(row);
+    const cells = $row.find('td');
     
-    if (key1 && value1 && isValidFeature(key1, value1)) {
-      const featureKey = `${key1}:${value1}`;
-      if (!featureMap.has(featureKey)) {
-        features.push({
-          key: cleanFeatureKey(key1),
-          value: value1,
-          category: categorizeFeature(key1)
-        });
-        featureMap.add(featureKey);
-        console.log(`✅ Spec özellik: ${key1}: ${value1}`);
-      }
-    }
-  });
-
-  // 2. Extract from attribute lists and tables
-  $('table tr, .attributes tr, .product-attributes tr').each((i, row) => {
-    const cells = $(row).find('td, th');
     if (cells.length >= 2) {
-      const key = $(cells[0]).text().trim();
-      const value = $(cells[1]).text().trim();
+      const key = cells.eq(0).text().trim();
+      const value = cells.eq(1).text().trim();
       
-      if (isValidFeature(key, value)) {
-        const featureKey = `${key}:${value}`;
-        if (!featureMap.has(featureKey)) {
-          features.push({
-            key: cleanFeatureKey(key),
-            value: value,
-            category: categorizeFeature(key)
-          });
-          featureMap.add(featureKey);
-          console.log(`✅ Table özellik: ${key}: ${value}`);
-        }
+      // Filter for valid product specifications
+      if (isValidProductFeature(key, value)) {
+        features.push({ key, value });
+        console.log(`✅ Table spec: ${key} = ${value}`);
       }
     }
   });
-
-  // 3. Extract from JSON-LD structured data (clean version)
-  $('script[type="application/ld+json"]').each((i, script) => {
-    try {
-      const jsonText = $(script).html();
-      if (jsonText) {
-        const data = JSON.parse(jsonText);
-        
-        // Extract from additionalProperty array
-        if (data.additionalProperty && Array.isArray(data.additionalProperty)) {
-          data.additionalProperty.forEach((prop: any) => {
-            if (prop.name && prop.value) {
-              const key = String(prop.name).trim();
-              const value = String(prop.value).trim();
-              
-              if (isValidFeature(key, value)) {
-                const featureKey = `${key}:${value}`;
-                if (!featureMap.has(featureKey)) {
-                  features.push({
-                    key: cleanFeatureKey(key),
-                    value: value,
-                    category: categorizeFeature(key)
-                  });
-                  featureMap.add(featureKey);
-                  console.log(`✅ JSON-LD özellik: ${key}: ${value}`);
-                }
-              }
-            }
-          });
-        }
-      }
-    } catch (e) {
-      // JSON parse error, continue
+  
+  // Method 2: Search for specific product attributes in a more targeted way
+  const productAttributes = extractSpecificAttributes(html);
+  productAttributes.forEach(attr => {
+    if (isValidProductFeature(attr.key, attr.value)) {
+      features.push(attr);
+      console.log(`✅ Specific attr: ${attr.key} = ${attr.value}`);
     }
   });
-
-  // 4. Extract from general product detail sections
-  $('.product-detail-container, .product-info, .product-specs').find('div, li, p').each((i, item) => {
-    const text = $(item).text().trim();
-    
-    // Look for key:value patterns
-    if (text.includes(':') && text.length < 150 && text.length > 10) {
-      const parts = text.split(':');
-      if (parts.length === 2) {
-        const key = parts[0].trim();
-        const value = parts[1].trim();
-        
-        if (isValidFeature(key, value)) {
-          const featureKey = `${key}:${value}`;
-          if (!featureMap.has(featureKey)) {
-            features.push({
-              key: cleanFeatureKey(key),
-              value: value,
-              category: categorizeFeature(key)
-            });
-            featureMap.add(featureKey);
-            console.log(`✅ Pattern özellik: ${key}: ${value}`);
-          }
-        }
-      }
+  
+  // Method 3: Clean JSON extraction for structured data
+  const jsonFeatures = extractJSONFeatures($);
+  jsonFeatures.forEach(feature => {
+    if (isValidProductFeature(feature.key, feature.value)) {
+      features.push(feature);
+      console.log(`✅ JSON spec: ${feature.key} = ${feature.value}`);
     }
   });
+  
+  // Remove duplicates and return clean list
+  const cleanFeatures = removeDuplicatesAndClean(features);
+  
+  console.log(`🎯 Clean extraction completed: ${cleanFeatures.length} quality features`);
+  
+  return cleanFeatures.slice(0, 10); // Limit to 10 best features
+}
 
-  console.log(`✅ ${features.length} temiz özellik çıkarıldı`);
+function isValidProductFeature(key: string, value: string): boolean {
+  // Must have valid key and value
+  if (!key || !value || key.length === 0 || value.length === 0) return false;
+  
+  // Filter out system/technical data
+  if (key.includes('class=') || value.includes('class=') || 
+      key.includes('attribute-') || value.includes('attribute-') ||
+      key.includes('href=') || value.includes('href=') ||
+      key.includes('{') || value.includes('{') ||
+      key.includes('\\') || value.includes('\\')) return false;
+  
+  // Filter out too short or too long values
+  if (key.length < 2 || key.length > 30 || value.length < 1 || value.length > 50) return false;
+  
+  // Must be actual product specifications
+  const validKeys = [
+    'hacim', 'volume', 'saç tipi', 'hair type', 'menşei', 'origin', 
+    'özellik', 'feature', 'etki', 'effect', 'içerik', 'content',
+    'kullanım', 'usage', 'renk', 'color', 'boyut', 'size',
+    'materyal', 'material', 'marka', 'brand', 'model', 'tip', 'type'
+  ];
+  
+  const keyLower = key.toLowerCase();
+  return validKeys.some(validKey => keyLower.includes(validKey));
+}
+
+function extractSpecificAttributes(html: string): ProductFeature[] {
+  const features: ProductFeature[] = [];
+  
+  // Look for specific cosmetic/shampoo attributes with clean regex
+  const patterns = [
+    { regex: /Hacim[:\s]*(\d+\s*ml)/gi, key: 'Hacim' },
+    { regex: /Saç Tipi[:\s]*([A-Za-zÇçĞğİıÖöŞşÜü\s]{3,30})/gi, key: 'Saç Tipi' },
+    { regex: /Menşei[:\s]*([A-Za-zÇçĞğİıÖöŞşÜü]{2,15})/gi, key: 'Menşei' },
+    { regex: /Özellik[:\s]*([A-Za-zÇçĞğİıÖöŞşÜü\s]{3,40})/gi, key: 'Özellik' },
+    { regex: /Etki[:\s]*([A-Za-zÇçĞğİıÖöŞşÜü\s]{3,40})/gi, key: 'Etki' }
+  ];
+  
+  for (const { regex, key } of patterns) {
+    let match;
+    while ((match = regex.exec(html)) !== null) {
+      const value = match[1].trim();
+      if (value && !value.includes('<') && !value.includes('>')) {
+        features.push({ key, value });
+      }
+    }
+  }
+  
   return features;
 }
 
-function isValidFeature(key: string, value: string): boolean {
-  // Skip empty or very short values
-  if (!key || !value || key.length < 2 || value.length < 2) return false;
+function extractJSONFeatures($: cheerio.CheerioAPI): ProductFeature[] {
+  const features: ProductFeature[] = [];
   
-  // Skip values that are too long (likely descriptions)
-  if (value.length > 100) return false;
+  // Look for clean JSON-LD structured data
+  $('script[type="application/ld+json"]').each((_, script) => {
+    try {
+      const jsonContent = $(script).html();
+      if (jsonContent) {
+        const data = JSON.parse(jsonContent);
+        
+        // Extract clean product properties
+        if (data.additionalProperty && Array.isArray(data.additionalProperty)) {
+          data.additionalProperty.forEach((prop: any) => {
+            if (prop.name && prop.value && 
+                typeof prop.name === 'string' && typeof prop.value === 'string') {
+              features.push({ key: prop.name, value: prop.value });
+            }
+          });
+        }
+        
+        // Extract other clean properties
+        const propertyMappings = [
+          { json: 'material', key: 'Materyal' },
+          { json: 'color', key: 'Renk' },
+          { json: 'size', key: 'Boyut' },
+          { json: 'weight', key: 'Ağırlık' }
+        ];
+        
+        propertyMappings.forEach(({ json, key }) => {
+          if (data[json] && typeof data[json] === 'string') {
+            features.push({ key, value: data[json] });
+          }
+        });
+      }
+    } catch (e) {
+      // Skip invalid JSON
+    }
+  });
   
-  // Skip garbled data patterns
-  const invalidPatterns = [
-    /^[a-z]$/, // Single lowercase letters
-    /unluk/, /asi-/, /x-c/, /x-g/, /-seti-/, /cizmesi/i,
-    /görselleri/, /açıcı/, /kalemi/, /malzemeler/i,
-    /^["'}]+$/, // Only quotes/brackets
-    /http/, /www\./, /\.com/, /\.jpg/, /\.png/,
-    /^u"$/, /^a"$/, /^ler$/, /^"}$/, /^"$/, /^}$/
-  ];
+  return features;
+}
+
+function removeDuplicatesAndClean(features: ProductFeature[]): ProductFeature[] {
+  const uniqueFeatures: ProductFeature[] = [];
+  const seenPairs = new Set<string>();
   
-  for (const pattern of invalidPatterns) {
-    if (pattern.test(value)) return false;
+  for (const feature of features) {
+    const normalizedKey = feature.key.toLowerCase().trim();
+    const normalizedValue = feature.value.toLowerCase().trim();
+    const pairKey = `${normalizedKey}:${normalizedValue}`;
+    
+    // Skip if already seen or invalid
+    if (seenPairs.has(pairKey)) continue;
+    
+    // Final quality check
+    if (feature.key.length > 1 && 
+        feature.value.length > 0 && 
+        feature.value.length < 50 &&
+        !feature.value.includes('undefined') &&
+        !feature.value.includes('null') &&
+        !feature.value.includes('class=') &&
+        !feature.value.includes('"')) {
+      
+      uniqueFeatures.push({
+        key: feature.key,
+        value: feature.value
+      });
+      seenPairs.add(pairKey);
+    }
   }
   
-  // Only allow meaningful product attribute keys
-  const validKeyPatterns = [
-    /materyal/i, /kumaş/i, /renk/i, /kalıp/i, /kol/i, /yaka/i,
-    /desen/i, /kapama/i, /yıkama/i, /marka/i, /beden/i, /boy/i,
-    /astar/i, /koleksiyon/i, /cep/i, /ortam/i, /siluet/i,
-    /kalınlık/i, /dokuma/i, /persona/i, /kemer/i, /kuşak/i,
-    /sürdürülebilirlik/i, /detay/i, /tipi/i, /boyu/i, /durumu/i
-  ];
-  
-  const hasValidKey = validKeyPatterns.some(pattern => pattern.test(key));
-  if (!hasValidKey) return false;
-  
-  // Skip Boy attributes with invalid values
-  if (key.toLowerCase().includes('boy') && value.length < 3) return false;
-  
-  return true;
-}
-
-function cleanFeatureKey(key: string): string {
-  return key
-    .replace(/[:"']/g, '')
-    .replace(/\s+/g, ' ')
-    .trim();
-}
-
-function categorizeFeature(key: string): string {
-  const keyLower = key.toLowerCase();
-  
-  if (keyLower.includes('materyal') || keyLower.includes('kumaş')) return 'Malzeme';
-  if (keyLower.includes('renk') || keyLower.includes('desen')) return 'Görünüm';
-  if (keyLower.includes('beden') || keyLower.includes('kalıp') || keyLower.includes('boy')) return 'Ölçü';
-  if (keyLower.includes('kol') || keyLower.includes('yaka') || keyLower.includes('cep')) return 'Tasarım';
-  if (keyLower.includes('yıkama') || keyLower.includes('bakım')) return 'Bakım';
-  if (keyLower.includes('marka') || keyLower.includes('koleksiyon')) return 'Marka';
-  
-  return 'Genel';
+  return uniqueFeatures;
 }

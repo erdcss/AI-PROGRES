@@ -221,9 +221,9 @@ export async function authenticTrendyolScrape(url: string): Promise<AuthenticPro
     
     console.log(`📸 Images extracted: ${images.length}`);
 
-    // Extract authentic product features using enhanced extractor
-    const { extractTrendyolFeatures } = await import('./enhanced-features-extractor');
-    const uniqueFeatures = extractTrendyolFeatures(html, brand);
+    // Extract authentic product features using simple table extractor
+    const { extractSimpleProductFeatures } = await import('./simple-table-extractor');
+    const uniqueFeatures = extractSimpleProductFeatures(html, brand);
 
     // Extract authentic variants or create single variant
     const variants = [{
