@@ -221,38 +221,9 @@ export async function authenticTrendyolScrape(url: string): Promise<AuthenticPro
     
     console.log(`📸 Images extracted: ${images.length}`);
 
-    // Extract authentic product features
-    const features: Array<{key: string, value: string}> = [];
-    
-    // Look for product attributes in the page
-    const featureSelectors = [
-      '.detail-attr-item',
-      '.product-attribute',
-      '.spec-item',
-      '.feature-item'
-    ];
-    
-    for (const selector of featureSelectors) {
-      $(selector).each((_, element) => {
-        const text = $(element).text().trim();
-        if (text && text.includes(':')) {
-          const [key, value] = text.split(':').map(s => s.trim());
-          if (key && value && key.length > 0 && value.length > 0) {
-            features.push({ key, value });
-          }
-        }
-      });
-    }
-    
-    // Add basic features if none found
-    if (features.length === 0) {
-      features.push(
-        { key: 'Brand', value: brand },
-        { key: 'Product Type', value: 'Consumer Product' }
-      );
-    }
-    
-    console.log(`🎯 Features extracted: ${features.length}`);
+    // Extract authentic product features using enhanced extractor
+    const { extractTrendyolFeatures } = await import('./enhanced-features-extractor');
+    const uniqueFeatures = extractTrendyolFeatures(html, brand);
 
     // Extract authentic variants or create single variant
     const variants = [{
@@ -269,7 +240,7 @@ export async function authenticTrendyolScrape(url: string): Promise<AuthenticPro
       brand,
       price: finalPrice,
       images,
-      features,
+      features: uniqueFeatures,
       variants
     };
     
