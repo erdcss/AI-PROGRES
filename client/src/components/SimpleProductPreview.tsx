@@ -163,61 +163,46 @@ export function SimpleProductPreview({ product }: SimpleProductPreviewProps) {
             </div>
           </div>
 
-          {/* Compact AI Analysis */}
-          <div className="bg-gradient-to-br from-slate-700/30 to-slate-800/30 backdrop-blur-sm p-4 rounded-xl border border-slate-600/30">
-            <h3 className="text-lg font-bold text-white mb-3 flex items-center gap-2">
-              <div className="bg-purple-500 p-1.5 rounded-lg">
-                <Palette className="h-4 w-4 text-white" />
+          {/* Compact Modern AI Analysis */}
+          <div className="bg-gradient-to-br from-purple-900/20 to-blue-900/20 backdrop-blur-sm p-3 rounded-lg border border-purple-500/30">
+            <div className="flex items-center gap-2 mb-2">
+              <div className="bg-purple-500 p-1 rounded">
+                <Palette className="h-3 w-3 text-white" />
               </div>
-              AI Analiz Sonuçları
-            </h3>
-            <div className="grid grid-cols-4 gap-3">
-              <div className="text-center p-2 bg-blue-500/10 border border-blue-500/20 rounded-lg">
-                <div className="text-xl font-bold text-blue-400">{images.length}</div>
-                <div className="text-xs text-slate-300">Görsel</div>
+              <h3 className="text-sm font-semibold text-white">AI Analiz Tamamlandı</h3>
+            </div>
+            <div className="grid grid-cols-4 gap-2">
+              <div className="text-center p-2 bg-slate-800/50 rounded-lg">
+                <div className="text-lg font-bold text-blue-400">{images.length}</div>
+                <div className="text-xs text-gray-400">Görsel</div>
               </div>
-              <div className="text-center p-2 bg-green-500/10 border border-green-500/20 rounded-lg">
-                <div className="text-xl font-bold text-green-400">{features.length}</div>
-                <div className="text-xs text-slate-300">Özellik</div>
+              <div className="text-center p-2 bg-slate-800/50 rounded-lg">
+                <div className="text-lg font-bold text-green-400">{features.length}</div>
+                <div className="text-xs text-gray-400">Özellik</div>
               </div>
-              <div className="text-center p-2 bg-purple-500/10 border border-purple-500/20 rounded-lg">
-                <div className="text-xl font-bold text-purple-400">{getVariantCount()}</div>
-                <div className="text-xs text-slate-300">Varyant</div>
+              <div className="text-center p-2 bg-slate-800/50 rounded-lg">
+                <div className="text-lg font-bold text-purple-400">{getVariantCount()}</div>
+                <div className="text-xs text-gray-400">Varyant</div>
               </div>
-              <div className="text-center p-2 bg-orange-500/10 border border-orange-500/20 rounded-lg">
-                <div className="text-xl font-bold text-orange-400">{getInStockCount()}</div>
-                <div className="text-xs text-slate-300">Stokta</div>
+              <div className="text-center p-2 bg-slate-800/50 rounded-lg">
+                <div className="text-lg font-bold text-orange-400">{getInStockCount()}</div>
+                <div className="text-xs text-gray-400">Stokta</div>
               </div>
             </div>
           </div>
         </div>
 
-        {/* Summary Card */}
-        <div className="bg-gray-800/50 rounded-lg p-4 space-y-3">
-          <h3 className="text-sm font-medium text-gray-300">Çıkarılan Veri Özeti</h3>
-          <div className="space-y-2">
-            <div className="flex items-center justify-between">
-              <div className="flex items-center gap-2">
-                <ImageIcon className="h-4 w-4 text-blue-400" />
-                <span className="text-gray-400 text-sm">Görseller</span>
-              </div>
-              <span className="text-blue-400 font-medium">{images.length}</span>
+        {/* Quick Summary */}
+        <div className="bg-slate-800/30 rounded-lg p-2">
+          <div className="grid grid-cols-3 gap-1 text-xs">
+            <div className="bg-slate-800/50 rounded p-1 text-center">
+              <span className="text-gray-400">Marka:</span> <span className="text-white ml-1">{brand}</span>
             </div>
-            
-            <div className="flex items-center justify-between">
-              <div className="flex items-center gap-2">
-                <Palette className="h-4 w-4 text-green-400" />
-                <span className="text-gray-400 text-sm">Varyantlar</span>
-              </div>
-              <span className="text-green-400 font-medium">{getVariantCount()}</span>
+            <div className="bg-slate-800/50 rounded p-1 text-center">
+              <span className="text-gray-400">Orijinal:</span> <span className="text-orange-400 ml-1 font-bold">{((price?.original || 0) / 1.15).toFixed(0)} TL</span>
             </div>
-            
-            <div className="flex items-center justify-between">
-              <div className="flex items-center gap-2">
-                <Tags className="h-4 w-4 text-purple-400" />
-                <span className="text-gray-400 text-sm">Özellikler</span>
-              </div>
-              <span className="text-purple-400 font-medium">{features.length}</span>
+            <div className="bg-slate-800/50 rounded p-1 text-center">
+              <span className="text-gray-400">Kar Marjlı:</span> <span className="text-green-400 ml-1 font-bold">{price?.withProfit || 0} TL</span>
             </div>
           </div>
         </div>
