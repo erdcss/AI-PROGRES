@@ -444,20 +444,20 @@ export function registerRoutes(app: Express): Server {
       // Enhanced product data extraction for Trendyol products
       if (url.includes('trendyol.com')) {
         try {
-          // Use proven clean-scraper for authentic data extraction
-          console.log("🧹 Using proven Clean Scraper for authentic data...");
-          const { cleanScrape } = await import('./clean-scraper');
-          const cleanResult = await cleanScrape(url);
+          // Use authentic Trendyol scraper for accurate data extraction
+          console.log("🎯 Using Authentic Trendyol Scraper for accurate data...");
+          const { authenticTrendyolScrape } = await import('./authentic-trendyol-scraper');
+          const cleanResult = await authenticTrendyolScrape(url);
           
           if (cleanResult.success) {
             console.log("🧹 Clean Scraper SUCCESS - authentic data extracted");
             
             return res.json({
               success: true,
-              extractionMethod: 'clean-scraper',
+              extractionMethod: 'authentic-trendyol-scraper',
               brand: cleanResult.brand,
               title: cleanResult.title,
-              price: cleanResult.price.withProfit,
+              price: cleanResult.price,
               images: cleanResult.images,
               features: cleanResult.features,
               variants: cleanResult.variants

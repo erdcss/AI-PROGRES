@@ -24,20 +24,33 @@ export async function authenticTrendyolScrape(url: string): Promise<AuthenticPro
       processedUrl = 'https://' + url;
     }
 
-    // Get HTML content using ultimate bypass
-    const { ultimateBypass } = await import('./ultimate-bypass');
-    const ultimateResult = await ultimateBypass(processedUrl);
+    // Get HTML content using axios with proper headers
+    const axios = (await import('axios')).default;
     
-    if (!ultimateResult.success || !ultimateResult.html) {
-      throw new Error('Failed to get HTML content');
-    }
+    console.log(`🌐 Requesting URL: ${processedUrl}`);
     
-    const html = ultimateResult.html;
+    const response = await axios.get(processedUrl, {
+      headers: {
+        'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36',
+        'Accept': 'text/html,application/xhtml+xml,application/xml;q=0.9,image/webp,*/*;q=0.8',
+        'Accept-Language': 'tr-TR,tr;q=0.9,en;q=0.8',
+        'Accept-Encoding': 'gzip, deflate, br',
+        'Connection': 'keep-alive',
+        'Upgrade-Insecure-Requests': '1'
+      },
+      timeout: 15000,
+      maxRedirects: 5,
+      validateStatus: (status) => status < 400
+    });
+    
+    console.log(`📡 Response status: ${response.status}, Final URL: ${response.request?.responseURL || processedUrl}`);
+    
+    const html = response.data;
     const $ = cheerio.load(html);
     
     console.log(`📄 HTML content loaded: ${html.length} characters`);
 
-    // Extract authentic product title
+    // Extract authentic product title using comprehensive selectors
     let title = 'Product';
     const titleSelectors = [
       'h1.pr-new-br',
@@ -45,17 +58,44 @@ export async function authenticTrendyolScrape(url: string): Promise<AuthenticPro
       '.pr-new-br h1',
       'h1.product-title',
       '.product-name h1',
-      'h1'
+      '.pr-new-br .pr-new-br',
+      '.pr-in-dt .pr-in-dt',
+      'span.pr-new-br',
+      '.product-detail-title'
     ];
     
-    for (const selector of titleSelectors) {
-      const element = $(selector).first();
-      if (element.length > 0) {
-        const titleText = element.text().trim();
-        if (titleText && titleText.length > 5) {
-          title = titleText;
-          console.log(`✅ Title found: ${title}`);
-          break;
+    // First try to extract from JSON-LD for more accuracy
+    try {
+      $('script[type="application/ld+json"]').each((_, element) => {
+        try {
+          const jsonContent = $(element).html();
+          if (jsonContent) {
+            const data = JSON.parse(jsonContent);
+            if (data.name && data.name.length > 5) {
+              title = data.name;
+              console.log(`✅ Title from JSON-LD: ${title}`);
+              return false; // Break loop
+            }
+          }
+        } catch (error) {
+          // Continue to next element
+        }
+      });
+    } catch (error) {
+      console.log('JSON-LD title extraction failed');
+    }
+    
+    // If JSON-LD failed, try DOM selectors
+    if (title === 'Product') {
+      for (const selector of titleSelectors) {
+        const element = $(selector).first();
+        if (element.length > 0) {
+          const titleText = element.text().trim();
+          if (titleText && titleText.length > 5 && !titleText.includes('404') && !titleText.includes('Sayfa')) {
+            title = titleText;
+            console.log(`✅ Title found via ${selector}: ${title}`);
+            break;
+          }
         }
       }
     }
@@ -74,30 +114,61 @@ export async function authenticTrendyolScrape(url: string): Promise<AuthenticPro
     // Extract authentic price using multiple methods
     let originalPrice = 0;
     
-    // Method 1: Direct Trendyol price selectors
-    const priceSelectors = [
-      '.prc-dsc',
-      '.prc-slg', 
-      '.prc-org',
-      '.pr-bx-nr .prc-dsc',
-      '.pr-in .prc-dsc',
-      '.product-price',
-      '.price-value'
-    ];
+    // Method 1: JSON-LD structured data (most reliable)
+    try {
+      $('script[type="application/ld+json"]').each((_, element) => {
+        try {
+          const jsonContent = $(element).html();
+          if (jsonContent) {
+            const data = JSON.parse(jsonContent);
+            if (data.offers && Array.isArray(data.offers)) {
+              for (const offer of data.offers) {
+                if (offer.price || offer.lowPrice) {
+                  const price = parseFloat(offer.price || offer.lowPrice);
+                  if (price > 0 && price < 50000) {
+                    originalPrice = price;
+                    console.log(`💰 JSON-LD price found: ${originalPrice} TL`);
+                    break;
+                  }
+                }
+              }
+            }
+          }
+        } catch (error) {
+          // Continue to next element
+        }
+      });
+    } catch (error) {
+      console.log('JSON-LD price extraction failed');
+    }
     
-    for (const selector of priceSelectors) {
-      const element = $(selector).first();
-      if (element.length > 0) {
-        const priceText = element.text().trim();
-        // Remove all non-numeric characters except comma and dot
-        const cleanText = priceText.replace(/[^\d,\.]/g, '');
-        // Handle Turkish number format (comma as decimal separator)
-        const numericPrice = parseFloat(cleanText.replace(',', '.'));
-        
-        if (numericPrice > 0 && numericPrice < 50000) {
-          originalPrice = numericPrice;
-          console.log(`💰 Authentic price found: ${originalPrice} TL via ${selector}`);
-          break;
+    // Method 2: Direct Trendyol price selectors if JSON-LD failed
+    if (!originalPrice) {
+      const priceSelectors = [
+        '.prc-dsc',
+        '.prc-slg', 
+        '.prc-org',
+        '.pr-bx-nr .prc-dsc',
+        '.pr-in .prc-dsc',
+        '.product-price',
+        '.price-value',
+        '.current-price'
+      ];
+      
+      for (const selector of priceSelectors) {
+        const element = $(selector).first();
+        if (element.length > 0) {
+          const priceText = element.text().trim();
+          // Remove all non-numeric characters except comma and dot
+          const cleanText = priceText.replace(/[^\d,\.]/g, '');
+          // Handle Turkish number format (comma as decimal separator)
+          const numericPrice = parseFloat(cleanText.replace(',', '.'));
+          
+          if (numericPrice > 0 && numericPrice < 50000) {
+            originalPrice = numericPrice;
+            console.log(`💰 DOM price found: ${originalPrice} TL via ${selector}`);
+            break;
+          }
         }
       }
     }
@@ -118,9 +189,9 @@ export async function authenticTrendyolScrape(url: string): Promise<AuthenticPro
         ];
         
         for (const pattern of patterns) {
-          const matches = [...scriptContent.matchAll(pattern)];
-          if (matches.length > 0) {
-            const priceValue = parseFloat(matches[0][1]);
+          let match;
+          while ((match = pattern.exec(scriptContent)) !== null) {
+            const priceValue = parseFloat(match[1]);
             if (priceValue > 0 && priceValue < 50000) {
               originalPrice = priceValue;
               console.log(`💰 JSON price found: ${originalPrice} TL`);
