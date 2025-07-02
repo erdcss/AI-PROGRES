@@ -163,54 +163,30 @@ export function SimpleProductPreview({ product }: SimpleProductPreviewProps) {
             </div>
           </div>
 
-          {/* Enhanced Stats */}
-          <div className="bg-gradient-to-br from-slate-700/30 to-slate-800/30 backdrop-blur-sm p-8 rounded-2xl border border-slate-600/30">
-            <h3 className="text-xl font-bold text-white mb-6 flex items-center gap-3">
-              <div className="bg-purple-500 p-2 rounded-lg">
-                <Palette className="h-5 w-5 text-white" />
+          {/* Compact AI Analysis */}
+          <div className="bg-gradient-to-br from-slate-700/30 to-slate-800/30 backdrop-blur-sm p-4 rounded-xl border border-slate-600/30">
+            <h3 className="text-lg font-bold text-white mb-3 flex items-center gap-2">
+              <div className="bg-purple-500 p-1.5 rounded-lg">
+                <Palette className="h-4 w-4 text-white" />
               </div>
               AI Analiz Sonuçları
             </h3>
-            <div className="grid grid-cols-2 gap-6">
-              <motion.div
-                whileHover={{ scale: 1.05 }}
-                className="text-center p-4 bg-blue-500/10 border border-blue-500/20 rounded-xl"
-              >
-                <div className="text-3xl font-bold text-blue-400 mb-2">{images.length}</div>
-                <div className="text-slate-300 font-medium">Yüksek Kalite</div>
-                <div className="text-slate-400 text-sm">Görsel</div>
-              </motion.div>
-              <motion.div
-                whileHover={{ scale: 1.05 }}
-                className="text-center p-4 bg-green-500/10 border border-green-500/20 rounded-xl"
-              >
-                <div className="text-3xl font-bold text-green-400 mb-2">{features.length}</div>
-                <div className="text-slate-300 font-medium">Detaylı</div>
-                <div className="text-slate-400 text-sm">Özellik</div>
-              </motion.div>
-              <motion.div
-                whileHover={{ scale: 1.05 }}
-                className="text-center p-4 bg-purple-500/10 border border-purple-500/20 rounded-xl"
-              >
-                <div className="text-3xl font-bold text-purple-400 mb-2">{getVariantCount()}</div>
-                <div className="text-slate-300 font-medium">Toplam</div>
-                <div className="text-slate-400 text-sm">Varyant</div>
-              </motion.div>
-              <motion.div
-                whileHover={{ scale: 1.05 }}
-                className="text-center p-4 bg-orange-500/10 border border-orange-500/20 rounded-xl"
-              >
-                <div className="text-3xl font-bold text-orange-400 mb-2">
-                  {getInStockCount()}
-                </div>
-                <div className="text-slate-300 font-medium">Mevcut</div>
-                <div className="text-slate-400 text-sm">Stokta</div>
-              </motion.div>
-            </div>
-            <div className="mt-6 p-4 bg-gradient-to-r from-green-500/10 to-blue-500/10 border border-green-500/20 rounded-xl">
-              <div className="flex items-center justify-center gap-2 text-green-300">
-                <div className="h-2 w-2 bg-green-400 rounded-full animate-pulse"></div>
-                <span className="font-medium">Shopify Formatında Hazır</span>
+            <div className="grid grid-cols-4 gap-3">
+              <div className="text-center p-2 bg-blue-500/10 border border-blue-500/20 rounded-lg">
+                <div className="text-xl font-bold text-blue-400">{images.length}</div>
+                <div className="text-xs text-slate-300">Görsel</div>
+              </div>
+              <div className="text-center p-2 bg-green-500/10 border border-green-500/20 rounded-lg">
+                <div className="text-xl font-bold text-green-400">{features.length}</div>
+                <div className="text-xs text-slate-300">Özellik</div>
+              </div>
+              <div className="text-center p-2 bg-purple-500/10 border border-purple-500/20 rounded-lg">
+                <div className="text-xl font-bold text-purple-400">{getVariantCount()}</div>
+                <div className="text-xs text-slate-300">Varyant</div>
+              </div>
+              <div className="text-center p-2 bg-orange-500/10 border border-orange-500/20 rounded-lg">
+                <div className="text-xl font-bold text-orange-400">{getInStockCount()}</div>
+                <div className="text-xs text-slate-300">Stokta</div>
               </div>
             </div>
           </div>
