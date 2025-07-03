@@ -6,6 +6,7 @@ import NotFound from "@/pages/not-found";
 import ScraperPage from "@/pages/scraper";
 import PriceComparisonPage from "@/pages/price-comparison";
 import MarketplaceSelection from "@/pages/marketplace-selection";
+import MainDashboard from "@/pages/main-dashboard";
 import ComingSoon from "@/pages/coming-soon";
 import { TelegramPage } from "@/pages/telegram";
 import EmailSettings from "@/pages/EmailSettings";
@@ -180,7 +181,7 @@ function Router() {
     <Switch>
       <Route path="/">
         <PageTransition>
-          <MarketplaceSelection />
+          <MainDashboard />
         </PageTransition>
       </Route>
       <Route path="/marketplace">
