@@ -28,6 +28,8 @@ import { generateBoutiqueCSV } from './boutique-csv-generator';
 import { extractAllColorImages, generateMultiColorCSV } from './multi-color-image-extractor';
 import { extractMayoColorVariants, generateMayoColorCSV } from './mayo-color-extractor';
 import { detectMayoRealColors, assignColorsToImages } from './mayo-real-color-detector';
+import { extractAllProductImages, generateImageCSV } from './complete-image-extractor';
+import { extractComprehensiveImages, generateComprehensiveImageCSV, generateImageGroupSummary } from './comprehensive-image-system';
 
 
 function generateSingleProductShopifyCSV(product: any): string {
@@ -918,6 +920,155 @@ export function registerRoutes(app: Express): Server {
       console.error('Real mayo color CSV oluşturma hatası:', error);
       res.status(500).json({ 
         message: "Real mayo color CSV oluşturulamadı", 
+        error: error instanceof Error ? error.message : 'Bilinmeyen hata'
+      });
+    }
+  });
+
+  // Tüm Ürün Görsellerini Çıkarma endpoint
+  app.post('/api/extract-all-images', async (req, res) => {
+    try {
+      const { url } = req.body;
+      
+      if (!url) {
+        return res.status(400).json({ message: "URL gerekli" });
+      }
+
+      console.log('🖼️ TÜM ürün görselleri çıkarılıyor...');
+      
+      // Tüm görselleri çıkar
+      const allImages = await extractAllProductImages(url);
+      
+      if (allImages.length === 0) {
+        console.log('⚠️ Hiç görsel bulunamadı');
+        return res.status(400).json({ message: "Görsel bulunamadı" });
+      }
+      
+      console.log(`✅ ${allImages.length} görsel başarıyla çıkarıldı`);
+      
+      res.json({
+        success: true,
+        imageCount: allImages.length,
+        images: allImages,
+        summary: {
+          highQuality: allImages.filter(img => img.quality === 'high').length,
+          mediumQuality: allImages.filter(img => img.quality === 'medium').length,
+          lowQuality: allImages.filter(img => img.quality === 'low').length,
+          mainImages: allImages.filter(img => img.type === 'main').length,
+          colorVariants: allImages.filter(img => img.type === 'color').length,
+          detailImages: allImages.filter(img => img.type === 'detail').length
+        }
+      });
+    } catch (error) {
+      console.error('Görsel çıkarma hatası:', error);
+      res.status(500).json({ 
+        message: "Görsel çıkarılamadı", 
+        error: error instanceof Error ? error.message : 'Bilinmeyen hata'
+      });
+    }
+  });
+
+  // Tüm Görselleri CSV olarak indirme endpoint
+  app.post('/api/images-csv', async (req, res) => {
+    try {
+      const { url, productTitle } = req.body;
+      
+      if (!url) {
+        return res.status(400).json({ message: "URL gerekli" });
+      }
+
+      console.log('📄 Tüm görseller için CSV oluşturuluyor...');
+      
+      // Tüm görselleri çıkar
+      const allImages = await extractAllProductImages(url);
+      
+      if (allImages.length === 0) {
+        return res.status(400).json({ message: "Görsel bulunamadı" });
+      }
+      
+      // CSV içerik oluştur
+      const csvContent = generateImageCSV(allImages, productTitle || 'Ürün');
+      
+      res.setHeader('Content-Type', 'text/csv');
+      res.setHeader('Content-Disposition', 'attachment; filename="product-all-images.csv"');
+      res.send(csvContent);
+    } catch (error) {
+      console.error('Görsel CSV oluşturma hatası:', error);
+      res.status(500).json({ 
+        message: "CSV oluşturulamadı", 
+        error: error instanceof Error ? error.message : 'Bilinmeyen hata'
+      });
+    }
+  });
+
+  // Comprehensive Image System endpoint - TÜM görselleri sistematik çıkarma
+  app.post('/api/comprehensive-images', async (req, res) => {
+    try {
+      const { url, productTitle } = req.body;
+      
+      if (!url) {
+        return res.status(400).json({ message: "URL gerekli" });
+      }
+
+      console.log('🎯 Comprehensive görsel sistem çalışıyor...');
+      
+      // Comprehensive görsel çıkarma
+      const result = await extractComprehensiveImages(url);
+      
+      if (result.allImages.length === 0) {
+        return res.status(400).json({ message: "Görsel bulunamadı" });
+      }
+      
+      console.log(`✅ ${result.allImages.length} görsel sistematik olarak çıkarıldı`);
+      
+      res.json({
+        success: true,
+        totalImages: result.allImages.length,
+        totalGroups: result.imageGroups.length,
+        images: result.allImages,
+        imageGroups: result.imageGroups,
+        statistics: result.statistics,
+        summary: generateImageGroupSummary(result.imageGroups)
+      });
+    } catch (error) {
+      console.error('Comprehensive görsel çıkarma hatası:', error);
+      res.status(500).json({ 
+        message: "Comprehensive görsel çıkarılamadı", 
+        error: error instanceof Error ? error.message : 'Bilinmeyen hata'
+      });
+    }
+  });
+
+  // Comprehensive Images CSV endpoint
+  app.post('/api/comprehensive-images-csv', async (req, res) => {
+    try {
+      const { url, productTitle } = req.body;
+      
+      if (!url) {
+        return res.status(400).json({ message: "URL gerekli" });
+      }
+
+      console.log('📄 Comprehensive images CSV oluşturuluyor...');
+      
+      const result = await extractComprehensiveImages(url);
+      
+      if (result.allImages.length === 0) {
+        return res.status(400).json({ message: "Görsel bulunamadı" });
+      }
+      
+      const csvContent = generateComprehensiveImageCSV(
+        result.allImages,
+        result.imageGroups,
+        productTitle || 'Ürün'
+      );
+      
+      res.setHeader('Content-Type', 'text/csv');
+      res.setHeader('Content-Disposition', 'attachment; filename="comprehensive-product-images.csv"');
+      res.send(csvContent);
+    } catch (error) {
+      console.error('Comprehensive CSV oluşturma hatası:', error);
+      res.status(500).json({ 
+        message: "CSV oluşturulamadı", 
         error: error instanceof Error ? error.message : 'Bilinmeyen hata'
       });
     }
