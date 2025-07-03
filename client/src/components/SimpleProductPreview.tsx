@@ -6,7 +6,7 @@ interface SimpleProductPreviewProps {
     success: boolean;
     brand: string;
     title: string;
-    price?: {
+    price?: number | {
       original: number;
       currency: string;
       formatted: string;
@@ -41,6 +41,17 @@ export function SimpleProductPreview({ product }: SimpleProductPreviewProps) {
   }
 
   const { brand, title, price, images, colorOptions, sizeOptions, variants, stockAnalysis, features } = product;
+
+  // Calculate price details from numeric price
+  const priceValue = typeof price === 'number' ? price : 0;
+  const originalPrice = priceValue / 1.15;
+  const priceDetails = {
+    original: originalPrice,
+    withProfit: priceValue,
+    formatted: `${originalPrice.toFixed(2)} TL`,
+    profitFormatted: `${priceValue.toFixed(2)} TL`,
+    currency: 'TL'
+  };
 
   // Handle variants format (object)
   const getVariantCount = () => {
@@ -133,15 +144,15 @@ export function SimpleProductPreview({ product }: SimpleProductPreviewProps) {
                   {title}
                 </span>
               </div>
-              {price && (
+              {priceDetails && (
                 <div className="space-y-3">
                   <div className="flex justify-between items-center p-3 bg-orange-500/10 border border-orange-500/20 rounded-lg">
                     <span className="text-orange-400 font-medium">Orijinal Fiyat:</span>
-                    <span className="text-orange-300 font-bold text-lg">{price.formatted}</span>
+                    <span className="text-orange-300 font-bold text-lg">{priceDetails.formatted}</span>
                   </div>
                   <div className="flex justify-between items-center p-3 bg-green-500/10 border border-green-500/20 rounded-lg">
                     <span className="text-green-400 font-medium">Kar Marjlı Fiyat:</span>
-                    <span className="text-green-300 font-bold text-xl">{price.profitFormatted}</span>
+                    <span className="text-green-300 font-bold text-xl">{priceDetails.profitFormatted}</span>
                   </div>
                   <div className="grid grid-cols-2 gap-3">
                     <div className="text-center p-2 bg-blue-500/10 rounded-lg">
@@ -151,7 +162,7 @@ export function SimpleProductPreview({ product }: SimpleProductPreviewProps) {
                     </div>
                     <div className="text-center p-2 bg-purple-500/10 rounded-lg">
                       <span className="text-purple-300 text-sm font-medium">
-                        Kar: {((price.withProfit - price.original) || 0).toLocaleString('tr-TR', {
+                        Kar: {((priceDetails.withProfit - priceDetails.original) || 0).toLocaleString('tr-TR', {
                           minimumFractionDigits: 2,
                           maximumFractionDigits: 2
                         })} TL
@@ -199,10 +210,10 @@ export function SimpleProductPreview({ product }: SimpleProductPreviewProps) {
               <span className="text-gray-400">Marka:</span> <span className="text-white ml-1">{brand}</span>
             </div>
             <div className="bg-slate-800/50 rounded p-1 text-center">
-              <span className="text-gray-400">Orijinal:</span> <span className="text-orange-400 ml-1 font-bold">{((price?.original || 0) / 1.15).toFixed(0)} TL</span>
+              <span className="text-gray-400">Orijinal:</span> <span className="text-orange-400 ml-1 font-bold">{priceDetails?.original.toFixed(0) || 0} TL</span>
             </div>
             <div className="bg-slate-800/50 rounded p-1 text-center">
-              <span className="text-gray-400">Kar Marjlı:</span> <span className="text-green-400 ml-1 font-bold">{price?.withProfit || 0} TL</span>
+              <span className="text-gray-400">Kar Marjlı:</span> <span className="text-green-400 ml-1 font-bold">{priceDetails?.withProfit.toFixed(0) || 0} TL</span>
             </div>
           </div>
         </div>
