@@ -25,6 +25,8 @@ import { db } from './db';
 import { manualFeatureExtraction } from './manual-feature-test';
 import { preciseFeatureExtraction } from './precise-feature-extractor';
 import { generateBoutiqueCSV } from './boutique-csv-generator';
+import { extractAllColorImages, generateMultiColorCSV } from './multi-color-image-extractor';
+import { extractMayoColorVariants, generateMayoColorCSV } from './mayo-color-extractor';
 
 
 function generateSingleProductShopifyCSV(product: any): string {
@@ -780,6 +782,93 @@ export function registerRoutes(app: Express): Server {
       console.error('Boutique CSV oluşturma hatası:', error);
       res.status(500).json({ 
         message: "Boutique CSV oluşturulamadı", 
+        error: error instanceof Error ? error.message : 'Bilinmeyen hata'
+      });
+    }
+  });
+
+  // Multi-color CSV endpoint - Her renk için ayrı görseller
+  app.post('/api/multi-color-csv', async (req, res) => {
+    try {
+      const { url, productData } = req.body;
+      
+      if (!url || !productData) {
+        return res.status(400).json({ message: "URL ve ürün verisi gerekli" });
+      }
+
+      console.log('🎨 Multi-color CSV oluşturuluyor...');
+      
+      // Her renk için ayrı görselleri çıkar
+      const colorImages = await extractAllColorImages(url);
+      
+      if (Object.keys(colorImages).length === 0) {
+        console.log('⚠️ Renk görselleri bulunamadı, standart CSV oluşturuluyor...');
+        const csvContent = generateBoutiqueCSV(
+          productData.title,
+          productData.brand,
+          productData.images,
+          productData.features
+        );
+        
+        res.setHeader('Content-Type', 'text/csv');
+        res.setHeader('Content-Disposition', 'attachment; filename="multi-color-mayo-shopify.csv"');
+        res.send(csvContent);
+        return;
+      }
+      
+      // Multi-color CSV oluştur
+      const csvContent = await generateMultiColorCSV(
+        productData.title,
+        productData.brand,
+        colorImages,
+        productData.features
+      );
+      
+      res.setHeader('Content-Type', 'text/csv');
+      res.setHeader('Content-Disposition', 'attachment; filename="multi-color-mayo-shopify.csv"');
+      res.send(csvContent);
+    } catch (error) {
+      console.error('Multi-color CSV oluşturma hatası:', error);
+      res.status(500).json({ 
+        message: "Multi-color CSV oluşturulamadı", 
+        error: error instanceof Error ? error.message : 'Bilinmeyen hata'
+      });
+    }
+  });
+
+  // Mayo Color CSV endpoint - Özel mayo renk sistemi
+  app.post('/api/mayo-color-csv', async (req, res) => {
+    try {
+      const { url, productData } = req.body;
+      
+      if (!url || !productData) {
+        return res.status(400).json({ message: "URL ve ürün verisi gerekli" });
+      }
+
+      console.log('🏊‍♀️ Mayo color CSV oluşturuluyor...');
+      
+      // Mayo renk varyantlarını çıkar
+      const colorVariants = await extractMayoColorVariants(url);
+      
+      if (colorVariants.length === 0) {
+        console.log('⚠️ Mayo renk varyantları bulunamadı');
+        return res.status(400).json({ message: "Renk varyantları bulunamadı" });
+      }
+      
+      // Mayo color CSV oluştur
+      const csvContent = generateMayoColorCSV(
+        colorVariants,
+        productData.title,
+        productData.brand
+      );
+      
+      res.setHeader('Content-Type', 'text/csv');
+      res.setHeader('Content-Disposition', 'attachment; filename="mayo-color-variants.csv"');
+      res.send(csvContent);
+    } catch (error) {
+      console.error('Mayo color CSV oluşturma hatası:', error);
+      res.status(500).json({ 
+        message: "Mayo color CSV oluşturulamadı", 
         error: error instanceof Error ? error.message : 'Bilinmeyen hata'
       });
     }
