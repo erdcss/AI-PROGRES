@@ -13,6 +13,7 @@ import EmailSettings from "@/pages/EmailSettings";
 // Removed auto-csv page import
 // Removed bulk-csv page import
 import { useState, useEffect } from "react";
+import { AnimatePresence } from "framer-motion";
 import { UrlHistory } from "@/components/UrlHistory";
 import { Card, CardContent, CardDescription, CardFooter, CardHeader, CardTitle } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
@@ -178,7 +179,8 @@ function LoginScreen({ onLogin }: { onLogin: () => void }) {
 
 function Router() {
   return (
-    <Switch>
+    <AnimatePresence mode="wait" initial={false}>
+      <Switch>
       <Route path="/">
         <PageTransition>
           <MainDashboard />
@@ -273,7 +275,8 @@ function Router() {
           <NotFound />
         </PageTransition>
       </Route>
-    </Switch>
+      </Switch>
+    </AnimatePresence>
   );
 }
 

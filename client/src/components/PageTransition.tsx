@@ -9,25 +9,32 @@ interface PageTransitionProps {
 const pageVariants = {
   initial: {
     opacity: 0,
-    x: -50,
-    scale: 0.95
+    x: -100,
+    scale: 0.9,
+    rotateY: -15,
+    filter: "blur(10px)"
   },
   in: {
     opacity: 1,
     x: 0,
-    scale: 1
+    scale: 1,
+    rotateY: 0,
+    filter: "blur(0px)"
   },
   out: {
     opacity: 0,
-    x: 50,
-    scale: 1.05
+    x: 100,
+    scale: 1.1,
+    rotateY: 15,
+    filter: "blur(10px)"
   }
 };
 
 const pageTransition = {
-  type: "tween",
-  ease: "anticipate",
-  duration: 0.4
+  type: "spring",
+  stiffness: 200,
+  damping: 25,
+  duration: 0.6
 };
 
 const containerVariants = {
