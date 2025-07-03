@@ -285,6 +285,10 @@ function ScraperPage({ platform = 'trendyol' }: ScraperPageProps) {
   const [isAdvancedScrapingRunning, setIsAdvancedScrapingRunning] = useState(false);
   const [isAdvancedCSVGenerating, setIsAdvancedCSVGenerating] = useState(false);
   const [advancedVariantResult, setAdvancedVariantResult] = useState<any>(null);
+  const [isScrapySpiderRunning, setIsScrapySpiderRunning] = useState(false);
+  const [isScrapyCSVGenerating, setIsScrapyCSVGenerating] = useState(false);
+  const [isScrapyJSONGenerating, setIsScrapyJSONGenerating] = useState(false);
+  const [scrapySpiderResult, setScrapySpiderResult] = useState<any>(null);
   
   // CSV Download handler
   const handleCSVDownload = async () => {
@@ -432,6 +436,145 @@ function ScraperPage({ platform = 'trendyol' }: ScraperPageProps) {
       });
     } finally {
       setIsAdvancedCSVGenerating(false);
+    }
+  };
+
+  // Scrapy-like Spider Handlers
+  const handleScrapySpider = async () => {
+    if (!form.getValues("url")) {
+      toast({
+        title: "Hata",
+        description: "Önce bir Trendyol URL'si girin",
+        variant: "destructive"
+      });
+      return;
+    }
+
+    setIsScrapySpiderRunning(true);
+    try {
+      const response = await fetch('/api/scrapy-variants', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ url: form.getValues("url") })
+      });
+
+      if (!response.ok) {
+        throw new Error('Scrapy spider failed');
+      }
+
+      const data = await response.json();
+      
+      if (data.success) {
+        setScrapySpiderResult(data);
+        toast({
+          title: "Scrapy Spider Başarılı!",
+          description: `${data.totalVariants} varyant işlendi, ${data.summary.totalImages} görsel çıkarıldı`,
+        });
+      } else {
+        throw new Error(data.message || 'Unknown error');
+      }
+    } catch (error) {
+      toast({
+        title: "Hata",
+        description: "Scrapy spider sırasında hata oluştu",
+        variant: "destructive"
+      });
+    } finally {
+      setIsScrapySpiderRunning(false);
+    }
+  };
+
+  const handleScrapyJSON = async () => {
+    if (!form.getValues("url")) {
+      toast({
+        title: "Hata", 
+        description: "Önce bir Trendyol URL'si girin",
+        variant: "destructive"
+      });
+      return;
+    }
+
+    setIsScrapyJSONGenerating(true);
+    try {
+      const response = await fetch('/api/scrapy-json', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ url: form.getValues("url") })
+      });
+
+      if (!response.ok) {
+        throw new Error('JSON generation failed');
+      }
+
+      const blob = await response.blob();
+      const url = window.URL.createObjectURL(blob);
+      const a = document.createElement('a');
+      a.href = url;
+      a.download = `scrapy-variants-${Date.now()}.json`;
+      document.body.appendChild(a);
+      a.click();
+      window.URL.revokeObjectURL(url);
+      document.body.removeChild(a);
+
+      toast({
+        title: "Başarılı!",
+        description: "Scrapy JSON dosyası indirildi",
+      });
+    } catch (error) {
+      toast({
+        title: "Hata",
+        description: "JSON oluşturma sırasında hata oluştu", 
+        variant: "destructive"
+      });
+    } finally {
+      setIsScrapyJSONGenerating(false);
+    }
+  };
+
+  const handleScrapyCSV = async () => {
+    if (!form.getValues("url")) {
+      toast({
+        title: "Hata", 
+        description: "Önce bir Trendyol URL'si girin",
+        variant: "destructive"
+      });
+      return;
+    }
+
+    setIsScrapyCSVGenerating(true);
+    try {
+      const response = await fetch('/api/scrapy-csv', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ url: form.getValues("url") })
+      });
+
+      if (!response.ok) {
+        throw new Error('CSV generation failed');
+      }
+
+      const blob = await response.blob();
+      const url = window.URL.createObjectURL(blob);
+      const a = document.createElement('a');
+      a.href = url;
+      a.download = `scrapy-variants-${Date.now()}.csv`;
+      document.body.appendChild(a);
+      a.click();
+      window.URL.revokeObjectURL(url);
+      document.body.removeChild(a);
+
+      toast({
+        title: "Başarılı!",
+        description: "Scrapy CSV dosyası indirildi",
+      });
+    } catch (error) {
+      toast({
+        title: "Hata",
+        description: "CSV oluşturma sırasında hata oluştu", 
+        variant: "destructive"
+      });
+    } finally {
+      setIsScrapyCSVGenerating(false);
     }
   };
 
@@ -1665,6 +1808,77 @@ function ScraperPage({ platform = 'trendyol' }: ScraperPageProps) {
                               </button>
                             </div>
                           </div>
+                          
+                          {/* Scrapy-like Spider Section */}
+                          <div className="mt-4 p-4 bg-gradient-to-br from-green-900/30 to-teal-900/30 backdrop-blur-sm rounded-xl border border-green-500/30">
+                            <div className="flex items-center justify-between mb-3">
+                              <h4 className="text-sm font-semibold text-green-300">🕷️ Scrapy-like Spider</h4>
+                              <span className="text-xs bg-green-600/20 text-green-400 px-2 py-1 rounded border border-green-600/30">
+                                Python Scrapy Equivalent
+                              </span>
+                            </div>
+                            <p className="text-xs text-green-200 mb-3">
+                              Python Scrapy kodunuza dayalı varyant keşif sistemi
+                            </p>
+                            
+                            <div className="space-y-2">
+                              <button
+                                onClick={handleScrapySpider}
+                                disabled={isScrapySpiderRunning}
+                                className="w-full bg-gradient-to-r from-green-600 to-teal-600 hover:from-green-700 hover:to-teal-700 disabled:from-green-400 disabled:to-teal-400 text-white px-4 py-2.5 rounded-lg text-xs font-semibold transition-all duration-200 flex items-center justify-center gap-2 shadow-lg hover:shadow-xl transform hover:scale-105 disabled:scale-100 border border-green-500/20"
+                              >
+                                {isScrapySpiderRunning ? (
+                                  <>
+                                    <RefreshCcw className="w-4 h-4 animate-spin" />
+                                    Spider çalışıyor...
+                                  </>
+                                ) : (
+                                  <>
+                                    <ImageIcon className="w-4 h-4" />
+                                    Scrapy Spider Çalıştır
+                                  </>
+                                )}
+                              </button>
+                              
+                              <div className="grid grid-cols-2 gap-2">
+                                <button
+                                  onClick={handleScrapyJSON}
+                                  disabled={isScrapyJSONGenerating}
+                                  className="bg-gradient-to-r from-blue-600 to-cyan-600 hover:from-blue-700 hover:to-cyan-700 disabled:from-blue-400 disabled:to-cyan-400 text-white px-3 py-2 rounded-lg text-xs font-semibold transition-all duration-200 flex items-center justify-center gap-1 shadow-lg hover:shadow-xl transform hover:scale-105 disabled:scale-100 border border-blue-500/20"
+                                >
+                                  {isScrapyJSONGenerating ? (
+                                    <>
+                                      <RefreshCcw className="w-3 h-3 animate-spin" />
+                                      JSON
+                                    </>
+                                  ) : (
+                                    <>
+                                      <Download className="w-3 h-3" />
+                                      JSON İndir
+                                    </>
+                                  )}
+                                </button>
+                                
+                                <button
+                                  onClick={handleScrapyCSV}
+                                  disabled={isScrapyCSVGenerating}
+                                  className="bg-gradient-to-r from-yellow-600 to-orange-600 hover:from-yellow-700 hover:to-orange-700 disabled:from-yellow-400 disabled:to-orange-400 text-white px-3 py-2 rounded-lg text-xs font-semibold transition-all duration-200 flex items-center justify-center gap-1 shadow-lg hover:shadow-xl transform hover:scale-105 disabled:scale-100 border border-yellow-500/20"
+                                >
+                                  {isScrapyCSVGenerating ? (
+                                    <>
+                                      <RefreshCcw className="w-3 h-3 animate-spin" />
+                                      CSV
+                                    </>
+                                  ) : (
+                                    <>
+                                      <Download className="w-3 h-3" />
+                                      CSV İndir
+                                    </>
+                                  )}
+                                </button>
+                              </div>
+                            </div>
+                          </div>
                         </div>
                       </div>
                     )}
@@ -1801,6 +2015,77 @@ function ScraperPage({ platform = 'trendyol' }: ScraperPageProps) {
                                   </div>
                                 )}
                               </div>
+                            </div>
+                          )}
+                        </div>
+                      ))}
+                    </div>
+                  </div>
+                </CardContent>
+              </Card>
+            </motion.div>
+          )}
+        </AnimatePresence>
+
+        {/* Scrapy Spider Results Display */}
+        <AnimatePresence>
+          {scrapySpiderResult && (
+            <motion.div
+              initial={{ opacity: 0, y: 50 }}
+              animate={{ opacity: 1, y: 0 }}
+              exit={{ opacity: 0, y: -50 }}
+              transition={{ duration: 0.3 }}
+              className="mb-6"
+            >
+              <Card className="bg-gradient-to-br from-green-900/40 to-teal-900/40 backdrop-blur-sm border border-green-500/30 shadow-2xl">
+                <CardContent className="p-6">
+                  <div className="flex items-center justify-between mb-4">
+                    <h3 className="text-lg font-semibold text-green-300">🕷️ Scrapy Spider Results</h3>
+                    <Button 
+                      variant="ghost" 
+                      size="sm" 
+                      onClick={() => setScrapySpiderResult(null)}
+                      className="text-green-400 hover:text-green-200"
+                    >
+                      <XCircle className="h-4 w-4" />
+                    </Button>
+                  </div>
+                  
+                  {/* Summary Stats */}
+                  <div className="grid grid-cols-2 md:grid-cols-4 gap-4 mb-6">
+                    <div className="text-center p-3 bg-green-900/20 rounded-lg border border-green-600/20">
+                      <div className="text-2xl font-bold text-green-400">{scrapySpiderResult.totalVariants}</div>
+                      <div className="text-green-300 text-sm">Toplam Varyant</div>
+                    </div>
+                    <div className="text-center p-3 bg-green-900/20 rounded-lg border border-green-600/20">
+                      <div className="text-2xl font-bold text-green-400">{scrapySpiderResult.summary.uniqueProducts}</div>
+                      <div className="text-green-300 text-sm">Benzersiz Ürün</div>
+                    </div>
+                    <div className="text-center p-3 bg-green-900/20 rounded-lg border border-green-600/20">
+                      <div className="text-2xl font-bold text-green-400">{scrapySpiderResult.summary.totalImages}</div>
+                      <div className="text-green-300 text-sm">Toplam Görsel</div>
+                    </div>
+                    <div className="text-center p-3 bg-green-900/20 rounded-lg border border-green-600/20">
+                      <div className="text-2xl font-bold text-green-400">{scrapySpiderResult.summary.withStock}</div>
+                      <div className="text-green-300 text-sm">Stoklu Varyant</div>
+                    </div>
+                  </div>
+
+                  {/* Variant List */}
+                  <div className="space-y-3">
+                    <h4 className="text-green-300 font-medium">İşlenen Varyantlar</h4>
+                    <div className="max-h-64 overflow-y-auto space-y-2">
+                      {scrapySpiderResult.variants.map((variant: any, index: number) => (
+                        <div key={index} className="p-3 bg-green-900/20 rounded-lg border border-green-600/20">
+                          <div className="flex items-center justify-between mb-2">
+                            <div className="text-green-300 font-medium text-sm">{variant.color || 'Color N/A'}</div>
+                            <div className="text-green-400 text-xs">{variant.images.length} görsel</div>
+                          </div>
+                          <div className="text-green-200 text-xs mb-1">{variant.product_name}</div>
+                          <div className="text-green-400 text-xs">{variant.price || 'Fiyat bilgisi yok'}</div>
+                          {variant.stock_info.length > 0 && (
+                            <div className="text-green-300 text-xs mt-1">
+                              {variant.stock_info.length} beden seçeneği
                             </div>
                           )}
                         </div>

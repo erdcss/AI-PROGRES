@@ -32,6 +32,7 @@ import { extractAllProductImages, generateImageCSV } from './complete-image-extr
 import { extractComprehensiveImages, generateComprehensiveImageCSV, generateImageGroupSummary } from './comprehensive-image-system';
 import { processCompleteMultiVariant, generateMultiVariantCSV, generateMultiVariantSummary } from './complete-multi-variant-system';
 import { scrapeAdvancedVariants, generateAdvancedVariantCSV } from './advanced-variant-scraper';
+import { runTrendyolVariantsSpider, generateScrapyOutput, generateScrapyCSV } from './scrapy-like-trendyol-scraper';
 
 
 function generateSingleProductShopifyCSV(product: any): string {
@@ -1223,6 +1224,88 @@ export function registerRoutes(app: Express): Server {
     } catch (error) {
       console.error('Advanced variant CSV generation error:', error);
       res.status(500).json({ message: 'Advanced variant CSV oluşturma hatası', error: (error as Error).message });
+    }
+  });
+
+  // Scrapy-like Trendyol Variants Spider endpoint
+  app.post('/api/scrapy-variants', async (req, res) => {
+    try {
+      const { url } = req.body;
+      console.log('🕷️ Scrapy-like spider başlatılıyor...');
+      
+      if (!url) {
+        return res.status(400).json({ message: 'URL gerekli' });
+      }
+      
+      const variants = await runTrendyolVariantsSpider(url);
+      
+      console.log(`✅ Scrapy spider tamamlandı: ${variants.length} varyant işlendi`);
+      
+      res.json({
+        success: true,
+        totalVariants: variants.length,
+        variants: variants,
+        summary: {
+          uniqueProducts: new Set(variants.map(v => v.productId)).size,
+          totalImages: variants.reduce((sum, v) => sum + v.images.length, 0),
+          withStock: variants.filter(v => v.stock_info.length > 0).length,
+          withAttributes: variants.filter(v => Object.keys(v.attributes).length > 0).length
+        }
+      });
+      
+    } catch (error) {
+      console.error('Scrapy spider error:', error);
+      res.status(500).json({ message: 'Scrapy spider hatası', error: (error as Error).message });
+    }
+  });
+
+  // Scrapy-like JSON Export  
+  app.post('/api/scrapy-json', async (req, res) => {
+    try {
+      const { url } = req.body;
+      console.log('📄 Scrapy JSON çıktısı oluşturuluyor...');
+      
+      if (!url) {
+        return res.status(400).json({ message: 'URL gerekli' });
+      }
+      
+      const variants = await runTrendyolVariantsSpider(url);
+      const jsonOutput = generateScrapyOutput(variants);
+      
+      console.log(`✅ Scrapy JSON oluşturuldu: ${variants.length} varyant`);
+      
+      res.setHeader('Content-Type', 'application/json; charset=utf-8');
+      res.setHeader('Content-Disposition', 'attachment; filename="scrapy-variants.json"');
+      res.send(jsonOutput);
+      
+    } catch (error) {
+      console.error('Scrapy JSON generation error:', error);
+      res.status(500).json({ message: 'Scrapy JSON oluşturma hatası', error: (error as Error).message });
+    }
+  });
+
+  // Scrapy-like CSV Export  
+  app.post('/api/scrapy-csv', async (req, res) => {
+    try {
+      const { url } = req.body;
+      console.log('📄 Scrapy CSV çıktısı oluşturuluyor...');
+      
+      if (!url) {
+        return res.status(400).json({ message: 'URL gerekli' });
+      }
+      
+      const variants = await runTrendyolVariantsSpider(url);
+      const csvContent = generateScrapyCSV(variants);
+      
+      console.log(`✅ Scrapy CSV oluşturuldu: ${variants.length} varyant`);
+      
+      res.setHeader('Content-Type', 'text/csv; charset=utf-8');
+      res.setHeader('Content-Disposition', 'attachment; filename="scrapy-variants.csv"');
+      res.send(csvContent);
+      
+    } catch (error) {
+      console.error('Scrapy CSV generation error:', error);
+      res.status(500).json({ message: 'Scrapy CSV oluşturma hatası', error: (error as Error).message });
     }
   });
 
