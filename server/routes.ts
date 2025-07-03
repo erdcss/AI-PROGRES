@@ -30,6 +30,7 @@ import { extractMayoColorVariants, generateMayoColorCSV } from './mayo-color-ext
 import { detectMayoRealColors, assignColorsToImages } from './mayo-real-color-detector';
 import { extractAllProductImages, generateImageCSV } from './complete-image-extractor';
 import { extractComprehensiveImages, generateComprehensiveImageCSV, generateImageGroupSummary } from './comprehensive-image-system';
+import { processCompleteMultiVariant, generateMultiVariantCSV, generateMultiVariantSummary } from './complete-multi-variant-system';
 
 
 function generateSingleProductShopifyCSV(product: any): string {
@@ -1071,6 +1072,93 @@ export function registerRoutes(app: Express): Server {
         message: "CSV oluşturulamadı", 
         error: error instanceof Error ? error.message : 'Bilinmeyen hata'
       });
+    }
+  });
+
+  // Multi-Variant URL Discovery and Comprehensive Processing
+  app.post('/api/multi-variant-discovery', async (req, res) => {
+    res.setHeader('Content-Type', 'application/json');
+    try {
+      const { url } = req.body;
+      console.log('🔍 Multi-variant discovery başlıyor...');
+      
+      if (!url) {
+        return res.status(400).json({ message: 'URL gerekli' });
+      }
+      
+      const result = await processCompleteMultiVariant(url);
+      
+      console.log(`✅ Multi-variant discovery tamamlandı: ${result.summary.totalVariants} varyant`);
+      
+      res.json({
+        success: true,
+        result,
+        summary: {
+          totalVariants: result.summary.totalVariants,
+          successfulExtractions: result.summary.successfulExtractions,
+          failedExtractions: result.summary.failedExtractions,
+          totalImages: result.summary.totalImages,
+          totalGroups: result.summary.totalGroups,
+          colorsFound: result.summary.colorsFound,
+          processingTime: result.summary.totalProcessingTime
+        }
+      });
+      
+    } catch (error) {
+      console.error('Multi-variant discovery error:', error);
+      res.status(500).json({ message: 'Multi-variant discovery hatası', error: (error as Error).message });
+    }
+  });
+
+  // Multi-Variant CSV Export
+  app.post('/api/multi-variant-csv', async (req, res) => {
+    try {
+      const { url, productTitle } = req.body;
+      console.log('📄 Multi-variant CSV oluşturuluyor...');
+      
+      if (!url) {
+        return res.status(400).json({ message: 'URL gerekli' });
+      }
+      
+      const result = await processCompleteMultiVariant(url);
+      const csvContent = generateMultiVariantCSV(result);
+      
+      console.log(`✅ Multi-variant CSV oluşturuldu: ${result.summary.totalVariants} varyant`);
+      
+      res.setHeader('Content-Type', 'text/csv; charset=utf-8');
+      res.setHeader('Content-Disposition', 'attachment; filename="multi-variant-complete-analysis.csv"');
+      res.send(csvContent);
+      
+    } catch (error) {
+      console.error('Multi-variant CSV generation error:', error);
+      res.status(500).json({ message: 'Multi-variant CSV oluşturma hatası', error: (error as Error).message });
+    }
+  });
+
+  // Multi-Variant Summary Report
+  app.post('/api/multi-variant-summary', async (req, res) => {
+    try {
+      const { url } = req.body;
+      console.log('📊 Multi-variant summary oluşturuluyor...');
+      
+      if (!url) {
+        return res.status(400).json({ message: 'URL gerekli' });
+      }
+      
+      const result = await processCompleteMultiVariant(url);
+      const summaryReport = generateMultiVariantSummary(result);
+      
+      console.log(`✅ Multi-variant summary oluşturuldu`);
+      
+      res.json({
+        success: true,
+        summary: summaryReport,
+        statistics: result.summary
+      });
+      
+    } catch (error) {
+      console.error('Multi-variant summary error:', error);
+      res.status(500).json({ message: 'Multi-variant summary hatası', error: (error as Error).message });
     }
   });
 
