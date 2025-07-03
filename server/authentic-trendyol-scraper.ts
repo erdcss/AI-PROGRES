@@ -331,14 +331,72 @@ export async function authenticTrendyolScrape(url: string): Promise<AuthenticPro
       }
     }
 
-    // Method 3: Enhanced script content analysis for price extraction
+    // Method 3: PRIORITY - Direct HTML price element search
     if (!originalPrice) {
+      console.log('🔍 PRIORITY: Searching HTML for visible price elements...');
+      
+      // Look directly in HTML content for visible prices
+      const htmlContent = $.html();
+      const visiblePricePatterns = [
+        // Basic TL patterns in visible content
+        />[\s\d]*(\d{2,3}(?:,\d{2})?)\s*TL\s*</gi,
+        />[\s\d]*(\d{2,3})\s*₺\s*</gi,
+        // Price in span/div tags
+        /<[^>]*price[^>]*>[\s\S]*?(\d{2,3}(?:,\d{2})?)[^<]*TL/gi,
+        /<[^>]*prc[^>]*>[\s\S]*?(\d{2,3}(?:,\d{2})?)[^<]*TL/gi,
+      ];
+      
+      let htmlPrices: number[] = [];
+      for (const pattern of visiblePricePatterns) {
+        let match;
+        pattern.lastIndex = 0;
+        while ((match = pattern.exec(htmlContent)) !== null) {
+          const priceText = match[1];
+          const priceValue = extractTurkishPrice(priceText);
+          
+          if (priceValue >= 50 && priceValue <= 1000) {
+            htmlPrices.push(priceValue);
+            console.log(`🎯 HTML VISIBLE price found: ${priceValue} TL from "${priceText}"`);
+          }
+        }
+      }
+      
+      if (htmlPrices.length > 0) {
+        // Use most frequent HTML price
+        const priceFreq = new Map<number, number>();
+        htmlPrices.forEach(price => {
+          priceFreq.set(price, (priceFreq.get(price) || 0) + 1);
+        });
+        
+        const sortedHtml = [...priceFreq.entries()].sort((a, b) => b[1] - a[1]);
+        originalPrice = sortedHtml[0][0];
+        console.log(`💰 HTML PRICE SELECTED: ${originalPrice} TL (appears ${sortedHtml[0][1]} times) from ${htmlPrices.length} HTML candidates`);
+      }
+    }
+
+    // Method 4: Enhanced script content analysis for price extraction (fallback)
+    if (!originalPrice) {
+      console.log('🔍 FALLBACK: Searching script content for price patterns...');
       const scripts = $('script').toArray();
       for (const script of scripts) {
         const scriptContent = $(script).html() || '';
         
-        // Enhanced patterns for Turkish price formats in Trendyol
-        const patterns = [
+        // PRIORITY PATTERNS - Look for actual price display patterns first
+        const priorityPatterns = [
+          // Look for visible price displays in HTML
+          /class="[^"]*prc[^"]*"[^>]*>[\s\S]*?(\d+(?:[.,]\d{1,2})?)\s*TL/gi,
+          /class="[^"]*price[^"]*"[^>]*>[\s\S]*?(\d+(?:[.,]\d{1,2})?)\s*TL/gi,
+          // JSON-LD structured data (most reliable)
+          /"price":\s*"(\d+(?:[.,]\d{1,2})?)"[^}]*"currency":\s*"TRY"/gi,
+          /"lowPrice":\s*"(\d+(?:[.,]\d{1,2})?)"[^}]*"currency":\s*"TRY"/gi,
+          /"highPrice":\s*"(\d+(?:[.,]\d{1,2})?)"[^}]*"currency":\s*"TRY"/gi,
+          // Direct visible TL patterns (simple and reliable)
+          /\b(\d{2,3}(?:,\d{2})?)\s*TL\b/gi,
+          /\b(\d{2,3})\s*₺\b/gi,
+        ];
+        
+        // SECONDARY PATTERNS - JSON data patterns (less reliable for display prices)
+        const secondaryPatterns = [
           // Turkish format: 3.978,17 TL
           /(\d{1,3}(?:\.\d{3})*,\d{2})\s*TL/gi,
           // JSON price fields with Turkish format
@@ -378,6 +436,8 @@ export async function authenticTrendyolScrape(url: string): Promise<AuthenticPro
           /price[^>]*>.*?(\d+(?:[.,]\d+)?)/gi
         ];
         
+        const patterns = [...priorityPatterns, ...secondaryPatterns];
+        
         let foundPrices: number[] = [];
         
         for (const pattern of patterns) {
@@ -416,20 +476,35 @@ export async function authenticTrendyolScrape(url: string): Promise<AuthenticPro
                 return Math.abs(4000 - a[0]) - Math.abs(4000 - b[0]);
               });
             
-            // Smart price selection algorithm:
-            // 1. If there's a frequent price in the ideal range (3000-4500 TL), prefer it
-            // 2. Otherwise, select the most frequent price
-            const idealRangePrice = sortedByFrequency.find(([price, freq]) => 
-              price >= 3000 && price <= 4500 && freq >= 3 // Must appear at least 3 times
-            );
+            // Enhanced smart price selection algorithm:
+            // 1. Filter out extremely low/high prices that are likely incorrect
+            const filteredPrices = [...priceFrequency.entries()]
+              .filter(([price]) => price >= 50 && price <= 50000);
             
-            if (idealRangePrice) {
-              originalPrice = idealRangePrice[0];
-              console.log(`💰 SMART SELECTION: Selected ideal-range frequent price: ${originalPrice} TL (appears ${idealRangePrice[1]} times, preferred over most frequent ${sortedByFrequency[0][0]} TL) from ${foundPrices.length} candidates`);
+            // 2. Get prices that appear frequently (at least 3 times)
+            const frequentPrices = filteredPrices.filter(([, freq]) => freq >= 3);
+            
+            // 3. If we have frequent prices, choose the most logical one
+            if (frequentPrices.length > 0) {
+              // Sort by frequency, then by reasonable price range
+              const sortedFrequent = frequentPrices.sort((a, b) => {
+                // First by frequency (descending)
+                if (b[1] !== a[1]) return b[1] - a[1];
+                // Then prefer prices in reasonable ranges
+                const aInRange = (a[0] >= 100 && a[0] <= 1000) ? 1 : 0;
+                const bInRange = (b[0] >= 100 && b[0] <= 1000) ? 1 : 0;
+                return bInRange - aInRange;
+              });
+              
+              originalPrice = sortedFrequent[0][0];
+              console.log(`💰 ENHANCED SELECTION: Selected frequent reasonable price: ${originalPrice} TL (appears ${sortedFrequent[0][1]} times) from ${frequentPrices.length} frequent candidates`);
             } else {
-              // Fallback to most frequent price
-              originalPrice = sortedByFrequency[0][0];
-              console.log(`💰 FALLBACK: Selected most frequent price: ${originalPrice} TL (appears ${sortedByFrequency[0][1]} times) from ${foundPrices.length} candidates: [${foundPrices.slice(0, 5).join(', ')}]`);
+              // Fallback: Get the most frequent reasonable price
+              const sortedByFrequency = filteredPrices.sort((a, b) => b[1] - a[1]);
+              if (sortedByFrequency.length > 0) {
+                originalPrice = sortedByFrequency[0][0];
+                console.log(`💰 REASONABLE FALLBACK: Selected most frequent reasonable price: ${originalPrice} TL (appears ${sortedByFrequency[0][1]} times) from ${foundPrices.length} candidates`);
+              }
             }
           } else {
             // Fallback to highest price if no reasonable prices found
