@@ -27,6 +27,7 @@ import { preciseFeatureExtraction } from './precise-feature-extractor';
 import { generateBoutiqueCSV } from './boutique-csv-generator';
 import { extractAllColorImages, generateMultiColorCSV } from './multi-color-image-extractor';
 import { extractMayoColorVariants, generateMayoColorCSV } from './mayo-color-extractor';
+import { detectMayoRealColors, assignColorsToImages } from './mayo-real-color-detector';
 
 
 function generateSingleProductShopifyCSV(product: any): string {
@@ -869,6 +870,54 @@ export function registerRoutes(app: Express): Server {
       console.error('Mayo color CSV oluşturma hatası:', error);
       res.status(500).json({ 
         message: "Mayo color CSV oluşturulamadı", 
+        error: error instanceof Error ? error.message : 'Bilinmeyen hata'
+      });
+    }
+  });
+
+  // Real Mayo Color CSV endpoint - Gerçek renk tespiti
+  app.post('/api/mayo-real-color-csv', async (req, res) => {
+    try {
+      const { url, productData } = req.body;
+      
+      if (!url || !productData) {
+        return res.status(400).json({ message: "URL ve ürün verisi gerekli" });
+      }
+
+      console.log('🎨 GERÇEK mayo color CSV oluşturuluyor...');
+      
+      // Gerçek renk varyantlarını tespit et
+      const realColors = await detectMayoRealColors(url);
+      
+      if (realColors.length === 0) {
+        console.log('⚠️ Gerçek mayo renk varyantları bulunamadı');
+        return res.status(400).json({ message: "Gerçek renk varyantları bulunamadı" });
+      }
+      
+      // Renklere özel görselleri ata
+      const colorsWithImages = await assignColorsToImages(realColors, url);
+      
+      // Mayo color CSV oluştur - gerçek renklerle
+      const csvContent = generateMayoColorCSV(
+        colorsWithImages.map(c => ({
+          color: c.color,
+          colorCode: c.colorCode,
+          images: c.images,
+          price: c.price,
+          originalPrice: c.originalPrice,
+          sizes: c.sizes
+        })),
+        productData.title,
+        productData.brand
+      );
+      
+      res.setHeader('Content-Type', 'text/csv');
+      res.setHeader('Content-Disposition', 'attachment; filename="mayo-real-colors.csv"');
+      res.send(csvContent);
+    } catch (error) {
+      console.error('Real mayo color CSV oluşturma hatası:', error);
+      res.status(500).json({ 
+        message: "Real mayo color CSV oluşturulamadı", 
         error: error instanceof Error ? error.message : 'Bilinmeyen hata'
       });
     }

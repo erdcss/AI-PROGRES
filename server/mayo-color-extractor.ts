@@ -1,5 +1,6 @@
 import axios from 'axios';
 import * as cheerio from 'cheerio';
+import { detectRealColorVariants, getColorSpecificImages } from './real-color-variant-detector';
 
 interface MayoColorVariant {
   color: string;
@@ -12,6 +13,19 @@ interface MayoColorVariant {
 
 export async function extractMayoColorVariants(url: string): Promise<MayoColorVariant[]> {
   console.log('🏊‍♀️ Mayo ürünü renk varyantları çıkarılıyor...');
+  
+  // Gerçek renk varyantlarını tespit et
+  const realColorVariants = await detectRealColorVariants(url);
+  
+  if (realColorVariants.length === 0) {
+    console.log('⚠️ Gerçek renk varyantları bulunamadı');
+    return [];
+  }
+  
+  console.log(`✅ ${realColorVariants.length} gerçek renk varyantı tespit edildi`);
+  
+  // Her renk için spesifik görselleri al
+  const variantsWithImages = await getColorSpecificImages(url, realColorVariants);
   
   const response = await axios.get(url, {
     headers: {
@@ -47,105 +61,20 @@ export async function extractMayoColorVariants(url: string): Promise<MayoColorVa
   
   console.log(`🎨 Bulunan görsel grupları: ${imageGroups.size}`);
   
-  // Bilinen mayo renk kodları (user specification'dan)
-  const mayoColors: MayoColorVariant[] = [
-    {
-      color: 'Sarı',
-      colorCode: '398949332/903542807',
-      images: [],
-      price: 1393.03,
-      originalPrice: 1458.03,
-      sizes: ['38', '40']
-    },
-    {
-      color: 'Turuncu',
-      colorCode: '398949240/903474114', 
-      images: [],
-      price: 1393.03,
-      originalPrice: 1458.03,
-      sizes: ['38', '40']
-    },
-    {
-      color: 'Lacivert',
-      colorCode: 'unknown', // Bulunamadıysa genel görseller
-      images: [],
-      price: 3079.22,
-      originalPrice: 3144.27,
-      sizes: ['36', '38', '42', '44']
-    },
-    {
-      color: 'İndigo Mavi',
-      colorCode: 'unknown',
-      images: [],
-      price: 1393.03,
-      originalPrice: 1458.03,
-      sizes: ['38', '40']
-    },
-    {
-      color: 'Lila',
-      colorCode: 'unknown',
-      images: [],
-      price: 1393.03,
-      originalPrice: 1458.03,
-      sizes: ['38', '40']
-    },
-    {
-      color: 'Mor',
-      colorCode: 'unknown',
-      images: [],
-      price: 1393.03,
-      originalPrice: 1458.03,
-      sizes: ['38', '40']
-    },
-    {
-      color: 'Bordo',
-      colorCode: 'unknown',
-      images: [],
-      price: 3079.22,
-      originalPrice: 3144.27,
-      sizes: ['36', '38', '42', '44']
-    },
-    {
-      color: 'Haki',
-      colorCode: 'unknown',
-      images: [],
-      price: 1393.03,
-      originalPrice: 1458.03,
-      sizes: ['38', '40']
-    },
-    {
-      color: 'Pembe',
-      colorCode: 'unknown',
-      images: [],
-      price: 1393.03,
-      originalPrice: 1458.03,
-      sizes: ['38', '40']
-    },
-    {
-      color: 'Ekru',
-      colorCode: 'unknown',
-      images: [],
-      price: 1393.03,
-      originalPrice: 1458.03,
-      sizes: ['38', '40']
-    },
-    {
-      color: 'Siyah',
-      colorCode: 'unknown',
-      images: [],
-      price: 3079.22,
-      originalPrice: 3144.27,
-      sizes: ['36', '38', '42', '44']
-    },
-    {
-      color: 'Yeşil',
-      colorCode: 'unknown',
-      images: [],
-      price: 1393.03,
-      originalPrice: 1458.03,
-      sizes: ['38', '40']
-    }
-  ];
+  // Script'ten gerçek fiyat tespit et
+  const scriptPrices = html.match(/\"price\":\s*(\d+(?:\.\d+)?)/g);
+  const basePrice = scriptPrices ? parseInt(scriptPrices[0].match(/\d+/)?.[0] || '650') : 650;
+  console.log(`💰 Base price detected: ${basePrice} TL`);
+  
+  // Gerçek tespit edilen renklerden MayoColorVariant oluştur
+  const mayoColors: MayoColorVariant[] = variantsWithImages.map(variant => ({
+    color: variant.color,
+    colorCode: variant.colorCode,
+    images: variant.images,
+    price: basePrice * 1.15, // 15% profit
+    originalPrice: basePrice,
+    sizes: variant.available ? ['38', '40'] : [] // Mevcut olanlar için beden
+  }));
   
   // Her renk için görselleri eşleştir
   mayoColors.forEach(variant => {
