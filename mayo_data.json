@@ -1,0 +1,89 @@
+{
+  "title": "sayina Kadın Sarı Tek Omuz Kemer Detaylı Balenli Özel Tasarım Astarlı Şık Butik Mayo",
+  "brand": "Sayina",
+  "images": [
+    "https://cdn.dsmcdn.com/ty1141/product/media/images/prod/SPM/PIM/20240120/13/e5dc40cb-6344-31b0-92df-81f262b9fbd7/1_org_zoom.jpg"
+  ],
+  "features": [
+    {
+      "key": "from",
+      "value": "Marketing"
+    },
+    {
+      "key": "name",
+      "value": "product-detail-seo-main"
+    },
+    {
+      "key": "platform",
+      "value": "WEB"
+    },
+    {
+      "key": "partial",
+      "value": "meta"
+    },
+    {
+      "key": "language",
+      "value": "tr"
+    },
+    {
+      "key": "tld",
+      "value": ".com"
+    },
+    {
+      "key": "pageType",
+      "value": "productdetail"
+    },
+    {
+      "key": "from",
+      "value": "Browsing"
+    },
+    {
+      "key": "name",
+      "value": "web-header"
+    },
+    {
+      "key": "countryCode",
+      "value": "TR"
+    },
+    {
+      "key": "name",
+      "value": "web-footer"
+    },
+    {
+      "key": "shouldwait",
+      "value": "shouldWait"
+    },
+    {
+      "key": "path",
+      "value": "/sayina/kadin-sari-tek-omuz-kemer-detayli-balenli-ozel-tasarim-astarli-sik-butik-mayo-p-682682444"
+    },
+    {
+      "key": "from",
+      "value": "IntCheckout"
+    },
+    {
+      "key": "name",
+      "value": "sidebar-basket"
+    },
+    {
+      "key": "from",
+      "value": "Productv2"
+    },
+    {
+      "key": "name",
+      "value": "envoy"
+    },
+    {
+      "key": "type",
+      "value": "second-reco"
+    },
+    {
+      "key": "if",
+      "value": "!req.isDynamicRendering"
+    },
+    {
+      "key": "name",
+      "value": "onboarding"
+    }
+  ]
+}

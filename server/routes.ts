@@ -24,6 +24,7 @@ import { initializeScheduler, getSchedulerStatus, executeTaskManually } from './
 import { db } from './db';
 import { manualFeatureExtraction } from './manual-feature-test';
 import { preciseFeatureExtraction } from './precise-feature-extractor';
+import { generateBoutiqueCSV } from './boutique-csv-generator';
 
 
 function generateSingleProductShopifyCSV(product: any): string {
@@ -327,6 +328,44 @@ export function registerRoutes(app: Express): Server {
       // Enhanced product data extraction for Trendyol products
       if (url.includes('trendyol.com')) {
         console.log("📊 Using enhanced manual extraction for:", url);
+        console.log("🔍 Raw URL check:", rawUrl);
+        console.log("🔍 boutiqueId check:", rawUrl.includes('boutiqueId='));
+        console.log("🔍 merchantId check:", rawUrl.includes('merchantId='));
+        
+        // Check if it's a boutique product with variants (use rawUrl to preserve parameters)
+        if (rawUrl.includes('boutiqueId=') || rawUrl.includes('merchantId=')) {
+          console.log("🏪 Boutique product detected - using specialized variant scraper");
+          
+          try {
+            const { extractBoutiqueVariants } = await import('./boutique-variant-scraper');
+            const boutiqueData = await extractBoutiqueVariants(url);
+            
+            // Convert to expected format with profit margin
+            const basePrice = boutiqueData.variants[0]?.finalPrice || 0;
+            const priceWithProfit = Math.round(basePrice * 1.15 * 100) / 100;
+            
+            return res.json({
+              success: true,
+              extractionMethod: 'boutique-variant-scraper',
+              brand: boutiqueData.brand,
+              title: boutiqueData.title,
+              price: priceWithProfit,
+              images: boutiqueData.images,
+              features: boutiqueData.features,
+              variants: boutiqueData.variants.map(v => ({
+                color: v.color,
+                size: v.sizes.join(', '),
+                inStock: v.inStock,
+                originalPrice: v.originalPrice,
+                discountPrice: v.discountPrice,
+                finalPrice: v.finalPrice,
+                availableSizes: v.sizes
+              }))
+            });
+          } catch (boutiqueError) {
+            console.log("❌ Boutique scraper failed, falling back to regular scraper");
+          }
+        }
         
         try {
           // Use multi-scraper system for data extraction
@@ -715,6 +754,35 @@ export function registerRoutes(app: Express): Server {
       timestamp: new Date().toISOString(),
       service: 'trendyol-scraper'
     });
+  });
+
+  // Boutique CSV endpoint
+  app.post('/api/boutique-csv', async (req, res) => {
+    try {
+      const { productData } = req.body;
+      
+      if (!productData) {
+        return res.status(400).json({ message: "Ürün verisi gerekli" });
+      }
+
+      console.log('🏪 Boutique CSV oluşturuluyor...');
+      const csvContent = generateBoutiqueCSV(
+        productData.title,
+        productData.brand,
+        productData.images,
+        productData.features
+      );
+      
+      res.setHeader('Content-Type', 'text/csv');
+      res.setHeader('Content-Disposition', 'attachment; filename="boutique-mayo-shopify.csv"');
+      res.send(csvContent);
+    } catch (error) {
+      console.error('Boutique CSV oluşturma hatası:', error);
+      res.status(500).json({ 
+        message: "Boutique CSV oluşturulamadı", 
+        error: error instanceof Error ? error.message : 'Bilinmeyen hata'
+      });
+    }
   });
 
   return httpServer;
