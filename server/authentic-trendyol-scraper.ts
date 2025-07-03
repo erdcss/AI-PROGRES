@@ -346,7 +346,7 @@ export async function authenticTrendyolScrape(url: string): Promise<AuthenticPro
           /"sellPrice":\s*"?(\d{1,3}(?:\.\d{3})*,\d{2})"?/gi,
           /"currentPrice":\s*"?(\d{1,3}(?:\.\d{3})*,\d{2})"?/gi,
           /"originalPrice":\s*"?(\d{1,3}(?:\.\d{3})*,\d{2})"?/gi,
-          // Standard number formats
+          // Standard number formats - ENHANCED with more fields
           /"price":\s*(\d+(?:[.,]\d+)?)/gi,
           /"sellPrice":\s*(\d+(?:[.,]\d+)?)/gi,
           /"currentPrice":\s*(\d+(?:[.,]\d+)?)/gi,
@@ -355,10 +355,27 @@ export async function authenticTrendyolScrape(url: string): Promise<AuthenticPro
           /"priceValue":\s*(\d+(?:[.,]\d+)?)/gi,
           /"displayPrice":\s*(\d+(?:[.,]\d+)?)/gi,
           /"amount":\s*(\d+(?:[.,]\d+)?)/gi,
+          /"value":\s*(\d+(?:[.,]\d+)?)/gi,
+          /"cost":\s*(\d+(?:[.,]\d+)?)/gi,
+          /"fiyat":\s*(\d+(?:[.,]\d+)?)/gi,
+          /"ücret":\s*(\d+(?:[.,]\d+)?)/gi,
+          // Trendyol specific patterns
+          /"salePriceValue":\s*(\d+(?:[.,]\d+)?)/gi,
+          /"productPrice":\s*(\d+(?:[.,]\d+)?)/gi,
+          /"retailPrice":\s*(\d+(?:[.,]\d+)?)/gi,
+          /"listPrice":\s*(\d+(?:[.,]\d+)?)/gi,
+          /"basePrice":\s*(\d+(?:[.,]\d+)?)/gi,
           /price['":]?\s*['":]?\s*(\d+(?:[.,]\d+)?)/gi,
-          // TL suffix patterns
+          // TL suffix patterns - MORE FLEXIBLE
           /\b(\d{1,3}(?:\.\d{3})*,\d{2})\s*TL\b/gi,
-          /\b(\d+(?:[.,]\d+)?)\s*TL\b/gi
+          /\b(\d+(?:[.,]\d+)?)\s*TL\b/gi,
+          /(\d+(?:[.,]\d{1,2})?)\s*₺/gi,
+          // Data attributes
+          /data-price[^>]*['":](\d+(?:[.,]\d+)?)/gi,
+          /data-value[^>]*['":](\d+(?:[.,]\d+)?)/gi,
+          // Class based selectors in text
+          /prc[^>]*>.*?(\d+(?:[.,]\d+)?)/gi,
+          /price[^>]*>.*?(\d+(?:[.,]\d+)?)/gi
         ];
         
         let foundPrices: number[] = [];
@@ -454,44 +471,98 @@ export async function authenticTrendyolScrape(url: string): Promise<AuthenticPro
 
 
 
-    // If still no price found, try enhanced price detection for boutique products
+    // If still no price found, try enhanced price detection methods
     if (!originalPrice) {
-      console.log('🔍 Enhanced boutique price detection...');
+      console.log('🔍 Enhanced price detection for regular products...');
       const allText = $.text();
+      const htmlContent = $.html();
       
-      // Method 1: Look for 4-digit prices with comma decimals (1.458,03 format)
-      const boutiqueMatches = allText.match(/(\d{1,2}\.\d{3},\d{2})\s*TL/g);
+      // Method 1: JSON-LD structured data price extraction
+      const jsonLdScripts = $('script[type="application/ld+json"]').toArray();
+      for (const script of jsonLdScripts) {
+        const scriptContent = $(script).html() || '';
+        try {
+          const jsonData = JSON.parse(scriptContent);
+          if (jsonData.offers && jsonData.offers.price) {
+            const priceValue = extractTurkishPrice(jsonData.offers.price.toString());
+            if (priceValue > 50 && priceValue < 50000) {
+              originalPrice = priceValue;
+              console.log(`💰 JSON-LD price found: ${originalPrice} TL from structured data`);
+              break;
+            }
+          }
+          if (jsonData.price) {
+            const priceValue = extractTurkishPrice(jsonData.price.toString());
+            if (priceValue > 50 && priceValue < 50000) {
+              originalPrice = priceValue;
+              console.log(`💰 JSON-LD direct price found: ${originalPrice} TL`);
+              break;
+            }
+          }
+        } catch (e) {
+          // Continue to next script
+        }
+      }
       
-      if (boutiqueMatches) {
-        console.log(`🔍 Boutique price candidates: ${boutiqueMatches.join(', ')}`);
-        for (const match of boutiqueMatches) {
-          const priceText = match.replace(/\s*TL/g, '');
-          const priceValue = extractTurkishPrice(priceText);
-          
-          if (priceValue > 1000 && priceValue < 10000) {
+      // Method 2: Look for meta tags with price info
+      if (!originalPrice) {
+        const metaTags = $('meta[property*="price"], meta[name*="price"], meta[content*="price"]').toArray();
+        for (const meta of metaTags) {
+          const content = $(meta).attr('content') || '';
+          const priceValue = extractTurkishPrice(content);
+          if (priceValue > 50 && priceValue < 50000) {
             originalPrice = priceValue;
-            console.log(`💰 Boutique price found: ${originalPrice} TL from "${match}"`);
+            console.log(`💰 Meta tag price found: ${originalPrice} TL from ${$(meta).attr('property') || $(meta).attr('name')}`);
             break;
           }
         }
       }
       
-      // Method 2: Look for any 4-digit number patterns in the page
+      // Method 3: Look for 4-digit prices with comma decimals (1.458,03 format)
       if (!originalPrice) {
-        const fourDigitMatches = allText.match(/\b(\d{4}(?:,\d{2})?)\s*TL/g);
+        const boutiqueMatches = allText.match(/(\d{1,2}\.\d{3},\d{2})\s*TL/g);
         
-        if (fourDigitMatches) {
-          console.log(`🔍 Four-digit candidates: ${fourDigitMatches.slice(0, 3).join(', ')}`);
-          for (const match of fourDigitMatches) {
+        if (boutiqueMatches) {
+          console.log(`🔍 Boutique price candidates: ${boutiqueMatches.join(', ')}`);
+          for (const match of boutiqueMatches) {
             const priceText = match.replace(/\s*TL/g, '');
             const priceValue = extractTurkishPrice(priceText);
             
             if (priceValue > 1000 && priceValue < 10000) {
               originalPrice = priceValue;
-              console.log(`💰 Four-digit price found: ${originalPrice} TL from "${match}"`);
+              console.log(`💰 Boutique price found: ${originalPrice} TL from "${match}"`);
               break;
             }
           }
+        }
+      }
+      
+      // Method 4: Look for any reasonable price patterns in the page
+      if (!originalPrice) {
+        const allPriceMatches = [
+          ...allText.matchAll(/\b(\d{3,4}(?:,\d{2})?)\s*TL/g),
+          ...allText.matchAll(/(\d{3,4}(?:\.\d{2})?)\s*₺/g),
+          ...htmlContent.matchAll(/data-[^>]*price[^>]*['":](\d{3,6}(?:[.,]\d{1,2})?)/gi)
+        ];
+        
+        const priceValues = [];
+        for (const match of allPriceMatches) {
+          const priceText = match[1];
+          const priceValue = extractTurkishPrice(priceText);
+          
+          if (priceValue >= 100 && priceValue <= 10000) {
+            priceValues.push(priceValue);
+          }
+        }
+        
+        if (priceValues.length > 0) {
+          // Use the most frequent reasonable price
+          const priceFreq = new Map();
+          priceValues.forEach(p => priceFreq.set(p, (priceFreq.get(p) || 0) + 1));
+          const sortedPrices = [...priceFreq.entries()].sort((a, b) => b[1] - a[1]);
+          
+          originalPrice = sortedPrices[0][0];
+          console.log(`💰 Pattern-based price found: ${originalPrice} TL (appears ${sortedPrices[0][1]} times) from ${priceValues.length} candidates: [${priceValues.slice(0, 5).join(', ')}]`);
         }
       }
       

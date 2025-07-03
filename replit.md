@@ -92,7 +92,8 @@ The application is designed for deployment on Replit with the following consider
 
 ## Changelog
 
-- July 03, 2025. Initial setup
+- July 03, 2025: Initial setup
+- July 03, 2025: Advanced Turkish price extraction system implemented with smart selection algorithm that prioritizes ideal-range frequent prices over extremes
 
 ## User Preferences
 
