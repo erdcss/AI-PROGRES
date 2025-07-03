@@ -1,0 +1,61 @@
+import scrapy
+import json
+
+class TrendyolVariantsSpider(scrapy.Spider):
+    name = "trendyol_variants"
+    allowed_domains = ["trendyol.com"]
+    start_urls = [
+        "https://www.trendyol.com/sayina/kadin-bordo-tek-omuz-kemer-detayli-balenli-ozel-tasarim-astarli-sik-butik-mayo-p-682670844"
+    ]
+
+    def parse(self, response):
+        # 1) önce varyant linklerini toplayalım
+        variant_links = response.css('.product-variants a::attr(href)').getall()
+        for link in variant_links:
+            full_url = response.urljoin(link)
+            yield scrapy.Request(full_url, callback=self.parse_variant)
+
+    def parse_variant(self, response):
+        product_name = response.css('h1.pr-new-br::text').get().strip()
+        price = response.css('span.prc-dsc::text').get()
+        if not price:
+            price = response.css('span.prc-org::text').get()
+
+        # JSON datasını yakala
+        json_data = response.xpath("//script[contains(., '__PRELOADED_STATE__')]/text()").get()
+        stock_info = []
+        attributes = {}
+        if json_data:
+            try:
+                start = json_data.find('{')
+                data = json.loads(json_data[start:])
+
+                # 2) varyant stok durumları
+                product = data.get("product", {})
+                variants = product.get("variants", [])
+                for v in variants:
+                    stock_info.append({
+                        "size": v.get("size"),
+                        "inStock": v.get("inStock"),
+                        "variantId": v.get("variantId"),
+                    })
+
+                # 3) ürün özellikleri
+                attr = product.get("attributes", [])
+                for a in attr:
+                    attributes[a.get("attributeName")] = a.get("attributeValue")
+
+            except Exception as e:
+                self.logger.error(f"JSON parse hatası: {e}")
+
+        # 4) ürün görselleri
+        images = response.css('.product-image-container img::attr(src)').getall()
+
+        yield {
+            "product_name": product_name,
+            "url": response.url,
+            "price": price,
+            "images": images,
+            "stock_info": stock_info,
+            "attributes": attributes
+        }
