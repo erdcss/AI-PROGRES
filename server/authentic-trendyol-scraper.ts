@@ -32,6 +32,121 @@ function extractTurkishPrice(priceText: string): number {
   return 0;
 }
 
+// Extract color and size variants from product page
+async function extractVariants($: any, html: string): Promise<Array<{color: string, size: string, inStock: boolean}>> {
+  const variants: Array<{color: string, size: string, inStock: boolean}> = [];
+  
+  try {
+    // Method 1: Look for color selectors
+    const colors: string[] = [];
+    $('.pr-in-dt-cl button, .pr-in-dt-cl .pr-in-dt-cl-bt').each((i, el) => {
+      const colorText = $(el).text().trim();
+      if (colorText && colorText.length > 0) {
+        colors.push(colorText);
+      }
+    });
+    
+    // Method 2: Look for size selectors
+    const sizes: string[] = [];
+    $('.pr-in-dt-sz button, .pr-in-dt-sz .pr-in-dt-sz-bt').each((i, el) => {
+      const sizeText = $(el).text().trim();
+      if (sizeText && sizeText.length > 0) {
+        sizes.push(sizeText);
+      }
+    });
+    
+    // Method 3: Extract from script data
+    const scripts = $('script').toArray();
+    for (const script of scripts) {
+      const scriptContent = $(script).html() || '';
+      
+      // Look for variants array in script
+      const variantMatches = scriptContent.match(/"variants":\s*\[([^\]]+)\]/g);
+      if (variantMatches) {
+        for (const match of variantMatches) {
+          try {
+            const variantData = JSON.parse(`{${match}}`);
+            if (variantData.variants && Array.isArray(variantData.variants)) {
+              variantData.variants.forEach((variant: any) => {
+                if (variant.color && variant.size) {
+                  variants.push({
+                    color: variant.color,
+                    size: variant.size,
+                    inStock: variant.inStock !== false
+                  });
+                }
+              });
+            }
+          } catch (e) {
+            // Continue if JSON parsing fails
+          }
+        }
+      }
+      
+      // Look for color and size data in script
+      const colorMatches = scriptContent.match(/"color":\s*"([^"]+)"/gi);
+      const sizeMatches = scriptContent.match(/"size":\s*"([^"]+)"/gi);
+      
+      if (colorMatches) {
+        colorMatches.forEach(match => {
+          const color = match.replace(/"color":\s*"([^"]+)"/gi, '$1');
+          if (color && !colors.includes(color)) {
+            colors.push(color);
+          }
+        });
+      }
+      
+      if (sizeMatches) {
+        sizeMatches.forEach(match => {
+          const size = match.replace(/"size":\s*"([^"]+)"/gi, '$1');
+          if (size && !sizes.includes(size)) {
+            sizes.push(size);
+          }
+        });
+      }
+    }
+    
+    console.log(`🎨 Colors found: ${colors.length > 0 ? colors.join(', ') : 'None'}`);
+    console.log(`📏 Sizes found: ${sizes.length > 0 ? sizes.join(', ') : 'None'}`);
+    
+    // Create variants from combinations
+    if (colors.length > 0 && sizes.length > 0) {
+      colors.forEach(color => {
+        sizes.forEach(size => {
+          variants.push({
+            color: color,
+            size: size,
+            inStock: true // Default to true, can be enhanced later
+          });
+        });
+      });
+    } else if (colors.length > 0) {
+      colors.forEach(color => {
+        variants.push({
+          color: color,
+          size: 'Tek Beden',
+          inStock: true
+        });
+      });
+    } else if (sizes.length > 0) {
+      sizes.forEach(size => {
+        variants.push({
+          color: 'Standart',
+          size: size,
+          inStock: true
+        });
+      });
+    }
+    
+    console.log(`🔢 Total variants created: ${variants.length}`);
+    
+  } catch (error) {
+    console.error('❌ Error extracting variants:', error);
+  }
+  
+  return variants;
+}
+
 interface AuthenticProductData {
   success: boolean;
   title: string;
@@ -284,21 +399,43 @@ export async function authenticTrendyolScrape(url: string): Promise<AuthenticPro
 
 
 
-    // If still no price found, try more aggressive text scanning
+    // If still no price found, try more aggressive text scanning for high-value formats
     if (!originalPrice) {
-      console.log('🔍 Final attempt: aggressive text scanning...');
+      console.log('🔍 Final attempt: aggressive text scanning for high-value formats...');
       const allText = $.text();
-      const priceMatches = allText.match(/(\d{1,3}(?:\.\d{3})*(?:,\d{2})?)\s*TL/g);
       
-      if (priceMatches) {
-        for (const match of priceMatches) {
+      // Look for high-value formats like 1.458,03 TL
+      const highValueMatches = allText.match(/(\d{1,2}\.\d{3}(?:,\d{2})?)\s*TL/g);
+      
+      if (highValueMatches) {
+        console.log(`🔍 Found high-value candidates: ${highValueMatches.join(', ')}`);
+        for (const match of highValueMatches) {
           const priceText = match.replace(/\s*TL/g, '');
           const priceValue = extractTurkishPrice(priceText);
           
-          if (priceValue > 50 && priceValue < 100000) {
+          if (priceValue > 100 && priceValue < 100000) {
             originalPrice = priceValue;
-            console.log(`💰 Aggressive scan found: ${originalPrice} TL from "${match}"`);
+            console.log(`💰 High-value price found: ${originalPrice} TL from "${match}"`);
             break;
+          }
+        }
+      }
+      
+      // If still not found, try standard format
+      if (!originalPrice) {
+        const standardMatches = allText.match(/(\d{1,3}(?:\.\d{3})*(?:,\d{2})?)\s*TL/g);
+        
+        if (standardMatches) {
+          console.log(`🔍 Standard format candidates: ${standardMatches.slice(0, 5).join(', ')}`);
+          for (const match of standardMatches) {
+            const priceText = match.replace(/\s*TL/g, '');
+            const priceValue = extractTurkishPrice(priceText);
+            
+            if (priceValue > 50 && priceValue < 100000) {
+              originalPrice = priceValue;
+              console.log(`💰 Standard format price found: ${originalPrice} TL from "${match}"`);
+              break;
+            }
           }
         }
       }
@@ -326,8 +463,9 @@ export async function authenticTrendyolScrape(url: string): Promise<AuthenticPro
     const { extractJSONLDFeatures } = await import('./json-ld-features-extractor');
     const uniqueFeatures = extractJSONLDFeatures(html, brand);
 
-    // Extract authentic variants or create single variant
-    const variants = [{
+    // Extract color and size variants
+    const variants = await extractVariants($, html);
+    const finalVariants = variants.length > 0 ? variants : [{
       color: 'Standart',
       size: 'Tek Beden',
       inStock: true
@@ -342,7 +480,7 @@ export async function authenticTrendyolScrape(url: string): Promise<AuthenticPro
       price: finalPrice,
       images,
       features: uniqueFeatures,
-      variants
+      variants: finalVariants
     };
     
   } catch (error: any) {
