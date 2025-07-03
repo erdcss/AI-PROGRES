@@ -1,5 +1,37 @@
 import * as cheerio from 'cheerio';
 
+// Helper function to extract Turkish price format
+function extractTurkishPrice(priceText: string): number {
+  if (!priceText) return 0;
+  
+  // Remove all non-numeric characters except comma and dot
+  const cleanText = priceText.replace(/[^\d,\.]/g, '');
+  
+  // Handle Turkish formats:
+  // 1.458,03 -> 1458.03
+  // 1234,56 -> 1234.56  
+  // 1234.56 -> 1234.56
+  // 1234 -> 1234
+  
+  if (cleanText.includes(',') && cleanText.includes('.')) {
+    // Format: 1.458,03 (thousands separator + decimal)
+    const parts = cleanText.split(',');
+    if (parts.length === 2) {
+      const integerPart = parts[0].replace(/\./g, '');
+      const decimalPart = parts[1];
+      return parseFloat(`${integerPart}.${decimalPart}`);
+    }
+  } else if (cleanText.includes(',')) {
+    // Format: 1234,56 (decimal comma)
+    return parseFloat(cleanText.replace(',', '.'));
+  } else {
+    // Format: 1234.56 or 1234
+    return parseFloat(cleanText);
+  }
+  
+  return 0;
+}
+
 interface AuthenticProductData {
   success: boolean;
   title: string;
@@ -142,7 +174,7 @@ export async function authenticTrendyolScrape(url: string): Promise<AuthenticPro
       console.log('JSON-LD price extraction failed');
     }
     
-    // Method 2: Direct Trendyol price selectors if JSON-LD failed
+    // Method 2: Enhanced Trendyol price selectors with comprehensive patterns
     if (!originalPrice) {
       const priceSelectors = [
         '.prc-dsc',
@@ -150,62 +182,131 @@ export async function authenticTrendyolScrape(url: string): Promise<AuthenticPro
         '.prc-org',
         '.pr-bx-nr .prc-dsc',
         '.pr-in .prc-dsc',
+        '.pr-in-w .prc-dsc',
+        '.pr-in-w .prc-org',
         '.product-price',
         '.price-value',
-        '.current-price'
+        '.current-price',
+        '[data-price]',
+        '.pr-in .pr-bx-nr .prc-dsc',
+        '.pr-in .pr-bx-nm .prc-dsc'
       ];
       
       for (const selector of priceSelectors) {
         const element = $(selector).first();
         if (element.length > 0) {
           const priceText = element.text().trim();
+          console.log(`🔍 Testing selector ${selector}: "${priceText}"`);
+          
           // Remove all non-numeric characters except comma and dot
           const cleanText = priceText.replace(/[^\d,\.]/g, '');
           // Handle Turkish number format (comma as decimal separator)
           const numericPrice = parseFloat(cleanText.replace(',', '.'));
+          
+          console.log(`🔍 Cleaned text: "${cleanText}" → Numeric: ${numericPrice}`);
           
           if (numericPrice > 0 && numericPrice < 50000) {
             originalPrice = numericPrice;
             console.log(`💰 DOM price found: ${originalPrice} TL via ${selector}`);
             break;
           }
+        } else {
+          console.log(`❌ Selector ${selector} not found`);
         }
       }
     }
 
-    // Method 2: JSON data extraction from scripts if no DOM price found
+    // Method 3: Enhanced script content analysis for price extraction
     if (!originalPrice) {
       const scripts = $('script').toArray();
       for (const script of scripts) {
         const scriptContent = $(script).html() || '';
         
-        // Look for price in various JSON structures
+        // Enhanced patterns for various price fields in Trendyol
         const patterns = [
-          /"price":\s*(\d+(?:\.\d+)?)/g,
-          /"sellPrice":\s*(\d+(?:\.\d+)?)/g,
-          /"currentPrice":\s*(\d+(?:\.\d+)?)/g,
-          /"originalPrice":\s*(\d+(?:\.\d+)?)/g,
-          /"prc":\s*(\d+(?:\.\d+)?)/g
+          /"price":\s*(\d+(?:[.,]\d+)?)/gi,
+          /"sellPrice":\s*(\d+(?:[.,]\d+)?)/gi,
+          /"currentPrice":\s*(\d+(?:[.,]\d+)?)/gi,
+          /"originalPrice":\s*(\d+(?:[.,]\d+)?)/gi,
+          /"prc":\s*(\d+(?:[.,]\d+)?)/gi,
+          /"priceValue":\s*(\d+(?:[.,]\d+)?)/gi,
+          /"displayPrice":\s*(\d+(?:[.,]\d+)?)/gi,
+          /"amount":\s*(\d+(?:[.,]\d+)?)/gi,
+          /price['":]?\s*['":]?\s*(\d+(?:[.,]\d+)?)/gi,
+          /\b(\d+(?:[.,]\d+)?)\s*TL\b/gi
         ];
         
         for (const pattern of patterns) {
           let match;
+          pattern.lastIndex = 0; // Reset regex
           while ((match = pattern.exec(scriptContent)) !== null) {
-            const priceValue = parseFloat(match[1]);
-            if (priceValue > 0 && priceValue < 50000) {
+            const priceText = match[1];
+            const priceValue = extractTurkishPrice(priceText);
+            
+            if (priceValue > 10 && priceValue < 100000) { // Reasonable price range
               originalPrice = priceValue;
-              console.log(`💰 JSON price found: ${originalPrice} TL`);
+              console.log(`💰 Script price found: ${originalPrice} TL from pattern ${pattern.source}`);
               break;
             }
+          }
+          if (originalPrice) break;
+        }
+        if (originalPrice) break;
+      }
+    }
+
+    // Method 4: HTML content scan for price patterns as last resort
+    if (!originalPrice) {
+      console.log('🔍 Scanning HTML content for price patterns...');
+      const htmlContent = $.html();
+      const htmlPricePatterns = [
+        /(\d+(?:[.,]\d+)?)\s*TL/gi,
+        /fiyat[^>]*>.*?(\d+(?:[.,]\d+)?)/gi,
+        /price[^>]*>.*?(\d+(?:[.,]\d+)?)/gi
+      ];
+      
+      for (const pattern of htmlPricePatterns) {
+        let match;
+        pattern.lastIndex = 0;
+        while ((match = pattern.exec(htmlContent)) !== null) {
+          const priceText = match[1];
+          const priceValue = extractTurkishPrice(priceText);
+          
+          if (priceValue > 10 && priceValue < 100000) {
+            originalPrice = priceValue;
+            console.log(`💰 HTML scan price found: ${originalPrice} TL`);
+            break;
           }
         }
         if (originalPrice) break;
       }
     }
 
+
+
+    // If still no price found, try more aggressive text scanning
+    if (!originalPrice) {
+      console.log('🔍 Final attempt: aggressive text scanning...');
+      const allText = $.text();
+      const priceMatches = allText.match(/(\d{1,3}(?:\.\d{3})*(?:,\d{2})?)\s*TL/g);
+      
+      if (priceMatches) {
+        for (const match of priceMatches) {
+          const priceText = match.replace(/\s*TL/g, '');
+          const priceValue = extractTurkishPrice(priceText);
+          
+          if (priceValue > 50 && priceValue < 100000) {
+            originalPrice = priceValue;
+            console.log(`💰 Aggressive scan found: ${originalPrice} TL from "${match}"`);
+            break;
+          }
+        }
+      }
+    }
+
     // Apply 15% profit margin
-    const finalPrice = originalPrice > 0 ? Math.round(originalPrice * 1.15) : 350;
-    console.log(`💰 Final price: ${originalPrice} TL → ${finalPrice} TL (15% profit)`);
+    const finalPrice = originalPrice > 0 ? Math.round(originalPrice * 1.15) : 0;
+    console.log(`💰 Final price calculation: ${originalPrice} TL → ${finalPrice} TL (15% profit)`);
 
     // Extract authentic product images
     const images: string[] = [];
