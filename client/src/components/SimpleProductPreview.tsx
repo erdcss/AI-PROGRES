@@ -219,26 +219,27 @@ export function SimpleProductPreview({ product }: SimpleProductPreviewProps) {
         </div>
       </div>
 
-      {/* Images Section */}
+      {/* Compact Images Section */}
       {images.length > 0 && (
-        <div>
-          <h3 className="text-sm font-medium text-gray-300 mb-3 flex items-center gap-2">
-            <ImageIcon className="h-4 w-4" />
-            Ürün Görselleri ({images.length})
-          </h3>
-          <div className="grid grid-cols-3 md:grid-cols-4 lg:grid-cols-6 gap-3">
-            {images.slice(0, 12).map((image, index) => (
+        <div className="bg-slate-800/30 rounded-lg p-3">
+          <div className="flex items-center gap-2 mb-2">
+            <ImageIcon className="h-4 w-4 text-blue-400" />
+            <span className="text-sm font-medium text-gray-300">Ürün Görselleri</span>
+            <span className="text-xs text-blue-400 bg-blue-400/10 px-2 py-0.5 rounded">{images.length}</span>
+          </div>
+          <div className="grid grid-cols-6 gap-2">
+            {images.slice(0, 6).map((image, index) => (
               <div key={index} className="relative group">
                 <img
                   src={image}
-                  alt={`${brand} ${title} - Görsel ${index + 1}`}
-                  className="w-full h-20 object-cover rounded-lg border border-gray-700 group-hover:border-blue-400 transition-all duration-200 group-hover:scale-105"
+                  alt={`${index + 1}`}
+                  className="w-full h-12 object-cover rounded border border-slate-600 group-hover:border-blue-400 transition-all duration-200"
                   onError={(e) => {
                     const target = e.target as HTMLImageElement;
                     target.style.display = 'none';
                   }}
                 />
-                <div className="absolute bottom-0 right-0 bg-black/70 text-white text-xs px-1 rounded-tl">
+                <div className="absolute -bottom-1 -right-1 bg-blue-500 text-white text-xs w-4 h-4 rounded-full flex items-center justify-center">
                   {index + 1}
                 </div>
               </div>
@@ -247,62 +248,52 @@ export function SimpleProductPreview({ product }: SimpleProductPreviewProps) {
         </div>
       )}
 
-      {/* Variants Section */}
+      {/* Compact Variant Summary */}
       {getVariantCount() > 0 && (
-        <div>
-          <h3 className="text-sm font-medium text-gray-300 mb-3 flex items-center gap-2">
-            <Palette className="h-4 w-4" />
-            Varyantlar ({getVariantCount()})
-          </h3>
-          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-3">
-            {getVariantArray().slice(0, 9).map((variant, index) => (
-              <div key={index} className="bg-gray-800/30 rounded-lg p-3">
-                <div className="flex justify-between items-center mb-1">
-                  <span className="text-white text-sm font-medium">
-                    {variant.color}
-                  </span>
-                  <span className="text-gray-400 text-xs">{variant.size}</span>
-                </div>
-                <div className="flex justify-between items-center">
-                  <span className={`text-xs px-2 py-1 rounded ${
-                    variant.inStock 
-                      ? 'bg-green-900/30 text-green-400' 
-                      : 'bg-red-900/30 text-red-400'
-                  }`}>
-                    {variant.inStock ? 'Stokta' : 'Tükendi'}
-                  </span>
-                  {variant.inStock && (
-                    <span className="text-xs text-gray-400">
-                      {variant.stockCount} adet
-                    </span>
-                  )}
-                </div>
+        <div className="bg-slate-800/30 rounded-lg p-2">
+          <div className="flex items-center justify-between">
+            <div className="flex items-center gap-2">
+              <Palette className="h-3 w-3 text-purple-400" />
+              <span className="text-xs font-medium text-gray-300">Varyantlar</span>
+            </div>
+            <div className="flex items-center gap-3 text-xs">
+              <span className="text-purple-400 bg-purple-400/10 px-1.5 py-0.5 rounded">{getVariantCount()}</span>
+              <div className="flex items-center gap-1">
+                <span className="text-green-400">{getInStockCount()}</span>
+                <span className="text-gray-400">stokta</span>
               </div>
-            ))}
+              <div className="flex items-center gap-1">
+                <span className="text-red-400">{getVariantCount() - getInStockCount()}</span>
+                <span className="text-gray-400">tükendi</span>
+              </div>
+            </div>
           </div>
         </div>
       )}
 
-      {/* Features Section */}
+      {/* Ultra Compact Features */}
       {features.length > 0 && (
-        <div>
-          <h3 className="text-sm font-medium text-gray-300 mb-3 flex items-center gap-2">
-            <Tags className="h-4 w-4" />
-            Ürün Özellikleri ({features.length})
-          </h3>
-          <div className="grid grid-cols-1 md:grid-cols-2 gap-3 max-h-64 overflow-y-auto">
-            {features.map((feature, index) => (
-              <div key={index} className="bg-gray-800/20 rounded-lg p-3">
-                <div className="text-xs text-gray-400 mb-1">{feature.key}</div>
-                <div className="text-sm text-white break-words">{feature.value}</div>
+        <div className="bg-slate-800/30 rounded-lg p-2">
+          <div className="flex items-center justify-between mb-2">
+            <div className="flex items-center gap-2">
+              <Tags className="h-3 w-3 text-green-400" />
+              <span className="text-xs font-medium text-gray-300">Ürün Özellikleri</span>
+            </div>
+            <span className="text-xs text-green-400 bg-green-400/10 px-1.5 py-0.5 rounded">{features.length}</span>
+          </div>
+          <div className="space-y-1">
+            {features.slice(0, 4).map((feature, index) => (
+              <div key={index} className="flex justify-between items-center text-xs bg-slate-700/20 rounded px-2 py-1">
+                <span className="text-gray-400 truncate flex-1">{feature.key}:</span>
+                <span className="text-white font-medium truncate ml-2">{feature.value}</span>
               </div>
             ))}
+            {features.length > 4 && (
+              <div className="text-center">
+                <span className="text-xs text-gray-500">+{features.length - 4} özellik daha</span>
+              </div>
+            )}
           </div>
-          {features.length === 0 && (
-            <div className="text-center text-gray-500 py-4">
-              Ürün özellikleri bulunamadı
-            </div>
-          )}
         </div>
       )}
     </motion.div>
