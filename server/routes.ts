@@ -31,6 +31,7 @@ import { detectMayoRealColors, assignColorsToImages } from './mayo-real-color-de
 import { extractAllProductImages, generateImageCSV } from './complete-image-extractor';
 import { extractComprehensiveImages, generateComprehensiveImageCSV, generateImageGroupSummary } from './comprehensive-image-system';
 import { processCompleteMultiVariant, generateMultiVariantCSV, generateMultiVariantSummary } from './complete-multi-variant-system';
+import { scrapeAdvancedVariants, generateAdvancedVariantCSV } from './advanced-variant-scraper';
 
 
 function generateSingleProductShopifyCSV(product: any): string {
@@ -1159,6 +1160,69 @@ export function registerRoutes(app: Express): Server {
     } catch (error) {
       console.error('Multi-variant summary error:', error);
       res.status(500).json({ message: 'Multi-variant summary hatası', error: (error as Error).message });
+    }
+  });
+
+  // Advanced Variant Scraper - Scrapy-like approach
+  app.post('/api/advanced-variant-scraper', async (req, res) => {
+    res.setHeader('Content-Type', 'application/json');
+    try {
+      const { url } = req.body;
+      console.log('🔧 Advanced Variant Scraper başlıyor...');
+      
+      if (!url) {
+        return res.status(400).json({ message: 'URL gerekli' });
+      }
+      
+      const result = await scrapeAdvancedVariants(url);
+      
+      console.log(`✅ Advanced variant scraping tamamlandı: ${result.totalVariants} varyant`);
+      
+      res.json({
+        success: true,
+        result,
+        summary: {
+          totalVariants: result.totalVariants,
+          processedVariants: result.processedVariants,
+          totalImages: result.totalImages,
+          processingTime: result.processingTime,
+          variants: result.variants.map(v => ({
+            color: v.color,
+            productId: v.productId,
+            isProcessed: v.isProcessed,
+            imageCount: v.detailImages.length
+          }))
+        }
+      });
+      
+    } catch (error) {
+      console.error('Advanced variant scraper error:', error);
+      res.status(500).json({ message: 'Advanced variant scraper hatası', error: (error as Error).message });
+    }
+  });
+
+  // Advanced Variant CSV Export  
+  app.post('/api/advanced-variant-csv', async (req, res) => {
+    try {
+      const { url, productTitle } = req.body;
+      console.log('📄 Advanced variant CSV oluşturuluyor...');
+      
+      if (!url) {
+        return res.status(400).json({ message: 'URL gerekli' });
+      }
+      
+      const result = await scrapeAdvancedVariants(url);
+      const csvContent = generateAdvancedVariantCSV(result);
+      
+      console.log(`✅ Advanced variant CSV oluşturuldu: ${result.totalVariants} varyant`);
+      
+      res.setHeader('Content-Type', 'text/csv; charset=utf-8');
+      res.setHeader('Content-Disposition', 'attachment; filename="advanced-variant-analysis.csv"');
+      res.send(csvContent);
+      
+    } catch (error) {
+      console.error('Advanced variant CSV generation error:', error);
+      res.status(500).json({ message: 'Advanced variant CSV oluşturma hatası', error: (error as Error).message });
     }
   });
 

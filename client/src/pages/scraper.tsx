@@ -282,6 +282,9 @@ function ScraperPage({ platform = 'trendyol' }: ScraperPageProps) {
   const [isExporting, setIsExporting] = useState(false);
   const [manualTestResult, setManualTestResult] = useState<any>(null);
   const [trendyolTestResult, setTrendyolTestResult] = useState<any>(null);
+  const [isAdvancedScrapingRunning, setIsAdvancedScrapingRunning] = useState(false);
+  const [isAdvancedCSVGenerating, setIsAdvancedCSVGenerating] = useState(false);
+  const [advancedVariantResult, setAdvancedVariantResult] = useState<any>(null);
   
   // CSV Download handler
   const handleCSVDownload = async () => {
@@ -337,6 +340,98 @@ function ScraperPage({ platform = 'trendyol' }: ScraperPageProps) {
         message: `CSV indirme hatası: ${error.message}`,
         details: 'CSV dosyası henüz hazır olmayabilir. Lütfen önce bir ürün çekin.'
       });
+    }
+  };
+
+  // Advanced Variant Scraper Handlers
+  const handleAdvancedVariantScraper = async () => {
+    if (!form.getValues("url")) {
+      toast({
+        title: "Hata",
+        description: "Önce bir Trendyol URL'si girin",
+        variant: "destructive"
+      });
+      return;
+    }
+
+    setIsAdvancedScrapingRunning(true);
+    try {
+      const response = await fetch('/api/advanced-variant-scraper', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ url: form.getValues("url") })
+      });
+
+      if (!response.ok) {
+        throw new Error('Advanced variant scraping failed');
+      }
+
+      const data = await response.json();
+      
+      if (data.success) {
+        setAdvancedVariantResult(data.result);
+        toast({
+          title: "Başarılı!",
+          description: `${data.result.totalVariants} varyant keşfedildi, ${data.result.totalImages} görsel çıkarıldı`,
+        });
+      } else {
+        throw new Error(data.message || 'Unknown error');
+      }
+    } catch (error) {
+      toast({
+        title: "Hata",
+        description: "Advanced variant scraping sırasında hata oluştu",
+        variant: "destructive"
+      });
+    } finally {
+      setIsAdvancedScrapingRunning(false);
+    }
+  };
+
+  const handleAdvancedVariantCSV = async () => {
+    if (!form.getValues("url")) {
+      toast({
+        title: "Hata", 
+        description: "Önce bir Trendyol URL'si girin",
+        variant: "destructive"
+      });
+      return;
+    }
+
+    setIsAdvancedCSVGenerating(true);
+    try {
+      const response = await fetch('/api/advanced-variant-csv', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ url: form.getValues("url") })
+      });
+
+      if (!response.ok) {
+        throw new Error('CSV generation failed');
+      }
+
+      const blob = await response.blob();
+      const url = window.URL.createObjectURL(blob);
+      const a = document.createElement('a');
+      a.href = url;
+      a.download = `advanced-variant-analysis-${Date.now()}.csv`;
+      document.body.appendChild(a);
+      a.click();
+      window.URL.revokeObjectURL(url);
+      document.body.removeChild(a);
+
+      toast({
+        title: "Başarılı!",
+        description: "Advanced variant CSV dosyası indirildi",
+      });
+    } catch (error) {
+      toast({
+        title: "Hata",
+        description: "CSV oluşturma sırasında hata oluştu", 
+        variant: "destructive"
+      });
+    } finally {
+      setIsAdvancedCSVGenerating(false);
     }
   };
 
@@ -1519,6 +1614,57 @@ function ScraperPage({ platform = 'trendyol' }: ScraperPageProps) {
                               </>
                             )}
                           </button>
+                          
+                          {/* Advanced Variant Scraper Section */}
+                          <div className="mt-6 p-4 bg-gradient-to-br from-purple-900/30 to-pink-900/30 backdrop-blur-sm rounded-xl border border-purple-500/30">
+                            <div className="flex items-center justify-between mb-3">
+                              <h4 className="text-sm font-semibold text-purple-300">🧬 Advanced Variant Scraper</h4>
+                              <span className="text-xs bg-purple-600/20 text-purple-400 px-2 py-1 rounded border border-purple-600/30">
+                                Scrapy-like
+                              </span>
+                            </div>
+                            <p className="text-xs text-purple-200 mb-3">
+                              Her renk varyantının ayrı URL'ini keşfeder ve tüm görsellerini çıkarır
+                            </p>
+                            
+                            <div className="space-y-2">
+                              <button
+                                onClick={handleAdvancedVariantScraper}
+                                disabled={isAdvancedScrapingRunning}
+                                className="w-full bg-gradient-to-r from-purple-600 to-pink-600 hover:from-purple-700 hover:to-pink-700 disabled:from-purple-400 disabled:to-pink-400 text-white px-4 py-2.5 rounded-lg text-xs font-semibold transition-all duration-200 flex items-center justify-center gap-2 shadow-lg hover:shadow-xl transform hover:scale-105 disabled:scale-100 border border-purple-500/20"
+                              >
+                                {isAdvancedScrapingRunning ? (
+                                  <>
+                                    <RefreshCcw className="w-4 h-4 animate-spin" />
+                                    Varyant keşfi yapılıyor...
+                                  </>
+                                ) : (
+                                  <>
+                                    <ImageIcon className="w-4 h-4" />
+                                    Tüm Varyantları Keşfet
+                                  </>
+                                )}
+                              </button>
+                              
+                              <button
+                                onClick={handleAdvancedVariantCSV}
+                                disabled={isAdvancedCSVGenerating}
+                                className="w-full bg-gradient-to-r from-orange-600 to-red-600 hover:from-orange-700 hover:to-red-700 disabled:from-orange-400 disabled:to-red-400 text-white px-4 py-2.5 rounded-lg text-xs font-semibold transition-all duration-200 flex items-center justify-center gap-2 shadow-lg hover:shadow-xl transform hover:scale-105 disabled:scale-100 border border-orange-500/20"
+                              >
+                                {isAdvancedCSVGenerating ? (
+                                  <>
+                                    <RefreshCcw className="w-4 h-4 animate-spin" />
+                                    CSV oluşturuluyor...
+                                  </>
+                                ) : (
+                                  <>
+                                    <FileText className="w-4 h-4" />
+                                    Varyant CSV İndir
+                                  </>
+                                )}
+                              </button>
+                            </div>
+                          </div>
                         </div>
                       </div>
                     )}
@@ -1547,6 +1693,122 @@ function ScraperPage({ platform = 'trendyol' }: ScraperPageProps) {
                   showInventory={true}
                 />
               )}
+            </motion.div>
+          )}
+        </AnimatePresence>
+
+        {/* Advanced Variant Results Display */}
+        <AnimatePresence>
+          {advancedVariantResult && (
+            <motion.div
+              initial={{ opacity: 0, y: 50 }}
+              animate={{ opacity: 1, y: 0 }}
+              exit={{ opacity: 0, y: -50 }}
+              transition={{ duration: 0.3 }}
+              className="mb-6"
+            >
+              <Card className="bg-gradient-to-br from-purple-900/40 to-pink-900/40 backdrop-blur-sm border border-purple-500/30 shadow-2xl">
+                <CardContent className="p-6">
+                  <div className="flex items-center justify-between mb-4">
+                    <h3 className="text-lg font-semibold text-purple-300">🧬 Advanced Variant Analysis</h3>
+                    <Button 
+                      variant="ghost" 
+                      size="sm" 
+                      onClick={() => setAdvancedVariantResult(null)}
+                      className="text-purple-400 hover:text-purple-200"
+                    >
+                      <XCircle className="h-4 w-4" />
+                    </Button>
+                  </div>
+                  
+                  {/* Summary Stats */}
+                  <div className="grid grid-cols-2 md:grid-cols-4 gap-4 mb-6">
+                    <div className="text-center p-3 bg-purple-900/20 rounded-lg border border-purple-600/20">
+                      <div className="text-2xl font-bold text-purple-400">{advancedVariantResult.totalVariants}</div>
+                      <div className="text-purple-300 text-sm">Toplam Varyant</div>
+                    </div>
+                    <div className="text-center p-3 bg-purple-900/20 rounded-lg border border-purple-600/20">
+                      <div className="text-2xl font-bold text-purple-400">{advancedVariantResult.processedVariants}</div>
+                      <div className="text-purple-300 text-sm">İşlenen</div>
+                    </div>
+                    <div className="text-center p-3 bg-purple-900/20 rounded-lg border border-purple-600/20">
+                      <div className="text-2xl font-bold text-purple-400">{advancedVariantResult.totalImages}</div>
+                      <div className="text-purple-300 text-sm">Toplam Görsel</div>
+                    </div>
+                    <div className="text-center p-3 bg-purple-900/20 rounded-lg border border-purple-600/20">
+                      <div className="text-2xl font-bold text-purple-400">{Math.round(advancedVariantResult.processingTime / 1000)}s</div>
+                      <div className="text-purple-300 text-sm">İşlem Süresi</div>
+                    </div>
+                  </div>
+
+                  {/* Main Product Info */}
+                  <div className="mb-6 p-4 bg-purple-900/20 rounded-lg border border-purple-600/20">
+                    <h4 className="text-purple-300 font-medium mb-2">Ana Ürün Bilgileri</h4>
+                    <div className="text-sm text-purple-200 space-y-1">
+                      <div><span className="text-purple-400">Başlık:</span> {advancedVariantResult.mainProduct.title}</div>
+                      <div><span className="text-purple-400">Marka:</span> {advancedVariantResult.mainProduct.brand}</div>
+                      <div><span className="text-purple-400">Product ID:</span> {advancedVariantResult.mainProduct.baseProductId}</div>
+                    </div>
+                  </div>
+
+                  {/* Variants List */}
+                  <div>
+                    <h4 className="text-purple-300 font-medium mb-3">Keşfedilen Varyantlar</h4>
+                    <div className="max-h-96 overflow-y-auto space-y-2">
+                      {advancedVariantResult.variants.map((variant: any, index: number) => (
+                        <div key={index} className="p-3 bg-purple-900/10 rounded border border-purple-600/20">
+                          <div className="flex items-center justify-between mb-2">
+                            <div className="flex items-center gap-2">
+                              <span className="text-purple-400 font-medium">{variant.color}</span>
+                              {variant.isProcessed ? (
+                                <span className="text-green-400 text-xs bg-green-900/20 px-2 py-1 rounded">
+                                  ✓ İşlendi
+                                </span>
+                              ) : (
+                                <span className="text-red-400 text-xs bg-red-900/20 px-2 py-1 rounded">
+                                  ❌ Hata
+                                </span>
+                              )}
+                            </div>
+                            <span className="text-purple-300 text-xs">
+                              {variant.detailImages.length} görsel
+                            </span>
+                          </div>
+                          <div className="text-xs text-purple-200 space-y-1">
+                            <div><span className="text-purple-400">Product ID:</span> {variant.productId}</div>
+                            <div className="truncate"><span className="text-purple-400">URL:</span> {variant.url}</div>
+                          </div>
+                          
+                          {/* Sample Images */}
+                          {variant.detailImages.length > 0 && (
+                            <div className="mt-2">
+                              <div className="text-xs text-purple-400 mb-1">Görsel Örnekleri:</div>
+                              <div className="flex gap-1 overflow-x-auto">
+                                {variant.detailImages.slice(0, 4).map((image: string, imgIndex: number) => (
+                                  <img
+                                    key={imgIndex}
+                                    src={image}
+                                    alt={`${variant.color} ${imgIndex + 1}`}
+                                    className="w-12 h-12 object-cover rounded border border-purple-600/30 flex-shrink-0"
+                                    onError={(e) => {
+                                      e.currentTarget.style.display = 'none';
+                                    }}
+                                  />
+                                ))}
+                                {variant.detailImages.length > 4 && (
+                                  <div className="w-12 h-12 bg-purple-800/30 rounded border border-purple-600/30 flex items-center justify-center text-xs text-purple-400">
+                                    +{variant.detailImages.length - 4}
+                                  </div>
+                                )}
+                              </div>
+                            </div>
+                          )}
+                        </div>
+                      ))}
+                    </div>
+                  </div>
+                </CardContent>
+              </Card>
             </motion.div>
           )}
         </AnimatePresence>
