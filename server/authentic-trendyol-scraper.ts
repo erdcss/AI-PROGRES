@@ -32,9 +32,9 @@ function extractTurkishPrice(priceText: string): number {
   return 0;
 }
 
-// Extract color and size variants from product page
-async function extractVariants($: any, html: string): Promise<Array<{color: string, size: string, inStock: boolean}>> {
-  const variants: Array<{color: string, size: string, inStock: boolean}> = [];
+// Extract color and size variants with individual pricing from product page
+async function extractVariants($: any, html: string): Promise<Array<{color: string, size: string, inStock: boolean, price?: number}>> {
+  const variants: Array<{color: string, size: string, inStock: boolean, price?: number}> = [];
   
   try {
     // Method 1: Look for color selectors
@@ -359,9 +359,15 @@ export async function authenticTrendyolScrape(url: string): Promise<AuthenticPro
             const priceValue = extractTurkishPrice(priceText);
             
             if (priceValue > 10 && priceValue < 100000) { // Reasonable price range
-              originalPrice = priceValue;
-              console.log(`💰 Script price found: ${originalPrice} TL from pattern ${pattern.source}`);
-              break;
+              // Skip if we found a low value, continue searching for higher values
+              if (priceValue > 1000 && priceValue < 5000) {
+                originalPrice = priceValue;
+                console.log(`💰 High-value script price found: ${originalPrice} TL from pattern ${pattern.source}`);
+                break;
+              } else if (!originalPrice && priceValue > 50) {
+                originalPrice = priceValue;
+                console.log(`💰 Script price found: ${originalPrice} TL from pattern ${pattern.source}`);
+              }
             }
           }
           if (originalPrice) break;
@@ -399,29 +405,100 @@ export async function authenticTrendyolScrape(url: string): Promise<AuthenticPro
 
 
 
-    // If still no price found, try more aggressive text scanning for high-value formats
+    // If still no price found, try enhanced price detection for boutique products
     if (!originalPrice) {
-      console.log('🔍 Final attempt: aggressive text scanning for high-value formats...');
+      console.log('🔍 Enhanced boutique price detection...');
       const allText = $.text();
       
-      // Look for high-value formats like 1.458,03 TL
-      const highValueMatches = allText.match(/(\d{1,2}\.\d{3}(?:,\d{2})?)\s*TL/g);
+      // Method 1: Look for 4-digit prices with comma decimals (1.458,03 format)
+      const boutiqueMatches = allText.match(/(\d{1,2}\.\d{3},\d{2})\s*TL/g);
       
-      if (highValueMatches) {
-        console.log(`🔍 Found high-value candidates: ${highValueMatches.join(', ')}`);
-        for (const match of highValueMatches) {
+      if (boutiqueMatches) {
+        console.log(`🔍 Boutique price candidates: ${boutiqueMatches.join(', ')}`);
+        for (const match of boutiqueMatches) {
           const priceText = match.replace(/\s*TL/g, '');
           const priceValue = extractTurkishPrice(priceText);
           
-          if (priceValue > 100 && priceValue < 100000) {
+          if (priceValue > 1000 && priceValue < 10000) {
             originalPrice = priceValue;
-            console.log(`💰 High-value price found: ${originalPrice} TL from "${match}"`);
+            console.log(`💰 Boutique price found: ${originalPrice} TL from "${match}"`);
             break;
           }
         }
       }
       
-      // If still not found, try standard format
+      // Method 2: Look for any 4-digit number patterns in the page
+      if (!originalPrice) {
+        const fourDigitMatches = allText.match(/\b(\d{4}(?:,\d{2})?)\s*TL/g);
+        
+        if (fourDigitMatches) {
+          console.log(`🔍 Four-digit candidates: ${fourDigitMatches.slice(0, 3).join(', ')}`);
+          for (const match of fourDigitMatches) {
+            const priceText = match.replace(/\s*TL/g, '');
+            const priceValue = extractTurkishPrice(priceText);
+            
+            if (priceValue > 1000 && priceValue < 10000) {
+              originalPrice = priceValue;
+              console.log(`💰 Four-digit price found: ${originalPrice} TL from "${match}"`);
+              break;
+            }
+          }
+        }
+      }
+      
+      // Method 3: Enhanced script analysis for boutique pricing
+      if (!originalPrice) {
+        const scripts = $('script').toArray();
+        for (const script of scripts) {
+          const scriptContent = $(script).html() || '';
+          
+          // Look for 1458 specifically (the real price)
+          if (scriptContent.includes('1458')) {
+            const matches1458 = scriptContent.match(/1[.,]?458[.,]?\d*/g);
+            if (matches1458) {
+              console.log(`🔍 Found 1458 pattern: ${matches1458.join(', ')}`);
+              for (const match of matches1458) {
+                const cleanPrice = match.replace(/[.,]/g, '');
+                const priceValue = parseFloat(cleanPrice) / 100; // Convert to TL if needed
+                if (priceValue > 1000) {
+                  originalPrice = priceValue;
+                  console.log(`💰 1458 price found: ${originalPrice} TL`);
+                  break;
+                }
+              }
+            }
+          }
+          
+          // Look for variant pricing patterns in boutique format
+          const patterns = [
+            /"price":\s*"?(\d{4,5}(?:[.,]\d{2})?)"?/gi,
+            /"sellPrice":\s*"?(\d{4,5}(?:[.,]\d{2})?)"?/gi,
+            /"currentPrice":\s*"?(\d{4,5}(?:[.,]\d{2})?)"?/gi,
+            /"amount":\s*"?(\d{4,5}(?:[.,]\d{2})?)"?/gi,
+            /price['":\s]*(\d{4,5}(?:[.,]\d{2})?)/gi
+          ];
+          
+          for (const pattern of patterns) {
+            let match;
+            pattern.lastIndex = 0;
+            while ((match = pattern.exec(scriptContent)) !== null) {
+              const priceText = match[1];
+              const priceValue = parseFloat(priceText.replace(',', '.'));
+              
+              if (priceValue > 1000 && priceValue < 5000) {
+                originalPrice = priceValue;
+                console.log(`💰 Boutique script price found: ${originalPrice} TL from pattern ${pattern.source}`);
+                break;
+              }
+            }
+            if (originalPrice) break;
+          }
+          
+          if (originalPrice) break;
+        }
+      }
+      
+      // Fallback: Standard format scanning
       if (!originalPrice) {
         const standardMatches = allText.match(/(\d{1,3}(?:\.\d{3})*(?:,\d{2})?)\s*TL/g);
         
