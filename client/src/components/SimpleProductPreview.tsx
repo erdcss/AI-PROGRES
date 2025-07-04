@@ -42,14 +42,12 @@ export function SimpleProductPreview({ product }: SimpleProductPreviewProps) {
 
   const { brand, title, price, images, colorOptions, sizeOptions, variants, stockAnalysis, features } = product;
 
-  // Calculate price details from numeric price
-  const priceValue = typeof price === 'number' ? price : 0;
-  const originalPrice = priceValue / 1.15;
-  const priceDetails = {
-    original: originalPrice,
-    withProfit: priceValue,
-    formatted: `${originalPrice.toFixed(2)} TL`,
-    profitFormatted: `${priceValue.toFixed(2)} TL`,
+  // Use price details from API response
+  const priceDetails = typeof price === 'object' ? price : {
+    original: Math.round((typeof price === 'number' ? price : 0) / 1.15),
+    withProfit: typeof price === 'number' ? price : 0,
+    formatted: `${Math.round((typeof price === 'number' ? price : 0) / 1.15).toFixed(0)} TL`,
+    profitFormatted: `${(typeof price === 'number' ? price : 0).toFixed(0)} TL`,
     currency: 'TL'
   };
 
@@ -162,9 +160,9 @@ export function SimpleProductPreview({ product }: SimpleProductPreviewProps) {
                     </div>
                     <div className="text-center p-2 bg-purple-500/10 rounded-lg">
                       <span className="text-purple-300 text-sm font-medium">
-                        Kar: {((priceDetails.withProfit - priceDetails.original) || 0).toLocaleString('tr-TR', {
-                          minimumFractionDigits: 2,
-                          maximumFractionDigits: 2
+                        Kar: {Math.round((priceDetails.withProfit - priceDetails.original) || 0).toLocaleString('tr-TR', {
+                          minimumFractionDigits: 0,
+                          maximumFractionDigits: 0
                         })} TL
                       </span>
                     </div>

@@ -1645,7 +1645,7 @@ function ScraperPage({ platform = 'trendyol' }: ScraperPageProps) {
                       <div className="flex items-center justify-between mb-2">
                         <span className="text-green-300 text-sm font-semibold">Satış Fiyatımız</span>
                         <span className="text-lg font-bold text-green-200 bg-green-800/40 px-3 py-1 rounded-lg">
-                          {typeof product.price === 'object' ? product.price.profitFormatted : `${Math.ceil(parseFloat(product.price) * 1.1)} TL`}
+                          {typeof product.price === 'object' ? product.price.profitFormatted : `${product.price} TL`}
                         </span>
                       </div>
                       <div className="text-center">
