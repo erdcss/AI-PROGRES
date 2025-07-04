@@ -32,9 +32,61 @@ function extractTurkishPrice(priceText: string): number {
   return 0;
 }
 
+// Helper function to get hex code for color
+function getHexCodeForColor(colorName: string): string {
+  const colorMap: { [key: string]: string } = {
+    'Siyah': '#000000',
+    'Beyaz': '#FFFFFF',
+    'Kırmızı': '#FF0000',
+    'Mavi': '#0000FF',
+    'Yeşil': '#008000',
+    'Sarı': '#FFFF00',
+    'Mor': '#800080',
+    'Turuncu': '#FFA500',
+    'Pembe': '#FFC0CB',
+    'Gri': '#808080',
+    'Kahverengi': '#8B4513',
+    'Lacivert': '#000080',
+    'Bordo': '#800000',
+    'Bej': '#F5F5DC',
+    'Krem': '#F5F5DC',
+    'Altın': '#FFD700',
+    'Gümüş': '#C0C0C0',
+    'Koyu Yeşil': '#049B24', // Specific hex code requested
+    'Açık Mavi': '#87CEEB',
+    'Koyu Mavi': '#000080'
+  };
+  
+  // Check exact match first
+  if (colorMap[colorName]) {
+    return colorMap[colorName];
+  }
+  
+  // Check partial matches
+  for (const [key, value] of Object.entries(colorMap)) {
+    if (colorName.toLowerCase().includes(key.toLowerCase()) || 
+        key.toLowerCase().includes(colorName.toLowerCase())) {
+      return value;
+    }
+  }
+  
+  // Special handling for hex codes
+  if (colorName === '#049B24') {
+    return '#049B24';
+  }
+  
+  // Default to specific green if contains any green reference
+  if (colorName.toLowerCase().includes('yeşil') || colorName.toLowerCase().includes('green')) {
+    return '#049B24';
+  }
+  
+  // Default to black
+  return '#000000';
+}
+
 // Extract color and size variants with individual pricing from product page
-async function extractVariants($: any, html: string): Promise<Array<{color: string, size: string, inStock: boolean, price?: number}>> {
-  const variants: Array<{color: string, size: string, inStock: boolean, price?: number}> = [];
+async function extractVariantsWithHexCodes($: any, html: string): Promise<Array<{color: string, colorCode: string, size: string, inStock: boolean, price?: number}>> {
+  const variants: Array<{color: string, colorCode: string, size: string, inStock: boolean, price?: number}> = [];
   
   try {
     // Method 1: Look for color selectors
@@ -71,6 +123,7 @@ async function extractVariants($: any, html: string): Promise<Array<{color: stri
                 if (variant.color && variant.size) {
                   variants.push({
                     color: variant.color,
+                    colorCode: getHexCodeForColor(variant.color),
                     size: variant.size,
                     inStock: variant.inStock !== false
                   });
@@ -109,14 +162,15 @@ async function extractVariants($: any, html: string): Promise<Array<{color: stri
     console.log(`🎨 Colors found: ${colors.length > 0 ? colors.join(', ') : 'None'}`);
     console.log(`📏 Sizes found: ${sizes.length > 0 ? sizes.join(', ') : 'None'}`);
     
-    // Create variants from combinations
+    // Create variants from combinations with hex codes
     if (colors.length > 0 && sizes.length > 0) {
       colors.forEach(color => {
         sizes.forEach(size => {
           variants.push({
             color: color,
+            colorCode: getHexCodeForColor(color),
             size: size,
-            inStock: true // Default to true, can be enhanced later
+            inStock: true
           });
         });
       });
@@ -124,6 +178,7 @@ async function extractVariants($: any, html: string): Promise<Array<{color: stri
       colors.forEach(color => {
         variants.push({
           color: color,
+          colorCode: getHexCodeForColor(color),
           size: 'Tek Beden',
           inStock: true
         });
@@ -132,6 +187,7 @@ async function extractVariants($: any, html: string): Promise<Array<{color: stri
       sizes.forEach(size => {
         variants.push({
           color: 'Standart',
+          colorCode: '#000000',
           size: size,
           inStock: true
         });
@@ -156,6 +212,7 @@ interface AuthenticProductData {
   features: Array<{key: string, value: string}>;
   variants: Array<{
     color: string;
+    colorCode: string;
     size: string;
     inStock: boolean;
   }>;
@@ -338,12 +395,21 @@ export async function authenticTrendyolScrape(url: string): Promise<AuthenticPro
       // Look directly in HTML content for visible prices
       const htmlContent = $.html();
       const visiblePricePatterns = [
-        // Basic TL patterns in visible content
-        />[\s\d]*(\d{2,3}(?:,\d{2})?)\s*TL\s*</gi,
-        />[\s\d]*(\d{2,3})\s*₺\s*</gi,
-        // Price in span/div tags
-        /<[^>]*price[^>]*>[\s\S]*?(\d{2,3}(?:,\d{2})?)[^<]*TL/gi,
-        /<[^>]*prc[^>]*>[\s\S]*?(\d{2,3}(?:,\d{2})?)[^<]*TL/gi,
+        // Basic TL patterns in visible content - EXPANDED RANGE
+        />[\s\d]*(\d{2,4}(?:,\d{2})?)\s*TL\s*</gi,
+        />[\s\d]*(\d{2,4})\s*₺\s*</gi,
+        // Price in span/div tags - EXPANDED RANGE
+        /<[^>]*price[^>]*>[\s\S]*?(\d{2,4}(?:,\d{2})?)[^<]*TL/gi,
+        /<[^>]*prc[^>]*>[\s\S]*?(\d{2,4}(?:,\d{2})?)[^<]*TL/gi,
+        // More specific patterns for actual visible prices
+        />\s*(\d{2,4}(?:,\d{2})?)\s*TL\s*</gi,
+        />\s*(\d{2,4})\s*₺\s*</gi,
+        // Product price containers
+        /<[^>]*product-price[^>]*>[\s\S]*?(\d{2,4}(?:,\d{2})?)[^<]*TL/gi,
+        /<[^>]*current-price[^>]*>[\s\S]*?(\d{2,4}(?:,\d{2})?)[^<]*TL/gi,
+        // Generic price patterns
+        /fiyat[^>]*>[\s\S]*?(\d{2,4}(?:,\d{2})?)[^<]*TL/gi,
+        /price[^>]*>[\s\S]*?(\d{2,4}(?:,\d{2})?)[^<]*TL/gi,
       ];
       
       let htmlPrices: number[] = [];
@@ -735,10 +801,11 @@ export async function authenticTrendyolScrape(url: string): Promise<AuthenticPro
     const { extractJSONLDFeatures } = await import('./json-ld-features-extractor');
     const uniqueFeatures = extractJSONLDFeatures(html, brand);
 
-    // Extract color and size variants
-    const variants = await extractVariants($, html);
+    // Extract color and size variants with hex codes
+    const variants = await extractVariantsWithHexCodes($, html);
     const finalVariants = variants.length > 0 ? variants : [{
       color: 'Standart',
+      colorCode: '#000000',
       size: 'Tek Beden',
       inStock: true
     }];
@@ -765,7 +832,7 @@ export async function authenticTrendyolScrape(url: string): Promise<AuthenticPro
       price: 350,
       images: [],
       features: [{ key: 'Error', value: 'Extraction failed' }],
-      variants: [{ color: 'Standart', size: 'Tek Beden', inStock: true }]
+      variants: [{ color: 'Standart', colorCode: '#000000', size: 'Tek Beden', inStock: true }]
     };
   }
 }
