@@ -33,6 +33,7 @@ import { extractComprehensiveImages, generateComprehensiveImageCSV, generateImag
 import { processCompleteMultiVariant, generateMultiVariantCSV, generateMultiVariantSummary } from './complete-multi-variant-system';
 import { scrapeAdvancedVariants, generateAdvancedVariantCSV } from './advanced-variant-scraper';
 import { runTrendyolVariantsSpider, generateScrapyOutput, generateScrapyCSV } from './scrapy-like-trendyol-scraper';
+import { fixedAuthenticScrape } from './fixed-authentic-scraper';
 
 
 function generateSingleProductShopifyCSV(product: any): string {
@@ -335,7 +336,27 @@ export function registerRoutes(app: Express): Server {
 
       // Enhanced product data extraction for Trendyol products
       if (url.includes('trendyol.com')) {
-        console.log("📊 Using enhanced manual extraction for:", url);
+        console.log("🔧 Using Fixed Authentic Scraper for accurate price extraction");
+        
+        // Try Fixed Authentic Scraper first for best accuracy
+        const fixedResult = await fixedAuthenticScrape(url);
+        
+        if (fixedResult.success) {
+          console.log("🔧 Fixed Scraper SUCCESS - Price:", fixedResult.price);
+          
+          return res.json({
+            success: true,
+            extractionMethod: 'fixed-authentic-scraper',
+            brand: fixedResult.brand,
+            title: fixedResult.title,
+            price: fixedResult.price,
+            images: fixedResult.images,
+            features: fixedResult.features,
+            variants: fixedResult.variants
+          });
+        }
+        
+        console.log("📊 Fixed failed, using fallback extraction for:", url);
         console.log("🔍 Raw URL check:", rawUrl);
         console.log("🔍 boutiqueId check:", rawUrl.includes('boutiqueId='));
         console.log("🔍 merchantId check:", rawUrl.includes('merchantId='));

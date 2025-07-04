@@ -195,9 +195,10 @@ router.post('/api/scrape', async (req, res) => {
     console.log('URL normalize edildi:', url, '->', url);
     console.log('Trendyol ürün verisi işleniyor...');
 
-    // Use clean scraper for comprehensive extraction
-    console.log('🔧 Using clean scraper for comprehensive data extraction');
-    const scrapedData = await cleanScrape(url);
+    // Use Fixed Authentic Scraper for accurate price extraction
+    console.log('🔧 Using Fixed Authentic Scraper for accurate price extraction');
+    const { fixedAuthenticScrape } = await import('./fixed-authentic-scraper');
+    const scrapedData = await fixedAuthenticScrape(url);
     
     if (!scrapedData.success) {
       return res.status(500).json({
