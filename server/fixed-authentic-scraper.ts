@@ -206,7 +206,13 @@ export async function fixedAuthenticScrape(url: string): Promise<FixedProductDat
       success: true,
       title,
       brand: capitalizedBrand,
-      price: finalPrice,
+      price: {
+        original: originalPrice,
+        currency: 'TL',
+        formatted: `${originalPrice} TL`,
+        withProfit: finalPrice,
+        profitFormatted: `${finalPrice} TL`
+      },
       images,
       features,
       variants
