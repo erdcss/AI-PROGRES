@@ -204,27 +204,142 @@ export async function fixedAuthenticScrape(url: string): Promise<FixedProductDat
     
     console.log(`✅ Features extracted: ${features.length}`);
     
-    // Create variants with hex codes
+    // Extract actual variants from page data
     const variants = [];
-    const foundColors = features.filter(f => f.key === 'Renk').map(f => f.value);
     
-    // Add Siyah color
-    variants.push({
-      color: 'Siyah',
-      colorCode: '#000000',
-      size: 'Tek Beden',
-      inStock: true
+    // Try to extract color and size variants from various sources
+    const extractedColors = new Set<string>();
+    const extractedSizes = new Set<string>();
+    
+    // 1. Extract from JSON-LD structured data
+    for (const script of jsonLdScripts) {
+      try {
+        const data = JSON.parse($(script).html() || '{}');
+        
+        // Check for color variants
+        if (data.color) {
+          if (Array.isArray(data.color)) {
+            data.color.forEach(c => extractedColors.add(c));
+          } else {
+            extractedColors.add(data.color);
+          }
+        }
+        
+        // Check for size variants  
+        if (data.size) {
+          if (Array.isArray(data.size)) {
+            data.size.forEach(s => extractedSizes.add(s));
+          } else {
+            extractedSizes.add(data.size);
+          }
+        }
+        
+        // Check offers for variants
+        if (data.offers && Array.isArray(data.offers)) {
+          data.offers.forEach(offer => {
+            if (offer.color) extractedColors.add(offer.color);
+            if (offer.size) extractedSizes.add(offer.size);
+          });
+        }
+      } catch (e) {
+        // Continue
+      }
+    }
+    
+    // 2. Extract from DOM elements (variant selectors)
+    $('[data-testid*="color"], .variant-color, .color-option').each((i, el) => {
+      const colorText = $(el).text().trim();
+      if (colorText) extractedColors.add(colorText);
     });
     
-    // Add #049B24 variant specifically
-    variants.push({
-      color: '#049B24',
-      colorCode: '#049B24',
-      size: 'Tek Beden',
-      inStock: true
+    $('[data-testid*="size"], .variant-size, .size-option').each((i, el) => {
+      const sizeText = $(el).text().trim();
+      if (sizeText) extractedSizes.add(sizeText);
     });
     
-    console.log(`✅ Variants created: ${variants.length}`);
+    // 3. Extract from features (fallback)
+    const foundColors = features.filter(f => f.key === 'Renk' || f.key === 'Color').map(f => f.value);
+    const foundSizes = features.filter(f => f.key === 'Beden' || f.key === 'Size').map(f => f.value);
+    
+    foundColors.forEach(color => extractedColors.add(color));
+    foundSizes.forEach(size => extractedSizes.add(size));
+    
+    // Helper function to get color hex code
+    const getColorCode = (color: string): string => {
+      const colorMap: Record<string, string> = {
+        'siyah': '#000000',
+        'black': '#000000',
+        'beyaz': '#FFFFFF', 
+        'white': '#FFFFFF',
+        'kırmızı': '#FF0000',
+        'red': '#FF0000',
+        'mavi': '#0000FF',
+        'blue': '#0000FF',
+        'yeşil': '#008000',
+        'green': '#008000',
+        'sarı': '#FFFF00',
+        'yellow': '#FFFF00',
+        'mor': '#800080',
+        'purple': '#800080',
+        'pembe': '#FFC0CB',
+        'pink': '#FFC0CB',
+        'gri': '#808080',
+        'gray': '#808080',
+        'grey': '#808080',
+        'kahverengi': '#8B4513',
+        'brown': '#8B4513',
+        'turuncu': '#FFA500',
+        'orange': '#FFA500',
+        'lacivert': '#000080',
+        'navy': '#000080',
+        'krem': '#F5F5DC',
+        'cream': '#F5F5DC',
+        'bej': '#F5F5DC',
+        'beige': '#F5F5DC'
+      };
+      
+      const lowerColor = color.toLowerCase();
+      
+      // Handle combination colors like "Mavi/Yeşil" 
+      if (lowerColor.includes('/')) {
+        const colors = lowerColor.split('/');
+        const firstColor = colors[0].trim();
+        if (colorMap[firstColor]) {
+          return colorMap[firstColor];
+        }
+      }
+      
+      // Handle combination colors with spaces
+      if (lowerColor.includes(' ')) {
+        const firstWord = lowerColor.split(' ')[0];
+        if (colorMap[firstWord]) {
+          return colorMap[firstWord];
+        }
+      }
+      
+      return colorMap[lowerColor] || (color.startsWith('#') ? color : '#1E40AF');
+    };
+    
+    // Create variants from extracted data
+    const colors = Array.from(extractedColors).filter(c => c.length > 0);
+    const sizes = Array.from(extractedSizes).filter(s => s.length > 0);
+    
+    if (colors.length === 0) colors.push('Standart');
+    if (sizes.length === 0) sizes.push('Tek Beden');
+    
+    // Create variant combinations
+    for (const color of colors) {
+      for (const size of sizes) {
+        variants.push({
+          color: color,
+          colorCode: getColorCode(color),
+          size: size,
+          inStock: true // Default to true, could be enhanced with stock detection
+        });
+      }
+    }
+    
+    console.log(`✅ Variants created: ${variants.length} (${colors.length} colors × ${sizes.length} sizes)`);
     
     return {
       success: true,

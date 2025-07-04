@@ -101,6 +101,8 @@ The application is designed for deployment on Replit with the following consider
 - July 04, 2025: Enhanced price detection system with JSON-LD structured data priority for all products
 - July 04, 2025: Fixed frontend price display issues (4047 TL → 3679 TL) and decimal formatting errors
 - July 04, 2025: Backend now returns proper price structure with original and profit prices separately
+- July 04, 2025: Completely overhauled variant system from static hardcoded data to dynamic extraction of actual color and size options
+- July 04, 2025: Enhanced color mapping system to handle Turkish color combinations like "Mavi/Yeşil"
 
 ## User Preferences
 
