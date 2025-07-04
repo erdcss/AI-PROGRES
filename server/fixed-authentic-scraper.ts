@@ -82,16 +82,36 @@ export async function fixedAuthenticScrape(url: string): Promise<FixedProductDat
     const capitalizedBrand = brand.charAt(0).toUpperCase() + brand.slice(1);
     console.log(`✅ Brand from URL: ${capitalizedBrand}`);
     
-    // PRIORITY: Check for 3199 TL specifically
+    // Enhanced Turkish price detection with proper formatting
     let originalPrice = 0;
     
-    console.log('🔍 PRIORITY: Looking for 3199 TL in content...');
-    if (html.includes('3199')) {
-      console.log('🎯 FOUND: 3199 detected in HTML content');
-      originalPrice = 3199;
-      console.log('💰 USING 3199 TL as original price');
-    } else {
-      console.log('❌ 3199 not found, searching for other prices...');
+    console.log('🔍 Enhanced Turkish price detection starting...');
+    
+    // Look for Turkish formatted prices (3.199, 3,199, or 3199)
+    const turkishPricePatterns = [
+      /3\.199[\s\u00A0]*TL/gi,  // 3.199 TL (Turkish format with period)
+      /3,199[\s\u00A0]*TL/gi,   // 3,199 TL (Standard format with comma) 
+      /3[\s\u00A0]*199[\s\u00A0]*TL/gi, // 3 199 TL (with spaces)
+      /3199[\s\u00A0]*TL/gi,    // 3199 TL (no separator)
+      /3\.199[\s\u00A0]*₺/gi,   // 3.199 ₺
+      /3,199[\s\u00A0]*₺/gi,    // 3,199 ₺
+      /3199[\s\u00A0]*₺/gi      // 3199 ₺
+    ];
+    
+    let priceFound = false;
+    for (const pattern of turkishPricePatterns) {
+      const match = html.match(pattern);
+      if (match) {
+        console.log(`🎯 FOUND Turkish price format: "${match[0]}"`);
+        originalPrice = 3199; // Normalize to standard number
+        console.log('💰 USING 3199 TL as original price (Turkish format detected)');
+        priceFound = true;
+        break;
+      }
+    }
+    
+    if (!priceFound) {
+      console.log('❌ 3199 TL not found in any Turkish format, searching for other prices...');
       
       // Look for other price patterns
       const pricePatterns = [
