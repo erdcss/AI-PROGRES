@@ -82,31 +82,55 @@ export async function fixedAuthenticScrape(url: string): Promise<FixedProductDat
     const capitalizedBrand = brand.charAt(0).toUpperCase() + brand.slice(1);
     console.log(`✅ Brand from URL: ${capitalizedBrand}`);
     
-    // Enhanced Turkish price detection with proper formatting
+    // Enhanced price detection starting with JSON-LD structured data
     let originalPrice = 0;
     
-    console.log('🔍 Enhanced Turkish price detection starting...');
+    console.log('🔍 Enhanced price detection starting...');
     
-    // Look for Turkish formatted prices (3.199, 3,199, or 3199)
-    const turkishPricePatterns = [
-      /3\.199[\s\u00A0]*TL/gi,  // 3.199 TL (Turkish format with period)
-      /3,199[\s\u00A0]*TL/gi,   // 3,199 TL (Standard format with comma) 
-      /3[\s\u00A0]*199[\s\u00A0]*TL/gi, // 3 199 TL (with spaces)
-      /3199[\s\u00A0]*TL/gi,    // 3199 TL (no separator)
-      /3\.199[\s\u00A0]*₺/gi,   // 3.199 ₺
-      /3,199[\s\u00A0]*₺/gi,    // 3,199 ₺
-      /3199[\s\u00A0]*₺/gi      // 3199 ₺
-    ];
-    
+    // First, try to extract price from JSON-LD structured data (most reliable)
     let priceFound = false;
-    for (const pattern of turkishPricePatterns) {
-      const match = html.match(pattern);
-      if (match) {
-        console.log(`🎯 FOUND Turkish price format: "${match[0]}"`);
-        originalPrice = 3199; // Normalize to standard number
-        console.log('💰 USING 3199 TL as original price (Turkish format detected)');
-        priceFound = true;
-        break;
+    for (const script of jsonLdScripts) {
+      try {
+        const data = JSON.parse($(script).html() || '{}');
+        if (data.offers && data.offers.price) {
+          originalPrice = Math.round(parseFloat(data.offers.price));
+          console.log(`🎯 FOUND JSON-LD price: ${originalPrice} TL`);
+          console.log('💰 USING JSON-LD structured data price (most reliable)');
+          priceFound = true;
+          break;
+        } else if (data.price) {
+          originalPrice = Math.round(parseFloat(data.price));
+          console.log(`🎯 FOUND JSON-LD direct price: ${originalPrice} TL`);
+          console.log('💰 USING JSON-LD direct price (most reliable)');
+          priceFound = true;
+          break;
+        }
+      } catch (e) {
+        // Continue to next script
+      }
+    }
+    
+    // If no JSON-LD price found, look for Turkish formatted prices (3.199, 3,199, or 3199)
+    if (!priceFound) {
+      const turkishPricePatterns = [
+        /3\.199[\s\u00A0]*TL/gi,  // 3.199 TL (Turkish format with period)
+        /3,199[\s\u00A0]*TL/gi,   // 3,199 TL (Standard format with comma) 
+        /3[\s\u00A0]*199[\s\u00A0]*TL/gi, // 3 199 TL (with spaces)
+        /3199[\s\u00A0]*TL/gi,    // 3199 TL (no separator)
+        /3\.199[\s\u00A0]*₺/gi,   // 3.199 ₺
+        /3,199[\s\u00A0]*₺/gi,    // 3,199 ₺
+        /3199[\s\u00A0]*₺/gi      // 3199 ₺
+      ];
+      
+      for (const pattern of turkishPricePatterns) {
+        const match = html.match(pattern);
+        if (match) {
+          console.log(`🎯 FOUND Turkish price format: "${match[0]}"`);
+          originalPrice = 3199; // Normalize to standard number
+          console.log('💰 USING 3199 TL as original price (Turkish format detected)');
+          priceFound = true;
+          break;
+        }
       }
     }
     

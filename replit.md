@@ -98,6 +98,9 @@ The application is designed for deployment on Replit with the following consider
 - July 04, 2025: Hex color variant system completed with proper colorCode field mapping (#049B24, #000000)
 - July 04, 2025: Accurate price detection achieved for 3199 TL products with 15% profit margin calculation
 - July 04, 2025: Broken authentic-trendyol-scraper replaced with working fixed-authentic-scraper in all endpoints
+- July 04, 2025: Enhanced price detection system with JSON-LD structured data priority for all products
+- July 04, 2025: Fixed frontend price display issues (4047 TL → 3679 TL) and decimal formatting errors
+- July 04, 2025: Backend now returns proper price structure with original and profit prices separately
 
 ## User Preferences
 
