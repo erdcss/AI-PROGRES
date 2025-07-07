@@ -19,7 +19,7 @@ import { Card, CardContent, CardDescription, CardFooter, CardHeader, CardTitle }
 import { Input } from "@/components/ui/input";
 import { Button } from "@/components/ui/button";
 import { Label } from "@/components/ui/label";
-import { Lock, ShieldCheck, AlertCircle } from "lucide-react";
+import { Lock, ShieldCheck, AlertCircle, CheckCircle } from "lucide-react";
 import { PageTransition } from "@/components/PageTransition";
 import { AIBrandLogo } from "@/components/AILogo";
 import ProductDataAnalysisPage from "@/pages/product-data-analysis";
