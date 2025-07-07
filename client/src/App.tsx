@@ -85,81 +85,89 @@ function LoginScreen({ onLogin }: { onLogin: () => void }) {
   };
   
   return (
-    <div className="flex items-center justify-center min-h-screen bg-gradient-to-b from-slate-900 to-slate-800">
-      <Card className="w-[380px] shadow-xl border-slate-700">
-        <CardHeader className="space-y-4">
-          <CardTitle className="text-2xl text-center">
-            <div className="flex items-center justify-center gap-2">
-              <Lock className="h-6 w-6 text-blue-500" />
-              <span>Veri Transfer Programı</span>
-            </div>
+    <div className="flex items-center justify-center min-h-screen bg-gradient-to-br from-blue-900 via-slate-900 to-indigo-900">
+      <Card className="w-[420px] shadow-2xl border-blue-700/50 bg-slate-800/95 backdrop-blur-sm">
+        <CardHeader className="space-y-6 text-center">
+          <div className="mx-auto w-16 h-16 bg-gradient-to-br from-blue-500 to-indigo-600 rounded-2xl flex items-center justify-center shadow-lg">
+            <Lock className="h-8 w-8 text-white" />
+          </div>
+          <CardTitle className="text-3xl font-bold bg-gradient-to-r from-blue-400 to-indigo-400 bg-clip-text text-transparent">
+            Veri Transfer Programı
           </CardTitle>
+          <CardDescription className="text-slate-300 text-lg">
+            Güvenli sistem erişimi için kimlik doğrulama
+          </CardDescription>
           {success && (
-            <CardDescription className="text-center">
-              <span className="text-green-500 font-bold animate-pulse">
+            <div className="p-4 bg-green-900/30 rounded-xl border border-green-500/30">
+              <span className="text-green-400 font-semibold animate-pulse flex items-center justify-center gap-2">
+                <CheckCircle className="h-5 w-5" />
                 Giriş başarılı, sistem aktif ediliyor... ({countdown}s)
               </span>
-            </CardDescription>
+            </div>
           )}
         </CardHeader>
         {!success && (
           <>
-            <CardContent className="space-y-4">
-              <div className="space-y-2">
-                <Label htmlFor="password">Şifre</Label>
+            <CardContent className="space-y-6 px-8">
+              <div className="space-y-3">
+                <Label htmlFor="password" className="text-sm font-medium text-slate-300">
+                  Şifre
+                </Label>
                 <Input
                   id="password"
                   type="password"
-                  placeholder="Lütfen şifreyi giriniz"
+                  placeholder="••••••••"
                   value={password}
                   onChange={(e) => setPassword(e.target.value)}
                   onKeyDown={handleKeyDown}
-                  className={error ? "border-red-500" : ""}
+                  className={`h-12 text-lg bg-slate-700/50 border-slate-600 text-white placeholder:text-slate-400 focus:border-blue-500 focus:ring-blue-500/20 rounded-xl ${error ? "border-red-500 focus:border-red-500" : ""}`}
                   autoFocus
                 />
                 {error && (
-                  <div className="text-sm text-red-500 flex items-center gap-1 animate-pulse">
+                  <div className="text-sm text-red-400 flex items-center gap-2 p-3 bg-red-900/20 rounded-lg border border-red-500/30 animate-pulse">
                     <AlertCircle className="h-4 w-4" />
                     <span>Hatalı şifre</span>
                   </div>
                 )}
               </div>
               
-              <div className="space-y-2">
-                <Label htmlFor="captcha">Güvenlik sorusu: {num1} + {num2} = ?</Label>
+              <div className="space-y-3">
+                <Label htmlFor="captcha" className="text-sm font-medium text-slate-300">
+                  Güvenlik sorusu: {num1} + {num2} = ?
+                </Label>
                 <Input
                   id="captcha"
                   type="text"
                   value={sum}
                   onChange={(e) => setSum(e.target.value)}
                   onKeyDown={handleKeyDown}
-                  className={captchaError ? "border-red-500" : ""}
-                  placeholder="Lütfen toplamı yazın"
+                  className={`h-12 text-lg bg-slate-700/50 border-slate-600 text-white placeholder:text-slate-400 focus:border-blue-500 focus:ring-blue-500/20 rounded-xl ${captchaError ? "border-red-500 focus:border-red-500" : ""}`}
+                  placeholder="Toplamı yazın"
                 />
                 {captchaError && (
-                  <div className="text-sm text-red-500 flex items-center gap-1 animate-pulse">
+                  <div className="text-sm text-red-400 flex items-center gap-2 p-3 bg-red-900/20 rounded-lg border border-red-500/30 animate-pulse">
                     <AlertCircle className="h-4 w-4" />
                     <span>Hatalı toplama</span>
                   </div>
                 )}
               </div>
             </CardContent>
-            <CardFooter className="flex flex-col gap-3">
+            <CardFooter className="flex flex-col gap-4 px-8 pb-8">
               <Button 
                 onClick={handleLogin} 
-                className="w-full" 
+                className="w-full h-12 text-lg font-semibold bg-gradient-to-r from-blue-600 to-indigo-600 hover:from-blue-700 hover:to-indigo-700 rounded-xl shadow-lg transform transition-all duration-200 hover:scale-105 border-0" 
                 variant="default"
               >
-                <ShieldCheck className="mr-2 h-4 w-4" />
+                <ShieldCheck className="mr-2 h-5 w-5" />
                 Giriş Yap
               </Button>
               
               <div className="flex justify-center">
-                <div className="flex items-center gap-2 scale-75">
-                  <div className="w-6 h-6 bg-gradient-to-r from-blue-500 to-purple-600 rounded-lg flex items-center justify-center">
-                    <span className="text-white text-xs font-bold">AI</span>
+                <div className="flex items-center gap-3 px-4 py-2 bg-slate-700/50 rounded-full border border-slate-600/50">
+                  <div className="w-8 h-8 bg-gradient-to-r from-blue-500 to-indigo-600 rounded-lg flex items-center justify-center shadow-sm">
+                    <span className="text-white text-sm font-bold">AI</span>
                   </div>
-                  <span className="text-xs text-gray-400 font-medium">Yapay Zeka Destekli</span>
+                  <span className="text-sm text-slate-300 font-medium">Yapay Zeka Destekli</span>
                 </div>
               </div>
             </CardFooter>

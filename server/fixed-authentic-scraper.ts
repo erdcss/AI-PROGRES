@@ -255,10 +255,64 @@ export async function fixedAuthenticScrape(url: string): Promise<FixedProductDat
       }
     });
     
-    $('[data-testid*="size"], .variant-size, .size-option, [class*="size"], [class*="beden"], .variant-item, .variant-option').each((i, el) => {
+    // Track size stock status
+    const sizeStockMap = new Map<string, boolean>();
+    
+    // Enhanced stock detection with Trendyol-specific patterns
+    $('[data-testid*="size"], .variant-size, .size-option, [class*="size"], [class*="beden"], .variant-item, .variant-option, .product-option, .option-container').each((i, el) => {
       const sizeText = $(el).text().trim();
       if (sizeText && sizeText.length < 20 && /^(XS|S|M|L|XL|XXL|XXXL|\d+|3[6-9]|4[0-9]|5[0-9]|Tek Beden|One Size)$/i.test(sizeText)) {
         extractedSizes.add(sizeText);
+        
+        // Enhanced stock detection
+        const isDisabled = $(el).attr('disabled') === 'disabled' || 
+                          $(el).hasClass('disabled') || 
+                          $(el).hasClass('sold-out') ||
+                          $(el).hasClass('out-of-stock') ||
+                          $(el).hasClass('unavailable') ||
+                          $(el).hasClass('is-disabled') ||
+                          $(el).hasClass('not-available') ||
+                          $(el).attr('aria-disabled') === 'true';
+        
+        // Check parent elements for stock indicators
+        const parentDisabled = $(el).parent().hasClass('disabled') || 
+                              $(el).parent().hasClass('sold-out') ||
+                              $(el).parent().hasClass('out-of-stock') ||
+                              $(el).parent().hasClass('unavailable') ||
+                              $(el).parent().hasClass('is-disabled') ||
+                              $(el).parent().hasClass('not-available');
+        
+        // Check for visual indicators (opacity, grayscale, etc.)
+        const hasLowOpacity = $(el).css('opacity') === '0.5' || 
+                             $(el).css('opacity') === '0.4' ||
+                             $(el).css('opacity') === '0.3' ||
+                             $(el).css('opacity') === '0.6';
+        
+        // Check for clickability
+        const isNotClickable = $(el).css('pointer-events') === 'none' ||
+                              $(el).css('cursor') === 'not-allowed';
+        
+        // Check for text indicators
+        const hasOutOfStockText = $(el).text().toLowerCase().includes('sold out') ||
+                                 $(el).text().toLowerCase().includes('stokta yok') ||
+                                 $(el).text().toLowerCase().includes('tükendi') ||
+                                 $(el).text().toLowerCase().includes('mevcut değil') ||
+                                 $(el).text().toLowerCase().includes('satışta değil');
+        
+        // Check if element is grayed out or crossed out
+        const isGrayedOut = $(el).hasClass('grayed-out') || 
+                           $(el).hasClass('crossed-out') ||
+                           $(el).hasClass('strikethrough');
+        
+        // Default to in-stock unless proven otherwise
+        const isInStock = !(isDisabled || parentDisabled || hasLowOpacity || hasOutOfStockText || isNotClickable || isGrayedOut);
+        sizeStockMap.set(sizeText, isInStock);
+        
+        // Enhanced logging for debugging
+        console.log(`📏 Size "${sizeText}" detected - Stock: ${isInStock ? '✅ IN STOCK' : '🚫 OUT OF STOCK'}`);
+        if (!isInStock) {
+          console.log(`   🔍 Reasons: disabled=${isDisabled}, parent=${parentDisabled}, opacity=${hasLowOpacity}, text=${hasOutOfStockText}, clickable=${isNotClickable}, grayed=${isGrayedOut}`);
+        }
       }
     });
     
@@ -297,13 +351,25 @@ export async function fixedAuthenticScrape(url: string): Promise<FixedProductDat
         });
       }
       
-      // Look for individual size entries
+      // Look for individual size entries with stock status
       const sizeMatches = scriptContent.match(/"size"\s*:\s*"([^"]+)"|"beden"\s*:\s*"([^"]+)"/g);
       if (sizeMatches) {
         sizeMatches.forEach(match => {
           const size = match.match(/"size"\s*:\s*"([^"]+)"|"beden"\s*:\s*"([^"]+)"/)?.[1] || match.match(/"size"\s*:\s*"([^"]+)"|"beden"\s*:\s*"([^"]+)"/)?.[2];
           if (size && size.length < 20 && /^(XS|S|M|L|XL|XXL|XXXL|\d+|3[6-9]|4[0-9]|5[0-9]|Tek Beden|One Size)$/i.test(size)) {
             extractedSizes.add(size);
+            
+            // Look for stock information in the same script section
+            const stockRegex = new RegExp(`"size"\\s*:\\s*"${size.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')}"[^}]*"(?:stock|stok|available|inventory|miktar)"\\s*:\\s*(\\d+|false|true)`, 'i');
+            const stockMatch = scriptContent.match(stockRegex);
+            if (stockMatch) {
+              const stockValue = stockMatch[1].toLowerCase();
+              const isInStock = stockValue !== 'false' && stockValue !== '0';
+              sizeStockMap.set(size, isInStock);
+              if (!isInStock) {
+                console.log(`🚫 Size "${size}" detected as OUT OF STOCK from JSON data (stock: ${stockValue})`);
+              }
+            }
           }
         });
       }
@@ -417,14 +483,17 @@ export async function fixedAuthenticScrape(url: string): Promise<FixedProductDat
     const limitedColors = colors.slice(0, maxColors);
     const limitedSizes = sizes.slice(0, maxSizes);
     
-    // Create variant combinations
+    // Create variant combinations with authentic stock status
     for (const color of limitedColors) {
       for (const size of limitedSizes) {
+        // Get actual stock status from our detection, default to true if not found
+        const stockStatus = sizeStockMap.get(size) !== undefined ? sizeStockMap.get(size)! : true;
+        
         variants.push({
           color: color,
           colorCode: getColorCode(color),
           size: size,
-          inStock: true // Default to true, could be enhanced with stock detection
+          inStock: stockStatus
         });
       }
     }
