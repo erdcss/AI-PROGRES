@@ -99,39 +99,39 @@ const MainDashboard = () => {
   };
 
   return (
-    <div className="min-h-screen bg-gradient-to-br from-blue-900 via-slate-900 to-indigo-900 flex items-center justify-center p-6">
+    <div className="min-h-screen bg-gradient-to-br from-blue-900 via-slate-900 to-indigo-900 flex items-center justify-center p-3 sm:p-6">
       <div className="max-w-7xl w-full">
         {/* Header */}
         <motion.div
           initial={{ opacity: 0, y: -20 }}
           animate={{ opacity: 1, y: 0 }}
-          className="text-center mb-12"
+          className="text-center mb-8 sm:mb-12"
         >
-          <h1 className="text-4xl font-bold text-white mb-4">
+          <h1 className="text-2xl sm:text-3xl lg:text-4xl font-bold text-white mb-3 sm:mb-4">
             E-ticaret Veri Merkezi
           </h1>
-          <p className="text-gray-300 text-lg mb-6">
+          <p className="text-gray-300 text-sm sm:text-base lg:text-lg mb-4 sm:mb-6 px-4 sm:px-0">
             Ürün veri aktarım işlemleri ve sistem kontrol merkezi
           </p>
           <RealTimeClock />
         </motion.div>
 
-        <div className="grid lg:grid-cols-2 gap-8">
+        <div className="grid lg:grid-cols-2 gap-6 sm:gap-8">
           {/* Ürün Veri Aktarım İşlemleri */}
           <motion.div
             initial={{ opacity: 0, x: -50 }}
             animate={{ opacity: 1, x: 0 }}
             transition={{ delay: 0.2 }}
-            className="bg-slate-800/30 backdrop-blur-sm rounded-2xl p-6 border border-blue-500/20"
+            className="bg-slate-800/30 backdrop-blur-sm rounded-2xl p-4 sm:p-6 border border-blue-500/20"
           >
-            <div className="flex items-center gap-3 mb-6">
-              <Database className="w-8 h-8 text-blue-400" />
-              <h2 className="text-2xl font-bold text-white">
+            <div className="flex items-center gap-3 mb-4 sm:mb-6">
+              <Database className="w-6 h-6 sm:w-8 sm:h-8 text-blue-400" />
+              <h2 className="text-lg sm:text-xl lg:text-2xl font-bold text-white">
                 Ürün Veri Aktarım İşlemleri
               </h2>
             </div>
             
-            <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+            <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 sm:gap-4">
               {dataTransferOptions.map((option, index) => (
                 <motion.div
                   key={option.name}
@@ -141,22 +141,24 @@ const MainDashboard = () => {
                   onClick={() => handleOptionClick(option)}
                   className={`
                     relative overflow-hidden rounded-xl cursor-pointer
-                    bg-gradient-to-br ${option.color} p-4
+                    bg-gradient-to-br ${option.color} p-3 sm:p-4
                     transform transition-all duration-300 hover:scale-105 hover:shadow-xl
                     ${!option.available ? 'opacity-50 cursor-not-allowed' : ''}
                   `}
                 >
                   <div className="relative z-10">
                     <div className="flex items-center justify-between mb-2">
-                      {option.icon}
+                      <div className="w-6 h-6 sm:w-8 sm:h-8 flex items-center justify-center">
+                        {option.icon}
+                      </div>
                       {option.available && (
-                        <ArrowRight className="w-5 h-5 text-white/80" />
+                        <ArrowRight className="w-4 h-4 sm:w-5 sm:h-5 text-white/80" />
                       )}
                     </div>
-                    <h3 className="text-lg font-bold text-white mb-1">
+                    <h3 className="text-base sm:text-lg font-bold text-white mb-1">
                       {option.name}
                     </h3>
-                    <p className="text-white/80 text-sm">
+                    <p className="text-white/80 text-xs sm:text-sm">
                       {option.description}
                     </p>
                     {!option.available && (
@@ -182,11 +184,11 @@ const MainDashboard = () => {
             initial={{ opacity: 0, x: 50 }}
             animate={{ opacity: 1, x: 0 }}
             transition={{ delay: 0.4 }}
-            className="bg-slate-800/30 backdrop-blur-sm rounded-2xl p-6 border border-blue-500/20"
+            className="bg-slate-800/30 backdrop-blur-sm rounded-2xl p-4 sm:p-6 border border-blue-500/20"
           >
-            <div className="flex items-center gap-3 mb-6">
-              <Activity className="w-8 h-8 text-red-400" />
-              <h2 className="text-2xl font-bold text-white">
+            <div className="flex items-center gap-3 mb-4 sm:mb-6">
+              <Activity className="w-6 h-6 sm:w-8 sm:h-8 text-red-400" />
+              <h2 className="text-lg sm:text-xl lg:text-2xl font-bold text-white">
                 Sistem Donanım ve Kontrol Merkezi
               </h2>
             </div>

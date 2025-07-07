@@ -96,22 +96,22 @@ export function SimpleProductPreview({ product }: SimpleProductPreviewProps) {
       {/* Modern Header with Background Pattern */}
       <div className="relative">
         <div className="absolute inset-0 bg-gradient-to-r from-green-500/10 to-emerald-500/10"></div>
-        <div className="relative p-8 border-b border-slate-700/50">
-          <div className="flex items-center justify-between">
-            <div className="flex items-center gap-6">
+        <div className="relative p-4 sm:p-8 border-b border-slate-700/50">
+          <div className="flex items-center justify-between flex-col sm:flex-row gap-4 sm:gap-0">
+            <div className="flex items-center gap-4 sm:gap-6">
               <div className="relative">
-                <div className="bg-gradient-to-br from-green-500 to-emerald-600 p-4 rounded-2xl shadow-lg">
-                  <Package className="h-8 w-8 text-white" />
+                <div className="bg-gradient-to-br from-green-500 to-emerald-600 p-3 sm:p-4 rounded-2xl shadow-lg">
+                  <Package className="h-6 w-6 sm:h-8 sm:w-8 text-white" />
                 </div>
                 <div className="absolute -top-2 -right-2 bg-blue-500 rounded-full p-1 animate-pulse">
-                  <div className="h-3 w-3 bg-white rounded-full"></div>
+                  <div className="h-2 w-2 sm:h-3 sm:w-3 bg-white rounded-full"></div>
                 </div>
               </div>
-              <div>
-                <h2 className="text-3xl font-bold bg-gradient-to-r from-white to-slate-300 bg-clip-text text-transparent">
+              <div className="text-center sm:text-left">
+                <h2 className="text-xl sm:text-2xl lg:text-3xl font-bold bg-gradient-to-r from-white to-slate-300 bg-clip-text text-transparent">
                   Ürün Başarıyla Çıkarıldı
                 </h2>
-                <p className="text-slate-400 text-lg mt-1">AI destekli analiz tamamlandı</p>
+                <p className="text-slate-400 text-sm sm:text-base lg:text-lg mt-1">AI destekli analiz tamamlandı</p>
               </div>
             </div>
           </div>
@@ -119,13 +119,13 @@ export function SimpleProductPreview({ product }: SimpleProductPreviewProps) {
       </div>
 
       {/* Modern Product Info Grid */}
-      <div className="p-8 space-y-8">
-        <div className="grid grid-cols-1 lg:grid-cols-2 gap-8">
+      <div className="p-4 sm:p-8 space-y-6 sm:space-y-8">
+        <div className="grid grid-cols-1 lg:grid-cols-2 gap-6 sm:gap-8">
           {/* Enhanced Basic Info */}
-          <div className="bg-gradient-to-br from-slate-700/30 to-slate-800/30 backdrop-blur-sm p-8 rounded-2xl border border-slate-600/30">
-            <h3 className="text-xl font-bold text-white mb-6 flex items-center gap-3">
+          <div className="bg-gradient-to-br from-slate-700/30 to-slate-800/30 backdrop-blur-sm p-4 sm:p-8 rounded-2xl border border-slate-600/30">
+            <h3 className="text-lg sm:text-xl font-bold text-white mb-4 sm:mb-6 flex items-center gap-3">
               <div className="bg-blue-500 p-2 rounded-lg">
-                <Package className="h-5 w-5 text-white" />
+                <Package className="h-4 w-4 sm:h-5 sm:w-5 text-white" />
               </div>
               Ürün Bilgileri
             </h3>

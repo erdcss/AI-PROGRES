@@ -1052,38 +1052,39 @@ function ScraperPage({ platform = 'trendyol' }: ScraperPageProps) {
 
   return (
     <div className="fixed inset-0 bg-gradient-to-br from-slate-900 via-blue-900 to-indigo-900 text-white overflow-auto">
-      <div className="min-h-full p-4 relative">
+      <div className="min-h-full p-2 sm:p-4 relative">
         {/* Real-time Clock - Top Right */}
-        <div className="absolute top-4 right-4 z-10">
+        <div className="absolute top-2 sm:top-4 right-2 sm:right-4 z-10">
           <RealTimeClock />
         </div>
         
         {/* Navigation Header */}
-        <div className="max-w-2xl mx-auto mb-6">
+        <div className="max-w-2xl mx-auto mb-4 sm:mb-6">
           <Button
             variant="ghost"
             onClick={() => setLocation("/")}
-            className="text-gray-400 hover:text-white flex items-center gap-2"
+            className="text-gray-400 hover:text-white flex items-center gap-2 text-sm sm:text-base"
           >
             <Home className="h-4 w-4" />
-            <span>Marketplace Seçimi</span>
+            <span className="hidden sm:inline">Marketplace Seçimi</span>
+            <span className="sm:hidden">Geri</span>
           </Button>
         </div>
         
-        <div className="max-w-2xl mx-auto space-y-6">
+        <div className="max-w-2xl mx-auto space-y-4 sm:space-y-6">
           <motion.div
             initial={false}
             animate={product ? { y: -20, scale: 0.95, opacity: 0.8 } : { y: 0, scale: 1, opacity: 1 }}
             className=""
           >
-            <div className="bg-gradient-to-br from-blue-900/40 to-indigo-900/40 backdrop-blur-sm rounded-2xl border border-blue-500/30 p-8 mb-6 shadow-2xl">
+            <div className="bg-gradient-to-br from-blue-900/40 to-indigo-900/40 backdrop-blur-sm rounded-2xl border border-blue-500/30 p-4 sm:p-8 mb-4 sm:mb-6 shadow-2xl">
               {/* Header Row */}
-              <div className="flex items-center justify-between mb-6">
-              <div className="flex items-center gap-6">
+              <div className="flex items-center justify-between mb-4 sm:mb-6">
+              <div className="flex items-center gap-3 sm:gap-6">
                 {/* Logo */}
                 <div className="relative">
-                  <div className="w-12 h-12 bg-gradient-to-br from-blue-500 via-blue-600 to-indigo-600 rounded-2xl flex items-center justify-center shadow-xl">
-                    <span className="text-white font-bold text-xl">T</span>
+                  <div className="w-10 h-10 sm:w-12 sm:h-12 bg-gradient-to-br from-blue-500 via-blue-600 to-indigo-600 rounded-2xl flex items-center justify-center shadow-xl">
+                    <span className="text-white font-bold text-lg sm:text-xl">T</span>
                   </div>
                   <div className="absolute -top-1 -right-1 bg-cyan-400 rounded-full p-1 animate-pulse">
                     <div className="h-2 w-2 bg-white rounded-full"></div>
@@ -1092,21 +1093,22 @@ function ScraperPage({ platform = 'trendyol' }: ScraperPageProps) {
                 
                 {/* Brand & Title */}
                 <div>
-                  <div className="flex items-center gap-3 mb-1">
-                    <h1 className="text-xl font-bold text-blue-400">Trendyol</h1>
-                    <span className="text-gray-500">•</span>
-                    <h2 className="text-xl font-bold bg-gradient-to-r from-white to-gray-300 bg-clip-text text-transparent">
-                      Ürün Aktarıcı
+                  <div className="flex items-center gap-2 sm:gap-3 mb-1">
+                    <h1 className="text-lg sm:text-xl font-bold text-blue-400">Trendyol</h1>
+                    <span className="text-gray-500 hidden sm:inline">•</span>
+                    <h2 className="text-lg sm:text-xl font-bold bg-gradient-to-r from-white to-gray-300 bg-clip-text text-transparent">
+                      <span className="hidden sm:inline">Ürün Aktarıcı</span>
+                      <span className="sm:hidden">Aktarıcı</span>
                     </h2>
                   </div>
-                  <p className="text-sm text-gray-400">
+                  <p className="text-xs sm:text-sm text-gray-400">
                     Trendyol ürün verilerini Shopify'a uyumlu formata dönüştürün
                   </p>
                 </div>
               </div>
               
               {/* Version & Developer Info */}
-              <div className="text-right text-xs text-gray-500 space-y-1">
+              <div className="text-right text-xs text-gray-500 space-y-1 hidden sm:block">
                 <div className="flex items-center gap-2 justify-end">
                   <div className="h-1.5 w-1.5 bg-cyan-400 rounded-full animate-pulse"></div>
                   <span>trendyol.com için optimize edilmiştir</span>
@@ -1121,9 +1123,10 @@ function ScraperPage({ platform = 'trendyol' }: ScraperPageProps) {
             
             {/* Info Badge */}
             <div className="text-center">
-              <div className="inline-flex items-center gap-2 bg-blue-900/30 px-4 py-2 rounded-lg text-blue-200 text-sm border border-blue-500/20">
+              <div className="inline-flex items-center gap-2 bg-blue-900/30 px-3 sm:px-4 py-2 rounded-lg text-blue-200 text-xs sm:text-sm border border-blue-500/20">
                 <div className="h-2 w-2 bg-cyan-400 rounded-full animate-pulse"></div>
-                <span>AI destekli analiz ve Shopify uyumlu CSV dönüştürme</span>
+                <span className="hidden sm:inline">AI destekli analiz ve Shopify uyumlu CSV dönüştürme</span>
+                <span className="sm:hidden">AI destekli CSV dönüştürme</span>
               </div>
             </div>
           </div>

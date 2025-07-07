@@ -20,9 +20,10 @@ export const RealTimeClock = ({ className = "" }: { className?: string }) => {
   }, []);
 
   return (
-    <Badge variant="secondary" className={`bg-white/10 text-white border-white/20 px-4 py-2 ${className}`}>
-      <Clock className="h-4 w-4 mr-2" />
-      {currentDateTime}
+    <Badge variant="secondary" className={`bg-white/10 text-white border-white/20 px-2 sm:px-4 py-1 sm:py-2 text-xs sm:text-sm ${className}`}>
+      <Clock className="h-3 w-3 sm:h-4 sm:w-4 mr-1 sm:mr-2" />
+      <span className="hidden sm:inline">{currentDateTime}</span>
+      <span className="sm:hidden">{currentDateTime.split(' ')[1]}</span>
     </Badge>
   );
 };
