@@ -51,10 +51,10 @@ export async function ultraFastScrape(url: string): Promise<UltraFastProductData
     // 4. Lightning images - top 5 only
     const images = (html.match(/https:\/\/cdn\.dsmcdn\.com[^"'\s]*_org_zoom\.jpg/g) || []).slice(0, 5);
     
-    // 5. Lightning variants - defaults only
-    const colors = ['Tek Renk'];
-    const sizes = ['Tek Beden'];
-    const stockMap = { 'Tek Renk-Tek Beden': true };
+    // 5. Lightning variants - only real variants, no defaults
+    const colors: string[] = [];
+    const sizes: string[] = [];
+    const stockMap: Record<string, boolean> = {};
     
     // 6. Lightning attributes - skip complex parsing
     const attributes: Record<string, string> = {};

@@ -504,6 +504,8 @@ export async function fixedAuthenticScrape(url: string): Promise<FixedProductDat
     }
     
     if (hasRealVariants) {
+      const limitedColors = colors.slice(0, 10);
+      const limitedSizes = sizes.slice(0, 15);
       console.log(`✅ Variants created: ${variants.length} (${limitedColors.length} colors × ${limitedSizes.length} sizes)`);
     } else {
       console.log(`✅ No real variants found - returning product without fake variants`);

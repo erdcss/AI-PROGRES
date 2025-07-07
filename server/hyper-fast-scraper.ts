@@ -116,10 +116,10 @@ export async function hyperFastScrape(url: string): Promise<HyperFastProductData
       }
     }
     
-    // Enhanced variant extraction
-    let colors = ['Tek Renk'];
-    let sizes = ['Tek Beden'];
-    let stockMap: Record<string, boolean> = { 'Tek Renk-Tek Beden': true };
+    // Enhanced variant extraction - only return real variants
+    let colors: string[] = [];
+    let sizes: string[] = [];
+    let stockMap: Record<string, boolean> = {};
     
     // Extract real variants from script data
     const variantScriptMatch = html.match(/variants["\s]*:[^}]+}/gi);
