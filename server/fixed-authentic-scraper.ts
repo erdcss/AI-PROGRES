@@ -247,17 +247,63 @@ export async function fixedAuthenticScrape(url: string): Promise<FixedProductDat
     }
     
     // 2. Extract from DOM elements (variant selectors)
-    $('[data-testid*="color"], .variant-color, .color-option').each((i, el) => {
+    $('[data-testid*="color"], .variant-color, .color-option, [class*="color"], [class*="renk"]').each((i, el) => {
       const colorText = $(el).text().trim();
-      if (colorText) extractedColors.add(colorText);
+      if (colorText && colorText.length < 30) extractedColors.add(colorText);
     });
     
-    $('[data-testid*="size"], .variant-size, .size-option').each((i, el) => {
+    $('[data-testid*="size"], .variant-size, .size-option, [class*="size"], [class*="beden"], .variant-item, .variant-option').each((i, el) => {
       const sizeText = $(el).text().trim();
-      if (sizeText) extractedSizes.add(sizeText);
+      if (sizeText && sizeText.length < 20 && /^(XS|S|M|L|XL|XXL|XXXL|\d+|3[6-9]|4[0-9]|5[0-9]|Tek Beden|One Size)$/i.test(sizeText)) {
+        extractedSizes.add(sizeText);
+      }
     });
     
-    // 3. Extract from features (fallback)
+    // 3. Extract from script tags containing variant data
+    $('script').each((i, el) => {
+      const scriptContent = $(el).html() || '';
+      
+      // Look for color variants in script content
+      const colorMatches = scriptContent.match(/"color"\s*:\s*"([^"]+)"/g);
+      if (colorMatches) {
+        colorMatches.forEach(match => {
+          const color = match.match(/"color"\s*:\s*"([^"]+)"/)?.[1];
+          if (color && color.length < 30) extractedColors.add(color);
+        });
+      }
+      
+      // Look for size variants in script content
+      const sizeArrayMatches = scriptContent.match(/"size"\s*:\s*\[([^\]]*)\]/g);
+      if (sizeArrayMatches) {
+        sizeArrayMatches.forEach(match => {
+          const sizesArray = match.match(/"size"\s*:\s*\[([^\]]*)\]/)?.[1];
+          if (sizesArray) {
+            const sizes = sizesArray.match(/"([^"]+)"/g);
+            if (sizes) {
+              sizes.forEach(sizeMatch => {
+                const size = sizeMatch.replace(/"/g, '');
+                if (size && size.length < 20 && /^(XS|S|M|L|XL|XXL|XXXL|\d+|3[6-9]|4[0-9]|5[0-9]|Tek Beden|One Size)$/i.test(size)) {
+                  extractedSizes.add(size);
+                }
+              });
+            }
+          }
+        });
+      }
+      
+      // Look for individual size entries
+      const sizeMatches = scriptContent.match(/"size"\s*:\s*"([^"]+)"|"beden"\s*:\s*"([^"]+)"/g);
+      if (sizeMatches) {
+        sizeMatches.forEach(match => {
+          const size = match.match(/"size"\s*:\s*"([^"]+)"|"beden"\s*:\s*"([^"]+)"/)?.[1] || match.match(/"size"\s*:\s*"([^"]+)"|"beden"\s*:\s*"([^"]+)"/)?.[2];
+          if (size && size.length < 20 && /^(XS|S|M|L|XL|XXL|XXXL|\d+|3[6-9]|4[0-9]|5[0-9]|Tek Beden|One Size)$/i.test(size)) {
+            extractedSizes.add(size);
+          }
+        });
+      }
+    });
+    
+    // 4. Extract from features (fallback)
     const foundColors = features.filter(f => f.key === 'Renk' || f.key === 'Color').map(f => f.value);
     const foundSizes = features.filter(f => f.key === 'Beden' || f.key === 'Size').map(f => f.value);
     
@@ -295,7 +341,9 @@ export async function fixedAuthenticScrape(url: string): Promise<FixedProductDat
         'krem': '#F5F5DC',
         'cream': '#F5F5DC',
         'bej': '#F5F5DC',
-        'beige': '#F5F5DC'
+        'beige': '#F5F5DC',
+        'kahve': '#8B4513',
+        'coffee': '#8B4513'
       };
       
       const lowerColor = color.toLowerCase();
@@ -320,16 +368,36 @@ export async function fixedAuthenticScrape(url: string): Promise<FixedProductDat
       return colorMap[lowerColor] || (color.startsWith('#') ? color : '#1E40AF');
     };
     
-    // Create variants from extracted data
-    const colors = Array.from(extractedColors).filter(c => c.length > 0);
-    const sizes = Array.from(extractedSizes).filter(s => s.length > 0);
+    // Clean and deduplicate color and size data
+    const colors = Array.from(extractedColors)
+      .filter(c => c.length > 0 && c.length < 30)
+      .filter((color, index, arr) => {
+        // Remove duplicates and similar colors
+        const lowerColor = color.toLowerCase();
+        return arr.findIndex(c => c.toLowerCase() === lowerColor) === index;
+      });
     
+    const sizes = Array.from(extractedSizes)
+      .filter(s => s.length > 0 && s.length < 20)
+      .filter((size, index, arr) => {
+        // Remove duplicates
+        const lowerSize = size.toLowerCase();
+        return arr.findIndex(s => s.toLowerCase() === lowerSize) === index;
+      });
+    
+    // Only add defaults if nothing was found
     if (colors.length === 0) colors.push('Standart');
     if (sizes.length === 0) sizes.push('Tek Beden');
     
+    // Limit to reasonable number of variants to avoid overwhelming output
+    const maxColors = 10;
+    const maxSizes = 15;
+    const limitedColors = colors.slice(0, maxColors);
+    const limitedSizes = sizes.slice(0, maxSizes);
+    
     // Create variant combinations
-    for (const color of colors) {
-      for (const size of sizes) {
+    for (const color of limitedColors) {
+      for (const size of limitedSizes) {
         variants.push({
           color: color,
           colorCode: getColorCode(color),
@@ -339,7 +407,7 @@ export async function fixedAuthenticScrape(url: string): Promise<FixedProductDat
       }
     }
     
-    console.log(`✅ Variants created: ${variants.length} (${colors.length} colors × ${sizes.length} sizes)`);
+    console.log(`✅ Variants created: ${variants.length} (${limitedColors.length} colors × ${limitedSizes.length} sizes)`);
     
     return {
       success: true,
