@@ -15,48 +15,48 @@ const MainDashboard = () => {
     {
       name: "Trendyol",
       description: "Ürün çıkarma ve Shopify aktarım",
-      icon: <Store className="w-8 h-8 text-red-500" />,
-      color: "from-red-500 to-red-600",
+      icon: <Store className="w-8 h-8 text-blue-400" />,
+      color: "from-blue-500 to-blue-600",
       available: true,
       path: "/scraper/trendyol"
     },
     {
       name: "Hepsiburada", 
       description: "Ürün çıkarma sistemi",
-      icon: <ShoppingCart className="w-8 h-8 text-orange-500" />,
-      color: "from-orange-500 to-orange-600",
+      icon: <ShoppingCart className="w-8 h-8 text-slate-400" />,
+      color: "from-slate-500 to-slate-600",
       available: false,
       path: "/coming-soon/hepsiburada"
     },
     {
       name: "Amazon",
       description: "Ürün çıkarma sistemi",
-      icon: <Package className="w-8 h-8 text-yellow-500" />,
-      color: "from-yellow-500 to-yellow-600", 
+      icon: <Package className="w-8 h-8 text-slate-400" />,
+      color: "from-slate-500 to-slate-600", 
       available: false,
       path: "/coming-soon/amazon"
     },
     {
       name: "N11",
       description: "Ürün çıkarma sistemi", 
-      icon: <Truck className="w-8 h-8 text-purple-500" />,
-      color: "from-purple-500 to-purple-600",
+      icon: <Truck className="w-8 h-8 text-slate-400" />,
+      color: "from-slate-500 to-slate-600",
       available: false,
       path: "/coming-soon/n11"
     },
     {
       name: "Ürün Veri Analizi",
       description: "Hafıza sistemi ve analiz",
-      icon: <BarChart3 className="w-8 h-8 text-blue-500" />,
-      color: "from-blue-500 to-blue-600",
+      icon: <BarChart3 className="w-8 h-8 text-indigo-400" />,
+      color: "from-indigo-500 to-indigo-600",
       available: true,
       path: "/data-analysis"
     },
     {
       name: "Ürün Yorumları",
       description: "Yorum çıkarma ve yönetim",
-      icon: <MessageSquare className="w-8 h-8 text-green-500" />,
-      color: "from-green-500 to-green-600",
+      icon: <MessageSquare className="w-8 h-8 text-blue-400" />,
+      color: "from-blue-500 to-blue-600",
       available: true,
       path: "/reviews"
     }
@@ -67,24 +67,24 @@ const MainDashboard = () => {
     {
       name: "Sistem Durumu & Hata Merkezi",
       description: "Hata izleme ve sistem durumu",
-      icon: <Shield className="w-8 h-8 text-red-400" />,
-      color: "from-red-400 to-red-600",
+      icon: <Shield className="w-8 h-8 text-blue-400" />,
+      color: "from-blue-500 to-blue-600",
       available: true,
       path: "/system-status"
     },
     {
       name: "Replit.Agent",
       description: "AI kod asistanı ve geliştirme",
-      icon: <Bot className="w-8 h-8 text-cyan-400" />,
-      color: "from-cyan-400 to-cyan-600",
+      icon: <Bot className="w-8 h-8 text-indigo-400" />,
+      color: "from-indigo-500 to-indigo-600",
       available: true,
       path: "/replit-agent"
     },
     {
       name: "S.O.S Kontrol Merkezi",
       description: "Acil durum kontrol paneli",
-      icon: <AlertTriangle className="w-8 h-8 text-yellow-400" />,
-      color: "from-yellow-400 to-red-500",
+      icon: <AlertTriangle className="w-8 h-8 text-slate-400" />,
+      color: "from-slate-500 to-slate-600",
       available: true,
       path: "/sos-control"
     }
@@ -99,7 +99,7 @@ const MainDashboard = () => {
   };
 
   return (
-    <div className="min-h-screen bg-gradient-to-br from-gray-900 via-blue-900 to-purple-900 flex items-center justify-center p-6">
+    <div className="min-h-screen bg-gradient-to-br from-blue-900 via-slate-900 to-indigo-900 flex items-center justify-center p-6">
       <div className="max-w-7xl w-full">
         {/* Header */}
         <motion.div
@@ -122,7 +122,7 @@ const MainDashboard = () => {
             initial={{ opacity: 0, x: -50 }}
             animate={{ opacity: 1, x: 0 }}
             transition={{ delay: 0.2 }}
-            className="bg-black/20 backdrop-blur-sm rounded-2xl p-6 border border-white/10"
+            className="bg-slate-800/30 backdrop-blur-sm rounded-2xl p-6 border border-blue-500/20"
           >
             <div className="flex items-center gap-3 mb-6">
               <Database className="w-8 h-8 text-blue-400" />
@@ -182,7 +182,7 @@ const MainDashboard = () => {
             initial={{ opacity: 0, x: 50 }}
             animate={{ opacity: 1, x: 0 }}
             transition={{ delay: 0.4 }}
-            className="bg-black/20 backdrop-blur-sm rounded-2xl p-6 border border-white/10"
+            className="bg-slate-800/30 backdrop-blur-sm rounded-2xl p-6 border border-blue-500/20"
           >
             <div className="flex items-center gap-3 mb-6">
               <Activity className="w-8 h-8 text-red-400" />

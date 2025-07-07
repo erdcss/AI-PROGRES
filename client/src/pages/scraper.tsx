@@ -48,10 +48,10 @@ const PlatformLogos = {
     name: "Trendyol",
     logo: (
       <div className="flex items-center gap-3">
-        <div className="w-10 h-10 bg-gradient-to-r from-red-500 to-red-600 rounded-lg flex items-center justify-center">
+        <div className="w-10 h-10 bg-gradient-to-r from-blue-500 to-blue-600 rounded-lg flex items-center justify-center">
           <span className="text-white font-bold text-lg">T</span>
         </div>
-        <span className="text-2xl font-bold text-red-500">Trendyol</span>
+        <span className="text-2xl font-bold text-blue-400">Trendyol</span>
       </div>
     ),
     color: "red",
@@ -61,10 +61,10 @@ const PlatformLogos = {
     name: "Hepsiburada",
     logo: (
       <div className="flex items-center gap-3">
-        <div className="w-10 h-10 bg-gradient-to-r from-orange-500 to-orange-600 rounded-lg flex items-center justify-center">
+        <div className="w-10 h-10 bg-gradient-to-r from-slate-500 to-slate-600 rounded-lg flex items-center justify-center">
           <span className="text-white font-bold text-lg">H</span>
         </div>
-        <span className="text-2xl font-bold text-orange-500">Hepsiburada</span>
+        <span className="text-2xl font-bold text-slate-400">Hepsiburada</span>
       </div>
     ),
     color: "orange",
@@ -74,10 +74,10 @@ const PlatformLogos = {
     name: "Amazon",
     logo: (
       <div className="flex items-center gap-3">
-        <div className="w-10 h-10 bg-gradient-to-r from-yellow-500 to-yellow-600 rounded-lg flex items-center justify-center">
+        <div className="w-10 h-10 bg-gradient-to-r from-slate-500 to-slate-600 rounded-lg flex items-center justify-center">
           <span className="text-white font-bold text-lg">A</span>
         </div>
-        <span className="text-2xl font-bold text-yellow-500">Amazon</span>
+        <span className="text-2xl font-bold text-slate-400">Amazon</span>
       </div>
     ),
     color: "yellow",
@@ -87,10 +87,10 @@ const PlatformLogos = {
     name: "N11",
     logo: (
       <div className="flex items-center gap-3">
-        <div className="w-10 h-10 bg-gradient-to-r from-purple-500 to-purple-600 rounded-lg flex items-center justify-center">
+        <div className="w-10 h-10 bg-gradient-to-r from-indigo-500 to-indigo-600 rounded-lg flex items-center justify-center">
           <span className="text-white font-bold text-lg">N</span>
         </div>
-        <span className="text-2xl font-bold text-purple-500">N11</span>
+        <span className="text-2xl font-bold text-indigo-400">N11</span>
       </div>
     ),
     color: "purple",
