@@ -1066,8 +1066,8 @@ function ScraperPage({ platform = 'trendyol' }: ScraperPageProps) {
             className="text-gray-400 hover:text-white flex items-center gap-2 text-sm sm:text-base"
           >
             <Home className="h-4 w-4" />
-            <span className="hidden sm:inline">Marketplace Seçimi</span>
-            <span className="sm:hidden">Geri</span>
+            <span className="hidden sm:inline">Ana Sayfa</span>
+            <span className="sm:hidden">Ana Sayfa</span>
           </Button>
         </div>
         
@@ -1157,7 +1157,7 @@ function ScraperPage({ platform = 'trendyol' }: ScraperPageProps) {
           <form onSubmit={onSubmit} className="space-y-4">
             <div className="relative group">
               {/* URL Input Container with Enhanced Styling */}
-              <div className="relative bg-gradient-to-r from-gray-900/80 to-gray-800/80 backdrop-blur-sm rounded-2xl border border-blue-500/30 shadow-2xl transition-all duration-300 group-hover:border-blue-400/50 group-focus-within:border-blue-400/70 group-focus-within:shadow-blue-500/20 min-h-[80px]">
+              <div className="relative bg-gradient-to-r from-gray-900/80 to-gray-800/80 backdrop-blur-sm rounded-2xl border border-blue-500/30 shadow-2xl transition-all duration-300 group-hover:border-blue-400/50 group-focus-within:border-blue-400/70 group-focus-within:shadow-blue-500/20 min-h-[60px] sm:min-h-[80px]">
                 
                 {/* Clear Button */}
                 {form.watch("url") && (
@@ -1165,10 +1165,10 @@ function ScraperPage({ platform = 'trendyol' }: ScraperPageProps) {
                     type="button"
                     variant="ghost"
                     size="icon"
-                    className="absolute left-4 top-1/2 transform -translate-y-1/2 h-12 w-12 z-10 bg-gradient-to-r from-red-500/20 to-red-600/20 hover:from-red-500/30 hover:to-red-600/30 text-red-300 hover:text-red-200 border border-red-500/30 hover:border-red-400/50 rounded-xl transition-all duration-200"
+                    className="absolute left-2 sm:left-4 top-1/2 transform -translate-y-1/2 h-8 w-8 sm:h-12 sm:w-12 z-10 bg-gradient-to-r from-red-500/20 to-red-600/20 hover:from-red-500/30 hover:to-red-600/30 text-red-300 hover:text-red-200 border border-red-500/30 hover:border-red-400/50 rounded-xl transition-all duration-200"
                     onClick={() => form.setValue("url", "")}
                   >
-                    <XCircle className="h-6 w-6" />
+                    <XCircle className="h-4 w-4 sm:h-6 sm:w-6" />
                   </Button>
                 )}
                 
@@ -1177,23 +1177,23 @@ function ScraperPage({ platform = 'trendyol' }: ScraperPageProps) {
                   type="button"
                   variant="ghost"
                   size="icon"
-                  className="absolute left-[68px] top-1/2 transform -translate-y-1/2 h-12 w-12 z-10 bg-gradient-to-r from-blue-600/30 to-indigo-600/30 hover:from-blue-500/40 hover:to-indigo-500/40 text-blue-200 hover:text-blue-100 border border-blue-500/40 hover:border-blue-400/60 rounded-xl transition-all duration-200"
+                  className="absolute left-[42px] sm:left-[68px] top-1/2 transform -translate-y-1/2 h-8 w-8 sm:h-12 sm:w-12 z-10 bg-gradient-to-r from-blue-600/30 to-indigo-600/30 hover:from-blue-500/40 hover:to-indigo-500/40 text-blue-200 hover:text-blue-100 border border-blue-500/40 hover:border-blue-400/60 rounded-xl transition-all duration-200"
                   onClick={handlePaste}
                 >
-                  <Clipboard className="h-6 w-6" />
+                  <Clipboard className="h-4 w-4 sm:h-6 sm:w-6" />
                 </Button>
                 
                 {/* Enhanced Input Field */}
                 <Input
                   placeholder="Trendyol ürün linkini buraya yapıştırın (örn: https://www.trendyol.com/marka/urun-adi-p-123456)"
                   {...form.register("url")}
-                  className="h-20 pl-[140px] pr-32 bg-transparent border-none text-lg font-medium text-gray-100 placeholder:text-gray-400 focus:ring-0 focus:outline-none rounded-2xl leading-relaxed py-6"
+                  className="h-12 sm:h-20 pl-[100px] sm:pl-[140px] pr-20 sm:pr-32 bg-transparent border-none text-sm sm:text-lg font-medium text-gray-100 placeholder:text-gray-400 focus:ring-0 focus:outline-none rounded-2xl leading-relaxed py-3 sm:py-6"
                 />
                 
                 {/* Enhanced Submit Button */}
                 <Button
                   type="submit"
-                  className="absolute right-4 top-1/2 transform -translate-y-1/2 h-12 w-20 bg-gradient-to-r from-blue-600 via-blue-700 to-indigo-700 hover:from-blue-500 hover:via-blue-600 hover:to-indigo-600 text-white border border-blue-500/50 hover:border-blue-400/70 rounded-xl shadow-lg hover:shadow-blue-500/25 transition-all duration-200 disabled:opacity-50 disabled:cursor-not-allowed"
+                  className="absolute right-2 sm:right-4 top-1/2 transform -translate-y-1/2 h-8 w-12 sm:h-12 sm:w-20 bg-gradient-to-r from-blue-600 via-blue-700 to-indigo-700 hover:from-blue-500 hover:via-blue-600 hover:to-indigo-600 text-white border border-blue-500/50 hover:border-blue-400/70 rounded-xl shadow-lg hover:shadow-blue-500/25 transition-all duration-200 disabled:opacity-50 disabled:cursor-not-allowed"
                   disabled={scrapeMutation.isPending}
                 >
                   {scrapeMutation.isPending ? (
