@@ -473,32 +473,41 @@ export async function fixedAuthenticScrape(url: string): Promise<FixedProductDat
         return arr.findIndex(s => s.toLowerCase() === lowerSize) === index;
       });
     
-    // Only add defaults if nothing was found
-    if (colors.length === 0) colors.push('Standart');
-    if (sizes.length === 0) sizes.push('Tek Beden');
+    // Check if we found actual variants
+    const hasRealVariants = colors.length > 0 || sizes.length > 0;
     
-    // Limit to reasonable number of variants to avoid overwhelming output
-    const maxColors = 10;
-    const maxSizes = 15;
-    const limitedColors = colors.slice(0, maxColors);
-    const limitedSizes = sizes.slice(0, maxSizes);
-    
-    // Create variant combinations with authentic stock status
-    for (const color of limitedColors) {
-      for (const size of limitedSizes) {
-        // Get actual stock status from our detection, default to true if not found
-        const stockStatus = sizeStockMap.get(size) !== undefined ? sizeStockMap.get(size)! : true;
-        
-        variants.push({
-          color: color,
-          colorCode: getColorCode(color),
-          size: size,
-          inStock: stockStatus
-        });
+    if (hasRealVariants) {
+      // Only add defaults if nothing was found but we found some variant info
+      if (colors.length === 0) colors.push('Standart');
+      if (sizes.length === 0) sizes.push('Tek Beden');
+      
+      // Limit to reasonable number of variants to avoid overwhelming output
+      const maxColors = 10;
+      const maxSizes = 15;
+      const limitedColors = colors.slice(0, maxColors);
+      const limitedSizes = sizes.slice(0, maxSizes);
+      
+      // Create variant combinations with authentic stock status
+      for (const color of limitedColors) {
+        for (const size of limitedSizes) {
+          // Get actual stock status from our detection, default to true if not found
+          const stockStatus = sizeStockMap.get(size) !== undefined ? sizeStockMap.get(size)! : true;
+          
+          variants.push({
+            color: color,
+            colorCode: getColorCode(color),
+            size: size,
+            inStock: stockStatus
+          });
+        }
       }
     }
     
-    console.log(`✅ Variants created: ${variants.length} (${limitedColors.length} colors × ${limitedSizes.length} sizes)`);
+    if (hasRealVariants) {
+      console.log(`✅ Variants created: ${variants.length} (${limitedColors.length} colors × ${limitedSizes.length} sizes)`);
+    } else {
+      console.log(`✅ No real variants found - returning product without fake variants`);
+    }
     
     return {
       success: true,
@@ -526,7 +535,7 @@ export async function fixedAuthenticScrape(url: string): Promise<FixedProductDat
       price: 350,
       images: [],
       features: [{ key: 'Error', value: 'Extraction failed' }],
-      variants: [{ color: 'Standart', colorCode: '#000000', size: 'Tek Beden', inStock: true }]
+      variants: []
     };
   }
 }
