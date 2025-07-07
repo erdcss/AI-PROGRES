@@ -249,7 +249,10 @@ export async function fixedAuthenticScrape(url: string): Promise<FixedProductDat
     // 2. Extract from DOM elements (variant selectors)
     $('[data-testid*="color"], .variant-color, .color-option, [class*="color"], [class*="renk"]').each((i, el) => {
       const colorText = $(el).text().trim();
-      if (colorText && colorText.length < 30) extractedColors.add(colorText);
+      // Only accept valid text-based color names, exclude hex codes
+      if (colorText && colorText.length > 2 && colorText.length < 30 && !colorText.startsWith('#') && !/^[0-9A-Fa-f]{6}$/.test(colorText)) {
+        extractedColors.add(colorText);
+      }
     });
     
     $('[data-testid*="size"], .variant-size, .size-option, [class*="size"], [class*="beden"], .variant-item, .variant-option').each((i, el) => {
@@ -268,7 +271,10 @@ export async function fixedAuthenticScrape(url: string): Promise<FixedProductDat
       if (colorMatches) {
         colorMatches.forEach(match => {
           const color = match.match(/"color"\s*:\s*"([^"]+)"/)?.[1];
-          if (color && color.length < 30) extractedColors.add(color);
+          // Only accept text-based color names, exclude hex codes and invalid colors
+          if (color && color.length > 2 && color.length < 30 && !color.startsWith('#') && !/^[0-9A-Fa-f]{6}$/.test(color)) {
+            extractedColors.add(color);
+          }
         });
       }
       
@@ -369,10 +375,26 @@ export async function fixedAuthenticScrape(url: string): Promise<FixedProductDat
     };
     
     // Clean and deduplicate color and size data
+    const validColorNames = new Set([
+      'siyah', 'beyaz', 'kırmızı', 'mavi', 'yeşil', 'sarı', 'mor', 'pembe', 'turuncu', 
+      'kahverengi', 'kahve', 'gri', 'lacivert', 'krem', 'bej', 'bordo', 'füme', 'ekru',
+      'camel', 'hardal', 'vizon', 'pudra', 'mint', 'açık', 'koyu', 'navy', 'bebe',
+      'black', 'white', 'red', 'blue', 'green', 'yellow', 'purple', 'pink', 'orange',
+      'brown', 'gray', 'grey', 'navy', 'cream', 'beige'
+    ]);
+    
     const colors = Array.from(extractedColors)
-      .filter(c => c.length > 0 && c.length < 30)
+      .filter(c => c.length > 2 && c.length < 30)
+      .filter(c => !c.startsWith('#') && !/^[0-9A-Fa-f]{6}$/.test(c))
+      .filter(c => {
+        const lowerColor = c.toLowerCase();
+        // Check if it's a valid color name or combination
+        return validColorNames.has(lowerColor) || 
+               lowerColor.includes('/') && lowerColor.split('/').some(part => validColorNames.has(part.trim())) ||
+               lowerColor.includes(' ') && lowerColor.split(' ').some(part => validColorNames.has(part.trim()));
+      })
       .filter((color, index, arr) => {
-        // Remove duplicates and similar colors
+        // Remove duplicates
         const lowerColor = color.toLowerCase();
         return arr.findIndex(c => c.toLowerCase() === lowerColor) === index;
       });
