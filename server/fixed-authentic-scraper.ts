@@ -522,6 +522,53 @@ export async function fixedAuthenticScrape(url: string): Promise<FixedProductDat
         }
       });
     });
+
+    // Look for size options in select elements and data attributes
+    $('select option, [data-size], [data-value]').each((i, el) => {
+      const dataSize = $(el).attr('data-size') || '';
+      const dataValue = $(el).attr('data-value') || '';
+      const optionText = $(el).text().trim();
+      
+      [dataSize, dataValue, optionText].forEach(text => {
+        if (text && /^(XS|S|M|L|XL|XXL|XXXL)$/i.test(text.trim())) {
+          const size = text.trim().toUpperCase();
+          extractedSizes.add(size);
+          console.log(`📏 Size "${size}" found in data attribute or option`);
+        }
+      });
+    });
+
+    // Look for size patterns in script tags (JSON data)
+    $('script').each((i, el) => {
+      const scriptContent = $(el).html() || '';
+      // Look for size arrays in JavaScript objects
+      const sizeArrayMatches = scriptContent.match(/"sizes?":\s*\[([^\]]+)\]/gi);
+      if (sizeArrayMatches) {
+        sizeArrayMatches.forEach(match => {
+          const sizeMatches = match.match(/"(XS|S|M|L|XL|XXL|XXXL)"/gi);
+          if (sizeMatches) {
+            sizeMatches.forEach(sizeMatch => {
+              const size = sizeMatch.replace(/"/g, '').toUpperCase();
+              extractedSizes.add(size);
+              console.log(`📏 Size "${size}" found in script JSON data`);
+            });
+          }
+        });
+      }
+      
+      // Look for variant objects with size properties
+      const variantMatches = scriptContent.match(/"variant":\s*{[^}]*"size":\s*"([^"]+)"/gi);
+      if (variantMatches) {
+        variantMatches.forEach(match => {
+          const sizeMatch = match.match(/"size":\s*"([^"]+)"/i);
+          if (sizeMatch && /^(XS|S|M|L|XL|XXL|XXXL)$/i.test(sizeMatch[1])) {
+            const size = sizeMatch[1].toUpperCase();
+            extractedSizes.add(size);
+            console.log(`📏 Size "${size}" found in variant JSON data`);
+          }
+        });
+      }
+    });
     
     // Look for color information in aria-label or title attributes
     const colorAriaPattern = /(?:aria-label|title)="[^"]*\b(beyaz|siyah|mavi|kırmızı|yeşil|sarı|mor|pembe|gri|kahve|turuncu|lacivert|krem|bej|white|black|blue|red|green|yellow|purple|pink|gray|brown|orange|navy|cream|beige)\b[^"]*"/gi;
