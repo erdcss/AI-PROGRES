@@ -251,33 +251,127 @@ function extractPrice($: any, htmlContent: string): any {
 }
 
 /**
- * Extract product images
+ * Extract product images - Only product-specific images, not all site images
  */
 function extractImages($: any): string[] {
   const images = new Set<string>();
   
-  const imageSelectors = [
-    'img[src*="cdn.dsmcdn.com"]',
+  // Priority order: specific product image selectors first
+  const productImageSelectors = [
+    // Trendyol specific product gallery
+    '.product-gallery img',
     '.product-image img',
-    '.gallery img',
-    'img[alt*="product"]'
+    '.gallery-image img',
+    // JSON-LD structured data
+    '[data-testid="product-image"]',
+    '.product-main-image img',
+    // Variant images
+    '.variant-image img',
+    '.color-variant img',
+    // Thumbnail gallery
+    '.thumbnail-gallery img',
+    '.product-thumbs img'
   ];
   
-  imageSelectors.forEach(selector => {
+  // First try specific product image selectors
+  productImageSelectors.forEach(selector => {
     $(selector).each((i: number, el: any) => {
       const src = $(el).attr('src');
-      if (src && src.includes('cdn.dsmcdn.com')) {
-        // Convert to high resolution
-        const highResSrc = src.replace(/\/ty\d+\//, '/ty1670/').replace(/\/\d+_org\.jpg/, '/1_org_zoom.jpg');
+      if (src && isProductImage(src)) {
+        const highResSrc = optimizeImageUrl(src);
         images.add(highResSrc);
       }
     });
   });
   
+  // If no specific product images found, try broader search with filtering
+  if (images.size === 0) {
+    $('img[src*="cdn.dsmcdn.com"]').each((i: number, el: any) => {
+      const src = $(el).attr('src');
+      if (src && isProductImage(src)) {
+        const highResSrc = optimizeImageUrl(src);
+        images.add(highResSrc);
+      }
+    });
+  }
+  
   const imageArray = Array.from(images);
-  console.log(`📸 Images extracted: ${imageArray.length}`);
+  console.log(`📸 Product images extracted: ${imageArray.length}`);
   
   return imageArray;
+}
+
+/**
+ * Check if image URL is a product image (not site assets)
+ */
+function isProductImage(src: string): boolean {
+  // Must contain CDN pattern
+  if (!src.includes('cdn.dsmcdn.com')) return false;
+  
+  // Exclude site assets and UI elements
+  const excludePatterns = [
+    '/web/logo/',
+    '/web/common/',
+    '/web/icons/',
+    '/web/ui/',
+    '/web/header/',
+    '/web/footer/',
+    '/web/navigation/',
+    'ty-web.svg',
+    'logo',
+    'icon',
+    'button',
+    'arrow',
+    'star',
+    'heart',
+    'badge',
+    'banner',
+    'header',
+    'footer',
+    'nav',
+    'menu'
+  ];
+  
+  for (const pattern of excludePatterns) {
+    if (src.toLowerCase().includes(pattern)) {
+      return false;
+    }
+  }
+  
+  // Include product image patterns
+  const includePatterns = [
+    '/prod/',
+    '/product/',
+    '_org',
+    '_zoom',
+    '/ty1670/',
+    '/ty1200/',
+    '/ty800/'
+  ];
+  
+  for (const pattern of includePatterns) {
+    if (src.includes(pattern)) {
+      return true;
+    }
+  }
+  
+  return false;
+}
+
+/**
+ * Optimize image URL for high resolution
+ */
+function optimizeImageUrl(src: string): string {
+  // Convert to high resolution format
+  let optimized = src;
+  
+  // Ensure high resolution path
+  optimized = optimized.replace(/\/ty\d+\//, '/ty1670/');
+  
+  // Ensure zoom version
+  optimized = optimized.replace(/\/\d+_org\.jpg/, '/1_org_zoom.jpg');
+  
+  return optimized;
 }
 
 /**
