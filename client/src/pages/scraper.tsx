@@ -667,18 +667,18 @@ function ScraperPage({ platform = 'trendyol' }: ScraperPageProps) {
 
   const scrapeMutation = useMutation({
     mutationFn: async (data: { url: string }) => {
-      // Try scenario-based scraping first for Trendyol URLs
+      // Use scenario-based scraping for Trendyol URLs
       if (data.url.includes('trendyol.com')) {
         console.log('🎯 Using scenario-based scraping for Trendyol');
         const response = await apiRequest("POST", "/api/scenario-scrape", data);
         if (response.ok) {
           return response.json();
         }
-        console.log('⚠️ Scenario-based failed, falling back to regular extraction');
+        console.log('⚠️ Scenario-based failed, falling back to regular scraper');
       }
       
-      // Fallback to regular extraction
-      const response = await apiRequest("POST", "/api/extract", data);
+      // Fallback to regular scraper for all platforms
+      const response = await apiRequest("POST", "/api/scrape", data);
       if (!response.ok) {
         const errorData = await response.json().catch(() => ({}));
         throw {
@@ -692,24 +692,48 @@ function ScraperPage({ platform = 'trendyol' }: ScraperPageProps) {
     onSuccess: (data) => {
       console.log('✅ Ürün verisi alındı:', data);
       
-      // Add CSV preview data from instant processing
-      if (data.csvPreview) {
+      // Handle scenario-based scraper response
+      if (data.extractionMethod === 'scenario-based-scraper') {
         const enhancedData = {
           ...data,
-          csvData: data.csvPreview
+          // Map scenario-based result to expected format
+          brand: data.brand,
+          title: data.title,
+          price: data.price,
+          images: data.images,
+          features: data.features,
+          variants: data.variants,
+          scenario: data.scenario,
+          confidence: data.confidence
         };
         setResult(enhancedData);
         setProduct(enhancedData);
+        
+        toast({
+          title: "Başarılı",
+          description: `${data.scenario} senaryosu tespit edildi (${data.confidence.toFixed(1)}% güven)`
+        });
       } else {
-        setResult(data);
-        setProduct(data);
+        // Handle regular scraper response
+        if (data.csvPreview) {
+          const enhancedData = {
+            ...data,
+            csvData: data.csvPreview
+          };
+          setResult(enhancedData);
+          setProduct(enhancedData);
+        } else {
+          setResult(data);
+          setProduct(data);
+        }
+        
+        toast({
+          title: "Başarılı",
+          description: data.csvGenerated ? "Ürün verisi çekildi ve CSV oluşturuldu" : "Ürün verisi başarıyla çekildi"
+        });
       }
       
       setMainError(null);
-      toast({
-        title: "Başarılı",
-        description: data.csvGenerated ? "Ürün verisi çekildi ve CSV oluşturuldu" : "Ürün verisi başarıyla çekildi"
-      });
     },
     onError: (error: any) => {
       setMainError({
