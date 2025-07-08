@@ -508,6 +508,25 @@ export async function fixedAuthenticScrape(url: string): Promise<FixedProductDat
       });
     }
     
+    // Look for size patterns in the entire HTML content (broader search)
+    const allSizeMatches = htmlContent.match(/\b(XS|S|M|L|XL|XXL|XXXL)\b/g);
+    if (allSizeMatches) {
+      console.log(`🔍 Found ${allSizeMatches.length} total size mentions in HTML`);
+      const sizeCounts = new Map<string, number>();
+      allSizeMatches.forEach(size => {
+        const upperSize = size.toUpperCase();
+        sizeCounts.set(upperSize, (sizeCounts.get(upperSize) || 0) + 1);
+      });
+      
+      // Only include sizes that appear multiple times (likely to be valid options)
+      sizeCounts.forEach((count, size) => {
+        if (count >= 2) {
+          extractedSizes.add(size);
+          console.log(`📏 Size "${size}" found ${count} times in HTML (likely valid)`);
+        }
+      });
+    }
+    
     // Enhanced search for sizes in button elements and option elements
     $('button, option, span, div').each((i, el) => {
       const elementText = $(el).text().trim();
@@ -541,6 +560,7 @@ export async function fixedAuthenticScrape(url: string): Promise<FixedProductDat
     // Look for size patterns in script tags (JSON data)
     $('script').each((i, el) => {
       const scriptContent = $(el).html() || '';
+      
       // Look for size arrays in JavaScript objects
       const sizeArrayMatches = scriptContent.match(/"sizes?":\s*\[([^\]]+)\]/gi);
       if (sizeArrayMatches) {
@@ -565,6 +585,45 @@ export async function fixedAuthenticScrape(url: string): Promise<FixedProductDat
             const size = sizeMatch[1].toUpperCase();
             extractedSizes.add(size);
             console.log(`📏 Size "${size}" found in variant JSON data`);
+          }
+        });
+      }
+      
+      // Look for size options in attribute data
+      const attributeMatches = scriptContent.match(/"attributes":\s*{[^}]*"size":\s*"([^"]+)"/gi) ||
+                               scriptContent.match(/"attribute":\s*{[^}]*"size":\s*"([^"]+)"/gi) ||
+                               scriptContent.match(/"sizeName":\s*"([^"]+)"/gi) ||
+                               scriptContent.match(/"sizeKey":\s*"([^"]+)"/gi);
+      if (attributeMatches) {
+        attributeMatches.forEach(match => {
+          const sizeMatch = match.match(/"([^"]+)"/g);
+          if (sizeMatch) {
+            sizeMatch.forEach(sizeStr => {
+              const size = sizeStr.replace(/"/g, '').toUpperCase();
+              if (/^(XS|S|M|L|XL|XXL|XXXL)$/.test(size)) {
+                extractedSizes.add(size);
+                console.log(`📏 Size "${size}" found in attribute data`);
+              }
+            });
+          }
+        });
+      }
+      
+      // Look for size options in product data
+      const productDataMatches = scriptContent.match(/"productData":\s*{[^}]*"sizes":\s*\[([^\]]+)\]/gi) ||
+                                scriptContent.match(/"product":\s*{[^}]*"sizes":\s*\[([^\]]+)\]/gi);
+      if (productDataMatches) {
+        productDataMatches.forEach(match => {
+          const sizeContent = match.match(/\[([^\]]+)\]/);
+          if (sizeContent) {
+            const sizeMatches = sizeContent[1].match(/"(XS|S|M|L|XL|XXL|XXXL)"/gi);
+            if (sizeMatches) {
+              sizeMatches.forEach(sizeMatch => {
+                const size = sizeMatch.replace(/"/g, '').toUpperCase();
+                extractedSizes.add(size);
+                console.log(`📏 Size "${size}" found in product data`);
+              });
+            }
           }
         });
       }
