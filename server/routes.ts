@@ -1431,5 +1431,124 @@ export function registerRoutes(app: Express): Server {
     }
   });
 
+  // Shopify Test Connection Endpoint
+  app.post('/api/shopify/test-connection', async (req, res) => {
+    try {
+      console.log('🔍 Testing Shopify connection...');
+      
+      const { testShopifyConnection } = await import('./connection-strengthener');
+      const connectionTest = new (await import('./connection-strengthener')).ConnectionStrengthener();
+      
+      const result = await connectionTest.testShopifyConnection();
+      
+      if (result.success) {
+        console.log('✅ Shopify connection test successful');
+        res.json({
+          success: true,
+          message: result.message,
+          data: result.data
+        });
+      } else {
+        console.log('❌ Shopify connection test failed');
+        res.status(400).json({
+          success: false,
+          message: result.message
+        });
+      }
+    } catch (error: any) {
+      console.error('❌ Shopify test error:', error.message);
+      res.status(500).json({
+        success: false,
+        message: `Shopify test hatası: ${error.message}`
+      });
+    }
+  });
+
+  // Shopify Add Product Endpoint (already exists but ensuring consistency)
+  app.post('/api/shopify/add-product', async (req, res) => {
+    try {
+      res.setHeader('Content-Type', 'application/json; charset=utf-8');
+      res.setHeader('Cache-Control', 'no-cache');
+      
+      const productData = req.body.productData || req.body;
+      
+      if (!productData || !productData.success) {
+        return res.status(400).json({ 
+          success: false, 
+          error: 'Geçerli product data gerekli' 
+        });
+      }
+
+      console.log('🛒 Shopify API product creation initiated:', productData.title);
+      
+      const shopifyProduct = {
+        title: productData.title || 'Test Ürün',
+        body_html: `<p>${productData.brand} ${productData.title}</p>`,
+        vendor: productData.brand || 'Genel',
+        product_type: "Genel Ürün",
+        status: "active",
+        published: true,
+        tags: "trendyol, import, scenario-based",
+        variants: [{
+          title: "Varsayılan Başlık",
+          price: (productData.price?.withProfit || 100).toString(),
+          inventory_quantity: 10,
+          weight: 0,
+          weight_unit: "kg",
+          requires_shipping: true
+        }],
+        images: (productData.images || []).slice(0, 3).map((url: string) => ({ src: url }))
+      };
+
+      console.log('Creating Shopify product:', shopifyProduct.title);
+      
+      const response = await fetch(`https://${process.env.SHOPIFY_STORE_DOMAIN}/admin/api/2024-01/products.json`, {
+        method: 'POST',
+        headers: {
+          'X-Shopify-Access-Token': process.env.SHOPIFY_ACCESS_TOKEN!,
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({ product: shopifyProduct })
+      });
+
+      console.log('Shopify API response status:', response.status);
+      
+      if (response.ok) {
+        const result = await response.json();
+        const productId = result?.product?.id;
+        
+        if (!productId) {
+          console.error('❌ No product ID in Shopify response');
+          return res.status(500).json({
+            success: false,
+            error: 'Shopify API yanıtında product ID bulunamadı'
+          });
+        }
+        
+        console.log('✅ Shopify product created successfully:', productId);
+        
+        res.json({
+          success: true,
+          message: 'Ürün başarıyla Shopify\'a yüklendi',
+          productId: productId,
+          productUrl: `https://${process.env.SHOPIFY_STORE_DOMAIN}/admin/products/${productId}`
+        });
+      } else {
+        const errorData = await response.text();
+        console.error('❌ Shopify API error:', response.status, errorData);
+        res.status(response.status).json({
+          success: false,
+          error: `Shopify API hatası: ${response.status}`
+        });
+      }
+    } catch (error: any) {
+      console.error('❌ Shopify product creation error:', error.message);
+      res.status(500).json({
+        success: false,
+        error: `Ürün oluşturma hatası: ${error.message}`
+      });
+    }
+  });
+
   return httpServer;
 }

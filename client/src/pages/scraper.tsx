@@ -279,6 +279,9 @@ function ScraperPage({ platform = 'trendyol' }: ScraperPageProps) {
   const [result, setResult] = useState<any>(null);
   const [isDownloading, setIsDownloading] = useState(false);
   const [isExporting, setIsExporting] = useState(false);
+  const [isUploading, setIsUploading] = useState(false);
+  const [isTestingShopify, setIsTestingShopify] = useState(false);
+  const [shopifyMessage, setShopifyMessage] = useState<string>('');
 
   const [isAdvancedScrapingRunning, setIsAdvancedScrapingRunning] = useState(false);
   const [isAdvancedCSVGenerating, setIsAdvancedCSVGenerating] = useState(false);
@@ -387,6 +390,93 @@ function ScraperPage({ platform = 'trendyol' }: ScraperPageProps) {
       });
     } finally {
       setIsAdvancedScrapingRunning(false);
+    }
+  };
+
+  // Shopify Integration Handlers
+  const handleShopifyUpload = async () => {
+    if (!result || !result.success) {
+      toast({
+        title: "Hata",
+        description: "Önce bir ürün çekin",
+        variant: "destructive"
+      });
+      return;
+    }
+
+    setIsUploading(true);
+    setShopifyMessage('');
+    
+    try {
+      const response = await fetch('/api/shopify/add-product', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ productData: result })
+      });
+
+      if (!response.ok) {
+        throw new Error('Shopify upload failed');
+      }
+
+      const data = await response.json();
+      
+      if (data.success) {
+        setShopifyMessage(`✅ Ürün başarıyla Shopify'a yüklendi! ID: ${data.productId}`);
+        toast({
+          title: "Başarılı!",
+          description: "Ürün Shopify'a yüklendi",
+        });
+      } else {
+        throw new Error(data.error || 'Unknown error');
+      }
+    } catch (error: any) {
+      const errorMessage = `❌ Shopify yükleme hatası: ${error.message}`;
+      setShopifyMessage(errorMessage);
+      toast({
+        title: "Hata",
+        description: "Shopify yükleme sırasında hata oluştu",
+        variant: "destructive"
+      });
+    } finally {
+      setIsUploading(false);
+    }
+  };
+
+  const handleShopifyTest = async () => {
+    setIsTestingShopify(true);
+    setShopifyMessage('');
+    
+    try {
+      const response = await fetch('/api/shopify/test-connection', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' }
+      });
+
+      if (!response.ok) {
+        throw new Error('Test connection failed');
+      }
+
+      const data = await response.json();
+      
+      if (data.success) {
+        setShopifyMessage(`✅ Shopify bağlantısı başarılı! Mağaza: ${data.data?.shop || 'Bilinmiyor'}`);
+        toast({
+          title: "Başarılı!",
+          description: "Shopify bağlantısı aktif",
+        });
+      } else {
+        throw new Error(data.message || 'Unknown error');
+      }
+    } catch (error: any) {
+      const errorMessage = `❌ Shopify test hatası: ${error.message}`;
+      setShopifyMessage(errorMessage);
+      toast({
+        title: "Hata",
+        description: "Shopify bağlantı testi başarısız",
+        variant: "destructive"
+      });
+    } finally {
+      setIsTestingShopify(false);
     }
   };
 
@@ -1457,10 +1547,10 @@ function ScraperPage({ platform = 'trendyol' }: ScraperPageProps) {
                             {product.images
                               .filter((image: string) => {
                                 return image && (
-                                  image.includes('cdn.dsmcdn.com') || 
-                                  image.includes('ty933/prod') ||
+                                  image.includes('cdn.dsmcdn.com/mnresize') || 
+                                  image.includes('/prod/') ||
                                   /\.(jpg|jpeg|png|webp)($|\?)/.test(image.toLowerCase())
-                                );
+                                ) && !image.includes('ty-web.svg') && !image.includes('/web/');
                               })
                               .map((image: string, index: number) => (
                                 <div key={index} className="relative aspect-square group cursor-pointer bg-gray-800 rounded border border-gray-700 overflow-hidden">
@@ -1661,23 +1751,53 @@ function ScraperPage({ platform = 'trendyol' }: ScraperPageProps) {
                             CSV İndir (shopify-urunler.csv)
                           </button>
                           
-                          <button
-                            onClick={uploadToShopify}
-                            disabled={isUploadingToShopify}
-                            className="w-full bg-gradient-to-r from-green-600 to-emerald-600 hover:from-green-700 hover:to-emerald-700 disabled:from-green-400 disabled:to-emerald-400 text-white px-6 py-3 rounded-xl text-sm font-semibold transition-all duration-200 flex items-center justify-center gap-2 shadow-lg hover:shadow-xl transform hover:scale-105 disabled:scale-100 border border-green-500/20"
-                          >
-                            {isUploadingToShopify ? (
-                              <>
-                                <RefreshCcw className="w-5 h-5 animate-spin" />
-                                Shopify'a Yükleniyor...
-                              </>
-                            ) : (
-                              <>
-                                <Upload className="w-5 h-5" />
-                                Shopify'a Yükle
-                              </>
-                            )}
-                          </button>
+                          <div className="grid grid-cols-2 gap-2">
+                            <button
+                              onClick={handleShopifyUpload}
+                              disabled={isUploading}
+                              className="bg-gradient-to-r from-green-600 to-emerald-600 hover:from-green-700 hover:to-emerald-700 disabled:from-gray-600 disabled:to-gray-600 text-white px-4 py-2 rounded-lg text-sm font-semibold transition-all duration-200 flex items-center justify-center gap-2"
+                            >
+                              {isUploading ? (
+                                <>
+                                  <div className="w-4 h-4 border-2 border-white border-t-transparent rounded-full animate-spin"></div>
+                                  Yükleniyor...
+                                </>
+                              ) : (
+                                <>
+                                  <Upload className="w-4 h-4" />
+                                  Shopify Yükle
+                                </>
+                              )}
+                            </button>
+                            <button
+                              onClick={handleShopifyTest}
+                              disabled={isTestingShopify}
+                              className="px-4 py-2 bg-blue-600 hover:bg-blue-700 disabled:bg-gray-600 text-white rounded-lg text-sm font-semibold transition-all duration-200 flex items-center justify-center gap-2"
+                            >
+                              {isTestingShopify ? (
+                                <>
+                                  <div className="w-4 h-4 border-2 border-white border-t-transparent rounded-full animate-spin"></div>
+                                  Test...
+                                </>
+                              ) : (
+                                <>
+                                  <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 12l2 2 4-4m6 2a9 9 0 11-18 0 9 9 0 0118 0z" />
+                                  </svg>
+                                  Test
+                                </>
+                              )}
+                            </button>
+                          </div>
+                          {shopifyMessage && (
+                            <div className={`mt-3 p-3 rounded-lg text-sm ${
+                              shopifyMessage.includes('✅') || shopifyMessage.includes('başarı') 
+                                ? 'bg-green-900/20 text-green-400 border border-green-800' 
+                                : 'bg-red-900/20 text-red-400 border border-red-800'
+                            }`}>
+                              {shopifyMessage}
+                            </div>
+                          )}
                           
                           {/* Advanced Variant Scraper Section */}
                           <div className="mt-6 p-4 bg-gradient-to-br from-purple-900/30 to-pink-900/30 backdrop-blur-sm rounded-xl border border-purple-500/30">
