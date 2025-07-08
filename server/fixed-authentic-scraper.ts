@@ -206,6 +206,7 @@ export async function fixedAuthenticScrape(url: string): Promise<FixedProductDat
     
     // Extract actual variants from page data
     const variants = [];
+    console.log(`🔍 STARTING VARIANT DETECTION for ${url}`);
     
     // Try to extract color and size variants from various sources
     const extractedColors = new Set<string>();
@@ -246,74 +247,110 @@ export async function fixedAuthenticScrape(url: string): Promise<FixedProductDat
       }
     }
     
-    // 2. Extract from DOM elements (variant selectors)
-    $('[data-testid*="color"], .variant-color, .color-option, [class*="color"], [class*="renk"]').each((i, el) => {
+    // 2. Extract from DOM elements (variant selectors) - Enhanced for Trendyol
+    
+    // Color extraction with multiple selectors
+    $('[data-testid*="color"], .variant-color, .color-option, [class*="color"], [class*="renk"], button[title*="Renk"], [data-color], .color-variant, .product-color-option, .color-selector').each((i, el) => {
       const colorText = $(el).text().trim();
-      // Only accept valid text-based color names, exclude hex codes
-      if (colorText && colorText.length > 2 && colorText.length < 30 && !colorText.startsWith('#') && !/^[0-9A-Fa-f]{6}$/.test(colorText)) {
-        extractedColors.add(colorText);
-      }
+      const colorTitle = $(el).attr('title') || '';
+      const colorAlt = $(el).attr('alt') || '';
+      
+      // Check text content, title, and alt attributes
+      [colorText, colorTitle, colorAlt].forEach(text => {
+        if (text && text.length > 2 && text.length < 30 && !text.startsWith('#') && !/^[0-9A-Fa-f]{6}$/.test(text)) {
+          extractedColors.add(text);
+        }
+      });
     });
     
     // Track size stock status
     const sizeStockMap = new Map<string, boolean>();
     
-    // Enhanced stock detection with Trendyol-specific patterns
-    $('[data-testid*="size"], .variant-size, .size-option, [class*="size"], [class*="beden"], .variant-item, .variant-option, .product-option, .option-container').each((i, el) => {
-      const sizeText = $(el).text().trim();
-      if (sizeText && sizeText.length < 20 && /^(XS|S|M|L|XL|XXL|XXXL|\d+|3[6-9]|4[0-9]|5[0-9]|Tek Beden|One Size)$/i.test(sizeText)) {
-        extractedSizes.add(sizeText);
+    // Enhanced size detection with comprehensive selectors for Trendyol
+    const sizeSelectors = [
+      '[data-testid*="size"]', '.variant-size', '.size-option', '[class*="size"]', 
+      '[class*="beden"]', '.variant-item', '.variant-option', '.product-option', 
+      '.option-container', 'button[title*="Beden"]', '[data-size]', '.size-variant',
+      '.product-size-option', '.size-selector', '.size-selection', '.variant-selection',
+      '.product-variant', '.option-button', '.select-option', '.variant-button',
+      // More specific Trendyol patterns
+      '.ty-variant', '.ty-size', '.ty-option', '.product-details button', 
+      '.product-select button', '.variant-select button', '.size-select button',
+      // Generic patterns that might contain size info
+      'button[class*="variant"]', 'button[class*="option"]', 'button[class*="size"]',
+      'div[class*="variant"]', 'div[class*="option"]', 'div[class*="size"]',
+      'span[class*="variant"]', 'span[class*="option"]', 'span[class*="size"]'
+    ];
+    
+    sizeSelectors.forEach(selector => {
+      $(selector).each((i, el) => {
+        const sizeText = $(el).text().trim();
+        const sizeTitle = $(el).attr('title') || '';
+        const sizeAlt = $(el).attr('alt') || '';
+        const sizeValue = $(el).attr('value') || '';
         
-        // Enhanced stock detection
-        const isDisabled = $(el).attr('disabled') === 'disabled' || 
-                          $(el).hasClass('disabled') || 
-                          $(el).hasClass('sold-out') ||
-                          $(el).hasClass('out-of-stock') ||
-                          $(el).hasClass('unavailable') ||
-                          $(el).hasClass('is-disabled') ||
-                          $(el).hasClass('not-available') ||
-                          $(el).attr('aria-disabled') === 'true';
-        
-        // Check parent elements for stock indicators
-        const parentDisabled = $(el).parent().hasClass('disabled') || 
-                              $(el).parent().hasClass('sold-out') ||
-                              $(el).parent().hasClass('out-of-stock') ||
-                              $(el).parent().hasClass('unavailable') ||
-                              $(el).parent().hasClass('is-disabled') ||
-                              $(el).parent().hasClass('not-available');
-        
-        // Check for visual indicators (opacity, grayscale, etc.)
-        const hasLowOpacity = $(el).css('opacity') === '0.5' || 
-                             $(el).css('opacity') === '0.4' ||
-                             $(el).css('opacity') === '0.3' ||
-                             $(el).css('opacity') === '0.6';
-        
-        // Check for clickability
-        const isNotClickable = $(el).css('pointer-events') === 'none' ||
-                              $(el).css('cursor') === 'not-allowed';
-        
-        // Check for text indicators
-        const hasOutOfStockText = $(el).text().toLowerCase().includes('sold out') ||
-                                 $(el).text().toLowerCase().includes('stokta yok') ||
-                                 $(el).text().toLowerCase().includes('tükendi') ||
-                                 $(el).text().toLowerCase().includes('mevcut değil') ||
-                                 $(el).text().toLowerCase().includes('satışta değil');
-        
-        // Check if element is grayed out or crossed out
-        const isGrayedOut = $(el).hasClass('grayed-out') || 
-                           $(el).hasClass('crossed-out') ||
-                           $(el).hasClass('strikethrough');
-        
-        // Default to in-stock unless proven otherwise
-        const isInStock = !(isDisabled || parentDisabled || hasLowOpacity || hasOutOfStockText || isNotClickable || isGrayedOut);
-        sizeStockMap.set(sizeText, isInStock);
-        
-        // Enhanced logging for debugging
-        console.log(`📏 Size "${sizeText}" detected - Stock: ${isInStock ? '✅ IN STOCK' : '🚫 OUT OF STOCK'}`);
-        if (!isInStock) {
-          console.log(`   🔍 Reasons: disabled=${isDisabled}, parent=${parentDisabled}, opacity=${hasLowOpacity}, text=${hasOutOfStockText}, clickable=${isNotClickable}, grayed=${isGrayedOut}`);
-        }
-      }
+        // Check all possible text sources
+        [sizeText, sizeTitle, sizeAlt, sizeValue].forEach(text => {
+          if (text && text.length > 0 && text.length < 20) {
+            // More flexible size pattern matching
+            const sizePattern = /^(XS|S|M|L|XL|XXL|XXXL|\d+|3[6-9]|4[0-9]|5[0-9]|Tek Beden|One Size|TEK BEDEN|ONE SIZE)$/i;
+            
+            if (sizePattern.test(text)) {
+              extractedSizes.add(text);
+              
+              // Enhanced stock detection
+              const isDisabled = $(el).attr('disabled') === 'disabled' || 
+                                $(el).hasClass('disabled') || 
+                                $(el).hasClass('sold-out') ||
+                                $(el).hasClass('out-of-stock') ||
+                                $(el).hasClass('unavailable') ||
+                                $(el).hasClass('is-disabled') ||
+                                $(el).hasClass('not-available') ||
+                                $(el).attr('aria-disabled') === 'true';
+              
+              // Check parent elements for stock indicators
+              const parentDisabled = $(el).parent().hasClass('disabled') || 
+                                    $(el).parent().hasClass('sold-out') ||
+                                    $(el).parent().hasClass('out-of-stock') ||
+                                    $(el).parent().hasClass('unavailable') ||
+                                    $(el).parent().hasClass('is-disabled') ||
+                                    $(el).parent().hasClass('not-available');
+              
+              // Check for visual indicators (opacity, grayscale, etc.)
+              const hasLowOpacity = $(el).css('opacity') === '0.5' || 
+                                   $(el).css('opacity') === '0.4' ||
+                                   $(el).css('opacity') === '0.3' ||
+                                   $(el).css('opacity') === '0.6';
+              
+              // Check for clickability
+              const isNotClickable = $(el).css('pointer-events') === 'none' ||
+                                    $(el).css('cursor') === 'not-allowed';
+              
+              // Check for text indicators
+              const hasOutOfStockText = $(el).text().toLowerCase().includes('sold out') ||
+                                       $(el).text().toLowerCase().includes('stokta yok') ||
+                                       $(el).text().toLowerCase().includes('tükendi') ||
+                                       $(el).text().toLowerCase().includes('mevcut değil') ||
+                                       $(el).text().toLowerCase().includes('satışta değil');
+              
+              // Check if element is grayed out or crossed out
+              const isGrayedOut = $(el).hasClass('grayed-out') || 
+                                 $(el).hasClass('crossed-out') ||
+                                 $(el).hasClass('strikethrough');
+              
+              // Default to in-stock unless proven otherwise
+              const isInStock = !(isDisabled || parentDisabled || hasLowOpacity || hasOutOfStockText || isNotClickable || isGrayedOut);
+              sizeStockMap.set(text, isInStock);
+              
+              // Enhanced logging for debugging
+              console.log(`📏 Size "${text}" detected from selector "${selector}" - Stock: ${isInStock ? '✅ IN STOCK' : '🚫 OUT OF STOCK'}`);
+              if (!isInStock) {
+                console.log(`   🔍 Reasons: disabled=${isDisabled}, parent=${parentDisabled}, opacity=${hasLowOpacity}, text=${hasOutOfStockText}, clickable=${isNotClickable}, grayed=${isGrayedOut}`);
+              }
+            }
+          }
+        });
+      });
     });
     
     // 3. Extract from script tags containing variant data
@@ -332,7 +369,7 @@ export async function fixedAuthenticScrape(url: string): Promise<FixedProductDat
         });
       }
       
-      // Look for size variants in script content
+      // Look for size variants in script content with multiple patterns
       const sizeArrayMatches = scriptContent.match(/"size"\s*:\s*\[([^\]]*)\]/g);
       if (sizeArrayMatches) {
         sizeArrayMatches.forEach(match => {
@@ -373,9 +410,178 @@ export async function fixedAuthenticScrape(url: string): Promise<FixedProductDat
           }
         });
       }
+      
+      // Enhanced pattern matching for Trendyol variant data
+      const trendyolSizePatterns = [
+        /variants?\s*:\s*\[([^\]]*)\]/g,
+        /options?\s*:\s*\[([^\]]*)\]/g,
+        /sizes?\s*:\s*\[([^\]]*)\]/g,
+        /bedenler?\s*:\s*\[([^\]]*)\]/g,
+        /"(?:size|beden|variant)Options?"\s*:\s*\[([^\]]*)\]/g
+      ];
+      
+      trendyolSizePatterns.forEach(pattern => {
+        let match;
+        while ((match = pattern.exec(scriptContent)) !== null) {
+          const optionsString = match[1];
+          // Look for size values in the options
+          const sizeValues = optionsString.match(/"([SMLX]+|XS|XXL|XXXL|\d+|3[6-9]|4[0-9]|5[0-9]|Tek Beden|One Size)"/gi);
+          if (sizeValues) {
+            sizeValues.forEach(sizeValue => {
+              const size = sizeValue.replace(/"/g, '');
+              if (size && /^(XS|S|M|L|XL|XXL|XXXL|\d+|3[6-9]|4[0-9]|5[0-9]|Tek Beden|One Size)$/i.test(size)) {
+                extractedSizes.add(size);
+                console.log(`📏 Size "${size}" extracted from script pattern`);
+              }
+            });
+          }
+        }
+      });
     });
     
-    // 4. Extract from features (fallback)
+    // 4. Enhanced text content and HTML analysis for Trendyol
+    const fullText = $.text();
+    const htmlContent = $.html();
+    console.log(`🔍 Analyzing page content for size patterns...`);
+    
+    // Look for "Beden:" in both text and HTML
+    const bedenInText = fullText.includes('Beden:');
+    const bedenInHTML = htmlContent.includes('Beden:');
+    console.log(`🔍 "Beden:" found in text: ${bedenInText}, in HTML: ${bedenInHTML}`);
+    
+    // Search for common Trendyol size selection patterns in HTML
+    const sizeButtonPattern = /<button[^>]*>([SML]|XL|XXL|XS)<\/button>/gi;
+    const sizeButtonMatches = htmlContent.match(sizeButtonPattern);
+    if (sizeButtonMatches) {
+      console.log(`🔍 Found ${sizeButtonMatches.length} size buttons`);
+      sizeButtonMatches.forEach(match => {
+        const sizeMatch = match.match(/>([SML]|XL|XXL|XS)</);
+        if (sizeMatch) {
+          const size = sizeMatch[1];
+          extractedSizes.add(size);
+          console.log(`📏 Size "${size}" extracted from button element`);
+        }
+      });
+    }
+    
+    // Look for Beden followed by sizes in HTML content
+    const bedenPattern = /Beden:[^<]*?([SML])/gi;
+    const bedenMatches = htmlContent.match(bedenPattern);
+    if (bedenMatches) {
+      console.log(`🔍 Found ${bedenMatches.length} Beden patterns`);
+      bedenMatches.forEach(match => {
+        console.log(`🔍 Beden match: "${match}"`);
+      });
+    }
+    
+    // Check for data attributes that might contain size info
+    const sizeDataPattern = /data-[^=]*size[^=]*="([^"]*[SML][^"]*)"/gi;
+    const sizeDataMatches = htmlContent.match(sizeDataPattern);
+    if (sizeDataMatches) {
+      console.log(`🔍 Found ${sizeDataMatches.length} size data attributes`);
+      sizeDataMatches.forEach(match => {
+        const sizeValue = match.match(/="([^"]*)"/)?.[1];
+        if (sizeValue && /[SML]/.test(sizeValue)) {
+          console.log(`🔍 Size data attribute: "${sizeValue}"`);
+        }
+      });
+    }
+    
+    // Look for aria-label or title attributes containing size info
+    const sizeAriaPattern = /(?:aria-label|title)="[^"]*\b([SML]|XL|XXL|XS)\b[^"]*"/gi;
+    const sizeAriaMatches = htmlContent.match(sizeAriaPattern);
+    if (sizeAriaMatches) {
+      console.log(`🔍 Found ${sizeAriaMatches.length} aria/title size patterns`);
+      const foundSizes = new Set();
+      sizeAriaMatches.forEach(match => {
+        // Extract all sizes from the match, not just the first one
+        const allSizeMatches = match.match(/\b([SML]|XL|XXL|XS)\b/g);
+        if (allSizeMatches) {
+          allSizeMatches.forEach(size => {
+            if (!foundSizes.has(size)) {
+              foundSizes.add(size);
+              extractedSizes.add(size);
+              console.log(`📏 Size "${size}" extracted from aria/title attribute`);
+            }
+          });
+        }
+      });
+    }
+    
+    // Enhanced search for sizes in button elements and option elements
+    $('button, option, span, div').each((i, el) => {
+      const elementText = $(el).text().trim();
+      const elementTitle = $(el).attr('title') || '';
+      const elementAriaLabel = $(el).attr('aria-label') || '';
+      
+      [elementText, elementTitle, elementAriaLabel].forEach(text => {
+        if (text && /^(XS|S|M|L|XL|XXL|XXXL)$/i.test(text.trim())) {
+          const size = text.trim().toUpperCase();
+          extractedSizes.add(size);
+          console.log(`📏 Size "${size}" found in element content`);
+        }
+      });
+    });
+    
+    // Look for color information in aria-label or title attributes
+    const colorAriaPattern = /(?:aria-label|title)="[^"]*\b(beyaz|siyah|mavi|kırmızı|yeşil|sarı|mor|pembe|gri|kahve|turuncu|lacivert|krem|bej|white|black|blue|red|green|yellow|purple|pink|gray|brown|orange|navy|cream|beige)\b[^"]*"/gi;
+    const colorAriaMatches = htmlContent.match(colorAriaPattern);
+    if (colorAriaMatches) {
+      console.log(`🔍 Found ${colorAriaMatches.length} aria/title color patterns`);
+      const foundColors = new Set();
+      colorAriaMatches.forEach(match => {
+        const colorMatch = match.match(/\b(beyaz|siyah|mavi|kırmızı|yeşil|sarı|mor|pembe|gri|kahve|turuncu|lacivert|krem|bej|white|black|blue|red|green|yellow|purple|pink|gray|brown|orange|navy|cream|beige)\b/i);
+        if (colorMatch) {
+          const color = colorMatch[1];
+          if (!foundColors.has(color.toLowerCase())) {
+            foundColors.add(color.toLowerCase());
+            extractedColors.add(color);
+            console.log(`🎨 Color "${color}" extracted from aria/title attribute`);
+          }
+        }
+      });
+    }
+    
+    // Extract color from product title if no colors found yet
+    if (extractedColors.size === 0 && title) {
+      const titleColorMatch = title.match(/\b(beyaz|siyah|mavi|kırmızı|yeşil|sarı|mor|pembe|gri|kahve|turuncu|lacivert|krem|bej|white|black|blue|red|green|yellow|purple|pink|gray|brown|orange|navy|cream|beige)\b/i);
+      if (titleColorMatch) {
+        const color = titleColorMatch[1];
+        extractedColors.add(color);
+        console.log(`🎨 Color "${color}" extracted from product title`);
+      }
+    }
+    
+    // Comprehensive text pattern search
+    const bedenTextMatches = fullText.match(/Beden:\s*([SMLX\s,]+)/gi);
+    if (bedenTextMatches) {
+      bedenTextMatches.forEach(match => {
+        const sizeText = match.replace(/Beden:\s*/i, '').trim();
+        const sizes = sizeText.split(/[\s,]+/).filter(s => s.trim().length > 0);
+        sizes.forEach(size => {
+          if (/^(XS|S|M|L|XL|XXL|XXXL)$/i.test(size.trim())) {
+            extractedSizes.add(size.trim());
+            console.log(`📏 Size "${size.trim()}" found in Beden text pattern`);
+          }
+        });
+      });
+    }
+    
+    // Look for isolated size patterns only if we haven't found any yet
+    if (extractedSizes.size === 0) {
+      const isolatedSizes = fullText.match(/\b(XS|S|M|L|XL|XXL|XXXL)\b/g);
+      if (isolatedSizes && isolatedSizes.length >= 2 && isolatedSizes.length <= 8) {
+        const uniqueSizes = [...new Set(isolatedSizes)];
+        if (uniqueSizes.length >= 2) { // At least 2 different sizes
+          uniqueSizes.forEach(size => {
+            extractedSizes.add(size);
+            console.log(`📏 Size "${size}" found as isolated pattern (fallback)`);
+          });
+        }
+      }
+    }
+    
+    // 5. Extract from features (fallback)
     const foundColors = features.filter(f => f.key === 'Renk' || f.key === 'Color').map(f => f.value);
     const foundSizes = features.filter(f => f.key === 'Beden' || f.key === 'Size').map(f => f.value);
     
@@ -477,8 +683,16 @@ export async function fixedAuthenticScrape(url: string): Promise<FixedProductDat
     const hasRealVariants = colors.length > 0 || sizes.length > 0;
     
     if (hasRealVariants) {
-      // Only add defaults if nothing was found but we found some variant info
-      if (colors.length === 0) colors.push('Standart');
+      // Extract color from title if no color variants found
+      if (colors.length === 0 && title) {
+        const titleColorMatch = title.match(/\b(BEYAZ|SİYAH|MAVİ|KIRMIZI|YEŞİL|SARI|MOR|PEMBE|GRİ|KAHVE|TURUNCU|LACİVERT|KREM|BEJ|WHITE|BLACK|BLUE|RED|GREEN|YELLOW|PURPLE|PINK|GRAY|BROWN|ORANGE|NAVY|CREAM|BEIGE)\b/i);
+        if (titleColorMatch) {
+          colors.push(titleColorMatch[1]);
+          console.log(`🎨 Color "${titleColorMatch[1]}" extracted from title as fallback`);
+        } else {
+          colors.push('Standart');
+        }
+      }
       if (sizes.length === 0) sizes.push('Tek Beden');
       
       // Limit to reasonable number of variants to avoid overwhelming output
