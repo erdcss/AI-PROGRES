@@ -667,6 +667,17 @@ function ScraperPage({ platform = 'trendyol' }: ScraperPageProps) {
 
   const scrapeMutation = useMutation({
     mutationFn: async (data: { url: string }) => {
+      // Try scenario-based scraping first for Trendyol URLs
+      if (data.url.includes('trendyol.com')) {
+        console.log('🎯 Using scenario-based scraping for Trendyol');
+        const response = await apiRequest("POST", "/api/scenario-scrape", data);
+        if (response.ok) {
+          return response.json();
+        }
+        console.log('⚠️ Scenario-based failed, falling back to regular extraction');
+      }
+      
+      // Fallback to regular extraction
       const response = await apiRequest("POST", "/api/extract", data);
       if (!response.ok) {
         const errorData = await response.json().catch(() => ({}));
@@ -1278,6 +1289,61 @@ function ScraperPage({ platform = 'trendyol' }: ScraperPageProps) {
                       <Download className="h-4 w-4 mr-2" />
                       CSV'yi İndir
                     </Button>
+                  </div>
+                </CardContent>
+              </Card>
+            </motion.div>
+          )}
+        </AnimatePresence>
+
+        {/* Scenario Information Display */}
+        <AnimatePresence>
+          {result && result.scenario && (
+            <motion.div
+              initial={{ opacity: 0, y: 20 }}
+              animate={{ opacity: 1, y: 0 }}
+              exit={{ opacity: 0, y: -20 }}
+              transition={{ duration: 0.3 }}
+              className="mb-4"
+            >
+              <Card className="bg-blue-900/20 border-blue-500/30">
+                <CardContent className="p-4">
+                  <div className="flex items-center gap-3 mb-3">
+                    <div className="w-8 h-8 bg-blue-500 rounded-lg flex items-center justify-center">
+                      <span className="text-white font-bold text-sm">🎯</span>
+                    </div>
+                    <h3 className="text-lg font-semibold text-blue-200">
+                      Senaryo Tabanlı Çıkarım
+                    </h3>
+                    <div className="text-sm px-2 py-1 bg-blue-500/20 rounded text-blue-200">
+                      %{result.confidence} güven
+                    </div>
+                  </div>
+                  
+                  <div className="space-y-2 text-sm">
+                    <div className="flex items-center gap-2">
+                      <span className="text-gray-400">Senaryo:</span>
+                      <span className="text-blue-200 font-medium">
+                        {result.scenario.replace('-', ' ').toUpperCase()}
+                      </span>
+                    </div>
+                    {result.extractionDetails && (
+                      <>
+                        <div className="flex items-center gap-2">
+                          <span className="text-gray-400">Strateji:</span>
+                          <span className="text-blue-200">{result.extractionDetails.strategy}</span>
+                        </div>
+                        {result.extractionDetails.evidence && result.extractionDetails.evidence.length > 0 && (
+                          <div className="flex items-start gap-2">
+                            <span className="text-gray-400">Kanıt:</span>
+                            <div className="text-blue-200">
+                              {result.extractionDetails.evidence.slice(0, 3).join(', ')}
+                              {result.extractionDetails.evidence.length > 3 && '...'}
+                            </div>
+                          </div>
+                        )}
+                      </>
+                    )}
                   </div>
                 </CardContent>
               </Card>

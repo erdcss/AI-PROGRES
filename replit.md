@@ -109,6 +109,7 @@ The application is designed for deployment on Replit with the following consider
 - July 07, 2025: Fixed fake variant creation issue - system now only shows authentic variants when they actually exist, eliminating fake "Standart" color and "Tek Beden" size for products without variant options
 - July 07, 2025: Complete mobile browser optimization implemented - responsive design for all components, compact mobile layout, smaller buttons and input fields, mobile-friendly navigation, condensed mobile clock display
 - July 08, 2025: Enhanced variant detection system successfully implemented - now accurately extracts authentic size variants (S, M) from aria-label and title attributes, eliminating fake variant creation for products with real variant options
+- July 08, 2025: Complete system reorganization to scenario-based architecture implemented - ScenarioManager detects extraction scenarios (single-variant, multi-size, multi-color, full-matrix, out-of-stock, complex-variants), ScenarioExtractors handle specialized extraction for each scenario, scenario-based scraper provides main integration point with confidence scoring and evidence tracking
 
 ## User Preferences
 

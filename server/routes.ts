@@ -34,6 +34,7 @@ import { processCompleteMultiVariant, generateMultiVariantCSV, generateMultiVari
 import { scrapeAdvancedVariants, generateAdvancedVariantCSV } from './advanced-variant-scraper';
 import { runTrendyolVariantsSpider, generateScrapyOutput, generateScrapyCSV } from './scrapy-like-trendyol-scraper';
 import { fixedAuthenticScrape } from './fixed-authentic-scraper';
+import { scenarioBasedScrape } from './scenario-based-scraper';
 
 
 function generateSingleProductShopifyCSV(product: any): string {
@@ -334,19 +335,42 @@ export function registerRoutes(app: Express): Server {
       const productIdMatch = url.match(/p-(\d+)/);
       const productId = productIdMatch ? productIdMatch[1] : null;
 
-      // Enhanced product data extraction for Trendyol products
+      // Enhanced product data extraction for Trendyol products using scenario-based system
       if (url.includes('trendyol.com')) {
-        console.log("🔧 Using Fixed Authentic Scraper for accurate price extraction");
+        console.log("🎯 Using Scenario-Based Scraper for intelligent extraction");
         
-        // Try Fixed Authentic Scraper first for best accuracy
-        const fixedResult = await fixedAuthenticScrape(url);
+        // Try Scenario-Based Scraper first for best accuracy and intelligence
+        const scenarioResult = await scenarioBasedScrape(url);
         
-        if (fixedResult.success) {
-          console.log("🔧 Fixed Scraper SUCCESS - Price:", fixedResult.price);
+        if (scenarioResult.success) {
+          console.log(`🎯 Scenario-Based Scraper SUCCESS - Scenario: ${scenarioResult.scenario}, Confidence: ${scenarioResult.confidence}%`);
           
           return res.json({
             success: true,
-            extractionMethod: 'fixed-authentic-scraper',
+            extractionMethod: 'scenario-based-scraper',
+            scenario: scenarioResult.scenario,
+            confidence: scenarioResult.confidence,
+            brand: scenarioResult.brand,
+            title: scenarioResult.title,
+            price: scenarioResult.price,
+            images: scenarioResult.images,
+            features: scenarioResult.features,
+            variants: scenarioResult.variants,
+            extractionDetails: scenarioResult.extractionDetails
+          });
+        }
+        
+        console.log("🔄 Scenario-based failed, using Fixed Authentic Scraper fallback");
+        
+        // Fallback to Fixed Authentic Scraper if scenario-based fails
+        const fixedResult = await fixedAuthenticScrape(url);
+        
+        if (fixedResult.success) {
+          console.log("🔧 Fixed Scraper FALLBACK SUCCESS - Price:", fixedResult.price);
+          
+          return res.json({
+            success: true,
+            extractionMethod: 'fixed-authentic-scraper-fallback',
             brand: fixedResult.brand,
             title: fixedResult.title,
             price: fixedResult.price,
@@ -491,6 +515,84 @@ export function registerRoutes(app: Express): Server {
       return res.status(500).json({
         success: false,
         message: 'Internal server error'
+      });
+    }
+  });
+
+  // Dedicated scenario-based scraping endpoint
+  app.post('/api/scenario-scrape', async (req, res) => {
+    console.log("🎯 Scenario-based scrape isteği alındı");
+    
+    try {
+      const validation = urlSchema.safeParse(req.body);
+
+      if (!validation.success) {
+        return res.status(400).json({ 
+          message: "Geçersiz URL",
+          details: validation.error.errors 
+        });
+      }
+
+      const { url: rawUrl } = validation.data;
+      
+      // URL'i normalize et
+      const url = normalizeUrl(rawUrl);
+      console.log(`🎯 URL normalize edildi: ${rawUrl} -> ${url}`);
+      
+      // Normalize edilmiş URL'in geçerli olup olmadığını kontrol et
+      try {
+        new URL(url);
+      } catch (urlError) {
+        return res.status(400).json({
+          message: "URL formatı hatalı",
+          details: `Girilen: ${rawUrl}, Normalize: ${url}`
+        });
+      }
+      
+      // Scenario-based extraction for Trendyol products
+      if (url.includes('trendyol.com')) {
+        console.log("🎯 SCENARIO-BASED EXTRACTION başlıyor...");
+        
+        const result = await scenarioBasedScrape(url);
+        
+        if (result.success) {
+          console.log(`🎯 Scenario: ${result.scenario}, Confidence: ${result.confidence}%`);
+          console.log(`🎯 Variants: ${result.variants.length} adet`);
+          
+          return res.json({
+            success: true,
+            extractionMethod: 'scenario-based-scraper',
+            scenario: result.scenario,
+            confidence: result.confidence,
+            brand: result.brand,
+            title: result.title,
+            price: result.price,
+            images: result.images,
+            features: result.features,
+            variants: result.variants,
+            extractionDetails: result.extractionDetails
+          });
+        } else {
+          console.log("❌ Scenario-based extraction failed");
+          return res.status(500).json({
+            success: false,
+            message: 'Scenario-based extraction failed',
+            details: result.extractionDetails
+          });
+        }
+      } else {
+        return res.status(400).json({
+          success: false,
+          message: 'Only Trendyol URLs are supported for scenario-based extraction'
+        });
+      }
+      
+    } catch (error: any) {
+      console.error('❌ Scenario-based scrape error:', error);
+      return res.status(500).json({
+        success: false,
+        message: 'Internal server error',
+        details: error.message
       });
     }
   });

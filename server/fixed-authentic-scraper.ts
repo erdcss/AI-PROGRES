@@ -449,6 +449,50 @@ export async function fixedAuthenticScrape(url: string): Promise<FixedProductDat
     const bedenInHTML = htmlContent.includes('Beden:');
     console.log(`🔍 "Beden:" found in text: ${bedenInText}, in HTML: ${bedenInHTML}`);
     
+    // Debug: Look for common Trendyol size selector patterns with detailed logging
+    console.log(`🔍 Page content length: ${htmlContent.length} characters`);
+    
+    const debugSizeSelectors = [
+      'button[data-testid*="size"]',
+      'button[class*="size"]', 
+      '[data-value*="size"]',
+      '.variant-selector button',
+      '.size-selector button',
+      '.product-variant button',
+      '.variant-option',
+      'button[aria-label*="beden"]',
+      'button[title*="beden"]',
+      'button[data-option]',
+      'button[data-size]',
+      '.size-item',
+      '.variant-item'
+    ];
+    
+    debugSizeSelectors.forEach(selector => {
+      const elements = $(selector);
+      if (elements.length > 0) {
+        console.log(`🔍 Found ${elements.length} elements with selector: ${selector}`);
+        elements.each((i, el) => {
+          const text = $(el).text().trim();
+          const ariaLabel = $(el).attr('aria-label') || '';
+          const title = $(el).attr('title') || '';
+          const dataValue = $(el).attr('data-value') || '';
+          const dataSize = $(el).attr('data-size') || '';
+          const dataOption = $(el).attr('data-option') || '';
+          console.log(`🔍 Element ${i}: text="${text}", aria-label="${ariaLabel}", title="${title}", data-value="${dataValue}", data-size="${dataSize}", data-option="${dataOption}"`);
+          
+          // Extract sizes from any of these attributes
+          [text, ariaLabel, title, dataValue, dataSize, dataOption].forEach(attrValue => {
+            if (attrValue && /^(XS|S|M|L|XL|XXL|XXXL)$/i.test(attrValue.trim())) {
+              const size = attrValue.trim().toUpperCase();
+              extractedSizes.add(size);
+              console.log(`📏 Size "${size}" extracted from selector "${selector}"`);
+            }
+          });
+        });
+      }
+    });
+    
     // Search for common Trendyol size selection patterns in HTML
     const sizeButtonPattern = /<button[^>]*>([SML]|XL|XXL|XS)<\/button>/gi;
     const sizeButtonMatches = htmlContent.match(sizeButtonPattern);
