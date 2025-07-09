@@ -1490,14 +1490,19 @@ function ScraperPage({ platform = 'trendyol' }: ScraperPageProps) {
 
                   {/* Enhanced Product Images Gallery */}
                   <div className="space-y-4">
-                    <div className="flex items-center justify-between">
-                      <h4 className="text-lg font-medium text-gray-200">Ürün Görselleri</h4>
+                    <div className="flex items-center justify-between mb-2">
+                      <h4 className="text-lg font-semibold text-white flex items-center gap-2">
+                        <svg className="w-5 h-5 text-blue-400" fill="currentColor" viewBox="0 0 20 20">
+                          <path fillRule="evenodd" d="M4 3a2 2 0 00-2 2v10a2 2 0 002 2h12a2 2 0 002-2V5a2 2 0 00-2-2H4zm12 12H4l4-8 3 6 2-4 3 6z" clipRule="evenodd" />
+                        </svg>
+                        Ürün Görselleri
+                      </h4>
                       <div className="flex items-center gap-2">
-                        <span className="text-xs text-gray-500 bg-gray-800 px-2 py-1 rounded">
+                        <span className="text-xs text-gray-400 bg-gray-800/60 px-2.5 py-1 rounded-full font-medium">
                           {product.images?.length || 0} adet
                         </span>
-                        <span className="text-xs text-green-500 bg-green-900/20 px-2 py-1 rounded border border-green-800">
-                          Yüksek Kalite
+                        <span className="text-xs text-green-400 bg-green-900/30 px-2.5 py-1 rounded-full border border-green-700/50 font-medium">
+                          HD Kalite
                         </span>
                       </div>
                     </div>
@@ -1505,7 +1510,7 @@ function ScraperPage({ platform = 'trendyol' }: ScraperPageProps) {
                     {/* Compact Main Image Display */}
                     {product.images && product.images.length > 0 && (
                       <div className="bg-gradient-to-br from-blue-900/20 to-indigo-900/20 backdrop-blur-sm rounded-2xl p-4 border border-blue-500/20">
-                        <div className="aspect-square w-48 mx-auto mb-3 relative group">
+                        <div className="aspect-square w-56 mx-auto mb-4 relative group">
                           <img
                             id="mainProductImage"
                             src={`/api/image-proxy?url=${encodeURIComponent(product.images[0])}`}
@@ -1536,7 +1541,7 @@ function ScraperPage({ platform = 'trendyol' }: ScraperPageProps) {
                         </div>
                         
                         {/* Compact Images Grid */}
-                        <div className="bg-gradient-to-br from-blue-900/30 to-indigo-900/30 backdrop-blur-sm p-3 rounded-xl border border-blue-500/30">
+                        <div className="bg-gradient-to-br from-blue-900/30 to-indigo-900/30 backdrop-blur-sm p-4 rounded-xl border border-blue-500/30">
                           <div className="flex items-center justify-between mb-2">
                             <span className="text-xs font-medium text-gray-300">
                               Tüm Görseller ({product.images?.length || 0})
@@ -1545,7 +1550,7 @@ function ScraperPage({ platform = 'trendyol' }: ScraperPageProps) {
                               HD
                             </span>
                           </div>
-                          <div className="grid grid-cols-4 md:grid-cols-6 gap-1.5">
+                          <div className="grid grid-cols-3 md:grid-cols-4 lg:grid-cols-6 gap-2">
                             {product.images
                               .filter((image: string) => {
                                 // STRICT FILTERING: Must contain mnresize AND prod directory
@@ -1561,7 +1566,7 @@ function ScraperPage({ platform = 'trendyol' }: ScraperPageProps) {
                                   /\.(jpg|jpeg|png|webp)($|\?)/.test(image.toLowerCase());
                               })
                               .map((image: string, index: number) => (
-                                <div key={index} className="relative aspect-square group cursor-pointer bg-gray-800 rounded border border-gray-700 overflow-hidden">
+                                <div key={index} className="relative aspect-square group cursor-pointer bg-gray-800 rounded-lg border border-gray-700 overflow-hidden hover:border-blue-400 transition-all duration-200">
                                   <img
                                     src={`/api/image-proxy?url=${encodeURIComponent(image)}`}
                                     alt={`${product.brand} ${product.title} - Görsel ${index + 1}`}
@@ -1616,8 +1621,8 @@ function ScraperPage({ platform = 'trendyol' }: ScraperPageProps) {
                                 </div>
                               ))}
                           </div>
-                          <div className="text-xs text-gray-500 mt-2 text-center">
-                            Tıklayarak ana görseli değiştir
+                          <div className="text-xs text-gray-400 mt-3 text-center bg-gray-800/30 py-2 px-3 rounded-lg">
+                            💡 Tıklayarak ana görseli değiştir
                           </div>
                         </div>
                       </div>

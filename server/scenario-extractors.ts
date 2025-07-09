@@ -171,9 +171,13 @@ export class ScenarioExtractors {
   private static extractSizes($: any, selectors: string[], htmlContent: string): string[] {
     const extractedSizes = new Set<string>();
     
+    console.log(`🔍 Extracting sizes with ${selectors.length} selectors...`);
+    
     // Method 1: Use provided selectors
     selectors.forEach(selector => {
       const elements = $(selector);
+      console.log(`🔍 Selector "${selector}" found ${elements.length} elements`);
+      
       elements.each((i: number, el: any) => {
         const text = $(el).text().trim();
         const ariaLabel = $(el).attr('aria-label') || '';
@@ -181,11 +185,13 @@ export class ScenarioExtractors {
         const dataValue = $(el).attr('data-value') || '';
         const dataSize = $(el).attr('data-size') || '';
         
+        console.log(`🔍 Element ${i}: text="${text}", aria-label="${ariaLabel}", title="${title}"`);
+        
         [text, ariaLabel, title, dataValue, dataSize].forEach(value => {
-          if (value && /^(XS|S|M|L|XL|XXL|XXXL)$/i.test(value.trim())) {
+          if (value && /^(XS|S|M|L|XL|XXL|XXXL|\d+)$/i.test(value.trim())) {
             const size = value.trim().toUpperCase();
             extractedSizes.add(size);
-            console.log(`📏 Size "${size}" found via selector: ${selector}`);
+            console.log(`✅ Size "${size}" found via selector: ${selector}`);
           }
         });
       });
@@ -195,22 +201,29 @@ export class ScenarioExtractors {
     const sizePatterns = [
       /\b(XS|S|M|L|XL|XXL|XXXL)\b/g,
       /"size":\s*"(XS|S|M|L|XL|XXL|XXXL)"/gi,
-      /beden[^>]*>(XS|S|M|L|XL|XXL|XXXL)/gi
+      /beden[^>]*>(XS|S|M|L|XL|XXL|XXXL)/gi,
+      /aria-label="[^"]*\b(XS|S|M|L|XL|XXL|XXXL)\b[^"]*"/gi,
+      /title="[^"]*\b(XS|S|M|L|XL|XXL|XXXL)\b[^"]*"/gi
     ];
     
-    sizePatterns.forEach(pattern => {
+    sizePatterns.forEach((pattern, index) => {
       const matches = htmlContent.match(pattern);
       if (matches) {
+        console.log(`🔍 Pattern ${index + 1} found ${matches.length} matches`);
         matches.forEach(match => {
           const sizeMatch = match.match(/(XS|S|M|L|XL|XXL|XXXL)/i);
           if (sizeMatch) {
             extractedSizes.add(sizeMatch[1].toUpperCase());
+            console.log(`✅ Size "${sizeMatch[1].toUpperCase()}" found via pattern: ${pattern}`);
           }
         });
       }
     });
     
-    return Array.from(extractedSizes).sort();
+    const finalSizes = Array.from(extractedSizes).sort();
+    console.log(`📏 Final sizes extracted: [${finalSizes.join(', ')}]`);
+    
+    return finalSizes;
   }
 
   /**
