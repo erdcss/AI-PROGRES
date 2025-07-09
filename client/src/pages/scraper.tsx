@@ -1519,7 +1519,7 @@ function ScraperPage({ platform = 'trendyol' }: ScraperPageProps) {
                               target.style.display = 'flex';
                               target.style.alignItems = 'center';
                               target.style.justifyContent = 'center';
-                              target.innerHTML = '<div style="color: #9ca3af; text-align: center; padding: 20px; font-size: 14px;"><div>📷</div><div>Ana Görsel</div></div>';
+                              target.innerHTML = '<div style="color: #9ca3af; text-align: center; padding: 20px; font-size: 14px;"><div style="font-size: 24px; margin-bottom: 8px;">📷</div><div>Ana Görsel</div><div style="font-size: 12px; color: #6b7280; margin-top: 4px;">Yüklenemedi</div></div>';
                             }}
                             onLoad={(e) => {
                               console.log('Main image loaded successfully:', product.images[0]);
@@ -1576,12 +1576,13 @@ function ScraperPage({ platform = 'trendyol' }: ScraperPageProps) {
                                       const parent = target.parentElement;
                                       console.error(`Thumbnail ${index + 1} error:`, image);
                                       if (parent) {
-                                        parent.style.backgroundColor = '#374151';
+                                        parent.style.backgroundColor = '#1f2937';
                                         parent.innerHTML = `
                                           <div class="flex items-center justify-center h-full">
-                                            <div class="text-gray-300 text-xs text-center p-2">
-                                              <div class="mb-1">📷</div>
+                                            <div class="text-gray-400 text-xs text-center p-2">
+                                              <div class="mb-1 text-lg">📷</div>
                                               <div>Görsel ${index + 1}</div>
+                                              <div class="text-xs text-gray-500 mt-1">Yüklenemedi</div>
                                             </div>
                                           </div>
                                           <div class="absolute bottom-1 right-1 bg-black/80 text-white text-xs px-1.5 py-0.5 rounded">
