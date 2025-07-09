@@ -386,14 +386,18 @@ function isProductImage(src: string): boolean {
  * Optimize image URL for high resolution
  */
 function optimizeImageUrl(src: string): string {
-  // Convert to high resolution format
+  // Keep original URL as-is for better compatibility
   let optimized = src;
   
-  // Ensure high resolution path
-  optimized = optimized.replace(/\/ty\d+\//, '/ty1670/');
+  // Remove any _org or _zoom suffixes that might cause 404s
+  optimized = optimized.replace(/_org_zoom\.jpg$/, '.jpg');
+  optimized = optimized.replace(/_org\.jpg$/, '.jpg');
+  optimized = optimized.replace(/_zoom\.jpg$/, '.jpg');
   
-  // Ensure zoom version
-  optimized = optimized.replace(/\/\d+_org\.jpg/, '/1_org_zoom.jpg');
+  // Ensure https protocol
+  if (!optimized.startsWith('https:')) {
+    optimized = optimized.replace(/^http:/, 'https:');
+  }
   
   return optimized;
 }
