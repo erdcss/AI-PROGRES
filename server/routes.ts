@@ -1550,5 +1550,59 @@ export function registerRoutes(app: Express): Server {
     }
   });
 
+  // Image proxy endpoint for CORS issues
+  app.get('/api/image-proxy', async (req, res) => {
+    try {
+      const { url } = req.query;
+      
+      if (!url || typeof url !== 'string') {
+        return res.status(400).json({ error: 'URL parametresi gerekli' });
+      }
+
+      // Only allow Trendyol CDN images
+      if (!url.includes('cdn.dsmcdn.com')) {
+        return res.status(403).json({ error: 'Sadece Trendyol CDN görselleri desteklenir' });
+      }
+
+      console.log('🖼️ Proxy image request:', url);
+
+      const response = await fetch(url, {
+        headers: {
+          'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/91.0.4472.124 Safari/537.36',
+          'Accept': 'image/webp,image/apng,image/*,*/*;q=0.8',
+          'Accept-Language': 'tr-TR,tr;q=0.9,en;q=0.8',
+          'Cache-Control': 'no-cache',
+          'Pragma': 'no-cache',
+          'Referer': 'https://www.trendyol.com/',
+          'Sec-Fetch-Dest': 'image',
+          'Sec-Fetch-Mode': 'no-cors',
+          'Sec-Fetch-Site': 'cross-site'
+        }
+      });
+
+      if (!response.ok) {
+        console.error('❌ Image proxy error:', response.status, response.statusText);
+        return res.status(response.status).json({ error: 'Görsel yüklenemedi' });
+      }
+
+      const contentType = response.headers.get('content-type') || 'image/jpeg';
+      const buffer = await response.arrayBuffer();
+
+      // Set CORS headers
+      res.setHeader('Access-Control-Allow-Origin', '*');
+      res.setHeader('Access-Control-Allow-Methods', 'GET');
+      res.setHeader('Access-Control-Allow-Headers', 'Content-Type');
+      res.setHeader('Content-Type', contentType);
+      res.setHeader('Cache-Control', 'public, max-age=3600');
+
+      console.log('✅ Image proxy success:', url);
+      res.send(Buffer.from(buffer));
+      
+    } catch (error) {
+      console.error('❌ Image proxy error:', error);
+      res.status(500).json({ error: 'Görsel proxy hatası' });
+    }
+  });
+
   return httpServer;
 }

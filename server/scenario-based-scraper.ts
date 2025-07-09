@@ -256,27 +256,30 @@ function extractPrice($: any, htmlContent: string): any {
 function extractImages($: any): string[] {
   const images = new Set<string>();
   
-  // Priority order: specific product image selectors first
+  // Try to find active/current product images by checking for visible elements
   const productImageSelectors = [
-    // Trendyol specific product gallery
+    // Modern Trendyol selectors
+    '[data-testid="product-images"] img',
+    '[data-testid="product-image"] img',
     '.product-gallery img',
     '.product-image img',
     '.gallery-image img',
-    // JSON-LD structured data
-    '[data-testid="product-image"]',
     '.product-main-image img',
     // Variant images
     '.variant-image img',
     '.color-variant img',
     // Thumbnail gallery
     '.thumbnail-gallery img',
-    '.product-thumbs img'
+    '.product-thumbs img',
+    // Recent Trendyol patterns
+    '.product-detail-image img',
+    '.product-photos img'
   ];
   
   // First try specific product image selectors
   productImageSelectors.forEach(selector => {
     $(selector).each((i: number, el: any) => {
-      const src = $(el).attr('src');
+      const src = $(el).attr('src') || $(el).attr('data-src');
       if (src && isProductImage(src)) {
         const highResSrc = optimizeImageUrl(src);
         images.add(highResSrc);
@@ -284,10 +287,29 @@ function extractImages($: any): string[] {
     });
   });
   
+  // Try JSON-LD structured data for image URLs
+  const jsonLdScripts = $('script[type="application/ld+json"]');
+  for (let i = 0; i < jsonLdScripts.length; i++) {
+    try {
+      const jsonData = JSON.parse($(jsonLdScripts[i]).html() || '{}');
+      if (jsonData.image) {
+        const imageUrls = Array.isArray(jsonData.image) ? jsonData.image : [jsonData.image];
+        imageUrls.forEach((img: string) => {
+          if (img && isProductImage(img)) {
+            const highResSrc = optimizeImageUrl(img);
+            images.add(highResSrc);
+          }
+        });
+      }
+    } catch (e) {
+      // Continue
+    }
+  }
+  
   // If no specific product images found, try broader search with filtering
   if (images.size === 0) {
     $('img[src*="cdn.dsmcdn.com"]').each((i: number, el: any) => {
-      const src = $(el).attr('src');
+      const src = $(el).attr('src') || $(el).attr('data-src');
       if (src && isProductImage(src)) {
         const highResSrc = optimizeImageUrl(src);
         images.add(highResSrc);

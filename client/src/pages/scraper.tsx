@@ -1512,8 +1512,11 @@ function ScraperPage({ platform = 'trendyol' }: ScraperPageProps) {
                             alt={`${product.brand} ${product.title} - Ana görsel`}
                             className="w-full h-full object-cover rounded border border-gray-600 group-hover:border-blue-400 transition-all duration-200"
                             loading="eager"
+                            crossOrigin="anonymous"
+                            referrerPolicy="no-referrer"
                             onError={(e) => {
                               const target = e.currentTarget;
+                              console.error('Main image load error:', product.images[0]);
                               target.style.backgroundColor = '#1f2937';
                               target.style.display = 'flex';
                               target.style.alignItems = 'center';
@@ -1521,9 +1524,10 @@ function ScraperPage({ platform = 'trendyol' }: ScraperPageProps) {
                               target.innerHTML = '<div style="color: #9ca3af; text-align: center; padding: 20px; font-size: 14px;"><div>📷</div><div>Ana Görsel</div></div>';
                             }}
                             onLoad={(e) => {
+                              console.log('Main image loaded successfully:', product.images[0]);
                               e.currentTarget.style.opacity = '1';
                             }}
-                            style={{ opacity: '1' }}
+                            style={{ opacity: '0.3' }}
                           />
                           <div className="absolute top-1 left-1 bg-black/70 text-white text-xs px-1.5 py-0.5 rounded">
                             Ana
@@ -1565,12 +1569,16 @@ function ScraperPage({ platform = 'trendyol' }: ScraperPageProps) {
                                     alt={`${product.brand} ${product.title} - Görsel ${index + 1}`}
                                     className="w-full h-full object-cover transition-all duration-200 hover:scale-105"
                                     loading="lazy"
+                                    crossOrigin="anonymous"
+                                    referrerPolicy="no-referrer"
                                     onLoad={(e) => {
+                                      console.log(`Thumbnail ${index + 1} loaded:`, image);
                                       e.currentTarget.style.opacity = '1';
                                     }}
                                     onError={(e) => {
                                       const target = e.currentTarget;
                                       const parent = target.parentElement;
+                                      console.error(`Thumbnail ${index + 1} error:`, image);
                                       if (parent) {
                                         parent.style.backgroundColor = '#374151';
                                         parent.innerHTML = `
@@ -1597,7 +1605,7 @@ function ScraperPage({ platform = 'trendyol' }: ScraperPageProps) {
                                         }, 100);
                                       }
                                     }}
-                                    style={{ opacity: '1' }}
+                                    style={{ opacity: '0.3' }}
                                   />
                                   <div className="absolute bottom-1 right-1 bg-black/80 text-white text-xs px-1.5 py-0.5 rounded">
                                     {index + 1}
