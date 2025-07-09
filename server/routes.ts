@@ -1582,7 +1582,22 @@ export function registerRoutes(app: Express): Server {
 
       if (!response.ok) {
         console.error('❌ Image proxy error:', response.status, response.statusText);
-        return res.status(response.status).json({ error: 'Görsel yüklenemedi' });
+        
+        // Return placeholder SVG instead of error
+        const placeholderSvg = `
+          <svg width="300" height="300" xmlns="http://www.w3.org/2000/svg">
+            <rect width="300" height="300" fill="#1f2937"/>
+            <text x="150" y="130" text-anchor="middle" fill="#9ca3af" font-family="Arial" font-size="16">📷</text>
+            <text x="150" y="160" text-anchor="middle" fill="#9ca3af" font-family="Arial" font-size="14">Görsel Yüklenemedi</text>
+            <text x="150" y="180" text-anchor="middle" fill="#6b7280" font-family="Arial" font-size="12">404 Error</text>
+          </svg>
+        `;
+        
+        res.setHeader('Content-Type', 'image/svg+xml');
+        res.setHeader('Cache-Control', 'no-cache');
+        res.setHeader('Access-Control-Allow-Origin', '*');
+        
+        return res.send(placeholderSvg);
       }
 
       const contentType = response.headers.get('content-type') || 'image/jpeg';
@@ -1600,7 +1615,22 @@ export function registerRoutes(app: Express): Server {
       
     } catch (error) {
       console.error('❌ Image proxy error:', error);
-      res.status(500).json({ error: 'Görsel proxy hatası' });
+      
+      // Return placeholder SVG for any error
+      const placeholderSvg = `
+        <svg width="300" height="300" xmlns="http://www.w3.org/2000/svg">
+          <rect width="300" height="300" fill="#1f2937"/>
+          <text x="150" y="130" text-anchor="middle" fill="#9ca3af" font-family="Arial" font-size="16">📷</text>
+          <text x="150" y="160" text-anchor="middle" fill="#9ca3af" font-family="Arial" font-size="14">Görsel Yüklenemedi</text>
+          <text x="150" y="180" text-anchor="middle" fill="#6b7280" font-family="Arial" font-size="12">Network Error</text>
+        </svg>
+      `;
+      
+      res.setHeader('Content-Type', 'image/svg+xml');
+      res.setHeader('Cache-Control', 'no-cache');
+      res.setHeader('Access-Control-Allow-Origin', '*');
+      
+      res.send(placeholderSvg);
     }
   });
 

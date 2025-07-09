@@ -1508,12 +1508,10 @@ function ScraperPage({ platform = 'trendyol' }: ScraperPageProps) {
                         <div className="aspect-square w-48 mx-auto mb-3 relative group">
                           <img
                             id="mainProductImage"
-                            src={product.images[0]}
+                            src={`/api/image-proxy?url=${encodeURIComponent(product.images[0])}`}
                             alt={`${product.brand} ${product.title} - Ana görsel`}
                             className="w-full h-full object-cover rounded border border-gray-600 group-hover:border-blue-400 transition-all duration-200"
                             loading="eager"
-                            crossOrigin="anonymous"
-                            referrerPolicy="no-referrer"
                             onError={(e) => {
                               const target = e.currentTarget;
                               console.error('Main image load error:', product.images[0]);
@@ -1565,12 +1563,10 @@ function ScraperPage({ platform = 'trendyol' }: ScraperPageProps) {
                               .map((image: string, index: number) => (
                                 <div key={index} className="relative aspect-square group cursor-pointer bg-gray-800 rounded border border-gray-700 overflow-hidden">
                                   <img
-                                    src={image}
+                                    src={`/api/image-proxy?url=${encodeURIComponent(image)}`}
                                     alt={`${product.brand} ${product.title} - Görsel ${index + 1}`}
                                     className="w-full h-full object-cover transition-all duration-200 hover:scale-105"
                                     loading="lazy"
-                                    crossOrigin="anonymous"
-                                    referrerPolicy="no-referrer"
                                     onLoad={(e) => {
                                       console.log(`Thumbnail ${index + 1} loaded:`, image);
                                       e.currentTarget.style.opacity = '1';
@@ -1600,7 +1596,7 @@ function ScraperPage({ platform = 'trendyol' }: ScraperPageProps) {
                                       if (mainImg) {
                                         mainImg.style.opacity = '0.7';
                                         setTimeout(() => {
-                                          mainImg.src = image;
+                                          mainImg.src = `/api/image-proxy?url=${encodeURIComponent(image)}`;
                                           mainImg.style.opacity = '1';
                                         }, 100);
                                       }
