@@ -1546,11 +1546,17 @@ function ScraperPage({ platform = 'trendyol' }: ScraperPageProps) {
                           <div className="grid grid-cols-4 md:grid-cols-6 gap-1.5">
                             {product.images
                               .filter((image: string) => {
-                                return image && (
-                                  image.includes('cdn.dsmcdn.com/mnresize') || 
-                                  image.includes('/prod/') ||
-                                  /\.(jpg|jpeg|png|webp)($|\?)/.test(image.toLowerCase())
-                                ) && !image.includes('ty-web.svg') && !image.includes('/web/');
+                                // STRICT FILTERING: Must contain mnresize AND prod directory
+                                return image && 
+                                  image.includes('cdn.dsmcdn.com/mnresize') && 
+                                  image.includes('/prod/') &&
+                                  !image.includes('/web/') &&
+                                  !image.includes('ty-web.svg') &&
+                                  !image.includes('logo') &&
+                                  !image.includes('icon') &&
+                                  !image.includes('button') &&
+                                  !image.includes('banner') &&
+                                  /\.(jpg|jpeg|png|webp)($|\?)/.test(image.toLowerCase());
                               })
                               .map((image: string, index: number) => (
                                 <div key={index} className="relative aspect-square group cursor-pointer bg-gray-800 rounded border border-gray-700 overflow-hidden">

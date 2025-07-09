@@ -308,15 +308,17 @@ function isProductImage(src: string): boolean {
   // Must contain CDN pattern
   if (!src.includes('cdn.dsmcdn.com')) return false;
   
+  // STRICT FILTERING: Must contain mnresize for product images
+  if (!src.includes('mnresize')) return false;
+  
+  // Must contain product directory patterns
+  const requiredPatterns = ['/prod/', '/ty1670/', '/ty1200/', '/ty800/'];
+  const hasRequiredPattern = requiredPatterns.some(pattern => src.includes(pattern));
+  if (!hasRequiredPattern) return false;
+  
   // Exclude site assets and UI elements
   const excludePatterns = [
-    '/web/logo/',
-    '/web/common/',
-    '/web/icons/',
-    '/web/ui/',
-    '/web/header/',
-    '/web/footer/',
-    '/web/navigation/',
+    '/web/',
     'ty-web.svg',
     'logo',
     'icon',
@@ -329,7 +331,10 @@ function isProductImage(src: string): boolean {
     'header',
     'footer',
     'nav',
-    'menu'
+    'menu',
+    'social',
+    'sprite',
+    'common'
   ];
   
   for (const pattern of excludePatterns) {
@@ -340,13 +345,10 @@ function isProductImage(src: string): boolean {
   
   // Include product image patterns
   const includePatterns = [
-    '/prod/',
-    '/product/',
     '_org',
     '_zoom',
-    '/ty1670/',
-    '/ty1200/',
-    '/ty800/'
+    'QC_ENRICHMENT',
+    'PRODUCT_ENRICHMENT'
   ];
   
   for (const pattern of includePatterns) {
