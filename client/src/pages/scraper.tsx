@@ -840,10 +840,65 @@ function ScraperPage({ platform = 'trendyol' }: ScraperPageProps) {
     }
   });
 
-
+  const completeMutation = useMutation({
+    mutationFn: async (data: { url: string }) => {
+      const response = await apiRequest("POST", "/api/process-product-complete", data);
+      if (!response.ok) {
+        const errorData = await response.json().catch(() => ({}));
+        throw {
+          message: errorData.message || `HTTP ${response.status}: ${response.statusText}`,
+          status: response.status,
+          details: errorData.details || "Entegre işlem başarısız oldu"
+        };
+      }
+      return response.json();
+    },
+    onSuccess: (data) => {
+      console.log('🚀 Entegre işlem tamamlandı:', data);
+      
+      const enhancedData = {
+        ...data,
+        title: `Ürün işlendi (ID: ${data.productId})`,
+        success: true,
+        completeWorkflow: true,
+        productId: data.productId,
+        shopifyProductId: data.shopifyProductId,
+        reviewsCount: data.reviewsCount,
+        csvGenerated: data.csvGenerated,
+        monitoring: data.monitoring
+      };
+      
+      setResult(enhancedData);
+      setProduct(enhancedData);
+      
+      toast({
+        title: "🚀 Entegre İşlem Başarılı",
+        description: `Ürün tamamen işlendi! Shopify ID: ${data.shopifyProductId}`
+      });
+      
+      setMainError(null);
+    },
+    onError: (error: any) => {
+      setMainError({
+        message: error.message,
+        status: error.status,
+        details: error.details,
+        solution: "Entegre işlem sırasında bir hata oluştu. Lütfen tekrar deneyin."
+      });
+      toast({
+        title: "❌ Entegre İşlem Hatası",
+        description: error.message,
+        variant: "destructive"
+      });
+    }
+  });
 
   const onSubmit = form.handleSubmit((data) => {
     scrapeMutation.mutate(data);
+  });
+
+  const onCompleteSubmit = form.handleSubmit((data) => {
+    completeMutation.mutate(data);
   });
 
   const getErrorSolution = (status?: number, details?: string) => {
@@ -1312,19 +1367,34 @@ function ScraperPage({ platform = 'trendyol' }: ScraperPageProps) {
                 <Input
                   placeholder="Trendyol ürün linkini buraya yapıştırın (örn: https://www.trendyol.com/marka/urun-adi-p-123456)"
                   {...form.register("url")}
-                  className="h-12 sm:h-20 pl-[100px] sm:pl-[140px] pr-20 sm:pr-32 bg-transparent border-none text-sm sm:text-lg font-medium text-gray-100 placeholder:text-gray-400 focus:ring-0 focus:outline-none rounded-2xl leading-relaxed py-3 sm:py-6"
+                  className="h-12 sm:h-20 pl-[100px] sm:pl-[140px] pr-[130px] sm:pr-[150px] bg-transparent border-none text-sm sm:text-lg font-medium text-gray-100 placeholder:text-gray-400 focus:ring-0 focus:outline-none rounded-2xl leading-relaxed py-3 sm:py-6"
                 />
                 
                 {/* Enhanced Submit Button */}
                 <Button
                   type="submit"
-                  className="absolute right-2 sm:right-4 top-1/2 transform -translate-y-1/2 h-8 w-12 sm:h-12 sm:w-20 bg-gradient-to-r from-blue-600 via-blue-700 to-indigo-700 hover:from-blue-500 hover:via-blue-600 hover:to-indigo-600 text-white border border-blue-500/50 hover:border-blue-400/70 rounded-xl shadow-lg hover:shadow-blue-500/25 transition-all duration-200 disabled:opacity-50 disabled:cursor-not-allowed"
+                  className="absolute right-[70px] sm:right-[100px] top-1/2 transform -translate-y-1/2 h-8 w-12 sm:h-12 sm:w-20 bg-gradient-to-r from-blue-600 via-blue-700 to-indigo-700 hover:from-blue-500 hover:via-blue-600 hover:to-indigo-600 text-white border border-blue-500/50 hover:border-blue-400/70 rounded-xl shadow-lg hover:shadow-blue-500/25 transition-all duration-200 disabled:opacity-50 disabled:cursor-not-allowed"
                   disabled={scrapeMutation.isPending}
                 >
                   {scrapeMutation.isPending ? (
                     <Loader2 className="w-6 h-6 animate-spin" />
                   ) : (
                     <ArrowRight className="w-6 h-6" />
+                  )}
+                </Button>
+                
+                {/* Complete Workflow Button */}
+                <Button
+                  type="button"
+                  onClick={onCompleteSubmit}
+                  className="absolute right-2 sm:right-4 top-1/2 transform -translate-y-1/2 h-8 w-12 sm:h-12 sm:w-20 bg-gradient-to-r from-green-600 via-green-700 to-emerald-700 hover:from-green-500 hover:via-green-600 hover:to-emerald-600 text-white border border-green-500/50 hover:border-green-400/70 rounded-xl shadow-lg hover:shadow-green-500/25 transition-all duration-200 disabled:opacity-50 disabled:cursor-not-allowed"
+                  disabled={completeMutation.isPending}
+                  title="Entegre İşlem: Çıkar + Shopify + Analiz"
+                >
+                  {completeMutation.isPending ? (
+                    <Loader2 className="w-6 h-6 animate-spin" />
+                  ) : (
+                    <Package className="w-6 h-6" />
                   )}
                 </Button>
               </div>

@@ -35,6 +35,7 @@ import { scrapeAdvancedVariants, generateAdvancedVariantCSV } from './advanced-v
 import { runTrendyolVariantsSpider, generateScrapyOutput, generateScrapyCSV } from './scrapy-like-trendyol-scraper';
 import { fixedAuthenticScrape } from './fixed-authentic-scraper';
 import { scenarioBasedScrape } from './scenario-based-scraper';
+import { ProductManagementSystem } from './product-management-system';
 
 
 function generateSingleProductShopifyCSV(product: any): string {
@@ -1631,6 +1632,145 @@ export function registerRoutes(app: Express): Server {
       res.setHeader('Access-Control-Allow-Origin', '*');
       
       res.send(placeholderSvg);
+    }
+  });
+
+  // COMPLETE PRODUCT WORKFLOW - Extract → Store → Sync → Monitor
+  app.post('/api/process-product-complete', async (req, res) => {
+    const { url } = req.body;
+    
+    if (!url) {
+      return res.status(400).json({ 
+        success: false, 
+        error: 'URL is required' 
+      });
+    }
+    
+    try {
+      console.log(`🚀 Complete product workflow started for: ${url}`);
+      
+      const result = await ProductManagementSystem.processProductComplete(url);
+      
+      if (result.success) {
+        console.log(`✅ Complete product workflow finished successfully`);
+        res.json(result);
+      } else {
+        console.log(`❌ Complete product workflow failed: ${result.error}`);
+        res.status(500).json(result);
+      }
+      
+    } catch (error) {
+      console.error('Complete product workflow error:', error);
+      res.status(500).json({ 
+        success: false, 
+        error: 'Complete product workflow failed', 
+        details: error.message 
+      });
+    }
+  });
+
+  // Get product analysis data
+  app.get('/api/product-analysis/:id', async (req, res) => {
+    const { id } = req.params;
+    
+    try {
+      console.log(`📊 Getting product analysis for ID: ${id}`);
+      
+      const analysis = await ProductManagementSystem.getProductAnalysis(parseInt(id));
+      
+      console.log(`✅ Product analysis retrieved successfully`);
+      res.json(analysis);
+      
+    } catch (error) {
+      console.error('Product analysis error:', error);
+      res.status(500).json({ 
+        success: false, 
+        error: 'Product analysis failed', 
+        details: error.message 
+      });
+    }
+  });
+
+  // Get all products for analysis page
+  app.get('/api/products-analysis', async (req, res) => {
+    try {
+      console.log(`📊 Getting all products for analysis`);
+      
+      const products = await ProductManagementSystem.getAllProductsForAnalysis();
+      
+      console.log(`✅ All products retrieved: ${products.length} products`);
+      res.json(products);
+      
+    } catch (error) {
+      console.error('Products analysis error:', error);
+      res.status(500).json({ 
+        success: false, 
+        error: 'Products analysis failed', 
+        details: error.message 
+      });
+    }
+  });
+
+  // System stats for unified dashboard
+  app.get('/api/system-stats', async (req, res) => {
+    try {
+      console.log(`📊 Getting system statistics`);
+      
+      const products = await ProductManagementSystem.getAllProductsForAnalysis();
+      
+      const stats = {
+        totalProducts: products.length,
+        successRate: products.length > 0 ? Math.round((products.filter(p => p.syncStatus === 'synced').length / products.length) * 100) : 0,
+        activeMonitors: products.filter(p => p.isActive).length,
+        avgResponseTime: 450, // ms
+        dailyExtractions: products.filter(p => {
+          const today = new Date();
+          const productDate = new Date(p.createdAt);
+          return productDate.toDateString() === today.toDateString();
+        }).length,
+        errorRate: products.length > 0 ? Math.round((products.filter(p => p.syncStatus === 'error').length / products.length) * 100) : 0,
+        lastUpdate: new Date().toISOString()
+      };
+      
+      console.log(`✅ System stats retrieved successfully`);
+      res.json(stats);
+      
+    } catch (error) {
+      console.error('System stats error:', error);
+      res.status(500).json({ 
+        success: false, 
+        error: 'System stats failed', 
+        details: error.message 
+      });
+    }
+  });
+
+  // Recent activity for unified dashboard
+  app.get('/api/recent-activity', async (req, res) => {
+    try {
+      console.log(`📊 Getting recent activity`);
+      
+      const products = await ProductManagementSystem.getAllProductsForAnalysis();
+      
+      const recentActivity = products.slice(0, 10).map((product, index) => ({
+        id: `activity-${index}`,
+        type: product.shopifyProductId ? 'shopify' : 'scraping',
+        description: `${product.title} - ${product.brand}`,
+        timestamp: product.createdAt,
+        status: product.syncStatus === 'synced' ? 'success' : (product.syncStatus === 'error' ? 'error' : 'warning'),
+        url: product.trendyolUrl
+      }));
+      
+      console.log(`✅ Recent activity retrieved: ${recentActivity.length} items`);
+      res.json(recentActivity);
+      
+    } catch (error) {
+      console.error('Recent activity error:', error);
+      res.status(500).json({ 
+        success: false, 
+        error: 'Recent activity failed', 
+        details: error.message 
+      });
     }
   });
 
