@@ -79,7 +79,51 @@ export class ScenarioExtractors {
     console.log(`📏 Extracting multi-size product`);
     
     const sizes = this.extractSizes($, config.sizeSelectors, htmlContent);
-    const colors = this.extractColorFromTitle(title) || ['Standart'];
+    
+    // Enhanced color extraction - try multiple methods
+    let colors: string[] = [];
+    
+    // Method 1: Extract from title
+    const titleColors = this.extractColorFromTitle(title);
+    if (titleColors && titleColors.length > 0) {
+      colors = titleColors;
+      console.log(`🎨 Colors from title: [${colors.join(', ')}]`);
+    }
+    
+    // Method 2: Extract from HTML content if no title colors
+    if (colors.length === 0) {
+      colors = this.extractColors($, config.colorSelectors, htmlContent, title);
+      console.log(`🎨 Colors from HTML: [${colors.join(', ')}]`);
+    }
+    
+    // Method 3: Advanced pattern matching in HTML
+    if (colors.length === 0) {
+      const htmlColorPatterns = [
+        /color[^>]*>(BEYAZ|SİYAH|MAVİ|KIRMIZI|YEŞİL|SARI|MOR|PEMBE|GRİ|KAHVE|TURUNCU|LACİVERT|KREM|BEJ)/gi,
+        /"color":\s*"([^"]*BEYAZ|SİYAH|MAVİ|KIRMIZI|YEŞİL|SARI|MOR|PEMBE|GRİ|KAHVE|TURUNCU|LACİVERT|KREM|BEJ[^"]*)"/gi,
+        /renk[^>]*>(BEYAZ|SİYAH|MAVİ|KIRMIZI|YEŞİL|SARI|MOR|PEMBE|GRİ|KAHVE|TURUNCU|LACİVERT|KREM|BEJ)/gi
+      ];
+      
+      htmlColorPatterns.forEach((pattern, index) => {
+        const matches = htmlContent.match(pattern);
+        if (matches && colors.length === 0) {
+          matches.forEach(match => {
+            const colorMatch = match.match(/(BEYAZ|SİYAH|MAVİ|KIRMIZI|YEŞİL|SARI|MOR|PEMBE|GRİ|KAHVE|TURUNCU|LACİVERT|KREM|BEJ)/i);
+            if (colorMatch) {
+              colors.push(colorMatch[1]);
+              console.log(`🎨 Color "${colorMatch[1]}" found via HTML pattern ${index + 1}`);
+            }
+          });
+        }
+      });
+    }
+    
+    // Default fallback only if absolutely no colors found
+    if (colors.length === 0) {
+      colors = ['Standart'];
+      console.log(`🎨 No colors found, using default: Standart`);
+    }
+    
     const stockMap = this.extractSizeStockStatus($, config.stockSelectors, sizes);
     const priceMap = new Map<string, number>();
     const imageMap = new Map<string, string[]>();
@@ -268,14 +312,63 @@ export class ScenarioExtractors {
   private static extractColorFromTitle(title: string): string[] | null {
     if (!title) return null;
     
-    const colorPattern = /\b(BEYAZ|SİYAH|MAVİ|KIRMIZI|YEŞİL|SARI|MOR|PEMBE|GRİ|KAHVE|TURUNCU|LACİVERT|KREM|BEJ|WHITE|BLACK|BLUE|RED|GREEN|YELLOW|PURPLE|PINK|GRAY|BROWN|ORANGE|NAVY|CREAM|BEIGE)\b/i;
-    const match = title.match(colorPattern);
+    console.log(`🔍 Analyzing title for colors: "${title}"`);
     
-    if (match) {
-      console.log(`🎨 Color "${match[1]}" extracted from title: "${title}"`);
-      return [match[1]];
+    // Enhanced color patterns - including case insensitive and Turkish variations
+    const colorPatterns = [
+      /\b(BEYAZ|SİYAH|MAVİ|KIRMIZI|YEŞİL|SARI|MOR|PEMBE|GRİ|KAHVE|TURUNCU|LACİVERT|KREM|BEJ)\b/gi,
+      /\b(WHITE|BLACK|BLUE|RED|GREEN|YELLOW|PURPLE|PINK|GRAY|BROWN|ORANGE|NAVY|CREAM|BEIGE)\b/gi,
+      /\b(Beyaz|Siyah|Mavi|Kırmızı|Yeşil|Sarı|Mor|Pembe|Gri|Kahve|Turuncu|Lacivert|Krem|Bej)\b/gi,
+      /\b(beyaz|siyah|mavi|kırmızı|yeşil|sarı|mor|pembe|gri|kahve|turuncu|lacivert|krem|bej)\b/gi
+    ];
+    
+    const foundColors = new Set<string>();
+    
+    colorPatterns.forEach((pattern, index) => {
+      const matches = title.match(pattern);
+      if (matches) {
+        matches.forEach(match => {
+          const normalizedColor = match.toUpperCase();
+          foundColors.add(normalizedColor);
+          console.log(`🎨 Color "${normalizedColor}" found in title via pattern ${index + 1}`);
+        });
+      }
+    });
+    
+    // Check for common Turkish color terms in title
+    const turkishColors = {
+      'SIYAH': ['SİYAH', 'BLACK', 'Siyah'],
+      'BEYAZ': ['BEYAZ', 'WHITE', 'Beyaz'],
+      'MAVI': ['MAVİ', 'BLUE', 'Mavi'],
+      'KIRMIZI': ['KIRMIZI', 'RED', 'Kırmızı'],
+      'YEŞIL': ['YEŞİL', 'GREEN', 'Yeşil'],
+      'SARI': ['SARI', 'YELLOW', 'Sarı'],
+      'MOR': ['MOR', 'PURPLE', 'Mor'],
+      'PEMBE': ['PEMBE', 'PINK', 'Pembe'],
+      'GRİ': ['GRİ', 'GRAY', 'Gri'],
+      'KAHVE': ['KAHVE', 'BROWN', 'Kahve'],
+      'TURUNCU': ['TURUNCU', 'ORANGE', 'Turuncu'],
+      'LACİVERT': ['LACİVERT', 'NAVY', 'Lacivert'],
+      'KREM': ['KREM', 'CREAM', 'Krem'],
+      'BEJ': ['BEJ', 'BEIGE', 'Bej']
+    };
+    
+    Object.entries(turkishColors).forEach(([mainColor, variations]) => {
+      variations.forEach(variation => {
+        if (title.includes(variation)) {
+          foundColors.add(mainColor);
+          console.log(`🎨 Color "${mainColor}" detected from variation "${variation}" in title`);
+        }
+      });
+    });
+    
+    if (foundColors.size > 0) {
+      const colorsArray = Array.from(foundColors);
+      console.log(`🎨 Final colors from title: [${colorsArray.join(', ')}]`);
+      return colorsArray;
     }
     
+    console.log(`🎨 No colors found in title: "${title}"`);
     return null;
   }
 
