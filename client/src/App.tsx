@@ -191,7 +191,20 @@ function Router() {
       <Switch>
       <Route path="/">
         <PageTransition>
-          <MainDashboard />
+          <div className="container mx-auto p-4">
+            <div className="flex flex-col gap-4">
+              <ScraperPage platform="trendyol" />
+              <UrlHistory onSelect={(url) => {
+                // Find the scraper component and update its URL
+                const scraperComponent = document.querySelector('input[name="url"]');
+                if (scraperComponent) {
+                  const event = new Event('change', { bubbles: true });
+                  Object.defineProperty(event, 'target', { value: { value: url } });
+                  scraperComponent.dispatchEvent(event);
+                }
+              }} />
+            </div>
+          </div>
         </PageTransition>
       </Route>
       <Route path="/marketplace">
