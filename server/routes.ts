@@ -37,6 +37,7 @@ import { fixedAuthenticScrape } from './fixed-authentic-scraper';
 import { scenarioBasedScrape } from './scenario-based-scraper';
 import { ProductManagementSystem } from './product-management-system';
 import { TelegramNotifications } from './comprehensive-telegram-notifier';
+import axios from 'axios';
 
 
 function generateSingleProductShopifyCSV(product: any): string {
@@ -103,8 +104,8 @@ function generateSingleProductShopifyCSV(product: any): string {
       variantStock.toString(),                        // 12. Variant Inventory Qty
       product.price.withProfit.toString(),           // 13. Variant Price (kar marjılı fiyat)
       product.price.original.toString(),             // 14. Variant Compare At Price (orijinal fiyat)
-      product.images[index] || product.images[0] || '', // 15. Image Src
-      (index + 1).toString(),                        // 16. Image Position
+      product.images[0] || '', // 15. Image Src - Main product image
+      '1',                                            // 16. Image Position
       product.title,                                  // 17. Image Alt Text
       'FALSE',                                        // 18. Gift Card
       `${product.brand || 'Mavi'} ${product.title.split(' ').slice(0, 3).join(' ')}`, // 19. SEO Title
@@ -119,49 +120,37 @@ function generateSingleProductShopifyCSV(product: any): string {
   // ADDITIONAL PRODUCT IMAGES - Shopify format
   console.log(`📊 Shopify variant structure: "${productHandle}" - ${inStockSizes.length} variants created`);
   
-  // Add remaining product images as media-only rows
-  const usedImageCount = Math.min(product.sizeOptions.length, product.images.length);
-  const additionalImages = product.images.slice(usedImageCount);
+  // Add ALL product images as additional image rows
+  const startingImagePosition = inStockSizes.length + 1;
+  console.log(`📸 Adding ALL ${product.images.length} product images to CSV...`);
   
-  console.log(`📸 Adding ${additionalImages.length} additional product images...`);
-  
-  additionalImages.forEach((imageUrl: string, index: number) => {
-    const imagePosition = usedImageCount + index + 2;
+  product.images.forEach((imageUrl: string, index: number) => {
+    const imagePosition = startingImagePosition + index;
     rows.push([
-      productHandle,                                  // 1. Handle - CONSISTENT
-      '',                                             // 2. Title
-      '',                                             // 3. Body (HTML)
-      '',                                             // 4. Vendor
-      '',                                             // 5. Product Category
-      '',                                             // 6. Type
-      '',                                             // 7. Tags
-      '',                                             // 8. Published
-      '',                                             // 9. Option1 Name
-      '',                                             // 10. Option1 Value
-      '',                                             // 11. Option2 Name
-      '',                                             // 12. Option2 Value
-      '',                                             // 13. Variant SKU
-      '',                                             // 14. Variant Grams
-      '',                                             // 15. Variant Inventory Tracker
-      '',                                             // 16. Variant Inventory Qty
-      '',                                             // 17. Variant Inventory Policy
-      '',                                             // 18. Variant Fulfillment Service
-      '',                                             // 19. Variant Price
-      '',                                             // 20. Variant Compare At Price
-      '',                                             // 21. Variant Requires Shipping
-      '',                                             // 22. Variant Taxable
-      '',                                             // 23. Variant Barcode
-      imageUrl,                                      // 24. Image Src - PRODUCT IMAGE
-      imagePosition.toString(),                      // 25. Image Position
-      `${product.title} - Additional Image ${index + 1}`, // 26. Image Alt Text
-      '',                                             // 27. Gift Card
-      '',                                             // 28. SEO Title
-      '',                                             // 29. SEO Description
-      '',                                             // 30. Variant Image - EMPTY for product images
-      '',                                             // 31. Variant Weight Unit
-      '',                                             // 32. Cost per item
-      '',                                             // 33. Included / Turkey  
-      ''                                              // 34. Product Features (boş - ek görseller için)
+      productHandle,                                  // Handle
+      '',                                             // Title
+      '',                                             // Body (HTML)
+      '',                                             // Vendor
+      '',                                             // Tags
+      '',                                             // Published
+      '',                                             // Option1 Name
+      '',                                             // Option1 Value
+      '',                                             // Option2 Name
+      '',                                             // Option2 Value
+      '',                                             // Variant SKU
+      '',                                             // Variant Inventory Qty
+      '',                                             // Variant Price
+      '',                                             // Variant Compare At Price
+      imageUrl,                                      // Image Src - PRODUCT IMAGE
+      imagePosition.toString(),                      // Image Position
+      `${product.title} - Görsel ${index + 1}`,     // Image Alt Text
+      '',                                             // Gift Card
+      '',                                             // SEO Title
+      '',                                             // SEO Description
+      '',                                             // Variant Image
+      '',                                             // Variant Weight Unit
+      '',                                             // Status
+      ''                                              // Product Features
     ]);
   });
   

@@ -1633,16 +1633,17 @@ function ScraperPage({ platform = 'trendyol' }: ScraperPageProps) {
                           </div>
                           <img
                             id="mainProductImage"
-                            src={product.images[0]}
+                            src={`/api/image-proxy?url=${encodeURIComponent(product.images[0])}`}
                             alt={`${product.brand} ${product.title} - Ana görsel`}
                             className="absolute inset-0 w-full h-full object-cover opacity-0"
                             loading="eager"
                             onLoad={(e) => {
                               e.currentTarget.style.opacity = '1';
-                              console.log('Ana görsel yüklendi');
+                              const preview = document.getElementById('mainProductPreview');
+                              if (preview) preview.style.display = 'none';
                             }}
                             onError={(e) => {
-                              console.log('Görsel CORS hatası - bu normal, URL\'ler CSV için hazır');
+                              console.log('Görsel yüklenemiyor - placeholder gösteriliyor');
                               e.currentTarget.style.display = 'none';
                             }}
                           />
@@ -1673,7 +1674,7 @@ function ScraperPage({ platform = 'trendyol' }: ScraperPageProps) {
                             </div>
                           </div>
                           <div className="text-xs text-gray-400 mb-3">
-                            Trendyol görselleri doğrudan yüklenemediği için placeholder önizlemeleri gösteriliyor. CSV export'ta tüm görsel URL'leri mevcut olacak.
+                            📋 Tüm görsel URL'leri CSV dosyasına ekleniyor - Shopify için hazır format
                           </div>
                           <div className="grid grid-cols-3 md:grid-cols-4 lg:grid-cols-6 gap-3">
                             {product.images.slice(0, 12).map((image: string, index: number) => (
@@ -1685,7 +1686,7 @@ function ScraperPage({ platform = 'trendyol' }: ScraperPageProps) {
                                   </div>
                                 </div>
                                 <img
-                                  src={image}
+                                  src={`/api/image-proxy?url=${encodeURIComponent(image)}`}
                                   alt={`${product.brand} ${product.title} - Görsel ${index + 1}`}
                                   className="absolute inset-0 w-full h-full object-cover opacity-0 transition-all duration-300 hover:scale-110"
                                   loading="lazy"
@@ -1701,7 +1702,7 @@ function ScraperPage({ platform = 'trendyol' }: ScraperPageProps) {
                                     const mainImg = document.getElementById('mainProductImage') as HTMLImageElement;
                                     const mainPreview = document.getElementById('mainProductPreview');
                                     if (mainImg) {
-                                      mainImg.src = image;
+                                      mainImg.src = `/api/image-proxy?url=${encodeURIComponent(image)}`;
                                     }
                                     if (mainPreview) {
                                       const titleEl = mainPreview.querySelector('.product-title');
