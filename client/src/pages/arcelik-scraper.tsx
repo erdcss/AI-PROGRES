@@ -285,67 +285,108 @@ const ArcelikScraper = () => {
           animate={{ opacity: 1, y: 0 }}
           className="max-w-7xl mx-auto"
         >
-          {/* Header */}
+          {/* Arçelik Header */}
           <div className="text-center mb-8">
-            <h1 className="text-3xl md:text-4xl font-bold text-white mb-4">
-              Arçelik Beyaz Eşya Transfer Sistemi
-            </h1>
-            <p className="text-gray-300 text-lg">
-              Arçelik klimalar, buzdolapları ve diğer beyaz eşya ürünlerini otomatik çıkarın
+            <div className="flex justify-center items-center gap-4 mb-6">
+              <div className="w-16 h-16 bg-gradient-to-r from-emerald-500 to-emerald-600 rounded-xl flex items-center justify-center shadow-lg">
+                <span className="text-white font-bold text-2xl">A</span>
+              </div>
+              <div>
+                <h1 className="text-4xl md:text-5xl font-bold text-white">
+                  Arçelik
+                </h1>
+                <p className="text-emerald-400 font-medium">Ürün Aktarıcı</p>
+              </div>
+            </div>
+            <p className="text-gray-300 text-lg max-w-2xl mx-auto">
+              Arçelik'in kaliteli beyaz eşya ürünlerini Shopify mağazanıza kolayca aktarın
             </p>
-            <div className="mt-4 flex justify-center">
+            <div className="mt-6 flex flex-wrap justify-center gap-3">
               <div className="bg-emerald-500/20 text-emerald-400 px-4 py-2 rounded-lg text-sm font-medium">
-                Türkiye'nin Güvenilir Markası • Premium Beyaz Eşya
+                🏆 Türkiye'nin 1 Numarası
+              </div>
+              <div className="bg-emerald-500/20 text-emerald-400 px-4 py-2 rounded-lg text-sm font-medium">
+                ✨ Premium Kalite
+              </div>
+              <div className="bg-emerald-500/20 text-emerald-400 px-4 py-2 rounded-lg text-sm font-medium">
+                🔧 Güvenilir Teknoloji
               </div>
             </div>
           </div>
 
-          {/* URL Input Form */}
+          {/* Arçelik URL Input Form */}
           <Card className="bg-slate-800/30 backdrop-blur-sm border-emerald-500/20 mb-8">
             <CardContent className="p-6">
+              <div className="text-center mb-6">
+                <h3 className="text-xl font-semibold text-white mb-2">Arçelik Ürün Linki</h3>
+                <p className="text-gray-400 text-sm">arcelik.com.tr'den herhangi bir ürün linkini yapıştırın</p>
+              </div>
+              
               <form onSubmit={form.handleSubmit(onSubmit)} className="space-y-4">
                 <div className="flex flex-col sm:flex-row gap-4">
                   <div className="flex-1">
-                    <Input
-                      {...form.register("url")}
-                      placeholder="Arçelik ürün URL'sini buraya yapıştırın... (örn: https://www.arcelik.com.tr/split-klima/12465-hp-klima)"
-                      className="bg-slate-700/50 border-emerald-500/30 text-white placeholder-gray-400"
-                      disabled={extractProductMutation.isPending}
-                    />
+                    <div className="relative">
+                      <Input
+                        {...form.register("url")}
+                        placeholder="https://www.arcelik.com.tr/split-klima/12465-hp-klima"
+                        className="bg-slate-700/50 border-emerald-500/30 text-white placeholder-gray-400 pl-10"
+                        disabled={extractProductMutation.isPending}
+                      />
+                      <div className="absolute left-3 top-1/2 transform -translate-y-1/2">
+                        <span className="text-emerald-400 text-sm font-bold">A</span>
+                      </div>
+                    </div>
                     {form.formState.errors.url && (
                       <p className="text-red-400 text-sm mt-1">
                         {form.formState.errors.url.message}
                       </p>
                     )}
-                    <div className="mt-2 flex flex-wrap gap-2">
-                      <div className="text-xs text-emerald-400 bg-emerald-500/10 px-2 py-1 rounded">
-                        ❄️ Klima Sistemleri
-                      </div>
-                      <div className="text-xs text-emerald-400 bg-emerald-500/10 px-2 py-1 rounded">
-                        🧊 Buzdolabı
-                      </div>
-                      <div className="text-xs text-emerald-400 bg-emerald-500/10 px-2 py-1 rounded">
-                        🔄 Çamaşır Makinesi
-                      </div>
-                      <div className="text-xs text-emerald-400 bg-emerald-500/10 px-2 py-1 rounded">
-                        🔥 Ankastre Set
+                    
+                    {/* Arçelik Kategori Örnekleri */}
+                    <div className="mt-4 space-y-3">
+                      <p className="text-xs text-gray-400 font-medium">Desteklenen Arçelik Ürün Kategorileri:</p>
+                      <div className="grid grid-cols-2 md:grid-cols-4 gap-2">
+                        <div className="text-xs text-emerald-400 bg-emerald-500/10 px-3 py-2 rounded-lg text-center">
+                          ❄️ Klima & Isıtma
+                        </div>
+                        <div className="text-xs text-emerald-400 bg-emerald-500/10 px-3 py-2 rounded-lg text-center">
+                          🧊 Buzdolabı & Dondurucu
+                        </div>
+                        <div className="text-xs text-emerald-400 bg-emerald-500/10 px-3 py-2 rounded-lg text-center">
+                          🔄 Çamaşır & Kurutma
+                        </div>
+                        <div className="text-xs text-emerald-400 bg-emerald-500/10 px-3 py-2 rounded-lg text-center">
+                          🔥 Ankastre & Ocak
+                        </div>
+                        <div className="text-xs text-emerald-400 bg-emerald-500/10 px-3 py-2 rounded-lg text-center">
+                          🍽️ Bulaşık Makinesi
+                        </div>
+                        <div className="text-xs text-emerald-400 bg-emerald-500/10 px-3 py-2 rounded-lg text-center">
+                          🧹 Elektrikli Süpürge
+                        </div>
+                        <div className="text-xs text-emerald-400 bg-emerald-500/10 px-3 py-2 rounded-lg text-center">
+                          ☕ Kahve Makinesi
+                        </div>
+                        <div className="text-xs text-emerald-400 bg-emerald-500/10 px-3 py-2 rounded-lg text-center">
+                          🏠 Küçük Ev Aletleri
+                        </div>
                       </div>
                     </div>
                   </div>
                   <Button
                     type="submit"
                     disabled={extractProductMutation.isPending}
-                    className="bg-emerald-600 hover:bg-emerald-700 px-8"
+                    className="bg-emerald-600 hover:bg-emerald-700 px-8 h-12"
                   >
                     {extractProductMutation.isPending ? (
                       <>
                         <Loader2 className="w-4 h-4 mr-2 animate-spin" />
-                        Çıkarılıyor...
+                        Arçelik'ten Çıkarılıyor...
                       </>
                     ) : (
                       <>
                         <Package className="w-4 h-4 mr-2" />
-                        Ürünü Çıkar
+                        Arçelik Ürünü Çıkar
                       </>
                     )}
                   </Button>
@@ -555,19 +596,105 @@ const ArcelikScraper = () => {
             )}
           </AnimatePresence>
 
-          {/* Help Section */}
-          <Card className="bg-slate-800/30 backdrop-blur-sm border-emerald-500/20 mt-8">
+          {/* Arçelik Sistem Özellikleri */}
+          <div className="grid md:grid-cols-2 gap-6 mt-8">
+            {/* Sistem Özellikleri */}
+            <Card className="bg-slate-800/30 backdrop-blur-sm border-emerald-500/20">
+              <CardContent className="p-6">
+                <h3 className="text-lg font-semibold text-white mb-4 flex items-center gap-2">
+                  <Package className="w-5 h-5 text-emerald-400" />
+                  Sistem Özellikleri
+                </h3>
+                <div className="grid grid-cols-2 gap-4 text-center">
+                  <div className="space-y-2">
+                    <div className="text-2xl font-bold text-emerald-400">AI</div>
+                    <div className="text-sm text-gray-300">Yapay Zeka</div>
+                    <div className="text-xs text-gray-400">Otomatik Analiz</div>
+                  </div>
+                  <div className="space-y-2">
+                    <div className="text-2xl font-bold text-emerald-400">%99</div>
+                    <div className="text-sm text-gray-300">Başarı Oranı</div>
+                    <div className="text-xs text-gray-400">Arçelik Ürünleri</div>
+                  </div>
+                  <div className="space-y-2">
+                    <div className="text-2xl font-bold text-emerald-400">HD</div>
+                    <div className="text-sm text-gray-300">Görsel Kalitesi</div>
+                    <div className="text-xs text-gray-400">Yüksek Çözünürlük</div>
+                  </div>
+                  <div className="space-y-2">
+                    <div className="text-2xl font-bold text-emerald-400">15%</div>
+                    <div className="text-sm text-gray-300">Kar Marjı</div>
+                    <div className="text-xs text-gray-400">Otomatik Hesaplama</div>
+                  </div>
+                </div>
+              </CardContent>
+            </Card>
+
+            {/* Kullanım Kılavuzu */}
+            <Card className="bg-slate-800/30 backdrop-blur-sm border-emerald-500/20">
+              <CardContent className="p-6">
+                <h3 className="text-lg font-semibold text-white mb-4 flex items-center gap-2">
+                  <AlertCircle className="w-5 h-5 text-emerald-400" />
+                  Arçelik Kullanım Kılavuzu
+                </h3>
+                <div className="text-gray-300 space-y-3 text-sm">
+                  <div className="flex items-start gap-3">
+                    <span className="text-emerald-400 font-bold">1.</span>
+                    <span>arcelik.com.tr'den istediğiniz beyaz eşya ürününün linkini kopyalayın</span>
+                  </div>
+                  <div className="flex items-start gap-3">
+                    <span className="text-emerald-400 font-bold">2.</span>
+                    <span>Linki yukarıdaki alana yapıştırın ve "Arçelik Ürünü Çıkar" butonuna tıklayın</span>
+                  </div>
+                  <div className="flex items-start gap-3">
+                    <span className="text-emerald-400 font-bold">3.</span>
+                    <span>Ürün bilgileri ve görselleri otomatik olarak çıkarılacak</span>
+                  </div>
+                  <div className="flex items-start gap-3">
+                    <span className="text-emerald-400 font-bold">4.</span>
+                    <span>"CSV İndir" ile Shopify formatında dosya indirin</span>
+                  </div>
+                  <div className="flex items-start gap-3">
+                    <span className="text-emerald-400 font-bold">5.</span>
+                    <span>"Shopify'a Yükle" ile doğrudan mağazanıza aktarın</span>
+                  </div>
+                </div>
+              </CardContent>
+            </Card>
+          </div>
+
+          {/* Arçelik Avantajları */}
+          <Card className="bg-gradient-to-r from-emerald-500/10 to-green-500/10 border-emerald-500/20 mt-6">
             <CardContent className="p-6">
-              <h3 className="text-lg font-semibold text-white mb-3 flex items-center gap-2">
-                <AlertCircle className="w-5 h-5 text-emerald-400" />
-                Kullanım Kılavuzu
-              </h3>
-              <div className="text-gray-300 space-y-2 text-sm">
-                <p>• Arçelik ürün sayfasından URL'yi kopyalayın ve yukarıdaki alana yapıştırın</p>
-                <p>• "Ürünü Çıkar" butonuna tıklayarak ürün bilgilerini çıkarın</p>
-                <p>• "CSV İndir" ile Shopify uyumlu CSV dosyasını indirin</p>
-                <p>• "Shopify'a Yükle" ile ürünü doğrudan Shopify mağazanıza ekleyin</p>
-                <p>• Çıkarılan görsellere tıklayarak büyük görüntüleyebilir, URL'lerini kopyalayabilirsiniz</p>
+              <div className="text-center">
+                <h3 className="text-xl font-semibold text-white mb-2">Arçelik Özel Avantajları</h3>
+                <p className="text-gray-300 text-sm mb-4">Türkiye'nin en güvenilir beyaz eşya markası için özel geliştirilmiş sistem</p>
+                <div className="grid grid-cols-1 md:grid-cols-3 gap-4 text-sm">
+                  <div className="flex items-center gap-2 text-emerald-400">
+                    <div className="w-2 h-2 rounded-full bg-emerald-400"></div>
+                    <span>Otomatik teknik özellik çıkarma</span>
+                  </div>
+                  <div className="flex items-center gap-2 text-emerald-400">
+                    <div className="w-2 h-2 rounded-full bg-emerald-400"></div>
+                    <span>Enerji sınıfı tanıma sistemi</span>
+                  </div>
+                  <div className="flex items-center gap-2 text-emerald-400">
+                    <div className="w-2 h-2 rounded-full bg-emerald-400"></div>
+                    <span>Kapasitet ve boyut analizi</span>
+                  </div>
+                  <div className="flex items-center gap-2 text-emerald-400">
+                    <div className="w-2 h-2 rounded-full bg-emerald-400"></div>
+                    <span>Garanti bilgisi çıkarma</span>
+                  </div>
+                  <div className="flex items-center gap-2 text-emerald-400">
+                    <div className="w-2 h-2 rounded-full bg-emerald-400"></div>
+                    <span>Türkçe fiyat formatı desteği</span>
+                  </div>
+                  <div className="flex items-center gap-2 text-emerald-400">
+                    <div className="w-2 h-2 rounded-full bg-emerald-400"></div>
+                    <span>Arçelik kategorileri optimizasyonu</span>
+                  </div>
+                </div>
               </div>
             </CardContent>
           </Card>
