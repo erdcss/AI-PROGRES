@@ -1615,15 +1615,20 @@ function ScraperPage({ platform = 'trendyol' }: ScraperPageProps) {
                           </div>
                         </div>
                         
-                        {/* Main Image Display - Actual Preview */}
-                        <div className="aspect-square w-56 mx-auto mb-4 relative group">
+                        {/* Main Image Display - Enhanced */}
+                        <div className="aspect-square w-72 mx-auto mb-4 relative group">
                           <img
                             id="mainProductImage"
                             src={product.images[0]}
                             alt={`${product.brand} ${product.title} - Ana görsel`}
-                            className="w-full h-full object-cover rounded-lg border border-gray-600 group-hover:border-blue-400 transition-all duration-200"
+                            className="w-full h-full object-cover rounded-lg border border-gray-600 group-hover:border-blue-400 transition-all duration-200 shadow-lg"
                             loading="eager"
+                            onLoad={(e) => {
+                              e.currentTarget.style.opacity = '1';
+                              console.log('Ana görsel başarıyla yüklendi:', product.images[0]);
+                            }}
                             onError={(e) => {
+                              console.error('Ana görsel yüklenemedi:', product.images[0]);
                               const target = e.currentTarget;
                               const parent = target.parentElement;
                               if (parent) {
@@ -1641,12 +1646,16 @@ function ScraperPage({ platform = 'trendyol' }: ScraperPageProps) {
                                 `;
                               }
                             }}
+                            style={{ opacity: '0.5' }}
                           />
                           <div className="absolute top-2 left-2 bg-blue-600/80 text-white text-xs px-2 py-1 rounded">
                             Ana
                           </div>
                           <div className="absolute top-2 right-2 bg-green-600/80 text-white text-xs px-2 py-1 rounded">
                             {product.images.length}
+                          </div>
+                          <div className="absolute bottom-2 left-2 bg-black/70 text-white text-xs px-2 py-1 rounded">
+                            HD Kalite
                           </div>
                         </div>
                         
@@ -1660,15 +1669,20 @@ function ScraperPage({ platform = 'trendyol' }: ScraperPageProps) {
                               URL'ler Hazır
                             </span>
                           </div>
-                          <div className="grid grid-cols-3 md:grid-cols-4 lg:grid-cols-6 gap-2">
+                          <div className="grid grid-cols-3 md:grid-cols-4 lg:grid-cols-6 gap-3">
                             {product.images.slice(0, 12).map((image: string, index: number) => (
-                              <div key={index} className="relative aspect-square group cursor-pointer bg-gradient-to-br from-gray-800 to-gray-900 rounded-lg border border-gray-700 overflow-hidden hover:border-blue-400 transition-all duration-200">
+                              <div key={index} className="relative aspect-square group cursor-pointer bg-gradient-to-br from-gray-800 to-gray-900 rounded-lg border border-gray-700 overflow-hidden hover:border-blue-400 hover:shadow-xl transition-all duration-300">
                                 <img
                                   src={image}
                                   alt={`${product.brand} ${product.title} - Görsel ${index + 1}`}
-                                  className="w-full h-full object-cover transition-all duration-200 hover:scale-105"
+                                  className="w-full h-full object-cover transition-all duration-300 hover:scale-110"
                                   loading="lazy"
+                                  onLoad={(e) => {
+                                    e.currentTarget.style.opacity = '1';
+                                    console.log(`Thumbnail ${index + 1} yüklendi:`, image);
+                                  }}
                                   onError={(e) => {
+                                    console.error(`Thumbnail ${index + 1} yüklenemedi:`, image);
                                     const target = e.currentTarget;
                                     const parent = target.parentElement;
                                     if (parent) {
@@ -1689,9 +1703,13 @@ function ScraperPage({ platform = 'trendyol' }: ScraperPageProps) {
                                   onClick={() => {
                                     const mainImg = document.getElementById('mainProductImage') as HTMLImageElement;
                                     if (mainImg) {
-                                      mainImg.src = image;
+                                      mainImg.style.opacity = '0.5';
+                                      setTimeout(() => {
+                                        mainImg.src = image;
+                                      }, 100);
                                     }
                                   }}
+                                  style={{ opacity: '0.7' }}
                                 />
                                 <div className="absolute bottom-1 right-1 bg-black/80 text-white text-xs px-1.5 py-0.5 rounded">
                                   {index + 1}
@@ -1701,7 +1719,12 @@ function ScraperPage({ platform = 'trendyol' }: ScraperPageProps) {
                                     Ana
                                   </div>
                                 )}
-                                <div className="absolute inset-0 bg-black/20 opacity-0 group-hover:opacity-100" />
+                                <div className="absolute inset-0 bg-gradient-to-t from-black/50 to-transparent opacity-0 group-hover:opacity-100 transition-opacity duration-300" />
+                                <div className="absolute inset-0 flex items-center justify-center opacity-0 group-hover:opacity-100 transition-opacity duration-300">
+                                  <div className="bg-blue-600/80 text-white text-xs px-2 py-1 rounded">
+                                    Tıkla
+                                  </div>
+                                </div>
                               </div>
                             ))}
                           </div>
