@@ -1641,9 +1641,10 @@ export function registerRoutes(app: Express): Server {
 
       const response = await fetch(url, {
         headers: {
-          'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/91.0.4472.124 Safari/537.36',
-          'Accept': 'image/webp,image/apng,image/*,*/*;q=0.8',
-          'Accept-Language': 'tr-TR,tr;q=0.9,en;q=0.8',
+          'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36',
+          'Accept': 'image/webp,image/apng,image/jpeg,image/png,image/*,*/*;q=0.8',
+          'Accept-Language': 'tr-TR,tr;q=0.9,en-US;q=0.8,en;q=0.7',
+          'Accept-Encoding': 'gzip, deflate, br',
           'Cache-Control': 'no-cache',
           'Pragma': 'no-cache',
           'Referer': 'https://www.trendyol.com/',
@@ -1655,22 +1656,7 @@ export function registerRoutes(app: Express): Server {
 
       if (!response.ok) {
         console.error('❌ Image proxy error:', response.status, response.statusText);
-        
-        // Return placeholder SVG instead of error
-        const placeholderSvg = `
-          <svg width="300" height="300" xmlns="http://www.w3.org/2000/svg">
-            <rect width="300" height="300" fill="#1f2937"/>
-            <text x="150" y="130" text-anchor="middle" fill="#9ca3af" font-family="Arial" font-size="16">📷</text>
-            <text x="150" y="160" text-anchor="middle" fill="#9ca3af" font-family="Arial" font-size="14">Görsel Yüklenemedi</text>
-            <text x="150" y="180" text-anchor="middle" fill="#6b7280" font-family="Arial" font-size="12">404 Error</text>
-          </svg>
-        `;
-        
-        res.setHeader('Content-Type', 'image/svg+xml');
-        res.setHeader('Cache-Control', 'no-cache');
-        res.setHeader('Access-Control-Allow-Origin', '*');
-        
-        return res.send(placeholderSvg);
+        return res.status(404).send('Image not found');
       }
 
       const contentType = response.headers.get('content-type') || 'image/jpeg';
@@ -1688,22 +1674,7 @@ export function registerRoutes(app: Express): Server {
       
     } catch (error) {
       console.error('❌ Image proxy error:', error);
-      
-      // Return placeholder SVG for any error
-      const placeholderSvg = `
-        <svg width="300" height="300" xmlns="http://www.w3.org/2000/svg">
-          <rect width="300" height="300" fill="#1f2937"/>
-          <text x="150" y="130" text-anchor="middle" fill="#9ca3af" font-family="Arial" font-size="16">📷</text>
-          <text x="150" y="160" text-anchor="middle" fill="#9ca3af" font-family="Arial" font-size="14">Görsel Yüklenemedi</text>
-          <text x="150" y="180" text-anchor="middle" fill="#6b7280" font-family="Arial" font-size="12">Network Error</text>
-        </svg>
-      `;
-      
-      res.setHeader('Content-Type', 'image/svg+xml');
-      res.setHeader('Cache-Control', 'no-cache');
-      res.setHeader('Access-Control-Allow-Origin', '*');
-      
-      res.send(placeholderSvg);
+      return res.status(500).send('Proxy error');
     }
   });
 
