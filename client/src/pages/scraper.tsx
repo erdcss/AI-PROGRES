@@ -1615,17 +1615,33 @@ function ScraperPage({ platform = 'trendyol' }: ScraperPageProps) {
                           </div>
                         </div>
                         
-                        {/* Main Image Display - Placeholder */}
-                        <div className="aspect-square w-56 mx-auto mb-4 relative group bg-gradient-to-br from-gray-800 to-gray-900 rounded-lg border border-gray-600 flex items-center justify-center">
-                          <div className="text-center p-6">
-                            <div className="text-4xl mb-3 text-blue-400">📷</div>
-                            <div className="text-sm text-gray-300 font-medium mb-2">
-                              Ürün Görselleri Çıkarıldı
-                            </div>
-                            <div className="text-xs text-gray-500">
-                              {product.images.length} adet görsel URL'si hazır
-                            </div>
-                          </div>
+                        {/* Main Image Display - Actual Preview */}
+                        <div className="aspect-square w-56 mx-auto mb-4 relative group">
+                          <img
+                            id="mainProductImage"
+                            src={product.images[0]}
+                            alt={`${product.brand} ${product.title} - Ana görsel`}
+                            className="w-full h-full object-cover rounded-lg border border-gray-600 group-hover:border-blue-400 transition-all duration-200"
+                            loading="eager"
+                            onError={(e) => {
+                              const target = e.currentTarget;
+                              const parent = target.parentElement;
+                              if (parent) {
+                                parent.style.backgroundColor = '#1f2937';
+                                parent.innerHTML = `
+                                  <div class="flex items-center justify-center h-full text-center p-6">
+                                    <div>
+                                      <div class="text-4xl mb-3 text-blue-400">📷</div>
+                                      <div class="text-sm text-gray-300 font-medium mb-2">Ana Görsel</div>
+                                      <div class="text-xs text-gray-500">Yüklenemedi</div>
+                                    </div>
+                                  </div>
+                                  <div class="absolute top-2 left-2 bg-blue-600/80 text-white text-xs px-2 py-1 rounded">Ana</div>
+                                  <div class="absolute top-2 right-2 bg-green-600/80 text-white text-xs px-2 py-1 rounded">${product.images.length}</div>
+                                `;
+                              }
+                            }}
+                          />
                           <div className="absolute top-2 left-2 bg-blue-600/80 text-white text-xs px-2 py-1 rounded">
                             Ana
                           </div>
@@ -1647,14 +1663,36 @@ function ScraperPage({ platform = 'trendyol' }: ScraperPageProps) {
                           <div className="grid grid-cols-3 md:grid-cols-4 lg:grid-cols-6 gap-2">
                             {product.images.slice(0, 12).map((image: string, index: number) => (
                               <div key={index} className="relative aspect-square group cursor-pointer bg-gradient-to-br from-gray-800 to-gray-900 rounded-lg border border-gray-700 overflow-hidden hover:border-blue-400 transition-all duration-200">
-                                <div className="flex items-center justify-center h-full">
-                                  <div className="text-center p-2">
-                                    <div className="text-2xl mb-1 text-blue-400">📷</div>
-                                    <div className="text-xs text-gray-400">
-                                      Görsel {index + 1}
-                                    </div>
-                                  </div>
-                                </div>
+                                <img
+                                  src={image}
+                                  alt={`${product.brand} ${product.title} - Görsel ${index + 1}`}
+                                  className="w-full h-full object-cover transition-all duration-200 hover:scale-105"
+                                  loading="lazy"
+                                  onError={(e) => {
+                                    const target = e.currentTarget;
+                                    const parent = target.parentElement;
+                                    if (parent) {
+                                      parent.style.backgroundColor = '#1f2937';
+                                      parent.innerHTML = `
+                                        <div class="flex items-center justify-center h-full">
+                                          <div class="text-center p-2">
+                                            <div class="text-2xl mb-1 text-blue-400">📷</div>
+                                            <div class="text-xs text-gray-400">Görsel ${index + 1}</div>
+                                          </div>
+                                        </div>
+                                        <div class="absolute bottom-1 right-1 bg-black/80 text-white text-xs px-1.5 py-0.5 rounded">${index + 1}</div>
+                                        ${index === 0 ? '<div class="absolute top-1 left-1 bg-blue-600 text-white text-xs px-1.5 py-0.5 rounded">Ana</div>' : ''}
+                                        <div class="absolute inset-0 bg-black/20 opacity-0 group-hover:opacity-100" />
+                                      `;
+                                    }
+                                  }}
+                                  onClick={() => {
+                                    const mainImg = document.getElementById('mainProductImage') as HTMLImageElement;
+                                    if (mainImg) {
+                                      mainImg.src = image;
+                                    }
+                                  }}
+                                />
                                 <div className="absolute bottom-1 right-1 bg-black/80 text-white text-xs px-1.5 py-0.5 rounded">
                                   {index + 1}
                                 </div>
@@ -1668,7 +1706,7 @@ function ScraperPage({ platform = 'trendyol' }: ScraperPageProps) {
                             ))}
                           </div>
                           <div className="text-xs text-gray-400 mt-3 text-center bg-gray-800/30 py-2 px-3 rounded-lg">
-                            💡 Görsel URL'leri başarıyla çıkarıldı ve CSV'de kullanıma hazır
+                            💡 Tıklayarak ana görseli değiştir • Shopify'a aktarım için hazır
                           </div>
                         </div>
                       </div>
