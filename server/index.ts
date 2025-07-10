@@ -283,6 +283,33 @@ app.use('/api/sos', sosRoutes);
   // Add import routes
   app.use(importRoutes);
   
+  // Test enhanced extraction endpoint - Direct registration
+  app.post('/api/test-enhanced', async (req, res) => {
+    try {
+      const { url } = req.body;
+      
+      if (!url) {
+        return res.status(400).json({
+          success: false,
+          message: 'URL gerekli'
+        });
+      }
+      
+      const { testEnhancedExtraction } = await import('./test-enhanced-extraction');
+      const result = await testEnhancedExtraction(url);
+      
+      res.json(result);
+      
+    } catch (error) {
+      console.error('Enhanced test error:', error);
+      return res.status(500).json({
+        success: false,
+        message: 'Enhanced extraction test failed',
+        error: error instanceof Error ? error.message : 'Unknown error'
+      });
+    }
+  });
+  
   const server = await registerRoutes(app);
 
   // Serve static CSV files from temp and exports directories

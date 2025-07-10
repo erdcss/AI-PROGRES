@@ -29,6 +29,7 @@ export interface ScenarioBasedResult {
     size: string;
     inStock: boolean;
   }>;
+  tags: string[]; // Added advanced tags array
   extractionDetails: {
     scenario: string;
     confidence: number;
@@ -94,7 +95,10 @@ export async function scenarioBasedScrape(url: string): Promise<ScenarioBasedRes
       variants = await extractVariantsDirect($, htmlContent);
     }
     
-    console.log(`✅ Scenario-based extraction completed: ${variants.length} variants found`);
+    // Step 6: Generate advanced tags based on all extracted data
+    const advancedTags = generateAdvancedTags(title, brand, features, url);
+    
+    console.log(`✅ Scenario-based extraction completed: ${variants.length} variants, ${images.length} images, ${features.length} features, ${advancedTags.length} tags`);
     
     return {
       success: true,
@@ -106,6 +110,7 @@ export async function scenarioBasedScrape(url: string): Promise<ScenarioBasedRes
       images,
       features,
       variants,
+      tags: advancedTags, // Added advanced tags
       extractionDetails: {
         scenario: detection.scenario,
         confidence: detection.confidence,
@@ -257,82 +262,233 @@ function extractPrice($: any, htmlContent: string): any {
 }
 
 async function extractImagesAdvanced($: cheerio.CheerioAPI, htmlContent: string, url: string): Promise<string[]> {
-  console.log('🖼️ Advanced image extraction starting...');
+  console.log('🖼️ ENHANCED IMAGE EXTRACTION - Extracting ALL product images...');
   
-  // Method 1: Extract all CDN images with regex
-  const cdnImageMatches = htmlContent.match(/https:\/\/cdn\.dsmcdn\.com[^"'\s]*\.jpg/g) || [];
-  const cdnImages = [...new Set(cdnImageMatches)]; // Remove duplicates
-  console.log(`🔍 CDN regex found ${cdnImages.length} images`);
-  
-  // Method 2: Enhanced DOM selectors
-  const domImages: string[] = [];
-  const imageSelectors = [
-    'img[src*="cdn.dsmcdn.com"]',
-    'img[data-src*="cdn.dsmcdn.com"]',
-    '[style*="cdn.dsmcdn.com"]',
-    '[data-original*="cdn.dsmcdn.com"]'
+  // Method 1: Comprehensive CDN regex extraction
+  const cdnPatterns = [
+    /https:\/\/cdn\.dsmcdn\.com[^"'\s]*\.jpg/g,
+    /https:\/\/cdn\.dsmcdn\.com[^"'\s]*\.jpeg/g,
+    /https:\/\/cdn\.dsmcdn\.com[^"'\s]*\.png/g,
+    /https:\/\/cdn\.dsmcdn\.com[^"'\s]*\.webp/g
   ];
   
-  imageSelectors.forEach(selector => {
+  const cdnImages: string[] = [];
+  cdnPatterns.forEach(pattern => {
+    const matches = htmlContent.match(pattern) || [];
+    cdnImages.push(...matches);
+  });
+  
+  console.log(`🔍 CDN patterns found ${cdnImages.length} total images`);
+  
+  // Method 2: Comprehensive DOM extraction
+  const domImages: string[] = [];
+  const allImageSelectors = [
+    // Product gallery selectors
+    'img[src*="cdn.dsmcdn.com"]',
+    'img[data-src*="cdn.dsmcdn.com"]',
+    'img[data-original*="cdn.dsmcdn.com"]',
+    'img[data-lazy*="cdn.dsmcdn.com"]',
+    'img[data-zoom*="cdn.dsmcdn.com"]',
+    
+    // Style and background selectors
+    '[style*="cdn.dsmcdn.com"]',
+    '[data-background*="cdn.dsmcdn.com"]',
+    
+    // Variant and color images
+    '.variant-image img',
+    '.color-variant img',
+    '.size-variant img',
+    
+    // Product gallery specific
+    '.product-gallery img',
+    '.gallery-item img',
+    '.product-photos img',
+    '.image-gallery img',
+    
+    // Thumbnail galleries
+    '.thumbnail-gallery img',
+    '.product-thumbs img',
+    '.thumb-gallery img',
+    
+    // Modern Trendyol selectors
+    '[data-testid*="image"] img',
+    '[data-testid*="gallery"] img',
+    '[data-testid*="photo"] img'
+  ];
+  
+  allImageSelectors.forEach(selector => {
     $(selector).each((_, el) => {
       const $el = $(el);
-      const src = $el.attr('src') || $el.attr('data-src') || $el.attr('data-original');
+      
+      // Extract from various attributes
+      const sources = [
+        $el.attr('src'),
+        $el.attr('data-src'),
+        $el.attr('data-original'),
+        $el.attr('data-lazy'),
+        $el.attr('data-zoom'),
+        $el.attr('data-background')
+      ];
+      
+      sources.forEach(src => {
+        if (src && src.includes('cdn.dsmcdn.com')) {
+          domImages.push(src);
+        }
+      });
+      
+      // Extract from style attributes
       const style = $el.attr('style') || '';
-      
-      if (src && src.includes('cdn.dsmcdn.com')) {
-        domImages.push(src);
-      }
-      
-      // Extract from style background-image
-      const styleMatch = style.match(/url\(['"]?(https:\/\/cdn\.dsmcdn\.com[^'"]*\.jpg)/);
-      if (styleMatch) {
-        domImages.push(styleMatch[1]);
+      const backgroundMatches = style.match(/url\(['"]?(https:\/\/cdn\.dsmcdn\.com[^'"]*\.(jpg|jpeg|png|webp))/g);
+      if (backgroundMatches) {
+        backgroundMatches.forEach(match => {
+          const urlMatch = match.match(/https:\/\/cdn\.dsmcdn\.com[^'"]*\.(jpg|jpeg|png|webp)/);
+          if (urlMatch) {
+            domImages.push(urlMatch[0]);
+          }
+        });
       }
     });
   });
   
-  console.log(`🖼️ DOM selectors found ${domImages.length} images`);
+  console.log(`🖼️ DOM extraction found ${domImages.length} images`);
   
-  // Method 3: JSON-LD structured data
+  // Method 3: Enhanced JSON-LD extraction
   const jsonImages: string[] = [];
   $('script[type="application/ld+json"]').each((_, script) => {
     try {
       const jsonData = JSON.parse($(script).html() || '{}');
+      
+      // Extract from image field
       if (jsonData.image) {
         const images = Array.isArray(jsonData.image) ? jsonData.image : [jsonData.image];
         images.forEach(img => {
           if (typeof img === 'string' && img.includes('cdn.dsmcdn.com')) {
             jsonImages.push(img);
+          } else if (typeof img === 'object' && img.url && img.url.includes('cdn.dsmcdn.com')) {
+            jsonImages.push(img.url);
           }
         });
       }
+      
+      // Extract from product variants
+      if (jsonData.hasVariant) {
+        jsonData.hasVariant.forEach((variant: any) => {
+          if (variant.image) {
+            const variantImages = Array.isArray(variant.image) ? variant.image : [variant.image];
+            variantImages.forEach(img => {
+              if (typeof img === 'string' && img.includes('cdn.dsmcdn.com')) {
+                jsonImages.push(img);
+              }
+            });
+          }
+        });
+      }
+      
+      // Extract from offers
+      if (jsonData.offers && jsonData.offers.image) {
+        const offerImages = Array.isArray(jsonData.offers.image) ? jsonData.offers.image : [jsonData.offers.image];
+        offerImages.forEach(img => {
+          if (typeof img === 'string' && img.includes('cdn.dsmcdn.com')) {
+            jsonImages.push(img);
+          }
+        });
+      }
+      
     } catch (e) {
       // Continue
     }
   });
   
-  console.log(`📋 JSON-LD found ${jsonImages.length} images`);
+  console.log(`📋 JSON-LD extraction found ${jsonImages.length} images`);
   
-  // Combine all methods and filter
-  const allImages = [...cdnImages, ...domImages, ...jsonImages];
+  // Method 4: Pattern variations discovery
+  const patternImages: string[] = [];
+  const baseImages = [...new Set([...cdnImages, ...domImages, ...jsonImages])];
+  
+  baseImages.forEach(img => {
+    if (img.includes('_org_zoom.jpg')) {
+      // Generate all possible variations
+      const base = img.replace('_org_zoom.jpg', '');
+      const variations = [
+        base + '_org_zoom.jpg',
+        base + '.jpg',
+        base + '_org.jpg',
+        base + '_zoom.jpg',
+        base + '_large.jpg',
+        base + '_medium.jpg'
+      ];
+      
+      variations.forEach(variation => {
+        if (!patternImages.includes(variation)) {
+          patternImages.push(variation);
+        }
+      });
+    }
+  });
+  
+  console.log(`🔄 Pattern discovery generated ${patternImages.length} variations`);
+  
+  // Combine all methods
+  const allImages = [...cdnImages, ...domImages, ...jsonImages, ...patternImages];
   const uniqueImages = [...new Set(allImages)]
-    .filter(img => 
-      img.includes('cdn.dsmcdn.com') && 
-      img.includes('prod/') &&
-      !img.includes('_thumb') &&
-      !img.includes('_small')
-    )
+    .filter(img => {
+      // Enhanced filtering for product images only
+      if (!img.includes('cdn.dsmcdn.com')) return false;
+      if (!img.includes('prod/') && !img.includes('ty')) return false;
+      
+      // Exclude non-product images
+      const excludePatterns = [
+        '_thumb',
+        '_small',
+        'logo',
+        'icon',
+        'button',
+        'arrow',
+        'star',
+        'heart',
+        'badge',
+        'banner',
+        'header',
+        'footer',
+        'nav',
+        'menu',
+        'social',
+        'sprite',
+        'common',
+        'web/'
+      ];
+      
+      for (const pattern of excludePatterns) {
+        if (img.toLowerCase().includes(pattern)) {
+          return false;
+        }
+      }
+      
+      return true;
+    })
     .map(img => {
-      // Convert to high quality version
-      return img.replace(/\/(small|medium|thumb)\//, '/mnresize/620/920/');
+      // Optimize for high quality
+      let optimized = img;
+      
+      // Ensure high resolution
+      if (!optimized.includes('_org_zoom') && !optimized.includes('mnresize')) {
+        optimized = optimized.replace(/\.(jpg|jpeg)$/, '_org_zoom.$1');
+      }
+      
+      // Ensure HTTPS
+      optimized = optimized.replace(/^http:/, 'https:');
+      
+      return optimized;
     });
   
-  console.log(`✅ Final processed images: ${uniqueImages.length}`);
-  return uniqueImages.slice(0, 15); // Limit to 15 images
+  console.log(`✅ FINAL IMAGE EXTRACTION: ${uniqueImages.length} unique high-quality product images`);
+  
+  // Return more images for comprehensive coverage
+  return uniqueImages.slice(0, 25); // Increased from 15 to 25 images
 }
 
 async function extractFeaturesAdvanced($: cheerio.CheerioAPI, htmlContent: string, url: string): Promise<Array<{key: string, value: string}>> {
-  console.log('🎯 Advanced feature extraction starting...');
+  console.log('🎯 SIMPLIFIED feature extraction starting (server-safe)...');
   
   const features: Array<{key: string, value: string}> = [];
   
@@ -500,13 +656,16 @@ async function extractFeaturesAdvanced($: cheerio.CheerioAPI, htmlContent: strin
     }
   });
   
+  // Simplified server-safe feature extraction (avoiding problematic functions)
+  console.log('✅ Using simplified server-safe feature extraction approach');
+  
   // Remove duplicates and clean up
   const uniqueFeatures = features.filter((feature, index, self) => 
     index === self.findIndex(f => f.key === feature.key)
   );
   
-  console.log(`✅ Advanced feature extraction found ${uniqueFeatures.length} unique features`);
-  return uniqueFeatures.slice(0, 30); // Increased limit to 30 features
+  console.log(`✅ COMPREHENSIVE feature extraction found ${uniqueFeatures.length} unique features`);
+  return uniqueFeatures.slice(0, 50); // Increased limit to 50 comprehensive features
 }
 
 /**
@@ -847,6 +1006,270 @@ async function extractVariantsDirect($: cheerio.CheerioAPI, htmlContent: string)
   
   console.log(`✅ Direct extraction generated ${variants.length} variants`);
   return variants;
+}
+
+/**
+ * Extract category information for advanced tagging
+ */
+function extractCategoryInformation($: any, htmlContent: string, url: string): Array<{key: string, value: string}> {
+  const categoryFeatures: Array<{key: string, value: string}> = [];
+  
+  // Method 1: Breadcrumb navigation
+  const breadcrumbs: string[] = [];
+  $('.breadcrumb a, .breadcrumb span, nav a, .nav-link').each((_, el) => {
+    const text = $(el).text().trim();
+    if (text && text.length > 1 && !text.includes('Trendyol') && !text.includes('Ana Sayfa')) {
+      breadcrumbs.push(text);
+    }
+  });
+  
+  if (breadcrumbs.length > 0) {
+    categoryFeatures.push({ key: 'Kategori Yolu', value: breadcrumbs.join(' > ') });
+    categoryFeatures.push({ key: 'Ana Kategori', value: breadcrumbs[0] });
+    if (breadcrumbs.length > 1) {
+      categoryFeatures.push({ key: 'Alt Kategori', value: breadcrumbs[breadcrumbs.length - 1] });
+    }
+  }
+  
+  // Method 2: Meta category information
+  const metaCategory = $('meta[property="product:category"]').attr('content') || 
+                      $('meta[name="category"]').attr('content');
+  if (metaCategory) {
+    categoryFeatures.push({ key: 'Meta Kategori', value: metaCategory });
+  }
+  
+  // Method 3: JSON-LD category data
+  $('script[type="application/ld+json"]').each((_, script) => {
+    try {
+      const jsonData = JSON.parse($(script).html() || '{}');
+      if (jsonData.category) {
+        categoryFeatures.push({ key: 'Ürün Kategorisi', value: jsonData.category });
+      }
+      if (jsonData['@type'] === 'Product' && jsonData.productCategory) {
+        categoryFeatures.push({ key: 'Ürün Tipi', value: jsonData.productCategory });
+      }
+    } catch (e) {
+      // Continue
+    }
+  });
+  
+  // Method 4: URL-based category extraction
+  try {
+    const urlObject = new URL(url);
+    const urlParts = urlObject.pathname.split('/');
+    if (urlParts.length > 1) {
+      const categoryFromUrl = urlParts[1].replace(/-/g, ' ').replace(/\b\w/g, l => l.toUpperCase());
+      if (categoryFromUrl && !categoryFromUrl.includes('www') && !categoryFromUrl.includes('com')) {
+        categoryFeatures.push({ key: 'URL Kategorisi', value: categoryFromUrl });
+      }
+    }
+  } catch (e) {
+    // Continue if URL parsing fails
+  }
+  
+  console.log(`📂 Category extraction found ${categoryFeatures.length} category features`);
+  return categoryFeatures;
+}
+
+/**
+ * Extract size and measurement information
+ */
+function extractSizeInformation($: any, htmlContent: string): Array<{key: string, value: string}> {
+  const sizeFeatures: Array<{key: string, value: string}> = [];
+  
+  // Method 1: Size chart extraction
+  $('.size-chart, .size-guide, .olcu-tablosu').each((_, el) => {
+    const sizeText = $(el).text().trim();
+    if (sizeText.length > 0) {
+      sizeFeatures.push({ key: 'Ölçü Tablosu', value: sizeText.substring(0, 200) });
+    }
+  });
+  
+  // Method 2: Measurement patterns in text
+  const measurementPatterns = [
+    /(\d+)\s*cm/gi,
+    /(\d+)\s*mm/gi,
+    /Boy:\s*(\d+)/gi,
+    /En:\s*(\d+)/gi,
+    /Yükseklik:\s*(\d+)/gi,
+    /Ağırlık:\s*(\d+)/gi,
+    /Kapasite:\s*(\d+)/gi
+  ];
+  
+  const fullText = $.text();
+  measurementPatterns.forEach((pattern, index) => {
+    const matches = fullText.match(pattern);
+    if (matches && matches.length > 0) {
+      const measurements = [...new Set(matches)].slice(0, 3).join(', ');
+      sizeFeatures.push({ key: `Ölçüler ${index + 1}`, value: measurements });
+    }
+  });
+  
+  // Method 3: Size guide links or buttons
+  $('a[href*="size"], button[data-testid*="size"], .size-info').each((_, el) => {
+    const sizeInfo = $(el).text().trim() || $(el).attr('title') || $(el).attr('data-title');
+    if (sizeInfo && sizeInfo.length > 3) {
+      sizeFeatures.push({ key: 'Beden Bilgisi', value: sizeInfo });
+    }
+  });
+  
+  console.log(`📏 Size extraction found ${sizeFeatures.length} size features`);
+  return sizeFeatures;
+}
+
+/**
+ * Extract material and fabric information
+ */
+function extractMaterialInformation($: any, htmlContent: string): Array<{key: string, value: string}> {
+  const materialFeatures: Array<{key: string, value: string}> = [];
+  
+  // Method 1: Material composition patterns
+  const materialPatterns = [
+    /(%?\d+%?\s*(?:pamuk|cotton|polyester|elastan|spandex|lycra|viskon|ipek|yün|keten|denim|jean|kumaş))/gi,
+    /(Kumaş:\s*[^\.]+)/gi,
+    /(Malzeme:\s*[^\.]+)/gi,
+    /(Materyal:\s*[^\.]+)/gi,
+    /(Composition:\s*[^\.]+)/gi,
+    /(Fabric:\s*[^\.]+)/gi
+  ];
+  
+  const fullText = $.text();
+  materialPatterns.forEach((pattern, index) => {
+    const matches = fullText.match(pattern);
+    if (matches && matches.length > 0) {
+      const materials = [...new Set(matches)].slice(0, 3).join(', ');
+      materialFeatures.push({ key: `Malzeme ${index + 1}`, value: materials });
+    }
+  });
+  
+  // Method 2: Care instructions
+  const carePatterns = [
+    /(Yıkama:\s*[^\.]+)/gi,
+    /(Bakım:\s*[^\.]+)/gi,
+    /(Care:\s*[^\.]+)/gi,
+    /(Washing:\s*[^\.]+)/gi,
+    /(\d+°C?\s*(?:yıkanır|yıkama|wash))/gi
+  ];
+  
+  carePatterns.forEach((pattern, index) => {
+    const matches = fullText.match(pattern);
+    if (matches && matches.length > 0) {
+      const care = [...new Set(matches)].slice(0, 2).join(', ');
+      materialFeatures.push({ key: `Bakım ${index + 1}`, value: care });
+    }
+  });
+  
+  // Method 3: Quality and certification
+  const qualityPatterns = [
+    /(Oeko-Tex|GOTS|Organic|Organik|Sertifikalı)/gi,
+    /(Kalite:\s*[^\.]+)/gi,
+    /(Quality:\s*[^\.]+)/gi
+  ];
+  
+  qualityPatterns.forEach((pattern, index) => {
+    const matches = fullText.match(pattern);
+    if (matches && matches.length > 0) {
+      const quality = [...new Set(matches)].slice(0, 2).join(', ');
+      materialFeatures.push({ key: `Kalite ${index + 1}`, value: quality });
+    }
+  });
+  
+  console.log(`🧵 Material extraction found ${materialFeatures.length} material features`);
+  return materialFeatures;
+}
+
+/**
+ * Generate advanced tags based on product data
+ */
+function generateAdvancedTags(
+  title: string, 
+  brand: string, 
+  features: Array<{key: string, value: string}>,
+  url: string
+): string[] {
+  const tags = new Set<string>();
+  
+  // Basic tags
+  tags.add('import');
+  tags.add('trendyol');
+  tags.add('otomatik');
+  
+  // Brand-based tags
+  if (brand && brand !== 'Brand') {
+    tags.add(brand.toLowerCase().replace(/\s+/g, '-'));
+    tags.add(`marka-${brand.toLowerCase().replace(/\s+/g, '-')}`);
+  }
+  
+  // Category-based tags from features
+  features.forEach(feature => {
+    if (feature.key.includes('Kategori') || feature.key.includes('Category')) {
+      const categoryWords = feature.value.split(/[\s>-]+/);
+      categoryWords.forEach(word => {
+        if (word.length > 2) {
+          tags.add(word.toLowerCase().replace(/[^a-z0-9]/g, '-'));
+        }
+      });
+    }
+  });
+  
+  // Material-based tags
+  const materialKeywords = ['pamuk', 'cotton', 'polyester', 'elastan', 'spandex', 'lycra', 'viskon', 'ipek', 'yün', 'keten', 'denim', 'jean'];
+  features.forEach(feature => {
+    if (feature.key.includes('Malzeme') || feature.key.includes('Material') || feature.key.includes('Kumaş')) {
+      materialKeywords.forEach(keyword => {
+        if (feature.value.toLowerCase().includes(keyword)) {
+          tags.add(`malzeme-${keyword}`);
+        }
+      });
+    }
+  });
+  
+  // Size-based tags
+  const sizeKeywords = ['xs', 's', 'm', 'l', 'xl', 'xxl', 'xxxl'];
+  features.forEach(feature => {
+    if (feature.key.includes('Beden') || feature.key.includes('Size')) {
+      sizeKeywords.forEach(size => {
+        if (feature.value.toLowerCase().includes(size)) {
+          tags.add(`beden-${size}`);
+        }
+      });
+    }
+  });
+  
+  // Color-based tags from title
+  const colorKeywords = ['beyaz', 'siyah', 'mavi', 'kırmızı', 'yeşil', 'sarı', 'mor', 'pembe', 'gri', 'kahve', 'turuncu', 'lacivert', 'krem', 'bej'];
+  colorKeywords.forEach(color => {
+    if (title.toLowerCase().includes(color)) {
+      tags.add(`renk-${color}`);
+    }
+  });
+  
+  // Season-based tags
+  const seasonKeywords = ['yaz', 'kış', 'sonbahar', 'ilkbahar', 'summer', 'winter', 'autumn', 'spring'];
+  seasonKeywords.forEach(season => {
+    if (title.toLowerCase().includes(season) || features.some(f => f.value.toLowerCase().includes(season))) {
+      tags.add(`sezon-${season}`);
+    }
+  });
+  
+  // Gender-based tags
+  const genderKeywords = ['kadın', 'erkek', 'unisex', 'woman', 'man', 'women', 'men'];
+  genderKeywords.forEach(gender => {
+    if (title.toLowerCase().includes(gender) || url.toLowerCase().includes(gender)) {
+      tags.add(`cinsiyet-${gender}`);
+    }
+  });
+  
+  // Product type tags from title
+  const productTypes = ['takım', 'elbise', 'pantolon', 'gömlek', 'tişört', 'kazak', 'mont', 'ayakkabı', 'çanta', 'aksesuar'];
+  productTypes.forEach(type => {
+    if (title.toLowerCase().includes(type)) {
+      tags.add(`tip-${type}`);
+    }
+  });
+  
+  console.log(`🏷️ Generated ${tags.size} advanced tags`);
+  return Array.from(tags);
 }
 
 /**

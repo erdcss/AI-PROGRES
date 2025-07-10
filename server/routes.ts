@@ -879,6 +879,33 @@ export function registerRoutes(app: Express): Server {
     }
   });
 
+  // Test enhanced extraction endpoint
+  app.post('/api/test-enhanced', async (req, res) => {
+    try {
+      const { url } = req.body;
+      
+      if (!url) {
+        return res.status(400).json({
+          success: false,
+          message: 'URL gerekli'
+        });
+      }
+      
+      const { testEnhancedExtraction } = await import('./test-enhanced-extraction');
+      const result = await testEnhancedExtraction(url);
+      
+      res.json(result);
+      
+    } catch (error) {
+      console.error('Enhanced test error:', error);
+      return res.status(500).json({
+        success: false,
+        message: 'Enhanced extraction test failed',
+        error: error instanceof Error ? error.message : 'Unknown error'
+      });
+    }
+  });
+
   // Add basic health check endpoint
   app.get('/api/health', (req, res) => {
     res.json({
@@ -1698,7 +1725,7 @@ export function registerRoutes(app: Express): Server {
         product_type: "Genel Ürün",
         status: "active",
         published: true,
-        tags: "trendyol, import, scenario-based",
+        tags: productData.tags ? productData.tags.join(', ') : "trendyol, import, scenario-based",
         variants: [{
           title: "Varsayılan Başlık",
           price: (productData.price?.withProfit || 100).toString(),

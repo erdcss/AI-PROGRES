@@ -468,7 +468,7 @@ router.post('/api/shopify/add-product', async (req, res) => {
 
     console.log('🛒 [ERROR CENTER BRAIN] Shopify API product creation initiated:', productData.title);
     
-    // Simplified product creation for testing
+    // Enhanced product creation with advanced tagging
     const shopifyProduct = {
       title: productData.title || 'Test Ürün',
       body_html: `<p>${productData.title || 'Test ürün açıklaması'}</p>`,
@@ -476,7 +476,7 @@ router.post('/api/shopify/add-product', async (req, res) => {
       product_type: "Genel Ürün",
       status: "active",
       published: true,
-      tags: "trendyol, import, test",
+      tags: productData.tags ? productData.tags.join(', ') : "trendyol, import, test",
       variants: [{
         title: "Varsayılan Başlık",
         price: (productData.price?.withProfit || 100).toString(),
