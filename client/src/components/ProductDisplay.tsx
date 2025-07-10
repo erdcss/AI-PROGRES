@@ -84,6 +84,37 @@ export function ProductDisplay({ data }: ProductDisplayProps) {
             </div>
           </div>
           
+          {/* Ürün Görselleri */}
+          {data.images && data.images.length > 0 && (
+            <div className="mb-6">
+              <h3 className="font-semibold text-gray-300 mb-4 flex items-center gap-2">
+                <ImageIcon className="h-5 w-5 text-blue-400" />
+                Ürün Görselleri ({data.images.length})
+              </h3>
+              <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-6 gap-4">
+                {data.images.map((image, index) => (
+                  <div key={index} className="relative group">
+                    <img 
+                      src={image} 
+                      alt={`${data.title} - Görsel ${index + 1}`}
+                      className="w-full h-32 object-cover rounded-lg border border-gray-600 group-hover:border-blue-400 transition-all duration-200 cursor-pointer"
+                      onError={(e) => {
+                        const target = e.target as HTMLImageElement;
+                        target.style.display = 'none';
+                      }}
+                      onClick={() => window.open(image, '_blank')}
+                    />
+                    <div className="absolute inset-0 bg-black bg-opacity-0 group-hover:bg-opacity-30 transition-all duration-200 rounded-lg flex items-center justify-center">
+                      <span className="text-white opacity-0 group-hover:opacity-100 text-sm font-medium">
+                        Tam Boyut
+                      </span>
+                    </div>
+                  </div>
+                ))}
+              </div>
+            </div>
+          )}
+          
           <div className="grid grid-cols-1 lg:grid-cols-2 gap-4">
             <div>
               <h3 className="font-semibold text-gray-300 mb-2">Kategoriler</h3>

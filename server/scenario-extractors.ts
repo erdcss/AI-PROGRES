@@ -57,8 +57,13 @@ export class ScenarioExtractors {
   private static extractSingleVariant($: any, htmlContent: string, title: string): VariantExtractionResult {
     console.log(`📦 Extracting single variant product`);
     
+    // For single variant products, only use "Tek Beden" if no authentic size variants exist
     const sizes = ['Tek Beden'];
-    const colors = this.extractColorFromTitle(title) || ['Standart'];
+    
+    // Extract authentic color from title if available
+    const titleColors = this.extractColorFromTitle(title);
+    const colors = titleColors && titleColors.length > 0 ? titleColors : ['Standart'];
+    
     const stockMap = new Map<string, boolean>();
     const priceMap = new Map<string, number>();
     const imageMap = new Map<string, string[]>();

@@ -7,11 +7,10 @@ import { db } from './db';
 import { products, productVariants, priceHistory, stockHistory, shopifySyncLogs, monitoringSchedules } from '@shared/schema';
 import { eq, and, desc } from 'drizzle-orm';
 import { scenarioBasedScrape } from './scenario-based-scraper';
+import { TelegramNotifications } from './comprehensive-telegram-notifier';
 // import { shopifyIntegration } from './shopify-integration';
 // import { extractProductReviews } from './product-reviews-extractor';
 // import { generateStrictCSV } from './strict-csv-generator';
-// import { sendFilteredTelegramMessage } from './filtered-telegram-notifier';
-// import { sendEmailReport } from './email-service';
 
 export interface ProductManagementResult {
   success: boolean;
@@ -31,17 +30,31 @@ export class ProductManagementSystem {
     console.log(`🚀 Starting complete product workflow for: ${trendyolUrl}`);
     
     try {
+      // Send start notification
+      await TelegramNotifications.extractionStarted(trendyolUrl);
+      
       // Step 1: Extract product data
       console.log(`📥 Step 1: Extracting product data...`);
       const extractionResult = await scenarioBasedScrape(trendyolUrl);
       
       if (!extractionResult.success) {
-        throw new Error(`Product extraction failed: ${extractionResult.title}`);
+        const error = new Error(`Product extraction failed: ${extractionResult.title}`);
+        await TelegramNotifications.extractionFailed(trendyolUrl, error);
+        throw error;
       }
+      
+      // Send extraction completion notification
+      await TelegramNotifications.extractionCompleted({
+        ...extractionResult,
+        url: trendyolUrl
+      });
       
       // Step 2: Store in memory/database
       console.log(`💾 Step 2: Storing product in memory...`);
       const storedProduct = await this.storeProductInMemory(extractionResult, trendyolUrl);
+      
+      // Send database operation notification
+      await TelegramNotifications.databaseOperation('Product Storage', storedProduct);
       
       // Step 3: Sync to Shopify
       console.log(`🛒 Step 3: Syncing to Shopify...`);
@@ -59,8 +72,17 @@ export class ProductManagementSystem {
       console.log(`📊 Step 6: Setting up monitoring...`);
       const monitoringResult = await this.setupProductMonitoring(storedProduct.id, trendyolUrl);
       
-      // Step 7: Send notifications (simulated for now)
+      // Step 7: Send comprehensive completion notification
       console.log(`📢 Step 7: Sending notifications...`);
+      await TelegramNotifications.completeWorkflow({
+        productId: storedProduct.id,
+        shopifyProductId: shopifyResult.product.id,
+        reviewsCount: reviewsResult.reviewsCount,
+        csvGenerated: csvResult.success,
+        monitoring: monitoringResult.success,
+        title: storedProduct.title
+      });
+      
       console.log(`✅ Product workflow completed successfully`);
       
       console.log(`✅ Complete product workflow finished successfully`);
@@ -68,7 +90,7 @@ export class ProductManagementSystem {
       return {
         success: true,
         productId: storedProduct.id,
-        shopifyProductId: shopifyResult.shopifyProductId,
+        shopifyProductId: shopifyResult.product.id,
         reviewsCount: reviewsResult.reviewsCount,
         csvGenerated: csvResult.success,
         monitoring: monitoringResult.success
@@ -77,8 +99,8 @@ export class ProductManagementSystem {
     } catch (error) {
       console.error(`❌ Product workflow failed:`, error);
       
-      // Send error notifications
-      await this.sendErrorNotifications(trendyolUrl, error);
+      // Send comprehensive error notification
+      await TelegramNotifications.systemError(error, 'Complete Product Workflow');
       
       return {
         success: false,

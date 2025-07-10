@@ -36,6 +36,7 @@ import { runTrendyolVariantsSpider, generateScrapyOutput, generateScrapyCSV } fr
 import { fixedAuthenticScrape } from './fixed-authentic-scraper';
 import { scenarioBasedScrape } from './scenario-based-scraper';
 import { ProductManagementSystem } from './product-management-system';
+import { TelegramNotifications } from './comprehensive-telegram-notifier';
 
 
 function generateSingleProductShopifyCSV(product: any): string {
