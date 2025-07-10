@@ -86,33 +86,47 @@ export function ProductDisplay({ data }: ProductDisplayProps) {
           
           {/* Ürün Görselleri */}
           {data.images && data.images.length > 0 && (
-            <div className="mb-6">
-              <h3 className="font-semibold text-gray-300 mb-4 flex items-center gap-2">
-                <ImageIcon className="h-5 w-5 text-blue-400" />
-                Ürün Görselleri ({data.images.length})
-              </h3>
-              <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-6 gap-4">
-                {data.images.map((image, index) => (
-                  <div key={index} className="relative group">
-                    <img 
-                      src={image} 
-                      alt={`${data.title} - Görsel ${index + 1}`}
-                      className="w-full h-32 object-cover rounded-lg border border-gray-600 group-hover:border-blue-400 transition-all duration-200 cursor-pointer"
-                      onError={(e) => {
-                        const target = e.target as HTMLImageElement;
-                        target.style.display = 'none';
-                      }}
-                      onClick={() => window.open(image, '_blank')}
-                    />
-                    <div className="absolute inset-0 bg-black bg-opacity-0 group-hover:bg-opacity-30 transition-all duration-200 rounded-lg flex items-center justify-center">
-                      <span className="text-white opacity-0 group-hover:opacity-100 text-sm font-medium">
-                        Tam Boyut
-                      </span>
-                    </div>
+            <Card className="bg-gray-800 border-gray-700">
+              <CardHeader>
+                <CardTitle className="flex items-center justify-between text-white">
+                  <div className="flex items-center gap-2">
+                    <ImageIcon className="h-5 w-5 text-blue-400" />
+                    Ürün Görselleri
                   </div>
-                ))}
-              </div>
-            </div>
+                  <Badge variant="secondary" className="bg-blue-600 text-white">
+                    {data.images.length} Görsel
+                  </Badge>
+                </CardTitle>
+              </CardHeader>
+              <CardContent>
+                <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-5 xl:grid-cols-6 gap-3">
+                  {data.images.map((image, index) => (
+                    <div key={index} className="relative group">
+                      <div className="aspect-square bg-gray-700 rounded-lg overflow-hidden border border-gray-600 hover:border-blue-400 transition-all duration-200">
+                        <img 
+                          src={image} 
+                          alt={`${data.title} - Görsel ${index + 1}`}
+                          className="w-full h-full object-cover cursor-pointer transform group-hover:scale-105 transition-transform duration-200"
+                          onError={(e) => {
+                            const target = e.target as HTMLImageElement;
+                            target.style.display = 'none';
+                          }}
+                          onClick={() => window.open(image, '_blank')}
+                        />
+                        <div className="absolute inset-0 bg-black bg-opacity-0 group-hover:bg-opacity-40 transition-all duration-200 flex items-center justify-center">
+                          <span className="text-white opacity-0 group-hover:opacity-100 text-xs font-medium bg-black bg-opacity-50 px-2 py-1 rounded">
+                            Tam Boyut
+                          </span>
+                        </div>
+                      </div>
+                      <div className="absolute -top-2 -right-2 bg-blue-500 text-white text-xs rounded-full w-5 h-5 flex items-center justify-center font-bold">
+                        {index + 1}
+                      </div>
+                    </div>
+                  ))}
+                </div>
+              </CardContent>
+            </Card>
           )}
           
           <div className="grid grid-cols-1 lg:grid-cols-2 gap-4">
@@ -141,93 +155,7 @@ export function ProductDisplay({ data }: ProductDisplayProps) {
         </CardContent>
       </Card>
 
-      {/* Ürün Görselleri ve Renk Modelleri */}
-      <Card className="bg-gray-800 border-gray-700">
-        <CardHeader>
-          <CardTitle className="flex items-center gap-2 text-white">
-            <ImageIcon className="h-5 w-5 text-purple-400" />
-            Ürün Görselleri ve Modelleri ({data.images?.length || 0})
-          </CardTitle>
-        </CardHeader>
-        <CardContent className="space-y-6">
-          {/* Ana Ürün Görselleri */}
-          <div>
-            <h3 className="text-lg font-semibold text-white mb-3">Ana Ürün Görselleri</h3>
-            <div className="grid grid-cols-2 md:grid-cols-4 lg:grid-cols-6 gap-3">
-              {data.images && data.images.length > 0 ? data.images.slice(0, 12).map((image, index) => (
-                <div key={index} className="aspect-square bg-gray-700 rounded-lg overflow-hidden border border-gray-600 hover:border-purple-400 transition-colors">
-                  <img 
-                    src={image} 
-                    alt={`Ürün görseli ${index + 1}`}
-                    className="w-full h-full object-cover hover:scale-105 transition-transform cursor-pointer"
-                    onError={(e) => {
-                      e.currentTarget.style.display = 'none';
-                    }}
-                  />
-                </div>
-              )) : (
-                <div className="col-span-full text-center text-gray-500 py-8">
-                  Görseller yükleniyor...
-                </div>
-              )}
-            </div>
-          </div>
 
-          {/* Renk Varyantları ve Modelleri */}
-          {data.variants?.colors && data.variants.colors.length > 0 && (
-            <div>
-              <h3 className="text-lg font-semibold text-white mb-3">Renk Varyantları ({data.variants.colors.length})</h3>
-              <div className="space-y-4">
-                {data.variants.colors.map((color, index) => {
-                  const colorName = typeof color === 'string' ? color : color?.name || `Renk ${index + 1}`;
-                  return (
-                  <div key={colorName} className="border border-gray-600 rounded-lg p-4 bg-gray-750">
-                    <div className="flex items-center justify-between mb-3">
-                      <div className="flex items-center gap-3">
-                        <h4 className="font-semibold text-white">{String(colorName)}</h4>
-                        <Badge variant="outline" className="border-purple-400 text-purple-400">
-                          Model {index + 1}
-                        </Badge>
-                      </div>
-                      {data.variants.pricing?.[colorName] && (
-                        <div className="flex items-center gap-2">
-                          <DollarSign className="h-4 w-4 text-green-400" />
-                          <span className="font-bold text-green-400">
-                            {data.variants.pricing[colorName].toFixed(2)} TL
-                          </span>
-                        </div>
-                      )}
-                    </div>
-                    
-                    <div className="grid grid-cols-3 md:grid-cols-6 gap-2">
-                      {data.variants.variantImages?.[colorName]?.slice(0, 6).map((image, imgIndex) => (
-                        <div key={imgIndex} className="aspect-square bg-gray-700 rounded overflow-hidden border border-gray-500 hover:border-purple-400 transition-colors">
-                          <img 
-                            src={image} 
-                            alt={`${colorName} renk görseli ${imgIndex + 1}`}
-                            className="w-full h-full object-cover hover:scale-105 transition-transform cursor-pointer"
-                            onError={(e) => {
-                              e.currentTarget.style.display = 'none';
-                            }}
-                          />
-                        </div>
-                      )) || (
-                        <div className="col-span-full text-center text-gray-400 py-2 text-sm bg-gray-800 rounded">
-                          <div className="flex items-center justify-center gap-2">
-                            <ImageIcon className="h-4 w-4" />
-                            <span>{colorName} rengi için özel görseller analiz ediliyor...</span>
-                          </div>
-                        </div>
-                      )}
-                    </div>
-                  </div>
-                  );
-                })}
-              </div>
-            </div>
-          )}
-        </CardContent>
-      </Card>
 
       {/* Renk Varyantları */}
       <Card className="bg-gray-800 border-gray-700">

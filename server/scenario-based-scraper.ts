@@ -433,21 +433,15 @@ function buildVariantsArray(variantResult: any, scenario: ExtractionScenario): a
   console.log(`🔧 Building variants from scenario: ${scenario}`);
   console.log(`📊 Raw data - sizes: [${sizes.join(', ')}], colors: [${colors.join(', ')}]`);
   
-  // CRITICAL: Only use authentic data - no fake fallbacks for single-variant products
+  // CRITICAL: Only use authentic data - no fake fallbacks
   if (scenario === ExtractionScenario.SINGLE_VARIANT) {
-    // For single variant products, use only the color from title/content
-    const productColor = colors.length > 0 ? colors[0] : 'Standart';
-    variants.push({
-      color: productColor,
-      colorCode: getColorCode(productColor),
-      size: 'Tek Beden',
-      inStock: true
-    });
-    console.log(`✅ Single variant product: ${productColor} - Tek Beden`);
+    // For single variant products, return empty variants to avoid fake data
+    console.log(`🚫 Single variant product: No authentic variants found - returning empty variants`);
+    return [];
   } else {
     // For multi-variant products, use authentic extracted data
     const finalSizes = sizes.length > 0 ? sizes : [];
-    const finalColors = colors.length > 0 ? colors : ['Standart'];
+    const finalColors = colors.length > 0 ? colors : [];
     
     // STRICT: Only create variants if we have REAL size/color data
     if (sizes.length > 0 && colors.length > 0) {
@@ -464,16 +458,34 @@ function buildVariantsArray(variantResult: any, scenario: ExtractionScenario): a
         }
       }
       console.log(`✅ Multi-variant product: ${finalColors.length} colors × ${finalSizes.length} sizes`);
+    } else if (sizes.length > 0) {
+      // Size-only variants
+      for (const size of finalSizes) {
+        const inStock = stockMap.get(size) !== false;
+        variants.push({
+          color: 'Standart',
+          colorCode: getColorCode('Standart'),
+          size,
+          inStock
+        });
+      }
+      console.log(`✅ Size-only variants: ${finalSizes.length} sizes`);
+    } else if (colors.length > 0) {
+      // Color-only variants
+      for (const color of finalColors) {
+        const inStock = stockMap.get(color) !== false;
+        variants.push({
+          color,
+          colorCode: getColorCode(color),
+          size: 'Tek Beden',
+          inStock
+        });
+      }
+      console.log(`✅ Color-only variants: ${finalColors.length} colors`);
     } else {
-      // No real variants found - CONVERT TO SINGLE VARIANT
-      const productColor = colors.length > 0 ? colors[0] : 'Standart';
-      variants.push({
-        color: productColor,
-        colorCode: getColorCode(productColor),
-        size: 'Tek Beden',
-        inStock: true
-      });
-      console.log(`🔄 CONVERTED TO SINGLE VARIANT: No authentic size variants found - ${productColor} / Tek Beden`);
+      // No authentic variants found - return empty
+      console.log(`🚫 No authentic variants found - returning empty variants`);
+      return [];
     }
   }
   

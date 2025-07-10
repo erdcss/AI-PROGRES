@@ -57,22 +57,15 @@ export class ScenarioExtractors {
   private static extractSingleVariant($: any, htmlContent: string, title: string): VariantExtractionResult {
     console.log(`📦 Extracting single variant product`);
     
-    // For single variant products, only use "Tek Beden" if no authentic size variants exist
-    const sizes = ['Tek Beden'];
-    
-    // Extract authentic color from title if available
-    const titleColors = this.extractColorFromTitle(title);
-    const colors = titleColors && titleColors.length > 0 ? titleColors : ['Standart'];
+    // For single variant products, return empty variants to avoid fake data
+    const sizes: string[] = [];
+    const colors: string[] = [];
     
     const stockMap = new Map<string, boolean>();
     const priceMap = new Map<string, number>();
     const imageMap = new Map<string, string[]>();
     
-    // Check if product is in stock
-    const isInStock = !this.isOutOfStock($, htmlContent);
-    stockMap.set('Tek Beden', isInStock);
-    
-    console.log(`📦 Single variant: color="${colors[0]}", size="${sizes[0]}", stock=${isInStock}`);
+    console.log(`📦 Single variant: No authentic variants found - returning empty variants`);
     
     return { sizes, colors, stockMap, priceMap, imageMap };
   }
@@ -84,6 +77,18 @@ export class ScenarioExtractors {
     console.log(`📏 Extracting multi-size product`);
     
     const sizes = this.extractSizes($, config.sizeSelectors, htmlContent);
+    
+    // If no authentic sizes found, return empty variants
+    if (sizes.length === 0) {
+      console.log(`📏 No authentic sizes found - returning empty variants`);
+      return { 
+        sizes: [], 
+        colors: [], 
+        stockMap: new Map<string, boolean>(), 
+        priceMap: new Map<string, number>(), 
+        imageMap: new Map<string, string[]>() 
+      };
+    }
     
     // Enhanced color extraction - try multiple methods
     let colors: string[] = [];
@@ -156,8 +161,21 @@ export class ScenarioExtractors {
   private static extractMultiColor($: any, config: ScenarioExtractionConfig, htmlContent: string, title: string): VariantExtractionResult {
     console.log(`🎨 Extracting multi-color product`);
     
-    const sizes = ['Tek Beden'];
     const colors = this.extractColors($, config.colorSelectors, htmlContent, title);
+    
+    // If no authentic colors found, return empty variants
+    if (colors.length === 0) {
+      console.log(`🎨 No authentic colors found - returning empty variants`);
+      return { 
+        sizes: [], 
+        colors: [], 
+        stockMap: new Map<string, boolean>(), 
+        priceMap: new Map<string, number>(), 
+        imageMap: new Map<string, string[]>() 
+      };
+    }
+    
+    const sizes = ['Tek Beden'];
     const stockMap = this.extractColorStockStatus($, config.stockSelectors, colors);
     const priceMap = new Map<string, number>();
     const imageMap = new Map<string, string[]>();
@@ -197,10 +215,13 @@ export class ScenarioExtractors {
     const priceMap = new Map<string, number>();
     const imageMap = new Map<string, string[]>();
     
-    // Mark all variants as out of stock
-    if (sizes.length === 0) sizes.push('Tek Beden');
-    if (colors.length === 0) colors.push(this.extractColorFromTitle(title)?.[0] || 'Standart');
+    // If no authentic variants found, return empty variants
+    if (sizes.length === 0 && colors.length === 0) {
+      console.log(`❌ No authentic variants found for out-of-stock product - returning empty variants`);
+      return { sizes: [], colors: [], stockMap, priceMap, imageMap };
+    }
     
+    // Mark all variants as out of stock
     sizes.forEach(size => stockMap.set(size, false));
     
     console.log(`❌ Out of stock: ${sizes.length} sizes, ${colors.length} colors (all unavailable)`);
