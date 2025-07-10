@@ -1433,22 +1433,93 @@ export function registerRoutes(app: Express): Server {
     }
   });
 
+  // Connection Test Endpoints
+  app.get('/api/test-telegram', async (req, res) => {
+    try {
+      const { testTelegramConnection } = await import('./connection-test');
+      const result = await testTelegramConnection();
+      
+      if (result.connected) {
+        res.json(result);
+      } else {
+        res.status(500).json(result);
+      }
+    } catch (error: any) {
+      res.status(500).json({
+        service: 'Telegram',
+        connected: false,
+        message: `Test failed: ${error.message}`,
+        timestamp: new Date()
+      });
+    }
+  });
+
+  app.get('/api/test-shopify', async (req, res) => {
+    try {
+      const { testShopifyConnection } = await import('./connection-test');
+      const result = await testShopifyConnection();
+      
+      if (result.connected) {
+        res.json(result);
+      } else {
+        res.status(500).json(result);
+      }
+    } catch (error: any) {
+      res.status(500).json({
+        service: 'Shopify',
+        connected: false,
+        message: `Test failed: ${error.message}`,
+        timestamp: new Date()
+      });
+    }
+  });
+
+  app.get('/api/test-all-connections', async (req, res) => {
+    try {
+      const { testAllConnections } = await import('./connection-test');
+      const result = await testAllConnections();
+      
+      res.json(result);
+    } catch (error: any) {
+      res.status(500).json({
+        error: `Connection test failed: ${error.message}`,
+        timestamp: new Date()
+      });
+    }
+  });
+
+  app.post('/api/telegram/send-test', async (req, res) => {
+    try {
+      const { sendTelegramTestMessage } = await import('./connection-test');
+      const result = await sendTelegramTestMessage();
+      
+      if (result.success) {
+        res.json(result);
+      } else {
+        res.status(500).json(result);
+      }
+    } catch (error: any) {
+      res.status(500).json({
+        success: false,
+        message: `Test message failed: ${error.message}`
+      });
+    }
+  });
+
   // Shopify Test Connection Endpoint
   app.post('/api/shopify/test-connection', async (req, res) => {
     try {
       console.log('🔍 Testing Shopify connection...');
       
-      const { testShopifyConnection } = await import('./connection-strengthener');
-      const connectionTest = new (await import('./connection-strengthener')).ConnectionStrengthener();
+      const { testShopifyConnection } = await import('./connection-test');
+      const result = await testShopifyConnection();
       
-      const result = await connectionTest.testShopifyConnection();
-      
-      if (result.success) {
+      if (result.connected) {
         console.log('✅ Shopify connection test successful');
         res.json({
           success: true,
           message: result.message,
-          data: result.data
+          data: result.details
         });
       } else {
         console.log('❌ Shopify connection test failed');

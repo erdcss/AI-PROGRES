@@ -114,6 +114,8 @@ The application is designed for deployment on Replit with the following consider
 - July 09, 2025: Advanced variant extraction system with comprehensive debug logging implemented - enhanced size detection with multiple selector patterns and HTML content analysis, intelligent color extraction from product titles with Turkish color mapping, improved stock status detection for accurate variant availability, eliminated static data fallback with authentic product data extraction
 - July 10, 2025: Fake variant data elimination completed - system now returns empty variants when no authentic size/color options exist, preventing fake "Tek Beden" and "Standart" variants from being displayed, cleaner product display with conditional variant sections
 - July 10, 2025: Image display area redesigned - organized card-based layout with proper numbering, aspect-ratio containers, hover effects, and better responsive grid system, removed duplicate image sections
+- July 10, 2025: Scenario-based scraper image extraction fixed - updated image filtering logic to properly extract product images, now successfully extracts 7 images from Simtech ventilator product
+- July 10, 2025: Comprehensive connection testing system implemented - created dedicated test endpoints for Telegram and Shopify connections with detailed status reporting, Shopify connection confirmed working, Telegram bot token needs updating
 
 ## User Preferences
 

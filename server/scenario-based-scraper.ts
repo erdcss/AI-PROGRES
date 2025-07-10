@@ -317,8 +317,31 @@ function extractImages($: any): string[] {
     });
   }
   
+  // Additional fallback: check for data-original, data-zoom, etc.
+  if (images.size === 0) {
+    $('img[data-original*="cdn.dsmcdn.com"], img[data-zoom*="cdn.dsmcdn.com"]').each((i: number, el: any) => {
+      const src = $(el).attr('data-original') || $(el).attr('data-zoom') || $(el).attr('src');
+      if (src && isProductImage(src)) {
+        const highResSrc = optimizeImageUrl(src);
+        images.add(highResSrc);
+      }
+    });
+  }
+  
   const imageArray = Array.from(images);
   console.log(`📸 Product images extracted: ${imageArray.length}`);
+  
+  // Debug: If no images found, log some stats
+  if (imageArray.length === 0) {
+    console.log(`🔍 Debug: Total img tags found: ${$('img').length}`);
+    console.log(`🔍 Debug: CDN img tags found: ${$('img[src*="cdn.dsmcdn.com"]').length}`);
+    console.log(`🔍 Debug: Checking first few CDN images...`);
+    
+    $('img[src*="cdn.dsmcdn.com"]').slice(0, 5).each((i: number, el: any) => {
+      const src = $(el).attr('src') || $(el).attr('data-src');
+      console.log(`🔍 Debug img ${i}: ${src} - isProductImage: ${isProductImage(src || '')}`);
+    });
+  }
   
   return imageArray;
 }
@@ -330,13 +353,17 @@ function isProductImage(src: string): boolean {
   // Must contain CDN pattern
   if (!src.includes('cdn.dsmcdn.com')) return false;
   
-  // STRICT FILTERING: Must contain mnresize for product images
-  if (!src.includes('mnresize')) return false;
+  // Accept both original and resized product images
+  const isProductImage = src.includes('product/media/images/') || 
+                         src.includes('mnresize') || 
+                         src.includes('_org_zoom') ||
+                         src.includes('ty1/') ||
+                         src.includes('ty2/') ||
+                         src.includes('ty3/') ||
+                         src.includes('ty4/') ||
+                         src.includes('ty5/');
   
-  // Must contain product directory patterns (expanded for better coverage)
-  const requiredPatterns = ['/prod/', '/ty1670/', '/ty1200/', '/ty800/', '/ty1662/', '/ty1663/', '/ty1664/', '/QC/'];
-  const hasRequiredPattern = requiredPatterns.some(pattern => src.includes(pattern));
-  if (!hasRequiredPattern) return false;
+  if (!isProductImage) return false;
   
   // Exclude site assets and UI elements
   const excludePatterns = [
