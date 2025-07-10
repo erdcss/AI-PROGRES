@@ -1671,4 +1671,112 @@ router.get('/api/system/health', async (req, res) => {
   }
 });
 
+// Arçelik product scraping endpoint
+router.post('/arcelik-scrape', async (req, res) => {
+  try {
+    console.log('🔄 Arçelik ürün çıkarma isteği alındı...');
+    const { url } = req.body;
+    
+    if (!url) {
+      return res.status(400).json({ 
+        success: false, 
+        error: 'URL parametresi gerekli' 
+      });
+    }
+
+    // Basic URL validation for Arçelik
+    if (!url.includes('arcelik.com.tr')) {
+      return res.status(400).json({
+        success: false,
+        error: 'Geçerli bir Arçelik URL\'si gerekli (arcelik.com.tr)'
+      });
+    }
+
+    console.log(`📡 Arçelik URL işleniyor: ${url}`);
+    
+    // Import Arçelik-specific scraper (we'll create this)
+    const { arcelikScraper } = await import('./arcelik-scraper');
+    
+    // Extract product data using Arçelik scraper
+    const extractionResult = await arcelikScraper.extractProduct(url);
+    
+    if (!extractionResult.success) {
+      console.error('❌ Arçelik çıkarma hatası:', extractionResult.error);
+      return res.status(400).json({
+        success: false,
+        error: extractionResult.error || 'Arçelik ürün çıkarma başarısız'
+      });
+    }
+
+    console.log('✅ Arçelik ürün başarıyla çıkarıldı:', extractionResult.title);
+    
+    // Add profit calculation (15% markup)
+    const originalPrice = extractionResult.price?.original || 0;
+    const profitPrice = Math.round(originalPrice * 1.15 * 100) / 100;
+    
+    const finalResult = {
+      ...extractionResult,
+      price: {
+        ...extractionResult.price,
+        withProfit: profitPrice,
+        profitFormatted: `${profitPrice.toFixed(2)} TL`
+      },
+      extractionMethod: 'arcelik-scraper',
+      platform: 'arcelik'
+    };
+
+    // Store in memory system
+    try {
+      await memorySystem.storeProduct(url, finalResult);
+      console.log('💾 Arçelik ürün hafızaya kaydedildi');
+    } catch (memoryError) {
+      console.error('⚠️ Hafıza kaydı hatası:', memoryError);
+      // Continue without failing the request
+    }
+
+    // Send Telegram notification
+    try {
+      const profitAmount = profitPrice - originalPrice;
+      const profitPercentage = originalPrice ? ((profitAmount / originalPrice) * 100).toFixed(1) : '15.0';
+      
+      const message = 
+        `🔍 <b>ARÇELİK ÜRÜN ÇIKARILDı</b>\n\n` +
+        `📦 <b>Ürün:</b> ${finalResult.title || 'Bilinmeyen Ürün'}\n` +
+        `🏢 <b>Marka:</b> ${finalResult.brand || 'Arçelik'}\n` +
+        `🌐 <b>Kaynak Site:</b> Arçelik\n` +
+        `💰 <b>Orijinal Fiyat:</b> ${originalPrice.toFixed(2)} TL\n` +
+        `💵 <b>Satış Fiyatı:</b> ${profitPrice.toFixed(2)} TL\n` +
+        `📈 <b>Kar Miktarı:</b> ${profitAmount.toFixed(2)} TL\n` +
+        `📊 <b>Kar Oranı:</b> %${profitPercentage}\n` +
+        `🖼️ <b>Görseller:</b> ${finalResult.images?.length || 0} adet\n` +
+        `⚙️ <b>Özellikler:</b> ${finalResult.features?.length || 0} adet\n` +
+        `🎨 <b>Varyantlar:</b> ${finalResult.variants?.length || 0} adet\n\n` +
+        `🔗 <b>URL:</b> ${url}`;
+      
+      const telegramModule = await import('./telegram-integration');
+      const telegramIntegration = telegramModule.telegramIntegration || telegramModule.default;
+      await telegramIntegration.sendNotification(message);
+      console.log('📱 Arçelik Telegram bildirimi gönderildi');
+    } catch (telegramError) {
+      console.error('📱 Telegram bildirim hatası:', telegramError);
+    }
+
+    res.json(finalResult);
+  } catch (error) {
+    console.error('❌ Arçelik endpoint hatası:', error);
+    
+    // Report error to enhanced error detection
+    await enhancedErrorDetection.handleError('Arçelik Scraping', error as Error, {
+      severity: 'high',
+      url: req.body.url
+    });
+    
+    res.status(500).json({ 
+      success: false, 
+      error: 'Arçelik ürün çıkarma işlemi başarısız',
+      details: (error as Error).message 
+    });
+  }
+});
+
 export default router;

@@ -10,6 +10,7 @@ import MainDashboard from "@/pages/main-dashboard";
 import ComingSoon from "@/pages/coming-soon";
 import { TelegramPage } from "@/pages/telegram";
 import EmailSettings from "@/pages/EmailSettings";
+import ArcelikScraper from "@/pages/arcelik-scraper";
 // Removed auto-csv page import
 // Removed bulk-csv page import
 import { useState, useEffect } from "react";
@@ -294,6 +295,11 @@ function Router() {
       <Route path="/product-reviews">
         <PageTransition>
           <ProductReviews />
+        </PageTransition>
+      </Route>
+      <Route path="/scraper/arcelik">
+        <PageTransition>
+          <ArcelikScraper />
         </PageTransition>
       </Route>
       <Route>

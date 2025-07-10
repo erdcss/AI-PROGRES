@@ -21,6 +21,14 @@ const MainDashboard = () => {
       path: "/scraper/trendyol"
     },
     {
+      name: "Arçelik",
+      description: "Ürün çıkarma ve Shopify aktarım",
+      icon: <Package className="w-8 h-8 text-emerald-400" />,
+      color: "from-emerald-500 to-emerald-600",
+      available: true,
+      path: "/scraper/arcelik"
+    },
+    {
       name: "Hepsiburada", 
       description: "Ürün çıkarma sistemi",
       icon: <ShoppingCart className="w-8 h-8 text-slate-400" />,
