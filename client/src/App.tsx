@@ -191,20 +191,7 @@ function Router() {
       <Switch>
       <Route path="/">
         <PageTransition>
-          <div className="container mx-auto p-4">
-            <div className="flex flex-col gap-4">
-              <ScraperPage platform="trendyol" />
-              <UrlHistory onSelect={(url) => {
-                // Find the scraper component and update its URL
-                const scraperComponent = document.querySelector('input[name="url"]');
-                if (scraperComponent) {
-                  const event = new Event('change', { bubbles: true });
-                  Object.defineProperty(event, 'target', { value: { value: url } });
-                  scraperComponent.dispatchEvent(event);
-                }
-              }} />
-            </div>
-          </div>
+          <MainDashboard />
         </PageTransition>
       </Route>
       <Route path="/marketplace">
@@ -219,7 +206,7 @@ function Router() {
           </PageTransition>
         )}
       </Route>
-      {/* Memory-based routes removed - instant mode only */}
+      {/* Scraper routes */}
       <Route path="/scraper/:platform?">
         {(params) => (
           <PageTransition>
@@ -239,6 +226,24 @@ function Router() {
             </div>
           </PageTransition>
         )}
+      </Route>
+      <Route path="/trendyol">
+        <PageTransition>
+          <div className="container mx-auto p-4">
+            <div className="flex flex-col gap-4">
+              <ScraperPage platform="trendyol" />
+              <UrlHistory onSelect={(url) => {
+                // Find the scraper component and update its URL
+                const scraperComponent = document.querySelector('input[name="url"]');
+                if (scraperComponent) {
+                  const event = new Event('change', { bubbles: true });
+                  Object.defineProperty(event, 'target', { value: { value: url } });
+                  scraperComponent.dispatchEvent(event);
+                }
+              }} />
+            </div>
+          </div>
+        </PageTransition>
       </Route>
       <Route path="/price-comparison">
         <PageTransition>

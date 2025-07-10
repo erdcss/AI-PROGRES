@@ -116,6 +116,7 @@ The application is designed for deployment on Replit with the following consider
 - July 10, 2025: Image display area redesigned - organized card-based layout with proper numbering, aspect-ratio containers, hover effects, and better responsive grid system, removed duplicate image sections
 - July 10, 2025: Scenario-based scraper image extraction fixed - updated image filtering logic to properly extract product images, now successfully extracts 7 images from Simtech ventilator product
 - July 10, 2025: Comprehensive connection testing system implemented - created dedicated test endpoints for Telegram and Shopify connections with detailed status reporting, Shopify connection confirmed working, Telegram bot token needs updating
+- July 10, 2025: Home page navigation issue resolved - fixed Button component wrapping inside Link causing navigation failure, separated home page route to show MainDashboard instead of ScraperPage, implemented proper routing structure with dedicated scraper routes
 
 ## User Preferences
 
