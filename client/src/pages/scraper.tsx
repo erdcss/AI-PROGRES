@@ -290,6 +290,7 @@ function ScraperPage({ platform = 'trendyol' }: ScraperPageProps) {
   const [isScrapyCSVGenerating, setIsScrapyCSVGenerating] = useState(false);
   const [isScrapyJSONGenerating, setIsScrapyJSONGenerating] = useState(false);
   const [scrapySpiderResult, setScrapySpiderResult] = useState<any>(null);
+  const [isComprehensiveCSVGenerating, setIsComprehensiveCSVGenerating] = useState(false);
   
   // CSV Download handler
   const handleCSVDownload = async () => {
@@ -345,6 +346,63 @@ function ScraperPage({ platform = 'trendyol' }: ScraperPageProps) {
         message: `CSV indirme hatası: ${error.message}`,
         details: 'CSV dosyası henüz hazır olmayabilir. Lütfen önce bir ürün çekin.'
       });
+    }
+  };
+
+  // Comprehensive CSV Download handler with enhanced features
+  const handleComprehensiveCSVDownload = async () => {
+    if (!form.getValues("url")) {
+      toast({
+        title: "Hata",
+        description: "Önce bir URL girin",
+        variant: "destructive"
+      });
+      return;
+    }
+
+    setIsComprehensiveCSVGenerating(true);
+    try {
+      console.log('🎯 Kapsamlı CSV özellikleri ile oluşturuluyor...');
+      
+      const response = await fetch('/api/comprehensive-csv', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ 
+          url: form.getValues("url"),
+          productTitle: result?.title || 'Ürün'
+        })
+      });
+
+      if (!response.ok) {
+        const errorData = await response.json();
+        throw new Error(errorData.message || 'CSV oluşturma hatası');
+      }
+
+      const blob = await response.blob();
+      const url = window.URL.createObjectURL(blob);
+      const a = document.createElement('a');
+      a.href = url;
+      a.download = 'comprehensive-shopify-product.csv';
+      document.body.appendChild(a);
+      a.click();
+      document.body.removeChild(a);
+      window.URL.revokeObjectURL(url);
+
+      toast({
+        title: "Kapsamlı CSV İndirildi",
+        description: "Tüm ürün özellikleri ve detayları ile hazırlandı",
+      });
+
+      console.log('✅ Kapsamlı CSV indirme başarılı');
+    } catch (error) {
+      console.error('Kapsamlı CSV indirme hatası:', error);
+      toast({
+        title: "CSV İndirme Hatası",
+        description: error instanceof Error ? error.message : "Bilinmeyen hata",
+        variant: "destructive"
+      });
+    } finally {
+      setIsComprehensiveCSVGenerating(false);
     }
   };
 
@@ -1858,6 +1916,24 @@ function ScraperPage({ platform = 'trendyol' }: ScraperPageProps) {
                           >
                             <Download className="w-5 h-5" />
                             CSV İndir (shopify-urunler.csv)
+                          </button>
+                          
+                          <button
+                            onClick={handleComprehensiveCSVDownload}
+                            disabled={isComprehensiveCSVGenerating}
+                            className="w-full bg-gradient-to-r from-emerald-600 to-teal-600 hover:from-emerald-700 hover:to-teal-700 disabled:from-gray-600 disabled:to-gray-600 text-white px-6 py-3 rounded-xl text-sm font-semibold transition-all duration-200 flex items-center justify-center gap-2 shadow-lg hover:shadow-xl transform hover:scale-105 disabled:scale-100 border border-emerald-500/20"
+                          >
+                            {isComprehensiveCSVGenerating ? (
+                              <>
+                                <RefreshCcw className="w-5 h-5 animate-spin" />
+                                Kapsamlı CSV oluşturuluyor...
+                              </>
+                            ) : (
+                              <>
+                                <FileText className="w-5 h-5" />
+                                🎯 Kapsamlı CSV İndir (Tüm Özellikler)
+                              </>
+                            )}
                           </button>
                           
                           <div className="grid grid-cols-2 gap-2">

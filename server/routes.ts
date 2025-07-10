@@ -37,6 +37,7 @@ import { fixedAuthenticScrape } from './fixed-authentic-scraper';
 import { scenarioBasedScrape } from './scenario-based-scraper';
 import { ProductManagementSystem } from './product-management-system';
 import { TelegramNotifications } from './comprehensive-telegram-notifier';
+import { generateComprehensiveShopifyCSV, generateFeatureSummary, type ComprehensiveProductData } from './comprehensive-csv-generator';
 import axios from 'axios';
 
 
@@ -68,11 +69,11 @@ function generateSingleProductShopifyCSV(product: any): string {
   console.log(`Stok filtreleme: ${inStockSizes.length} stokta olan beden`);
   console.log(`Stokta olan bedenler: ${inStockSizes.join(', ')}`);
   
-  // Özellikler metni (CSV için)
-  const featuresText = product.features ? 
-    product.features.map((f: any) => `${f.key}: ${f.value}`).join(' | ') : '';
+  // Özellikler metni (CSV için) - Tüm özellikler
+  const featuresText = product.features && product.features.length > 0 ? 
+    product.features.map((f: any) => `${f.key}: ${f.value}`).join(' | ') : 'Özellik bilgisi mevcut değil';
 
-  // Ürün özellikleri HTML formatında (Body için) - sadece özellikler
+  // Ürün özellikleri HTML formatında (Body için) - Kapsamlı özellikler
   let bodyHTML = '';
   if (product.features && product.features.length > 0) {
     bodyHTML = '<div class="product-features"><h4>Ürün Özellikleri:</h4><ul>';
@@ -80,8 +81,18 @@ function generateSingleProductShopifyCSV(product: any): string {
       bodyHTML += `<li><strong>${feature.key}:</strong> ${feature.value}</li>`;
     });
     bodyHTML += '</ul></div>';
+    
+    // Ek açıklama bilgisi
+    if (product.description) {
+      bodyHTML += `<div class="product-description"><h4>Ürün Açıklaması:</h4><p>${product.description}</p></div>`;
+    }
   } else {
-    bodyHTML = `<p>${product.brand} kaliteli ürün.</p>`;
+    bodyHTML = `<div class="product-info">
+      <h4>Ürün Bilgileri:</h4>
+      <p><strong>Marka:</strong> ${product.brand}</p>
+      <p><strong>Ürün Adı:</strong> ${product.title}</p>
+      <p><strong>Fiyat:</strong> ${product.price?.formatted || 'Fiyat bilgisi mevcut değil'}</p>
+    </div>`;
   }
 
   inStockSizes.forEach((size: string, index: number) => {
@@ -1481,6 +1492,56 @@ export function registerRoutes(app: Express): Server {
     } catch (error) {
       console.error('Scrapy JSON generation error:', error);
       res.status(500).json({ message: 'Scrapy JSON oluşturma hatası', error: (error as Error).message });
+    }
+  });
+
+  // Comprehensive CSV with Enhanced Features - Main endpoint
+  app.post('/api/comprehensive-csv', async (req, res) => {
+    try {
+      const { url, productTitle } = req.body;
+      console.log('📄 Kapsamlı CSV özellikleri ile oluşturuluyor...');
+      
+      if (!url) {
+        return res.status(400).json({ message: 'URL gerekli' });
+      }
+
+      // Use scenario-based scraper for comprehensive data
+      const result = await scenarioBasedScrape(url);
+      
+      if (!result.success) {
+        return res.status(400).json({ 
+          message: 'Ürün verileri çıkarılamadı',
+          details: result.extractionDetails
+        });
+      }
+
+      // Prepare comprehensive product data
+      const comprehensiveData: ComprehensiveProductData = {
+        title: result.title,
+        brand: result.brand,
+        price: result.price,
+        images: result.images,
+        features: result.features,
+        variants: result.variants,
+        description: result.features.find(f => f.key.toLowerCase().includes('açıklama'))?.value,
+        category: result.features.find(f => f.key.toLowerCase().includes('kategori'))?.value,
+        sku: result.features.find(f => f.key.toLowerCase().includes('sku'))?.value
+      };
+
+      // Generate comprehensive CSV
+      const csvContent = generateComprehensiveShopifyCSV(comprehensiveData);
+      const featureSummary = generateFeatureSummary(comprehensiveData);
+
+      console.log(`✅ Kapsamlı CSV oluşturuldu: ${result.features.length} özellik, ${result.images.length} görsel, ${result.variants.length} varyant`);
+      console.log(featureSummary);
+
+      res.setHeader('Content-Type', 'text/csv; charset=utf-8');
+      res.setHeader('Content-Disposition', 'attachment; filename="comprehensive-shopify-product.csv"');
+      res.send(csvContent);
+      
+    } catch (error) {
+      console.error('Comprehensive CSV generation error:', error);
+      res.status(500).json({ message: 'Kapsamlı CSV oluşturma hatası', error: (error as Error).message });
     }
   });
 

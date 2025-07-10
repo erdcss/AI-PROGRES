@@ -336,21 +336,36 @@ async function extractFeaturesAdvanced($: cheerio.CheerioAPI, htmlContent: strin
   
   const features: Array<{key: string, value: string}> = [];
   
-  // Method 1: Product attributes table
-  $('.product-attributes tr, .product-details tr, .attribute-row').each((_, row) => {
-    const $row = $(row);
-    const key = $row.find('td:first-child, .attribute-name, .detail-name').text().trim();
-    const value = $row.find('td:last-child, .attribute-value, .detail-value').text().trim();
-    
-    if (key && value && key !== value) {
-      features.push({ key, value });
-    }
+  // Method 1: Product attributes table - Enhanced selectors
+  const attributeSelectors = [
+    '.product-attributes tr',
+    '.product-details tr', 
+    '.attribute-row',
+    '.product-property-row',
+    '.spec-table tr',
+    '.feature-table tr',
+    '.detail-table tr',
+    '.properties-table tr'
+  ];
+  
+  attributeSelectors.forEach(selector => {
+    $(selector).each((_, row) => {
+      const $row = $(row);
+      const key = $row.find('td:first-child, .attribute-name, .detail-name, .property-name, .spec-name').text().trim();
+      const value = $row.find('td:last-child, .attribute-value, .detail-value, .property-value, .spec-value').text().trim();
+      
+      if (key && value && key !== value && key.length > 1 && value.length > 1) {
+        features.push({ key, value });
+      }
+    });
   });
   
-  // Method 2: JSON-LD product data
+  // Method 2: JSON-LD product data - Enhanced extraction
   $('script[type="application/ld+json"]').each((_, script) => {
     try {
       const jsonData = JSON.parse($(script).html() || '{}');
+      
+      // Basic product info
       if (jsonData.brand) {
         features.push({ key: 'Marka', value: jsonData.brand.name || jsonData.brand });
       }
@@ -361,19 +376,46 @@ async function extractFeaturesAdvanced($: cheerio.CheerioAPI, htmlContent: strin
         features.push({ key: 'Model', value: jsonData.model });
       }
       if (jsonData.description) {
-        features.push({ key: 'Açıklama', value: jsonData.description.substring(0, 200) });
+        features.push({ key: 'Açıklama', value: jsonData.description.substring(0, 300) });
       }
+      if (jsonData.sku) {
+        features.push({ key: 'SKU', value: jsonData.sku });
+      }
+      if (jsonData.gtin) {
+        features.push({ key: 'GTIN', value: jsonData.gtin });
+      }
+      if (jsonData.mpn) {
+        features.push({ key: 'MPN', value: jsonData.mpn });
+      }
+      
+      // Product features from JSON-LD
+      if (jsonData.additionalProperty) {
+        jsonData.additionalProperty.forEach((prop: any) => {
+          if (prop.name && prop.value) {
+            features.push({ key: prop.name, value: prop.value });
+          }
+        });
+      }
+      
+      // Product offers
+      if (jsonData.offers && jsonData.offers.availability) {
+        features.push({ key: 'Stok Durumu', value: jsonData.offers.availability });
+      }
+      
     } catch (e) {
       // Continue
     }
   });
   
-  // Method 3: Meta properties
+  // Method 3: Meta properties - Enhanced
   const metaProps = [
     { selector: 'meta[property="product:brand"]', key: 'Marka' },
     { selector: 'meta[property="product:category"]', key: 'Kategori' },
     { selector: 'meta[property="product:condition"]', key: 'Durum' },
-    { selector: 'meta[name="description"]', key: 'Açıklama' }
+    { selector: 'meta[property="product:price:amount"]', key: 'Fiyat' },
+    { selector: 'meta[property="product:price:currency"]', key: 'Para Birimi' },
+    { selector: 'meta[name="description"]', key: 'Meta Açıklama' },
+    { selector: 'meta[name="keywords"]', key: 'Anahtar Kelimeler' }
   ];
   
   metaProps.forEach(({ selector, key }) => {
@@ -383,31 +425,88 @@ async function extractFeaturesAdvanced($: cheerio.CheerioAPI, htmlContent: strin
     }
   });
   
-  // Method 4: Product detail sections
-  $('.product-detail-section, .product-info-section').each((_, section) => {
-    const $section = $(section);
-    const title = $section.find('h3, h4, .section-title').text().trim();
-    const content = $section.find('p, .section-content').text().trim();
+  // Method 4: Product detail sections - Enhanced
+  const detailSelectors = [
+    '.product-detail-section',
+    '.product-info-section', 
+    '.product-description',
+    '.product-specifications',
+    '.product-features-section',
+    '.product-properties'
+  ];
+  
+  detailSelectors.forEach(selector => {
+    $(selector).each((_, section) => {
+      const $section = $(section);
+      const title = $section.find('h3, h4, h5, .section-title, .detail-title').text().trim();
+      const content = $section.find('p, .section-content, .detail-content').text().trim();
+      
+      if (title && content && content.length > 5) {
+        features.push({ key: title, value: content.substring(0, 250) });
+      }
+    });
+  });
+  
+  // Method 5: Specification lists - Enhanced
+  const specSelectors = [
+    '.spec-list li',
+    '.feature-list li', 
+    '.product-features li',
+    '.attributes-list li',
+    '.properties-list li',
+    '.details-list li'
+  ];
+  
+  specSelectors.forEach(selector => {
+    $(selector).each((_, item) => {
+      const text = $(item).text().trim();
+      const parts = text.split(':');
+      if (parts.length === 2) {
+        features.push({ 
+          key: parts[0].trim(), 
+          value: parts[1].trim() 
+        });
+      }
+    });
+  });
+  
+  // Method 6: Data attributes from HTML
+  $('[data-product-property], [data-feature], [data-attribute]').each((_, el) => {
+    const $el = $(el);
+    const key = $el.attr('data-property-name') || $el.attr('data-feature-name') || $el.attr('data-attribute-name');
+    const value = $el.attr('data-property-value') || $el.attr('data-feature-value') || $el.attr('data-attribute-value') || $el.text().trim();
     
-    if (title && content && content.length > 5) {
-      features.push({ key: title, value: content.substring(0, 150) });
+    if (key && value && key.length > 1 && value.length > 1) {
+      features.push({ key, value });
     }
   });
   
-  // Method 5: Specification lists
-  $('.spec-list li, .feature-list li, .product-features li').each((_, item) => {
-    const text = $(item).text().trim();
-    const parts = text.split(':');
-    if (parts.length === 2) {
-      features.push({ 
-        key: parts[0].trim(), 
-        value: parts[1].trim() 
-      });
+  // Method 7: Extract from HTML content patterns
+  const contentPatterns = [
+    /([A-Za-zÇĞİÖŞÜçğıöşü\s]+):\s*([A-Za-z0-9ÇĞİÖŞÜçğıöşü\s%.,'-]+)/g,
+    /([A-Za-zÇĞİÖŞÜçğıöşü\s]+):\s*([A-Za-z0-9ÇĞİÖŞÜçğıöşü\s%.,'-]+)/g
+  ];
+  
+  const bodyText = $.text();
+  contentPatterns.forEach(pattern => {
+    let match;
+    while ((match = pattern.exec(bodyText)) !== null) {
+      const key = match[1].trim();
+      const value = match[2].trim();
+      
+      if (key.length > 2 && value.length > 2 && key.length < 50 && value.length < 200) {
+        features.push({ key, value });
+      }
     }
   });
   
-  console.log(`✅ Advanced feature extraction found ${features.length} features`);
-  return features.slice(0, 20); // Limit to 20 features
+  // Remove duplicates and clean up
+  const uniqueFeatures = features.filter((feature, index, self) => 
+    index === self.findIndex(f => f.key === feature.key)
+  );
+  
+  console.log(`✅ Advanced feature extraction found ${uniqueFeatures.length} unique features`);
+  return uniqueFeatures.slice(0, 30); // Increased limit to 30 features
 }
 
 /**
