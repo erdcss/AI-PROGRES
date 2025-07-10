@@ -888,6 +888,93 @@ export function registerRoutes(app: Express): Server {
     });
   });
 
+  // Image proxy endpoint to bypass CORS restrictions
+  app.get('/api/image-proxy', async (req, res) => {
+    try {
+      const imageUrl = req.query.url as string;
+      
+      if (!imageUrl || !imageUrl.includes('cdn.dsmcdn.com')) {
+        return res.status(400).json({ error: 'Invalid image URL' });
+      }
+
+      console.log('🖼️ Proxy image request:', imageUrl);
+
+      // Fetch the image from Trendyol
+      const response = await axios.get(imageUrl, {
+        responseType: 'arraybuffer',
+        headers: {
+          'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36',
+          'Accept': 'image/avif,image/webp,image/apng,image/svg+xml,image/*,*/*;q=0.8',
+          'Accept-Language': 'tr-TR,tr;q=0.9,en-US;q=0.8,en;q=0.7',
+          'Cache-Control': 'no-cache',
+          'Referer': 'https://www.trendyol.com/',
+          'sec-ch-ua': '"Google Chrome";v="120", "Chromium";v="120", "Not_A Brand";v="24"',
+          'sec-ch-ua-mobile': '?0',
+          'sec-ch-ua-platform': '"Windows"',
+          'sec-fetch-dest': 'image',
+          'sec-fetch-mode': 'no-cors',
+          'sec-fetch-site': 'same-site'
+        },
+        timeout: 10000,
+        maxRedirects: 5,
+        validateStatus: (status) => status < 500
+      });
+
+      // Get content type from response
+      const contentType = response.headers['content-type'] || 'image/jpeg';
+      
+      // Set cache headers
+      res.set({
+        'Content-Type': contentType,
+        'Cache-Control': 'public, max-age=86400', // Cache for 24 hours
+        'Access-Control-Allow-Origin': '*'
+      });
+
+      // Send the image
+      res.send(Buffer.from(response.data));
+    } catch (error: any) {
+      console.error('❌ Image proxy error:', error.response?.status || error.message);
+      
+      // If it's a 404, try with alternative URL patterns
+      if (error.response?.status === 404 && imageUrl) {
+        try {
+          // Try without version path
+          const altUrl = imageUrl.replace(/\/ty\d+\//, '/');
+          console.log('🔄 Trying alternative URL:', altUrl);
+          
+          const altResponse = await axios.get(altUrl, {
+            responseType: 'arraybuffer',
+            headers: {
+              'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36',
+              'Accept': 'image/*',
+              'Referer': 'https://www.trendyol.com/'
+            },
+            timeout: 5000
+          });
+          
+          const contentType = altResponse.headers['content-type'] || 'image/jpeg';
+          res.set({
+            'Content-Type': contentType,
+            'Cache-Control': 'public, max-age=86400',
+            'Access-Control-Allow-Origin': '*'
+          });
+          
+          return res.send(Buffer.from(altResponse.data));
+        } catch (altError) {
+          console.error('❌ Alternative URL also failed:', altError);
+        }
+      }
+      
+      // Return a transparent 1x1 pixel as fallback
+      const pixel = Buffer.from('R0lGODlhAQABAIAAAAAAAP///yH5BAEAAAAALAAAAAABAAEAAAIBRAA7', 'base64');
+      res.set({
+        'Content-Type': 'image/gif',
+        'Cache-Control': 'no-cache'
+      });
+      res.send(pixel);
+    }
+  });
+
   // Boutique CSV endpoint
   app.post('/api/boutique-csv', async (req, res) => {
     try {

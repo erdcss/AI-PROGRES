@@ -1615,38 +1615,36 @@ function ScraperPage({ platform = 'trendyol' }: ScraperPageProps) {
                           </div>
                         </div>
                         
-                        {/* Main Image Display - Enhanced */}
-                        <div className="aspect-square w-72 mx-auto mb-4 relative group">
+                        {/* Main Image Display with Smart Preview */}
+                        <div className="aspect-square w-72 mx-auto mb-4 relative group bg-gradient-to-br from-gray-800 to-gray-900 rounded-lg border border-gray-600 overflow-hidden hover:border-blue-400 transition-all duration-200">
+                          <div id="mainProductPreview" className="absolute inset-0 flex items-center justify-center">
+                            <div className="text-center p-6">
+                              <div className="text-5xl mb-3 text-blue-400">🛍️</div>
+                              <div className="text-sm text-gray-300 font-medium mb-2">
+                                {product.brand} Ürünü
+                              </div>
+                              <div className="text-xs text-gray-500 max-w-48 mx-auto">
+                                {product.title}
+                              </div>
+                              <div className="mt-3 text-xs text-green-400 product-title">
+                                {product.images.length} görsel mevcut
+                              </div>
+                            </div>
+                          </div>
                           <img
                             id="mainProductImage"
                             src={product.images[0]}
                             alt={`${product.brand} ${product.title} - Ana görsel`}
-                            className="w-full h-full object-cover rounded-lg border border-gray-600 group-hover:border-blue-400 transition-all duration-200 shadow-lg"
+                            className="absolute inset-0 w-full h-full object-cover opacity-0"
                             loading="eager"
                             onLoad={(e) => {
                               e.currentTarget.style.opacity = '1';
-                              console.log('Ana görsel başarıyla yüklendi:', product.images[0]);
+                              console.log('Ana görsel yüklendi');
                             }}
                             onError={(e) => {
-                              console.error('Ana görsel yüklenemedi:', product.images[0]);
-                              const target = e.currentTarget;
-                              const parent = target.parentElement;
-                              if (parent) {
-                                parent.style.backgroundColor = '#1f2937';
-                                parent.innerHTML = `
-                                  <div class="flex items-center justify-center h-full text-center p-6">
-                                    <div>
-                                      <div class="text-4xl mb-3 text-blue-400">📷</div>
-                                      <div class="text-sm text-gray-300 font-medium mb-2">Ana Görsel</div>
-                                      <div class="text-xs text-gray-500">Yüklenemedi</div>
-                                    </div>
-                                  </div>
-                                  <div class="absolute top-2 left-2 bg-blue-600/80 text-white text-xs px-2 py-1 rounded">Ana</div>
-                                  <div class="absolute top-2 right-2 bg-green-600/80 text-white text-xs px-2 py-1 rounded">${product.images.length}</div>
-                                `;
-                              }
+                              console.log('Görsel CORS hatası - bu normal, URL\'ler CSV için hazır');
+                              e.currentTarget.style.display = 'none';
                             }}
-                            style={{ opacity: '0.5' }}
                           />
                           <div className="absolute top-2 left-2 bg-blue-600/80 text-white text-xs px-2 py-1 rounded">
                             Ana
@@ -1665,51 +1663,53 @@ function ScraperPage({ platform = 'trendyol' }: ScraperPageProps) {
                             <span className="text-sm font-medium text-gray-300">
                               Görsel Ön İzleme
                             </span>
-                            <span className="text-xs bg-green-600/20 text-green-400 px-2 py-1 rounded">
-                              URL'ler Hazır
-                            </span>
+                            <div className="flex items-center gap-2">
+                              <span className="text-xs bg-yellow-600/20 text-yellow-400 px-2 py-1 rounded">
+                                Güvenli Mod
+                              </span>
+                              <span className="text-xs bg-green-600/20 text-green-400 px-2 py-1 rounded">
+                                URL'ler Hazır
+                              </span>
+                            </div>
+                          </div>
+                          <div className="text-xs text-gray-400 mb-3">
+                            Trendyol görselleri doğrudan yüklenemediği için placeholder önizlemeleri gösteriliyor. CSV export'ta tüm görsel URL'leri mevcut olacak.
                           </div>
                           <div className="grid grid-cols-3 md:grid-cols-4 lg:grid-cols-6 gap-3">
                             {product.images.slice(0, 12).map((image: string, index: number) => (
                               <div key={index} className="relative aspect-square group cursor-pointer bg-gradient-to-br from-gray-800 to-gray-900 rounded-lg border border-gray-700 overflow-hidden hover:border-blue-400 hover:shadow-xl transition-all duration-300">
+                                <div className="absolute inset-0 flex items-center justify-center">
+                                  <div className="text-center p-2">
+                                    <div className="text-2xl mb-1 text-blue-400">📷</div>
+                                    <div className="text-xs text-gray-400">Görsel {index + 1}</div>
+                                  </div>
+                                </div>
                                 <img
                                   src={image}
                                   alt={`${product.brand} ${product.title} - Görsel ${index + 1}`}
-                                  className="w-full h-full object-cover transition-all duration-300 hover:scale-110"
+                                  className="absolute inset-0 w-full h-full object-cover opacity-0 transition-all duration-300 hover:scale-110"
                                   loading="lazy"
                                   onLoad={(e) => {
                                     e.currentTarget.style.opacity = '1';
-                                    console.log(`Thumbnail ${index + 1} yüklendi:`, image);
+                                    console.log(`Thumbnail ${index + 1} yüklendi`);
                                   }}
                                   onError={(e) => {
-                                    console.error(`Thumbnail ${index + 1} yüklenemedi:`, image);
-                                    const target = e.currentTarget;
-                                    const parent = target.parentElement;
-                                    if (parent) {
-                                      parent.style.backgroundColor = '#1f2937';
-                                      parent.innerHTML = `
-                                        <div class="flex items-center justify-center h-full">
-                                          <div class="text-center p-2">
-                                            <div class="text-2xl mb-1 text-blue-400">📷</div>
-                                            <div class="text-xs text-gray-400">Görsel ${index + 1}</div>
-                                          </div>
-                                        </div>
-                                        <div class="absolute bottom-1 right-1 bg-black/80 text-white text-xs px-1.5 py-0.5 rounded">${index + 1}</div>
-                                        ${index === 0 ? '<div class="absolute top-1 left-1 bg-blue-600 text-white text-xs px-1.5 py-0.5 rounded">Ana</div>' : ''}
-                                        <div class="absolute inset-0 bg-black/20 opacity-0 group-hover:opacity-100" />
-                                      `;
-                                    }
+                                    console.log('Thumbnail CORS hatası - bu normal');
+                                    e.currentTarget.style.display = 'none';
                                   }}
                                   onClick={() => {
                                     const mainImg = document.getElementById('mainProductImage') as HTMLImageElement;
+                                    const mainPreview = document.getElementById('mainProductPreview');
                                     if (mainImg) {
-                                      mainImg.style.opacity = '0.5';
-                                      setTimeout(() => {
-                                        mainImg.src = image;
-                                      }, 100);
+                                      mainImg.src = image;
+                                    }
+                                    if (mainPreview) {
+                                      const titleEl = mainPreview.querySelector('.product-title');
+                                      if (titleEl) {
+                                        titleEl.textContent = `Görsel ${index + 1} / ${product.images.length}`;
+                                      }
                                     }
                                   }}
-                                  style={{ opacity: '0.7' }}
                                 />
                                 <div className="absolute bottom-1 right-1 bg-black/80 text-white text-xs px-1.5 py-0.5 rounded">
                                   {index + 1}
