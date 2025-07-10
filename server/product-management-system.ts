@@ -76,7 +76,7 @@ export class ProductManagementSystem {
       console.log(`📢 Step 7: Sending notifications...`);
       await TelegramNotifications.completeWorkflow({
         productId: storedProduct.id,
-        shopifyProductId: shopifyResult.product.id,
+        shopifyProductId: shopifyResult.shopifyProductId,
         reviewsCount: reviewsResult.reviewsCount,
         csvGenerated: csvResult.success,
         monitoring: monitoringResult.success,
@@ -90,7 +90,7 @@ export class ProductManagementSystem {
       return {
         success: true,
         productId: storedProduct.id,
-        shopifyProductId: shopifyResult.product.id,
+        shopifyProductId: shopifyResult.shopifyProductId,
         reviewsCount: reviewsResult.reviewsCount,
         csvGenerated: csvResult.success,
         monitoring: monitoringResult.success

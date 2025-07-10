@@ -2,7 +2,7 @@ import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Separator } from "@/components/ui/separator";
-import { Download, Package, Tag, Image as ImageIcon, DollarSign, FileText, Info } from "lucide-react";
+import { Download, Package, Tag, Image as ImageIcon, DollarSign, FileText, Info, MessageSquare } from "lucide-react";
 import { AIAnalysisDisplay } from "./AIAnalysisDisplay";
 import { EnhancedAIAnalysisDisplay } from "./EnhancedAIAnalysisDisplay";
 import { AIEnhancedProductDisplay } from "./AIEnhancedProductDisplay";
@@ -311,6 +311,65 @@ export function ProductDisplay({ data }: ProductDisplayProps) {
                 <div>Ürün özellikleri yükleniyor...</div>
               </div>
             )}
+          </div>
+        </CardContent>
+      </Card>
+
+      {/* Ürün Yorumları */}
+      <Card className="bg-gray-800 border-gray-700">
+        <CardHeader>
+          <CardTitle className="flex items-center gap-2 text-white">
+            <MessageSquare className="h-5 w-5 text-yellow-400" />
+            Ürün Yorumları
+          </CardTitle>
+        </CardHeader>
+        <CardContent>
+          <div className="space-y-4">
+            {/* Yorum istatistikleri */}
+            <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
+              <div className="bg-gray-700 p-3 rounded-lg text-center">
+                <div className="text-lg font-bold text-yellow-400">0</div>
+                <div className="text-xs text-gray-400">Toplam Yorum</div>
+              </div>
+              <div className="bg-gray-700 p-3 rounded-lg text-center">
+                <div className="text-lg font-bold text-green-400">0.0</div>
+                <div className="text-xs text-gray-400">Ortalama Puan</div>
+              </div>
+              <div className="bg-gray-700 p-3 rounded-lg text-center">
+                <div className="text-lg font-bold text-blue-400">0</div>
+                <div className="text-xs text-gray-400">Onaylı Yorum</div>
+              </div>
+              <div className="bg-gray-700 p-3 rounded-lg text-center">
+                <div className="text-lg font-bold text-purple-400">0</div>
+                <div className="text-xs text-gray-400">Fotoğraflı</div>
+              </div>
+            </div>
+            
+            {/* Yorum çıkarma durumu */}
+            <div className="bg-gray-700 p-4 rounded-lg">
+              <div className="flex items-center justify-between">
+                <div>
+                  <h4 className="font-semibold text-white">Yorum Çıkarma Sistemi</h4>
+                  <p className="text-sm text-gray-400">Trendyol ürün yorumları otomatik olarak çıkarılabilir</p>
+                </div>
+                <Button 
+                  variant="outline" 
+                  size="sm"
+                  className="bg-yellow-600 hover:bg-yellow-700 text-white border-yellow-600"
+                  onClick={() => window.open('/product-reviews', '_blank')}
+                >
+                  <MessageSquare className="h-4 w-4 mr-2" />
+                  Yorumları Görüntüle
+                </Button>
+              </div>
+            </div>
+            
+            {/* Boş durum mesajı */}
+            <div className="text-center text-gray-500 py-6">
+              <MessageSquare className="h-12 w-12 mx-auto mb-3 opacity-50" />
+              <div className="text-lg font-medium">Henüz Yorum Çıkarılmadı</div>
+              <div className="text-sm">Bu ürün için henüz yorum çıkarma işlemi yapılmadı.</div>
+            </div>
           </div>
         </CardContent>
       </Card>
