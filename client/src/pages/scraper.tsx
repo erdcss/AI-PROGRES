@@ -1573,11 +1573,14 @@ function ScraperPage({ platform = 'trendyol' }: ScraperPageProps) {
                       </div>
                     </div>
                     
-                    {/* Product Images Gallery with Better Error Handling */}
-                    {product.images && product.images.length > 0 && (
-                      <div className="bg-gradient-to-br from-blue-900/20 to-indigo-900/20 backdrop-blur-sm rounded-2xl p-4 border border-blue-500/20">
-                        {/* Image URLs Display */}
-                        <div className="mb-4 bg-gradient-to-br from-gray-900/40 to-gray-800/40 backdrop-blur-sm p-4 rounded-xl border border-gray-600/30">
+                    {/* Horizontal Product Layout */}
+                    <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
+                      
+                      {/* Left Column - Product Images */}
+                      {product.images && product.images.length > 0 && (
+                        <div className="bg-gradient-to-br from-blue-900/20 to-indigo-900/20 backdrop-blur-sm rounded-2xl p-4 border border-blue-500/20">
+                          {/* Image URLs Display */}
+                          <div className="mb-4 bg-gradient-to-br from-gray-900/40 to-gray-800/40 backdrop-blur-sm p-4 rounded-xl border border-gray-600/30">
                           <div className="flex items-center justify-between mb-2">
                             <span className="text-xs font-medium text-gray-300">
                               Çıkarılan Görsel URL'leri
@@ -1616,7 +1619,7 @@ function ScraperPage({ platform = 'trendyol' }: ScraperPageProps) {
                         </div>
                         
                         {/* Main Image Display with Smart Preview */}
-                        <div className="aspect-square w-72 mx-auto mb-4 relative group bg-gradient-to-br from-gray-800 to-gray-900 rounded-lg border border-gray-600 overflow-hidden hover:border-blue-400 transition-all duration-200">
+                        <div className="aspect-square w-full max-w-sm mx-auto mb-4 relative group bg-gradient-to-br from-gray-800 to-gray-900 rounded-lg border border-gray-600 overflow-hidden hover:border-blue-400 transition-all duration-200">
                           <div id="mainProductPreview" className="absolute inset-0 flex items-center justify-center">
                             <div className="text-center p-6">
                               <div className="text-5xl mb-3 text-blue-400">🛍️</div>
@@ -1735,120 +1738,102 @@ function ScraperPage({ platform = 'trendyol' }: ScraperPageProps) {
                         </div>
                       </div>
                     )}
-                  </div>
-
-                  {/* Compact Data Preview */}
-                  <div className="space-y-4 border-t border-blue-500/20 pt-6">
-                    <h3 className="text-lg font-semibold text-white">Veri Önizleme</h3>
                     
-                    {/* Ürün Özellikleri Önizleme */}
-                    {product.features && product.features.length > 0 && (
-                      <div className="bg-gradient-to-br from-emerald-900/40 to-teal-900/40 backdrop-blur-sm p-5 rounded-xl border border-emerald-500/40 shadow-lg">
-                        <div className="flex items-center justify-between mb-4">
-                          <span className="text-emerald-300 text-base font-bold flex items-center gap-2">
-                            <svg className="w-5 h-5" fill="currentColor" viewBox="0 0 20 20">
-                              <path fillRule="evenodd" d="M3 4a1 1 0 011-1h12a1 1 0 011 1v2a1 1 0 01-1 1H4a1 1 0 01-1-1V4zm0 4a1 1 0 011-1h12a1 1 0 011 1v2a1 1 0 01-1 1H4a1 1 0 01-1-1V8zm0 4a1 1 0 011-1h12a1 1 0 011 1v2a1 1 0 01-1 1H4a1 1 0 01-1-1v-2z" clipRule="evenodd" />
-                            </svg>
-                            Ürün Özellikleri
+                    {/* Right Column - Product Details */}
+                    <div className="bg-gradient-to-br from-gray-900/20 to-gray-800/20 backdrop-blur-sm rounded-2xl p-4 border border-gray-500/20">
+                      <h3 className="text-lg font-semibold text-white mb-4">Ürün Detayları</h3>
+                      
+                      {/* Product Features */}
+                      {product.features && product.features.length > 0 && (
+                        <div className="bg-gradient-to-br from-emerald-900/40 to-teal-900/40 backdrop-blur-sm p-4 rounded-xl border border-emerald-500/40 shadow-lg mb-4">
+                          <div className="flex items-center justify-between mb-3">
+                            <span className="text-emerald-300 text-base font-bold flex items-center gap-2">
+                              <svg className="w-5 h-5" fill="currentColor" viewBox="0 0 20 20">
+                                <path fillRule="evenodd" d="M3 4a1 1 0 011-1h12a1 1 0 011 1v2a1 1 0 01-1 1H4a1 1 0 01-1-1V4zm0 4a1 1 0 011-1h12a1 1 0 011 1v2a1 1 0 01-1 1H4a1 1 0 01-1-1V8zm0 4a1 1 0 011-1h12a1 1 0 011 1v2a1 1 0 01-1 1H4a1 1 0 01-1-1v-2z" clipRule="evenodd" />
+                              </svg>
+                              Ürün Özellikleri
+                            </span>
+                            <span className="text-sm text-emerald-200 bg-emerald-800/50 px-3 py-1 rounded-full font-medium">{product.features.length} özellik</span>
+                          </div>
+                          <div className="max-h-40 overflow-y-auto space-y-2">
+                            {product.features.slice(0, 10).map((feature, index) => (
+                              <div key={index} className="flex justify-between items-center bg-emerald-800/20 p-2 rounded-lg">
+                                <span className="text-emerald-200 font-medium">{feature.key}:</span>
+                                <span className="text-white ml-2 text-right font-semibold">{feature.value}</span>
+                              </div>
+                            ))}
+                            {product.features.length > 10 && (
+                              <div className="text-center pt-2">
+                                <span className="text-sm text-emerald-400 bg-emerald-900/30 px-3 py-1 rounded-full">+{product.features.length - 10} daha...</span>
+                              </div>
+                            )}
+                          </div>
+                        </div>
+                      )}
+                      
+                      {/* Price Display */}
+                      <div className="bg-gradient-to-br from-green-900/30 to-emerald-900/30 backdrop-blur-sm p-4 rounded-xl border border-green-500/30 mb-4">
+                        <div className="flex items-center justify-between mb-3">
+                          <span className="text-gray-300 text-sm">Trendyol Fiyatı</span>
+                          <span className="text-sm font-semibold text-white bg-gray-800/40 px-3 py-1 rounded-lg">
+                            {typeof product.price === 'object' ? product.price.formatted : `${product.price} TL`}
                           </span>
-                          <span className="text-sm text-emerald-200 bg-emerald-800/50 px-3 py-1 rounded-full font-medium">{product.features.length} özellik</span>
                         </div>
-                        <div className="max-h-40 overflow-y-auto space-y-2">
-                          {product.features.slice(0, 10).map((feature, index) => (
-                            <div key={index} className="flex justify-between items-center bg-emerald-800/20 p-2 rounded-lg">
-                              <span className="text-emerald-200 font-medium">{feature.key}:</span>
-                              <span className="text-white ml-2 text-right font-semibold">{feature.value}</span>
-                            </div>
-                          ))}
-                          {product.features.length > 10 && (
-                            <div className="text-center pt-2">
-                              <span className="text-sm text-emerald-400 bg-emerald-900/30 px-3 py-1 rounded-full">+{product.features.length - 10} daha...</span>
-                            </div>
-                          )}
+                        <div className="flex items-center justify-between mb-2">
+                          <span className="text-green-300 text-sm font-semibold">Satış Fiyatımız</span>
+                          <span className="text-lg font-bold text-green-200 bg-green-800/40 px-3 py-1 rounded-lg">
+                            {typeof product.price === 'object' ? product.price.profitFormatted : `${product.price} TL`}
+                          </span>
+                        </div>
+                        <div className="text-center">
+                          <span className="text-xs text-green-500 bg-green-900/30 px-2 py-1 rounded">
+                            %15 kar marjı dahil
+                          </span>
                         </div>
                       </div>
-                    )}
+                      
+                      {/* Variants Display */}
+                      {product.variants && (
+                        <div className="space-y-2">
+                          <h4 className="text-sm font-medium text-gray-300">Varyantlar</h4>
+                          <div className="grid grid-cols-2 gap-2">
+                            {product.variants.colors && product.variants.colors.length > 0 && (
+                              <div className="bg-blue-900/20 p-2 rounded border border-blue-800">
+                                <div className="text-blue-400 text-xs font-medium mb-1">
+                                  Renkler ({product.variants.colors.length})
+                                </div>
+                                <div className="text-xs text-blue-300">
+                                  {product.variants.colors.slice(0, 3).map(color => 
+                                    typeof color === 'string' ? color : color?.name || 'Renk'
+                                  ).join(', ')}
+                                  {product.variants.colors.length > 3 && ` +${product.variants.colors.length - 3}`}
+                                </div>
+                              </div>
+                            )}
+                            
+                            {product.variants.sizes && product.variants.sizes.length > 0 && (
+                              <div className="bg-purple-900/20 p-2 rounded border border-purple-800">
+                                <div className="text-purple-400 text-xs font-medium mb-1">
+                                  Bedenler ({product.variants.sizes.length})
+                                </div>
+                                <div className="text-xs text-purple-300">
+                                  {product.variants.sizes.map(size => 
+                                    typeof size === 'string' ? size : size?.name || 'Beden'
+                                  ).join(', ')}
+                                </div>
+                              </div>
+                            )}
+                          </div>
+                        </div>
+                      )}
+                    </div>
                     
-                    {/* Compact Price */}
-                    <div className="bg-gradient-to-br from-green-900/30 to-emerald-900/30 backdrop-blur-sm p-4 rounded-xl border border-green-500/30">
-                      <div className="flex items-center justify-between mb-3">
-                        <span className="text-gray-300 text-sm">Trendyol Fiyatı</span>
-                        <span className="text-sm font-semibold text-white bg-gray-800/40 px-3 py-1 rounded-lg">
-                          {typeof product.price === 'object' ? product.price.formatted : `${product.price} TL`}
-                        </span>
-                      </div>
-                      <div className="flex items-center justify-between mb-2">
-                        <span className="text-green-300 text-sm font-semibold">Satış Fiyatımız</span>
-                        <span className="text-lg font-bold text-green-200 bg-green-800/40 px-3 py-1 rounded-lg">
-                          {typeof product.price === 'object' ? product.price.profitFormatted : `${product.price} TL`}
-                        </span>
-                      </div>
-                      <div className="text-center">
-                        <span className="text-xs text-green-500 bg-green-900/30 px-2 py-1 rounded">
-                          %15 kar marjı dahil
-                        </span>
-                      </div>
                     </div>
 
-                    {/* Compact Variants */}
-                    {product.variants && (
-                      <div className="space-y-2">
-                        <h4 className="text-sm font-medium text-gray-300">Varyantlar</h4>
-                        <div className="grid grid-cols-2 gap-2">
-                          {product.variants.colors && product.variants.colors.length > 0 && (
-                            <div className="bg-blue-900/20 p-2 rounded border border-blue-800">
-                              <div className="text-blue-400 text-xs font-medium mb-1">
-                                Renkler ({product.variants.colors.length})
-                              </div>
-                              <div className="text-xs text-blue-300">
-                                {product.variants.colors.slice(0, 3).map(color => 
-                                  typeof color === 'string' ? color : color?.name || 'Renk'
-                                ).join(', ')}
-                                {product.variants.colors.length > 3 && ` +${product.variants.colors.length - 3}`}
-                              </div>
-                            </div>
-                          )}
-                          
-                          {product.variants.sizes && product.variants.sizes.length > 0 && (
-                            <div className="bg-purple-900/20 p-2 rounded border border-purple-800">
-                              <div className="text-purple-400 text-xs font-medium mb-1">
-                                Bedenler ({product.variants.sizes.length})
-                              </div>
-                              <div className="text-xs text-purple-300">
-                                {product.variants.sizes.map(size => 
-                                  typeof size === 'string' ? size : size?.name || 'Beden'
-                                ).join(', ')}
-                              </div>
-                            </div>
-                          )}
-                        </div>
-                      </div>
-                    )}
-
-                    {/* Compact Tags */}
-                    {product.tags && product.tags.length > 0 && (
-                      <div className="bg-yellow-900/20 p-2 rounded border border-yellow-800">
-                        <div className="text-yellow-400 text-xs font-medium mb-1">
-                          Etiketler ({product.tags.length})
-                        </div>
-                        <div className="flex flex-wrap gap-1">
-                          {product.tags.slice(0, 6).map((tag: any, index: number) => (
-                            <span
-                              key={index}
-                              className="px-1.5 py-0.5 bg-yellow-900/30 text-yellow-300 text-xs rounded"
-                            >
-                              {typeof tag === 'string' ? tag : tag?.name || `Tag ${index + 1}`}
-                            </span>
-                          ))}
-                          {product.tags.length > 6 && (
-                            <span className="text-yellow-500 text-xs">
-                              +{product.tags.length - 6}
-                            </span>
-                          )}
-                        </div>
-                      </div>
-                    )}
-
+                  {/* Action Buttons */}
+                  <div className="space-y-4 border-t border-blue-500/20 pt-6">
+                    <h3 className="text-lg font-semibold text-white">CSV ve Shopify İşlemleri</h3>
+                    
                     {/* Enhanced CSV Preview Section */}
                     {product.csvInfo && (
                       <div className="space-y-3">
@@ -2048,6 +2033,7 @@ function ScraperPage({ platform = 'trendyol' }: ScraperPageProps) {
                       </div>
                     )}
                   </div>
+                </div>
                 </CardContent>
               </Card>
             </motion.div>

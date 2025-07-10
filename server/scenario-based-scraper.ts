@@ -58,8 +58,8 @@ export async function scenarioBasedScrape(url: string): Promise<ScenarioBasedRes
     const title = extractTitle($);
     const brand = extractBrand(url);
     const price = extractPrice($, htmlContent);
-    const images = extractImages($);
-    const features = extractFeatures($);
+    const images = await extractImagesAdvanced($, htmlContent, url);
+    const features = await extractFeaturesAdvanced($, htmlContent, url);
     
     console.log(`✅ Basic info: title="${title}", brand="${brand}", price=${price.original}`);
     
@@ -248,6 +248,62 @@ function extractPrice($: any, htmlContent: string): any {
     withProfit: 0,
     profitFormatted: '0 TL'
   };
+}
+
+async function extractImagesAdvanced($: cheerio.CheerioAPI, htmlContent: string, url: string): Promise<string[]> {
+  console.log('🖼️ Advanced image extraction starting...');
+  
+  try {
+    // Use comprehensive image extractor
+    const { extractAllProductImages } = await import('./complete-image-extractor');
+    const imageResult = await extractAllProductImages(url);
+    
+    if (imageResult.success && imageResult.images.length > 0) {
+      console.log(`✅ Comprehensive extractor found ${imageResult.images.length} images`);
+      return imageResult.images;
+    }
+  } catch (error) {
+    console.log('⚠️ Comprehensive image extractor failed, using fallback');
+  }
+  
+  // Fallback to basic extraction
+  return extractImages($);
+}
+
+async function extractFeaturesAdvanced($: cheerio.CheerioAPI, htmlContent: string, url: string): Promise<Array<{key: string, value: string}>> {
+  console.log('🎯 Advanced feature extraction starting...');
+  
+  try {
+    // Use precise feature extractor
+    const { preciseFeatureExtraction } = await import('./precise-feature-extractor');
+    const featureResult = await preciseFeatureExtraction(url);
+    
+    if (featureResult.success && featureResult.features.length > 0) {
+      console.log(`✅ Precise extractor found ${featureResult.features.length} features`);
+      return featureResult.features.map(f => ({
+        key: f.key,
+        value: f.value
+      }));
+    }
+  } catch (error) {
+    console.log('⚠️ Precise feature extractor failed, using enhanced scraper');
+  }
+  
+  try {
+    // Fallback to enhanced scraper
+    const { enhancedTrendyolScraper } = await import('./enhanced-trendyol-scraper');
+    const enhancedResult = await enhancedTrendyolScraper(url);
+    
+    if (enhancedResult.success && enhancedResult.features) {
+      console.log(`✅ Enhanced scraper found ${enhancedResult.features.length} features`);
+      return enhancedResult.features;
+    }
+  } catch (error) {
+    console.log('⚠️ Enhanced scraper failed, using basic extraction');
+  }
+  
+  // Basic fallback extraction
+  return extractFeatures($);
 }
 
 /**
