@@ -255,118 +255,166 @@ export class ScenarioExtractors {
     
     console.log(`🔍 Extracting sizes with ${selectors.length} selectors...`);
     
-    // Method 1: STRICT selector-based detection - only from actual variant elements
-    const strictSizeSelectors = [
-      'button[data-testid*="size"]:not([disabled])',
-      'button[class*="size"]:not([disabled])',
-      '.size-selector button:not([disabled])',
-      '.variant-size-option:not([disabled])',
-      'button[aria-label*="beden"]:not([disabled])',
-      'button[title*="beden"]:not([disabled])',
-      'div[data-testid*="variant"] button:not([disabled])',
-      'button[data-testid*="variant"]:not([disabled])',
-      '.variant-item:not([disabled])',
-      '.product-variant button:not([disabled])'
+    // Method 1: Enhanced selector-based detection
+    const sizeSelectors = [
+      // Button selectors
+      'button[data-testid*="size"]',
+      'button[class*="size"]',
+      'button[aria-label*="beden"]',
+      'button[title*="beden"]',
+      'button[data-testid*="variant"]',
+      '.size-selector button',
+      '.variant-size-option',
+      '.product-variant button',
+      '.variant-item',
+      
+      // Span and div selectors  
+      'span[data-testid*="size"]',
+      'div[data-testid*="size"]',
+      'span[class*="size"]',
+      'div[class*="size"]',
+      'span[aria-label*="beden"]',
+      'div[aria-label*="beden"]',
+      
+      // General variant selectors
+      '[data-variant-size]',
+      '[data-size]',
+      '.variant-option',
+      '.size-option',
+      
+      // Trendyol specific selectors
+      '.pr-in-sz button',
+      '.variant-buttons button',
+      '.size-variants button',
+      '.product-sizes button'
     ];
     
     let foundValidSizeElements = false;
     
-    strictSizeSelectors.forEach(selector => {
+    sizeSelectors.forEach(selector => {
       const elements = $(selector);
-      console.log(`🔍 Strict selector "${selector}" found ${elements.length} elements`);
+      console.log(`🔍 Selector "${selector}" found ${elements.length} elements`);
       
       if (elements.length > 0) {
-        foundValidSizeElements = true;
         elements.each((i: number, el: any) => {
           const text = $(el).text().trim();
           const ariaLabel = $(el).attr('aria-label') || '';
           const title = $(el).attr('title') || '';
           const dataValue = $(el).attr('data-value') || '';
           const dataSize = $(el).attr('data-size') || '';
+          const dataVariantSize = $(el).attr('data-variant-size') || '';
           
-          console.log(`🔍 Strict element ${i}: text="${text}", aria-label="${ariaLabel}", title="${title}"`);
+          console.log(`🔍 Element ${i}: text="${text}", aria-label="${ariaLabel}", title="${title}"`);
           
-          [text, ariaLabel, title, dataValue, dataSize].forEach(value => {
-            if (value && /^(XS|S|M|L|XL|XXL|XXXL|\d+)$/i.test(value.trim())) {
+          [text, ariaLabel, title, dataValue, dataSize, dataVariantSize].forEach(value => {
+            if (value && this.isValidSize(value.trim())) {
               const size = value.trim().toUpperCase();
               extractedSizes.add(size);
-              console.log(`✅ AUTHENTIC Size "${size}" found via strict selector: ${selector}`);
+              foundValidSizeElements = true;
+              console.log(`✅ AUTHENTIC Size "${size}" found via selector: ${selector}`);
             }
           });
         });
       }
     });
     
-    // Method 2: Only run pattern matching if no strict selectors found sizes
+    // Method 2: JSON-LD and structured data extraction
     if (!foundValidSizeElements) {
-      console.log(`🔍 No strict size selectors found, checking for variant-specific patterns...`);
+      console.log(`🔍 No DOM elements found, checking structured data...`);
       
-      // Very specific patterns that indicate real variants
-      const variantSpecificPatterns = [
-        /"variants":\s*\[[^\]]*"(XS|S|M|L|XL|XXL|XXXL)"/gi,
-        /"sizes":\s*\[[^\]]*"(XS|S|M|L|XL|XXL|XXXL)"/gi,
-        /data-variant-size="(XS|S|M|L|XL|XXL|XXXL)"/gi,
-        /class="[^"]*variant[^"]*"[^>]*>(XS|S|M|L|XL|XXL|XXXL)/gi
+      $('script[type="application/ld+json"]').each((_, script) => {
+        try {
+          const jsonData = JSON.parse($(script).html() || '{}');
+          
+          // Check for product variants in JSON-LD
+          if (jsonData.hasVariant) {
+            jsonData.hasVariant.forEach((variant: any) => {
+              if (variant.size || variant.name) {
+                const sizeValue = variant.size || variant.name;
+                if (this.isValidSize(sizeValue)) {
+                  extractedSizes.add(sizeValue.toUpperCase());
+                  foundValidSizeElements = true;
+                  console.log(`✅ AUTHENTIC Size "${sizeValue}" found via JSON-LD`);
+                }
+              }
+            });
+          }
+          
+          // Check for size property
+          if (jsonData.size && this.isValidSize(jsonData.size)) {
+            extractedSizes.add(jsonData.size.toUpperCase());
+            foundValidSizeElements = true;
+            console.log(`✅ AUTHENTIC Size "${jsonData.size}" found via JSON-LD size property`);
+          }
+          
+        } catch (e) {
+          // Continue
+        }
+      });
+    }
+    
+    // Method 3: HTML pattern matching for authentic variant data
+    if (!foundValidSizeElements) {
+      console.log(`🔍 No structured data found, checking HTML patterns...`);
+      
+      const variantPatterns = [
+        /"variants":\s*\[[^\]]*"(XS|S|M|L|XL|XXL|XXXL|24|25|26|27|28|29|30|31|32|33|34|35|36|37|38|39|40|41|42|43|44|45|46|47|48|49|50)"/gi,
+        /"sizes":\s*\[[^\]]*"(XS|S|M|L|XL|XXL|XXXL|24|25|26|27|28|29|30|31|32|33|34|35|36|37|38|39|40|41|42|43|44|45|46|47|48|49|50)"/gi,
+        /"size":\s*"(XS|S|M|L|XL|XXL|XXXL|24|25|26|27|28|29|30|31|32|33|34|35|36|37|38|39|40|41|42|43|44|45|46|47|48|49|50)"/gi,
+        /data-variant-size="(XS|S|M|L|XL|XXL|XXXL|24|25|26|27|28|29|30|31|32|33|34|35|36|37|38|39|40|41|42|43|44|45|46|47|48|49|50)"/gi,
+        /data-size="(XS|S|M|L|XL|XXL|XXXL|24|25|26|27|28|29|30|31|32|33|34|35|36|37|38|39|40|41|42|43|44|45|46|47|48|49|50)"/gi
       ];
       
-      variantSpecificPatterns.forEach((pattern, index) => {
+      variantPatterns.forEach((pattern, index) => {
         const matches = htmlContent.match(pattern);
         if (matches) {
-          console.log(`🔍 Variant-specific pattern ${index + 1} found ${matches.length} matches`);
+          console.log(`🔍 Variant pattern ${index + 1} found ${matches.length} matches`);
           matches.forEach(match => {
-            const sizeMatch = match.match(/(XS|S|M|L|XL|XXL|XXXL)/i);
+            const sizeMatch = match.match(/(XS|S|M|L|XL|XXL|XXXL|24|25|26|27|28|29|30|31|32|33|34|35|36|37|38|39|40|41|42|43|44|45|46|47|48|49|50)/i);
             if (sizeMatch) {
               extractedSizes.add(sizeMatch[1].toUpperCase());
-              console.log(`✅ AUTHENTIC Size "${sizeMatch[1].toUpperCase()}" found via variant pattern`);
+              foundValidSizeElements = true;
+              console.log(`✅ AUTHENTIC Size "${sizeMatch[1].toUpperCase()}" found via pattern`);
             }
           });
         }
       });
     }
     
-    // DISABLE FALLBACK PATTERNS - they cause false positives
-    console.log(`🚫 Skipping general pattern matching to avoid false positives`);
-    
-    // If no strict selectors found any sizes, DON'T fallback to general patterns
-    if (!foundValidSizeElements && extractedSizes.size === 0) {
-      console.log(`❌ No authentic size variants found - product likely has no size variants`);
-      return [];
-    }
-    
-    // FORCE DISABLE: Even if patterns found sizes, ignore them if no strict elements
-    if (!foundValidSizeElements) {
-      console.log(`🚫 FORCE DISABLE: No strict variant elements found - ignoring pattern matches`);
-      return [];
-    }
-    
     const finalSizes = Array.from(extractedSizes).sort();
     console.log(`📏 Final AUTHENTIC sizes extracted: [${finalSizes.join(', ')}]`);
     
-    // STRICT VALIDATION: Only return sizes if we found actual variant elements
-    if (finalSizes.length > 0 && !foundValidSizeElements) {
-      console.log(`⚠️  WARNING: Sizes found but no variant elements - likely false positive`);
-      console.log(`🔍 Performing strict validation...`);
-      
-      // Check if there are actual clickable size elements with variant classes
-      const variantElements = $('button, div, a').filter((i: number, el: any) => {
-        const text = $(el).text().trim();
-        const hasVariantClass = $(el).hasClass('variant') || $(el).hasClass('size') || $(el).closest('.variant').length > 0;
-        const isClickable = $(el).is('button') || $(el).is('a') || $(el).attr('onclick') || $(el).attr('role') === 'button';
-        const matchesSize = finalSizes.some(size => text === size || text.includes(size));
-        
-        return hasVariantClass && isClickable && matchesSize;
-      });
-      
-      console.log(`🔍 Found ${variantElements.length} valid variant elements`);
-      
-      if (variantElements.length === 0) {
-        console.log(`❌ No valid variant elements found - clearing false positive sizes`);
-        console.log(`🚫 This product likely has no size variants`);
-        return [];
-      }
+    if (finalSizes.length === 0) {
+      console.log(`❌ No authentic size variants found - product has no size variants`);
+      return [];
     }
     
     return finalSizes;
+  }
+
+  /**
+   * Validate if a string represents a valid size
+   */
+  private static isValidSize(size: string): boolean {
+    if (!size || size.length === 0) return false;
+    
+    const normalizedSize = size.trim().toUpperCase();
+    
+    // Standard clothing sizes
+    const clothingSizes = ['XS', 'S', 'M', 'L', 'XL', 'XXL', 'XXXL'];
+    if (clothingSizes.includes(normalizedSize)) return true;
+    
+    // Numeric sizes (shoes, clothing numbers)
+    if (/^(2[4-9]|[3-5][0-9])$/.test(normalizedSize)) return true;
+    
+    // EU sizes
+    if (/^(3[6-9]|4[0-9]|5[0-2])$/.test(normalizedSize)) return true;
+    
+    // Don't allow generic terms that aren't real sizes
+    const invalidSizes = ['TEK BEDEN', 'STD', 'STANDARD', 'STANDART', 'ONE SIZE', 'OS', 'GENEL'];
+    if (invalidSizes.includes(normalizedSize)) return false;
+    
+    return false;
   }
 
   /**

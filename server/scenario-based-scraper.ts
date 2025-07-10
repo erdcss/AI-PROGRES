@@ -731,6 +731,7 @@ function buildVariantsArray(variantResult: any, scenario: ExtractionScenario): a
     
     // STRICT: Only create variants if we have REAL size/color data
     if (sizes.length > 0 && colors.length > 0) {
+      // Full matrix: both sizes and colors
       for (const color of finalColors) {
         for (const size of finalSizes) {
           const inStock = stockMap.get(size) !== false;
@@ -743,9 +744,9 @@ function buildVariantsArray(variantResult: any, scenario: ExtractionScenario): a
           });
         }
       }
-      console.log(`✅ Multi-variant product: ${finalColors.length} colors × ${finalSizes.length} sizes`);
+      console.log(`✅ Multi-variant product: ${finalColors.length} colors × ${finalSizes.length} sizes = ${variants.length} variants`);
     } else if (sizes.length > 0) {
-      // Size-only variants
+      // Size-only variants - NO DEFAULT COLOR
       for (const size of finalSizes) {
         const inStock = stockMap.get(size) !== false;
         variants.push({
@@ -755,9 +756,9 @@ function buildVariantsArray(variantResult: any, scenario: ExtractionScenario): a
           inStock
         });
       }
-      console.log(`✅ Size-only variants: ${finalSizes.length} sizes`);
+      console.log(`✅ Size-only variants: ${finalSizes.length} sizes with default color`);
     } else if (colors.length > 0) {
-      // Color-only variants
+      // Color-only variants - NO DEFAULT SIZE
       for (const color of finalColors) {
         const inStock = stockMap.get(color) !== false;
         variants.push({
@@ -767,7 +768,7 @@ function buildVariantsArray(variantResult: any, scenario: ExtractionScenario): a
           inStock
         });
       }
-      console.log(`✅ Color-only variants: ${finalColors.length} colors`);
+      console.log(`✅ Color-only variants: ${finalColors.length} colors with default size`);
     } else {
       // No authentic variants found - return empty
       console.log(`🚫 No authentic variants found - returning empty variants`);
@@ -775,7 +776,7 @@ function buildVariantsArray(variantResult: any, scenario: ExtractionScenario): a
     }
   }
   
-  console.log(`🔧 Built ${variants.length} variants from scenario: ${scenario}`);
+  console.log(`🔧 Built ${variants.length} authentic variants from scenario: ${scenario}`);
   return variants;
 }
 
