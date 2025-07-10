@@ -1672,7 +1672,7 @@ router.get('/api/system/health', async (req, res) => {
 });
 
 // Arçelik product scraping endpoint
-router.post('/arcelik-scrape', async (req, res) => {
+router.post('/api/arcelik-scrape', async (req, res) => {
   try {
     console.log('🔄 Arçelik ürün çıkarma isteği alındı...');
     const { url } = req.body;

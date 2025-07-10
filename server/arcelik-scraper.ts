@@ -69,16 +69,38 @@ class ArcelikScraper {
   }
 
   private extractPrice(text: string): number {
-    // Turkish price extraction for Arçelik
-    const priceMatches = text.match(/(\d{1,3}(?:\.\d{3})*(?:,\d{2})?)\s*(?:TL|₺)/g);
-    if (!priceMatches) return 0;
-
-    // Convert Turkish format to number
-    const cleanPrice = priceMatches[0]
-      .replace(/[^\d,]/g, '')
-      .replace(',', '.');
+    // Enhanced Turkish price extraction for Arçelik
+    // Handle formats like: 38.988 TL, 38,988 TL, 38988 TL
+    const pricePatterns = [
+      /(\d{1,3}(?:\.\d{3})+)\s*(?:TL|₺)/g,  // 38.988 TL format
+      /(\d{1,3}(?:,\d{3})+)\s*(?:TL|₺)/g,   // 38,988 TL format  
+      /(\d+)\s*(?:TL|₺)/g                    // 38988 TL format
+    ];
     
-    return parseFloat(cleanPrice) || 0;
+    for (const pattern of pricePatterns) {
+      const matches = text.match(pattern);
+      if (matches) {
+        // Extract the number part
+        const numberPart = matches[0].replace(/[^\d\.,]/g, '');
+        
+        // Handle Turkish thousands separator (. or ,)
+        let cleanNumber;
+        if (numberPart.includes('.') && numberPart.lastIndexOf('.') !== numberPart.length - 3) {
+          // Has thousands separator (dots)
+          cleanNumber = numberPart.replace(/\./g, '');
+        } else if (numberPart.includes(',') && numberPart.lastIndexOf(',') !== numberPart.length - 3) {
+          // Has thousands separator (commas)
+          cleanNumber = numberPart.replace(/,/g, '');
+        } else {
+          cleanNumber = numberPart;
+        }
+        
+        const price = parseFloat(cleanNumber);
+        if (price > 0) return price;
+      }
+    }
+    
+    return 0;
   }
 
   private getColorCode(colorName: string): string {
@@ -106,22 +128,25 @@ class ArcelikScraper {
       const content = await page.content();
       const $ = cheerio.load(content);
       
-      // Extract basic product information
-      const title = $('h1[data-testid="product-title"], .product-title, h1.title').first().text().trim() ||
-                   $('h1').first().text().trim() ||
+      // Extract product information using Arçelik-specific selectors
+      const title = $('h1').first().text().trim() ||
+                   $('.product-name, .product-title').first().text().trim() ||
                    'Arçelik Ürün';
       
       const brand = 'Arçelik';
       
-      // Price extraction
+      // Price extraction with Arçelik-specific selectors
       let price = 0;
       const priceSelectors = [
-        '[data-testid="price"], .price, .current-price, .product-price',
-        '.price-current, .price-value, .amount',
-        'span[class*="price"], div[class*="price"]'
+        '.price-value',
+        '.current-price', 
+        '.product-price',
+        '[class*="price"]',
+        'script[type="application/ld+json"]' // JSON-LD structured data
       ];
       
-      for (const selector of priceSelectors) {
+      // First try direct price selectors
+      for (const selector of priceSelectors.slice(0, -1)) {
         const priceText = $(selector).text();
         if (priceText) {
           price = this.extractPrice(priceText);
@@ -129,65 +154,161 @@ class ArcelikScraper {
         }
       }
       
-      // Image extraction
+      // If no price found, try JSON-LD structured data
+      if (price === 0) {
+        $('script[type="application/ld+json"]').each((_, script) => {
+          try {
+            const jsonData = JSON.parse($(script).html() || '');
+            if (jsonData.offers && jsonData.offers.price) {
+              price = parseFloat(jsonData.offers.price);
+            } else if (jsonData['@type'] === 'Product' && jsonData.offers) {
+              const offers = Array.isArray(jsonData.offers) ? jsonData.offers[0] : jsonData.offers;
+              if (offers.price) {
+                price = parseFloat(offers.price);
+              }
+            }
+          } catch (e) {
+            // Ignore JSON parsing errors
+          }
+          if (price > 0) return false; // Break out of each loop
+        });
+      }
+      
+      // Fallback: search all text content for price patterns
+      if (price === 0) {
+        const allText = $('body').text();
+        price = this.extractPrice(allText);
+      }
+      
+      // Enhanced image extraction for Arçelik
       const images: string[] = [];
       const imageSelectors = [
-        'img[data-testid="product-image"]',
-        '.product-images img',
+        'img[src*="media/resize"]', // Arçelik specific image CDN
+        'img[src*="arcelik.com.tr"]',
+        '.product-gallery img',
         '.gallery img',
-        'img[src*="arcelik"]',
-        'img[alt*="ürün"], img[alt*="product"]'
+        'img[alt*="Arçelik"]',
+        'img[src*="2000Wx2000H"]', // High-res Arçelik images
+        'img[data-src]',
+        'img[src]'
       ];
       
       for (const selector of imageSelectors) {
         $(selector).each((_, img) => {
-          const src = $(img).attr('src') || $(img).attr('data-src');
-          if (src && !images.includes(src)) {
-            const fullUrl = src.startsWith('http') ? src : `https://www.arcelik.com.tr${src}`;
-            images.push(fullUrl);
+          let src = $(img).attr('src') || $(img).attr('data-src') || $(img).attr('data-original');
+          if (src) {
+            // Convert to full URL
+            if (src.startsWith('//')) {
+              src = 'https:' + src;
+            } else if (src.startsWith('/')) {
+              src = 'https://www.arcelik.com.tr' + src;
+            }
+            
+            // Filter valid Arçelik product images
+            if (src.includes('arcelik.com.tr') && 
+                (src.includes('media/resize') || src.includes('product') || src.includes('_LOW_')) &&
+                !src.includes('logo') && !src.includes('icon') && !images.includes(src)) {
+              images.push(src);
+            }
           }
         });
       }
       
-      // Features extraction
+      // Also check for images in JavaScript/JSON data
+      const scriptContent = $('script').text();
+      const imageUrlMatches = scriptContent.match(/https:\/\/[^"'\s]*\.arcelik\.com\.tr[^"'\s]*\.(jpg|jpeg|png|webp)/gi);
+      if (imageUrlMatches) {
+        imageUrlMatches.forEach(url => {
+          if (!images.includes(url) && url.includes('product')) {
+            images.push(url);
+          }
+        });
+      }
+      
+      // Enhanced features extraction for Arçelik technical specifications
       const features: Array<{ key: string; value: string }> = [];
       
-      // Try multiple feature selectors
-      const featureSelectors = [
-        '.specifications .spec-item',
-        '.product-features li',
-        '.features-list li',
-        '[data-testid="feature"]'
-      ];
+      // Extract technical specifications table
+      $('table tr, .spec-row, .specification-item').each((_, row) => {
+        const cells = $(row).find('td, .spec-key, .spec-value');
+        if (cells.length >= 2) {
+          const key = $(cells[0]).text().trim();
+          const value = $(cells[1]).text().trim();
+          if (key && value && key !== value) {
+            features.push({ key, value });
+          }
+        }
+      });
       
-      for (const selector of featureSelectors) {
-        $(selector).each((_, elem) => {
-          const text = $(elem).text().trim();
-          if (text.includes(':')) {
-            const [key, ...valueParts] = text.split(':');
+      // Extract from definition lists
+      $('dl dt').each((_, dt) => {
+        const key = $(dt).text().trim();
+        const value = $(dt).next('dd').text().trim();
+        if (key && value) {
+          features.push({ key, value });
+        }
+      });
+      
+      // Extract from structured feature sections
+      $('.product-feature, .feature-item, [class*="spec"]').each((_, elem) => {
+        const text = $(elem).text().trim();
+        if (text.includes(':')) {
+          const parts = text.split(':');
+          if (parts.length >= 2) {
             features.push({
-              key: key.trim(),
-              value: valueParts.join(':').trim()
-            });
-          } else if (text) {
-            features.push({
-              key: 'Özellik',
-              value: text
+              key: parts[0].trim(),
+              value: parts.slice(1).join(':').trim()
             });
           }
-        });
-        if (features.length > 0) break;
+        }
+      });
+      
+      // Extract specific Arçelik features from visible text patterns
+      const bodyText = $('body').text();
+      const featurePatterns = [
+        /Soğutma Kapasitesi[:\s]*(\d+[^#\n]*)/i,
+        /Isıtma Kapasitesi[:\s]*([^#\n]*)/i,
+        /Enerji Sınıfı[:\s]*([^#\n]*)/i,
+        /Voltaj[:\s]*([^#\n]*)/i,
+        /Soğutucu Akışkan[:\s]*([^#\n]*)/i,
+        /Dış Ünite[:\s]*([^#\n]*)/i,
+        /İç Ünite[:\s]*([^#\n]*)/i
+      ];
+      
+      featurePatterns.forEach(pattern => {
+        const match = bodyText.match(pattern);
+        if (match) {
+          const key = match[0].split(/[:\s]/)[0];
+          const value = match[1].trim();
+          if (value) {
+            features.push({ key, value });
+          }
+        }
+      });
+      
+      // Add product category specific features
+      if (title.toLowerCase().includes('klima')) {
+        if (!features.some(f => f.key.includes('Kategori'))) {
+          features.push({ key: 'Kategori', value: 'Klima Sistemi' });
+        }
+        if (!features.some(f => f.key.includes('Tip'))) {
+          features.push({ key: 'Tip', value: 'Split Klima' });
+        }
       }
       
-      // Add default features if none found
-      if (features.length === 0) {
-        features.push(
-          { key: 'Marka', value: 'Arçelik' },
-          { key: 'Menşei', value: 'Türkiye' },
-          { key: 'Garanti', value: '2 Yıl Resmi Garanti' },
-          { key: 'Kalite', value: 'Yüksek Kalite' }
-        );
-      }
+      // Add standard Arçelik features
+      const defaultFeatures = [
+        { key: 'Marka', value: 'Arçelik' },
+        { key: 'Menşei', value: 'Türkiye' },
+        { key: 'Garanti', value: '2 Yıl Resmi Garanti' },
+        { key: 'Üretici', value: 'Arçelik A.Ş.' }
+      ];
+      
+      defaultFeatures.forEach(defaultFeature => {
+        if (!features.some(f => f.key === defaultFeature.key)) {
+          features.push(defaultFeature);
+        }
+      });
       
       // Variants extraction (Arçelik usually has limited variants)
       const variants: Array<{

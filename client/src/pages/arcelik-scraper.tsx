@@ -288,11 +288,16 @@ const ArcelikScraper = () => {
           {/* Header */}
           <div className="text-center mb-8">
             <h1 className="text-3xl md:text-4xl font-bold text-white mb-4">
-              Arçelik Ürün Çıkarma Sistemi
+              Arçelik Beyaz Eşya Transfer Sistemi
             </h1>
             <p className="text-gray-300 text-lg">
-              Arçelik ürünlerini çıkarın ve Shopify'a aktarın
+              Arçelik klimalar, buzdolapları ve diğer beyaz eşya ürünlerini otomatik çıkarın
             </p>
+            <div className="mt-4 flex justify-center">
+              <div className="bg-emerald-500/20 text-emerald-400 px-4 py-2 rounded-lg text-sm font-medium">
+                Türkiye'nin Güvenilir Markası • Premium Beyaz Eşya
+              </div>
+            </div>
           </div>
 
           {/* URL Input Form */}
@@ -303,7 +308,7 @@ const ArcelikScraper = () => {
                   <div className="flex-1">
                     <Input
                       {...form.register("url")}
-                      placeholder="Arçelik ürün URL'sini buraya yapıştırın... (örn: https://www.arcelik.com.tr/...)"
+                      placeholder="Arçelik ürün URL'sini buraya yapıştırın... (örn: https://www.arcelik.com.tr/split-klima/12465-hp-klima)"
                       className="bg-slate-700/50 border-emerald-500/30 text-white placeholder-gray-400"
                       disabled={extractProductMutation.isPending}
                     />
@@ -312,6 +317,20 @@ const ArcelikScraper = () => {
                         {form.formState.errors.url.message}
                       </p>
                     )}
+                    <div className="mt-2 flex flex-wrap gap-2">
+                      <div className="text-xs text-emerald-400 bg-emerald-500/10 px-2 py-1 rounded">
+                        ❄️ Klima Sistemleri
+                      </div>
+                      <div className="text-xs text-emerald-400 bg-emerald-500/10 px-2 py-1 rounded">
+                        🧊 Buzdolabı
+                      </div>
+                      <div className="text-xs text-emerald-400 bg-emerald-500/10 px-2 py-1 rounded">
+                        🔄 Çamaşır Makinesi
+                      </div>
+                      <div className="text-xs text-emerald-400 bg-emerald-500/10 px-2 py-1 rounded">
+                        🔥 Ankastre Set
+                      </div>
+                    </div>
                   </div>
                   <Button
                     type="submit"

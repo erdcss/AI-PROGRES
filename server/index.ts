@@ -309,6 +309,72 @@ app.use('/api/sos', sosRoutes);
       });
     }
   });
+
+  // Arçelik product scraping endpoint - Direct registration
+  app.post('/api/arcelik-scrape', async (req, res) => {
+    try {
+      console.log('🔄 Arçelik ürün çıkarma isteği alındı...');
+      const { url } = req.body;
+      
+      if (!url) {
+        return res.status(400).json({ 
+          success: false, 
+          error: 'URL parametresi gerekli' 
+        });
+      }
+
+      // Basic URL validation for Arçelik
+      if (!url.includes('arcelik.com.tr')) {
+        return res.status(400).json({
+          success: false,
+          error: 'Geçerli bir Arçelik URL\'si gerekli (arcelik.com.tr)'
+        });
+      }
+
+      console.log(`📡 Arçelik URL işleniyor: ${url}`);
+      
+      // Import Arçelik-specific scraper
+      const { arcelikScraper } = await import('./arcelik-scraper');
+      
+      // Extract product data using Arçelik scraper
+      const extractionResult = await arcelikScraper.extractProduct(url);
+      
+      if (!extractionResult.success) {
+        console.error('❌ Arçelik çıkarma hatası:', extractionResult.error);
+        return res.status(400).json({
+          success: false,
+          error: extractionResult.error || 'Arçelik ürün çıkarma başarısız'
+        });
+      }
+
+      console.log('✅ Arçelik ürün başarıyla çıkarıldı:', extractionResult.title);
+      
+      // Add profit calculation (15% markup)
+      const originalPrice = extractionResult.price?.original || 0;
+      const profitPrice = Math.round(originalPrice * 1.15 * 100) / 100;
+      
+      const finalResult = {
+        ...extractionResult,
+        price: {
+          ...extractionResult.price,
+          withProfit: profitPrice,
+          profitFormatted: `${profitPrice.toFixed(2)} TL`
+        },
+        extractionMethod: 'arcelik-scraper',
+        platform: 'arcelik'
+      };
+
+      res.json(finalResult);
+      
+    } catch (error) {
+      console.error('❌ Arçelik endpoint hatası:', error);
+      res.status(500).json({ 
+        success: false, 
+        error: 'Arçelik ürün çıkarma işlemi başarısız',
+        details: (error as Error).message 
+      });
+    }
+  });
   
   const server = await registerRoutes(app);
 
