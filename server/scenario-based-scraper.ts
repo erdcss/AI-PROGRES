@@ -85,8 +85,14 @@ export async function scenarioBasedScrape(url: string): Promise<ScenarioBasedRes
       title
     );
     
-    // Step 5: Build final variants array
-    const variants = buildVariantsArray(variantResult, detection.scenario);
+    // Step 5: Build final variants array with enhanced extraction
+    let variants = buildVariantsArray(variantResult, detection.scenario);
+    
+    // If no variants found, try direct extraction methods
+    if (variants.length === 0) {
+      console.log('🔄 No variants from scenario extraction, trying direct methods...');
+      variants = await extractVariantsDirect($, htmlContent);
+    }
     
     console.log(`✅ Scenario-based extraction completed: ${variants.length} variants found`);
     
@@ -253,57 +259,155 @@ function extractPrice($: any, htmlContent: string): any {
 async function extractImagesAdvanced($: cheerio.CheerioAPI, htmlContent: string, url: string): Promise<string[]> {
   console.log('🖼️ Advanced image extraction starting...');
   
-  try {
-    // Use comprehensive image extractor
-    const { extractAllProductImages } = await import('./complete-image-extractor');
-    const imageResult = await extractAllProductImages(url);
-    
-    if (imageResult.success && imageResult.images.length > 0) {
-      console.log(`✅ Comprehensive extractor found ${imageResult.images.length} images`);
-      return imageResult.images;
-    }
-  } catch (error) {
-    console.log('⚠️ Comprehensive image extractor failed, using fallback');
-  }
+  // Method 1: Extract all CDN images with regex
+  const cdnImageMatches = htmlContent.match(/https:\/\/cdn\.dsmcdn\.com[^"'\s]*\.jpg/g) || [];
+  const cdnImages = [...new Set(cdnImageMatches)]; // Remove duplicates
+  console.log(`🔍 CDN regex found ${cdnImages.length} images`);
   
-  // Fallback to basic extraction
-  return extractImages($);
+  // Method 2: Enhanced DOM selectors
+  const domImages: string[] = [];
+  const imageSelectors = [
+    'img[src*="cdn.dsmcdn.com"]',
+    'img[data-src*="cdn.dsmcdn.com"]',
+    '[style*="cdn.dsmcdn.com"]',
+    '[data-original*="cdn.dsmcdn.com"]'
+  ];
+  
+  imageSelectors.forEach(selector => {
+    $(selector).each((_, el) => {
+      const $el = $(el);
+      const src = $el.attr('src') || $el.attr('data-src') || $el.attr('data-original');
+      const style = $el.attr('style') || '';
+      
+      if (src && src.includes('cdn.dsmcdn.com')) {
+        domImages.push(src);
+      }
+      
+      // Extract from style background-image
+      const styleMatch = style.match(/url\(['"]?(https:\/\/cdn\.dsmcdn\.com[^'"]*\.jpg)/);
+      if (styleMatch) {
+        domImages.push(styleMatch[1]);
+      }
+    });
+  });
+  
+  console.log(`🖼️ DOM selectors found ${domImages.length} images`);
+  
+  // Method 3: JSON-LD structured data
+  const jsonImages: string[] = [];
+  $('script[type="application/ld+json"]').each((_, script) => {
+    try {
+      const jsonData = JSON.parse($(script).html() || '{}');
+      if (jsonData.image) {
+        const images = Array.isArray(jsonData.image) ? jsonData.image : [jsonData.image];
+        images.forEach(img => {
+          if (typeof img === 'string' && img.includes('cdn.dsmcdn.com')) {
+            jsonImages.push(img);
+          }
+        });
+      }
+    } catch (e) {
+      // Continue
+    }
+  });
+  
+  console.log(`📋 JSON-LD found ${jsonImages.length} images`);
+  
+  // Combine all methods and filter
+  const allImages = [...cdnImages, ...domImages, ...jsonImages];
+  const uniqueImages = [...new Set(allImages)]
+    .filter(img => 
+      img.includes('cdn.dsmcdn.com') && 
+      img.includes('prod/') &&
+      !img.includes('_thumb') &&
+      !img.includes('_small')
+    )
+    .map(img => {
+      // Convert to high quality version
+      return img.replace(/\/(small|medium|thumb)\//, '/mnresize/620/920/');
+    });
+  
+  console.log(`✅ Final processed images: ${uniqueImages.length}`);
+  return uniqueImages.slice(0, 15); // Limit to 15 images
 }
 
 async function extractFeaturesAdvanced($: cheerio.CheerioAPI, htmlContent: string, url: string): Promise<Array<{key: string, value: string}>> {
   console.log('🎯 Advanced feature extraction starting...');
   
-  try {
-    // Use precise feature extractor
-    const { preciseFeatureExtraction } = await import('./precise-feature-extractor');
-    const featureResult = await preciseFeatureExtraction(url);
-    
-    if (featureResult.success && featureResult.features.length > 0) {
-      console.log(`✅ Precise extractor found ${featureResult.features.length} features`);
-      return featureResult.features.map(f => ({
-        key: f.key,
-        value: f.value
-      }));
-    }
-  } catch (error) {
-    console.log('⚠️ Precise feature extractor failed, using enhanced scraper');
-  }
+  const features: Array<{key: string, value: string}> = [];
   
-  try {
-    // Fallback to enhanced scraper
-    const { enhancedTrendyolScraper } = await import('./enhanced-trendyol-scraper');
-    const enhancedResult = await enhancedTrendyolScraper(url);
+  // Method 1: Product attributes table
+  $('.product-attributes tr, .product-details tr, .attribute-row').each((_, row) => {
+    const $row = $(row);
+    const key = $row.find('td:first-child, .attribute-name, .detail-name').text().trim();
+    const value = $row.find('td:last-child, .attribute-value, .detail-value').text().trim();
     
-    if (enhancedResult.success && enhancedResult.features) {
-      console.log(`✅ Enhanced scraper found ${enhancedResult.features.length} features`);
-      return enhancedResult.features;
+    if (key && value && key !== value) {
+      features.push({ key, value });
     }
-  } catch (error) {
-    console.log('⚠️ Enhanced scraper failed, using basic extraction');
-  }
+  });
   
-  // Basic fallback extraction
-  return extractFeatures($);
+  // Method 2: JSON-LD product data
+  $('script[type="application/ld+json"]').each((_, script) => {
+    try {
+      const jsonData = JSON.parse($(script).html() || '{}');
+      if (jsonData.brand) {
+        features.push({ key: 'Marka', value: jsonData.brand.name || jsonData.brand });
+      }
+      if (jsonData.category) {
+        features.push({ key: 'Kategori', value: jsonData.category });
+      }
+      if (jsonData.model) {
+        features.push({ key: 'Model', value: jsonData.model });
+      }
+      if (jsonData.description) {
+        features.push({ key: 'Açıklama', value: jsonData.description.substring(0, 200) });
+      }
+    } catch (e) {
+      // Continue
+    }
+  });
+  
+  // Method 3: Meta properties
+  const metaProps = [
+    { selector: 'meta[property="product:brand"]', key: 'Marka' },
+    { selector: 'meta[property="product:category"]', key: 'Kategori' },
+    { selector: 'meta[property="product:condition"]', key: 'Durum' },
+    { selector: 'meta[name="description"]', key: 'Açıklama' }
+  ];
+  
+  metaProps.forEach(({ selector, key }) => {
+    const content = $(selector).attr('content');
+    if (content && content.trim()) {
+      features.push({ key, value: content.trim() });
+    }
+  });
+  
+  // Method 4: Product detail sections
+  $('.product-detail-section, .product-info-section').each((_, section) => {
+    const $section = $(section);
+    const title = $section.find('h3, h4, .section-title').text().trim();
+    const content = $section.find('p, .section-content').text().trim();
+    
+    if (title && content && content.length > 5) {
+      features.push({ key: title, value: content.substring(0, 150) });
+    }
+  });
+  
+  // Method 5: Specification lists
+  $('.spec-list li, .feature-list li, .product-features li').each((_, item) => {
+    const text = $(item).text().trim();
+    const parts = text.split(':');
+    if (parts.length === 2) {
+      features.push({ 
+        key: parts[0].trim(), 
+        value: parts[1].trim() 
+      });
+    }
+  });
+  
+  console.log(`✅ Advanced feature extraction found ${features.length} features`);
+  return features.slice(0, 20); // Limit to 20 features
 }
 
 /**
@@ -573,6 +677,75 @@ function buildVariantsArray(variantResult: any, scenario: ExtractionScenario): a
   }
   
   console.log(`🔧 Built ${variants.length} variants from scenario: ${scenario}`);
+  return variants;
+}
+
+/**
+ * Extract variants directly from DOM elements
+ */
+async function extractVariantsDirect($: cheerio.CheerioAPI, htmlContent: string): Promise<Array<{color: string, colorCode: string, size: string, inStock: boolean}>> {
+  const variants: Array<{color: string, colorCode: string, size: string, inStock: boolean}> = [];
+  
+  // Method 1: Extract colors from color selector elements
+  const colors: string[] = [];
+  $('.color-option, .variant-color, [data-testid*="color"]').each((_, el) => {
+    const $el = $(el);
+    const colorName = $el.attr('title') || $el.attr('alt') || $el.text().trim();
+    if (colorName && colorName.length > 0) {
+      colors.push(colorName);
+    }
+  });
+  
+  // Method 2: Extract sizes from size selector elements
+  const sizes: string[] = [];
+  $('button[data-testid*="size"], .size-option, .variant-size').each((_, el) => {
+    const $el = $(el);
+    const sizeName = $el.text().trim() || $el.attr('title') || $el.attr('data-size');
+    const isDisabled = $el.is('[disabled]') || $el.hasClass('disabled') || $el.hasClass('out-of-stock');
+    
+    if (sizeName && sizeName.length > 0 && !isDisabled) {
+      sizes.push(sizeName);
+    }
+  });
+  
+  console.log(`🎨 Direct extraction - Colors: ${colors.length}, Sizes: ${sizes.length}`);
+  
+  // Build variants
+  if (colors.length > 0 && sizes.length > 0) {
+    // Multi-variant product
+    colors.forEach(color => {
+      sizes.forEach(size => {
+        variants.push({
+          color: color,
+          colorCode: getColorCode(color),
+          size: size,
+          inStock: true
+        });
+      });
+    });
+  } else if (colors.length > 0) {
+    // Color variants only
+    colors.forEach(color => {
+      variants.push({
+        color: color,
+        colorCode: getColorCode(color),
+        size: 'Standart',
+        inStock: true
+      });
+    });
+  } else if (sizes.length > 0) {
+    // Size variants only
+    sizes.forEach(size => {
+      variants.push({
+        color: 'Varsayılan',
+        colorCode: '#CCCCCC',
+        size: size,
+        inStock: true
+      });
+    });
+  }
+  
+  console.log(`✅ Direct extraction generated ${variants.length} variants`);
   return variants;
 }
 
