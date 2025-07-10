@@ -126,11 +126,9 @@ export default function PriceComparisonPage() {
           >
             {/* Navigation */}
             <div className="flex items-center justify-center gap-4 mb-6">
-              <Link href="/">
-                <Button variant="outline" className="border-blue-500/30 text-blue-200 hover:bg-blue-600/20">
-                  <ArrowLeft className="h-4 w-4 mr-2" />
-                  Veri Çıkarma
-                </Button>
+              <Link href="/" className="inline-flex items-center gap-2 border border-blue-500/30 text-blue-200 hover:bg-blue-600/20 px-4 py-2 rounded-lg transition-all duration-200">
+                <ArrowLeft className="h-4 w-4" />
+                Veri Çıkarma
               </Link>
               <ArrowLeft className="h-4 w-4 text-gray-400 rotate-180" />
               <div className="bg-purple-600/20 text-purple-200 px-4 py-2 rounded-lg border border-purple-500/30">

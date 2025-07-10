@@ -1240,15 +1240,10 @@ function ScraperPage({ platform = 'trendyol' }: ScraperPageProps) {
         
         {/* Navigation Header */}
         <div className="max-w-2xl mx-auto mb-4 sm:mb-6">
-          <Link href="/">
-            <Button
-              variant="ghost"
-              className="text-gray-400 hover:text-white flex items-center gap-2 text-sm sm:text-base"
-            >
-              <Home className="h-4 w-4" />
-              <span className="hidden sm:inline">Ana Sayfa</span>
-              <span className="sm:hidden">Ana Sayfa</span>
-            </Button>
+          <Link href="/" className="inline-flex items-center gap-2 text-gray-400 hover:text-white text-sm sm:text-base px-3 py-2 rounded-lg hover:bg-white/5 transition-all duration-200">
+            <Home className="h-4 w-4" />
+            <span className="hidden sm:inline">Ana Sayfa</span>
+            <span className="sm:hidden">Ana Sayfa</span>
           </Link>
         </div>
         
