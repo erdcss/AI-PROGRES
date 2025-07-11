@@ -131,6 +131,7 @@ The application is designed for deployment on Replit with the following consider
 - July 11, 2025: Arçelik unhandled rejection hataları giderildi - Geliştirilmiş JSON-LD yapılandırılmış veri çıkarma sistemi, güvenli hafıza kaydetme ile hata kontrolü, 87 adet özellik + 8 adet görsel çıkarma başarımı, GTIN, boyutlar ve fiyat bilgileri çıkarma, platform-specific error handling, authentic data extraction enhancement
 - July 11, 2025: Arçelik fetch hatası giderildi - API çağrısı parametre sırası düzeltildi (method, url, data), unhandled rejection hataları tamamen giderildi, sistem artık kararlı çalışıyor, 87 özellik + 8 görsel çıkarma başarımı, fiyat hesaplama sistemi aktif
 - July 11, 2025: Arçelik fiyat ve görsel optimizasyonu tamamlandı - JSON-LD veri önceliği ile doğru fiyat çıkarma (45,261 TL), sadece ürüne ait görsellerin filtrelenmesi, gereksiz banner ve logo görsellerinin temizlenmesi, enhanced debug logging, product-specific image extraction with productCode filtering, authentic data only
+- July 11, 2025: Arçelik Shopify entegrasyonu düzeltildi - /api/shopify-upload endpoint'i eklendi, platform-specific tagging sistemi, enhanced error handling, unhandled rejection hatalarının giderilmesi, direct fetch API kullanımı, console debugging aktif
 
 ## User Preferences
 

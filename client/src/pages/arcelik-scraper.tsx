@@ -194,20 +194,26 @@ const ArcelikScraper = () => {
   // Direct Shopify upload mutation
   const uploadToShopifyMutation = useMutation({
     mutationFn: async (productData: ExtractedProduct) => {
-      const response = await apiRequest('/api/shopify-upload', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ 
-          productData,
-          platform: 'arcelik'
-        })
-      });
-      
-      if (!response.ok) {
-        throw new Error('Shopify yükleme başarısız');
+      try {
+        const response = await fetch('/api/shopify-upload', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ 
+            productData,
+            platform: 'arcelik'
+          })
+        });
+        
+        if (!response.ok) {
+          const errorData = await response.json().catch(() => ({}));
+          throw new Error(errorData.error || `Shopify yükleme başarısız: ${response.status}`);
+        }
+        
+        return response.json();
+      } catch (error) {
+        console.error('Shopify upload error:', error);
+        throw error;
       }
-      
-      return response.json();
     },
     onSuccess: (data) => {
       if (data.success) {
