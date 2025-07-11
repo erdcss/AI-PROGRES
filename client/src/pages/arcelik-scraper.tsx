@@ -124,16 +124,7 @@ const ArcelikScraper = () => {
   // Arçelik product extraction mutation
   const extractProductMutation = useMutation({
     mutationFn: async (url: string) => {
-      const response = await apiRequest('/api/arcelik-scrape', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ url })
-      });
-      
-      if (!response.ok) {
-        throw new Error('Ürün çıkarma işlemi başarısız');
-      }
-      
+      const response = await apiRequest('POST', '/api/arcelik-scrape', { url });
       return response.json();
     },
     onSuccess: (data) => {
