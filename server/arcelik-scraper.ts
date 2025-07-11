@@ -1,6 +1,7 @@
 import puppeteer from 'puppeteer';
 import * as cheerio from 'cheerio';
 import axios from 'axios';
+import { arcelikImageExtractor } from './arcelik-image-extractor';
 
 // Arçelik color mapping for Turkish colors
 const arcelikColorMap: { [key: string]: string } = {
@@ -467,24 +468,92 @@ class ArcelikScraper {
         }
       });
       
-      // Basic image extraction
-      const images: string[] = [];
-      $('img').each((_, img) => {
-        const src = $(img).attr('src') || $(img).attr('data-src');
-        if (src && src.includes('arcelik')) {
-          const fullUrl = src.startsWith('http') ? src : `https://www.arcelik.com.tr${src}`;
-          if (!images.includes(fullUrl)) {
-            images.push(fullUrl);
+      // Enhanced image extraction using dedicated extractor
+      const imageData = await arcelikImageExtractor.extractImages(url);
+      const images = imageData.images;
+      
+      // Enhanced features extraction
+      const features: Array<{ key: string; value: string }> = [];
+      
+      // Extract from tables and specification sections
+      $('table tr, .spec-table tr, .features tr, .product-features li').each((_, elem) => {
+        const cells = $(elem).find('td, th');
+        if (cells.length >= 2) {
+          const key = $(cells[0]).text().trim();
+          const value = $(cells[1]).text().trim();
+          if (key && value && key !== value) {
+            features.push({ key, value });
+          }
+        }
+        
+        // Also check list items with colon separation
+        const text = $(elem).text().trim();
+        if (text.includes(':')) {
+          const [key, ...valueParts] = text.split(':');
+          const value = valueParts.join(':').trim();
+          if (key && value) {
+            features.push({ key: key.trim(), value });
           }
         }
       });
       
-      // Basic features
-      const features = [
+      // Extract from meta tags and structured data
+      $('meta[property], meta[name]').each((_, meta) => {
+        const property = $(meta).attr('property') || $(meta).attr('name');
+        const content = $(meta).attr('content');
+        if (property && content) {
+          if (property.includes('product') || property.includes('price') || property.includes('brand')) {
+            features.push({ key: property, value: content });
+          }
+        }
+      });
+      
+      // Extract technical specifications from page text
+      const pageText = $('body').text();
+      const specPatterns = [
+        /Enerji Sınıfı[:\s]*([A-Z\+\-]+)/i,
+        /(\d+\.?\d*)\s*BTU/i,
+        /(\d+\.?\d*)\s*kW/i,
+        /Soğutma Kapasitesi[:\s]*([^\n]+)/i,
+        /Isıtma Kapasitesi[:\s]*([^\n]+)/i,
+        /Soğutucu Akışkan[:\s]*([^\n]+)/i,
+        /Voltaj[:\s]*([^\n]+)/i,
+        /Garanti[:\s]*([^\n]+)/i
+      ];
+      
+      specPatterns.forEach(pattern => {
+        const match = pageText.match(pattern);
+        if (match) {
+          let key = 'Özellik';
+          let value = match[0];
+          
+          if (match[0].includes('Enerji')) key = 'Enerji Sınıfı';
+          else if (match[0].includes('BTU')) key = 'Soğutma Kapasitesi';
+          else if (match[0].includes('kW')) key = 'Güç Tüketimi';
+          else if (match[0].includes('Soğutma')) key = 'Soğutma Kapasitesi';
+          else if (match[0].includes('Isıtma')) key = 'Isıtma Kapasitesi';
+          else if (match[0].includes('Akışkan')) key = 'Soğutucu Akışkan';
+          else if (match[0].includes('Voltaj')) key = 'Voltaj';
+          else if (match[0].includes('Garanti')) key = 'Garanti Süresi';
+          
+          value = match[1] || match[0];
+          features.push({ key, value: value.trim() });
+        }
+      });
+      
+      // Add default Arçelik features if not found
+      const defaultFeatures = [
         { key: 'Marka', value: 'Arçelik' },
         { key: 'Menşei', value: 'Türkiye' },
-        { key: 'Garanti', value: '2 Yıl Resmi Garanti' }
+        { key: 'Garanti', value: '2 Yıl Resmi Garanti' },
+        { key: 'Üretici', value: 'Arçelik A.Ş.' }
       ];
+      
+      defaultFeatures.forEach(defaultFeature => {
+        if (!features.some(f => f.key === defaultFeature.key)) {
+          features.push(defaultFeature);
+        }
+      });
       
       return {
         success: true,
