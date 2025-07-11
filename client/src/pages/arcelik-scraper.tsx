@@ -94,6 +94,25 @@ const ArcelikScraper = () => {
   const [extractedProduct, setExtractedProduct] = useState<ExtractedProduct | null>(null);
   const [showAdvancedInfo, setShowAdvancedInfo] = useState(false);
   const [selectedMainImage, setSelectedMainImage] = useState<string | null>(null);
+  const [url, setUrl] = useState("");
+
+  // URL validation function
+  const isValidArcelikUrl = (url: string): boolean => {
+    if (!url) return false;
+    return url.includes('arcelik.com.tr') && url.includes('http');
+  };
+
+  const handleScrape = () => {
+    if (!url || !isValidArcelikUrl(url)) {
+      toast({
+        title: "Geçersiz URL",
+        description: "Lütfen geçerli bir arcelik.com.tr ürün linkini girin",
+        variant: "destructive",
+      });
+      return;
+    }
+    extractProductMutation.mutate(url);
+  };
 
   const form = useForm({
     resolver: zodResolver(urlSchema),
@@ -323,13 +342,15 @@ const ArcelikScraper = () => {
                 <p className="text-gray-400 text-sm">arcelik.com.tr'den herhangi bir ürün linkini yapıştırın</p>
               </div>
               
-              <form onSubmit={form.handleSubmit(onSubmit)} className="space-y-4">
+              <div className="space-y-4">
                 <div className="flex flex-col sm:flex-row gap-4">
                   <div className="flex-1">
                     <div className="relative">
                       <Input
-                        {...form.register("url")}
-                        placeholder="https://www.arcelik.com.tr/split-klima/12465-hp-klima"
+                        placeholder="https://www.arcelik.com.tr/split-klima/18325-ekolojik-klima"
+                        value={url}
+                        onChange={(e) => setUrl(e.target.value)}
+                        onKeyPress={(e) => e.key === 'Enter' && handleScrape()}
                         className="bg-slate-700/50 border-emerald-500/30 text-white placeholder-gray-400 pl-10"
                         disabled={extractProductMutation.isPending}
                       />
@@ -337,10 +358,15 @@ const ArcelikScraper = () => {
                         <span className="text-emerald-400 text-sm font-bold">A</span>
                       </div>
                     </div>
-                    {form.formState.errors.url && (
-                      <p className="text-red-400 text-sm mt-1">
-                        {form.formState.errors.url.message}
-                      </p>
+                    
+                    {/* URL Validation Message */}
+                    {url && !isValidArcelikUrl(url) && (
+                      <div className="mt-2 p-2 bg-red-500/20 border border-red-500/30 rounded-md">
+                        <p className="text-red-400 text-sm flex items-center gap-2">
+                          <AlertCircle className="w-4 h-4" />
+                          Lütfen geçerli bir arcelik.com.tr ürün linkini girin
+                        </p>
+                      </div>
                     )}
                     
                     {/* Arçelik Kategori Örnekleri */}
@@ -375,9 +401,9 @@ const ArcelikScraper = () => {
                     </div>
                   </div>
                   <Button
-                    type="submit"
-                    disabled={extractProductMutation.isPending}
-                    className="bg-emerald-600 hover:bg-emerald-700 px-8 h-12"
+                    onClick={handleScrape}
+                    disabled={!url || extractProductMutation.isPending || !isValidArcelikUrl(url)}
+                    className="bg-emerald-600 hover:bg-emerald-700 px-8 h-12 disabled:bg-gray-600"
                   >
                     {extractProductMutation.isPending ? (
                       <>
@@ -392,7 +418,7 @@ const ArcelikScraper = () => {
                     )}
                   </Button>
                 </div>
-              </form>
+              </div>
             </CardContent>
           </Card>
 

@@ -41,6 +41,13 @@ export function SimpleProductPreview({ product }: SimpleProductPreviewProps) {
   }
 
   const { brand, title, price, images, colorOptions, sizeOptions, variants, stockAnalysis, features } = product;
+  
+  // Safety check for arrays
+  const safeImages = images || [];
+  const safeColorOptions = colorOptions || [];
+  const safeSizeOptions = sizeOptions || [];
+  const safeFeatures = features || [];
+  const safeVariants = variants || { colors: [], sizes: [], stockMap: {} };
 
   // Use price details from API response
   const priceDetails = typeof price === 'object' ? price : {
