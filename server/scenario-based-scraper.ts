@@ -666,8 +666,61 @@ async function extractFeaturesAdvanced($: cheerio.CheerioAPI, htmlContent: strin
     index === self.findIndex(f => f.key === feature.key)
   );
   
+  // Filter out CSS/JS technical properties and non-Turkish content
+  const filteredFeatures = uniqueFeatures.filter(feature => {
+    const key = feature.key.toLowerCase();
+    const value = feature.value.toLowerCase();
+    
+    // Exclude technical CSS/JS properties - exact matches
+    const excludedKeys = [
+      'display', 'padding', 'margin', 'width', 'height', 'style', 'function',
+      'event', 'url', 'bottom', 'top', 'radius', 'position', 'background',
+      'size', 'border', 'color', 'font', 'text', 'flex', 'grid', 'transform',
+      'transition', 'animation', 'webkit', 'moz', 'ms', 'o', 'cursor',
+      'overflow', 'opacity', 'z-index', 'float', 'clear', 'align', 'justify',
+      'items', 'space', 'weight', 'mode', 'type', 'sid', 'pid', 'stateCode',
+      'isExternalBeacon', 'attributes', 'childList', 'data', 'adapt', 'send',
+      'segment', 'noAction', 'referrer', 'default', 'status', 'item'
+    ];
+    
+    const excludedValues = [
+      'function', 'px', 'solid', 'flex', 'none', 'center', 'nowrap',
+      'relative', 'absolute', 'fixed', 'webkit', 'rgb', 'rgba', 'hex',
+      'url(', 'var(', 'calc(', 'linear-gradient', 'radial-gradient',
+      'true', 'false', 'break', 'getUserId', 'getUserSegment', 'first-of-type',
+      'linear', 'radial', 'createElement', 'getElementById', 'querySelector',
+      '15px 8px 15px 8px', '1px solid', '1px', '12px', '600', '17px', '2px'
+    ];
+    
+    // Check if key or value contains excluded terms
+    const hasExcludedKey = excludedKeys.includes(key);
+    const hasExcludedValue = excludedValues.some(excluded => value.includes(excluded));
+    
+    // Only include meaningful product features
+    const isMeaningfulFeature = 
+      key.includes('boyut') || key.includes('renk') || key.includes('malzeme') ||
+      key.includes('özellik') || key.includes('model') || key.includes('kapasit') ||
+      key.includes('ağırlık') || key.includes('ebat') || key.includes('paket') ||
+      key.includes('içerik') || key.includes('kullanım') || key.includes('garanti') ||
+      key.includes('teknik') || key.includes('standart') || key.includes('marka') ||
+      key.includes('kategori') || key.includes('açıklama') || key.includes('sku') ||
+      key.includes('gtin') || key.includes('stok') || key.includes('durum') ||
+      key.includes('fiyat') || key.includes('para') || key.includes('anahtar') ||
+      key.includes('meta') || key.includes('tip') || key.includes('çeşit') ||
+      key.includes('detay') || key.includes('bilgi');
+    
+    // Filter conditions - more strict filtering
+    const isValidLength = value.length > 2 && value.length < 200;
+    const isNotTechnical = !hasExcludedKey && !hasExcludedValue;
+    const isRelevant = isMeaningfulFeature;
+    
+    return isValidLength && isNotTechnical && isRelevant;
+  });
+  
   console.log(`✅ COMPREHENSIVE feature extraction found ${uniqueFeatures.length} unique features`);
-  return uniqueFeatures.slice(0, 50); // Increased limit to 50 comprehensive features
+  console.log(`🎯 Filtered features: ${filteredFeatures.length} relevant features (removed ${uniqueFeatures.length - filteredFeatures.length} technical properties)`);
+  
+  return filteredFeatures.slice(0, 50); // Increased limit to 50 comprehensive features
 }
 
 /**

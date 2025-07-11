@@ -114,12 +114,41 @@ function generateProductDescription(productData: any): string {
     description += `<p><strong>Marka:</strong> ${productData.brand}</p>`;
   }
   
+  // Filter only relevant Turkish product features
   if (productData.features && productData.features.length > 0) {
-    description += '<h3>Özellikler</h3><ul>';
-    productData.features.slice(0, 10).forEach((feature: any) => {
-      description += `<li><strong>${feature.key}:</strong> ${feature.value}</li>`;
+    const relevantFeatures = productData.features.filter((feature: any) => {
+      const key = feature.key.toLowerCase();
+      const value = feature.value.toLowerCase();
+      
+      // Include only meaningful product specifications
+      const isRelevant = 
+        key.includes('boyut') || key.includes('renk') || key.includes('malzeme') ||
+        key.includes('özellik') || key.includes('model') || key.includes('kapasit') ||
+        key.includes('ağırlık') || key.includes('ebat') || key.includes('paket') ||
+        key.includes('içerik') || key.includes('kullanım') || key.includes('garanti') ||
+        key.includes('özellik') || key.includes('teknik') || key.includes('standart');
+      
+      // Exclude technical CSS/JS properties and non-Turkish content
+      const isExcluded = 
+        key.includes('display') || key.includes('padding') || key.includes('margin') ||
+        key.includes('width') || key.includes('height') || key.includes('style') ||
+        key.includes('function') || key.includes('event') || key.includes('url') ||
+        key.includes('bottom') || key.includes('top') || key.includes('radius') ||
+        key.includes('position') || key.includes('background') || key.includes('size') ||
+        value.includes('function') || value.includes('px') || value.includes('solid') ||
+        value.includes('flex') || value.includes('none') || value.includes('center') ||
+        value.includes('nowrap') || value.includes('relative') || value.includes('webkit');
+      
+      return isRelevant && !isExcluded && value.length > 2 && value.length < 200;
     });
-    description += '</ul>';
+    
+    if (relevantFeatures.length > 0) {
+      description += '<h3>Ürün Özellikleri</h3><ul>';
+      relevantFeatures.slice(0, 8).forEach((feature: any) => {
+        description += `<li><strong>${feature.key}:</strong> ${feature.value}</li>`;
+      });
+      description += '</ul>';
+    }
   }
   
   if (productData.variants && productData.variants.length > 0) {
@@ -129,8 +158,6 @@ function generateProductDescription(productData: any): string {
     });
     description += '</ul>';
   }
-  
-  description += `<p><em>Bu ürün otomatik olarak ${new Date().toLocaleDateString('tr-TR')} tarihinde içe aktarılmıştır.</em></p>`;
   
   return description;
 }

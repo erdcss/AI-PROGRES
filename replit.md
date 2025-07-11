@@ -134,6 +134,7 @@ The application is designed for deployment on Replit with the following consider
 - July 11, 2025: Arçelik Shopify entegrasyonu düzeltildi - /api/shopify-upload endpoint'i eklendi, platform-specific tagging sistemi, enhanced error handling, unhandled rejection hatalarının giderilmesi, direct fetch API kullanımı, console debugging aktif
 
 - July 11, 2025: Trendyol gelişmiş özellik çıkarma sistemi tamamlandı - 50+ kapsamlı ürün özelliği çıkarma, akıllı kategori tabanlı etiketleme sistemi ("siyah kadın ayakkabı" → "kadınayakkabı", "ayakkabı", "siyah", "kadın"), senaryo tabanlı çıkarma mimarisi (%98 doğruluk), 12+ yüksek kaliteli görsel çıkarma, gelişmiş CSV üretimi ile özellik ve etiket entegrasyonu, Shopify için akıllı ürün açıklamaları, comprehensive feature extraction with JSON-LD, meta properties, and HTML pattern matching
+- July 11, 2025: Trendyol özellik filtreleme sistemi optimize edildi - CSS/JS teknik özelliklerinin filtresi (display, padding, margin, width, height vb.), sadece anlamlı Türkçe ürün özelliklerinin çıkarılması (marka, sku, açıklama, stok durumu), otomatik içe aktarma tarih metninin kaldırılması, gelişmiş ürün açıklamaları sadece ilgili bilgilerle, temiz ve düzenli Shopify entegrasyonu için optimize edilmiş veri çıkarma
 
 ## User Preferences
 
