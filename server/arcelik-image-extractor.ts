@@ -72,14 +72,21 @@ export class ArcelikImageExtractor {
           if (jsonData.image) {
             const imageUrls = Array.isArray(jsonData.image) ? jsonData.image : [jsonData.image];
             imageUrls.forEach((img: string) => {
-              const fullUrl = img.startsWith('http') ? img : `https://www.arcelik.com.tr${img}`;
+              let fullUrl = img;
+              if (img.startsWith('www.')) {
+                fullUrl = 'https://' + img;
+              } else if (img.startsWith('/')) {
+                fullUrl = 'https://www.arcelik.com.tr' + img;
+              } else if (!img.startsWith('http')) {
+                fullUrl = 'https://www.arcelik.com.tr/' + img;
+              }
               if (!images.includes(fullUrl)) {
                 images.push(fullUrl);
               }
             });
           }
         } catch (e) {
-          // Ignore JSON parsing errors
+          console.log('JSON-LD parsing error:', e.message);
         }
       });
       

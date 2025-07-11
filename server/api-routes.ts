@@ -1727,8 +1727,12 @@ router.post('/api/arcelik-scrape', async (req, res) => {
 
     // Store in memory system
     try {
-      await memorySystem.storeProduct(url, finalResult);
-      console.log('💾 Arçelik ürün hafızaya kaydedildi');
+      if (memorySystem && typeof memorySystem.storeProduct === 'function') {
+        await memorySystem.storeProduct(url, finalResult);
+        console.log('💾 Arçelik ürün hafızaya kaydedildi');
+      } else {
+        console.log('⚠️ Hafıza sistemi kullanılabilir değil');
+      }
     } catch (memoryError) {
       console.error('⚠️ Hafıza kaydı hatası:', memoryError);
       // Continue without failing the request

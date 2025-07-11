@@ -472,26 +472,44 @@ class ArcelikScraper {
       const imageData = await arcelikImageExtractor.extractImages(url);
       const images = imageData.images;
       
-      // Enhanced features extraction
+      // Enhanced features extraction using JSON-LD and DOM
       const features: Array<{ key: string; value: string }> = [];
       
+      // First extract from JSON-LD structured data
+      $('script[type="application/ld+json"]').each((_, script) => {
+        try {
+          const jsonData = JSON.parse($(script).html() || '{}');
+          if (jsonData['@type'] === 'Product') {
+            if (jsonData.gtin13) features.push({ key: 'GTIN', value: jsonData.gtin13 });
+            if (jsonData.height) features.push({ key: 'Yükseklik', value: jsonData.height + ' cm' });
+            if (jsonData.width) features.push({ key: 'Genişlik', value: jsonData.width + ' cm' });
+            if (jsonData.depth) features.push({ key: 'Derinlik', value: jsonData.depth + ' cm' });
+            if (jsonData.offers?.price) features.push({ key: 'Liste Fiyatı', value: jsonData.offers.price + ' TL' });
+            if (jsonData.offers?.priceCurrency) features.push({ key: 'Para Birimi', value: jsonData.offers.priceCurrency });
+            if (jsonData.brand?.name) features.push({ key: 'Marka', value: jsonData.brand.name });
+          }
+        } catch (e) {
+          console.log('JSON-LD feature extraction error:', e.message);
+        }
+      });
+      
       // Extract from tables and specification sections
-      $('table tr, .spec-table tr, .features tr, .product-features li').each((_, elem) => {
+      $('table tr, .spec-table tr, .features tr, .product-features li, .product-specs tr').each((_, elem) => {
         const cells = $(elem).find('td, th');
         if (cells.length >= 2) {
           const key = $(cells[0]).text().trim();
           const value = $(cells[1]).text().trim();
-          if (key && value && key !== value) {
+          if (key && value && key !== value && key.length > 0 && value.length > 0) {
             features.push({ key, value });
           }
         }
         
         // Also check list items with colon separation
         const text = $(elem).text().trim();
-        if (text.includes(':')) {
+        if (text.includes(':') && text.length < 200) {
           const [key, ...valueParts] = text.split(':');
           const value = valueParts.join(':').trim();
-          if (key && value) {
+          if (key && value && key.length > 0 && value.length > 0) {
             features.push({ key: key.trim(), value });
           }
         }
