@@ -106,6 +106,35 @@ function determineProductCategory(productData: any): string {
   return 'Genel Ürünler';
 }
 
+// Generate enhanced product description with features
+function generateProductDescription(productData: any): string {
+  let description = `<h2>${productData.title || 'Ürün'}</h2>`;
+  
+  if (productData.brand) {
+    description += `<p><strong>Marka:</strong> ${productData.brand}</p>`;
+  }
+  
+  if (productData.features && productData.features.length > 0) {
+    description += '<h3>Özellikler</h3><ul>';
+    productData.features.slice(0, 10).forEach((feature: any) => {
+      description += `<li><strong>${feature.key}:</strong> ${feature.value}</li>`;
+    });
+    description += '</ul>';
+  }
+  
+  if (productData.variants && productData.variants.length > 0) {
+    description += '<h3>Mevcut Varyantlar</h3><ul>';
+    productData.variants.slice(0, 5).forEach((variant: any) => {
+      description += `<li>Renk: ${variant.color}, Beden: ${variant.size}</li>`;
+    });
+    description += '</ul>';
+  }
+  
+  description += `<p><em>Bu ürün otomatik olarak ${new Date().toLocaleDateString('tr-TR')} tarihinde içe aktarılmıştır.</em></p>`;
+  
+  return description;
+}
+
 // AI-powered tag generation based on product data
 function generateAITags(productData: any): string[] {
   const title = (productData.title || '').toLowerCase();
@@ -195,10 +224,10 @@ router.post('/api/scrape', async (req, res) => {
     console.log('URL normalize edildi:', url, '->', url);
     console.log('Trendyol ürün verisi işleniyor...');
 
-    // Use Fixed Authentic Scraper for accurate price extraction
-    console.log('🔧 Using Fixed Authentic Scraper for accurate price extraction');
-    const { fixedAuthenticScrape } = await import('./fixed-authentic-scraper');
-    const scrapedData = await fixedAuthenticScrape(url);
+    // Use Enhanced Scenario-Based Scraper for comprehensive extraction
+    console.log('🔧 Using Enhanced Scenario-Based Scraper for comprehensive extraction');
+    const { scenarioBasedScrape } = await import('./scenario-based-scraper');
+    const scrapedData = await scenarioBasedScrape(url);
     
     if (!scrapedData.success) {
       return res.status(500).json({
@@ -209,6 +238,12 @@ router.post('/api/scrape', async (req, res) => {
     }
 
     console.log(`✅ Ürün başarıyla çıkarıldı: ${scrapedData.title}`);
+    console.log(`🎯 Toplam özellik sayısı: ${scrapedData.features.length}`);
+    console.log(`🏷️ Akıllı etiket sayısı: ${scrapedData.tags.length}`);
+
+    // Generate intelligent category-based tags
+    const aiTags = generateAITags(scrapedData);
+    const category = determineProductCategory(scrapedData);
 
     res.json({
       success: true,
@@ -218,6 +253,9 @@ router.post('/api/scrape', async (req, res) => {
       images: scrapedData.images,
       features: scrapedData.features,
       variants: scrapedData.variants,
+      tags: [...scrapedData.tags, ...aiTags], // Enhanced tags
+      category: category,
+      extractionDetails: scrapedData.extractionDetails,
       extractionTime: new Date().toISOString()
     });
 
@@ -467,12 +505,17 @@ router.post('/api/shopify-upload', async (req, res) => {
     // Enhanced product creation with advanced tagging
     const shopifyProduct = {
       title: productData.title || 'Test Ürün',
-      body_html: `<p>${productData.title || 'Test ürün açıklaması'}</p>`,
+      body_html: generateProductDescription(productData),
       vendor: productData.brand || 'Genel',
       product_type: determineProductCategory(productData),
       status: 'active',
       published: true,
-      tags: `${platform || 'unknown'}-import, auto-generated`,
+      tags: [
+        `${platform || 'unknown'}-import`,
+        'auto-generated',
+        ...(productData.tags || []),
+        ...generateAITags(productData)
+      ].join(', '),
       variants: [{
         option1: productData.variants?.[0]?.color || 'Varsayılan',
         option2: productData.variants?.[0]?.size || 'Standart',
@@ -589,12 +632,17 @@ router.post('/api/shopify/add-product', async (req, res) => {
     // Enhanced product creation with advanced tagging
     const shopifyProduct = {
       title: productData.title || 'Test Ürün',
-      body_html: `<p>${productData.title || 'Test ürün açıklaması'}</p>`,
+      body_html: generateProductDescription(productData),
       vendor: productData.brand || 'Genel',
       product_type: "Genel Ürün",
       status: "active",
       published: true,
-      tags: productData.tags ? productData.tags.join(', ') : "trendyol, import, test",
+      tags: [
+        'trendyol-import',
+        'auto-generated',
+        ...(productData.tags || []),
+        ...generateAITags(productData)
+      ].join(', '),
       variants: [{
         title: "Varsayılan Başlık",
         price: (productData.price?.withProfit || 100).toString(),
@@ -930,6 +978,74 @@ router.post('/api/shopify/sync-all', async (req, res) => {
       message: `${syncedCount} ürün senkronize edildi, ${errors} hata`
     });
   } catch (error) {
+    res.status(500).json({ success: false, error: error.message });
+  }
+});
+
+// Enhanced CSV generation endpoint with comprehensive features
+router.post('/api/generate-csv', async (req, res) => {
+  try {
+    const { productData } = req.body;
+    
+    if (!productData || !productData.title) {
+      return res.status(400).json({ 
+        success: false, 
+        error: 'Geçerli product data gerekli' 
+      });
+    }
+
+    console.log('📊 Enhanced CSV generation starting...');
+    console.log(`🎯 Product: ${productData.title}`);
+    console.log(`🔧 Features: ${productData.features?.length || 0}`);
+    console.log(`🏷️ Tags: ${productData.tags?.length || 0}`);
+
+    // Generate enhanced CSV with features and tags
+    const { exportToShopifyCSV } = await import('./shopify-export-final');
+    const csvResult = await exportToShopifyCSV(productData);
+    
+    if (!csvResult.success) {
+      return res.status(500).json({
+        success: false,
+        error: 'CSV generation failed'
+      });
+    }
+
+    // Send CSV download notification via Telegram
+    try {
+      const profitAmount = (productData.price?.withProfit || 0) - (productData.price?.original || 0);
+      const profitPercentage = productData.price?.original ? ((profitAmount / productData.price.original) * 100).toFixed(1) : '15.0';
+      
+      const message = 
+        `📥 <b>CSV OLUŞTURULDU</b>\n\n` +
+        `📦 <b>Ürün:</b> ${productData.title}\n` +
+        `🏢 <b>Marka:</b> ${productData.brand || 'Bilinmeyen'}\n` +
+        `💰 <b>Fiyat:</b> ${productData.price?.original || 0} TL → ${productData.price?.withProfit || 0} TL\n` +
+        `🎯 <b>Özellikler:</b> ${productData.features?.length || 0} adet\n` +
+        `🏷️ <b>Etiketler:</b> ${productData.tags?.length || 0} adet\n` +
+        `📈 <b>Kar:</b> ${profitAmount.toFixed(2)} TL (%${profitPercentage})\n\n` +
+        `✅ <b>Shopify CSV hazır!</b>`;
+      
+      const telegramModule = await import('./telegram-integration');
+      const telegramIntegration = telegramModule.telegramIntegration || telegramModule.default;
+      await telegramIntegration.sendNotification(message);
+      console.log('✅ CSV notification sent to Telegram');
+    } catch (telegramError) {
+      console.error('Telegram notification error:', telegramError);
+    }
+
+    res.json({
+      success: true,
+      csvPath: csvResult.csvPath,
+      message: 'Enhanced CSV generated successfully',
+      stats: {
+        features: productData.features?.length || 0,
+        tags: productData.tags?.length || 0,
+        variants: productData.variants?.length || 0,
+        images: productData.images?.length || 0
+      }
+    });
+  } catch (error) {
+    console.error('CSV generation error:', error);
     res.status(500).json({ success: false, error: error.message });
   }
 });

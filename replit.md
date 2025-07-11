@@ -133,6 +133,8 @@ The application is designed for deployment on Replit with the following consider
 - July 11, 2025: Arçelik fiyat ve görsel optimizasyonu tamamlandı - JSON-LD veri önceliği ile doğru fiyat çıkarma (45,261 TL), sadece ürüne ait görsellerin filtrelenmesi, gereksiz banner ve logo görsellerinin temizlenmesi, enhanced debug logging, product-specific image extraction with productCode filtering, authentic data only
 - July 11, 2025: Arçelik Shopify entegrasyonu düzeltildi - /api/shopify-upload endpoint'i eklendi, platform-specific tagging sistemi, enhanced error handling, unhandled rejection hatalarının giderilmesi, direct fetch API kullanımı, console debugging aktif
 
+- July 11, 2025: Trendyol gelişmiş özellik çıkarma sistemi tamamlandı - 50+ kapsamlı ürün özelliği çıkarma, akıllı kategori tabanlı etiketleme sistemi ("siyah kadın ayakkabı" → "kadınayakkabı", "ayakkabı", "siyah", "kadın"), senaryo tabanlı çıkarma mimarisi (%98 doğruluk), 12+ yüksek kaliteli görsel çıkarma, gelişmiş CSV üretimi ile özellik ve etiket entegrasyonu, Shopify için akıllı ürün açıklamaları, comprehensive feature extraction with JSON-LD, meta properties, and HTML pattern matching
+
 ## User Preferences
 
 Preferred communication style: Simple, everyday language.

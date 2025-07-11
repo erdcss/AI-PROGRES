@@ -62,6 +62,8 @@ export async function scenarioBasedScrape(url: string): Promise<ScenarioBasedRes
     const images = await extractImagesAdvanced($, htmlContent, url);
     const features = await extractFeaturesAdvanced($, htmlContent, url);
     
+    // Enhanced category-based tag generation will be handled by generateAdvancedTags
+    
     console.log(`✅ Basic info: title="${title}", brand="${brand}", price=${price.original}`);
     
     // Step 3: Initialize scenario manager and detect scenario
@@ -1200,16 +1202,87 @@ function generateAdvancedTags(
     tags.add(`marka-${brand.toLowerCase().replace(/\s+/g, '-')}`);
   }
   
-  // Category-based tags from features
+  // Enhanced category-based tags from features and title
   features.forEach(feature => {
     if (feature.key.includes('Kategori') || feature.key.includes('Category')) {
       const categoryWords = feature.value.split(/[\s>-]+/);
       categoryWords.forEach(word => {
         if (word.length > 2) {
-          tags.add(word.toLowerCase().replace(/[^a-z0-9]/g, '-'));
+          tags.add(word.toLowerCase().replace(/[^a-z0-9çğıöşüÇĞIİÖŞÜ]/g, ''));
         }
       });
     }
+  });
+  
+  // Intelligent product categorization from title
+  const categoryMappings = {
+    // Clothing categories
+    'ayakkabı': ['ayakkabı', 'ayakkabi', 'shoe', 'bot', 'sandalet', 'terlik', 'spor-ayakkabı'],
+    'kadın': ['kadın', 'kadın-giyim', 'woman', 'female', 'bayan'],
+    'erkek': ['erkek', 'erkek-giyim', 'man', 'male', 'bay'],
+    'elbise': ['elbise', 'dress', 'abiye', 'günlük-elbise'],
+    'pantolon': ['pantolon', 'pant', 'jean', 'şort', 'eşofman'],
+    'gömlek': ['gömlek', 'shirt', 'bluz', 'tunik'],
+    'tişört': ['tişört', 'tshirt', 't-shirt', 'polo'],
+    'kazak': ['kazak', 'sweater', 'hırka', 'yelek'],
+    'mont': ['mont', 'jacket', 'ceket', 'kaban', 'palto'],
+    'çanta': ['çanta', 'bag', 'sırt-çantası', 'el-çantası'],
+    'aksesuar': ['aksesuar', 'accessory', 'takı', 'saat', 'kemer', 'şapka'],
+    'iç-giyim': ['iç-giyim', 'underwear', 'sütyern', 'külot', 'boxer', 'atlet'],
+    'pijama': ['pijama', 'pajama', 'gecelik', 'sabahlık'],
+    'mayo': ['mayo', 'bikini', 'swimsuit', 'deniz-şortu'],
+    'spor': ['spor', 'sport', 'fitness', 'yoga', 'koşu', 'antrenman'],
+    
+    // Electronics
+    'telefon': ['telefon', 'phone', 'iphone', 'samsung', 'huawei', 'xiaomi'],
+    'bilgisayar': ['bilgisayar', 'computer', 'laptop', 'notebook', 'tablet'],
+    'elektronik': ['elektronik', 'electronic', 'teknoloji', 'dijital'],
+    'kulaklık': ['kulaklık', 'headphone', 'earphone', 'airpods'],
+    'şarj': ['şarj', 'charger', 'power-bank', 'kablo'],
+    
+    // Home & Garden
+    'ev': ['ev', 'home', 'ev-dekor', 'dekorasyon', 'mobilya'],
+    'mutfak': ['mutfak', 'kitchen', 'yemek', 'tabak', 'bardak'],
+    'banyo': ['banyo', 'bathroom', 'duş', 'havlu'],
+    'yatak': ['yatak', 'bed', 'yorgan', 'yastık', 'çarşaf'],
+    'bahçe': ['bahçe', 'garden', 'saksı', 'bitki', 'çiçek'],
+    
+    // Beauty & Personal Care
+    'kozmetik': ['kozmetik', 'cosmetic', 'makyaj', 'makeup', 'ruj', 'fondöten'],
+    'cilt': ['cilt', 'skin', 'krem', 'serum', 'nemlendirici'],
+    'saç': ['saç', 'hair', 'şampuan', 'saç-bakım', 'fön'],
+    'parfüm': ['parfüm', 'perfume', 'koku', 'deodorant'],
+    
+    // Sports & Outdoors
+    'spor-giyim': ['spor-giyim', 'sportswear', 'atletik', 'fitness-giyim'],
+    'outdoor': ['outdoor', 'kamp', 'doğa', 'yürüyüş', 'dağcılık'],
+    'su-sporları': ['su-sporları', 'water-sport', 'yüzme', 'dalış'],
+    
+    // Books & Media
+    'kitap': ['kitap', 'book', 'roman', 'dergi', 'eğitim'],
+    'müzik': ['müzik', 'music', 'cd', 'vinyl', 'enstrüman'],
+    
+    // Toys & Games
+    'oyuncak': ['oyuncak', 'toy', 'çocuk', 'bebek', 'oyun'],
+    'bebek': ['bebek', 'baby', 'çocuk-giyim', 'mama', 'bez'],
+    
+    // Health & Medicine
+    'sağlık': ['sağlık', 'health', 'vitamin', 'tıbbi', 'medikal'],
+    'fitness': ['fitness', 'supplement', 'protein', 'spor-beslenmesi']
+  };
+  
+  const titleLower = title.toLowerCase();
+  const urlLower = url.toLowerCase();
+  
+  // Apply category mappings
+  Object.entries(categoryMappings).forEach(([category, keywords]) => {
+    keywords.forEach(keyword => {
+      if (titleLower.includes(keyword) || urlLower.includes(keyword)) {
+        tags.add(category);
+        // Add specific keyword as well
+        tags.add(keyword.replace(/\s+/g, '-'));
+      }
+    });
   });
   
   // Material-based tags
@@ -1225,7 +1298,7 @@ function generateAdvancedTags(
   });
   
   // Size-based tags
-  const sizeKeywords = ['xs', 's', 'm', 'l', 'xl', 'xxl', 'xxxl'];
+  const sizeKeywords = ['xs', 's', 'm', 'l', 'xl', 'xxl', 'xxxl', 'tek-beden', 'standart'];
   features.forEach(feature => {
     if (feature.key.includes('Beden') || feature.key.includes('Size')) {
       sizeKeywords.forEach(size => {
@@ -1236,39 +1309,48 @@ function generateAdvancedTags(
     }
   });
   
-  // Color-based tags from title
-  const colorKeywords = ['beyaz', 'siyah', 'mavi', 'kırmızı', 'yeşil', 'sarı', 'mor', 'pembe', 'gri', 'kahve', 'turuncu', 'lacivert', 'krem', 'bej'];
+  // Enhanced color-based tags from title
+  const colorKeywords = ['beyaz', 'siyah', 'mavi', 'kırmızı', 'yeşil', 'sarı', 'mor', 'pembe', 'gri', 'kahve', 'turuncu', 'lacivert', 'krem', 'bej', 'bordo', 'füme', 'ekru', 'vizon', 'mint', 'pudra'];
   colorKeywords.forEach(color => {
-    if (title.toLowerCase().includes(color)) {
+    if (titleLower.includes(color)) {
       tags.add(`renk-${color}`);
+      tags.add(color); // Add color as standalone tag
     }
   });
   
   // Season-based tags
   const seasonKeywords = ['yaz', 'kış', 'sonbahar', 'ilkbahar', 'summer', 'winter', 'autumn', 'spring'];
   seasonKeywords.forEach(season => {
-    if (title.toLowerCase().includes(season) || features.some(f => f.value.toLowerCase().includes(season))) {
+    if (titleLower.includes(season) || features.some(f => f.value.toLowerCase().includes(season))) {
       tags.add(`sezon-${season}`);
     }
   });
   
   // Gender-based tags
-  const genderKeywords = ['kadın', 'erkek', 'unisex', 'woman', 'man', 'women', 'men'];
+  const genderKeywords = ['kadın', 'erkek', 'unisex', 'woman', 'man', 'women', 'men', 'bayan', 'bay'];
   genderKeywords.forEach(gender => {
-    if (title.toLowerCase().includes(gender) || url.toLowerCase().includes(gender)) {
+    if (titleLower.includes(gender) || urlLower.includes(gender)) {
       tags.add(`cinsiyet-${gender}`);
     }
   });
   
-  // Product type tags from title
-  const productTypes = ['takım', 'elbise', 'pantolon', 'gömlek', 'tişört', 'kazak', 'mont', 'ayakkabı', 'çanta', 'aksesuar'];
-  productTypes.forEach(type => {
-    if (title.toLowerCase().includes(type)) {
-      tags.add(`tip-${type}`);
+  // Style-based tags
+  const styleKeywords = ['casual', 'formal', 'spor', 'klasik', 'modern', 'vintage', 'retro', 'minimalist', 'boho', 'chic'];
+  styleKeywords.forEach(style => {
+    if (titleLower.includes(style)) {
+      tags.add(`stil-${style}`);
     }
   });
   
-  console.log(`🏷️ Generated ${tags.size} advanced tags`);
+  // Usage-based tags
+  const usageKeywords = ['günlük', 'iş', 'parti', 'düğün', 'tatil', 'plaj', 'okul', 'ofis', 'ev', 'spor'];
+  usageKeywords.forEach(usage => {
+    if (titleLower.includes(usage)) {
+      tags.add(`kullanim-${usage}`);
+    }
+  });
+  
+  console.log(`🏷️ Generated ${tags.size} enhanced category-based tags`);
   return Array.from(tags);
 }
 
