@@ -297,6 +297,11 @@ function Router() {
           <ProductReviews />
         </PageTransition>
       </Route>
+      <Route path="/arcelik">
+        <PageTransition>
+          <ArcelikScraper />
+        </PageTransition>
+      </Route>
       <Route path="/scraper/arcelik">
         <PageTransition>
           <ArcelikScraper />
