@@ -187,9 +187,17 @@ class ArcelikScraper {
         'img[src*="arcelik.com.tr"]',
         '.product-gallery img',
         '.gallery img',
+        '.product-images img',
+        '.swiper-slide img',
+        '.slider img',
         'img[alt*="Arçelik"]',
         'img[src*="2000Wx2000H"]', // High-res Arçelik images
+        'img[src*="1920Wx1920H"]', // High-res images
+        'img[src*="800Wx800H"]', // Medium-res images
+        'img[src*="400Wx400H"]', // Thumbnail images
         'img[data-src]',
+        'img[data-original]',
+        'img[data-lazy]',
         'img[src]'
       ];
       
@@ -205,9 +213,11 @@ class ArcelikScraper {
             }
             
             // Filter valid Arçelik product images
-            if (src.includes('arcelik.com.tr') && 
-                (src.includes('media/resize') || src.includes('product') || src.includes('_LOW_')) &&
-                !src.includes('logo') && !src.includes('icon') && !images.includes(src)) {
+            if (src && src.length > 20 && 
+                (src.includes('arcelik.com.tr') || src.includes('media/resize') || src.includes('product') || 
+                 src.includes('_LOW_') || src.includes('klima') || src.includes('.jpg') || src.includes('.png') || src.includes('.webp')) &&
+                !src.includes('logo') && !src.includes('icon') && !src.includes('favicon') && 
+                !src.includes('sprite') && !images.includes(src)) {
               images.push(src);
             }
           }
@@ -216,27 +226,45 @@ class ArcelikScraper {
       
       // Also check for images in JavaScript/JSON data
       const scriptContent = $('script').text();
-      const imageUrlMatches = scriptContent.match(/https:\/\/[^"'\s]*\.arcelik\.com\.tr[^"'\s]*\.(jpg|jpeg|png|webp)/gi);
+      const imageUrlMatches = scriptContent.match(/https?:\/\/[^"'\s]*\.(jpg|jpeg|png|webp|gif)/gi);
       if (imageUrlMatches) {
         imageUrlMatches.forEach(url => {
-          if (!images.includes(url) && url.includes('product')) {
+          if (!images.includes(url) && url.length > 20 && 
+              (url.includes('product') || url.includes('klima') || url.includes('arcelik'))) {
             images.push(url);
           }
         });
       }
       
+      // Extract images from data attributes and lazy loading
+      $('img, [data-src], [data-image]').each((_, img) => {
+        const dataSrc = $(img).attr('data-src') || $(img).attr('data-image') || $(img).attr('data-lazy');
+        if (dataSrc && dataSrc.includes('http') && !images.includes(dataSrc)) {
+          images.push(dataSrc);
+        }
+      });
+      
       // Enhanced features extraction for Arçelik technical specifications
       const features: Array<{ key: string; value: string }> = [];
       
       // Extract technical specifications table
-      $('table tr, .spec-row, .specification-item').each((_, row) => {
-        const cells = $(row).find('td, .spec-key, .spec-value');
+      $('table tr, .spec-row, .specification-item, .product-spec tr, .features-table tr').each((_, row) => {
+        const cells = $(row).find('td, .spec-key, .spec-value, th');
         if (cells.length >= 2) {
           const key = $(cells[0]).text().trim();
           const value = $(cells[1]).text().trim();
-          if (key && value && key !== value) {
+          if (key && value && key !== value && value.length > 0) {
             features.push({ key, value });
           }
+        }
+      });
+      
+      // Extract from product details sections
+      $('.product-detail, .product-info, .details-section').each((_, section) => {
+        const title = $(section).find('h3, h4, .title').text().trim();
+        const content = $(section).find('p, .content, .desc').text().trim();
+        if (title && content && title !== content) {
+          features.push({ key: title, value: content });
         }
       });
       
@@ -250,7 +278,7 @@ class ArcelikScraper {
       });
       
       // Extract from structured feature sections
-      $('.product-feature, .feature-item, [class*="spec"]').each((_, elem) => {
+      $('.product-feature, .feature-item, [class*="spec"], .attribute, .property').each((_, elem) => {
         const text = $(elem).text().trim();
         if (text.includes(':')) {
           const parts = text.split(':');
@@ -262,6 +290,22 @@ class ArcelikScraper {
           }
         }
       });
+      
+      // Extract energy efficiency and technical specs from meta data
+      const energyMatch = bodyText.match(/Enerji Sınıfı[:\s]*([A-Z\+\-]+)/i);
+      if (energyMatch) {
+        features.push({ key: 'Enerji Sınıfı', value: energyMatch[1] });
+      }
+      
+      const btuMatch = bodyText.match(/(\d+\.?\d*)\s*Btu/i);
+      if (btuMatch) {
+        features.push({ key: 'Soğutma Kapasitesi', value: btuMatch[1] + ' Btu/h' });
+      }
+      
+      const powerMatch = bodyText.match(/(\d+\.?\d*)\s*kW/i);
+      if (powerMatch) {
+        features.push({ key: 'Güç Tüketimi', value: powerMatch[1] + ' kW' });
+      }
       
       // Extract specific Arçelik features from visible text patterns
       const bodyText = $('body').text();
