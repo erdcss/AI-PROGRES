@@ -296,6 +296,7 @@ const ArcelikScraper = () => {
                   Arçelik
                 </h1>
                 <p className="text-emerald-400 font-medium">Ürün Aktarıcı</p>
+                <p className="text-emerald-300 text-sm mt-1">arcelik.com.tr için optimize edilmiş</p>
               </div>
             </div>
             <p className="text-gray-300 text-lg max-w-2xl mx-auto">
