@@ -456,17 +456,41 @@ class ArcelikScraper {
       const title = $('h1').first().text().trim() || 'Arçelik Ürün';
       const brand = 'Arçelik';
       
-      // Basic price extraction
+      // Enhanced price extraction with JSON-LD priority
       let price = 0;
-      $('*').each((_, elem) => {
-        const text = $(elem).text();
-        if (text.includes('TL') || text.includes('₺')) {
-          const extractedPrice = this.extractPrice(text);
-          if (extractedPrice > price) {
-            price = extractedPrice;
+      
+      // Priority 1: JSON-LD structured data (most accurate)
+      $('script[type="application/ld+json"]').each((_, script) => {
+        try {
+          const jsonData = JSON.parse($(script).html() || '{}');
+          console.log(`🔍 JSON-LD data type: ${jsonData['@type']}`);
+          
+          if (jsonData['@type'] === 'Product' && jsonData.offers && jsonData.offers.price) {
+            const jsonPrice = parseFloat(jsonData.offers.price);
+            console.log(`💰 JSON-LD price extracted: ${jsonPrice} TL`);
+            if (jsonPrice > 0) {
+              price = jsonPrice;
+              console.log(`✅ Using JSON-LD price: ${price} TL`);
+              return false; // Exit the loop early
+            }
           }
+        } catch (e) {
+          console.log('❌ JSON-LD parsing error:', e.message);
         }
       });
+      
+      // Priority 2: If no JSON-LD price, try DOM extraction
+      if (price === 0) {
+        $('*').each((_, elem) => {
+          const text = $(elem).text();
+          if (text.includes('TL') || text.includes('₺')) {
+            const extractedPrice = this.extractPrice(text);
+            if (extractedPrice > price) {
+              price = extractedPrice;
+            }
+          }
+        });
+      }
       
       // Enhanced image extraction using dedicated extractor
       const imageData = await arcelikImageExtractor.extractImages(url);

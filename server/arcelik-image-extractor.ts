@@ -34,33 +34,26 @@ export class ArcelikImageExtractor {
       // Extract product code from URL
       const productCode = url.match(/\/(\d+)-/)?.[1] || '';
       
-      // Generate image URLs based on Arçelik's CDN pattern
+      // Generate ONLY product-specific image URLs based on Arçelik's CDN pattern
       if (productCode) {
+        // Only extract the main product images (reduced from 10 to 6 views)
         const basePatterns = [
           `/media/resize/${productCode}_LO1_20180501_232912.png`,
           `/media/resize/${productCode}_LO2_20180501_232912.png`,
           `/media/resize/${productCode}_LO3_20180501_232912.png`,
           `/media/resize/${productCode}_LO4_20180501_232912.png`,
           `/media/resize/${productCode}_LO5_20180501_232912.png`,
-          `/media/resize/${productCode}_LO6_20180501_232912.png`,
-          `/media/resize/${productCode}_LO7_20180501_232912.png`,
-          `/media/resize/${productCode}_LO8_20180501_232912.png`,
-          `/media/resize/${productCode}_LO9_20180501_232912.png`,
-          `/media/resize/${productCode}_LO10_20180501_232912.png`
+          `/media/resize/${productCode}_LO6_20180501_232912.png`
         ];
         
-        // Try different sizes and formats
-        const sizes = ['265Wx265H', '400Wx400H', '600Wx600H', '800Wx800H'];
-        const formats = ['jpg', 'png', 'webp'];
+        // Use only the standard size for product images
+        const standardSize = '600Wx600H';
+        const format = 'png';
         
         for (const pattern of basePatterns) {
-          for (const size of sizes) {
-            for (const format of formats) {
-              const imageUrl = `https://www.arcelik.com.tr${pattern}/${size}/image.${format}`;
-              if (!images.includes(imageUrl)) {
-                images.push(imageUrl);
-              }
-            }
+          const imageUrl = `https://www.arcelik.com.tr${pattern}/${standardSize}/image.${format}`;
+          if (!images.includes(imageUrl)) {
+            images.push(imageUrl);
           }
         }
       }
@@ -109,9 +102,12 @@ export class ArcelikImageExtractor {
               fullUrl = 'https://www.arcelik.com.tr' + src;
             }
             
+            // Only include product-specific images
             if (fullUrl.includes('arcelik') && 
                 (fullUrl.includes('.jpg') || fullUrl.includes('.png') || fullUrl.includes('.webp')) &&
-                !fullUrl.includes('logo') && !fullUrl.includes('icon') &&
+                !fullUrl.includes('logo') && !fullUrl.includes('icon') && 
+                !fullUrl.includes('banner') && !fullUrl.includes('ui-') &&
+                (fullUrl.includes(productCode) || fullUrl.includes('media/resize')) &&
                 !images.includes(fullUrl)) {
               images.push(fullUrl);
             }
