@@ -26,7 +26,7 @@ const MainDashboard = () => {
       icon: <Package className="w-8 h-8 text-emerald-400" />,
       color: "from-emerald-500 to-emerald-600",
       available: true,
-      path: "/scraper/arcelik"
+      path: "/arcelik"
     },
     {
       name: "Hepsiburada", 
