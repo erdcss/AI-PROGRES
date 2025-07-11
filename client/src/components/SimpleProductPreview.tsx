@@ -1,5 +1,5 @@
 import { motion } from "framer-motion";
-import { Package, Image as ImageIcon, Tags, Palette, DollarSign } from "lucide-react";
+import { Package, Image as ImageIcon, Tags, Palette, DollarSign, Info } from "lucide-react";
 
 interface SimpleProductPreviewProps {
   product: {
@@ -276,29 +276,38 @@ export function SimpleProductPreview({ product }: SimpleProductPreviewProps) {
         </div>
       )}
 
-      {/* Ultra Compact Features */}
+      {/* Product Specifications - Box Layout */}
       {features.length > 0 && (
-        <div className="bg-slate-800/30 rounded-lg p-2">
-          <div className="flex items-center justify-between mb-2">
-            <div className="flex items-center gap-2">
-              <Tags className="h-3 w-3 text-green-400" />
-              <span className="text-xs font-medium text-gray-300">Ürün Özellikleri</span>
-            </div>
-            <span className="text-xs text-green-400 bg-green-400/10 px-1.5 py-0.5 rounded">{features.length}</span>
+        <div className="bg-slate-800/30 rounded-lg p-4">
+          <div className="flex items-center gap-2 mb-4">
+            <Info className="h-5 w-5 text-blue-400" />
+            <h3 className="text-lg font-semibold text-white">Ürün Özellikleri</h3>
+            <span className="text-sm text-blue-400 bg-blue-400/10 px-2 py-1 rounded">{features.length}</span>
           </div>
-          <div className="space-y-1">
-            {features.slice(0, 4).map((feature, index) => (
-              <div key={index} className="flex justify-between items-center text-xs bg-slate-700/20 rounded px-2 py-1">
-                <span className="text-gray-400 truncate flex-1">{feature.key}:</span>
-                <span className="text-white font-medium truncate ml-2">{feature.value}</span>
+          
+          <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
+            {features.map((feature, index) => (
+              <div key={index} className="bg-slate-700/20 border border-slate-600 rounded-lg p-3 hover:border-blue-400/50 transition-all duration-200">
+                <div className="flex justify-between items-start gap-3">
+                  <div className="flex-1">
+                    <div className="text-sm font-medium text-gray-300 mb-1">{feature.key}</div>
+                    <div className="text-base font-semibold text-white">{feature.value}</div>
+                  </div>
+                  <div className="text-xs text-gray-500 bg-slate-600/30 px-2 py-1 rounded">
+                    {index + 1}
+                  </div>
+                </div>
               </div>
             ))}
-            {features.length > 4 && (
-              <div className="text-center">
-                <span className="text-xs text-gray-500">+{features.length - 4} özellik daha</span>
-              </div>
-            )}
           </div>
+          
+          {features.length > 6 && (
+            <div className="mt-4 text-center">
+              <div className="text-sm text-gray-400 bg-slate-700/30 rounded-lg p-2">
+                Toplam {features.length} özellik - Shopify'a aktarılacak
+              </div>
+            </div>
+          )}
         </div>
       )}
     </motion.div>

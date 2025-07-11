@@ -1801,30 +1801,40 @@ function ScraperPage({ platform = 'trendyol' }: ScraperPageProps) {
                     <div className="bg-gradient-to-br from-gray-900/20 to-gray-800/20 backdrop-blur-sm rounded-2xl p-4 border border-gray-500/20">
                       <h3 className="text-lg font-semibold text-white mb-4">Ürün Detayları</h3>
                       
-                      {/* Product Features */}
+                      {/* Product Specifications - Enhanced Box Layout */}
                       {product.features && product.features.length > 0 && (
-                        <div className="bg-gradient-to-br from-emerald-900/40 to-teal-900/40 backdrop-blur-sm p-4 rounded-xl border border-emerald-500/40 shadow-lg mb-4">
-                          <div className="flex items-center justify-between mb-3">
-                            <span className="text-emerald-300 text-base font-bold flex items-center gap-2">
+                        <div className="bg-gradient-to-br from-blue-900/30 to-indigo-900/30 backdrop-blur-sm p-5 rounded-xl border border-blue-500/40 shadow-lg mb-4">
+                          <div className="flex items-center justify-between mb-4">
+                            <h4 className="text-blue-300 text-lg font-bold flex items-center gap-2">
                               <svg className="w-5 h-5" fill="currentColor" viewBox="0 0 20 20">
                                 <path fillRule="evenodd" d="M3 4a1 1 0 011-1h12a1 1 0 011 1v2a1 1 0 01-1 1H4a1 1 0 01-1-1V4zm0 4a1 1 0 011-1h12a1 1 0 011 1v2a1 1 0 01-1 1H4a1 1 0 01-1-1V8zm0 4a1 1 0 011-1h12a1 1 0 011 1v2a1 1 0 01-1 1H4a1 1 0 01-1-1v-2z" clipRule="evenodd" />
                               </svg>
                               Ürün Özellikleri
-                            </span>
-                            <span className="text-sm text-emerald-200 bg-emerald-800/50 px-3 py-1 rounded-full font-medium">{product.features.length} özellik</span>
+                            </h4>
+                            <span className="text-sm text-blue-200 bg-blue-800/50 px-3 py-1 rounded-full font-medium">{product.features.length} özellik</span>
                           </div>
-                          <div className="max-h-40 overflow-y-auto space-y-2">
-                            {product.features.slice(0, 10).map((feature, index) => (
-                              <div key={index} className="flex justify-between items-center bg-emerald-800/20 p-2 rounded-lg">
-                                <span className="text-emerald-200 font-medium">{feature.key}:</span>
-                                <span className="text-white ml-2 text-right font-semibold">{feature.value}</span>
+                          
+                          {/* Grid Layout for Product Features */}
+                          <div className="grid grid-cols-1 gap-3">
+                            {product.features.map((feature, index) => (
+                              <div key={index} className="bg-slate-800/40 border border-slate-600/50 rounded-lg p-4 hover:border-blue-400/50 transition-all duration-200">
+                                <div className="flex justify-between items-center gap-3">
+                                  <div className="flex-1">
+                                    <div className="text-sm font-medium text-gray-300 mb-1">{feature.key}</div>
+                                    <div className="text-base font-semibold text-white">{feature.value}</div>
+                                  </div>
+                                  <div className="text-xs text-blue-400 bg-blue-900/30 px-2 py-1 rounded">
+                                    {index + 1}
+                                  </div>
+                                </div>
                               </div>
                             ))}
-                            {product.features.length > 10 && (
-                              <div className="text-center pt-2">
-                                <span className="text-sm text-emerald-400 bg-emerald-900/30 px-3 py-1 rounded-full">+{product.features.length - 10} daha...</span>
-                              </div>
-                            )}
+                          </div>
+                          
+                          <div className="mt-4 text-center">
+                            <div className="text-sm text-blue-400 bg-blue-900/30 rounded-lg p-2">
+                              Toplam {product.features.length} özellik - Shopify'a aktarılacak
+                            </div>
                           </div>
                         </div>
                       )}
