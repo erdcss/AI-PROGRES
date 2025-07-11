@@ -494,7 +494,7 @@ async function extractFeaturesAdvanced($: cheerio.CheerioAPI, htmlContent: strin
   
   const features: Array<{key: string, value: string}> = [];
   
-  // Method 1: Product attributes table - Enhanced selectors
+  // Method 1: Product attributes table - Enhanced selectors for Trendyol specifications
   const attributeSelectors = [
     '.product-attributes tr',
     '.product-details tr', 
@@ -503,14 +503,62 @@ async function extractFeaturesAdvanced($: cheerio.CheerioAPI, htmlContent: strin
     '.spec-table tr',
     '.feature-table tr',
     '.detail-table tr',
-    '.properties-table tr'
+    '.properties-table tr',
+    // Trendyol specific selectors for product specifications
+    '.product-detail-attributes .detail-attr-item',
+    '.product-features .feature-item',
+    '.product-specs .spec-item', 
+    '.attribute-list .attribute-item',
+    '.product-detail-info .info-item',
+    '.product-specifications .spec-row',
+    '.product-properties .property-row'
   ];
   
   attributeSelectors.forEach(selector => {
     $(selector).each((_, row) => {
       const $row = $(row);
-      const key = $row.find('td:first-child, .attribute-name, .detail-name, .property-name, .spec-name').text().trim();
-      const value = $row.find('td:last-child, .attribute-value, .detail-value, .property-value, .spec-value').text().trim();
+      
+      // Enhanced key-value extraction for various HTML structures
+      let key = '';
+      let value = '';
+      
+      // Method 1: Traditional table structure
+      const keyCell = $row.find('td:first-child, .attribute-name, .detail-name, .property-name, .spec-name').text().trim();
+      const valueCell = $row.find('td:last-child, .attribute-value, .detail-value, .property-value, .spec-value').text().trim();
+      
+      if (keyCell && valueCell) {
+        key = keyCell;
+        value = valueCell;
+      }
+      
+      // Method 2: Div-based structure with specific classes
+      if (!key && !value) {
+        const keyDiv = $row.find('.attr-name, .feature-name, .spec-name, .property-name, .info-name').text().trim();
+        const valueDiv = $row.find('.attr-value, .feature-value, .spec-value, .property-value, .info-value').text().trim();
+        
+        if (keyDiv && valueDiv) {
+          key = keyDiv;
+          value = valueDiv;
+        }
+      }
+      
+      // Method 3: Colon-separated text content
+      if (!key && !value) {
+        const text = $row.text().trim();
+        if (text.includes(':')) {
+          const parts = text.split(':');
+          if (parts.length >= 2) {
+            key = parts[0].trim();
+            value = parts.slice(1).join(':').trim();
+          }
+        }
+      }
+      
+      // Method 4: Data attributes
+      if (!key && !value) {
+        key = $row.attr('data-attribute-name') || $row.attr('data-feature-name') || '';
+        value = $row.attr('data-attribute-value') || $row.attr('data-feature-value') || $row.text().trim();
+      }
       
       if (key && value && key !== value && key.length > 1 && value.length > 1) {
         features.push({ key, value });
@@ -521,47 +569,55 @@ async function extractFeaturesAdvanced($: cheerio.CheerioAPI, htmlContent: strin
   // Method 2: JSON-LD product data - Enhanced extraction
   $('script[type="application/ld+json"]').each((_, script) => {
     try {
-      const jsonData = JSON.parse($(script).html() || '{}');
+      const jsonContent = $(script).html() || '';
       
-      // Basic product info
-      if (jsonData.brand) {
-        features.push({ key: 'Marka', value: jsonData.brand.name || jsonData.brand });
-      }
-      if (jsonData.category) {
-        features.push({ key: 'Kategori', value: jsonData.category });
-      }
-      if (jsonData.model) {
-        features.push({ key: 'Model', value: jsonData.model });
-      }
-      if (jsonData.description) {
-        features.push({ key: 'Açıklama', value: jsonData.description.substring(0, 300) });
-      }
-      if (jsonData.sku) {
-        features.push({ key: 'SKU', value: jsonData.sku });
-      }
-      if (jsonData.gtin) {
-        features.push({ key: 'GTIN', value: jsonData.gtin });
-      }
-      if (jsonData.mpn) {
-        features.push({ key: 'MPN', value: jsonData.mpn });
-      }
-      
-      // Product features from JSON-LD
-      if (jsonData.additionalProperty) {
-        jsonData.additionalProperty.forEach((prop: any) => {
-          if (prop.name && prop.value) {
-            features.push({ key: prop.name, value: prop.value });
-          }
-        });
-      }
-      
-      // Product offers
-      if (jsonData.offers && jsonData.offers.availability) {
-        features.push({ key: 'Stok Durumu', value: jsonData.offers.availability });
+      if (jsonContent.length > 10) {
+        const jsonData = JSON.parse(jsonContent);
+        
+        // Basic product info
+        if (jsonData.brand) {
+          features.push({ key: 'Marka', value: jsonData.brand.name || jsonData.brand });
+        }
+        if (jsonData.category) {
+          features.push({ key: 'Kategori', value: jsonData.category });
+        }
+        if (jsonData.model) {
+          features.push({ key: 'Model', value: jsonData.model });
+        }
+        if (jsonData.description) {
+          features.push({ key: 'Açıklama', value: jsonData.description.substring(0, 300) });
+        }
+        if (jsonData.sku) {
+          features.push({ key: 'SKU', value: jsonData.sku });
+        }
+        if (jsonData.gtin) {
+          features.push({ key: 'GTIN', value: jsonData.gtin });
+        }
+        if (jsonData.mpn) {
+          features.push({ key: 'MPN', value: jsonData.mpn });
+        }
+        
+        // Product features from JSON-LD - Enhanced extraction for Trendyol specifications
+        if (jsonData.additionalProperty && Array.isArray(jsonData.additionalProperty)) {
+          jsonData.additionalProperty.forEach((prop: any) => {
+            if (prop.name && (prop.value || prop.unitText)) {
+              // Use unitText if available, otherwise use value
+              const value = prop.unitText || prop.value || '';
+              if (value) {
+                features.push({ key: prop.name, value: value });
+              }
+            }
+          });
+        }
+        
+        // Product offers
+        if (jsonData.offers && jsonData.offers.availability) {
+          features.push({ key: 'Stok Durumu', value: jsonData.offers.availability });
+        }
       }
       
     } catch (e) {
-      // Continue
+      // Continue with other extraction methods
     }
   });
   
@@ -696,8 +752,9 @@ async function extractFeaturesAdvanced($: cheerio.CheerioAPI, htmlContent: strin
     const hasExcludedKey = excludedKeys.includes(key);
     const hasExcludedValue = excludedValues.some(excluded => value.includes(excluded));
     
-    // Only include meaningful product features
+    // Only include meaningful product features - Enhanced for Trendyol specifications
     const isMeaningfulFeature = 
+      // Core product attributes
       key.includes('boyut') || key.includes('renk') || key.includes('malzeme') ||
       key.includes('özellik') || key.includes('model') || key.includes('kapasit') ||
       key.includes('ağırlık') || key.includes('ebat') || key.includes('paket') ||
@@ -707,7 +764,22 @@ async function extractFeaturesAdvanced($: cheerio.CheerioAPI, htmlContent: strin
       key.includes('gtin') || key.includes('stok') || key.includes('durum') ||
       key.includes('fiyat') || key.includes('para') || key.includes('anahtar') ||
       key.includes('meta') || key.includes('tip') || key.includes('çeşit') ||
-      key.includes('detay') || key.includes('bilgi');
+      key.includes('detay') || key.includes('bilgi') || key.includes('menşei') ||
+      key.includes('gıda') || key.includes('bakım') || key.includes('temas') ||
+      key.includes('talimat') || key.includes('sembol') || key.includes('güvenli') ||
+      key.includes('materyal') || key.includes('menşei') || key.includes('origin') ||
+      // Additional meaningful Turkish product attributes
+      key.includes('kalite') || key.includes('sertifika') || key.includes('standart') ||
+      key.includes('onay') || key.includes('test') || key.includes('ölçü') ||
+      // Exact matches for specific Trendyol product attributes
+      key === 'boyut/ebat' || key === 'materyal' || key === 'menşei' ||
+      key === 'renk' || key === 'gıda temas sembolü' || 
+      key === 'bakım talimatları (gıda temas)' ||
+      // Case variations
+      key.toLowerCase() === 'boyut/ebat' || key.toLowerCase() === 'materyal' || 
+      key.toLowerCase() === 'menşei' || key.toLowerCase() === 'renk' || 
+      key.toLowerCase() === 'gıda temas sembolü' || 
+      key.toLowerCase() === 'bakım talimatları (gıda temas)';
     
     // Filter conditions - more strict filtering
     const isValidLength = value.length > 2 && value.length < 200;

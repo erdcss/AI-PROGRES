@@ -135,6 +135,7 @@ The application is designed for deployment on Replit with the following consider
 
 - July 11, 2025: Trendyol gelişmiş özellik çıkarma sistemi tamamlandı - 50+ kapsamlı ürün özelliği çıkarma, akıllı kategori tabanlı etiketleme sistemi ("siyah kadın ayakkabı" → "kadınayakkabı", "ayakkabı", "siyah", "kadın"), senaryo tabanlı çıkarma mimarisi (%98 doğruluk), 12+ yüksek kaliteli görsel çıkarma, gelişmiş CSV üretimi ile özellik ve etiket entegrasyonu, Shopify için akıllı ürün açıklamaları, comprehensive feature extraction with JSON-LD, meta properties, and HTML pattern matching
 - July 11, 2025: Trendyol özellik filtreleme sistemi optimize edildi - CSS/JS teknik özelliklerinin filtresi (display, padding, margin, width, height vb.), sadece anlamlı Türkçe ürün özelliklerinin çıkarılması (marka, sku, açıklama, stok durumu), otomatik içe aktarma tarih metninin kaldırılması, gelişmiş ürün açıklamaları sadece ilgili bilgilerle, temiz ve düzenli Shopify entegrasyonu için optimize edilmiş veri çıkarma
+- July 11, 2025: Trendyol detaylı ürün özelliklerinin çıkarılması tamamlandı - JSON-LD structured data'dan additionalProperty field'inin doğru şekilde çıkarılması, "Boyut/Ebat", "Materyal", "Menşei", "Renk", "Gıda Temas Sembolü", "Bakım Talimatları" gibi önemli ürün spesifikasyonlarının yakalanması, unitText ve value alanlarının doğru şekilde işlenmesi, gelişmiş filtreleme mantığı ile önemli ürün özelliklerinin korunması
 
 ## User Preferences
 
