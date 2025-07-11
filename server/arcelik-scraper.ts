@@ -517,26 +517,35 @@ class ArcelikScraper {
         }
       });
       
-      // Extract from tables and specification sections
-      $('table tr, .spec-table tr, .features tr, .product-features li, .product-specs tr').each((_, elem) => {
-        const cells = $(elem).find('td, th');
-        if (cells.length >= 2) {
-          const key = $(cells[0]).text().trim();
-          const value = $(cells[1]).text().trim();
-          if (key && value && key !== value && key.length > 0 && value.length > 0) {
-            features.push({ key, value });
+      // Enhanced specification extraction from multiple sources
+      const specSelectors = [
+        'table tr', '.spec-table tr', '.features tr', '.product-features li', '.product-specs tr',
+        '.specifications tr', '.tech-specs tr', '.feature-list li', '.attributes tr',
+        '.product-details tr', '.product-info tr', '.details-table tr', '.spec-list li',
+        '.technical-specs tr', '.product-attributes tr', '.feature-table tr'
+      ];
+      
+      specSelectors.forEach(selector => {
+        $(selector).each((_, elem) => {
+          const cells = $(elem).find('td, th');
+          if (cells.length >= 2) {
+            const key = $(cells[0]).text().trim();
+            const value = $(cells[1]).text().trim();
+            if (key && value && key !== value && key.length > 0 && value.length > 0 && key.length < 100) {
+              features.push({ key, value });
+            }
           }
-        }
-        
-        // Also check list items with colon separation
-        const text = $(elem).text().trim();
-        if (text.includes(':') && text.length < 200) {
-          const [key, ...valueParts] = text.split(':');
-          const value = valueParts.join(':').trim();
-          if (key && value && key.length > 0 && value.length > 0) {
-            features.push({ key: key.trim(), value });
+          
+          // Also check list items with colon separation
+          const text = $(elem).text().trim();
+          if (text.includes(':') && text.length < 200 && text.length > 10) {
+            const [key, ...valueParts] = text.split(':');
+            const value = valueParts.join(':').trim();
+            if (key && value && key.length > 0 && value.length > 0 && key.length < 100) {
+              features.push({ key: key.trim(), value });
+            }
           }
-        }
+        });
       });
       
       // Extract from meta tags and structured data
@@ -547,6 +556,24 @@ class ArcelikScraper {
           if (property.includes('product') || property.includes('price') || property.includes('brand')) {
             features.push({ key: property, value: content });
           }
+        }
+      });
+      
+      // Enhanced extraction from div and span elements with specification classes
+      $('.spec-item, .specification, .feature-item, .product-feature, .attr-row, .detail-row').each((_, elem) => {
+        const label = $(elem).find('.label, .key, .name, .title').text().trim();
+        const value = $(elem).find('.value, .val, .content, .desc').text().trim();
+        if (label && value && label !== value && label.length > 0 && value.length > 0) {
+          features.push({ key: label, value });
+        }
+      });
+      
+      // Extract from structured data attributes
+      $('[data-spec], [data-feature], [data-attr]').each((_, elem) => {
+        const key = $(elem).attr('data-spec') || $(elem).attr('data-feature') || $(elem).attr('data-attr');
+        const value = $(elem).text().trim();
+        if (key && value && key.length > 0 && value.length > 0) {
+          features.push({ key, value });
         }
       });
       
@@ -606,7 +633,7 @@ class ArcelikScraper {
           currency: 'TL',
           formatted: `${price.toFixed(2)} TL`
         },
-        images: images.slice(0, 8),
+        images: images.slice(0, 15), // Increased to 15 images
         features,
         variants: [],
         tags: ['Arçelik', 'Beyaz Eşya', 'Türk Malı'],

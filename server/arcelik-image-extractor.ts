@@ -102,12 +102,14 @@ export class ArcelikImageExtractor {
               fullUrl = 'https://www.arcelik.com.tr' + src;
             }
             
-            // Only include product-specific images
+            // Enhanced image filtering - include more product images
             if (fullUrl.includes('arcelik') && 
                 (fullUrl.includes('.jpg') || fullUrl.includes('.png') || fullUrl.includes('.webp')) &&
                 !fullUrl.includes('logo') && !fullUrl.includes('icon') && 
                 !fullUrl.includes('banner') && !fullUrl.includes('ui-') &&
-                (fullUrl.includes(productCode) || fullUrl.includes('media/resize')) &&
+                !fullUrl.includes('favicon') && !fullUrl.includes('sprite') &&
+                (fullUrl.includes(productCode) || fullUrl.includes('media/resize') || 
+                 fullUrl.includes('uploads/product') || fullUrl.includes('product_image')) &&
                 !images.includes(fullUrl)) {
               images.push(fullUrl);
             }
@@ -145,8 +147,31 @@ export class ArcelikImageExtractor {
       
       console.log(`✅ ${images.length} adet görsel çıkarıldı`);
       
+      // Enhanced CDN pattern detection for more images
+      const cdnPatterns = [
+        `https://www.arcelik.com.tr/media/cache/resolve/app_large/uploads/product_image/image/${productCode}/${productCode}_1.jpg`,
+        `https://www.arcelik.com.tr/media/cache/resolve/app_large/uploads/product_image/image/${productCode}/${productCode}_2.jpg`,
+        `https://www.arcelik.com.tr/media/cache/resolve/app_large/uploads/product_image/image/${productCode}/${productCode}_3.jpg`,
+        `https://www.arcelik.com.tr/media/cache/resolve/app_large/uploads/product_image/image/${productCode}/${productCode}_4.jpg`,
+        `https://www.arcelik.com.tr/media/cache/resolve/app_large/uploads/product_image/image/${productCode}/${productCode}_5.jpg`,
+        `https://www.arcelik.com.tr/media/cache/resolve/app_large/uploads/product_image/image/${productCode}/${productCode}_6.jpg`,
+        `https://www.arcelik.com.tr/media/cache/resolve/app_medium/uploads/product_image/image/${productCode}/${productCode}_1.jpg`,
+        `https://www.arcelik.com.tr/media/cache/resolve/app_medium/uploads/product_image/image/${productCode}/${productCode}_2.jpg`,
+        `https://www.arcelik.com.tr/media/cache/resolve/app_medium/uploads/product_image/image/${productCode}/${productCode}_3.jpg`,
+        `https://www.arcelik.com.tr/media/cache/resolve/app_medium/uploads/product_image/image/${productCode}/${productCode}_4.jpg`
+      ];
+      
+      // Add CDN patterns to images if they don't already exist
+      cdnPatterns.forEach(pattern => {
+        if (!images.includes(pattern)) {
+          images.push(pattern);
+        }
+      });
+      
+      console.log(`🖼️ Total images found: ${images.length}`);
+      
       return {
-        images: images.slice(0, 12), // Limit to first 12 images
+        images: images.slice(0, 20), // Increase limit to 20 images
         productCode,
         title
       };
