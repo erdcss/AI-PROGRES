@@ -450,6 +450,124 @@ router.post('/color-selection', async (req, res) => {
   }
 });
 
+// Shopify upload endpoint for Arçelik
+router.post('/api/shopify-upload', async (req, res) => {
+  try {
+    const { productData, platform } = req.body;
+    
+    if (!productData || !productData.title) {
+      return res.status(400).json({ 
+        success: false, 
+        error: 'Geçerli product data gerekli' 
+      });
+    }
+
+    console.log(`🛒 Shopify upload başlatılıyor - Platform: ${platform || 'unknown'}`);
+    
+    // Enhanced product creation with advanced tagging
+    const shopifyProduct = {
+      title: productData.title || 'Test Ürün',
+      body_html: `<p>${productData.title || 'Test ürün açıklaması'}</p>`,
+      vendor: productData.brand || 'Genel',
+      product_type: determineProductCategory(productData),
+      status: 'active',
+      published: true,
+      tags: `${platform || 'unknown'}-import, auto-generated`,
+      variants: [{
+        option1: productData.variants?.[0]?.color || 'Varsayılan',
+        option2: productData.variants?.[0]?.size || 'Standart',
+        price: (productData.price?.withProfit || productData.price?.original || 0).toFixed(2),
+        compare_at_price: (productData.price?.original || 0).toFixed(2),
+        inventory_quantity: 10,
+        inventory_management: 'shopify',
+        inventory_policy: 'deny'
+      }],
+      options: [
+        { name: 'Renk', values: [productData.variants?.[0]?.color || 'Varsayılan'] },
+        { name: 'Beden', values: [productData.variants?.[0]?.size || 'Standart'] }
+      ],
+      images: productData.images ? productData.images.map(url => ({ src: url })) : []
+    };
+
+    console.log('Creating Shopify product:', shopifyProduct.title);
+    
+    const response = await fetch('https://kr5xdy-x7.myshopify.com/admin/api/2024-01/products.json', {
+      method: 'POST',
+      headers: {
+        'X-Shopify-Access-Token': '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',
+        'Content-Type': 'application/json',
+      },
+      body: JSON.stringify({ product: shopifyProduct })
+    });
+
+    console.log('Shopify API response status:', response.status);
+    
+    if (response.ok) {
+      const result = await response.json();
+      console.log('✅ Shopify product created successfully');
+      
+      const productId = result?.product?.id;
+      const productHandle = result?.product?.handle;
+      
+      if (!productId) {
+        console.error('❌ No product ID in Shopify response:', result);
+        return res.status(500).json({
+          success: false,
+          error: 'Shopify API yanıtında product ID bulunamadı'
+        });
+      }
+      
+      // Telegram bildirimi gönder
+      const profitAmount = (productData.price?.withProfit || 0) - (productData.price?.original || 0);
+      const profitPercentage = productData.price?.original ? ((profitAmount / productData.price.original) * 100).toFixed(1) : '15.0';
+      
+      const message = 
+        `🛒 <b>SHOPIFY'A YÜKLENDİ</b>\n\n` +
+        `📦 <b>Ürün:</b> ${productData.title || 'Bilinmeyen Ürün'}\n` +
+        `🏢 <b>Marka:</b> ${productData.brand || 'Bilinmeyen Marka'}\n` +
+        `🌐 <b>Kaynak Site:</b> ${platform === 'arcelik' ? 'Arçelik' : 'Bilinmeyen'}\n` +
+        `💰 <b>Alış Fiyatı:</b> ${productData.price?.original?.toFixed(2) || '0.00'} TL\n` +
+        `💵 <b>Satış Fiyatı:</b> ${productData.price?.withProfit?.toFixed(2) || '0.00'} TL\n` +
+        `📈 <b>Kar Miktarı:</b> ${profitAmount.toFixed(2)} TL\n` +
+        `📊 <b>Kar Oranı:</b> %${profitPercentage}\n\n` +
+        `⚡ <b>Shopify'a başarıyla eklendi</b>\n` +
+        `🆔 <b>Product ID:</b> ${productId}\n` +
+        `🔗 <b>Admin URL:</b> kr5xdy-x7.myshopify.com/admin/products/${productId}`;
+      
+      // Telegram bildirimi gönder
+      try {
+        const telegramModule = await import('./telegram-integration');
+        const telegramIntegration = telegramModule.telegramIntegration || telegramModule.default;
+        await telegramIntegration.sendNotification(message);
+        console.log('✅ Telegram notification sent successfully');
+      } catch (telegramError) {
+        console.error('Telegram notification error:', telegramError);
+      }
+    
+      res.json({
+        success: true,
+        productId: productId,
+        shopifyProductId: productId,
+        adminUrl: `https://kr5xdy-x7.myshopify.com/admin/products/${productId}`,
+        storeUrl: productHandle ? `https://kr5xdy-x7.myshopify.com/products/${productHandle}` : null,
+        message: 'Ürün başarıyla Shopify\'a eklendi',
+        product: result.product
+      });
+    } else {
+      const errorText = await response.text();
+      console.error('❌ Shopify API error:', response.status, errorText);
+      res.status(response.status).json({
+        success: false,
+        error: `Shopify API hatası: ${errorText}`,
+        status: response.status
+      });
+    }
+  } catch (error) {
+    console.error('❌ Shopify upload error:', error);
+    res.status(500).json({ success: false, error: error.message });
+  }
+});
+
 // Shopify API endpoint - Exact endpoint frontend calls
 router.post('/api/shopify/add-product', async (req, res) => {
   try {
