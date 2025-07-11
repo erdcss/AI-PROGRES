@@ -1316,15 +1316,14 @@ function generateAdvancedTags(
 ): string[] {
   const tags = new Set<string>();
   
-  // Basic tags
-  tags.add('import');
-  tags.add('trendyol');
-  tags.add('otomatik');
+  // Remove generic tags - create meaningful product-specific tags only
   
-  // Brand-based tags
+  // Brand-based tags (cleaner without generic "marka-" prefix)
   if (brand && brand !== 'Brand') {
-    tags.add(brand.toLowerCase().replace(/\s+/g, '-'));
-    tags.add(`marka-${brand.toLowerCase().replace(/\s+/g, '-')}`);
+    const cleanBrand = brand.toLowerCase().replace(/\s+/g, '-').replace(/[^a-z0-9-çğıöşüÇĞIİÖŞÜ]/g, '');
+    if (cleanBrand.length > 2) {
+      tags.add(cleanBrand);
+    }
   }
   
   // Enhanced category-based tags from features and title
@@ -1410,68 +1409,67 @@ function generateAdvancedTags(
     });
   });
   
-  // Material-based tags
-  const materialKeywords = ['pamuk', 'cotton', 'polyester', 'elastan', 'spandex', 'lycra', 'viskon', 'ipek', 'yün', 'keten', 'denim', 'jean'];
+  // Material-based tags (direct material names without generic prefixes)
+  const materialKeywords = ['pamuk', 'cotton', 'polyester', 'elastan', 'spandex', 'lycra', 'viskon', 'ipek', 'yün', 'keten', 'denim', 'jean', 'plastik', 'metal', 'cam', 'seramik', 'ahşap', 'silikon'];
   features.forEach(feature => {
-    if (feature.key.includes('Malzeme') || feature.key.includes('Material') || feature.key.includes('Kumaş')) {
+    if (feature.key.includes('Malzeme') || feature.key.includes('Material') || feature.key.includes('Kumaş') || feature.key.includes('Materyal')) {
       materialKeywords.forEach(keyword => {
         if (feature.value.toLowerCase().includes(keyword)) {
-          tags.add(`malzeme-${keyword}`);
+          tags.add(keyword); // Direct material name without "malzeme-" prefix
         }
       });
     }
   });
   
-  // Size-based tags
+  // Size-based tags (direct size names without generic prefixes)
   const sizeKeywords = ['xs', 's', 'm', 'l', 'xl', 'xxl', 'xxxl', 'tek-beden', 'standart'];
   features.forEach(feature => {
     if (feature.key.includes('Beden') || feature.key.includes('Size')) {
       sizeKeywords.forEach(size => {
         if (feature.value.toLowerCase().includes(size)) {
-          tags.add(`beden-${size}`);
+          tags.add(size); // Direct size name without "beden-" prefix
         }
       });
     }
   });
   
-  // Enhanced color-based tags from title
+  // Enhanced color-based tags from title (direct color names)
   const colorKeywords = ['beyaz', 'siyah', 'mavi', 'kırmızı', 'yeşil', 'sarı', 'mor', 'pembe', 'gri', 'kahve', 'turuncu', 'lacivert', 'krem', 'bej', 'bordo', 'füme', 'ekru', 'vizon', 'mint', 'pudra'];
   colorKeywords.forEach(color => {
     if (titleLower.includes(color)) {
-      tags.add(`renk-${color}`);
-      tags.add(color); // Add color as standalone tag
+      tags.add(color); // Only add color as standalone tag
     }
   });
   
-  // Season-based tags
+  // Season-based tags (direct season names)
   const seasonKeywords = ['yaz', 'kış', 'sonbahar', 'ilkbahar', 'summer', 'winter', 'autumn', 'spring'];
   seasonKeywords.forEach(season => {
     if (titleLower.includes(season) || features.some(f => f.value.toLowerCase().includes(season))) {
-      tags.add(`sezon-${season}`);
+      tags.add(season); // Direct season name
     }
   });
   
-  // Gender-based tags
+  // Gender-based tags (direct gender names)
   const genderKeywords = ['kadın', 'erkek', 'unisex', 'woman', 'man', 'women', 'men', 'bayan', 'bay'];
   genderKeywords.forEach(gender => {
     if (titleLower.includes(gender) || urlLower.includes(gender)) {
-      tags.add(`cinsiyet-${gender}`);
+      tags.add(gender); // Direct gender name
     }
   });
   
-  // Style-based tags
+  // Style-based tags (direct style names)
   const styleKeywords = ['casual', 'formal', 'spor', 'klasik', 'modern', 'vintage', 'retro', 'minimalist', 'boho', 'chic'];
   styleKeywords.forEach(style => {
     if (titleLower.includes(style)) {
-      tags.add(`stil-${style}`);
+      tags.add(style); // Direct style name
     }
   });
   
-  // Usage-based tags
+  // Usage-based tags (direct usage names)
   const usageKeywords = ['günlük', 'iş', 'parti', 'düğün', 'tatil', 'plaj', 'okul', 'ofis', 'ev', 'spor'];
   usageKeywords.forEach(usage => {
     if (titleLower.includes(usage)) {
-      tags.add(`kullanim-${usage}`);
+      tags.add(usage); // Direct usage name
     }
   });
   

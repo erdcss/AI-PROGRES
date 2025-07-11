@@ -27,7 +27,8 @@ import {
   Clipboard,
   Download,
   Upload,
-  Home
+  Home,
+  ShoppingCart
 } from "lucide-react";
 import {
   Alert,
@@ -1534,60 +1535,7 @@ function ScraperPage({ platform = 'trendyol' }: ScraperPageProps) {
           )}
         </AnimatePresence>
 
-        {/* Scenario Information Display */}
-        <AnimatePresence>
-          {result && result.scenario && (
-            <motion.div
-              initial={{ opacity: 0, y: 20 }}
-              animate={{ opacity: 1, y: 0 }}
-              exit={{ opacity: 0, y: -20 }}
-              transition={{ duration: 0.3 }}
-              className="mb-4"
-            >
-              <Card className="bg-blue-900/20 border-blue-500/30">
-                <CardContent className="p-4">
-                  <div className="flex items-center gap-3 mb-3">
-                    <div className="w-8 h-8 bg-blue-500 rounded-lg flex items-center justify-center">
-                      <span className="text-white font-bold text-sm">🎯</span>
-                    </div>
-                    <h3 className="text-lg font-semibold text-blue-200">
-                      Senaryo Tabanlı Çıkarım
-                    </h3>
-                    <div className="text-sm px-2 py-1 bg-blue-500/20 rounded text-blue-200">
-                      %{result.confidence} güven
-                    </div>
-                  </div>
-                  
-                  <div className="space-y-2 text-sm">
-                    <div className="flex items-center gap-2">
-                      <span className="text-gray-400">Senaryo:</span>
-                      <span className="text-blue-200 font-medium">
-                        {result.scenario.replace('-', ' ').toUpperCase()}
-                      </span>
-                    </div>
-                    {result.extractionDetails && (
-                      <>
-                        <div className="flex items-center gap-2">
-                          <span className="text-gray-400">Strateji:</span>
-                          <span className="text-blue-200">{result.extractionDetails.strategy}</span>
-                        </div>
-                        {result.extractionDetails.evidence && result.extractionDetails.evidence.length > 0 && (
-                          <div className="flex items-start gap-2">
-                            <span className="text-gray-400">Kanıt:</span>
-                            <div className="text-blue-200">
-                              {result.extractionDetails.evidence.slice(0, 3).join(', ')}
-                              {result.extractionDetails.evidence.length > 3 && '...'}
-                            </div>
-                          </div>
-                        )}
-                      </>
-                    )}
-                  </div>
-                </CardContent>
-              </Card>
-            </motion.div>
-          )}
-        </AnimatePresence>
+
 
         <AnimatePresence>
           {product && (
@@ -1631,494 +1579,68 @@ function ScraperPage({ platform = 'trendyol' }: ScraperPageProps) {
                       </div>
                     </div>
                     
-                    {/* Horizontal Product Layout */}
-                    <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
+                    {/* Simplified Compact Layout */}
+                    <div className="max-w-md mx-auto">
                       
-                      {/* Left Column - Product Images */}
-                      {product.images && product.images.length > 0 && (
-                        <div className="bg-gradient-to-br from-blue-900/20 to-indigo-900/20 backdrop-blur-sm rounded-2xl p-4 border border-blue-500/20">
-                          {/* Image URLs Display */}
-                          <div className="mb-4 bg-gradient-to-br from-gray-900/40 to-gray-800/40 backdrop-blur-sm p-4 rounded-xl border border-gray-600/30">
-                          <div className="flex items-center justify-between mb-2">
-                            <span className="text-xs font-medium text-gray-300">
-                              Çıkarılan Görsel URL'leri
-                            </span>
-                            <span className="text-xs bg-blue-600/20 text-blue-400 px-1.5 py-0.5 rounded">
-                              {product.images.length} adet
-                            </span>
-                          </div>
-                          <div className="space-y-2 max-h-32 overflow-y-auto">
-                            {product.images.slice(0, 5).map((image: string, index: number) => (
-                              <div key={index} className="bg-gray-800/30 p-2 rounded text-xs">
-                                <div className="flex items-center justify-between">
-                                  <span className="text-gray-400 font-mono truncate flex-1 mr-2">
-                                    {image}
-                                  </span>
-                                  <div className="flex items-center gap-2">
-                                    <span className="text-blue-400 bg-blue-900/30 px-1.5 py-0.5 rounded">
-                                      {index + 1}
-                                    </span>
-                                    <button
-                                      onClick={() => window.open(image, '_blank')}
-                                      className="text-green-400 hover:text-green-300 text-xs"
-                                    >
-                                      Aç
-                                    </button>
-                                  </div>
-                                </div>
-                              </div>
-                            ))}
-                            {product.images.length > 5 && (
-                              <div className="text-center text-xs text-gray-500 py-2">
-                                +{product.images.length - 5} daha...
-                              </div>
-                            )}
-                          </div>
-                        </div>
-                        
-                        {/* Main Image Display with Smart Preview */}
-                        <div className="aspect-square w-full max-w-sm mx-auto mb-4 relative group bg-gradient-to-br from-gray-800 to-gray-900 rounded-lg border border-gray-600 overflow-hidden hover:border-blue-400 transition-all duration-200">
-                          <div id="mainProductPreview" className="absolute inset-0 flex items-center justify-center">
-                            <div className="text-center p-6">
-                              <div className="text-5xl mb-3 text-blue-400">🛍️</div>
-                              <div className="text-sm text-gray-300 font-medium mb-2">
-                                {product.brand} Ürünü
-                              </div>
-                              <div className="text-xs text-gray-500 max-w-48 mx-auto">
-                                {product.title}
-                              </div>
-                              <div className="mt-3 text-xs text-green-400 product-title">
-                                {product.images.length} görsel mevcut
-                              </div>
-                            </div>
-                          </div>
-                          <img
-                            id="mainProductImage"
-                            src={`/api/image-proxy?url=${encodeURIComponent(product.images[0])}`}
-                            alt={`${product.brand} ${product.title} - Ana görsel`}
-                            className="absolute inset-0 w-full h-full object-cover opacity-0"
-                            loading="eager"
-                            onLoad={(e) => {
-                              e.currentTarget.style.opacity = '1';
-                              const preview = document.getElementById('mainProductPreview');
-                              if (preview) preview.style.display = 'none';
-                            }}
-                            onError={(e) => {
-                              console.log('Görsel yüklenemiyor - placeholder gösteriliyor');
-                              e.currentTarget.style.display = 'none';
-                            }}
-                          />
-                          <div className="absolute top-2 left-2 bg-blue-600/80 text-white text-xs px-2 py-1 rounded">
-                            Ana
-                          </div>
-                          <div className="absolute top-2 right-2 bg-green-600/80 text-white text-xs px-2 py-1 rounded">
-                            {product.images.length}
-                          </div>
-                          <div className="absolute bottom-2 left-2 bg-black/70 text-white text-xs px-2 py-1 rounded">
-                            HD Kalite
-                          </div>
-                        </div>
-                        
-                        {/* Image Grid Preview */}
-                        <div className="bg-gradient-to-br from-blue-900/30 to-indigo-900/30 backdrop-blur-sm p-4 rounded-xl border border-blue-500/30">
-                          <div className="flex items-center justify-between mb-3">
-                            <span className="text-sm font-medium text-gray-300">
-                              Görsel Ön İzleme
-                            </span>
-                            <div className="flex items-center gap-2">
-                              <span className="text-xs bg-yellow-600/20 text-yellow-400 px-2 py-1 rounded">
-                                Güvenli Mod
-                              </span>
-                              <span className="text-xs bg-green-600/20 text-green-400 px-2 py-1 rounded">
-                                URL'ler Hazır
-                              </span>
-                            </div>
-                          </div>
-                          <div className="text-xs text-gray-400 mb-3">
-                            📋 Tüm görsel URL'leri CSV dosyasına ekleniyor - Shopify için hazır format
-                          </div>
-                          <div className="grid grid-cols-3 md:grid-cols-4 lg:grid-cols-6 gap-3">
-                            {product.images.slice(0, 12).map((image: string, index: number) => (
-                              <div key={index} className="relative aspect-square group cursor-pointer bg-gradient-to-br from-gray-800 to-gray-900 rounded-lg border border-gray-700 overflow-hidden hover:border-blue-400 hover:shadow-xl transition-all duration-300">
-                                <div className="absolute inset-0 flex items-center justify-center">
-                                  <div className="text-center p-2">
-                                    <div className="text-2xl mb-1 text-blue-400">📷</div>
-                                    <div className="text-xs text-gray-400">Görsel {index + 1}</div>
-                                  </div>
-                                </div>
-                                <img
-                                  src={`/api/image-proxy?url=${encodeURIComponent(image)}`}
-                                  alt={`${product.brand} ${product.title} - Görsel ${index + 1}`}
-                                  className="absolute inset-0 w-full h-full object-cover opacity-0 transition-all duration-300 hover:scale-110"
-                                  loading="lazy"
-                                  onLoad={(e) => {
-                                    e.currentTarget.style.opacity = '1';
-                                    console.log(`Thumbnail ${index + 1} yüklendi`);
-                                  }}
-                                  onError={(e) => {
-                                    console.log('Thumbnail CORS hatası - bu normal');
-                                    e.currentTarget.style.display = 'none';
-                                  }}
-                                  onClick={() => {
-                                    const mainImg = document.getElementById('mainProductImage') as HTMLImageElement;
-                                    const mainPreview = document.getElementById('mainProductPreview');
-                                    if (mainImg) {
-                                      mainImg.src = `/api/image-proxy?url=${encodeURIComponent(image)}`;
-                                    }
-                                    if (mainPreview) {
-                                      const titleEl = mainPreview.querySelector('.product-title');
-                                      if (titleEl) {
-                                        titleEl.textContent = `Görsel ${index + 1} / ${product.images.length}`;
-                                      }
-                                    }
-                                  }}
-                                />
-                                <div className="absolute bottom-1 right-1 bg-black/80 text-white text-xs px-1.5 py-0.5 rounded">
-                                  {index + 1}
-                                </div>
-                                {index === 0 && (
-                                  <div className="absolute top-1 left-1 bg-blue-600 text-white text-xs px-1.5 py-0.5 rounded">
-                                    Ana
-                                  </div>
-                                )}
-                                <div className="absolute inset-0 bg-gradient-to-t from-black/50 to-transparent opacity-0 group-hover:opacity-100 transition-opacity duration-300" />
-                                <div className="absolute inset-0 flex items-center justify-center opacity-0 group-hover:opacity-100 transition-opacity duration-300">
-                                  <div className="bg-blue-600/80 text-white text-xs px-2 py-1 rounded">
-                                    Tıkla
-                                  </div>
-                                </div>
-                              </div>
-                            ))}
-                          </div>
-                          <div className="text-xs text-gray-400 mt-3 text-center bg-gray-800/30 py-2 px-3 rounded-lg">
-                            💡 Tıklayarak ana görseli değiştir • Shopify'a aktarım için hazır
-                          </div>
-                        </div>
-                      </div>
-                    )}
+
                     
-                    {/* Right Column - Product Details */}
-                    <div className="bg-gradient-to-br from-gray-900/20 to-gray-800/20 backdrop-blur-sm rounded-2xl p-4 border border-gray-500/20">
-                      <h3 className="text-lg font-semibold text-white mb-4">Ürün Detayları</h3>
+                    {/* Simplified Product Details */}
+                    <div className="bg-white/5 backdrop-blur-sm rounded-lg p-4 border border-gray-600/30">
+                      <h3 className="text-lg font-semibold text-white mb-4 flex items-center gap-2">
+                        <svg className="w-5 h-5 text-blue-400" fill="currentColor" viewBox="0 0 20 20">
+                          <path fillRule="evenodd" d="M3 4a1 1 0 011-1h12a1 1 0 011 1v2a1 1 0 01-1 1H4a1 1 0 01-1-1V4zm0 4a1 1 0 011-1h12a1 1 0 011 1v2a1 1 0 01-1 1H4a1 1 0 01-1-1V8zm0 4a1 1 0 011-1h12a1 1 0 011 1v2a1 1 0 01-1 1H4a1 1 0 01-1-1v-2z" clipRule="evenodd" />
+                        </svg>
+                        Ürün Özellikleri
+                      </h3>
                       
-                      {/* Product Specifications - Enhanced Box Layout */}
+                      {/* Clean Product Specifications Grid */}
                       {product.features && product.features.length > 0 && (
-                        <div className="bg-gradient-to-br from-blue-900/30 to-indigo-900/30 backdrop-blur-sm p-5 rounded-xl border border-blue-500/40 shadow-lg mb-4">
-                          <div className="flex items-center justify-between mb-4">
-                            <h4 className="text-blue-300 text-lg font-bold flex items-center gap-2">
-                              <svg className="w-5 h-5" fill="currentColor" viewBox="0 0 20 20">
-                                <path fillRule="evenodd" d="M3 4a1 1 0 011-1h12a1 1 0 011 1v2a1 1 0 01-1 1H4a1 1 0 01-1-1V4zm0 4a1 1 0 011-1h12a1 1 0 011 1v2a1 1 0 01-1 1H4a1 1 0 01-1-1V8zm0 4a1 1 0 011-1h12a1 1 0 011 1v2a1 1 0 01-1 1H4a1 1 0 01-1-1v-2z" clipRule="evenodd" />
-                              </svg>
-                              Ürün Özellikleri
-                            </h4>
-                            <span className="text-sm text-blue-200 bg-blue-800/50 px-3 py-1 rounded-full font-medium">{product.features.length} özellik</span>
-                          </div>
-                          
-                          {/* Grid Layout for Product Features */}
-                          <div className="grid grid-cols-1 gap-3">
-                            {product.features.map((feature, index) => (
-                              <div key={index} className="bg-slate-800/40 border border-slate-600/50 rounded-lg p-4 hover:border-blue-400/50 transition-all duration-200">
-                                <div className="flex justify-between items-center gap-3">
-                                  <div className="flex-1">
-                                    <div className="text-sm font-medium text-gray-300 mb-1">{feature.key}</div>
-                                    <div className="text-base font-semibold text-white">{feature.value}</div>
-                                  </div>
-                                  <div className="text-xs text-blue-400 bg-blue-900/30 px-2 py-1 rounded">
-                                    {index + 1}
-                                  </div>
-                                </div>
-                              </div>
-                            ))}
-                          </div>
-                          
-                          <div className="mt-4 text-center">
-                            <div className="text-sm text-blue-400 bg-blue-900/30 rounded-lg p-2">
-                              Toplam {product.features.length} özellik - Shopify'a aktarılacak
+                        <div className="grid grid-cols-1 gap-3 mb-4">
+                          {product.features.map((feature, index) => (
+                            <div key={index} className="flex justify-between items-center bg-gray-800/20 border border-gray-600/30 rounded-lg p-3 hover:bg-gray-700/30 transition-all duration-200">
+                              <div className="text-sm font-medium text-gray-300">{feature.key}</div>
+                              <div className="text-sm font-semibold text-white">{feature.value}</div>
                             </div>
-                          </div>
+                          ))}
                         </div>
                       )}
                       
-                      {/* Price Display */}
-                      <div className="bg-gradient-to-br from-green-900/30 to-emerald-900/30 backdrop-blur-sm p-4 rounded-xl border border-green-500/30 mb-4">
-                        <div className="flex items-center justify-between mb-3">
-                          <span className="text-gray-300 text-sm">Trendyol Fiyatı</span>
-                          <span className="text-sm font-semibold text-white bg-gray-800/40 px-3 py-1 rounded-lg">
-                            {typeof product.price === 'object' ? product.price.formatted : `${product.price} TL`}
-                          </span>
-                        </div>
-                        <div className="flex items-center justify-between mb-2">
-                          <span className="text-green-300 text-sm font-semibold">Satış Fiyatımız</span>
-                          <span className="text-lg font-bold text-green-200 bg-green-800/40 px-3 py-1 rounded-lg">
+                      {/* Simple Price Display */}
+                      <div className="bg-green-900/20 border border-green-600/30 rounded-lg p-3 mb-4">
+                        <div className="flex justify-between items-center">
+                          <span className="text-green-300 text-sm font-medium">Satış Fiyatı</span>
+                          <span className="text-lg font-bold text-green-200">
                             {typeof product.price === 'object' ? product.price.profitFormatted : `${product.price} TL`}
                           </span>
                         </div>
-                        <div className="text-center">
-                          <span className="text-xs text-green-500 bg-green-900/30 px-2 py-1 rounded">
-                            %15 kar marjı dahil
-                          </span>
+                        <div className="text-xs text-green-400 mt-1">
+                          %15 kar marjı dahil
                         </div>
                       </div>
                       
-                      {/* Variants Display */}
-                      {product.variants && (
-                        <div className="space-y-2">
-                          <h4 className="text-sm font-medium text-gray-300">Varyantlar</h4>
-                          <div className="grid grid-cols-2 gap-2">
-                            {product.variants.colors && product.variants.colors.length > 0 && (
-                              <div className="bg-blue-900/20 p-2 rounded border border-blue-800">
-                                <div className="text-blue-400 text-xs font-medium mb-1">
-                                  Renkler ({product.variants.colors.length})
-                                </div>
-                                <div className="text-xs text-blue-300">
-                                  {product.variants.colors.slice(0, 3).map(color => 
-                                    typeof color === 'string' ? color : color?.name || 'Renk'
-                                  ).join(', ')}
-                                  {product.variants.colors.length > 3 && ` +${product.variants.colors.length - 3}`}
-                                </div>
-                              </div>
-                            )}
-                            
-                            {product.variants.sizes && product.variants.sizes.length > 0 && (
-                              <div className="bg-purple-900/20 p-2 rounded border border-purple-800">
-                                <div className="text-purple-400 text-xs font-medium mb-1">
-                                  Bedenler ({product.variants.sizes.length})
-                                </div>
-                                <div className="text-xs text-purple-300">
-                                  {product.variants.sizes.map(size => 
-                                    typeof size === 'string' ? size : size?.name || 'Beden'
-                                  ).join(', ')}
-                                </div>
-                              </div>
-                            )}
-                          </div>
-                        </div>
-                      )}
+                      {/* Compact Action Buttons */}
+                      <div className="space-y-2">
+                        <button
+                          onClick={handleCSVDownload}
+                          className="w-full bg-blue-600 hover:bg-blue-700 text-white px-4 py-2 rounded-lg text-sm font-medium transition-colors duration-200 flex items-center justify-center gap-2"
+                        >
+                          <Download className="w-4 h-4" />
+                          CSV İndir
+                        </button>
+                        
+                        <button
+                          onClick={handleShopifyUpload}
+                          className="w-full bg-green-600 hover:bg-green-700 text-white px-4 py-2 rounded-lg text-sm font-medium transition-colors duration-200 flex items-center justify-center gap-2"
+                        >
+                          <ShoppingCart className="w-4 h-4" />
+                          Shopify'a Aktar
+                        </button>
+                      </div>
                     </div>
                     
                     </div>
 
-                  {/* Action Buttons */}
-                  <div className="space-y-4 border-t border-blue-500/20 pt-6">
-                    <h3 className="text-lg font-semibold text-white">CSV ve Shopify İşlemleri</h3>
-                    
-                    {/* Enhanced CSV Preview Section */}
-                    {product.csvInfo && (
-                      <div className="space-y-3">
-                        <div className="bg-green-900/20 p-2 rounded border border-green-800">
-                          <div className="flex items-center justify-between">
-                            <span className="text-green-400 text-xs font-medium">CSV Export</span>
-                            <span className="text-green-300 text-xs">{product.csvInfo.totalRows} satır</span>
-                          </div>
-                          <div className="text-green-500 text-xs">
-                            Shopify uyumlu
-                          </div>
-                        </div>
-                        
-                        {/* CSV Content Preview */}
-                        <CSVPreview csvPath={product.csvInfo?.filename || 'shopify-urunler.csv'} />
-                        
-                        {/* Enhanced Download and Upload Buttons */}
-                        <div className="mt-4 space-y-3">
-                          <button
-                            onClick={() => handleCSVDownload()}
-                            className="w-full bg-gradient-to-r from-blue-600 to-indigo-600 hover:from-blue-700 hover:to-indigo-700 text-white px-6 py-3 rounded-xl text-sm font-semibold transition-all duration-200 flex items-center justify-center gap-2 shadow-lg hover:shadow-xl transform hover:scale-105 border border-blue-500/20"
-                          >
-                            <Download className="w-5 h-5" />
-                            CSV İndir (shopify-urunler.csv)
-                          </button>
-                          
-                          <button
-                            onClick={handleComprehensiveCSVDownload}
-                            disabled={isComprehensiveCSVGenerating}
-                            className="w-full bg-gradient-to-r from-emerald-600 to-teal-600 hover:from-emerald-700 hover:to-teal-700 disabled:from-gray-600 disabled:to-gray-600 text-white px-6 py-3 rounded-xl text-sm font-semibold transition-all duration-200 flex items-center justify-center gap-2 shadow-lg hover:shadow-xl transform hover:scale-105 disabled:scale-100 border border-emerald-500/20"
-                          >
-                            {isComprehensiveCSVGenerating ? (
-                              <>
-                                <RefreshCcw className="w-5 h-5 animate-spin" />
-                                Kapsamlı CSV oluşturuluyor...
-                              </>
-                            ) : (
-                              <>
-                                <FileText className="w-5 h-5" />
-                                🎯 Kapsamlı CSV İndir (Tüm Özellikler)
-                              </>
-                            )}
-                          </button>
-                          
-                          <div className="grid grid-cols-2 gap-2">
-                            <button
-                              onClick={handleShopifyUpload}
-                              disabled={isUploading}
-                              className="bg-gradient-to-r from-green-600 to-emerald-600 hover:from-green-700 hover:to-emerald-700 disabled:from-gray-600 disabled:to-gray-600 text-white px-4 py-2 rounded-lg text-sm font-semibold transition-all duration-200 flex items-center justify-center gap-2"
-                            >
-                              {isUploading ? (
-                                <>
-                                  <div className="w-4 h-4 border-2 border-white border-t-transparent rounded-full animate-spin"></div>
-                                  Yükleniyor...
-                                </>
-                              ) : (
-                                <>
-                                  <Upload className="w-4 h-4" />
-                                  Shopify Yükle
-                                </>
-                              )}
-                            </button>
-                            <button
-                              onClick={handleShopifyTest}
-                              disabled={isTestingShopify}
-                              className="px-4 py-2 bg-blue-600 hover:bg-blue-700 disabled:bg-gray-600 text-white rounded-lg text-sm font-semibold transition-all duration-200 flex items-center justify-center gap-2"
-                            >
-                              {isTestingShopify ? (
-                                <>
-                                  <div className="w-4 h-4 border-2 border-white border-t-transparent rounded-full animate-spin"></div>
-                                  Test...
-                                </>
-                              ) : (
-                                <>
-                                  <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 12l2 2 4-4m6 2a9 9 0 11-18 0 9 9 0 0118 0z" />
-                                  </svg>
-                                  Test
-                                </>
-                              )}
-                            </button>
-                          </div>
-                          {shopifyMessage && (
-                            <div className={`mt-3 p-3 rounded-lg text-sm ${
-                              shopifyMessage.includes('✅') || shopifyMessage.includes('başarı') 
-                                ? 'bg-green-900/20 text-green-400 border border-green-800' 
-                                : 'bg-red-900/20 text-red-400 border border-red-800'
-                            }`}>
-                              {shopifyMessage}
-                            </div>
-                          )}
-                          
-                          {/* Advanced Variant Scraper Section */}
-                          <div className="mt-6 p-4 bg-gradient-to-br from-purple-900/30 to-pink-900/30 backdrop-blur-sm rounded-xl border border-purple-500/30">
-                            <div className="flex items-center justify-between mb-3">
-                              <h4 className="text-sm font-semibold text-purple-300">🧬 Advanced Variant Scraper</h4>
-                              <span className="text-xs bg-purple-600/20 text-purple-400 px-2 py-1 rounded border border-purple-600/30">
-                                Scrapy-like
-                              </span>
-                            </div>
-                            <p className="text-xs text-purple-200 mb-3">
-                              Her renk varyantının ayrı URL'ini keşfeder ve tüm görsellerini çıkarır
-                            </p>
-                            
-                            <div className="space-y-2">
-                              <button
-                                onClick={handleAdvancedVariantScraper}
-                                disabled={isAdvancedScrapingRunning}
-                                className="w-full bg-gradient-to-r from-purple-600 to-pink-600 hover:from-purple-700 hover:to-pink-700 disabled:from-purple-400 disabled:to-pink-400 text-white px-4 py-2.5 rounded-lg text-xs font-semibold transition-all duration-200 flex items-center justify-center gap-2 shadow-lg hover:shadow-xl transform hover:scale-105 disabled:scale-100 border border-purple-500/20"
-                              >
-                                {isAdvancedScrapingRunning ? (
-                                  <>
-                                    <RefreshCcw className="w-4 h-4 animate-spin" />
-                                    Varyant keşfi yapılıyor...
-                                  </>
-                                ) : (
-                                  <>
-                                    <ImageIcon className="w-4 h-4" />
-                                    Tüm Varyantları Keşfet
-                                  </>
-                                )}
-                              </button>
-                              
-                              <button
-                                onClick={handleAdvancedVariantCSV}
-                                disabled={isAdvancedCSVGenerating}
-                                className="w-full bg-gradient-to-r from-orange-600 to-red-600 hover:from-orange-700 hover:to-red-700 disabled:from-orange-400 disabled:to-red-400 text-white px-4 py-2.5 rounded-lg text-xs font-semibold transition-all duration-200 flex items-center justify-center gap-2 shadow-lg hover:shadow-xl transform hover:scale-105 disabled:scale-100 border border-orange-500/20"
-                              >
-                                {isAdvancedCSVGenerating ? (
-                                  <>
-                                    <RefreshCcw className="w-4 h-4 animate-spin" />
-                                    CSV oluşturuluyor...
-                                  </>
-                                ) : (
-                                  <>
-                                    <FileText className="w-4 h-4" />
-                                    Varyant CSV İndir
-                                  </>
-                                )}
-                              </button>
-                            </div>
-                          </div>
-                          
-                          {/* Scrapy-like Spider Section */}
-                          <div className="mt-4 p-4 bg-gradient-to-br from-green-900/30 to-teal-900/30 backdrop-blur-sm rounded-xl border border-green-500/30">
-                            <div className="flex items-center justify-between mb-3">
-                              <h4 className="text-sm font-semibold text-green-300">🕷️ Scrapy-like Spider</h4>
-                              <span className="text-xs bg-green-600/20 text-green-400 px-2 py-1 rounded border border-green-600/30">
-                                Python Scrapy Equivalent
-                              </span>
-                            </div>
-                            <p className="text-xs text-green-200 mb-3">
-                              Python Scrapy kodunuza dayalı varyant keşif sistemi
-                            </p>
-                            
-                            <div className="space-y-2">
-                              <button
-                                onClick={handleScrapySpider}
-                                disabled={isScrapySpiderRunning}
-                                className="w-full bg-gradient-to-r from-green-600 to-teal-600 hover:from-green-700 hover:to-teal-700 disabled:from-green-400 disabled:to-teal-400 text-white px-4 py-2.5 rounded-lg text-xs font-semibold transition-all duration-200 flex items-center justify-center gap-2 shadow-lg hover:shadow-xl transform hover:scale-105 disabled:scale-100 border border-green-500/20"
-                              >
-                                {isScrapySpiderRunning ? (
-                                  <>
-                                    <RefreshCcw className="w-4 h-4 animate-spin" />
-                                    Spider çalışıyor...
-                                  </>
-                                ) : (
-                                  <>
-                                    <ImageIcon className="w-4 h-4" />
-                                    Scrapy Spider Çalıştır
-                                  </>
-                                )}
-                              </button>
-                              
-                              <div className="grid grid-cols-2 gap-2">
-                                <button
-                                  onClick={handleScrapyJSON}
-                                  disabled={isScrapyJSONGenerating}
-                                  className="bg-gradient-to-r from-blue-600 to-cyan-600 hover:from-blue-700 hover:to-cyan-700 disabled:from-blue-400 disabled:to-cyan-400 text-white px-3 py-2 rounded-lg text-xs font-semibold transition-all duration-200 flex items-center justify-center gap-1 shadow-lg hover:shadow-xl transform hover:scale-105 disabled:scale-100 border border-blue-500/20"
-                                >
-                                  {isScrapyJSONGenerating ? (
-                                    <>
-                                      <RefreshCcw className="w-3 h-3 animate-spin" />
-                                      JSON
-                                    </>
-                                  ) : (
-                                    <>
-                                      <Download className="w-3 h-3" />
-                                      JSON İndir
-                                    </>
-                                  )}
-                                </button>
-                                
-                                <button
-                                  onClick={handleScrapyCSV}
-                                  disabled={isScrapyCSVGenerating}
-                                  className="bg-gradient-to-r from-yellow-600 to-orange-600 hover:from-yellow-700 hover:to-orange-700 disabled:from-yellow-400 disabled:to-orange-400 text-white px-3 py-2 rounded-lg text-xs font-semibold transition-all duration-200 flex items-center justify-center gap-1 shadow-lg hover:shadow-xl transform hover:scale-105 disabled:scale-100 border border-yellow-500/20"
-                                >
-                                  {isScrapyCSVGenerating ? (
-                                    <>
-                                      <RefreshCcw className="w-3 h-3 animate-spin" />
-                                      CSV
-                                    </>
-                                  ) : (
-                                    <>
-                                      <Download className="w-3 h-3" />
-                                      CSV İndir
-                                    </>
-                                  )}
-                                </button>
-                              </div>
-                            </div>
-                          </div>
-                        </div>
-                      </div>
-                    )}
-                  </div>
+
                 </div>
                 </CardContent>
               </Card>
