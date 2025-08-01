@@ -48,3 +48,6 @@ waitForPort = 5000
 
 [objectStorage]
 defaultBucketID = "replit-objstore-afc93c49-c00d-41d7-b7ab-feec38bd85a8"
+
+[agent]
+integrations = ["javascript_websocket==1.0.0", "javascript_anthropic==1.0.0", "javascript_sendgrid==1.0.0", "javascript_openai==1.0.0"]

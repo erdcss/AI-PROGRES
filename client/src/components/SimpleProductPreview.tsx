@@ -125,102 +125,82 @@ export function SimpleProductPreview({ product }: SimpleProductPreviewProps) {
         </div>
       </div>
 
-      {/* Modern Product Info Grid */}
-      <div className="p-4 sm:p-8 space-y-6 sm:space-y-8">
-        <div className="grid grid-cols-1 lg:grid-cols-2 gap-6 sm:gap-8">
-          {/* Enhanced Basic Info */}
-          <div className="bg-gradient-to-br from-slate-700/30 to-slate-800/30 backdrop-blur-sm p-4 sm:p-8 rounded-2xl border border-slate-600/30">
-            <h3 className="text-lg sm:text-xl font-bold text-white mb-4 sm:mb-6 flex items-center gap-3">
-              <div className="bg-blue-500 p-2 rounded-lg">
-                <Package className="h-4 w-4 sm:h-5 sm:w-5 text-white" />
+      {/* Simplified Product Info - Single Row Layout */}
+      <div className="p-4 space-y-4">
+        {/* Basic Product Info - Horizontal Layout */}
+        <div className="bg-gradient-to-br from-slate-700/30 to-slate-800/30 backdrop-blur-sm p-4 rounded-2xl border border-slate-600/30">
+          <h3 className="text-lg font-bold text-white mb-4 flex items-center gap-3">
+            <div className="bg-blue-500 p-2 rounded-lg">
+              <Package className="h-4 w-4 text-white" />
+            </div>
+            Ürün Bilgileri
+          </h3>
+          
+          {/* Horizontal Grid Layout */}
+          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4">
+            {/* Marka */}
+            <div className="bg-slate-800/50 rounded-lg p-3 text-center">
+              <div className="text-slate-400 text-sm">Marka</div>
+              <div className="text-white font-bold text-lg">{brand}</div>
+            </div>
+            
+            {/* SKU */}
+            {features.find(f => f.key === 'SKU') && (
+              <div className="bg-slate-800/50 rounded-lg p-3 text-center">
+                <div className="text-slate-400 text-sm">SKU</div>
+                <div className="text-white font-bold text-lg">{features.find(f => f.key === 'SKU')?.value}</div>
               </div>
-              Ürün Bilgileri
-            </h3>
-            <div className="space-y-4">
-              <div className="flex justify-between items-center p-3 bg-slate-800/50 rounded-lg">
-                <span className="text-slate-400 font-medium">Marka:</span>
-                <span className="text-white font-bold bg-gradient-to-r from-blue-400 to-purple-400 bg-clip-text text-transparent">
-                  {brand}
-                </span>
+            )}
+            
+            {/* Materyal */}
+            {features.find(f => f.key.includes('Materyal') || f.key.includes('Material')) && (
+              <div className="bg-slate-800/50 rounded-lg p-3 text-center">
+                <div className="text-slate-400 text-sm">Materyal</div>
+                <div className="text-white font-bold text-lg">{features.find(f => f.key.includes('Materyal') || f.key.includes('Material'))?.value}</div>
               </div>
-              <div className="p-3 bg-slate-800/50 rounded-lg">
-                <span className="text-slate-400 font-medium block mb-2">Başlık:</span>
-                <span className="text-white text-sm leading-relaxed">
-                  {title}
-                </span>
+            )}
+            
+            {/* Stok Durumu */}
+            {features.find(f => f.key.includes('Stok')) && (
+              <div className="bg-slate-800/50 rounded-lg p-3 text-center">
+                <div className="text-slate-400 text-sm">Stok Durumu</div>
+                <div className="text-white font-bold text-lg">{features.find(f => f.key.includes('Stok'))?.value}</div>
               </div>
-              {priceDetails && (
-                <div className="space-y-3">
-                  <div className="flex justify-between items-center p-3 bg-orange-500/10 border border-orange-500/20 rounded-lg">
-                    <span className="text-orange-400 font-medium">Orijinal Fiyat:</span>
-                    <span className="text-orange-300 font-bold text-lg">{priceDetails.formatted}</span>
-                  </div>
-                  <div className="flex justify-between items-center p-3 bg-green-500/10 border border-green-500/20 rounded-lg">
-                    <span className="text-green-400 font-medium">Kar Marjlı Fiyat:</span>
-                    <span className="text-green-300 font-bold text-xl">{priceDetails.profitFormatted}</span>
-                  </div>
-                  <div className="grid grid-cols-2 gap-3">
-                    <div className="text-center p-2 bg-blue-500/10 rounded-lg">
-                      <span className="text-blue-300 text-sm font-medium">
-                        %15 Kar Marjı
-                      </span>
-                    </div>
-                    <div className="text-center p-2 bg-purple-500/10 rounded-lg">
-                      <span className="text-purple-300 text-sm font-medium">
-                        Kar: {Math.round((priceDetails.withProfit - priceDetails.original) || 0).toLocaleString('tr-TR', {
-                          minimumFractionDigits: 0,
-                          maximumFractionDigits: 0
-                        })} TL
-                      </span>
-                    </div>
+            )}
+          </div>
+          
+          {/* Açıklama */}
+          {features.find(f => f.key.includes('Açıklama') || f.key.includes('Meta')) && (
+            <div className="mt-4 p-3 bg-slate-800/50 rounded-lg">
+              <div className="text-slate-400 text-sm mb-2">Açıklama</div>
+              <div className="text-white text-sm leading-relaxed">
+                {features.find(f => f.key.includes('Açıklama') || f.key.includes('Meta'))?.value}
+              </div>
+            </div>
+          )}
+          
+          {/* Fiyat Bilgileri */}
+          {priceDetails && (
+            <div className="mt-4 bg-slate-800/50 rounded-lg p-3">
+              <div className="text-slate-400 text-sm mb-3">Satış Fiyatı</div>
+              <div className="flex justify-between items-center">
+                <div className="text-center">
+                  <div className="text-orange-400 text-sm">Orijinal</div>
+                  <div className="text-orange-300 font-bold text-xl">{priceDetails.formatted}</div>
+                </div>
+                <div className="text-center">
+                  <div className="text-green-400 text-sm">Kar Marjlı</div>
+                  <div className="text-green-300 font-bold text-xl">{priceDetails.profitFormatted}</div>
+                </div>
+                <div className="text-center">
+                  <div className="text-blue-400 text-sm">%15 Kar Marjı</div>
+                  <div className="text-blue-300 font-bold text-xl">
+                    {Math.round((priceDetails.withProfit - priceDetails.original) || 0)} TL
                   </div>
                 </div>
-              )}
-            </div>
-          </div>
-
-          {/* Compact Modern AI Analysis */}
-          <div className="bg-gradient-to-br from-purple-900/20 to-blue-900/20 backdrop-blur-sm p-3 rounded-lg border border-purple-500/30">
-            <div className="flex items-center gap-2 mb-2">
-              <div className="bg-purple-500 p-1 rounded">
-                <Palette className="h-3 w-3 text-white" />
-              </div>
-              <h3 className="text-sm font-semibold text-white">AI Analiz Tamamlandı</h3>
-            </div>
-            <div className="grid grid-cols-4 gap-2">
-              <div className="text-center p-2 bg-slate-800/50 rounded-lg">
-                <div className="text-lg font-bold text-blue-400">{images.length}</div>
-                <div className="text-xs text-gray-400">Görsel</div>
-              </div>
-              <div className="text-center p-2 bg-slate-800/50 rounded-lg">
-                <div className="text-lg font-bold text-green-400">{features.length}</div>
-                <div className="text-xs text-gray-400">Özellik</div>
-              </div>
-              <div className="text-center p-2 bg-slate-800/50 rounded-lg">
-                <div className="text-lg font-bold text-purple-400">{getVariantCount()}</div>
-                <div className="text-xs text-gray-400">Varyant</div>
-              </div>
-              <div className="text-center p-2 bg-slate-800/50 rounded-lg">
-                <div className="text-lg font-bold text-orange-400">{getInStockCount()}</div>
-                <div className="text-xs text-gray-400">Stokta</div>
               </div>
             </div>
-          </div>
-        </div>
-
-        {/* Quick Summary */}
-        <div className="bg-slate-800/30 rounded-lg p-2">
-          <div className="grid grid-cols-3 gap-1 text-xs">
-            <div className="bg-slate-800/50 rounded p-1 text-center">
-              <span className="text-gray-400">Marka:</span> <span className="text-white ml-1">{brand}</span>
-            </div>
-            <div className="bg-slate-800/50 rounded p-1 text-center">
-              <span className="text-gray-400">Orijinal:</span> <span className="text-orange-400 ml-1 font-bold">{priceDetails?.original.toFixed(0) || 0} TL</span>
-            </div>
-            <div className="bg-slate-800/50 rounded p-1 text-center">
-              <span className="text-gray-400">Kar Marjlı:</span> <span className="text-green-400 ml-1 font-bold">{priceDetails?.withProfit.toFixed(0) || 0} TL</span>
-            </div>
-          </div>
+          )}
         </div>
       </div>
 
@@ -276,7 +256,7 @@ export function SimpleProductPreview({ product }: SimpleProductPreviewProps) {
         </div>
       )}
 
-      {/* Product Specifications - Box Layout */}
+      {/* Simplified Product Specifications - Compact Grid */}
       {features.length > 0 && (
         <div className="bg-slate-800/30 rounded-lg p-4">
           <div className="flex items-center gap-2 mb-4">
@@ -285,26 +265,20 @@ export function SimpleProductPreview({ product }: SimpleProductPreviewProps) {
             <span className="text-sm text-blue-400 bg-blue-400/10 px-2 py-1 rounded">{features.length}</span>
           </div>
           
-          <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
-            {features.map((feature, index) => (
+          {/* Compact Grid - 3 columns on desktop, 2 on tablet, 1 on mobile */}
+          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-3">
+            {features.slice(0, 12).map((feature, index) => (
               <div key={index} className="bg-slate-700/20 border border-slate-600 rounded-lg p-3 hover:border-blue-400/50 transition-all duration-200">
-                <div className="flex justify-between items-start gap-3">
-                  <div className="flex-1">
-                    <div className="text-sm font-medium text-gray-300 mb-1">{feature.key}</div>
-                    <div className="text-base font-semibold text-white">{feature.value}</div>
-                  </div>
-                  <div className="text-xs text-gray-500 bg-slate-600/30 px-2 py-1 rounded">
-                    {index + 1}
-                  </div>
-                </div>
+                <div className="text-sm font-medium text-gray-300 mb-1 truncate">{feature.key}</div>
+                <div className="text-sm font-semibold text-white truncate">{feature.value}</div>
               </div>
             ))}
           </div>
           
-          {features.length > 6 && (
-            <div className="mt-4 text-center">
+          {features.length > 12 && (
+            <div className="mt-3 text-center">
               <div className="text-sm text-gray-400 bg-slate-700/30 rounded-lg p-2">
-                Toplam {features.length} özellik - Shopify'a aktarılacak
+                +{features.length - 12} özellik daha - Shopify'a aktarılacak
               </div>
             </div>
           )}
