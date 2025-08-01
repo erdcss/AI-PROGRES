@@ -29,6 +29,7 @@ import SystemStatusPage from "@/pages/system-status";
 import ReplitAgent from "@/pages/replit-agent-fixed";
 import SOSControl from "@/pages/sos-control";
 import ProductReviews from "@/pages/product-reviews";
+import MemoryTrackingPage from "@/pages/MemoryTrackingPage";
 
 // Login component with password protection
 function LoginScreen({ onLogin }: { onLogin: () => void }) {
@@ -295,6 +296,11 @@ function Router() {
       <Route path="/product-reviews">
         <PageTransition>
           <ProductReviews />
+        </PageTransition>
+      </Route>
+      <Route path="/memory-tracking">
+        <PageTransition>
+          <MemoryTrackingPage />
         </PageTransition>
       </Route>
       <Route path="/arcelik">

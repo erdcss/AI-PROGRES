@@ -81,6 +81,14 @@ const MainDashboard = () => {
       path: "/system-status"
     },
     {
+      name: "Hafıza Takip Sistemi",
+      description: "Ürün değişikliklerini takip et",
+      icon: <Database className="w-8 h-8 text-green-400" />,
+      color: "from-green-500 to-green-600",
+      available: true,
+      path: "/memory-tracking"
+    },
+    {
       name: "Replit.Agent",
       description: "AI kod asistanı ve geliştirme",
       icon: <Bot className="w-8 h-8 text-indigo-400" />,

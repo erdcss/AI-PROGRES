@@ -2126,4 +2126,82 @@ router.post('/api/url/resolve', async (req, res) => {
   }
 });
 
+// Hafıza takip sistemi endpoints
+router.post('/api/memory-tracking/start', async (req, res) => {
+  try {
+    const { memoryTrackingSystem } = await import('./memory-tracking-system');
+    memoryTrackingSystem.start();
+    
+    res.json({
+      success: true,
+      message: 'Hafıza takip sistemi başlatıldı',
+      checkInterval: '30 dakika'
+    });
+  } catch (error) {
+    res.status(500).json({
+      success: false,
+      error: 'Hafıza takip sistemi başlatılamadı',
+      details: error.message
+    });
+  }
+});
+
+router.post('/api/memory-tracking/stop', async (req, res) => {
+  try {
+    const { memoryTrackingSystem } = await import('./memory-tracking-system');
+    memoryTrackingSystem.stop();
+    
+    res.json({
+      success: true,
+      message: 'Hafıza takip sistemi durduruldu'
+    });
+  } catch (error) {
+    res.status(500).json({
+      success: false,
+      error: 'Hafıza takip sistemi durdurulamadı',
+      details: error.message
+    });
+  }
+});
+
+router.get('/api/memory-tracking/status', async (req, res) => {
+  try {
+    const { memoryTrackingSystem } = await import('./memory-tracking-system');
+    const status = memoryTrackingSystem.getStatus();
+    
+    res.json({
+      success: true,
+      data: status
+    });
+  } catch (error) {
+    res.status(500).json({
+      success: false,
+      error: 'Hafıza takip sistem durumu alınamadı',
+      details: error.message
+    });
+  }
+});
+
+router.post('/api/memory-tracking/manual-check', async (req, res) => {
+  try {
+    const { memoryTrackingSystem } = await import('./memory-tracking-system');
+    
+    // Manuel kontrol başlat (asenkron)
+    memoryTrackingSystem.triggerManualCheck().catch(error => {
+      console.error('Manuel hafıza kontrolü hatası:', error);
+    });
+    
+    res.json({
+      success: true,
+      message: 'Manuel hafıza kontrolü başlatıldı'
+    });
+  } catch (error) {
+    res.status(500).json({
+      success: false,
+      error: 'Manuel kontrol başlatılamadı',
+      details: error.message
+    });
+  }
+});
+
 export default router;
