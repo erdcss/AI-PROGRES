@@ -599,10 +599,51 @@ export function registerRoutes(app: Express): Server {
     }
   });
 
+  // URL çözümleyici fonksiyonu
+  const resolveShortUrl = async (url: string): Promise<string> => {
+    try {
+      // ty.gl kısaltılmış URL kontrolü
+      if (url.includes('ty.gl/')) {
+        console.log('🔄 Kısaltılmış URL tespit edildi, çözümleniyor...');
+        
+        const puppeteer = require('puppeteer');
+        const browser = await puppeteer.launch({
+          headless: true,
+          args: [
+            '--no-sandbox',
+            '--disable-setuid-sandbox',
+            '--disable-dev-shm-usage',
+            '--disable-web-security',
+            '--disable-features=VizDisplayCompositor'
+          ]
+        });
+        
+        const page = await browser.newPage();
+        await page.setUserAgent('Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36');
+        
+        await page.goto(url, { 
+          waitUntil: 'networkidle0',
+          timeout: 15000 
+        });
+        
+        const finalUrl = page.url();
+        console.log(`✅ URL çözümlendi: ${finalUrl}`);
+        
+        await browser.close();
+        return finalUrl;
+      }
+      
+      return url;
+    } catch (error) {
+      console.error('❌ URL çözümleme hatası:', error);
+      return url;
+    }
+  };
+
   // Main product extraction endpoint
   app.post('/api/extract', async (req, res) => {
     try {
-      const { url } = req.body;
+      let { url } = req.body;
       
       if (!url) {
         return res.status(400).json({
@@ -612,6 +653,9 @@ export function registerRoutes(app: Express): Server {
       }
       
       console.log('📊 Main extraction for:', url);
+      
+      // URL çözümle (kısaltılmış URL'ler için)
+      url = await resolveShortUrl(url);
       
       // Enhanced product data extraction for Trendyol products
       if (url.includes('trendyol.com')) {

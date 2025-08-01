@@ -11,6 +11,58 @@ import { ultimateBypass } from './ultimate-bypass-scraper';
 import { enhancedCLNKScraper } from './enhanced-clnk-scraper';
 import { extractManualPrice } from './manual-price-extractor';
 
+// URL çözümleyici fonksiyonu
+async function resolveShortUrl(url: string): Promise<string> {
+  try {
+    console.log(`🔗 URL çözümleniyor: ${url}`);
+    
+    // ty.gl kısaltılmış URL kontrolü
+    if (url.includes('ty.gl/')) {
+      console.log('🔄 Trendyol kısaltılmış URL tespit edildi, çözümleniyor...');
+      
+      const puppeteer = require('puppeteer');
+      const browser = await puppeteer.launch({
+        headless: true,
+        args: [
+          '--no-sandbox',
+          '--disable-setuid-sandbox',
+          '--disable-dev-shm-usage',
+          '--disable-web-security',
+          '--disable-features=VizDisplayCompositor'
+        ]
+      });
+      
+      try {
+        const page = await browser.newPage();
+        await page.setUserAgent('Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36');
+        
+        console.log('🌐 Tarayıcı ile URL takip ediliyor...');
+        await page.goto(url, { 
+          waitUntil: 'networkidle0',
+          timeout: 15000 
+        });
+        
+        const finalUrl = page.url();
+        console.log(`✅ Çözümlenen URL: ${finalUrl}`);
+        
+        await browser.close();
+        return finalUrl;
+        
+      } catch (error) {
+        console.error('❌ Puppeteer URL çözümleme hatası:', error);
+        await browser.close();
+        throw error;
+      }
+    }
+    
+    return url;
+    
+  } catch (error) {
+    console.error('❌ URL çözümleme hatası:', error);
+    return url;
+  }
+}
+
 export interface CleanProductData {
   success: boolean;
   title: string;
@@ -38,6 +90,9 @@ export async function cleanScrape(url: string): Promise<CleanProductData> {
     if (!url.startsWith('http://') && !url.startsWith('https://')) {
       processedUrl = 'https://' + url;
     }
+    
+    // URL'yi çözümle (kısaltılmış URL'ler için)
+    processedUrl = await resolveShortUrl(processedUrl);
     
     console.log(`🔧 Clean scraper processing: ${processedUrl}`);
     

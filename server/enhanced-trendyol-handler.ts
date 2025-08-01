@@ -40,6 +40,87 @@ export class EnhancedTrendyolHandler {
     'Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/605.1.15 (KHTML, like Gecko) Version/17.0 Safari/605.1.15',
     'Mozilla/5.0 (X11; Linux x86_64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36'
   ];
+
+  /**
+   * URL çözümleyici - kısaltılmış URL'leri çözer
+   */
+  private static async resolveUrl(url: string): Promise<string> {
+    try {
+      console.log(`🔗 URL çözümleniyor: ${url}`);
+      
+      // ty.gl kısaltılmış URL kontrolü
+      if (url.includes('ty.gl/')) {
+        console.log('🔄 Trendyol kısaltılmış URL tespit edildi, çözümleniyor...');
+        
+        // Browser ile redirect takip et
+        const puppeteer = require('puppeteer');
+        const browser = await puppeteer.launch({
+          headless: true,
+          args: [
+            '--no-sandbox',
+            '--disable-setuid-sandbox',
+            '--disable-dev-shm-usage',
+            '--disable-web-security',
+            '--disable-features=VizDisplayCompositor'
+          ]
+        });
+        
+        try {
+          const page = await browser.newPage();
+          await page.setUserAgent(this.USER_AGENTS[0]);
+          
+          // Redirect'i takip et
+          console.log('🌐 Tarayıcı ile URL takip ediliyor...');
+          await page.goto(url, { 
+            waitUntil: 'networkidle0',
+            timeout: 15000 
+          });
+          
+          const finalUrl = page.url();
+          console.log(`✅ Çözümlenen URL: ${finalUrl}`);
+          
+          await browser.close();
+          return finalUrl;
+          
+        } catch (error) {
+          console.error('❌ Puppeteer URL çözümleme hatası:', error);
+          await browser.close();
+          throw error;
+        }
+      }
+      
+      // Normal URL ise direkt döndür
+      return url;
+      
+    } catch (error) {
+      console.error('❌ URL çözümleme hatası:', error);
+      
+      // Fallback: HTTP redirect takip
+      try {
+        console.log('🔄 Fallback: HTTP redirect takip ediliyor...');
+        const axios = require('axios');
+        
+        const response = await axios.get(url, {
+          maxRedirects: 10,
+          timeout: 10000,
+          headers: {
+            'User-Agent': this.USER_AGENTS[0]
+          },
+          validateStatus: function (status) {
+            return status < 400; // 3xx ve 2xx kabul et
+          }
+        });
+        
+        const finalUrl = response.request.res.responseUrl || url;
+        console.log(`✅ HTTP redirect çözümlendi: ${finalUrl}`);
+        return finalUrl;
+        
+      } catch (fallbackError) {
+        console.error('❌ Fallback URL çözümleme de başarısız:', fallbackError);
+        return url; // Orijinal URL'i döndür
+      }
+    }
+  }
   
   /**
    * Ana ürün extraction fonksiyonu
@@ -52,8 +133,12 @@ export class EnhancedTrendyolHandler {
     try {
       console.log(`🔍 Trendyol extraction başlatılıyor: ${url}`);
       
+      // URL'yi çözümle (kısaltılmış URL'ler için)
+      const resolvedUrl = await this.resolveUrl(url);
+      console.log(`🔗 Çözümlenen URL: ${resolvedUrl}`);
+      
       // HTML içeriği al
-      const htmlContent = await this.fetchPageContent(url);
+      const htmlContent = await this.fetchPageContent(resolvedUrl);
       
       // Cheerio ile parse
       const $ = cheerio.load(htmlContent);

@@ -2044,4 +2044,86 @@ router.post('/api/arcelik-scrape', async (req, res) => {
   }
 });
 
+// URL resolver endpoint - kısaltılmış URL'leri çözer
+router.post('/api/url/resolve', async (req, res) => {
+  try {
+    const { url } = req.body;
+    
+    if (!url) {
+      return res.status(400).json({
+        success: false,
+        error: 'URL parametresi gerekli'
+      });
+    }
+    
+    console.log(`🔗 URL çözümleme isteği: ${url}`);
+    
+    // ty.gl kısaltılmış URL kontrolü
+    if (url.includes('ty.gl/')) {
+      console.log('🔄 Trendyol kısaltılmış URL tespit edildi, çözümleniyor...');
+      
+      const puppeteer = require('puppeteer');
+      const browser = await puppeteer.launch({
+        headless: true,
+        args: [
+          '--no-sandbox',
+          '--disable-setuid-sandbox',
+          '--disable-dev-shm-usage',
+          '--disable-web-security',
+          '--disable-features=VizDisplayCompositor'
+        ]
+      });
+      
+      try {
+        const page = await browser.newPage();
+        await page.setUserAgent('Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36');
+        
+        console.log('🌐 Tarayıcı ile URL takip ediliyor...');
+        await page.goto(url, { 
+          waitUntil: 'networkidle0',
+          timeout: 15000 
+        });
+        
+        const finalUrl = page.url();
+        console.log(`✅ Çözümlenen URL: ${finalUrl}`);
+        
+        await browser.close();
+        
+        res.json({
+          success: true,
+          originalUrl: url,
+          resolvedUrl: finalUrl,
+          message: 'URL başarıyla çözümlendi'
+        });
+        
+      } catch (error) {
+        console.error('❌ Puppeteer URL çözümleme hatası:', error);
+        await browser.close();
+        
+        res.status(500).json({
+          success: false,
+          error: 'URL çözümlenemedi',
+          details: error.message
+        });
+      }
+    } else {
+      // Normal URL ise direkt döndür
+      res.json({
+        success: true,
+        originalUrl: url,
+        resolvedUrl: url,
+        message: 'URL zaten tam format'
+      });
+    }
+    
+  } catch (error) {
+    console.error('❌ URL resolver error:', error);
+    res.status(500).json({
+      success: false,
+      error: 'URL çözümleme hatası',
+      details: error.message
+    });
+  }
+});
+
 export default router;
