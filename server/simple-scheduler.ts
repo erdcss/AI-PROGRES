@@ -7,16 +7,21 @@ export const scheduler = {
   restartAllTasks: () => {
     console.log('🔄 Restarting all scheduled tasks');
     // Clear existing timers and restart
-    for (const [name, timer] of activeTimers) {
+    activeTimers.forEach((timer, name) => {
       clearTimeout(timer);
-    }
+    });
     activeTimers.clear();
     initializeScheduler();
   }
 };
 
-// Task configurations - Sizin tanımladığınız zamanlar
+// Task configurations - Saatlik ve günlük görevler
 const TASKS = {
+  HOURLY_PRICE_MONITORING: {
+    name: 'hourly-price-monitoring',
+    description: 'Saatlik fiyat izleme ve değişiklik bildirimi',
+    interval: 'hourly' // Her saat başı
+  },
   MORNING_ANALYSIS: {
     name: 'morning-analysis',
     description: '08:00 - Günlük analiz ve sistem kontrolü',
@@ -69,6 +74,24 @@ async function sendDailyZReport(reportData: any): Promise<void> {
     console.log('✅ Daily Z report sent');
   } catch (error) {
     console.error('❌ Daily Z report error:', error);
+  }
+}
+
+// Saatlik fiyat izleme görevi
+async function executeHourlyPriceMonitoring(): Promise<void> {
+  try {
+    console.log(`🕐 ${new Date().getHours()}:00 - Saatlik fiyat izleme başlatılıyor...`);
+    
+    // Import hourly monitoring task from scheduled-tasks
+    const { executeTask } = await import('./scheduled-tasks');
+    await executeTask('hourly-price-monitoring');
+    
+    await sendTaskCompletionNotification('hourly-price-monitoring', 'success', 'Saatlik fiyat kontrolü tamamlandı');
+    console.log('✅ Saatlik fiyat izleme tamamlandı');
+    
+  } catch (error) {
+    console.error('❌ Saatlik fiyat izleme hatası:', error);
+    await sendTaskCompletionNotification('hourly-price-monitoring', 'error', `Hata: ${error instanceof Error ? error.message : 'Bilinmeyen hata'}`);
   }
 }
 
@@ -266,22 +289,69 @@ export function initializeScheduler(): void {
   scheduleTask(TASKS.DAILY_UPDATES, executeDailyUpdates);
   scheduleTask(TASKS.EVENING_REPORTS, executeEveningReports);
   
+  // Schedule hourly price monitoring
+  scheduleHourlyPriceMonitoring();
+  
   console.log(`✅ ${Object.keys(TASKS).length} zamanlı görev başarıyla kuruldu`);
   console.log('✅ Zamanlı görevler sistemi başlatıldı');
+}
+
+// Saatlik fiyat izleme görevini zamanla
+function scheduleHourlyPriceMonitoring(): void {
+  console.log('🕐 Saatlik fiyat izleme sistemi başlatılıyor...');
+  
+  // İlk çalıştırma - bir sonraki saat başına kadar bekle
+  const msUntilNextHour = getMillisecondsUntilNextHour();
+  const minutesUntilNextHour = Math.ceil(msUntilNextHour / (1000 * 60));
+  
+  console.log(`⏰ hourly-price-monitoring zamanlandı: her saat başı (${minutesUntilNextHour} dakika sonra)`);
+  
+  const timer = setTimeout(async () => {
+    // İlk çalıştırma
+    await executeHourlyPriceMonitoring();
+    
+    // Sonraki çalıştırmalar için interval kur (her saat)
+    const hourlyInterval = setInterval(async () => {
+      await executeHourlyPriceMonitoring();
+    }, 60 * 60 * 1000); // 1 saat = 3,600,000 ms
+    
+    activeTimers.set('hourly-price-monitoring-interval', hourlyInterval as any);
+    
+  }, msUntilNextHour);
+  
+  activeTimers.set('hourly-price-monitoring', timer);
+}
+
+// Bir sonraki saat başına kadar olan milisaniye
+function getMillisecondsUntilNextHour(): number {
+  const now = new Date();
+  const nextHour = new Date();
+  nextHour.setHours(now.getHours() + 1, 0, 0, 0);
+  
+  return nextHour.getTime() - now.getTime();
 }
 
 // Get status of scheduled tasks
 export function getSchedulerStatus(): any {
   const status = Object.values(TASKS).map(task => {
     const isActive = activeTimers.has(task.name);
-    const nextRun = isActive ? 
-      new Date(Date.now() + getMillisecondsUntilTime(task.time)).toLocaleString('tr-TR') : 
-      'Devre dışı';
+    const isHourly = 'interval' in task && task.interval === 'hourly';
+    let nextRun = 'Devre dışı';
+    
+    if (isActive && 'time' in task && task.time) {
+      try {
+        nextRun = new Date(Date.now() + getMillisecondsUntilTime(task.time)).toLocaleString('tr-TR');
+      } catch (error) {
+        nextRun = 'Hata';
+      }
+    } else if (isHourly) {
+      nextRun = 'Her saat başı';
+    }
     
     return {
       name: task.name,
       description: task.description,
-      time: task.time,
+      time: 'time' in task ? task.time : 'hourly',
       isActive,
       nextRun
     };

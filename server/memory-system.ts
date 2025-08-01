@@ -266,7 +266,7 @@ export class MemorySystem {
   }
 
   // İzlenmesi gereken ürünleri getirme
-  async getProductsToMonitor(): Promise<Product[]> {
+  async getProductsToMonitor(): Promise<any[]> {
     const now = new Date();
     
     const result = await db.select({

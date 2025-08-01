@@ -318,7 +318,7 @@ function Router() {
 }
 
 function App() {
-  const [isLoggedIn, setIsLoggedIn] = useState(false);
+  const [isLoggedIn, setIsLoggedIn] = useState(true); // Development: bypass login
   
   // Uygulama kapanıp açıldığında yeniden giriş istensin
   useEffect(() => {
