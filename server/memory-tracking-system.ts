@@ -86,7 +86,7 @@ export class MemoryTrackingSystem {
           await new Promise(resolve => setTimeout(resolve, 2000));
           
         } catch (error) {
-          console.error(`❌ Ürün kontrol hatası (${product.url}):`, error);
+          console.error(`❌ Ürün kontrol hatası (${product.trendyolUrl || product.sourceUrl}):`, error);
           errorCount++;
         }
       }
@@ -115,8 +115,9 @@ export class MemoryTrackingSystem {
       
       // Güncel ürün bilgisini çek
       let currentData;
-      if (product.url.includes('trendyol.com')) {
-        const result = await EnhancedTrendyolHandler.extractProduct(product.url);
+      const productUrl = product.trendyolUrl || product.sourceUrl;
+      if (productUrl && productUrl.includes('trendyol.com')) {
+        const result = await EnhancedTrendyolHandler.extractProduct(productUrl);
         if (result.success && result.data) {
           currentData = result.data;
         }
@@ -124,7 +125,7 @@ export class MemoryTrackingSystem {
       
       if (!currentData) {
         // Fallback olarak clean scraper kullan
-        const cleanResult = await cleanScrape(product.url);
+        const cleanResult = await cleanScrape(productUrl);
         if (cleanResult.success) {
           currentData = cleanResult;
         }
@@ -144,7 +145,7 @@ export class MemoryTrackingSystem {
           const priceChange = ((newPrice - oldPrice) / oldPrice) * 100;
           changes.push({
             productId: product.id,
-            url: product.url,
+            url: productUrl,
             title: product.title,
             brand: product.brand,
             changeType: 'price',
@@ -166,7 +167,7 @@ export class MemoryTrackingSystem {
           if (newVariant && oldVariant.inStock !== newVariant.inStock) {
             changes.push({
               productId: product.id,
-              url: product.url,
+              url: productUrl,
               title: product.title,
               brand: product.brand,
               changeType: 'stock',
@@ -193,7 +194,7 @@ export class MemoryTrackingSystem {
             const [color, size] = newKey.split('-');
             changes.push({
               productId: product.id,
-              url: product.url,
+              url: productUrl,
               title: product.title,
               brand: product.brand,
               changeType: 'new_variant',
