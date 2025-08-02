@@ -7,7 +7,7 @@ import { Badge } from "@/components/ui/badge";
 import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert";
 import { Separator } from "@/components/ui/separator";
 import { ScrollArea } from "@/components/ui/scroll-area";
-import { RefreshCw, Send, MessageCircle, Package, TrendingUp, Clock, Database, Zap, ExternalLink, ShoppingCart, Download, Upload, Sync } from 'lucide-react';
+import { RefreshCw, Send, MessageCircle, Package, TrendingUp, Clock, Database, Zap, ExternalLink, ShoppingCart, Download, Upload } from 'lucide-react';
 import { motion } from 'framer-motion';
 import { RealTimeClock } from './RealTimeClock';
 
@@ -475,7 +475,7 @@ export const ProductDataAnalysis: React.FC = () => {
             disabled={isSyncingShopify}
             className="bg-gradient-to-r from-emerald-600 to-green-600 hover:from-emerald-700 hover:to-green-700 text-white"
           >
-            <Sync className={`w-4 h-4 mr-2 ${isSyncingShopify ? 'animate-spin' : ''}`} />
+            <RefreshCw className={`w-4 h-4 mr-2 ${isSyncingShopify ? 'animate-spin' : ''}`} />
             {isSyncingShopify ? 'Senkronizasyon...' : 'Shopify Senkronizasyonu'}
           </Button>
         </div>
