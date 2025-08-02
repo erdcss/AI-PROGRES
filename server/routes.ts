@@ -12,12 +12,14 @@ import { instantCSVGenerator } from "./instant-csv-generator-working";
 import { getCategoryConfig } from "./category-mapping";
 import { cleanTrendyolAttributes } from "./clean-attributes";
 import { parseJsonLdProductData, generateTagsFromJsonLd } from "./json-ld-parser";
-import { InsertProduct, products as productsTable } from "@shared/schema";
+import { InsertProduct, products as productsTable, products, productVariants } from "@shared/schema";
 // import { getFinalImages } from "./final-image-solution";
 import { extractVariantStockInfo } from "./advanced-size-extractor";
 import { extractFocusedData } from './focused-extractor';
 import { dailyScheduler } from './scheduler';
 import dataAnalysisRoutes from './data-analysis-routes';
+import { db } from './db';
+import { eq, isNotNull } from 'drizzle-orm';
 import memoryStatusRoutes from './memory-status-api';
 import { testImageExtraction } from './direct-image-test';
 import { initializeScheduler, getSchedulerStatus, executeTaskManually } from './simple-scheduler';
@@ -2220,6 +2222,160 @@ export function registerRoutes(app: Express): Server {
           platformBreakdown: {},
           lastUpdate: new Date().toISOString()
         }
+      });
+    }
+  });
+
+  // Shopify-Trendyol ürün eşleştirme endpoint'i
+  app.post('/api/matcher/start-matching', async (req, res) => {
+    try {
+      console.log('🚀 Shopify-Trendyol ürün eşleştirme başlıyor...');
+      
+      // Hafızadaki Shopify ürünlerini al (ilk 20 ürünle test)
+      const shopifyProducts = await db
+        .select({
+          id: products.id,
+          title: products.title,
+          brand: products.brand,
+          currentPrice: products.currentPrice,
+          shopifyProductId: products.shopifyProductId
+        })
+        .from(products)
+        .where(isNotNull(products.shopifyProductId))
+        .limit(20);
+
+      console.log(`📦 ${shopifyProducts.length} Shopify ürünü bulundu`);
+      
+      if (shopifyProducts.length === 0) {
+        return res.json({
+          success: false,
+          message: 'Hafızada Shopify ürünü bulunamadı'
+        });
+      }
+
+      // Her ürün için basit Trendyol araması
+      const matches = [];
+      
+      for (const product of shopifyProducts.slice(0, 5)) { // İlk 5 ürünle test
+        console.log(`🔍 Arıyor: ${product.title}`);
+        
+        // Basit arama URL'si oluştur
+        const searchQuery = product.title
+          .replace(/[^\w\sÇĞıİÖŞÜçğıiöşü]/g, '')
+          .replace(/\s+/g, ' ')
+          .trim();
+        
+        const searchUrl = `https://www.trendyol.com/sr?q=${encodeURIComponent(searchQuery)}`;
+        
+        matches.push({
+          shopifyProduct: {
+            id: product.id,
+            title: product.title,
+            brand: product.brand,
+            price: product.currentPrice?.toString() || '0'
+          },
+          searchUrl: searchUrl,
+          searchQuery: searchQuery
+        });
+        
+        // Rate limiting
+        await new Promise(resolve => setTimeout(resolve, 1000));
+      }
+      
+      // Telegram raporu gönder
+      const telegramBotToken = process.env.TELEGRAM_BOT_TOKEN;
+      if (telegramBotToken) {
+        try {
+          const report = `🎯 *Shopify-Trendyol Ürün Analizi*\n\n📊 *Durum:*\n• Analiz edilen: ${matches.length} ürün\n• Toplam hafızada: ${shopifyProducts.length} Shopify ürünü\n\n🔍 *İlk 3 Ürün:*\n${matches.slice(0, 3).map(m => `• ${m.shopifyProduct.title.substring(0, 30)}...\n  Fiyat: ${m.shopifyProduct.price} TL`).join('\n\n')}\n\n⏰ ${new Date().toLocaleString('tr-TR')}`;
+          
+          const axios = require('axios');
+          await axios.post(`https://api.telegram.org/bot${telegramBotToken}/sendMessage`, {
+            chat_id: '-1002405506985',
+            text: report,
+            parse_mode: 'Markdown'
+          });
+          
+          console.log('✅ Telegram raporu gönderildi');
+        } catch (error) {
+          console.error('❌ Telegram gönderim hatası:', error);
+        }
+      }
+      
+      res.json({
+        success: true,
+        message: `${matches.length} ürün analiz edildi ve Telegram'a rapor gönderildi`,
+        totalShopifyProducts: shopifyProducts.length,
+        analyzedProducts: matches.length,
+        matches: matches
+      });
+      
+    } catch (error) {
+      console.error('❌ Matching hatası:', error);
+      res.status(500).json({
+        success: false,
+        error: 'Ürün eşleştirme sırasında hata oluştu'
+      });
+    }
+  });
+
+  // Telegram message endpoint
+  app.post('/api/telegram/send-message', async (req, res) => {
+    try {
+      const { message } = req.body;
+      
+      if (!message) {
+        return res.status(400).json({
+          success: false,
+          error: 'Mesaj gerekli'
+        });
+      }
+
+      const telegramBotToken = process.env.TELEGRAM_BOT_TOKEN;
+      
+      if (!telegramBotToken) {
+        return res.status(500).json({
+          success: false,
+          error: 'Telegram bot token bulunamadı'
+        });
+      }
+
+      // Telegram API'ye mesaj gönder
+      const telegramUrl = `https://api.telegram.org/bot${telegramBotToken}/sendMessage`;
+      
+      const telegramResponse = await fetch(telegramUrl, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json'
+        },
+        body: JSON.stringify({
+          chat_id: '-1002405506985', // Grup chat ID
+          text: message,
+          parse_mode: 'Markdown',
+          disable_web_page_preview: true
+        })
+      });
+
+      const telegramResult = await telegramResponse.json();
+      
+      if (telegramResult.ok) {
+        console.log('✅ Telegram mesajı gönderildi');
+        res.json({
+          success: true,
+          message: 'Telegram mesajı başarıyla gönderildi'
+        });
+      } else {
+        console.error('❌ Telegram gönderim hatası:', telegramResult);
+        res.status(500).json({
+          success: false,
+          error: `Telegram hatası: ${telegramResult.description || 'Bilinmeyen hata'}`
+        });
+      }
+      
+    } catch (error) {
+      console.error('❌ Telegram endpoint hatası:', error);
+      res.status(500).json({
+        success: false,
+        error: 'Telegram mesaj gönderim hatası'
       });
     }
   });

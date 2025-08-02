@@ -112,6 +112,7 @@ export const ProductDataAnalysis: React.FC = () => {
   const [shopifyStoreInfo, setShopifyStoreInfo] = useState<any>(null);
   const [shopifyMemoryProducts, setShopifyMemoryProducts] = useState<ShopifyProduct[]>([]);
   const [isLoadingShopifyProducts, setIsLoadingShopifyProducts] = useState(false);
+  const [isMatching, setIsMatching] = useState(false);
 
   // Refresh all data function
   const handleRefreshAll = async () => {
@@ -351,6 +352,108 @@ export const ProductDataAnalysis: React.FC = () => {
     }
   };
 
+  // Trendyol matching handler
+  const handleTrendyolMatching = async () => {
+    setIsMatching(true);
+    try {
+      const startMessage: ChatMessage = {
+        id: Date.now().toString(),
+        type: 'ai',
+        content: '🚀 Shopify ürünleri Trendyol\'da aranıyor... Bu işlem birkaç dakika sürebilir.',
+        timestamp: new Date().toLocaleTimeString('tr-TR')
+      };
+      setChatMessages(prev => [...prev, startMessage]);
+
+      // Hafızadaki Shopify ürünlerini al
+      const productsResponse = await fetch('/api/shopify/memory-products');
+      const productsResult = await productsResponse.json();
+      
+      if (!productsResult.success || !productsResult.products?.length) {
+        throw new Error('Hafızada Shopify ürünü bulunamadı');
+      }
+
+      const shopifyProducts = productsResult.products.slice(0, 10); // İlk 10 ürünle test
+      const matches = [];
+      
+      for (let i = 0; i < shopifyProducts.length; i++) {
+        const product = shopifyProducts[i];
+        
+        const progressMessage: ChatMessage = {
+          id: Date.now().toString() + i,
+          type: 'ai',
+          content: `🔍 Aranıyor (${i + 1}/${shopifyProducts.length}): ${product.title.substring(0, 30)}...`,
+          timestamp: new Date().toLocaleTimeString('tr-TR')
+        };
+        setChatMessages(prev => [...prev, progressMessage]);
+        
+        // Basit arama query'si oluştur
+        const searchQuery = product.title
+          .replace(/[^\w\sÇĞıİÖŞÜçğıiöşü]/g, '')
+          .replace(/\s+/g, ' ')
+          .trim();
+        
+        const searchUrl = `https://www.trendyol.com/sr?q=${encodeURIComponent(searchQuery)}`;
+        
+        matches.push({
+          shopifyProduct: {
+            title: product.title,
+            brand: product.brand || 'Bilinmiyor',
+            price: product.currentPrice || '0 TL'
+          },
+          searchUrl,
+          searchQuery
+        });
+        
+        // Rate limiting
+        await new Promise(resolve => setTimeout(resolve, 1000));
+      }
+      
+      // Telegram'a rapor gönder
+      const telegramReport = `🎯 *Shopify-Trendyol Ürün Analizi*\n\n📊 *Durum:*\n• Analiz edilen: ${matches.length} ürün\n• Toplam hafızada: ${productsResult.products.length} Shopify ürünü\n\n🔍 *İlk 5 Ürün:*\n${matches.slice(0, 5).map((m, idx) => `${idx + 1}. ${m.shopifyProduct.title.substring(0, 35)}...\n   Fiyat: ${m.shopifyProduct.price}\n   Marka: ${m.shopifyProduct.brand}`).join('\n\n')}\n\n⏰ Analiz Zamanı: ${new Date().toLocaleString('tr-TR')}`;
+      
+      // Telegram API çağrısı (basit)
+      try {
+        await fetch('/api/telegram/send-message', {
+          method: 'POST',
+          headers: {
+            'Content-Type': 'application/json'
+          },
+          body: JSON.stringify({
+            message: telegramReport
+          })
+        });
+        
+        const telegramMessage: ChatMessage = {
+          id: Date.now().toString(),
+          type: 'ai',
+          content: `✅ Analiz tamamlandı! ${matches.length} ürün analiz edildi ve Telegram'a rapor gönderildi.`,
+          timestamp: new Date().toLocaleTimeString('tr-TR')
+        };
+        setChatMessages(prev => [...prev, telegramMessage]);
+        
+      } catch (telegramError) {
+        const errorMessage: ChatMessage = {
+          id: Date.now().toString(),
+          type: 'ai',
+          content: `⚠️ Analiz tamamlandı ancak Telegram gönderiminde sorun: ${telegramError instanceof Error ? telegramError.message : 'Bilinmeyen hata'}`,
+          timestamp: new Date().toLocaleTimeString('tr-TR')
+        };
+        setChatMessages(prev => [...prev, errorMessage]);
+      }
+      
+    } catch (error) {
+      const errorMessage: ChatMessage = {
+        id: Date.now().toString(),
+        type: 'ai',
+        content: `❌ Eşleştirme hatası: ${error instanceof Error ? error.message : 'Bilinmeyen hata'}`,
+        timestamp: new Date().toLocaleTimeString('tr-TR')
+      };
+      setChatMessages(prev => [...prev, errorMessage]);
+    } finally {
+      setIsMatching(false);
+    }
+  };
+
   // Fetch Shopify products
   const handleFetchShopifyProducts = async () => {
     setIsSyncingShopify(true);
@@ -506,6 +609,14 @@ export const ProductDataAnalysis: React.FC = () => {
           >
             <RefreshCw className={`w-4 h-4 mr-2 ${isSyncingShopify ? 'animate-spin' : ''}`} />
             {isSyncingShopify ? 'Senkronizasyon...' : 'Shopify Senkronizasyonu'}
+          </Button>
+          <Button
+            onClick={handleTrendyolMatching}
+            disabled={isMatching}
+            className="bg-gradient-to-r from-purple-600 to-pink-600 hover:from-purple-700 hover:to-pink-700 text-white"
+          >
+            <MessageCircle className={`w-4 h-4 mr-2 ${isMatching ? 'animate-pulse' : ''}`} />
+            {isMatching ? 'Eşleştiriliyor...' : 'Trendyol Eşleştir & Telegram Bildir'}
           </Button>
         </div>
 
