@@ -191,6 +191,9 @@ export const ProductDataAnalysis: React.FC = () => {
 
     updateDateTime();
     const dateTimeInterval = setInterval(updateDateTime, 1000);
+    
+    // Shopify ürünlerini otomatik yükle
+    loadShopifyMemoryProducts();
 
     return () => clearInterval(dateTimeInterval);
   }, []);
