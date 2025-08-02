@@ -136,14 +136,14 @@ export const ProductDataAnalysis: React.FC = () => {
 
   // Fetch memory statistics
   const { data: memoryStats, refetch: refetchMemoryStats } = useQuery<MemoryStats>({
-    queryKey: ['/api/memory/stats'],
-    refetchInterval: 30000,
+    queryKey: ['/api/analysis/memory-stats'],
+    refetchInterval: 15000,
   });
 
   // Fetch daily operations
   const { data: dailyOpsData, refetch: refetchDailyOps } = useQuery({
     queryKey: ['/api/analysis/daily-operations'],
-    refetchInterval: 60000,
+    refetchInterval: 20000,
   });
 
   // Fetch recent products
@@ -468,6 +468,7 @@ export const ProductDataAnalysis: React.FC = () => {
   const shopifyProductsData = shopifyProducts?.products || [];
   const shopifyStatsData = shopifyStats?.stats;
   const changesCount = Array.isArray(changesData) ? changesData.length : ((changesData as any)?.changes?.length || 0);
+  const totalChanges = (dailyOpsData?.priceChanges || 0) + (dailyOpsData?.stockChanges || 0);
   const changes = Array.isArray(changesData) ? changesData : ((changesData as any)?.changes || []);
   const nextTask = scheduledTasks.filter(task => task.isActive)
     .sort((a, b) => new Date(a.nextRun).getTime() - new Date(b.nextRun).getTime())[0];

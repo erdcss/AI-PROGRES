@@ -1,7 +1,7 @@
 import { Router } from 'express';
 import { db } from './db';
 import { products, productVariants, priceHistory, stockHistory } from '../shared/schema';
-import { eq, desc, gte, sql } from 'drizzle-orm';
+import { eq, desc, gte, sql, and, isNotNull } from 'drizzle-orm';
 
 const router = Router();
 
@@ -32,14 +32,25 @@ router.get('/daily-operations', async (req, res) => {
     const today = new Date();
     today.setHours(0, 0, 0, 0);
     
-    // Mock data for daily operations since history tables may not exist yet
-    const priceChanges = [];
-    const stockChanges = [];
+    // Gerçek fiyat değişiklik sayısını al
+    const priceChangesToday = await db
+      .select({ count: sql`count(*)` })
+      .from(priceHistory)
+      .where(gte(priceHistory.createdAt, today));
+    
+    // Gerçek stok değişiklik sayısını al
+    const stockChangesToday = await db
+      .select({ count: sql`count(*)` })
+      .from(stockHistory)
+      .where(gte(stockHistory.createdAt, today));
+
+    const priceChangesCount = Number(priceChangesToday[0]?.count || 0);
+    const stockChangesCount = Number(stockChangesToday[0]?.count || 0);
 
     res.json({
       success: true,
-      priceChanges: priceChanges.length,
-      stockChanges: stockChanges.length,
+      priceChanges: priceChangesCount,
+      stockChanges: stockChangesCount,
       lastCheck: new Date().toISOString(),
       operations: [
         {
@@ -47,21 +58,21 @@ router.get('/daily-operations', async (req, res) => {
           type: 'price_check',
           status: 'completed',
           timestamp: new Date(Date.now() - 3600000).toISOString(),
-          details: `${priceChanges.length} fiyat değişikliği tespit edildi`
+          details: `${priceChangesCount} fiyat değişikliği tespit edildi`
         },
         {
           id: '2',
           type: 'stock_check',
           status: 'completed',
           timestamp: new Date(Date.now() - 1800000).toISOString(),
-          details: `${stockChanges.length} stok değişikliği tespit edildi`
+          details: `${stockChangesCount} stok değişikliği tespit edildi`
         },
         {
           id: '3',
           type: 'shopify_sync',
-          status: 'pending',
+          status: priceChangesCount > 0 || stockChangesCount > 0 ? 'pending' : 'completed',
           timestamp: new Date().toISOString(),
-          details: 'Shopify senkronizasyonu bekleniyor'
+          details: priceChangesCount > 0 || stockChangesCount > 0 ? 'Shopify senkronizasyonu bekleniyor' : 'Shopify güncel'
         }
       ]
     });
@@ -143,53 +154,103 @@ router.get('/recent-products', async (req, res) => {
   }
 });
 
-// Get product changes
+// Get product changes - sadece gerçek değişim olan ürünler
 router.get('/product-changes', async (req, res) => {
   try {
-    // Get real product data for changes demonstration
-    const recentProductsForChanges = await db
+    const today = new Date();
+    today.setHours(0, 0, 0, 0);
+    
+    // Son 24 saatteki fiyat değişiklikleri
+    const recentPriceChanges = await db
       .select({
-        id: products.id,
-        title: products.title,
-        trendyolUrl: products.trendyolUrl
+        variantId: priceHistory.variantId,
+        oldPrice: priceHistory.oldPrice,
+        newPrice: priceHistory.newPrice,
+        changeType: priceHistory.changeType,
+        changePercentage: priceHistory.changePercentage,
+        createdAt: priceHistory.createdAt,
+        productId: productVariants.productId,
+        productTitle: products.title,
+        productUrl: products.trendyolUrl,
+        sourcePlatform: products.sourcePlatform
       })
-      .from(products)
-      .orderBy(desc(products.updatedAt))
-      .limit(3);
+      .from(priceHistory)
+      .innerJoin(productVariants, eq(priceHistory.variantId, productVariants.id))
+      .innerJoin(products, eq(productVariants.productId, products.id))
+      .where(
+        and(
+          gte(priceHistory.createdAt, today),
+          isNotNull(priceHistory.oldPrice)
+        )
+      )
+      .orderBy(desc(priceHistory.createdAt))
+      .limit(10);
 
-    const mockChanges = recentProductsForChanges.map((product, index) => {
-      const changeTypes = ['price_increase', 'price_decrease', 'stock_out'];
-      const oldValues = ['1,299.99 TL', '1,899.99 TL', 'Stokta'];
-      const newValues = ['1,399.99 TL', '1,699.99 TL', 'Tükendi'];
-      const percentages = [7.69, -10.53, null];
-      
-      return {
-        id: product.id.toString(),
-        productName: product.title || 'Ürün adı bulunamadı',
-        changeType: changeTypes[index],
-        oldValue: oldValues[index],
-        newValue: newValues[index],
-        timestamp: new Date(Date.now() - (index + 1) * 3600000).toISOString(),
-        percentage: percentages[index],
-        sourceUrl: product.trendyolUrl && product.trendyolUrl.startsWith('http') ? product.trendyolUrl : null,
-        sourcePlatform: product.trendyolUrl && product.trendyolUrl.startsWith('http') ? (
-          product.trendyolUrl.includes('trendyol.com') ? 'trendyol' :
-          product.trendyolUrl.includes('hepsiburada.com') ? 'hepsiburada' :
-          product.trendyolUrl.includes('n11.com') ? 'n11' :
-          'trendyol'
-        ) : 'trendyol'
-      };
-    });
+    // Son 24 saatteki stok değişiklikleri
+    const recentStockChanges = await db
+      .select({
+        variantId: stockHistory.variantId,
+        oldStock: stockHistory.oldStock,
+        newStock: stockHistory.newStock,
+        changeType: stockHistory.changeType,
+        createdAt: stockHistory.createdAt,
+        productId: productVariants.productId,
+        productTitle: products.title,
+        productUrl: products.trendyolUrl,
+        sourcePlatform: products.sourcePlatform
+      })
+      .from(stockHistory)
+      .innerJoin(productVariants, eq(stockHistory.variantId, productVariants.id))
+      .innerJoin(products, eq(productVariants.productId, products.id))
+      .where(
+        and(
+          gte(stockHistory.createdAt, today),
+          isNotNull(stockHistory.oldStock)
+        )
+      )
+      .orderBy(desc(stockHistory.createdAt))
+      .limit(10);
+
+    // Fiyat değişikliklerini formatla
+    const priceChangesFormatted = recentPriceChanges.map(change => ({
+      id: `price_${change.variantId}_${change.createdAt.getTime()}`,
+      productName: change.productTitle || 'Ürün adı bulunamadı',
+      changeType: change.changeType || 'price_change',
+      oldValue: `${parseFloat(change.oldPrice?.toString() || '0').toLocaleString('tr-TR')} TL`,
+      newValue: `${parseFloat(change.newPrice?.toString() || '0').toLocaleString('tr-TR')} TL`,
+      timestamp: change.createdAt.toISOString(),
+      percentage: change.changePercentage ? parseFloat(change.changePercentage.toString()) : null,
+      sourceUrl: change.productUrl && change.productUrl.startsWith('http') ? change.productUrl : null,
+      sourcePlatform: change.sourcePlatform || 'trendyol'
+    }));
+
+    // Stok değişikliklerini formatla
+    const stockChangesFormatted = recentStockChanges.map(change => ({
+      id: `stock_${change.variantId}_${change.createdAt.getTime()}`,
+      productName: change.productTitle || 'Ürün adı bulunamadı',
+      changeType: change.changeType || 'stock_change',
+      oldValue: `${change.oldStock || 0} adet`,
+      newValue: `${change.newStock || 0} adet`,
+      timestamp: change.createdAt.toISOString(),
+      percentage: null,
+      sourceUrl: change.productUrl && change.productUrl.startsWith('http') ? change.productUrl : null,
+      sourcePlatform: change.sourcePlatform || 'trendyol'
+    }));
+
+    // Tüm değişiklikleri birleştir ve tarihe göre sırala
+    const allChanges = [...priceChangesFormatted, ...stockChangesFormatted]
+      .sort((a, b) => new Date(b.timestamp).getTime() - new Date(a.timestamp).getTime())
+      .slice(0, 15); // Son 15 değişiklik
 
     res.json({
       success: true,
-      changes: mockChanges
+      changes: allChanges
     });
   } catch (error) {
     console.error('Product changes error:', error);
-    res.status(500).json({
-      success: false,
-      message: 'Failed to fetch product changes'
+    res.json({
+      success: true,
+      changes: [] // Hata durumunda boş array döndür
     });
   }
 });
