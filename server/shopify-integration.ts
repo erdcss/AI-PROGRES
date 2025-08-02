@@ -1,6 +1,6 @@
 import axios from 'axios';
 import { db } from './db';
-import { eq } from 'drizzle-orm';
+import { eq, sql, inArray } from 'drizzle-orm';
 import {
   products,
   productVariants,
@@ -559,6 +559,161 @@ export class ShopifyIntegration {
 
   // Shopify ürünlerini veritabanına kaydet
   async saveProductsToDatabase(shopifyProducts: any[]): Promise<{savedProducts: number, savedVariants: number}> {
+    let savedProducts = 0;
+    let savedVariants = 0;
+
+    try {
+      console.log(`🔄 ${shopifyProducts.length} ürün bulk processing ile kaydediliyor...`);
+      
+      // Tüm ürünleri UPSERT ile kaydet - duplicate problem yok
+      const allProducts = shopifyProducts;
+      console.log(`📦 ${allProducts.length} ürün UPSERT ile kaydedilecek`);
+      
+      // Batch UPSERT için ürünleri hazırla
+      if (allProducts.length > 0) {
+        const batchSize = 50; // 50'şer ürün UPSERT
+        for (let i = 0; i < allProducts.length; i += batchSize) {
+          const batch = allProducts.slice(i, i + batchSize);
+          
+          const productsToInsert = batch.map(shopifyProduct => ({
+            trendyolUrl: shopifyProduct.shopifyUrl || `https://shopify.com/products/${shopifyProduct.shopifyProductId}`,
+            trendyolProductId: shopifyProduct.shopifyProductId,
+            shopifyProductId: shopifyProduct.shopifyProductId,
+            title: shopifyProduct.title,
+            brand: shopifyProduct.brand,
+            description: shopifyProduct.productType || '',
+            category: shopifyProduct.productType || 'Genel',
+            images: shopifyProduct.images || [],
+            features: { tags: shopifyProduct.tags || [] },
+            colorOptions: [],
+            sizeOptions: [],
+            originalPrice: shopifyProduct.originalPrice || '0',
+            currentPrice: shopifyProduct.currentPrice || '0',
+            stockStatus: shopifyProduct.stockStatus || 'in_stock',
+            lastChecked: new Date(),
+            sourceUrl: shopifyProduct.shopifyUrl,
+            sourcePlatform: 'shopify',
+            shopifyUrl: shopifyProduct.shopifyUrl,
+            shopifyStoreUrl: shopifyProduct.shopifyUrl,
+            isActive: true,
+            profitMargin: '15.00',
+            lastSyncAt: new Date(),
+            syncStatus: 'synced'
+          }));
+          
+          // Batch kontrolü ile tek sorguda mevcut ürünleri bul
+          const batchShopifyIds = productsToInsert.map(p => p.shopifyProductId);
+          const existingBatchProducts = await db
+            .select({ id: products.id, shopifyProductId: products.shopifyProductId })
+            .from(products)
+            .where(inArray(products.shopifyProductId, batchShopifyIds));
+          
+          const existingBatchMap = new Map(existingBatchProducts.map(p => [p.shopifyProductId, p.id]));
+          
+          const newBatchProducts = [];
+          const updateBatchProducts = [];
+          
+          for (const productData of productsToInsert) {
+            const existingId = existingBatchMap.get(productData.shopifyProductId);
+            if (existingId) {
+              updateBatchProducts.push({ ...productData, id: existingId });
+            } else {
+              newBatchProducts.push(productData);
+            }
+          }
+          
+          console.log(`📦 Batch ${Math.floor(i/batchSize) + 1}: ${newBatchProducts.length} yeni, ${updateBatchProducts.length} güncelleme`);
+          
+          const insertedProducts = [];
+          
+          // Yeni ürünleri ekle
+          if (newBatchProducts.length > 0) {
+            const newInserted = await db.insert(products).values(newBatchProducts).returning();
+            insertedProducts.push(...newInserted);
+          }
+          
+          // Mevcut ürünleri güncelle
+          for (const updateProduct of updateBatchProducts) {
+            await db.update(products)
+              .set({
+                title: updateProduct.title,
+                brand: updateProduct.brand,
+                currentPrice: updateProduct.currentPrice,
+                stockStatus: updateProduct.stockStatus,
+                lastChecked: new Date(),
+                lastSyncAt: new Date(),
+                updatedAt: new Date()
+              })
+              .where(eq(products.id, updateProduct.id));
+            
+            // Güncellenmiş ürünü de listeye ekle
+            const [updatedProduct] = await db.select().from(products).where(eq(products.id, updateProduct.id)).limit(1);
+            if (updatedProduct) {
+              insertedProducts.push(updatedProduct);
+            }
+          }
+          savedProducts += insertedProducts.length;
+          
+          console.log(`✅ Batch ${Math.floor(i/batchSize) + 1}: ${insertedProducts.length} ürün UPSERT edildi`);
+          
+          // Batch varyantları kaydet
+          for (let j = 0; j < insertedProducts.length; j++) {
+            const insertedProduct = insertedProducts[j];
+            const shopifyProduct = batch[j];
+            
+            if (shopifyProduct.variants && shopifyProduct.variants.length > 0) {
+              const variantsToInsert = shopifyProduct.variants.map((variant: any) => ({
+                productId: insertedProduct.id,
+                shopifyVariantId: variant.shopifyVariantId,
+                color: variant.color || 'Varsayılan',
+                size: variant.size || 'Tek Beden',
+                sku: variant.sku,
+                trendyolPrice: variant.trendyolPrice || '0',
+                shopifyPrice: variant.shopifyPrice || '0',
+                stockCount: variant.stockCount || 0,
+                inStock: variant.inStock !== false
+              }));
+              
+              await db.insert(productVariants).values(variantsToInsert);
+              savedVariants += variantsToInsert.length;
+            }
+          }
+        }
+      }
+      
+      // Batch update mevcut ürünler
+      if (updateProducts.length > 0) {
+        for (const updateProduct of updateProducts) {
+          await db.update(products)
+            .set({ 
+              lastChecked: new Date(),
+              lastSyncAt: new Date(),
+              currentPrice: updateProduct.currentPrice || '0',
+              stockStatus: updateProduct.stockStatus || 'in_stock',
+              updatedAt: new Date()
+            })
+            .where(eq(products.id, updateProduct.id));
+        }
+        console.log(`🔄 ${updateProducts.length} ürün güncellendi`);
+      }
+      
+      console.log(`✅ Bulk processing tamamlandı: ${savedProducts} yeni ürün, ${savedVariants} varyant kaydedildi`);
+      
+      return { savedProducts, savedVariants };
+      
+    } catch (error: any) {
+      console.error('❌ Bulk save hatası:', error);
+      throw error;
+    }
+  }
+
+  // Eski slow method artık kullanılmıyor
+  async saveProductsToDatabase_OLD_SLOW(shopifyProducts: any[]): Promise<{savedProducts: number, savedVariants: number}> {
+    // Bu metod artık kullanılmıyor - bulk processing kullanılıyor
+    return this.saveProductsToDatabase(shopifyProducts);
+  }
+
+  private async saveProductsOneByOne(shopifyProducts: any[]): Promise<{savedProducts: number, savedVariants: number}> {
     let savedProducts = 0;
     let savedVariants = 0;
 
