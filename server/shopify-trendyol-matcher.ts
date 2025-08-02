@@ -201,7 +201,7 @@ ${profitableMatches.length > 10 ? `\n📋 Ve ${profitableMatches.length - 10} ü
 ⏰ Analiz Zamanı: ${new Date().toLocaleString('tr-TR')}`;
 
     // Telegram'a gönder (grup chat ID kullan)
-    const chatId = '-1002405506985'; // Grup chat ID'nizi buraya yazın
+    const chatId = '1219880063'; // Kişisel chat ID
     
     await telegramBot.sendMessage(chatId, report, { 
       parse_mode: 'Markdown',
@@ -403,7 +403,7 @@ router.post('/find-price-changes', async (req, res) => {
           }).join('\n\n') +
           `\n\n⏰ Tespit Zamanı: ${new Date().toLocaleString('tr-TR')}`;
 
-        const chatId = '-1002405506985';
+        const chatId = '1219880063';
         await telegramBot.sendMessage(chatId, report, { 
           parse_mode: 'Markdown',
           disable_web_page_preview: true 

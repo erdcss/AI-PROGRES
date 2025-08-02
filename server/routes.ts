@@ -2289,7 +2289,7 @@ export function registerRoutes(app: Express): Server {
           
           const axios = require('axios');
           await axios.post(`https://api.telegram.org/bot${telegramBotToken}/sendMessage`, {
-            chat_id: '-1002405506985',
+            chat_id: '1219880063',
             text: report,
             parse_mode: 'Markdown'
           });
@@ -2347,7 +2347,7 @@ export function registerRoutes(app: Express): Server {
           'Content-Type': 'application/json'
         },
         body: JSON.stringify({
-          chat_id: '-1002405506985', // Grup chat ID
+          chat_id: '1219880063', // Kişisel chat ID
           text: message,
           parse_mode: 'Markdown',
           disable_web_page_preview: true

@@ -391,7 +391,7 @@ app.use('/api/sos', sosRoutes);
             `• Marka: ${exampleProduct.brand || 'Belirtilmemiş'}\n\n` +
             `⏰ Tespit Zamanı: ${new Date().toLocaleString('tr-TR')}`;
 
-          const chatId = '-1002405506985';
+          const chatId = '1219880063';
           await telegramBot.sendMessage(chatId, report, { 
             parse_mode: 'Markdown',
             disable_web_page_preview: true 
