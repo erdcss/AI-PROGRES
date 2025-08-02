@@ -7,7 +7,7 @@ import { Badge } from "@/components/ui/badge";
 import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert";
 import { Separator } from "@/components/ui/separator";
 import { ScrollArea } from "@/components/ui/scroll-area";
-import { RefreshCw, Send, MessageCircle, Package, TrendingUp, Clock, Database, Zap, ExternalLink } from 'lucide-react';
+import { RefreshCw, Send, MessageCircle, Package, TrendingUp, Clock, Database, Zap, ExternalLink, ShoppingCart, Download, Upload, Sync } from 'lucide-react';
 import { motion } from 'framer-motion';
 import { RealTimeClock } from './RealTimeClock';
 
@@ -108,6 +108,8 @@ export const ProductDataAnalysis: React.FC = () => {
   const [isClearingMemory, setIsClearingMemory] = useState(false);
   const [isRefreshing, setIsRefreshing] = useState(false);
   const [currentDateTime, setCurrentDateTime] = useState('');
+  const [isSyncingShopify, setIsSyncingShopify] = useState(false);
+  const [shopifyStoreInfo, setShopifyStoreInfo] = useState<any>(null);
 
   // Refresh all data function
   const handleRefreshAll = async () => {
@@ -309,6 +311,110 @@ export const ProductDataAnalysis: React.FC = () => {
     }
   };
 
+  // Shopify sync handler
+  const handleShopifySync = async () => {
+    setIsSyncingShopify(true);
+    try {
+      // First get store info
+      const storeResponse = await fetch('/api/shopify/store-info');
+      const storeResult = await storeResponse.json();
+      
+      if (storeResult.success) {
+        setShopifyStoreInfo(storeResult.storeInfo);
+        
+        const successMessage: ChatMessage = {
+          id: Date.now().toString(),
+          type: 'ai',
+          content: `✅ Shopify mağaza bağlantısı başarılı! Mağaza: ${storeResult.storeInfo.name}, Toplam ürün: ${storeResult.storeInfo.productCount}`,
+          timestamp: new Date().toLocaleTimeString('tr-TR')
+        };
+        setChatMessages(prev => [...prev, successMessage]);
+      } else {
+        throw new Error(storeResult.error || 'Shopify bağlantısı başarısız');
+      }
+    } catch (error) {
+      const errorMessage: ChatMessage = {
+        id: Date.now().toString(),
+        type: 'ai',
+        content: `❌ Shopify bağlantı hatası: ${error instanceof Error ? error.message : 'Bilinmeyen hata'}`,
+        timestamp: new Date().toLocaleTimeString('tr-TR')
+      };
+      setChatMessages(prev => [...prev, errorMessage]);
+    } finally {
+      setIsSyncingShopify(false);
+    }
+  };
+
+  // Fetch Shopify products
+  const handleFetchShopifyProducts = async () => {
+    setIsSyncingShopify(true);
+    try {
+      const response = await fetch('/api/shopify/fetch-products');
+      const result = await response.json();
+      
+      if (result.success) {
+        const successMessage: ChatMessage = {
+          id: Date.now().toString(),
+          type: 'ai',
+          content: `📦 Shopify'dan ${result.products.length} ürün başarıyla çekildi. Şimdi hafızaya aktarabilirsiniz.`,
+          timestamp: new Date().toLocaleTimeString('tr-TR')
+        };
+        setChatMessages(prev => [...prev, successMessage]);
+      } else {
+        throw new Error(result.error || 'Ürün çekme işlemi başarısız');
+      }
+    } catch (error) {
+      const errorMessage: ChatMessage = {
+        id: Date.now().toString(),
+        type: 'ai',
+        content: `❌ Shopify ürün çekme hatası: ${error instanceof Error ? error.message : 'Bilinmeyen hata'}`,
+        timestamp: new Date().toLocaleTimeString('tr-TR')
+      };
+      setChatMessages(prev => [...prev, errorMessage]);
+    } finally {
+      setIsSyncingShopify(false);
+    }
+  };
+
+  // Import to memory
+  const handleImportToMemory = async () => {
+    setIsSyncingShopify(true);
+    try {
+      const response = await fetch('/api/shopify/import-to-memory', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+      });
+      const result = await response.json();
+      
+      if (result.success) {
+        const successMessage: ChatMessage = {
+          id: Date.now().toString(),
+          type: 'ai',
+          content: `✅ ${result.importedProducts} ürün hafızaya başarıyla aktarıldı! ${result.skippedProducts} ürün zaten mevcut olduğu için atlandı.`,
+          timestamp: new Date().toLocaleTimeString('tr-TR')
+        };
+        setChatMessages(prev => [...prev, successMessage]);
+        
+        // Refresh all data after import
+        await handleRefreshAll();
+      } else {
+        throw new Error(result.error || 'Hafızaya aktarma işlemi başarısız');
+      }
+    } catch (error) {
+      const errorMessage: ChatMessage = {
+        id: Date.now().toString(),
+        type: 'ai',
+        content: `❌ Hafızaya aktarma hatası: ${error instanceof Error ? error.message : 'Bilinmeyen hata'}`,
+        timestamp: new Date().toLocaleTimeString('tr-TR')
+      };
+      setChatMessages(prev => [...prev, errorMessage]);
+    } finally {
+      setIsSyncingShopify(false);
+    }
+  };
+
   const getPlatformLinkColor = (platform?: string) => {
     switch (platform?.toLowerCase()) {
       case 'trendyol':
@@ -354,8 +460,8 @@ export const ProductDataAnalysis: React.FC = () => {
           <RealTimeClock />
         </div>
 
-        {/* Refresh Button */}
-        <div className="flex justify-center">
+        {/* Control Buttons */}
+        <div className="flex justify-center gap-4">
           <Button
             onClick={handleRefreshAll}
             disabled={isRefreshing}
@@ -363,6 +469,14 @@ export const ProductDataAnalysis: React.FC = () => {
           >
             <RefreshCw className={`w-4 h-4 mr-2 ${isRefreshing ? 'animate-spin' : ''}`} />
             {isRefreshing ? 'Yenileniyor...' : 'Tüm Verileri Yenile'}
+          </Button>
+          <Button
+            onClick={handleShopifySync}
+            disabled={isSyncingShopify}
+            className="bg-gradient-to-r from-emerald-600 to-green-600 hover:from-emerald-700 hover:to-green-700 text-white"
+          >
+            <Sync className={`w-4 h-4 mr-2 ${isSyncingShopify ? 'animate-spin' : ''}`} />
+            {isSyncingShopify ? 'Senkronizasyon...' : 'Shopify Senkronizasyonu'}
           </Button>
         </div>
 
@@ -468,6 +582,71 @@ export const ProductDataAnalysis: React.FC = () => {
             </Card>
           </motion.div>
         </div>
+
+        {/* Shopify Integration Section */}
+        {shopifyStoreInfo && (
+          <motion.div
+            initial={{ opacity: 0, y: 20 }}
+            animate={{ opacity: 1, y: 0 }}
+            transition={{ duration: 0.6, delay: 0.5 }}
+          >
+            <Card className="bg-gradient-to-br from-emerald-800/50 to-green-900/30 border-emerald-500/30 backdrop-blur-sm">
+              <CardHeader>
+                <CardTitle className="text-xl text-white flex items-center gap-2">
+                  <ShoppingCart className="w-5 h-5 text-emerald-400" />
+                  Shopify Mağaza Bilgileri
+                </CardTitle>
+                <CardDescription className="text-gray-400">
+                  Bağlı Shopify mağazanızın detayları
+                </CardDescription>
+              </CardHeader>
+              <CardContent>
+                <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+                  <div className="p-4 bg-slate-800/50 rounded-lg">
+                    <h4 className="text-sm font-medium text-gray-300 mb-2">Mağaza Adı</h4>
+                    <p className="text-white font-semibold">{shopifyStoreInfo.name}</p>
+                  </div>
+                  <div className="p-4 bg-slate-800/50 rounded-lg">
+                    <h4 className="text-sm font-medium text-gray-300 mb-2">Domain</h4>
+                    <p className="text-white font-semibold">{shopifyStoreInfo.domain}</p>
+                  </div>
+                  <div className="p-4 bg-slate-800/50 rounded-lg">
+                    <h4 className="text-sm font-medium text-gray-300 mb-2">Toplam Ürün</h4>
+                    <p className="text-white font-semibold">{shopifyStoreInfo.productCount}</p>
+                  </div>
+                </div>
+                <div className="mt-4 flex gap-3">
+                  <Button
+                    onClick={handleFetchShopifyProducts}
+                    disabled={isSyncingShopify}
+                    className="bg-blue-600 hover:bg-blue-700 text-white"
+                  >
+                    <Download className="w-4 h-4 mr-2" />
+                    Ürünleri Çek
+                  </Button>
+                  <Button
+                    onClick={handleImportToMemory}
+                    disabled={isSyncingShopify}
+                    className="bg-purple-600 hover:bg-purple-700 text-white"
+                  >
+                    <Upload className="w-4 h-4 mr-2" />
+                    Hafızaya Aktar
+                  </Button>
+                  {shopifyStoreInfo.storeUrl && (
+                    <Button
+                      onClick={() => window.open(shopifyStoreInfo.storeUrl, '_blank')}
+                      variant="outline"
+                      className="border-emerald-500/50 text-emerald-300 hover:bg-emerald-600/20"
+                    >
+                      <ExternalLink className="w-4 h-4 mr-2" />
+                      Mağazayı Ziyaret Et
+                    </Button>
+                  )}
+                </div>
+              </CardContent>
+            </Card>
+          </motion.div>
+        )}
 
         {/* Content Grid */}
         <div className="grid grid-cols-1 lg:grid-cols-2 gap-8">

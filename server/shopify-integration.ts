@@ -455,4 +455,78 @@ export class ShopifyIntegration {
   }
 }
 
+  // Shopify'dan ürünleri çek
+  async fetchProductsFromShopify(limit: number = 50): Promise<any[]> {
+    try {
+      console.log('🔍 Shopify ürünleri çekiliyor...');
+      
+      const response = await axios.get(
+        `${this.baseUrl}/products.json?limit=${limit}&fields=id,title,vendor,handle,product_type,tags,variants,images,created_at,updated_at`,
+        { headers: this.headers }
+      );
+
+      const shopifyProducts = response.data.products || [];
+      console.log(`✅ ${shopifyProducts.length} Shopify ürünü bulundu`);
+      
+      return shopifyProducts.map(product => ({
+        shopifyProductId: product.id.toString(),
+        title: product.title,
+        brand: product.vendor || 'Bilinmeyen Marka',
+        productType: product.product_type,
+        tags: product.tags ? product.tags.split(',').map((tag: string) => tag.trim()) : [],
+        handle: product.handle,
+        shopifyUrl: `https://${this.shopifyDomain.replace('.myshopify.com', '')}.myshopify.com/products/${product.handle}`,
+        images: product.images?.map((img: any) => img.src) || [],
+        variants: product.variants?.map((variant: any) => ({
+          shopifyVariantId: variant.id.toString(),
+          title: variant.title,
+          price: variant.price,
+          sku: variant.sku,
+          inventory_quantity: variant.inventory_quantity
+        })) || [],
+        createdAt: product.created_at,
+        updatedAt: product.updated_at,
+        currentPrice: product.variants?.[0]?.price || '0.00',
+        originalPrice: product.variants?.[0]?.compare_at_price || product.variants?.[0]?.price || '0.00',
+        stockStatus: product.variants?.some((v: any) => v.inventory_quantity > 0) ? 'in_stock' : 'out_of_stock',
+        sourcePlatform: 'shopify'
+      }));
+      
+    } catch (error) {
+      console.error('❌ Shopify ürün çekme hatası:', error);
+      throw new Error(`Shopify API hatası: ${error instanceof Error ? error.message : 'Bilinmeyen hata'}`);
+    }
+  }
+
+  // Mağaza bilgilerini çek
+  async getStoreInfo(): Promise<any> {
+    try {
+      const response = await axios.get(
+        `${this.baseUrl}/shop.json`,
+        { headers: this.headers }
+      );
+      
+      return response.data.shop;
+    } catch (error) {
+      console.error('❌ Shopify mağaza bilgisi hatası:', error);
+      throw error;
+    }
+  }
+
+  // Ürün sayısını çek
+  async getProductCount(): Promise<number> {
+    try {
+      const response = await axios.get(
+        `${this.baseUrl}/products/count.json`,
+        { headers: this.headers }
+      );
+      
+      return response.data.count || 0;
+    } catch (error) {
+      console.error('❌ Shopify ürün sayısı hatası:', error);
+      return 0;
+    }
+  }
+}
+
 export const shopifyIntegration = new ShopifyIntegration();

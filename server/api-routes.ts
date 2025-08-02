@@ -2411,4 +2411,231 @@ router.get('/api/shopify/store-stats', async (req, res) => {
   }
 });
 
+// ============ ŞOPİFY ÜRÜN ÇEKME API'LERİ ============
+
+// Shopify'dan ürünleri çek
+router.get('/api/shopify/fetch-products', async (req, res) => {
+  try {
+    const limit = parseInt(req.query.limit as string) || 50;
+    
+    console.log(`🔍 Shopify'dan ${limit} ürün çekiliyor...`);
+    const products = await shopifyIntegration.fetchProductsFromShopify(limit);
+    
+    res.json({
+      success: true,
+      products,
+      count: products.length,
+      message: `${products.length} ürün Shopify'dan başarıyla çekildi`
+    });
+    
+  } catch (error) {
+    console.error('Shopify product fetch error:', error);
+    res.status(500).json({ 
+      success: false, 
+      error: 'Shopify ürünleri çekilirken hata oluştu',
+      details: error instanceof Error ? error.message : 'Bilinmeyen hata'
+    });
+  }
+});
+
+// Shopify ürünlerini memory'e kaydet
+router.post('/api/shopify/import-to-memory', async (req, res) => {
+  try {
+    const { products } = req.body;
+    
+    if (!products || !Array.isArray(products)) {
+      return res.status(400).json({
+        success: false,
+        error: 'Geçerli ürün listesi gerekli'
+      });
+    }
+    
+    console.log(`💾 ${products.length} Shopify ürünü memory'e kaydediliyor...`);
+    
+    let savedCount = 0;
+    const errors = [];
+    
+    for (const product of products) {
+      try {
+        // Memory'e kaydet
+        const savedProduct = memorySystem.storeProduct({
+          title: product.title,
+          brand: product.brand,
+          currentPrice: product.currentPrice,
+          originalPrice: product.originalPrice,
+          images: product.images,
+          stockStatus: product.stockStatus,
+          sourcePlatform: 'shopify',
+          shopifyProductId: product.shopifyProductId,
+          shopifyUrl: product.shopifyUrl,
+          trendyolUrl: null,
+          sourceUrl: product.shopifyUrl,
+          features: [
+            { key: 'Product Type', value: product.productType },
+            { key: 'Handle', value: product.handle },
+            { key: 'Tags', value: product.tags?.join(', ') || '' },
+            { key: 'Variants', value: product.variants?.length?.toString() || '0' }
+          ],
+          colorOptions: [],
+          sizeOptions: [],
+          isActive: true,
+          profitMargin: '15.00',
+          syncStatus: 'synced'
+        });
+        
+        savedCount++;
+      } catch (error) {
+        errors.push({
+          product: product.title,
+          error: error instanceof Error ? error.message : 'Bilinmeyen hata'
+        });
+      }
+    }
+    
+    // Telegram bildirimi gönder
+    if (telegramIntegration && savedCount > 0) {
+      await telegramIntegration.sendNotification(
+        `🛍️ SHOPIFY ÜRÜN İTHALATI TAMAMLANDI\n\n` +
+        `📦 ${savedCount} ürün başarıyla içe aktarıldı\n` +
+        `💰 Toplam değer: ${products.reduce((sum, p) => sum + parseFloat(p.currentPrice || '0'), 0).toFixed(2)} TL\n` +
+        `🏪 Kaynak: Shopify mağazası\n` +
+        `⏰ Tarih: ${new Date().toLocaleDateString('tr-TR')}\n\n` +
+        `${errors.length > 0 ? `⚠️ ${errors.length} hata oluştu` : '✅ Tüm ürünler başarıyla kaydedildi'}`
+      );
+    }
+    
+    res.json({
+      success: true,
+      savedCount,
+      totalCount: products.length,
+      errors,
+      message: `${savedCount}/${products.length} ürün başarıyla memory'e kaydedildi`
+    });
+    
+  } catch (error) {
+    console.error('Shopify import error:', error);
+    res.status(500).json({ 
+      success: false, 
+      error: 'Shopify ürünleri içe aktarılırken hata oluştu',
+      details: error instanceof Error ? error.message : 'Bilinmeyen hata'
+    });
+  }
+});
+
+// Shopify mağaza bilgileri
+router.get('/api/shopify/store-info', async (req, res) => {
+  try {
+    const storeInfo = await shopifyIntegration.getStoreInfo();
+    const productCount = await shopifyIntegration.getProductCount();
+    
+    res.json({
+      success: true,
+      store: {
+        name: storeInfo.name,
+        domain: storeInfo.domain,
+        email: storeInfo.email,
+        country: storeInfo.country_name,
+        currency: storeInfo.currency,
+        timezone: storeInfo.timezone,
+        plan: storeInfo.plan_name,
+        productCount
+      }
+    });
+    
+  } catch (error) {
+    console.error('Shopify store info error:', error);
+    res.status(500).json({ 
+      success: false, 
+      error: 'Shopify mağaza bilgileri alınırken hata oluştu' 
+    });
+  }
+});
+
+// Shopify'dan ürün çek ve memory'e kaydet (tek seferde)
+router.post('/api/shopify/sync-all-products', async (req, res) => {
+  try {
+    const limit = parseInt(req.body.limit) || 100;
+    
+    // Önce ürünleri çek
+    console.log(`🔄 Shopify'dan ${limit} ürün çekiliyor ve memory'e kaydediliyor...`);
+    const products = await shopifyIntegration.fetchProductsFromShopify(limit);
+    
+    if (products.length === 0) {
+      return res.json({
+        success: true,
+        message: 'Shopify mağazasında ürün bulunamadı',
+        savedCount: 0
+      });
+    }
+    
+    // Memory'e kaydet
+    let savedCount = 0;
+    const errors = [];
+    
+    for (const product of products) {
+      try {
+        memorySystem.storeProduct({
+          title: product.title,
+          brand: product.brand,
+          currentPrice: product.currentPrice,
+          originalPrice: product.originalPrice,
+          images: product.images,
+          stockStatus: product.stockStatus,
+          sourcePlatform: 'shopify',
+          shopifyProductId: product.shopifyProductId,
+          shopifyUrl: product.shopifyUrl,
+          trendyolUrl: null,
+          sourceUrl: product.shopifyUrl,
+          features: [
+            { key: 'Product Type', value: product.productType },
+            { key: 'Handle', value: product.handle },
+            { key: 'Tags', value: product.tags?.join(', ') || '' },
+            { key: 'Variants', value: product.variants?.length?.toString() || '0' }
+          ],
+          colorOptions: [],
+          sizeOptions: [],
+          isActive: true,
+          profitMargin: '15.00',
+          syncStatus: 'synced'
+        });
+        
+        savedCount++;
+      } catch (error) {
+        errors.push({
+          product: product.title,
+          error: error instanceof Error ? error.message : 'Bilinmeyen hata'
+        });
+      }
+    }
+    
+    // Telegram bildirimi
+    if (telegramIntegration && savedCount > 0) {
+      await telegramIntegration.sendNotification(
+        `🔄 SHOPIFY SENKRONIZASYON TAMAMLANDI\n\n` +
+        `📦 ${savedCount} ürün senkronize edildi\n` +
+        `💰 Toplam değer: ${products.reduce((sum, p) => sum + parseFloat(p.currentPrice || '0'), 0).toFixed(2)} TL\n` +
+        `🏪 Shopify → Memory System\n` +
+        `⏰ ${new Date().toLocaleDateString('tr-TR')} ${new Date().toLocaleTimeString('tr-TR')}\n\n` +
+        `${errors.length > 0 ? `⚠️ ${errors.length} hata` : '✅ Başarılı'}`
+      );
+    }
+    
+    res.json({
+      success: true,
+      fetchedCount: products.length,
+      savedCount,
+      errors,
+      message: `${savedCount} ürün Shopify'dan çekilip memory'e kaydedildi`
+    });
+    
+  } catch (error) {
+    console.error('Shopify sync error:', error);
+    res.status(500).json({ 
+      success: false, 
+      error: 'Shopify senkronizasyonu sırasında hata oluştu',
+      details: error instanceof Error ? error.message : 'Bilinmeyen hata'
+    });
+  }
+});
+
 export default router;
