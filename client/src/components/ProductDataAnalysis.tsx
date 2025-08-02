@@ -110,6 +110,8 @@ export const ProductDataAnalysis: React.FC = () => {
   const [currentDateTime, setCurrentDateTime] = useState('');
   const [isSyncingShopify, setIsSyncingShopify] = useState(false);
   const [shopifyStoreInfo, setShopifyStoreInfo] = useState<any>(null);
+  const [shopifyMemoryProducts, setShopifyMemoryProducts] = useState<ShopifyProduct[]>([]);
+  const [isLoadingShopifyProducts, setIsLoadingShopifyProducts] = useState(false);
 
   // Refresh all data function
   const handleRefreshAll = async () => {
@@ -122,7 +124,8 @@ export const ProductDataAnalysis: React.FC = () => {
         refetchChanges(),
         refetchShopifyProducts(),
         refetchShopifyStats(),
-        refetchScheduler()
+        refetchScheduler(),
+        loadShopifyMemoryProducts()
       ]);
     } catch (error) {
       console.error('Refresh failed:', error);
@@ -380,7 +383,7 @@ export const ProductDataAnalysis: React.FC = () => {
   const handleImportToMemory = async () => {
     setIsSyncingShopify(true);
     try {
-      const response = await fetch('/api/shopify/import-to-memory', {
+      const response = await fetch('/api/shopify/save-to-memory', {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
@@ -392,10 +395,13 @@ export const ProductDataAnalysis: React.FC = () => {
         const successMessage: ChatMessage = {
           id: Date.now().toString(),
           type: 'ai',
-          content: `✅ ${result.importedProducts} ürün hafızaya başarıyla aktarıldı! ${result.skippedProducts} ürün zaten mevcut olduğu için atlandı.`,
+          content: `✅ ${result.savedProducts} ürün ve ${result.savedVariants} varyant hafızaya başarıyla kaydedildi!`,
           timestamp: new Date().toLocaleTimeString('tr-TR')
         };
         setChatMessages(prev => [...prev, successMessage]);
+        
+        // Hafızadaki Shopify ürünlerini yenile
+        await loadShopifyMemoryProducts();
         
         // Refresh all data after import
         await handleRefreshAll();
@@ -412,6 +418,25 @@ export const ProductDataAnalysis: React.FC = () => {
       setChatMessages(prev => [...prev, errorMessage]);
     } finally {
       setIsSyncingShopify(false);
+    }
+  };
+
+  // Hafızadaki Shopify ürünlerini yükle
+  const loadShopifyMemoryProducts = async () => {
+    setIsLoadingShopifyProducts(true);
+    try {
+      const response = await fetch('/api/shopify/memory-products');
+      const result = await response.json();
+      
+      if (result.success) {
+        setShopifyMemoryProducts(result.products || []);
+      } else {
+        console.error('Shopify hafıza ürünleri yükleme hatası:', result.error);
+      }
+    } catch (error) {
+      console.error('Shopify hafıza ürünleri yükleme hatası:', error);
+    } finally {
+      setIsLoadingShopifyProducts(false);
     }
   };
 
@@ -734,6 +759,126 @@ export const ProductDataAnalysis: React.FC = () => {
                     )}
                   </div>
                 </ScrollArea>
+              </CardContent>
+            </Card>
+          </motion.div>
+
+          {/* Hafızadaki Shopify Ürünleri */}
+          <motion.div
+            initial={{ opacity: 0, y: 20 }}
+            animate={{ opacity: 1, y: 0 }}
+            transition={{ duration: 0.6, delay: 0.45 }}
+            className="mt-6"
+          >
+            <Card className="bg-gradient-to-br from-slate-800/50 to-purple-900/30 border-purple-500/30 backdrop-blur-sm">
+              <CardHeader>
+                <CardTitle className="text-white flex items-center gap-2">
+                  <Database className="w-5 h-5 text-purple-400" />
+                  Hafızadaki Shopify Ürünleri ({shopifyMemoryProducts.length})
+                  <Button
+                    onClick={loadShopifyMemoryProducts}
+                    disabled={isLoadingShopifyProducts}
+                    size="sm"
+                    variant="outline"
+                    className="ml-auto text-white border-white/20 hover:bg-white/10"
+                  >
+                    <RefreshCw className={`w-4 h-4 ${isLoadingShopifyProducts ? 'animate-spin' : ''}`} />
+                  </Button>
+                </CardTitle>
+                <CardDescription className="text-gray-300">
+                  Shopify hesabınızdan hafızaya kaydedilmiş ürünler
+                </CardDescription>
+              </CardHeader>
+              <CardContent>
+                <div className="space-y-4">
+                  {shopifyMemoryProducts.length === 0 ? (
+                    <div className="text-center py-8">
+                      <Package className="w-12 h-12 text-gray-500 mx-auto mb-4" />
+                      <p className="text-gray-400 mb-4">
+                        Henüz hafızada Shopify ürünü bulunmuyor
+                      </p>
+                      <Button
+                        onClick={handleImportToMemory}
+                        disabled={isSyncingShopify}
+                        className="bg-purple-600 hover:bg-purple-700 text-white"
+                      >
+                        <Upload className="w-4 h-4 mr-2" />
+                        {isSyncingShopify ? 'Kaydediliyor...' : 'Shopify Ürünlerini Hafızaya Kaydet'}
+                      </Button>
+                    </div>
+                  ) : (
+                    <div className="space-y-3">
+                      <div className="flex justify-between items-center">
+                        <span className="text-sm text-gray-400">
+                          {shopifyMemoryProducts.length} ürün listeleniyor
+                        </span>
+                        <Button
+                          onClick={handleImportToMemory}
+                          disabled={isSyncingShopify}
+                          size="sm"
+                          className="bg-purple-600 hover:bg-purple-700 text-white"
+                        >
+                          <Upload className="w-4 h-4 mr-2" />
+                          {isSyncingShopify ? 'Güncelleniyor...' : 'Yeniden Kaydet'}
+                        </Button>
+                      </div>
+                      <ScrollArea className="h-64">
+                        <div className="space-y-2">
+                          {shopifyMemoryProducts.map((product, index) => (
+                            <div
+                              key={product.id}
+                              className="flex items-center justify-between p-3 bg-slate-800/30 rounded-lg border border-slate-700/50 hover:border-purple-500/30 transition-colors"
+                            >
+                              <div className="flex-1">
+                                <div className="flex items-center gap-3">
+                                  <div className="w-8 h-8 bg-purple-600 rounded-lg flex items-center justify-center text-white text-xs font-bold">
+                                    {index + 1}
+                                  </div>
+                                  <div className="flex-1">
+                                    <p className="text-white font-medium text-sm truncate">
+                                      {product.title}
+                                    </p>
+                                    <div className="flex items-center gap-2 mt-1">
+                                      <span className="text-xs text-gray-400">{product.brand}</span>
+                                      <span className="text-xs text-purple-400 font-medium">
+                                        {product.currentPrice} TL
+                                      </span>
+                                      {product.shopifyUrl && (
+                                        <a
+                                          href={product.shopifyUrl}
+                                          target="_blank"
+                                          rel="noopener noreferrer"
+                                          className="text-xs text-blue-400 hover:text-blue-300 flex items-center gap-1"
+                                        >
+                                          <ExternalLink className="w-3 h-3" />
+                                          Shopify
+                                        </a>
+                                      )}
+                                    </div>
+                                  </div>
+                                </div>
+                              </div>
+                              <div className="text-right">
+                                <span className="text-xs text-gray-400">
+                                  {product.transferDate}
+                                </span>
+                                <div className="mt-1">
+                                  <span className={`text-xs px-2 py-1 rounded ${
+                                    product.shopifyStatus === 'synced' 
+                                      ? 'bg-green-900/30 text-green-400' 
+                                      : 'bg-yellow-900/30 text-yellow-400'
+                                  }`}>
+                                    {product.shopifyStatus === 'synced' ? 'Senkronize' : 'Beklemede'}
+                                  </span>
+                                </div>
+                              </div>
+                            </div>
+                          ))}
+                        </div>
+                      </ScrollArea>
+                    </div>
+                  )}
+                </div>
               </CardContent>
             </Card>
           </motion.div>

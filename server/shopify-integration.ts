@@ -526,6 +526,115 @@ export class ShopifyIntegration {
       return 0;
     }
   }
+
+  // Shopify ürünlerini veritabanına kaydet
+  async saveProductsToDatabase(shopifyProducts: any[]): Promise<{savedProducts: number, savedVariants: number}> {
+    let savedProducts = 0;
+    let savedVariants = 0;
+
+    try {
+      for (const shopifyProduct of shopifyProducts) {
+        // Önce aynı Shopify ID'li ürün var mı kontrol et
+        const existingProduct = await db.query.products.findFirst({
+          where: eq(products.shopifyProductId, shopifyProduct.shopifyProductId)
+        });
+
+        let productId;
+        
+        if (!existingProduct) {
+          // Yeni ürün kaydet
+          const productData = {
+            trendyolUrl: shopifyProduct.shopifyUrl, // Shopify URL'sini trendyol URL yerine koy
+            trendyolProductId: shopifyProduct.shopifyProductId,
+            shopifyProductId: shopifyProduct.shopifyProductId,
+            title: shopifyProduct.title,
+            brand: shopifyProduct.brand,
+            description: shopifyProduct.productType || '',
+            category: shopifyProduct.productType || 'Genel',
+            images: shopifyProduct.images,
+            features: { tags: shopifyProduct.tags },
+            colorOptions: [],
+            sizeOptions: [],
+            originalPrice: shopifyProduct.originalPrice,
+            currentPrice: shopifyProduct.currentPrice,
+            stockStatus: shopifyProduct.stockStatus,
+            lastChecked: new Date(),
+            sourceUrl: shopifyProduct.shopifyUrl,
+            sourcePlatform: 'shopify',
+            shopifyUrl: shopifyProduct.shopifyUrl,
+            shopifyStoreUrl: shopifyProduct.shopifyUrl,
+            isActive: true,
+            profitMargin: '15.00',
+            lastSyncAt: new Date(),
+            syncStatus: 'synced'
+          };
+
+          const [insertedProduct] = await db.insert(products).values(productData).returning();
+          productId = insertedProduct.id;
+          savedProducts++;
+          
+          console.log(`✅ Ürün kaydedildi: ${shopifyProduct.title}`);
+        } else {
+          productId = existingProduct.id;
+          
+          // Mevcut ürünü güncelle
+          await db.update(products)
+            .set({ 
+              lastChecked: new Date(),
+              lastSyncAt: new Date(),
+              currentPrice: shopifyProduct.currentPrice,
+              stockStatus: shopifyProduct.stockStatus,
+              updatedAt: new Date()
+            })
+            .where(eq(products.id, productId));
+          
+          console.log(`🔄 Ürün güncellendi: ${shopifyProduct.title}`);
+        }
+
+        // Varyantları kaydet
+        for (const variant of shopifyProduct.variants || []) {
+          // Aynı Shopify variant ID'li varyant var mı kontrol et
+          const existingVariant = await db.query.productVariants.findFirst({
+            where: eq(productVariants.shopifyVariantId, variant.shopifyVariantId)
+          });
+
+          if (!existingVariant) {
+            const variantData = {
+              productId: productId,
+              shopifyVariantId: variant.shopifyVariantId,
+              color: variant.title?.includes('/')? variant.title.split('/')[0].trim() : 'Varsayılan',
+              size: variant.title?.includes('/')? variant.title.split('/')[1]?.trim() || 'Tek Beden' : 'Tek Beden',
+              sku: variant.sku || '',
+              trendyolPrice: variant.price,
+              shopifyPrice: variant.price,
+              stockCount: variant.inventory_quantity || 0,
+              inStock: (variant.inventory_quantity || 0) > 0
+            };
+
+            await db.insert(productVariants).values(variantData);
+            savedVariants++;
+          } else {
+            // Mevcut varyantı güncelle
+            await db.update(productVariants)
+              .set({
+                shopifyPrice: variant.price,
+                stockCount: variant.inventory_quantity || 0,
+                inStock: (variant.inventory_quantity || 0) > 0,
+                updatedAt: new Date()
+              })
+              .where(eq(productVariants.shopifyVariantId, variant.shopifyVariantId));
+          }
+        }
+      }
+      
+      console.log(`✅ Shopify hafızaya kaydetme tamamlandı: ${savedProducts} ürün, ${savedVariants} varyant`);
+      return { savedProducts, savedVariants };
+      
+    } catch (error) {
+      console.error('❌ Shopify hafızaya kaydetme hatası:', error);
+      throw error;
+    }
+  }
 }
 
 export const shopifyIntegration = new ShopifyIntegration();

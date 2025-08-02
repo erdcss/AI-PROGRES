@@ -38,6 +38,8 @@ import { scenarioBasedScrape } from './scenario-based-scraper';
 import { ProductManagementSystem } from './product-management-system';
 import { TelegramNotifications } from './comprehensive-telegram-notifier';
 import { generateComprehensiveShopifyCSV, generateFeatureSummary, type ComprehensiveProductData } from './comprehensive-csv-generator';
+import { shopifyIntegration } from './shopify-integration';
+import { eq } from 'drizzle-orm';
 import axios from 'axios';
 
 
@@ -1827,6 +1829,93 @@ export function registerRoutes(app: Express): Server {
       res.status(500).json({
         success: false,
         error: `Ürün oluşturma hatası: ${error.message}`
+      });
+    }
+  });
+
+  // Shopify ürünleri hafızaya kaydetme endpoint'i
+  app.post('/api/shopify/save-to-memory', async (req, res) => {
+    try {
+      console.log('🔄 Shopify ürünleri hafızaya kaydediliyor...');
+      
+      // Önce Shopify'dan ürünleri çek
+      const shopifyProducts = await shopifyIntegration.fetchProductsFromShopify(100);
+      
+      if (shopifyProducts.length === 0) {
+        return res.json({
+          success: true,
+          message: 'Shopify hesabında ürün bulunamadı',
+          savedProducts: 0,
+          savedVariants: 0
+        });
+      }
+      
+      // Ürünleri veritabanına kaydet
+      const result = await shopifyIntegration.saveProductsToDatabase(shopifyProducts);
+      
+      console.log(`✅ Shopify hafızaya kaydetme tamamlandı: ${result.savedProducts} ürün, ${result.savedVariants} varyant`);
+      
+      res.json({
+        success: true,
+        message: `Shopify ürünleri başarıyla hafızaya kaydedildi: ${result.savedProducts} ürün, ${result.savedVariants} varyant`,
+        savedProducts: result.savedProducts,
+        savedVariants: result.savedVariants,
+        totalFetched: shopifyProducts.length
+      });
+      
+    } catch (error: any) {
+      console.error('❌ Shopify hafızaya kaydetme hatası:', error);
+      res.status(500).json({
+        success: false,
+        error: `Shopify hafızaya kaydetme hatası: ${error.message}`
+      });
+    }
+  });
+
+  // Hafızadaki Shopify ürünlerini listeleme endpoint'i
+  app.get('/api/shopify/memory-products', async (req, res) => {
+    try {
+      console.log('📋 Hafızadaki Shopify ürünleri listeleniyor...');
+      
+      const memoryProducts = await db.query.products.findMany({
+        where: eq(productsTable.sourcePlatform, 'shopify'),
+        with: {
+          variants: true
+        },
+        orderBy: [productsTable.updatedAt]
+      });
+      
+      const formattedProducts = memoryProducts.map(product => ({
+        id: product.id,
+        title: product.title,
+        brand: product.brand,
+        currentPrice: product.currentPrice,
+        shopifyProductId: product.shopifyProductId,
+        shopifyUrl: product.shopifyUrl,
+        transferDate: product.createdAt?.toISOString().split('T')[0],
+        shopifyStatus: product.syncStatus,
+        profitMargin: product.profitMargin,
+        sourcePlatform: product.sourcePlatform,
+        stockStatus: product.stockStatus,
+        lastChecked: product.lastChecked,
+        variantCount: product.variants?.length || 0
+      }));
+      
+      res.json({
+        success: true,
+        products: formattedProducts,
+        summary: {
+          totalProducts: formattedProducts.length,
+          totalValue: formattedProducts.reduce((sum, p) => sum + parseFloat(p.currentPrice || '0'), 0).toFixed(2),
+          platformBreakdown: { shopify: formattedProducts.length }
+        }
+      });
+      
+    } catch (error: any) {
+      console.error('❌ Hafızadaki Shopify ürünleri listeleme hatası:', error);
+      res.status(500).json({
+        success: false,
+        error: `Ürün listeleme hatası: ${error.message}`
       });
     }
   });
