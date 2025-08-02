@@ -1,10 +1,12 @@
 import { Router } from 'express';
-import { memorySystem } from './memory-system';
 import { shopifyIntegration } from './shopify-integration';
 import { monitoringService } from './monitoring-service';
 import { storage } from './storage-fixed';
 import { telegramIntegration } from './telegram-integration';
 import { cleanScrape } from './clean-scraper';
+import { db } from './db';
+import { products, productVariants } from '@shared/schema';
+import { eq, desc, or, and, isNotNull } from 'drizzle-orm';
 import { getSystemStatus, sendStatusToTelegram } from './simple-system-status';
 import { ManualColorOverride, generateColorSelectionData, type ManualColorSelection } from './manual-color-override';
 import { enhancedErrorDetection } from './enhanced-error-detection';
@@ -2354,8 +2356,19 @@ router.get('/api/reviews/export/:platform', async (req, res) => {
 // Shopify'a aktarılan ürünleri listele
 router.get('/api/shopify/transferred-products', async (req, res) => {
   try {
-    const memoryProducts = memorySystem.getAllProducts();
-    const shopifyProducts = memoryProducts.filter(p => p.shopifyProductId || p.shopifyUrl);
+    const shopifyProducts = await db
+      .select()
+      .from(products)
+      .where(
+        and(
+          eq(products.isActive, true),
+          or(
+            isNotNull(products.shopifyProductId),
+            isNotNull(products.shopifyUrl)
+          )
+        )
+      )
+      .orderBy(desc(products.lastSyncAt));
     
     const productsWithStats = shopifyProducts.map(product => ({
       ...product,
@@ -2382,11 +2395,21 @@ router.get('/api/shopify/transferred-products', async (req, res) => {
 // Shopify mağaza istatistikleri
 router.get('/api/shopify/store-stats', async (req, res) => {
   try {
-    const memoryProducts = memorySystem.getAllProducts();
-    const shopifyProducts = memoryProducts.filter(p => p.shopifyProductId);
+    const shopifyProducts = await db
+      .select()
+      .from(products)
+      .where(
+        and(
+          eq(products.isActive, true),
+          or(
+            isNotNull(products.shopifyProductId),
+            isNotNull(products.shopifyUrl)
+          )
+        )
+      );
     
     const totalValue = shopifyProducts.reduce((sum, p) => 
-      sum + (parseFloat(p.currentPrice) || 0), 0
+      sum + (parseFloat(p.currentPrice?.toString() || '0') || 0), 0
     );
     
     const platformBreakdown = shopifyProducts.reduce((acc, p) => {

@@ -39,7 +39,7 @@ import { ProductManagementSystem } from './product-management-system';
 import { TelegramNotifications } from './comprehensive-telegram-notifier';
 import { generateComprehensiveShopifyCSV, generateFeatureSummary, type ComprehensiveProductData } from './comprehensive-csv-generator';
 import { shopifyIntegration } from './shopify-integration';
-import { eq } from 'drizzle-orm';
+import { eq, desc, or, and, isNotNull } from 'drizzle-orm';
 import axios from 'axios';
 
 
@@ -2110,6 +2110,116 @@ export function registerRoutes(app: Express): Server {
         success: false, 
         error: 'Recent activity failed', 
         details: error.message 
+      });
+    }
+  });
+
+  // Shopify'a aktarılan ürünleri listele
+  app.get('/api/shopify/transferred-products', async (req, res) => {
+    try {
+      const shopifyProducts = await db
+        .select({
+          id: products.id,
+          title: products.title,
+          brand: products.brand,
+          shopifyProductId: products.shopifyProductId,
+          shopifyUrl: products.shopifyUrl,
+          shopifyStoreUrl: products.shopifyStoreUrl,
+          currentPrice: products.currentPrice,
+          originalPrice: products.originalPrice,
+          sourcePlatform: products.sourcePlatform,
+          trendyolUrl: products.trendyolUrl,
+          lastSyncAt: products.lastSyncAt,
+          createdAt: products.createdAt,
+          syncStatus: products.syncStatus,
+          profitMargin: products.profitMargin
+        })
+        .from(products)
+        .where(eq(products.isActive, true))
+        .limit(20);
+      
+      // Sadece Shopify'a aktarılanları filtrele
+      const transferredProducts = shopifyProducts.filter(p => 
+        p.shopifyProductId || p.shopifyUrl
+      );
+      
+      const productsWithStats = transferredProducts.map(product => ({
+        ...product,
+        transferDate: product.lastSyncAt || product.createdAt,
+        shopifyStatus: product.syncStatus || 'synced',
+        profitMargin: product.profitMargin || '15.00',
+        sourceUrl: product.trendyolUrl
+      }));
+      
+      res.json({
+        success: true,
+        products: productsWithStats,
+        summary: {
+          totalTransferred: transferredProducts.length,
+          lastTransfer: transferredProducts.length > 0 ? 
+            new Date(Math.max(...transferredProducts.map(p => new Date(p.lastSyncAt || p.createdAt).getTime()))).toISOString() : null
+        }
+      });
+    } catch (error) {
+      console.error('Shopify transferred products error:', error);
+      res.json({ 
+        success: true, 
+        products: [],
+        summary: {
+          totalTransferred: 0,
+          lastTransfer: null
+        }
+      });
+    }
+  });
+
+  // Shopify mağaza istatistikleri
+  app.get('/api/shopify/store-stats', async (req, res) => {
+    try {
+      const allProducts = await db
+        .select({
+          currentPrice: products.currentPrice,
+          sourcePlatform: products.sourcePlatform,
+          shopifyProductId: products.shopifyProductId,
+          shopifyUrl: products.shopifyUrl
+        })
+        .from(products)
+        .where(eq(products.isActive, true));
+      
+      // Sadece Shopify'a aktarılanları filtrele
+      const shopifyProducts = allProducts.filter(p => 
+        p.shopifyProductId || p.shopifyUrl
+      );
+      
+      const totalValue = shopifyProducts.reduce((sum, p) => 
+        sum + (parseFloat(p.currentPrice?.toString() || '0') || 0), 0
+      );
+      
+      const platformBreakdown = shopifyProducts.reduce((acc, p) => {
+        const platform = p.sourcePlatform || 'unknown';
+        acc[platform] = (acc[platform] || 0) + 1;
+        return acc;
+      }, {} as Record<string, number>);
+      
+      res.json({
+        success: true,
+        stats: {
+          totalProducts: shopifyProducts.length,
+          totalValue: totalValue.toFixed(2),
+          platformBreakdown,
+          lastUpdate: new Date().toISOString()
+        }
+      });
+    } catch (error) {
+      console.error('Shopify store stats error:', error);
+      res.json({ 
+        success: true, 
+        stats: {
+          totalProducts: 0,
+          totalValue: '0.00',
+          platformBreakdown: {},
+          lastUpdate: new Date().toISOString()
+        }
       });
     }
   });

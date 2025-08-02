@@ -1,7 +1,7 @@
 import { Router } from 'express';
 import { db } from './db';
 import { products, productVariants, stockHistory, priceHistory } from '@shared/schema';
-import { eq, and, desc, sql, or } from 'drizzle-orm';
+import { eq, and, desc, sql, or, isNotNull } from 'drizzle-orm';
 import { productUpdateEngine } from './product-update-engine';
 // Platform detection will be handled in frontend
 
@@ -423,6 +423,110 @@ router.post('/update-all-products', async (req, res) => {
       success: false,
       error: 'Toplu güncelleme işlemi başarısız',
       details: (error as Error).message
+    });
+  }
+});
+
+// Shopify'a aktarılan ürünleri listele
+router.get('/shopify/transferred-products', async (req, res) => {
+  try {
+    const shopifyProducts = await db
+      .select({
+        id: products.id,
+        title: products.title,
+        brand: products.brand,
+        shopifyProductId: products.shopifyProductId,
+        shopifyUrl: products.shopifyUrl,
+        shopifyStoreUrl: products.shopifyStoreUrl,
+        currentPrice: products.currentPrice,
+        originalPrice: products.originalPrice,
+        sourcePlatform: products.sourcePlatform,
+        lastSyncAt: products.lastSyncAt,
+        createdAt: products.createdAt,
+        syncStatus: products.syncStatus,
+        profitMargin: products.profitMargin
+      })
+      .from(products)
+      .where(
+        and(
+          eq(products.isActive, true),
+          or(
+            isNotNull(products.shopifyProductId),
+            isNotNull(products.shopifyUrl)
+          )
+        )
+      )
+      .orderBy(desc(products.lastSyncAt))
+      .limit(20);
+    
+    const productsWithStats = shopifyProducts.map(product => ({
+      ...product,
+      transferDate: product.lastSyncAt || product.createdAt,
+      shopifyStatus: product.syncStatus || 'synced',
+      profitMargin: product.profitMargin || '15.00'
+    }));
+    
+    res.json({
+      success: true,
+      products: productsWithStats,
+      summary: {
+        totalTransferred: shopifyProducts.length,
+        lastTransfer: shopifyProducts.length > 0 ? 
+          new Date(Math.max(...shopifyProducts.map(p => new Date(p.lastSyncAt || p.createdAt).getTime()))).toISOString() : null
+      }
+    });
+  } catch (error) {
+    console.error('Shopify transferred products error:', error);
+    res.status(500).json({ 
+      success: false, 
+      error: 'Shopify aktarılan ürünler alınamadı' 
+    });
+  }
+});
+
+// Shopify mağaza istatistikleri
+router.get('/shopify/store-stats', async (req, res) => {
+  try {
+    const shopifyProducts = await db
+      .select({
+        currentPrice: products.currentPrice,
+        sourcePlatform: products.sourcePlatform
+      })
+      .from(products)
+      .where(
+        and(
+          eq(products.isActive, true),
+          or(
+            isNotNull(products.shopifyProductId),
+            isNotNull(products.shopifyUrl)
+          )
+        )
+      );
+    
+    const totalValue = shopifyProducts.reduce((sum, p) => 
+      sum + (parseFloat(p.currentPrice?.toString() || '0') || 0), 0
+    );
+    
+    const platformBreakdown = shopifyProducts.reduce((acc, p) => {
+      const platform = p.sourcePlatform || 'unknown';
+      acc[platform] = (acc[platform] || 0) + 1;
+      return acc;
+    }, {} as Record<string, number>);
+    
+    res.json({
+      success: true,
+      stats: {
+        totalProducts: shopifyProducts.length,
+        totalValue: totalValue.toFixed(2),
+        platformBreakdown,
+        lastUpdate: new Date().toISOString()
+      }
+    });
+  } catch (error) {
+    console.error('Shopify store stats error:', error);
+    res.status(500).json({ 
+      success: false, 
+      error: 'Shopify mağaza istatistikleri alınamadı' 
     });
   }
 });
