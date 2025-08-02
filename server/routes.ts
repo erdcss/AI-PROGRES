@@ -19,11 +19,9 @@ import { extractFocusedData } from './focused-extractor';
 import { dailyScheduler } from './scheduler';
 import dataAnalysisRoutes from './data-analysis-routes';
 import { db } from './db';
-import { eq, isNotNull } from 'drizzle-orm';
 import memoryStatusRoutes from './memory-status-api';
 import { testImageExtraction } from './direct-image-test';
 import { initializeScheduler, getSchedulerStatus, executeTaskManually } from './simple-scheduler';
-import { db } from './db';
 import { manualFeatureExtraction } from './manual-feature-test';
 import { preciseFeatureExtraction } from './precise-feature-extractor';
 import { generateBoutiqueCSV } from './boutique-csv-generator';
@@ -41,7 +39,8 @@ import { ProductManagementSystem } from './product-management-system';
 import { TelegramNotifications } from './comprehensive-telegram-notifier';
 import { generateComprehensiveShopifyCSV, generateFeatureSummary, type ComprehensiveProductData } from './comprehensive-csv-generator';
 import { shopifyIntegration } from './shopify-integration';
-import { eq, desc, or, and, isNotNull } from 'drizzle-orm';
+import shopifyTrendyolMatcher from './shopify-trendyol-matcher';
+import { eq, desc, or, and, isNotNull, inArray } from 'drizzle-orm';
 import axios from 'axios';
 
 

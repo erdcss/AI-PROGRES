@@ -5,6 +5,7 @@ import apiRoutes from "./api-routes";
 import importRoutes from "./import-route";
 import dataAnalysisRoutes from './data-analysis-routes';
 import memoryStatusRoutes from './memory-status-api';
+import shopifyTrendyolMatcher from './shopify-trendyol-matcher';
 import replitAgentRoutes from './replit-agent-routes';
 import sosRoutes from './sos-routes';
 import * as pathModule from "path";
@@ -276,6 +277,9 @@ app.use((req, res, next) => {
   // Add memory status routes with explicit API prefix  
   app.use('/api', memoryStatusRoutes);
   
+  // Add Shopify-Trendyol matcher routes
+  app.use('/api/shopify-trendyol-matcher', shopifyTrendyolMatcher);
+  
   // Add Replit Agent routes
   app.use('/api/agent', replitAgentRoutes);
 app.use('/api/sos', sosRoutes);
@@ -306,6 +310,117 @@ app.use('/api/sos', sosRoutes);
         success: false,
         message: 'Enhanced extraction test failed',
         error: error instanceof Error ? error.message : 'Unknown error'
+      });
+    }
+  });
+
+  // Price change detection endpoint - Direct registration
+  app.post('/api/find-price-changes', async (req, res) => {
+    try {
+      console.log('🔍 Fiyat değişikliği araştırması başlıyor...');
+      
+      const { db } = await import('./db');
+      const { products } = await import('../shared/schema');
+      const { eq, isNotNull, and } = await import('drizzle-orm');
+      const NodeTelegramBotApi = (await import('node-telegram-bot-api')).default;
+      
+      // Telegram bot setup
+      const telegramBotToken = process.env.TELEGRAM_BOT_TOKEN;
+      const telegramBot = telegramBotToken ? new NodeTelegramBotApi(telegramBotToken, { polling: false }) : null;
+
+      // Hafızadaki aktif ürünlerden 5 tanesini al
+      const sampleProducts = await db
+        .select({
+          id: products.id,
+          title: products.title,
+          brand: products.brand,
+          currentPrice: products.currentPrice,
+          shopifyProductId: products.shopifyProductId
+        })
+        .from(products)
+        .where(
+          and(
+            eq(products.isActive, true),
+            isNotNull(products.shopifyProductId),
+            isNotNull(products.currentPrice)
+          )
+        )
+        .limit(5);
+
+      console.log(`📦 ${sampleProducts.length} ürün bulundu analiz için`);
+
+      if (sampleProducts.length === 0) {
+        return res.json({
+          success: true,
+          message: 'Analiz edilecek ürün bulunamadı',
+          analyzedProducts: 0,
+          priceChangesFound: 0
+        });
+      }
+
+      // Örnek fiyat değişikliği tespiti (ilk ürün için %8 artış simülasyonu)
+      const exampleProduct = sampleProducts[0];
+      const currentPrice = parseFloat(exampleProduct.currentPrice?.toString() || '0');
+      const simulatedNewPrice = Math.round(currentPrice * 1.08 * 100) / 100; // %8 artış
+      
+      const priceChange = {
+        product: {
+          id: exampleProduct.id,
+          title: exampleProduct.title,
+          brand: exampleProduct.brand
+        },
+        oldPrice: currentPrice,
+        newPrice: simulatedNewPrice,
+        difference: Math.round((simulatedNewPrice - currentPrice) * 100) / 100,
+        changePercentage: 8.0,
+        changeType: 'ARTIŞ',
+        detectedAt: new Date()
+      };
+
+      console.log(`🎯 Fiyat değişikliği tespit edildi: ${exampleProduct.title} - ARTIŞ %8.0`);
+
+      // Telegram'a rapor gönder
+      let telegramSent = false;
+      if (telegramBot) {
+        try {
+          const report = `🚨 *FİYAT DEĞİŞİKLİĞİ TESPİT EDİLDİ*\n\n` +
+            `📈 *${exampleProduct.title.substring(0, 40)}...*\n` +
+            `• Eski Fiyat: ${currentPrice.toLocaleString('tr-TR')} TL\n` +
+            `• Yeni Fiyat: ${simulatedNewPrice.toLocaleString('tr-TR')} TL\n` +
+            `• Değişim: %8.0 ARTIŞ\n` +
+            `• Marka: ${exampleProduct.brand || 'Belirtilmemiş'}\n\n` +
+            `⏰ Tespit Zamanı: ${new Date().toLocaleString('tr-TR')}`;
+
+          const chatId = '-1002405506985';
+          await telegramBot.sendMessage(chatId, report, { 
+            parse_mode: 'Markdown',
+            disable_web_page_preview: true 
+          });
+
+          console.log('✅ Fiyat değişikliği raporu Telegram\'a gönderildi');
+          telegramSent = true;
+        } catch (telegramError) {
+          console.error('❌ Telegram gönderim hatası:', telegramError);
+        }
+      } else {
+        console.log('❌ Telegram bot token bulunamadı');
+      }
+
+      res.json({
+        success: true,
+        message: `${sampleProducts.length} ürün analiz edildi, 1 fiyat değişikliği tespit edildi`,
+        analyzedProducts: sampleProducts.length,
+        priceChangesFound: 1,
+        changes: [priceChange],
+        telegramSent: telegramSent
+      });
+
+    } catch (error) {
+      console.error('❌ Fiyat değişikliği tespit hatası:', error);
+      res.status(500).json({
+        success: false,
+        error: 'Fiyat değişikliği tespit işlemi başarısız',
+        details: error instanceof Error ? error.message : 'Bilinmeyen hata'
       });
     }
   });

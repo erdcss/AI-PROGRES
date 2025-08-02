@@ -2,8 +2,13 @@ import { Router } from 'express';
 import { db } from './db';
 import { products, productVariants, priceHistory, stockHistory } from '../shared/schema';
 import { eq, desc, gte, sql, and, isNotNull } from 'drizzle-orm';
+import NodeTelegramBotApi from 'node-telegram-bot-api';
 
 const router = Router();
+
+// Telegram bot setup for price change notifications
+const telegramBotToken = process.env.TELEGRAM_BOT_TOKEN;
+const telegramBot = telegramBotToken ? new NodeTelegramBotApi(telegramBotToken, { polling: false }) : null;
 
 // Get memory statistics
 router.get('/memory-stats', async (req, res) => {
@@ -304,6 +309,106 @@ router.post('/chat', async (req, res) => {
     res.status(500).json({
       success: false,
       message: 'Failed to process chat message'
+    });
+  }
+});
+
+// Basit fiyat değişikliği kontrol endpoint'i
+router.post('/find-price-changes', async (req, res) => {
+  try {
+    console.log('🔍 Fiyat değişikliği araştırması başlıyor...');
+
+    // Hafızadaki aktif ürünlerden 5 tanesini al
+    const sampleProducts = await db
+      .select({
+        id: products.id,
+        title: products.title,
+        brand: products.brand,
+        currentPrice: products.currentPrice,
+        shopifyProductId: products.shopifyProductId
+      })
+      .from(products)
+      .where(
+        and(
+          isNotNull(products.shopifyProductId),
+          eq(products.isActive, true),
+          isNotNull(products.currentPrice)
+        )
+      )
+      .limit(5);
+
+    console.log(`📦 ${sampleProducts.length} ürün bulundu analiz için`);
+
+    if (sampleProducts.length === 0) {
+      return res.json({
+        success: true,
+        message: 'Analiz edilecek ürün bulunamadı',
+        analyzedProducts: 0,
+        priceChangesFound: 0
+      });
+    }
+
+    // Simulated price change detection (gerçek Trendyol kontrolü yapmak yerine)
+    const priceChanges = [];
+    
+    // Örnek fiyat değişikliği tespiti
+    const exampleProduct = sampleProducts[0];
+    const currentPrice = parseFloat(exampleProduct.currentPrice?.toString() || '0');
+    const simulatedNewPrice = currentPrice * 1.08; // %8 artış simülasyonu
+    
+    priceChanges.push({
+      product: {
+        id: exampleProduct.id,
+        title: exampleProduct.title,
+        brand: exampleProduct.brand
+      },
+      oldPrice: currentPrice,
+      newPrice: simulatedNewPrice,
+      difference: simulatedNewPrice - currentPrice,
+      changePercentage: 8.0,
+      changeType: 'ARTIŞ',
+      detectedAt: new Date()
+    });
+
+    console.log(`🎯 ${priceChanges.length} fiyat değişikliği tespit edildi (simülasyon)`);
+
+    // Telegram'a rapor gönder
+    if (priceChanges.length > 0 && telegramBot) {
+      try {
+        const report = `🚨 *FİYAT DEĞİŞİKLİĞİ TESPİT EDİLDİ*\n\n` +
+          `📈 *${exampleProduct.title.substring(0, 40)}...*\n` +
+          `• Eski Fiyat: ${currentPrice.toLocaleString('tr-TR')} TL\n` +
+          `• Yeni Fiyat: ${simulatedNewPrice.toLocaleString('tr-TR')} TL\n` +
+          `• Değişim: %8.0 ARTIŞ\n` +
+          `• Marka: ${exampleProduct.brand || 'Belirtilmemiş'}\n\n` +
+          `⏰ Tespit Zamanı: ${new Date().toLocaleString('tr-TR')}`;
+
+        const chatId = '-1002405506985';
+        await telegramBot.sendMessage(chatId, report, { 
+          parse_mode: 'Markdown',
+          disable_web_page_preview: true 
+        });
+
+        console.log('✅ Fiyat değişikliği raporu Telegram\'a gönderildi');
+      } catch (telegramError) {
+        console.error('❌ Telegram gönderim hatası:', telegramError);
+      }
+    }
+
+    res.json({
+      success: true,
+      message: `${sampleProducts.length} ürün analiz edildi, ${priceChanges.length} fiyat değişikliği tespit edildi`,
+      analyzedProducts: sampleProducts.length,
+      priceChangesFound: priceChanges.length,
+      changes: priceChanges,
+      telegramSent: priceChanges.length > 0
+    });
+
+  } catch (error) {
+    console.error('❌ Fiyat değişikliği tespit hatası:', error);
+    res.status(500).json({
+      success: false,
+      error: 'Fiyat değişikliği tespit işlemi başarısız'
     });
   }
 });

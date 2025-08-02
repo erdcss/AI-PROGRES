@@ -2,11 +2,20 @@ import { Router } from 'express';
 import { db } from './db';
 import { products, productVariants } from '../shared/schema';
 import { scenarioBasedScrape } from './scenario-based-scraper';
-import { eq, isNotNull } from 'drizzle-orm';
+import { eq, isNotNull, and, desc } from 'drizzle-orm';
 import axios from 'axios';
 import NodeTelegramBotApi from 'node-telegram-bot-api';
 
 const router = Router();
+
+// Simple test endpoint
+router.get('/test', (req, res) => {
+  res.json({
+    success: true,
+    message: 'Shopify-Trendyol matcher is working',
+    timestamp: new Date().toISOString()
+  });
+});
 
 // Telegram bot setup
 const telegramBotToken = process.env.TELEGRAM_BOT_TOKEN;
@@ -287,6 +296,139 @@ router.post('/match-shopify-products', async (req, res) => {
     res.status(500).json({
       success: false,
       error: 'Ürün eşleştirme sırasında hata oluştu'
+    });
+  }
+});
+
+// Fiyat değişikliği tespit et ve Telegram'dan bildir
+router.post('/find-price-changes', async (req, res) => {
+  try {
+    console.log('🔍 Fiyat değişikliği araştırması başlıyor...');
+
+    // Son güncellenen 10 ürünü al - aktif ve Shopify ID'si olan
+    const recentProducts = await db
+      .select({
+        id: products.id,
+        title: products.title,
+        brand: products.brand,
+        currentPrice: products.currentPrice,
+        shopifyProductId: products.shopifyProductId,
+        trendyolUrl: products.trendyolUrl,
+        updatedAt: products.updatedAt
+      })
+      .from(products)
+      .where(
+        and(
+          isNotNull(products.shopifyProductId),
+          eq(products.isActive, true),
+          isNotNull(products.currentPrice)
+        )
+      )
+      .orderBy(desc(products.updatedAt))
+      .limit(10);
+
+    console.log(`📦 ${recentProducts.length} ürün analiz edilecek`);
+
+    const priceChanges = [];
+
+    // Her ürün için Trendyol'da güncel fiyatı kontrol et
+    for (const product of recentProducts) {
+      try {
+        console.log(`🔄 ${product.title} için fiyat kontrolü...`);
+
+        // Trendyol'da güncel fiyatı bul
+        const trendyolResults = await searchProductOnTrendyol(product.title, product.brand || undefined);
+        
+        if (trendyolResults.length > 0) {
+          const bestMatch = findBestMatch(product.title, trendyolResults);
+          
+          if (bestMatch && product.currentPrice) {
+            const storedPrice = parseFloat(product.currentPrice.toString());
+            const currentTrendyolPrice = parseFloat(bestMatch.price.replace(/[^\d.,]/g, '').replace(',', '.'));
+            
+            // Fiyat değişikliği var mı kontrol et (%2'den fazla değişiklik)
+            const priceDifference = Math.abs(storedPrice - currentTrendyolPrice);
+            const changePercentage = (priceDifference / storedPrice) * 100;
+            
+            if (changePercentage > 2) {
+              const changeType = currentTrendyolPrice > storedPrice ? 'ARTIŞ' : 'DÜŞÜŞ';
+              
+              priceChanges.push({
+                product: {
+                  id: product.id,
+                  title: product.title,
+                  brand: product.brand
+                },
+                oldPrice: storedPrice,
+                newPrice: currentTrendyolPrice,
+                difference: priceDifference,
+                changePercentage: changePercentage,
+                changeType: changeType,
+                trendyolUrl: bestMatch.url,
+                detectedAt: new Date()
+              });
+              
+              console.log(`💰 Fiyat değişikliği tespit edildi: ${product.title} - ${changeType} %${changePercentage.toFixed(1)}`);
+            }
+          }
+        }
+        
+        // Rate limiting
+        await new Promise(resolve => setTimeout(resolve, 1500));
+        
+      } catch (error) {
+        console.error(`❌ ${product.title} fiyat kontrol hatası:`, error);
+      }
+    }
+
+    console.log(`🎯 Toplam ${priceChanges.length} fiyat değişikliği tespit edildi`);
+
+    // Telegram'a rapor gönder
+    if (priceChanges.length > 0 && telegramBot) {
+      try {
+        const report = `🚨 *FIYAT DEĞİŞİKLİĞİ TESPİT EDİLDİ*
+
+` +
+          priceChanges.map(change => {
+            const arrow = change.changeType === 'ARTIŞ' ? '📈' : '📉';
+            return `${arrow} *${change.product.title.substring(0, 40)}...*
+` +
+              `• Eski Fiyat: ${change.oldPrice.toLocaleString('tr-TR')} TL
+` +
+              `• Yeni Fiyat: ${change.newPrice.toLocaleString('tr-TR')} TL
+` +
+              `• Değişim: %${change.changePercentage.toFixed(1)} ${change.changeType}
+` +
+              `• Marka: ${change.product.brand || 'Belirtilmemiş'}`;
+          }).join('\n\n') +
+          `\n\n⏰ Tespit Zamanı: ${new Date().toLocaleString('tr-TR')}`;
+
+        const chatId = '-1002405506985';
+        await telegramBot.sendMessage(chatId, report, { 
+          parse_mode: 'Markdown',
+          disable_web_page_preview: true 
+        });
+
+        console.log('✅ Fiyat değişikliği raporu Telegram\'a gönderildi');
+      } catch (telegramError) {
+        console.error('❌ Telegram gönderim hatası:', telegramError);
+      }
+    }
+
+    res.json({
+      success: true,
+      message: `${recentProducts.length} ürün analiz edildi, ${priceChanges.length} fiyat değişikliği tespit edildi`,
+      analyzedProducts: recentProducts.length,
+      priceChangesFound: priceChanges.length,
+      changes: priceChanges,
+      telegramSent: priceChanges.length > 0
+    });
+
+  } catch (error) {
+    console.error('❌ Fiyat değişikliği tespit hatası:', error);
+    res.status(500).json({
+      success: false,
+      error: 'Fiyat değişikliği tespit işlemi başarısız'
     });
   }
 });
