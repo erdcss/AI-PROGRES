@@ -72,6 +72,27 @@ interface ChatMessage {
   timestamp: string;
 }
 
+interface ShopifyProduct {
+  id: number;
+  title: string;
+  brand: string;
+  currentPrice: string;
+  shopifyProductId: string;
+  shopifyUrl: string;
+  transferDate: string;
+  shopifyStatus: string;
+  profitMargin: string;
+  sourcePlatform: string;
+  trendyolUrl?: string;
+}
+
+interface ShopifyStats {
+  totalProducts: number;
+  totalValue: string;
+  platformBreakdown: Record<string, number>;
+  storeUrl: string | null;
+}
+
 export const ProductDataAnalysis: React.FC = () => {
   const [chatMessages, setChatMessages] = useState<ChatMessage[]>([
     {
@@ -97,6 +118,8 @@ export const ProductDataAnalysis: React.FC = () => {
         refetchDailyOps(),
         refetchProducts(),
         refetchChanges(),
+        refetchShopifyProducts(),
+        refetchShopifyStats(),
         refetchScheduler()
       ]);
     } catch (error) {
@@ -130,6 +153,18 @@ export const ProductDataAnalysis: React.FC = () => {
   const { data: changesData, refetch: refetchChanges } = useQuery({
     queryKey: ['/api/analysis/product-changes'],
     refetchInterval: 30000,
+  });
+
+  // Fetch Shopify transferred products
+  const { data: shopifyProducts, refetch: refetchShopifyProducts } = useQuery<{success: boolean, products: ShopifyProduct[], summary: any}>({
+    queryKey: ['/api/shopify/transferred-products'],
+    refetchInterval: 60000,
+  });
+
+  // Fetch Shopify store stats
+  const { data: shopifyStats, refetch: refetchShopifyStats } = useQuery<{success: boolean, stats: ShopifyStats}>({
+    queryKey: ['/api/shopify/store-stats'],
+    refetchInterval: 60000,
   });
 
   // Fetch scheduled tasks
@@ -296,6 +331,8 @@ export const ProductDataAnalysis: React.FC = () => {
   };
 
   const totalProducts = memoryStats?.totalProducts || 0;
+  const shopifyProductsData = shopifyProducts?.products || [];
+  const shopifyStatsData = shopifyStats?.stats;
   const changesCount = Array.isArray(changesData) ? changesData.length : ((changesData as any)?.changes?.length || 0);
   const changes = Array.isArray(changesData) ? changesData : ((changesData as any)?.changes || []);
   const nextTask = scheduledTasks.filter(task => task.isActive)
@@ -351,11 +388,51 @@ export const ProductDataAnalysis: React.FC = () => {
             </Card>
           </motion.div>
 
-          {/* Price/Stock Changes Card */}
+          {/* Shopify Products Card */}
           <motion.div
             initial={{ opacity: 0, y: 20 }}
             animate={{ opacity: 1, y: 0 }}
             transition={{ duration: 0.6, delay: 0.2 }}
+          >
+            <Card className="bg-gradient-to-br from-slate-800/50 to-emerald-900/30 border-emerald-500/30 backdrop-blur-sm">
+              <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
+                <CardTitle className="text-sm font-medium text-gray-300">Shopify Ürünleri</CardTitle>
+                <ExternalLink className="h-4 w-4 text-emerald-400" />
+              </CardHeader>
+              <CardContent>
+                <div className="text-2xl font-bold text-white">{shopifyStatsData?.totalProducts || 0}</div>
+                <p className="text-xs text-gray-400">
+                  Aktarılan ürün sayısı
+                </p>
+              </CardContent>
+            </Card>
+          </motion.div>
+
+          {/* Shopify Store Value Card */}
+          <motion.div
+            initial={{ opacity: 0, y: 20 }}
+            animate={{ opacity: 1, y: 0 }}
+            transition={{ duration: 0.6, delay: 0.3 }}
+          >
+            <Card className="bg-gradient-to-br from-slate-800/50 to-yellow-900/30 border-yellow-500/30 backdrop-blur-sm">
+              <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
+                <CardTitle className="text-sm font-medium text-gray-300">Mağaza Değeri</CardTitle>
+                <TrendingUp className="h-4 w-4 text-yellow-400" />
+              </CardHeader>
+              <CardContent>
+                <div className="text-2xl font-bold text-white">{shopifyStatsData?.totalValue || '0.00'} TL</div>
+                <p className="text-xs text-gray-400">
+                  Toplam ürün değeri
+                </p>
+              </CardContent>
+            </Card>
+          </motion.div>
+
+          {/* Price/Stock Changes Card */}
+          <motion.div
+            initial={{ opacity: 0, y: 20 }}
+            animate={{ opacity: 1, y: 0 }}
+            transition={{ duration: 0.6, delay: 0.4 }}
           >
             <Card className="bg-gradient-to-br from-slate-800/50 to-green-900/30 border-green-500/30 backdrop-blur-sm">
               <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">

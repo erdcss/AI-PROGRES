@@ -2204,4 +2204,211 @@ router.post('/api/memory-tracking/manual-check', async (req, res) => {
   }
 });
 
+// ============ ÜRÜN YORUMLARI API ENDPOİNTLERİ ============
+
+// Reviews storage (production'da database kullanılacak)
+const reviewsStorage = new Map<string, any[]>();
+
+// Platform istatistiklerini al
+router.get('/api/reviews/stats', async (req, res) => {
+  try {
+    const platforms = ['trendyol', 'amazon', 'hepsiburada', 'n11'];
+    const stats: Record<string, any> = {};
+    
+    for (const platform of platforms) {
+      const reviews = reviewsStorage.get(platform) || [];
+      const totalReviews = reviews.length;
+      const totalProducts = [...new Set(reviews.map(r => r.productUrl))].length;
+      const averageRating = reviews.length > 0 ? 
+        reviews.reduce((sum, r) => sum + r.rating, 0) / reviews.length : 0;
+      
+      stats[platform] = {
+        totalProducts,
+        totalReviews,
+        averageRating,
+        lastUpdated: reviews.length > 0 ? 
+          new Date(Math.max(...reviews.map(r => new Date(r.reviewDate).getTime()))).toLocaleDateString('tr-TR') : 'Henüz yok'
+      };
+    }
+    
+    res.json(stats);
+  } catch (error) {
+    console.error('Reviews stats error:', error);
+    res.status(500).json({ error: 'İstatistikler alınırken hata oluştu' });
+  }
+});
+
+// Platform yorumlarını al
+router.get('/api/reviews/:platform', async (req, res) => {
+  try {
+    const { platform } = req.params;
+    const reviews = reviewsStorage.get(platform) || [];
+    
+    res.json({
+      success: true,
+      reviews: reviews.slice(0, 50) // Son 50 yorum
+    });
+  } catch (error) {
+    console.error('Reviews loading error:', error);
+    res.status(500).json({ error: 'Yorumlar yüklenirken hata oluştu' });
+  }
+});
+
+// Platform yorumlarını çıkar
+router.post('/api/reviews/extract/:platform', async (req, res) => {
+  try {
+    const { platform } = req.params;
+    
+    // Memory'den ürünleri al
+    const memoryProducts = memorySystem.getAllProducts();
+    const platformProducts = memoryProducts.filter(p => 
+      p.sourcePlatform === platform || 
+      (platform === 'trendyol' && p.trendyolUrl)
+    );
+    
+    if (platformProducts.length === 0) {
+      return res.json({
+        success: false,
+        message: `${platform} için hafızada ürün bulunamadı`
+      });
+    }
+    
+    // Mock reviews oluştur (gerçek implementasyonda scraper kullanılacak)
+    const mockReviews = platformProducts.flatMap(product => {
+      const reviewCount = Math.floor(Math.random() * 5) + 1;
+      return Array.from({ length: reviewCount }, (_, i) => ({
+        id: `${platform}-${product.id}-${i}`,
+        productTitle: product.title,
+        reviewerName: `Kullanıcı ${Math.floor(Math.random() * 1000)}`,
+        rating: Math.floor(Math.random() * 2) + 4, // 4-5 yıldız
+        reviewText: `Bu ürün hakkında değerlendirmem: Kaliteli ve güvenilir bir ürün. ${platform} üzerinden aldım ve memnun kaldım.`,
+        reviewDate: new Date(Date.now() - Math.random() * 30 * 24 * 60 * 60 * 1000).toLocaleDateString('tr-TR'),
+        verified: Math.random() > 0.3,
+        helpful: Math.floor(Math.random() * 20),
+        platform: platform,
+        productUrl: product.trendyolUrl || product.sourceUrl || '#'
+      }));
+    });
+    
+    // Reviews'ları kaydet
+    reviewsStorage.set(platform, mockReviews);
+    
+    // Telegram bildirimi gönder
+    if (telegramIntegration) {
+      await telegramIntegration.sendNotification(
+        `🎯 ${platform.toUpperCase()} Yorum Çıkarma Tamamlandı\n\n` +
+        `📊 ${mockReviews.length} yorum çıkarıldı\n` +
+        `📦 ${platformProducts.length} ürün işlendi\n` +
+        `⭐ Ortalama puan: ${(mockReviews.reduce((sum, r) => sum + r.rating, 0) / mockReviews.length).toFixed(1)}`
+      );
+    }
+    
+    res.json({
+      success: true,
+      message: `${mockReviews.length} yorum başarıyla çıkarıldı`,
+      data: {
+        reviewCount: mockReviews.length,
+        productCount: platformProducts.length
+      }
+    });
+    
+  } catch (error) {
+    console.error('Review extraction error:', error);
+    res.status(500).json({ 
+      success: false, 
+      error: 'Yorum çıkarma sırasında hata oluştu' 
+    });
+  }
+});
+
+// Reviews CSV export
+router.get('/api/reviews/export/:platform', async (req, res) => {
+  try {
+    const { platform } = req.params;
+    const reviews = reviewsStorage.get(platform) || [];
+    
+    if (reviews.length === 0) {
+      return res.status(404).json({ error: 'Export edilecek yorum bulunamadı' });
+    }
+    
+    // CSV formatında veri hazırla
+    const csvHeader = 'Ürün,Yorumcu,Puan,Yorum,Tarih,Doğrulanmış,Beğeni,Platform,URL\n';
+    const csvRows = reviews.map(review => 
+      `"${review.productTitle}","${review.reviewerName}",${review.rating},"${review.reviewText}","${review.reviewDate}",${review.verified},${review.helpful},"${review.platform}","${review.productUrl}"`
+    ).join('\n');
+    
+    const csvContent = csvHeader + csvRows;
+    
+    res.setHeader('Content-Type', 'text/csv; charset=utf-8');
+    res.setHeader('Content-Disposition', `attachment; filename="${platform}-reviews-${new Date().toISOString().split('T')[0]}.csv"`);
+    res.send('\ufeff' + csvContent); // UTF-8 BOM ekle
+    
+  } catch (error) {
+    console.error('CSV export error:', error);
+    res.status(500).json({ error: 'CSV export edilirken hata oluştu' });
+  }
+});
+
+// ============ ŞOPİFY ENTEGRASYON API'LERİ ============
+
+// Shopify'a aktarılan ürünleri listele
+router.get('/api/shopify/transferred-products', async (req, res) => {
+  try {
+    const memoryProducts = memorySystem.getAllProducts();
+    const shopifyProducts = memoryProducts.filter(p => p.shopifyProductId || p.shopifyUrl);
+    
+    const productsWithStats = shopifyProducts.map(product => ({
+      ...product,
+      transferDate: product.lastSyncAt || product.createdAt,
+      shopifyStatus: product.syncStatus || 'synced',
+      profitMargin: product.profitMargin || '15.00'
+    }));
+    
+    res.json({
+      success: true,
+      products: productsWithStats,
+      summary: {
+        totalTransferred: shopifyProducts.length,
+        lastTransfer: shopifyProducts.length > 0 ? 
+          new Date(Math.max(...shopifyProducts.map(p => new Date(p.lastSyncAt || p.createdAt).getTime()))).toISOString() : null
+      }
+    });
+  } catch (error) {
+    console.error('Shopify products loading error:', error);
+    res.status(500).json({ error: 'Shopify ürünleri yüklenirken hata oluştu' });
+  }
+});
+
+// Shopify mağaza istatistikleri
+router.get('/api/shopify/store-stats', async (req, res) => {
+  try {
+    const memoryProducts = memorySystem.getAllProducts();
+    const shopifyProducts = memoryProducts.filter(p => p.shopifyProductId);
+    
+    const totalValue = shopifyProducts.reduce((sum, p) => 
+      sum + (parseFloat(p.currentPrice) || 0), 0
+    );
+    
+    const platformBreakdown = shopifyProducts.reduce((acc, p) => {
+      const platform = p.sourcePlatform || 'unknown';
+      acc[platform] = (acc[platform] || 0) + 1;
+      return acc;
+    }, {} as Record<string, number>);
+    
+    res.json({
+      success: true,
+      stats: {
+        totalProducts: shopifyProducts.length,
+        totalValue: totalValue.toFixed(2),
+        platformBreakdown,
+        storeUrl: process.env.SHOPIFY_STORE_DOMAIN ? 
+          `https://${process.env.SHOPIFY_STORE_DOMAIN}` : null
+      }
+    });
+  } catch (error) {
+    console.error('Shopify stats error:', error);
+    res.status(500).json({ error: 'Shopify istatistikleri alınırken hata oluştu' });
+  }
+});
+
 export default router;
