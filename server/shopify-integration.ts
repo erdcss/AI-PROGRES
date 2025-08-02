@@ -143,7 +143,7 @@ export class ShopifyIntegration {
       }
 
       const shopifyProduct = productsResponse.data.products[0];
-      const shopifyVariant = shopifyProduct.variants.find(v => 
+      const shopifyVariant = shopifyProduct.variants.find((v: any) => 
         v.option1?.toLowerCase().includes(variant.color?.toLowerCase() || '') ||
         v.option2?.toLowerCase().includes(variant.size?.toLowerCase() || '')
       ) || shopifyProduct.variants[0];
@@ -199,7 +199,7 @@ export class ShopifyIntegration {
       }
 
       const shopifyProduct = productsResponse.data.products[0];
-      const shopifyVariant = shopifyProduct.variants.find(v => 
+      const shopifyVariant = shopifyProduct.variants.find((v: any) => 
         v.option1?.toLowerCase().includes(variant.color?.toLowerCase() || '') ||
         v.option2?.toLowerCase().includes(variant.size?.toLowerCase() || '')
       ) || shopifyProduct.variants[0];
@@ -256,7 +256,7 @@ export class ShopifyIntegration {
       }
 
       const shopifyProduct = productsResponse.data.products[0];
-      const shopifyVariant = shopifyProduct.variants.find(v => 
+      const shopifyVariant = shopifyProduct.variants.find((v: any) => 
         v.option1?.toLowerCase().includes(variant.color?.toLowerCase() || '') ||
         v.option2?.toLowerCase().includes(variant.size?.toLowerCase() || '')
       ) || shopifyProduct.variants[0];
@@ -354,8 +354,8 @@ export class ShopifyIntegration {
       tags: this.generateProductTags(product),
       images: product.images.map(url => ({ src: url })),
       options: [
-        { name: 'Renk', values: [...new Set(variants.map(v => v.color))] },
-        { name: 'Beden', values: [...new Set(variants.map(v => v.size))] }
+        { name: 'Renk', values: Array.from(new Set(variants.map(v => v.color))) },
+        { name: 'Beden', values: Array.from(new Set(variants.map(v => v.size))) }
       ].filter(option => option.values.length > 1 || option.values[0] !== 'Varsayılan'),
       variants: shopifyVariants,
       status: 'active'
@@ -453,7 +453,6 @@ export class ShopifyIntegration {
       return false;
     }
   }
-}
 
   // Shopify'dan ürünleri çek
   async fetchProductsFromShopify(limit: number = 50): Promise<any[]> {
@@ -468,7 +467,7 @@ export class ShopifyIntegration {
       const shopifyProducts = response.data.products || [];
       console.log(`✅ ${shopifyProducts.length} Shopify ürünü bulundu`);
       
-      return shopifyProducts.map(product => ({
+      return shopifyProducts.map((product: any) => ({
         shopifyProductId: product.id.toString(),
         title: product.title,
         brand: product.vendor || 'Bilinmeyen Marka',

@@ -115,81 +115,83 @@ const MainDashboard = () => {
   };
 
   return (
-    <div className="min-h-screen bg-gradient-to-br from-blue-900 via-slate-900 to-indigo-900 flex items-center justify-center p-3 sm:p-6">
-      <div className="max-w-7xl w-full">
+    <div className="min-h-screen bg-gradient-to-br from-slate-900 via-blue-900 to-slate-900 p-6">
+      <div className="max-w-6xl mx-auto">
         {/* Header */}
         <motion.div
-          initial={{ opacity: 0, y: -20 }}
+          initial={{ opacity: 0, y: -30 }}
           animate={{ opacity: 1, y: 0 }}
-          className="text-center mb-8 sm:mb-12"
+          transition={{ duration: 0.8, ease: "easeOut" }}
+          className="text-center mb-12"
         >
-          <h1 className="text-2xl sm:text-3xl lg:text-4xl font-bold text-white mb-3 sm:mb-4">
+          <h1 className="text-4xl font-bold text-white mb-4">
             E-ticaret Veri Merkezi
           </h1>
-          <p className="text-gray-300 text-sm sm:text-base lg:text-lg mb-4 sm:mb-6 px-4 sm:px-0">
+          <p className="text-gray-300 text-lg mb-6">
             Ürün veri aktarım işlemleri ve sistem kontrol merkezi
           </p>
           <RealTimeClock />
         </motion.div>
 
-        <div className="grid lg:grid-cols-2 gap-6 sm:gap-8">
+        <div className="grid lg:grid-cols-2 gap-8">
           {/* Ürün Veri Aktarım İşlemleri */}
           <motion.div
-            initial={{ opacity: 0, x: -50 }}
+            initial={{ opacity: 0, x: -40 }}
             animate={{ opacity: 1, x: 0 }}
-            transition={{ delay: 0.2 }}
-            className="bg-slate-800/30 backdrop-blur-sm rounded-2xl p-4 sm:p-6 border border-blue-500/20"
+            transition={{ delay: 0.3, duration: 0.6, ease: "easeOut" }}
+            className="bg-slate-800/40 backdrop-blur-lg rounded-3xl p-6 border border-slate-700/50"
           >
-            <div className="flex items-center gap-3 mb-4 sm:mb-6">
-              <Database className="w-6 h-6 sm:w-8 sm:h-8 text-blue-400" />
-              <h2 className="text-lg sm:text-xl lg:text-2xl font-bold text-white">
+            <div className="flex items-center gap-3 mb-6">
+              <Database className="w-7 h-7 text-blue-400" />
+              <h2 className="text-xl font-bold text-white">
                 Ürün Veri Aktarım İşlemleri
               </h2>
             </div>
             
-            <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 sm:gap-4">
+            <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
               {dataTransferOptions.map((option, index) => (
                 <motion.div
                   key={option.name}
-                  initial={{ opacity: 0, y: 20 }}
-                  animate={{ opacity: 1, y: 0 }}
-                  transition={{ delay: 0.3 + index * 0.1 }}
+                  initial={{ opacity: 0, y: 30, scale: 0.9 }}
+                  animate={{ opacity: 1, y: 0, scale: 1 }}
+                  transition={{ 
+                    delay: 0.4 + index * 0.1, 
+                    duration: 0.5, 
+                    ease: "easeOut",
+                    type: "spring",
+                    stiffness: 100 
+                  }}
                   onClick={() => handleOptionClick(option)}
                   className={`
-                    relative overflow-hidden rounded-xl cursor-pointer
-                    bg-gradient-to-br ${option.color} p-3 sm:p-4
-                    transform transition-all duration-300 hover:scale-105 hover:shadow-xl
-                    ${!option.available ? 'opacity-50 cursor-not-allowed' : ''}
+                    relative overflow-hidden rounded-2xl cursor-pointer
+                    bg-gradient-to-br ${option.color} p-4
+                    transform transition-all duration-500 hover:scale-[1.02] hover:shadow-2xl
+                    ${!option.available ? 'opacity-60 cursor-not-allowed' : 'hover:shadow-blue-500/25'}
                   `}
                 >
                   <div className="relative z-10">
-                    <div className="flex items-center justify-between mb-2">
-                      <div className="w-6 h-6 sm:w-8 sm:h-8 flex items-center justify-center">
+                    <div className="flex items-center justify-between mb-3">
+                      <div className="flex items-center justify-center">
                         {option.icon}
                       </div>
-                      {option.available && (
-                        <ArrowRight className="w-4 h-4 sm:w-5 sm:h-5 text-white/80" />
-                      )}
-                    </div>
-                    <h3 className="text-base sm:text-lg font-bold text-white mb-1">
-                      {option.name}
-                    </h3>
-                    <p className="text-white/80 text-xs sm:text-sm">
-                      {option.description}
-                    </p>
-                    {!option.available && (
-                      <div className="absolute top-2 right-2">
-                        <span className="bg-black/30 text-white text-xs px-2 py-1 rounded">
+                      {option.available ? (
+                        <ArrowRight className="w-5 h-5 text-white/80" />
+                      ) : (
+                        <span className="bg-black/40 text-white text-xs px-2 py-1 rounded-full">
                           Yakında
                         </span>
-                      </div>
-                    )}
+                      )}
+                    </div>
+                    <h3 className="text-base font-bold text-white mb-1">
+                      {option.name}
+                    </h3>
+                    <p className="text-white/90 text-sm">
+                      {option.description}
+                    </p>
                   </div>
                   
-                  {/* Background Pattern */}
-                  <div className="absolute inset-0 opacity-10">
-                    <div className="absolute inset-0 bg-white/5 rounded-xl"></div>
-                  </div>
+                  {/* Hover Effect */}
+                  <div className="absolute inset-0 bg-white/0 hover:bg-white/5 transition-all duration-300 rounded-2xl"></div>
                 </motion.div>
               ))}
             </div>
@@ -197,14 +199,14 @@ const MainDashboard = () => {
 
           {/* Sistem Donanım ve Kontrol Merkezi */}
           <motion.div
-            initial={{ opacity: 0, x: 50 }}
+            initial={{ opacity: 0, x: 40 }}
             animate={{ opacity: 1, x: 0 }}
-            transition={{ delay: 0.4 }}
-            className="bg-slate-800/30 backdrop-blur-sm rounded-2xl p-4 sm:p-6 border border-blue-500/20"
+            transition={{ delay: 0.5, duration: 0.6, ease: "easeOut" }}
+            className="bg-slate-800/40 backdrop-blur-lg rounded-3xl p-6 border border-slate-700/50"
           >
-            <div className="flex items-center gap-3 mb-4 sm:mb-6">
-              <Activity className="w-6 h-6 sm:w-8 sm:h-8 text-red-400" />
-              <h2 className="text-lg sm:text-xl lg:text-2xl font-bold text-white">
+            <div className="flex items-center gap-3 mb-6">
+              <Activity className="w-7 h-7 text-red-400" />
+              <h2 className="text-xl font-bold text-white">
                 Sistem Donanım ve Kontrol Merkezi
               </h2>
             </div>
@@ -213,45 +215,40 @@ const MainDashboard = () => {
               {systemControlOptions.map((option, index) => (
                 <motion.div
                   key={option.name}
-                  initial={{ opacity: 0, y: 20 }}
-                  animate={{ opacity: 1, y: 0 }}
-                  transition={{ delay: 0.5 + index * 0.1 }}
+                  initial={{ opacity: 0, x: 30, scale: 0.95 }}
+                  animate={{ opacity: 1, x: 0, scale: 1 }}
+                  transition={{ 
+                    delay: 0.6 + index * 0.1, 
+                    duration: 0.5, 
+                    ease: "easeOut",
+                    type: "spring",
+                    stiffness: 120 
+                  }}
                   onClick={() => handleOptionClick(option)}
                   className={`
-                    relative overflow-hidden rounded-xl cursor-pointer
-                    bg-gradient-to-br ${option.color} p-4
-                    transform transition-all duration-300 hover:scale-105 hover:shadow-xl
-                    ${!option.available ? 'opacity-50 cursor-not-allowed' : ''}
+                    relative overflow-hidden rounded-2xl cursor-pointer
+                    bg-gradient-to-r ${option.color} p-4
+                    transform transition-all duration-500 hover:scale-[1.02] hover:shadow-2xl
+                    ${!option.available ? 'opacity-60 cursor-not-allowed' : 'hover:shadow-red-500/25'}
                   `}
                 >
                   <div className="relative z-10">
                     <div className="flex items-center justify-between mb-2">
                       <div className="flex items-center gap-3">
                         {option.icon}
-                        <h3 className="text-lg font-bold text-white">
+                        <h3 className="text-base font-bold text-white">
                           {option.name}
                         </h3>
                       </div>
-                      {option.available && (
-                        <ArrowRight className="w-5 h-5 text-white/80" />
-                      )}
+                      <ArrowRight className="w-5 h-5 text-white/80" />
                     </div>
-                    <p className="text-white/80 text-sm ml-11">
+                    <p className="text-white/90 text-sm">
                       {option.description}
                     </p>
-                    {!option.available && (
-                      <div className="absolute top-2 right-2">
-                        <span className="bg-black/30 text-white text-xs px-2 py-1 rounded">
-                          Yakında
-                        </span>
-                      </div>
-                    )}
                   </div>
                   
-                  {/* Background Pattern */}
-                  <div className="absolute inset-0 opacity-10">
-                    <div className="absolute inset-0 bg-white/5 rounded-xl"></div>
-                  </div>
+                  {/* Hover Effect */}
+                  <div className="absolute inset-0 bg-white/0 hover:bg-white/5 transition-all duration-300 rounded-2xl"></div>
                 </motion.div>
               ))}
             </div>
@@ -260,10 +257,10 @@ const MainDashboard = () => {
 
         {/* Footer Info */}
         <motion.div
-          initial={{ opacity: 0, y: 20 }}
+          initial={{ opacity: 0, y: 30 }}
           animate={{ opacity: 1, y: 0 }}
-          transition={{ delay: 0.8 }}
-          className="text-center mt-8"
+          transition={{ delay: 1.2, duration: 0.6, ease: "easeOut" }}
+          className="text-center mt-12"
         >
           <p className="text-gray-400 text-sm">
             E-ticaret veri aktarım ve sistem yönetim platformu
