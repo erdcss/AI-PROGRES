@@ -1836,10 +1836,10 @@ export function registerRoutes(app: Express): Server {
   // Shopify ürünleri hafızaya kaydetme endpoint'i
   app.post('/api/shopify/save-to-memory', async (req, res) => {
     try {
-      console.log('🔄 Shopify ürünleri hafızaya kaydediliyor...');
+      console.log('🔄 Shopify ürünleri hafızaya kaydediliyor (pagination ile tüm ürünler)...');
       
-      // Önce Shopify'dan ürünleri çek
-      const shopifyProducts = await shopifyIntegration.fetchProductsFromShopify(100);
+      // Shopify'dan TÜM ürünleri çek (pagination ile 1000+ ürün destegi)
+      const shopifyProducts = await shopifyIntegration.fetchProductsFromShopify();
       
       if (shopifyProducts.length === 0) {
         return res.json({

@@ -454,20 +454,50 @@ export class ShopifyIntegration {
     }
   }
 
-  // Shopify'dan ürünleri çek
-  async fetchProductsFromShopify(limit: number = 50): Promise<any[]> {
+  // Shopify'dan ürünleri çek (pagination desteğiyle)
+  async fetchProductsFromShopify(limit: number = 250): Promise<any[]> {
     try {
-      console.log('🔍 Shopify ürünleri çekiliyor...');
+      console.log('🔍 Shopify ürünleri çekiliyor (pagination ile)...');
       
-      const response = await axios.get(
-        `${this.baseUrl}/products.json?limit=${limit}&fields=id,title,vendor,handle,product_type,tags,variants,images,created_at,updated_at`,
-        { headers: this.headers }
-      );
-
-      const shopifyProducts = response.data.products || [];
-      console.log(`✅ ${shopifyProducts.length} Shopify ürünü bulundu`);
+      let allProducts: any[] = [];
+      let nextPageUrl: string | null = `${this.baseUrl}/products.json?limit=${limit}&fields=id,title,vendor,handle,product_type,tags,variants,images,created_at,updated_at`;
+      let pageCount = 0;
       
-      return shopifyProducts.map((product: any) => ({
+      while (nextPageUrl && pageCount < 50) { // Maksimum 50 sayfa (güvenlik için)
+        pageCount++;
+        console.log(`📄 Sayfa ${pageCount} çekiliyor...`);
+        
+        const response = await axios.get(nextPageUrl, { headers: this.headers });
+        const pageProducts = response.data.products || [];
+        
+        if (pageProducts.length === 0) {
+          console.log('🏁 Ürün kalmadı, pagination sona erdi');
+          break;
+        }
+        
+        allProducts = allProducts.concat(pageProducts);
+        console.log(`📦 Sayfa ${pageCount}: ${pageProducts.length} ürün (Toplam: ${allProducts.length})`);
+        
+        // Shopify Link header'ından next page URL'sini al
+        const linkHeader = response.headers.link;
+        nextPageUrl = null;
+        
+        if (linkHeader) {
+          const nextMatch = linkHeader.match(/<([^>]+)>;\s*rel="next"/);
+          if (nextMatch) {
+            nextPageUrl = nextMatch[1];
+          }
+        }
+        
+        // Rate limiting - sayfa arası 1 saniye bekle
+        if (nextPageUrl) {
+          await new Promise(resolve => setTimeout(resolve, 1000));
+        }
+      }
+      
+      console.log(`✅ ${allProducts.length} Shopify ürünü toplamda bulundu`);
+      
+      return allProducts.map((product: any) => ({
         shopifyProductId: product.id.toString(),
         title: product.title,
         brand: product.vendor || 'Bilinmeyen Marka',
