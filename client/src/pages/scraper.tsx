@@ -1,4 +1,3 @@
-import { motion, AnimatePresence } from "framer-motion";
 import { useForm } from "react-hook-form";
 import { zodResolver } from "@hookform/resolvers/zod";
 import { urlSchema } from "@shared/schema";
@@ -9,324 +8,42 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Card, CardContent } from "@/components/ui/card";
 import {
-  Accordion,
-  AccordionContent,
-  AccordionItem,
-  AccordionTrigger,
-} from "@/components/ui/accordion";
-import {
   Loader2,
-  Package,
   ArrowRight,
-  FileText,
-  AlertTriangle,
-  XCircle,
-  AlertCircle,
-  RefreshCcw,
-  Image as ImageIcon,
-  Clipboard,
   Download,
   Upload,
   Home,
   ShoppingCart
 } from "lucide-react";
-import {
-  Alert,
-  AlertDescription,
-  AlertTitle,
-} from "@/components/ui/alert";
-import { ScrollArea } from "@/components/ui/scroll-area";
-import { useState, useEffect } from "react";
-import { ProductDisplay } from "@/components/ProductDisplay";
-import { SimpleProductPreview } from "@/components/SimpleProductPreview";
-import { VariantDisplay } from "@/components/VariantDisplay";
-import { RealTimeClock } from "@/components/RealTimeClock";
-import { Link, useLocation } from "wouter";
+import { useState } from "react";
+import { Link } from "wouter";
 
-// Platform logo configuration
-const PlatformLogos = {
-  trendyol: {
-    name: "Trendyol",
-    logo: (
-      <div className="flex items-center gap-3">
-        <div className="w-10 h-10 bg-gradient-to-r from-blue-500 to-blue-600 rounded-lg flex items-center justify-center">
-          <span className="text-white font-bold text-lg">T</span>
-        </div>
-        <span className="text-2xl font-bold text-blue-400">Trendyol</span>
-      </div>
-    ),
-    color: "red",
-    domain: "trendyol.com"
-  },
-  hepsiburada: {
-    name: "Hepsiburada",
-    logo: (
-      <div className="flex items-center gap-3">
-        <div className="w-10 h-10 bg-gradient-to-r from-slate-500 to-slate-600 rounded-lg flex items-center justify-center">
-          <span className="text-white font-bold text-lg">H</span>
-        </div>
-        <span className="text-2xl font-bold text-slate-400">Hepsiburada</span>
-      </div>
-    ),
-    color: "orange",
-    domain: "hepsiburada.com"
-  },
-  amazon: {
-    name: "Amazon",
-    logo: (
-      <div className="flex items-center gap-3">
-        <div className="w-10 h-10 bg-gradient-to-r from-slate-500 to-slate-600 rounded-lg flex items-center justify-center">
-          <span className="text-white font-bold text-lg">A</span>
-        </div>
-        <span className="text-2xl font-bold text-slate-400">Amazon</span>
-      </div>
-    ),
-    color: "yellow",
-    domain: "amazon.com.tr"
-  },
-  n11: {
-    name: "N11",
-    logo: (
-      <div className="flex items-center gap-3">
-        <div className="w-10 h-10 bg-gradient-to-r from-indigo-500 to-indigo-600 rounded-lg flex items-center justify-center">
-          <span className="text-white font-bold text-lg">N</span>
-        </div>
-        <span className="text-2xl font-bold text-indigo-400">N11</span>
-      </div>
-    ),
-    color: "purple",
-    domain: "n11.com"
-  }
-};
+function ScraperPage() {
+  const [product, setProduct] = useState<any>(null);
+  const [isDownloading, setIsDownloading] = useState(false);
+  const [isUploading, setIsUploading] = useState(false);
+  const { toast } = useToast();
 
-interface ScraperPageProps {
-  platform?: string;
-}
-
-// CSV Preview Component
-function CSVPreview({ csvPath }: { csvPath: string }) {
-  const [csvData, setCsvData] = useState<any>(null);
-  const [loading, setLoading] = useState(false);
-
-  useEffect(() => {
-    if (csvPath) {
-      setLoading(true);
-      const filename = csvPath.split('/').pop() || 'shopify-urunler.csv';
-      console.log('CSV preview yükleniyor:', filename);
-      
-      fetch(`/api/csv/preview`, {
-          headers: {
-            'Accept': 'application/json',
-            'Content-Type': 'application/json'
-          }
-        })
-        .then(res => {
-          console.log('CSV preview response:', res.status, res.headers.get('content-type'));
-          if (!res.ok) throw new Error(`HTTP ${res.status}`);
-          return res.text();
-        })
-        .then(text => {
-          console.log('CSV preview raw text:', text.substring(0, 200));
-          try {
-            const data = JSON.parse(text);
-            console.log('CSV preview parsed data:', data);
-            console.log('Rows data:', data.rows);
-            console.log('First row:', data.rows?.[0]);
-            setCsvData(data);
-          } catch (parseError) {
-            console.error('JSON parse error:', parseError);
-            console.log('Response was not JSON, treating as error');
-          }
-          setLoading(false);
-        })
-        .catch(err => {
-          console.error('CSV preview error:', err);
-          setLoading(false);
-        });
+  const form = useForm({
+    resolver: zodResolver(urlSchema),
+    defaultValues: {
+      url: ""
     }
-  }, [csvPath]);
-
-  if (loading) {
-    return (
-      <div className="bg-gray-800/20 p-3 rounded border border-gray-700">
-        <div className="text-xs text-gray-400">CSV önizleme yükleniyor...</div>
-      </div>
-    );
-  }
-
-  if (!csvData) {
-    return (
-      <div className="bg-gray-800/20 p-3 rounded border border-gray-700">
-        <div className="text-xs font-medium text-gray-300 mb-2">CSV İçerik Bilgisi</div>
-        <div className="space-y-2 text-xs text-gray-400">
-          <div className="flex justify-between">
-            <span>Shopify Format:</span>
-            <span className="text-green-400">Uyumlu</span>
-          </div>
-          <div className="flex justify-between">
-            <span>Toplam Satır:</span>
-            <span className="text-blue-400">4</span>
-          </div>
-          <div className="flex justify-between">
-            <span>Varyant Sayısı:</span>
-            <span className="text-purple-400">3</span>
-          </div>
-          <div className="flex justify-between">
-            <span>Sütun Sayısı:</span>
-            <span className="text-yellow-400">56</span>
-          </div>
-        </div>
-        <div className="mt-2 p-2 bg-green-900/20 rounded border border-green-800">
-          <div className="text-xs text-green-400">
-            Handle, Title, Body, Vendor, Category, Tags, Variants, Images, Pricing, SEO
-          </div>
-        </div>
-      </div>
-    );
-  }
-
-  // Debug: CSV data durumunu kontrol et
-  console.log('🔧 DEBUG - CSV Data State:', {
-    hasData: !!csvData,
-    hasHeaders: !!csvData?.headers,
-    headersLength: csvData?.headers?.length,
-    hasRows: !!csvData?.rows,
-    rowsLength: csvData?.rows?.length,
-    rowsType: Array.isArray(csvData?.rows),
-    firstRowType: csvData?.rows?.[0] ? Array.isArray(csvData.rows[0]) : 'no first row'
   });
 
-  return (
-    <div className="bg-gray-800/20 p-3 rounded border border-gray-700">
-      <div className="text-xs font-medium text-gray-300 mb-2">
-        CSV İçerik Önizlemesi 
-        {csvData && <span className="text-blue-400">({csvData.totalRows} satır)</span>}
-      </div>
-      {csvData?.headers && csvData?.rows && Array.isArray(csvData.rows) && csvData.rows.length > 0 ? (
-        <div className="space-y-3">
-          <div className="flex items-center gap-2 text-xs">
-            <span className="text-green-400">✓ {csvData.uniqueProducts || csvData.rows.length} ürün</span>
-            <span className="text-blue-400">• {csvData.totalRows} toplam satır</span>
-            <span className="text-yellow-400">• {csvData.headers.length} sütun</span>
-          </div>
-          <div className="overflow-x-auto max-h-60">
-            <table className="w-full text-xs border border-gray-600 rounded">
-              <thead className="bg-gray-700 sticky top-0">
-                <tr>
-                {(result?.csvData || csvData)?.headers?.slice(0, 6).map((header: string, index: number) => (
-                  <th key={index} className="text-left p-2 text-gray-300 border-r border-gray-600 min-w-[100px]">
-                    {header.length > 15 ? header.substring(0, 15) + '...' : header}
-                  </th>
-                ))}
-                {((result?.csvData || csvData)?.headers?.length || 0) > 6 && (
-                  <th className="text-left p-2 text-gray-400">+{((result?.csvData || csvData)?.headers?.length || 0) - 6} daha</th>
-                )}
-              </tr>
-            </thead>
-            <tbody>
-              {(result?.csvData || csvData)?.rows?.map((row: string[], rowIndex: number) => (
-                <tr key={rowIndex} className="border-b border-gray-600 hover:bg-gray-700/30">
-                  {row.slice(0, 6).map((cell: string, cellIndex: number) => (
-                    <td key={cellIndex} className="p-2 text-gray-300 border-r border-gray-600 max-w-[120px] truncate" title={cell}>
-                      {cell || '-'}
-                    </td>
-                  ))}
-                  {result.csvData.headers.length > 6 && (
-                    <td className="p-2 text-gray-500">...</td>
-                  )}
-                </tr>
-              ))}
-              </tbody>
-            </table>
-          </div>
-        </div>
-      ) : (
-        <div className="bg-yellow-900/20 p-3 rounded border border-yellow-700">
-          <div className="text-yellow-400 text-xs mb-2">⚠️ CSV Veri Durumu:</div>
-          <div className="text-xs text-gray-400 space-y-1">
-            <div>Headers: {csvData?.headers ? '✓' : '❌'} ({csvData?.headers?.length || 0})</div>
-            <div>Rows: {csvData?.rows ? '✓' : '❌'} ({csvData?.rows?.length || 0})</div>
-            <div>Array: {Array.isArray(csvData?.rows) ? '✓' : '❌'}</div>
-            <div>Total: {csvData?.totalRows || 0}</div>
-          </div>
-        </div>
-      )}
-      
-      <div className="mt-3 grid grid-cols-2 gap-2 text-xs">
-        <div className="flex justify-between">
-          <span className="text-gray-400">Toplam Satır:</span>
-          <span className="text-blue-400">{csvData?.totalRows || 0}</span>
-        </div>
-        <div className="flex justify-between">
-          <span className="text-gray-400">Sütun Sayısı:</span>
-          <span className="text-green-400">{csvData?.headers?.length || 0}</span>
-        </div>
-        <div className="flex justify-between">
-          <span className="text-gray-400">Shopify Uyumlu:</span>
-          <span className="text-green-400">✓</span>
-        </div>
-        <div className="flex justify-between">
-          <span className="text-gray-400">Debug Mode:</span>
-          <span className="text-yellow-400">ON</span>
-        </div>
-      </div>
-    </div>
-  );
-}
-
-function ScraperPage({ platform = 'trendyol' }: ScraperPageProps) {
-  const [, setLocation] = useLocation();
-  const [product, setProduct] = useState<any>(null);
-  const [result, setResult] = useState<any>(null);
-  const [isDownloading, setIsDownloading] = useState(false);
-  const [isExporting, setIsExporting] = useState(false);
-  const [isUploading, setIsUploading] = useState(false);
-  const [isTestingShopify, setIsTestingShopify] = useState(false);
-  const [shopifyMessage, setShopifyMessage] = useState<string>('');
-
-  const [isAdvancedScrapingRunning, setIsAdvancedScrapingRunning] = useState(false);
-  const [isAdvancedCSVGenerating, setIsAdvancedCSVGenerating] = useState(false);
-  const [advancedVariantResult, setAdvancedVariantResult] = useState<any>(null);
-  const [isScrapySpiderRunning, setIsScrapySpiderRunning] = useState(false);
-  const [isScrapyCSVGenerating, setIsScrapyCSVGenerating] = useState(false);
-  const [isScrapyJSONGenerating, setIsScrapyJSONGenerating] = useState(false);
-  const [scrapySpiderResult, setScrapySpiderResult] = useState<any>(null);
-  const [isComprehensiveCSVGenerating, setIsComprehensiveCSVGenerating] = useState(false);
-  
-  // CSV Download handler
+  // Basic CSV Download
   const handleCSVDownload = async () => {
+    if (!product) {
+      toast({
+        title: "Hata",
+        description: "Önce bir ürün çekin",
+        variant: "destructive"
+      });
+      return;
+    }
+
+    setIsDownloading(true);
     try {
-      console.log('CSV indirme başlatılıyor...');
-      setIsDownloading(true);
-      
-      // İlk olarak CSV durumunu kontrol et
-      const statusResponse = await fetch('/api/csv/status');
-      if (!statusResponse.ok) {
-        throw new Error('CSV durumu kontrol edilemedi');
-      }
-      
-      const status = await statusResponse.json();
-      console.log('CSV durumu:', status);
-      
-      if (!status.ready) {
-        throw new Error('CSV dosyası henüz hazır değil');
-      }
-      
-      // Ürünü hafızaya ekle (CSV transfer)
-      if (product) {
-        try {
-          await apiRequest('POST', '/api/memory/store-product', {
-            productData: product,
-            transferType: 'csv'
-          });
-          console.log('Ürün hafızaya eklendi (CSV)');
-        } catch (memoryError) {
-          console.error('Hafızaya ekleme hatası:', memoryError);
-          // Continue with download even if memory storage fails
-        }
-      }
-      
-      // CSV dosyasını indir
       const downloadUrl = '/api/download/shopify-urunler.csv';
       const link = document.createElement('a');
       link.href = downloadUrl;
@@ -336,125 +53,23 @@ function ScraperPage({ platform = 'trendyol' }: ScraperPageProps) {
       document.body.removeChild(link);
       
       toast({
-        title: "CSV İndirildi ve Hafızaya Eklendi",
-        description: "Ürün artık anlık takip edilecek",
+        title: "CSV İndirildi",
+        description: "Shopify formatında hazır",
       });
-      
-      console.log('CSV indirme başarılı');
     } catch (error) {
-      console.error('CSV indirme hatası:', error);
-      setMainError({
-        message: `CSV indirme hatası: ${error.message}`,
-        details: 'CSV dosyası henüz hazır olmayabilir. Lütfen önce bir ürün çekin.'
-      });
-    }
-  };
-
-  // Comprehensive CSV Download handler with enhanced features
-  const handleComprehensiveCSVDownload = async () => {
-    if (!form.getValues("url")) {
       toast({
-        title: "Hata",
-        description: "Önce bir URL girin",
-        variant: "destructive"
-      });
-      return;
-    }
-
-    setIsComprehensiveCSVGenerating(true);
-    try {
-      console.log('🎯 Kapsamlı CSV özellikleri ile oluşturuluyor...');
-      
-      const response = await fetch('/api/comprehensive-csv', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ 
-          url: form.getValues("url"),
-          productTitle: result?.title || 'Ürün'
-        })
-      });
-
-      if (!response.ok) {
-        const errorData = await response.json();
-        throw new Error(errorData.message || 'CSV oluşturma hatası');
-      }
-
-      const blob = await response.blob();
-      const url = window.URL.createObjectURL(blob);
-      const a = document.createElement('a');
-      a.href = url;
-      a.download = 'comprehensive-shopify-product.csv';
-      document.body.appendChild(a);
-      a.click();
-      document.body.removeChild(a);
-      window.URL.revokeObjectURL(url);
-
-      toast({
-        title: "Kapsamlı CSV İndirildi",
-        description: "Tüm ürün özellikleri ve detayları ile hazırlandı",
-      });
-
-      console.log('✅ Kapsamlı CSV indirme başarılı');
-    } catch (error) {
-      console.error('Kapsamlı CSV indirme hatası:', error);
-      toast({
-        title: "CSV İndirme Hatası",
-        description: error instanceof Error ? error.message : "Bilinmeyen hata",
+        title: "İndirme Hatası",
+        description: "CSV dosyası indirilemedi",
         variant: "destructive"
       });
     } finally {
-      setIsComprehensiveCSVGenerating(false);
+      setIsDownloading(false);
     }
   };
 
-  // Advanced Variant Scraper Handlers
-  const handleAdvancedVariantScraper = async () => {
-    if (!form.getValues("url")) {
-      toast({
-        title: "Hata",
-        description: "Önce bir Trendyol URL'si girin",
-        variant: "destructive"
-      });
-      return;
-    }
-
-    setIsAdvancedScrapingRunning(true);
-    try {
-      const response = await fetch('/api/advanced-variant-scraper', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ url: form.getValues("url") })
-      });
-
-      if (!response.ok) {
-        throw new Error('Advanced variant scraping failed');
-      }
-
-      const data = await response.json();
-      
-      if (data.success) {
-        setAdvancedVariantResult(data.result);
-        toast({
-          title: "Başarılı!",
-          description: `${data.result.totalVariants} varyant keşfedildi, ${data.result.totalImages} görsel çıkarıldı`,
-        });
-      } else {
-        throw new Error(data.message || 'Unknown error');
-      }
-    } catch (error) {
-      toast({
-        title: "Hata",
-        description: "Advanced variant scraping sırasında hata oluştu",
-        variant: "destructive"
-      });
-    } finally {
-      setIsAdvancedScrapingRunning(false);
-    }
-  };
-
-  // Shopify Integration Handlers
+  // Basic Shopify Upload
   const handleShopifyUpload = async () => {
-    if (!result || !result.success) {
+    if (!product) {
       toast({
         title: "Hata",
         description: "Önce bir ürün çekin",
@@ -464,36 +79,27 @@ function ScraperPage({ platform = 'trendyol' }: ScraperPageProps) {
     }
 
     setIsUploading(true);
-    setShopifyMessage('');
-    
     try {
       const response = await fetch('/api/shopify/add-product', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ productData: result })
+        body: JSON.stringify({ productData: product })
       });
 
       if (!response.ok) {
-        throw new Error('Shopify upload failed');
+        throw new Error('Shopify yükleme başarısız');
       }
 
       const data = await response.json();
       
-      if (data.success) {
-        setShopifyMessage(`✅ Ürün başarıyla Shopify'a yüklendi! ID: ${data.productId}`);
-        toast({
-          title: "Başarılı!",
-          description: "Ürün Shopify'a yüklendi",
-        });
-      } else {
-        throw new Error(data.error || 'Unknown error');
-      }
-    } catch (error: any) {
-      const errorMessage = `❌ Shopify yükleme hatası: ${error.message}`;
-      setShopifyMessage(errorMessage);
       toast({
-        title: "Hata",
-        description: "Shopify yükleme sırasında hata oluştu",
+        title: "Başarılı!",
+        description: `Ürün Shopify'a yüklendi - ID: ${data.shopifyProductId}`,
+      });
+    } catch (error) {
+      toast({
+        title: "Yükleme Hatası",
+        description: "Shopify'a yüklenirken hata oluştu",
         variant: "destructive"
       });
     } finally {
@@ -501,451 +107,34 @@ function ScraperPage({ platform = 'trendyol' }: ScraperPageProps) {
     }
   };
 
-  const handleShopifyTest = async () => {
-    setIsTestingShopify(true);
-    setShopifyMessage('');
-    
-    try {
-      const response = await fetch('/api/shopify/test-connection', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' }
-      });
-
-      if (!response.ok) {
-        throw new Error('Test connection failed');
-      }
-
-      const data = await response.json();
-      
-      if (data.success) {
-        setShopifyMessage(`✅ Shopify bağlantısı başarılı! Mağaza: ${data.data?.shop || 'Bilinmiyor'}`);
-        toast({
-          title: "Başarılı!",
-          description: "Shopify bağlantısı aktif",
-        });
-      } else {
-        throw new Error(data.message || 'Unknown error');
-      }
-    } catch (error: any) {
-      const errorMessage = `❌ Shopify test hatası: ${error.message}`;
-      setShopifyMessage(errorMessage);
-      toast({
-        title: "Hata",
-        description: "Shopify bağlantı testi başarısız",
-        variant: "destructive"
-      });
-    } finally {
-      setIsTestingShopify(false);
-    }
-  };
-
-  const handleAdvancedVariantCSV = async () => {
-    if (!form.getValues("url")) {
-      toast({
-        title: "Hata", 
-        description: "Önce bir Trendyol URL'si girin",
-        variant: "destructive"
-      });
-      return;
-    }
-
-    setIsAdvancedCSVGenerating(true);
-    try {
-      const response = await fetch('/api/advanced-variant-csv', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ url: form.getValues("url") })
-      });
-
-      if (!response.ok) {
-        throw new Error('CSV generation failed');
-      }
-
-      const blob = await response.blob();
-      const url = window.URL.createObjectURL(blob);
-      const a = document.createElement('a');
-      a.href = url;
-      a.download = `advanced-variant-analysis-${Date.now()}.csv`;
-      document.body.appendChild(a);
-      a.click();
-      window.URL.revokeObjectURL(url);
-      document.body.removeChild(a);
-
-      toast({
-        title: "Başarılı!",
-        description: "Advanced variant CSV dosyası indirildi",
-      });
-    } catch (error) {
-      toast({
-        title: "Hata",
-        description: "CSV oluşturma sırasında hata oluştu", 
-        variant: "destructive"
-      });
-    } finally {
-      setIsAdvancedCSVGenerating(false);
-    }
-  };
-
-  // Scrapy-like Spider Handlers
-  const handleScrapySpider = async () => {
-    if (!form.getValues("url")) {
-      toast({
-        title: "Hata",
-        description: "Önce bir Trendyol URL'si girin",
-        variant: "destructive"
-      });
-      return;
-    }
-
-    setIsScrapySpiderRunning(true);
-    try {
-      const response = await fetch('/api/scrapy-variants', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ url: form.getValues("url") })
-      });
-
-      if (!response.ok) {
-        throw new Error('Scrapy spider failed');
-      }
-
-      const data = await response.json();
-      
-      if (data.success) {
-        setScrapySpiderResult(data);
-        toast({
-          title: "Scrapy Spider Başarılı!",
-          description: `${data.totalVariants} varyant işlendi, ${data.summary.totalImages} görsel çıkarıldı`,
-        });
-      } else {
-        throw new Error(data.message || 'Unknown error');
-      }
-    } catch (error) {
-      toast({
-        title: "Hata",
-        description: "Scrapy spider sırasında hata oluştu",
-        variant: "destructive"
-      });
-    } finally {
-      setIsScrapySpiderRunning(false);
-    }
-  };
-
-  const handleScrapyJSON = async () => {
-    if (!form.getValues("url")) {
-      toast({
-        title: "Hata", 
-        description: "Önce bir Trendyol URL'si girin",
-        variant: "destructive"
-      });
-      return;
-    }
-
-    setIsScrapyJSONGenerating(true);
-    try {
-      const response = await fetch('/api/scrapy-json', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ url: form.getValues("url") })
-      });
-
-      if (!response.ok) {
-        throw new Error('JSON generation failed');
-      }
-
-      const blob = await response.blob();
-      const url = window.URL.createObjectURL(blob);
-      const a = document.createElement('a');
-      a.href = url;
-      a.download = `scrapy-variants-${Date.now()}.json`;
-      document.body.appendChild(a);
-      a.click();
-      window.URL.revokeObjectURL(url);
-      document.body.removeChild(a);
-
-      toast({
-        title: "Başarılı!",
-        description: "Scrapy JSON dosyası indirildi",
-      });
-    } catch (error) {
-      toast({
-        title: "Hata",
-        description: "JSON oluşturma sırasında hata oluştu", 
-        variant: "destructive"
-      });
-    } finally {
-      setIsScrapyJSONGenerating(false);
-    }
-  };
-
-  const handleScrapyCSV = async () => {
-    if (!form.getValues("url")) {
-      toast({
-        title: "Hata", 
-        description: "Önce bir Trendyol URL'si girin",
-        variant: "destructive"
-      });
-      return;
-    }
-
-    setIsScrapyCSVGenerating(true);
-    try {
-      const response = await fetch('/api/scrapy-csv', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ url: form.getValues("url") })
-      });
-
-      if (!response.ok) {
-        throw new Error('CSV generation failed');
-      }
-
-      const blob = await response.blob();
-      const url = window.URL.createObjectURL(blob);
-      const a = document.createElement('a');
-      a.href = url;
-      a.download = `scrapy-variants-${Date.now()}.csv`;
-      document.body.appendChild(a);
-      a.click();
-      window.URL.revokeObjectURL(url);
-      document.body.removeChild(a);
-
-      toast({
-        title: "Başarılı!",
-        description: "Scrapy CSV dosyası indirildi",
-      });
-    } catch (error) {
-      toast({
-        title: "Hata",
-        description: "CSV oluşturma sırasında hata oluştu", 
-        variant: "destructive"
-      });
-    } finally {
-      setIsScrapyCSVGenerating(false);
-    }
-  };
-
-  const [mainError, setMainError] = useState<{
-    message: string;
-    status?: number;
-    details?: string;
-    solution?: string;
-  } | null>(null);
-
-  const { toast } = useToast();
-
-  const handleExportCSV = async () => {
-    if (!product) return;
-    
-    setIsExporting(true);
-    try {
-      const response = await fetch('/api/export-shopify-csv', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify(product)
-      });
-
-      if (response.ok) {
-        const blob = await response.blob();
-        const url = window.URL.createObjectURL(blob);
-        const a = document.createElement('a');
-        a.href = url;
-        a.download = `shopify-${product.brand.toLowerCase()}-${Date.now()}.csv`;
-        document.body.appendChild(a);
-        a.click();
-        window.URL.revokeObjectURL(url);
-        document.body.removeChild(a);
-        
-        toast({
-          title: 'CSV İndirildi',
-          description: `${product.brand} ürünü Shopify formatında hazırlandı`,
-        });
-      } else {
-        throw new Error('CSV oluşturulamadı');
-      }
-    } catch (error) {
-      toast({
-        title: 'Hata',
-        description: 'CSV dosyası oluşturulurken bir hata oluştu',
-        variant: 'destructive',
-      });
-    } finally {
-      setIsExporting(false);
-    }
-  };
-
-
-  
-  // Get current platform configuration
-  const currentPlatform = PlatformLogos[platform as keyof typeof PlatformLogos] || PlatformLogos.trendyol;
-
-  const form = useForm({
-    resolver: zodResolver(urlSchema),
-    defaultValues: {
-      url: ""
-    }
-  });
-
-  useEffect(() => {
-    const subscription = form.watch((value, { name, type }) => {
-      if (type === "change" && name === "url") {
-        setMainError(null);
-      }
-    });
-    return () => subscription.unsubscribe();
-  }, [form.watch]);
-  
-  const handlePaste = async () => {
-    try {
-      const text = await navigator.clipboard.readText();
-      if (text) {
-        form.setValue("url", text);
-        toast({
-          title: "URL yapıştırıldı",
-          description: "Panodaki URL başarıyla yapıştırıldı"
-        });
-      }
-    } catch (error) {
-      toast({
-        title: "Yapıştırma hatası",
-        description: "Panodaki veri alınamadı. Tarayıcı izinlerini kontrol edin.",
-        variant: "destructive"
-      });
-    }
-  };
-
   const scrapeMutation = useMutation({
     mutationFn: async (data: { url: string }) => {
       // Use scenario-based scraping for Trendyol URLs
       if (data.url.includes('trendyol.com')) {
-        console.log('🎯 Using scenario-based scraping for Trendyol');
         const response = await apiRequest("POST", "/api/scenario-scrape", data);
         if (response.ok) {
           return response.json();
         }
-        console.log('⚠️ Scenario-based failed, falling back to regular scraper');
       }
       
-      // Fallback to regular scraper for all platforms
+      // Fallback to regular scraper
       const response = await apiRequest("POST", "/api/scrape", data);
       if (!response.ok) {
         const errorData = await response.json().catch(() => ({}));
-        throw {
-          message: errorData.message || `HTTP ${response.status}: ${response.statusText}`,
-          status: response.status,
-          details: errorData.details || "Sunucu yanıt vermedi"
-        };
+        throw new Error(errorData.message || `HTTP ${response.status}`);
       }
       return response.json();
     },
     onSuccess: (data) => {
-      console.log('✅ Ürün verisi alındı:', data);
-      
-      // Handle scenario-based scraper response
-      if (data.extractionMethod === 'scenario-based-scraper') {
-        const enhancedData = {
-          ...data,
-          // Map scenario-based result to expected format
-          brand: data.brand,
-          title: data.title,
-          price: data.price,
-          images: data.images,
-          features: data.features,
-          variants: data.variants,
-          scenario: data.scenario,
-          confidence: data.confidence
-        };
-        setResult(enhancedData);
-        setProduct(enhancedData);
-        
-        toast({
-          title: "Başarılı",
-          description: `${data.scenario} senaryosu tespit edildi (${data.confidence.toFixed(1)}% güven)`
-        });
-      } else {
-        // Handle regular scraper response
-        if (data.csvPreview) {
-          const enhancedData = {
-            ...data,
-            csvData: data.csvPreview
-          };
-          setResult(enhancedData);
-          setProduct(enhancedData);
-        } else {
-          setResult(data);
-          setProduct(data);
-        }
-        
-        toast({
-          title: "Başarılı",
-          description: data.csvGenerated ? "Ürün verisi çekildi ve CSV oluşturuldu" : "Ürün verisi başarıyla çekildi"
-        });
-      }
-      
-      setMainError(null);
+      setProduct(data);
+      toast({
+        title: "Başarılı",
+        description: "Ürün verisi çekildi"
+      });
     },
     onError: (error: any) => {
-      setMainError({
-        message: error.message,
-        status: error.status,
-        details: error.details,
-        solution: getErrorSolution(error.status, error.details)
-      });
       toast({
         title: "Hata",
-        description: error.message,
-        variant: "destructive"
-      });
-    }
-  });
-
-  const completeMutation = useMutation({
-    mutationFn: async (data: { url: string }) => {
-      const response = await apiRequest("POST", "/api/process-product-complete", data);
-      if (!response.ok) {
-        const errorData = await response.json().catch(() => ({}));
-        throw {
-          message: errorData.message || `HTTP ${response.status}: ${response.statusText}`,
-          status: response.status,
-          details: errorData.details || "Entegre işlem başarısız oldu"
-        };
-      }
-      return response.json();
-    },
-    onSuccess: (data) => {
-      console.log('🚀 Entegre işlem tamamlandı:', data);
-      
-      const enhancedData = {
-        ...data,
-        title: `Ürün işlendi (ID: ${data.productId})`,
-        success: true,
-        completeWorkflow: true,
-        productId: data.productId,
-        shopifyProductId: data.shopifyProductId,
-        reviewsCount: data.reviewsCount,
-        csvGenerated: data.csvGenerated,
-        monitoring: data.monitoring
-      };
-      
-      setResult(enhancedData);
-      setProduct(enhancedData);
-      
-      toast({
-        title: "🚀 Entegre İşlem Başarılı",
-        description: `Ürün tamamen işlendi! Shopify ID: ${data.shopifyProductId}`
-      });
-      
-      setMainError(null);
-    },
-    onError: (error: any) => {
-      setMainError({
-        message: error.message,
-        status: error.status,
-        details: error.details,
-        solution: "Entegre işlem sırasında bir hata oluştu. Lütfen tekrar deneyin."
-      });
-      toast({
-        title: "❌ Entegre İşlem Hatası",
         description: error.message,
         variant: "destructive"
       });
@@ -956,1125 +145,192 @@ function ScraperPage({ platform = 'trendyol' }: ScraperPageProps) {
     scrapeMutation.mutate(data);
   });
 
-  const onCompleteSubmit = form.handleSubmit((data) => {
-    completeMutation.mutate(data);
-  });
-
-  const getErrorSolution = (status?: number, details?: string) => {
-    switch (status) {
-      case 403:
-        return "VPN kullanmayı deneyin veya farklı bir ağdan bağlanın";
-      case 404:
-        return "URL'yi kontrol edin, ürün mevcut değil olabilir";
-      case 429:
-        return "Birkaç dakika bekleyin ve tekrar deneyin";
-      case 500:
-        return "Sistem yeniden başlatılıyor, lütfen bekleyin";
-      default:
-        return "URL formatını kontrol edin ve tekrar deneyin";
-    }
-  };
-
-  const getErrorIcon = (status?: number) => {
-    switch (status) {
-      case 403:
-        return <AlertTriangle className="h-4 w-4" />;
-      case 404:
-        return <XCircle className="h-4 w-4" />;
-      case 429:
-        return <RefreshCcw className="h-4 w-4" />;
-      case 500:
-        return <AlertCircle className="h-4 w-4" />;
-      default:
-        return <AlertTriangle className="h-4 w-4" />;
-    }
-  };
-
-  const getErrorTitle = (status?: number) => {
-    switch (status) {
-      case 403:
-        return "Erişim Engellendi";
-      case 404:
-        return "Ürün Bulunamadı";
-      case 429:
-        return "İstek Limiti Aşıldı";
-      case 500:
-        return "Sistem Hatası";
-      default:
-        return "Hata Oluştu";
-    }
-  };
-
-  const downloadCSV = async () => {
-    try {
-      const filename = 'shopify-urunler.csv';
-      console.log('CSV indirme başlatılıyor:', filename);
-      
-      const response = await fetch(`/api/download/${filename}`);
-      if (!response.ok) {
-        const errorText = await response.text();
-        console.error('CSV indirme hatası:', response.status, errorText);
-        throw new Error(`HTTP ${response.status}: ${errorText}`);
-      }
-      
-      const blob = await response.blob();
-      const url = window.URL.createObjectURL(blob);
-      const a = document.createElement('a');
-      a.href = url;
-      a.download = filename;
-      a.style.display = 'none';
-      document.body.appendChild(a);
-      a.click();
-      document.body.removeChild(a);
-      window.URL.revokeObjectURL(url);
-      
-      // Telegram bildirimi gönder
-      const productData = result?.productInfo || result;
-      if (productData) {
-        try {
-          await fetch('/api/telegram/csv-download-notification', {
-            method: 'POST',
-            headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify({ productData })
-          });
-        } catch (telegramError) {
-          console.warn('Telegram bildirimi gönderilemedi:', telegramError);
-        }
-      }
-      
-      toast({
-        title: "CSV başarıyla indirildi",
-        description: `${filename} Shopify formatında hazır`
-      });
-    } catch (error) {
-      console.error('CSV indirme hatası:', error);
-      toast({
-        title: "İndirme hatası",
-        description: error instanceof Error ? error.message : "CSV dosyası indirilemedi",
-        variant: "destructive"
-      });
-    }
-  };
-
-  const uploadToShopify = async () => {
-    // Her iki veri formatını da kontrol et
-    const productData = result?.productInfo || result;
-    
-    if (!productData || !productData.title) {
-      toast({
-        title: "Hata", 
-        description: "Shopify'a yüklemek için önce ürün çekin",
-        variant: "destructive"
-      });
-      return;
-    }
-
-    setIsUploadingToShopify(true);
-    
-    try {
-      console.log('Shopify API yüklemesi başlatılıyor...', productData);
-      
-      // Ürünü hafızaya ekle (Shopify transfer) - upload öncesi
-      try {
-        await apiRequest('POST', '/api/memory/store-product', {
-          productData: productData,
-          transferType: 'shopify'
-        });
-        console.log('Ürün hafızaya eklendi (Shopify)');
-      } catch (memoryError) {
-        console.error('Hafızaya ekleme hatası:', memoryError);
-        // Continue with Shopify upload even if memory storage fails
-      }
-      
-      // Fiyat verilerini düzelt
-      const originalPrice = productData.price?.original || productData.price?.withProfit / 1.15 || 0;
-      const profitPrice = productData.price?.withProfit || originalPrice * 1.15;
-      
-      const shopifyData = {
-        success: true,
-        title: productData.title,
-        brand: productData.brand,
-        price: {
-          original: originalPrice,
-          withProfit: profitPrice
-        },
-        features: productData.features || [],
-        variants: productData.variants?.length > 0 ? productData.variants : [{
-          color: "Varsayılan",
-          size: "Standart", 
-          inStock: true,
-          stockCount: 10
-        }],
-        images: productData.images || []
-      };
-
-      console.log('Gönderilen shopify data:', shopifyData);
-      
-      const response = await fetch('/api/shopify/add-product', {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-        },
-        body: JSON.stringify({ productData: shopifyData }),
-      });
-
-      console.log('Response status:', response.status);
-      
-      if (!response.ok) {
-        const contentType = response.headers.get('content-type');
-        if (contentType && contentType.includes('application/json')) {
-          const errorData = await response.json();
-          throw new Error(errorData.error || 'Shopify yükleme başarısız');
-        } else {
-          const errorText = await response.text();
-          throw new Error(`Server hatası: ${response.status}`);
-        }
-      }
-
-      const data = await response.json();
-      
-      // Başarılı Shopify yükleme sonrası ürünü hafızaya ekle
-      if (product) {
-        try {
-          const productDataWithShopifyId = {
-            ...product,
-            shopifyProductId: data.shopifyProductId
-          };
-          
-          const memoryResponse = await fetch('/api/memory/add-product', {
-            method: 'POST',
-            headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify({ 
-              productData: productDataWithShopifyId, 
-              transferType: 'shopify' 
-            })
-          });
-          
-          if (memoryResponse.ok) {
-            console.log('✅ Ürün Shopify yükleme sonrası hafızaya eklendi');
-          }
-        } catch (memoryError) {
-          console.error('Hafızaya ekleme hatası:', memoryError);
-        }
-      }
-      
-      toast({
-        title: "Shopify'a başarıyla yüklendi ve hafızaya eklendi!",
-        description: `Ürün ID: ${data.shopifyProductId} - Artık anlık takip edilecek`,
-      });
-      
-      console.log('Shopify yükleme başarılı:', data);
-      
-    } catch (error) {
-      const errorMessage = error instanceof Error ? error.message : String(error);
-      console.error('Shopify yükleme hatası:', {
-        error: errorMessage,
-        stack: error instanceof Error ? error.stack : undefined,
-        productData: productData?.title || 'Unknown'
-      });
-      
-      // Enhanced error detection sistemine hata bildir
-      try {
-        await fetch('/api/system/report-error', {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({
-            context: 'Shopify Upload',
-            error: errorMessage,
-            productTitle: productData?.title || 'Unknown Product',
-            severity: 'high'
-          })
-        });
-      } catch (reportError) {
-        console.warn('Error reporting failed:', reportError);
-      }
-      
-      toast({
-        title: "Shopify yükleme hatası",
-        description: errorMessage,
-        variant: "destructive"
-      });
-    } finally {
-      setIsUploadingToShopify(false);
-    }
-  };
-
-  const [csvPreview, setCsvPreview] = useState<any[]>([]);
-  const [showCsvPreview, setShowCsvPreview] = useState(false);
-  const [isUploadingToShopify, setIsUploadingToShopify] = useState(false);
-
-  const previewCSV = async () => {
-    if (extractedProducts.length === 0) {
-      toast({
-        title: "Hata",
-        description: "Önizleme için önce ürün çıkarın.",
-        variant: "destructive"
-      });
-      return;
-    }
-
-    try {
-      const response = await fetch('/api/preview-csv', {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-        },
-        body: JSON.stringify({ products: extractedProducts }),
-      });
-
-      if (!response.ok) {
-        throw new Error('CSV önizleme başarısız');
-      }
-
-      const data = await response.json();
-      setCsvPreview(data.preview);
-      setShowCsvPreview(true);
-
-      toast({
-        title: "CSV Önizleme Hazır",
-        description: `${data.totalRows} satır veri önizlendi.`,
-      });
-    } catch (error) {
-      toast({
-        title: "Hata",
-        description: "CSV önizleme sırasında hata oluştu.",
-        variant: "destructive"
-      });
-    }
-  };
-
-  const exportToShopifyCSV = async () => {
-    if (extractedProducts.length === 0) {
-      toast({
-        title: "Hata",
-        description: "CSV'ye aktarmak için önce ürün çıkarın.",
-        variant: "destructive"
-      });
-      return;
-    }
-
-    try {
-      const response = await fetch('/api/export-shopify-csv', {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-        },
-        body: JSON.stringify({ products: extractedProducts }),
-      });
-
-      if (!response.ok) {
-        throw new Error('CSV export başarısız');
-      }
-
-      const blob = await response.blob();
-      const url = window.URL.createObjectURL(blob);
-      const a = document.createElement('a');
-      a.href = url;
-      a.download = `shopify-products-${Date.now()}.csv`;
-      document.body.appendChild(a);
-      a.click();
-      window.URL.revokeObjectURL(url);
-      document.body.removeChild(a);
-
-      toast({
-        title: "Başarılı!",
-        description: `${extractedProducts.length} ürün Shopify CSV formatında indirildi.`,
-      });
-    } catch (error) {
-      toast({
-        title: "Hata",
-        description: "CSV export sırasında hata oluştu.",
-        variant: "destructive"
-      });
-    }
-  };
-
   return (
-    <div className="fixed inset-0 bg-gradient-to-br from-slate-900 via-blue-900 to-indigo-900 text-white overflow-auto">
-      <div className="min-h-full p-2 sm:p-4 relative">
-        {/* Real-time Clock - Top Right */}
-        <div className="absolute top-2 sm:top-4 right-2 sm:right-4 z-10">
-          <RealTimeClock />
-        </div>
+    <div className="min-h-screen bg-gradient-to-br from-slate-900 via-blue-900 to-indigo-900 text-white p-4">
+      <div className="max-w-4xl mx-auto space-y-6">
         
-        {/* Navigation Header */}
-        <div className="max-w-2xl mx-auto mb-4 sm:mb-6">
-          <Link href="/" className="inline-flex items-center gap-2 text-gray-400 hover:text-white text-sm sm:text-base px-3 py-2 rounded-lg hover:bg-white/5 transition-all duration-200">
-            <Home className="h-4 w-4" />
-            <span className="hidden sm:inline">Ana Sayfa</span>
-            <span className="sm:hidden">Ana Sayfa</span>
+        {/* Header */}
+        <div className="flex items-center justify-between">
+          <Link href="/" className="flex items-center gap-2 text-gray-400 hover:text-white transition-colors">
+            <Home className="h-5 w-5" />
+            Ana Sayfa
           </Link>
         </div>
-        
-        <div className="max-w-2xl mx-auto space-y-4 sm:space-y-6">
-          <motion.div
-            initial={false}
-            animate={product ? { y: -20, scale: 0.95, opacity: 0.8 } : { y: 0, scale: 1, opacity: 1 }}
-            className=""
-          >
-            <div className="bg-gradient-to-br from-blue-900/40 to-indigo-900/40 backdrop-blur-sm rounded-2xl border border-blue-500/30 p-4 sm:p-8 mb-4 sm:mb-6 shadow-2xl">
-              {/* Header Row */}
-              <div className="flex items-center justify-between mb-4 sm:mb-6">
-              <div className="flex items-center gap-3 sm:gap-6">
-                {/* Logo */}
-                <div className="relative">
-                  <div className="w-10 h-10 sm:w-12 sm:h-12 bg-gradient-to-br from-blue-500 via-blue-600 to-indigo-600 rounded-2xl flex items-center justify-center shadow-xl">
-                    <span className="text-white font-bold text-lg sm:text-xl">T</span>
-                  </div>
-                  <div className="absolute -top-1 -right-1 bg-cyan-400 rounded-full p-1 animate-pulse">
-                    <div className="h-2 w-2 bg-white rounded-full"></div>
-                  </div>
-                </div>
-                
-                {/* Brand & Title */}
-                <div>
-                  <div className="flex items-center gap-2 sm:gap-3 mb-1">
-                    <h1 className="text-lg sm:text-xl font-bold text-blue-400">Trendyol</h1>
-                    <span className="text-gray-500 hidden sm:inline">•</span>
-                    <h2 className="text-lg sm:text-xl font-bold bg-gradient-to-r from-white to-gray-300 bg-clip-text text-transparent">
-                      <span className="hidden sm:inline">Ürün Aktarıcı</span>
-                      <span className="sm:hidden">Aktarıcı</span>
-                    </h2>
-                  </div>
-                  <p className="text-xs sm:text-sm text-gray-400">
-                    Trendyol ürün verilerini Shopify'a uyumlu formata dönüştürün
-                  </p>
-                </div>
-              </div>
-              
-              {/* Version & Developer Info */}
-              <div className="text-right text-xs text-gray-500 space-y-1 hidden sm:block">
-                <div className="flex items-center gap-2 justify-end">
-                  <div className="h-1.5 w-1.5 bg-cyan-400 rounded-full animate-pulse"></div>
-                  <span>trendyol.com için optimize edilmiştir</span>
-                </div>
-                <div>ERDEM ÇALIŞKAN tarafından geliştirilmiştir</div>
-                <div className="flex items-center gap-2 justify-end">
-                  <div className="h-1.5 w-1.5 bg-blue-400 rounded-full"></div>
-                  <span className="font-mono text-blue-300">Versiyon 0.13.1006</span>
-                </div>
-              </div>
+
+        {/* Title */}
+        <div className="text-center">
+          <div className="flex items-center justify-center gap-3 mb-4">
+            <div className="w-12 h-12 bg-gradient-to-r from-blue-500 to-blue-600 rounded-xl flex items-center justify-center">
+              <span className="text-white font-bold text-xl">T</span>
             </div>
-            
-            {/* Info Badge */}
-            <div className="text-center">
-              <div className="inline-flex items-center gap-2 bg-blue-900/30 px-3 sm:px-4 py-2 rounded-lg text-blue-200 text-xs sm:text-sm border border-blue-500/20">
-                <div className="h-2 w-2 bg-cyan-400 rounded-full animate-pulse"></div>
-                <span className="hidden sm:inline">AI destekli analiz ve Shopify uyumlu CSV dönüştürme</span>
-                <span className="sm:hidden">AI destekli CSV dönüştürme</span>
-              </div>
-            </div>
+            <h1 className="text-3xl font-bold text-blue-400">Trendyol Aktarıcı</h1>
           </div>
+          <p className="text-gray-400">Trendyol ürünlerini Shopify'a uyumlu formata dönüştürün</p>
+        </div>
 
-          {mainError && (
-            <div className="mb-6">
-              <Alert variant="destructive" className="bg-gradient-to-br from-red-900/40 to-red-800/40 backdrop-blur-sm border border-red-500/30 shadow-2xl rounded-2xl">
-                {getErrorIcon(mainError.status)}
-                <AlertTitle className="text-red-100 font-semibold">{getErrorTitle(mainError.status)}</AlertTitle>
-                <AlertDescription className="mt-3 space-y-3 text-red-100">
-                  <p className="font-medium">{mainError.message}</p>
-                  {mainError.solution && (
-                    <div className="p-3 bg-red-900/30 rounded-xl border border-red-600/30">
-                      <strong className="text-red-200">Çözüm önerisi:</strong>
-                      <span className="ml-2 text-red-100">{mainError.solution}</span>
-                    </div>
-                  )}
-                  {mainError.details && (
-                    <p className="text-sm text-red-300 bg-red-950/30 p-2 rounded-lg border border-red-700/20">
-                      <strong>Teknik detay:</strong> {mainError.details}
-                    </p>
-                  )}
-                </AlertDescription>
-              </Alert>
-            </div>
-          )}
-
-          <form onSubmit={onSubmit} className="space-y-4">
-            <div className="relative group">
-              {/* URL Input Container with Enhanced Styling */}
-              <div className="relative bg-gradient-to-r from-gray-900/80 to-gray-800/80 backdrop-blur-sm rounded-2xl border border-blue-500/30 shadow-2xl transition-all duration-300 group-hover:border-blue-400/50 group-focus-within:border-blue-400/70 group-focus-within:shadow-blue-500/20 min-h-[60px] sm:min-h-[80px]">
-                
-                {/* Clear Button */}
-                {form.watch("url") && (
-                  <Button
-                    type="button"
-                    variant="ghost"
-                    size="icon"
-                    className="absolute left-2 sm:left-4 top-1/2 transform -translate-y-1/2 h-8 w-8 sm:h-12 sm:w-12 z-10 bg-gradient-to-r from-red-500/20 to-red-600/20 hover:from-red-500/30 hover:to-red-600/30 text-red-300 hover:text-red-200 border border-red-500/30 hover:border-red-400/50 rounded-xl transition-all duration-200"
-                    onClick={() => form.setValue("url", "")}
-                  >
-                    <XCircle className="h-4 w-4 sm:h-6 sm:w-6" />
-                  </Button>
-                )}
-                
-                {/* Paste Button */}
-                <Button
-                  type="button"
-                  variant="ghost"
-                  size="icon"
-                  className="absolute left-[42px] sm:left-[68px] top-1/2 transform -translate-y-1/2 h-8 w-8 sm:h-12 sm:w-12 z-10 bg-gradient-to-r from-blue-600/30 to-indigo-600/30 hover:from-blue-500/40 hover:to-indigo-500/40 text-blue-200 hover:text-blue-100 border border-blue-500/40 hover:border-blue-400/60 rounded-xl transition-all duration-200"
-                  onClick={handlePaste}
-                >
-                  <Clipboard className="h-4 w-4 sm:h-6 sm:w-6" />
-                </Button>
-                
-                {/* Enhanced Input Field */}
+        {/* URL Input */}
+        <Card className="bg-gradient-to-br from-blue-900/40 to-indigo-900/40 border-blue-500/30">
+          <CardContent className="p-6">
+            <form onSubmit={onSubmit} className="space-y-4">
+              <div className="flex gap-4">
                 <Input
-                  placeholder="Trendyol ürün linkini buraya yapıştırın (örn: https://www.trendyol.com/marka/urun-adi-p-123456)"
+                  placeholder="Trendyol ürün linkini buraya yapıştırın..."
                   {...form.register("url")}
-                  className="h-12 sm:h-20 pl-[100px] sm:pl-[140px] pr-[130px] sm:pr-[150px] bg-transparent border-none text-sm sm:text-lg font-medium text-gray-100 placeholder:text-gray-400 focus:ring-0 focus:outline-none rounded-2xl leading-relaxed py-3 sm:py-6"
+                  className="flex-1 bg-gray-800/50 border-gray-600 text-white placeholder:text-gray-400"
                 />
-                
-                {/* Enhanced Submit Button */}
                 <Button
                   type="submit"
-                  className="absolute right-[70px] sm:right-[100px] top-1/2 transform -translate-y-1/2 h-8 w-12 sm:h-12 sm:w-20 bg-gradient-to-r from-blue-600 via-blue-700 to-indigo-700 hover:from-blue-500 hover:via-blue-600 hover:to-indigo-600 text-white border border-blue-500/50 hover:border-blue-400/70 rounded-xl shadow-lg hover:shadow-blue-500/25 transition-all duration-200 disabled:opacity-50 disabled:cursor-not-allowed"
                   disabled={scrapeMutation.isPending}
+                  className="bg-blue-600 hover:bg-blue-700 px-8"
                 >
                   {scrapeMutation.isPending ? (
-                    <Loader2 className="w-6 h-6 animate-spin" />
+                    <Loader2 className="w-5 h-5 animate-spin" />
                   ) : (
-                    <ArrowRight className="w-6 h-6" />
-                  )}
-                </Button>
-                
-                {/* Complete Workflow Button */}
-                <Button
-                  type="button"
-                  onClick={onCompleteSubmit}
-                  className="absolute right-2 sm:right-4 top-1/2 transform -translate-y-1/2 h-8 w-12 sm:h-12 sm:w-20 bg-gradient-to-r from-green-600 via-green-700 to-emerald-700 hover:from-green-500 hover:via-green-600 hover:to-emerald-600 text-white border border-green-500/50 hover:border-green-400/70 rounded-xl shadow-lg hover:shadow-green-500/25 transition-all duration-200 disabled:opacity-50 disabled:cursor-not-allowed"
-                  disabled={completeMutation.isPending}
-                  title="Entegre İşlem: Çıkar + Shopify + Analiz"
-                >
-                  {completeMutation.isPending ? (
-                    <Loader2 className="w-6 h-6 animate-spin" />
-                  ) : (
-                    <Package className="w-6 h-6" />
+                    <ArrowRight className="w-5 h-5" />
                   )}
                 </Button>
               </div>
-              
-              {/* Subtle Glow Effect */}
-              <div className="absolute inset-0 bg-gradient-to-r from-blue-600/10 to-indigo-600/10 rounded-2xl blur-xl opacity-0 group-focus-within:opacity-100 transition-opacity duration-300 -z-10"></div>
-            </div>
-          </form>
+            </form>
+          </CardContent>
+        </Card>
 
-
-          </motion.div>
-
-
-
-        {/* CSV Önizleme Tablosu */}
-        <AnimatePresence>
-          {showCsvPreview && csvPreview.length > 0 && (
-            <motion.div
-              initial={{ opacity: 0, y: 50 }}
-              animate={{ opacity: 1, y: 0 }}
-              exit={{ opacity: 0, y: -50 }}
-              transition={{ duration: 0.3 }}
-              className="mb-6"
-            >
-              <Card className="bg-gray-900 border-gray-800">
-                <CardContent className="p-6">
-                  <div className="flex justify-between items-center mb-4">
-                    <h3 className="text-lg font-semibold text-white">CSV Önizleme</h3>
-                    <Button 
-                      variant="ghost" 
-                      size="sm" 
-                      onClick={() => setShowCsvPreview(false)}
-                      className="text-gray-400 hover:text-white"
-                    >
-                      <XCircle className="h-4 w-4" />
-                    </Button>
-                  </div>
+        {/* Product Display */}
+        {product && (
+          <Card className="bg-gradient-to-br from-blue-900/40 to-indigo-900/40 border-blue-500/30">
+            <CardContent className="p-6">
+              <div className="space-y-6">
+                
+                {/* Product Info */}
+                <div className="text-center border-b border-gray-700 pb-6">
+                  <h2 className="text-xl font-bold text-blue-400 mb-2">
+                    {product.brand?.toUpperCase() || 'MARKA'}
+                  </h2>
+                  <h3 className="text-lg text-white mb-4">{product.title}</h3>
                   
-                  <div className="overflow-x-auto">
-                    <table className="w-full text-sm text-gray-300">
-                      <thead>
-                        <tr className="border-b border-gray-700">
-                          <th className="text-left p-2">Handle</th>
-                          <th className="text-left p-2">Başlık</th>
-                          <th className="text-left p-2">Marka</th>
-                          <th className="text-left p-2">Fiyat</th>
-                          <th className="text-left p-2">Eski Fiyat</th>
-                          <th className="text-left p-2">Beden</th>
-                          <th className="text-left p-2">Stok</th>
-                        </tr>
-                      </thead>
-                      <tbody>
-                        {csvPreview.slice(0, 10).map((row, index) => (
-                          <tr key={index} className="border-b border-gray-800">
-                            <td className="p-2 text-xs">{row.handle}</td>
-                            <td className="p-2 text-xs">{row.title}</td>
-                            <td className="p-2 text-xs">{row.vendor}</td>
-                            <td className="p-2 text-xs">{row.variant_price} TL</td>
-                            <td className="p-2 text-xs">{row.variant_compare_price} TL</td>
-                            <td className="p-2 text-xs">{row.option1_value || 'Tek Beden'}</td>
-                            <td className="p-2 text-xs">{row.variant_inventory_qty}</td>
-                          </tr>
-                        ))}
-                      </tbody>
-                    </table>
-                  </div>
-                  
-                  {csvPreview.length > 10 && (
-                    <p className="text-gray-400 text-sm mt-2">
-                      ... ve {csvPreview.length - 10} satır daha
-                    </p>
-                  )}
-                  
-                  <div className="flex gap-2 mt-4">
-                    <Button onClick={exportToShopifyCSV} className="bg-green-600 hover:bg-green-700">
-                      <Download className="h-4 w-4 mr-2" />
-                      CSV'yi İndir
-                    </Button>
-                  </div>
-                </CardContent>
-              </Card>
-            </motion.div>
-          )}
-        </AnimatePresence>
-
-
-
-        <AnimatePresence>
-          {product && (
-            <motion.div
-              initial={{ opacity: 0, y: 50 }}
-              animate={{ opacity: 1, y: 0 }}
-              exit={{ opacity: 0, y: -50 }}
-              transition={{ duration: 0.2 }}
-            >
-              <Card className="bg-gradient-to-br from-blue-900/40 to-indigo-900/40 backdrop-blur-sm border border-blue-500/30 shadow-2xl">
-                <CardContent className="p-8">
-                  {/* Product Brand and Title Header */}
-                  <div className="mb-6 text-center border-b border-gray-800 pb-4">
-                    <div className="text-lg font-bold text-blue-400 mb-2">
-                      {product.brand?.toUpperCase() || 'MARKA'}
-                    </div>
-                    <h2 className="text-xl font-semibold text-white leading-tight">
-                      {product.title}
-                    </h2>
-                    <div className="text-sm text-gray-400 mt-2">
-                      Ürün kodu: {product.url?.split('-p-')[1]?.split('?')[0] || 'N/A'}
-                    </div>
-                  </div>
-
-                  {/* Enhanced Product Images Gallery */}
-                  <div className="space-y-4">
-                    <div className="flex items-center justify-between mb-2">
-                      <h4 className="text-lg font-semibold text-white flex items-center gap-2">
-                        <svg className="w-5 h-5 text-blue-400" fill="currentColor" viewBox="0 0 20 20">
-                          <path fillRule="evenodd" d="M4 3a2 2 0 00-2 2v10a2 2 0 002 2h12a2 2 0 002-2V5a2 2 0 00-2-2H4zm12 12H4l4-8 3 6 2-4 3 6z" clipRule="evenodd" />
-                        </svg>
-                        Ürün Görselleri
-                      </h4>
-                      <div className="flex items-center gap-2">
-                        <span className="text-xs text-gray-400 bg-gray-800/60 px-2.5 py-1 rounded-full font-medium">
-                          {product.images?.length || 0} adet
-                        </span>
-                        <span className="text-xs text-green-400 bg-green-900/30 px-2.5 py-1 rounded-full border border-green-700/50 font-medium">
-                          HD Kalite
-                        </span>
+                  {/* Price */}
+                  <div className="inline-flex items-center gap-4 bg-green-900/20 border border-green-600/30 rounded-lg p-3">
+                    <div className="text-center">
+                      <div className="text-sm text-green-300">Satış Fiyatı</div>
+                      <div className="text-lg font-bold text-green-200">
+                        {typeof product.price === 'object' ? product.price.profitFormatted : `${product.price} TL`}
                       </div>
                     </div>
-                    
-                    {/* Simplified Compact Layout */}
-                    <div className="max-w-md mx-auto">
-                      
+                    {product.variants && (
+                      <div className="text-center">
+                        <div className="text-sm text-blue-300">Varyant Sayısı</div>
+                        <div className="text-lg font-bold text-blue-200">
+                          {product.variants.length}
+                        </div>
+                      </div>
+                    )}
+                  </div>
+                </div>
 
-                    
-                    {/* Simplified Product Details */}
-                    <div className="bg-white/5 backdrop-blur-sm rounded-lg p-4 border border-gray-600/30">
-                      <h3 className="text-lg font-semibold text-white mb-4 flex items-center gap-2">
-                        <svg className="w-5 h-5 text-blue-400" fill="currentColor" viewBox="0 0 20 20">
-                          <path fillRule="evenodd" d="M3 4a1 1 0 011-1h12a1 1 0 011 1v2a1 1 0 01-1 1H4a1 1 0 01-1-1V4zm0 4a1 1 0 011-1h12a1 1 0 011 1v2a1 1 0 01-1 1H4a1 1 0 01-1-1V8zm0 4a1 1 0 011-1h12a1 1 0 011 1v2a1 1 0 01-1 1H4a1 1 0 01-1-1v-2z" clipRule="evenodd" />
-                        </svg>
-                        Ürün Özellikleri
-                      </h3>
-                      
-                      {/* Clean Product Specifications Grid */}
-                      {product.features && product.features.length > 0 && (
-                        <div className="grid grid-cols-1 gap-3 mb-4">
-                          {product.features.map((feature, index) => (
-                            <div key={index} className="flex justify-between items-center bg-gray-800/20 border border-gray-600/30 rounded-lg p-3 hover:bg-gray-700/30 transition-all duration-200">
-                              <div className="text-sm font-medium text-gray-300">{feature.key}</div>
-                              <div className="text-sm font-semibold text-white">{feature.value}</div>
-                            </div>
-                          ))}
+                {/* Product Images */}
+                {product.images && product.images.length > 0 && (
+                  <div>
+                    <h4 className="text-lg font-semibold text-white mb-3">Ürün Görselleri ({product.images.length} adet)</h4>
+                    <div className="grid grid-cols-2 md:grid-cols-4 gap-3">
+                      {product.images.slice(0, 8).map((image: string, index: number) => (
+                        <img
+                          key={index}
+                          src={image}
+                          alt={`Ürün görseli ${index + 1}`}
+                          className="w-full h-32 object-cover rounded-lg border border-gray-600"
+                          onError={(e) => {
+                            e.currentTarget.style.display = 'none';
+                          }}
+                        />
+                      ))}
+                      {product.images.length > 8 && (
+                        <div className="w-full h-32 bg-gray-800/50 rounded-lg border border-gray-600 flex items-center justify-center">
+                          <span className="text-gray-400">+{product.images.length - 8} daha</span>
                         </div>
                       )}
-                      
-                      {/* Simple Price Display */}
-                      <div className="bg-green-900/20 border border-green-600/30 rounded-lg p-3 mb-4">
-                        <div className="flex justify-between items-center">
-                          <span className="text-green-300 text-sm font-medium">Satış Fiyatı</span>
-                          <span className="text-lg font-bold text-green-200">
-                            {typeof product.price === 'object' ? product.price.profitFormatted : `${product.price} TL`}
-                          </span>
-                        </div>
-                        <div className="text-xs text-green-400 mt-1">
-                          %15 kar marjı dahil
-                        </div>
-                      </div>
-                      
-                      {/* Compact Action Buttons */}
-                      <div className="space-y-2">
-                        <button
-                          onClick={handleCSVDownload}
-                          className="w-full bg-blue-600 hover:bg-blue-700 text-white px-4 py-2 rounded-lg text-sm font-medium transition-colors duration-200 flex items-center justify-center gap-2"
-                        >
-                          <Download className="w-4 h-4" />
-                          CSV İndir
-                        </button>
-                        
-                        <button
-                          onClick={handleShopifyUpload}
-                          className="w-full bg-green-600 hover:bg-green-700 text-white px-4 py-2 rounded-lg text-sm font-medium transition-colors duration-200 flex items-center justify-center gap-2"
-                        >
-                          <ShoppingCart className="w-4 h-4" />
-                          Shopify'a Aktar
-                        </button>
-                      </div>
-                    </div>
-                    
-                    </div>
-
-
-                </div>
-                </CardContent>
-              </Card>
-            </motion.div>
-          )}
-          
-          {result && (
-            <motion.div
-              key="product-preview"
-              initial={{ opacity: 0, y: 20 }}
-              animate={{ opacity: 1, y: 0 }}
-              exit={{ opacity: 0, y: -20 }}
-              className="mt-8 space-y-6"
-            >
-              <SimpleProductPreview product={result} />
-              
-              {/* Varyant Bilgileri */}
-              {result.variants && result.variants.length > 0 && (
-                <VariantDisplay 
-                  variants={result.variants}
-                  title="Ürün Varyantları"
-                  showPricing={true}
-                  showInventory={true}
-                />
-              )}
-            </motion.div>
-          )}
-        </AnimatePresence>
-
-        {/* Advanced Variant Results Display */}
-        <AnimatePresence>
-          {advancedVariantResult && (
-            <motion.div
-              initial={{ opacity: 0, y: 50 }}
-              animate={{ opacity: 1, y: 0 }}
-              exit={{ opacity: 0, y: -50 }}
-              transition={{ duration: 0.3 }}
-              className="mb-6"
-            >
-              <Card className="bg-gradient-to-br from-purple-900/40 to-pink-900/40 backdrop-blur-sm border border-purple-500/30 shadow-2xl">
-                <CardContent className="p-6">
-                  <div className="flex items-center justify-between mb-4">
-                    <h3 className="text-lg font-semibold text-purple-300">🧬 Advanced Variant Analysis</h3>
-                    <Button 
-                      variant="ghost" 
-                      size="sm" 
-                      onClick={() => setAdvancedVariantResult(null)}
-                      className="text-purple-400 hover:text-purple-200"
-                    >
-                      <XCircle className="h-4 w-4" />
-                    </Button>
-                  </div>
-                  
-                  {/* Summary Stats */}
-                  <div className="grid grid-cols-2 md:grid-cols-4 gap-4 mb-6">
-                    <div className="text-center p-3 bg-purple-900/20 rounded-lg border border-purple-600/20">
-                      <div className="text-2xl font-bold text-purple-400">{advancedVariantResult.totalVariants}</div>
-                      <div className="text-purple-300 text-sm">Toplam Varyant</div>
-                    </div>
-                    <div className="text-center p-3 bg-purple-900/20 rounded-lg border border-purple-600/20">
-                      <div className="text-2xl font-bold text-purple-400">{advancedVariantResult.processedVariants}</div>
-                      <div className="text-purple-300 text-sm">İşlenen</div>
-                    </div>
-                    <div className="text-center p-3 bg-purple-900/20 rounded-lg border border-purple-600/20">
-                      <div className="text-2xl font-bold text-purple-400">{advancedVariantResult.totalImages}</div>
-                      <div className="text-purple-300 text-sm">Toplam Görsel</div>
-                    </div>
-                    <div className="text-center p-3 bg-purple-900/20 rounded-lg border border-purple-600/20">
-                      <div className="text-2xl font-bold text-purple-400">{Math.round(advancedVariantResult.processingTime / 1000)}s</div>
-                      <div className="text-purple-300 text-sm">İşlem Süresi</div>
                     </div>
                   </div>
+                )}
 
-                  {/* Main Product Info */}
-                  <div className="mb-6 p-4 bg-purple-900/20 rounded-lg border border-purple-600/20">
-                    <h4 className="text-purple-300 font-medium mb-2">Ana Ürün Bilgileri</h4>
-                    <div className="text-sm text-purple-200 space-y-1">
-                      <div><span className="text-purple-400">Başlık:</span> {advancedVariantResult.mainProduct.title}</div>
-                      <div><span className="text-purple-400">Marka:</span> {advancedVariantResult.mainProduct.brand}</div>
-                      <div><span className="text-purple-400">Product ID:</span> {advancedVariantResult.mainProduct.baseProductId}</div>
-                    </div>
-                  </div>
-
-                  {/* Variants List */}
+                {/* Variants */}
+                {product.variants && product.variants.length > 0 && (
                   <div>
-                    <h4 className="text-purple-300 font-medium mb-3">Keşfedilen Varyantlar</h4>
-                    <div className="max-h-96 overflow-y-auto space-y-2">
-                      {advancedVariantResult.variants.map((variant: any, index: number) => (
-                        <div key={index} className="p-3 bg-purple-900/10 rounded border border-purple-600/20">
-                          <div className="flex items-center justify-between mb-2">
-                            <div className="flex items-center gap-2">
-                              <span className="text-purple-400 font-medium">{variant.color}</span>
-                              {variant.isProcessed ? (
-                                <span className="text-green-400 text-xs bg-green-900/20 px-2 py-1 rounded">
-                                  ✓ İşlendi
-                                </span>
-                              ) : (
-                                <span className="text-red-400 text-xs bg-red-900/20 px-2 py-1 rounded">
-                                  ❌ Hata
-                                </span>
-                              )}
+                    <h4 className="text-lg font-semibold text-white mb-3">Ürün Varyantları</h4>
+                    <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
+                      {product.variants.slice(0, 6).map((variant: any, index: number) => (
+                        <div key={index} className="bg-gray-800/30 rounded-lg p-3 border border-gray-600">
+                          <div className="flex justify-between items-center">
+                            <div>
+                              <span className="text-blue-300 font-medium">{variant.color}</span>
+                              <span className="text-gray-400 mx-2">•</span>
+                              <span className="text-green-300">{variant.size}</span>
                             </div>
-                            <span className="text-purple-300 text-xs">
-                              {variant.detailImages.length} görsel
+                            <span className={`text-xs px-2 py-1 rounded ${
+                              variant.inStock ? 'bg-green-900/30 text-green-400' : 'bg-red-900/30 text-red-400'
+                            }`}>
+                              {variant.inStock ? 'Stokta' : 'Tükendi'}
                             </span>
                           </div>
-                          <div className="text-xs text-purple-200 space-y-1">
-                            <div><span className="text-purple-400">Product ID:</span> {variant.productId}</div>
-                            <div className="truncate"><span className="text-purple-400">URL:</span> {variant.url}</div>
-                          </div>
-                          
-                          {/* Sample Images */}
-                          {variant.detailImages.length > 0 && (
-                            <div className="mt-2">
-                              <div className="text-xs text-purple-400 mb-1">Görsel Örnekleri:</div>
-                              <div className="flex gap-1 overflow-x-auto">
-                                {variant.detailImages.slice(0, 4).map((image: string, imgIndex: number) => (
-                                  <img
-                                    key={imgIndex}
-                                    src={image}
-                                    alt={`${variant.color} ${imgIndex + 1}`}
-                                    className="w-12 h-12 object-cover rounded border border-purple-600/30 flex-shrink-0"
-                                    onError={(e) => {
-                                      e.currentTarget.style.display = 'none';
-                                    }}
-                                  />
-                                ))}
-                                {variant.detailImages.length > 4 && (
-                                  <div className="w-12 h-12 bg-purple-800/30 rounded border border-purple-600/30 flex items-center justify-center text-xs text-purple-400">
-                                    +{variant.detailImages.length - 4}
-                                  </div>
-                                )}
-                              </div>
-                            </div>
-                          )}
                         </div>
                       ))}
+                      {product.variants.length > 6 && (
+                        <div className="bg-gray-800/30 rounded-lg p-3 border border-gray-600 flex items-center justify-center">
+                          <span className="text-gray-400">+{product.variants.length - 6} varyant daha</span>
+                        </div>
+                      )}
                     </div>
                   </div>
-                </CardContent>
-              </Card>
-            </motion.div>
-          )}
-        </AnimatePresence>
+                )}
 
-        {/* Scrapy Spider Results Display */}
-        <AnimatePresence>
-          {scrapySpiderResult && (
-            <motion.div
-              initial={{ opacity: 0, y: 50 }}
-              animate={{ opacity: 1, y: 0 }}
-              exit={{ opacity: 0, y: -50 }}
-              transition={{ duration: 0.3 }}
-              className="mb-6"
-            >
-              <Card className="bg-gradient-to-br from-green-900/40 to-teal-900/40 backdrop-blur-sm border border-green-500/30 shadow-2xl">
-                <CardContent className="p-6">
-                  <div className="flex items-center justify-between mb-4">
-                    <h3 className="text-lg font-semibold text-green-300">🕷️ Scrapy Spider Results</h3>
-                    <Button 
-                      variant="ghost" 
-                      size="sm" 
-                      onClick={() => setScrapySpiderResult(null)}
-                      className="text-green-400 hover:text-green-200"
-                    >
-                      <XCircle className="h-4 w-4" />
-                    </Button>
-                  </div>
+                {/* Actions */}
+                <div className="flex gap-4 pt-6 border-t border-gray-700">
+                  <Button
+                    onClick={handleCSVDownload}
+                    disabled={isDownloading}
+                    className="flex-1 bg-blue-600 hover:bg-blue-700"
+                  >
+                    {isDownloading ? (
+                      <Loader2 className="w-4 h-4 mr-2 animate-spin" />
+                    ) : (
+                      <Download className="w-4 h-4 mr-2" />
+                    )}
+                    CSV İndir
+                  </Button>
                   
-                  {/* Summary Stats */}
-                  <div className="grid grid-cols-2 md:grid-cols-4 gap-4 mb-6">
-                    <div className="text-center p-3 bg-green-900/20 rounded-lg border border-green-600/20">
-                      <div className="text-2xl font-bold text-green-400">{scrapySpiderResult.totalVariants}</div>
-                      <div className="text-green-300 text-sm">Toplam Varyant</div>
-                    </div>
-                    <div className="text-center p-3 bg-green-900/20 rounded-lg border border-green-600/20">
-                      <div className="text-2xl font-bold text-green-400">{scrapySpiderResult.summary.uniqueProducts}</div>
-                      <div className="text-green-300 text-sm">Benzersiz Ürün</div>
-                    </div>
-                    <div className="text-center p-3 bg-green-900/20 rounded-lg border border-green-600/20">
-                      <div className="text-2xl font-bold text-green-400">{scrapySpiderResult.summary.totalImages}</div>
-                      <div className="text-green-300 text-sm">Toplam Görsel</div>
-                    </div>
-                    <div className="text-center p-3 bg-green-900/20 rounded-lg border border-green-600/20">
-                      <div className="text-2xl font-bold text-green-400">{scrapySpiderResult.summary.withStock}</div>
-                      <div className="text-green-300 text-sm">Stoklu Varyant</div>
-                    </div>
-                  </div>
-
-                  {/* Variant List */}
-                  <div className="space-y-3">
-                    <h4 className="text-green-300 font-medium">İşlenen Varyantlar</h4>
-                    <div className="max-h-64 overflow-y-auto space-y-2">
-                      {scrapySpiderResult.variants.map((variant: any, index: number) => (
-                        <div key={index} className="p-3 bg-green-900/20 rounded-lg border border-green-600/20">
-                          <div className="flex items-center justify-between mb-2">
-                            <div className="text-green-300 font-medium text-sm">{variant.color || 'Color N/A'}</div>
-                            <div className="text-green-400 text-xs">{variant.images.length} görsel</div>
-                          </div>
-                          <div className="text-green-200 text-xs mb-1">{variant.product_name}</div>
-                          <div className="text-green-400 text-xs">{variant.price || 'Fiyat bilgisi yok'}</div>
-                          {variant.stock_info.length > 0 && (
-                            <div className="text-green-300 text-xs mt-1">
-                              {variant.stock_info.length} beden seçeneği
-                            </div>
-                          )}
-                        </div>
-                      ))}
-                    </div>
-                  </div>
-                </CardContent>
-              </Card>
-            </motion.div>
-          )}
-        </AnimatePresence>
-
-        {/* CSV Dışa Aktarma Bölümü */}
-        {product && (
-          <div className="mt-8 p-6 bg-card rounded-lg border">
-            <div className="flex items-center justify-between mb-4">
-              <h2 className="text-xl font-semibold">Shopify CSV Dışa Aktarma</h2>
-              <div className="flex gap-2">
-                <Button 
-                  onClick={handleExportCSV}
-                  disabled={isExporting}
-                  className="bg-blue-600 hover:bg-blue-700"
-                >
-                  <Download className="w-4 h-4 mr-2" />
-                  {isExporting ? 'Hazırlanıyor...' : 'CSV İndir'}
-                </Button>
-                
-                <Button 
-                  onClick={uploadToShopify}
-                  disabled={isUploadingToShopify}
-                  className="bg-green-600 hover:bg-green-700 disabled:bg-green-400"
-                >
-                  {isUploadingToShopify ? (
-                    <>
-                      <RefreshCcw className="w-4 h-4 mr-2 animate-spin" />
-                      Yükleniyor...
-                    </>
-                  ) : (
-                    <>
+                  <Button
+                    onClick={handleShopifyUpload}
+                    disabled={isUploading}
+                    className="flex-1 bg-green-600 hover:bg-green-700"
+                  >
+                    {isUploading ? (
+                      <Loader2 className="w-4 h-4 mr-2 animate-spin" />
+                    ) : (
                       <Upload className="w-4 h-4 mr-2" />
-                      Shopify'a Yükle
-                    </>
-                  )}
-                </Button>
-              </div>
-            </div>
-
-            {/* CSV Önizleme Tablosu */}
-            <div className="border rounded-lg overflow-hidden">
-              <div className="bg-muted p-3 border-b">
-                <h3 className="font-medium">Önizleme - Shopify Uyumlu Format</h3>
-                <p className="text-sm text-muted-foreground">
-                  {product.sizeOptions?.length || 0} beden varyantı • %15 kar marjı uygulandı
-                </p>
-              </div>
-              
-              <div className="overflow-x-auto max-h-96">
-                <table className="w-full text-sm">
-                  <thead className="bg-muted/50">
-                    <tr>
-                      <th className="p-2 text-left border-r">Handle</th>
-                      <th className="p-2 text-left border-r">Title</th>
-                      <th className="p-2 text-left border-r">Vendor</th>
-                      <th className="p-2 text-left border-r">Beden</th>
-                      <th className="p-2 text-left border-r">SKU</th>
-                      <th className="p-2 text-left border-r">Fiyat</th>
-                      <th className="p-2 text-left border-r">Karşılaştırma Fiyatı</th>
-                      <th className="p-2 text-left">Görsel</th>
-                    </tr>
-                  </thead>
-                  <tbody>
-                    {/* Ana ürün satırı */}
-                    <tr className="border-b bg-blue-50/50">
-                      <td className="p-2 border-r font-medium">
-                        {product.title?.toLowerCase()
-                          .replace(/[^a-z0-9\s-]/g, '')
-                          .replace(/\s+/g, '-')
-                          .substring(0, 30)}
-                      </td>
-                      <td className="p-2 border-r">{product.title}</td>
-                      <td className="p-2 border-r">{product.brand}</td>
-                      <td className="p-2 border-r text-muted-foreground">-</td>
-                      <td className="p-2 border-r text-muted-foreground">-</td>
-                      <td className="p-2 border-r font-medium">{product.price?.withProfit} {product.price?.currency}</td>
-                      <td className="p-2 border-r text-red-600">{product.price?.original} {product.price?.currency}</td>
-                      <td className="p-2">
-                        <img 
-                          src={product.images?.[0]} 
-                          alt="Ana görsel" 
-                          className="w-8 h-8 object-cover rounded"
-                        />
-                      </td>
-                    </tr>
-                    
-                    {/* Beden varyantları */}
-                    {(product.sizeOptions || []).map((size, index) => (
-                      <tr key={size} className="border-b hover:bg-muted/30">
-                        <td className="p-2 border-r text-muted-foreground">-</td>
-                        <td className="p-2 border-r text-muted-foreground">-</td>
-                        <td className="p-2 border-r text-muted-foreground">-</td>
-                        <td className="p-2 border-r font-medium">{size}</td>
-                        <td className="p-2 border-r text-sm">
-                          {product.title?.toLowerCase()
-                            .replace(/[^a-z0-9\s-]/g, '')
-                            .replace(/\s+/g, '-')
-                            .substring(0, 20)}-{size.toLowerCase()}
-                        </td>
-                        <td className="p-2 border-r">{product.price?.withProfit} {product.price?.currency}</td>
-                        <td className="p-2 border-r text-red-600">{product.price?.original} {product.price?.currency}</td>
-                        <td className="p-2">
-                          <img 
-                            src={product.images?.[index] || product.images?.[0]} 
-                            alt={`${size} beden`}
-                            className="w-8 h-8 object-cover rounded"
-                          />
-                        </td>
-                      </tr>
-                    ))}
-                  </tbody>
-                </table>
-              </div>
-            </div>
-
-            <div className="mt-4 p-3 bg-blue-50 rounded-lg border border-blue-200">
-              <div className="flex items-start gap-2">
-                <div className="text-blue-600 mt-0.5">ℹ️</div>
-                <div className="text-sm text-blue-800">
-                  <p className="font-medium mb-1">Shopify Import Bilgileri:</p>
-                  <ul className="space-y-1 text-blue-700">
-                    <li>• Ana ürün + {product.sizeOptions?.length || 0} beden varyantı oluşturulacak</li>
-                    <li>• %15 kar marjı otomatik uygulandı ({product.price?.original} TL → {product.price?.withProfit} TL)</li>
-                    <li>• Her beden için ayrı SKU ve görsel atandı</li>
-                    <li>• Stok miktarı: 10 adet (varsayılan)</li>
-                  </ul>
+                    )}
+                    Shopify'a Yükle
+                  </Button>
                 </div>
               </div>
-            </div>
-          </div>
+            </CardContent>
+          </Card>
         )}
 
-        {/* Kullanım İpuçları ve Bilgi Bölümü */}
-        {!product && (
-          <motion.div
-            initial={{ opacity: 0, y: 20 }}
-            animate={{ opacity: 1, y: 0 }}
-            transition={{ delay: 0.3 }}
-            className="space-y-6"
-          >
-            {/* Hızlı İpuçları */}
-            <div className="bg-gradient-to-br from-blue-900/20 to-indigo-900/20 backdrop-blur-sm rounded-2xl border border-blue-500/20 p-6">
-              <h3 className="text-lg font-semibold text-blue-300 mb-4 flex items-center gap-2">
-                <div className="h-2 w-2 bg-cyan-400 rounded-full animate-pulse"></div>
-                Kullanım İpuçları
-              </h3>
-              <div className="grid md:grid-cols-2 gap-4 text-sm">
-                <div className="space-y-3">
-                  <div className="flex items-start gap-3">
-                    <div className="h-1.5 w-1.5 bg-blue-400 rounded-full mt-2"></div>
-                    <div>
-                      <div className="text-blue-200 font-medium">URL Yapıştırma</div>
-                      <div className="text-gray-400">Ctrl+V ile hızlıca yapıştırın veya 📋 butonunu kullanın</div>
-                    </div>
-                  </div>
-                  <div className="flex items-start gap-3">
-                    <div className="h-1.5 w-1.5 bg-green-400 rounded-full mt-2"></div>
-                    <div>
-                      <div className="text-green-200 font-medium">Otomatik Analiz</div>
-                      <div className="text-gray-400">AI destekli veri çıkarma ve kalite kontrolü</div>
-                    </div>
-                  </div>
-                </div>
-                <div className="space-y-3">
-                  <div className="flex items-start gap-3">
-                    <div className="h-1.5 w-1.5 bg-purple-400 rounded-full mt-2"></div>
-                    <div>
-                      <div className="text-purple-200 font-medium">Shopify Uyumluluk</div>
-                      <div className="text-gray-400">Direkt import edebileceğiniz CSV formatı</div>
-                    </div>
-                  </div>
-                  <div className="flex items-start gap-3">
-                    <div className="h-1.5 w-1.5 bg-yellow-400 rounded-full mt-2"></div>
-                    <div>
-                      <div className="text-yellow-200 font-medium">%15 Kar Marjı</div>
-                      <div className="text-gray-400">Otomatik fiyat hesaplama ve optimizasyon</div>
-                    </div>
-                  </div>
-                </div>
+        {/* Empty State */}
+        {!product && !scrapeMutation.isPending && (
+          <Card className="bg-gradient-to-br from-gray-900/40 to-gray-800/40 border-gray-600/30">
+            <CardContent className="p-12 text-center">
+              <div className="w-16 h-16 bg-blue-600/20 rounded-full flex items-center justify-center mx-auto mb-4">
+                <ShoppingCart className="w-8 h-8 text-blue-400" />
               </div>
-            </div>
-
-            {/* Teknik Özellikler */}
-            <div className="bg-gradient-to-br from-gray-900/40 to-gray-800/40 backdrop-blur-sm rounded-2xl border border-gray-500/20 p-6">
-              <h3 className="text-lg font-semibold text-gray-300 mb-4 flex items-center gap-2">
-                <div className="h-2 w-2 bg-gray-400 rounded-full"></div>
-                Sistem Özellikleri
-              </h3>
-              <div className="grid grid-cols-2 md:grid-cols-4 gap-4 text-sm">
-                <div className="text-center">
-                  <div className="text-2xl font-bold text-blue-400">AI</div>
-                  <div className="text-gray-400">Destekli Analiz</div>
-                </div>
-                <div className="text-center">
-                  <div className="text-2xl font-bold text-green-400">%99</div>
-                  <div className="text-gray-400">Başarı Oranı</div>
-                </div>
-                <div className="text-center">
-                  <div className="text-2xl font-bold text-purple-400">HD</div>
-                  <div className="text-gray-400">Görsel Kalitesi</div>
-                </div>
-                <div className="text-center">
-                  <div className="text-2xl font-bold text-yellow-400">15%</div>
-                  <div className="text-gray-400">Kar Marjı</div>
-                </div>
-              </div>
-            </div>
-
-            {/* Footer Bilgileri */}
-            <div className="text-center py-4">
-              <div className="text-xs text-gray-500 space-y-1">
-                <div className="flex items-center justify-center gap-2">
-                  <div className="h-1 w-1 bg-blue-400 rounded-full"></div>
-                  <span>Profesyonel e-ticaret veri dönüştürme sistemi</span>
-                  <div className="h-1 w-1 bg-blue-400 rounded-full"></div>
-                </div>
-                <div>Güvenli, hızlı ve kullanıcı dostu arayüz</div>
-              </div>
-            </div>
-          </motion.div>
+              <h3 className="text-lg font-semibold text-gray-300 mb-2">Ürün Bekleniyor</h3>
+              <p className="text-gray-400">Yukarıdaki alana Trendyol ürün linkini yapıştırın ve başlayın</p>
+            </CardContent>
+          </Card>
         )}
-      </div>
+
+        {/* Footer */}
+        <div className="text-center text-sm text-gray-500 py-4">
+          <p>ERDEM ÇALIŞKAN tarafından geliştirilmiştir • Versiyon 0.14.0</p>
+        </div>
       </div>
     </div>
   );
