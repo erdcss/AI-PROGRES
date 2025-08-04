@@ -181,8 +181,8 @@ function ScraperPage() {
         backgroundImage: `url("data:image/svg+xml;charset=utf-8,%3Csvg width='40' height='40' viewBox='0 0 40 40' xmlns='http://www.w3.org/2000/svg'%3E%3Cg fill='%23ffffff' fill-opacity='0.03' fill-rule='evenodd'%3E%3Cpath d='M0 40L40 0H20L0 20M40 40V20L20 40'%3E%3C/path%3E%3C/g%3E%3C/svg%3E")`
       }}></div>
       
-      <div className={`relative z-10 container mx-auto px-6 py-8 transition-all duration-1000 ${mounted ? 'opacity-100 translate-y-0' : 'opacity-0 translate-y-8'}`}>
-        <div className="max-w-6xl mx-auto space-y-8">
+      <div className={`relative z-10 w-full px-4 md:px-8 py-8 transition-all duration-1000 ${mounted ? 'opacity-100 translate-y-0' : 'opacity-0 translate-y-8'}`}>
+        <div className="w-full space-y-8">
         
         {/* Header */}
         <div className="flex items-center justify-between animate-slide-down">
