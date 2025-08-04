@@ -14,7 +14,13 @@ export interface VariantResult {
   }>;
 }
 
-export function detectProductVariants(html: string): VariantResult {
+export interface FeatureItem {
+  key: string;
+  value: string;
+  category?: string;
+}
+
+export function detectProductVariants(html: string, features?: FeatureItem[]): VariantResult {
   const $ = cheerio.load(html);
   
   console.log('🔍 Gerçek varyant seçenekleri aranıyor...');
@@ -89,7 +95,93 @@ export function detectProductVariants(html: string): VariantResult {
     }
   });
   
-  // 3. Tekrarları kaldır
+  // 3. Feature-based extraction (NEW)
+  if (features && features.length > 0) {
+    console.log('🔍 Özelliklerden varyant çıkarımı yapılıyor...');
+    console.log('🔧 DEBUG - Features:', features.map(f => `${f.key}: ${f.value}`));
+    
+    features.forEach(feature => {
+      const key = feature.key.toLowerCase();
+      const value = feature.value.toLowerCase().trim();
+      
+      // Size/Beden processing
+      if (key.includes('beden') || key.includes('size') || key.includes('boyut')) {
+        console.log(`📏 Beden özelliği bulundu: ${feature.key} = ${feature.value}`);
+        
+        // Parse multiple sizes from value
+        const sizeValue = feature.value;
+        let extractedSizes: string[] = [];
+        
+        // Split by common separators
+        const sizeParts = sizeValue.split(/[,;\|\s]+/).filter(s => s.length > 0);
+        
+        sizeParts.forEach(sizePart => {
+          const cleanSize = sizePart.trim().toUpperCase();
+          // Standard size patterns
+          if (/^(XXS|XS|S|M|L|XL|XXL|XXXL)$/i.test(cleanSize)) {
+            extractedSizes.push(cleanSize);
+          }
+          // Numeric sizes
+          else if (/^\d+$/.test(cleanSize) && parseInt(cleanSize) < 100) {
+            extractedSizes.push(cleanSize);
+          }
+          // European shoe sizes
+          else if (/^(3[6-9]|4[0-7])$/.test(cleanSize)) {
+            extractedSizes.push(cleanSize);
+          }
+        });
+        
+        if (extractedSizes.length > 0) {
+          extractedSizes.forEach(size => {
+            if (!realSizes.includes(size)) {
+              realSizes.push(size);
+              console.log(`✅ Beden eklendi: ${size}`);
+            }
+          });
+        }
+      }
+      
+      // Color/Renk processing
+      if (key.includes('renk') || key.includes('color') || key.includes('colour')) {
+        console.log(`🎨 Renk özelliği bulundu: ${feature.key} = ${feature.value}`);
+        
+        const colorValue = feature.value;
+        let extractedColors: string[] = [];
+        
+        // Split by common separators
+        const colorParts = colorValue.split(/[,;\|\s]+/).filter(c => c.length > 0);
+        
+        colorParts.forEach(colorPart => {
+          const cleanColor = colorPart.trim();
+          // Basic color names
+          if (/^(siyah|beyaz|kırmızı|mavi|yeşil|sarı|pembe|mor|turuncu|gri|kahverengi|lacivert|bordo)$/i.test(cleanColor)) {
+            extractedColors.push(cleanColor.charAt(0).toUpperCase() + cleanColor.slice(1).toLowerCase());
+          }
+          // English color names
+          else if (/^(black|white|red|blue|green|yellow|pink|purple|orange|gray|grey|brown|navy|burgundy)$/i.test(cleanColor)) {
+            extractedColors.push(cleanColor.charAt(0).toUpperCase() + cleanColor.slice(1).toLowerCase());
+          }
+          // Any other reasonable length color name
+          else if (cleanColor.length >= 3 && cleanColor.length <= 15) {
+            extractedColors.push(cleanColor.charAt(0).toUpperCase() + cleanColor.slice(1).toLowerCase());
+          }
+        });
+        
+        if (extractedColors.length > 0) {
+          extractedColors.forEach(color => {
+            if (!realColors.includes(color)) {
+              realColors.push(color);
+              console.log(`✅ Renk eklendi: ${color}`);
+            }
+          });
+        }
+      }
+    });
+    
+    console.log(`🎯 Özelliklerden çıkarılan: ${realColors.length} renk, ${realSizes.length} beden`);
+  }
+  
+  // 4. Tekrarları kaldır
   realColors = [...new Set(realColors)];
   realSizes = [...new Set(realSizes)];
   

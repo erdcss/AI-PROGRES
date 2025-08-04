@@ -250,6 +250,123 @@ function normalizeImageUrl(url: string): string {
   return url;
 }
 
+// Varyant işleme fonksiyonu - özelliklerden gerçek varyant verisi oluşturur
+function processVariantsFromFeatures(features: any[], originalVariants: any[] = []): any[] {
+  console.log("🔧 Varyant işleme başlıyor...", features.length, "özellik");
+  
+  // Özelliklerden beden ve renk bilgilerini çıkar
+  const sizeFeatures = features.filter(f => f.key?.toLowerCase().includes('beden') || f.key?.toLowerCase().includes('size'));
+  const colorFeatures = features.filter(f => f.key?.toLowerCase().includes('renk') || f.key?.toLowerCase().includes('color'));
+  
+  console.log("📏 Beden özellikleri:", sizeFeatures);
+  console.log("🎨 Renk özellikleri:", colorFeatures);
+  
+  // Beden seçeneklerini parse et
+  const sizeOptions: string[] = [];
+  sizeFeatures.forEach(feature => {
+    if (feature.value) {
+      // "m", "l", "xl" gibi değerleri parçala
+      const sizes = feature.value.toString().toLowerCase()
+        .split(/[,\s]+/)
+        .map((size: string) => size.trim())
+        .filter((size: string) => size && size.length > 0)
+        .map((size: string) => {
+          // Beden normalizasyonu
+          if (size === 's') return 'S';
+          if (size === 'm') return 'M';
+          if (size === 'l') return 'L';
+          if (size === 'xl') return 'XL';
+          if (size === 'xxl') return 'XXL';
+          // Sayısal bedenler için
+          if (/^\d+$/.test(size)) return size;
+          return size.toUpperCase();
+        });
+      sizeOptions.push(...sizes);
+    }
+  });
+  
+  // Renk seçeneklerini parse et
+  const colorOptions: string[] = [];
+  colorFeatures.forEach(feature => {
+    if (feature.value) {
+      const colors = feature.value.toString()
+        .split(/[,\s]+/)
+        .map((color: string) => color.trim())
+        .filter((color: string) => color && color.length > 0);
+      colorOptions.push(...colors);
+    }
+  });
+  
+  // Benzersizleştir
+  const uniqueSizes = [...new Set(sizeOptions)];
+  const uniqueColors = [...new Set(colorOptions)];
+  
+  console.log("📏 Bulunan bedenler:", uniqueSizes);
+  console.log("🎨 Bulunan renkler:", uniqueColors);
+  
+  // Varyant kombinasyonları oluştur
+  const variants: any[] = [];
+  
+  if (uniqueSizes.length > 0 || uniqueColors.length > 0) {
+    // Gerçek varyantlar var
+    if (uniqueSizes.length > 0 && uniqueColors.length > 0) {
+      // Hem beden hem renk var - kombinasyon oluştur
+      uniqueColors.forEach(color => {
+        uniqueSizes.forEach(size => {
+          variants.push({
+            color: color,
+            size: size,
+            inStock: true, // Varsayılan olarak stokta kabul et
+            stockCount: 10, // Varsayılan stok miktarı
+            price: 0 // Fiyat API'dan alınacak
+          });
+        });
+      });
+    } else if (uniqueSizes.length > 0) {
+      // Sadece beden var
+      uniqueSizes.forEach(size => {
+        variants.push({
+          color: "Varsayılan",
+          size: size,
+          inStock: true,
+          stockCount: 10,
+          price: 0
+        });
+      });
+    } else if (uniqueColors.length > 0) {
+      // Sadece renk var
+      uniqueColors.forEach(color => {
+        variants.push({
+          color: color,
+          size: "Tek Beden",
+          inStock: true,
+          stockCount: 10,
+          price: 0
+        });
+      });
+    }
+    
+    console.log(`✅ ${variants.length} varyant oluşturuldu`);
+    return variants;
+  }
+  
+  // Orijinal varyantlar varsa onları kullan
+  if (originalVariants && originalVariants.length > 0) {
+    console.log("🔄 Orijinal varyantlar kullanılıyor:", originalVariants.length);
+    return originalVariants;
+  }
+  
+  // Hiçbir varyant yoksa varsayılan oluştur
+  console.log("🚫 Varyant bulunamadı, varsayılan oluşturuluyor");
+  return [{
+    color: "Varsayılan",
+    size: "Tek Beden",
+    inStock: true,
+    stockCount: 5,
+    price: 0
+  }];
+}
+
 export function registerRoutes(app: Express): Server {
   // Create HTTP server - will be configured by main server
   const httpServer = createServer(app);
@@ -350,6 +467,9 @@ export function registerRoutes(app: Express): Server {
         if (scenarioResult.success) {
           console.log(`🎯 Scenario-Based Scraper SUCCESS - Scenario: ${scenarioResult.scenario}, Confidence: ${scenarioResult.confidence}%`);
           
+          // Özelliklerden gerçek varyant verisi oluştur
+          const processedVariants = processVariantsFromFeatures(scenarioResult.features || [], scenarioResult.variants || []);
+          
           return res.json({
             success: true,
             extractionMethod: 'scenario-based-scraper',
@@ -360,7 +480,7 @@ export function registerRoutes(app: Express): Server {
             price: scenarioResult.price,
             images: scenarioResult.images,
             features: scenarioResult.features,
-            variants: scenarioResult.variants,
+            variants: processedVariants,
             extractionDetails: scenarioResult.extractionDetails
           });
         }
@@ -373,6 +493,9 @@ export function registerRoutes(app: Express): Server {
         if (fixedResult.success) {
           console.log("🔧 Fixed Scraper FALLBACK SUCCESS - Price:", fixedResult.price);
           
+          // Özelliklerden gerçek varyant verisi oluştur
+          const processedVariants = processVariantsFromFeatures(fixedResult.features || [], fixedResult.variants || []);
+          
           return res.json({
             success: true,
             extractionMethod: 'fixed-authentic-scraper-fallback',
@@ -381,7 +504,7 @@ export function registerRoutes(app: Express): Server {
             price: fixedResult.price,
             images: fixedResult.images,
             features: fixedResult.features,
-            variants: fixedResult.variants
+            variants: processedVariants
           });
         }
         

@@ -285,7 +285,7 @@ export async function cleanScrape(url: string): Promise<CleanProductData> {
     
     // Use simple variant detector first to check if product has real variants
     const { detectProductVariants } = await import('./simple-variant-detector');
-    const variantDetection = detectProductVariants(html);
+    const variantDetection = detectProductVariants(html, features);
     
     let variants = [];
     

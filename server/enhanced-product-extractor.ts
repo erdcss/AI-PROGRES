@@ -4,6 +4,7 @@
  */
 
 import * as cheerio from 'cheerio';
+import { detectRealVariants as detectRealVariantsFromHTML } from './real-variant-detector';
 
 export interface ProductFeature {
   key: string;
@@ -329,8 +330,20 @@ export function extractEnhancedProductData(html: string): EnhancedProductData {
     }
   });
   
-  // 2. Gerçek varyantları algıla
-  const variantData = detectRealVariants($, html);
+  // 2. Gerçek varyantları algıla - Features'ları da geç
+  const variantDataRaw = detectRealVariantsFromHTML(html, features);
+  
+  // Convert to expected format
+  const variantData = {
+    hasRealVariants: variantDataRaw.hasRealVariants,
+    variants: variantDataRaw.variants.map(v => ({
+      color: v.color,
+      size: v.size,
+      inStock: v.inStock,
+      price: undefined,
+      sku: undefined
+    } as ProductVariant))
+  };
   
   // 3. Spesifikasyonları çıkar
   const specifications = extractSpecifications(features);
@@ -349,7 +362,7 @@ export function extractEnhancedProductData(html: string): EnhancedProductData {
   };
 }
 
-function detectRealVariants($: cheerio.CheerioAPI, html: string): { hasRealVariants: boolean; variants: ProductVariant[] } {
+function detectRealVariantsLocal($: cheerio.CheerioAPI, html: string): { hasRealVariants: boolean; variants: ProductVariant[] } {
   let realColors: string[] = [];
   let realSizes: string[] = [];
   
