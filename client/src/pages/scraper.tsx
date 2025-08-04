@@ -155,10 +155,11 @@ function ScraperPage() {
   });
 
   return (
-    <div className="min-h-screen bg-black text-white relative overflow-hidden">
-      {/* Animated Background */}
-      <div className="absolute inset-0 bg-gradient-to-br from-purple-900/20 via-blue-900/30 to-cyan-900/20 animate-pulse"></div>
-      <div className="absolute inset-0 bg-[radial-gradient(circle_at_20%_50%,rgba(120,119,198,0.3),transparent_50%),radial-gradient(circle_at_80%_20%,rgba(120,119,198,0.3),transparent_50%),radial-gradient(circle_at_40%_80%,rgba(120,119,198,0.3),transparent_50%)] animate-pulse" style={{animationDelay: '0.5s'}}></div>
+    <div className="min-h-screen bg-gradient-to-br from-slate-900 via-purple-900 to-slate-800 text-white relative overflow-hidden">
+      {/* Animated Background Layers */}
+      <div className="absolute inset-0 bg-gradient-to-br from-purple-800/40 via-blue-800/50 to-cyan-800/40 animate-pulse"></div>
+      <div className="absolute inset-0 bg-gradient-to-tr from-blue-900/30 via-purple-900/40 to-cyan-900/30 animate-pulse" style={{animationDelay: '0.5s'}}></div>
+      <div className="absolute inset-0 bg-gradient-to-bl from-cyan-900/20 via-blue-900/30 to-purple-900/20 animate-pulse" style={{animationDelay: '1s'}}></div>
       
       {/* Floating Particles */}
       <div className="absolute inset-0 overflow-hidden">
