@@ -21,6 +21,7 @@ import {
 } from "lucide-react";
 import { useState, useEffect } from "react";
 import { Link } from "wouter";
+import PageLayout from "@/components/PageLayout";
 
 function ScraperPage() {
   const [product, setProduct] = useState<any>(null);
@@ -155,119 +156,37 @@ function ScraperPage() {
   });
 
   return (
-    <div className="min-h-screen bg-gradient-to-br from-slate-900 via-purple-900 to-slate-800 text-white relative overflow-hidden">
-      {/* Animated Background Layers */}
-      <div className="absolute inset-0 bg-gradient-to-br from-purple-800/40 via-blue-800/50 to-cyan-800/40 animate-pulse"></div>
-      <div className="absolute inset-0 bg-gradient-to-tr from-blue-900/30 via-purple-900/40 to-cyan-900/30 animate-pulse" style={{animationDelay: '0.5s'}}></div>
-      <div className="absolute inset-0 bg-gradient-to-bl from-cyan-900/20 via-blue-900/30 to-purple-900/20 animate-pulse" style={{animationDelay: '1s'}}></div>
-      
-      {/* Floating Particles */}
-      <div className="absolute inset-0 overflow-hidden">
-        {[...Array(6)].map((_, i) => (
-          <div
-            key={i}
-            className={`absolute w-2 h-2 bg-gradient-to-r from-cyan-400 to-blue-500 rounded-full opacity-60 animate-float`}
-            style={{
-              left: `${Math.random() * 100}%`,
-              top: `${Math.random() * 100}%`,
-              animationDelay: `${i * 0.5}s`,
-              animationDuration: `${3 + Math.random() * 2}s`
-            }}
-          ></div>
-        ))}
-      </div>
-      
-      {/* Grid Pattern Overlay */}
-      <div className="absolute inset-0 opacity-30" style={{
-        backgroundImage: `url("data:image/svg+xml;charset=utf-8,%3Csvg width='40' height='40' viewBox='0 0 40 40' xmlns='http://www.w3.org/2000/svg'%3E%3Cg fill='%23ffffff' fill-opacity='0.03' fill-rule='evenodd'%3E%3Cpath d='M0 40L40 0H20L0 20M40 40V20L20 40'%3E%3C/path%3E%3C/g%3E%3C/svg%3E")`
-      }}></div>
-      
-      <div className={`relative z-10 w-full px-4 md:px-8 py-8 transition-all duration-1000 ${mounted ? 'opacity-100 translate-y-0' : 'opacity-0 translate-y-8'}`}>
-        <div className="w-full space-y-8">
-        
-        {/* Header */}
-        <div className="flex items-center justify-between animate-slide-down">
-          <Link href="/" className="group flex items-center gap-3 text-gray-400 hover:text-cyan-400 transition-all duration-300 hover:scale-105">
-            <div className="w-10 h-10 bg-gradient-to-br from-cyan-500/20 to-blue-600/20 rounded-lg flex items-center justify-center group-hover:bg-gradient-to-br group-hover:from-cyan-500/40 group-hover:to-blue-600/40 transition-all duration-300">
-              <Home className="h-5 w-5" />
-            </div>
-            <span className="font-medium">Ana Sayfa</span>
-          </Link>
-          
-          {/* Status Indicators */}
-          <div className="flex items-center gap-4">
-            <div className="flex items-center gap-2 text-xs text-cyan-400">
-              <div className="w-2 h-2 bg-cyan-400 rounded-full animate-pulse"></div>
-              <span>ONLINE</span>
-            </div>
-            <div className="flex items-center gap-2 text-xs text-green-400">
-              <Cpu className="h-3 w-3 animate-pulse" />
-              <span>AI READY</span>
-            </div>
+    <PageLayout
+      title="Trendyol Aktarıcı"
+      subtitle="Trendyol ürünlerini yapay zeka destekli teknoloji ile Shopify'a uyumlu formata dönüştürün"
+      backTo="/"
+      backLabel="Ana Sayfa"
+    >
+      <div className="w-full space-y-8">
+        {/* Status Indicators */}
+        <div className="flex items-center justify-center gap-8 mb-8">
+          <div className="flex items-center gap-2 text-sm glassmorphism-card px-4 py-2 rounded-full">
+            <div className="w-2 h-2 bg-green-400 rounded-full animate-pulse"></div>
+            <span className="text-green-400 font-medium">ONLINE</span>
           </div>
-        </div>
-
-        {/* Title */}
-        <div className="text-center animate-fade-in-up" style={{animationDelay: '0.2s'}}>
-          <div className="flex items-center justify-center gap-4 mb-6">
-            <div className="relative group">
-              <div className="absolute -inset-2 bg-gradient-to-r from-cyan-400 to-blue-600 rounded-2xl blur-lg opacity-60 group-hover:opacity-100 transition-opacity duration-300 animate-pulse"></div>
-              <div className="relative w-16 h-16 bg-gradient-to-br from-cyan-500 via-blue-600 to-purple-700 rounded-2xl flex items-center justify-center shadow-2xl">
-                <div className="absolute inset-0 bg-gradient-to-br from-white/20 to-transparent rounded-2xl"></div>
-                <span className="text-white font-bold text-2xl relative z-10">T</span>
-                <div className="absolute top-1 right-1 w-2 h-2 bg-cyan-400 rounded-full animate-ping"></div>
-              </div>
-            </div>
-            <div>
-              <h1 className="text-4xl md:text-5xl font-bold bg-gradient-to-r from-cyan-400 via-blue-500 to-purple-600 bg-clip-text text-transparent mb-2">
-                Trendyol Aktarıcı
-              </h1>
-              <div className="flex items-center justify-center gap-2 text-cyan-400">
-                <Sparkles className="h-4 w-4 animate-spin" />
-                <span className="text-sm font-medium tracking-wide">AI POWERED</span>
-                <Sparkles className="h-4 w-4 animate-spin" style={{animationDirection: 'reverse'}} />
-              </div>
-            </div>
+          <div className="flex items-center gap-2 text-sm glassmorphism-card px-4 py-2 rounded-full">
+            <Cpu className="h-4 w-4 text-blue-400 animate-pulse" />
+            <span className="text-blue-400 font-medium">AI READY</span>
           </div>
-          <p className="text-lg text-gray-300 max-w-2xl mx-auto leading-relaxed">
-            Trendyol ürünlerini yapay zeka destekli teknoloji ile
-            <span className="text-cyan-400 font-medium"> Shopify'a uyumlu formata</span> dönüştürün
-          </p>
-          
-          {/* Tech Stats */}
-          <div className="flex items-center justify-center gap-8 mt-6 text-sm">
-            <div className="flex items-center gap-2 text-green-400">
-              <Globe className="h-4 w-4" />
-              <span>99.9% Uptime</span>
-            </div>
-            <div className="flex items-center gap-2 text-blue-400">
-              <Zap className="h-4 w-4" />
-              <span>&lt; 2s Response</span>
-            </div>
-            <div className="flex items-center gap-2 text-purple-400">
-              <Cpu className="h-4 w-4" />
-              <span>AI Enhanced</span>
-            </div>
+          <div className="flex items-center gap-2 text-sm glassmorphism-card px-4 py-2 rounded-full">
+            <Zap className="h-4 w-4 text-purple-400" />
+            <span className="text-purple-400 font-medium">&lt; 2s Response</span>
           </div>
         </div>
 
         {/* URL Input */}
-        <div className="animate-fade-in-up" style={{animationDelay: '0.4s'}}>
-          <Card className="relative group overflow-hidden">
-            {/* Glassmorphism Background */}
-            <div className="absolute inset-0 bg-gradient-to-br from-white/10 via-cyan-500/5 to-blue-600/10 backdrop-blur-xl"></div>
-            <div className="absolute inset-0 bg-gradient-to-br from-cyan-500/5 via-transparent to-blue-600/5 opacity-50"></div>
-            
-            {/* Animated Border */}
-            <div className="absolute inset-0 bg-gradient-to-r from-cyan-500 via-blue-500 to-purple-600 rounded-lg p-[1px] group-hover:p-[2px] transition-all duration-300">
-              <div className="h-full w-full bg-black/80 rounded-lg"></div>
-            </div>
-            
-            <CardContent className="relative z-10 p-8">
+        <div className="animate-fade-in-up">
+          <Card className="glassmorphism-card border-0 shadow-2xl card-hover">
+            <CardContent className="p-8">
               <form onSubmit={onSubmit} className="space-y-6">
                 <div className="text-center mb-6">
                   <h3 className="text-xl font-semibold text-white mb-2">Ürün URL'sini Girin</h3>
-                  <p className="text-gray-400 text-sm">Trendyol ürün linkini yapıştırın ve AI gücüyle analiz edin</p>
+                  <p className="text-gray-300 text-sm">Trendyol ürün linkini yapıştırın ve AI gücüyle analiz edin</p>
                 </div>
                 
                 <div className="flex gap-4">
@@ -601,8 +520,7 @@ function ScraperPage() {
           </div>
         </div>
       </div>
-      </div>
-    </div>
+    </PageLayout>
   );
 }
 
