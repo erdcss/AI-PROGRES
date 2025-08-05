@@ -193,13 +193,13 @@ function ScraperPage() {
             Türkiye'nin en büyük online alışveriş sitesinden ürünleri Shopify mağazanıza kolayca aktarın
           </p>
           <div className="mt-6 flex flex-wrap justify-center gap-3">
-            <div className="bg-orange-500/20 text-orange-400 px-4 py-2 rounded-lg text-sm font-medium">
+            <div className="bg-white/10 text-white px-4 py-2 rounded-lg text-sm font-medium">
               🏆 Türkiye'nin 1 Numarası
             </div>
-            <div className="bg-orange-500/20 text-orange-400 px-4 py-2 rounded-lg text-sm font-medium">
+            <div className="bg-white/10 text-white px-4 py-2 rounded-lg text-sm font-medium">
               ✨ Premium Kalite
             </div>
-            <div className="bg-orange-500/20 text-orange-400 px-4 py-2 rounded-lg text-sm font-medium">
+            <div className="bg-white/10 text-white px-4 py-2 rounded-lg text-sm font-medium">
               🔧 Güvenilir Teknoloji
             </div>
           </div>
@@ -222,7 +222,7 @@ function ScraperPage() {
         </div>
 
         {/* URL Input */}
-        <Card className="glassmorphism-card border-0 shadow-2xl card-hover mb-8">
+        <Card className="bg-white/10 backdrop-blur-sm border border-white/20 shadow-2xl mb-8">
           <CardContent className="p-8">
             <div className="text-center mb-6">
               <h3 className="text-xl font-semibold text-white mb-2">Trendyol Ürün Linki</h3>
@@ -238,11 +238,11 @@ function ScraperPage() {
                       <Input
                         placeholder="https://www.trendyol.com/..."
                         {...form.register("url")}
-                        className="bg-slate-700/50 border-orange-500/30 text-white placeholder-gray-400 pl-10 h-12"
+                        className="bg-white/5 border-white/30 text-white placeholder-gray-400 pl-10 h-12"
                         disabled={scrapeMutation.isPending}
                       />
                       <div className="absolute left-3 top-1/2 transform -translate-y-1/2">
-                        <span className="text-orange-400 text-sm font-bold">T</span>
+                        <span className="text-white text-sm font-bold">T</span>
                       </div>
                     </div>
                     
@@ -250,28 +250,28 @@ function ScraperPage() {
                     <div className="mt-4 space-y-3">
                       <p className="text-xs text-gray-400 font-medium">Desteklenen Trendyol Ürün Kategorileri:</p>
                       <div className="grid grid-cols-2 md:grid-cols-4 gap-2">
-                        <div className="text-xs text-orange-400 bg-orange-500/10 px-3 py-2 rounded-lg text-center">
+                        <div className="text-xs text-white bg-white/10 px-3 py-2 rounded-lg text-center">
                           👗 Moda & Giyim
                         </div>
-                        <div className="text-xs text-orange-400 bg-orange-500/10 px-3 py-2 rounded-lg text-center">
+                        <div className="text-xs text-white bg-white/10 px-3 py-2 rounded-lg text-center">
                           📱 Elektronik & Teknoloji
                         </div>
-                        <div className="text-xs text-orange-400 bg-orange-500/10 px-3 py-2 rounded-lg text-center">
+                        <div className="text-xs text-white bg-white/10 px-3 py-2 rounded-lg text-center">
                           🏠 Ev & Yaşam
                         </div>
-                        <div className="text-xs text-orange-400 bg-orange-500/10 px-3 py-2 rounded-lg text-center">
+                        <div className="text-xs text-white bg-white/10 px-3 py-2 rounded-lg text-center">
                           👶 Anne & Bebek
                         </div>
-                        <div className="text-xs text-orange-400 bg-orange-500/10 px-3 py-2 rounded-lg text-center">
+                        <div className="text-xs text-white bg-white/10 px-3 py-2 rounded-lg text-center">
                           ⚽ Spor & Outdoor
                         </div>
-                        <div className="text-xs text-orange-400 bg-orange-500/10 px-3 py-2 rounded-lg text-center">
+                        <div className="text-xs text-white bg-white/10 px-3 py-2 rounded-lg text-center">
                           💄 Kozmetik & Bakım
                         </div>
-                        <div className="text-xs text-orange-400 bg-orange-500/10 px-3 py-2 rounded-lg text-center">
+                        <div className="text-xs text-white bg-white/10 px-3 py-2 rounded-lg text-center">
                           🎮 Oyuncak & Hobi
                         </div>
-                        <div className="text-xs text-orange-400 bg-orange-500/10 px-3 py-2 rounded-lg text-center">
+                        <div className="text-xs text-white bg-white/10 px-3 py-2 rounded-lg text-center">
                           🍕 Market & Gıda
                         </div>
                       </div>
@@ -281,7 +281,7 @@ function ScraperPage() {
                   <Button
                     type="submit"
                     disabled={scrapeMutation.isPending}
-                    className="bg-orange-600 hover:bg-orange-700 px-8 h-12 disabled:bg-gray-600"
+                    className="bg-white text-slate-900 hover:bg-gray-100 px-8 h-12 disabled:bg-gray-600"
                   >
                     {scrapeMutation.isPending ? (
                       <div className="flex items-center gap-2">
@@ -297,12 +297,12 @@ function ScraperPage() {
                 {/* Loading Animation */}
                 {scrapeMutation.isPending && (
                   <div className="mt-4">
-                    <div className="flex items-center justify-center gap-2 text-orange-400 mb-2">
+                    <div className="flex items-center justify-center gap-2 text-white mb-2">
                       <Cpu className="h-4 w-4 animate-pulse" />
                       <span className="text-sm font-medium">AI ile ürün analiz ediliyor...</span>
                     </div>
-                    <div className="w-full bg-gray-800 rounded-full h-2 overflow-hidden">
-                      <div className="h-full bg-gradient-to-r from-orange-500 to-red-600 rounded-full animate-pulse" style={{width: '70%'}}></div>
+                    <div className="w-full bg-gray-700 rounded-full h-2 overflow-hidden">
+                      <div className="h-full bg-gradient-to-r from-white to-gray-200 rounded-full animate-pulse" style={{width: '70%'}}></div>
                     </div>
                   </div>
                 )}
@@ -313,7 +313,7 @@ function ScraperPage() {
 
         {/* Sistem Özellikleri */}
         <div className="grid grid-cols-1 md:grid-cols-2 gap-8 mb-8">
-          <Card className="glassmorphism-card border-0 shadow-2xl">
+          <Card className="bg-white/10 backdrop-blur-sm border border-white/20 shadow-2xl">
             <CardContent className="p-6">
               <div className="text-center mb-4">
                 <div className="inline-flex items-center justify-center w-16 h-16 bg-green-500/20 rounded-full mb-4">
@@ -352,43 +352,43 @@ function ScraperPage() {
             </CardContent>
           </Card>
 
-          <Card className="glassmorphism-card border-0 shadow-2xl">
+          <Card className="bg-white/10 backdrop-blur-sm border border-white/20 shadow-2xl">
             <CardContent className="p-6">
               <div className="text-center mb-4">
-                <div className="inline-flex items-center justify-center w-16 h-16 bg-orange-500/20 rounded-full mb-4">
-                  <Globe className="w-8 h-8 text-orange-400" />
+                <div className="inline-flex items-center justify-center w-16 h-16 bg-white/10 rounded-full mb-4">
+                  <Globe className="w-8 h-8 text-white" />
                 </div>
                 <h3 className="text-xl font-bold text-white mb-2">Trendyol Kullanım Kılavuzu</h3>
               </div>
               
               <div className="space-y-3 text-gray-300 text-sm">
                 <div className="flex items-start gap-3">
-                  <div className="w-6 h-6 bg-orange-500/20 rounded-full flex items-center justify-center flex-shrink-0 mt-0.5">
-                    <span className="text-orange-400 text-xs font-bold">1</span>
+                  <div className="w-6 h-6 bg-white/10 rounded-full flex items-center justify-center flex-shrink-0 mt-0.5">
+                    <span className="text-white text-xs font-bold">1</span>
                   </div>
-                  <p>trendyol.com'den istediğiniz beyaz eşya ürününün linkini kopyalayın</p>
+                  <p>trendyol.com'den istediğiniz ürününün linkini kopyalayın</p>
                 </div>
                 <div className="flex items-start gap-3">
-                  <div className="w-6 h-6 bg-orange-500/20 rounded-full flex items-center justify-center flex-shrink-0 mt-0.5">
-                    <span className="text-orange-400 text-xs font-bold">2</span>
+                  <div className="w-6 h-6 bg-white/10 rounded-full flex items-center justify-center flex-shrink-0 mt-0.5">
+                    <span className="text-white text-xs font-bold">2</span>
                   </div>
                   <p>Linki yukarıdaki alana yapıştırın ve "Trendyol Ürünü Çıkar" butonuna tıklayın</p>
                 </div>
                 <div className="flex items-start gap-3">
-                  <div className="w-6 h-6 bg-orange-500/20 rounded-full flex items-center justify-center flex-shrink-0 mt-0.5">
-                    <span className="text-orange-400 text-xs font-bold">3</span>
+                  <div className="w-6 h-6 bg-white/10 rounded-full flex items-center justify-center flex-shrink-0 mt-0.5">
+                    <span className="text-white text-xs font-bold">3</span>
                   </div>
                   <p>Ürün bilgileri ve görselleri otomatik olarak çıkarılacak</p>
                 </div>
                 <div className="flex items-start gap-3">
-                  <div className="w-6 h-6 bg-orange-500/20 rounded-full flex items-center justify-center flex-shrink-0 mt-0.5">
-                    <span className="text-orange-400 text-xs font-bold">4</span>
+                  <div className="w-6 h-6 bg-white/10 rounded-full flex items-center justify-center flex-shrink-0 mt-0.5">
+                    <span className="text-white text-xs font-bold">4</span>
                   </div>
                   <p>"CSV İndir" ile Shopify formatında dosya indirin</p>
                 </div>
                 <div className="flex items-start gap-3">
-                  <div className="w-6 h-6 bg-orange-500/20 rounded-full flex items-center justify-center flex-shrink-0 mt-0.5">
-                    <span className="text-orange-400 text-xs font-bold">5</span>
+                  <div className="w-6 h-6 bg-white/10 rounded-full flex items-center justify-center flex-shrink-0 mt-0.5">
+                    <span className="text-white text-xs font-bold">5</span>
                   </div>
                   <p>"Shopify'a Yükle" ile doğrudan mağazanıza aktarın</p>
                 </div>
@@ -398,11 +398,11 @@ function ScraperPage() {
         </div>
 
         {/* Trendyol Özel Avantajları */}
-        <Card className="glassmorphism-card border-0 shadow-2xl mb-8">
+        <Card className="bg-white/10 backdrop-blur-sm border border-white/20 shadow-2xl mb-8">
           <CardContent className="p-8">
             <div className="text-center mb-8">
               <h3 className="text-2xl font-bold text-white mb-4">Trendyol Özel Avantajları</h3>
-              <p className="text-gray-300">Türkiye'nin en güvenilir beyaz eşya markası için özel geliştirilmiş sistem</p>
+              <p className="text-gray-300">Türkiye'nin en büyük e-ticaret platformu için özel geliştirilmiş sistem</p>
             </div>
             
             <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
