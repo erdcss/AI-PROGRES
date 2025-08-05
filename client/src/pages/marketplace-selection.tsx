@@ -6,6 +6,7 @@ import {
   ExternalLink, TrendingUp, Activity
 } from "lucide-react";
 import { RealTimeClock } from "@/components/RealTimeClock";
+import PageLayout from "@/components/PageLayout";
 
 const MarketplaceSelection = () => {
   const [, setLocation] = useLocation();
@@ -83,41 +84,28 @@ const MarketplaceSelection = () => {
   ];
 
   return (
-    <div className="min-h-screen bg-gradient-to-br from-gray-900 via-blue-900 to-purple-900">
-      <div className="max-w-7xl mx-auto p-6">
-        {/* Header */}
-        <motion.div
-          initial={{ opacity: 0, y: -20 }}
-          animate={{ opacity: 1, y: 0 }}
-          transition={{ duration: 0.5 }}
-          className="flex items-center justify-between mb-8"
-        >
-          <div className="flex items-center gap-4">
-            <button
-              onClick={() => setLocation("/")}
-              className="flex items-center gap-2 text-white/80 hover:text-white transition-colors"
-            >
-              <ArrowLeft className="w-5 h-5" />
-              Ana Sayfa
-            </button>
-            <div className="w-px h-6 bg-white/20"></div>
-            <h1 className="text-2xl font-bold text-white">Platform Seçimi</h1>
-          </div>
+    <PageLayout
+      title="Platform Seçimi"
+      subtitle="Ürün verilerini çıkarabileceğiniz ve analiz edebileceğiniz platformları seçin"
+      backTo="/"
+      backLabel="Ana Sayfa"
+    >
+      <div className="w-full space-y-12">
+        {/* Status indicator */}
+        <div className="flex justify-center">
           <RealTimeClock />
-        </motion.div>
+        </div>
 
-        {/* Main Content */}
-        <div className="space-y-12">
-          {/* Ürün Çıkarma Platformları */}
-          <motion.section
-            initial={{ opacity: 0, y: 20 }}
-            animate={{ opacity: 1, y: 0 }}
-            transition={{ duration: 0.5, delay: 0.1 }}
-          >
-            <div className="text-center mb-8">
-              <h2 className="text-3xl font-bold text-white mb-4">Ürün Çıkarma Platformları</h2>
-              <p className="text-gray-300">Ürün verilerini çıkarıp Shopify'a aktarabileceğiniz platformlar</p>
-            </div>
+        {/* Ürün Çıkarma Platformları */}
+        <motion.section
+          initial={{ opacity: 0, y: 20 }}
+          animate={{ opacity: 1, y: 0 }}
+          transition={{ duration: 0.5, delay: 0.1 }}
+        >
+          <div className="text-center mb-8">
+            <h2 className="text-2xl font-bold text-white mb-4">Ürün Çıkarma Platformları</h2>
+            <p className="text-gray-300">Ürün verilerini çıkarıp Shopify'a aktarabileceğiniz platformlar</p>
+          </div>
 
             <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6">
               {extractionPlatforms.map((platform, index) => (
@@ -127,8 +115,7 @@ const MarketplaceSelection = () => {
                   animate={{ opacity: 1, y: 0 }}
                   transition={{ duration: 0.5, delay: 0.1 + index * 0.1 }}
                   className={`
-                    bg-white/10 backdrop-blur-md rounded-2xl p-6 border border-white/20 
-                    hover:bg-white/15 transition-all duration-300 cursor-pointer group
+                    glassmorphism-card p-6 cursor-pointer group card-hover
                     ${!platform.available ? 'opacity-60' : ''}
                   `}
                   onClick={() => platform.available && setLocation(platform.path)}
@@ -224,9 +211,8 @@ const MarketplaceSelection = () => {
               </button>
             </div>
           </motion.section>
-        </div>
       </div>
-    </div>
+    </PageLayout>
   );
 };
 

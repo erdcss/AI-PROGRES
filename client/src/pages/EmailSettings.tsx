@@ -6,6 +6,7 @@ import { Label } from '@/components/ui/label';
 import { Badge } from '@/components/ui/badge';
 import { useToast } from '@/hooks/use-toast';
 import { Mail, Clock, Send, CheckCircle } from 'lucide-react';
+import PageLayout from "@/components/PageLayout";
 
 export default function EmailSettings() {
   const [email, setEmail] = useState('');
@@ -90,20 +91,16 @@ export default function EmailSettings() {
   };
 
   return (
-    <div className="container mx-auto p-6 max-w-4xl">
-      <div className="mb-8">
-        <h1 className="text-3xl font-bold flex items-center gap-2">
-          <Mail className="w-8 h-8" />
-          E-posta Ayarları
-        </h1>
-        <p className="text-muted-foreground mt-2">
-          Günlük z raporu bildirimlerini almak için e-posta adresinizi ayarlayın
-        </p>
-      </div>
-
-      <div className="grid gap-6">
-        {/* Email Configuration */}
-        <Card>
+    <PageLayout
+      title="E-posta Ayarları"
+      subtitle="Günlük raporu bildirimlerini almak için e-posta adresinizi ayarlayın"
+      backTo="/"
+      backLabel="Ana Sayfa"
+    >
+        <div className="max-w-4xl mx-auto w-full">
+          <div className="grid gap-6">
+          {/* Email Configuration */}
+          <Card className="glassmorphism-card border-0 shadow-2xl">
           <CardHeader>
             <CardTitle className="flex items-center gap-2">
               <Mail className="w-5 h-5" />
@@ -135,7 +132,7 @@ export default function EmailSettings() {
         </Card>
 
         {/* Schedule Info */}
-        <Card>
+        <Card className="glassmorphism-card border-0 shadow-2xl">
           <CardHeader>
             <CardTitle className="flex items-center gap-2">
               <Clock className="w-5 h-5" />
@@ -167,7 +164,7 @@ export default function EmailSettings() {
         </Card>
 
         {/* Test Email */}
-        <Card>
+        <Card className="glassmorphism-card border-0 shadow-2xl">
           <CardHeader>
             <CardTitle className="flex items-center gap-2">
               <Send className="w-5 h-5" />
@@ -190,7 +187,7 @@ export default function EmailSettings() {
         </Card>
 
         {/* SendGrid Setup Info */}
-        <Card className="border-blue-200 bg-blue-50/50">
+        <Card className="glassmorphism-card border-0 shadow-2xl bg-blue-500/10">
           <CardHeader>
             <CardTitle className="text-blue-800">SendGrid Email Sistemi</CardTitle>
           </CardHeader>
@@ -220,7 +217,8 @@ export default function EmailSettings() {
             </div>
           </CardContent>
         </Card>
-      </div>
-    </div>
+          </div>
+        </div>
+    </PageLayout>
   );
 }
