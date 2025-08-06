@@ -40,17 +40,25 @@ interface ProductDisplayProps {
 
 export function ProductDisplay({ data }: ProductDisplayProps) {
   const [currentImageIndex, setCurrentImageIndex] = useState(0);
+  
+  // Güvenli image array kontrolü
+  const images = data?.images || [];
+  const imageCount = images.length;
 
   const nextImage = () => {
-    setCurrentImageIndex((prev) => 
-      prev === data.images.length - 1 ? 0 : prev + 1
-    );
+    if (imageCount > 0) {
+      setCurrentImageIndex((prev) => 
+        prev === imageCount - 1 ? 0 : prev + 1
+      );
+    }
   };
 
   const prevImage = () => {
-    setCurrentImageIndex((prev) => 
-      prev === 0 ? data.images.length - 1 : prev - 1
-    );
+    if (imageCount > 0) {
+      setCurrentImageIndex((prev) => 
+        prev === 0 ? imageCount - 1 : prev - 1
+      );
+    }
   };
 
   const handleExportToShopify = async () => {
@@ -106,14 +114,14 @@ export function ProductDisplay({ data }: ProductDisplayProps) {
                 {/* Main Image */}
                 <div className="aspect-square bg-white rounded-lg overflow-hidden mb-3">
                   <img
-                    src={data.images[currentImageIndex] || '/placeholder-image.png'}
+                    src={images[currentImageIndex] || '/placeholder-image.png'}
                     alt={`${data.title} - Image ${currentImageIndex + 1}`}
                     className="w-full h-full object-cover"
                   />
                 </div>
 
                 {/* Navigation Buttons */}
-                {data.images.length > 1 && (
+                {imageCount > 1 && (
                   <>
                     <button
                       onClick={prevImage}
@@ -132,13 +140,13 @@ export function ProductDisplay({ data }: ProductDisplayProps) {
 
                 {/* Image Counter */}
                 <div className="absolute bottom-3 right-3 bg-black/70 text-white px-2 py-1 rounded text-sm">
-                  {currentImageIndex + 1} / {data.images.length}
+                  {currentImageIndex + 1} / {imageCount}
                 </div>
 
                 {/* Thumbnail Strip - Horizontal Slider */}
-                {data.images.length > 1 && (
+                {imageCount > 1 && (
                   <div className="flex gap-2 overflow-x-auto scrollbar-hide">
-                    {data.images.map((image, index) => (
+                    {images.map((image, index) => (
                       <button
                         key={index}
                         onClick={() => setCurrentImageIndex(index)}
@@ -164,12 +172,12 @@ export function ProductDisplay({ data }: ProductDisplayProps) {
             <div className="lg:col-span-1">
               <h3 className="text-lg font-semibold text-white mb-4 flex items-center gap-2">
                 <Package className="w-5 h-5" />
-                Varyantlar ({data.variants.totalVariants})
+                Varyantlar ({data.variants?.totalVariants || 0})
               </h3>
 
               <div className="space-y-4">
                 {/* Colors */}
-                {data.variants.colors.length > 0 && (
+                {data.variants?.colors && data.variants.colors.length > 0 && (
                   <div>
                     <div className="flex items-center gap-2 mb-2">
                       <Palette className="w-4 h-4 text-white" />
@@ -190,7 +198,7 @@ export function ProductDisplay({ data }: ProductDisplayProps) {
                 )}
 
                 {/* Sizes */}
-                {data.variants.sizes.length > 0 && (
+                {data.variants?.sizes && data.variants.sizes.length > 0 && (
                   <div>
                     <div className="flex items-center gap-2 mb-2">
                       <Shirt className="w-4 h-4 text-white" />
@@ -211,11 +219,11 @@ export function ProductDisplay({ data }: ProductDisplayProps) {
                 )}
 
                 {/* Compact Variant List */}
-                {data.variants.allVariants.length > 0 && (
+                {data.variants?.allVariants && data.variants.allVariants.length > 0 && (
                   <div>
                     <span className="text-white font-medium mb-2 block">Tüm Kombinasyonlar</span>
                     <div className="max-h-40 overflow-y-auto space-y-2">
-                      {data.variants.allVariants.slice(0, 8).map((variant, index) => (
+                      {(data.variants?.allVariants || []).slice(0, 8).map((variant, index) => (
                         <div
                           key={index}
                           className="flex items-center justify-between bg-white/5 rounded-lg px-3 py-2"
@@ -228,9 +236,9 @@ export function ProductDisplay({ data }: ProductDisplayProps) {
                           </div>
                         </div>
                       ))}
-                      {data.variants.allVariants.length > 8 && (
+                      {(data.variants?.allVariants?.length || 0) > 8 && (
                         <div className="text-center text-white/60 text-sm py-2">
-                          +{data.variants.allVariants.length - 8} daha fazla varyant
+                          +{(data.variants?.allVariants?.length || 0) - 8} daha fazla varyant
                         </div>
                       )}
                     </div>
@@ -258,19 +266,19 @@ export function ProductDisplay({ data }: ProductDisplayProps) {
                 <div className="bg-white/5 rounded-lg p-4 space-y-2">
                   <div className="flex justify-between text-sm">
                     <span className="text-white/70">Toplam Resim:</span>
-                    <span className="text-white">{data.images.length}</span>
+                    <span className="text-white">{imageCount}</span>
                   </div>
                   <div className="flex justify-between text-sm">
                     <span className="text-white/70">Toplam Varyant:</span>
-                    <span className="text-white">{data.variants.totalVariants}</span>
+                    <span className="text-white">{data.variants?.totalVariants || 0}</span>
                   </div>
                   <div className="flex justify-between text-sm">
                     <span className="text-white/70">Renk Seçeneği:</span>
-                    <span className="text-white">{data.variants.colors.length}</span>
+                    <span className="text-white">{data.variants?.colors?.length || 0}</span>
                   </div>
                   <div className="flex justify-between text-sm">
                     <span className="text-white/70">Beden Seçeneği:</span>
-                    <span className="text-white">{data.variants.sizes.length}</span>
+                    <span className="text-white">{data.variants?.sizes?.length || 0}</span>
                   </div>
                 </div>
 
@@ -289,6 +297,13 @@ export function ProductDisplay({ data }: ProductDisplayProps) {
                         </Badge>
                       ))}
                     </div>
+                  </div>
+                )}
+
+                {/* No data fallback */}
+                {(!data.variants || !data.variants.allVariants || data.variants.allVariants.length === 0) && (
+                  <div className="text-center text-white/60 text-sm py-8">
+                    Ürün varyant bilgileri henüz yüklenmedi
                   </div>
                 )}
               </div>
