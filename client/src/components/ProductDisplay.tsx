@@ -1,51 +1,68 @@
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
-import { Separator } from "@/components/ui/separator";
-import { Download, Package, Tag, Image as ImageIcon, DollarSign, FileText, Info, MessageSquare } from "lucide-react";
-import { AIAnalysisDisplay } from "./AIAnalysisDisplay";
-import { EnhancedAIAnalysisDisplay } from "./EnhancedAIAnalysisDisplay";
-import { AIEnhancedProductDisplay } from "./AIEnhancedProductDisplay";
+import { ChevronLeft, ChevronRight, ShoppingCart, Package, Palette, Shirt } from "lucide-react";
+import { motion } from "framer-motion";
+import { useState } from "react";
 
 interface ProductDisplayProps {
   data: {
     title: string;
     brand: string;
     price: string;
-    description: string;
+    description?: string;
     images: string[];
     variants: {
       colors: string[];
       sizes: string[];
-      variantImages: Record<string, string[]>;
-      pricing: Record<string, number>;
+      variantImages?: Record<string, string[]>;
+      pricing?: Record<string, number>;
       allVariants: Array<{
         color: string;
         size: string;
-        sku: string;
+        sku?: string;
         price: number;
-        shopifyPrice: string;
-        images: string[];
+        shopifyPrice?: string;
+        images?: string[];
+        inStock?: boolean;
       }>;
       totalVariants: number;
     };
-    attributes: Record<string, string>;
-    categories: string[];
-    tags: string[];
-    preview: {
-      csvPath: string;
-      filename: string;
-      totalRows: number;
-      shopifyReady: boolean;
-    };
+    features?: Array<{
+      key: string;
+      value: string;
+    }>;
+    tags?: string[];
+    shopifyCompatible?: boolean;
     aiAnalysis?: any;
   };
 }
 
 export function ProductDisplay({ data }: ProductDisplayProps) {
-  const handleDownloadCSV = async () => {
+  const [currentImageIndex, setCurrentImageIndex] = useState(0);
+
+  const nextImage = () => {
+    setCurrentImageIndex((prev) => 
+      prev === data.images.length - 1 ? 0 : prev + 1
+    );
+  };
+
+  const prevImage = () => {
+    setCurrentImageIndex((prev) => 
+      prev === 0 ? data.images.length - 1 : prev - 1
+    );
+  };
+
+  const handleExportToShopify = async () => {
     try {
-      const response = await fetch('/shopify-urunler.csv');
+      const response = await fetch('/api/export-to-shopify', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify(data),
+      });
+      
       if (response.ok) {
         const blob = await response.blob();
         const url = window.URL.createObjectURL(blob);
@@ -58,395 +75,227 @@ export function ProductDisplay({ data }: ProductDisplayProps) {
         document.body.removeChild(a);
       }
     } catch (error) {
-      console.error('CSV download error:', error);
+      console.error('Shopify export error:', error);
     }
   };
 
   return (
-    <div className="space-y-6 p-6 bg-gray-900 text-white">
-
-      {/* Ana Ürün Bilgileri */}
-      <Card className="bg-gray-800 border-gray-700">
-        <CardHeader>
-          <CardTitle className="flex items-center gap-2 text-white">
-            <Package className="h-5 w-5 text-blue-400" />
-            Ürün Bilgileri
-          </CardTitle>
-        </CardHeader>
-        <CardContent className="space-y-4">
-          <div>
-            <h2 className="text-xl font-bold text-white mb-2">{String(data.title || '')}</h2>
-            <div className="flex items-center gap-4">
-              <Badge variant="secondary" className="bg-blue-600 text-white">
-                {String(data.brand || '')}
+    <motion.div
+      initial={{ opacity: 0, y: 20 }}
+      animate={{ opacity: 1, y: 0 }}
+      transition={{ duration: 0.5 }}
+      className="w-full"
+    >
+      <Card className="bg-white/10 backdrop-blur-sm border border-white/20 shadow-2xl">
+        <CardContent className="p-6">
+          {/* Header with title and brand */}
+          <div className="mb-6">
+            <h2 className="text-2xl font-bold text-white mb-2">{data.title}</h2>
+            <div className="flex items-center gap-3">
+              <Badge variant="secondary" className="bg-white/20 text-white">
+                {data.brand}
               </Badge>
-              <span className="text-lg font-semibold text-green-400">{String(data.price || '')}</span>
+              <span className="text-xl font-semibold text-green-400">{data.price}</span>
             </div>
           </div>
-          
-          {/* Ürün Görselleri */}
-          {data.images && data.images.length > 0 && (
-            <Card className="bg-gray-800 border-gray-700">
-              <CardHeader>
-                <CardTitle className="flex items-center justify-between text-white">
-                  <div className="flex items-center gap-2">
-                    <ImageIcon className="h-5 w-5 text-blue-400" />
-                    Ürün Görselleri
-                  </div>
-                  <Badge variant="secondary" className="bg-blue-600 text-white">
-                    {data.images.length} Görsel
-                  </Badge>
-                </CardTitle>
-              </CardHeader>
-              <CardContent>
-                <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-5 xl:grid-cols-6 gap-3">
-                  {data.images.map((image, index) => (
-                    <div key={index} className="relative group">
-                      <div className="aspect-square bg-gray-700 rounded-lg overflow-hidden border border-gray-600 hover:border-blue-400 transition-all duration-200">
-                        <img 
-                          src={image} 
-                          alt={`${data.title} - Görsel ${index + 1}`}
-                          className="w-full h-full object-cover cursor-pointer transform group-hover:scale-105 transition-transform duration-200"
-                          onError={(e) => {
-                            const target = e.target as HTMLImageElement;
-                            target.style.display = 'none';
-                          }}
-                          onClick={() => window.open(image, '_blank')}
+
+          <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
+            {/* Image Slider Section - Left */}
+            <div className="lg:col-span-1">
+              <div className="relative">
+                {/* Main Image */}
+                <div className="aspect-square bg-white rounded-lg overflow-hidden mb-3">
+                  <img
+                    src={data.images[currentImageIndex] || '/placeholder-image.png'}
+                    alt={`${data.title} - Image ${currentImageIndex + 1}`}
+                    className="w-full h-full object-cover"
+                  />
+                </div>
+
+                {/* Navigation Buttons */}
+                {data.images.length > 1 && (
+                  <>
+                    <button
+                      onClick={prevImage}
+                      className="absolute left-2 top-1/2 -translate-y-1/2 bg-black/50 text-white p-2 rounded-full hover:bg-black/70 transition-colors"
+                    >
+                      <ChevronLeft className="w-4 h-4" />
+                    </button>
+                    <button
+                      onClick={nextImage}
+                      className="absolute right-2 top-1/2 -translate-y-1/2 bg-black/50 text-white p-2 rounded-full hover:bg-black/70 transition-colors"
+                    >
+                      <ChevronRight className="w-4 h-4" />
+                    </button>
+                  </>
+                )}
+
+                {/* Image Counter */}
+                <div className="absolute bottom-3 right-3 bg-black/70 text-white px-2 py-1 rounded text-sm">
+                  {currentImageIndex + 1} / {data.images.length}
+                </div>
+
+                {/* Thumbnail Strip - Horizontal Slider */}
+                {data.images.length > 1 && (
+                  <div className="flex gap-2 overflow-x-auto scrollbar-hide">
+                    {data.images.map((image, index) => (
+                      <button
+                        key={index}
+                        onClick={() => setCurrentImageIndex(index)}
+                        className={`flex-shrink-0 w-16 h-16 rounded-lg overflow-hidden border-2 transition-all ${
+                          index === currentImageIndex 
+                            ? 'border-white shadow-lg' 
+                            : 'border-transparent opacity-70 hover:opacity-100'
+                        }`}
+                      >
+                        <img
+                          src={image}
+                          alt={`Thumbnail ${index + 1}`}
+                          className="w-full h-full object-cover"
                         />
-                        <div className="absolute inset-0 bg-black bg-opacity-0 group-hover:bg-opacity-40 transition-all duration-200 flex items-center justify-center">
-                          <span className="text-white opacity-0 group-hover:opacity-100 text-xs font-medium bg-black bg-opacity-50 px-2 py-1 rounded">
-                            Tam Boyut
-                          </span>
+                      </button>
+                    ))}
+                  </div>
+                )}
+              </div>
+            </div>
+
+            {/* Variants Section - Center */}
+            <div className="lg:col-span-1">
+              <h3 className="text-lg font-semibold text-white mb-4 flex items-center gap-2">
+                <Package className="w-5 h-5" />
+                Varyantlar ({data.variants.totalVariants})
+              </h3>
+
+              <div className="space-y-4">
+                {/* Colors */}
+                {data.variants.colors.length > 0 && (
+                  <div>
+                    <div className="flex items-center gap-2 mb-2">
+                      <Palette className="w-4 h-4 text-white" />
+                      <span className="text-white font-medium">Renkler</span>
+                    </div>
+                    <div className="flex flex-wrap gap-2">
+                      {data.variants.colors.map((color) => (
+                        <Badge
+                          key={color}
+                          variant="outline"
+                          className="border-white/30 text-white text-xs px-2 py-1"
+                        >
+                          {color}
+                        </Badge>
+                      ))}
+                    </div>
+                  </div>
+                )}
+
+                {/* Sizes */}
+                {data.variants.sizes.length > 0 && (
+                  <div>
+                    <div className="flex items-center gap-2 mb-2">
+                      <Shirt className="w-4 h-4 text-white" />
+                      <span className="text-white font-medium">Bedenler</span>
+                    </div>
+                    <div className="flex flex-wrap gap-2">
+                      {data.variants.sizes.map((size) => (
+                        <Badge
+                          key={size}
+                          variant="outline" 
+                          className="border-white/30 text-white text-xs px-2 py-1"
+                        >
+                          {size}
+                        </Badge>
+                      ))}
+                    </div>
+                  </div>
+                )}
+
+                {/* Compact Variant List */}
+                {data.variants.allVariants.length > 0 && (
+                  <div>
+                    <span className="text-white font-medium mb-2 block">Tüm Kombinasyonlar</span>
+                    <div className="max-h-40 overflow-y-auto space-y-2">
+                      {data.variants.allVariants.slice(0, 8).map((variant, index) => (
+                        <div
+                          key={index}
+                          className="flex items-center justify-between bg-white/5 rounded-lg px-3 py-2"
+                        >
+                          <div className="text-sm text-white">
+                            {variant.color} - {variant.size}
+                          </div>
+                          <div className="text-sm text-green-400 font-medium">
+                            {variant.price ? `${variant.price} TL` : data.price}
+                          </div>
                         </div>
-                      </div>
-                      <div className="absolute -top-2 -right-2 bg-blue-500 text-white text-xs rounded-full w-5 h-5 flex items-center justify-center font-bold">
-                        {index + 1}
-                      </div>
+                      ))}
+                      {data.variants.allVariants.length > 8 && (
+                        <div className="text-center text-white/60 text-sm py-2">
+                          +{data.variants.allVariants.length - 8} daha fazla varyant
+                        </div>
+                      )}
                     </div>
-                  ))}
-                </div>
-              </CardContent>
-            </Card>
-          )}
-          
-          <div className="grid grid-cols-1 lg:grid-cols-2 gap-4">
-            <div>
-              <h3 className="font-semibold text-gray-300 mb-2">Kategoriler</h3>
-              <div className="flex flex-wrap gap-2">
-                {data.categories?.map((category, index) => (
-                  <Badge key={index} variant="outline" className="border-gray-600 text-gray-300">
-                    {String(category)}
-                  </Badge>
-                )) || <span className="text-gray-500">Kategori bilgisi yok</span>}
-              </div>
-            </div>
-            
-            <div>
-              <h3 className="font-semibold text-gray-300 mb-2">Özellikler</h3>
-              <div className="space-y-1 text-sm text-gray-400">
-                {Object.entries(data.attributes || {}).map(([key, value]) => (
-                  <div key={key}>
-                    <span className="font-medium">{String(key)}:</span> {String(value)}
-                  </div>
-                ))}
-              </div>
-            </div>
-          </div>
-        </CardContent>
-      </Card>
-
-
-
-      {/* Renk Varyantları */}
-      <Card className="bg-gray-800 border-gray-700">
-        <CardHeader>
-          <CardTitle className="flex items-center gap-2 text-white">
-            <Tag className="h-5 w-5 text-green-400" />
-            Renk Varyantları ({data.variants?.colors?.length || 0})
-          </CardTitle>
-        </CardHeader>
-        <CardContent className="space-y-4">
-          {data.variants?.colors && data.variants.colors.length > 0 ? data.variants.colors.map((color) => {
-            const colorName = typeof color === 'string' ? color : color?.name || 'Renk';
-            return (
-            <div key={colorName} className="border border-gray-600 rounded-lg p-4">
-              <div className="flex items-center justify-between mb-3">
-                <h3 className="font-semibold text-white">{String(colorName)}</h3>
-                <div className="flex items-center gap-2">
-                  <DollarSign className="h-4 w-4 text-green-400" />
-                  <span className="font-bold text-green-400">
-                    {data.variants.pricing?.[colorName]?.toFixed(2) || 'N/A'} TL
-                  </span>
-                </div>
-              </div>
-              
-              <div className="grid grid-cols-3 md:grid-cols-4 gap-2">
-                {data.variants.variantImages?.[colorName]?.slice(0, 4).map((image, index) => (
-                  <div key={index} className="aspect-square bg-gray-700 rounded overflow-hidden">
-                    <img 
-                      src={image} 
-                      alt={`${colorName} varyantı ${index + 1}`}
-                      className="w-full h-full object-cover"
-                    />
-                  </div>
-                )) || (
-                  <div className="col-span-full text-sm text-gray-500 py-2">
-                    Bu renk için görsel bulunamadı
                   </div>
                 )}
               </div>
             </div>
-            );
-          }) : (
-            <div className="text-center text-gray-500 py-8">
-              Renk varyantı bulunamadı
-            </div>
-          )}
-        </CardContent>
-      </Card>
 
-      {/* Varyant Özeti */}
-      <Card className="bg-gray-800 border-gray-700">
-        <CardHeader>
-          <CardTitle className="flex items-center gap-2 text-white">
-            <Package className="h-5 w-5 text-orange-400" />
-            Varyant Özeti
-          </CardTitle>
-        </CardHeader>
-        <CardContent>
-          <div className="grid grid-cols-2 md:grid-cols-4 gap-4 text-center">
-            <div className="bg-gray-700 p-4 rounded-lg">
-              <div className="text-2xl font-bold text-blue-400">{data.colors?.length || 0}</div>
-              <div className="text-sm text-gray-400">Renk</div>
-            </div>
-            <div className="bg-gray-700 p-4 rounded-lg">
-              <div className="text-2xl font-bold text-green-400">{data.sizes?.length || 1}</div>
-              <div className="text-sm text-gray-400">Beden</div>
-            </div>
-            <div className="bg-gray-700 p-4 rounded-lg">
-              <div className="text-2xl font-bold text-purple-400">{(data.colors?.length || 0) * (data.sizes?.length || 1)}</div>
-              <div className="text-sm text-gray-400">Toplam Varyant</div>
-            </div>
-            <div className="bg-gray-700 p-4 rounded-lg">
-              <div className="text-2xl font-bold text-orange-400">{data.preview?.totalRows || 0}</div>
-              <div className="text-sm text-gray-400">CSV Satırı</div>
-            </div>
-          </div>
-        </CardContent>
-      </Card>
-
-      {/* Ürün Özellikleri */}
-      <Card className="bg-gray-800 border-gray-700">
-        <CardHeader>
-          <CardTitle className="flex items-center gap-2 text-white">
-            <Info className="h-5 w-5 text-blue-400" />
-            Ürün Özellikleri ({data.features?.length || 0})
-          </CardTitle>
-        </CardHeader>
-        <CardContent>
-          <div className="space-y-4">
-            {/* Ana özellikler */}
-            {data.features && data.features.length > 0 && (
-              <div>
-                <h4 className="text-sm font-semibold text-purple-400 mb-2">Genel Özellikler</h4>
-                <div className="space-y-2">
-                  {data.features.slice(0, 8).map((feature, index) => (
-                    <div key={index} className="flex justify-between py-1.5 border-b border-gray-700">
-                      <span className="text-gray-400 text-sm">{feature.key}:</span>
-                      <span className="text-white text-sm">{feature.value}</span>
-                    </div>
-                  ))}
-                </div>
-              </div>
-            )}
-            
-            {/* Malzeme bilgileri */}
-            {data.materials && data.materials.length > 0 && (
-              <div>
-                <h4 className="text-sm font-semibold text-green-400 mb-2">Malzeme Bilgileri</h4>
-                <div className="space-y-1">
-                  {data.materials.map((material, index) => (
-                    <div key={index} className="text-gray-300 text-sm bg-gray-700 p-2 rounded">
-                      {material}
-                    </div>
-                  ))}
-                </div>
-              </div>
-            )}
-            
-            {/* Bakım talimatları */}
-            {data.careInstructions && data.careInstructions.length > 0 && (
-              <div>
-                <h4 className="text-sm font-semibold text-yellow-400 mb-2">Bakım Talimatları</h4>
-                <div className="space-y-1">
-                  {data.careInstructions.map((instruction, index) => (
-                    <div key={index} className="text-gray-300 text-sm bg-gray-700 p-2 rounded">
-                      {instruction}
-                    </div>
-                  ))}
-                </div>
-              </div>
-            )}
-            
-            {/* Teknik özellikler */}
-            {data.specifications && data.specifications.length > 0 && (
-              <div>
-                <h4 className="text-sm font-semibold text-orange-400 mb-2">Teknik Özellikler</h4>
-                <div className="space-y-2">
-                  {data.specifications.slice(0, 6).map((spec, index) => (
-                    <div key={index} className="flex justify-between py-1.5 border-b border-gray-700">
-                      <span className="text-gray-400 text-sm">{spec.key}:</span>
-                      <span className="text-white text-sm">{spec.value}</span>
-                    </div>
-                  ))}
-                </div>
-              </div>
-            )}
-            
-            {(!data.features || data.features.length === 0) && 
-             (!data.materials || data.materials.length === 0) && 
-             (!data.specifications || data.specifications.length === 0) && (
-              <div className="text-center text-gray-500 py-8">
-                <Info className="h-8 w-8 mx-auto mb-2 opacity-50" />
-                <div>Ürün özellikleri yükleniyor...</div>
-              </div>
-            )}
-          </div>
-        </CardContent>
-      </Card>
-
-      {/* Ürün Yorumları */}
-      <Card className="bg-gray-800 border-gray-700">
-        <CardHeader>
-          <CardTitle className="flex items-center gap-2 text-white">
-            <MessageSquare className="h-5 w-5 text-yellow-400" />
-            Ürün Yorumları
-          </CardTitle>
-        </CardHeader>
-        <CardContent>
-          <div className="space-y-4">
-            {/* Yorum istatistikleri */}
-            <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
-              <div className="bg-gray-700 p-3 rounded-lg text-center">
-                <div className="text-lg font-bold text-yellow-400">0</div>
-                <div className="text-xs text-gray-400">Toplam Yorum</div>
-              </div>
-              <div className="bg-gray-700 p-3 rounded-lg text-center">
-                <div className="text-lg font-bold text-green-400">0.0</div>
-                <div className="text-xs text-gray-400">Ortalama Puan</div>
-              </div>
-              <div className="bg-gray-700 p-3 rounded-lg text-center">
-                <div className="text-lg font-bold text-blue-400">0</div>
-                <div className="text-xs text-gray-400">Onaylı Yorum</div>
-              </div>
-              <div className="bg-gray-700 p-3 rounded-lg text-center">
-                <div className="text-lg font-bold text-purple-400">0</div>
-                <div className="text-xs text-gray-400">Fotoğraflı</div>
-              </div>
-            </div>
-            
-            {/* Yorum çıkarma durumu */}
-            <div className="bg-gray-700 p-4 rounded-lg">
-              <div className="flex items-center justify-between">
-                <div>
-                  <h4 className="font-semibold text-white">Yorum Çıkarma Sistemi</h4>
-                  <p className="text-sm text-gray-400">Trendyol ürün yorumları otomatik olarak çıkarılabilir</p>
-                </div>
-                <Button 
-                  variant="outline" 
-                  size="sm"
-                  className="bg-yellow-600 hover:bg-yellow-700 text-white border-yellow-600"
-                  onClick={() => window.open('/product-reviews', '_blank')}
+            {/* Actions Section - Right */}
+            <div className="lg:col-span-1">
+              <div className="space-y-4">
+                <h3 className="text-lg font-semibold text-white mb-4">İşlemler</h3>
+                
+                {/* Shopify Export Button */}
+                <Button
+                  onClick={handleExportToShopify}
+                  className="w-full bg-green-600 hover:bg-green-700 text-white"
+                  size="lg"
                 >
-                  <MessageSquare className="h-4 w-4 mr-2" />
-                  Yorumları Görüntüle
+                  <ShoppingCart className="w-5 h-5 mr-2" />
+                  Shopify'a Aktar
                 </Button>
+
+                {/* Product Summary */}
+                <div className="bg-white/5 rounded-lg p-4 space-y-2">
+                  <div className="flex justify-between text-sm">
+                    <span className="text-white/70">Toplam Resim:</span>
+                    <span className="text-white">{data.images.length}</span>
+                  </div>
+                  <div className="flex justify-between text-sm">
+                    <span className="text-white/70">Toplam Varyant:</span>
+                    <span className="text-white">{data.variants.totalVariants}</span>
+                  </div>
+                  <div className="flex justify-between text-sm">
+                    <span className="text-white/70">Renk Seçeneği:</span>
+                    <span className="text-white">{data.variants.colors.length}</span>
+                  </div>
+                  <div className="flex justify-between text-sm">
+                    <span className="text-white/70">Beden Seçeneği:</span>
+                    <span className="text-white">{data.variants.sizes.length}</span>
+                  </div>
+                </div>
+
+                {/* Tags */}
+                {data.tags && data.tags.length > 0 && (
+                  <div>
+                    <span className="text-white font-medium mb-2 block">Etiketler</span>
+                    <div className="flex flex-wrap gap-1">
+                      {data.tags.slice(0, 6).map((tag) => (
+                        <Badge
+                          key={tag}
+                          variant="secondary"
+                          className="bg-white/10 text-white text-xs"
+                        >
+                          {tag}
+                        </Badge>
+                      ))}
+                    </div>
+                  </div>
+                )}
               </div>
             </div>
-            
-            {/* Boş durum mesajı */}
-            <div className="text-center text-gray-500 py-6">
-              <MessageSquare className="h-12 w-12 mx-auto mb-3 opacity-50" />
-              <div className="text-lg font-medium">Henüz Yorum Çıkarılmadı</div>
-              <div className="text-sm">Bu ürün için henüz yorum çıkarma işlemi yapılmadı.</div>
-            </div>
           </div>
         </CardContent>
       </Card>
-
-      {/* AI Analysis Section */}
-      {data.aiAnalysis && (
-        <>
-          {/* Enhanced AI Analysis if available */}
-          {data.aiAnalysis.subcategory ? (
-            <EnhancedAIAnalysisDisplay analysis={data.aiAnalysis} />
-          ) : (
-            <AIAnalysisDisplay analysis={data.aiAnalysis} />
-          )}
-        </>
-      )}
-
-      {/* CSV Önizleme ve İndirme */}
-      <Card className="bg-gray-800 border-gray-700">
-        <CardHeader>
-          <CardTitle className="flex items-center gap-2 text-white">
-            <Download className="h-5 w-5 text-green-400" />
-            CSV Dışa Aktarım
-          </CardTitle>
-        </CardHeader>
-        <CardContent>
-          {/* CSV Preview Table */}
-          <div className="mb-4 overflow-x-auto">
-            <table className="w-full text-xs border border-gray-600">
-              <thead>
-                <tr className="bg-gray-700">
-                  <th className="border border-gray-600 p-1 text-left">Başlık</th>
-                  <th className="border border-gray-600 p-1 text-left">Marka</th>
-                  <th className="border border-gray-600 p-1 text-left">Fiyat</th>
-                  <th className="border border-gray-600 p-1 text-left">Beden</th>
-                  <th className="border border-gray-600 p-1 text-left">Renk</th>
-                  <th className="border border-gray-600 p-1 text-left">Görsel</th>
-                </tr>
-              </thead>
-              <tbody>
-                {(data.sizes || ['XS', 'S', 'M']).slice(0, 3).map((size: any, index: number) => (
-                  <tr key={index} className="bg-gray-800">
-                    <td className="border border-gray-600 p-1 text-gray-300">{String(data.title || '').substring(0, 30)}...</td>
-                    <td className="border border-gray-600 p-1 text-blue-400">{String(data.brand || '')}</td>
-                    <td className="border border-gray-600 p-1 text-green-400">{(parseFloat(data.price || '0') * 1.1).toFixed(2)} TL</td>
-                    <td className="border border-gray-600 p-1 text-yellow-400">{
-                      typeof size === 'string' ? size : size?.name || `Beden ${index + 1}`
-                    }</td>
-                    <td className="border border-gray-600 p-1 text-purple-400">{
-                      data.colors?.[0] ? 
-                        (typeof data.colors[0] === 'string' ? data.colors[0] : data.colors[0]?.name || 'Renk 1') : 
-                        'Tek Renk'
-                    }</td>
-                    <td className="border border-gray-600 p-1 text-gray-400">✓</td>
-                  </tr>
-                ))}
-                {(data.sizes || []).length > 3 && (
-                  <tr className="bg-gray-900">
-                    <td colSpan={6} className="border border-gray-600 p-1 text-center text-gray-400">
-                      +{(data.sizes || []).length - 3} daha fazla varyant
-                    </td>
-                  </tr>
-                )}
-              </tbody>
-            </table>
-          </div>
-          
-          {/* Download Button */}
-          <Button 
-            onClick={handleDownloadCSV} 
-            className="w-full bg-green-600 hover:bg-green-700 text-white"
-          >
-            <Download className="h-4 w-4 mr-2" />
-            Shopify CSV İndir ({(data.sizes || []).length || 0} varyant)
-          </Button>
-        </CardContent>
-      </Card>
-
-    </div>
+    </motion.div>
   );
 }

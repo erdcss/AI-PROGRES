@@ -100,18 +100,20 @@ function ScraperPage() {
   });
 
   return (
-    <div className="min-h-screen bg-gradient-to-br from-slate-900 via-purple-900 to-slate-900">
-      {/* Background overlay */}
-      <div className="absolute inset-0 bg-black/20"></div>
+    <div className="min-h-screen w-full bg-gradient-to-br from-slate-900 via-purple-900 to-slate-900 overflow-x-hidden">
+      {/* Background overlay - full coverage */}
+      <div className="fixed inset-0 bg-black/20 w-full h-full"></div>
       
       {/* Back button */}
-      <div className="relative z-10 p-6">
+      <div className="relative z-10 p-6 w-full">
         <BackButton to="/marketplace-selection" label="Platform Seçimi" />
       </div>
 
-      {/* Centered content */}
-      <div className="relative z-10 flex items-center justify-center min-h-[calc(100vh-120px)] px-6">
-        <div className="w-full max-w-2xl">
+      {/* Full page content */}
+      <div className="relative z-10 w-full min-h-[calc(100vh-120px)] flex flex-col">
+        {/* Top section with form - centered */}
+        <div className="flex-1 flex items-center justify-center px-6 py-8">
+          <div className="w-full max-w-4xl">
           {/* Brand Header */}
           <motion.div
             initial={{ opacity: 0, y: -20 }}
@@ -180,15 +182,16 @@ function ScraperPage() {
               </CardContent>
             </Card>
           </motion.div>
+          </div>
         </div>
-      </div>
 
-      {/* Product Display - below the input */}
-      {product && (
-        <div className="relative z-10 px-6 pb-12">
-          <ProductDisplay data={product} />
-        </div>
-      )}
+        {/* Product Display - below the input */}
+        {product && (
+          <div className="relative z-10 w-full px-6 pb-12">
+            <ProductDisplay data={product} />
+          </div>
+        )}
+      </div>
     </div>
   );
 }

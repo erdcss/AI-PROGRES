@@ -182,6 +182,9 @@ export const insertMonitoringScheduleSchema = createInsertSchema(monitoringSched
   updatedAt: true
 });
 
+// Export the table schemas for use in other files
+export const variants = productVariants;
+
 // Types
 export type Product = typeof products.$inferSelect;
 export type InsertProduct = z.infer<typeof insertProductSchema>;

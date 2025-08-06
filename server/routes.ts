@@ -2502,5 +2502,39 @@ export function registerRoutes(app: Express): Server {
     }
   });
 
+  // Shopify Export Endpoint
+  app.post('/api/export-to-shopify', async (req, res) => {
+    try {
+      const productData = req.body;
+      
+      if (!productData || !productData.title) {
+        return res.status(400).json({
+          success: false,
+          message: 'Geçersiz ürün verisi'
+        });
+      }
+
+      // CSV Export için generateSingleProductShopifyCSV kullan
+      const csvContent = generateSingleProductShopifyCSV({
+        ...productData,
+        sizeOptions: productData.variants?.sizes || [],
+        features: productData.features || []
+      });
+      
+      // CSV dosyasını response olarak gönder
+      res.setHeader('Content-Type', 'text/csv');
+      res.setHeader('Content-Disposition', `attachment; filename="shopify-${productData.brand}-${Date.now()}.csv"`);
+      res.send(csvContent);
+      
+    } catch (error) {
+      console.error('Shopify export error:', error);
+      res.status(500).json({
+        success: false,
+        message: 'Shopify export failed',
+        error: error instanceof Error ? error.message : 'Unknown error'
+      });
+    }
+  });
+
   return httpServer;
 }
