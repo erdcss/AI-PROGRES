@@ -94,7 +94,7 @@ export function ProductDisplay({ data }: ProductDisplayProps) {
       transition={{ duration: 0.5 }}
       className="w-full"
     >
-      <Card className="bg-white/10 backdrop-blur-sm border border-white/20 shadow-2xl">
+      <Card className="bg-gradient-to-br from-purple-800/30 via-purple-900/30 to-indigo-900/30 backdrop-blur-lg border border-white/20 shadow-2xl">
         <CardContent className="p-6">
           {/* Header with title and brand */}
           <div className="mb-6">

@@ -100,9 +100,9 @@ function ScraperPage() {
   });
 
   return (
-    <div className="min-h-screen w-full bg-gradient-to-br from-slate-900 via-purple-900 to-slate-900 overflow-x-hidden">
+    <div className="min-h-screen w-full bg-gradient-to-br from-purple-600 via-purple-700 to-indigo-800 overflow-x-hidden">
       {/* Background overlay - full coverage */}
-      <div className="fixed inset-0 bg-black/20 w-full h-full"></div>
+      <div className="fixed inset-0 bg-black/10 w-full h-full"></div>
       
       {/* Back button */}
       <div className="relative z-10 p-6 w-full">
@@ -136,7 +136,7 @@ function ScraperPage() {
             animate={{ opacity: 1, y: 0 }}
             transition={{ duration: 0.6, delay: 0.2 }}
           >
-            <Card className="bg-white/10 backdrop-blur-sm border border-white/20 shadow-2xl">
+            <Card className="bg-gradient-to-br from-purple-800/20 via-purple-900/20 to-indigo-900/20 backdrop-blur-lg border border-white/20 shadow-2xl">
               <CardContent className="p-8">
                 <form onSubmit={onSubmit} className="space-y-6">
                   <div className="relative">
