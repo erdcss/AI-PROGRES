@@ -8,10 +8,10 @@ import { useState } from "react";
 interface ProductDisplayProps {
   data: {
     title: string;
-    brand: string;
-    price: string;
+    brand?: string;
+    price: string | number | { profitFormatted: string };
     description?: string;
-    images: string[];
+    images: string[] | Array<{ url: string; alt?: string }>;
     variants: {
       colors: string[];
       sizes: string[];
@@ -42,8 +42,24 @@ export function ProductDisplay({ data }: ProductDisplayProps) {
   const [currentImageIndex, setCurrentImageIndex] = useState(0);
   
   // Güvenli image array kontrolü
-  const images = data?.images || [];
+  const images = processImages(data?.images || []);
   const imageCount = images.length;
+  
+  // Price formatting helper
+  const formatPrice = (price: string | number | { profitFormatted: string }) => {
+    if (typeof price === 'string') return price;
+    if (typeof price === 'number') return `${price} TL`;
+    if (typeof price === 'object' && price?.profitFormatted) return price.profitFormatted;
+    return 'Fiyat bilgisi yok';
+  };
+  
+  // Images processing helper
+  const processImages = (images: string[] | Array<{ url: string; alt?: string }>) => {
+    if (!Array.isArray(images)) return [];
+    return images.map(img => 
+      typeof img === 'string' ? img : img.url
+    );
+  };
 
   const nextImage = () => {
     if (imageCount > 0) {
@@ -103,7 +119,7 @@ export function ProductDisplay({ data }: ProductDisplayProps) {
               <Badge variant="secondary" className="bg-white/20 text-white">
                 {data.brand}
               </Badge>
-              <span className="text-xl font-semibold text-green-400">{data.price}</span>
+              <span className="text-xl font-semibold text-green-400">{formatPrice(data.price)}</span>
             </div>
           </div>
 
@@ -232,7 +248,7 @@ export function ProductDisplay({ data }: ProductDisplayProps) {
                             {variant.color} - {variant.size}
                           </div>
                           <div className="text-sm text-green-400 font-medium">
-                            {variant.price ? `${variant.price} TL` : data.price}
+                            {variant.price ? `${variant.price} TL` : formatPrice(data.price)}
                           </div>
                         </div>
                       ))}

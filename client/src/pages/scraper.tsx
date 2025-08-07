@@ -100,9 +100,9 @@ function ScraperPage() {
   });
 
   return (
-    <div className="min-h-screen w-full bg-gradient-to-br from-purple-600 via-purple-700 to-indigo-800 overflow-x-hidden">
+    <div className="min-h-screen w-full bg-gradient-to-br from-blue-600 via-blue-700 to-indigo-800 overflow-x-hidden">
       {/* Background overlay - full coverage */}
-      <div className="fixed inset-0 bg-black/10 w-full h-full"></div>
+      <div className="fixed inset-0 bg-gradient-to-br from-blue-500/20 via-indigo-600/30 to-blue-800/20 w-full h-full"></div>
       
       {/* Back button */}
       <div className="relative z-10 p-6 w-full">
@@ -136,14 +136,14 @@ function ScraperPage() {
             animate={{ opacity: 1, y: 0 }}
             transition={{ duration: 0.6, delay: 0.2 }}
           >
-            <Card className="bg-gradient-to-br from-purple-800/20 via-purple-900/20 to-indigo-900/20 backdrop-blur-lg border border-white/20 shadow-2xl">
+            <Card className="bg-gradient-to-br from-blue-800/30 via-blue-900/30 to-indigo-900/30 backdrop-blur-xl border border-white/20 shadow-2xl">
               <CardContent className="p-8">
                 <form onSubmit={onSubmit} className="space-y-6">
                   <div className="relative">
                     <Input
                       placeholder="https://www.trendyol.com/..."
                       {...form.register("url")}
-                      className="bg-white/5 border-white/30 text-white placeholder-gray-400 pl-12 h-14 text-lg"
+                      className="bg-white/10 border-white/30 text-white placeholder-gray-400 pl-12 h-14 text-lg focus:border-white/50 focus:ring-white/20"
                       disabled={scrapeMutation.isPending}
                     />
                     <div className="absolute left-4 top-1/2 transform -translate-y-1/2">

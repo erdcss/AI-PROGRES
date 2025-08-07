@@ -193,7 +193,7 @@ function Router() {
       <Switch>
       <Route path="/">
         <PageTransition>
-          <MainDashboard />
+          <MarketplaceSelection />
         </PageTransition>
       </Route>
       <Route path="/marketplace">
