@@ -2,7 +2,6 @@ import { Switch, Route } from "wouter";
 import { queryClient } from "./lib/queryClient";
 import { QueryClientProvider } from "@tanstack/react-query";
 import { Toaster } from "@/components/ui/toaster";
-import NotFound from "@/pages/not-found";
 import ScraperPage from "@/pages/scraper";
 import PriceComparisonPage from "@/pages/price-comparison";
 import MarketplaceSelection from "@/pages/marketplace-selection";
@@ -312,11 +311,6 @@ function Router() {
       <Route path="/scraper/arcelik">
         <PageTransition>
           <ArcelikScraper />
-        </PageTransition>
-      </Route>
-      <Route>
-        <PageTransition>
-          <NotFound />
         </PageTransition>
       </Route>
       </Switch>
