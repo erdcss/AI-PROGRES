@@ -30,6 +30,7 @@ import ReplitAgent from "@/pages/replit-agent-fixed";
 import SOSControl from "@/pages/sos-control";
 import ProductReviews from "@/pages/product-reviews";
 import MemoryTrackingPage from "@/pages/MemoryTrackingPage";
+import { TBotAssistant } from "@/components/TBotAssistant";
 
 // Login component with password protection
 function LoginScreen({ onLogin }: { onLogin: () => void }) {
@@ -87,16 +88,16 @@ function LoginScreen({ onLogin }: { onLogin: () => void }) {
   };
   
   return (
-    <div className="flex items-center justify-center min-h-screen bg-gradient-to-br from-blue-900 via-slate-900 to-indigo-900">
-      <Card className="w-[420px] shadow-2xl border-blue-700/50 bg-slate-800/95 backdrop-blur-sm">
-        <CardHeader className="space-y-6 text-center">
-          <div className="mx-auto w-16 h-16 bg-gradient-to-br from-blue-500 to-indigo-600 rounded-2xl flex items-center justify-center shadow-lg">
+    <div className="flex items-center justify-center min-h-screen business-bg">
+      <Card className="business-card w-[420px] shadow-2xl">
+        <CardHeader className="business-header space-y-6 text-center">
+          <div className="mx-auto w-16 h-16 bg-gradient-to-br from-blue-700 to-blue-900 rounded-2xl flex items-center justify-center shadow-lg">
             <Lock className="h-8 w-8 text-white" />
           </div>
-          <CardTitle className="text-3xl font-bold bg-gradient-to-r from-blue-400 to-indigo-400 bg-clip-text text-transparent">
+          <CardTitle className="text-3xl font-bold text-white">
             Veri Transfer Programı
           </CardTitle>
-          <CardDescription className="text-slate-300 text-lg">
+          <CardDescription className="text-white text-lg font-bold">
             Güvenli sistem erişimi için kimlik doğrulama
           </CardDescription>
           {success && (
@@ -112,7 +113,7 @@ function LoginScreen({ onLogin }: { onLogin: () => void }) {
           <>
             <CardContent className="space-y-6 px-8">
               <div className="space-y-3">
-                <Label htmlFor="password" className="text-sm font-medium text-slate-300">
+                <Label htmlFor="password" className="text-sm font-bold text-white">
                   Şifre
                 </Label>
                 <Input
@@ -122,7 +123,7 @@ function LoginScreen({ onLogin }: { onLogin: () => void }) {
                   value={password}
                   onChange={(e) => setPassword(e.target.value)}
                   onKeyDown={handleKeyDown}
-                  className={`h-12 text-lg bg-slate-700/50 border-slate-600 text-white placeholder:text-slate-400 focus:border-blue-500 focus:ring-blue-500/20 rounded-xl ${error ? "border-red-500 focus:border-red-500" : ""}`}
+                  className={`business-input h-12 text-lg rounded-xl ${error ? "border-red-500 focus:border-red-500" : ""}`}
                   autoFocus
                 />
                 {error && (
@@ -134,7 +135,7 @@ function LoginScreen({ onLogin }: { onLogin: () => void }) {
               </div>
               
               <div className="space-y-3">
-                <Label htmlFor="captcha" className="text-sm font-medium text-slate-300">
+                <Label htmlFor="captcha" className="text-sm font-bold text-white">
                   Güvenlik sorusu: {num1} + {num2} = ?
                 </Label>
                 <Input
@@ -143,7 +144,7 @@ function LoginScreen({ onLogin }: { onLogin: () => void }) {
                   value={sum}
                   onChange={(e) => setSum(e.target.value)}
                   onKeyDown={handleKeyDown}
-                  className={`h-12 text-lg bg-slate-700/50 border-slate-600 text-white placeholder:text-slate-400 focus:border-blue-500 focus:ring-blue-500/20 rounded-xl ${captchaError ? "border-red-500 focus:border-red-500" : ""}`}
+                  className={`business-input h-12 text-lg rounded-xl ${captchaError ? "border-red-500 focus:border-red-500" : ""}`}
                   placeholder="Toplamı yazın"
                 />
                 {captchaError && (
@@ -157,7 +158,7 @@ function LoginScreen({ onLogin }: { onLogin: () => void }) {
             <CardFooter className="flex flex-col gap-4 px-8 pb-8">
               <Button 
                 onClick={handleLogin} 
-                className="w-full h-12 text-lg font-semibold bg-gradient-to-r from-blue-600 to-indigo-600 hover:from-blue-700 hover:to-indigo-700 rounded-xl shadow-lg transform transition-all duration-200 hover:scale-105 border-0" 
+                className="business-button w-full h-12 text-lg font-bold rounded-xl shadow-lg transform transition-all duration-200 hover:scale-105" 
                 variant="default"
               >
                 <ShieldCheck className="mr-2 h-5 w-5" />
@@ -165,11 +166,11 @@ function LoginScreen({ onLogin }: { onLogin: () => void }) {
               </Button>
               
               <div className="flex justify-center">
-                <div className="flex items-center gap-3 px-4 py-2 bg-slate-700/50 rounded-full border border-slate-600/50">
+                <div className="flex items-center gap-3 px-4 py-2 bg-blue-900 rounded-full border business-border">
                   <div className="w-8 h-8 bg-gradient-to-r from-blue-500 to-indigo-600 rounded-lg flex items-center justify-center shadow-sm">
                     <span className="text-white text-sm font-bold">AI</span>
                   </div>
-                  <span className="text-sm text-slate-300 font-medium">Yapay Zeka Destekli</span>
+                  <span className="text-sm text-white font-bold">Yapay Zeka Destekli</span>
                 </div>
               </div>
             </CardFooter>
@@ -324,7 +325,7 @@ function Router() {
 }
 
 function App() {
-  const [isLoggedIn, setIsLoggedIn] = useState(true); // Development: bypass login
+  const [isLoggedIn, setIsLoggedIn] = useState(false); // Production: require login
   
   // Uygulama kapanıp açıldığında yeniden giriş istensin
   useEffect(() => {
@@ -361,7 +362,10 @@ function App() {
   
   return (
     <QueryClientProvider client={queryClient}>
-      <Router />
+      <div className="business-bg min-h-screen">
+        <Router />
+        <TBotAssistant />
+      </div>
       <Toaster />
     </QueryClientProvider>
   );
