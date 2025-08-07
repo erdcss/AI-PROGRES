@@ -1,8 +1,9 @@
+@import url('https://fonts.googleapis.com/css2?family=Arial:wght@400;700;900&display=swap');
 @tailwind base;
 @tailwind components;
 @tailwind utilities;
 
-/* Modern Tech Theme - Exact match for the provided design */
+/* Business Professional Theme - Black/White/Dark Blue */
 
 /* Core Animations */
 @keyframes float {
@@ -125,30 +126,56 @@
   animation: clock-pulse 2s ease-in-out infinite;
 }
 
-/* Modern Glassmorphism */
-.glassmorphism {
-  background: rgba(30, 58, 138, 0.15);
-  backdrop-filter: blur(16px);
-  border: 1px solid rgba(59, 130, 246, 0.2);
-  box-shadow: 
-    inset 0 1px 0 rgba(255, 255, 255, 0.1),
-    0 4px 32px rgba(0, 0, 0, 0.3);
+/* Business Professional Theme */
+.business-card {
+  background: #000000 !important;
+  border: 2px solid #1e3a8a !important;
+  box-shadow: 0 8px 32px rgba(30, 58, 138, 0.3) !important;
+  color: #ffffff !important;
 }
 
-.glassmorphism-card {
-  background: rgba(30, 58, 138, 0.12);
-  backdrop-filter: blur(20px);
-  border: 1px solid rgba(59, 130, 246, 0.15);
-  box-shadow: 
-    inset 0 1px 0 rgba(255, 255, 255, 0.08),
-    0 8px 32px rgba(0, 0, 0, 0.4);
+.business-header {
+  background: #000000 !important;
+  border-bottom: 2px solid #1e3a8a !important;
+  color: #ffffff !important;
 }
 
-.glassmorphism-header {
-  background: rgba(30, 58, 138, 0.25);
-  backdrop-filter: blur(24px);
-  border-bottom: 1px solid rgba(59, 130, 246, 0.2);
-  box-shadow: 0 4px 24px rgba(0, 0, 0, 0.2);
+.business-accent {
+  color: #1e3a8a !important;
+}
+
+.business-bg {
+  background: #000000 !important;
+}
+
+.business-border {
+  border-color: #1e3a8a !important;
+}
+
+.business-button {
+  background: #1e3a8a !important;
+  color: #ffffff !important;
+  border: none !important;
+  font-weight: 700 !important;
+  transition: all 0.3s ease !important;
+}
+
+.business-button:hover {
+  background: #1e40af !important;
+  transform: translateY(-2px) !important;
+  box-shadow: 0 4px 16px rgba(30, 58, 138, 0.4) !important;
+}
+
+.business-input {
+  background: #000000 !important;
+  border: 2px solid #1e3a8a !important;
+  color: #ffffff !important;
+  font-weight: 700 !important;
+}
+
+.business-input:focus {
+  border-color: #3b82f6 !important;
+  box-shadow: 0 0 0 3px rgba(30, 58, 138, 0.1) !important;
 }
 
 /* Tech Grid Background */
@@ -160,12 +187,14 @@
   background-position: 0 0, 25px 25px;
 }
 
-/* Modern Button Styles */
+/* Business Button Styles */
 .tech-button {
   position: relative;
   overflow: hidden;
-  background: linear-gradient(135deg, rgba(59, 130, 246, 0.2), rgba(139, 92, 246, 0.2));
-  border: 1px solid rgba(59, 130, 246, 0.3);
+  background: #1e3a8a !important;
+  border: 2px solid #1e3a8a !important;
+  color: #ffffff !important;
+  font-weight: 700 !important;
   transition: all 0.3s ease;
 }
 
@@ -336,9 +365,26 @@ html {
 @layer base {
   * {
     @apply border-border;
+    font-family: 'Arial', sans-serif !important;
   }
 
   body {
-    @apply font-sans antialiased bg-background text-foreground;
+    @apply antialiased;
+    background: #000000 !important;
+    color: #ffffff !important;
+    font-family: 'Arial', sans-serif !important;
+    font-weight: 700 !important;
+  }
+
+  h1, h2, h3, h4, h5, h6 {
+    font-family: 'Arial', sans-serif !important;
+    font-weight: 900 !important;
+    color: #ffffff !important;
+  }
+
+  p, span, div {
+    font-family: 'Arial', sans-serif !important;
+    font-weight: 700 !important;
+    color: #ffffff !important;
   }
 }
