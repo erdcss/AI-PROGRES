@@ -4,23 +4,15 @@ import { zodResolver } from "@hookform/resolvers/zod";
 import { z } from "zod";
 import { useMutation } from "@tanstack/react-query";
 import { motion } from "framer-motion";
-import { Loader2, Cpu, Download, ShoppingCart, ArrowRight } from "lucide-react";
+import { Loader2, ShoppingCart, Link, Copy, X, Home } from "lucide-react";
 
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
-import { Card, CardContent } from "@/components/ui/card";
-import { BackButton } from "@/components/BackButton";
+import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { ProductDisplay } from "@/components/ProductDisplay";
 import { toast } from "@/hooks/use-toast";
+import { useLocation } from "wouter";
 
-// Brand logos
-const TrendyolBrand = {
-  logo: (
-    <div className="w-16 h-16 bg-white rounded-2xl flex items-center justify-center text-slate-900 text-2xl font-bold shadow-2xl">
-      T
-    </div>
-  )
-};
 
 const scrapeSchema = z.object({
   url: z.string().url("Geçerli bir URL giriniz").refine(
@@ -55,6 +47,7 @@ interface Product {
 
 function ScraperPage() {
   const [product, setProduct] = useState<Product | null>(null);
+  const [, setLocation] = useLocation();
   
   const form = useForm<ScrapeFormData>({
     resolver: zodResolver(scrapeSchema),
@@ -100,126 +93,177 @@ function ScraperPage() {
   });
 
   return (
-    <div className="min-h-screen w-full bg-gradient-to-br from-blue-300 via-blue-500 to-blue-800 overflow-x-hidden">
-      {/* Background overlay - full coverage */}
-      <div className="fixed inset-0 bg-gradient-to-br from-blue-400/10 via-blue-600/20 to-blue-900/30 w-full h-full"></div>
-      
-      {/* Back button */}
-      <div className="relative z-10 p-6 w-full">
-        <BackButton to="/marketplace-selection" label="Platform Seçimi" />
-      </div>
-
-      {/* Simplified content */}
-      <div className="relative z-10 w-full flex flex-col items-center px-6">
-        {/* Simple URL input */}
-        <div className="w-full max-w-2xl mb-8">
-          <motion.div
-            initial={{ opacity: 0, y: 20 }}
-            animate={{ opacity: 1, y: 0 }}
-            transition={{ duration: 0.6 }}
-          >
-            <form onSubmit={onSubmit} className="space-y-4">
-              <div className="relative">
-                <Input
-                  placeholder="https://www.trendyol.com/..."
-                  {...form.register("url")}
-                  className="bg-black/20 border-black/30 text-white placeholder-gray-300 h-12 text-base focus:border-black/50 focus:ring-black/20 backdrop-blur-sm"
-                  disabled={scrapeMutation.isPending}
-                />
-                {/* Copy and clear buttons inside input */}
-                <div className="absolute right-2 top-1/2 transform -translate-y-1/2 flex gap-1">
-                  <Button
-                    type="button"
-                    size="sm"
-                    variant="ghost"
-                    className="h-8 w-8 p-0 text-gray-300 hover:text-white hover:bg-white/10"
-                    onClick={() => {
-                      navigator.clipboard.readText().then(text => {
-                        form.setValue('url', text);
-                      });
-                    }}
-                  >
-                    📋
-                  </Button>
-                  <Button
-                    type="button"
-                    size="sm"
-                    variant="ghost"
-                    className="h-8 w-8 p-0 text-gray-300 hover:text-white hover:bg-red-500/20"
-                    onClick={() => form.setValue('url', '')}
-                  >
-                    ✕
-                  </Button>
+    <div className="min-h-screen bg-black">
+      {/* Header */}
+      <div className="bg-black border-b-2 border-blue-900">
+        <div className="max-w-6xl mx-auto px-6 py-4">
+          <div className="flex items-center justify-between">
+            <div className="flex items-center gap-4">
+              <Button
+                onClick={() => setLocation('/')}
+                variant="outline"
+                className="business-button px-4 py-2"
+              >
+                <Home className="w-4 h-4 mr-2" />
+                Ana Sayfa
+              </Button>
+              <div className="flex items-center gap-3">
+                <div className="w-10 h-10 bg-blue-900 rounded-lg flex items-center justify-center">
+                  <span className="text-white font-black text-lg">T</span>
+                </div>
+                <div>
+                  <h1 className="text-white font-black text-xl">TRENDYOL</h1>
+                  <p className="text-blue-400 text-sm font-bold">Ürün Çıkarıcı</p>
                 </div>
               </div>
-              
-              <Button
-                type="submit"
-                disabled={scrapeMutation.isPending}
-                className="w-full bg-black/30 text-white hover:bg-black/40 h-12 text-base font-medium backdrop-blur-sm border border-black/20"
-              >
-                {scrapeMutation.isPending ? (
-                  <div className="flex items-center gap-3">
-                    <Loader2 className="w-4 h-4 animate-spin" />
-                    <span>Analiz ediliyor...</span>
+            </div>
+          </div>
+        </div>
+      </div>
+
+      {/* Main Content */}
+      <div className="max-w-6xl mx-auto px-6 py-8">
+        <div className="grid grid-cols-1 lg:grid-cols-3 gap-8">
+          
+          {/* URL Input Section */}
+          <div className="lg:col-span-2">
+            <Card className="business-card">
+              <CardHeader className="business-header">
+                <CardTitle className="text-white font-black flex items-center gap-2">
+                  <Link className="w-5 h-5 text-blue-400" />
+                  Trendyol URL Girin
+                </CardTitle>
+              </CardHeader>
+              <CardContent className="p-6">
+                <motion.form 
+                  initial={{ opacity: 0, y: 20 }}
+                  animate={{ opacity: 1, y: 0 }}
+                  onSubmit={onSubmit} 
+                  className="space-y-4"
+                >
+                  <div className="space-y-3">
+                    <label className="text-white font-bold text-sm">Ürün URL'si</label>
+                    <div className="relative">
+                      <Input
+                        placeholder="https://www.trendyol.com/..."
+                        {...form.register("url")}
+                        className="business-input h-14 text-base pl-4 pr-24"
+                        disabled={scrapeMutation.isPending}
+                      />
+                      <div className="absolute right-2 top-1/2 transform -translate-y-1/2 flex gap-1">
+                        <Button
+                          type="button"
+                          size="sm"
+                          variant="ghost"
+                          className="h-8 w-8 p-0 text-white hover:bg-blue-800"
+                          onClick={() => {
+                            navigator.clipboard.readText().then(text => {
+                              form.setValue('url', text);
+                              toast({
+                                title: "Yapıştırıldı",
+                                description: "URL panodan alındı"
+                              });
+                            });
+                          }}
+                        >
+                          <Copy className="w-4 h-4" />
+                        </Button>
+                        <Button
+                          type="button"
+                          size="sm"
+                          variant="ghost"
+                          className="h-8 w-8 p-0 text-white hover:bg-blue-800"
+                          onClick={() => {
+                            form.setValue('url', '');
+                            toast({
+                              title: "Temizlendi",
+                              description: "URL alanı temizlendi"
+                            });
+                          }}
+                        >
+                          <X className="w-4 h-4" />
+                        </Button>
+                      </div>
+                    </div>
                   </div>
-                ) : (
-                  <span>Ürün Çıkar</span>
-                )}
-              </Button>
-            </form>
-          </motion.div>
+                  
+                  <Button
+                    type="submit"
+                    disabled={scrapeMutation.isPending}
+                    className="business-button w-full h-14 text-lg font-black"
+                  >
+                    {scrapeMutation.isPending ? (
+                      <div className="flex items-center gap-3">
+                        <Loader2 className="w-5 h-5 animate-spin" />
+                        <span>Ürün Analiz Ediliyor...</span>
+                      </div>
+                    ) : (
+                      <span>ÜRÜN ÇIKAR</span>
+                    )}
+                  </Button>
+                </motion.form>
+              </CardContent>
+            </Card>
+          </div>
+
+          {/* Info Section */}
+          <div className="lg:col-span-1">
+            <Card className="business-card">
+              <CardHeader className="business-header">
+                <CardTitle className="text-white font-black">BİLGİ</CardTitle>
+              </CardHeader>
+              <CardContent className="p-6">
+                <div className="space-y-4">
+                  <div className="bg-blue-900 p-4 rounded-lg">
+                    <h3 className="text-white font-bold text-sm mb-2">NASIL KULLANILIR?</h3>
+                    <div className="space-y-2 text-sm text-white">
+                      <p>1. Trendyol ürün URL'sini kopyalayın</p>
+                      <p>2. Yukarıdaki alana yapıştırın</p>
+                      <p>3. "ÜRÜN ÇIKAR" butonuna tıklayın</p>
+                      <p>4. Sonucu inceleyin ve Shopify'a aktarın</p>
+                    </div>
+                  </div>
+                  
+                  <div className="bg-blue-900 p-4 rounded-lg">
+                    <h3 className="text-white font-bold text-sm mb-2">DESTEKLENENLER</h3>
+                    <div className="space-y-1 text-sm text-white">
+                      <p>✓ Tüm Trendyol ürünleri</p>
+                      <p>✓ Çoklu varyantlar</p>
+                      <p>✓ Fiyat bilgileri</p>
+                      <p>✓ Ürün görselleri</p>
+                      <p>✓ Shopify uyumlu CSV</p>
+                    </div>
+                  </div>
+                </div>
+              </CardContent>
+            </Card>
+          </div>
         </div>
 
-        {/* Compact Product Preview */}
+        {/* Product Display */}
         {product && (
-          <div className="w-full max-w-4xl">
+          <div className="mt-8">
             <motion.div
               initial={{ opacity: 0, y: 20 }}
               animate={{ opacity: 1, y: 0 }}
               transition={{ duration: 0.5 }}
-              className="bg-white/10 backdrop-blur-md rounded-xl p-4 border border-white/20"
             >
-              <div className="flex items-start gap-4">
-                {/* Small product image */}
-                {product.images && product.images.length > 0 && (
-                  <div className="w-20 h-20 rounded-lg overflow-hidden bg-white/20 flex-shrink-0">
-                    <img 
-                      src={typeof product.images[0] === 'string' ? product.images[0] : product.images[0]?.url} 
-                      alt={product.title}
-                      className="w-full h-full object-cover"
-                    />
-                  </div>
-                )}
-                {/* Product info */}
-                <div className="flex-1 min-w-0">
-                  <h3 className="text-white font-medium text-sm mb-1 truncate">{product.title}</h3>
-                  <p className="text-gray-300 text-xs mb-2">{typeof product.price === 'string' ? product.price : typeof product.price === 'number' ? `${product.price} TL` : typeof product.price === 'object' && product.price?.profitFormatted ? product.price.profitFormatted : 'Fiyat bilgisi yok'}</p>
-                  <div className="flex gap-2">
-                    <Button
-                      size="sm"
-                      className="bg-green-500/80 hover:bg-green-500 text-white text-xs h-7"
-                      onClick={() => {
-                        // Export functionality
-                        toast({
-                          title: "Shopify'a aktarılıyor",
-                          description: "Ürün verisi işleniyor..."
-                        });
-                      }}
-                    >
-                      Shopify'a Aktar
-                    </Button>
-                    <Button
-                      size="sm"
-                      variant="outline"
-                      className="border-white/30 text-white hover:bg-white/10 text-xs h-7"
-                      onClick={() => setProduct(null)}
-                    >
-                      Temizle
-                    </Button>
-                  </div>
-                </div>
-              </div>
+              <ProductDisplay data={{
+                title: product.title,
+                brand: product.brand,
+                price: product.price,
+                description: product.description,
+                images: product.images?.map(img => typeof img === 'string' ? img : img.url) || [],
+                variants: {
+                  colors: [],
+                  sizes: [],
+                  allVariants: [],
+                  totalVariants: 0
+                },
+                features: product.features?.map(f => ({ key: f.name, value: f.value })) || [],
+                tags: product.tags || [],
+                shopifyCompatible: true
+              }} />
             </motion.div>
           </div>
         )}
