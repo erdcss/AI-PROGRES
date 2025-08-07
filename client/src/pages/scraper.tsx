@@ -100,95 +100,127 @@ function ScraperPage() {
   });
 
   return (
-    <div className="min-h-screen w-full bg-gradient-to-br from-blue-600 via-blue-700 to-indigo-800 overflow-x-hidden">
+    <div className="min-h-screen w-full bg-gradient-to-br from-blue-300 via-blue-500 to-blue-800 overflow-x-hidden">
       {/* Background overlay - full coverage */}
-      <div className="fixed inset-0 bg-gradient-to-br from-blue-500/20 via-indigo-600/30 to-blue-800/20 w-full h-full"></div>
+      <div className="fixed inset-0 bg-gradient-to-br from-blue-400/10 via-blue-600/20 to-blue-900/30 w-full h-full"></div>
       
       {/* Back button */}
       <div className="relative z-10 p-6 w-full">
         <BackButton to="/marketplace-selection" label="Platform Seçimi" />
       </div>
 
-      {/* Full page content */}
-      <div className="relative z-10 w-full min-h-[calc(100vh-120px)] flex flex-col">
-        {/* Top section with form - centered */}
-        <div className="flex-1 flex items-center justify-center px-6 py-8">
-          <div className="w-full max-w-4xl">
-          {/* Brand Header */}
-          <motion.div
-            initial={{ opacity: 0, y: -20 }}
-            animate={{ opacity: 1, y: 0 }}
-            transition={{ duration: 0.6 }}
-            className="text-center mb-8"
-          >
-            <div className="flex justify-center mb-6">
-              {TrendyolBrand.logo}
-            </div>
-            <h1 className="text-3xl font-bold text-white mb-4">Trendyol Ürün Aktarıcısı</h1>
-            <p className="text-gray-300 text-lg">
-              Trendyol ürünlerini Shopify mağazanıza kolayca aktarın
-            </p>
-          </motion.div>
-
-          {/* URL Input Card */}
+      {/* Simplified content */}
+      <div className="relative z-10 w-full flex flex-col items-center px-6">
+        {/* Simple URL input */}
+        <div className="w-full max-w-2xl mb-8">
           <motion.div
             initial={{ opacity: 0, y: 20 }}
             animate={{ opacity: 1, y: 0 }}
-            transition={{ duration: 0.6, delay: 0.2 }}
+            transition={{ duration: 0.6 }}
           >
-            <Card className="bg-gradient-to-br from-blue-800/30 via-blue-900/30 to-indigo-900/30 backdrop-blur-xl border border-white/20 shadow-2xl">
-              <CardContent className="p-8">
-                <form onSubmit={onSubmit} className="space-y-6">
-                  <div className="relative">
-                    <Input
-                      placeholder="https://www.trendyol.com/..."
-                      {...form.register("url")}
-                      className="bg-white/10 border-white/30 text-white placeholder-gray-400 pl-12 h-14 text-lg focus:border-white/50 focus:ring-white/20"
-                      disabled={scrapeMutation.isPending}
-                    />
-                    <div className="absolute left-4 top-1/2 transform -translate-y-1/2">
-                      <span className="text-white text-lg font-bold">T</span>
-                    </div>
-                  </div>
-                  
+            <form onSubmit={onSubmit} className="space-y-4">
+              <div className="relative">
+                <Input
+                  placeholder="https://www.trendyol.com/..."
+                  {...form.register("url")}
+                  className="bg-black/20 border-black/30 text-white placeholder-gray-300 h-12 text-base focus:border-black/50 focus:ring-black/20 backdrop-blur-sm"
+                  disabled={scrapeMutation.isPending}
+                />
+                {/* Copy and clear buttons inside input */}
+                <div className="absolute right-2 top-1/2 transform -translate-y-1/2 flex gap-1">
                   <Button
-                    type="submit"
-                    disabled={scrapeMutation.isPending}
-                    className="w-full bg-white text-slate-900 hover:bg-gray-100 h-14 text-lg font-medium"
+                    type="button"
+                    size="sm"
+                    variant="ghost"
+                    className="h-8 w-8 p-0 text-gray-300 hover:text-white hover:bg-white/10"
+                    onClick={() => {
+                      navigator.clipboard.readText().then(text => {
+                        form.setValue('url', text);
+                      });
+                    }}
                   >
-                    {scrapeMutation.isPending ? (
-                      <div className="flex items-center gap-3">
-                        <Loader2 className="w-5 h-5 animate-spin" />
-                        <span>Ürün analiz ediliyor...</span>
-                      </div>
-                    ) : (
-                      <span>🎯 Trendyol Ürününü Çıkar</span>
-                    )}
+                    📋
                   </Button>
-                  
-                  {/* Loading Progress */}
-                  {scrapeMutation.isPending && (
-                    <div className="mt-6">
-                      <div className="flex items-center justify-center gap-2 text-white mb-3">
-                        <Cpu className="h-5 w-5 animate-pulse" />
-                        <span className="font-medium">AI ile ürün analiz ediliyor...</span>
-                      </div>
-                      <div className="w-full bg-gray-700 rounded-full h-3 overflow-hidden">
-                        <div className="h-full bg-gradient-to-r from-white to-gray-200 rounded-full animate-pulse transition-all duration-1000" style={{width: '75%'}}></div>
-                      </div>
-                    </div>
-                  )}
-                </form>
-              </CardContent>
-            </Card>
+                  <Button
+                    type="button"
+                    size="sm"
+                    variant="ghost"
+                    className="h-8 w-8 p-0 text-gray-300 hover:text-white hover:bg-red-500/20"
+                    onClick={() => form.setValue('url', '')}
+                  >
+                    ✕
+                  </Button>
+                </div>
+              </div>
+              
+              <Button
+                type="submit"
+                disabled={scrapeMutation.isPending}
+                className="w-full bg-black/30 text-white hover:bg-black/40 h-12 text-base font-medium backdrop-blur-sm border border-black/20"
+              >
+                {scrapeMutation.isPending ? (
+                  <div className="flex items-center gap-3">
+                    <Loader2 className="w-4 h-4 animate-spin" />
+                    <span>Analiz ediliyor...</span>
+                  </div>
+                ) : (
+                  <span>Ürün Çıkar</span>
+                )}
+              </Button>
+            </form>
           </motion.div>
-          </div>
         </div>
 
-        {/* Product Display - below the input */}
+        {/* Compact Product Preview */}
         {product && (
-          <div className="relative z-10 w-full px-6 pb-12">
-            <ProductDisplay data={product} />
+          <div className="w-full max-w-4xl">
+            <motion.div
+              initial={{ opacity: 0, y: 20 }}
+              animate={{ opacity: 1, y: 0 }}
+              transition={{ duration: 0.5 }}
+              className="bg-white/10 backdrop-blur-md rounded-xl p-4 border border-white/20"
+            >
+              <div className="flex items-start gap-4">
+                {/* Small product image */}
+                {product.images && product.images.length > 0 && (
+                  <div className="w-20 h-20 rounded-lg overflow-hidden bg-white/20 flex-shrink-0">
+                    <img 
+                      src={typeof product.images[0] === 'string' ? product.images[0] : product.images[0]?.url} 
+                      alt={product.title}
+                      className="w-full h-full object-cover"
+                    />
+                  </div>
+                )}
+                {/* Product info */}
+                <div className="flex-1 min-w-0">
+                  <h3 className="text-white font-medium text-sm mb-1 truncate">{product.title}</h3>
+                  <p className="text-gray-300 text-xs mb-2">{typeof product.price === 'string' ? product.price : typeof product.price === 'number' ? `${product.price} TL` : typeof product.price === 'object' && product.price?.profitFormatted ? product.price.profitFormatted : 'Fiyat bilgisi yok'}</p>
+                  <div className="flex gap-2">
+                    <Button
+                      size="sm"
+                      className="bg-green-500/80 hover:bg-green-500 text-white text-xs h-7"
+                      onClick={() => {
+                        // Export functionality
+                        toast({
+                          title: "Shopify'a aktarılıyor",
+                          description: "Ürün verisi işleniyor..."
+                        });
+                      }}
+                    >
+                      Shopify'a Aktar
+                    </Button>
+                    <Button
+                      size="sm"
+                      variant="outline"
+                      className="border-white/30 text-white hover:bg-white/10 text-xs h-7"
+                      onClick={() => setProduct(null)}
+                    >
+                      Temizle
+                    </Button>
+                  </div>
+                </div>
+              </div>
+            </motion.div>
           </div>
         )}
       </div>

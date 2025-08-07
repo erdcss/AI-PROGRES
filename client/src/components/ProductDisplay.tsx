@@ -41,10 +41,6 @@ interface ProductDisplayProps {
 export function ProductDisplay({ data }: ProductDisplayProps) {
   const [currentImageIndex, setCurrentImageIndex] = useState(0);
   
-  // Güvenli image array kontrolü
-  const images = processImages(data?.images || []);
-  const imageCount = images.length;
-  
   // Price formatting helper
   const formatPrice = (price: string | number | { profitFormatted: string }) => {
     if (typeof price === 'string') return price;
@@ -60,6 +56,10 @@ export function ProductDisplay({ data }: ProductDisplayProps) {
       typeof img === 'string' ? img : img.url
     );
   };
+
+  // Güvenli image array kontrolü
+  const images = processImages(data?.images || []);
+  const imageCount = images.length;
 
   const nextImage = () => {
     if (imageCount > 0) {

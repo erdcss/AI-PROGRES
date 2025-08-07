@@ -87,8 +87,6 @@ const MarketplaceSelection = () => {
     <PageLayout
       title="Platform Seçimi"
       subtitle="Ürün verilerini çıkarabileceğiniz ve analiz edebileceğiniz platformları seçin"
-      backTo="/"
-      backLabel="Ana Sayfa"
     >
       <div className="w-full space-y-12">
         {/* Status indicator */}

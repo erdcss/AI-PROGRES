@@ -278,9 +278,9 @@ const ArcelikScraper = () => {
   };
 
   return (
-    <div className="min-h-screen bg-gradient-to-br from-emerald-900 via-slate-900 to-green-900">
+    <div className="min-h-screen bg-gradient-to-br from-blue-300 via-blue-500 to-blue-800">
       {/* Navigation */}
-      <div className="bg-slate-800/30 backdrop-blur-sm border-b border-emerald-500/20 px-4 py-3">
+      <div className="bg-black/20 backdrop-blur-sm border-b border-white/20 px-4 py-3">
         <div className="max-w-7xl mx-auto flex items-center justify-between">
           <div className="flex items-center gap-4">
             <Link href="/">

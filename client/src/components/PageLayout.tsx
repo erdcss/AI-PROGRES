@@ -17,8 +17,8 @@ export function PageLayout({
   title, 
   subtitle, 
   backTo = "/", 
-  backLabel = "Ana Sayfa",
-  showBackButton = true,
+  backLabel = "Geri",
+  showBackButton = false,
   className = ""
 }: PageLayoutProps) {
   return (

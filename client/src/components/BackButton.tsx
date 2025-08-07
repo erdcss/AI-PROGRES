@@ -8,7 +8,7 @@ interface BackButtonProps {
   className?: string;
 }
 
-export function BackButton({ to = "/", label = "Ana Sayfa", className = "" }: BackButtonProps) {
+export function BackButton({ to = "/", label = "Geri", className = "" }: BackButtonProps) {
   const [, setLocation] = useLocation();
 
   return (
