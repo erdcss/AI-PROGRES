@@ -2528,8 +2528,18 @@ export function registerRoutes(app: Express): Server {
       }
 
       // Product data'sını database formatına dönüştür
+      // Trendyol Product ID extract et (URL'den veya unique ID oluştur)
+      const extractTrendyolId = (url: string) => {
+        if (url && url.includes('trendyol.com')) {
+          const match = url.match(/p-(.+?)(\?|$)/);
+          return match ? match[1] : 'generated-' + Date.now();
+        }
+        return 'generated-' + Date.now();
+      };
+
       const dbProduct: InsertProduct = {
-        trendyolUrl: productData.sourceUrl || '',
+        trendyolUrl: productData.sourceUrl || `https://trendyol.com/generated-${Date.now()}`,
+        trendyolProductId: extractTrendyolId(productData.sourceUrl || ''),
         title: productData.title,
         brand: productData.brand || 'Bilinmeyen Marka',
         description: productData.description || '',
@@ -2562,11 +2572,10 @@ export function registerRoutes(app: Express): Server {
             color: variant.color || 'Standart',
             size: variant.size || 'Standart',
             sku: variant.sku || `${savedProduct.id}-${variant.color || 'STD'}-${variant.size || 'STD'}`,
-            price: variant.price || 0,
+            trendyolPrice: variant.price?.toString() || '0',
             shopifyPrice: variant.shopifyPrice || variant.price?.toString() || '0',
             stockCount: variant.inStock ? 25 : 0,
-            inStock: variant.inStock !== false,
-            images: variant.images || []
+            inStock: variant.inStock !== false
           });
         }
       } else {
@@ -2576,11 +2585,10 @@ export function registerRoutes(app: Express): Server {
           color: 'Standart',
           size: 'Standart',
           sku: `${savedProduct.id}-STD-STD`,
-          price: typeof productData.price === 'number' ? productData.price : 0,
+          trendyolPrice: typeof productData.price === 'number' ? productData.price.toString() : '0',
           shopifyPrice: typeof productData.price === 'number' ? productData.price.toString() : '0',
           stockCount: 25,
-          inStock: true,
-          images: []
+          inStock: true
         });
       }
 
