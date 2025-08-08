@@ -2528,18 +2528,33 @@ export function registerRoutes(app: Express): Server {
       }
 
       // Product data'sını database formatına dönüştür
+      // Debug: productData'yı konsola yazdır
+      console.log('🔍 ProductData sourceUrl:', productData.sourceUrl);
+      console.log('🔍 ProductData:', JSON.stringify(productData, null, 2));
+      
       // Trendyol Product ID extract et (URL'den veya unique ID oluştur)
       const extractTrendyolId = (url: string) => {
+        console.log('🔍 extractTrendyolId input:', url);
         if (url && url.includes('trendyol.com')) {
           const match = url.match(/p-(.+?)(\?|$)/);
-          return match ? match[1] : 'generated-' + Date.now();
+          const result = match ? match[1] : 'generated-' + Date.now();
+          console.log('🔍 extractTrendyolId result (from URL):', result);
+          return result;
         }
-        return 'generated-' + Date.now();
+        const result = 'generated-' + Date.now();
+        console.log('🔍 extractTrendyolId result (generated):', result);
+        return result;
       };
 
+      const trendyolUrl = productData.sourceUrl || `https://trendyol.com/generated-${Date.now()}`;
+      const trendyolProductId = extractTrendyolId(productData.sourceUrl || '');
+      
+      console.log('🔍 Final trendyolUrl:', trendyolUrl);
+      console.log('🔍 Final trendyolProductId:', trendyolProductId);
+
       const dbProduct: InsertProduct = {
-        trendyolUrl: productData.sourceUrl || `https://trendyol.com/generated-${Date.now()}`,
-        trendyolProductId: extractTrendyolId(productData.sourceUrl || ''),
+        trendyolUrl: trendyolUrl,
+        trendyolProductId: trendyolProductId,
         title: productData.title,
         brand: productData.brand || 'Bilinmeyen Marka',
         description: productData.description || '',
