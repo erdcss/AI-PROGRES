@@ -4,6 +4,7 @@ import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { ChevronLeft, ChevronRight, ShoppingCart, Package, Palette, Shirt } from "lucide-react";
 import { motion } from "framer-motion";
 import { useState } from "react";
+import { toast } from "@/hooks/use-toast";
 
 interface ProductDisplayProps {
   data: {
@@ -79,6 +80,12 @@ export function ProductDisplay({ data }: ProductDisplayProps) {
 
   const handleExportToShopify = async () => {
     try {
+      // Loading toast
+      toast({
+        title: "Yükleniyor",
+        description: "Ürün Shopify'a yükleniyor, lütfen bekleyin..."
+      });
+      
       const response = await fetch('/api/export-to-shopify', {
         method: 'POST',
         headers: {
@@ -87,19 +94,32 @@ export function ProductDisplay({ data }: ProductDisplayProps) {
         body: JSON.stringify(data),
       });
       
-      if (response.ok) {
-        const blob = await response.blob();
-        const url = window.URL.createObjectURL(blob);
-        const a = document.createElement('a');
-        a.href = url;
-        a.download = `shopify-${data.brand?.toLowerCase()}-${Date.now()}.csv`;
-        document.body.appendChild(a);
-        a.click();
-        window.URL.revokeObjectURL(url);
-        document.body.removeChild(a);
+      const result = await response.json();
+      
+      if (response.ok && result.success) {
+        toast({
+          title: "Başarılı!",
+          description: result.message,
+          variant: "default"
+        });
+        
+        console.log('✅ Shopify upload successful:', result.data);
+      } else {
+        toast({
+          title: "Hata",
+          description: result.message || 'Shopify\'a yükleme başarısız',
+          variant: "destructive"
+        });
+        
+        console.error('❌ Shopify upload failed:', result);
       }
     } catch (error) {
       console.error('Shopify export error:', error);
+      toast({
+        title: "Bağlantı Hatası",
+        description: "Shopify\'a bağlanırken hata oluştu. Lütfen tekrar deneyin.",
+        variant: "destructive"
+      });
     }
   };
 
@@ -275,7 +295,7 @@ export function ProductDisplay({ data }: ProductDisplayProps) {
                   size="lg"
                 >
                   <ShoppingCart className="w-5 h-5 mr-2" />
-                  Shopify'a Aktar
+                  Shopify'a Direkt Yükle
                 </Button>
 
                 {/* Product Summary */}

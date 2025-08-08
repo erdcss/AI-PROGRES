@@ -18,7 +18,9 @@ import { extractVariantStockInfo } from "./advanced-size-extractor";
 import { extractFocusedData } from './focused-extractor';
 import { dailyScheduler } from './scheduler';
 import dataAnalysisRoutes from './data-analysis-routes';
+import { shopifyIntegration } from './shopify-integration';
 import { db } from './db';
+import { type InsertProduct, type InsertProductVariant } from '@shared/schema';
 import memoryStatusRoutes from './memory-status-api';
 import { testImageExtraction } from './direct-image-test';
 import { initializeScheduler, getSchedulerStatus, executeTaskManually } from './simple-scheduler';
@@ -2502,7 +2504,7 @@ export function registerRoutes(app: Express): Server {
     }
   });
 
-  // Shopify Export Endpoint
+  // Shopify Direct Upload Endpoint
   app.post('/api/export-to-shopify', async (req, res) => {
     try {
       const productData = req.body;
@@ -2514,24 +2516,110 @@ export function registerRoutes(app: Express): Server {
         });
       }
 
-      // CSV Export için generateSingleProductShopifyCSV kullan
-      const csvContent = generateSingleProductShopifyCSV({
-        ...productData,
-        sizeOptions: productData.variants?.sizes || [],
-        features: productData.features || []
-      });
+      console.log('🚀 Shopify\'a direkt ürün yükleme başlıyor:', productData.title);
       
-      // CSV dosyasını response olarak gönder
-      res.setHeader('Content-Type', 'text/csv');
-      res.setHeader('Content-Disposition', `attachment; filename="shopify-${productData.brand}-${Date.now()}.csv"`);
-      res.send(csvContent);
+      // Önce Shopify bağlantısını test et
+      const connectionTest = await shopifyIntegration.testConnection();
+      if (!connectionTest) {
+        return res.status(500).json({
+          success: false,
+          message: 'Shopify bağlantısı başarısız. Lütfen API anahtarlarını kontrol edin.'
+        });
+      }
+
+      // Product data'sını database formatına dönüştür
+      const dbProduct: InsertProduct = {
+        trendyolUrl: productData.sourceUrl || '',
+        title: productData.title,
+        brand: productData.brand || 'Bilinmeyen Marka',
+        description: productData.description || '',
+        category: productData.category || 'Genel',
+        images: Array.isArray(productData.images) ? productData.images.map((img: any) => 
+          typeof img === 'string' ? img : img.url || img
+        ) : [],
+        features: productData.features || {},
+        colorOptions: productData.variants?.colors || [],
+        sizeOptions: productData.variants?.sizes || [],
+        originalPrice: typeof productData.price === 'object' ? '0' : productData.price?.toString() || '0',
+        currentPrice: typeof productData.price === 'object' ? '0' : productData.price?.toString() || '0',
+        stockStatus: 'in_stock',
+        lastChecked: new Date(),
+        sourcePlatform: 'trendyol',
+        isActive: true,
+        profitMargin: '15.00'
+      };
+
+      // Ürünü veritabanına kaydet
+      const [savedProduct] = await db.insert(products).values(dbProduct).returning();
+      
+      // Varyantları hazırla
+      const dbVariants: InsertProductVariant[] = [];
+      
+      if (productData.variants?.allVariants && productData.variants.allVariants.length > 0) {
+        for (const variant of productData.variants.allVariants) {
+          dbVariants.push({
+            productId: savedProduct.id,
+            color: variant.color || 'Standart',
+            size: variant.size || 'Standart',
+            sku: variant.sku || `${savedProduct.id}-${variant.color || 'STD'}-${variant.size || 'STD'}`,
+            price: variant.price || 0,
+            shopifyPrice: variant.shopifyPrice || variant.price?.toString() || '0',
+            stockCount: variant.inStock ? 25 : 0,
+            inStock: variant.inStock !== false,
+            images: variant.images || []
+          });
+        }
+      } else {
+        // Varyant yoksa default varyant oluştur
+        dbVariants.push({
+          productId: savedProduct.id,
+          color: 'Standart',
+          size: 'Standart',
+          sku: `${savedProduct.id}-STD-STD`,
+          price: typeof productData.price === 'number' ? productData.price : 0,
+          shopifyPrice: typeof productData.price === 'number' ? productData.price.toString() : '0',
+          stockCount: 25,
+          inStock: true,
+          images: []
+        });
+      }
+
+      // Varyantları veritabanına kaydet
+      const savedVariants = dbVariants.length > 0 
+        ? await db.insert(productVariants).values(dbVariants).returning()
+        : [];
+
+      // Shopify'a ürün oluştur
+      const shopifyProductId = await shopifyIntegration.createProduct(savedProduct, savedVariants);
+      
+      if (shopifyProductId) {
+        console.log('✅ Ürün başarıyla Shopify\'a yüklendi:', shopifyProductId);
+        
+        return res.json({
+          success: true,
+          message: `Ürün başarıyla Shopify'a yüklendi!`,
+          data: {
+            shopifyProductId,
+            productTitle: productData.title,
+            variantCount: savedVariants.length,
+            shopifyUrl: `https://${process.env.SHOPIFY_STORE_DOMAIN}/admin/products/${shopifyProductId}`
+          }
+        });
+      } else {
+        console.error('❌ Shopify ürün oluşturma başarısız');
+        
+        return res.status(500).json({
+          success: false,
+          message: 'Shopify\'a ürün yüklenirken hata oluştu. Lütfen tekrar deneyin.'
+        });
+      }
       
     } catch (error) {
-      console.error('Shopify export error:', error);
+      console.error('❌ Shopify export error:', error);
       res.status(500).json({
         success: false,
-        message: 'Shopify export failed',
-        error: error instanceof Error ? error.message : 'Unknown error'
+        message: 'Shopify\'a yükleme sırasında hata oluştu',
+        error: error instanceof Error ? error.message : 'Bilinmeyen hata'
       });
     }
   });
