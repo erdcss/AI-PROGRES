@@ -12,7 +12,7 @@ import { instantCSVGenerator } from "./instant-csv-generator-working";
 import { getCategoryConfig } from "./category-mapping";
 import { cleanTrendyolAttributes } from "./clean-attributes";
 import { parseJsonLdProductData, generateTagsFromJsonLd } from "./json-ld-parser";
-import { InsertProduct, products as productsTable, products, productVariants } from "@shared/schema";
+import { products as productsTable, products, productVariants, type InsertProduct, type InsertProductVariant } from "@shared/schema";
 // import { getFinalImages } from "./final-image-solution";
 import { extractVariantStockInfo } from "./advanced-size-extractor";
 import { extractFocusedData } from './focused-extractor';
@@ -20,7 +20,6 @@ import { dailyScheduler } from './scheduler';
 import dataAnalysisRoutes from './data-analysis-routes';
 import { shopifyIntegration } from './shopify-integration';
 import { db } from './db';
-import { type InsertProduct, type InsertProductVariant } from '@shared/schema';
 import memoryStatusRoutes from './memory-status-api';
 import { testImageExtraction } from './direct-image-test';
 import { initializeScheduler, getSchedulerStatus, executeTaskManually } from './simple-scheduler';
@@ -40,7 +39,6 @@ import { scenarioBasedScrape } from './scenario-based-scraper';
 import { ProductManagementSystem } from './product-management-system';
 import { TelegramNotifications } from './comprehensive-telegram-notifier';
 import { generateComprehensiveShopifyCSV, generateFeatureSummary, type ComprehensiveProductData } from './comprehensive-csv-generator';
-import { shopifyIntegration } from './shopify-integration';
 import shopifyTrendyolMatcher from './shopify-trendyol-matcher';
 import { eq, desc, or, and, isNotNull, inArray } from 'drizzle-orm';
 import axios from 'axios';
@@ -2535,22 +2533,38 @@ export function registerRoutes(app: Express): Server {
       // Trendyol Product ID extract et (URL'den veya unique ID oluştur)
       const extractTrendyolId = (url: string) => {
         console.log('🔍 extractTrendyolId input:', url);
-        if (url && url.includes('trendyol.com')) {
+        if (url && typeof url === 'string' && url.includes('trendyol.com')) {
           const match = url.match(/p-(.+?)(\?|$)/);
-          const result = match ? match[1] : 'generated-' + Date.now();
-          console.log('🔍 extractTrendyolId result (from URL):', result);
-          return result;
+          if (match && match[1] && match[1].trim()) {
+            console.log('🔍 extractTrendyolId result (from URL):', match[1]);
+            return match[1].trim();
+          }
         }
-        const result = 'generated-' + Date.now();
+        const result = 'generated-' + Date.now() + '-' + Math.random().toString(36).substr(2, 9);
         console.log('🔍 extractTrendyolId result (generated):', result);
         return result;
       };
 
       const trendyolUrl = productData.sourceUrl || `https://trendyol.com/generated-${Date.now()}`;
-      const trendyolProductId = extractTrendyolId(productData.sourceUrl || '');
+      let trendyolProductId = extractTrendyolId(productData.sourceUrl || '');
+      
+      // Double-check to ensure it's never null/undefined
+      if (!trendyolProductId || typeof trendyolProductId !== 'string' || trendyolProductId.trim() === '') {
+        trendyolProductId = 'fallback-' + Date.now() + '-' + Math.random().toString(36).substr(2, 9);
+        console.log('🔍 Fallback trendyolProductId generated:', trendyolProductId);
+      }
       
       console.log('🔍 Final trendyolUrl:', trendyolUrl);
       console.log('🔍 Final trendyolProductId:', trendyolProductId);
+      
+      // Final safety check before database insertion
+      if (!trendyolProductId) {
+        console.error('❌ trendyolProductId is still null or empty after all checks!');
+        return res.status(400).json({
+          success: false,
+          message: 'Ürün ID oluşturulamadı. Lütfen tekrar deneyin.'
+        });
+      }
 
       const dbProduct: InsertProduct = {
         trendyolUrl: trendyolUrl,
