@@ -242,53 +242,170 @@ export function extractEnhancedVariants($: cheerio.CheerioAPI, htmlContent: stri
   const colors = new Set<string>();
   const sizes = new Set<string>();
   
-  // Method 1: Extract sizes from size selectors
+  // Method 1: Enhanced size extraction with Turkish size patterns
   const sizeSelectors = [
     '.sp-itm', // Trendyol size items
+    '.variant-size',
     '.size-variant',
     '.product-size-item',
+    '[data-testid*="size"]',
     '[data-size]',
     '.size-option',
-    '.variant-size'
+    '.size-selector .option',
+    '.product-variant-size',
+    '.variant-option[data-variant-type="size"]'
   ];
   
   sizeSelectors.forEach(selector => {
     $(selector).each((_, el) => {
       const $el = $(el);
-      const sizeText = $el.text().trim() || $el.attr('data-size') || $el.attr('title') || '';
+      let sizeText = $el.text().trim() || $el.attr('data-size') || $el.attr('title') || $el.attr('data-value') || '';
       
-      if (sizeText && /^[XS|S|M|L|XL|XXL|\d]+$/.test(sizeText.replace(/\s/g, ''))) {
-        sizes.add(sizeText);
+      // Clean size text
+      sizeText = sizeText.replace(/\s+/g, ' ').trim();
+      
+      // Turkish and international size patterns
+      const sizePatterns = [
+        /^(XS|S|M|L|XL|XXL|XXXL)$/i,
+        /^(\d{1,3})$/,  // Numeric sizes like 38, 40, 42
+        /^(\d{1,3}\/\d{1,3})$/, // Size ranges like 36/38
+        /^(SMALL|MEDIUM|LARGE)$/i,
+        /^(KÜÇÜK|ORTA|BÜYÜK)$/i, // Turkish sizes
+        /^(TEK|STANDART|STD)$/i // Standard sizes
+      ];
+      
+      const isValidSize = sizePatterns.some(pattern => pattern.test(sizeText));
+      
+      if (sizeText && isValidSize && sizeText.length <= 10) {
+        sizes.add(sizeText.toUpperCase());
+        console.log(`📏 Size found: ${sizeText}`);
       }
     });
   });
 
-  // Method 2: Extract colors from color selectors
+  // Method 2: Enhanced color extraction with Turkish color names
   const colorSelectors = [
-    '.color-variant',
+    '.variant-color',
+    '.color-variant', 
     '.product-color-item',
+    '[data-testid*="color"]',
     '[data-color]',
     '.color-option',
-    '.variant-color'
+    '.color-selector .option',
+    '.product-variant-color',
+    '.variant-option[data-variant-type="color"]',
+    '[style*="background-color"]', // Color swatches
+    '.color-swatch'
   ];
   
   colorSelectors.forEach(selector => {
     $(selector).each((_, el) => {
       const $el = $(el);
-      const colorText = $el.attr('data-color') || $el.attr('title') || $el.text().trim();
+      let colorText = $el.attr('data-color') || 
+                     $el.attr('title') || 
+                     $el.attr('data-value') ||
+                     $el.text().trim() ||
+                     $el.attr('alt') || '';
       
-      if (colorText && colorText.length > 1) {
+      // Extract color from style attribute if present
+      const style = $el.attr('style') || '';
+      const colorMatch = style.match(/background-color:\s*([^;]+)/);
+      if (colorMatch && !colorText) {
+        colorText = colorMatch[1].trim();
+      }
+      
+      // Clean color text
+      colorText = colorText.replace(/\s+/g, ' ').trim();
+      
+      // Turkish and international color validation
+      const turkishColors = [
+        'beyaz', 'siyah', 'kırmızı', 'mavi', 'yeşil', 'sarı', 'turuncu', 
+        'mor', 'pembe', 'gri', 'kahverengi', 'lacivert', 'bordo', 'krem',
+        'bej', 'füme', 'antrasit', 'ekru', 'pudra', 'mint', 'koyu', 'açık'
+      ];
+      
+      const englishColors = [
+        'white', 'black', 'red', 'blue', 'green', 'yellow', 'orange',
+        'purple', 'pink', 'gray', 'grey', 'brown', 'navy', 'burgundy', 
+        'cream', 'beige', 'dark', 'light', 'mint', 'coral', 'indigo'
+      ];
+      
+      const allColors = [...turkishColors, ...englishColors];
+      const colorLower = colorText.toLowerCase();
+      
+      const isValidColor = colorText.length > 2 && colorText.length < 30 && (
+        allColors.some(color => colorLower.includes(color)) ||
+        /^[a-zA-ZğüşıöçĞÜŞİÖÇ\s\-]+$/.test(colorText) // Turkish character support
+      );
+      
+      if (isValidColor) {
         colors.add(colorText);
+        console.log(`🎨 Color found: ${colorText}`);
       }
     });
   });
 
-  // If no specific variants found, use default
+  // Method 3: JSON-LD variant extraction
+  const jsonLdScripts = $('script[type="application/ld+json"]');
+  jsonLdScripts.each((_, script) => {
+    try {
+      const jsonData = JSON.parse($(script).html() || '{}');
+      
+      // Extract variants from structured data
+      if (jsonData.hasVariant && Array.isArray(jsonData.hasVariant)) {
+        jsonData.hasVariant.forEach((variant: any) => {
+          if (variant.name) {
+            // Parse variant name for size/color info
+            const variantName = variant.name.toLowerCase();
+            
+            // Extract sizes from variant names
+            const sizeMatch = variantName.match(/\b(xs|s|m|l|xl|xxl|\d{2,3})\b/i);
+            if (sizeMatch) {
+              sizes.add(sizeMatch[1].toUpperCase());
+            }
+            
+            // Extract colors from variant names
+            const turkishColors = ['beyaz', 'siyah', 'kırmızı', 'mavi', 'yeşil', 'sarı'];
+            turkishColors.forEach(color => {
+              if (variantName.includes(color)) {
+                colors.add(color.charAt(0).toUpperCase() + color.slice(1));
+              }
+            });
+          }
+        });
+      }
+    } catch (e) {
+      // Continue with other methods
+    }
+  });
+
+  // Method 4: Pattern extraction from HTML content
+  const htmlText = $.text();
+  
+  // Extract size patterns from text
+  const sizeMatches = htmlText.match(/\b(XS|S|M|L|XL|XXL|\d{2}|\d{2}\/\d{2})\b/gi);
+  if (sizeMatches) {
+    sizeMatches.slice(0, 10).forEach(size => {
+      if (size.length <= 5) {
+        sizes.add(size.toUpperCase());
+      }
+    });
+  }
+  
+  // Extract color patterns from text
+  const colorMatches = htmlText.match(/\b(beyaz|siyah|kırmızı|mavi|yeşil|sarı|turuncu|mor|pembe|gri|kahverengi|lacivert|bordo|krem|bej|white|black|red|blue|green|yellow|orange|purple|pink|gray|grey|brown|navy)\b/gi);
+  if (colorMatches) {
+    colorMatches.slice(0, 5).forEach(color => {
+      colors.add(color.charAt(0).toUpperCase() + color.slice(1).toLowerCase());
+    });
+  }
+
+  // If no specific variants found, use defaults
   if (sizes.size === 0) {
-    sizes.add('STD');
+    sizes.add('STANDART');
   }
   if (colors.size === 0) {
-    colors.add('Default');
+    colors.add('Varsayılan');
   }
 
   // Create variant combinations

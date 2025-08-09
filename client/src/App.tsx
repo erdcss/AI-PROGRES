@@ -319,7 +319,7 @@ function Router() {
 }
 
 function App() {
-  const [isLoggedIn, setIsLoggedIn] = useState(false); // Production: require login
+  const [isLoggedIn, setIsLoggedIn] = useState(true); // Testing: auto-login for enhanced variant extraction
   
   // Uygulama kapanıp açıldığında yeniden giriş istensin
   useEffect(() => {
