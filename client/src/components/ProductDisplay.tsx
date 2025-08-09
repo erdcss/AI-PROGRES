@@ -282,15 +282,19 @@ export function ProductDisplay({ data }: ProductDisplayProps) {
                   </div>
                 )}
 
-                {/* Enhanced Sizes */}
-                {data.variants?.sizes && data.variants.sizes.length > 0 && (
+                {/* Enhanced Sizes - Only show if real sizes exist */}
+                {data.variants?.sizes && data.variants.sizes.length > 0 && 
+                 data.variants.sizes.some(size => size && size.trim() !== '' && 
+                   !['Varsayılan', 'Standart', 'Default', '1'].includes(size)) && (
                   <div>
                     <div className="flex items-center gap-2 mb-3">
                       <Shirt className="w-4 h-4 text-white" />
-                      <span className="text-white font-medium">Beden Seçenekleri ({data.variants.sizes.length})</span>
+                      <span className="text-white font-medium">Beden Seçenekleri ({data.variants.sizes.filter(size => size && size.trim() !== '' && !['Varsayılan', 'Standart', 'Default', '1'].includes(size)).length})</span>
                     </div>
                     <div className="grid grid-cols-2 gap-2">
-                      {data.variants.sizes.map((size, index) => (
+                      {data.variants.sizes
+                        .filter(size => size && size.trim() !== '' && !['Varsayılan', 'Standart', 'Default', '1'].includes(size))
+                        .map((size, index) => (
                         <div key={index} className="bg-gradient-to-r from-green-500/20 to-emerald-500/20 rounded-lg px-3 py-2 border-2 border-green-400/30 text-center">
                           <div className="text-green-200 font-bold text-sm">👕 {size}</div>
                         </div>
@@ -310,7 +314,16 @@ export function ProductDisplay({ data }: ProductDisplayProps) {
                           className="flex items-center justify-between bg-white/5 rounded-lg px-3 py-2"
                         >
                           <div className="text-sm text-white">
-                            {variant.color} - {variant.size}
+                            {variant.color && variant.size && variant.color !== '' && variant.size !== '' && 
+                             !['Varsayılan', 'Standart', 'Default', '1'].includes(variant.color) &&
+                             !['Varsayılan', 'Standart', 'Default', '1'].includes(variant.size)
+                              ? `${variant.color} - ${variant.size}`
+                              : variant.color && variant.color !== '' && !['Varsayılan', 'Standart', 'Default', '1'].includes(variant.color)
+                                ? variant.color
+                                : variant.size && variant.size !== '' && !['Varsayılan', 'Standart', 'Default', '1'].includes(variant.size)
+                                  ? variant.size
+                                  : 'Tek Ürün'
+                            }
                           </div>
                           <div className="text-sm text-green-400 font-medium">
                             {variant.price ? `${variant.price} TL` : formatPrice(data.price)}

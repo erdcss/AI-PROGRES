@@ -803,39 +803,57 @@ async function extractVariantsDirect($: cheerio.CheerioAPI, htmlContent: string)
   
   // Build variants with stock check
   if (filteredColors.length > 0 && allSizes.length > 0) {
-    // Multi-variant product
-    filteredColors.forEach(color => {
-      allSizes.forEach(size => {
-        const inStock = checkVariantStock($, htmlContent, color, size);
+    // Multi-variant product - filter out fake sizes
+    const realSizes = allSizes.filter(size => size && size !== '1' && size !== 'Standart' && size !== 'Varsayılan' && size.trim() !== '');
+    if (realSizes.length > 0) {
+      // Use real sizes
+      filteredColors.forEach(color => {
+        realSizes.forEach(size => {
+          const inStock = checkVariantStock($, htmlContent, color, size);
+          variants.push({
+            color: color,
+            colorCode: getColorCode(color),
+            size: size,
+            inStock: inStock
+          });
+        });
+      });
+    } else {
+      // Only colors, no real sizes
+      filteredColors.forEach(color => {
+        const inStock = checkVariantStock($, htmlContent, color, '');
         variants.push({
           color: color,
           colorCode: getColorCode(color),
-          size: size,
+          size: '', // No fake size
           inStock: inStock
         });
       });
-    });
+    }
   } else if (filteredColors.length > 0) {
-    // Color variants only
+    // Color variants only - No fake size information
     filteredColors.forEach(color => {
-      const inStock = checkVariantStock($, htmlContent, color, 'Standart');
+      const inStock = checkVariantStock($, htmlContent, color, '');
       variants.push({
         color: color,
         colorCode: getColorCode(color),
-        size: 'Standart',
+        size: '', // No fake size
         inStock: inStock
       });
     });
   } else if (allSizes.length > 0) {
-    // Size variants only
+    // Size variants only - No fake color information  
     allSizes.forEach(size => {
-      const inStock = checkVariantStock($, htmlContent, 'Varsayılan', size);
-      variants.push({
-        color: 'Varsayılan',
-        colorCode: '#CCCCCC',
-        size: size,
-        inStock: inStock
-      });
+      // Skip fake sizes like "1", "Standart", "Varsayılan"
+      if (size && size !== '1' && size !== 'Standart' && size !== 'Varsayılan' && size.trim() !== '') {
+        const inStock = checkVariantStock($, htmlContent, '', size);
+        variants.push({
+          color: '', // No fake color
+          colorCode: '',
+          size: size,
+          inStock: inStock
+        });
+      }
     });
   }
   
