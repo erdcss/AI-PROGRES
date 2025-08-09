@@ -7,6 +7,7 @@ import axios from 'axios';
 import * as cheerio from 'cheerio';
 import { ScenarioManager, ExtractionScenario } from './scenario-manager';
 import { ScenarioExtractors } from './scenario-extractors';
+import { ImageDeduplicator, extractEnhancedFeatures, extractEnhancedVariants } from './improved-image-deduplicator';
 
 export interface ScenarioBasedResult {
   success: boolean;
@@ -59,8 +60,11 @@ export async function scenarioBasedScrape(url: string): Promise<ScenarioBasedRes
     const title = extractTitle($);
     const brand = extractBrand(url);
     const price = extractPrice($, htmlContent);
-    const images = await extractImagesAdvanced($, htmlContent, url);
-    const features = await extractFeaturesAdvanced($, htmlContent, url);
+    
+    // Enhanced extraction with improved deduplication
+    const rawImages = await extractImagesBasic($, htmlContent);
+    const images = ImageDeduplicator.deduplicateImages(rawImages);
+    const features = await extractEnhancedFeatures($, htmlContent);
     
     // Enhanced category-based tag generation will be handled by generateAdvancedTags
     
@@ -91,10 +95,10 @@ export async function scenarioBasedScrape(url: string): Promise<ScenarioBasedRes
     // Step 5: Build final variants array with enhanced extraction
     let variants = buildVariantsArray(variantResult, detection.scenario);
     
-    // If no variants found, try direct extraction methods
+    // If no variants found, try enhanced extraction methods
     if (variants.length === 0) {
-      console.log('🔄 No variants from scenario extraction, trying direct methods...');
-      variants = await extractVariantsDirect($, htmlContent);
+      console.log('🔄 No variants from scenario extraction, trying enhanced methods...');
+      variants = extractEnhancedVariants($, htmlContent);
     }
     
     // Step 6: Generate advanced tags based on all extracted data
@@ -140,6 +144,7 @@ export async function scenarioBasedScrape(url: string): Promise<ScenarioBasedRes
       images: [],
       features: [{ key: 'Error', value: 'Extraction failed' }],
       variants: [],
+      tags: [], // Add missing tags property
       extractionDetails: {
         scenario: 'error',
         confidence: 0,
@@ -263,10 +268,12 @@ function extractPrice($: any, htmlContent: string): any {
   };
 }
 
-async function extractImagesAdvanced($: cheerio.CheerioAPI, htmlContent: string, url: string): Promise<string[]> {
-  console.log('🖼️ ENHANCED IMAGE EXTRACTION - Extracting ALL product images...');
+async function extractImagesBasic($: cheerio.CheerioAPI, htmlContent: string): Promise<string[]> {
+  console.log('🖼️ Basic image extraction for deduplication system...');
   
-  // Method 1: Comprehensive CDN regex extraction
+  const allImages: string[] = [];
+  
+  // Method 1: CDN regex extraction
   const cdnPatterns = [
     /https:\/\/cdn\.dsmcdn\.com[^"'\s]*\.jpg/g,
     /https:\/\/cdn\.dsmcdn\.com[^"'\s]*\.jpeg/g,
@@ -274,526 +281,65 @@ async function extractImagesAdvanced($: cheerio.CheerioAPI, htmlContent: string,
     /https:\/\/cdn\.dsmcdn\.com[^"'\s]*\.webp/g
   ];
   
-  const cdnImages: string[] = [];
   cdnPatterns.forEach(pattern => {
     const matches = htmlContent.match(pattern) || [];
-    cdnImages.push(...matches);
+    allImages.push(...matches);
   });
   
-  console.log(`🔍 CDN patterns found ${cdnImages.length} total images`);
-  
-  // Method 2: Comprehensive DOM extraction
-  const domImages: string[] = [];
-  const allImageSelectors = [
-    // Product gallery selectors
+  // Method 2: DOM extraction
+  const imageSelectors = [
     'img[src*="cdn.dsmcdn.com"]',
     'img[data-src*="cdn.dsmcdn.com"]',
     'img[data-original*="cdn.dsmcdn.com"]',
-    'img[data-lazy*="cdn.dsmcdn.com"]',
-    'img[data-zoom*="cdn.dsmcdn.com"]',
-    
-    // Style and background selectors
-    '[style*="cdn.dsmcdn.com"]',
-    '[data-background*="cdn.dsmcdn.com"]',
-    
-    // Variant and color images
-    '.variant-image img',
-    '.color-variant img',
-    '.size-variant img',
-    
-    // Product gallery specific
-    '.product-gallery img',
-    '.gallery-item img',
-    '.product-photos img',
-    '.image-gallery img',
-    
-    // Thumbnail galleries
-    '.thumbnail-gallery img',
-    '.product-thumbs img',
-    '.thumb-gallery img',
-    
-    // Modern Trendyol selectors
-    '[data-testid*="image"] img',
-    '[data-testid*="gallery"] img',
-    '[data-testid*="photo"] img'
+    '[style*="cdn.dsmcdn.com"]'
   ];
   
-  allImageSelectors.forEach(selector => {
+  imageSelectors.forEach(selector => {
     $(selector).each((_, el) => {
       const $el = $(el);
-      
-      // Extract from various attributes
       const sources = [
         $el.attr('src'),
         $el.attr('data-src'),
-        $el.attr('data-original'),
-        $el.attr('data-lazy'),
-        $el.attr('data-zoom'),
-        $el.attr('data-background')
+        $el.attr('data-original')
       ];
       
       sources.forEach(src => {
         if (src && src.includes('cdn.dsmcdn.com')) {
-          domImages.push(src);
+          allImages.push(src);
         }
       });
       
-      // Extract from style attributes
+      // Extract from style backgrounds
       const style = $el.attr('style') || '';
-      const backgroundMatches = style.match(/url\(['"]?(https:\/\/cdn\.dsmcdn\.com[^'"]*\.(jpg|jpeg|png|webp))/g);
-      if (backgroundMatches) {
-        backgroundMatches.forEach(match => {
-          const urlMatch = match.match(/https:\/\/cdn\.dsmcdn\.com[^'"]*\.(jpg|jpeg|png|webp)/);
-          if (urlMatch) {
-            domImages.push(urlMatch[0]);
-          }
-        });
+      const bgMatch = style.match(/url\(['"]?(https:\/\/cdn\.dsmcdn\.com[^'"]*)/);
+      if (bgMatch) {
+        allImages.push(bgMatch[1]);
       }
     });
   });
   
-  console.log(`🖼️ DOM extraction found ${domImages.length} images`);
-  
-  // Method 3: Enhanced JSON-LD extraction
-  const jsonImages: string[] = [];
+  // Method 3: JSON-LD extraction
   $('script[type="application/ld+json"]').each((_, script) => {
     try {
       const jsonData = JSON.parse($(script).html() || '{}');
-      
-      // Extract from image field
       if (jsonData.image) {
         const images = Array.isArray(jsonData.image) ? jsonData.image : [jsonData.image];
         images.forEach(img => {
           if (typeof img === 'string' && img.includes('cdn.dsmcdn.com')) {
-            jsonImages.push(img);
-          } else if (typeof img === 'object' && img.url && img.url.includes('cdn.dsmcdn.com')) {
-            jsonImages.push(img.url);
+            allImages.push(img);
           }
         });
       }
-      
-      // Extract from product variants
-      if (jsonData.hasVariant) {
-        jsonData.hasVariant.forEach((variant: any) => {
-          if (variant.image) {
-            const variantImages = Array.isArray(variant.image) ? variant.image : [variant.image];
-            variantImages.forEach(img => {
-              if (typeof img === 'string' && img.includes('cdn.dsmcdn.com')) {
-                jsonImages.push(img);
-              }
-            });
-          }
-        });
-      }
-      
-      // Extract from offers
-      if (jsonData.offers && jsonData.offers.image) {
-        const offerImages = Array.isArray(jsonData.offers.image) ? jsonData.offers.image : [jsonData.offers.image];
-        offerImages.forEach(img => {
-          if (typeof img === 'string' && img.includes('cdn.dsmcdn.com')) {
-            jsonImages.push(img);
-          }
-        });
-      }
-      
     } catch (e) {
       // Continue
     }
   });
   
-  console.log(`📋 JSON-LD extraction found ${jsonImages.length} images`);
-  
-  // Method 4: Pattern variations discovery
-  const patternImages: string[] = [];
-  const baseImages = [...new Set([...cdnImages, ...domImages, ...jsonImages])];
-  
-  baseImages.forEach(img => {
-    if (img.includes('_org_zoom.jpg')) {
-      // Generate all possible variations
-      const base = img.replace('_org_zoom.jpg', '');
-      const variations = [
-        base + '_org_zoom.jpg',
-        base + '.jpg',
-        base + '_org.jpg',
-        base + '_zoom.jpg',
-        base + '_large.jpg',
-        base + '_medium.jpg'
-      ];
-      
-      variations.forEach(variation => {
-        if (!patternImages.includes(variation)) {
-          patternImages.push(variation);
-        }
-      });
-    }
-  });
-  
-  console.log(`🔄 Pattern discovery generated ${patternImages.length} variations`);
-  
-  // Combine all methods
-  const allImages = [...cdnImages, ...domImages, ...jsonImages, ...patternImages];
-  const uniqueImages = [...new Set(allImages)]
-    .filter(img => {
-      // Enhanced filtering for product images only
-      if (!img.includes('cdn.dsmcdn.com')) return false;
-      if (!img.includes('prod/') && !img.includes('ty')) return false;
-      
-      // Exclude non-product images
-      const excludePatterns = [
-        '_thumb',
-        '_small',
-        'logo',
-        'icon',
-        'button',
-        'arrow',
-        'star',
-        'heart',
-        'badge',
-        'banner',
-        'header',
-        'footer',
-        'nav',
-        'menu',
-        'social',
-        'sprite',
-        'common',
-        'web/'
-      ];
-      
-      for (const pattern of excludePatterns) {
-        if (img.toLowerCase().includes(pattern)) {
-          return false;
-        }
-      }
-      
-      return true;
-    })
-    .map(img => {
-      // Optimize for high quality
-      let optimized = img;
-      
-      // Ensure high resolution
-      if (!optimized.includes('_org_zoom') && !optimized.includes('mnresize')) {
-        optimized = optimized.replace(/\.(jpg|jpeg)$/, '_org_zoom.$1');
-      }
-      
-      // Ensure HTTPS
-      optimized = optimized.replace(/^http:/, 'https:');
-      
-      return optimized;
-    });
-  
-  console.log(`✅ FINAL IMAGE EXTRACTION: ${uniqueImages.length} unique high-quality product images`);
-  
-  // Return more images for comprehensive coverage
-  return uniqueImages.slice(0, 25); // Increased from 15 to 25 images
+  console.log(`📸 Raw extraction found ${allImages.length} total images`);
+  return allImages;
 }
 
-async function extractFeaturesAdvanced($: cheerio.CheerioAPI, htmlContent: string, url: string): Promise<Array<{key: string, value: string}>> {
-  console.log('🎯 SIMPLIFIED feature extraction starting (server-safe)...');
-  
-  const features: Array<{key: string, value: string}> = [];
-  
-  // Method 1: Product attributes table - Enhanced selectors for Trendyol specifications
-  const attributeSelectors = [
-    '.product-attributes tr',
-    '.product-details tr', 
-    '.attribute-row',
-    '.product-property-row',
-    '.spec-table tr',
-    '.feature-table tr',
-    '.detail-table tr',
-    '.properties-table tr',
-    // Trendyol specific selectors for product specifications
-    '.product-detail-attributes .detail-attr-item',
-    '.product-features .feature-item',
-    '.product-specs .spec-item', 
-    '.attribute-list .attribute-item',
-    '.product-detail-info .info-item',
-    '.product-specifications .spec-row',
-    '.product-properties .property-row'
-  ];
-  
-  attributeSelectors.forEach(selector => {
-    $(selector).each((_, row) => {
-      const $row = $(row);
-      
-      // Enhanced key-value extraction for various HTML structures
-      let key = '';
-      let value = '';
-      
-      // Method 1: Traditional table structure
-      const keyCell = $row.find('td:first-child, .attribute-name, .detail-name, .property-name, .spec-name').text().trim();
-      const valueCell = $row.find('td:last-child, .attribute-value, .detail-value, .property-value, .spec-value').text().trim();
-      
-      if (keyCell && valueCell) {
-        key = keyCell;
-        value = valueCell;
-      }
-      
-      // Method 2: Div-based structure with specific classes
-      if (!key && !value) {
-        const keyDiv = $row.find('.attr-name, .feature-name, .spec-name, .property-name, .info-name').text().trim();
-        const valueDiv = $row.find('.attr-value, .feature-value, .spec-value, .property-value, .info-value').text().trim();
-        
-        if (keyDiv && valueDiv) {
-          key = keyDiv;
-          value = valueDiv;
-        }
-      }
-      
-      // Method 3: Colon-separated text content
-      if (!key && !value) {
-        const text = $row.text().trim();
-        if (text.includes(':')) {
-          const parts = text.split(':');
-          if (parts.length >= 2) {
-            key = parts[0].trim();
-            value = parts.slice(1).join(':').trim();
-          }
-        }
-      }
-      
-      // Method 4: Data attributes
-      if (!key && !value) {
-        key = $row.attr('data-attribute-name') || $row.attr('data-feature-name') || '';
-        value = $row.attr('data-attribute-value') || $row.attr('data-feature-value') || $row.text().trim();
-      }
-      
-      if (key && value && key !== value && key.length > 1 && value.length > 1) {
-        features.push({ key, value });
-      }
-    });
-  });
-  
-  // Method 2: JSON-LD product data - Enhanced extraction
-  $('script[type="application/ld+json"]').each((_, script) => {
-    try {
-      const jsonContent = $(script).html() || '';
-      
-      if (jsonContent.length > 10) {
-        const jsonData = JSON.parse(jsonContent);
-        
-        // Basic product info
-        if (jsonData.brand) {
-          features.push({ key: 'Marka', value: jsonData.brand.name || jsonData.brand });
-        }
-        if (jsonData.category) {
-          features.push({ key: 'Kategori', value: jsonData.category });
-        }
-        if (jsonData.model) {
-          features.push({ key: 'Model', value: jsonData.model });
-        }
-        if (jsonData.description) {
-          features.push({ key: 'Açıklama', value: jsonData.description.substring(0, 300) });
-        }
-        if (jsonData.sku) {
-          features.push({ key: 'SKU', value: jsonData.sku });
-        }
-        if (jsonData.gtin) {
-          features.push({ key: 'GTIN', value: jsonData.gtin });
-        }
-        if (jsonData.mpn) {
-          features.push({ key: 'MPN', value: jsonData.mpn });
-        }
-        
-        // Product features from JSON-LD - Enhanced extraction for Trendyol specifications
-        if (jsonData.additionalProperty && Array.isArray(jsonData.additionalProperty)) {
-          jsonData.additionalProperty.forEach((prop: any) => {
-            if (prop.name && (prop.value || prop.unitText)) {
-              // Use unitText if available, otherwise use value
-              const value = prop.unitText || prop.value || '';
-              if (value) {
-                features.push({ key: prop.name, value: value });
-              }
-            }
-          });
-        }
-        
-        // Product offers
-        if (jsonData.offers && jsonData.offers.availability) {
-          features.push({ key: 'Stok Durumu', value: jsonData.offers.availability });
-        }
-      }
-      
-    } catch (e) {
-      // Continue with other extraction methods
-    }
-  });
-  
-  // Method 3: Meta properties - Enhanced
-  const metaProps = [
-    { selector: 'meta[property="product:brand"]', key: 'Marka' },
-    { selector: 'meta[property="product:category"]', key: 'Kategori' },
-    { selector: 'meta[property="product:condition"]', key: 'Durum' },
-    { selector: 'meta[property="product:price:amount"]', key: 'Fiyat' },
-    { selector: 'meta[property="product:price:currency"]', key: 'Para Birimi' },
-    { selector: 'meta[name="description"]', key: 'Meta Açıklama' },
-    { selector: 'meta[name="keywords"]', key: 'Anahtar Kelimeler' }
-  ];
-  
-  metaProps.forEach(({ selector, key }) => {
-    const content = $(selector).attr('content');
-    if (content && content.trim()) {
-      features.push({ key, value: content.trim() });
-    }
-  });
-  
-  // Method 4: Product detail sections - Enhanced
-  const detailSelectors = [
-    '.product-detail-section',
-    '.product-info-section', 
-    '.product-description',
-    '.product-specifications',
-    '.product-features-section',
-    '.product-properties'
-  ];
-  
-  detailSelectors.forEach(selector => {
-    $(selector).each((_, section) => {
-      const $section = $(section);
-      const title = $section.find('h3, h4, h5, .section-title, .detail-title').text().trim();
-      const content = $section.find('p, .section-content, .detail-content').text().trim();
-      
-      if (title && content && content.length > 5) {
-        features.push({ key: title, value: content.substring(0, 250) });
-      }
-    });
-  });
-  
-  // Method 5: Specification lists - Enhanced
-  const specSelectors = [
-    '.spec-list li',
-    '.feature-list li', 
-    '.product-features li',
-    '.attributes-list li',
-    '.properties-list li',
-    '.details-list li'
-  ];
-  
-  specSelectors.forEach(selector => {
-    $(selector).each((_, item) => {
-      const text = $(item).text().trim();
-      const parts = text.split(':');
-      if (parts.length === 2) {
-        features.push({ 
-          key: parts[0].trim(), 
-          value: parts[1].trim() 
-        });
-      }
-    });
-  });
-  
-  // Method 6: Data attributes from HTML
-  $('[data-product-property], [data-feature], [data-attribute]').each((_, el) => {
-    const $el = $(el);
-    const key = $el.attr('data-property-name') || $el.attr('data-feature-name') || $el.attr('data-attribute-name');
-    const value = $el.attr('data-property-value') || $el.attr('data-feature-value') || $el.attr('data-attribute-value') || $el.text().trim();
-    
-    if (key && value && key.length > 1 && value.length > 1) {
-      features.push({ key, value });
-    }
-  });
-  
-  // Method 7: Extract from HTML content patterns
-  const contentPatterns = [
-    /([A-Za-zÇĞİÖŞÜçğıöşü\s]+):\s*([A-Za-z0-9ÇĞİÖŞÜçğıöşü\s%.,'-]+)/g,
-    /([A-Za-zÇĞİÖŞÜçğıöşü\s]+):\s*([A-Za-z0-9ÇĞİÖŞÜçğıöşü\s%.,'-]+)/g
-  ];
-  
-  const bodyText = $.text();
-  contentPatterns.forEach(pattern => {
-    let match;
-    while ((match = pattern.exec(bodyText)) !== null) {
-      const key = match[1].trim();
-      const value = match[2].trim();
-      
-      if (key.length > 2 && value.length > 2 && key.length < 50 && value.length < 200) {
-        features.push({ key, value });
-      }
-    }
-  });
-  
-  // Simplified server-safe feature extraction (avoiding problematic functions)
-  console.log('✅ Using simplified server-safe feature extraction approach');
-  
-  // Remove duplicates and clean up
-  const uniqueFeatures = features.filter((feature, index, self) => 
-    index === self.findIndex(f => f.key === feature.key)
-  );
-  
-  // Filter out CSS/JS technical properties and non-Turkish content
-  const filteredFeatures = uniqueFeatures.filter(feature => {
-    const key = feature.key.toLowerCase();
-    const value = feature.value.toLowerCase();
-    
-    // Exclude technical CSS/JS properties - exact matches
-    const excludedKeys = [
-      'display', 'padding', 'margin', 'width', 'height', 'style', 'function',
-      'event', 'url', 'bottom', 'top', 'radius', 'position', 'background',
-      'size', 'border', 'color', 'font', 'text', 'flex', 'grid', 'transform',
-      'transition', 'animation', 'webkit', 'moz', 'ms', 'o', 'cursor',
-      'overflow', 'opacity', 'z-index', 'float', 'clear', 'align', 'justify',
-      'items', 'space', 'weight', 'mode', 'type', 'sid', 'pid', 'stateCode',
-      'isExternalBeacon', 'attributes', 'childList', 'data', 'adapt', 'send',
-      'segment', 'noAction', 'referrer', 'default', 'status', 'item'
-    ];
-    
-    const excludedValues = [
-      'function', 'px', 'solid', 'flex', 'none', 'center', 'nowrap',
-      'relative', 'absolute', 'fixed', 'webkit', 'rgb', 'rgba', 'hex',
-      'url(', 'var(', 'calc(', 'linear-gradient', 'radial-gradient',
-      'true', 'false', 'break', 'getUserId', 'getUserSegment', 'first-of-type',
-      'linear', 'radial', 'createElement', 'getElementById', 'querySelector',
-      '15px 8px 15px 8px', '1px solid', '1px', '12px', '600', '17px', '2px'
-    ];
-    
-    // Check if key or value contains excluded terms
-    const hasExcludedKey = excludedKeys.includes(key);
-    const hasExcludedValue = excludedValues.some(excluded => value.includes(excluded));
-    
-    // Only include meaningful product features - Enhanced for Trendyol specifications
-    const isMeaningfulFeature = 
-      // Core product attributes
-      key.includes('boyut') || key.includes('renk') || key.includes('malzeme') ||
-      key.includes('özellik') || key.includes('model') || key.includes('kapasit') ||
-      key.includes('ağırlık') || key.includes('ebat') || key.includes('paket') ||
-      key.includes('içerik') || key.includes('kullanım') || key.includes('garanti') ||
-      key.includes('teknik') || key.includes('standart') || key.includes('marka') ||
-      key.includes('kategori') || key.includes('açıklama') || key.includes('sku') ||
-      key.includes('gtin') || key.includes('stok') || key.includes('durum') ||
-      key.includes('fiyat') || key.includes('para') || key.includes('anahtar') ||
-      key.includes('meta') || key.includes('tip') || key.includes('çeşit') ||
-      key.includes('detay') || key.includes('bilgi') || key.includes('menşei') ||
-      key.includes('gıda') || key.includes('bakım') || key.includes('temas') ||
-      key.includes('talimat') || key.includes('sembol') || key.includes('güvenli') ||
-      key.includes('materyal') || key.includes('menşei') || key.includes('origin') ||
-      // Additional meaningful Turkish product attributes
-      key.includes('kalite') || key.includes('sertifika') || key.includes('standart') ||
-      key.includes('onay') || key.includes('test') || key.includes('ölçü') ||
-      // Exact matches for specific Trendyol product attributes
-      key === 'boyut/ebat' || key === 'materyal' || key === 'menşei' ||
-      key === 'renk' || key === 'gıda temas sembolü' || 
-      key === 'bakım talimatları (gıda temas)' ||
-      // Case variations
-      key.toLowerCase() === 'boyut/ebat' || key.toLowerCase() === 'materyal' || 
-      key.toLowerCase() === 'menşei' || key.toLowerCase() === 'renk' || 
-      key.toLowerCase() === 'gıda temas sembolü' || 
-      key.toLowerCase() === 'bakım talimatları (gıda temas)';
-    
-    // Filter conditions - more strict filtering
-    const isValidLength = value.length > 2 && value.length < 200;
-    const isNotTechnical = !hasExcludedKey && !hasExcludedValue;
-    const isRelevant = isMeaningfulFeature;
-    
-    return isValidLength && isNotTechnical && isRelevant;
-  });
-  
-  console.log(`✅ COMPREHENSIVE feature extraction found ${uniqueFeatures.length} unique features`);
-  console.log(`🎯 Filtered features: ${filteredFeatures.length} relevant features (removed ${uniqueFeatures.length - filteredFeatures.length} technical properties)`);
-  
-  return filteredFeatures.slice(0, 50); // Increased limit to 50 comprehensive features
-}
+// Removed old extractFeaturesAdvanced function - now using enhanced version from improved-image-deduplicator.ts
 
 /**
  * Extract product images - Only product-specific images, not all site images
