@@ -126,6 +126,12 @@ export async function scenarioBasedScrape(url: string): Promise<ScenarioBasedRes
       variants = extractEnhancedVariants($, htmlContent);
     }
     
+    // Additional fallback: Try direct DOM extraction
+    if (variants.length === 0) {
+      console.log('🔄 No variants from enhanced extraction, trying direct DOM extraction...');
+      variants = await extractVariantsDirect($, htmlContent);
+    }
+    
     // Step 6: Generate advanced tags based on all extracted data
     const advancedTags = generateAdvancedTags(title, brand, features, url);
     
@@ -643,35 +649,101 @@ function buildVariantsArray(variantResult: any, scenario: ExtractionScenario): a
 async function extractVariantsDirect($: cheerio.CheerioAPI, htmlContent: string): Promise<Array<{color: string, colorCode: string, size: string, inStock: boolean}>> {
   const variants: Array<{color: string, colorCode: string, size: string, inStock: boolean}> = [];
   
-  // Method 1: Extract colors from color selector elements
+  // Method 1: Enhanced color extraction with modern Trendyol selectors
   const colors: string[] = [];
-  $('.color-option, .variant-color, [data-testid*="color"]').each((_, el) => {
-    const $el = $(el);
-    const colorName = $el.attr('title') || $el.attr('alt') || $el.text().trim();
-    if (colorName && colorName.length > 0) {
-      colors.push(colorName);
-    }
+  
+  // Modern Trendyol color selectors
+  const colorSelectors = [
+    '[data-testid*="color"] button',
+    '[data-testid*="variant"] button',
+    '.variants-color button',
+    '.product-variants .color-item',
+    '.variant-buttons button[title]',
+    '.color-selector button',
+    '.product-color-options button',
+    'button[data-color]',
+    'button[aria-label*="renk"]',
+    'button[aria-label*="color"]',
+    '.variant-option[data-color]',
+    '.color-option button',
+    '.variant-color button',
+    '.color-variant-item',
+    'div[data-testid*="color-variant"]'
+  ];
+  
+  colorSelectors.forEach(selector => {
+    $(selector).each((_, el) => {
+      const $el = $(el);
+      const colorName = $el.attr('title') || $el.attr('alt') || $el.attr('data-color') || 
+                       $el.attr('aria-label') || $el.text().trim();
+      if (colorName && colorName.length > 0 && colorName.length < 30) {
+        colors.push(colorName);
+        console.log(`🎨 Found color via selector "${selector}": ${colorName}`);
+      }
+    });
   });
   
-  // Method 2: Extract sizes from size selector elements
+  // Method 2: Enhanced size extraction with modern Trendyol selectors  
   const sizes: string[] = [];
-  $('button[data-testid*="size"], .size-option, .variant-size').each((_, el) => {
-    const $el = $(el);
-    const sizeName = $el.text().trim() || $el.attr('title') || $el.attr('data-size');
-    const isDisabled = $el.is('[disabled]') || $el.hasClass('disabled') || $el.hasClass('out-of-stock');
-    
-    if (sizeName && sizeName.length > 0 && !isDisabled) {
-      sizes.push(sizeName);
-    }
+  
+  // Modern Trendyol size selectors
+  const sizeSelectors = [
+    '[data-testid*="size"] button',
+    '[data-testid*="variant"] button',
+    '.variants-size button',
+    '.product-variants .size-item',
+    '.variant-buttons button[data-size]',
+    '.size-selector button',
+    '.product-size-options button',
+    'button[data-size]',
+    'button[aria-label*="beden"]',
+    'button[aria-label*="size"]',
+    '.variant-option[data-size]',
+    '.size-option button',
+    '.variant-size button',
+    '.size-variant-item',
+    'div[data-testid*="size-variant"]',
+    '.product-detail-size button',
+    '.pr-in-sz button',
+    '.size-variants button'
+  ];
+  
+  sizeSelectors.forEach(selector => {
+    $(selector).each((_, el) => {
+      const $el = $(el);
+      const sizeName = $el.text().trim() || $el.attr('title') || $el.attr('data-size') || 
+                      $el.attr('aria-label');
+      const isDisabled = $el.is('[disabled]') || $el.hasClass('disabled') || 
+                        $el.hasClass('out-of-stock') || $el.hasClass('sold-out');
+      
+      if (sizeName && sizeName.length > 0 && sizeName.length < 10 && !isDisabled) {
+        // Filter out obvious non-size values
+        const sizePattern = /^(XXS|XS|S|M|L|XL|XXL|XXXL|\d+(\.\d+)?|Tek\s*Beden|One\s*Size)$/i;
+        if (sizePattern.test(sizeName.trim())) {
+          sizes.push(sizeName.trim());
+          console.log(`👕 Found size via selector "${selector}": ${sizeName}`);
+        }
+      }
+    });
   });
   
-  console.log(`🎨 Direct extraction - Colors: ${colors.length}, Sizes: ${sizes.length}`);
+  // Method 3: Extract from JavaScript variables and JSON data
+  const jsonExtractedColors = extractColorsFromJS($, htmlContent);
+  const jsonExtractedSizes = extractSizesFromJS($, htmlContent);
+  
+  // Combine all found colors and sizes
+  const allColors = Array.from(new Set([...colors, ...jsonExtractedColors]));
+  const allSizes = Array.from(new Set([...sizes, ...jsonExtractedSizes]));
+  
+  console.log(`🎨 Direct extraction - Colors: ${allColors.length}, Sizes: ${allSizes.length}`);
+  console.log(`🎨 Final colors: [${allColors.join(', ')}]`);
+  console.log(`👕 Final sizes: [${allSizes.join(', ')}]`);
   
   // Build variants
-  if (colors.length > 0 && sizes.length > 0) {
+  if (allColors.length > 0 && allSizes.length > 0) {
     // Multi-variant product
-    colors.forEach(color => {
-      sizes.forEach(size => {
+    allColors.forEach(color => {
+      allSizes.forEach(size => {
         variants.push({
           color: color,
           colorCode: getColorCode(color),
@@ -680,9 +752,9 @@ async function extractVariantsDirect($: cheerio.CheerioAPI, htmlContent: string)
         });
       });
     });
-  } else if (colors.length > 0) {
+  } else if (allColors.length > 0) {
     // Color variants only
-    colors.forEach(color => {
+    allColors.forEach(color => {
       variants.push({
         color: color,
         colorCode: getColorCode(color),
@@ -690,9 +762,9 @@ async function extractVariantsDirect($: cheerio.CheerioAPI, htmlContent: string)
         inStock: true
       });
     });
-  } else if (sizes.length > 0) {
+  } else if (allSizes.length > 0) {
     // Size variants only
-    sizes.forEach(size => {
+    allSizes.forEach(size => {
       variants.push({
         color: 'Varsayılan',
         colorCode: '#CCCCCC',
@@ -1046,6 +1118,152 @@ function generateAdvancedTags(
   
   console.log(`🏷️ Generated ${tags.size} enhanced category-based tags`);
   return Array.from(tags);
+}
+
+/**
+ * Extract colors from JavaScript variables and JSON data
+ */
+function extractColorsFromJS($: any, htmlContent: string): string[] {
+  const colors: string[] = [];
+  
+  // Method 1: Extract from script tags containing color data
+  $('script').each((_, script) => {
+    const scriptContent = $(script).html() || '';
+    
+    // Look for color arrays in JavaScript
+    const colorPatterns = [
+      /colors?\s*:\s*\[(.*?)\]/gi,
+      /variants?\s*:\s*\[(.*?)color.*?\]/gi,
+      /"colors?":\s*\[(.*?)\]/gi,
+      /color.*?:\s*["'](.*?)["']/gi,
+      /renk.*?:\s*["'](.*?)["']/gi
+    ];
+    
+    colorPatterns.forEach(pattern => {
+      const matches = scriptContent.match(pattern);
+      if (matches) {
+        matches.forEach(match => {
+          // Extract color names from the match
+          const colorMatch = match.match(/["'](beyaz|siyah|gri|mavi|kırmızı|yeşil|sarı|mor|pembe|kahverengi|turuncu|lacivert|krem|bej|white|black|gray|blue|red|green|yellow|purple|pink|brown|orange|navy|cream|beige)["']/gi);
+          if (colorMatch) {
+            colorMatch.forEach(color => {
+              const cleanColor = color.replace(/["']/g, '').trim();
+              if (cleanColor.length > 1) {
+                colors.push(cleanColor);
+                console.log(`🎨 Found color in JS: ${cleanColor}`);
+              }
+            });
+          }
+        });
+      }
+    });
+  });
+  
+  // Method 2: Extract from JSON-LD data
+  $('script[type="application/ld+json"]').each((_, script) => {
+    try {
+      const jsonData = JSON.parse($(script).html() || '{}');
+      
+      // Check for color in offers or variants
+      if (jsonData.offers && Array.isArray(jsonData.offers)) {
+        jsonData.offers.forEach((offer: any) => {
+          if (offer.color) {
+            colors.push(offer.color);
+            console.log(`🎨 Found color in JSON-LD offer: ${offer.color}`);
+          }
+        });
+      }
+      
+      // Check for hasVariant array
+      if (jsonData.hasVariant && Array.isArray(jsonData.hasVariant)) {
+        jsonData.hasVariant.forEach((variant: any) => {
+          if (variant.color) {
+            colors.push(variant.color);
+            console.log(`🎨 Found color in JSON-LD variant: ${variant.color}`);
+          }
+        });
+      }
+      
+    } catch (e) {
+      // Continue silently
+    }
+  });
+  
+  return Array.from(new Set(colors)); // Remove duplicates
+}
+
+/**
+ * Extract sizes from JavaScript variables and JSON data
+ */
+function extractSizesFromJS($: any, htmlContent: string): string[] {
+  const sizes: string[] = [];
+  
+  // Method 1: Extract from script tags containing size data
+  $('script').each((_, script) => {
+    const scriptContent = $(script).html() || '';
+    
+    // Look for size arrays in JavaScript
+    const sizePatterns = [
+      /sizes?\s*:\s*\[(.*?)\]/gi,
+      /variants?\s*:\s*\[(.*?)size.*?\]/gi,
+      /"sizes?":\s*\[(.*?)\]/gi,
+      /size.*?:\s*["'](.*?)["']/gi,
+      /beden.*?:\s*["'](.*?)["']/gi
+    ];
+    
+    sizePatterns.forEach(pattern => {
+      const matches = scriptContent.match(pattern);
+      if (matches) {
+        matches.forEach(match => {
+          // Extract size values from the match
+          const sizeMatch = match.match(/["'](XXS|XS|S|M|L|XL|XXL|XXXL|\d+(\.\d+)?|Tek\s*Beden|One\s*Size)["']/gi);
+          if (sizeMatch) {
+            sizeMatch.forEach(size => {
+              const cleanSize = size.replace(/["']/g, '').trim();
+              if (cleanSize.length > 0) {
+                sizes.push(cleanSize);
+                console.log(`👕 Found size in JS: ${cleanSize}`);
+              }
+            });
+          }
+        });
+      }
+    });
+  });
+  
+  // Method 2: Extract from JSON-LD data
+  $('script[type="application/ld+json"]').each((_, script) => {
+    try {
+      const jsonData = JSON.parse($(script).html() || '{}');
+      
+      // Check for size in offers or variants
+      if (jsonData.offers && Array.isArray(jsonData.offers)) {
+        jsonData.offers.forEach((offer: any) => {
+          if (offer.size || offer.Size) {
+            const size = offer.size || offer.Size;
+            sizes.push(size);
+            console.log(`👕 Found size in JSON-LD offer: ${size}`);
+          }
+        });
+      }
+      
+      // Check for hasVariant array
+      if (jsonData.hasVariant && Array.isArray(jsonData.hasVariant)) {
+        jsonData.hasVariant.forEach((variant: any) => {
+          if (variant.size || variant.Size) {
+            const size = variant.size || variant.Size;
+            sizes.push(size);
+            console.log(`👕 Found size in JSON-LD variant: ${size}`);
+          }
+        });
+      }
+      
+    } catch (e) {
+      // Continue silently
+    }
+  });
+  
+  return Array.from(new Set(sizes)); // Remove duplicates
 }
 
 /**
