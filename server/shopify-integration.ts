@@ -1,823 +1,295 @@
-import axios from 'axios';
-import { db } from './db';
-import { eq, sql, inArray } from 'drizzle-orm';
-import {
-  products,
-  productVariants,
-  shopifySyncLogs,
-  type Product,
-  type ProductVariant,
-  type InsertShopifySyncLog
-} from '@shared/schema';
+/**
+ * Shopify API Integration for Direct Product Upload
+ * Handles product creation, variant management, and CSV export
+ */
+
+import axios, { AxiosRequestConfig } from 'axios';
+import { ScenarioBasedResult } from './scenario-based-scraper';
+
+export interface ShopifyProduct {
+  id?: number;
+  title: string;
+  body_html?: string;
+  vendor?: string;
+  product_type?: string;
+  handle?: string;
+  status: string;
+  tags: string;
+  images: ShopifyImage[];
+  variants: ShopifyVariant[];
+  options: ShopifyOption[];
+}
+
+export interface ShopifyVariant {
+  title: string;
+  price: string;
+  sku?: string;
+  inventory_quantity?: number;
+  inventory_management?: string;
+  option1?: string;
+  option2?: string;
+  option3?: string;
+  weight?: number;
+  weight_unit?: string;
+}
+
+export interface ShopifyImage {
+  src: string;
+  alt?: string;
+  position?: number;
+}
+
+export interface ShopifyOption {
+  name: string;
+  values: string[];
+}
 
 export class ShopifyIntegration {
-  private shopifyDomain: string;
+  private shopUrl: string;
   private accessToken: string;
-  private apiVersion: string = '2024-01';
+  private baseUrl: string;
 
-  constructor(shopifyDomain?: string, accessToken?: string) {
-    this.shopifyDomain = shopifyDomain || process.env.SHOPIFY_STORE_DOMAIN || 'turmarkt.com';
-    this.accessToken = accessToken || process.env.SHOPIFY_ACCESS_TOKEN || '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';
+  constructor() {
+    if (!process.env.SHOPIFY_STORE_DOMAIN || !process.env.SHOPIFY_ACCESS_TOKEN) {
+      throw new Error('Shopify credentials not found. Please set SHOPIFY_STORE_DOMAIN and SHOPIFY_ACCESS_TOKEN');
+    }
+    
+    this.shopUrl = process.env.SHOPIFY_STORE_DOMAIN;
+    this.accessToken = process.env.SHOPIFY_ACCESS_TOKEN;
+    this.baseUrl = `https://${this.shopUrl}/admin/api/2023-10/`;
   }
 
-  private get baseUrl(): string {
-    const domain = this.shopifyDomain.includes('.myshopify.com') 
-      ? this.shopifyDomain 
-      : `${this.shopifyDomain}.myshopify.com`;
-    return `https://${domain}/admin/api/${this.apiVersion}`;
-  }
-
-  private get headers() {
+  private getHeaders(): AxiosRequestConfig['headers'] {
     return {
       'X-Shopify-Access-Token': this.accessToken,
       'Content-Type': 'application/json',
     };
   }
 
-  // Ürünü Shopify'a oluşturma
-  async createProduct(product: Product, variants: ProductVariant[]): Promise<string | null> {
-    try {
-      const shopifyProduct = this.formatProductForShopify(product, variants);
-      
-      const response = await axios.post(
-        `${this.baseUrl}/products.json`,
-        { product: shopifyProduct },
-        { headers: this.headers }
-      );
+  /**
+   * Convert ScenarioBasedResult to Shopify Product format
+   */
+  convertToShopifyProduct(productData: ScenarioBasedResult): ShopifyProduct {
+    // Generate clean product title
+    const title = productData.title;
+    
+    // Generate handle (URL-friendly version)
+    const handle = title
+      .toLowerCase()
+      .replace(/[^a-z0-9\s-]/gi, '')
+      .replace(/\s+/g, '-')
+      .substring(0, 100);
 
-      const createdProduct = response.data.product;
-      const shopifyProductId = createdProduct.id.toString();
-
-      // Shopify Product ID'yi veritabanında güncelle
-      await db.update(products)
-        .set({ 
-          shopifyProductId,
-          syncStatus: 'synced',
-          lastSyncAt: new Date()
-        })
-        .where(eq(products.id, product.id));
-
-      // Varyant ID'lerini güncelle
-      if (createdProduct.variants && createdProduct.variants.length > 0) {
-        for (let i = 0; i < createdProduct.variants.length && i < variants.length; i++) {
-          const shopifyVariant = createdProduct.variants[i];
-          const localVariant = variants[i];
-          
-          await db.update(productVariants)
-            .set({ shopifyVariantId: shopifyVariant.id.toString() })
-            .where(eq(productVariants.id, localVariant.id));
-        }
-      }
-
-      // Sync log kaydet
-      await this.logSync('create', product.id, null, 'success', shopifyProduct, response.data);
-
-      console.log(`✅ Shopify'da ürün oluşturuldu: ${product.title} (ID: ${shopifyProductId})`);
-      return shopifyProductId;
-
-    } catch (error: any) {
-      console.error(`❌ Shopify ürün oluşturma hatası:`, error.response?.data || error.message);
-      
-      await this.logSync('create', product.id, null, 'failed', null, null, error.message);
-      await db.update(products)
-        .set({ syncStatus: 'error' })
-        .where(eq(products.id, product.id));
-
-      return null;
-    }
-  }
-
-  // Ürün fiyatını güncelleme
-  async updateProductPrice(product: Product, variant: ProductVariant): Promise<boolean> {
-    try {
-      // Önce ürünün gerçek Shopify ID'sini bul
-      const productsResponse = await axios.get(
-        `${this.baseUrl}/products.json?title=${encodeURIComponent(product.title)}`,
-        { headers: this.headers }
-      );
-
-      if (!productsResponse.data.products || productsResponse.data.products.length === 0) {
-        console.log(`❌ Shopify'da ürün bulunamadı: ${product.title}`);
-        return false;
-      }
-
-      const shopifyProduct = productsResponse.data.products[0];
-      const shopifyVariant = shopifyProduct.variants[0]; // İlk varyantı al
-
-      console.log(`🔍 Shopify Product ID: ${shopifyProduct.id}, Variant ID: ${shopifyVariant.id}`);
-
-      const updateData = {
-        variant: {
-          id: shopifyVariant.id,
-          price: variant.shopifyPrice
-        }
-      };
-
-      const response = await axios.put(
-        `${this.baseUrl}/variants/${shopifyVariant.id}.json`,
-        updateData,
-        { headers: this.headers }
-      );
-
-      console.log(`💰 Shopify fiyat güncellendi: ${product.title} → ${variant.shopifyPrice} TL`);
-      return true;
-
-    } catch (error: any) {
-      console.error(`❌ Shopify fiyat güncelleme hatası:`, error.response?.data || error.message);
-      return false;
-    }
-  }
-
-  // Varyant stokunu sıfıra çek (ürün stoktan çıktığında)
-  async setVariantStockToZero(product: Product, variant: ProductVariant): Promise<boolean> {
-    try {
-      // Önce ürünün gerçek Shopify ID'sini bul
-      const productsResponse = await axios.get(
-        `${this.baseUrl}/products.json?title=${encodeURIComponent(product.title)}`,
-        { headers: this.headers }
-      );
-
-      if (!productsResponse.data.products || productsResponse.data.products.length === 0) {
-        console.log(`❌ Shopify'da ürün bulunamadı: ${product.title}`);
-        return false;
-      }
-
-      const shopifyProduct = productsResponse.data.products[0];
-      const shopifyVariant = shopifyProduct.variants.find((v: any) => 
-        v.option1?.toLowerCase().includes(variant.color?.toLowerCase() || '') ||
-        v.option2?.toLowerCase().includes(variant.size?.toLowerCase() || '')
-      ) || shopifyProduct.variants[0];
-
-      // Inventory item ID'yi al
-      const inventoryItemId = shopifyVariant.inventory_item_id;
-      
-      // Inventory level'ları al
-      const inventoryResponse = await axios.get(
-        `${this.baseUrl}/inventory_levels.json?inventory_item_ids=${inventoryItemId}`,
-        { headers: this.headers }
-      );
-
-      if (inventoryResponse.data.inventory_levels.length > 0) {
-        const inventoryLevel = inventoryResponse.data.inventory_levels[0];
-        const locationId = inventoryLevel.location_id;
-
-        // Stoku sıfırla
-        const updateData = {
-          location_id: locationId,
-          inventory_item_id: inventoryItemId,
-          available: 0
-        };
-
-        await axios.post(
-          `${this.baseUrl}/inventory_levels/set.json`,
-          updateData,
-          { headers: this.headers }
-        );
-
-        console.log(`📦 Shopify stok sıfırlandı: ${variant.color} ${variant.size}`);
-        return true;
-      }
-
-      return false;
-    } catch (error: any) {
-      console.error(`❌ Shopify stok sıfırlama hatası:`, error.response?.data || error.message);
-      return false;
-    }
-  }
-
-  // Varyant stokunu restore et (ürün tekrar stoka girdiğinde)
-  async restoreVariantStock(product: Product, variant: ProductVariant): Promise<boolean> {
-    try {
-      // Önce ürünün gerçek Shopify ID'sini bul
-      const productsResponse = await axios.get(
-        `${this.baseUrl}/products.json?title=${encodeURIComponent(product.title)}`,
-        { headers: this.headers }
-      );
-
-      if (!productsResponse.data.products || productsResponse.data.products.length === 0) {
-        return false;
-      }
-
-      const shopifyProduct = productsResponse.data.products[0];
-      const shopifyVariant = shopifyProduct.variants.find((v: any) => 
-        v.option1?.toLowerCase().includes(variant.color?.toLowerCase() || '') ||
-        v.option2?.toLowerCase().includes(variant.size?.toLowerCase() || '')
-      ) || shopifyProduct.variants[0];
-
-      // Inventory item ID'yi al
-      const inventoryItemId = shopifyVariant.inventory_item_id;
-      
-      // Inventory level'ları al
-      const inventoryResponse = await axios.get(
-        `${this.baseUrl}/inventory_levels.json?inventory_item_ids=${inventoryItemId}`,
-        { headers: this.headers }
-      );
-
-      if (inventoryResponse.data.inventory_levels.length > 0) {
-        const inventoryLevel = inventoryResponse.data.inventory_levels[0];
-        const locationId = inventoryLevel.location_id;
-
-        // Stoku restore et (varsayılan 25 adet)
-        const restoreAmount = variant.stockCount || 25;
-        const updateData = {
-          location_id: locationId,
-          inventory_item_id: inventoryItemId,
-          available: restoreAmount
-        };
-
-        await axios.post(
-          `${this.baseUrl}/inventory_levels/set.json`,
-          updateData,
-          { headers: this.headers }
-        );
-
-        console.log(`📦 Shopify stok restore edildi: ${variant.color} ${variant.size} → ${restoreAmount}`);
-        return true;
-      }
-
-      return false;
-    } catch (error: any) {
-      console.error(`❌ Shopify stok restore hatası:`, error.response?.data || error.message);
-      return false;
-    }
-  }
-
-  // Ürün stokunu güncelleme
-  async updateProductStock(product: Product, variant: ProductVariant): Promise<boolean> {
-    try {
-      // Önce ürünün gerçek Shopify ID'sini bul
-      const productsResponse = await axios.get(
-        `${this.baseUrl}/products.json?title=${encodeURIComponent(product.title)}`,
-        { headers: this.headers }
-      );
-
-      if (!productsResponse.data.products || productsResponse.data.products.length === 0) {
-        return false;
-      }
-
-      const shopifyProduct = productsResponse.data.products[0];
-      const shopifyVariant = shopifyProduct.variants.find((v: any) => 
-        v.option1?.toLowerCase().includes(variant.color?.toLowerCase() || '') ||
-        v.option2?.toLowerCase().includes(variant.size?.toLowerCase() || '')
-      ) || shopifyProduct.variants[0];
-
-      // Inventory item ID'yi al
-      const inventoryItemId = shopifyVariant.inventory_item_id;
-      
-      // Inventory level'ları al
-      const inventoryResponse = await axios.get(
-        `${this.baseUrl}/inventory_levels.json?inventory_item_ids=${inventoryItemId}`,
-        { headers: this.headers }
-      );
-
-      if (inventoryResponse.data.inventory_levels.length > 0) {
-        const inventoryLevel = inventoryResponse.data.inventory_levels[0];
-        const locationId = inventoryLevel.location_id;
-
-        // Stok güncelle
-        const updateData = {
-          location_id: locationId,
-          inventory_item_id: inventoryItemId,
-          available: variant.stockCount
-        };
-
-        const response = await axios.post(
-          `${this.baseUrl}/inventory_levels/set.json`,
-          updateData,
-          { headers: this.headers }
-        );
-
-        await this.logSync('update_stock', product.id, variant.id, 'success', updateData, response.data);
-        
-        console.log(`📦 Shopify stok güncellendi: ${variant.color} ${variant.size} → ${variant.stockCount} adet`);
-        return true;
-      }
-
-    } catch (error: any) {
-      console.error(`❌ Shopify stok güncelleme hatası:`, error.response?.data || error.message);
-      await this.logSync('update_stock', product.id, variant.id, 'failed', null, null, error.message);
-      return false;
-    }
-
-    return false;
-  }
-
-  // Varyant durumunu güncelleme (aktif/pasif)
-  async updateVariantStatus(product: Product, variant: ProductVariant): Promise<boolean> {
-    if (!product.shopifyProductId || !variant.shopifyVariantId) {
-      return false;
-    }
-
-    try {
-      const updateData = {
-        variant: {
-          id: parseInt(variant.shopifyVariantId),
-          inventory_policy: variant.inStock && variant.stockCount > 0 ? 'deny' : 'continue'
-        }
-      };
-
-      const response = await axios.put(
-        `${this.baseUrl}/variants/${variant.shopifyVariantId}.json`,
-        updateData,
-        { headers: this.headers }
-      );
-
-      await this.logSync('update_variant', product.id, variant.id, 'success', updateData, response.data);
-      
-      console.log(`🔄 Shopify varyant durumu güncellendi: ${variant.color} ${variant.size} → ${variant.inStock ? 'Aktif' : 'Pasif'}`);
-      return true;
-
-    } catch (error: any) {
-      console.error(`❌ Shopify varyant güncelleme hatası:`, error.response?.data || error.message);
-      await this.logSync('update_variant', product.id, variant.id, 'failed', null, null, error.message);
-      return false;
-    }
-  }
-
-  // Ürünü Shopify formatına dönüştürme
-  private formatProductForShopify(product: Product, variants: ProductVariant[]) {
-    const shopifyVariants = variants.map(variant => ({
-      option1: variant.color,
-      option2: variant.size,
-      price: variant.shopifyPrice,
-      sku: variant.sku,
-      inventory_quantity: variant.stockCount,
-      inventory_management: 'shopify',
-      inventory_policy: variant.inStock && variant.stockCount > 0 ? 'deny' : 'continue'
+    // Create images
+    const images: ShopifyImage[] = productData.images.map((src, index) => ({
+      src,
+      alt: `${title} - Görsel ${index + 1}`,
+      position: index + 1
     }));
 
-    return {
-      title: product.title,
-      body_html: this.generateProductDescription(product),
-      vendor: product.brand,
-      product_type: product.category,
-      tags: this.generateProductTags(product),
-      images: product.images.map(url => ({ src: url })),
-      options: [
-        { name: 'Renk', values: Array.from(new Set(variants.map(v => v.color))) },
-        { name: 'Beden', values: Array.from(new Set(variants.map(v => v.size))) }
-      ].filter(option => option.values.length > 1 || option.values[0] !== 'Varsayılan'),
-      variants: shopifyVariants,
-      status: 'active'
-    };
-  }
+    // Create variants
+    const variants: ShopifyVariant[] = [];
+    const hasColors = productData.variants.length > 0 && productData.variants.some(v => v.color && v.color !== 'Varsayılan');
+    const hasSizes = productData.variants.length > 0 && productData.variants.some(v => v.size && v.size !== 'Standart');
 
-  // Ürün açıklaması oluşturma
-  private generateProductDescription(product: Product): string {
-    let description = `<h2>${product.title}</h2>`;
-    description += `<p><strong>Marka:</strong> ${product.brand}</p>`;
-    
-    if (product.description) {
-      description += `<p>${product.description}</p>`;
-    }
-    
-    if (product.features && typeof product.features === 'object') {
-      description += '<h3>Ürün Özellikleri:</h3><ul>';
-      Object.entries(product.features).forEach(([key, value]) => {
-        if (value && typeof value === 'string') {
-          description += `<li><strong>${key}:</strong> ${value}</li>`;
-        }
-      });
-      description += '</ul>';
-    }
-    
-    description += '<p><em>Trendyol\'dan otomatik olarak aktarılmıştır.</em></p>';
-    
-    return description;
-  }
-
-  // Ürün etiketleri oluşturma
-  private generateProductTags(product: Product): string {
-    const tags = [product.brand, product.category || 'Genel'];
-    
-    if (product.colorOptions && product.colorOptions.length > 0) {
-      tags.push(...product.colorOptions);
-    }
-    
-    tags.push('Trendyol', 'Otomatik-Import');
-    
-    return tags.filter(Boolean).join(', ');
-  }
-
-  // Sync log kaydetme
-  private async logSync(
-    syncType: string,
-    productId: number,
-    variantId: number | null,
-    status: string,
-    requestData: any,
-    responseData: any,
-    errorMessage?: string
-  ): Promise<void> {
-    const logData: InsertShopifySyncLog = {
-      productId,
-      variantId,
-      syncType,
-      status,
-      requestData,
-      responseData,
-      errorMessage
-    };
-
-    await db.insert(shopifySyncLogs).values(logData);
-  }
-
-  // API bağlantısını test etme
-  async testConnection(): Promise<boolean> {
-    try {
-      const response = await axios.get(
-        `${this.baseUrl}/shop.json`,
-        { headers: this.headers }
-      );
-      
-      console.log(`✅ Shopify bağlantısı başarılı: ${response.data.shop.name}`);
-      return true;
-    } catch (error: any) {
-      console.error(`❌ Shopify bağlantı hatası:`, error.response?.data || error.message);
-      return false;
-    }
-  }
-
-  // Shopify'dan ürün silme
-  async deleteProduct(shopifyProductId: string): Promise<boolean> {
-    try {
-      await axios.delete(
-        `${this.baseUrl}/products/${shopifyProductId}.json`,
-        { headers: this.headers }
-      );
-      
-      console.log(`🗑️ Shopify'dan ürün silindi: ${shopifyProductId}`);
-      return true;
-    } catch (error: any) {
-      console.error(`❌ Shopify ürün silme hatası:`, error.response?.data || error.message);
-      return false;
-    }
-  }
-
-  // Shopify'dan ürünleri çek (pagination desteğiyle)
-  async fetchProductsFromShopify(limit: number = 250): Promise<any[]> {
-    try {
-      console.log('🔍 Shopify ürünleri çekiliyor (pagination ile)...');
-      
-      let allProducts: any[] = [];
-      let nextPageUrl: string | null = `${this.baseUrl}/products.json?limit=${limit}&fields=id,title,vendor,handle,product_type,tags,variants,images,created_at,updated_at`;
-      let pageCount = 0;
-      
-      while (nextPageUrl && pageCount < 50) { // Maksimum 50 sayfa (güvenlik için)
-        pageCount++;
-        console.log(`📄 Sayfa ${pageCount} çekiliyor...`);
-        
-        const response = await axios.get(nextPageUrl, { headers: this.headers });
-        const pageProducts = response.data.products || [];
-        
-        if (pageProducts.length === 0) {
-          console.log('🏁 Ürün kalmadı, pagination sona erdi');
-          break;
-        }
-        
-        allProducts = allProducts.concat(pageProducts);
-        console.log(`📦 Sayfa ${pageCount}: ${pageProducts.length} ürün (Toplam: ${allProducts.length})`);
-        
-        // Shopify Link header'ından next page URL'sini al
-        const linkHeader = response.headers.link;
-        nextPageUrl = null;
-        
-        if (linkHeader) {
-          const nextMatch = linkHeader.match(/<([^>]+)>;\s*rel="next"/);
-          if (nextMatch) {
-            nextPageUrl = nextMatch[1];
-          }
-        }
-        
-        // Rate limiting - sayfa arası 1 saniye bekle
-        if (nextPageUrl) {
-          await new Promise(resolve => setTimeout(resolve, 1000));
-        }
-      }
-      
-      console.log(`✅ ${allProducts.length} Shopify ürünü toplamda bulundu`);
-      
-      return allProducts.map((product: any) => ({
-        shopifyProductId: product.id.toString(),
-        title: product.title,
-        brand: product.vendor || 'Bilinmeyen Marka',
-        productType: product.product_type,
-        tags: product.tags ? product.tags.split(',').map((tag: string) => tag.trim()) : [],
-        handle: product.handle,
-        shopifyUrl: `https://${this.shopifyDomain.replace('.myshopify.com', '')}.myshopify.com/products/${product.handle}`,
-        images: product.images?.map((img: any) => img.src) || [],
-        variants: product.variants?.map((variant: any) => ({
-          shopifyVariantId: variant.id.toString(),
-          title: variant.title,
-          price: variant.price,
-          sku: variant.sku,
-          inventory_quantity: variant.inventory_quantity
-        })) || [],
-        createdAt: product.created_at,
-        updatedAt: product.updated_at,
-        currentPrice: product.variants?.[0]?.price || '0.00',
-        originalPrice: product.variants?.[0]?.compare_at_price || product.variants?.[0]?.price || '0.00',
-        stockStatus: product.variants?.some((v: any) => v.inventory_quantity > 0) ? 'in_stock' : 'out_of_stock',
-        sourcePlatform: 'shopify'
-      }));
-      
-    } catch (error) {
-      console.error('❌ Shopify ürün çekme hatası:', error);
-      throw new Error(`Shopify API hatası: ${error instanceof Error ? error.message : 'Bilinmeyen hata'}`);
-    }
-  }
-
-  // Mağaza bilgilerini çek
-  async getStoreInfo(): Promise<any> {
-    try {
-      const response = await axios.get(
-        `${this.baseUrl}/shop.json`,
-        { headers: this.headers }
-      );
-      
-      return response.data.shop;
-    } catch (error) {
-      console.error('❌ Shopify mağaza bilgisi hatası:', error);
-      throw error;
-    }
-  }
-
-  // Ürün sayısını çek
-  async getProductCount(): Promise<number> {
-    try {
-      const response = await axios.get(
-        `${this.baseUrl}/products/count.json`,
-        { headers: this.headers }
-      );
-      
-      return response.data.count || 0;
-    } catch (error) {
-      console.error('❌ Shopify ürün sayısı hatası:', error);
-      return 0;
-    }
-  }
-
-  // Shopify ürünlerini veritabanına kaydet
-  async saveProductsToDatabase(shopifyProducts: any[]): Promise<{savedProducts: number, savedVariants: number}> {
-    let savedProducts = 0;
-    let savedVariants = 0;
-
-    try {
-      console.log(`🔄 ${shopifyProducts.length} ürün bulk processing ile kaydediliyor...`);
-      
-      // Tüm ürünleri UPSERT ile kaydet - duplicate problem yok
-      const allProducts = shopifyProducts;
-      console.log(`📦 ${allProducts.length} ürün UPSERT ile kaydedilecek`);
-      
-      // Batch UPSERT için ürünleri hazırla
-      if (allProducts.length > 0) {
-        const batchSize = 50; // 50'şer ürün UPSERT
-        for (let i = 0; i < allProducts.length; i += batchSize) {
-          const batch = allProducts.slice(i, i + batchSize);
-          
-          const productsToInsert = batch.map(shopifyProduct => ({
-            trendyolUrl: shopifyProduct.shopifyUrl || `https://shopify.com/products/${shopifyProduct.shopifyProductId}`,
-            trendyolProductId: shopifyProduct.shopifyProductId,
-            shopifyProductId: shopifyProduct.shopifyProductId,
-            title: shopifyProduct.title,
-            brand: shopifyProduct.brand,
-            description: shopifyProduct.productType || '',
-            category: shopifyProduct.productType || 'Genel',
-            images: shopifyProduct.images || [],
-            features: { tags: shopifyProduct.tags || [] },
-            colorOptions: [],
-            sizeOptions: [],
-            originalPrice: shopifyProduct.originalPrice || '0',
-            currentPrice: shopifyProduct.currentPrice || '0',
-            stockStatus: shopifyProduct.stockStatus || 'in_stock',
-            lastChecked: new Date(),
-            sourceUrl: shopifyProduct.shopifyUrl,
-            sourcePlatform: 'shopify',
-            shopifyUrl: shopifyProduct.shopifyUrl,
-            shopifyStoreUrl: shopifyProduct.shopifyUrl,
-            isActive: true,
-            profitMargin: '15.00',
-            lastSyncAt: new Date(),
-            syncStatus: 'synced'
-          }));
-          
-          // Batch kontrolü ile tek sorguda mevcut ürünleri bul
-          const batchShopifyIds = productsToInsert.map(p => p.shopifyProductId);
-          const existingBatchProducts = await db
-            .select({ id: products.id, shopifyProductId: products.shopifyProductId })
-            .from(products)
-            .where(inArray(products.shopifyProductId, batchShopifyIds));
-          
-          const existingBatchMap = new Map(existingBatchProducts.map(p => [p.shopifyProductId, p.id]));
-          
-          const newBatchProducts = [];
-          const updateBatchProducts = [];
-          
-          for (const productData of productsToInsert) {
-            const existingId = existingBatchMap.get(productData.shopifyProductId);
-            if (existingId) {
-              updateBatchProducts.push({ ...productData, id: existingId });
-            } else {
-              newBatchProducts.push(productData);
-            }
-          }
-          
-          console.log(`📦 Batch ${Math.floor(i/batchSize) + 1}: ${newBatchProducts.length} yeni, ${updateBatchProducts.length} güncelleme`);
-          
-          const insertedProducts = [];
-          
-          // Yeni ürünleri ekle
-          if (newBatchProducts.length > 0) {
-            const newInserted = await db.insert(products).values(newBatchProducts).returning();
-            insertedProducts.push(...newInserted);
-          }
-          
-          // Mevcut ürünleri güncelle
-          for (const updateProduct of updateBatchProducts) {
-            await db.update(products)
-              .set({
-                title: updateProduct.title,
-                brand: updateProduct.brand,
-                currentPrice: updateProduct.currentPrice,
-                stockStatus: updateProduct.stockStatus,
-                lastChecked: new Date(),
-                lastSyncAt: new Date(),
-                updatedAt: new Date()
-              })
-              .where(eq(products.id, updateProduct.id));
-            
-            // Güncellenmiş ürünü de listeye ekle
-            const [updatedProduct] = await db.select().from(products).where(eq(products.id, updateProduct.id)).limit(1);
-            if (updatedProduct) {
-              insertedProducts.push(updatedProduct);
-            }
-          }
-          savedProducts += insertedProducts.length;
-          
-          console.log(`✅ Batch ${Math.floor(i/batchSize) + 1}: ${insertedProducts.length} ürün UPSERT edildi`);
-          
-          // Batch varyantları kaydet
-          for (let j = 0; j < insertedProducts.length; j++) {
-            const insertedProduct = insertedProducts[j];
-            const shopifyProduct = batch[j];
-            
-            if (shopifyProduct.variants && shopifyProduct.variants.length > 0) {
-              const variantsToInsert = shopifyProduct.variants.map((variant: any) => ({
-                productId: insertedProduct.id,
-                shopifyVariantId: variant.shopifyVariantId,
-                color: variant.color || 'Varsayılan',
-                size: variant.size || 'Tek Beden',
-                sku: variant.sku,
-                trendyolPrice: variant.trendyolPrice || '0',
-                shopifyPrice: variant.shopifyPrice || '0',
-                stockCount: variant.stockCount || 0,
-                inStock: variant.inStock !== false
-              }));
-              
-              await db.insert(productVariants).values(variantsToInsert);
-              savedVariants += variantsToInsert.length;
-            }
-          }
-        }
-      }
-      
-      // Batch update mevcut ürünler
-      if (updateProducts.length > 0) {
-        for (const updateProduct of updateProducts) {
-          await db.update(products)
-            .set({ 
-              lastChecked: new Date(),
-              lastSyncAt: new Date(),
-              currentPrice: updateProduct.currentPrice || '0',
-              stockStatus: updateProduct.stockStatus || 'in_stock',
-              updatedAt: new Date()
-            })
-            .where(eq(products.id, updateProduct.id));
-        }
-        console.log(`🔄 ${updateProducts.length} ürün güncellendi`);
-      }
-      
-      console.log(`✅ Bulk processing tamamlandı: ${savedProducts} yeni ürün, ${savedVariants} varyant kaydedildi`);
-      
-      return { savedProducts, savedVariants };
-      
-    } catch (error: any) {
-      console.error('❌ Bulk save hatası:', error);
-      throw error;
-    }
-  }
-
-  // Eski slow method artık kullanılmıyor
-  async saveProductsToDatabase_OLD_SLOW(shopifyProducts: any[]): Promise<{savedProducts: number, savedVariants: number}> {
-    // Bu metod artık kullanılmıyor - bulk processing kullanılıyor
-    return this.saveProductsToDatabase(shopifyProducts);
-  }
-
-  private async saveProductsOneByOne(shopifyProducts: any[]): Promise<{savedProducts: number, savedVariants: number}> {
-    let savedProducts = 0;
-    let savedVariants = 0;
-
-    try {
-      for (const shopifyProduct of shopifyProducts) {
-        // Önce aynı Shopify ID'li ürün var mı kontrol et
-        const existingProduct = await db.query.products.findFirst({
-          where: eq(products.shopifyProductId, shopifyProduct.shopifyProductId)
+    if (productData.variants.length > 0) {
+      productData.variants.forEach((variant, index) => {
+        variants.push({
+          title: hasColors && hasSizes 
+            ? `${variant.color} / ${variant.size}`
+            : hasColors 
+              ? variant.color
+              : hasSizes 
+                ? variant.size
+                : 'Default',
+          price: productData.price.original.toString(),
+          sku: variant.sku || `${handle}-${index + 1}`,
+          inventory_quantity: variant.inStock ? 10 : 0,
+          inventory_management: 'shopify',
+          option1: hasColors ? variant.color : hasSizes ? variant.size : undefined,
+          option2: hasColors && hasSizes ? variant.size : undefined,
+          weight: 100,
+          weight_unit: 'g'
         });
+      });
+    } else {
+      // Single variant product
+      variants.push({
+        title: 'Default Title',
+        price: productData.price.original.toString(),
+        sku: `${handle}-1`,
+        inventory_quantity: 10,
+        inventory_management: 'shopify',
+        weight: 100,
+        weight_unit: 'g'
+      });
+    }
 
-        let productId;
-        
-        if (!existingProduct) {
-          // Yeni ürün kaydet
-          const productData = {
-            trendyolUrl: shopifyProduct.shopifyUrl, // Shopify URL'sini trendyol URL yerine koy
-            trendyolProductId: shopifyProduct.shopifyProductId,
-            shopifyProductId: shopifyProduct.shopifyProductId,
-            title: shopifyProduct.title,
-            brand: shopifyProduct.brand,
-            description: shopifyProduct.productType || '',
-            category: shopifyProduct.productType || 'Genel',
-            images: shopifyProduct.images,
-            features: { tags: shopifyProduct.tags },
-            colorOptions: [],
-            sizeOptions: [],
-            originalPrice: shopifyProduct.originalPrice,
-            currentPrice: shopifyProduct.currentPrice,
-            stockStatus: shopifyProduct.stockStatus,
-            lastChecked: new Date(),
-            sourceUrl: shopifyProduct.shopifyUrl,
-            sourcePlatform: 'shopify',
-            shopifyUrl: shopifyProduct.shopifyUrl,
-            shopifyStoreUrl: shopifyProduct.shopifyUrl,
-            isActive: true,
-            profitMargin: '15.00',
-            lastSyncAt: new Date(),
-            syncStatus: 'synced'
-          };
-
-          const [insertedProduct] = await db.insert(products).values(productData).returning();
-          productId = insertedProduct.id;
-          savedProducts++;
-          
-          console.log(`✅ Ürün kaydedildi: ${shopifyProduct.title}`);
-        } else {
-          productId = existingProduct.id;
-          
-          // Mevcut ürünü güncelle
-          await db.update(products)
-            .set({ 
-              lastChecked: new Date(),
-              lastSyncAt: new Date(),
-              currentPrice: shopifyProduct.currentPrice,
-              stockStatus: shopifyProduct.stockStatus,
-              updatedAt: new Date()
-            })
-            .where(eq(products.id, productId));
-          
-          console.log(`🔄 Ürün güncellendi: ${shopifyProduct.title}`);
-        }
-
-        // Varyantları kaydet
-        for (const variant of shopifyProduct.variants || []) {
-          // Aynı Shopify variant ID'li varyant var mı kontrol et
-          const existingVariant = await db.query.productVariants.findFirst({
-            where: eq(productVariants.shopifyVariantId, variant.shopifyVariantId)
-          });
-
-          if (!existingVariant) {
-            const variantData = {
-              productId: productId,
-              shopifyVariantId: variant.shopifyVariantId,
-              color: variant.title?.includes('/')? variant.title.split('/')[0].trim() : 'Varsayılan',
-              size: variant.title?.includes('/')? variant.title.split('/')[1]?.trim() || 'Tek Beden' : 'Tek Beden',
-              sku: variant.sku || '',
-              trendyolPrice: variant.price,
-              shopifyPrice: variant.price,
-              stockCount: variant.inventory_quantity || 0,
-              inStock: (variant.inventory_quantity || 0) > 0
-            };
-
-            await db.insert(productVariants).values(variantData);
-            savedVariants++;
-          } else {
-            // Mevcut varyantı güncelle
-            await db.update(productVariants)
-              .set({
-                shopifyPrice: variant.price,
-                stockCount: variant.inventory_quantity || 0,
-                inStock: (variant.inventory_quantity || 0) > 0,
-                updatedAt: new Date()
-              })
-              .where(eq(productVariants.shopifyVariantId, variant.shopifyVariantId));
-          }
-        }
+    // Create options
+    const options: ShopifyOption[] = [];
+    if (hasColors) {
+      const colorOptions = [...new Set(productData.variants.map(v => v.color).filter(c => c && c !== 'Varsayılan'))];
+      if (colorOptions.length > 0) {
+        options.push({
+          name: 'Color',
+          values: colorOptions
+        });
       }
+    }
+    
+    if (hasSizes) {
+      const sizeOptions = [...new Set(productData.variants.map(v => v.size).filter(s => s && s !== 'Standart'))];
+      if (sizeOptions.length > 0) {
+        options.push({
+          name: 'Size',
+          values: sizeOptions
+        });
+      }
+    }
+
+    return {
+      title,
+      body_html: `<p>${productData.title}</p><p>Marka: ${productData.brand}</p>`,
+      vendor: productData.brand,
+      product_type: 'Kozmetik',
+      handle,
+      status: 'draft',
+      tags: productData.tags?.join(', ') || 'imported',
+      images,
+      variants,
+      options
+    };
+  }
+
+  /**
+   * Create product in Shopify
+   */
+  async createProduct(productData: ScenarioBasedResult): Promise<{ success: boolean; productId?: number; error?: string }> {
+    try {
+      const shopifyProduct = this.convertToShopifyProduct(productData);
       
-      console.log(`✅ Shopify hafızaya kaydetme tamamlandı: ${savedProducts} ürün, ${savedVariants} varyant`);
-      return { savedProducts, savedVariants };
+      console.log(`🛍️ Creating Shopify product: ${shopifyProduct.title}`);
+      console.log(`📦 Variants: ${shopifyProduct.variants.length}, Images: ${shopifyProduct.images.length}`);
+
+      const response = await axios.post(
+        `${this.baseUrl}products.json`,
+        { product: shopifyProduct },
+        { headers: this.getHeaders() }
+      );
+
+      if (response.status === 201) {
+        const createdProduct = response.data.product;
+        console.log(`✅ Product created successfully: ID ${createdProduct.id}`);
+        return {
+          success: true,
+          productId: createdProduct.id
+        };
+      } else {
+        console.error(`❌ Shopify API error: ${response.status}`, response.data);
+        return {
+          success: false,
+          error: `API returned status ${response.status}`
+        };
+      }
+    } catch (error: any) {
+      console.error('❌ Error creating Shopify product:', error.message);
+      if (error.response) {
+        console.error('Response data:', error.response.data);
+        return {
+          success: false,
+          error: error.response.data.errors || error.message
+        };
+      }
+      return {
+        success: false,
+        error: error.message
+      };
+    }
+  }
+
+  /**
+   * Generate CSV content for Shopify import
+   */
+  generateShopifyCSV(productData: ScenarioBasedResult): string {
+    const shopifyProduct = this.convertToShopifyProduct(productData);
+    
+    const csvHeaders = [
+      'Handle',
+      'Title',
+      'Body (HTML)',
+      'Vendor',
+      'Product Type',
+      'Tags',
+      'Published',
+      'Option1 Name',
+      'Option1 Value',
+      'Option2 Name', 
+      'Option2 Value',
+      'Variant SKU',
+      'Variant Grams',
+      'Variant Inventory Tracker',
+      'Variant Inventory Qty',
+      'Variant Inventory Policy',
+      'Variant Price',
+      'Image Src',
+      'Image Alt Text'
+    ];
+
+    let csvContent = csvHeaders.join(',') + '\n';
+
+    shopifyProduct.variants.forEach((variant, index) => {
+      const isFirstVariant = index === 0;
+      const imageUrl = shopifyProduct.images[0]?.src || '';
       
-    } catch (error) {
-      console.error('❌ Shopify hafızaya kaydetme hatası:', error);
-      throw error;
+      const row = [
+        shopifyProduct.handle,
+        isFirstVariant ? `"${shopifyProduct.title}"` : '',
+        isFirstVariant ? `"${shopifyProduct.body_html?.replace(/"/g, '""') || ''}"` : '',
+        isFirstVariant ? shopifyProduct.vendor : '',
+        isFirstVariant ? shopifyProduct.product_type : '',
+        isFirstVariant ? shopifyProduct.tags : '',
+        isFirstVariant ? 'FALSE' : '',
+        isFirstVariant && shopifyProduct.options[0] ? shopifyProduct.options[0].name : '',
+        variant.option1 || '',
+        isFirstVariant && shopifyProduct.options[1] ? shopifyProduct.options[1].name : '',
+        variant.option2 || '',
+        variant.sku,
+        variant.weight?.toString() || '100',
+        variant.inventory_management || 'shopify',
+        variant.inventory_quantity?.toString() || '0',
+        'deny',
+        variant.price,
+        isFirstVariant ? imageUrl : '',
+        isFirstVariant ? shopifyProduct.images[0]?.alt : ''
+      ];
+
+      csvContent += row.join(',') + '\n';
+    });
+
+    return csvContent;
+  }
+
+  /**
+   * Test Shopify connection
+   */
+  async testConnection(): Promise<{ success: boolean; error?: string }> {
+    try {
+      const response = await axios.get(`${this.baseUrl}shop.json`, {
+        headers: this.getHeaders()
+      });
+
+      if (response.status === 200) {
+        console.log(`✅ Shopify connection successful: ${response.data.shop.name}`);
+        return { success: true };
+      }
+
+      return { success: false, error: `Unexpected status: ${response.status}` };
+    } catch (error: any) {
+      console.error('❌ Shopify connection failed:', error.message);
+      return { 
+        success: false, 
+        error: error.response?.data?.errors || error.message 
+      };
     }
   }
 }

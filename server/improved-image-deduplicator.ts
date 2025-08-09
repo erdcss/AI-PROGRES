@@ -236,11 +236,10 @@ export function extractEnhancedVariants($: cheerio.CheerioAPI, htmlContent: stri
   size: string;
   inStock: boolean;
 }> {
-  console.log('🎯 Enhanced variant extraction starting...');
+  console.log('🚫 Enhanced variant extraction disabled - returning empty variants to avoid fake data');
   
-  const variants: Array<{color: string; colorCode: string; size: string; inStock: boolean}> = [];
-  const colors = new Set<string>();
-  const sizes = new Set<string>();
+  // Return empty array immediately to avoid generating fake variants
+  return [];
   
   // Method 1: Enhanced size extraction with Turkish size patterns
   const sizeSelectors = [

@@ -11,18 +11,22 @@ export interface ColorFilter {
 
 export class CosmeticColorFilter implements ColorFilter {
   private readonly mainColorPatterns = [
-    // L'Oreal Glotion specific main shades (exact matches)
+    // L'Oreal Glotion specific main shades (all variants)
     /^(901|902|903|904|905)\s*-?\s*(fair|medium|deep|light)?\s*glow$/i,
     /^light-glow$/i,
+    /^(fair|medium|deep)-glow$/i,
+    
+    // L'Oreal specific patterns with different formatting
+    /^901\s*-\s*Fair\s*Glow$/i,
+    /^902\s*-\s*Light\s*Glow$/i,
+    /^903\s*-\s*Medium\s*Glow$/i,
+    /^904\s*-\s*Deep\s*Glow$/i,
     
     // Main Trendyol color names (limited list)
-    /^(bej|beyaz|siyah|mavi|kırmızı|yeşil)$/i,
+    /^(bej|beyaz|siyah)$/i,
     
     // Common English color names (limited list)  
-    /^(beige|white|black|blue|red|green)$/i,
-    
-    // Hex colors (but exclude green hex codes which are noise)
-    /^#(?!0[48][9AB])[0-9A-Fa-f]{6}$/,
+    /^(beige|white|black)$/i,
     
     // Very specific cosmetic color patterns
     /^(fair|medium|deep|light)$/i
@@ -38,10 +42,9 @@ export class CosmeticColorFilter implements ColorFilter {
     /^(null|undefined)$/i,
     // Exclude very long strings (likely not color names)
     /.{20,}/,
-    // Exclude obvious non-colors
-    /^(orange|turuncu|gray|grey|gri)$/i, // These create too much noise
-    /^light$/i, // Too generic
-    /^(light-gray)$/i // Secondary colors that are noise
+    // Exclude obvious non-colors (be more selective)
+    /^(gray|grey|gri)$/i, // Generic grays
+    /^light$/i // Too generic
   ];
 
   isValidColor(color: string): boolean {
@@ -79,7 +82,19 @@ export class CosmeticColorFilter implements ColorFilter {
     // Filter valid colors
     const validColors = colors.filter(color => this.isValidColor(color));
     
-    // Remove duplicates and similar colors
+    // For L'Oreal products, specifically look for the 4 main glow variants
+    const lOrealMainVariants = validColors.filter(color => 
+      /^(901|902|903|904)\s*-?\s*(fair|medium|deep|light)?\s*glow$/i.test(color) ||
+      /^light-glow$/i.test(color)
+    );
+
+    // If we found L'Oreal main variants, prioritize them
+    if (lOrealMainVariants.length >= 2) {
+      console.log(`🎨 Found ${lOrealMainVariants.length} L'Oreal main variants:`, lOrealMainVariants);
+      return lOrealMainVariants.slice(0, 4); // Return up to 4 main variants
+    }
+    
+    // Otherwise, use regular filtering
     const uniqueColors = new Map<string, string>();
     
     validColors.forEach(color => {

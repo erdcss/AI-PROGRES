@@ -151,10 +151,11 @@ export async function scenarioBasedScrape(url: string): Promise<ScenarioBasedRes
       }
     }
     
-    // If still no variants found, try enhanced extraction methods
+    // AUTHENTIC ONLY: Do not generate fake/enhanced variants
     if (variants.length === 0) {
-      console.log('🔄 No variants from direct extraction, trying enhanced methods...');
-      variants = extractEnhancedVariants($, htmlContent);
+      console.log('🔄 No authentic variants found from direct extraction');
+      console.log('🚫 Not generating fake/enhanced variants - using authentic data only');
+      variants = []; // Return empty variants instead of generating fake ones
     }
     
     // Step 6: Generate advanced tags based on all extracted data
@@ -769,43 +770,50 @@ async function extractVariantsDirect($: cheerio.CheerioAPI, htmlContent: string)
   console.log(`🎨 Main colors: [${filteredColors.join(', ')}]`);
   console.log(`👕 Final sizes: [${allSizes.join(', ')}]`);
   
-  // Build variants
+  // Build variants with stock check
   if (filteredColors.length > 0 && allSizes.length > 0) {
     // Multi-variant product
     filteredColors.forEach(color => {
       allSizes.forEach(size => {
+        const inStock = checkVariantStock($, htmlContent, color, size);
         variants.push({
           color: color,
           colorCode: getColorCode(color),
           size: size,
-          inStock: true
+          inStock: inStock
         });
       });
     });
   } else if (filteredColors.length > 0) {
     // Color variants only
     filteredColors.forEach(color => {
+      const inStock = checkVariantStock($, htmlContent, color, 'Standart');
       variants.push({
         color: color,
         colorCode: getColorCode(color),
         size: 'Standart',
-        inStock: true
+        inStock: inStock
       });
     });
   } else if (allSizes.length > 0) {
     // Size variants only
     allSizes.forEach(size => {
+      const inStock = checkVariantStock($, htmlContent, 'Varsayılan', size);
       variants.push({
         color: 'Varsayılan',
         colorCode: '#CCCCCC',
         size: size,
-        inStock: true
+        inStock: inStock
       });
     });
   }
   
-  console.log(`✅ Direct extraction generated ${variants.length} variants from ${filteredColors.length} main colors`);
-  return variants;
+  // Filter out out-of-stock variants
+  const inStockVariants = variants.filter(v => v.inStock);
+  console.log(`📦 Stock check: ${variants.length} total variants, ${inStockVariants.length} in stock`);
+  
+  console.log(`✅ Direct extraction generated ${inStockVariants.length} in-stock variants from ${filteredColors.length} main colors`);
+  return inStockVariants;
 }
 
 /**
@@ -1399,6 +1407,58 @@ function extractSizesFromJS($: any, htmlContent: string): string[] {
   });
   
   return Array.from(new Set(sizes)); // Remove duplicates
+}
+
+/**
+ * Check if a variant is in stock
+ */
+function checkVariantStock($: cheerio.CheerioAPI, htmlContent: string, color: string, size: string): boolean {
+  // Check for out-of-stock indicators in HTML
+  const outOfStockPatterns = [
+    /stokta\s*yok/i,
+    /out\s*of\s*stock/i,
+    /tükendi/i,
+    /sold\s*out/i,
+    /stock.*0/i,
+    /quantity.*0/i
+  ];
+
+  // Check variant-specific stock
+  const colorKey = color.toLowerCase().replace(/[^a-z0-9]/g, '');
+  const sizeKey = size.toLowerCase().replace(/[^a-z0-9]/g, '');
+  
+  // Look for specific variant stock information
+  const variantStockRegex = new RegExp(`(${colorKey}|${sizeKey}).*?(stok|stock|quantity).*?["\']?:.*?([0-9]+)`, 'gi');
+  let match;
+  while ((match = variantStockRegex.exec(htmlContent)) !== null) {
+    const stockAmount = parseInt(match[3]);
+    if (stockAmount === 0) {
+      console.log(`📦 Found zero stock for ${color} ${size}: ${match[0]}`);
+      return false;
+    }
+  }
+
+  // Check for disabled variant buttons
+  $(`button[data-color*="${colorKey}"], button[title*="${color}"]`).each((_, el) => {
+    const $el = $(el);
+    if ($el.is('[disabled]') || $el.hasClass('disabled') || $el.hasClass('out-of-stock')) {
+      console.log(`📦 Found disabled variant button for ${color}`);
+      return false;
+    }
+  });
+
+  // Check general stock indicators
+  const stockText = $.text().toLowerCase();
+  for (const pattern of outOfStockPatterns) {
+    if (pattern.test(stockText)) {
+      console.log(`📦 Found general out-of-stock indicator: ${pattern}`);
+      return false;
+    }
+  }
+
+  // If no out-of-stock indicators found, assume in stock
+  console.log(`📦 Variant ${color} ${size} appears to be in stock`);
+  return true;
 }
 
 /**

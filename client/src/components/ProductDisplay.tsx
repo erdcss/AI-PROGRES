@@ -212,14 +212,14 @@ export function ProductDisplay({ data }: ProductDisplayProps) {
               </h3>
 
               <div className="space-y-4">
-                {/* Enhanced Colors */}
+                {/* Compact Colors */}
                 {data.variants?.colors && data.variants.colors.length > 0 && (
                   <div>
-                    <div className="flex items-center gap-2 mb-3">
-                      <Palette className="w-4 h-4 text-white" />
-                      <span className="text-white font-medium">Renk Seçenekleri ({data.variants.colors.length})</span>
+                    <div className="flex items-center gap-2 mb-2">
+                      <Palette className="w-3 h-3 text-white/80" />
+                      <span className="text-white text-xs font-medium">Renk Seçenekleri ({data.variants.colors.length})</span>
                     </div>
-                    <div className="space-y-2">
+                    <div className="grid grid-cols-2 gap-1">
                       {data.variants.colors.map((color, index) => {
                         // Enhanced Turkish and cosmetic color name mapping
                         const colorMap: Record<string, { name: string; bg: string; emoji: string }> = {
@@ -268,18 +268,12 @@ export function ProductDisplay({ data }: ProductDisplayProps) {
                         return (
                           <div 
                             key={index} 
-                            className={`rounded-lg px-3 py-2 border-2 text-sm font-medium ${colorInfo.bg}`}
+                            className={`rounded-md px-2 py-1 border text-xs font-medium ${colorInfo.bg}`}
                             style={colorInfo.hexCode ? { backgroundColor: colorInfo.hexCode } : {}}
                           >
-                            <div className="flex items-center gap-2">
-                              <span>{colorInfo.emoji}</span>
-                              <span>{colorInfo.name}</span>
-                              {colorInfo.hexCode && (
-                                <span 
-                                  className="inline-block w-4 h-4 rounded-full border border-white/30"
-                                  style={{ backgroundColor: colorInfo.hexCode }}
-                                />
-                              )}
+                            <div className="flex items-center gap-1">
+                              <span className="text-xs">{colorInfo.emoji}</span>
+                              <span className="truncate text-xs">{colorInfo.name}</span>
                             </div>
                           </div>
                         );
