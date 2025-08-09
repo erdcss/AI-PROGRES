@@ -169,6 +169,11 @@ export async function scenarioBasedScrape(url: string): Promise<ScenarioBasedRes
     const advancedTags = generateAdvancedTags(title, brand, features, url);
     
     console.log(`✅ Scenario-based extraction completed: ${variants.length} variants, ${images.length} images, ${features.length} features, ${advancedTags.length} tags`);
+    console.log(`🎨 Colors extracted: [${[...new Set(variants.map(v => v.color).filter(c => c && c.trim() !== ''))].join(', ')}]`);
+    
+    // Create proper variants structure for frontend
+    const colors = [...new Set(variants.map(v => v.color).filter(c => c && c.trim() !== ''))];
+    const sizes = [...new Set(variants.map(v => v.size).filter(s => s && s.trim() !== '' && !['1', 'Standart', 'Varsayılan'].includes(s)))];
     
     return {
       success: true,
@@ -179,7 +184,11 @@ export async function scenarioBasedScrape(url: string): Promise<ScenarioBasedRes
       price,
       images,
       features,
-      variants,
+      variants: {
+        colors: colors,
+        sizes: sizes,
+        allVariants: variants
+      },
       tags: advancedTags, // Added advanced tags
       extractionDetails: {
         scenario: detection.scenario,
@@ -207,7 +216,11 @@ export async function scenarioBasedScrape(url: string): Promise<ScenarioBasedRes
       },
       images: [],
       features: [{ key: 'Error', value: 'Extraction failed' }],
-      variants: [],
+      variants: {
+        colors: [],
+        sizes: [],
+        allVariants: []
+      },
       tags: [], // Add missing tags property
       extractionDetails: {
         scenario: 'error',
@@ -590,18 +603,117 @@ function optimizeImageUrl(src: string): string {
 function extractFeatures($: any): Array<{key: string, value: string}> {
   const features: Array<{key: string, value: string}> = [];
   
-  // Try to extract features from various selectors
-  $('.product-feature, .feature-item, .specification').each((i: number, el: any) => {
-    const key = $(el).find('.feature-key, .spec-key').text().trim();
-    const value = $(el).find('.feature-value, .spec-value').text().trim();
-    
-    if (key && value) {
-      features.push({ key, value });
+  // Enhanced feature selectors for Trendyol and other Turkish e-commerce sites
+  const featureSelectors = [
+    '.product-feature-list li',
+    '.product-features li',
+    '.product-specs dt, .product-specs dd',
+    '.specification-item',
+    '.product-details li',
+    '.features li',
+    '.attributes li',
+    // New Trendyol specific selectors
+    '.product-attributes .attribute-item',
+    '.product-info-item',
+    '.product-detail-attributes li',
+    '.product-specification-item',
+    '[data-testid*="feature"] span',
+    '[data-testid*="attribute"] span',
+    '.slicing-attributes .slicing-attribute-section',
+    '.variant-attribute',
+    '.product-property',
+    // Table-based specifications
+    '.specifications table tr',
+    '.product-table tr',
+    '.spec-table tr'
+  ];
+  
+  featureSelectors.forEach(selector => {
+    $(selector).each((i: number, el: any) => {
+      const $el = $(el);
+      let key = '';
+      let value = '';
+      
+      // Handle different HTML structures
+      if (selector.includes('tr')) {
+        // Table row - try to get key from first cell, value from second
+        const cells = $el.find('td');
+        if (cells.length >= 2) {
+          key = $(cells[0]).text().trim();
+          value = $(cells[1]).text().trim();
+        }
+      } else if (selector.includes('slicing-attribute-section')) {
+        // Trendyol slicing attributes
+        const header = $el.find('.slicing-attribute-section-header').text().trim();
+        const valueEl = $el.find('.slicing-attribute-section-value');
+        if (header && valueEl.length) {
+          key = header;
+          value = valueEl.text().trim();
+        }
+      } else {
+        const text = $el.text().trim();
+        if (text && text.length > 2 && text.length < 200) {
+          // Try to split key:value pairs
+          if (text.includes(':')) {
+            const colonIndex = text.indexOf(':');
+            key = text.substring(0, colonIndex).trim();
+            value = text.substring(colonIndex + 1).trim();
+          } else if (text.includes('=')) {
+            const equalIndex = text.indexOf('=');
+            key = text.substring(0, equalIndex).trim();
+            value = text.substring(equalIndex + 1).trim();
+          } else {
+            key = 'Özellik';
+            value = text;
+          }
+        }
+      }
+      
+      // Add feature if both key and value are meaningful
+      if (key && value && key.length > 0 && value.length > 0 && 
+          key.length < 50 && value.length < 200) {
+        features.push({ key: key, value: value });
+      }
+    });
+  });
+  
+  // Try to extract from JSON-LD structured data
+  $('script[type="application/ld+json"]').each((_, script) => {
+    try {
+      const jsonData = JSON.parse($(script).html() || '{}');
+      
+      // Look for product properties
+      if (jsonData.additionalProperty && Array.isArray(jsonData.additionalProperty)) {
+        jsonData.additionalProperty.forEach((prop: any) => {
+          if (prop.name && prop.value) {
+            features.push({ key: prop.name, value: prop.value.toString() });
+          }
+        });
+      }
+      
+      // Look for brand, model, category info
+      if (jsonData.brand && typeof jsonData.brand === 'string') {
+        features.push({ key: 'Marka', value: jsonData.brand });
+      }
+      if (jsonData.model && typeof jsonData.model === 'string') {
+        features.push({ key: 'Model', value: jsonData.model });
+      }
+      if (jsonData.category && typeof jsonData.category === 'string') {
+        features.push({ key: 'Kategori', value: jsonData.category });
+      }
+      
+    } catch (e) {
+      // Continue silently
     }
   });
   
-  console.log(`✅ Features extracted: ${features.length}`);
-  return features;
+  // Deduplicate features
+  const uniqueFeatures = features.filter((feature, index, self) => 
+    index === self.findIndex(f => f.key === feature.key && f.value === feature.value)
+  );
+  
+  console.log(`🔧 Features extracted: ${uniqueFeatures.length} (${features.length} total, ${features.length - uniqueFeatures.length} duplicates removed)`);
+  return uniqueFeatures;
 }
 
 /**

@@ -240,12 +240,13 @@ export function ProductDisplay({ data }: ProductDisplayProps) {
                           'KAHVERENGI': { name: 'Kahverengi', bg: 'bg-amber-800 text-white border-amber-700', emoji: '🟤' },
                           'PEMBE': { name: 'Pembe', bg: 'bg-pink-400 text-white border-pink-300', emoji: '🩷' },
                           'MOR': { name: 'Mor', bg: 'bg-purple-500 text-white border-purple-400', emoji: '🟣' },
-                          // L'Oreal specific shades
-                          '901-FAIR-GLOW': { name: '901 - Açık Ten', bg: 'bg-amber-50 text-amber-900 border-amber-200', emoji: '✨' },
-                          '903-MEDIUM-GLOW': { name: '903 - Orta Ten', bg: 'bg-amber-200 text-amber-900 border-amber-300', emoji: '✨' },
-                          '904 - DEEP GLOW': { name: '904 - Koyu Ten', bg: 'bg-amber-600 text-white border-amber-500', emoji: '✨' },
-                          'LIGHT-GLOW': { name: 'Işıltılı Açık', bg: 'bg-yellow-100 text-yellow-900 border-yellow-300', emoji: '💫' },
-                          'LIGHT': { name: 'Açık', bg: 'bg-gray-100 text-gray-900 border-gray-300', emoji: '💡' }
+                          // L'Oreal specific shades - more muted colors
+                          '901-FAIR-GLOW': { name: '901 - Açık Ten', bg: 'bg-slate-200 text-slate-800 border-slate-400', emoji: '✨' },
+                          '903-MEDIUM-GLOW': { name: '903 - Orta Ten', bg: 'bg-slate-400 text-slate-100 border-slate-500', emoji: '✨' },
+                          '904-DEEP-GLOW': { name: '904 - Koyu Ten', bg: 'bg-slate-700 text-slate-100 border-slate-600', emoji: '✨' },
+                          'BEJ': { name: 'Bej', bg: 'bg-slate-300 text-slate-800 border-slate-400', emoji: '🟨' },
+                          'LIGHT-GLOW': { name: 'Işıltılı Açık', bg: 'bg-slate-200 text-slate-800 border-slate-400', emoji: '💫' },
+                          'LIGHT': { name: 'Açık', bg: 'bg-slate-300 text-slate-800 border-slate-400', emoji: '💡' }
                         };
                         
                         // Handle hex colors and special patterns
