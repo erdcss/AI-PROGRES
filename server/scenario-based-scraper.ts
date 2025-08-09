@@ -8,6 +8,7 @@ import * as cheerio from 'cheerio';
 import { ScenarioManager, ExtractionScenario } from './scenario-manager';
 import { ScenarioExtractors } from './scenario-extractors';
 import { ImageDeduplicator, extractEnhancedFeatures, extractEnhancedVariants } from './improved-image-deduplicator';
+import { colorFilter } from './color-filter';
 
 export interface ScenarioBasedResult {
   success: boolean;
@@ -756,17 +757,22 @@ async function extractVariantsDirect($: cheerio.CheerioAPI, htmlContent: string)
   const jsonExtractedSizes = extractSizesFromJS($, htmlContent);
   
   // Combine all found colors and sizes
-  const allColors = Array.from(new Set([...colors, ...jsonExtractedColors]));
+  const allRawColors = Array.from(new Set([...colors, ...jsonExtractedColors]));
   const allSizes = Array.from(new Set([...sizes, ...jsonExtractedSizes]));
   
-  console.log(`🎨 Direct extraction - Colors: ${allColors.length}, Sizes: ${allSizes.length}`);
-  console.log(`🎨 Final colors: [${allColors.join(', ')}]`);
+  console.log(`🔍 Raw colors detected: ${allRawColors.length} [${allRawColors.join(', ')}]`);
+  
+  // Apply enhanced color filtering for cosmetic products
+  const filteredColors = colorFilter.filterMainColors(allRawColors);
+  
+  console.log(`🎨 Direct extraction - Colors: ${filteredColors.length} (filtered from ${allRawColors.length}), Sizes: ${allSizes.length}`);
+  console.log(`🎨 Main colors: [${filteredColors.join(', ')}]`);
   console.log(`👕 Final sizes: [${allSizes.join(', ')}]`);
   
   // Build variants
-  if (allColors.length > 0 && allSizes.length > 0) {
+  if (filteredColors.length > 0 && allSizes.length > 0) {
     // Multi-variant product
-    allColors.forEach(color => {
+    filteredColors.forEach(color => {
       allSizes.forEach(size => {
         variants.push({
           color: color,
@@ -776,9 +782,9 @@ async function extractVariantsDirect($: cheerio.CheerioAPI, htmlContent: string)
         });
       });
     });
-  } else if (allColors.length > 0) {
+  } else if (filteredColors.length > 0) {
     // Color variants only
-    allColors.forEach(color => {
+    filteredColors.forEach(color => {
       variants.push({
         color: color,
         colorCode: getColorCode(color),
@@ -798,7 +804,7 @@ async function extractVariantsDirect($: cheerio.CheerioAPI, htmlContent: string)
     });
   }
   
-  console.log(`✅ Direct extraction generated ${variants.length} variants`);
+  console.log(`✅ Direct extraction generated ${variants.length} variants from ${filteredColors.length} main colors`);
   return variants;
 }
 
