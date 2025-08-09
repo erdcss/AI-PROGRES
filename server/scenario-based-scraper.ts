@@ -120,16 +120,40 @@ export async function scenarioBasedScrape(url: string): Promise<ScenarioBasedRes
     // Step 5: Build final variants array with enhanced extraction
     let variants = buildVariantsArray(variantResult, detection.scenario);
     
-    // If no variants found, try enhanced extraction methods
-    if (variants.length === 0) {
-      console.log('🔄 No variants from scenario extraction, trying enhanced methods...');
-      variants = extractEnhancedVariants($, htmlContent);
+    // Always try direct DOM extraction to get more color variants
+    console.log('🔄 Trying direct DOM extraction for additional variants...');
+    const directVariants = await extractVariantsDirect($, htmlContent);
+    
+    // Merge direct extraction results if they provide more colors/sizes
+    if (directVariants.length > variants.length) {
+      console.log(`🔄 Direct extraction found more variants: ${directVariants.length} vs ${variants.length}`);
+      variants = directVariants;
+    } else if (directVariants.length > 0 && variants.length > 0) {
+      // Combine unique colors and sizes from both approaches
+      const allColors = new Set([...variants.map(v => v.color), ...directVariants.map(v => v.color)]);
+      const allSizes = new Set([...variants.map(v => v.size), ...directVariants.map(v => v.size)]);
+      
+      if (allColors.size > variants.map(v => v.color).filter((v, i, arr) => arr.indexOf(v) === i).length) {
+        console.log(`🔄 Merging color variants: found ${allColors.size} unique colors`);
+        const mergedVariants: any[] = [];
+        Array.from(allColors).forEach(color => {
+          Array.from(allSizes).forEach(size => {
+            mergedVariants.push({
+              color,
+              colorCode: getColorCode(color),
+              size,
+              inStock: true
+            });
+          });
+        });
+        variants = mergedVariants;
+      }
     }
     
-    // Additional fallback: Try direct DOM extraction
+    // If still no variants found, try enhanced extraction methods
     if (variants.length === 0) {
-      console.log('🔄 No variants from enhanced extraction, trying direct DOM extraction...');
-      variants = await extractVariantsDirect($, htmlContent);
+      console.log('🔄 No variants from direct extraction, trying enhanced methods...');
+      variants = extractEnhancedVariants($, htmlContent);
     }
     
     // Step 6: Generate advanced tags based on all extracted data
@@ -1184,8 +1208,69 @@ function extractColorsFromJS($: any, htmlContent: string): string[] {
         });
       }
       
+      // Check for product variants in nested structures
+      if (jsonData['@graph'] && Array.isArray(jsonData['@graph'])) {
+        jsonData['@graph'].forEach((item: any) => {
+          if (item.color) {
+            colors.push(item.color);
+            console.log(`🎨 Found color in JSON-LD graph: ${item.color}`);
+          }
+          if (item.hasVariant && Array.isArray(item.hasVariant)) {
+            item.hasVariant.forEach((variant: any) => {
+              if (variant.color) {
+                colors.push(variant.color);
+                console.log(`🎨 Found color in JSON-LD graph variant: ${variant.color}`);
+              }
+            });
+          }
+        });
+      }
+      
     } catch (e) {
       // Continue silently
+    }
+  });
+  
+  // Method 3: Extract from HTML content patterns (enhanced for Trendyol)
+  console.log(`🔍 Searching for colors in HTML content...`);
+  
+  const htmlColorPatterns = [
+    /"color":\s*"([^"]+)"/gi,
+    /"renk":\s*"([^"]+)"/gi,
+    /color['"]\s*:\s*['"]([\w\s\-ğüşöçıİÇÖÜŞĞ]+)['"]/gi,
+    /renk['"]\s*:\s*['"]([\w\s\-ğüşöçıİÇÖÜŞĞ]+)['"]/gi,
+    /"name":\s*"Renk",\s*"value":\s*"([^"]+)"/gi,
+    /"color":\s*"([a-zA-ZğüşöçıİÇÖÜŞĞ]+)-[A-Z0-9]+"/gi,
+    /"renk":\s*"([a-zA-ZğüşöçıİÇÖÜŞĞ]+)-[A-Z0-9]+"/gi
+  ];
+  
+  htmlColorPatterns.forEach((pattern, index) => {
+    let match;
+    let patternMatches = 0;
+    // Reset regex lastIndex
+    pattern.lastIndex = 0;
+    
+    while ((match = pattern.exec(htmlContent)) !== null) {
+      patternMatches++;
+      const colorName = match[1].trim();
+      console.log(`🔍 Pattern ${index + 1} found potential color: "${colorName}"`);
+      
+      // Filter for valid color names
+      if (colorName && colorName.length > 1 && colorName.length < 50) {
+        // Remove color codes like -BG106
+        const cleanColor = colorName.replace(/-[A-Z0-9]+$/, '');
+        if (cleanColor && cleanColor !== colorName) {
+          colors.push(cleanColor);
+          console.log(`🎨 Found color in HTML pattern ${index + 1}: ${cleanColor} (from: ${colorName})`);
+        } else {
+          colors.push(colorName);
+          console.log(`🎨 Found color in HTML pattern ${index + 1}: ${colorName}`);
+        }
+      }
+    }
+    
+    if (patternMatches > 0) {
+      console.log(`🔍 Pattern ${index + 1} found ${patternMatches} matches total`);
     }
   });
   
@@ -1258,8 +1343,52 @@ function extractSizesFromJS($: any, htmlContent: string): string[] {
         });
       }
       
+      // Check for product variants in nested structures
+      if (jsonData['@graph'] && Array.isArray(jsonData['@graph'])) {
+        jsonData['@graph'].forEach((item: any) => {
+          if (item.size || item.Size) {
+            const size = item.size || item.Size;
+            sizes.push(size);
+            console.log(`👕 Found size in JSON-LD graph: ${size}`);
+          }
+          if (item.hasVariant && Array.isArray(item.hasVariant)) {
+            item.hasVariant.forEach((variant: any) => {
+              if (variant.size || variant.Size) {
+                const size = variant.size || variant.Size;
+                sizes.push(size);
+                console.log(`👕 Found size in JSON-LD graph variant: ${size}`);
+              }
+            });
+          }
+        });
+      }
+      
     } catch (e) {
       // Continue silently
+    }
+  });
+  
+  // Method 3: Extract from HTML content patterns (enhanced for Trendyol)
+  const htmlSizePatterns = [
+    /"size":\s*"([^"]+)"/gi,
+    /"beden":\s*"([^"]+)"/gi,
+    /size['"]\s*:\s*['"]([\w\s\-]+)['"]/gi,
+    /beden['"]\s*:\s*['"]([\w\s\-]+)['"]/gi,
+    /"name":\s*"Beden",\s*"value":\s*"([^"]+)"/gi
+  ];
+  
+  htmlSizePatterns.forEach(pattern => {
+    let match;
+    while ((match = pattern.exec(htmlContent)) !== null) {
+      const sizeName = match[1].trim();
+      // Filter for valid size names
+      if (sizeName && sizeName.length > 0 && sizeName.length < 10) {
+        const sizePattern = /^(XXS|XS|S|M|L|XL|XXL|XXXL|\d+(\.\d+)?|Tek\s*Beden|One\s*Size)$/i;
+        if (sizePattern.test(sizeName)) {
+          sizes.push(sizeName);
+          console.log(`👕 Found size in HTML pattern: ${sizeName}`);
+        }
+      }
     }
   });
   
