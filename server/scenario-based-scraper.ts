@@ -842,10 +842,17 @@ async function extractVariantsDirect($: cheerio.CheerioAPI, htmlContent: string)
   // AUTHENTIC VARIANT POLICY: Show all detected variants regardless of stock
   // Users want to see genuine color options even if out of stock
   console.log(`📦 Stock check: ${variants.length} total variants, ${variants.filter(v => v.inStock).length} in stock`);
-  console.log(`✅ Direct extraction generated ${variants.length} authentic variants from ${filteredColors.length} main colors`);
   
-  // Return all authentic variants (both in-stock and out-of-stock)
-  return variants;
+  // Remove duplicates based on color+size combination
+  const uniqueVariants = variants.filter((variant, index, arr) => {
+    const variantKey = `${variant.color}-${variant.size}`;
+    return arr.findIndex(v => `${v.color}-${v.size}` === variantKey) === index;
+  });
+  
+  console.log(`✅ Direct extraction generated ${uniqueVariants.length} authentic variants from ${filteredColors.length} main colors`);
+  
+  // Return all unique authentic variants (both in-stock and out-of-stock)
+  return uniqueVariants;
 }
 
 /**
