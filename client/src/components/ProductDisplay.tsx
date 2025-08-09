@@ -221,59 +221,41 @@ export function ProductDisplay({ data }: ProductDisplayProps) {
                     </div>
                     <div className="grid grid-cols-2 gap-1">
                       {data.variants.colors.map((color, index) => {
-                        // Enhanced Turkish and cosmetic color name mapping
-                        const colorMap: Record<string, { name: string; bg: string; emoji: string }> = {
-                          'BEYAZ': { name: 'Beyaz', bg: 'bg-white/90 text-black border-gray-300', emoji: '⚪' },
-                          'SIYAH': { name: 'Siyah', bg: 'bg-black text-white border-gray-600', emoji: '⚫' },
-                          'GRI': { name: 'Gri', bg: 'bg-gray-500 text-white border-gray-400', emoji: '🔘' },
-                          'GRİ': { name: 'Gri', bg: 'bg-gray-500 text-white border-gray-400', emoji: '🔘' },
-                          'LIGHT-GRAY': { name: 'Açık Gri', bg: 'bg-gray-300 text-black border-gray-400', emoji: '⬜' },
-                          'LACIVERT': { name: 'Lacivert', bg: 'bg-blue-900 text-white border-blue-700', emoji: '🔵' },
-                          'LACİVERT': { name: 'Lacivert', bg: 'bg-blue-900 text-white border-blue-700', emoji: '🔵' },
-                          'KIRMIZI': { name: 'Kırmızı', bg: 'bg-red-500 text-white border-red-400', emoji: '🔴' },
-                          'MAVI': { name: 'Mavi', bg: 'bg-blue-500 text-white border-blue-400', emoji: '🔵' },
-                          'TURUNCU': { name: 'Turuncu', bg: 'bg-orange-500 text-white border-orange-400', emoji: '🟠' },
-                          'ORANGE': { name: 'Turuncu', bg: 'bg-orange-500 text-white border-orange-400', emoji: '🟠' },
-                          'BEJ': { name: 'Bej', bg: 'bg-amber-100 text-amber-900 border-amber-300', emoji: '🟨' },
-                          'YEŞIL': { name: 'Yeşil', bg: 'bg-green-500 text-white border-green-400', emoji: '🟢' },
-                          'SARI': { name: 'Sarı', bg: 'bg-yellow-500 text-black border-yellow-400', emoji: '🟡' },
-                          'KAHVERENGI': { name: 'Kahverengi', bg: 'bg-amber-800 text-white border-amber-700', emoji: '🟤' },
-                          'PEMBE': { name: 'Pembe', bg: 'bg-pink-400 text-white border-pink-300', emoji: '🩷' },
-                          'MOR': { name: 'Mor', bg: 'bg-purple-500 text-white border-purple-400', emoji: '🟣' },
-                          // L'Oreal specific shades - more muted colors
-                          '901-FAIR-GLOW': { name: '901 - Açık Ten', bg: 'bg-slate-200 text-slate-800 border-slate-400', emoji: '✨' },
-                          '903-MEDIUM-GLOW': { name: '903 - Orta Ten', bg: 'bg-slate-400 text-slate-100 border-slate-500', emoji: '✨' },
-                          '904-DEEP-GLOW': { name: '904 - Koyu Ten', bg: 'bg-slate-700 text-slate-100 border-slate-600', emoji: '✨' },
-                          'LIGHT-GLOW': { name: 'Işıltılı Açık', bg: 'bg-slate-200 text-slate-800 border-slate-400', emoji: '💫' },
-                          'LIGHT': { name: 'Açık', bg: 'bg-slate-300 text-slate-800 border-slate-400', emoji: '💡' }
+                        // Normalize color names for display
+                        const normalizeColorName = (colorName: string): string => {
+                          // Handle special cosmetic colors
+                          const cosmticMap: Record<string, string> = {
+                            'şeffaf': 'Şeffaf',
+                            'seffaf': 'Şeffaf', 
+                            'transparent': 'Şeffaf',
+                            'clear': 'Şeffaf',
+                            'taupe': 'Taupe',
+                            'medium brown': 'Orta Kahve',
+                            'medium-brown': 'Orta Kahve',
+                            'deep brown': 'Koyu Kahve',
+                            'deep-brown': 'Koyu Kahve',
+                            'kahverengi': 'Kahverengi',
+                            'koyu kahverengi': 'Koyu Kahve',
+                            '901-fair-glow': 'Açık Ten (901)',
+                            '903-medium-glow': 'Orta Ten (903)', 
+                            '904-deep-glow': 'Koyu Ten (904)',
+                            'light-glow': 'Işıltılı Açık',
+                            'bej': 'Bej'
+                          };
+                          
+                          const normalizedKey = colorName.toLowerCase().trim();
+                          return cosmticMap[normalizedKey] || colorName.charAt(0).toUpperCase() + colorName.slice(1).toLowerCase();
                         };
                         
-                        // Handle hex colors and special patterns
-                        let colorInfo: { name: string; bg: string; emoji: string; hexCode?: string };
-                        if (color.startsWith('#')) {
-                          colorInfo = { 
-                            name: `Renk Kodu: ${color}`, 
-                            bg: `text-white border-gray-400`,
-                            emoji: '🎨',
-                            hexCode: color
-                          };
-                        } else {
-                          colorInfo = colorMap[color.toUpperCase()] || { 
-                            name: color.replace(/-/g, ' ').replace(/([a-z])([A-Z])/g, '$1 $2'), 
-                            bg: 'bg-gray-600 text-white border-gray-500', 
-                            emoji: '🎨' 
-                          };
-                        }
+                        const displayName = normalizeColorName(color);
                         
                         return (
                           <div 
                             key={index} 
-                            className={`rounded-md px-2 py-1 border text-xs font-medium ${colorInfo.bg}`}
-                            style={colorInfo.hexCode ? { backgroundColor: colorInfo.hexCode } : {}}
+                            className="bg-slate-700/50 hover:bg-slate-600/50 rounded-lg px-3 py-2 border border-slate-600/30"
                           >
-                            <div className="flex items-center gap-1">
-                              <span className="text-xs">{colorInfo.emoji}</span>
-                              <span className="truncate text-xs">{colorInfo.name}</span>
+                            <div className="text-center">
+                              <div className="text-white text-sm font-medium truncate">{displayName}</div>
                             </div>
                           </div>
                         );
@@ -282,57 +264,44 @@ export function ProductDisplay({ data }: ProductDisplayProps) {
                   </div>
                 )}
 
-                {/* Enhanced Sizes - Only show if real sizes exist */}
+                {/* Sizes - Only show if real sizes exist */}
                 {data.variants?.sizes && data.variants.sizes.length > 0 && 
                  data.variants.sizes.some(size => size && size.trim() !== '' && 
                    !['Varsayılan', 'Standart', 'Default', '1'].includes(size)) && (
                   <div>
-                    <div className="flex items-center gap-2 mb-3">
-                      <Shirt className="w-4 h-4 text-white" />
-                      <span className="text-white font-medium">Beden Seçenekleri ({data.variants.sizes.filter(size => size && size.trim() !== '' && !['Varsayılan', 'Standart', 'Default', '1'].includes(size)).length})</span>
+                    <div className="flex items-center gap-2 mb-2">
+                      <Shirt className="w-3 h-3 text-white/80" />
+                      <span className="text-white text-xs font-medium">Beden Seçenekleri ({data.variants.sizes.filter(size => size && size.trim() !== '' && !['Varsayılan', 'Standart', 'Default', '1'].includes(size)).length})</span>
                     </div>
-                    <div className="grid grid-cols-2 gap-2">
+                    <div className="grid grid-cols-2 gap-1">
                       {data.variants.sizes
                         .filter(size => size && size.trim() !== '' && !['Varsayılan', 'Standart', 'Default', '1'].includes(size))
                         .map((size, index) => (
-                        <div key={index} className="bg-gradient-to-r from-green-500/20 to-emerald-500/20 rounded-lg px-3 py-2 border-2 border-green-400/30 text-center">
-                          <div className="text-green-200 font-bold text-sm">👕 {size}</div>
+                        <div key={index} className="bg-slate-700/50 hover:bg-slate-600/50 rounded-lg px-3 py-2 border border-slate-600/30 text-center">
+                          <div className="text-white text-sm font-medium">{size}</div>
                         </div>
                       ))}
                     </div>
                   </div>
                 )}
 
-                {/* Compact Variant List */}
+                {/* Variant Summary */}
                 {data.variants?.allVariants && data.variants.allVariants.length > 0 && (
                   <div>
-                    <span className="text-white font-medium mb-2 block">Tüm Kombinasyonlar</span>
-                    <div className="max-h-40 overflow-y-auto space-y-2">
-                      {(data.variants?.allVariants || []).slice(0, 8).map((variant, index) => (
-                        <div
-                          key={index}
-                          className="flex items-center justify-between bg-white/5 rounded-lg px-3 py-2"
-                        >
-                          <div className="text-sm text-white">
-                            {variant.color && variant.size && variant.color !== '' && variant.size !== '' && 
-                             !['Varsayılan', 'Standart', 'Default', '1'].includes(variant.color) &&
-                             !['Varsayılan', 'Standart', 'Default', '1'].includes(variant.size)
-                              ? `${variant.color} - ${variant.size}`
-                              : variant.color && variant.color !== '' && !['Varsayılan', 'Standart', 'Default', '1'].includes(variant.color)
-                                ? variant.color
-                                : variant.size && variant.size !== '' && !['Varsayılan', 'Standart', 'Default', '1'].includes(variant.size)
-                                  ? variant.size
-                                  : 'Tek Ürün'
-                            }
-                          </div>
-                          <div className="text-sm text-green-400 font-medium">
-                            {variant.price ? `${variant.price} TL` : formatPrice(data.price)}
-                          </div>
-                        </div>
-                      ))}
-                      {(data.variants?.allVariants?.length || 0) > 8 && (
-                        <div className="text-center text-white/60 text-sm py-2">
-                          +{(data.variants?.allVariants?.length || 0) - 8} daha fazla varyant
+                    <span className="text-white text-xs font-medium mb-2 block">Varyant Özeti</span>
+                    <div className="bg-slate-800/30 rounded-lg p-3 space-y-2">
+                      <div className="flex justify-between text-xs">
+                        <span className="text-white/70">Toplam Varyant:</span>
+                        <span className="text-white font-medium">{data.variants.allVariants.length}</span>
+                      </div>
+                      <div className="flex justify-between text-xs">
+                        <span className="text-white/70">Renk Seçeneği:</span>
+                        <span className="text-white font-medium">{data.variants.colors?.length || 0}</span>
+                      </div>
+                      {data.variants.sizes && data.variants.sizes.filter(s => s && !['Varsayılan', 'Standart', 'Default', '1'].includes(s)).length > 0 && (
+                        <div className="flex justify-between text-xs">
+                          <span className="text-white/70">Beden Seçeneği:</span>
+                          <span className="text-white font-medium">{data.variants.sizes.filter(s => s && !['Varsayılan', 'Standart', 'Default', '1'].includes(s)).length}</span>
                         </div>
                       )}
                     </div>
@@ -357,7 +326,8 @@ export function ProductDisplay({ data }: ProductDisplayProps) {
                 </Button>
 
                 {/* Product Summary */}
-                <div className="bg-white/5 rounded-lg p-4 space-y-2">
+                <div className="bg-slate-800/30 rounded-lg p-4 space-y-2">
+                  <h4 className="text-white font-medium text-sm mb-3">Ürün Özeti</h4>
                   <div className="flex justify-between text-sm">
                     <span className="text-white/70">Toplam Resim:</span>
                     <span className="text-white">{imageCount}</span>
@@ -367,12 +337,8 @@ export function ProductDisplay({ data }: ProductDisplayProps) {
                     <span className="text-white">{data.variants?.totalVariants || 0}</span>
                   </div>
                   <div className="flex justify-between text-sm">
-                    <span className="text-white/70">Renk Seçeneği:</span>
-                    <span className="text-white">{data.variants?.colors?.length || 0}</span>
-                  </div>
-                  <div className="flex justify-between text-sm">
-                    <span className="text-white/70">Beden Seçeneği:</span>
-                    <span className="text-white">{data.variants?.sizes?.length || 0}</span>
+                    <span className="text-white/70">Şopify Uyumlu:</span>
+                    <span className="text-green-400">✓ Evet</span>
                   </div>
                 </div>
 
