@@ -28,6 +28,19 @@ export class CosmeticColorFilter implements ColorFilter {
     /^903\s*-\s*Medium\s*Glow$/i,
     /^904\s*-\s*Deep\s*Glow$/i,
     
+    // Maybelline Super Lock Brow Glue specific shades
+    /^şeffaf$/i,
+    /^seffaf$/i, // Alternative spelling without ş
+    /^transparent$/i,
+    /^clear$/i,
+    /^taupe$/i,
+    /^medium\s*brown$/i,
+    /^medium-brown$/i,
+    /^deep\s*brown$/i,
+    /^deep-brown$/i,
+    /^koyu\s*kahverengi$/i,
+    /^kahverengi$/i, // Just brown
+    
     // Main Trendyol color names (limited list)
     /^(bej|beyaz|siyah)$/i,
     
@@ -59,12 +72,18 @@ export class CosmeticColorFilter implements ColorFilter {
     const trimmedColor = color.trim();
     
     // Check exclude patterns first
-    if (this.excludePatterns.some(pattern => pattern.test(trimmedColor))) {
+    const isExcluded = this.excludePatterns.some(pattern => pattern.test(trimmedColor));
+    if (isExcluded) {
+      console.log(`🚫 Color "${trimmedColor}" excluded by pattern`);
       return false;
     }
 
     // Check main color patterns
-    return this.mainColorPatterns.some(pattern => pattern.test(trimmedColor));
+    const isValid = this.mainColorPatterns.some(pattern => pattern.test(trimmedColor));
+    if (!isValid) {
+      console.log(`❌ Color "${trimmedColor}" doesn't match any main pattern`);
+    }
+    return isValid;
   }
 
   getColorPriority(color: string): number {
@@ -87,7 +106,35 @@ export class CosmeticColorFilter implements ColorFilter {
   filterMainColors(colors: string[]): string[] {
     console.log(`🔍 Color filter input: [${colors.join(', ')}]`);
     
-    // Filter valid colors
+    // SPECIAL HANDLING: For raw Maybelline colors, detect them before validation
+    const maybellineRawColors = colors.filter(color => 
+      /^(şeffaf|seffaf|transparent|clear|taupe|medium\s*brown|medium-brown|deep\s*brown|deep-brown|koyu\s*kahverengi|kahverengi)$/i.test(color)
+    );
+    console.log(`🎨 Raw Maybelline colors detected: [${maybellineRawColors.join(', ')}]`);
+    
+    if (maybellineRawColors.length >= 2) {
+      console.log(`🎨 Found ${maybellineRawColors.length} raw Maybelline colors - prioritizing them`);
+      
+      // Sort Maybelline colors in the specific order requested and normalize names
+      const normalizedMaybelline = maybellineRawColors.map(color => {
+        if (/^(şeffaf|seffaf|transparent|clear)$/i.test(color)) return 'şeffaf';
+        if (/^taupe$/i.test(color)) return 'taupe';
+        if (/^(medium\s*brown|medium-brown)$/i.test(color)) return 'medium brown';
+        if (/^(deep\s*brown|deep-brown|koyu\s*kahverengi|kahverengi)$/i.test(color)) return 'deep brown';
+        return color;
+      });
+      
+      const sortedMaybelline = [...new Set(normalizedMaybelline)].sort((a, b) => {
+        const order = ['şeffaf', 'taupe', 'medium brown', 'deep brown'];
+        const aIndex = order.indexOf(a);
+        const bIndex = order.indexOf(b);
+        return aIndex - bIndex;
+      });
+      
+      return sortedMaybelline.slice(0, 4); // Return up to 4 main variants
+    }
+    
+    // Filter valid colors using regular validation
     const validColors = colors.filter(color => this.isValidColor(color));
     console.log(`✅ Valid colors after filtering: [${validColors.join(', ')}]`);
     
@@ -98,10 +145,31 @@ export class CosmeticColorFilter implements ColorFilter {
     );
     console.log(`🎨 L'Oreal variants detected: [${lOrealMainVariants.join(', ')}]`);
 
+    // For Maybelline Super Lock Brow Glue, look for the 4 main brown shades
+    const maybellineMainVariants = validColors.filter(color => 
+      /^(şeffaf|seffaf|transparent|clear|taupe|medium\s*brown|medium-brown|deep\s*brown|deep-brown|koyu\s*kahverengi|kahverengi)$/i.test(color)
+    );
+    console.log(`🎨 Maybelline variants detected: [${maybellineMainVariants.join(', ')}]`);
+
     // If we found L'Oreal main variants, prioritize them
     if (lOrealMainVariants.length >= 1) {
       console.log(`🎨 Found ${lOrealMainVariants.length} L'Oreal main variants:`, lOrealMainVariants);
       return lOrealMainVariants.slice(0, 4); // Return up to 4 main variants
+    }
+    
+    // If we found Maybelline main variants, prioritize them in correct order
+    if (maybellineMainVariants.length >= 1) {
+      console.log(`🎨 Found ${maybellineMainVariants.length} Maybelline main variants:`, maybellineMainVariants);
+      
+      // Sort Maybelline colors in the specific order requested
+      const sortedMaybelline = maybellineMainVariants.sort((a, b) => {
+        const order = ['şeffaf', 'seffaf', 'transparent', 'clear', 'taupe', 'medium brown', 'medium-brown', 'deep brown', 'deep-brown', 'koyu kahverengi'];
+        const aIndex = order.findIndex(pattern => new RegExp(`^${pattern}$`, 'i').test(a));
+        const bIndex = order.findIndex(pattern => new RegExp(`^${pattern}$`, 'i').test(b));
+        return aIndex - bIndex;
+      });
+      
+      return sortedMaybelline.slice(0, 4); // Return up to 4 main variants
     }
     
     // Otherwise, use regular filtering
