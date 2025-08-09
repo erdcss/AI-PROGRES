@@ -212,43 +212,63 @@ export function ProductDisplay({ data }: ProductDisplayProps) {
               </h3>
 
               <div className="space-y-4">
-                {/* Colors */}
+                {/* Enhanced Colors */}
                 {data.variants?.colors && data.variants.colors.length > 0 && (
                   <div>
-                    <div className="flex items-center gap-2 mb-2">
+                    <div className="flex items-center gap-2 mb-3">
                       <Palette className="w-4 h-4 text-white" />
-                      <span className="text-white font-medium">Renkler</span>
+                      <span className="text-white font-medium">Renk Seçenekleri ({data.variants.colors.length})</span>
                     </div>
-                    <div className="flex flex-wrap gap-2">
-                      {data.variants.colors.map((color) => (
-                        <Badge
-                          key={color}
-                          variant="outline"
-                          className="border-white/30 text-white text-xs px-2 py-1"
-                        >
-                          {color}
-                        </Badge>
-                      ))}
+                    <div className="space-y-2">
+                      {data.variants.colors.map((color, index) => {
+                        // Turkish color name mapping for better display
+                        const colorMap: Record<string, { name: string; bg: string; emoji: string }> = {
+                          'BEYAZ': { name: 'Beyaz', bg: 'bg-white/90 text-black border-gray-300', emoji: '⚪' },
+                          'SIYAH': { name: 'Siyah', bg: 'bg-black text-white border-gray-600', emoji: '⚫' },
+                          'GRI': { name: 'Gri', bg: 'bg-gray-500 text-white border-gray-400', emoji: '🔘' },
+                          'GRİ': { name: 'Gri', bg: 'bg-gray-500 text-white border-gray-400', emoji: '🔘' },
+                          'LACIVERT': { name: 'Lacivert', bg: 'bg-blue-900 text-white border-blue-700', emoji: '🔵' },
+                          'LACİVERT': { name: 'Lacivert', bg: 'bg-blue-900 text-white border-blue-700', emoji: '🔵' },
+                          'KIRMIZI': { name: 'Kırmızı', bg: 'bg-red-500 text-white border-red-400', emoji: '🔴' },
+                          'MAVI': { name: 'Mavi', bg: 'bg-blue-500 text-white border-blue-400', emoji: '🔵' },
+                          'YEŞIL': { name: 'Yeşil', bg: 'bg-green-500 text-white border-green-400', emoji: '🟢' },
+                          'SARI': { name: 'Sarı', bg: 'bg-yellow-500 text-black border-yellow-400', emoji: '🟡' },
+                          'KAHVERENGI': { name: 'Kahverengi', bg: 'bg-amber-800 text-white border-amber-700', emoji: '🟤' },
+                          'PEMBE': { name: 'Pembe', bg: 'bg-pink-400 text-white border-pink-300', emoji: '🩷' },
+                          'MOR': { name: 'Mor', bg: 'bg-purple-500 text-white border-purple-400', emoji: '🟣' }
+                        };
+                        
+                        const colorInfo = colorMap[color.toUpperCase()] || { 
+                          name: color, 
+                          bg: 'bg-gray-600 text-white border-gray-500', 
+                          emoji: '🎨' 
+                        };
+                        
+                        return (
+                          <div key={index} className={`rounded-lg px-3 py-2 border-2 text-sm font-medium ${colorInfo.bg}`}>
+                            <div className="flex items-center gap-2">
+                              <span>{colorInfo.emoji}</span>
+                              <span>{colorInfo.name}</span>
+                            </div>
+                          </div>
+                        );
+                      })}
                     </div>
                   </div>
                 )}
 
-                {/* Sizes */}
+                {/* Enhanced Sizes */}
                 {data.variants?.sizes && data.variants.sizes.length > 0 && (
                   <div>
-                    <div className="flex items-center gap-2 mb-2">
+                    <div className="flex items-center gap-2 mb-3">
                       <Shirt className="w-4 h-4 text-white" />
-                      <span className="text-white font-medium">Bedenler</span>
+                      <span className="text-white font-medium">Beden Seçenekleri ({data.variants.sizes.length})</span>
                     </div>
-                    <div className="flex flex-wrap gap-2">
-                      {data.variants.sizes.map((size) => (
-                        <Badge
-                          key={size}
-                          variant="outline" 
-                          className="border-white/30 text-white text-xs px-2 py-1"
-                        >
-                          {size}
-                        </Badge>
+                    <div className="grid grid-cols-2 gap-2">
+                      {data.variants.sizes.map((size, index) => (
+                        <div key={index} className="bg-gradient-to-r from-green-500/20 to-emerald-500/20 rounded-lg px-3 py-2 border-2 border-green-400/30 text-center">
+                          <div className="text-green-200 font-bold text-sm">👕 {size}</div>
+                        </div>
                       ))}
                     </div>
                   </div>
@@ -318,10 +338,40 @@ export function ProductDisplay({ data }: ProductDisplayProps) {
                   </div>
                 </div>
 
+                {/* Enhanced Product Features Section */}
+                {data.features && data.features.length > 0 && (
+                  <div className="bg-gradient-to-r from-blue-500/10 to-purple-500/10 rounded-lg p-4 border border-blue-400/20">
+                    <h4 className="text-white font-semibold mb-3 flex items-center gap-2">
+                      📋 Ürün Özellikleri ({data.features.length})
+                    </h4>
+                    <div className="space-y-2 max-h-48 overflow-y-auto">
+                      {data.features.map((feature, index) => (
+                        <div key={index} className="bg-white/5 rounded-md p-2 border border-white/10">
+                          <div className="flex flex-col gap-1">
+                            <span className="text-blue-300 text-xs font-medium">{feature.key}</span>
+                            <span className="text-white text-sm">{feature.value}</span>
+                          </div>
+                        </div>
+                      ))}
+                    </div>
+                  </div>
+                )}
+
+                {/* No Features Warning */}
+                {(!data.features || data.features.length === 0) && (
+                  <div className="bg-amber-500/10 rounded-lg p-3 border border-amber-400/20">
+                    <div className="flex items-center gap-2 mb-1">
+                      <span className="text-amber-300">⚠️</span>
+                      <span className="text-amber-200 text-sm font-medium">Ürün Özellikleri</span>
+                    </div>
+                    <p className="text-amber-100 text-xs">Özellik bilgisi bulunamadı</p>
+                  </div>
+                )}
+
                 {/* Tags */}
                 {data.tags && data.tags.length > 0 && (
                   <div>
-                    <span className="text-white font-medium mb-2 block">Etiketler</span>
+                    <span className="text-white font-medium mb-2 block">🏷️ Etiketler</span>
                     <div className="flex flex-wrap gap-1">
                       {data.tags.slice(0, 6).map((tag) => (
                         <Badge
