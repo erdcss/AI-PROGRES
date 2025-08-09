@@ -249,7 +249,7 @@ export function ProductDisplay({ data }: ProductDisplayProps) {
                         };
                         
                         // Handle hex colors and special patterns
-                        let colorInfo;
+                        let colorInfo: { name: string; bg: string; emoji: string; hexCode?: string };
                         if (color.startsWith('#')) {
                           colorInfo = { 
                             name: `Renk Kodu: ${color}`, 

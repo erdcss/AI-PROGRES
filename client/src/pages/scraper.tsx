@@ -255,10 +255,17 @@ function ScraperPage() {
                 description: product.description,
                 images: product.images?.map(img => typeof img === 'string' ? img : img.url) || [],
                 variants: {
-                  colors: [],
-                  sizes: [],
-                  allVariants: [],
-                  totalVariants: 0
+                  colors: (product as any).variants ? Array.from(new Set((product as any).variants.map((v: any) => v.color))) : [],
+                  sizes: (product as any).variants ? Array.from(new Set((product as any).variants.map((v: any) => v.size))) : [],
+                  allVariants: (product as any).variants?.map((v: any) => ({
+                    color: v.color,
+                    size: v.size,
+                    sku: v.sku || '',
+                    price: typeof product.price === 'number' ? product.price : 0,
+                    images: [],
+                    inStock: v.inStock || true
+                  })) || [],
+                  totalVariants: (product as any).variants?.length || 0
                 },
                 features: product.features?.map(f => ({ key: f.name, value: f.value })) || [],
                 tags: product.tags || [],
