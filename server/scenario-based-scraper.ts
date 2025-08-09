@@ -773,7 +773,7 @@ async function extractVariantsDirect($: cheerio.CheerioAPI, htmlContent: string)
       const isDisabled = $el.is('[disabled]') || $el.hasClass('disabled') || 
                         $el.hasClass('out-of-stock') || $el.hasClass('sold-out');
       
-      if (sizeName && sizeName.length > 0 && sizeName.length < 10 && !isDisabled) {
+      if (sizeName && typeof sizeName === 'string' && sizeName.length > 0 && sizeName.length < 10 && !isDisabled) {
         // Filter out obvious non-size values
         const sizePattern = /^(XXS|XS|S|M|L|XL|XXL|XXXL|\d+(\.\d+)?|Tek\s*Beden|One\s*Size)$/i;
         if (sizePattern.test(sizeName.trim())) {
