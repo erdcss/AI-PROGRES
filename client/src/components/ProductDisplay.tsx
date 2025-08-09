@@ -221,34 +221,65 @@ export function ProductDisplay({ data }: ProductDisplayProps) {
                     </div>
                     <div className="space-y-2">
                       {data.variants.colors.map((color, index) => {
-                        // Turkish color name mapping for better display
+                        // Enhanced Turkish and cosmetic color name mapping
                         const colorMap: Record<string, { name: string; bg: string; emoji: string }> = {
                           'BEYAZ': { name: 'Beyaz', bg: 'bg-white/90 text-black border-gray-300', emoji: '⚪' },
                           'SIYAH': { name: 'Siyah', bg: 'bg-black text-white border-gray-600', emoji: '⚫' },
                           'GRI': { name: 'Gri', bg: 'bg-gray-500 text-white border-gray-400', emoji: '🔘' },
                           'GRİ': { name: 'Gri', bg: 'bg-gray-500 text-white border-gray-400', emoji: '🔘' },
+                          'LIGHT-GRAY': { name: 'Açık Gri', bg: 'bg-gray-300 text-black border-gray-400', emoji: '⬜' },
                           'LACIVERT': { name: 'Lacivert', bg: 'bg-blue-900 text-white border-blue-700', emoji: '🔵' },
                           'LACİVERT': { name: 'Lacivert', bg: 'bg-blue-900 text-white border-blue-700', emoji: '🔵' },
                           'KIRMIZI': { name: 'Kırmızı', bg: 'bg-red-500 text-white border-red-400', emoji: '🔴' },
                           'MAVI': { name: 'Mavi', bg: 'bg-blue-500 text-white border-blue-400', emoji: '🔵' },
+                          'TURUNCU': { name: 'Turuncu', bg: 'bg-orange-500 text-white border-orange-400', emoji: '🟠' },
+                          'ORANGE': { name: 'Turuncu', bg: 'bg-orange-500 text-white border-orange-400', emoji: '🟠' },
+                          'BEJ': { name: 'Bej', bg: 'bg-amber-100 text-amber-900 border-amber-300', emoji: '🟨' },
                           'YEŞIL': { name: 'Yeşil', bg: 'bg-green-500 text-white border-green-400', emoji: '🟢' },
                           'SARI': { name: 'Sarı', bg: 'bg-yellow-500 text-black border-yellow-400', emoji: '🟡' },
                           'KAHVERENGI': { name: 'Kahverengi', bg: 'bg-amber-800 text-white border-amber-700', emoji: '🟤' },
                           'PEMBE': { name: 'Pembe', bg: 'bg-pink-400 text-white border-pink-300', emoji: '🩷' },
-                          'MOR': { name: 'Mor', bg: 'bg-purple-500 text-white border-purple-400', emoji: '🟣' }
+                          'MOR': { name: 'Mor', bg: 'bg-purple-500 text-white border-purple-400', emoji: '🟣' },
+                          // L'Oreal specific shades
+                          '901-FAIR-GLOW': { name: '901 - Açık Ten', bg: 'bg-amber-50 text-amber-900 border-amber-200', emoji: '✨' },
+                          '903-MEDIUM-GLOW': { name: '903 - Orta Ten', bg: 'bg-amber-200 text-amber-900 border-amber-300', emoji: '✨' },
+                          '904 - DEEP GLOW': { name: '904 - Koyu Ten', bg: 'bg-amber-600 text-white border-amber-500', emoji: '✨' },
+                          'LIGHT-GLOW': { name: 'Işıltılı Açık', bg: 'bg-yellow-100 text-yellow-900 border-yellow-300', emoji: '💫' },
+                          'LIGHT': { name: 'Açık', bg: 'bg-gray-100 text-gray-900 border-gray-300', emoji: '💡' }
                         };
                         
-                        const colorInfo = colorMap[color.toUpperCase()] || { 
-                          name: color, 
-                          bg: 'bg-gray-600 text-white border-gray-500', 
-                          emoji: '🎨' 
-                        };
+                        // Handle hex colors and special patterns
+                        let colorInfo;
+                        if (color.startsWith('#')) {
+                          colorInfo = { 
+                            name: `Renk Kodu: ${color}`, 
+                            bg: `text-white border-gray-400`,
+                            emoji: '🎨',
+                            hexCode: color
+                          };
+                        } else {
+                          colorInfo = colorMap[color.toUpperCase()] || { 
+                            name: color.replace(/-/g, ' ').replace(/([a-z])([A-Z])/g, '$1 $2'), 
+                            bg: 'bg-gray-600 text-white border-gray-500', 
+                            emoji: '🎨' 
+                          };
+                        }
                         
                         return (
-                          <div key={index} className={`rounded-lg px-3 py-2 border-2 text-sm font-medium ${colorInfo.bg}`}>
+                          <div 
+                            key={index} 
+                            className={`rounded-lg px-3 py-2 border-2 text-sm font-medium ${colorInfo.bg}`}
+                            style={colorInfo.hexCode ? { backgroundColor: colorInfo.hexCode } : {}}
+                          >
                             <div className="flex items-center gap-2">
                               <span>{colorInfo.emoji}</span>
                               <span>{colorInfo.name}</span>
+                              {colorInfo.hexCode && (
+                                <span 
+                                  className="inline-block w-4 h-4 rounded-full border border-white/30"
+                                  style={{ backgroundColor: colorInfo.hexCode }}
+                                />
+                              )}
                             </div>
                           </div>
                         );
