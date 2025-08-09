@@ -126,28 +126,35 @@ export async function scenarioBasedScrape(url: string): Promise<ScenarioBasedRes
     const directVariants = await extractVariantsDirect($, htmlContent);
     
     // Merge direct extraction results if they provide more colors/sizes
-    if (directVariants.length > variants.length) {
-      console.log(`🔄 Direct extraction found more variants: ${directVariants.length} vs ${variants.length}`);
-      variants = directVariants;
-    } else if (directVariants.length > 0 && variants.length > 0) {
-      // Combine unique colors and sizes from both approaches
-      const allColors = new Set([...variants.map(v => v.color), ...directVariants.map(v => v.color)]);
-      const allSizes = new Set([...variants.map(v => v.size), ...directVariants.map(v => v.size)]);
+    if (directVariants.length > 0) {
+      console.log(`🔄 Direct extraction found variants: ${directVariants.length} (existing: ${variants.length})`);
       
-      if (allColors.size > variants.map(v => v.color).filter((v, i, arr) => arr.indexOf(v) === i).length) {
-        console.log(`🔄 Merging color variants: found ${allColors.size} unique colors`);
-        const mergedVariants: any[] = [];
-        Array.from(allColors).forEach(color => {
-          Array.from(allSizes).forEach(size => {
-            mergedVariants.push({
-              color,
-              colorCode: getColorCode(color),
-              size,
-              inStock: true
+      if (variants.length === 0) {
+        // No scenario variants found, use direct extraction results
+        variants = directVariants;
+      } else if (directVariants.length >= variants.length) {
+        // Direct extraction found equal or more variants
+        variants = directVariants;
+      } else {
+        // Combine unique colors and sizes from both approaches
+        const allColors = new Set([...variants.map(v => v.color), ...directVariants.map(v => v.color)]);
+        const allSizes = new Set([...variants.map(v => v.size), ...directVariants.map(v => v.size)]);
+        
+        if (allColors.size > variants.map(v => v.color).filter((v, i, arr) => arr.indexOf(v) === i).length) {
+          console.log(`🔄 Merging color variants: found ${allColors.size} unique colors`);
+          const mergedVariants: any[] = [];
+          Array.from(allColors).forEach(color => {
+            Array.from(allSizes).forEach(size => {
+              mergedVariants.push({
+                color,
+                colorCode: getColorCode(color),
+                size,
+                inStock: true
+              });
             });
           });
-        });
-        variants = mergedVariants;
+          variants = mergedVariants;
+        }
       }
     }
     
@@ -678,10 +685,10 @@ async function extractVariantsDirect($: cheerio.CheerioAPI, htmlContent: string)
   // Method 1: Enhanced color extraction with modern Trendyol selectors
   const colors: string[] = [];
   
-  // Modern Trendyol color selectors
+  // Modern Trendyol color selectors including slicing-attributes structure
   const colorSelectors = [
     '[data-testid*="color"] button',
-    '[data-testid*="variant"] button',
+    '[data-testid*="variant"] button', 
     '.variants-color button',
     '.product-variants .color-item',
     '.variant-buttons button[title]',
@@ -694,7 +701,11 @@ async function extractVariantsDirect($: cheerio.CheerioAPI, htmlContent: string)
     '.color-option button',
     '.variant-color button',
     '.color-variant-item',
-    'div[data-testid*="color-variant"]'
+    'div[data-testid*="color-variant"]',
+    // NEW: Trendyol slicing-attributes structure
+    '.slicing-attributes .slicing-attribute-section-value span[data-testid*="color"]',
+    '.slicing-attribute-section-value[data-testid*="color"]',
+    '.slicing-attribute-section span[data-testid*="color"]'
   ];
   
   colorSelectors.forEach(selector => {
@@ -707,6 +718,26 @@ async function extractVariantsDirect($: cheerio.CheerioAPI, htmlContent: string)
         console.log(`🎨 Found color via selector "${selector}": ${colorName}`);
       }
     });
+  });
+
+  // Additional method for Trendyol's slicing-attributes structure
+  $('.slicing-attributes .slicing-attribute-section').each((_, section) => {
+    const $section = $(section);
+    
+    // Check if this is a color section
+    const sectionHeader = $section.find('.slicing-attribute-section-header').text().toLowerCase();
+    if (sectionHeader.includes('renk') || sectionHeader.includes('color')) {
+      
+      $section.find('.slicing-attribute-section-value span').each((_, valueSpan) => {
+        const $span = $(valueSpan);
+        const colorValue = $span.text().trim();
+        
+        if (colorValue && colorValue.length > 0) {
+          colors.push(colorValue);
+          console.log(`🎨 Found color from slicing-attributes: ${colorValue}`);
+        }
+      });
+    }
   });
   
   // Method 2: Enhanced size extraction with modern Trendyol selectors  
@@ -808,12 +839,13 @@ async function extractVariantsDirect($: cheerio.CheerioAPI, htmlContent: string)
     });
   }
   
-  // Filter out out-of-stock variants
-  const inStockVariants = variants.filter(v => v.inStock);
-  console.log(`📦 Stock check: ${variants.length} total variants, ${inStockVariants.length} in stock`);
+  // AUTHENTIC VARIANT POLICY: Show all detected variants regardless of stock
+  // Users want to see genuine color options even if out of stock
+  console.log(`📦 Stock check: ${variants.length} total variants, ${variants.filter(v => v.inStock).length} in stock`);
+  console.log(`✅ Direct extraction generated ${variants.length} authentic variants from ${filteredColors.length} main colors`);
   
-  console.log(`✅ Direct extraction generated ${inStockVariants.length} in-stock variants from ${filteredColors.length} main colors`);
-  return inStockVariants;
+  // Return all authentic variants (both in-stock and out-of-stock)
+  return variants;
 }
 
 /**
@@ -1493,8 +1525,39 @@ function getColorCode(colorName: string): string {
     'ORANGE': '#FFA500',
     'NAVY': '#000080',
     'CREAM': '#F5F5DC',
-    'BEIGE': '#F5F5DC'
+    'BEIGE': '#F5F5DC',
+    
+    // L'Oreal Glotion specific color codes
+    '901-FAIR-GLOW': '#F5E6D3',
+    '902-LIGHT-GLOW': '#E8D7C2',
+    '903-MEDIUM-GLOW': '#D4C0A1',
+    '904-DEEP-GLOW': '#C0A888',
+    '905-RICH-GLOW': '#B39670',
+    'LIGHT-GLOW': '#E8D7C2',
+    'FAIR-GLOW': '#F5E6D3',
+    'MEDIUM-GLOW': '#D4C0A1',
+    'DEEP-GLOW': '#C0A888',
+    'RICH-GLOW': '#B39670'
   };
   
-  return colorMap[colorName.toUpperCase()] || '#1E40AF';
+  // Handle with case-insensitive lookup
+  const upperColor = colorName.toUpperCase();
+  
+  // Direct match first
+  if (colorMap[upperColor]) {
+    return colorMap[upperColor];
+  }
+  
+  // Try to match L'Oreal patterns with flexible formatting
+  if (upperColor.match(/^(901|902|903|904|905)[\s\-]*(FAIR|LIGHT|MEDIUM|DEEP|RICH)[\s\-]*GLOW$/)) {
+    return colorMap[upperColor.replace(/[\s]+/g, '-')] || '#E8D7C2';
+  }
+  
+  // Fallback: return original color if it looks like a hex code
+  if (colorName.startsWith('#') && colorName.length === 7) {
+    return colorName;
+  }
+  
+  // Default fallback
+  return '#1E40AF';
 }

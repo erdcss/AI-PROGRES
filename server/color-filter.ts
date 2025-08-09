@@ -16,6 +16,12 @@ export class CosmeticColorFilter implements ColorFilter {
     /^light-glow$/i,
     /^(fair|medium|deep)-glow$/i,
     
+    // Individual L'Oreal product codes (common patterns)
+    /^901-fair-glow$/i,
+    /^902-light-glow$/i,
+    /^903-medium-glow$/i,
+    /^904-deep-glow$/i,
+    
     // L'Oreal specific patterns with different formatting
     /^901\s*-\s*Fair\s*Glow$/i,
     /^902\s*-\s*Light\s*Glow$/i,
@@ -79,17 +85,21 @@ export class CosmeticColorFilter implements ColorFilter {
   }
 
   filterMainColors(colors: string[]): string[] {
+    console.log(`🔍 Color filter input: [${colors.join(', ')}]`);
+    
     // Filter valid colors
     const validColors = colors.filter(color => this.isValidColor(color));
+    console.log(`✅ Valid colors after filtering: [${validColors.join(', ')}]`);
     
     // For L'Oreal products, specifically look for the 4 main glow variants
     const lOrealMainVariants = validColors.filter(color => 
       /^(901|902|903|904)\s*-?\s*(fair|medium|deep|light)?\s*glow$/i.test(color) ||
       /^light-glow$/i.test(color)
     );
+    console.log(`🎨 L'Oreal variants detected: [${lOrealMainVariants.join(', ')}]`);
 
     // If we found L'Oreal main variants, prioritize them
-    if (lOrealMainVariants.length >= 2) {
+    if (lOrealMainVariants.length >= 1) {
       console.log(`🎨 Found ${lOrealMainVariants.length} L'Oreal main variants:`, lOrealMainVariants);
       return lOrealMainVariants.slice(0, 4); // Return up to 4 main variants
     }
