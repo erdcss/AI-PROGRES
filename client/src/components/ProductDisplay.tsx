@@ -244,7 +244,6 @@ export function ProductDisplay({ data }: ProductDisplayProps) {
                           '901-FAIR-GLOW': { name: '901 - Açık Ten', bg: 'bg-slate-200 text-slate-800 border-slate-400', emoji: '✨' },
                           '903-MEDIUM-GLOW': { name: '903 - Orta Ten', bg: 'bg-slate-400 text-slate-100 border-slate-500', emoji: '✨' },
                           '904-DEEP-GLOW': { name: '904 - Koyu Ten', bg: 'bg-slate-700 text-slate-100 border-slate-600', emoji: '✨' },
-                          'BEJ': { name: 'Bej', bg: 'bg-slate-300 text-slate-800 border-slate-400', emoji: '🟨' },
                           'LIGHT-GLOW': { name: 'Işıltılı Açık', bg: 'bg-slate-200 text-slate-800 border-slate-400', emoji: '💫' },
                           'LIGHT': { name: 'Açık', bg: 'bg-slate-300 text-slate-800 border-slate-400', emoji: '💡' }
                         };

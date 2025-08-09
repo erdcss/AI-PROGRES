@@ -30,17 +30,17 @@ interface Product {
   images: Array<{ url: string; alt?: string }>;
   description: string;
   brand?: string;
-  variants?: Array<{
-    id: string;
-    title: string;
-    price: number;
-    sku?: string;
-    inventory_quantity?: number;
-    option1?: string;
-    option2?: string;
-    option3?: string;
-  }>;
-  features?: Array<{ name: string; value: string }>;
+  variants?: {
+    colors: string[];
+    sizes: string[];
+    allVariants: Array<{
+      color: string;
+      colorCode: string;
+      size: string;
+      inStock: boolean;
+    }>;
+  };
+  features?: Array<{ key: string; value: string }>;
   tags?: string[];
   category?: string;
 }
@@ -254,20 +254,12 @@ function ScraperPage() {
                 price: product.price,
                 description: product.description,
                 images: product.images?.map(img => typeof img === 'string' ? img : img.url) || [],
-                variants: {
-                  colors: (product as any).variants ? Array.from(new Set((product as any).variants.map((v: any) => v.color))) : [],
-                  sizes: (product as any).variants ? Array.from(new Set((product as any).variants.map((v: any) => v.size))) : [],
-                  allVariants: (product as any).variants?.map((v: any) => ({
-                    color: v.color,
-                    size: v.size,
-                    sku: v.sku || '',
-                    price: typeof product.price === 'number' ? product.price : 0,
-                    images: [],
-                    inStock: v.inStock || true
-                  })) || [],
-                  totalVariants: (product as any).variants?.length || 0
+                variants: (product as any).variants || {
+                  colors: [],
+                  sizes: [],
+                  allVariants: []
                 },
-                features: product.features?.map(f => ({ key: f.name, value: f.value })) || [],
+                features: product.features?.map(f => ({ key: f.key, value: f.value })) || [],
                 tags: product.tags || [],
                 shopifyCompatible: true
               }} />
