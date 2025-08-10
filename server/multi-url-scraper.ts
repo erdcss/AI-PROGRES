@@ -30,14 +30,15 @@ async function fetchWithRetry(url: string, retries = 3): Promise<string> {
 function detectColorFromUrl(url: string, htmlContent: string, $: any): string {
   console.log(`🔍 Renk tespiti başlatılıyor URL: ${url}`);
   
-  // URL'den renk tespiti - Maybelline örnekleri için özelleştirildi
+  // URL'den renk tespiti - Maybelline ve L'Oreal örnekleri için özelleştirildi
   const urlColorPatterns = [
+    // L'Oreal pattern: "901-fair-glow", "902-light-glow", "903-medium-glow"
+    /-(\d{3})-([a-zA-ZğüşıöçĞÜŞİÖÇ-]+)-glow/g,
+    /-(\d{3})-([a-zA-ZğüşıöçĞÜŞİÖÇ-]+)/g,
     // Maybelline pattern: "taupe", "koyu-kahverengi" etc.
     /-([a-zA-ZğüşıöçĞÜŞİÖÇ-]+)-p-\d+/g,
-    /-([a-zA-ZğüşıöçĞÜŞİÖÇ-]+)$/g,
     /\/([a-zA-ZğüşıöçĞÜŞİÖÇ-]+)-p-/g,
-    // L'Oreal ve diğer pattern'ler
-    /-(\d{2,3})-([a-zA-ZğüşıöçĞÜŞİÖÇ-]+)-?/g,
+    // Genel pattern'ler
     /renk-([a-zA-ZğüşıöçĞÜŞİÖÇ-]+)/gi,
     /color-([a-zA-ZğüşıöçĞÜŞİÖÇ-]+)/gi
   ];
@@ -46,25 +47,46 @@ function detectColorFromUrl(url: string, htmlContent: string, $: any): string {
   for (const pattern of urlColorPatterns) {
     pattern.lastIndex = 0; // Reset regex state
     const match = pattern.exec(url);
-    if (match && match[1]) {
-      let colorName = match[1];
+    if (match) {
+      let colorName = '';
       
-      // Özel renk isimlerini temizle
-      if (colorName.includes('-')) {
-        colorName = colorName.split('-').map(part => {
-          // Türkçe karakterler ve renk adları için özel işlem
-          if (part === 'koyu') return 'Koyu';
-          if (part === 'kahverengi') return 'Kahverengi';
-          if (part === 'taupe') return 'Taupe';
+      // L'Oreal sayı + isim formatı (901-fair-glow)
+      if (match[1] && match[2] && /^\d{3}$/.test(match[1])) {
+        const number = match[1];
+        const name = match[2];
+        colorName = `${number} ${name.split('-').map(part => {
           if (part === 'fair') return 'Fair';
+          if (part === 'light') return 'Light';
+          if (part === 'medium') return 'Medium';
+          if (part === 'glow') return 'Glow';
           return part.charAt(0).toUpperCase() + part.slice(1).toLowerCase();
-        }).join(' ');
-      } else {
-        colorName = colorName.charAt(0).toUpperCase() + colorName.slice(1).toLowerCase();
+        }).join(' ')}`;
+      }
+      // Tek kelime (taupe, koyu-kahverengi)
+      else if (match[1]) {
+        colorName = match[1];
+        
+        // Özel renk isimlerini temizle
+        if (colorName.includes('-')) {
+          colorName = colorName.split('-').map(part => {
+            // Türkçe karakterler ve renk adları için özel işlem
+            if (part === 'koyu') return 'Koyu';
+            if (part === 'kahverengi') return 'Kahverengi';
+            if (part === 'taupe') return 'Taupe';
+            if (part === 'fair') return 'Fair';
+            if (part === 'light') return 'Light';
+            if (part === 'medium') return 'Medium';
+            return part.charAt(0).toUpperCase() + part.slice(1).toLowerCase();
+          }).join(' ');
+        } else {
+          colorName = colorName.charAt(0).toUpperCase() + colorName.slice(1).toLowerCase();
+        }
       }
       
-      console.log(`✅ URL'den renk tespit edildi: ${colorName}`);
-      return colorName;
+      if (colorName && colorName.length > 1) {
+        console.log(`✅ URL'den renk tespit edildi: ${colorName}`);
+        return colorName;
+      }
     }
   }
 

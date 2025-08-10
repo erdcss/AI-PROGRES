@@ -1,10 +1,10 @@
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import { useForm } from "react-hook-form";
 import { zodResolver } from "@hookform/resolvers/zod";
 import { z } from "zod";
-import { useMutation } from "@tanstack/react-query";
+import { useMutation, useQuery } from "@tanstack/react-query";
 import { motion } from "framer-motion";
-import { Loader2, ShoppingCart, Link, Copy, X, Home, Plus, Trash2, Package, Palette } from "lucide-react";
+import { Loader2, ShoppingCart, Link, Copy, X, Home, Plus, Trash2, Package, Palette, Eye, Image } from "lucide-react";
 
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -570,6 +570,30 @@ function ScraperPage() {
           </div>
         </div>
 
+        {/* Multi-URL Preview Section */}
+        {scrapingMode === 'multi-url' && multiForm.watch('urls').some(url => url.url) && (
+          <div className="mt-8">
+            <Card className="business-card">
+              <CardHeader className="business-header">
+                <CardTitle className="text-white font-black flex items-center gap-2">
+                  <Palette className="w-5 h-5 text-blue-400" />
+                  Ürün Önizlemesi
+                </CardTitle>
+                <p className="text-blue-400 text-sm">URL'lerden çekilen ürün bilgilerinin ön görünümü</p>
+              </CardHeader>
+              <CardContent className="p-6">
+                <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
+                  {multiForm.watch('urls').map((urlItem, index) => (
+                    urlItem.url && (
+                      <UrlPreviewCard key={index} url={urlItem.url} index={index} />
+                    )
+                  ))}
+                </div>
+              </CardContent>
+            </Card>
+          </div>
+        )}
+
         {/* Product Display */}
         {product && (
           <div className="mt-8">
@@ -598,6 +622,171 @@ function ScraperPage() {
         )}
       </div>
     </div>
+  );
+}
+
+// URL Önizleme Kartı Komponenti
+function UrlPreviewCard({ url, index }: { url: string; index: number }) {
+  const [previewData, setPreviewData] = useState<any>(null);
+  const [isLoading, setIsLoading] = useState(false);
+
+  const fetchPreview = async () => {
+    if (!url || isLoading) return;
+    
+    setIsLoading(true);
+    try {
+      const response = await fetch('/api/scenario-scrape', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({ url, mode: 'single' })
+      });
+      
+      if (response.ok) {
+        const data = await response.json();
+        setPreviewData(data);
+      }
+    } catch (error) {
+      console.error('Preview fetch error:', error);
+    } finally {
+      setIsLoading(false);
+    }
+  };
+
+  useEffect(() => {
+    const timer = setTimeout(() => {
+      if (url) {
+        fetchPreview();
+      }
+    }, 500); // Debounce URL changes
+
+    return () => clearTimeout(timer);
+  }, [url]);
+
+  if (isLoading) {
+    return (
+      <Card className="business-card h-80">
+        <CardContent className="p-4 h-full flex items-center justify-center">
+          <div className="flex flex-col items-center gap-2">
+            <Loader2 className="w-6 h-6 animate-spin text-blue-400" />
+            <span className="text-slate-400 text-sm">Yükleniyor...</span>
+          </div>
+        </CardContent>
+      </Card>
+    );
+  }
+
+  if (!previewData) {
+    return (
+      <Card className="business-card h-80">
+        <CardContent className="p-4 h-full flex items-center justify-center">
+          <div className="flex flex-col items-center gap-2 text-slate-500">
+            <Eye className="w-8 h-8" />
+            <span className="text-sm">Önizleme bekleniyor...</span>
+          </div>
+        </CardContent>
+      </Card>
+    );
+  }
+
+  const primaryImage = previewData.images?.[0];
+  const imageUrl = typeof primaryImage === 'string' ? primaryImage : primaryImage?.url;
+  const detectedColor = previewData.detectedColor || previewData.extractedColor || 'Renk Tespit Edilmedi';
+  const availableSizes = previewData.variants?.sizes || [];
+  const features = previewData.features || [];
+
+  return (
+    <Card className="business-card h-80 overflow-hidden">
+      <CardContent className="p-0 h-full">
+        {/* Görsel Alanı - 100x300 benzeri oran */}
+        <div className="w-full h-32 bg-slate-800 relative overflow-hidden">
+          {imageUrl ? (
+            <img
+              src={imageUrl}
+              alt={previewData.title}
+              className="w-full h-full object-cover"
+              onError={(e) => {
+                e.currentTarget.src = '/placeholder-image.jpg';
+              }}
+            />
+          ) : (
+            <div className="w-full h-full flex items-center justify-center">
+              <Image className="w-8 h-8 text-slate-600" />
+            </div>
+          )}
+          {/* Sıra Numarası */}
+          <div className="absolute top-2 left-2 bg-blue-600 text-white px-2 py-1 rounded text-xs font-bold">
+            #{index + 1}
+          </div>
+        </div>
+
+        {/* Ürün Bilgileri */}
+        <div className="p-3 space-y-2">
+          {/* Marka ve Başlık */}
+          <div>
+            {previewData.brand && (
+              <p className="text-blue-400 text-xs font-semibold uppercase">
+                {previewData.brand}
+              </p>
+            )}
+            <h3 className="text-white text-sm font-bold line-clamp-2 leading-tight">
+              {previewData.title || 'Başlık bulunamadı'}
+            </h3>
+          </div>
+
+          {/* Tespit Edilen Renk */}
+          <div className="flex items-center gap-2">
+            <div className="w-3 h-3 bg-gradient-to-r from-blue-500 to-purple-500 rounded-full"></div>
+            <span className="text-slate-300 text-xs font-medium">
+              {detectedColor}
+            </span>
+          </div>
+
+          {/* Stokta Olan Bedenler */}
+          {availableSizes.length > 0 && (
+            <div>
+              <p className="text-slate-400 text-xs mb-1">Stokta:</p>
+              <div className="flex flex-wrap gap-1">
+                {availableSizes.slice(0, 4).map((size: string, idx: number) => (
+                  <span
+                    key={idx}
+                    className="bg-green-900 text-green-300 px-2 py-1 rounded text-xs font-medium"
+                  >
+                    {size}
+                  </span>
+                ))}
+                {availableSizes.length > 4 && (
+                  <span className="text-green-400 text-xs">
+                    +{availableSizes.length - 4}
+                  </span>
+                )}
+              </div>
+            </div>
+          )}
+
+          {/* Özellikler */}
+          {features.length > 0 && (
+            <div>
+              <p className="text-slate-400 text-xs mb-1">Özellikler:</p>
+              <div className="space-y-1">
+                {features.slice(0, 2).map((feature: any, idx: number) => (
+                  <div key={idx} className="text-xs">
+                    <span className="text-slate-500">{feature.key}:</span>{' '}
+                    <span className="text-slate-300">{feature.value}</span>
+                  </div>
+                ))}
+                {features.length > 2 && (
+                  <span className="text-slate-400 text-xs">
+                    +{features.length - 2} özellik
+                  </span>
+                )}
+              </div>
+            </div>
+          )}
+        </div>
+      </CardContent>
+    </Card>
   );
 }
 
