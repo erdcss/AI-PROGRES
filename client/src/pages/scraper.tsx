@@ -108,6 +108,41 @@ function ScraperPage() {
     }
   });
 
+  const uploadToShopifyMutation = useMutation({
+    mutationFn: async () => {
+      if (!product) {
+        throw new Error("Önce ürün verisi çekilmelidir");
+      }
+      
+      const response = await fetch("/api/shopify/add-product", {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+        },
+        body: JSON.stringify({ productData: product }),
+      });
+      
+      if (!response.ok) {
+        const errorData = await response.json().catch(() => ({}));
+        throw new Error(errorData.error || errorData.message || `HTTP ${response.status}`);
+      }
+      return response.json();
+    },
+    onSuccess: (data) => {
+      toast({
+        title: "Başarılı",
+        description: "Ürün Shopify'a başarıyla yüklendi"
+      });
+    },
+    onError: (error: any) => {
+      toast({
+        title: "Hata",
+        description: error.message,
+        variant: "destructive"
+      });
+    }
+  });
+
   const multiUrlScrapeMutation = useMutation({
     mutationFn: async (data: MultiUrlFormData) => {
       const response = await fetch("/api/multi-url-scrape", {
@@ -354,20 +389,43 @@ function ScraperPage() {
                       </div>
                     </div>
                     
-                    <Button
-                      type="submit"
-                      disabled={singleScrapeMutation.isPending}
-                      className="business-button w-full h-14 text-lg font-thin"
-                    >
-                      {singleScrapeMutation.isPending ? (
-                        <div className="flex items-center gap-3">
-                          <Loader2 className="w-5 h-5 animate-spin" />
-                          <span>Ürün Verisi Çekiliyor...</span>
-                        </div>
-                      ) : (
-                        <span>TEK VARYANT ÇIKAR</span>
+                    <div className="flex gap-3">
+                      <Button
+                        type="submit"
+                        disabled={singleScrapeMutation.isPending || uploadToShopifyMutation.isPending}
+                        className="business-button flex-1 h-14 text-lg font-thin"
+                      >
+                        {singleScrapeMutation.isPending ? (
+                          <div className="flex items-center gap-3">
+                            <Loader2 className="w-5 h-5 animate-spin" />
+                            <span>Ürün Verisi Çekiliyor...</span>
+                          </div>
+                        ) : (
+                          <span>TEK VARYANT ÇIKAR</span>
+                        )}
+                      </Button>
+                      
+                      {product && (
+                        <Button
+                          type="button"
+                          disabled={uploadToShopifyMutation.isPending || singleScrapeMutation.isPending}
+                          onClick={() => uploadToShopifyMutation.mutate()}
+                          className="bg-gradient-to-r from-green-600 to-emerald-700 hover:from-green-700 hover:to-emerald-800 text-white h-14 px-6 text-lg font-thin transition-all duration-200"
+                        >
+                          {uploadToShopifyMutation.isPending ? (
+                            <div className="flex items-center gap-2">
+                              <Loader2 className="w-5 h-5 animate-spin" />
+                              <span>Shopify'a Yükleniyor...</span>
+                            </div>
+                          ) : (
+                            <div className="flex items-center gap-2">
+                              <ShoppingCart className="w-5 h-5" />
+                              <span>Shopify'a Yükle</span>
+                            </div>
+                          )}
+                        </Button>
                       )}
-                    </Button>
+                    </div>
                   </motion.form>
                 </CardContent>
               </Card>
