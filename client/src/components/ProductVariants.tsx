@@ -30,7 +30,7 @@ const ProductVariants: React.FC<{ variants: VariantProps }> = ({ variants }) => 
         <h3 className="text-md font-medium text-white">{type}</h3>
         <div className="flex flex-wrap gap-2">
           {items.map((item, idx) => {
-            // Stokta var mı kontrolü
+            // Stokta var mı kontrolü - Tüm bedenleri göster
             const isAvailable = !availableItems || availableItems.includes(item);
             
             return (
