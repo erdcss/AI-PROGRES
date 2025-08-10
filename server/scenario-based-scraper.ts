@@ -1634,39 +1634,12 @@ function checkVariantStock($: cheerio.CheerioAPI, htmlContent: string, color: st
  * Get color code for a color name
  */
 function getColorCode(colorName: string): string {
+  // IMPORTANT: Keep original color names without translation
+  // Only provide hex codes for specific L'Oreal patterns and basic colors
   const colorMap: Record<string, string> = {
-    'BEYAZ': '#FFFFFF',
-    'SİYAH': '#000000',
-    'MAVİ': '#0000FF',
-    'KIRMIZI': '#FF0000',
-    'YEŞİL': '#008000',
-    'SARI': '#FFFF00',
-    'MOR': '#800080',
-    'PEMBE': '#FFC0CB',
-    'GRİ': '#808080',
-    'KAHVE': '#8B4513',
-    'TURUNCU': '#FFA500',
-    'LACİVERT': '#000080',
-    'KREM': '#F5F5DC',
-    'BEJ': '#F5F5DC',
-    'WHITE': '#FFFFFF',
-    'BLACK': '#000000',
-    'BLUE': '#0000FF',
-    'RED': '#FF0000',
-    'GREEN': '#008000',
-    'YELLOW': '#FFFF00',
-    'PURPLE': '#800080',
-    'PINK': '#FFC0CB',
-    'GRAY': '#808080',
-    'BROWN': '#8B4513',
-    'ORANGE': '#FFA500',
-    'NAVY': '#000080',
-    'CREAM': '#F5F5DC',
-    'BEIGE': '#F5F5DC',
-    
-    // L'Oreal Glotion specific color codes
+    // L'Oreal Glotion specific color codes (keep original patterns)
     '901-FAIR-GLOW': '#F5E6D3',
-    '902-LIGHT-GLOW': '#E8D7C2',
+    '902-LIGHT-GLOW': '#E8D7C2', 
     '903-MEDIUM-GLOW': '#D4C0A1',
     '904-DEEP-GLOW': '#C0A888',
     '905-RICH-GLOW': '#B39670',
@@ -1680,7 +1653,7 @@ function getColorCode(colorName: string): string {
   // Handle with case-insensitive lookup
   const upperColor = colorName.toUpperCase();
   
-  // Direct match first
+  // Direct match first for L'Oreal patterns
   if (colorMap[upperColor]) {
     return colorMap[upperColor];
   }
@@ -1695,6 +1668,17 @@ function getColorCode(colorName: string): string {
     return colorName;
   }
   
-  // Default fallback
-  return '#1E40AF';
+  // Default: generate a simple color based on first letter to avoid generic blue
+  const firstChar = colorName.charAt(0).toLowerCase();
+  const colorHues: Record<string, string> = {
+    'a': '#E8D7C2', 'b': '#F5E6D3', 'c': '#D4C0A1', 'd': '#C0A888',
+    'e': '#B39670', 'f': '#F5E6D3', 'g': '#E8D7C2', 'h': '#D4C0A1',
+    'i': '#C0A888', 'j': '#B39670', 'k': '#F5E6D3', 'l': '#E8D7C2',
+    'm': '#D4C0A1', 'n': '#C0A888', 'o': '#B39670', 'p': '#F5E6D3',
+    'q': '#E8D7C2', 'r': '#D4C0A1', 's': '#C0A888', 't': '#B39670',
+    'u': '#F5E6D3', 'v': '#E8D7C2', 'w': '#D4C0A1', 'x': '#C0A888',
+    'y': '#B39670', 'z': '#F5E6D3'
+  };
+  
+  return colorHues[firstChar] || '#E8D7C2';
 }
