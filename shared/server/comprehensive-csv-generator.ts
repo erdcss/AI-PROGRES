@@ -74,9 +74,9 @@ export function generateComprehensiveCSV(scrapyData: ScrapyProductData[]): {
   scrapyData.forEach((product, index) => {
     const isFirstVariant = index === 0;
     
-    // Kar marjı hesaplamaları
+    // Kar marjı hesaplamaları - %10 kar garantisi
     const originalPrice = product.price;
-    const finalPrice = product.variant_price;
+    const finalPrice = Math.round(originalPrice * 1.10); // %10 kar ekleme garantisi
     const compareAtPrice = Math.round(originalPrice * 1.25); // %25 daha yüksek karşılaştırma fiyatı
     const costPrice = Math.round(originalPrice * 0.8); // %20 daha düşük maliyet
 
