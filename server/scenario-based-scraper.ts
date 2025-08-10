@@ -1115,7 +1115,9 @@ async function extractVariantsDirect($: cheerio.CheerioAPI, htmlContent: string)
       filteredColors.forEach(color => {
         realSizes.forEach(size => {
           if (typeof size === 'string' && size.trim() !== '') {
+            console.log(`🔥 STOK KONTROLÜ BAŞLATIYOR: ${color} - ${size} için gerçek stok tespiti...`);
             const inStock = checkVariantStock($, htmlContent, color, size);
+            console.log(`🔥 STOK SONUCU: ${color} - ${size} = ${inStock ? 'STOKTA VAR' : 'STOKTA YOK'}`);
             variants.push({
               color: color,
               colorCode: getColorCode(color),
@@ -1274,78 +1276,158 @@ function extractColorFromURL(htmlContent: string): string | null {
  * Gelişmiş stok kontrolü - Gerçek stok durumunu tespit et
  */
 function checkVariantStock($: any, htmlContent: string, color: string, size: string): boolean {
-  // 1. Beden butonlarının durumunu kontrol et
-  if (size && size.trim() !== '') {
-    const sizeButtons = $(`button:contains("${size}"), [data-size="${size}"], [title="${size}"]`);
-    if (sizeButtons.length > 0) {
-      const isDisabled = sizeButtons.is('[disabled]') || 
-                        sizeButtons.hasClass('disabled') || 
-                        sizeButtons.hasClass('out-of-stock') ||
-                        sizeButtons.hasClass('sold-out') ||
-                        sizeButtons.hasClass('unavailable');
-      
-      if (isDisabled) {
-        console.log(`❌ Beden stok kontrolü: ${size} - stokta yok (disabled)`);
-        return false;
-      } else {
-        console.log(`✅ Beden stok kontrolü: ${size} - stokta var`);
-        return true;
-      }
-    }
-  }
+  console.log(`🔍 GERÇEK STOK KONTROLÜ: ${color} - ${size} için kapsamlı stok analizi başlatılıyor...`);
   
-  // 2. Script verilerinden stok bilgisini kontrol et
+  // 1. ÖNCE SCRIPT VERİLERİNDEN GERÇEĞİNE STOK TESPİTİ
   const scriptTags = $('script').toArray();
   for (const script of scriptTags) {
     const scriptContent = $(script).html() || '';
     
-    // Trendyol variant stock pattern
-    if (size && scriptContent.includes(size)) {
-      const stockPattern = new RegExp(`"size"\\s*:\\s*"${size}"[^}]*"inStock"\\s*:\\s*(true|false)`, 'i');
-      const stockMatch = scriptContent.match(stockPattern);
-      if (stockMatch) {
-        const inStock = stockMatch[1] === 'true';
-        console.log(`${inStock ? '✅' : '❌'} Script stok kontrolü: ${size} - ${inStock ? 'stokta var' : 'stokta yok'}`);
-        return inStock;
+    // Trendyol'un gerçek stok JSON verilerini bul
+    const stockPatterns = [
+      // Modern Trendyol variant stok pattern'i
+      new RegExp(`"variants"[^\\]]*"size"\\s*:\\s*"${size}"[^}]*"inStock"\\s*:\\s*(true|false)`, 'gi'),
+      new RegExp(`"size"\\s*:\\s*"${size}"[^}]*"inStock"\\s*:\\s*(true|false)`, 'gi'),
+      new RegExp(`"available"\\s*:\\s*(true|false)[^}]*"size"\\s*:\\s*"${size}"`, 'gi'),
+      new RegExp(`"${size}"[^}]*"quantity"\\s*:\\s*(\\d+)`, 'gi'),
+      new RegExp(`"${size}"[^}]*"stock"\\s*:\\s*(\\d+)`, 'gi'),
+      // Trendyol slicing-attributes stok kontrolü
+      new RegExp(`"slicingAttributes"[^\\]]*"${size}"[^}]*"disabled"\\s*:\\s*(true|false)`, 'gi')
+    ];
+    
+    for (const pattern of stockPatterns) {
+      const matches = Array.from(scriptContent.matchAll(pattern));
+      if (matches.length > 0) {
+        for (const match of matches) {
+          if (match[1]) {
+            if (match[1] === 'true' || match[1] === 'false') {
+              const inStock = match[1] === 'true';
+              console.log(`✅ SCRIPT STOK VERİSİ: ${size} - ${inStock ? 'STOKTA VAR' : 'STOKTA YOK'} (JSON)`);
+              return inStock;
+            } else if (!isNaN(parseInt(match[1]))) {
+              const quantity = parseInt(match[1]);
+              const inStock = quantity > 0;
+              console.log(`✅ SCRIPT MİKTAR VERİSİ: ${size} - miktar: ${quantity} (${inStock ? 'STOKTA VAR' : 'STOKTA YOK'})`);
+              return inStock;
+            }
+          }
+        }
       }
     }
     
-    // Alternative pattern for stock checking
-    const availablePattern = new RegExp(`"${size}"[^}]*"available"\\s*:\\s*(true|false)`, 'i');
-    const availableMatch = scriptContent.match(availablePattern);
-    if (availableMatch) {
-      const available = availableMatch[1] === 'true';
-      console.log(`${available ? '✅' : '❌'} Script available kontrolü: ${size} - ${available ? 'mevcut' : 'mevcut değil'}`);
-      return available;
+    // Trendyol product state'den stok kontrolü
+    if (scriptContent.includes('productState') && scriptContent.includes(size)) {
+      const statePattern = new RegExp(`"productState"[^}]*"sizes"[^\\]]*"${size}"[^}]*"available"\\s*:\\s*(true|false)`, 'i');
+      const stateMatch = scriptContent.match(statePattern);
+      if (stateMatch) {
+        const available = stateMatch[1] === 'true';
+        console.log(`✅ PRODUCT STATE VERİSİ: ${size} - ${available ? 'STOKTA VAR' : 'STOKTA YOK'}`);
+        return available;
+      }
     }
   }
   
-  // 3. Varsayılan: Buton varsa ve disabled değilse stokta var
+  // 2. DOM ELEMENT ANALİZİ - GERÇEK BEDEN BUTONLARI
   if (size && size.trim() !== '') {
-    const hasButton = $(`button:contains("${size}")`, 'input[value*="${size}"]').length > 0;
-    if (hasButton) {
-      console.log(`✅ Varsayılan stok kontrolü: ${size} - buton mevcut, stokta var kabul edildi`);
-      return true;
+    // Gelişmiş beden buton selectors'ları
+    const sizeSelectors = [
+      `button[data-testid*="size"][data-testid*="${size}"]`,
+      `button[data-size="${size}"]`,
+      `button[title="${size}"]`,
+      `button:contains("${size}")`,
+      `.size-option[data-size="${size}"]`,
+      `.variant-size[data-value="${size}"]`,
+      `input[value="${size}"]`,
+      // Trendyol slicing-attributes yapısı
+      `.slicing-attribute-section-value span:contains("${size}")`,
+      `.slicing-attribute-section span[data-testid*="${size}"]`
+    ];
+    
+    for (const selector of sizeSelectors) {
+      const elements = $(selector);
+      if (elements.length > 0) {
+        console.log(`🔍 BEDEN ELEMENTI BULUNDU: ${selector} (${elements.length} adet)`);
+        
+        // Her elementi ayrı ayrı kontrol et
+        let hasAvailableOption = false;
+        elements.each((_: number, element: any) => {
+          const $el = $(element);
+          
+          // Disabled, sold-out, out-of-stock kontrolü
+          const isDisabled = $el.is('[disabled]') ||
+                           $el.attr('disabled') === 'true' ||
+                           $el.hasClass('disabled') ||
+                           $el.hasClass('out-of-stock') ||
+                           $el.hasClass('sold-out') ||
+                           $el.hasClass('unavailable') ||
+                           $el.hasClass('not-available') ||
+                           $el.closest('.disabled').length > 0;
+          
+          // Clickable ve interactive mi kontrolü
+          const isClickable = !isDisabled && (
+            $el.is('button:not([disabled])') || 
+            $el.is('input:not([disabled])') ||
+            $el.attr('onclick') ||
+            $el.css('cursor') === 'pointer'
+          );
+          
+          if (isClickable) {
+            hasAvailableOption = true;
+            console.log(`✅ AKTİF BEDEN BULUNDU: ${size} - tıklanabilir ve etkin`);
+          } else {
+            console.log(`❌ PASIF BEDEN: ${size} - disabled/unavailable`);
+          }
+        });
+        
+        if (hasAvailableOption) {
+          console.log(`✅ DOM STOK KONTROLÜ: ${size} - STOKTA VAR (aktif buton mevcut)`);
+          return true;
+        } else {
+          console.log(`❌ DOM STOK KONTROLÜ: ${size} - STOKTA YOK (tüm butonlar disabled)`);
+          return false;
+        }
+      }
     }
   }
   
-  // 4. Beden bilgisi yoksa, genel stok durumunu kontrol et
-  const generalStockIndicators = [
+  // 3. GENEL ÜRÜN STOK DURUMU KONTROLÜ
+  const outOfStockIndicators = [
     '.product-not-available',
-    '.out-of-stock',
+    '.out-of-stock-message',
     '.sold-out',
-    '.unavailable'
+    '.stock-not-available',
+    '[data-testid*="out-of-stock"]',
+    '.tumu-tukendi',
+    '.stok-yok'
   ];
   
-  for (const indicator of generalStockIndicators) {
-    if ($(indicator).length > 0) {
-      console.log(`❌ Genel stok kontrolü: Ürün stokta yok (${indicator})`);
+  for (const indicator of outOfStockIndicators) {
+    const element = $(indicator);
+    if (element.length > 0 && element.is(':visible')) {
+      console.log(`❌ GENEL STOK UYARISI: Ürün stokta yok (${indicator} mevcut)`);
       return false;
     }
   }
   
-  // Varsayılan olarak stokta var kabul et
-  console.log(`✅ Varsayılan: Stokta var kabul edildi`);
+  // 4. STOK METNİ ANALİZİ
+  const stockTexts = [
+    'Stokta yok',
+    'Tükendi',
+    'Geçici olarak temin edilemiyor',
+    'Out of stock',
+    'Sold out',
+    'Mevcut değil'
+  ];
+  
+  for (const stockText of stockTexts) {
+    if (htmlContent.toLowerCase().includes(stockText.toLowerCase())) {
+      console.log(`❌ STOK METNİ ANALİZİ: "${stockText}" tespit edildi - STOKTA YOK`);
+      return false;
+    }
+  }
+  
+  // 5. VARSAYILAN DURUM: Eğer hiçbir negatif işaret yoksa stokta var kabul et
+  console.log(`⚠️ VARSAYILAN STOK DURUMU: ${size} için kesin stok bilgisi bulunamadı - STOKTA VAR kabul edildi`);
   return true;
 }
 
