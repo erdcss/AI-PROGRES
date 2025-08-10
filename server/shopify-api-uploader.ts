@@ -23,15 +23,25 @@ interface ShopifyProductData {
 
 export async function uploadProductToShopify(csvContent: string, productTitle: string): Promise<{ success: boolean; productId?: string; message: string }> {
   try {
+    console.log('🛒 Shopify upload başlatılıyor...');
+    console.log('CSV Content Length:', csvContent.length);
+    console.log('Product Title:', productTitle);
+    
     // Parse CSV content
     const records = parse(csvContent, {
       columns: true,
       skip_empty_lines: true
     });
 
+    console.log('✅ CSV parsed successfully, records count:', records.length);
+
     if (!records || records.length === 0) {
+      console.log('❌ CSV içeriği boş');
       return { success: false, message: 'CSV içeriği boş veya geçersiz' };
     }
+
+    console.log('📋 First record keys:', Object.keys(records[0]));
+    console.log('📋 First record data:', JSON.stringify(records[0], null, 2));
 
     // CSV'den Shopify product data'sı oluştur
     const productData = parseCSVToShopifyProduct(records);
@@ -108,12 +118,18 @@ export async function uploadProductToShopify(csvContent: string, productTitle: s
 function parseCSVToShopifyProduct(records: any[]): ShopifyProductData {
   const firstRecord = records[0];
   
+  console.log('🔍 Parsing CSV to Shopify product...');
+  console.log('Handle:', firstRecord.Handle);
+  console.log('Title:', firstRecord.Title);
+  console.log('Body HTML:', firstRecord['Body (HTML)']?.substring(0, 100) + '...');
+  console.log('Vendor:', firstRecord.Vendor);
+  
   const productData: ShopifyProductData = {
-    handle: firstRecord.Handle,
-    title: firstRecord.Title,
-    bodyHtml: firstRecord['Body (HTML)'],
-    vendor: firstRecord.Vendor,
-    tags: firstRecord.Tags,
+    handle: firstRecord.Handle || 'default-handle',
+    title: firstRecord.Title || 'Untitled Product',
+    bodyHtml: firstRecord['Body (HTML)'] || '',
+    vendor: firstRecord.Vendor || 'Unknown',
+    tags: firstRecord.Tags || '',
     variants: [],
     images: []
   };

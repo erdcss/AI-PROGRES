@@ -1467,6 +1467,7 @@ export function registerRoutes(app: Express): Server {
       console.error('❌ Multi-URL scraper error:', error);
       return res.status(500).json({
         success: false,
+        error: 'Multi-URL extraction failed',
         message: error instanceof Error ? error.message : 'Multi-URL extraction failed'
       });
     }
@@ -1477,7 +1478,13 @@ export function registerRoutes(app: Express): Server {
     try {
       const { csvContent, productTitle } = req.body;
       
+      console.log('📥 Shopify upload request received');
+      console.log('Request body keys:', Object.keys(req.body));
+      console.log('CSV Content exists:', !!csvContent);
+      console.log('Product Title:', productTitle);
+      
       if (!csvContent) {
+        console.log('❌ CSV content missing');
         return res.status(400).json({
           success: false,
           message: 'CSV content is required'
@@ -1488,6 +1495,8 @@ export function registerRoutes(app: Express): Server {
       
       const uploadResult = await uploadProductToShopify(csvContent, productTitle);
       
+      console.log('📤 Upload result:', uploadResult);
+      
       if (uploadResult.success) {
         return res.json({
           success: true,
@@ -1497,6 +1506,7 @@ export function registerRoutes(app: Express): Server {
       } else {
         return res.status(400).json({
           success: false,
+          error: uploadResult.message,
           message: uploadResult.message
         });
       }
@@ -1505,6 +1515,7 @@ export function registerRoutes(app: Express): Server {
       console.error('❌ Shopify upload endpoint error:', error);
       return res.status(500).json({
         success: false,
+        error: 'Shopify upload failed',
         message: error instanceof Error ? error.message : 'Shopify upload failed'
       });
     }

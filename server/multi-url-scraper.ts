@@ -28,25 +28,43 @@ async function fetchWithRetry(url: string, retries = 3): Promise<string> {
 }
 // Otomatik renk tespit fonksiyonu
 function detectColorFromUrl(url: string, htmlContent: string, $: any): string {
-  // URL'den renk tespiti
+  console.log(`🔍 Renk tespiti başlatılıyor URL: ${url}`);
+  
+  // URL'den renk tespiti - Maybelline örnekleri için özelleştirildi
   const urlColorPatterns = [
-    // L'Oreal ve Maybelline URL pattern'leri
-    /-(\d{2,3})-([a-zA-Z-]+)-?/g,
-    /-([a-zA-Z]+)-renk/gi,
-    /renk-([a-zA-Z-]+)/gi,
-    /color-([a-zA-Z-]+)/gi
+    // Maybelline pattern: "taupe", "koyu-kahverengi" etc.
+    /-([a-zA-ZğüşıöçĞÜŞİÖÇ-]+)-p-\d+/g,
+    /-([a-zA-ZğüşıöçĞÜŞİÖÇ-]+)$/g,
+    /\/([a-zA-ZğüşıöçĞÜŞİÖÇ-]+)-p-/g,
+    // L'Oreal ve diğer pattern'ler
+    /-(\d{2,3})-([a-zA-ZğüşıöçĞÜŞİÖÇ-]+)-?/g,
+    /renk-([a-zA-ZğüşıöçĞÜŞİÖÇ-]+)/gi,
+    /color-([a-zA-ZğüşıöçĞÜŞİÖÇ-]+)/gi
   ];
 
   // URL'den renk çıkarmayı dene
   for (const pattern of urlColorPatterns) {
+    pattern.lastIndex = 0; // Reset regex state
     const match = pattern.exec(url);
     if (match && match[1]) {
-      // Sayı + isim formatı (örn: "01-fair" -> "01 Fair")
-      if (/^\d+$/.test(match[1]) && match[2]) {
-        return `${match[1]} ${match[2].replace(/-/g, ' ').replace(/\b\w/g, l => l.toUpperCase())}`;
+      let colorName = match[1];
+      
+      // Özel renk isimlerini temizle
+      if (colorName.includes('-')) {
+        colorName = colorName.split('-').map(part => {
+          // Türkçe karakterler ve renk adları için özel işlem
+          if (part === 'koyu') return 'Koyu';
+          if (part === 'kahverengi') return 'Kahverengi';
+          if (part === 'taupe') return 'Taupe';
+          if (part === 'fair') return 'Fair';
+          return part.charAt(0).toUpperCase() + part.slice(1).toLowerCase();
+        }).join(' ');
+      } else {
+        colorName = colorName.charAt(0).toUpperCase() + colorName.slice(1).toLowerCase();
       }
-      // Sadece isim formatı
-      return match[1].replace(/-/g, ' ').replace(/\b\w/g, l => l.toUpperCase());
+      
+      console.log(`✅ URL'den renk tespit edildi: ${colorName}`);
+      return colorName;
     }
   }
 
@@ -56,43 +74,56 @@ function detectColorFromUrl(url: string, htmlContent: string, $: any): string {
     /"variantName"\s*:\s*"([^"]+)"/g,
     /"colorName"\s*:\s*"([^"]+)"/g,
     /data-variant-name="([^"]+)"/g,
-    /class=".*selected.*".*>([^<]+)</g
+    /"allVariants".*?"colorName":\s*"([^"]+)"/g
   ];
 
   for (const pattern of htmlColorPatterns) {
+    pattern.lastIndex = 0;
     const match = pattern.exec(htmlContent);
     if (match && match[1] && match[1].length < 50) {
+      console.log(`✅ HTML'den renk tespit edildi: ${match[1].trim()}`);
       return match[1].trim();
     }
   }
 
-  // CSS selector'lardan renk tespiti
-  const colorSelectors = [
-    '.variant-name.selected',
-    '.color-name.selected',
-    '.selected-variant-name',
-    '[data-testid="variant-name"]',
-    '.product-variant.selected'
-  ];
-
-  for (const selector of colorSelectors) {
-    const colorElement = $(selector);
-    if (colorElement.length > 0) {
-      const colorText = colorElement.text().trim();
-      if (colorText && colorText.length > 0 && colorText.length < 50) {
-        return colorText;
+  // Title'dan renk çıkarma
+  const titleElement = $('h1.pr-new-br, h1[data-testid="pdp-product-name"], h1.product-name');
+  if (titleElement.length > 0) {
+    const title = titleElement.text().trim();
+    console.log(`🔍 Title: ${title}`);
+    
+    // Title'dan renk pattern'leri
+    const titleColorPatterns = [
+      /\b(Taupe|Fair|Koyu Kahverengi|Kahverengi|Siyah|Kırmızı|Mavi|Yeşil|Pembe|Mor|Turuncu|Sarı|Beyaz|Gri)\b/gi,
+      /-\s*([A-ZĞÜŞİÖÇ][a-zğüşıöç\s]+)\s*$/g,
+      /\s([0-9]{2,3}\s[A-Za-zğüşıöçĞÜŞİÖÇ]+)\s/g
+    ];
+    
+    for (const pattern of titleColorPatterns) {
+      pattern.lastIndex = 0;
+      const match = pattern.exec(title);
+      if (match && match[1]) {
+        console.log(`✅ Title'dan renk tespit edildi: ${match[1].trim()}`);
+        return match[1].trim();
       }
     }
   }
 
-  // Fallback: URL'den sayı çıkar
-  const urlNumberMatch = url.match(/-(\d{2,3})-/);
-  if (urlNumberMatch) {
-    return `Renk ${urlNumberMatch[1]}`;
+  // Fallback: URL'den son kelimeyi al
+  const urlParts = url.split('/').pop()?.split('-') || [];
+  for (let i = urlParts.length - 1; i >= 0; i--) {
+    const part = urlParts[i];
+    if (part && part !== 'p' && !/^\d+$/.test(part) && part.length > 2 && part.length < 20) {
+      const colorName = part.charAt(0).toUpperCase() + part.slice(1).toLowerCase();
+      console.log(`⚡ Fallback'den renk tespit edildi: ${colorName}`);
+      return colorName;
+    }
   }
 
-  // En son fallback: sıralı renk isimlendirme
-  return `Renk ${Math.random().toString(36).substr(2, 5).toUpperCase()}`;
+  // En son fallback: rastgele renk ID
+  const randomColor = `Color-${Date.now().toString().slice(-4)}`;
+  console.log(`🎲 Rastgele renk oluşturuldu: ${randomColor}`);
+  return randomColor;
 }
 
 // Helper functions for extracting product data

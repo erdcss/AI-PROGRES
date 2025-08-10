@@ -131,13 +131,9 @@ function ScraperPage() {
         description: `${data.variants?.colors?.length || 0} renk varyantı birleştirildi`
       });
       
-      // Shopify'a otomatik yükleme ve CSV indirme
+      // Sadece Shopify'a yükleme - CSV indirme kaldırıldı
       if (data.csvContent) {
-        // Önce Shopify'a yükle
         uploadToShopify(data.csvContent, data.title || 'Multi-Variant Product');
-        
-        // Sonra CSV'yi de indir
-        downloadCSV(data.csvContent, `${data.title || 'multi-variant'}-shopify.csv`);
       }
     },
     onError: (error: any) => {
@@ -480,11 +476,11 @@ function ScraperPage() {
                           {multiUrlScrapeMutation.isPending ? (
                             <div className="flex items-center gap-3">
                               <Loader2 className="w-5 h-5 animate-spin" />
-                              <span>Birleştiriliyor...</span>
+                              <span>Shopify'a yükleniyor...</span>
                             </div>
                           ) : (
                             <div className="flex items-center gap-2">
-                              <span>BİRLEŞTİR VE CSV İNDİR</span>
+                              <span>🛒 SHOPIFY'A YÜKLE</span>
                               <span className="text-xs bg-blue-800 px-2 py-1 rounded">
                                 {multiForm.watch('urls').length} renk
                               </span>
@@ -533,7 +529,7 @@ function ScraperPage() {
                         <p>• Tek Shopify ürünü olarak birleşir</p>
                         <p>• Ortak: Marka, başlık, özellikler, bedenler</p>
                         <p>• Farklı: Renkler ve görseller</p>
-                        <p>• Otomatik CSV oluşturma</p>
+                        <p>• Direkt Shopify API yükleme</p>
                       </div>
                     </div>
                   )}
@@ -562,8 +558,8 @@ function ScraperPage() {
                         <>
                           <p>1. İlk renk varyantının URL'sini girin</p>
                           <p>2. "URL Alanı Ekle" ile diğer renkleri ekleyin</p>
-                          <p>3. Her URL için renk ismini belirtin</p>
-                          <p>4. "BİRLEŞTİR VE CSV İNDİR" butonuna tıklayın</p>
+                          <p>3. Renkler otomatik tespit edilir</p>
+                          <p>4. "🛒 SHOPIFY'A YÜKLE" butonuna tıklayın</p>
                         </>
                       )}
                     </div>
