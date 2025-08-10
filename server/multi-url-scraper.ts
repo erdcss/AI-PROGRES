@@ -26,19 +26,19 @@ async function fetchWithRetry(url: string, retries = 3): Promise<string> {
   }
   throw new Error('Fetch failed after retries');
 }
-// Otomatik renk tespit fonksiyonu
+// ✅ TEK RENK TESPIT FONKSİYONU: Her URL sadece kendi rengini tespit eder
 function detectColorFromUrl(url: string, htmlContent: string, $: any): string {
-  console.log(`🔍 Renk tespiti başlatılıyor URL: ${url}`);
+  console.log(`🔍 TEK RENK tespiti başlatılıyor URL: ${url}`);
   
-  // URL'den renk tespiti - Maybelline ve L'Oreal örnekleri için özelleştirildi
+  // URL'den SADECE bu URL'ye ait renk tespiti
   const urlColorPatterns = [
-    // L'Oreal pattern: "901-fair-glow", "902-light-glow", "903-medium-glow"
+    // L'Oreal pattern: "901-fair-glow", "902-light-glow" (sadece bu URL'nin rengi)
     /-(\d{3})-([a-zA-ZğüşıöçĞÜŞİÖÇ-]+)-glow/g,
     /-(\d{3})-([a-zA-ZğüşıöçĞÜŞİÖÇ-]+)/g,
-    // Maybelline pattern: "taupe", "koyu-kahverengi" etc.
+    // Maybelline pattern: "taupe", "koyu-kahverengi" (sadece bu URL'nin rengi)
     /-([a-zA-ZğüşıöçĞÜŞİÖÇ-]+)-p-\d+/g,
     /\/([a-zA-ZğüşıöçĞÜŞİÖÇ-]+)-p-/g,
-    // Genel pattern'ler
+    // Bu URL'ye özel renk pattern'leri
     /renk-([a-zA-ZğüşıöçĞÜŞİÖÇ-]+)/gi,
     /color-([a-zA-ZğüşıöçĞÜŞİÖÇ-]+)/gi
   ];
@@ -273,22 +273,28 @@ export async function scrapeMultipleUrls(request: MultiUrlScrapeRequest): Promis
       const $ = cheerio.load(response);
       const htmlContent = response;
       
-      // Otomatik renk tespiti - HTML content'i de geçiyoruz
+      // ✅ TEK RENK POLİTİKASI: Her URL sadece kendi rengini taşıyacak
       const detectedColor = detectColorFromUrl(url, htmlContent, $);
-      console.log(`🎨 Detected color: ${detectedColor}`);
+      console.log(`🎯 URL'e özel tek renk tespiti: ${detectedColor}`);
       
-      // HTML'den ek renk bilgisi çıkarmaya çalış
-      let finalColor = detectedColor;
-      if (!detectedColor || detectedColor === 'Renk Tespit Edilmedi' || detectedColor.includes('Ml')) {
-        const titleElement = $('h1.pr-new-br[data-testid="product-detail-name"]');
-        const title = titleElement.text().trim();
-        
-        const titleColorMatch = title.match(/(\d{3})\s*-?\s*([A-Za-zğüşıöçĞÜŞİÖÇ\s]+)/);
-        if (titleColorMatch) {
-          finalColor = `${titleColorMatch[1]} ${titleColorMatch[2].trim()}`;
-          console.log(`🔍 Title'dan ek renk tespit edildi: ${finalColor}`);
+      // Bu URL'nin TEK rengini belirle - diğer renk seçeneklerini görmezden gel
+      let finalColor = 'unknown-color';
+      if (detectedColor && detectedColor.trim() !== '' && detectedColor !== 'Renk Tespit Edilmedi') {
+        finalColor = detectedColor;
+        console.log(`✅ URL'nin tek rengi belirlendi: ${finalColor}`);
+      } else {
+        // URL'den manuel renk çıkarımı
+        const urlParts = url.toLowerCase().split(/[-_]/);
+        for (const part of urlParts) {
+          if (part.match(/^(fair|light|medium|deep|glow|901|902|903|904|şeffaf|taupe|kahve)$/)) {
+            finalColor = part;
+            console.log(`🎯 URL'den manuel renk çıkarımı: ${finalColor}`);
+            break;
+          }
         }
       }
+      
+      console.log(`🔒 FINAL: Bu URL'nin tek rengi → ${finalColor}`);
       
       // Extract basic product info (use first URL as main product info)
       if (!mainProduct) {
@@ -349,21 +355,22 @@ export async function scrapeMultipleUrls(request: MultiUrlScrapeRequest): Promis
         }
       });
       
-      // Add images with color association using finalColor
+      // ✅ SADECE bu URL'nin rengini kaydet
       colorImages.forEach(imageUrl => {
         combinedImages.push({
           url: imageUrl,
           alt: `${mainProduct.title} - ${finalColor}`,
-          colorName: finalColor
+          colorName: finalColor // Bu URL'nin SADECE kendi rengi
         });
       });
       
-      // Extract sizes for this variant (TÜM URL'lerden gelen bedenler toplanacak)
+      // Bu URL'nin bedenlerini çıkar (ortak beden havuzu)
       const sizes = extractSizesFromContent($, htmlContent);
       sizes.forEach(size => allSizes.add(size));
       
-      // Add color to combined colors using finalColor
+      // ✅ SADECE bu URL'nin rengini renk havuzuna ekle
       combinedColors.add(finalColor);
+      console.log(`📝 Renk havuzuna eklendi: ${finalColor}`);
       
       console.log(`✅ Successfully scraped ${finalColor}: ${colorImages.length} images, ${sizes.length} sizes`);
       

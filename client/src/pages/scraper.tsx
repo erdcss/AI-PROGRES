@@ -742,11 +742,14 @@ function UrlPreviewCard({ url, index }: { url: string; index: number }) {
               </h3>
             </div>
 
-            {/* Tespit Edilen Renk */}
+            {/* Tespit Edilen Renkler */}
             <div className="flex items-center gap-1">
               <div className="w-2 h-2 bg-gradient-to-r from-blue-500 to-purple-500 rounded-full"></div>
               <span className="text-slate-300 text-xs font-medium truncate">
-                {detectedColor}
+                {previewData.variants?.colors?.length > 0 
+                  ? `${previewData.variants.colors.length} Renk: ${previewData.variants.colors.slice(0, 2).join(', ')}${previewData.variants.colors.length > 2 ? '...' : ''}`
+                  : detectedColor
+                }
               </span>
             </div>
 

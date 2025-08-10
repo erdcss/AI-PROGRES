@@ -194,4 +194,60 @@ export class CosmeticColorFilter implements ColorFilter {
   }
 }
 
+// Renk isimlerini Türkçe karşılıkları ile döndürür
+export function getColorName(color: string): string {
+  const lOrealColorMap: { [key: string]: string } = {
+    '901-fair-glow': '901 - Fair Glow (Açık Ten)',
+    '902-light-glow': '902 - Light Glow (Orta Açık Ten)', 
+    '903-medium-glow': '903 - Medium Glow (Orta Ten)',
+    '904-deep-glow': '904 - Deep Glow (Koyu Ten)',
+    '905-rich-glow': '905 - Rich Glow (Çok Koyu Ten)',
+    'fair-glow': 'Fair Glow (Açık Ten)',
+    'light-glow': 'Light Glow (Orta Açık Ten)',
+    'medium-glow': 'Medium Glow (Orta Ten)',
+    'deep-glow': 'Deep Glow (Koyu Ten)',
+    'rich-glow': 'Rich Glow (Çok Koyu Ten)',
+    'fair': 'Fair (Açık Ten)',
+    'light': 'Light (Orta Açık)',
+    'medium': 'Medium (Orta)',
+    'deep': 'Deep (Koyu)',
+    'golden': 'Altın Rengi',
+    'gold': 'Altın Rengi',
+    'rose': 'Gül Rengi',
+    'nude': 'Nude (Ten Rengi)',
+    'coral': 'Mercan Rengi',
+    'berry': 'Böğürtlen Rengi',
+    'pink': 'Pembe',
+    'peach': 'Şeftali Rengi',
+    'bronze': 'Bronz',
+    'honey': 'Bal Rengi',
+    'caramel': 'Karamel',
+    'vanilla': 'Vanilya',
+    'porcelain': 'Porselen',
+    'ivory': 'Fildişi',
+    'beige': 'Bej',
+    'sand': 'Kum Rengi',
+    'warm': 'Sıcak Ton',
+    'cool': 'Soğuk Ton',
+    'neutral': 'Nötr Ton',
+    'transparent': 'Şeffaf',
+    'clear': 'Şeffaf',
+    'şeffaf': 'Şeffaf',
+    'taupe': 'Taupe (Gri-Kahve)',
+    'medium-brown': 'Orta Kahve',
+    'deep-brown': 'Koyu Kahve',
+    'kahverengi': 'Kahverengi'
+  };
+
+  const normalizedColor = color.toLowerCase().replace(/[-\s]+/g, '-');
+  const colorName = lOrealColorMap[normalizedColor];
+  
+  if (colorName) {
+    console.log(`🎨 Color mapping: "${color}" -> "${colorName}"`);
+    return colorName;
+  }
+  
+  return color; // Return original if no mapping found
+}
+
 export const colorFilter = new CosmeticColorFilter();
