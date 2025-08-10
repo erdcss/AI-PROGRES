@@ -115,101 +115,127 @@ const MainDashboard = () => {
   };
 
   return (
-    <div className="min-h-screen bg-gradient-to-br from-blue-900 via-indigo-900 to-blue-800 relative overflow-hidden">
-      {/* Animated Background Elements */}
-      <div className="absolute inset-0 bg-gradient-to-br from-blue-800/20 via-indigo-800/30 to-blue-900/20 animate-pulse"></div>
-      <div className="absolute inset-0 bg-gradient-to-tr from-indigo-900/10 via-blue-900/20 to-purple-900/10 animate-pulse" style={{animationDelay: '1s'}}></div>
-      
-      {/* Floating particles */}
-      <div className="absolute top-20 left-20 w-2 h-2 bg-blue-400/60 rounded-full animate-particle-float"></div>
-      <div className="absolute top-40 right-32 w-3 h-3 bg-purple-400/40 rounded-full animate-particle-float" style={{animationDelay: '2s'}}></div>
-      <div className="absolute bottom-32 left-40 w-2 h-2 bg-cyan-400/50 rounded-full animate-particle-float" style={{animationDelay: '4s'}}></div>
-      <div className="absolute bottom-20 right-20 w-1 h-1 bg-blue-300/70 rounded-full animate-particle-float" style={{animationDelay: '6s'}}></div>
-
-      <div className="relative z-10 w-full px-4 md:px-8 py-8">
+    <div className="min-h-screen bg-slate-900 relative">
+      <div className="w-full px-6 py-12 max-w-7xl mx-auto">
         {/* Header */}
-        <motion.div
-          initial={{ opacity: 0, y: -30 }}
-          animate={{ opacity: 1, y: 0 }}
-          transition={{ duration: 0.8, ease: "easeOut" }}
-          className="text-center mb-12"
-        >
-          <h1 className="text-4xl font-bold text-white mb-4">
-            E-ticaret Veri Merkezi
+        <div className="text-center mb-16">
+          <h1 className="text-3xl text-white mb-3">
+            Veri Transfer Programı
           </h1>
-          <p className="text-gray-300 text-lg mb-6">
-            Ürün veri aktarım işlemleri ve sistem kontrol merkezi
+          <p className="text-gray-400 text-base mb-6">
+            Ürün çıkarma ve analiz sistemi
           </p>
-          <div className="flex items-center justify-center gap-2 glassmorphism-card rounded-full px-4 py-2 w-fit mx-auto">
-            <Clock className="w-4 h-4 text-blue-400 animate-clock-pulse" />
+          <div className="flex items-center justify-center gap-2 bg-slate-800/50 rounded-lg px-4 py-2 w-fit mx-auto">
+            <Clock className="w-4 h-4 text-blue-400" />
             <RealTimeClock />
           </div>
-        </motion.div>
+        </div>
 
-        <div className="grid lg:grid-cols-2 gap-8">
-          {/* Ürün Veri Aktarım İşlemleri */}
-          <motion.div
-            initial={{ opacity: 0, x: -40 }}
-            animate={{ opacity: 1, x: 0 }}
-            transition={{ delay: 0.3, duration: 0.6, ease: "easeOut" }}
-            className="glassmorphism-card rounded-3xl p-6"
-          >
-            <div className="flex items-center gap-3 mb-6">
-              <Database className="w-7 h-7 text-blue-400" />
-              <h2 className="text-xl font-bold text-white">
-                Ürün Veri Aktarım İşlemleri
-              </h2>
-            </div>
+        <div className="space-y-12">
+          {/* Ürün Çıkarma Platformları */}
+          <div>
+            <h2 className="text-xl text-white mb-6 text-center">
+              ÜRÜN ÇIKARMA PLATFORMLARI
+            </h2>
+            <p className="text-gray-400 text-center mb-8">
+              Ürün verilerini çıkarıp Shopify'a aktarabileceğiniz platformlar
+            </p>
             
-            <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
-              {dataTransferOptions.map((option, index) => (
-                <motion.div
+            <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
+              {dataTransferOptions.slice(0, 4).map((option, index) => (
+                <div
                   key={option.name}
-                  initial={{ opacity: 0, y: 30, scale: 0.9 }}
-                  animate={{ opacity: 1, y: 0, scale: 1 }}
-                  transition={{ 
-                    delay: 0.4 + index * 0.1, 
-                    duration: 0.5, 
-                    ease: "easeOut",
-                    type: "spring",
-                    stiffness: 100 
-                  }}
                   onClick={() => handleOptionClick(option)}
                   className={`
-                    relative overflow-hidden rounded-2xl cursor-pointer
-                    bg-gradient-to-br ${option.color} p-4
-                    transform transition-all duration-500 hover:scale-[1.02] hover:shadow-2xl
-                    ${!option.available ? 'opacity-60 cursor-not-allowed' : 'hover:shadow-blue-500/25'}
-                    card-hover group
+                    bg-slate-800/50 border border-slate-700 rounded-lg p-4 cursor-pointer
+                    hover:bg-slate-700/50 transition-colors group text-center
+                    ${!option.available ? 'opacity-50 cursor-not-allowed' : ''}
                   `}
                 >
-                  <div className="relative z-10">
-                    <div className="flex items-center justify-between mb-3">
-                      <div className="flex items-center justify-center text-white">
-                        {option.icon}
-                      </div>
-                      {option.available ? (
-                        <ArrowRight className="w-5 h-5 text-white/80 group-hover:translate-x-1 transition-transform duration-300" />
-                      ) : (
-                        <span className="bg-black/40 text-white text-xs px-2 py-1 rounded-full">
-                          Yakında
-                        </span>
-                      )}
-                    </div>
-                    <h3 className="text-base font-bold text-white mb-1">
-                      {option.name}
-                    </h3>
-                    <p className="text-white/90 text-sm">
-                      {option.description}
-                    </p>
+                  <div className="flex items-center justify-center mb-3 text-blue-400">
+                    {option.icon}
                   </div>
-                  
-                  {/* Hover Effect */}
-                  <div className="absolute inset-0 bg-white/0 hover:bg-white/5 transition-all duration-300 rounded-2xl"></div>
-                </motion.div>
+                  <h3 className="text-white text-sm mb-1">
+                    {option.name}
+                  </h3>
+                  <p className="text-gray-400 text-xs">
+                    {option.description}
+                  </p>
+                  {!option.available && (
+                    <span className="text-xs text-gray-500 mt-2 block">Yakında</span>
+                  )}
+                </div>
               ))}
             </div>
-          </motion.div>
+          </div>
+
+          {/* Sistem Yönetimi ve Analiz */}
+          <div>
+            <h2 className="text-xl text-white mb-6 text-center">
+              SİSTEM YÖNETİMİ VE ANALİZ
+            </h2>
+            <p className="text-gray-400 text-center mb-8">
+              Sık kullanılan sistem araçları
+            </p>
+            
+            <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+              {systemControlOptions.slice(0, 3).map((option, index) => (
+                <div
+                  key={option.name}
+                  onClick={() => handleOptionClick(option)}
+                  className="bg-slate-800/50 border border-slate-700 rounded-lg p-4 cursor-pointer hover:bg-slate-700/50 transition-colors text-center"
+                >
+                  <div className="flex items-center justify-center mb-3 text-green-400">
+                    {option.icon}
+                  </div>
+                  <h3 className="text-white text-sm mb-1">
+                    {option.name}
+                  </h3>
+                  <p className="text-gray-400 text-xs">
+                    {option.description}
+                  </p>
+                </div>
+              ))}
+            </div>
+          </div>
+
+          {/* Hızlı Erişim */}
+          <div>
+            <h3 className="text-lg text-white mb-4 text-center">
+              HIZLI ERİŞİM
+            </h3>
+            <p className="text-gray-400 text-center mb-6">
+              Sık kullanılan sistem araçları
+            </p>
+            
+            <div className="flex justify-center gap-4">
+              <button
+                onClick={() => setLocation('/replit-agent')}
+                className="bg-blue-600 hover:bg-blue-700 text-white px-6 py-2 rounded-lg text-sm transition-colors"
+              >
+                REPLIT AGENT
+              </button>
+              <button
+                onClick={() => setLocation('/data-analysis')}
+                className="bg-emerald-600 hover:bg-emerald-700 text-white px-6 py-2 rounded-lg text-sm transition-colors"
+              >
+                VERI ANALİZİ
+              </button>
+              <button
+                onClick={() => setLocation('/system-status')}
+                className="bg-red-600 hover:bg-red-700 text-white px-6 py-2 rounded-lg text-sm transition-colors"
+              >
+                SİSTEM DURUMU
+              </button>
+            </div>
+          </div>
+        </div>
+      </div>
+    </div>
+  );
+};
+
+export default MainDashboard;
 
           {/* Sistem Donanım ve Kontrol Merkezi */}
           <motion.div

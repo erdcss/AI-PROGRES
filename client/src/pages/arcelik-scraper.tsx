@@ -38,7 +38,7 @@ import {
 } from "@/components/ui/alert";
 import { ScrollArea } from "@/components/ui/scroll-area";
 import { useState, useEffect } from "react";
-import { ProductDisplay } from "@/components/ProductDisplay";
+
 import { SimpleProductPreview } from "@/components/SimpleProductPreview";
 import { VariantDisplay } from "@/components/VariantDisplay";
 import { RealTimeClock } from "@/components/RealTimeClock";

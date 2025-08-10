@@ -9,7 +9,7 @@ import { Loader2, ShoppingCart, Link, Copy, X, Home, Plus, Trash2, Package, Pale
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
-import { ProductDisplay } from "@/components/ProductDisplay";
+
 import { toast } from "@/hooks/use-toast";
 import { useLocation } from "wouter";
 
@@ -592,22 +592,55 @@ function ScraperPage() {
               initial={{ opacity: 0, y: 20 }}
               animate={{ opacity: 1, y: 0 }}
               transition={{ duration: 0.5 }}
+              className="text-center"
             >
-              <ProductDisplay data={{
-                title: product.title,
-                brand: product.brand,
-                price: product.price,
-                description: product.description,
-                images: product.images?.map(img => typeof img === 'string' ? img : img.url) || [],
-                variants: (product as any).variants || {
-                  colors: [],
-                  sizes: [],
-                  allVariants: []
-                },
-                features: product.features?.map(f => ({ key: f.key, value: f.value })) || [],
-                tags: product.tags || [],
-                shopifyCompatible: true
-              }} />
+              <div className="bg-green-600/20 border border-green-500/30 rounded-lg p-6">
+                <h3 className="text-lg text-green-400 mb-2">Ürün Başarıyla Çıkarıldı</h3>
+                <p className="text-green-300 mb-4">{product.title}</p>
+                
+                <div className="space-y-2 text-sm text-gray-300">
+                  <div>Renk seçenekleri: {product.variants?.colors?.length || 0}</div>
+                  <div>Beden seçenekleri: {product.variants?.sizes?.length || 0}</div>
+                  <div>Toplam varyant: {product.variants?.allVariants?.length || 0}</div>
+                </div>
+
+                <Button
+                  onClick={async () => {
+                    try {
+                      const response = await fetch('/api/export-to-shopify', {
+                        method: 'POST',
+                        headers: { 'Content-Type': 'application/json' },
+                        body: JSON.stringify(product),
+                      });
+                      
+                      const result = await response.json();
+                      
+                      if (response.ok && result.success) {
+                        toast({
+                          title: "Başarılı!",
+                          description: "Ürün Shopify'a yüklendi"
+                        });
+                      } else {
+                        toast({
+                          title: "Hata",
+                          description: result.message || 'Yükleme başarısız',
+                          variant: "destructive"
+                        });
+                      }
+                    } catch (error) {
+                      toast({
+                        title: "Bağlantı Hatası",
+                        description: "Tekrar deneyin",
+                        variant: "destructive"
+                      });
+                    }
+                  }}
+                  className="mt-4 bg-blue-600 hover:bg-blue-700 text-white"
+                >
+                  <ShoppingCart className="w-4 h-4 mr-2" />
+                  SHOPIFY'A AKTAR
+                </Button>
+              </div>
             </motion.div>
           </div>
         )}
