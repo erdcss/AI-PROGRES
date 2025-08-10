@@ -143,7 +143,7 @@ export function ProductDisplay({ data }: ProductDisplayProps) {
             </div>
           </div>
 
-          <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
+          <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
             {/* Image Slider Section - Left */}
             <div className="lg:col-span-1">
               <div className="relative">
@@ -204,100 +204,7 @@ export function ProductDisplay({ data }: ProductDisplayProps) {
               </div>
             </div>
 
-            {/* Variants Section - Center */}
-            <div className="lg:col-span-1">
-              <h3 className="text-lg font-semibold text-white mb-4 flex items-center gap-2">
-                <Package className="w-5 h-5" />
-                Varyantlar ({data.variants?.totalVariants || 0})
-              </h3>
 
-              <div className="space-y-4">
-                {/* Compact Colors */}
-                {data.variants?.colors && data.variants.colors.length > 0 && (
-                  <div>
-                    <div className="flex items-center gap-2 mb-2">
-                      <Palette className="w-3 h-3 text-white/80" />
-                      <span className="text-white text-xs font-medium">Renk Seçenekleri ({data.variants.colors.length})</span>
-                    </div>
-                    <div className="grid grid-cols-2 gap-1">
-                      {data.variants.colors.map((color, index) => {
-                        // Keep original color names - DO NOT TRANSLATE
-                        const normalizeColorName = (colorName: string): string => {
-                          // Keep colors in their original language, only format them properly
-                          const formatted = colorName.trim();
-                          
-                          // Only handle code formatting for special cases
-                          if (formatted.includes('-')) {
-                            // For codes like '901-fair-glow', keep as is but format
-                            return formatted.replace(/-/g, ' ').toUpperCase();
-                          }
-                          
-                          // Return original color name without translation
-                          return formatted;
-                        };
-                        
-                        const displayName = normalizeColorName(color);
-                        
-                        return (
-                          <div 
-                            key={index} 
-                            className="bg-slate-700/50 hover:bg-slate-600/50 rounded-lg px-3 py-2 border border-slate-600/30"
-                          >
-                            <div className="text-center">
-                              <div className="text-white text-sm font-medium truncate">{displayName}</div>
-                            </div>
-                          </div>
-                        );
-                      })}
-                    </div>
-                  </div>
-                )}
-
-                {/* Sizes - Only show if real sizes exist */}
-                {data.variants?.sizes && data.variants.sizes.length > 0 && 
-                 data.variants.sizes.some(size => size && size.trim() !== '' && 
-                   !['Varsayılan', 'Standart', 'Default', '1'].includes(size)) && (
-                  <div>
-                    <div className="flex items-center gap-2 mb-2">
-                      <Shirt className="w-3 h-3 text-white/80" />
-                      <span className="text-white text-xs font-medium">Beden Seçenekleri ({data.variants.sizes.filter(size => size && size.trim() !== '' && !['Varsayılan', 'Standart', 'Default', '1'].includes(size)).length})</span>
-                    </div>
-                    <div className="grid grid-cols-2 gap-1">
-                      {data.variants.sizes
-                        .filter(size => size && size.trim() !== '' && !['Varsayılan', 'Standart', 'Default', '1'].includes(size))
-                        .map((size, index) => (
-                        <div key={index} className="bg-slate-700/50 hover:bg-slate-600/50 rounded-lg px-3 py-2 border border-slate-600/30 text-center">
-                          <div className="text-white text-sm font-medium">{size}</div>
-                        </div>
-                      ))}
-                    </div>
-                  </div>
-                )}
-
-                {/* Variant Summary */}
-                {data.variants?.allVariants && data.variants.allVariants.length > 0 && (
-                  <div>
-                    <span className="text-white text-xs font-medium mb-2 block">Varyant Özeti</span>
-                    <div className="bg-slate-800/30 rounded-lg p-3 space-y-2">
-                      <div className="flex justify-between text-xs">
-                        <span className="text-white/70">Toplam Varyant:</span>
-                        <span className="text-white font-medium">{data.variants.allVariants.length}</span>
-                      </div>
-                      <div className="flex justify-between text-xs">
-                        <span className="text-white/70">Renk Seçeneği:</span>
-                        <span className="text-white font-medium">{data.variants.colors?.length || 0}</span>
-                      </div>
-                      {data.variants.sizes && data.variants.sizes.filter(s => s && !['Varsayılan', 'Standart', 'Default', '1'].includes(s)).length > 0 && (
-                        <div className="flex justify-between text-xs">
-                          <span className="text-white/70">Beden Seçeneği:</span>
-                          <span className="text-white font-medium">{data.variants.sizes.filter(s => s && !['Varsayılan', 'Standart', 'Default', '1'].includes(s)).length}</span>
-                        </div>
-                      )}
-                    </div>
-                  </div>
-                )}
-              </div>
-            </div>
 
             {/* Actions Section - Right */}
             <div className="lg:col-span-1">
