@@ -262,15 +262,6 @@ function ScraperPage() {
           <div>
             {/* Mode Selection */}
             <Card className="business-card mb-6">
-              <CardHeader className="business-header">
-                <CardTitle className="text-white font-thin text-lg flex items-center gap-2">
-                  <ShoppingCart className="w-5 h-5 text-cyan-400/70" />
-                  Çıkarma Modu Seçin
-                </CardTitle>
-                <p className="text-cyan-400/70 text-sm font-thin">
-                  🎨 Renkler otomatik tespit edilir • 📦 Stok durumu kontrol edilir • 🛒 Shopify'a direkt yüklenir
-                </p>
-              </CardHeader>
               <CardContent className="p-6">
                 <div className="flex gap-3 justify-center">
                   <Button
@@ -283,8 +274,8 @@ function ScraperPage() {
                   >
                     <Package className="w-4 h-4" />
                     <div className="flex flex-col items-start">
-                      <span>Tek Varyant</span>
-                      <span className="text-xs opacity-70">Renksiz ürünler için</span>
+                      <span>Ürün Ekle</span>
+                      <span className="text-xs opacity-70">Tek varyant ürünler için</span>
                     </div>
                   </Button>
                   <Button
@@ -297,7 +288,7 @@ function ScraperPage() {
                   >
                     <Palette className="w-4 h-4" />
                     <div className="flex flex-col items-start">
-                      <span>Multi Renk</span>
+                      <span>Çoklu Ürün Ekle</span>
                       <span className="text-xs opacity-70">Farklı renk URL'leri için</span>
                     </div>
                   </Button>
