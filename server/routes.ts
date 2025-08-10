@@ -265,38 +265,56 @@ function processVariantsFromFeatures(features: any[], originalVariants: any[] = 
   console.log("📏 Beden özellikleri:", sizeFeatures);
   console.log("🎨 Renk özellikleri:", colorFeatures);
   
-  // Beden seçeneklerini parse et
+  // Beden seçeneklerini parse et - geliştirilmiş algoritma
   const sizeOptions: string[] = [];
   sizeFeatures.forEach(feature => {
     if (feature.value) {
-      // "m", "l", "xl" gibi değerleri parçala
-      const sizes = feature.value.toString().toLowerCase()
-        .split(/[,\s]+/)
+      // Daha kapsamlı beden ayırma - virgül, noktalı virgül, pipe, ve boşluk desteği
+      const sizes = feature.value.toString()
+        .split(/[,;|\s]+/) // Virgül, noktalı virgül, pipe ve boşluk ile ayır
         .map((size: string) => size.trim())
-        .filter((size: string) => size && size.length > 0)
+        .filter((size: string) => size && size.length > 0 && size.length <= 10) // Çok uzun değerleri filtrele
         .map((size: string) => {
-          // Beden normalizasyonu
-          if (size === 's') return 'S';
-          if (size === 'm') return 'M';
-          if (size === 'l') return 'L';
-          if (size === 'xl') return 'XL';
-          if (size === 'xxl') return 'XXL';
-          // Sayısal bedenler için
-          if (/^\d+$/.test(size)) return size;
+          // Gelişmiş beden normalizasyonu
+          const normalized = size.toLowerCase();
+          
+          // Harf bedenler
+          if (normalized === 'xs' || normalized === 'x-small') return 'XS';
+          if (normalized === 's' || normalized === 'small') return 'S'; 
+          if (normalized === 'm' || normalized === 'medium') return 'M';
+          if (normalized === 'l' || normalized === 'large') return 'L';
+          if (normalized === 'xl' || normalized === 'x-large') return 'XL';
+          if (normalized === 'xxl' || normalized === '2xl' || normalized === 'xx-large') return 'XXL';
+          if (normalized === 'xxxl' || normalized === '3xl') return 'XXXL';
+          
+          // Sayısal bedenler (ayakkabı, pantolon vs.)
+          if (/^\d+(\.\d+)?$/.test(normalized)) return normalized.toUpperCase();
+          
+          // Karma bedenler (34/S, 36/M vs.)
+          if (/^\d+\/[A-Z]+$/i.test(normalized)) return normalized.toUpperCase();
+          
+          // Tek beden kontrolü
+          if (normalized.includes('tek') || normalized.includes('one') || normalized === 'universal') return 'Tek Beden';
+          
+          // Diğer durumlarda orijinal değeri büyük harfle döndür
           return size.toUpperCase();
         });
       sizeOptions.push(...sizes);
     }
   });
   
-  // Renk seçeneklerini parse et
+  // Renk seçeneklerini parse et - geliştirilmiş algoritma
   const colorOptions: string[] = [];
   colorFeatures.forEach(feature => {
     if (feature.value) {
       const colors = feature.value.toString()
-        .split(/[,\s]+/)
+        .split(/[,;|\n]+/) // Virgül, noktalı virgül, pipe ve satır sonu ile ayır
         .map((color: string) => color.trim())
-        .filter((color: string) => color && color.length > 0);
+        .filter((color: string) => color && color.length > 0 && color.length <= 30) // Çok uzun değerleri filtrele
+        .map((color: string) => {
+          // Renk normalizasyonu - büyük harfle başlat
+          return color.charAt(0).toUpperCase() + color.slice(1).toLowerCase();
+        });
       colorOptions.push(...colors);
     }
   });
@@ -308,67 +326,72 @@ function processVariantsFromFeatures(features: any[], originalVariants: any[] = 
   console.log("📏 Bulunan bedenler:", uniqueSizes);
   console.log("🎨 Bulunan renkler:", uniqueColors);
   
-  // Varyant kombinasyonları oluştur
+  // Varyant kombinasyonları oluştur - geliştirilmiş mantık
   const variants: any[] = [];
+  
+  console.log("🔧 Varyant oluşturma başlıyor - Bedenler:", uniqueSizes.length, "Renkler:", uniqueColors.length);
   
   if (uniqueSizes.length > 0 || uniqueColors.length > 0) {
     // Gerçek varyantlar var
     if (uniqueSizes.length > 0 && uniqueColors.length > 0) {
       // Hem beden hem renk var - kombinasyon oluştur
+      console.log("🔧 Hem beden hem renk var, kombinasyon oluşturuluyor...");
       uniqueColors.forEach(color => {
         uniqueSizes.forEach(size => {
           variants.push({
             color: color,
             size: size,
-            inStock: true, // Varsayılan olarak stokta kabul et
-            stockCount: 10, // Varsayılan stok miktarı
-            price: 0 // Fiyat API'dan alınacak
+            inStock: true,
+            stock: 15, // Gerçekçi stok miktarı
+            price: 0, // Ana fiyat daha sonra set edilecek
+            sku: `${color.replace(/\s+/g, '-')}-${size.replace(/\s+/g, '-')}`.toLowerCase()
           });
         });
       });
     } else if (uniqueSizes.length > 0) {
       // Sadece beden var
+      console.log("🔧 Sadece beden var, beden varyantları oluşturuluyor...");
       uniqueSizes.forEach(size => {
         variants.push({
-          color: "Varsayılan",
+          color: "Standart Renk",
           size: size,
           inStock: true,
-          stockCount: 10,
-          price: 0
+          stock: 15,
+          price: 0,
+          sku: `standart-${size.replace(/\s+/g, '-')}`.toLowerCase()
         });
       });
     } else if (uniqueColors.length > 0) {
       // Sadece renk var
+      console.log("🔧 Sadece renk var, renk varyantları oluşturuluyor...");
       uniqueColors.forEach(color => {
         variants.push({
           color: color,
           size: "Tek Beden",
           inStock: true,
-          stockCount: 10,
-          price: 0
+          stock: 15,
+          price: 0,
+          sku: `${color.replace(/\s+/g, '-')}-tek-beden`.toLowerCase()
         });
       });
     }
-    
-    console.log(`✅ ${variants.length} varyant oluşturuldu`);
-    return variants;
+  } else {
+    // Hiç varyant yok - default oluştur
+    console.log("🔧 Hiç varyant bulunamadı, varsayılan varyant oluşturuluyor...");
+    variants.push({
+      color: "Standart",
+      size: "Tek Beden", 
+      inStock: true,
+      stock: 20,
+      price: 0,
+      sku: "standart-tek-beden"
+    });
   }
   
-  // Orijinal varyantlar varsa onları kullan
-  if (originalVariants && originalVariants.length > 0) {
-    console.log("🔄 Orijinal varyantlar kullanılıyor:", originalVariants.length);
-    return originalVariants;
-  }
+  console.log("✅ Toplam", variants.length, "varyant oluşturuldu");
+  console.log("📊 İlk 3 varyant:", variants.slice(0, 3));
   
-  // Hiçbir varyant yoksa varsayılan oluştur
-  console.log("🚫 Varyant bulunamadı, varsayılan oluşturuluyor");
-  return [{
-    color: "Varsayılan",
-    size: "Tek Beden",
-    inStock: true,
-    stockCount: 5,
-    price: 0
-  }];
+  return variants;
 }
 
 export function registerRoutes(app: Express): Server {

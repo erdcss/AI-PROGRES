@@ -54,7 +54,7 @@ export function generateProfessionalCSV(productData: any): string {
       
       rows.push({
         ...baseProduct,
-        'Variant Price': color.price || productData.price,
+        'Variant Price': calculateSalePrice(color.price || productData.price),
         'Variant Compare At Price': calculateComparePrice(color.price || productData.price),
         'Variant SKU': `${createHandle(productData.title)}-${color.name}-${Date.now()}`,
         'Variant Inventory Qty': '100',
@@ -165,7 +165,15 @@ function createSEODescription(productData: any): string {
 }
 
 /**
- * Karşılaştırma fiyatı hesapla
+ * %10 kar ekleyerek satış fiyatı hesapla
+ */
+function calculateSalePrice(price: string): string {
+  const numPrice = parseFloat(price.replace(',', '.'));
+  return (numPrice * 1.10).toFixed(2); // %10 kar eklendi
+}
+
+/**
+ * Karşılaştırma fiyatı hesapla (%20 daha yüksek)
  */
 function calculateComparePrice(price: string): string {
   const numPrice = parseFloat(price.replace(',', '.'));
