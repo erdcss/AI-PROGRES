@@ -268,7 +268,7 @@ function ScraperPage() {
                   Çıkarma Modu Seçin
                 </CardTitle>
                 <p className="text-cyan-400/70 text-sm font-thin">
-                  🎨 Renkler otomatik tespit edilir • 🛒 Shopify'a direkt yüklenir
+                  🎨 Renkler otomatik tespit edilir • 📦 Stok durumu kontrol edilir • 🛒 Shopify'a direkt yüklenir
                 </p>
               </CardHeader>
               <CardContent className="p-6">

@@ -134,15 +134,24 @@ export class ScenarioExtractors {
       console.log(`🎨 No colors found, using default: Standart`);
     }
     
-    const stockMap = this.extractSizeStockStatus($, config.stockSelectors, sizes);
+    // Size güvenlik kontrolü - string olmayan değerleri filtrele
+    const safeSizes = sizes.filter((size: any) => 
+      typeof size === 'string' && size.trim().length > 0
+    ).map((size: string) => size.trim());
+    
+    // Stok durumu kontrolü ve stoktaki bedenleri filtreleme
+    const stockMap = this.extractSizeStockStatus($, config.stockSelectors, safeSizes);
+    const stockedSizes = this.filterInStockSizes(safeSizes, stockMap);
+    
     const priceMap = new Map<string, number>();
     const imageMap = new Map<string, string[]>();
     
-    console.log(`📏 Multi-size: ${sizes.length} sizes found [${sizes.join(', ')}], color="${colors[0]}"`);
+    console.log(`📏 Multi-size: ${stockedSizes.length} sizes found [${stockedSizes.join(', ')}], color="${colors[0]}"`);
+    console.log(`📦 Stoktaki bedenler: [${stockedSizes.join(', ')}] (toplam ${safeSizes.length} bedenden ${stockedSizes.length} tanesi stoktaki)`);
     
     // CRITICAL: If no authentic sizes found, convert to single variant
-    if (sizes.length === 0) {
-      console.log(`🔄 No authentic sizes found - converting to single variant`);
+    if (stockedSizes.length === 0) {
+      console.log(`🔄 No in-stock sizes found - converting to single variant`);
       return {
         sizes: ['Tek Beden'],
         colors,
@@ -152,7 +161,7 @@ export class ScenarioExtractors {
       };
     }
     
-    return { sizes, colors, stockMap, priceMap, imageMap };
+    return { sizes: stockedSizes, colors, stockMap, priceMap, imageMap };
   }
 
   /**
@@ -213,6 +222,24 @@ export class ScenarioExtractors {
     console.log(`✅ Matrix with SINGLE COLOR: ${sizes.length} sizes × 1 color = ${sizes.length} variants`);
     
     return { sizes, colors: finalColors, stockMap, priceMap, imageMap };
+  }
+
+  /**
+   * Stoktaki bedenleri filtrele
+   */
+  private static filterInStockSizes(sizes: string[], stockMap: Map<string, boolean>): string[] {
+    const inStockSizes = sizes.filter(size => {
+      const isInStock = stockMap.get(size);
+      if (isInStock === false) {
+        console.log(`❌ Beden "${size}" stokta yok - filtrelendi`);
+        return false;
+      }
+      console.log(`✅ Beden "${size}" stoktaki`);
+      return true;
+    });
+    
+    console.log(`📦 Stok filtresi: ${sizes.length} bedenden ${inStockSizes.length} tanesi stoktaki`);
+    return inStockSizes;
   }
 
   /**
@@ -551,10 +578,40 @@ export class ScenarioExtractors {
   private static extractSizeStockStatus($: any, stockSelectors: string[], sizes: string[]): Map<string, boolean> {
     const stockMap = new Map<string, boolean>();
     
+    console.log(`📦 Stok kontrolü başlatılıyor ${sizes.length} beden için...`);
+    
     sizes.forEach(size => {
-      let isInStock = true; // Default to in stock
+      let isInStock = true; // Varsayılan olarak stoktaki
       
-      // Check for disabled buttons or out-of-stock indicators
+      // Method 1: disabled attribute kontrolü
+      const disabledButtons = $(`button[disabled]:contains("${size}"), button[disabled][data-size="${size}"], button[disabled][aria-label*="${size}"]`);
+      if (disabledButtons.length > 0) {
+        isInStock = false;
+        console.log(`❌ Beden "${size}" disabled button ile stokta yok`);
+      }
+      
+      // Method 2: out-of-stock class kontrolü
+      const outOfStockElements = $(`.out-of-stock:contains("${size}"), .unavailable:contains("${size}"), .disabled:contains("${size}")`);
+      if (outOfStockElements.length > 0) {
+        isInStock = false;
+        console.log(`❌ Beden "${size}" out-of-stock class ile stokta yok`);
+      }
+      
+      // Method 3: Aria-disabled kontrolü
+      const ariaDisabledElements = $(`[aria-disabled="true"]:contains("${size}"), [aria-disabled="true"][data-size="${size}"]`);
+      if (ariaDisabledElements.length > 0) {
+        isInStock = false;
+        console.log(`❌ Beden "${size}" aria-disabled ile stokta yok`);
+      }
+      
+      // Method 4: Trendyol özel selectors
+      const trendyolOutOfStock = $(`.pr-in-sz button[disabled]:contains("${size}"), .size-selector button[disabled]:contains("${size}")`);
+      if (trendyolOutOfStock.length > 0) {
+        isInStock = false;
+        console.log(`❌ Beden "${size}" Trendyol selector ile stokta yok`);
+      }
+      
+      // Method 5: Check for disabled buttons or out-of-stock indicators (original method)
       stockSelectors.forEach(selector => {
         const elements = $(selector);
         elements.each((i: number, el: any) => {
@@ -564,13 +621,20 @@ export class ScenarioExtractors {
           
           if ((text === size || text.includes(size)) && (isDisabled || hasOutOfStockClass)) {
             isInStock = false;
-            console.log(`❌ Size "${size}" marked as out of stock`);
+            console.log(`❌ Beden "${size}" selector ile stokta yok: ${selector}`);
           }
         });
       });
       
       stockMap.set(size, isInStock);
+      
+      if (isInStock) {
+        console.log(`✅ Beden "${size}" stoktaki olarak işaretlendi`);
+      }
     });
+    
+    const inStockCount = Array.from(stockMap.values()).filter(Boolean).length;
+    console.log(`📦 Stok kontrolü tamamlandı: ${inStockCount}/${sizes.length} beden stoktaki`);
     
     return stockMap;
   }
@@ -594,9 +658,10 @@ export class ScenarioExtractors {
   private static extractMatrixStockStatus($: any, stockSelectors: string[], sizes: string[], colors: string[]): Map<string, boolean> {
     const stockMap = new Map<string, boolean>();
     
-    // For matrix products, check each size-color combination
+    // For matrix products, check each size-color combination using enhanced stock detection
     sizes.forEach(size => {
-      const isInStock = !this.isSizeOutOfStock($, stockSelectors, size);
+      const sizeStockMap = this.extractSizeStockStatus($, stockSelectors, [size]);
+      const isInStock = sizeStockMap.get(size) || false;
       stockMap.set(size, isInStock);
     });
     
