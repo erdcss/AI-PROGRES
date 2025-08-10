@@ -582,7 +582,7 @@ function ScraperPage() {
                 <p className="text-blue-400 text-sm">URL'lerden çekilen ürün bilgilerinin ön görünümü</p>
               </CardHeader>
               <CardContent className="p-6">
-                <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
+                <div className="grid grid-cols-1 lg:grid-cols-2 xl:grid-cols-3 gap-3">
                   {multiForm.watch('urls').map((urlItem, index) => (
                     urlItem.url && (
                       <UrlPreviewCard key={index} url={urlItem.url} index={index} />
@@ -666,11 +666,11 @@ function UrlPreviewCard({ url, index }: { url: string; index: number }) {
 
   if (isLoading) {
     return (
-      <Card className="business-card h-80">
+      <Card className="business-card h-25">
         <CardContent className="p-4 h-full flex items-center justify-center">
-          <div className="flex flex-col items-center gap-2">
-            <Loader2 className="w-6 h-6 animate-spin text-blue-400" />
-            <span className="text-slate-400 text-sm">Yükleniyor...</span>
+          <div className="flex items-center gap-2">
+            <Loader2 className="w-4 h-4 animate-spin text-blue-400" />
+            <span className="text-slate-400 text-xs">Yükleniyor...</span>
           </div>
         </CardContent>
       </Card>
@@ -679,11 +679,11 @@ function UrlPreviewCard({ url, index }: { url: string; index: number }) {
 
   if (!previewData) {
     return (
-      <Card className="business-card h-80">
+      <Card className="business-card h-25">
         <CardContent className="p-4 h-full flex items-center justify-center">
-          <div className="flex flex-col items-center gap-2 text-slate-500">
-            <Eye className="w-8 h-8" />
-            <span className="text-sm">Önizleme bekleniyor...</span>
+          <div className="flex items-center gap-2 text-slate-500">
+            <Eye className="w-6 h-6" />
+            <span className="text-xs">Önizleme bekleniyor...</span>
           </div>
         </CardContent>
       </Card>
@@ -697,93 +697,92 @@ function UrlPreviewCard({ url, index }: { url: string; index: number }) {
   const features = previewData.features || [];
 
   return (
-    <Card className="business-card h-80 overflow-hidden">
+    <Card className="business-card h-25 overflow-hidden">
       <CardContent className="p-0 h-full">
-        {/* Görsel Alanı - 100x300 benzeri oran */}
-        <div className="w-full h-32 bg-slate-800 relative overflow-hidden">
-          {imageUrl ? (
-            <img
-              src={imageUrl}
-              alt={previewData.title}
-              className="w-full h-full object-cover"
-              onError={(e) => {
-                e.currentTarget.src = '/placeholder-image.jpg';
-              }}
-            />
-          ) : (
-            <div className="w-full h-full flex items-center justify-center">
-              <Image className="w-8 h-8 text-slate-600" />
-            </div>
-          )}
-          {/* Sıra Numarası */}
-          <div className="absolute top-2 left-2 bg-blue-600 text-white px-2 py-1 rounded text-xs font-bold">
-            #{index + 1}
-          </div>
-        </div>
-
-        {/* Ürün Bilgileri */}
-        <div className="p-3 space-y-2">
-          {/* Marka ve Başlık */}
-          <div>
-            {previewData.brand && (
-              <p className="text-blue-400 text-xs font-semibold uppercase">
-                {previewData.brand}
-              </p>
+        {/* 300x100 Yatay Layout - Görsel Sol, Bilgiler Sağ */}
+        <div className="flex h-full">
+          {/* Sol Taraf - Görsel Alanı */}
+          <div className="w-32 h-25 bg-slate-800 relative overflow-hidden flex-shrink-0">
+            {imageUrl ? (
+              <img
+                src={imageUrl}
+                alt={previewData.title}
+                className="w-full h-full object-cover"
+                onError={(e) => {
+                  e.currentTarget.src = '/placeholder-image.jpg';
+                }}
+              />
+            ) : (
+              <div className="w-full h-full flex items-center justify-center">
+                <Image className="w-6 h-6 text-slate-600" />
+              </div>
             )}
-            <h3 className="text-white text-sm font-bold line-clamp-2 leading-tight">
-              {previewData.title || 'Başlık bulunamadı'}
-            </h3>
+            {/* Sıra Numarası */}
+            <div className="absolute top-1 left-1 bg-blue-600 text-white px-1 py-0.5 rounded text-xs font-bold">
+              #{index + 1}
+            </div>
           </div>
 
-          {/* Tespit Edilen Renk */}
-          <div className="flex items-center gap-2">
-            <div className="w-3 h-3 bg-gradient-to-r from-blue-500 to-purple-500 rounded-full"></div>
-            <span className="text-slate-300 text-xs font-medium">
-              {detectedColor}
-            </span>
+          {/* Sağ Taraf - Ürün Bilgileri */}
+          <div className="flex-1 p-2 space-y-1 overflow-hidden">
+            {/* Marka ve Başlık */}
+            <div>
+              {previewData.brand && (
+                <p className="text-blue-400 text-xs font-semibold uppercase">
+                  {previewData.brand}
+                </p>
+              )}
+              <h3 className="text-white text-xs font-bold line-clamp-2 leading-tight">
+                {previewData.title || 'Başlık bulunamadı'}
+              </h3>
+            </div>
+
+            {/* Tespit Edilen Renk */}
+            <div className="flex items-center gap-1">
+              <div className="w-2 h-2 bg-gradient-to-r from-blue-500 to-purple-500 rounded-full"></div>
+              <span className="text-slate-300 text-xs font-medium truncate">
+                {detectedColor}
+              </span>
+            </div>
+
+            {/* Stokta Olan Bedenler - Kompakt */}
+            {availableSizes.length > 0 && (
+              <div>
+                <div className="flex flex-wrap gap-0.5">
+                  {availableSizes.slice(0, 3).map((size: string, idx: number) => (
+                    <span
+                      key={idx}
+                      className="bg-green-900 text-green-300 px-1 py-0.5 rounded text-xs font-medium"
+                    >
+                      {size}
+                    </span>
+                  ))}
+                  {availableSizes.length > 3 && (
+                    <span className="text-green-400 text-xs">
+                      +{availableSizes.length - 3}
+                    </span>
+                  )}
+                </div>
+              </div>
+            )}
+
+            {/* Fiyat */}
+            {previewData.price && (
+              <div className="flex items-center gap-1">
+                <span className="text-yellow-400 text-xs font-semibold">
+                  {previewData.price.formatted || previewData.price.profitFormatted || ''}
+                </span>
+              </div>
+            )}
+
+            {/* Özellikler - Tek Satır */}
+            {features.length > 0 && (
+              <div className="text-xs text-slate-400 truncate">
+                {features[0]?.key}: {features[0]?.value}
+                {features.length > 1 && ` +${features.length - 1}`}
+              </div>
+            )}
           </div>
-
-          {/* Stokta Olan Bedenler */}
-          {availableSizes.length > 0 && (
-            <div>
-              <p className="text-slate-400 text-xs mb-1">Stokta:</p>
-              <div className="flex flex-wrap gap-1">
-                {availableSizes.slice(0, 4).map((size: string, idx: number) => (
-                  <span
-                    key={idx}
-                    className="bg-green-900 text-green-300 px-2 py-1 rounded text-xs font-medium"
-                  >
-                    {size}
-                  </span>
-                ))}
-                {availableSizes.length > 4 && (
-                  <span className="text-green-400 text-xs">
-                    +{availableSizes.length - 4}
-                  </span>
-                )}
-              </div>
-            </div>
-          )}
-
-          {/* Özellikler */}
-          {features.length > 0 && (
-            <div>
-              <p className="text-slate-400 text-xs mb-1">Özellikler:</p>
-              <div className="space-y-1">
-                {features.slice(0, 2).map((feature: any, idx: number) => (
-                  <div key={idx} className="text-xs">
-                    <span className="text-slate-500">{feature.key}:</span>{' '}
-                    <span className="text-slate-300">{feature.value}</span>
-                  </div>
-                ))}
-                {features.length > 2 && (
-                  <span className="text-slate-400 text-xs">
-                    +{features.length - 2} özellik
-                  </span>
-                )}
-              </div>
-            </div>
-          )}
         </div>
       </CardContent>
     </Card>
