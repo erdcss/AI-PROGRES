@@ -41,6 +41,7 @@ import { ProductManagementSystem } from './product-management-system';
 import { TelegramNotifications } from './comprehensive-telegram-notifier';
 import { generateComprehensiveShopifyCSV, generateFeatureSummary, type ComprehensiveProductData } from './comprehensive-csv-generator';
 import shopifyTrendyolMatcher from './shopify-trendyol-matcher';
+import { scrapeMultipleUrls } from './multi-url-scraper';
 import { eq, desc, or, and, isNotNull, inArray } from 'drizzle-orm';
 import axios from 'axios';
 
@@ -1409,6 +1410,57 @@ export function registerRoutes(app: Express): Server {
       res.status(500).json({ 
         message: "CSV oluşturulamadı", 
         error: error instanceof Error ? error.message : 'Bilinmeyen hata'
+      });
+    }
+  });
+
+  // Multi-URL scraping endpoint
+  app.post('/api/multi-url-scrape', async (req, res) => {
+    try {
+      const { urls, mode } = req.body;
+      
+      if (!urls || !Array.isArray(urls) || urls.length === 0) {
+        return res.status(400).json({
+          success: false,
+          message: 'URLs array is required and must not be empty'
+        });
+      }
+      
+      // Validate URL structure
+      for (const urlItem of urls) {
+        if (!urlItem.url || !urlItem.colorName) {
+          return res.status(400).json({
+            success: false,
+            message: 'Each URL item must have both url and colorName properties'
+          });
+        }
+        
+        if (!urlItem.url.includes('trendyol.com')) {
+          return res.status(400).json({
+            success: false,
+            message: 'Only Trendyol URLs are supported'
+          });
+        }
+      }
+      
+      console.log(`🎨 Multi-URL scrape request: ${urls.length} color variants`);
+      
+      const result = await scrapeMultipleUrls({
+        urls: urls,
+        mode: 'multi-url'
+      });
+      
+      return res.json({
+        success: true,
+        extractionMethod: 'multi-url-scraper',
+        ...result
+      });
+      
+    } catch (error) {
+      console.error('❌ Multi-URL scraper error:', error);
+      return res.status(500).json({
+        success: false,
+        message: error instanceof Error ? error.message : 'Multi-URL extraction failed'
       });
     }
   });

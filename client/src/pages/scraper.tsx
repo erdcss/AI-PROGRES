@@ -4,7 +4,7 @@ import { zodResolver } from "@hookform/resolvers/zod";
 import { z } from "zod";
 import { useMutation } from "@tanstack/react-query";
 import { motion } from "framer-motion";
-import { Loader2, ShoppingCart, Link, Copy, X, Home } from "lucide-react";
+import { Loader2, ShoppingCart, Link, Copy, X, Home, Plus, Trash2, Package, Palette } from "lucide-react";
 
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -21,7 +21,20 @@ const scrapeSchema = z.object({
   ),
 });
 
+const multiUrlSchema = z.object({
+  urls: z.array(z.object({
+    url: z.string().url("Geçerli bir URL giriniz").refine(
+      (url) => url.includes("trendyol.com"),
+      "Sadece Trendyol URL'leri desteklenmektedir"
+    ),
+    colorName: z.string().min(1, "Renk ismi gerekli")
+  })).min(1, "En az bir URL gerekli")
+});
+
 type ScrapeFormData = z.infer<typeof scrapeSchema>;
+type MultiUrlFormData = z.infer<typeof multiUrlSchema>;
+
+type ScrapingMode = 'single' | 'multi-url';
 
 interface Product {
   id: string;
@@ -48,22 +61,30 @@ interface Product {
 function ScraperPage() {
   const [product, setProduct] = useState<Product | null>(null);
   const [, setLocation] = useLocation();
+  const [scrapingMode, setScrapingMode] = useState<ScrapingMode>('single');
   
-  const form = useForm<ScrapeFormData>({
+  const singleForm = useForm<ScrapeFormData>({
     resolver: zodResolver(scrapeSchema),
     defaultValues: {
       url: "",
     },
   });
 
-  const scrapeMutation = useMutation({
+  const multiForm = useForm<MultiUrlFormData>({
+    resolver: zodResolver(multiUrlSchema),
+    defaultValues: {
+      urls: [{ url: "", colorName: "" }]
+    },
+  });
+
+  const singleScrapeMutation = useMutation({
     mutationFn: async (data: ScrapeFormData) => {
       const response = await fetch("/api/scenario-scrape", {
         method: "POST",
         headers: {
           "Content-Type": "application/json",
         },
-        body: JSON.stringify({ url: data.url }),
+        body: JSON.stringify({ url: data.url, mode: 'single' }),
       });
       
       if (!response.ok) {
@@ -76,7 +97,7 @@ function ScraperPage() {
       setProduct(data);
       toast({
         title: "Başarılı",
-        description: "Ürün verisi çekildi"
+        description: "Tek varyant ürün verisi çekildi"
       });
     },
     onError: (error: any) => {
@@ -88,9 +109,57 @@ function ScraperPage() {
     }
   });
 
-  const onSubmit = form.handleSubmit((data) => {
-    scrapeMutation.mutate(data);
+  const multiUrlScrapeMutation = useMutation({
+    mutationFn: async (data: MultiUrlFormData) => {
+      const response = await fetch("/api/multi-url-scrape", {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+        },
+        body: JSON.stringify({ urls: data.urls, mode: 'multi-url' }),
+      });
+      
+      if (!response.ok) {
+        const errorData = await response.json().catch(() => ({}));
+        throw new Error(errorData.message || `HTTP ${response.status}`);
+      }
+      return response.json();
+    },
+    onSuccess: (data) => {
+      setProduct(data);
+      toast({
+        title: "Başarılı",
+        description: `${data.variants?.colors?.length || 0} renk varyantı birleştirildi`
+      });
+    },
+    onError: (error: any) => {
+      toast({
+        title: "Hata",
+        description: error.message,
+        variant: "destructive"
+      });
+    }
   });
+
+  const onSingleSubmit = singleForm.handleSubmit((data) => {
+    singleScrapeMutation.mutate(data);
+  });
+
+  const onMultiSubmit = multiForm.handleSubmit((data) => {
+    multiUrlScrapeMutation.mutate(data);
+  });
+
+  const addUrlField = () => {
+    const currentUrls = multiForm.getValues('urls');
+    multiForm.setValue('urls', [...currentUrls, { url: '', colorName: '' }]);
+  };
+
+  const removeUrlField = (index: number) => {
+    const currentUrls = multiForm.getValues('urls');
+    if (currentUrls.length > 1) {
+      multiForm.setValue('urls', currentUrls.filter((_, i) => i !== index));
+    }
+  };
 
   return (
     <div className="min-h-screen bg-black">
@@ -125,85 +194,212 @@ function ScraperPage() {
       <div className="max-w-6xl mx-auto px-6 py-8">
         <div className="grid grid-cols-1 lg:grid-cols-3 gap-8">
           
-          {/* URL Input Section */}
+          {/* Main Content Section */}
           <div className="lg:col-span-2">
-            <Card className="business-card">
+            {/* Mode Selection */}
+            <Card className="business-card mb-6">
               <CardHeader className="business-header">
                 <CardTitle className="text-white font-black flex items-center gap-2">
-                  <Link className="w-5 h-5 text-blue-400" />
-                  Trendyol URL Girin
+                  <ShoppingCart className="w-5 h-5 text-blue-400" />
+                  Çıkarma Modu Seçin
                 </CardTitle>
               </CardHeader>
               <CardContent className="p-6">
-                <motion.form 
-                  initial={{ opacity: 0, y: 20 }}
-                  animate={{ opacity: 1, y: 0 }}
-                  onSubmit={onSubmit} 
-                  className="space-y-4"
-                >
-                  <div className="space-y-3">
-                    <label className="text-white font-bold text-sm">Ürün URL'si</label>
-                    <div className="relative">
-                      <Input
-                        placeholder="https://www.trendyol.com/..."
-                        {...form.register("url")}
-                        className="business-input h-14 text-base pl-4 pr-24"
-                        disabled={scrapeMutation.isPending}
-                      />
-                      <div className="absolute right-2 top-1/2 transform -translate-y-1/2 flex gap-1">
-                        <Button
-                          type="button"
-                          size="sm"
-                          variant="ghost"
-                          className="h-8 w-8 p-0 text-white hover:bg-blue-800"
-                          onClick={() => {
-                            navigator.clipboard.readText().then(text => {
-                              form.setValue('url', text);
-                              toast({
-                                title: "Yapıştırıldı",
-                                description: "URL panodan alındı"
-                              });
-                            });
-                          }}
-                        >
-                          <Copy className="w-4 h-4" />
-                        </Button>
-                        <Button
-                          type="button"
-                          size="sm"
-                          variant="ghost"
-                          className="h-8 w-8 p-0 text-white hover:bg-blue-800"
-                          onClick={() => {
-                            form.setValue('url', '');
-                            toast({
-                              title: "Temizlendi",
-                              description: "URL alanı temizlendi"
-                            });
-                          }}
-                        >
-                          <X className="w-4 h-4" />
-                        </Button>
-                      </div>
-                    </div>
-                  </div>
-                  
+                <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                   <Button
-                    type="submit"
-                    disabled={scrapeMutation.isPending}
-                    className="business-button w-full h-14 text-lg font-black"
+                    variant={scrapingMode === 'single' ? 'default' : 'outline'}
+                    className={scrapingMode === 'single' 
+                      ? "business-button h-16 text-base font-black flex flex-col gap-1" 
+                      : "border-slate-600 hover:bg-slate-800 h-16 text-base font-bold flex flex-col gap-1"
+                    }
+                    onClick={() => setScrapingMode('single')}
                   >
-                    {scrapeMutation.isPending ? (
-                      <div className="flex items-center gap-3">
-                        <Loader2 className="w-5 h-5 animate-spin" />
-                        <span>Ürün Analiz Ediliyor...</span>
-                      </div>
-                    ) : (
-                      <span>ÜRÜN ÇIKAR</span>
-                    )}
+                    <Package className="w-5 h-5" />
+                    <span>Tek Varyant</span>
+                    <span className="text-xs opacity-80">Renksiz ürünler için</span>
                   </Button>
-                </motion.form>
+                  <Button
+                    variant={scrapingMode === 'multi-url' ? 'default' : 'outline'}
+                    className={scrapingMode === 'multi-url' 
+                      ? "business-button h-16 text-base font-black flex flex-col gap-1" 
+                      : "border-slate-600 hover:bg-slate-800 h-16 text-base font-bold flex flex-col gap-1"
+                    }
+                    onClick={() => setScrapingMode('multi-url')}
+                  >
+                    <Palette className="w-5 h-5" />
+                    <span>Çoklu URL</span>
+                    <span className="text-xs opacity-80">Renkli varyantlar için</span>
+                  </Button>
+                </div>
               </CardContent>
             </Card>
+
+            {/* Single Mode Form */}
+            {scrapingMode === 'single' && (
+              <Card className="business-card">
+                <CardHeader className="business-header">
+                  <CardTitle className="text-white font-black flex items-center gap-2">
+                    <Package className="w-5 h-5 text-blue-400" />
+                    Tek Varyant Ürün
+                  </CardTitle>
+                </CardHeader>
+                <CardContent className="p-6">
+                  <motion.form 
+                    initial={{ opacity: 0, y: 20 }}
+                    animate={{ opacity: 1, y: 0 }}
+                    onSubmit={onSingleSubmit} 
+                    className="space-y-4"
+                  >
+                    <div className="space-y-3">
+                      <label className="text-white font-bold text-sm">Ürün URL'si</label>
+                      <div className="relative">
+                        <Input
+                          placeholder="https://www.trendyol.com/..."
+                          {...singleForm.register("url")}
+                          className="business-input h-14 text-base pl-4 pr-24"
+                          disabled={singleScrapeMutation.isPending}
+                        />
+                        <div className="absolute right-2 top-1/2 transform -translate-y-1/2 flex gap-1">
+                          <Button
+                            type="button"
+                            size="sm"
+                            variant="ghost"
+                            className="h-8 w-8 p-0 text-white hover:bg-blue-800"
+                            onClick={() => {
+                              navigator.clipboard.readText().then(text => {
+                                singleForm.setValue('url', text);
+                                toast({
+                                  title: "Yapıştırıldı",
+                                  description: "URL panodan alındı"
+                                });
+                              });
+                            }}
+                          >
+                            <Copy className="w-4 h-4" />
+                          </Button>
+                          <Button
+                            type="button"
+                            size="sm"
+                            variant="ghost"
+                            className="h-8 w-8 p-0 text-white hover:bg-blue-800"
+                            onClick={() => {
+                              singleForm.setValue('url', '');
+                            }}
+                          >
+                            <X className="w-4 h-4" />
+                          </Button>
+                        </div>
+                      </div>
+                    </div>
+                    
+                    <Button
+                      type="submit"
+                      disabled={singleScrapeMutation.isPending}
+                      className="business-button w-full h-14 text-lg font-black"
+                    >
+                      {singleScrapeMutation.isPending ? (
+                        <div className="flex items-center gap-3">
+                          <Loader2 className="w-5 h-5 animate-spin" />
+                          <span>Ürün Verisi Çekiliyor...</span>
+                        </div>
+                      ) : (
+                        <span>TEK VARYANT ÇIKAR</span>
+                      )}
+                    </Button>
+                  </motion.form>
+                </CardContent>
+              </Card>
+            )}
+
+            {/* Multi-URL Mode Form */}
+            {scrapingMode === 'multi-url' && (
+              <Card className="business-card">
+                <CardHeader className="business-header">
+                  <CardTitle className="text-white font-black flex items-center gap-2">
+                    <Palette className="w-5 h-5 text-blue-400" />
+                    Çoklu URL Varyant
+                  </CardTitle>
+                </CardHeader>
+                <CardContent className="p-6">
+                  <motion.form 
+                    initial={{ opacity: 0, y: 20 }}
+                    animate={{ opacity: 1, y: 0 }}
+                    onSubmit={onMultiSubmit} 
+                    className="space-y-6"
+                  >
+                    <div className="space-y-4">
+                      {multiForm.watch('urls').map((urlItem, index) => (
+                        <div key={index} className="p-4 border border-slate-600 rounded-lg bg-slate-900">
+                          <div className="flex items-center justify-between mb-3">
+                            <span className="text-white font-bold text-sm">Renk Varyantı #{index + 1}</span>
+                            {multiForm.watch('urls').length > 1 && (
+                              <Button
+                                type="button"
+                                size="sm"
+                                variant="ghost"
+                                className="h-8 w-8 p-0 text-red-400 hover:bg-red-900"
+                                onClick={() => removeUrlField(index)}
+                              >
+                                <Trash2 className="w-4 h-4" />
+                              </Button>
+                            )}
+                          </div>
+                          
+                          <div className="grid grid-cols-1 md:grid-cols-3 gap-3">
+                            <div className="md:col-span-2">
+                              <label className="text-white font-bold text-xs mb-1 block">Ürün URL'si</label>
+                              <Input
+                                placeholder="https://www.trendyol.com/..."
+                                {...multiForm.register(`urls.${index}.url` as const)}
+                                className="business-input text-sm"
+                                disabled={multiUrlScrapeMutation.isPending}
+                              />
+                            </div>
+                            <div>
+                              <label className="text-white font-bold text-xs mb-1 block">Renk İsmi</label>
+                              <Input
+                                placeholder="Siyah, Kırmızı, vs..."
+                                {...multiForm.register(`urls.${index}.colorName` as const)}
+                                className="business-input text-sm"
+                                disabled={multiUrlScrapeMutation.isPending}
+                              />
+                            </div>
+                          </div>
+                        </div>
+                      ))}
+                    </div>
+                    
+                    <div className="flex gap-3">
+                      <Button
+                        type="button"
+                        variant="outline"
+                        className="border-slate-600 hover:bg-slate-800 flex-1"
+                        onClick={addUrlField}
+                        disabled={multiUrlScrapeMutation.isPending}
+                      >
+                        <Plus className="w-4 h-4 mr-2" />
+                        Renk Ekle
+                      </Button>
+                      
+                      <Button
+                        type="submit"
+                        disabled={multiUrlScrapeMutation.isPending || multiForm.watch('urls').length === 0}
+                        className="business-button flex-2 h-12 text-base font-black"
+                      >
+                        {multiUrlScrapeMutation.isPending ? (
+                          <div className="flex items-center gap-3">
+                            <Loader2 className="w-5 h-5 animate-spin" />
+                            <span>Birleştiriliyor...</span>
+                          </div>
+                        ) : (
+                          <span>VARYANTLARI BİRLEŞTİR</span>
+                        )}
+                      </Button>
+                    </div>
+                  </motion.form>
+                </CardContent>
+              </Card>
+            )}
           </div>
 
           {/* Info Section */}
@@ -214,24 +410,60 @@ function ScraperPage() {
               </CardHeader>
               <CardContent className="p-6">
                 <div className="space-y-4">
-                  <div className="bg-blue-900 p-4 rounded-lg">
-                    <h3 className="text-white font-bold text-sm mb-2">NASIL KULLANILIR?</h3>
-                    <div className="space-y-2 text-sm text-white">
-                      <p>1. Trendyol ürün URL'sini kopyalayın</p>
-                      <p>2. Yukarıdaki alana yapıştırın</p>
-                      <p>3. "ÜRÜN ÇIKAR" butonuna tıklayın</p>
-                      <p>4. Sonucu inceleyin ve Shopify'a aktarın</p>
+                  {scrapingMode === 'single' && (
+                    <div className="bg-blue-900 p-4 rounded-lg">
+                      <h3 className="text-white font-bold text-sm mb-2">TEK VARYANT MODU</h3>
+                      <div className="space-y-2 text-sm text-white">
+                        <p>• Renk seçeneği olmayan ürünler için</p>
+                        <p>• Tek URL ile çalışır</p>
+                        <p>• Sadece beden/boyut varyantları</p>
+                        <p>• Ürün özellikleri dahil</p>
+                        <p>• Hızlı işlem</p>
+                      </div>
+                    </div>
+                  )}
+                  
+                  {scrapingMode === 'multi-url' && (
+                    <div className="bg-blue-900 p-4 rounded-lg">
+                      <h3 className="text-white font-bold text-sm mb-2">ÇOKLU URL MODU</h3>
+                      <div className="space-y-2 text-sm text-white">
+                        <p>• Her renk için ayrı URL</p>
+                        <p>• Tüm varyantları tek CSV'de toplar</p>
+                        <p>• Renk isimlerini özel olarak belirleyin</p>
+                        <p>• Shopify'da tek ürün olarak görünür</p>
+                        <p>• Detaylı varyant yönetimi</p>
+                      </div>
+                    </div>
+                  )}
+                  
+                  <div className="bg-slate-800 p-4 rounded-lg">
+                    <h3 className="text-white font-bold text-sm mb-2">DESTEKLENEN ÖZELLİKLER</h3>
+                    <div className="space-y-1 text-sm text-white">
+                      <p>✓ Maybelline & L'Oreal renk tespiti</p>
+                      <p>✓ Gerçek varyant çıkarma (sahte üretim yok)</p>
+                      <p>✓ Yüksek kaliteli görsel çıkarma</p>
+                      <p>✓ Shopify uyumlu CSV</p>
+                      <p>✓ Türkçe renk isimleri korunur</p>
                     </div>
                   </div>
                   
-                  <div className="bg-blue-900 p-4 rounded-lg">
-                    <h3 className="text-white font-bold text-sm mb-2">DESTEKLENENLER</h3>
-                    <div className="space-y-1 text-sm text-white">
-                      <p>✓ Tüm Trendyol ürünleri</p>
-                      <p>✓ Çoklu varyantlar</p>
-                      <p>✓ Fiyat bilgileri</p>
-                      <p>✓ Ürün görselleri</p>
-                      <p>✓ Shopify uyumlu CSV</p>
+                  <div className="bg-green-900 p-4 rounded-lg">
+                    <h3 className="text-white font-bold text-sm mb-2">KULLANIM KILAVUZU</h3>
+                    <div className="space-y-2 text-sm text-white">
+                      {scrapingMode === 'single' ? (
+                        <>
+                          <p>1. Tek Varyant modunu seçin</p>
+                          <p>2. Trendyol URL'sini yapıştırın</p>
+                          <p>3. "TEK VARYANT ÇIKAR" butonuna tıklayın</p>
+                        </>
+                      ) : (
+                        <>
+                          <p>1. Çoklu URL modunu seçin</p>
+                          <p>2. Her renk için ayrı URL ve renk ismi girin</p>
+                          <p>3. Gerekiyorsa yeni renk alanları ekleyin</p>
+                          <p>4. "VARYANTLARI BİRLEŞTİR" butonuna tıklayın</p>
+                        </>
+                      )}
                     </div>
                   </div>
                 </div>
