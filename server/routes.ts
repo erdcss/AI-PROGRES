@@ -42,6 +42,8 @@ import { TelegramNotifications } from './comprehensive-telegram-notifier';
 import { generateComprehensiveShopifyCSV, generateFeatureSummary, type ComprehensiveProductData } from './comprehensive-csv-generator';
 import shopifyTrendyolMatcher from './shopify-trendyol-matcher';
 import { scrapeMultipleUrls } from './multi-url-scraper';
+import { generateMultiVariantShopifyCSV } from './multi-variant-csv-generator';
+import { uploadProductToShopify, testShopifyConnection } from './shopify-api-uploader';
 import { eq, desc, or, and, isNotNull, inArray } from 'drizzle-orm';
 import axios from 'axios';
 
@@ -1428,10 +1430,10 @@ export function registerRoutes(app: Express): Server {
       
       // Validate URL structure
       for (const urlItem of urls) {
-        if (!urlItem.url || !urlItem.colorName) {
+        if (!urlItem.url) {
           return res.status(400).json({
             success: false,
-            message: 'Each URL item must have both url and colorName properties'
+            message: 'Each URL item must have url property'
           });
         }
         
@@ -1450,9 +1452,14 @@ export function registerRoutes(app: Express): Server {
         mode: 'multi-url'
       });
       
+      // CSV oluştur
+      const csvContent = generateMultiVariantShopifyCSV(result);
+      
       return res.json({
         success: true,
         extractionMethod: 'multi-url-scraper',
+        csvContent: csvContent,
+        detectedColors: result.variants.colors, // Tespit edilen renkler
         ...result
       });
       
@@ -1461,6 +1468,69 @@ export function registerRoutes(app: Express): Server {
       return res.status(500).json({
         success: false,
         message: error instanceof Error ? error.message : 'Multi-URL extraction failed'
+      });
+    }
+  });
+
+  // Shopify upload endpoint
+  app.post('/api/shopify-upload', async (req, res) => {
+    try {
+      const { csvContent, productTitle } = req.body;
+      
+      if (!csvContent) {
+        return res.status(400).json({
+          success: false,
+          message: 'CSV content is required'
+        });
+      }
+      
+      console.log(`🛒 Uploading product to Shopify: ${productTitle}`);
+      
+      const uploadResult = await uploadProductToShopify(csvContent, productTitle);
+      
+      if (uploadResult.success) {
+        return res.json({
+          success: true,
+          productId: uploadResult.productId,
+          message: uploadResult.message
+        });
+      } else {
+        return res.status(400).json({
+          success: false,
+          message: uploadResult.message
+        });
+      }
+      
+    } catch (error) {
+      console.error('❌ Shopify upload endpoint error:', error);
+      return res.status(500).json({
+        success: false,
+        message: error instanceof Error ? error.message : 'Shopify upload failed'
+      });
+    }
+  });
+
+  // Shopify connection test endpoint
+  app.get('/api/shopify-test', async (req, res) => {
+    try {
+      const testResult = await testShopifyConnection();
+      
+      if (testResult.success) {
+        return res.json({
+          success: true,
+          message: testResult.message,
+          store: testResult.store
+        });
+      } else {
+        return res.status(400).json({
+          success: false,
+          message: testResult.message
+        });
+      }
+    } catch (error) {
+      return res.status(500).json({
+        success: false,
+        message: error instanceof Error ? error.message : 'Connection test failed'
       });
     }
   });

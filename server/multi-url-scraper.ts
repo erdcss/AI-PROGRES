@@ -26,6 +26,75 @@ async function fetchWithRetry(url: string, retries = 3): Promise<string> {
   }
   throw new Error('Fetch failed after retries');
 }
+// Otomatik renk tespit fonksiyonu
+function detectColorFromUrl(url: string, htmlContent: string, $: any): string {
+  // URL'den renk tespiti
+  const urlColorPatterns = [
+    // L'Oreal ve Maybelline URL pattern'leri
+    /-(\d{2,3})-([a-zA-Z-]+)-?/g,
+    /-([a-zA-Z]+)-renk/gi,
+    /renk-([a-zA-Z-]+)/gi,
+    /color-([a-zA-Z-]+)/gi
+  ];
+
+  // URL'den renk çıkarmayı dene
+  for (const pattern of urlColorPatterns) {
+    const match = pattern.exec(url);
+    if (match && match[1]) {
+      // Sayı + isim formatı (örn: "01-fair" -> "01 Fair")
+      if (/^\d+$/.test(match[1]) && match[2]) {
+        return `${match[1]} ${match[2].replace(/-/g, ' ').replace(/\b\w/g, l => l.toUpperCase())}`;
+      }
+      // Sadece isim formatı
+      return match[1].replace(/-/g, ' ').replace(/\b\w/g, l => l.toUpperCase());
+    }
+  }
+
+  // HTML içeriğinden renk tespiti
+  const htmlColorPatterns = [
+    /"selectedVariantName"\s*:\s*"([^"]+)"/g,
+    /"variantName"\s*:\s*"([^"]+)"/g,
+    /"colorName"\s*:\s*"([^"]+)"/g,
+    /data-variant-name="([^"]+)"/g,
+    /class=".*selected.*".*>([^<]+)</g
+  ];
+
+  for (const pattern of htmlColorPatterns) {
+    const match = pattern.exec(htmlContent);
+    if (match && match[1] && match[1].length < 50) {
+      return match[1].trim();
+    }
+  }
+
+  // CSS selector'lardan renk tespiti
+  const colorSelectors = [
+    '.variant-name.selected',
+    '.color-name.selected',
+    '.selected-variant-name',
+    '[data-testid="variant-name"]',
+    '.product-variant.selected'
+  ];
+
+  for (const selector of colorSelectors) {
+    const colorElement = $(selector);
+    if (colorElement.length > 0) {
+      const colorText = colorElement.text().trim();
+      if (colorText && colorText.length > 0 && colorText.length < 50) {
+        return colorText;
+      }
+    }
+  }
+
+  // Fallback: URL'den sayı çıkar
+  const urlNumberMatch = url.match(/-(\d{2,3})-/);
+  if (urlNumberMatch) {
+    return `Renk ${urlNumberMatch[1]}`;
+  }
+
+  // En son fallback: sıralı renk isimlendirme
+  return `Renk ${Math.random().toString(36).substr(2, 5).toUpperCase()}`;
+}
+
 // Helper functions for extracting product data
 function extractSizesFromContent($: any, htmlContent: string): string[] {
   const sizes = new Set<string>();
@@ -101,7 +170,6 @@ function generateTags(title: string, description: string, colors: string[]): str
 interface MultiUrlScrapeRequest {
   urls: Array<{
     url: string;
-    colorName: string;
   }>;
   mode: 'multi-url';
 }
@@ -133,7 +201,7 @@ export async function scrapeMultipleUrls(request: MultiUrlScrapeRequest): Promis
   
   const results = [];
   const combinedImages: Array<{ url: string; alt?: string; colorName?: string }> = [];
-  const combinedSizes = new Set<string>();
+  const allSizes = new Set<string>(); // Tüm URL'lerden gelen bedenler birleştirilecek
   const combinedColors = new Set<string>();
   const allVariants: Array<{
     color: string;
@@ -142,15 +210,19 @@ export async function scrapeMultipleUrls(request: MultiUrlScrapeRequest): Promis
     inStock: boolean;
   }> = [];
   
-  let mainProduct: any = null;
+  let mainProduct: any = null; // İlk URL'den alınacak ortak bilgiler
   
-  for (const { url, colorName } of request.urls) {
+  for (const { url } of request.urls) {
     try {
-      console.log(`🎯 Scraping color variant: ${colorName} from ${url}`);
+      console.log(`🎯 Scraping color variant from ${url}`);
       
       const response = await fetchWithRetry(url);
       const $ = cheerio.load(response);
       const htmlContent = response;
+      
+      // Otomatik renk tespiti
+      const detectedColor = detectColorFromUrl(url, htmlContent, $);
+      console.log(`🎨 Detected color: ${detectedColor}`);
       
       // Extract basic product info (use first URL as main product info)
       if (!mainProduct) {
@@ -215,33 +287,22 @@ export async function scrapeMultipleUrls(request: MultiUrlScrapeRequest): Promis
       colorImages.forEach(imageUrl => {
         combinedImages.push({
           url: imageUrl,
-          alt: `${mainProduct.title} - ${colorName}`,
-          colorName: colorName
+          alt: `${mainProduct.title} - ${detectedColor}`,
+          colorName: detectedColor
         });
       });
       
-      // Extract sizes for this variant
+      // Extract sizes for this variant (TÜM URL'lerden gelen bedenler toplanacak)
       const sizes = extractSizesFromContent($, htmlContent);
-      sizes.forEach(size => combinedSizes.add(size));
+      sizes.forEach(size => allSizes.add(size));
       
       // Add color to combined colors
-      combinedColors.add(colorName);
+      combinedColors.add(detectedColor);
       
-      // Create variants for this color
-      const colorSizes = sizes.length > 0 ? sizes : ['Standart'];
-      colorSizes.forEach(size => {
-        allVariants.push({
-          color: colorName,
-          colorCode: colorName.toLowerCase(),
-          size: size,
-          inStock: true // Assume in stock since URL is accessible
-        });
-      });
-      
-      console.log(`✅ Successfully scraped ${colorName}: ${colorImages.length} images, ${colorSizes.length} sizes`);
+      console.log(`✅ Successfully scraped ${detectedColor}: ${colorImages.length} images, ${sizes.length} sizes`);
       
     } catch (error) {
-      console.error(`❌ Failed to scrape color ${colorName} from ${url}:`, error);
+      console.error(`❌ Failed to scrape color from ${url}:`, error);
       // Continue with other colors
     }
   }
@@ -265,12 +326,33 @@ export async function scrapeMultipleUrls(request: MultiUrlScrapeRequest): Promis
   // Generate tags
   const tags = generateTags(mainProduct.title, mainProduct.description, Array.from(combinedColors));
   
+  // Create final variants: Her renk için tüm bedenleri oluştur
+  const finalSizes = Array.from(allSizes);
+  const finalColors = Array.from(combinedColors);
+  
+  // Eğer hiç beden bulunamazsa, default olarak "Standart" ekle
+  if (finalSizes.length === 0) {
+    finalSizes.push('Standart');
+  }
+  
+  // Her renk-beden kombinasyonu için varyant oluştur
+  finalColors.forEach(color => {
+    finalSizes.forEach(size => {
+      allVariants.push({
+        color: color,
+        colorCode: color.toLowerCase(),
+        size: size,
+        inStock: true // URL erişilebilir olduğu için stokta varsay
+      });
+    });
+  });
+  
   const result: CombinedProduct = {
     ...mainProduct,
     images: combinedImages,
     variants: {
-      colors: Array.from(combinedColors),
-      sizes: Array.from(combinedSizes),
+      colors: finalColors,
+      sizes: finalSizes,
       allVariants: allVariants
     },
     features: features,
