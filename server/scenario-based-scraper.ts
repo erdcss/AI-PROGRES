@@ -123,7 +123,7 @@ export async function scenarioBasedScrape(url: string): Promise<ScenarioBasedRes
     
     // Always try direct DOM extraction to get more color variants
     console.log('🔄 Trying direct DOM extraction for additional variants...');
-    const directVariants = await extractVariantsDirect($, htmlContent);
+    const directVariants = await extractVariantsDirect($, htmlContent, url);
     
     // Merge direct extraction results if they provide more colors/sizes
     if (directVariants.length > 0) {
@@ -873,7 +873,7 @@ function buildVariantsArray(variantResult: any, scenario: ExtractionScenario): a
 /**
  * Extract variants directly from DOM elements
  */
-async function extractVariantsDirect($: cheerio.CheerioAPI, htmlContent: string): Promise<Array<{color: string, colorCode: string, size: string, inStock: boolean}>> {
+async function extractVariantsDirect($: cheerio.CheerioAPI, htmlContent: string, url: string): Promise<Array<{color: string, colorCode: string, size: string, inStock: boolean}>> {
   const variants: Array<{color: string, colorCode: string, size: string, inStock: boolean}> = [];
   
   // Method 1: Enhanced color extraction with modern Trendyol selectors
