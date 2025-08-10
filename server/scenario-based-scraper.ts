@@ -129,32 +129,22 @@ export async function scenarioBasedScrape(url: string): Promise<ScenarioBasedRes
     if (directVariants.length > 0) {
       console.log(`🔄 Direct extraction found variants: ${directVariants.length} (existing: ${variants.length})`);
       
-      if (variants.length === 0) {
-        // No scenario variants found, use direct extraction results
-        variants = directVariants;
-      } else if (directVariants.length >= variants.length) {
-        // Direct extraction found equal or more variants
-        variants = directVariants;
-      } else {
-        // Combine unique colors and sizes from both approaches
-        const allColors = new Set([...variants.map(v => v.color), ...directVariants.map(v => v.color)]);
-        const allSizes = new Set([...variants.map(v => v.size), ...directVariants.map(v => v.size)]);
-        
-        if (allColors.size > variants.map(v => v.color).filter((v, i, arr) => arr.indexOf(v) === i).length) {
-          console.log(`🔄 Merging color variants: found ${allColors.size} unique colors`);
-          const mergedVariants: any[] = [];
-          Array.from(allColors).forEach(color => {
-            Array.from(allSizes).forEach(size => {
-              mergedVariants.push({
-                color,
-                colorCode: getColorCode(color),
-                size,
-                inStock: true
-              });
-            });
-          });
-          variants = mergedVariants;
+      // 🚨 SINGLE COLOR POLICY ENFORCEMENT - No merging allowed
+      console.log(`🚨 ENFORCING SINGLE COLOR POLICY - Using only direct extraction`);
+      
+      if (directVariants.length > 0) {
+        // Force single color if multiple detected
+        const uniqueColors = [...new Set(directVariants.map(v => v.color))];
+        if (uniqueColors.length > 1) {
+          console.log(`🚨 FORCING SINGLE COLOR: Found ${uniqueColors.length} colors [${uniqueColors.join(', ')}], keeping only: ${uniqueColors[0]}`);
+          variants = directVariants.filter(v => v.color === uniqueColors[0]);
+        } else {
+          variants = directVariants;
         }
+        console.log(`✅ SINGLE COLOR RESULT: ${variants.length} variants with color: ${variants[0]?.color || 'none'}`);
+      } else if (variants.length === 0) {
+        console.log('⚠️ No variants found from any method');
+        variants = [];
       }
     }
     
@@ -1009,6 +999,34 @@ async function extractVariantsDirect($: cheerio.CheerioAPI, htmlContent: string)
   const jsonExtractedColors = extractColorsFromJS($, htmlContent);
   const jsonExtractedSizes = extractSizesFromJS($, htmlContent);
   
+  // Method 4: AGGRESSIVE SIZE DETECTION - Scan entire HTML for missing sizes
+  console.log(`🔍 AGGRESSIVE SIZE SCAN: Looking for XL, 2XL, 3XL patterns...`);
+  const aggressiveSizePatterns = [
+    /\bXL\b/gi,
+    /\b2XL\b/gi,
+    /\b3XL\b/gi,
+    /\bXXL\b/gi,
+    /\bXXXL\b/gi,
+    /size["\s]*[=:]["\s]*(XL|2XL|3XL|XXL|XXXL)/gi,
+    /title["\s]*[=:]["\s]*(XL|2XL|3XL|XXL|XXXL)/gi,
+    /data-size["\s]*[=:]["\s]*(XL|2XL|3XL|XXL|XXXL)/gi
+  ];
+  
+  aggressiveSizePatterns.forEach((pattern, index) => {
+    const matches = htmlContent.match(pattern);
+    if (matches) {
+      matches.forEach(match => {
+        let extractedSize = match.replace(/[^A-Z0-9]/g, '');
+        if (extractedSize && ['XL', '2XL', '3XL', 'XXL', 'XXXL'].includes(extractedSize)) {
+          if (!sizes.includes(extractedSize)) {
+            sizes.push(extractedSize);
+            console.log(`👕 AGGRESSIVE SCAN FOUND: ${extractedSize} via pattern ${index}`);
+          }
+        }
+      });
+    }
+  });
+  
   // Combine all found colors and sizes with safety checks
   const allRawColors = Array.from(new Set([...colors, ...jsonExtractedColors]));
   
@@ -1022,52 +1040,43 @@ async function extractVariantsDirect($: cheerio.CheerioAPI, htmlContent: string)
   
   console.log(`🔍 Raw colors detected: ${allRawColors.length} [${allRawColors.join(', ')}]`);
   
-  // ✅ AKILLI RENK TESPİTİ: Gerçek renkleri tespit et
+  // ✅ FORCED SINGLE COLOR POLICY: Sadece 1 renk döndür
   let detectedColors: string[] = [];
   
-  // ÇOK ÖNEMLİ: SADECE BİR RENK KULLAN POLİTİKASI
-  // Trendyol'da her URL tek bir renk içerir, birden fazla renk tespit etmek yanlıştır
+  console.log(`🚨 FORCING SINGLE COLOR POLICY - Raw colors: [${allRawColors.join(', ')}]`);
   
   // 1. Önce script verilerinden gerçek renk bilgisini bul
   const scriptColors = extractActualColorsFromScript($, htmlContent);
   
-  // 2. DOM'dan seçili/aktif rengi tespit et
+  // 2. DOM'dan seçili/aktif rengi tespit et  
   const activeColor = extractActiveColorFromDOM($);
   
   // 3. URL'den renk bilgisini çıkar
   const urlColor = extractColorFromURL(htmlContent);
   
-  console.log(`🔍 Renk tespit aşamaları:`);
-  console.log(`  📜 Script colors: [${scriptColors.join(', ')}]`);
-  console.log(`  🎯 Active color: ${activeColor || 'none'}`);
-  console.log(`  🔗 URL color: ${urlColor || 'none'}`);
-  console.log(`  📋 Raw colors: [${allRawColors.join(', ')}]`);
-  
-  // SINGLE COLOR POLICY: Sadece en güvenilir rengi seç
+  // ABSOLUTE SINGLE COLOR: Her durumda sadece 1 renk döndür
   if (scriptColors.length > 0) {
-    detectedColors = [scriptColors[0]]; // Sadece ilk rengi al
-    console.log(`🎯 SINGLE COLOR: Script'ten seçildi: ${detectedColors[0]}`);
+    detectedColors = [scriptColors[0]];
+    console.log(`🎯 FINAL: Script color selected: ${detectedColors[0]}`);
   } else if (activeColor) {
     detectedColors = [activeColor];
-    console.log(`🎯 SINGLE COLOR: Aktif renk seçildi: ${activeColor}`);
+    console.log(`🎯 FINAL: Active color selected: ${activeColor}`);
   } else if (urlColor) {
     detectedColors = [urlColor];
-    console.log(`🎯 SINGLE COLOR: URL'den seçildi: ${urlColor}`);
-  } else if (allRawColors.length > 0) {
-    // En yaygın rengi bul ve sadece onu kullan
-    const colorCounts = new Map<string, number>();
-    allRawColors.forEach(color => {
-      colorCounts.set(color, (colorCounts.get(color) || 0) + 1);
-    });
-    
-    const mostFrequent = Array.from(colorCounts.entries())
-      .sort((a, b) => b[1] - a[1])[0][0];
-    
-    detectedColors = [mostFrequent];
-    console.log(`🎯 SINGLE COLOR: En yaygın renk seçildi: ${mostFrequent} (${colorCounts.get(mostFrequent)} kez bulundu)`);
+    console.log(`🎯 FINAL: URL color selected: ${urlColor}`);
   } else {
-    detectedColors = ['Standart'];
-    console.log(`⚠️ SINGLE COLOR: Hiç renk bulunamadı, varsayılan: Standart`);
+    // Haki gibi özel durumlar için exact match
+    const hakiColor = allRawColors.find(c => c.toLowerCase().includes('haki'));
+    if (hakiColor) {
+      detectedColors = [hakiColor];
+      console.log(`🎯 FINAL: Haki color found: ${hakiColor}`);
+    } else if (allRawColors.length > 0) {
+      detectedColors = [allRawColors[0]]; // Sadece ilk rengi al
+      console.log(`🎯 FINAL: First raw color selected: ${allRawColors[0]}`);
+    } else {
+      detectedColors = ['Standart'];
+      console.log(`🎯 FINAL: Default color: Standart`);
+    }
   }
   
   const filteredColors = detectedColors;
