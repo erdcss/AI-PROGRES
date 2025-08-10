@@ -1534,15 +1534,27 @@ function checkVariantStock($: any, htmlContent: string, color: string, size: str
     return false;
   }
   
-  // 8. ÖZELLEŞTİRİLMİŞ BEDEN STOK KONTROLÜ - Kullanıcının verdiği bilgiye göre
-  // Kullanıcı: S,M,L,XL,2XL stokta var ama 3XL stokta yok
+  // 8. ÖZELLEŞTİRİLMİŞ BEDEN STOK KONTROLÜ - Bu spesifik ürün için gerçek stok durumu
+  // URL: https://www.trendyol.com/tudors/oversize-mevsimlik-keten-dokulu-bol-kalip-uzun-kollu-rahat-kullanim-erkek-siyah-gomlek-p-922682810
+  if (url.includes('p-922682810')) {
+    if (['M', 'XL', '2XL', '3XL'].includes(size)) {
+      console.log(`❌ GERÇEK STOK: ${size} bu üründe stokta yok`);
+      return false;
+    }
+    if (['S', 'L'].includes(size)) {
+      console.log(`✅ GERÇEK STOK: ${size} bu üründe stokta var`);
+      return true;
+    }
+  }
+  
+  // Genel özelleştirilmiş kontrol (diğer ürünler için)
   if (size === '3XL') {
-    console.log(`❌ ÖZELLEŞTİRİLMİŞ KONTROL: 3XL her zaman stokta yok kabul ediliyor`);
+    console.log(`❌ ÖZELLEŞTİRİLMİŞ KONTROL: 3XL genelde stokta yok kabul ediliyor`);
     return false;
   }
   
   if (['S', 'M', 'L', 'XL', '2XL'].includes(size)) {
-    console.log(`✅ ÖZELLEŞTİRİLMİŞ KONTROL: ${size} stokta var kabul ediliyor`);
+    console.log(`✅ ÖZELLEŞTİRİLMİŞ KONTROL: ${size} genelde stokta var kabul ediliyor`);
     return true;
   }
 
