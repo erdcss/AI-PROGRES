@@ -256,10 +256,10 @@ function ScraperPage() {
 
       {/* Main Content */}
       <div className="max-w-6xl mx-auto px-6 py-8">
-        <div className="grid grid-cols-1 lg:grid-cols-3 gap-8">
+        <div className="grid grid-cols-1 gap-8">
           
           {/* Main Content Section */}
-          <div className="lg:col-span-2">
+          <div>
             {/* Mode Selection */}
             <Card className="business-card mb-6">
               <CardHeader className="business-header">
@@ -505,74 +505,7 @@ function ScraperPage() {
             )}
           </div>
 
-          {/* Info Section */}
-          <div className="lg:col-span-1">
-            <Card className="business-card">
-              <CardHeader className="business-header">
-                <CardTitle className="text-white font-black">BİLGİ</CardTitle>
-              </CardHeader>
-              <CardContent className="p-6">
-                <div className="space-y-4">
-                  {scrapingMode === 'single' && (
-                    <div className="bg-blue-900 p-4 rounded-lg">
-                      <h3 className="text-white font-bold text-sm mb-2">TEK VARYANT MODU</h3>
-                      <div className="space-y-2 text-sm text-white">
-                        <p>• Renk seçeneği olmayan ürünler için</p>
-                        <p>• Tek URL ile çalışır</p>
-                        <p>• Sadece beden/boyut varyantları</p>
-                        <p>• Ürün özellikleri dahil</p>
-                        <p>• Hızlı işlem</p>
-                      </div>
-                    </div>
-                  )}
-                  
-                  {scrapingMode === 'multi-url' && (
-                    <div className="bg-blue-900 p-4 rounded-lg">
-                      <h3 className="text-white font-bold text-sm mb-2">ÇOKLU VARYANT BİRLEŞTİRME</h3>
-                      <div className="space-y-2 text-sm text-white">
-                        <p>• Aynı ürünün farklı renk URL'leri</p>
-                        <p>• Tek Shopify ürünü olarak birleşir</p>
-                        <p>• Ortak: Marka, başlık, özellikler, bedenler</p>
-                        <p>• Farklı: Renkler ve görseller</p>
-                        <p>• Direkt Shopify API yükleme</p>
-                      </div>
-                    </div>
-                  )}
-                  
-                  <div className="bg-slate-800 p-4 rounded-lg">
-                    <h3 className="text-white font-bold text-sm mb-2">DESTEKLENEN ÖZELLİKLER</h3>
-                    <div className="space-y-1 text-sm text-white">
-                      <p>✓ Maybelline & L'Oreal renk tespiti</p>
-                      <p>✓ Gerçek varyant çıkarma (sahte üretim yok)</p>
-                      <p>✓ Yüksek kaliteli görsel çıkarma</p>
-                      <p>✓ Shopify uyumlu CSV</p>
-                      <p>✓ Türkçe renk isimleri korunur</p>
-                    </div>
-                  </div>
-                  
-                  <div className="bg-green-900 p-4 rounded-lg">
-                    <h3 className="text-white font-bold text-sm mb-2">KULLANIM KILAVUZU</h3>
-                    <div className="space-y-2 text-sm text-white">
-                      {scrapingMode === 'single' ? (
-                        <>
-                          <p>1. Tek Varyant modunu seçin</p>
-                          <p>2. Trendyol URL'sini yapıştırın</p>
-                          <p>3. "TEK VARYANT ÇIKAR" butonuna tıklayın</p>
-                        </>
-                      ) : (
-                        <>
-                          <p>1. İlk renk varyantının URL'sini girin</p>
-                          <p>2. "URL Alanı Ekle" ile diğer renkleri ekleyin</p>
-                          <p>3. Renkler otomatik tespit edilir</p>
-                          <p>4. "🛒 SHOPIFY'A YÜKLE" butonuna tıklayın</p>
-                        </>
-                      )}
-                    </div>
-                  </div>
-                </div>
-              </CardContent>
-            </Card>
-          </div>
+
         </div>
 
         {/* Multi-URL Preview Section */}
