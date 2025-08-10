@@ -209,8 +209,6 @@ export function ProductDisplay({ data }: ProductDisplayProps) {
             {/* Actions Section - Right */}
             <div className="lg:col-span-1">
               <div className="space-y-4">
-                <h3 className="text-lg font-semibold text-white mb-4">İşlemler</h3>
-                
                 {/* Shopify Export Button */}
                 <Button
                   onClick={handleExportToShopify}
@@ -218,80 +216,8 @@ export function ProductDisplay({ data }: ProductDisplayProps) {
                   size="lg"
                 >
                   <ShoppingCart className="w-5 h-5 mr-2" />
-                  Shopify'a Direkt Yükle
+                  SHOPIFY'A AKTAR
                 </Button>
-
-                {/* Product Summary */}
-                <div className="bg-slate-800/30 rounded-lg p-4 space-y-2">
-                  <h4 className="text-white font-medium text-sm mb-3">Ürün Özeti</h4>
-                  <div className="flex justify-between text-sm">
-                    <span className="text-white/70">Toplam Resim:</span>
-                    <span className="text-white">{imageCount}</span>
-                  </div>
-                  <div className="flex justify-between text-sm">
-                    <span className="text-white/70">Toplam Varyant:</span>
-                    <span className="text-white">{data.variants?.totalVariants || 0}</span>
-                  </div>
-                  <div className="flex justify-between text-sm">
-                    <span className="text-white/70">Şopify Uyumlu:</span>
-                    <span className="text-green-400">✓ Evet</span>
-                  </div>
-                </div>
-
-                {/* Enhanced Product Features Section */}
-                {data.features && data.features.length > 0 && (
-                  <div className="bg-gradient-to-r from-blue-500/10 to-purple-500/10 rounded-lg p-4 border border-blue-400/20">
-                    <h4 className="text-white font-semibold mb-3 flex items-center gap-2">
-                      📋 Ürün Özellikleri ({data.features.length})
-                    </h4>
-                    <div className="space-y-2 max-h-48 overflow-y-auto">
-                      {data.features.map((feature, index) => (
-                        <div key={index} className="bg-white/5 rounded-md p-2 border border-white/10">
-                          <div className="flex flex-col gap-1">
-                            <span className="text-blue-300 text-xs font-medium">{feature.key}</span>
-                            <span className="text-white text-sm">{feature.value}</span>
-                          </div>
-                        </div>
-                      ))}
-                    </div>
-                  </div>
-                )}
-
-                {/* No Features Warning */}
-                {(!data.features || data.features.length === 0) && (
-                  <div className="bg-amber-500/10 rounded-lg p-3 border border-amber-400/20">
-                    <div className="flex items-center gap-2 mb-1">
-                      <span className="text-amber-300">⚠️</span>
-                      <span className="text-amber-200 text-sm font-medium">Ürün Özellikleri</span>
-                    </div>
-                    <p className="text-amber-100 text-xs">Özellik bilgisi bulunamadı</p>
-                  </div>
-                )}
-
-                {/* Tags */}
-                {data.tags && data.tags.length > 0 && (
-                  <div>
-                    <span className="text-white font-medium mb-2 block">🏷️ Etiketler</span>
-                    <div className="flex flex-wrap gap-1">
-                      {data.tags.slice(0, 6).map((tag) => (
-                        <Badge
-                          key={tag}
-                          variant="secondary"
-                          className="bg-white/10 text-white text-xs"
-                        >
-                          {tag}
-                        </Badge>
-                      ))}
-                    </div>
-                  </div>
-                )}
-
-                {/* No data fallback */}
-                {(!data.variants || !data.variants.allVariants || data.variants.allVariants.length === 0) && (
-                  <div className="text-center text-white/60 text-sm py-8">
-                    Ürün varyant bilgileri henüz yüklenmedi
-                  </div>
-                )}
               </div>
             </div>
           </div>
