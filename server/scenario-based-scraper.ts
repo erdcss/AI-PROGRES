@@ -906,12 +906,23 @@ async function extractVariantsDirect($: cheerio.CheerioAPI, htmlContent: string)
   
   console.log(`🔍 Raw colors detected: ${allRawColors.length} [${allRawColors.join(', ')}]`);
   
-  // Apply enhanced color filtering for cosmetic products
-  const filteredColors = colorFilter.filterMainColors(allRawColors);
+  // ✅ TEK RENK POLİTİKASI: Sadece bir renk seç
+  let singleColor = 'Default Color';
   
-  console.log(`🎨 Direct extraction - Colors: ${filteredColors.length} (filtered from ${allRawColors.length}), Sizes: ${allSizes.length}`);
-  console.log(`🎨 Main colors: [${filteredColors.join(', ')}]`);
-  console.log(`👕 Final sizes: [${allSizes.join(', ')}]`);
+  if (allRawColors.length > 0) {
+    // SADECE İLK RENGİ AL - diğerlerini görmezden gel
+    singleColor = allRawColors[0];
+    console.log(`🎯 TEK RENK seçildi: ${singleColor} (toplam ${allRawColors.length} renkten sadece 1 tanesi)`);
+  } else {
+    console.log(`⚠️ Renk bulunamadı, varsayılan renk: ${singleColor}`);
+  }
+  
+  // Tek rengi kullan
+  const filteredColors = [singleColor];
+  
+  console.log(`✅ SCENARIO-BASED: Tek renk politikası uygulandı - Renk: ${singleColor}, Bedenler: ${allSizes.length}`);
+  console.log(`🎨 Tek renk: [${filteredColors.join(', ')}]`);
+  console.log(`👕 Bedenler: [${allSizes.join(', ')}]`);
   
   // Build variants with stock check
   if (filteredColors.length > 0 && allSizes.length > 0) {

@@ -156,50 +156,63 @@ export class ScenarioExtractors {
   }
 
   /**
-   * Extract multi-color products (multiple colors, single size)
+   * Extract multi-color products (SINGLE COLOR POLICY - tek renk per URL)
    */
   private static extractMultiColor($: any, config: ScenarioExtractionConfig, htmlContent: string, title: string): VariantExtractionResult {
-    console.log(`🎨 Extracting multi-color product`);
+    console.log(`🎨 Extracting SINGLE COLOR (multi-color scenario with single color policy)`);
     
-    const colors = this.extractColors($, config.colorSelectors, htmlContent, title);
+    const extractedColors = this.extractColors($, config.colorSelectors, htmlContent, title);
     
-    // If no authentic colors found, return empty variants
-    if (colors.length === 0) {
-      console.log(`🎨 No authentic colors found - returning empty variants`);
-      return { 
-        sizes: [], 
-        colors: [], 
-        stockMap: new Map<string, boolean>(), 
-        priceMap: new Map<string, number>(), 
-        imageMap: new Map<string, string[]>() 
-      };
+    // ✅ TEK RENK POLİTİKASI: Sadece ilk rengi al
+    let finalColors: string[] = [];
+    
+    if (extractedColors.length > 0) {
+      const singleColor = extractedColors[0]; // SADECE İLK RENK
+      finalColors = [singleColor];
+      console.log(`🎯 SINGLE COLOR policy applied: ${singleColor} (from ${extractedColors.length} available colors)`);
+    } else {
+      console.log(`🎨 No color found, using default`);
+      finalColors = ['Default Color'];
     }
     
     const sizes = ['Tek Beden'];
-    const stockMap = this.extractColorStockStatus($, config.stockSelectors, colors);
+    const stockMap = this.extractColorStockStatus($, config.stockSelectors, finalColors);
     const priceMap = new Map<string, number>();
     const imageMap = new Map<string, string[]>();
     
-    console.log(`🎨 Multi-color: ${colors.length} colors found [${colors.join(', ')}], size="${sizes[0]}"`);
+    console.log(`✅ Multi-color with SINGLE COLOR: 1 color [${finalColors.join(', ')}], size="${sizes[0]}"`);
     
-    return { sizes, colors, stockMap, priceMap, imageMap };
+    return { sizes, colors: finalColors, stockMap, priceMap, imageMap };
   }
 
   /**
-   * Extract full matrix products (multiple sizes and colors)
+   * Extract full matrix products (SINGLE COLOR POLICY - tek renk × multiple sizes)
    */
   private static extractFullMatrix($: any, config: ScenarioExtractionConfig, htmlContent: string, title: string): VariantExtractionResult {
-    console.log(`🔳 Extracting full matrix product`);
+    console.log(`🔳 Extracting SINGLE COLOR matrix product`);
     
     const sizes = this.extractSizes($, config.sizeSelectors, htmlContent);
-    const colors = this.extractColors($, config.colorSelectors, htmlContent, title);
-    const stockMap = this.extractMatrixStockStatus($, config.stockSelectors, sizes, colors);
+    const extractedColors = this.extractColors($, config.colorSelectors, htmlContent, title);
+    
+    // ✅ TEK RENK POLİTİKASI: Sadece ilk rengi al
+    let finalColors: string[] = [];
+    
+    if (extractedColors.length > 0) {
+      const singleColor = extractedColors[0]; // SADECE İLK RENK
+      finalColors = [singleColor];
+      console.log(`🎯 SINGLE COLOR for matrix: ${singleColor} (from ${extractedColors.length} available colors)`);
+    } else {
+      finalColors = ['Default Color'];
+      console.log(`🎨 No color found for matrix, using default`);
+    }
+    
+    const stockMap = this.extractMatrixStockStatus($, config.stockSelectors, sizes, finalColors);
     const priceMap = new Map<string, number>();
     const imageMap = new Map<string, string[]>();
     
-    console.log(`🔳 Full matrix: ${sizes.length} sizes × ${colors.length} colors = ${sizes.length * colors.length} variants`);
+    console.log(`✅ Matrix with SINGLE COLOR: ${sizes.length} sizes × 1 color = ${sizes.length} variants`);
     
-    return { sizes, colors, stockMap, priceMap, imageMap };
+    return { sizes, colors: finalColors, stockMap, priceMap, imageMap };
   }
 
   /**
