@@ -316,15 +316,38 @@ function extractPrice($: any, htmlContent: string): any {
     }
   }
   
-  // Fallback to HTML parsing
-  const priceSelectors = ['.price', '.current-price', '.sale-price'];
+  // Fallback to HTML parsing with enhanced Trendyol selectors
+  const priceSelectors = [
+    '.prc-dsc', 
+    '.prc-slg',
+    '[data-testid="price-current-price"]',
+    '.product-price .price',
+    '.price-current',
+    '.current-price',
+    '.price', 
+    '.sale-price'
+  ];
+  
   for (const selector of priceSelectors) {
     const priceElement = $(selector).first();
     if (priceElement.length) {
-      const priceText = priceElement.text().replace(/[^\d,]/g, '').replace(',', '.');
-      const price = parseFloat(priceText);
-      if (!isNaN(price)) {
+      const priceText = priceElement.text().trim();
+      console.log(`💰 Price selector ${selector}: "${priceText}"`);
+      
+      // Enhanced price parsing for Turkish format
+      const cleanText = priceText.replace(/[^\d,\.]/g, '');
+      let price = 0;
+      
+      if (cleanText.includes(',')) {
+        // Turkish format: 749,99
+        price = parseFloat(cleanText.replace(',', '.'));
+      } else {
+        price = parseFloat(cleanText);
+      }
+      
+      if (!isNaN(price) && price > 0) {
         const finalPrice = Math.round(price * 1.10);
+        console.log(`💰 Price extracted: ${price} TL → ${finalPrice} TL (+10%)`);
         return {
           original: price,
           currency: 'TL',
@@ -603,16 +626,26 @@ function optimizeImageUrl(src: string): string {
 function extractFeatures($: any): Array<{key: string, value: string}> {
   const features: Array<{key: string, value: string}> = [];
   
-  // Enhanced feature selectors for Trendyol and other Turkish e-commerce sites
+  // Enhanced feature selectors for Trendyol "Öne Çıkan Özellikler" section
   const featureSelectors = [
+    // Trendyol "Öne Çıkan Özellikler" - Ana hedef
+    '.highlighted-features',
+    '.product-highlights',
+    '.key-features',
+    '.main-features',
+    '.öne-çıkan-özellikler',
+    // Trendyol özellik tablosu yapısı
     '.product-feature-list li',
-    '.product-features li',
+    '.product-features li', 
+    '.feature-list li',
+    '.features-table tr',
+    '.specifications-table tr',
     '.product-specs dt, .product-specs dd',
     '.specification-item',
     '.product-details li',
     '.features li',
     '.attributes li',
-    // New Trendyol specific selectors
+    // Yeni Trendyol specific selectors
     '.product-attributes .attribute-item',
     '.product-info-item',
     '.product-detail-attributes li',
@@ -622,57 +655,114 @@ function extractFeatures($: any): Array<{key: string, value: string}> {
     '.slicing-attributes .slicing-attribute-section',
     '.variant-attribute',
     '.product-property',
-    // Table-based specifications
+    // Tablo yapısı için özel selectors
+    '.feature-table tr',
+    '.spec-table tr',
+    'table.features tr',
+    'table.specifications tr',
+    // Generic table rows that might contain features
+    'tr:has(td)',
+    '.info-table tr',
     '.specifications table tr',
     '.product-table tr',
     '.spec-table tr'
   ];
   
+  // ENHANCED TRENDYOL FEATURE EXTRACTION
+  console.log('🔧 Starting enhanced feature extraction for Trendyol...');
+  
+  // Method 1: Look for "Öne Çıkan Özellikler" section specifically
+  $('h2, h3, h4, .section-title, .feature-title').each((_, heading) => {
+    const headingText = $(heading).text().trim().toLowerCase();
+    if (headingText.includes('öne çıkan') || headingText.includes('özellik') || 
+        headingText.includes('features') || headingText.includes('highlights')) {
+      
+      console.log(`🎯 Found features section: "${$(heading).text().trim()}"`);
+      
+      // Look for table or list structure after this heading
+      const nextElement = $(heading).next();
+      const nextTable = $(heading).siblings('table').first();
+      const parentSection = $(heading).parent();
+      
+      // Check for table structure
+      if (nextTable.length > 0) {
+        console.log(`📋 Found features table after heading`);
+        nextTable.find('tr').each((_, row) => {
+          const cells = $(row).find('td, th');
+          if (cells.length >= 2) {
+            const key = $(cells[0]).text().trim();
+            const value = $(cells[1]).text().trim();
+            if (key && value && key.length > 0 && value.length > 0) {
+              features.push({ key, value });
+              console.log(`🔧 Table feature found: ${key} = ${value}`);
+            }
+          }
+        });
+      }
+      
+      // Check for list structure in parent section
+      parentSection.find('li, .feature-item, .attribute-item').each((_, item) => {
+        const text = $(item).text().trim();
+        if (text && text.includes(':')) {
+          const [key, value] = text.split(':').map(s => s.trim());
+          if (key && value && key.length < 50 && value.length < 100) {
+            features.push({ key, value });
+            console.log(`🔧 List feature found: ${key} = ${value}`);
+          }
+        }
+      });
+    }
+  });
+  
+  // Method 2: Generic table scanning for key-value pairs
+  $('table').each((_, table) => {
+    const rows = $(table).find('tr');
+    if (rows.length > 0 && rows.length < 20) { // Reasonable table size
+      rows.each((_, row) => {
+        const cells = $(row).find('td, th');
+        if (cells.length === 2) {
+          const key = $(cells[0]).text().trim();
+          const value = $(cells[1]).text().trim();
+          
+          // Filter for meaningful features
+          if (key && value && key.length > 2 && key.length < 50 && 
+              value.length > 0 && value.length < 100 &&
+              !key.toLowerCase().includes('fiyat') &&
+              !key.toLowerCase().includes('price') &&
+              !value.toLowerCase().includes('javascript')) {
+            features.push({ key, value });
+            console.log(`🔧 Generic table feature: ${key} = ${value}`);
+          }
+        }
+      });
+    }
+  });
+  
+  // Method 3: Fallback to original selectors
   featureSelectors.forEach(selector => {
     $(selector).each((i: number, el: any) => {
       const $el = $(el);
-      let key = '';
-      let value = '';
+      const text = $el.text().trim();
       
-      // Handle different HTML structures
-      if (selector.includes('tr')) {
-        // Table row - try to get key from first cell, value from second
-        const cells = $el.find('td');
-        if (cells.length >= 2) {
-          key = $(cells[0]).text().trim();
-          value = $(cells[1]).text().trim();
+      if (text && text.length > 2 && text.length < 200) {
+        let key = '';
+        let value = '';
+        
+        if (text.includes(':')) {
+          const colonIndex = text.indexOf(':');
+          key = text.substring(0, colonIndex).trim();
+          value = text.substring(colonIndex + 1).trim();
+        } else if (text.includes('=')) {
+          const equalIndex = text.indexOf('=');
+          key = text.substring(0, equalIndex).trim();
+          value = text.substring(equalIndex + 1).trim();
         }
-      } else if (selector.includes('slicing-attribute-section')) {
-        // Trendyol slicing attributes
-        const header = $el.find('.slicing-attribute-section-header').text().trim();
-        const valueEl = $el.find('.slicing-attribute-section-value');
-        if (header && valueEl.length) {
-          key = header;
-          value = valueEl.text().trim();
+        
+        if (key && value && key.length > 0 && value.length > 0 && 
+            key.length < 50 && value.length < 200) {
+          features.push({ key, value });
+          console.log(`🔧 Selector feature: ${key} = ${value}`);
         }
-      } else {
-        const text = $el.text().trim();
-        if (text && text.length > 2 && text.length < 200) {
-          // Try to split key:value pairs
-          if (text.includes(':')) {
-            const colonIndex = text.indexOf(':');
-            key = text.substring(0, colonIndex).trim();
-            value = text.substring(colonIndex + 1).trim();
-          } else if (text.includes('=')) {
-            const equalIndex = text.indexOf('=');
-            key = text.substring(0, equalIndex).trim();
-            value = text.substring(equalIndex + 1).trim();
-          } else {
-            key = 'Özellik';
-            value = text;
-          }
-        }
-      }
-      
-      // Add feature if both key and value are meaningful
-      if (key && value && key.length > 0 && value.length > 0 && 
-          key.length < 50 && value.length < 200) {
-        features.push({ key: key, value: value });
       }
     });
   });
@@ -855,16 +945,29 @@ async function extractVariantsDirect($: cheerio.CheerioAPI, htmlContent: string)
   // Method 2: Enhanced size extraction with modern Trendyol selectors  
   const sizes: string[] = [];
   
-  // Modern Trendyol size selectors
+  console.log('👕 Starting comprehensive size extraction...');
+  
+  // Modern Trendyol size selectors - COMPREHENSIVE APPROACH
   const sizeSelectors = [
+    // Primary Trendyol size selectors
     '[data-testid*="size"] button',
-    '[data-testid*="variant"] button',
+    '[data-testid*="variant"] button', 
     '.variants-size button',
     '.product-variants .size-item',
     '.variant-buttons button[data-size]',
     '.size-selector button',
     '.product-size-options button',
     'button[data-size]',
+    // Extended selectors for all size buttons
+    'button[title*="XL"]',
+    'button[title*="2XL"]', 
+    'button[title*="3XL"]',
+    'button:contains("XL")',
+    'button:contains("2XL")',
+    'button:contains("3XL")',
+    'span:contains("XL")',
+    '.size-option',
+    '.variant-size',
     'button[aria-label*="beden"]',
     'button[aria-label*="size"]',
     '.variant-option[data-size]',
@@ -882,15 +985,21 @@ async function extractVariantsDirect($: cheerio.CheerioAPI, htmlContent: string)
       const $el = $(el);
       const sizeName = $el.text().trim() || $el.attr('title') || $el.attr('data-size') || 
                       $el.attr('aria-label');
-      const isDisabled = $el.is('[disabled]') || $el.hasClass('disabled') || 
-                        $el.hasClass('out-of-stock') || $el.hasClass('sold-out');
+      // ÖNEMLİ: Disabled kontrol etme, sadece mevcut bedenleri topla
+      // Stok kontrolü ayrı yapılacak
       
-      if (sizeName && typeof sizeName === 'string' && sizeName.length > 0 && sizeName.length < 10 && !isDisabled) {
-        // Filter out obvious non-size values
-        const sizePattern = /^(XXS|XS|S|M|L|XL|XXL|XXXL|\d+(\.\d+)?|Tek\s*Beden|One\s*Size)$/i;
-        if (sizePattern.test(sizeName.trim())) {
-          sizes.push(sizeName.trim());
-          console.log(`👕 Found size via selector "${selector}": ${sizeName}`);
+      if (sizeName && typeof sizeName === 'string' && sizeName.length > 0 && sizeName.length < 10) {
+        // Enhanced size pattern for Turkish and international sizes
+        const sizePattern = /^(XXS|XS|S|M|L|XL|XXL|XXXL|2XL|3XL|\d+(\.\d+)?|Tek\s*Beden|One\s*Size)$/i;
+        const cleanSizeName = sizeName.trim();
+        
+        if (sizePattern.test(cleanSizeName)) {
+          sizes.push(cleanSizeName);
+          const stockStatus = $el.is('[disabled]') || $el.hasClass('disabled') || 
+                            $el.hasClass('out-of-stock') || $el.hasClass('sold-out') ? '(STOKTA YOK)' : '(STOKTA VAR)';
+          console.log(`👕 FOUND SIZE: "${cleanSizeName}" ${stockStatus} [via: ${selector}]`);
+        } else {
+          console.log(`❌ Size rejected: "${cleanSizeName}" (doesn't match pattern) [via: ${selector}]`);
         }
       }
     });
@@ -916,6 +1025,9 @@ async function extractVariantsDirect($: cheerio.CheerioAPI, htmlContent: string)
   // ✅ AKILLI RENK TESPİTİ: Gerçek renkleri tespit et
   let detectedColors: string[] = [];
   
+  // ÇOK ÖNEMLİ: SADECE BİR RENK KULLAN POLİTİKASI
+  // Trendyol'da her URL tek bir renk içerir, birden fazla renk tespit etmek yanlıştır
+  
   // 1. Önce script verilerinden gerçek renk bilgisini bul
   const scriptColors = extractActualColorsFromScript($, htmlContent);
   
@@ -925,23 +1037,37 @@ async function extractVariantsDirect($: cheerio.CheerioAPI, htmlContent: string)
   // 3. URL'den renk bilgisini çıkar
   const urlColor = extractColorFromURL(htmlContent);
   
-  // Öncelik sırası: script > aktif DOM > URL > raw colors
+  console.log(`🔍 Renk tespit aşamaları:`);
+  console.log(`  📜 Script colors: [${scriptColors.join(', ')}]`);
+  console.log(`  🎯 Active color: ${activeColor || 'none'}`);
+  console.log(`  🔗 URL color: ${urlColor || 'none'}`);
+  console.log(`  📋 Raw colors: [${allRawColors.join(', ')}]`);
+  
+  // SINGLE COLOR POLICY: Sadece en güvenilir rengi seç
   if (scriptColors.length > 0) {
-    detectedColors = scriptColors;
-    console.log(`🎯 Script'ten tespit edilen renkler: [${scriptColors.join(', ')}]`);
+    detectedColors = [scriptColors[0]]; // Sadece ilk rengi al
+    console.log(`🎯 SINGLE COLOR: Script'ten seçildi: ${detectedColors[0]}`);
   } else if (activeColor) {
     detectedColors = [activeColor];
-    console.log(`🎯 Aktif renk tespit edildi: ${activeColor}`);
+    console.log(`🎯 SINGLE COLOR: Aktif renk seçildi: ${activeColor}`);
   } else if (urlColor) {
     detectedColors = [urlColor];
-    console.log(`🎯 URL'den renk tespit edildi: ${urlColor}`);
+    console.log(`🎯 SINGLE COLOR: URL'den seçildi: ${urlColor}`);
   } else if (allRawColors.length > 0) {
-    // Sadece 1 renk varsa onu al, birden fazla varsa en yaygın olanı seç
-    detectedColors = allRawColors.length === 1 ? allRawColors : [allRawColors[0]];
-    console.log(`🎯 Raw renklerden seçildi: [${detectedColors.join(', ')}] (toplam ${allRawColors.length} renkten)`);
+    // En yaygın rengi bul ve sadece onu kullan
+    const colorCounts = new Map<string, number>();
+    allRawColors.forEach(color => {
+      colorCounts.set(color, (colorCounts.get(color) || 0) + 1);
+    });
+    
+    const mostFrequent = Array.from(colorCounts.entries())
+      .sort((a, b) => b[1] - a[1])[0][0];
+    
+    detectedColors = [mostFrequent];
+    console.log(`🎯 SINGLE COLOR: En yaygın renk seçildi: ${mostFrequent} (${colorCounts.get(mostFrequent)} kez bulundu)`);
   } else {
     detectedColors = ['Standart'];
-    console.log(`⚠️ Hiç renk bulunamadı, varsayılan renk kullanılacak`);
+    console.log(`⚠️ SINGLE COLOR: Hiç renk bulunamadı, varsayılan: Standart`);
   }
   
   const filteredColors = detectedColors;
