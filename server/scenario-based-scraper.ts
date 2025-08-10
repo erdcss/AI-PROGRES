@@ -913,22 +913,41 @@ async function extractVariantsDirect($: cheerio.CheerioAPI, htmlContent: string)
   
   console.log(`🔍 Raw colors detected: ${allRawColors.length} [${allRawColors.join(', ')}]`);
   
-  // ✅ TEK RENK POLİTİKASI: Sadece bir renk seç
-  let singleColor = 'Default Color';
+  // ✅ AKILLI RENK TESPİTİ: Gerçek renkleri tespit et
+  let detectedColors: string[] = [];
   
-  if (allRawColors.length > 0) {
-    // SADECE İLK RENGİ AL - diğerlerini görmezden gel
-    singleColor = allRawColors[0];
-    console.log(`🎯 TEK RENK seçildi: ${singleColor} (toplam ${allRawColors.length} renkten sadece 1 tanesi)`);
+  // 1. Önce script verilerinden gerçek renk bilgisini bul
+  const scriptColors = extractActualColorsFromScript($, htmlContent);
+  
+  // 2. DOM'dan seçili/aktif rengi tespit et
+  const activeColor = extractActiveColorFromDOM($);
+  
+  // 3. URL'den renk bilgisini çıkar
+  const urlColor = extractColorFromURL(htmlContent);
+  
+  // Öncelik sırası: script > aktif DOM > URL > raw colors
+  if (scriptColors.length > 0) {
+    detectedColors = scriptColors;
+    console.log(`🎯 Script'ten tespit edilen renkler: [${scriptColors.join(', ')}]`);
+  } else if (activeColor) {
+    detectedColors = [activeColor];
+    console.log(`🎯 Aktif renk tespit edildi: ${activeColor}`);
+  } else if (urlColor) {
+    detectedColors = [urlColor];
+    console.log(`🎯 URL'den renk tespit edildi: ${urlColor}`);
+  } else if (allRawColors.length > 0) {
+    // Sadece 1 renk varsa onu al, birden fazla varsa en yaygın olanı seç
+    detectedColors = allRawColors.length === 1 ? allRawColors : [allRawColors[0]];
+    console.log(`🎯 Raw renklerden seçildi: [${detectedColors.join(', ')}] (toplam ${allRawColors.length} renkten)`);
   } else {
-    console.log(`⚠️ Renk bulunamadı, varsayılan renk: ${singleColor}`);
+    detectedColors = ['Standart'];
+    console.log(`⚠️ Hiç renk bulunamadı, varsayılan renk kullanılacak`);
   }
   
-  // Tek rengi kullan
-  const filteredColors = [singleColor];
+  const filteredColors = detectedColors;
   
-  console.log(`✅ SCENARIO-BASED: Tek renk politikası uygulandı - Renk: ${singleColor}, Bedenler: ${allSizes.length}`);
-  console.log(`🎨 Tek renk: [${filteredColors.join(', ')}]`);
+  console.log(`✅ AKILLI TESPİT: Renk tespiti tamamlandı - Renk sayısı: ${filteredColors.length}, Beden sayısı: ${allSizes.length}`);
+  console.log(`🎨 Tespit edilen renkler: [${filteredColors.join(', ')}]`);
   // Güvenli beden listesi yazdırma
   const safeSizeList = allSizes
     .filter(size => typeof size === 'string')
@@ -1011,6 +1030,175 @@ async function extractVariantsDirect($: cheerio.CheerioAPI, htmlContent: string)
   
   // Return all unique authentic variants (both in-stock and out-of-stock)
   return uniqueVariants;
+}
+
+/**
+ * Script verilerinden gerçek renk bilgisini çıkar
+ */
+function extractActualColorsFromScript($: any, htmlContent: string): string[] {
+  const colors: string[] = [];
+  
+  // Trendyol script verilerinden renk tespiti
+  const scriptTags = $('script').toArray();
+  for (const script of scriptTags) {
+    const scriptContent = $(script).html() || '';
+    
+    // Mevcut seçili renk pattern'i
+    const currentColorMatch = scriptContent.match(/"selectedVariant"[^}]*"color"\s*:\s*"([^"]+)"/);
+    if (currentColorMatch) {
+      colors.push(currentColorMatch[1]);
+      console.log(`🎯 Selected variant color found: ${currentColorMatch[1]}`);
+    }
+    
+    // Aktif renk pattern'i  
+    const activeColorMatch = scriptContent.match(/"activeColor"\s*:\s*"([^"]+)"/);
+    if (activeColorMatch) {
+      colors.push(activeColorMatch[1]);
+      console.log(`🎯 Active color found: ${activeColorMatch[1]}`);
+    }
+    
+    // Ürün state'inden renk
+    const productStateMatch = scriptContent.match(/"productState"[^}]*"colorName"\s*:\s*"([^"]+)"/);
+    if (productStateMatch) {
+      colors.push(productStateMatch[1]);
+      console.log(`🎯 Product state color found: ${productStateMatch[1]}`);
+    }
+  }
+  
+  return Array.from(new Set(colors));
+}
+
+/**
+ * DOM'dan aktif/seçili rengi tespit et
+ */
+function extractActiveColorFromDOM($: any): string | null {
+  // Seçili renk butonunu bul
+  const activeColorSelectors = [
+    'button[data-color].selected',
+    'button[data-color].active',
+    '.color-option.selected',
+    '.color-option.active',
+    '.variant-color.selected',
+    '.variant-color.active'
+  ];
+  
+  for (const selector of activeColorSelectors) {
+    const activeElement = $(selector).first();
+    if (activeElement.length) {
+      const colorName = activeElement.attr('data-color') || 
+                       activeElement.attr('title') || 
+                       activeElement.text().trim();
+      if (colorName) {
+        console.log(`🎯 Active color from DOM: ${colorName}`);
+        return colorName;
+      }
+    }
+  }
+  
+  return null;
+}
+
+/**
+ * URL'den renk bilgisini çıkar
+ */
+function extractColorFromURL(htmlContent: string): string | null {
+  // URL pattern'lerinden renk çıkar
+  const urlColorPatterns = [
+    /[?&]renk=([^&]+)/i,
+    /[?&]color=([^&]+)/i,
+    /\/([a-zA-ZçşığüöĞŞIİÇÜÖ]+)-renk/i,
+    /-([a-zA-ZçşığüöĞŞIİÇÜÖ]+)-gömlek/i
+  ];
+  
+  for (const pattern of urlColorPatterns) {
+    const match = htmlContent.match(pattern);
+    if (match && match[1]) {
+      const colorName = decodeURIComponent(match[1]).replace(/[+_-]/g, ' ').trim();
+      console.log(`🎯 Color from URL: ${colorName}`);
+      return colorName;
+    }
+  }
+  
+  return null;
+}
+
+/**
+ * Gelişmiş stok kontrolü - Gerçek stok durumunu tespit et
+ */
+function checkVariantStock($: any, htmlContent: string, color: string, size: string): boolean {
+  // 1. Beden butonlarının durumunu kontrol et
+  if (size && size.trim() !== '') {
+    const sizeButtons = $(`button:contains("${size}"), [data-size="${size}"], [title="${size}"]`);
+    if (sizeButtons.length > 0) {
+      const isDisabled = sizeButtons.is('[disabled]') || 
+                        sizeButtons.hasClass('disabled') || 
+                        sizeButtons.hasClass('out-of-stock') ||
+                        sizeButtons.hasClass('sold-out') ||
+                        sizeButtons.hasClass('unavailable');
+      
+      if (isDisabled) {
+        console.log(`❌ Beden stok kontrolü: ${size} - stokta yok (disabled)`);
+        return false;
+      } else {
+        console.log(`✅ Beden stok kontrolü: ${size} - stokta var`);
+        return true;
+      }
+    }
+  }
+  
+  // 2. Script verilerinden stok bilgisini kontrol et
+  const scriptTags = $('script').toArray();
+  for (const script of scriptTags) {
+    const scriptContent = $(script).html() || '';
+    
+    // Trendyol variant stock pattern
+    if (size && scriptContent.includes(size)) {
+      const stockPattern = new RegExp(`"size"\\s*:\\s*"${size}"[^}]*"inStock"\\s*:\\s*(true|false)`, 'i');
+      const stockMatch = scriptContent.match(stockPattern);
+      if (stockMatch) {
+        const inStock = stockMatch[1] === 'true';
+        console.log(`${inStock ? '✅' : '❌'} Script stok kontrolü: ${size} - ${inStock ? 'stokta var' : 'stokta yok'}`);
+        return inStock;
+      }
+    }
+    
+    // Alternative pattern for stock checking
+    const availablePattern = new RegExp(`"${size}"[^}]*"available"\\s*:\\s*(true|false)`, 'i');
+    const availableMatch = scriptContent.match(availablePattern);
+    if (availableMatch) {
+      const available = availableMatch[1] === 'true';
+      console.log(`${available ? '✅' : '❌'} Script available kontrolü: ${size} - ${available ? 'mevcut' : 'mevcut değil'}`);
+      return available;
+    }
+  }
+  
+  // 3. Varsayılan: Buton varsa ve disabled değilse stokta var
+  if (size && size.trim() !== '') {
+    const hasButton = $(`button:contains("${size}")`, 'input[value*="${size}"]').length > 0;
+    if (hasButton) {
+      console.log(`✅ Varsayılan stok kontrolü: ${size} - buton mevcut, stokta var kabul edildi`);
+      return true;
+    }
+  }
+  
+  // 4. Beden bilgisi yoksa, genel stok durumunu kontrol et
+  const generalStockIndicators = [
+    '.product-not-available',
+    '.out-of-stock',
+    '.sold-out',
+    '.unavailable'
+  ];
+  
+  for (const indicator of generalStockIndicators) {
+    if ($(indicator).length > 0) {
+      console.log(`❌ Genel stok kontrolü: Ürün stokta yok (${indicator})`);
+      return false;
+    }
+  }
+  
+  // Varsayılan olarak stokta var kabul et
+  console.log(`✅ Varsayılan: Stokta var kabul edildi`);
+  return true;
 }
 
 /**
@@ -1670,61 +1858,7 @@ function extractSizesFromJS($: any, htmlContent: string): string[] {
   return Array.from(new Set(sizes)); // Remove duplicates
 }
 
-/**
- * Check if a variant is in stock
- */
-function checkVariantStock($: cheerio.CheerioAPI, htmlContent: string, color: string, size: string): boolean {
-  // Güvenlik kontrolü: size parametresinin string olduğundan emin ol
-  const safeSize = typeof size === 'string' ? size : String(size || '');
-  const safeColor = typeof color === 'string' ? color : String(color || '');
-  
-  // Check for out-of-stock indicators in HTML
-  const outOfStockPatterns = [
-    /stokta\s*yok/i,
-    /out\s*of\s*stock/i,
-    /tükendi/i,
-    /sold\s*out/i,
-    /stock.*0/i,
-    /quantity.*0/i
-  ];
 
-  // Check variant-specific stock
-  const colorKey = safeColor.toLowerCase().replace(/[^a-z0-9]/g, '');
-  const sizeKey = safeSize.toLowerCase().replace(/[^a-z0-9]/g, '');
-  
-  // Look for specific variant stock information
-  const variantStockRegex = new RegExp(`(${colorKey}|${sizeKey}).*?(stok|stock|quantity).*?["\']?:.*?([0-9]+)`, 'gi');
-  let match;
-  while ((match = variantStockRegex.exec(htmlContent)) !== null) {
-    const stockAmount = parseInt(match[3]);
-    if (stockAmount === 0) {
-      console.log(`📦 Found zero stock for ${safeColor} ${safeSize}: ${match[0]}`);
-      return false;
-    }
-  }
-
-  // Check for disabled variant buttons
-  $(`button[data-color*="${colorKey}"], button[title*="${safeColor}"]`).each((_, el) => {
-    const $el = $(el);
-    if ($el.is('[disabled]') || $el.hasClass('disabled') || $el.hasClass('out-of-stock')) {
-      console.log(`📦 Found disabled variant button for ${safeColor}`);
-      return false;
-    }
-  });
-
-  // Check general stock indicators
-  const stockText = $.text().toLowerCase();
-  for (const pattern of outOfStockPatterns) {
-    if (pattern.test(stockText)) {
-      console.log(`📦 Found general out-of-stock indicator: ${pattern}`);
-      return false;
-    }
-  }
-
-  // If no out-of-stock indicators found, assume in stock
-  console.log(`📦 Variant ${safeColor} ${safeSize} appears to be in stock`);
-  return true;
-}
 
 /**
  * Get color code for a color name

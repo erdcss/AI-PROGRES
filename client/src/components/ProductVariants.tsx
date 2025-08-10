@@ -60,7 +60,7 @@ const ProductVariants: React.FC<{ variants: VariantProps }> = ({ variants }) => 
   return (
     <div className="mt-2 space-y-4">
       {variants.color && variants.color.length > 0 && (
-        renderVariantButtons(variants.color, 'Renk')
+        renderVariantButtons(variants.color, 'Ürün')
       )}
       
       {variants.size && variants.size.length > 0 && (

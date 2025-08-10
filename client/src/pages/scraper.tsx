@@ -401,7 +401,7 @@ function ScraperPage() {
                             <span>Ürün Verisi Çekiliyor...</span>
                           </div>
                         ) : (
-                          <span>TEK VARYANT ÇIKAR</span>
+                          <span>SHOPIFY'A AKTAR</span>
                         )}
                       </Button>
                       
