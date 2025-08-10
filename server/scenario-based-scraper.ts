@@ -1407,10 +1407,13 @@ function checkVariantStock($: any, htmlContent: string, color: string, size: str
           return true;
         } else {
           console.log(`❌ DOM STOK KONTROLÜ: ${size} - STOKTA YOK (tüm butonlar disabled)`);
+          // DOM'da disabled buton varsa, spesifik beden için stokta yok
           return false;
         }
       }
     }
+    
+    console.log(`🔍 HİÇBİR BEDEN ELEMENTI BULUNAMADI: ${size} için - devam ediyoruz`);
   }
   
   // 3. GENEL ÜRÜN STOK DURUMU KONTROLÜ
@@ -1432,25 +1435,57 @@ function checkVariantStock($: any, htmlContent: string, color: string, size: str
     }
   }
   
-  // 4. STOK METNİ ANALİZİ
-  const stockTexts = [
-    'Stokta yok',
-    'Tükendi',
-    'Geçici olarak temin edilemiyor',
-    'Out of stock',
-    'Sold out',
-    'Mevcut değil'
+  // 4. SPESIFIK BEDEN STOK KONTROLÜ - Sadece spesifik beden için stok kontrol et
+  // CRITICAL: Sadece spesifik beden için "Tükendi" arayalım, genel değil
+  const sizeSpecificOutOfStockPatterns = [
+    new RegExp(`${size}[^a-zA-Z]*(?:tükendi|stokta\\s+yok|sold\\s+out|out\\s+of\\s+stock)`, 'gi'),
+    new RegExp(`(?:tükendi|stokta\\s+yok|sold\\s+out|out\\s+of\\s+stock)[^a-zA-Z]*${size}`, 'gi'),
+    new RegExp(`"${size}"[^}]*(?:disabled|unavailable|outOfStock).*?:.*?true`, 'gi')
   ];
   
-  for (const stockText of stockTexts) {
-    if (htmlContent.toLowerCase().includes(stockText.toLowerCase())) {
-      console.log(`❌ STOK METNİ ANALİZİ: "${stockText}" tespit edildi - STOKTA YOK`);
+  for (const pattern of sizeSpecificOutOfStockPatterns) {
+    const matches = htmlContent.match(pattern);
+    if (matches && matches.length > 0) {
+      console.log(`❌ SPESİFİK BEDEN STOK ANALİZİ: "${size}" için stok yok pattern'i tespit edildi`);
       return false;
     }
   }
   
-  // 5. VARSAYILAN DURUM: Eğer hiçbir negatif işaret yoksa stokta var kabul et
-  console.log(`⚠️ VARSAYILAN STOK DURUMU: ${size} için kesin stok bilgisi bulunamadı - STOKTA VAR kabul edildi`);
+  // 5. GELİŞMİŞ POZITIF STOK KONTROLÜ - Aktif/tıklanabilir beden butonları
+  const activeSizeButtons = $(`button:contains("${size}"):not([disabled]):not(.disabled):not(.out-of-stock)`);
+  if (activeSizeButtons.length > 0) {
+    console.log(`✅ POZITIF STOK KONTROLÜ: ${size} - ${activeSizeButtons.length} aktif buton bulundu`);
+    return true;
+  }
+  
+  // 6. TRENDYOL SLICING ATTRIBUTES POZİTIF KONTROLÜ
+  const slicingElements = $(`.slicing-attribute-section-value span:contains("${size}"):not(.disabled)`);
+  if (slicingElements.length > 0) {
+    let hasActiveElement = false;
+    slicingElements.each((_, el) => {
+      const $el = $(el);
+      if (!$el.hasClass('disabled') && !$el.attr('disabled')) {
+        hasActiveElement = true;
+      }
+    });
+    if (hasActiveElement) {
+      console.log(`✅ SLICING ATTRIBUTES STOK KONTROLÜ: ${size} - aktif element bulundu`);
+      return true;
+    }
+  }
+  
+  // 7. GENEL STOK METNİ KONTROLÜ - SADECE GENEL KONTROL
+  const hasGeneralOutOfStock = htmlContent.toLowerCase().includes('tümü tükendi') ||
+                              htmlContent.toLowerCase().includes('ürün mevcut değil') ||
+                              htmlContent.toLowerCase().includes('stokta hiç yok');
+  
+  if (hasGeneralOutOfStock) {
+    console.log(`❌ GENEL STOK METNİ ANALİZİ: Ürün tamamen stokta yok`);
+    return false;
+  }
+  
+  // 8. VARSAYILAN DURUM: Eğer specific negatif işaret yoksa stokta var kabul et
+  console.log(`✅ VARSAYILAN STOK DURUMU: ${size} için negatif işaret bulunamadı - STOKTA VAR kabul edildi`);
   return true;
 }
 
