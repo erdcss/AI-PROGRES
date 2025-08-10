@@ -221,30 +221,19 @@ export function ProductDisplay({ data }: ProductDisplayProps) {
                     </div>
                     <div className="grid grid-cols-2 gap-1">
                       {data.variants.colors.map((color, index) => {
-                        // Normalize color names for display
+                        // Keep original color names - DO NOT TRANSLATE
                         const normalizeColorName = (colorName: string): string => {
-                          // Handle special cosmetic colors
-                          const cosmticMap: Record<string, string> = {
-                            'şeffaf': 'Şeffaf',
-                            'seffaf': 'Şeffaf', 
-                            'transparent': 'Şeffaf',
-                            'clear': 'Şeffaf',
-                            'taupe': 'Taupe',
-                            'medium brown': 'Orta Kahve',
-                            'medium-brown': 'Orta Kahve',
-                            'deep brown': 'Koyu Kahve',
-                            'deep-brown': 'Koyu Kahve',
-                            'kahverengi': 'Kahverengi',
-                            'koyu kahverengi': 'Koyu Kahve',
-                            '901-fair-glow': 'Açık Ten (901)',
-                            '903-medium-glow': 'Orta Ten (903)', 
-                            '904-deep-glow': 'Koyu Ten (904)',
-                            'light-glow': 'Işıltılı Açık',
-                            'bej': 'Bej'
-                          };
+                          // Keep colors in their original language, only format them properly
+                          const formatted = colorName.trim();
                           
-                          const normalizedKey = colorName.toLowerCase().trim();
-                          return cosmticMap[normalizedKey] || colorName.charAt(0).toUpperCase() + colorName.slice(1).toLowerCase();
+                          // Only handle code formatting for special cases
+                          if (formatted.includes('-')) {
+                            // For codes like '901-fair-glow', keep as is but format
+                            return formatted.replace(/-/g, ' ').toUpperCase();
+                          }
+                          
+                          // Return original color name without translation
+                          return formatted;
                         };
                         
                         const displayName = normalizeColorName(color);

@@ -393,12 +393,7 @@ function deduplicateColors(colors: ColorVariant[]): ColorVariant[] {
 function normalizeColorName(name: string): string {
   if (!name) return '';
   
-  return name
-    .toLowerCase()
-    .trim()
-    .replace(/[^\w\sçğıöşü]/g, '')
-    .replace(/\s+/g, ' ')
-    .split(' ')
-    .map(word => word.charAt(0).toUpperCase() + word.slice(1))
-    .join(' ');
+  // Keep original color names without translation
+  // Only trim whitespace and keep original case/language
+  return name.trim();
 }
