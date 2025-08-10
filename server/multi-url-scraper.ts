@@ -307,21 +307,73 @@ export async function scrapeMultipleUrls(request: MultiUrlScrapeRequest): Promis
         const descriptionElement = $('.product-detail-description, .detail-desc-text');
         const description = descriptionElement.text().trim();
         
-        // Extract price
+        // Extract price with improved logic
         let price: any = "0";
-        const priceElement = $('.prc-dsc, .prc-org, [data-testid="price-current-price"]');
-        if (priceElement.length > 0) {
-          const priceText = priceElement.first().text().trim();
-          const priceMatch = priceText.match(/[\d.,]+/);
-          if (priceMatch) {
-            const originalPrice = parseFloat(priceMatch[0].replace(',', '.'));
-            const finalPrice = Math.round(originalPrice * 1.10); // 10% profit
-            price = {
-              profitFormatted: `${finalPrice} TL`,
-              value: originalPrice,
-              withProfit: finalPrice
-            };
+        
+        // Try JSON-LD first for most accurate price
+        const jsonLdScripts = $('script[type="application/ld+json"]');
+        let priceFound = false;
+        
+        for (let i = 0; i < jsonLdScripts.length; i++) {
+          try {
+            const jsonData = JSON.parse($(jsonLdScripts[i]).html() || '{}');
+            if (jsonData.offers && jsonData.offers.price) {
+              const originalPrice = parseFloat(jsonData.offers.price);
+              const finalPrice = Math.round(originalPrice * 1.10); // 10% profit
+              price = {
+                profitFormatted: `${finalPrice} TL`,
+                value: originalPrice,
+                withProfit: finalPrice
+              };
+              console.log(`💰 Price from JSON-LD: ${originalPrice} TL → ${finalPrice} TL`);
+              priceFound = true;
+              break;
+            }
+          } catch (e) {
+            // Continue to next script
           }
+        }
+        
+        // Fallback to DOM extraction if JSON-LD fails
+        if (!priceFound) {
+          const priceSelectors = [
+            '.prc-dsc', 
+            '.prc-org', 
+            '[data-testid="price-current-price"]',
+            '.price-current',
+            '.current-price',
+            '.sale-price'
+          ];
+          
+          for (const selector of priceSelectors) {
+            const priceElement = $(selector);
+            if (priceElement.length > 0) {
+              const priceText = priceElement.first().text().trim();
+              const priceMatch = priceText.match(/[\d.,]+/);
+              if (priceMatch) {
+                const originalPrice = parseFloat(priceMatch[0].replace(',', '.'));
+                const finalPrice = Math.round(originalPrice * 1.10); // 10% profit
+                price = {
+                  profitFormatted: `${finalPrice} TL`,
+                  value: originalPrice,
+                  withProfit: finalPrice
+                };
+                console.log(`💰 Price from DOM (${selector}): ${originalPrice} TL → ${finalPrice} TL`);
+                priceFound = true;
+                break;
+              }
+            }
+          }
+        }
+        
+        // Default price if nothing found
+        if (!priceFound) {
+          console.log('⚠️ No price found, using default');
+          price = {
+            profitFormatted: "0 TL",
+            value: 0,
+            withProfit: 0
+          };
         }
         
         mainProduct = {

@@ -272,30 +272,34 @@ function ScraperPage() {
                 </p>
               </CardHeader>
               <CardContent className="p-6">
-                <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                <div className="flex gap-3 justify-center">
                   <Button
                     variant={scrapingMode === 'single' ? 'default' : 'outline'}
                     className={scrapingMode === 'single' 
-                      ? "business-button h-16 text-base font-black flex flex-col gap-1" 
-                      : "border-slate-600 hover:bg-slate-800 h-16 text-base font-bold flex flex-col gap-1"
+                      ? "business-button h-12 px-6 text-sm font-black flex items-center gap-2" 
+                      : "border-slate-600 hover:bg-slate-800 h-12 px-6 text-sm font-bold flex items-center gap-2"
                     }
                     onClick={() => setScrapingMode('single')}
                   >
-                    <Package className="w-5 h-5" />
-                    <span>Tek Varyant</span>
-                    <span className="text-xs opacity-80">Renksiz ürünler için</span>
+                    <Package className="w-4 h-4" />
+                    <div className="flex flex-col items-start">
+                      <span>Tek Varyant</span>
+                      <span className="text-xs opacity-70">Renksiz ürünler için</span>
+                    </div>
                   </Button>
                   <Button
                     variant={scrapingMode === 'multi-url' ? 'default' : 'outline'}
                     className={scrapingMode === 'multi-url' 
-                      ? "business-button h-16 text-base font-black flex flex-col gap-1" 
-                      : "border-slate-600 hover:bg-slate-800 h-16 text-base font-bold flex flex-col gap-1"
+                      ? "business-button h-12 px-6 text-sm font-black flex items-center gap-2" 
+                      : "border-slate-600 hover:bg-slate-800 h-12 px-6 text-sm font-bold flex items-center gap-2"
                     }
                     onClick={() => setScrapingMode('multi-url')}
                   >
-                    <Palette className="w-5 h-5" />
-                    <span>Multi Renk</span>
-                    <span className="text-xs opacity-80">Farklı renk URL'leri için</span>
+                    <Palette className="w-4 h-4" />
+                    <div className="flex flex-col items-start">
+                      <span>Multi Renk</span>
+                      <span className="text-xs opacity-70">Farklı renk URL'leri için</span>
+                    </div>
                   </Button>
                 </div>
               </CardContent>
