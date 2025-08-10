@@ -41,11 +41,8 @@ export class CosmeticColorFilter implements ColorFilter {
     /^koyu\s*kahverengi$/i,
     /^kahverengi$/i, // Just brown
     
-    // Main Trendyol color names (limited list)
-    /^(bej|beyaz|siyah)$/i,
-    
-    // Common English color names (limited list)  
-    /^(beige|white|black)$/i,
+    // REMOVED: Generic color names like "bej" to prevent fake color detection
+    // Only specific product-based colors are now allowed
     
     // Very specific cosmetic color patterns
     /^(fair|medium|deep|light)$/i
@@ -97,9 +94,7 @@ export class CosmeticColorFilter implements ColorFilter {
     if (/^#[0-9A-Fa-f]{6}$/.test(color)) {
       return 5;
     }
-    if (/^(bej|turuncu|mavi|siyah|beyaz)$/i.test(color)) {
-      return 8;
-    }
+    // REMOVED: Generic color priority to prevent fake color detection
     return 1;
   }
 

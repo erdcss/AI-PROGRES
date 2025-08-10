@@ -109,16 +109,16 @@ export class ScenarioExtractors {
     // Method 3: Advanced pattern matching in HTML
     if (colors.length === 0) {
       const htmlColorPatterns = [
-        /color[^>]*>(BEYAZ|SİYAH|MAVİ|KIRMIZI|YEŞİL|SARI|MOR|PEMBE|GRİ|KAHVE|TURUNCU|LACİVERT|KREM|BEJ)/gi,
-        /"color":\s*"([^"]*BEYAZ|SİYAH|MAVİ|KIRMIZI|YEŞİL|SARI|MOR|PEMBE|GRİ|KAHVE|TURUNCU|LACİVERT|KREM|BEJ[^"]*)"/gi,
-        /renk[^>]*>(BEYAZ|SİYAH|MAVİ|KIRMIZI|YEŞİL|SARI|MOR|PEMBE|GRİ|KAHVE|TURUNCU|LACİVERT|KREM|BEJ)/gi
+        /color[^>]*>(BEYAZ|SİYAH|MAVİ|KIRMIZI|YEŞİL|SARI|MOR|PEMBE|GRİ|KAHVE|TURUNCU|LACİVERT|KREM)/gi,
+        /"color":\s*"([^"]*BEYAZ|SİYAH|MAVİ|KIRMIZI|YEŞİL|SARI|MOR|PEMBE|GRİ|KAHVE|TURUNCU|LACİVERT|KREM[^"]*)"/gi,
+        /renk[^>]*>(BEYAZ|SİYAH|MAVİ|KIRMIZI|YEŞİL|SARI|MOR|PEMBE|GRİ|KAHVE|TURUNCU|LACİVERT|KREM)/gi
       ];
       
       htmlColorPatterns.forEach((pattern, index) => {
         const matches = htmlContent.match(pattern);
         if (matches && colors.length === 0) {
           matches.forEach(match => {
-            const colorMatch = match.match(/(BEYAZ|SİYAH|MAVİ|KIRMIZI|YEŞİL|SARI|MOR|PEMBE|GRİ|KAHVE|TURUNCU|LACİVERT|KREM|BEJ)/i);
+            const colorMatch = match.match(/(BEYAZ|SİYAH|MAVİ|KIRMIZI|YEŞİL|SARI|MOR|PEMBE|GRİ|KAHVE|TURUNCU|LACİVERT|KREM)/i);
             if (colorMatch) {
               colors.push(colorMatch[1]);
               console.log(`🎨 Color "${colorMatch[1]}" found via HTML pattern ${index + 1}`);
@@ -463,10 +463,10 @@ export class ScenarioExtractors {
     
     // Enhanced color patterns - including case insensitive and Turkish variations
     const colorPatterns = [
-      /\b(BEYAZ|SİYAH|MAVİ|KIRMIZI|YEŞİL|SARI|MOR|PEMBE|GRİ|KAHVE|TURUNCU|LACİVERT|KREM|BEJ)\b/gi,
+      /\b(BEYAZ|SİYAH|MAVİ|KIRMIZI|YEŞİL|SARI|MOR|PEMBE|GRİ|KAHVE|TURUNCU|LACİVERT|KREM)\b/gi,
       /\b(WHITE|BLACK|BLUE|RED|GREEN|YELLOW|PURPLE|PINK|GRAY|BROWN|ORANGE|NAVY|CREAM|BEIGE)\b/gi,
-      /\b(Beyaz|Siyah|Mavi|Kırmızı|Yeşil|Sarı|Mor|Pembe|Gri|Kahve|Turuncu|Lacivert|Krem|Bej)\b/gi,
-      /\b(beyaz|siyah|mavi|kırmızı|yeşil|sarı|mor|pembe|gri|kahve|turuncu|lacivert|krem|bej)\b/gi
+      /\b(Beyaz|Siyah|Mavi|Kırmızı|Yeşil|Sarı|Mor|Pembe|Gri|Kahve|Turuncu|Lacivert|Krem)\b/gi,
+      /\b(beyaz|siyah|mavi|kırmızı|yeşil|sarı|mor|pembe|gri|kahve|turuncu|lacivert|krem)\b/gi
     ];
     
     const foundColors = new Set<string>();
@@ -497,7 +497,7 @@ export class ScenarioExtractors {
       'TURUNCU': ['TURUNCU', 'ORANGE', 'Turuncu'],
       'LACİVERT': ['LACİVERT', 'NAVY', 'Lacivert'],
       'KREM': ['KREM', 'CREAM', 'Krem'],
-      'BEJ': ['BEJ', 'BEIGE', 'Bej']
+      // REMOVED: BEJ mapping to prevent fake color detection
     };
     
     Object.entries(turkishColors).forEach(([mainColor, variations]) => {
