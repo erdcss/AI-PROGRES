@@ -640,7 +640,7 @@ function UrlPreviewCard({ url, index }: { url: string; index: number }) {
         headers: {
           'Content-Type': 'application/json',
         },
-        body: JSON.stringify({ url, mode: 'single' })
+        body: JSON.stringify({ url })
       });
       
       if (response.ok) {

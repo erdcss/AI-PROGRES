@@ -273,9 +273,22 @@ export async function scrapeMultipleUrls(request: MultiUrlScrapeRequest): Promis
       const $ = cheerio.load(response);
       const htmlContent = response;
       
-      // Otomatik renk tespiti
+      // Otomatik renk tespiti - HTML content'i de geçiyoruz
       const detectedColor = detectColorFromUrl(url, htmlContent, $);
       console.log(`🎨 Detected color: ${detectedColor}`);
+      
+      // HTML'den ek renk bilgisi çıkarmaya çalış
+      let finalColor = detectedColor;
+      if (!detectedColor || detectedColor === 'Renk Tespit Edilmedi' || detectedColor.includes('Ml')) {
+        const titleElement = $('h1.pr-new-br[data-testid="product-detail-name"]');
+        const title = titleElement.text().trim();
+        
+        const titleColorMatch = title.match(/(\d{3})\s*-?\s*([A-Za-zğüşıöçĞÜŞİÖÇ\s]+)/);
+        if (titleColorMatch) {
+          finalColor = `${titleColorMatch[1]} ${titleColorMatch[2].trim()}`;
+          console.log(`🔍 Title'dan ek renk tespit edildi: ${finalColor}`);
+        }
+      }
       
       // Extract basic product info (use first URL as main product info)
       if (!mainProduct) {
@@ -336,12 +349,12 @@ export async function scrapeMultipleUrls(request: MultiUrlScrapeRequest): Promis
         }
       });
       
-      // Add images with color association
+      // Add images with color association using finalColor
       colorImages.forEach(imageUrl => {
         combinedImages.push({
           url: imageUrl,
-          alt: `${mainProduct.title} - ${detectedColor}`,
-          colorName: detectedColor
+          alt: `${mainProduct.title} - ${finalColor}`,
+          colorName: finalColor
         });
       });
       
@@ -349,10 +362,10 @@ export async function scrapeMultipleUrls(request: MultiUrlScrapeRequest): Promis
       const sizes = extractSizesFromContent($, htmlContent);
       sizes.forEach(size => allSizes.add(size));
       
-      // Add color to combined colors
-      combinedColors.add(detectedColor);
+      // Add color to combined colors using finalColor
+      combinedColors.add(finalColor);
       
-      console.log(`✅ Successfully scraped ${detectedColor}: ${colorImages.length} images, ${sizes.length} sizes`);
+      console.log(`✅ Successfully scraped ${finalColor}: ${colorImages.length} images, ${sizes.length} sizes`);
       
     } catch (error) {
       console.error(`❌ Failed to scrape color from ${url}:`, error);
