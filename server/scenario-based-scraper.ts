@@ -161,9 +161,11 @@ export async function scenarioBasedScrape(url: string): Promise<ScenarioBasedRes
     console.log(`✅ Scenario-based extraction completed: ${variants.length} variants, ${images.length} images, ${features.length} features, ${advancedTags.length} tags`);
     console.log(`🎨 Colors extracted: [${[...new Set(variants.map(v => v.color).filter(c => c && c.trim() !== ''))].join(', ')}]`);
     
-    // Create proper variants structure for frontend
-    const colors = [...new Set(variants.map(v => v.color).filter(c => c && c.trim() !== ''))];
-    const sizes = [...new Set(variants.map(v => v.size).filter(s => s && s.trim() !== '' && !['1', 'Standart', 'Varsayılan'].includes(s)))];
+    // Create proper variants structure for frontend - Fix Set iteration
+    const uniqueColors = variants.map(v => v.color).filter(c => c && c.trim() !== '');
+    const colors = Array.from(new Set(uniqueColors));
+    const uniqueSizes = variants.map(v => v.size).filter(s => s && s.trim() !== '' && !['1', 'Standart', 'Varsayılan'].includes(s));
+    const sizes = Array.from(new Set(uniqueSizes));
     
     return {
       success: true,
@@ -1044,17 +1046,21 @@ async function extractVariantsDirect($: cheerio.CheerioAPI, htmlContent: string)
   let detectedColors: string[] = [];
   
   console.log(`🚨 FORCING SINGLE COLOR POLICY - Raw colors: [${allRawColors.join(', ')}]`);
+  console.log(`🔥 CRITICAL DEBUG: About to execute frequency-based selection logic`);
   
   // 1. Önce script verilerinden gerçek renk bilgisini bul
   const scriptColors = extractActualColorsFromScript($, htmlContent);
+  console.log(`🔍 DEBUG: scriptColors = [${scriptColors.join(', ')}]`);
   
   // 2. DOM'dan seçili/aktif rengi tespit et  
   const activeColor = extractActiveColorFromDOM($);
+  console.log(`🔍 DEBUG: activeColor = ${activeColor}`);
   
   // 3. URL'den renk bilgisini çıkar
   const urlColor = extractColorFromURL(htmlContent);
+  console.log(`🔍 DEBUG: urlColor = ${urlColor}`);
   
-  // ABSOLUTE SINGLE COLOR: Her durumda sadece 1 renk döndür
+  // ABSOLUTE SINGLE COLOR: En yaygın rengi al (frequency-based selection)
   if (scriptColors.length > 0) {
     detectedColors = [scriptColors[0]];
     console.log(`🎯 FINAL: Script color selected: ${detectedColors[0]}`);
@@ -1064,19 +1070,26 @@ async function extractVariantsDirect($: cheerio.CheerioAPI, htmlContent: string)
   } else if (urlColor) {
     detectedColors = [urlColor];
     console.log(`🎯 FINAL: URL color selected: ${urlColor}`);
-  } else {
-    // Haki gibi özel durumlar için exact match
-    const hakiColor = allRawColors.find(c => c.toLowerCase().includes('haki'));
-    if (hakiColor) {
-      detectedColors = [hakiColor];
-      console.log(`🎯 FINAL: Haki color found: ${hakiColor}`);
-    } else if (allRawColors.length > 0) {
-      detectedColors = [allRawColors[0]]; // Sadece ilk rengi al
-      console.log(`🎯 FINAL: First raw color selected: ${allRawColors[0]}`);
+  } else if (allRawColors.length > 0) {
+    // CRITICAL FIX: Use frequency-based selection instead of hardcoded logic
+    const colorCounts = new Map<string, number>();
+    allRawColors.forEach(color => {
+      colorCounts.set(color, (colorCounts.get(color) || 0) + 1);
+    });
+    
+    // Get the most frequent color
+    const sortedColors = Array.from(colorCounts.entries()).sort((a, b) => b[1] - a[1]);
+    if (sortedColors.length > 0) {
+      detectedColors = [sortedColors[0][0]];
+      console.log(`🎯 FINAL: Most frequent color selected: ${sortedColors[0][0]} (found ${sortedColors[0][1]} times)`);
+      console.log(`📊 All color frequencies: ${sortedColors.map(([c, count]) => `${c}:${count}`).join(', ')}`);
     } else {
       detectedColors = ['Standart'];
-      console.log(`🎯 FINAL: Default color: Standart`);
+      console.log(`🎯 FINAL: Fallback to Standart`);
     }
+  } else {
+    detectedColors = ['Standart'];
+    console.log(`🎯 FINAL: Default color: Standart`);
   }
   
   const filteredColors = detectedColors;
