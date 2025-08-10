@@ -24,6 +24,9 @@ The application features a full-stack architecture with clear separation of conc
 - **Platform-Specific Extraction**: Supports extraction from both Trendyol and Arçelik, with dedicated branding and optimized extraction logic for each platform.
 - **UI/UX Decisions**: The application features a responsive design, clear product display layouts (e.g., horizontal layout for product transfer page), and interactive elements like image previews and thumbnail navigation. It emphasizes a compact and user-friendly interface.
 - **Automated Monitoring System**: Comprehensive hourly price monitoring with Telegram notifications, integrated with daily scheduled tasks (08:00 analysis, 12:00 updates, 23:00 reports). The system uses simple-scheduler for task management and filtered-telegram-notifier for targeted alerts.
+- **Enhanced Color Detection System** (August 2025): Implemented intelligent color detection with multiple fallback strategies including script analysis, DOM inspection, and URL parsing. System now prioritizes authentic color data and avoids false color detection.
+- **Improved Stock Management**: Advanced stock checking algorithms that validate availability through button states, script data, and HTML patterns. Provides accurate in-stock/out-of-stock status for size variants.
+- **UI Terminology Updates**: Changed user interface from "Renk" (Color) to "Ürün" (Product) terminology for better user understanding. Updated button text to "SHOPIFY'A AKTAR" for clearer action indication.
 
 ## External Dependencies
 

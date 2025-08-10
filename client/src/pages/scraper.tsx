@@ -540,7 +540,7 @@ function ScraperPage() {
                             <div className="flex items-center gap-2">
                               <span>🛒 SHOPIFY'A YÜKLE</span>
                               <span className="text-xs bg-blue-800 px-2 py-1 rounded">
-                                {multiForm.watch('urls').length} renk
+                                {multiForm.watch('urls').length} ürün
                               </span>
                             </div>
                           )}
