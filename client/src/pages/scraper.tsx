@@ -717,7 +717,8 @@ function UrlPreviewCard({ url, index }: { url: string; index: number }) {
   const primaryImage = previewData.images?.[0];
   const imageUrl = typeof primaryImage === 'string' ? primaryImage : primaryImage?.url;
   const detectedColor = previewData.detectedColor || previewData.extractedColor || 'Renk Tespit Edilmedi';
-  const availableSizes = previewData.variants?.sizes || [];
+  const availableSizes = previewData.variants?.availableSizes || previewData.variants?.sizes || [];
+  const outOfStockSizes = previewData.variants?.unavailableSizes || [];
   const features = previewData.features || [];
 
   return (
@@ -772,23 +773,28 @@ function UrlPreviewCard({ url, index }: { url: string; index: number }) {
               </span>
             </div>
 
-            {/* Stokta Olan Bedenler - Kompakt */}
-            {availableSizes.length > 0 && (
+            {/* Tüm Bedenler - Stokta olanlar yeşil, olmayanlar gri */}
+            {(availableSizes.length > 0 || outOfStockSizes.length > 0) && (
               <div>
                 <div className="flex flex-wrap gap-0.5">
-                  {availableSizes.slice(0, 3).map((size: string, idx: number) => (
+                  {/* Stokta olan bedenler - yeşil */}
+                  {availableSizes.map((size: string, idx: number) => (
                     <span
-                      key={idx}
+                      key={`available-${idx}`}
                       className="bg-green-900 text-green-300 px-1 py-0.5 rounded text-xs font-medium"
                     >
                       {size}
                     </span>
                   ))}
-                  {availableSizes.length > 3 && (
-                    <span className="text-green-400 text-xs">
-                      +{availableSizes.length - 3}
+                  {/* Stokta olmayan bedenler - gri */}
+                  {outOfStockSizes.map((size: string, idx: number) => (
+                    <span
+                      key={`out-of-stock-${idx}`}
+                      className="bg-gray-800 text-gray-500 px-1 py-0.5 rounded text-xs font-medium opacity-70"
+                    >
+                      {size}
                     </span>
-                  )}
+                  ))}
                 </div>
               </div>
             )}
