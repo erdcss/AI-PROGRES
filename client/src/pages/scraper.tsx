@@ -226,9 +226,9 @@ function ScraperPage() {
   };
 
   return (
-    <div className="min-h-screen bg-gradient-to-br from-gray-900 via-black to-gray-800">
+    <div className="min-h-screen bg-gradient-to-br from-black via-slate-900 to-cyan-900">
       {/* Header */}
-      <div className="bg-gradient-to-r from-gray-900/90 to-black/90 backdrop-blur-sm border-b border-gray-700/50">
+      <div className="bg-gradient-to-r from-black/95 via-slate-900/90 to-cyan-900/80 backdrop-blur-sm border-b border-cyan-800/30">
         <div className="max-w-6xl mx-auto px-6 py-4">
           <div className="flex items-center justify-between">
             <div className="flex items-center gap-4">
@@ -241,12 +241,12 @@ function ScraperPage() {
                 Ana Sayfa
               </Button>
               <div className="flex items-center gap-3">
-                <div className="w-10 h-10 bg-blue-900 rounded-lg flex items-center justify-center">
-                  <span className="text-white font-black text-lg">T</span>
+                <div className="w-10 h-10 bg-gradient-to-br from-cyan-800 to-blue-900 rounded-lg flex items-center justify-center">
+                  <span className="text-white font-thin text-lg">T</span>
                 </div>
                 <div>
-                  <h1 className="text-white font-light text-xl tracking-wide">TRENDYOL</h1>
-                  <p className="text-blue-400/80 text-sm font-light">Ürün Çıkarıcı</p>
+                  <h1 className="text-white font-thin text-xl tracking-wider">TRENDYOL</h1>
+                  <p className="text-cyan-400/80 text-sm font-thin">Ürün Çıkarıcı</p>
                 </div>
               </div>
             </div>
@@ -263,11 +263,11 @@ function ScraperPage() {
             {/* Mode Selection */}
             <Card className="business-card mb-6">
               <CardHeader className="business-header">
-                <CardTitle className="text-white font-light text-lg flex items-center gap-2">
-                  <ShoppingCart className="w-5 h-5 text-blue-400/70" />
+                <CardTitle className="text-white font-thin text-lg flex items-center gap-2">
+                  <ShoppingCart className="w-5 h-5 text-cyan-400/70" />
                   Çıkarma Modu Seçin
                 </CardTitle>
-                <p className="text-blue-400/70 text-sm font-light">
+                <p className="text-cyan-400/70 text-sm font-thin">
                   🎨 Renkler otomatik tespit edilir • 🛒 Shopify'a direkt yüklenir
                 </p>
               </CardHeader>
@@ -276,8 +276,8 @@ function ScraperPage() {
                   <Button
                     variant={scrapingMode === 'single' ? 'default' : 'outline'}
                     className={scrapingMode === 'single' 
-                      ? "business-button h-12 px-6 text-sm font-light flex items-center gap-2" 
-                      : "border-slate-600/50 hover:bg-slate-800/50 h-12 px-6 text-sm font-light flex items-center gap-2"
+                      ? "business-button h-12 px-6 text-sm font-thin flex items-center gap-2" 
+                      : "border-slate-600/50 hover:bg-slate-800/50 h-12 px-6 text-sm font-thin flex items-center gap-2"
                     }
                     onClick={() => setScrapingMode('single')}
                   >
@@ -290,8 +290,8 @@ function ScraperPage() {
                   <Button
                     variant={scrapingMode === 'multi-url' ? 'default' : 'outline'}
                     className={scrapingMode === 'multi-url' 
-                      ? "business-button h-12 px-6 text-sm font-light flex items-center gap-2" 
-                      : "border-slate-600/50 hover:bg-slate-800/50 h-12 px-6 text-sm font-light flex items-center gap-2"
+                      ? "business-button h-12 px-6 text-sm font-thin flex items-center gap-2" 
+                      : "border-slate-600/50 hover:bg-slate-800/50 h-12 px-6 text-sm font-thin flex items-center gap-2"
                     }
                     onClick={() => setScrapingMode('multi-url')}
                   >
@@ -309,8 +309,8 @@ function ScraperPage() {
             {scrapingMode === 'single' && (
               <Card className="business-card">
                 <CardHeader className="business-header">
-                  <CardTitle className="text-white font-light text-lg flex items-center gap-2">
-                    <Package className="w-5 h-5 text-blue-400/70" />
+                  <CardTitle className="text-white font-thin text-lg flex items-center gap-2">
+                    <Package className="w-5 h-5 text-cyan-400/70" />
                     Tek Varyant Ürün
                   </CardTitle>
                 </CardHeader>
@@ -322,7 +322,7 @@ function ScraperPage() {
                     className="space-y-4"
                   >
                     <div className="space-y-3">
-                      <label className="text-white font-light text-sm">Ürün URL'si</label>
+                      <label className="text-white font-thin text-sm">Ürün URL'si</label>
                       <div className="relative">
                         <Input
                           placeholder="https://www.trendyol.com/..."
@@ -366,7 +366,7 @@ function ScraperPage() {
                     <Button
                       type="submit"
                       disabled={singleScrapeMutation.isPending}
-                      className="business-button w-full h-14 text-lg font-light"
+                      className="business-button w-full h-14 text-lg font-thin"
                     >
                       {singleScrapeMutation.isPending ? (
                         <div className="flex items-center gap-3">
@@ -386,11 +386,11 @@ function ScraperPage() {
             {scrapingMode === 'multi-url' && (
               <Card className="business-card">
                 <CardHeader className="business-header">
-                  <CardTitle className="text-white font-light text-lg flex items-center gap-2">
-                    <Palette className="w-5 h-5 text-blue-400/70" />
+                  <CardTitle className="text-white font-thin text-lg flex items-center gap-2">
+                    <Palette className="w-5 h-5 text-cyan-400/70" />
                     Çoklu Varyant Birleştirme
                   </CardTitle>
-                  <div className="text-sm text-slate-400/70 mt-2 font-light">
+                  <div className="text-sm text-slate-400/70 mt-2 font-thin">
                     Her renk varyantı için ayrı URL girin. Sistem otomatik olarak tek Shopify ürününde birleştirecek.
                   </div>
                 </CardHeader>
@@ -409,7 +409,7 @@ function ScraperPage() {
                               <div className="w-6 h-6 bg-blue-600 rounded-full flex items-center justify-center text-white text-xs font-bold">
                                 {index + 1}
                               </div>
-                              <span className="text-white font-light text-sm">URL Varyantı</span>
+                              <span className="text-white font-thin text-sm">URL Varyantı</span>
                             </div>
                             {multiForm.watch('urls').length > 1 && (
                               <Button
@@ -426,7 +426,7 @@ function ScraperPage() {
                           
                           <div className="space-y-3">
                             <div>
-                              <label className="text-slate-300 font-light text-xs mb-2 block">
+                              <label className="text-slate-300 font-thin text-xs mb-2 block">
                                 Ürün URL'si
                               </label>
                               <div className="relative">
@@ -474,13 +474,13 @@ function ScraperPage() {
                           disabled={multiUrlScrapeMutation.isPending}
                         >
                           <Plus className="w-4 h-4 mr-2" />
-                          <span className="font-light">URL Ekle</span>
+                          <span className="font-thin">URL Ekle</span>
                         </Button>
                         
                         <Button
                           type="submit"
                           disabled={multiUrlScrapeMutation.isPending || multiForm.watch('urls').length === 0}
-                          className="business-button flex-2 h-11 text-base font-light"
+                          className="business-button flex-2 h-11 text-base font-thin"
                         >
                           {multiUrlScrapeMutation.isPending ? (
                             <div className="flex items-center gap-3">
@@ -517,11 +517,11 @@ function ScraperPage() {
           <div className="mt-8">
             <Card className="business-card">
               <CardHeader className="business-header">
-                <CardTitle className="text-white font-light text-lg flex items-center gap-2">
-                  <Palette className="w-5 h-5 text-blue-400/70" />
+                <CardTitle className="text-white font-thin text-lg flex items-center gap-2">
+                  <Palette className="w-5 h-5 text-cyan-400/70" />
                   Ürün Önizlemesi
                 </CardTitle>
-                <p className="text-blue-400/70 text-sm font-light">URL'lerden çekilen ürün bilgilerinin ön görünümü</p>
+                <p className="text-cyan-400/70 text-sm font-thin">URL'lerden çekilen ürün bilgilerinin ön görünümü</p>
               </CardHeader>
               <CardContent className="p-6">
                 <div className="grid grid-cols-1 lg:grid-cols-2 xl:grid-cols-3 gap-3">
