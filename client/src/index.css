@@ -128,15 +128,16 @@
 
 /* Business Professional Theme */
 .business-card {
-  background: #000000 !important;
-  border: 2px solid #1e3a8a !important;
-  box-shadow: 0 8px 32px rgba(30, 58, 138, 0.3) !important;
+  background: linear-gradient(135deg, rgba(15, 23, 42, 0.8), rgba(0, 0, 0, 0.9), rgba(30, 41, 59, 0.7)) !important;
+  border: 1px solid rgba(100, 116, 139, 0.3) !important;
+  box-shadow: 0 8px 32px rgba(0, 0, 0, 0.4) !important;
   color: #ffffff !important;
+  backdrop-filter: blur(10px) !important;
 }
 
 .business-header {
-  background: #000000 !important;
-  border-bottom: 2px solid #1e3a8a !important;
+  background: linear-gradient(135deg, rgba(15, 23, 42, 0.6), rgba(0, 0, 0, 0.8)) !important;
+  border-bottom: 1px solid rgba(100, 116, 139, 0.2) !important;
   color: #ffffff !important;
 }
 
@@ -167,10 +168,10 @@
 }
 
 .business-input {
-  background: #000000 !important;
-  border: 2px solid #1e3a8a !important;
+  background: rgba(15, 23, 42, 0.8) !important;
+  border: 1px solid rgba(100, 116, 139, 0.4) !important;
   color: #ffffff !important;
-  font-weight: 700 !important;
+  font-weight: 300 !important;
 }
 
 .business-input:focus {
