@@ -53,15 +53,28 @@ export function generateMultiVariantShopifyCSV(product: CombinedProduct): string
     bodyHtml += '</ul>';
   }
 
-  // Fiyat hesapla
+  // Fiyat hesapla - %10 kar marjı ile
   let basePrice = '0';
-  if (typeof product.price === 'object' && product.price.value) {
-    basePrice = product.price.value.toString();
+  if (typeof product.price === 'object') {
+    if (product.price.withProfit) {
+      basePrice = product.price.withProfit.toString();
+    } else if (product.price.value) {
+      const originalPrice = parseFloat(product.price.value.toString());
+      const finalPrice = Math.round(originalPrice * 1.10); // 10% profit
+      basePrice = finalPrice.toString();
+    }
   } else if (typeof product.price === 'number') {
-    basePrice = product.price.toString();
+    const finalPrice = Math.round(product.price * 1.10); // 10% profit
+    basePrice = finalPrice.toString();
   } else if (typeof product.price === 'string') {
     const priceMatch = product.price.match(/[\d.,]+/);
-    basePrice = priceMatch ? priceMatch[0].replace(',', '.') : '0';
+    if (priceMatch) {
+      const originalPrice = parseFloat(priceMatch[0].replace(',', '.'));
+      const finalPrice = Math.round(originalPrice * 1.10); // 10% profit
+      basePrice = finalPrice.toString();
+    } else {
+      basePrice = '0';
+    }
   }
 
   // Görselleri renklerine göre grupla

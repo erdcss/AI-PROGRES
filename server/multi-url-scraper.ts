@@ -314,9 +314,12 @@ export async function scrapeMultipleUrls(request: MultiUrlScrapeRequest): Promis
           const priceText = priceElement.first().text().trim();
           const priceMatch = priceText.match(/[\d.,]+/);
           if (priceMatch) {
+            const originalPrice = parseFloat(priceMatch[0].replace(',', '.'));
+            const finalPrice = Math.round(originalPrice * 1.10); // 10% profit
             price = {
-              profitFormatted: priceText,
-              value: parseFloat(priceMatch[0].replace(',', '.'))
+              profitFormatted: `${finalPrice} TL`,
+              value: originalPrice,
+              withProfit: finalPrice
             };
           }
         }

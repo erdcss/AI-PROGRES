@@ -299,7 +299,7 @@ function extractPrice($: any, htmlContent: string): any {
       const jsonData = JSON.parse($(jsonLdScripts[i]).html() || '{}');
       if (jsonData.offers && jsonData.offers.price) {
         const originalPrice = parseFloat(jsonData.offers.price);
-        const finalPrice = Math.round(originalPrice * 1.15); // 15% profit
+        const finalPrice = Math.round(originalPrice * 1.10); // 10% profit
         
         console.log(`💰 Price from JSON-LD: ${originalPrice} TL → ${finalPrice} TL`);
         
@@ -324,7 +324,7 @@ function extractPrice($: any, htmlContent: string): any {
       const priceText = priceElement.text().replace(/[^\d,]/g, '').replace(',', '.');
       const price = parseFloat(priceText);
       if (!isNaN(price)) {
-        const finalPrice = Math.round(price * 1.15);
+        const finalPrice = Math.round(price * 1.10);
         return {
           original: price,
           currency: 'TL',
