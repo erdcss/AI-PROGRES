@@ -347,11 +347,23 @@ export class ScenarioExtractors {
           console.log(`🔍 Element ${i}: text="${text}", aria-label="${ariaLabel}", title="${title}"`);
           
           [text, ariaLabel, title, dataValue, dataSize, dataVariantSize].forEach(value => {
-            if (value && this.isValidSize(value.trim())) {
-              const size = value.trim().toUpperCase();
-              extractedSizes.add(size);
-              foundValidSizeElements = true;
-              console.log(`✅ AUTHENTIC Size "${size}" found via selector: ${selector}`);
+            if (value && typeof value === 'string') {
+              // Handle comma-separated size strings
+              if (value.includes(',')) {
+                const sizes = value.split(',').map((s: string) => s.trim());
+                sizes.forEach((size: string) => {
+                  if (this.isValidSize(size)) {
+                    extractedSizes.add(size.toUpperCase());
+                    foundValidSizeElements = true;
+                    console.log(`✅ AUTHENTIC Size "${size}" found via selector: ${selector}`);
+                  }
+                });
+              } else if (this.isValidSize(value.trim())) {
+                const size = value.trim().toUpperCase();
+                extractedSizes.add(size);
+                foundValidSizeElements = true;
+                console.log(`✅ AUTHENTIC Size "${size}" found via selector: ${selector}`);
+              }
             }
           });
         });
@@ -371,7 +383,18 @@ export class ScenarioExtractors {
             jsonData.hasVariant.forEach((variant: any) => {
               if (variant.size || variant.name) {
                 const sizeValue = variant.size || variant.name;
-                if (this.isValidSize(sizeValue)) {
+                
+                // Handle comma-separated size strings
+                if (typeof sizeValue === 'string' && sizeValue.includes(',')) {
+                  const sizes = sizeValue.split(',').map((s: string) => s.trim());
+                  sizes.forEach((size: string) => {
+                    if (this.isValidSize(size)) {
+                      extractedSizes.add(size.toUpperCase());
+                      foundValidSizeElements = true;
+                      console.log(`👕 Found size in JSON-LD variant: ${size}`);
+                    }
+                  });
+                } else if (typeof sizeValue === 'string' && this.isValidSize(sizeValue)) {
                   extractedSizes.add(sizeValue.toUpperCase());
                   foundValidSizeElements = true;
                   console.log(`✅ AUTHENTIC Size "${sizeValue}" found via JSON-LD`);
@@ -435,13 +458,13 @@ export class ScenarioExtractors {
   /**
    * Validate if a string represents a valid size
    */
-  private static isValidSize(size: string): boolean {
-    if (!size || size.length === 0) return false;
+  private static isValidSize(size: any): boolean {
+    if (!size || typeof size !== 'string' || size.length === 0) return false;
     
     const normalizedSize = size.trim().toUpperCase();
     
-    // Standard clothing sizes
-    const clothingSizes = ['XS', 'S', 'M', 'L', 'XL', 'XXL', 'XXXL'];
+    // Standard clothing sizes (including extended sizes)
+    const clothingSizes = ['XS', 'S', 'M', 'L', 'XL', 'XXL', 'XXXL', '2XL', '3XL', '4XL', '5XL'];
     if (clothingSizes.includes(normalizedSize)) return true;
     
     // Numeric sizes (shoes, clothing numbers)
@@ -450,8 +473,11 @@ export class ScenarioExtractors {
     // EU sizes
     if (/^(3[6-9]|4[0-9]|5[0-2])$/.test(normalizedSize)) return true;
     
+    // Additional special cases
+    if (normalizedSize === '1') return false; // "1" is not a valid size
+    
     // Don't allow generic terms that aren't real sizes
-    const invalidSizes = ['TEK BEDEN', 'STD', 'STANDARD', 'STANDART', 'ONE SIZE', 'OS', 'GENEL'];
+    const invalidSizes = ['TEK BEDEN', 'STD', 'STANDARD', 'STANDART', 'ONE SIZE', 'OS', 'GENEL', '1'];
     if (invalidSizes.includes(normalizedSize)) return false;
     
     return false;
