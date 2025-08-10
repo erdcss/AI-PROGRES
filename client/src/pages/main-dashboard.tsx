@@ -1,9 +1,8 @@
-import { motion } from "framer-motion";
 import { useLocation } from "wouter";
 import { 
-  Store, ShoppingCart, Package, Truck, BarChart3, 
+  Store, ShoppingCart, Package, BarChart3, 
   MessageSquare, Shield, Bot, AlertTriangle, 
-  Database, ArrowRight, Activity, Clock
+  Database, Clock
 } from "lucide-react";
 import { RealTimeClock } from "@/components/RealTimeClock";
 
@@ -115,129 +114,126 @@ const MainDashboard = () => {
   };
 
   return (
-    <div className="min-h-screen bg-slate-900 relative">
-      <div className="w-full px-6 py-12 max-w-7xl mx-auto">
+    <div className="min-h-screen bg-slate-900">
+      <div className="max-w-6xl mx-auto px-6 py-16">
         {/* Header */}
-        <div className="text-center mb-16">
-          <h1 className="text-3xl text-white mb-3">
+        <header className="text-center mb-20">
+          <h1 className="text-2xl text-white mb-2">
             Veri Transfer Programı
           </h1>
-          <p className="text-gray-400 text-base mb-6">
+          <p className="text-gray-400 text-sm mb-8">
             Ürün çıkarma ve analiz sistemi
           </p>
-          <div className="flex items-center justify-center gap-2 bg-slate-800/50 rounded-lg px-4 py-2 w-fit mx-auto">
-            <Clock className="w-4 h-4 text-blue-400" />
+          <div className="inline-flex items-center gap-2 bg-slate-800 rounded-md px-3 py-1.5 text-sm">
+            <Clock className="w-3.5 h-3.5 text-blue-400" />
             <RealTimeClock />
           </div>
-        </div>
+        </header>
 
-        <div className="space-y-12">
-          {/* Ürün Çıkarma Platformları */}
-          <div>
-            <h2 className="text-xl text-white mb-6 text-center">
-              ÜRÜN ÇIKARMA PLATFORMLARI
+        <main className="space-y-16">
+          {/* Ana Platformlar */}
+          <section>
+            <h2 className="text-lg text-white mb-2 text-center">
+              Ürün Çıkarma Platformları
             </h2>
-            <p className="text-gray-400 text-center mb-8">
+            <p className="text-gray-400 text-center text-sm mb-10">
               Ürün verilerini çıkarıp Shopify'a aktarabileceğiniz platformlar
             </p>
             
-            <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
-              {dataTransferOptions.slice(0, 4).map((option, index) => (
+            <div className="grid grid-cols-2 lg:grid-cols-4 gap-4">
+              {dataTransferOptions.slice(0, 4).map((option) => (
                 <div
                   key={option.name}
                   onClick={() => handleOptionClick(option)}
                   className={`
-                    bg-slate-800/50 border border-slate-700 rounded-lg p-4 cursor-pointer
-                    hover:bg-slate-700/50 transition-colors group text-center
-                    ${!option.available ? 'opacity-50 cursor-not-allowed' : ''}
+                    bg-white/5 border border-white/10 rounded-lg p-6 cursor-pointer
+                    hover:bg-white/10 hover:border-white/20 transition-all
+                    ${!option.available ? 'opacity-40 cursor-not-allowed' : ''}
                   `}
                 >
-                  <div className="flex items-center justify-center mb-3 text-blue-400">
+                  <div className="flex items-center justify-center mb-4 text-slate-300">
                     {option.icon}
                   </div>
-                  <h3 className="text-white text-sm mb-1">
+                  <h3 className="text-white text-sm text-center mb-2">
                     {option.name}
                   </h3>
-                  <p className="text-gray-400 text-xs">
+                  <p className="text-gray-400 text-xs text-center">
                     {option.description}
                   </p>
                   {!option.available && (
-                    <span className="text-xs text-gray-500 mt-2 block">Yakında</span>
+                    <div className="text-center mt-3">
+                      <span className="text-xs bg-slate-700 text-gray-300 px-2 py-1 rounded">Yakında</span>
+                    </div>
                   )}
                 </div>
               ))}
             </div>
-          </div>
+          </section>
 
-          {/* Sistem Yönetimi ve Analiz */}
-          <div>
-            <h2 className="text-xl text-white mb-6 text-center">
-              SİSTEM YÖNETİMİ VE ANALİZ
+          {/* Sistem Araçları */}
+          <section>
+            <h2 className="text-lg text-white mb-2 text-center">
+              Sistem Yönetimi
             </h2>
-            <p className="text-gray-400 text-center mb-8">
-              Sık kullanılan sistem araçları
+            <p className="text-gray-400 text-center text-sm mb-10">
+              Sistem durum takibi ve analiz araçları
             </p>
             
             <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
-              {systemControlOptions.slice(0, 3).map((option, index) => (
+              {systemControlOptions.slice(0, 3).map((option) => (
                 <div
                   key={option.name}
                   onClick={() => handleOptionClick(option)}
-                  className="bg-slate-800/50 border border-slate-700 rounded-lg p-4 cursor-pointer hover:bg-slate-700/50 transition-colors text-center"
+                  className="bg-white/5 border border-white/10 rounded-lg p-6 cursor-pointer hover:bg-white/10 hover:border-white/20 transition-all"
                 >
-                  <div className="flex items-center justify-center mb-3 text-green-400">
+                  <div className="flex items-center justify-center mb-4 text-slate-300">
                     {option.icon}
                   </div>
-                  <h3 className="text-white text-sm mb-1">
+                  <h3 className="text-white text-sm text-center mb-2">
                     {option.name}
                   </h3>
-                  <p className="text-gray-400 text-xs">
+                  <p className="text-gray-400 text-xs text-center">
                     {option.description}
                   </p>
                 </div>
               ))}
             </div>
-          </div>
+          </section>
 
           {/* Hızlı Erişim */}
-          <div>
-            <h3 className="text-lg text-white mb-4 text-center">
-              HIZLI ERİŞİM
+          <section>
+            <h3 className="text-base text-white mb-8 text-center">
+              Hızlı Erişim
             </h3>
-            <p className="text-gray-400 text-center mb-6">
-              Sık kullanılan sistem araçları
-            </p>
             
-            <div className="flex justify-center gap-4">
+            <div className="flex justify-center gap-3">
               <button
-                onClick={() => setLocation('/replit-agent')}
-                className="bg-blue-600 hover:bg-blue-700 text-white px-6 py-2 rounded-lg text-sm transition-colors"
+                onClick={() => setLocation('/scraper/trendyol')}
+                className="bg-slate-700 hover:bg-slate-600 text-white px-4 py-2 rounded text-sm transition-colors"
               >
-                REPLIT AGENT
+                Trendyol
               </button>
               <button
                 onClick={() => setLocation('/data-analysis')}
-                className="bg-emerald-600 hover:bg-emerald-700 text-white px-6 py-2 rounded-lg text-sm transition-colors"
+                className="bg-slate-700 hover:bg-slate-600 text-white px-4 py-2 rounded text-sm transition-colors"
               >
-                VERI ANALİZİ
+                Veri Analizi
               </button>
               <button
                 onClick={() => setLocation('/system-status')}
-                className="bg-red-600 hover:bg-red-700 text-white px-6 py-2 rounded-lg text-sm transition-colors"
+                className="bg-slate-700 hover:bg-slate-600 text-white px-4 py-2 rounded text-sm transition-colors"
               >
-                SİSTEM DURUMU
+                Sistem Durumu
               </button>
             </div>
-          </div>
-        </div>
+          </section>
+        </main>
       </div>
     </div>
   );
 };
 
-export default MainDashboard;
-
-          {/* Sistem Donanım ve Kontrol Merkezi */}
+export default MainDashboard;}
           <motion.div
             initial={{ opacity: 0, x: 40 }}
             animate={{ opacity: 1, x: 0 }}
