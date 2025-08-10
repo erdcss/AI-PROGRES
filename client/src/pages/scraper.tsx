@@ -183,6 +183,14 @@ function ScraperPage() {
   // Shopify'a yükleme fonksiyonu
   const uploadToShopify = async (csvContent: string, productTitle: string) => {
     try {
+      console.log('🛒 Shopify upload başlatılıyor...');
+      console.log('CSV Content length:', csvContent?.length);
+      console.log('Product title:', productTitle);
+      
+      if (!csvContent || csvContent.trim().length === 0) {
+        throw new Error('CSV içeriği bulunamadı veya boş');
+      }
+      
       const response = await fetch('/api/shopify-upload', {
         method: 'POST',
         headers: {
@@ -190,30 +198,27 @@ function ScraperPage() {
         },
         body: JSON.stringify({
           csvContent: csvContent,
-          productTitle: productTitle
+          productTitle: productTitle || 'Multi-Color Product'
         })
       });
 
-      if (response.ok) {
-        const result = await response.json();
+      const result = await response.json();
+      console.log('📤 Shopify response:', result);
+
+      if (response.ok && result.success) {
         toast({
           title: "Shopify'a Yüklendi!",
           description: `Ürün başarıyla Shopify mağazanıza eklendi. ID: ${result.productId || 'N/A'}`,
           duration: 5000
         });
       } else {
-        const errorData = await response.json();
-        toast({
-          title: "Shopify Yükleme Hatası",
-          description: errorData.message || "Shopify'a yüklenirken hata oluştu",
-          variant: "destructive",
-          duration: 5000
-        });
+        throw new Error(result.error || result.message || "Shopify'a yüklenirken hata oluştu");
       }
     } catch (error) {
+      console.error('❌ Shopify yükleme hatası:', error);
       toast({
-        title: "Bağlantı Hatası",
-        description: "Shopify'a yüklenirken bağlantı hatası oluştu",
+        title: "Shopify Yükleme Hatası",
+        description: error instanceof Error ? error.message : "Shopify'a yüklenirken bağlantı hatası oluştu",
         variant: "destructive",
         duration: 5000
       });

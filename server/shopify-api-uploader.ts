@@ -116,53 +116,68 @@ export async function uploadProductToShopify(csvContent: string, productTitle: s
 }
 
 function parseCSVToShopifyProduct(records: any[]): ShopifyProductData {
+  console.log('🔄 CSV parsing başlatılıyor...');
+  console.log('📊 Records count:', records.length);
+  
+  if (!records || records.length === 0) {
+    throw new Error('CSV records empty or invalid');
+  }
+  
   const firstRecord = records[0];
-  
-  console.log('🔍 Parsing CSV to Shopify product...');
-  console.log('Handle:', firstRecord.Handle);
-  console.log('Title:', firstRecord.Title);
-  console.log('Body HTML:', firstRecord['Body (HTML)']?.substring(0, 100) + '...');
-  console.log('Vendor:', firstRecord.Vendor);
-  
-  const productData: ShopifyProductData = {
-    handle: firstRecord.Handle || 'default-handle',
-    title: firstRecord.Title || 'Untitled Product',
-    bodyHtml: firstRecord['Body (HTML)'] || '',
-    vendor: firstRecord.Vendor || 'Unknown',
-    tags: firstRecord.Tags || '',
-    variants: [],
-    images: []
-  };
-
-  // Variants'ları parse et
-  const variantRecords = records.filter(record => 
-    record['Option1 Value'] && record['Option2 Value']
-  );
-
-  variantRecords.forEach(record => {
-    productData.variants.push({
-      option1: record['Option1 Value'], // Renk
-      option2: record['Option2 Value'], // Beden
-      price: record['Variant Price'],
-      sku: record['Variant SKU'],
-      inventory_quantity: parseInt(record['Variant Inventory Qty']) || 0,
-      image: record['Variant Image']
-    });
+  console.log('📋 First record keys:', Object.keys(firstRecord));
+  console.log('📋 Sample data:', {
+    Handle: firstRecord.Handle,
+    Title: firstRecord.Title,
+    VariantSKU: firstRecord['Variant SKU'],
+    ImageSrc: firstRecord['Image Src']
   });
-
-  // Images'ları parse et
-  const imageRecords = records.filter(record => 
-    record['Image Src'] && record['Image Position']
-  );
-
-  imageRecords.forEach(record => {
-    productData.images.push({
+  
+  // Variants - SKU'su olan kayıtlar
+  const variants = records
+    .filter(record => record['Variant SKU'] && record['Variant SKU'].trim())
+    .map(record => {
+      const variant = {
+        option1: record['Option1 Value'] || '',
+        option2: record['Option2 Value'] || '',
+        price: record['Variant Price'] || '0',
+        sku: record['Variant SKU'] || '',
+        inventory_quantity: parseInt(record['Variant Inventory Qty']) || 0,
+        image: record['Variant Image'] || record['Image Src'] || ''
+      };
+      console.log('📦 Parsed variant:', variant);
+      return variant;
+    });
+    
+  // Images - Image Src olan kayıtlar
+  const images = records
+    .filter(record => record['Image Src'] && record['Image Src'].trim())
+    .map((record, index) => ({
       src: record['Image Src'],
-      alt: record['Image Alt Text'] || productData.title,
-      position: parseInt(record['Image Position']) || 1
-    });
+      alt: record['Image Alt Text'] || firstRecord.Title || 'Product Image',
+      position: parseInt(record['Image Position']) || (index + 1)
+    }));
+  
+  const productData = {
+    handle: firstRecord.Handle || 'default-handle',
+    title: firstRecord.Title || 'Default Product',
+    bodyHtml: firstRecord['Body (HTML)'] || '',
+    vendor: firstRecord.Vendor || '',
+    tags: firstRecord.Tags || '',
+    variants,
+    images
+  };
+  
+  console.log('✅ Parsed product data:', {
+    handle: productData.handle,
+    title: productData.title,
+    variantCount: variants.length,
+    imageCount: images.length
   });
-
+  
+  if (variants.length === 0) {
+    throw new Error('No valid variants found in CSV data');
+  }
+  
   return productData;
 }
 
