@@ -1337,21 +1337,67 @@ function extractColorsFromJS($: any, htmlContent: string): string[] {
   $('script').each((_, script) => {
     const scriptContent = $(script).html() || '';
     
-    // Look for color arrays in JavaScript
+    // ENHANCED: Priority extraction for L'Oreal patterns first
+    const lOrealDirectPatterns = [
+      /(901|902|903|904|905)[-\s]*(fair|light|medium|deep|rich)[-\s]*glow/gi,
+      /(fair|light|medium|deep|rich)[-\s]*glow/gi,
+      /"(901|902|903|904|905)[-\s]*(fair|light|medium|deep|rich)[-\s]*glow"/gi,
+      /"(fair|light|medium|deep|rich)[-\s]*glow"/gi
+    ];
+    
+    lOrealDirectPatterns.forEach(pattern => {
+      const matches = scriptContent.match(pattern);
+      if (matches) {
+        matches.forEach(match => {
+          const cleanColor = match.replace(/['"]/g, '').trim();
+          if (cleanColor && cleanColor.length > 5) {
+            colors.push(cleanColor);
+            console.log(`🎨 Found L'Oreal color directly: ${cleanColor}`);
+          }
+        });
+      }
+    });
+    
+    // Standard color extraction patterns
     const colorPatterns = [
       /colors?\s*:\s*\[(.*?)\]/gi,
       /variants?\s*:\s*\[(.*?)color.*?\]/gi,
       /"colors?":\s*\[(.*?)\]/gi,
       /color.*?:\s*["'](.*?)["']/gi,
-      /renk.*?:\s*["'](.*?)["']/gi
+      /renk.*?:\s*["'](.*?)["']/gi,
+      // Trendyol specific patterns
+      /"DsmColor":\s*"([^"]+)"/gi,
+      /slicingAttributes.*?"DsmColor":\s*"([^"]+)"/gi
     ];
     
     colorPatterns.forEach(pattern => {
       const matches = scriptContent.match(pattern);
       if (matches) {
         matches.forEach(match => {
-          // Extract color names from the match
-          const colorMatch = match.match(/["'](beyaz|siyah|gri|mavi|kırmızı|yeşil|sarı|mor|pembe|kahverengi|turuncu|lacivert|krem|bej|white|black|gray|blue|red|green|yellow|purple|pink|brown|orange|navy|cream|beige)["']/gi);
+          // Extract L'Oreal specific colors first
+          const lOrealMatch = match.match(/(901|902|903|904|905)[-\s]*(fair|light|medium|deep|rich)[-\s]*glow/gi);
+          if (lOrealMatch) {
+            lOrealMatch.forEach(lOrealColor => {
+              const cleanColor = lOrealColor.trim();
+              colors.push(cleanColor);
+              console.log(`🎨 Found L'Oreal color in JS: ${cleanColor}`);
+            });
+          }
+          
+          // Extract Trendyol DsmColor values
+          const dsmColorMatch = match.match(/DsmColor":\s*"([^"]+)"/gi);
+          if (dsmColorMatch) {
+            dsmColorMatch.forEach(dsmMatch => {
+              const colorValue = dsmMatch.match(/"([^"]+)"$/)?.[1];
+              if (colorValue) {
+                colors.push(colorValue);
+                console.log(`🎨 Found DsmColor in JS: ${colorValue}`);
+              }
+            });
+          }
+          
+          // Extract general color names from the match
+          const colorMatch = match.match(/["'](beyaz|siyah|gri|mavi|kırmızı|yeşil|sarı|mor|pembe|kahverengi|turuncu|lacivert|krem|white|black|gray|blue|red|green|yellow|purple|pink|brown|orange|navy|cream|beige|şeffaf|taupe|transparent|clear)["']/gi);
           if (colorMatch) {
             colorMatch.forEach(color => {
               const cleanColor = color.replace(/["']/g, '').trim();
@@ -1424,7 +1470,15 @@ function extractColorsFromJS($: any, htmlContent: string): string[] {
     /renk['"]\s*:\s*['"]([\w\s\-ğüşöçıİÇÖÜŞĞ]+)['"]/gi,
     /"name":\s*"Renk",\s*"value":\s*"([^"]+)"/gi,
     /"color":\s*"([a-zA-ZğüşöçıİÇÖÜŞĞ]+)-[A-Z0-9]+"/gi,
-    /"renk":\s*"([a-zA-ZğüşöçıİÇÖÜŞĞ]+)-[A-Z0-9]+"/gi
+    /"renk":\s*"([a-zA-ZğüşöçıİÇÖÜŞĞ]+)-[A-Z0-9]+"/gi,
+    // NEW: Trendyol specific DsmColor pattern
+    /"DsmColor":\s*"([^"]+)"/gi,
+    /slicingAttributes.*?"DsmColor":\s*"([^"]+)"/gi,
+    // NEW: L'Oreal specific patterns
+    /"(901|902|903|904|905)[-\s]*(fair|light|medium|deep|rich)[-\s]*glow"/gi,
+    /"(fair|light|medium|deep|rich)[-\s]*glow"/gi,
+    /(901|902|903|904|905)[-\s]*(fair|light|medium|deep|rich)[-\s]*glow/gi,
+    /(fair|light|medium|deep|rich)[-\s]*glow/gi
   ];
   
   htmlColorPatterns.forEach((pattern, index) => {

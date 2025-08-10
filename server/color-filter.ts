@@ -12,15 +12,15 @@ export interface ColorFilter {
 export class CosmeticColorFilter implements ColorFilter {
   private readonly mainColorPatterns = [
     // L'Oreal Glotion specific main shades (all variants)
-    /^(901|902|903|904|905)\s*-?\s*(fair|medium|deep|light)?\s*glow$/i,
-    /^light-glow$/i,
-    /^(fair|medium|deep)-glow$/i,
+    /^(901|902|903|904|905)[-\s]*(fair|medium|deep|light|rich)[-\s]*glow$/i,
+    /^(fair|medium|deep|light|rich)[-\s]*glow$/i,
     
-    // Individual L'Oreal product codes (common patterns)
-    /^901-fair-glow$/i,
-    /^902-light-glow$/i,
-    /^903-medium-glow$/i,
-    /^904-deep-glow$/i,
+    // Individual L'Oreal product codes (exact patterns from logs)
+    /^901[-\s]*fair[-\s]*glow$/i,
+    /^902[-\s]*light[-\s]*glow$/i,
+    /^903[-\s]*medium[-\s]*glow$/i,
+    /^904[-\s]*deep[-\s]*glow$/i,
+    /^905[-\s]*rich[-\s]*glow$/i,
     
     // L'Oreal specific patterns with different formatting
     /^901\s*-\s*Fair\s*Glow$/i,
@@ -84,17 +84,20 @@ export class CosmeticColorFilter implements ColorFilter {
   }
 
   getColorPriority(color: string): number {
-    // Higher priority for main product colors
-    if (/^(901|902|903|904|905)\s*-?\s*(fair|medium|deep|light)?\s*glow$/i.test(color)) {
+    // Higher priority for L'Oreal main product colors (exact patterns)
+    if (/^(901|902|903|904|905)[-\s]*(fair|medium|deep|light|rich)[-\s]*glow$/i.test(color)) {
       return 10;
     }
-    if (/^light-glow$/i.test(color)) {
+    if (/^(fair|medium|deep|light|rich)[-\s]*glow$/i.test(color)) {
       return 9;
+    }
+    // Maybelline colors high priority
+    if (/^(şeffaf|seffaf|transparent|clear|taupe|medium\s*brown|medium-brown|deep\s*brown|deep-brown)$/i.test(color)) {
+      return 8;
     }
     if (/^#[0-9A-Fa-f]{6}$/.test(color)) {
       return 5;
     }
-    // REMOVED: Generic color priority to prevent fake color detection
     return 1;
   }
 
