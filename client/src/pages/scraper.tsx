@@ -584,66 +584,6 @@ function ScraperPage() {
             </Card>
           </div>
         )}
-
-        {/* Product Display */}
-        {product && (
-          <div className="mt-8">
-            <motion.div
-              initial={{ opacity: 0, y: 20 }}
-              animate={{ opacity: 1, y: 0 }}
-              transition={{ duration: 0.5 }}
-              className="text-center"
-            >
-              <div className="bg-green-600/20 border border-green-500/30 rounded-lg p-6">
-                <h3 className="text-lg text-green-400 mb-2">Ürün Başarıyla Çıkarıldı</h3>
-                <p className="text-green-300 mb-4">{product.title}</p>
-                
-                <div className="space-y-2 text-sm text-gray-300">
-                  <div>Renk seçenekleri: {product.variants?.colors?.length || 0}</div>
-                  <div>Beden seçenekleri: {product.variants?.sizes?.length || 0}</div>
-                  <div>Toplam varyant: {product.variants?.allVariants?.length || 0}</div>
-                </div>
-
-                <Button
-                  onClick={async () => {
-                    try {
-                      const response = await fetch('/api/export-to-shopify', {
-                        method: 'POST',
-                        headers: { 'Content-Type': 'application/json' },
-                        body: JSON.stringify(product),
-                      });
-                      
-                      const result = await response.json();
-                      
-                      if (response.ok && result.success) {
-                        toast({
-                          title: "Başarılı!",
-                          description: "Ürün Shopify'a yüklendi"
-                        });
-                      } else {
-                        toast({
-                          title: "Hata",
-                          description: result.message || 'Yükleme başarısız',
-                          variant: "destructive"
-                        });
-                      }
-                    } catch (error) {
-                      toast({
-                        title: "Bağlantı Hatası",
-                        description: "Tekrar deneyin",
-                        variant: "destructive"
-                      });
-                    }
-                  }}
-                  className="mt-4 bg-blue-600 hover:bg-blue-700 text-white"
-                >
-                  <ShoppingCart className="w-4 h-4 mr-2" />
-                  SHOPIFY'A AKTAR
-                </Button>
-              </div>
-            </motion.div>
-          </div>
-        )}
       </div>
     </div>
   );
