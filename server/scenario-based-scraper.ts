@@ -939,7 +939,7 @@ async function extractVariantsDirect($: cheerio.CheerioAPI, htmlContent: string)
   
   console.log('👕 Starting comprehensive size extraction...');
   
-  // Modern Trendyol size selectors - COMPREHENSIVE APPROACH
+  // Modern Trendyol size selectors - COMPREHENSIVE APPROACH INCLUDING M AND L
   const sizeSelectors = [
     // Primary Trendyol size selectors
     '[data-testid*="size"] button',
@@ -950,18 +950,33 @@ async function extractVariantsDirect($: cheerio.CheerioAPI, htmlContent: string)
     '.size-selector button',
     '.product-size-options button',
     'button[data-size]',
-    // Extended selectors for all size buttons
-    'button[title*="XL"]',
-    'button[title*="2XL"]', 
-    'button[title*="3XL"]',
+    // CRITICAL: All individual size button selectors for M, L detection
+    'button:contains("S")',
+    'button:contains("M")',
+    'button:contains("L")',
     'button:contains("XL")',
     'button:contains("2XL")',
     'button:contains("3XL")',
+    'span:contains("S")',
+    'span:contains("M")',
+    'span:contains("L")',
     'span:contains("XL")',
-    '.size-option',
-    '.variant-size',
+    // Extended selectors with specific title attributes
+    'button[title="S"]',
+    'button[title="M"]',
+    'button[title="L"]',
+    'button[title="XL"]',
+    'button[title="2XL"]', 
+    'button[title="3XL"]',
+    // Aria label specific selectors
+    'button[aria-label*="S"]',
+    'button[aria-label*="M"]',
+    'button[aria-label*="L"]',
     'button[aria-label*="beden"]',
     'button[aria-label*="size"]',
+    // Additional size containers
+    '.size-option',
+    '.variant-size',
     '.variant-option[data-size]',
     '.size-option button',
     '.variant-size button',
@@ -969,7 +984,10 @@ async function extractVariantsDirect($: cheerio.CheerioAPI, htmlContent: string)
     'div[data-testid*="size-variant"]',
     '.product-detail-size button',
     '.pr-in-sz button',
-    '.size-variants button'
+    '.size-variants button',
+    // Fallback: Any button that might contain sizes
+    'button[class*="size"]',
+    'button[id*="size"]'
   ];
   
   sizeSelectors.forEach(selector => {
@@ -1001,17 +1019,22 @@ async function extractVariantsDirect($: cheerio.CheerioAPI, htmlContent: string)
   const jsonExtractedColors = extractColorsFromJS($, htmlContent);
   const jsonExtractedSizes = extractSizesFromJS($, htmlContent);
   
-  // Method 4: AGGRESSIVE SIZE DETECTION - Scan entire HTML for missing sizes
-  console.log(`🔍 AGGRESSIVE SIZE SCAN: Looking for XL, 2XL, 3XL patterns...`);
+  // Method 4: AGGRESSIVE SIZE DETECTION - Scan entire HTML for ALL missing sizes including M and L
+  console.log(`🔍 AGGRESSIVE SIZE SCAN: Looking for S, M, L, XL, 2XL, 3XL patterns...`);
   const aggressiveSizePatterns = [
+    /\bS\b/gi,
+    /\bM\b/gi, 
+    /\bL\b/gi,
     /\bXL\b/gi,
     /\b2XL\b/gi,
     /\b3XL\b/gi,
     /\bXXL\b/gi,
     /\bXXXL\b/gi,
-    /size["\s]*[=:]["\s]*(XL|2XL|3XL|XXL|XXXL)/gi,
-    /title["\s]*[=:]["\s]*(XL|2XL|3XL|XXL|XXXL)/gi,
-    /data-size["\s]*[=:]["\s]*(XL|2XL|3XL|XXL|XXXL)/gi
+    /size["\s]*[=:]["\s]*(S|M|L|XL|2XL|3XL|XXL|XXXL)/gi,
+    /title["\s]*[=:]["\s]*(S|M|L|XL|2XL|3XL|XXL|XXXL)/gi,
+    /data-size["\s]*[=:]["\s]*(S|M|L|XL|2XL|3XL|XXL|XXXL)/gi,
+    /aria-label["\s]*[=:]["\s]*[^"]*\b(S|M|L|XL|2XL|3XL)\b/gi,
+    /button[^>]*>\s*(S|M|L|XL|2XL|3XL)\s*</gi
   ];
   
   aggressiveSizePatterns.forEach((pattern, index) => {
@@ -1019,7 +1042,7 @@ async function extractVariantsDirect($: cheerio.CheerioAPI, htmlContent: string)
     if (matches) {
       matches.forEach(match => {
         let extractedSize = match.replace(/[^A-Z0-9]/g, '');
-        if (extractedSize && ['XL', '2XL', '3XL', 'XXL', 'XXXL'].includes(extractedSize)) {
+        if (extractedSize && ['S', 'M', 'L', 'XL', '2XL', '3XL', 'XXL', 'XXXL'].includes(extractedSize)) {
           if (!sizes.includes(extractedSize)) {
             sizes.push(extractedSize);
             console.log(`👕 AGGRESSIVE SCAN FOUND: ${extractedSize} via pattern ${index}`);
