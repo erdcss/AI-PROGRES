@@ -134,10 +134,20 @@ export class ScenarioExtractors {
       console.log(`🎨 No colors found, using default: Standart`);
     }
     
-    // Size güvenlik kontrolü - string olmayan değerleri filtrele
-    const safeSizes = sizes.filter((size: any) => 
-      typeof size === 'string' && size.trim().length > 0
-    ).map((size: string) => size.trim());
+    // Size güvenlik kontrolü - string olmayan değerleri filtrele ve comma-separated string'leri ayır
+    const safeSizes: string[] = [];
+    sizes.forEach((size: any) => {
+      if (typeof size === 'string' && size.trim().length > 0) {
+        // Virgülle ayrılmış string'leri kontrol et
+        if (size.includes(',')) {
+          const splitSizes = size.split(',').map((s: string) => s.trim()).filter((s: string) => s.length > 0);
+          safeSizes.push(...splitSizes);
+          console.log(`📏 Comma-separated sizes split: "${size}" -> [${splitSizes.join(', ')}]`);
+        } else {
+          safeSizes.push(size.trim());
+        }
+      }
+    });
     
     // Stok durumu kontrolü ve stoktaki bedenleri filtreleme
     const stockMap = this.extractSizeStockStatus($, config.stockSelectors, safeSizes);
@@ -200,8 +210,23 @@ export class ScenarioExtractors {
   private static extractFullMatrix($: any, config: ScenarioExtractionConfig, htmlContent: string, title: string): VariantExtractionResult {
     console.log(`🔳 Extracting SINGLE COLOR matrix product`);
     
-    const sizes = this.extractSizes($, config.sizeSelectors, htmlContent);
+    const rawSizes = this.extractSizes($, config.sizeSelectors, htmlContent);
     const extractedColors = this.extractColors($, config.colorSelectors, htmlContent, title);
+    
+    // Size güvenlik kontrolü ve comma-separated string'leri ayır
+    const safeSizes: string[] = [];
+    rawSizes.forEach((size: any) => {
+      if (typeof size === 'string' && size.trim().length > 0) {
+        // Virgülle ayrılmış string'leri kontrol et
+        if (size.includes(',')) {
+          const splitSizes = size.split(',').map((s: string) => s.trim()).filter((s: string) => s.length > 0);
+          safeSizes.push(...splitSizes);
+          console.log(`📏 Matrix comma-separated sizes split: "${size}" -> [${splitSizes.join(', ')}]`);
+        } else {
+          safeSizes.push(size.trim());
+        }
+      }
+    });
     
     // ✅ TEK RENK POLİTİKASI: Sadece ilk rengi al
     let finalColors: string[] = [];
@@ -215,13 +240,13 @@ export class ScenarioExtractors {
       console.log(`🎨 No color found for matrix, using default`);
     }
     
-    const stockMap = this.extractMatrixStockStatus($, config.stockSelectors, sizes, finalColors);
+    const stockMap = this.extractMatrixStockStatus($, config.stockSelectors, safeSizes, finalColors);
     const priceMap = new Map<string, number>();
     const imageMap = new Map<string, string[]>();
     
-    console.log(`✅ Matrix with SINGLE COLOR: ${sizes.length} sizes × 1 color = ${sizes.length} variants`);
+    console.log(`✅ Matrix with SINGLE COLOR: ${safeSizes.length} sizes × 1 color = ${safeSizes.length} variants`);
     
-    return { sizes, colors: finalColors, stockMap, priceMap, imageMap };
+    return { sizes: safeSizes, colors: finalColors, stockMap, priceMap, imageMap };
   }
 
   /**
@@ -444,7 +469,30 @@ export class ScenarioExtractors {
       });
     }
     
-    const finalSizes = Array.from(extractedSizes).sort();
+    // Son güvenlik kontrolü: comma-separated string'leri tekrar kontrol et ve geçersiz değerleri filtrele
+    const finalSizesArray: string[] = [];
+    
+    // Set'i Array'e çevir ve kontrol et
+    Array.from(extractedSizes).forEach(size => {
+      if (typeof size === 'string' && size.trim().length > 0) {
+        const trimmedSize = size.trim();
+        
+        // Virgülle ayrılmış string'leri kontrol et
+        if (trimmedSize.includes(',')) {
+          const splitSizes = trimmedSize.split(',').map(s => s.trim()).filter(s => s.length > 0);
+          splitSizes.forEach(s => {
+            if (this.isValidSize(s)) {
+              finalSizesArray.push(s.toUpperCase());
+            }
+          });
+        } else if (this.isValidSize(trimmedSize)) {
+          finalSizesArray.push(trimmedSize.toUpperCase());
+        }
+      }
+    });
+    
+    // Dublicate'leri kaldır ve sırala
+    const finalSizes = [...new Set(finalSizesArray)].sort();
     console.log(`📏 Final AUTHENTIC sizes extracted: [${finalSizes.join(', ')}]`);
     
     if (finalSizes.length === 0) {

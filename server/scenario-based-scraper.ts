@@ -900,9 +900,16 @@ async function extractVariantsDirect($: cheerio.CheerioAPI, htmlContent: string)
   const jsonExtractedColors = extractColorsFromJS($, htmlContent);
   const jsonExtractedSizes = extractSizesFromJS($, htmlContent);
   
-  // Combine all found colors and sizes
+  // Combine all found colors and sizes with safety checks
   const allRawColors = Array.from(new Set([...colors, ...jsonExtractedColors]));
-  const allSizes = Array.from(new Set([...sizes, ...jsonExtractedSizes]));
+  
+  // Safety filter: Only accept valid string sizes and exclude invalid values
+  const filteredSizes = [...sizes, ...jsonExtractedSizes].filter(size => {
+    return size && typeof size === 'string' && size.toString().trim() !== '' && 
+           size !== '1' && size !== '0' && size !== 'undefined' && size !== 'null';
+  });
+  
+  const allSizes = Array.from(new Set(filteredSizes));
   
   console.log(`🔍 Raw colors detected: ${allRawColors.length} [${allRawColors.join(', ')}]`);
   
@@ -922,23 +929,33 @@ async function extractVariantsDirect($: cheerio.CheerioAPI, htmlContent: string)
   
   console.log(`✅ SCENARIO-BASED: Tek renk politikası uygulandı - Renk: ${singleColor}, Bedenler: ${allSizes.length}`);
   console.log(`🎨 Tek renk: [${filteredColors.join(', ')}]`);
-  console.log(`👕 Bedenler: [${allSizes.join(', ')}]`);
+  // Güvenli beden listesi yazdırma
+  const safeSizeList = allSizes
+    .filter(size => typeof size === 'string')
+    .map(size => String(size));
+  console.log(`👕 Bedenler: [${safeSizeList.join(', ')}]`);
   
   // Build variants with stock check
   if (filteredColors.length > 0 && allSizes.length > 0) {
-    // Multi-variant product - filter out fake sizes
-    const realSizes = allSizes.filter(size => size && size !== '1' && size !== 'Standart' && size !== 'Varsayılan' && size.trim() !== '');
+    // Multi-variant product - filter out fake sizes ve güvenlik kontrolü
+    const realSizes = allSizes.filter(size => {
+      if (!size || typeof size !== 'string') return false;
+      const trimmedSize = size.trim();
+      return trimmedSize !== '1' && trimmedSize !== '0' && trimmedSize !== 'Standart' && trimmedSize !== 'Varsayılan' && trimmedSize !== '';
+    });
     if (realSizes.length > 0) {
-      // Use real sizes
+      // Use real sizes - güvenli size kontrolü
       filteredColors.forEach(color => {
         realSizes.forEach(size => {
-          const inStock = checkVariantStock($, htmlContent, color, size);
-          variants.push({
-            color: color,
-            colorCode: getColorCode(color),
-            size: size,
-            inStock: inStock
-          });
+          if (typeof size === 'string' && size.trim() !== '') {
+            const inStock = checkVariantStock($, htmlContent, color, size);
+            variants.push({
+              color: color,
+              colorCode: getColorCode(color),
+              size: size,
+              inStock: inStock
+            });
+          }
         });
       });
     } else {
@@ -1548,12 +1565,13 @@ function extractSizesFromJS($: any, htmlContent: string): string[] {
       const matches = scriptContent.match(pattern);
       if (matches) {
         matches.forEach(match => {
-          // Extract size values from the match
-          const sizeMatch = match.match(/["'](XXS|XS|S|M|L|XL|XXL|XXXL|\d+(\.\d+)?|Tek\s*Beden|One\s*Size)["']/gi);
+          // Extract size values from the match - exclude invalid sizes like "1"
+          const sizeMatch = match.match(/["'](XXS|XS|S|M|L|XL|XXL|XXXL|2XL|3XL|4XL|5XL|Tek\s*Beden|One\s*Size|(?:2[4-9]|[3-5][0-9])(?:\.\d+)?|(?:3[6-9]|4[0-9]|5[0-2]))["']/gi);
           if (sizeMatch) {
             sizeMatch.forEach(size => {
               const cleanSize = size.replace(/["']/g, '').trim();
-              if (cleanSize.length > 0) {
+              // Ek güvenlik: "1" gibi geçersiz bedenler engelle
+              if (cleanSize.length > 0 && cleanSize !== '1' && cleanSize !== '0') {
                 sizes.push(cleanSize);
                 console.log(`👕 Found size in JS: ${cleanSize}`);
               }
@@ -1585,8 +1603,17 @@ function extractSizesFromJS($: any, htmlContent: string): string[] {
         jsonData.hasVariant.forEach((variant: any) => {
           if (variant.size || variant.Size) {
             const size = variant.size || variant.Size;
-            sizes.push(size);
-            console.log(`👕 Found size in JSON-LD variant: ${size}`);
+            // Virgülle ayrılmış string kontrolü
+            if (typeof size === 'string' && size.includes(',')) {
+              const splitSizes = size.split(',').map((s: string) => s.trim()).filter((s: string) => s.length > 0 && s !== '1' && s !== '0');
+              splitSizes.forEach((s: string) => {
+                sizes.push(s);
+                console.log(`👕 Found size in JSON-LD variant: ${s}`);
+              });
+            } else if (typeof size === 'string' && size !== '1' && size !== '0') {
+              sizes.push(size);
+              console.log(`👕 Found size in JSON-LD variant: ${size}`);
+            }
           }
         });
       }
@@ -1647,6 +1674,10 @@ function extractSizesFromJS($: any, htmlContent: string): string[] {
  * Check if a variant is in stock
  */
 function checkVariantStock($: cheerio.CheerioAPI, htmlContent: string, color: string, size: string): boolean {
+  // Güvenlik kontrolü: size parametresinin string olduğundan emin ol
+  const safeSize = typeof size === 'string' ? size : String(size || '');
+  const safeColor = typeof color === 'string' ? color : String(color || '');
+  
   // Check for out-of-stock indicators in HTML
   const outOfStockPatterns = [
     /stokta\s*yok/i,
@@ -1658,8 +1689,8 @@ function checkVariantStock($: cheerio.CheerioAPI, htmlContent: string, color: st
   ];
 
   // Check variant-specific stock
-  const colorKey = color.toLowerCase().replace(/[^a-z0-9]/g, '');
-  const sizeKey = size.toLowerCase().replace(/[^a-z0-9]/g, '');
+  const colorKey = safeColor.toLowerCase().replace(/[^a-z0-9]/g, '');
+  const sizeKey = safeSize.toLowerCase().replace(/[^a-z0-9]/g, '');
   
   // Look for specific variant stock information
   const variantStockRegex = new RegExp(`(${colorKey}|${sizeKey}).*?(stok|stock|quantity).*?["\']?:.*?([0-9]+)`, 'gi');
@@ -1667,16 +1698,16 @@ function checkVariantStock($: cheerio.CheerioAPI, htmlContent: string, color: st
   while ((match = variantStockRegex.exec(htmlContent)) !== null) {
     const stockAmount = parseInt(match[3]);
     if (stockAmount === 0) {
-      console.log(`📦 Found zero stock for ${color} ${size}: ${match[0]}`);
+      console.log(`📦 Found zero stock for ${safeColor} ${safeSize}: ${match[0]}`);
       return false;
     }
   }
 
   // Check for disabled variant buttons
-  $(`button[data-color*="${colorKey}"], button[title*="${color}"]`).each((_, el) => {
+  $(`button[data-color*="${colorKey}"], button[title*="${safeColor}"]`).each((_, el) => {
     const $el = $(el);
     if ($el.is('[disabled]') || $el.hasClass('disabled') || $el.hasClass('out-of-stock')) {
-      console.log(`📦 Found disabled variant button for ${color}`);
+      console.log(`📦 Found disabled variant button for ${safeColor}`);
       return false;
     }
   });
@@ -1691,7 +1722,7 @@ function checkVariantStock($: cheerio.CheerioAPI, htmlContent: string, color: st
   }
 
   // If no out-of-stock indicators found, assume in stock
-  console.log(`📦 Variant ${color} ${size} appears to be in stock`);
+  console.log(`📦 Variant ${safeColor} ${safeSize} appears to be in stock`);
   return true;
 }
 
