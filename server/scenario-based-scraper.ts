@@ -1139,7 +1139,7 @@ async function extractVariantsDirect($: cheerio.CheerioAPI, htmlContent: string)
         realSizes.forEach(size => {
           if (typeof size === 'string' && size.trim() !== '') {
             console.log(`🔥 STOK KONTROLÜ BAŞLATIYOR: ${color} - ${size} için gerçek stok tespiti...`);
-            const inStock = checkVariantStock($, htmlContent, color, size);
+            const inStock = checkVariantStock($, htmlContent, color, size, url);
             console.log(`🔥 STOK SONUCU: ${color} - ${size} = ${inStock ? 'STOKTA VAR' : 'STOKTA YOK'}`);
             variants.push({
               color: color,
@@ -1153,7 +1153,7 @@ async function extractVariantsDirect($: cheerio.CheerioAPI, htmlContent: string)
     } else {
       // Only colors, no real sizes
       filteredColors.forEach(color => {
-        const inStock = checkVariantStock($, htmlContent, color, '');
+        const inStock = checkVariantStock($, htmlContent, color, '', url);
         variants.push({
           color: color,
           colorCode: getColorCode(color),
@@ -1165,7 +1165,7 @@ async function extractVariantsDirect($: cheerio.CheerioAPI, htmlContent: string)
   } else if (filteredColors.length > 0) {
     // Color variants only - No fake size information
     filteredColors.forEach(color => {
-      const inStock = checkVariantStock($, htmlContent, color, '');
+      const inStock = checkVariantStock($, htmlContent, color, '', url);
       variants.push({
         color: color,
         colorCode: getColorCode(color),
@@ -1178,7 +1178,7 @@ async function extractVariantsDirect($: cheerio.CheerioAPI, htmlContent: string)
     allSizes.forEach(size => {
       // Skip fake sizes like "1", "Standart", "Varsayılan"
       if (size && size !== '1' && size !== 'Standart' && size !== 'Varsayılan' && size.trim() !== '') {
-        const inStock = checkVariantStock($, htmlContent, '', size);
+        const inStock = checkVariantStock($, htmlContent, '', size, url);
         variants.push({
           color: '', // No fake color
           colorCode: '',
@@ -1298,7 +1298,7 @@ function extractColorFromURL(htmlContent: string): string | null {
 /**
  * Gelişmiş stok kontrolü - Gerçek stok durumunu tespit et
  */
-function checkVariantStock($: any, htmlContent: string, color: string, size: string): boolean {
+function checkVariantStock($: any, htmlContent: string, color: string, size: string, url: string): boolean {
   console.log(`🔍 GERÇEK STOK KONTROLÜ: ${color} - ${size} için kapsamlı stok analizi başlatılıyor...`);
   
   // ÖNCELİKLİ KONTROL: Kullanıcının belirttiği stok durumu
