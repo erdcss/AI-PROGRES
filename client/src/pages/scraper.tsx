@@ -4,7 +4,7 @@ import { zodResolver } from "@hookform/resolvers/zod";
 import { z } from "zod";
 import { useMutation, useQuery } from "@tanstack/react-query";
 import { motion } from "framer-motion";
-import { Loader2, ShoppingCart, Link, Copy, X, Home, Plus, Trash2, Package, Palette, Eye, Image } from "lucide-react";
+import { Loader2, ShoppingCart, Link, Copy, X, Home, Plus, Trash2, Package, Palette, Eye, Image, FileText } from "lucide-react";
 
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -132,6 +132,7 @@ function ScraperPage() {
       
       // Her ürün için ayrı CSV preview ekle
       if (data.csvContent) {
+        console.log('🎯 CSV Content found, adding to previews:', data.title);
         const newCSVPreview = {
           id: `csv-${Date.now()}-${Math.random().toString(36).substr(2, 9)}`,
           productTitle: data.title || 'Ürün',
@@ -144,7 +145,11 @@ function ScraperPage() {
           createdAt: new Date().toISOString()
         };
         
-        setCsvPreviews(prev => [newCSVPreview, ...prev]);
+        console.log('📋 Adding CSV preview:', newCSVPreview.id, newCSVPreview.productTitle);
+        setCsvPreviews(prev => {
+          console.log('📋 Current CSV previews count:', prev.length);
+          return [newCSVPreview, ...prev];
+        });
         
         toast({
           title: "Başarılı", 
@@ -414,6 +419,7 @@ function ScraperPage() {
         
         // Her ürün için ayrı CSV preview ekle
         if (data.csvContent) {
+          console.log('🎯 Bulk CSV Content found, adding to previews:', data.title);
           const newCSVPreview = {
             id: `csv-bulk-${i}-${Date.now()}-${Math.random().toString(36).substr(2, 9)}`,
             productTitle: data.title || `Ürün ${i + 1}`,
@@ -426,7 +432,11 @@ function ScraperPage() {
             createdAt: new Date().toISOString()
           };
           
-          setCsvPreviews(prev => [newCSVPreview, ...prev]);
+          console.log('📋 Adding Bulk CSV preview:', newCSVPreview.id, newCSVPreview.productTitle);
+          setCsvPreviews(prev => {
+            console.log('📋 Current Bulk CSV previews count:', prev.length);
+            return [newCSVPreview, ...prev];
+          });
         }
         
         toast({
@@ -491,7 +501,21 @@ function ScraperPage() {
   const handleCSVShopifyUpload = async (id: string) => {
     const preview = csvPreviews.find(p => p.id === id);
     if (preview) {
-      await uploadToShopify(preview.csvContent, preview.productTitle);
+      console.log('🛒 Starting Shopify upload for:', preview.productTitle);
+      try {
+        await uploadToShopify(preview.csvContent, preview.productTitle);
+        toast({
+          title: "Shopify'a Yüklendi",
+          description: `${preview.productTitle} başarıyla yüklendi`
+        });
+      } catch (error) {
+        console.error('❌ Shopify upload failed:', error);
+        toast({
+          title: "Yükleme Hatası",
+          description: `${preview.productTitle} yüklenirken hata oluştu`,
+          variant: "destructive"
+        });
+      }
     }
   };
 
@@ -902,11 +926,26 @@ function ScraperPage() {
         )}
 
         {/* CSV Drawer Preview - Tüm CSV'ler */}
-        <CSVDrawerPreview 
-          csvPreviews={csvPreviews}
-          onDownload={handleCSVDownload}
-          onShopifyUpload={handleCSVShopifyUpload}
-        />
+        {csvPreviews.length > 0 && (
+          <div className="mt-8">
+            <Card className="business-card">
+              <CardHeader className="business-header">
+                <CardTitle className="text-white font-thin text-lg flex items-center gap-2">
+                  <FileText className="w-5 h-5 text-cyan-400/70" />
+                  CSV Dosyaları ({csvPreviews.length})
+                </CardTitle>
+                <p className="text-cyan-400/70 text-sm font-thin">Her ürün için ayrı CSV dosyası oluşturuldu</p>
+              </CardHeader>
+              <CardContent className="p-6">
+                <CSVDrawerPreview 
+                  csvPreviews={csvPreviews}
+                  onDownload={handleCSVDownload}
+                  onShopifyUpload={handleCSVShopifyUpload}
+                />
+              </CardContent>
+            </Card>
+          </div>
+        )}
       </div>
     </div>
   );
