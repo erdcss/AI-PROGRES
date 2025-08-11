@@ -313,6 +313,7 @@ export async function scrapeMultipleUrls(request: MultiUrlScrapeRequest): Promis
   
   let mainProduct: any = null; // İlk URL'den alınacak ortak bilgiler
   let allFeatures: Array<{ key: string; value: string }> = []; // Ürün özellikleri
+  let firstUrlTitle: string = ''; // SADECE ilk URL'den title alınacak ve korunacak
   
   for (const { url } of request.urls) {
     try {
@@ -347,17 +348,20 @@ export async function scrapeMultipleUrls(request: MultiUrlScrapeRequest): Promis
       
       // Extract complete product info using scenario-based scraper for first URL
       if (!mainProduct) {
-        console.log(`🎯 Getting complete product data from first URL using scenario-based scraper`);
+        console.log(`🎯 Getting complete product data from FIRST URL ONLY using scenario-based scraper`);
         
         try {
           const { scenarioBasedScrape } = await import('./scenario-based-scraper');
           const scenarioResult = await scenarioBasedScrape(url);
           
           if (scenarioResult.success) {
-            console.log(`✅ Scenario-based data extraction successful`);
+            console.log(`✅ Scenario-based data extraction successful from FIRST URL`);
             
-            // Use scenario-based data and create mainProduct
+            // ✅ SADECE İLK URL'DEN TITLE AL - Diğer URL'lerin title'larını kullanma
             const title = scenarioResult.title;
+            firstUrlTitle = title; // İlk URL'den title'ı kaydet
+            console.log(`🔒 FIRST URL TITLE STORED: ${firstUrlTitle}`);
+            
             const brand = scenarioResult.brand;
             const description = scenarioResult.features && scenarioResult.features.length > 0 
               ? scenarioResult.features.map(f => `${f.key}: ${f.value}`).join('. ') 
@@ -366,35 +370,37 @@ export async function scrapeMultipleUrls(request: MultiUrlScrapeRequest): Promis
             // Store all features for later use
             allFeatures = scenarioResult.features || [];
             
-            // Create mainProduct from scenario data
+            // Create mainProduct from scenario data - USE FIRST URL TITLE ONLY
             mainProduct = {
               id: url.split('-p-')[1]?.split('?')[0] || Date.now().toString(),
-              title: title,
+              title: firstUrlTitle, // ✅ SADECE İLK URL'DEN ALINAN TITLE KULLAN
               brand: brand,
               description: description,
               price: scenarioResult.price,
-              category: extractCategoryFromTitle(title)
+              category: extractCategoryFromTitle(firstUrlTitle)
             };
             
             console.log(`📋 Extracted ${allFeatures.length} features from scenario-based scraper`);
-            console.log(`✅ Main product created: ${title} - ${brand}`);
+            console.log(`✅ Main product created with FIRST URL TITLE: ${firstUrlTitle} - ${brand}`);
             
             // Add images from scenario-based result to combinedImages
             if (scenarioResult.images && scenarioResult.images.length > 0) {
               scenarioResult.images.forEach(imageUrl => {
                 combinedImages.push({
                   url: imageUrl,
-                  alt: `${title} - ${finalColor}`,
+                  alt: `${firstUrlTitle} - ${finalColor}`, // ✅ SADECE İLK URL TİTLE KULLAN
                   colorName: finalColor
                 });
               });
               console.log(`📸 Added ${scenarioResult.images.length} images from scenario-based scraper`);
             }
           } else {
-            console.log(`⚠️ Scenario-based extraction failed, using basic extraction`);
-            // Fallback to basic extraction
+            console.log(`⚠️ Scenario-based extraction failed, using basic extraction from FIRST URL`);
+            // Fallback to basic extraction - ONLY from first URL
             const titleElement = $('h1.pr-new-br[data-testid="product-detail-name"], h1');
             const title = titleElement.text().trim() || 'Product';
+            firstUrlTitle = title; // ✅ İLK URL'DEN TITLE KAYDET
+            console.log(`🔒 FALLBACK: First URL title stored: ${firstUrlTitle}`);
             
             const brandElement = $('a[data-testid="product-detail-brand"]');
             const brand = brandElement.text().trim() || extractBrandFromUrl(url);
@@ -402,31 +408,35 @@ export async function scrapeMultipleUrls(request: MultiUrlScrapeRequest): Promis
             const descriptionElement = $('.product-detail-description, .detail-desc-text');
             const description = descriptionElement.text().trim();
             
-            // Create fallback mainProduct
+            // Create fallback mainProduct - USE FIRST URL TITLE ONLY
             mainProduct = {
               id: url.split('-p-')[1]?.split('?')[0] || Date.now().toString(),
-              title: title,
+              title: firstUrlTitle, // ✅ SADECE İLK URL TİTLE KULLAN
               brand: brand,
               description: description,
               price: { profitFormatted: '0 TL', value: 0, withProfit: 0 },
-              category: extractCategoryFromTitle(title)
+              category: extractCategoryFromTitle(firstUrlTitle)
             };
             
-            console.log(`⚠️ Created fallback main product: ${title} - ${brand}`);
+            console.log(`⚠️ Created fallback main product with FIRST URL TITLE: ${firstUrlTitle} - ${brand}`);
           }
         } catch (error) {
-          console.error(`❌ Error during scenario-based extraction:`, error);
-          // Create minimal fallback
+          console.error(`❌ Error during scenario-based extraction from FIRST URL:`, error);
+          // Create minimal fallback - ONLY use first URL data
           const title = $('h1').first().text().trim() || 'Product';
+          firstUrlTitle = title; // ✅ İLK URL'DEN TITLE KAYDET
+          console.log(`🔒 ERROR FALLBACK: First URL title stored: ${firstUrlTitle}`);
+          
           const brand = extractBrandFromUrl(url);
           mainProduct = {
             id: url.split('-p-')[1]?.split('?')[0] || Date.now().toString(),
-            title: title,
+            title: firstUrlTitle, // ✅ SADECE İLK URL TİTLE KULLAN
             brand: brand,
             description: '',
             price: { profitFormatted: '0 TL', value: 0, withProfit: 0 },
             category: 'Genel'
           };
+          console.log(`🔒 ERROR FALLBACK created with FIRST URL TITLE: ${firstUrlTitle}`);
         }
       }
       
@@ -454,11 +464,11 @@ export async function scrapeMultipleUrls(request: MultiUrlScrapeRequest): Promis
         }
       });
       
-      // ✅ SADECE bu URL'nin rengini kaydet
+      // ✅ SADECE bu URL'nin rengini kaydet - İLK URL TİTLE KULLAN
       colorImages.forEach(imageUrl => {
         combinedImages.push({
           url: imageUrl,
-          alt: `${mainProduct.title} - ${finalColor}`,
+          alt: `${firstUrlTitle || mainProduct.title} - ${finalColor}`, // ✅ İLK URL TİTLE ÖNCELİK VER
           colorName: finalColor // Bu URL'nin SADECE kendi rengi
         });
       });
@@ -486,8 +496,8 @@ export async function scrapeMultipleUrls(request: MultiUrlScrapeRequest): Promis
   // Features are already extracted in allFeatures from scenario-based scraper
   const features = allFeatures;
   
-  // Generate tags
-  const tags = generateTags(mainProduct.title, mainProduct.description, Array.from(combinedColors));
+  // Generate tags - İLK URL TİTLE KULLAN
+  const tags = generateTags(firstUrlTitle || mainProduct.title, mainProduct.description, Array.from(combinedColors));
   
   // Create final variants: Her renk için tüm bedenleri oluştur
   const finalSizes = Array.from(allSizes);
@@ -512,6 +522,7 @@ export async function scrapeMultipleUrls(request: MultiUrlScrapeRequest): Promis
   
   const result: CombinedProduct = {
     ...mainProduct,
+    title: firstUrlTitle || mainProduct.title, // ✅ FINAL: İLK URL TİTLE KULLANILDIĞINDAN EMİN OL
     images: combinedImages,
     variants: {
       colors: finalColors,
