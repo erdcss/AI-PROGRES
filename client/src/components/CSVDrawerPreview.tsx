@@ -1,5 +1,5 @@
 import { useState } from 'react';
-import { ChevronDown, ChevronUp, Download, Eye, FileText, Package } from 'lucide-react';
+import { ChevronDown, ChevronUp, Download, Eye, FileText, Package, ShoppingCart } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Badge } from '@/components/ui/badge';
@@ -117,7 +117,7 @@ export function CSVDrawerPreview({ csvPreviews, onDownload, onShopifyUpload }: C
                       size="sm"
                       className="text-blue-400 hover:text-blue-300 hover:bg-blue-900/20"
                     >
-                      <Eye className="w-4 h-4" />
+                      <ShoppingCart className="w-4 h-4" />
                     </Button>
                     
                     {isExpanded ? (
@@ -245,7 +245,7 @@ export function CSVDrawerPreview({ csvPreviews, onDownload, onShopifyUpload }: C
                             size="sm"
                             className="bg-blue-600 hover:bg-blue-700 text-white"
                           >
-                            <Package className="w-4 h-4 mr-2" />
+                            <ShoppingCart className="w-4 h-4 mr-2" />
                             Shopify'a Yükle
                           </Button>
                         </div>
