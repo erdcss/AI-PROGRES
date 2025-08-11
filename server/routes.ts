@@ -2036,10 +2036,12 @@ export function registerRoutes(app: Express): Server {
       
       const productData = req.body.productData || req.body;
       
-      if (!productData || !productData.success) {
+      // Ürün verisi kontrolü - title ve temel alanlar
+      if (!productData || (!productData.title && !productData.brand)) {
+        console.log('❌ Missing required product data:', productData);
         return res.status(400).json({ 
           success: false, 
-          error: 'Geçerli product data gerekli' 
+          error: 'Geçerli product data gerekli - title veya brand eksik' 
         });
       }
 
