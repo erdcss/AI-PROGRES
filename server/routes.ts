@@ -561,6 +561,33 @@ function extractProductFeaturesFromHTML(htmlContent: string): Array<{ key: strin
   return uniqueFeatures.slice(0, 20); // Limit to 20 features
 }
 
+// Simple image extraction function
+function extractImagesFromHTML(htmlContent: string): string[] {
+  const images = new Set<string>();
+  
+  // Extract from all CDN patterns
+  const patterns = [
+    /https:\/\/cdn\.dsmcdn\.com\/[^"'\s\)]*\.(jpg|jpeg|png|webp)/gi,
+    /"(https:\/\/cdn\.dsmcdn\.com\/[^"]*\.(jpg|jpeg|png|webp))"/gi,
+    /src="([^"]*cdn\.dsmcdn\.com[^"]*\.(jpg|jpeg|png|webp)[^"]*)"/gi,
+  ];
+  
+  patterns.forEach(pattern => {
+    let match;
+    while ((match = pattern.exec(htmlContent)) !== null) {
+      const url = match[1] || match[0];
+      if (url && url.includes('cdn.dsmcdn.com')) {
+        const cleanUrl = url.replace(/^["']|["']$/g, '').trim();
+        if (cleanUrl.match(/\.(jpg|jpeg|png|webp)(\?.*)?$/i)) {
+          images.add(cleanUrl);
+        }
+      }
+    }
+  });
+  
+  return Array.from(images);
+}
+
 const urlSchema = z.object({
   url: z.string().min(1, "URL boş olamaz")
 });
@@ -1728,18 +1755,14 @@ export function registerRoutes(app: Express): Server {
       console.log('🖼️ TÜM ürün görselleri çıkarılıyor...');
       
       // First get HTML content from URL
-      const axios = require('axios');
       const response = await axios.get(url, {
         headers: {
           'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36'
         }
       });
       
-      // Import the comprehensive image extractor
-      const { extractAllProductImages } = await import('./comprehensive-image-extractor');
-      
       // Extract all images from HTML content
-      const allImages = extractAllProductImages(response.data);
+      const allImages = extractImagesFromHTML(response.data);
       
       if (allImages.length === 0) {
         console.log('⚠️ Hiç görsel bulunamadı');
@@ -1784,11 +1807,8 @@ export function registerRoutes(app: Express): Server {
         }
       });
       
-      // Import the comprehensive image extractor
-      const { extractAllProductImages } = await import('./comprehensive-image-extractor');
-      
       // Extract all images from HTML content
-      const allImages = extractAllProductImages(response.data);
+      const allImages = extractImagesFromHTML(response.data);
       
       if (allImages.length === 0) {
         return res.status(400).json({ message: "Görsel bulunamadı" });
@@ -1821,7 +1841,6 @@ export function registerRoutes(app: Express): Server {
       console.log('🔍 Ürün özellikleri çıkarılıyor...');
       
       // First get HTML content from URL
-      const axios = require('axios');
       const response = await axios.get(url, {
         headers: {
           'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36'
