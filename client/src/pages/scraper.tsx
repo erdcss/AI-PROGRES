@@ -296,44 +296,10 @@ function ScraperPage() {
           
           {/* Main Content Section */}
           <div>
-            {/* Mode Selection */}
-            <Card className="business-card mb-6">
-              <CardContent className="p-6">
-                <div className="flex gap-3 justify-center">
-                  <Button
-                    variant={scrapingMode === 'single' ? 'default' : 'outline'}
-                    className={scrapingMode === 'single' 
-                      ? "business-button h-12 px-6 text-sm font-thin flex items-center gap-2" 
-                      : "border-slate-600/50 hover:bg-slate-800/50 h-12 px-6 text-sm font-thin flex items-center gap-2"
-                    }
-                    onClick={() => setScrapingMode('single')}
-                  >
-                    <Package className="w-4 h-4" />
-                    <div className="flex flex-col items-start">
-                      <span>Ürün Ekle</span>
-                      <span className="text-xs opacity-70">Tek varyant ürünler için</span>
-                    </div>
-                  </Button>
-                  <Button
-                    variant={scrapingMode === 'multi-url' ? 'default' : 'outline'}
-                    className={scrapingMode === 'multi-url' 
-                      ? "business-button h-12 px-6 text-sm font-thin flex items-center gap-2" 
-                      : "border-slate-600/50 hover:bg-slate-800/50 h-12 px-6 text-sm font-thin flex items-center gap-2"
-                    }
-                    onClick={() => setScrapingMode('multi-url')}
-                  >
-                    <Palette className="w-4 h-4" />
-                    <div className="flex flex-col items-start">
-                      <span>Çoklu Ürün Ekle</span>
-                      <span className="text-xs opacity-70">Farklı renk URL'leri için</span>
-                    </div>
-                  </Button>
-                </div>
-              </CardContent>
-            </Card>
+            {/* Mode Selection - Hidden, only single mode available */}
 
             {/* Single Mode Form */}
-            {scrapingMode === 'single' && (
+            <div>
               <Card className="business-card">
                 <CardHeader className="business-header">
                   <CardTitle className="text-white font-thin text-lg flex items-center gap-2">
@@ -430,164 +396,14 @@ function ScraperPage() {
                   </motion.form>
                 </CardContent>
               </Card>
-            )}
-
-            {/* Multi-URL Mode Form */}
-            {scrapingMode === 'multi-url' && (
-              <Card className="business-card">
-                <CardHeader className="business-header">
-                  <CardTitle className="text-white font-thin text-lg flex items-center gap-2">
-                    <Palette className="w-5 h-5 text-cyan-400/70" />
-                    Çoklu Varyant Birleştirme
-                  </CardTitle>
-                  <div className="text-sm text-slate-400/70 mt-2 font-thin">
-                    Her renk varyantı için ayrı URL girin. Sistem otomatik olarak tek Shopify ürününde birleştirecek.
-                  </div>
-                </CardHeader>
-                <CardContent className="p-6">
-                  <motion.form 
-                    initial={{ opacity: 0, y: 20 }}
-                    animate={{ opacity: 1, y: 0 }}
-                    onSubmit={onMultiSubmit} 
-                    className="space-y-6"
-                  >
-                    <div className="space-y-4">
-                      {multiForm.watch('urls').map((urlItem, index) => (
-                        <div key={index} className="p-4 border border-slate-600 rounded-lg bg-slate-900/50">
-                          <div className="flex items-center justify-between mb-3">
-                            <div className="flex items-center gap-2">
-                              <div className="w-6 h-6 bg-blue-600 rounded-full flex items-center justify-center text-white text-xs font-bold">
-                                {index + 1}
-                              </div>
-                              <span className="text-white font-thin text-sm">URL Varyantı</span>
-                            </div>
-                            {multiForm.watch('urls').length > 1 && (
-                              <Button
-                                type="button"
-                                size="sm"
-                                variant="ghost"
-                                className="h-7 w-7 p-0 text-red-400 hover:bg-red-900/50"
-                                onClick={() => removeUrlField(index)}
-                              >
-                                <Trash2 className="w-3 h-3" />
-                              </Button>
-                            )}
-                          </div>
-                          
-                          <div className="space-y-3">
-                            <div>
-                              <label className="text-slate-300 font-thin text-xs mb-2 block">
-                                Ürün URL'si
-                              </label>
-                              <div className="relative">
-                                <Input
-                                  placeholder="https://www.trendyol.com/..."
-                                  {...multiForm.register(`urls.${index}.url` as const)}
-                                  className="business-input text-sm pr-20"
-                                  disabled={multiUrlScrapeMutation.isPending}
-                                />
-                                <Button
-                                  type="button"
-                                  size="sm"
-                                  variant="ghost"
-                                  className="absolute right-2 top-1/2 transform -translate-y-1/2 h-6 w-6 p-0 text-slate-400 hover:bg-slate-700"
-                                  onClick={() => {
-                                    navigator.clipboard.readText().then(text => {
-                                      multiForm.setValue(`urls.${index}.url`, text);
-                                      toast({
-                                        title: "Yapıştırıldı",
-                                        description: `${index + 1}. URL yapıştırıldı`
-                                      });
-                                    });
-                                  }}
-                                >
-                                  <Copy className="w-3 h-3" />
-                                </Button>
-                              </div>
-                            </div>
-                            
-                            <div className="text-center py-2 px-3 bg-slate-800/50 rounded text-xs text-slate-400">
-                              🎨 Renk otomatik tespit edilecek
-                            </div>
-                          </div>
-                        </div>
-                      ))}
-                    </div>
-                    
-                    <div className="border-t border-slate-600 pt-4">
-                      <div className="flex gap-3">
-                        <Button
-                          type="button"
-                          variant="outline"
-                          className="border-slate-600/50 hover:bg-slate-800/50 text-slate-300 flex-1 h-11"
-                          onClick={addUrlField}
-                          disabled={multiUrlScrapeMutation.isPending}
-                        >
-                          <Plus className="w-4 h-4 mr-2" />
-                          <span className="font-thin">URL Ekle</span>
-                        </Button>
-                        
-                        <Button
-                          type="submit"
-                          disabled={multiUrlScrapeMutation.isPending || multiForm.watch('urls').length === 0}
-                          className="business-button flex-2 h-11 text-base font-thin"
-                        >
-                          {multiUrlScrapeMutation.isPending ? (
-                            <div className="flex items-center gap-3">
-                              <Loader2 className="w-5 h-5 animate-spin" />
-                              <span>Shopify'a yükleniyor...</span>
-                            </div>
-                          ) : (
-                            <div className="flex items-center gap-2">
-                              <span>🛒 SHOPIFY'A YÜKLE</span>
-                              <span className="text-xs bg-blue-800 px-2 py-1 rounded">
-                                {multiForm.watch('urls').length} ürün
-                              </span>
-                            </div>
-                          )}
-                        </Button>
-                      </div>
-                      
-                      <div className="text-xs text-slate-500 mt-2 flex items-center gap-1">
-                        <span>💡</span>
-                        <span>Aynı ürünün farklı renklerine ait URL'leri girin - sistem otomatik birleştirecek</span>
-                      </div>
-                    </div>
-                  </motion.form>
-                </CardContent>
-              </Card>
-            )}
+            </div>
           </div>
 
 
         </div>
 
-        {/* Multi-URL Preview Section */}
-        {scrapingMode === 'multi-url' && multiForm.watch('urls').some(url => url.url) && (
-          <div className="mt-8">
-            <Card className="business-card">
-              <CardHeader className="business-header">
-                <CardTitle className="text-white font-thin text-lg flex items-center gap-2">
-                  <Palette className="w-5 h-5 text-cyan-400/70" />
-                  Ürün Önizlemesi
-                </CardTitle>
-                <p className="text-cyan-400/70 text-sm font-thin">URL'lerden çekilen ürün bilgilerinin ön görünümü</p>
-              </CardHeader>
-              <CardContent className="p-6">
-                <div className="grid grid-cols-1 lg:grid-cols-2 xl:grid-cols-3 gap-3">
-                  {multiForm.watch('urls').map((urlItem, index) => (
-                    urlItem.url && (
-                      <UrlPreviewCard key={index} url={urlItem.url} index={index} />
-                    )
-                  ))}
-                </div>
-              </CardContent>
-            </Card>
-          </div>
-        )}
-
         {/* CSV Preview Section - Single Variant */}
-        {scrapingMode === 'single' && product && (
+        {product && (
           <div className="mt-8">
             <Card className="business-card">
               <CardHeader className="business-header">
@@ -596,24 +412,6 @@ function ScraperPage() {
                   CSV Ön İzleme - Tek Varyant
                 </CardTitle>
                 <p className="text-cyan-400/70 text-sm font-thin">Shopify için hazırlanmış CSV dosyası ön görünümü</p>
-              </CardHeader>
-              <CardContent className="p-6">
-                <CSVPreview product={product} isVisible={true} />
-              </CardContent>
-            </Card>
-          </div>
-        )}
-
-        {/* CSV Preview Section - Multi Variant */}
-        {scrapingMode === 'multi-url' && product && (
-          <div className="mt-8">
-            <Card className="business-card">
-              <CardHeader className="business-header">
-                <CardTitle className="text-white font-thin text-lg flex items-center gap-2">
-                  <Palette className="w-5 h-5 text-cyan-400/70" />
-                  CSV Ön İzleme - Çoklu Varyant
-                </CardTitle>
-                <p className="text-cyan-400/70 text-sm font-thin">Birleştirilmiş ürün varyantları için CSV dosyası ön görünümü</p>
               </CardHeader>
               <CardContent className="p-6">
                 <CSVPreview product={product} isVisible={true} />
