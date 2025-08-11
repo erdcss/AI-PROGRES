@@ -5,6 +5,7 @@
 
 import axios from 'axios';
 import * as cheerio from 'cheerio';
+import puppeteer from 'puppeteer';
 
 export async function extractUltimateImages(url: string): Promise<string[]> {
   console.log('🎯 Ultimate Image Extractor başlatılıyor...');
@@ -39,14 +40,26 @@ export async function extractUltimateImages(url: string): Promise<string[]> {
     const scriptImages = extractFromScripts($);
     console.log(`📜 Script'lerden ${scriptImages.length} görsel bulundu`);
     
-    // 5. Tüm görselleri birleştir
-    allImages.push(...jsonLdImages, ...htmlImages, ...scriptImages);
+    // 5. Puppeteer ile deep scanning (eğer görsel azsa)
+    let puppeteerImages: string[] = [];
+    const totalInitialImages = jsonLdImages.length + htmlImages.length + scriptImages.length;
+    if (totalInitialImages < 6) {
+      console.log('🔍 Görsel sayısı az, Puppeteer ile derinlemesine tarama başlatılıyor...');
+      puppeteerImages = await extractWithPuppeteer(url);
+    }
     
-    // 6. Duplicate'leri kaldır ve filtrele
+    // 6. Network API çağrıları ile ek görseller
+    const apiImages = await extractFromTrendyolAPI(url);
+    console.log(`📡 API'den ${apiImages.length} ek görsel bulundu`);
+    
+    // 7. Tüm görselleri birleştir
+    allImages.push(...jsonLdImages, ...htmlImages, ...scriptImages, ...puppeteerImages, ...apiImages);
+    
+    // 8. Duplicate'leri kaldır ve filtrele
     const uniqueImages = Array.from(new Set(allImages));
     const validImages = uniqueImages.filter(img => isValidProductImage(img));
     
-    // 7. Görselleri kaliteye göre sırala
+    // 9. Görselleri kaliteye göre sırala
     const sortedImages = sortImagesByQuality(validImages);
     
     console.log(`🎯 Ultimate Extractor sonuç: ${sortedImages.length} benzersiz kaliteli görsel`);
@@ -207,6 +220,154 @@ function extractFromStyle(style: string | undefined): string | null {
   
   const match = style.match(/background-image:\s*url\(['"]?(.*?)['"]?\)/);
   return match ? match[1] : null;
+}
+
+/**
+ * Puppeteer ile derinlemesine görsel tarama
+ */
+async function extractWithPuppeteer(url: string): Promise<string[]> {
+  let browser;
+  try {
+    console.log('🤖 Puppeteer ile derinlemesine tarama başlatılıyor...');
+    
+    browser = await puppeteer.launch({
+      headless: true,
+      args: [
+        '--no-sandbox',
+        '--disable-setuid-sandbox',
+        '--disable-dev-shm-usage',
+        '--disable-accelerated-2d-canvas',
+        '--disable-gpu'
+      ]
+    });
+
+    const page = await browser.newPage();
+    await page.setUserAgent('Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36');
+    
+    const imageUrls: string[] = [];
+    
+    // Network request intercepting
+    await page.setRequestInterception(true);
+    page.on('request', request => {
+      const requestUrl = request.url();
+      if (requestUrl.includes('cdn.dsmcdn.com') && 
+          (requestUrl.includes('.jpg') || requestUrl.includes('.jpeg') || requestUrl.includes('.png'))) {
+        if (!imageUrls.includes(requestUrl)) {
+          imageUrls.push(requestUrl);
+        }
+      }
+      request.continue();
+    });
+
+    await page.goto(url, { waitUntil: 'networkidle2', timeout: 15000 });
+    
+    // Wait for images to load and extract
+    await new Promise(resolve => setTimeout(resolve, 3000));
+    
+    const pageImages = await page.evaluate(() => {
+      const images: string[] = [];
+      document.querySelectorAll('img').forEach(img => {
+        const src = img.src || img.getAttribute('data-src') || img.getAttribute('data-original');
+        if (src && src.includes('cdn.dsmcdn.com')) {
+          images.push(src);
+        }
+      });
+      return images;
+    });
+    
+    imageUrls.push(...pageImages);
+    console.log(`🤖 Puppeteer ile ${imageUrls.length} görsel yakalandı`);
+    
+    return Array.from(new Set(imageUrls));
+    
+  } catch (error) {
+    console.error('❌ Puppeteer görsel tarama hatası:', error);
+    return [];
+  } finally {
+    if (browser) {
+      await browser.close();
+    }
+  }
+}
+
+/**
+ * Trendyol API'den görsel çekme
+ */
+async function extractFromTrendyolAPI(url: string): Promise<string[]> {
+  try {
+    console.log('📡 Trendyol API görselleri çıkarılıyor...');
+    
+    // URL'den ürün ID'sini çıkar
+    const productIdMatch = url.match(/p-(\d+)/);
+    if (!productIdMatch) {
+      return [];
+    }
+    
+    const productId = productIdMatch[1];
+    
+    // Trendyol API endpoint'leri
+    const apiEndpoints = [
+      `https://public-mdc.trendyol.com/discovery-web-productdetailservice/v1/products/${productId}`,
+      `https://apigw.trendyol.com/discovery-web-productdetailservice/v1/products/${productId}`
+    ];
+    
+    const allApiImages: string[] = [];
+    
+    for (const endpoint of apiEndpoints) {
+      try {
+        const response = await axios.get(endpoint, {
+          headers: {
+            'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36',
+            'Accept': 'application/json',
+            'Referer': 'https://www.trendyol.com/'
+          },
+          timeout: 10000
+        });
+        
+        if (response.data && response.data.result) {
+          const product = response.data.result;
+          
+          // Ana görseller
+          if (product.images && Array.isArray(product.images)) {
+            product.images.forEach((img: any) => {
+              if (typeof img === 'string' && img.includes('cdn.dsmcdn.com')) {
+                allApiImages.push(img);
+              } else if (img.url && img.url.includes('cdn.dsmcdn.com')) {
+                allApiImages.push(img.url);
+              }
+            });
+          }
+          
+          // Varyant görselleri
+          if (product.variants && Array.isArray(product.variants)) {
+            product.variants.forEach((variant: any) => {
+              if (variant.images && Array.isArray(variant.images)) {
+                variant.images.forEach((img: any) => {
+                  if (typeof img === 'string' && img.includes('cdn.dsmcdn.com')) {
+                    allApiImages.push(img);
+                  } else if (img.url && img.url.includes('cdn.dsmcdn.com')) {
+                    allApiImages.push(img.url);
+                  }
+                });
+              }
+            });
+          }
+        }
+        
+        console.log(`📡 ${endpoint} endpoint'inden ${allApiImages.length} görsel alındı`);
+        break; // İlk başarılı endpoint'te dur
+        
+      } catch (error) {
+        console.log(`❌ API endpoint başarısız: ${endpoint}`);
+      }
+    }
+    
+    return Array.from(new Set(allApiImages));
+    
+  } catch (error) {
+    console.error('❌ Trendyol API görsel çıkarma hatası:', error);
+    return [];
+  }
 }
 
 /**
