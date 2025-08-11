@@ -1,0 +1,211 @@
+// Multi-URL Product için özel Shopify uploader
+// Bu dosya multi-URL product verilerini direkt Shopify API'ye doğru formatta gönderir
+
+import { parse } from 'csv-parse/sync';
+
+interface MultiUrlProductData {
+  title: string;
+  brand?: string;
+  price: {
+    original: number;
+    withProfit: number;
+  };
+  images: Array<{
+    url: string;
+    alt?: string;
+  }>;
+  variants: {
+    colors: string[];
+    allVariants?: any[];
+  };
+}
+
+// Renk extraction helper
+function extractColorFromProductName(productName: string): string {
+  const text = productName.toLowerCase();
+  
+  if (text.includes('beyaz') || text.includes('white')) return 'Beyaz';
+  if (text.includes('siyah') || text.includes('black')) return 'Siyah';
+  if (text.includes('yesil') || text.includes('yeşil') || text.includes('green')) return 'Yeşil';
+  if (text.includes('mavi') || text.includes('blue')) return 'Mavi';
+  if (text.includes('kirmizi') || text.includes('kırmızı') || text.includes('red')) return 'Kırmızı';
+  if (text.includes('sari') || text.includes('sarı') || text.includes('yellow')) return 'Sarı';
+  if (text.includes('pembe') || text.includes('pink')) return 'Pembe';
+  if (text.includes('mor') || text.includes('purple')) return 'Mor';
+  if (text.includes('turuncu') || text.includes('orange')) return 'Turuncu';
+  if (text.includes('gri') || text.includes('gray') || text.includes('grey')) return 'Gri';
+  
+  return 'Çok Renkli';
+}
+
+// Duplicate prevention system
+const recentUploads = new Map<string, { timestamp: number; productId: string }>();
+
+function isDuplicateProduct(title: string, brand?: string): { isDuplicate: boolean; existingProductId?: string } {
+  const key = `${title}-${brand || 'unknown'}`.toLowerCase();
+  const existing = recentUploads.get(key);
+  
+  if (existing && Date.now() - existing.timestamp < 300000) { // 5 dakika
+    return { isDuplicate: true, existingProductId: existing.productId };
+  }
+  
+  return { isDuplicate: false };
+}
+
+function recordUpload(title: string, productId: string, brand?: string): void {
+  const key = `${title}-${brand || 'unknown'}`.toLowerCase();
+  recentUploads.set(key, { timestamp: Date.now(), productId });
+}
+
+export async function uploadMultiUrlProductToShopify(
+  productData: MultiUrlProductData, 
+  productTitle: string
+): Promise<{ 
+  success: boolean; 
+  productId?: string; 
+  message: string; 
+  product?: any;
+  adminUrl?: string;
+}> {
+  try {
+    console.log('🚀 MULTI-URL UPLOADER BAŞLATILIYOR');
+    console.log('📦 Product Title:', productTitle);
+    console.log('🎨 Colors data:', productData.variants?.colors);
+    
+    // Duplicate check
+    const brand = productData.brand || 'Unknown';
+    const duplicateCheck = isDuplicateProduct(productTitle, brand);
+    
+    if (duplicateCheck.isDuplicate) {
+      return {
+        success: false,
+        message: `Bu ürün yakın zamanda yüklendi (Product ID: ${duplicateCheck.existingProductId}). Lütfen birkaç dakika bekleyin.`
+      };
+    }
+
+    // Shopify credentials
+    const shopifyStore = process.env.SHOPIFY_STORE_DOMAIN;
+    const accessToken = process.env.SHOPIFY_ACCESS_TOKEN;
+    
+    if (!shopifyStore || !accessToken) {
+      return { 
+        success: false, 
+        message: 'Shopify store domain veya access token bulunamadı.' 
+      };
+    }
+
+    // Extract colors from product names
+    const colors = productData.variants?.colors || [];
+    const extractedColors = colors
+      .map(colorText => extractColorFromProductName(colorText))
+      .filter((color, index, arr) => arr.indexOf(color) === index && color !== 'Çok Renkli');
+    
+    if (extractedColors.length === 0) {
+      extractedColors.push('Çok Renkli');
+    }
+    
+    // Standard sizes
+    const sizes = ['S', 'M', 'L', 'XL'];
+    
+    console.log('🎨 Extracted colors:', extractedColors);
+    console.log('📏 Using sizes:', sizes);
+
+    // Create variants (color x size combinations)
+    const variants = [];
+    const options = [
+      { name: 'Renk', values: extractedColors },
+      { name: 'Beden', values: sizes }
+    ];
+
+    extractedColors.forEach(color => {
+      sizes.forEach(size => {
+        variants.push({
+          option1: color,
+          option2: size,
+          price: productData.price.withProfit.toFixed(2),
+          compare_at_price: productData.price.original.toFixed(2),
+          inventory_quantity: 10,
+          inventory_management: 'shopify',
+          inventory_policy: 'deny',
+          requires_shipping: true,
+          taxable: true
+        });
+      });
+    });
+
+    console.log(`📊 Created ${variants.length} variants`);
+
+    // Prepare images
+    const images = productData.images?.map((img, index) => ({
+      src: img.url,
+      alt: `${productTitle} - Image ${index + 1}`,
+      position: index + 1
+    })) || [];
+
+    // Create Shopify product
+    const productPayload = {
+      product: {
+        title: productTitle,
+        body_html: `<p>${productTitle}</p>`,
+        vendor: brand,
+        product_type: 'Apparel & Accessories > Clothing',
+        tags: 'multi-url, auto-generated',
+        handle: productTitle.toLowerCase().replace(/[^a-z0-9]/g, '-').replace(/-+/g, '-'),
+        status: 'active',
+        published: true,
+        variants: variants,
+        images: images,
+        options: options
+      }
+    };
+
+    console.log('📤 Shopify API request payload hazırlandı');
+    console.log('🔍 Options:', JSON.stringify(options, null, 2));
+    console.log('🔍 First variant:', JSON.stringify(variants[0], null, 2));
+
+    const shopifyResponse = await fetch(`https://${shopifyStore}/admin/api/2023-10/products.json`, {
+      method: 'POST',
+      headers: {
+        'X-Shopify-Access-Token': accessToken,
+        'Content-Type': 'application/json'
+      },
+      body: JSON.stringify(productPayload)
+    });
+
+    const responseText = await shopifyResponse.text();
+    
+    if (!shopifyResponse.ok) {
+      console.error('❌ Shopify API Error:', responseText);
+      return { 
+        success: false, 
+        message: `Shopify API hatası: ${responseText}` 
+      };
+    }
+
+    const result = JSON.parse(responseText);
+    const productId = result.product.id;
+    
+    console.log('✅ Product created with ID:', productId);
+    
+    // Record upload
+    recordUpload(productTitle, productId.toString(), brand);
+    
+    // Admin URL
+    const adminUrl = `${shopifyStore}/admin/products/${productId}`;
+
+    return {
+      success: true,
+      productId: productId.toString(),
+      message: 'Ürün başarıyla Shopify\'a yüklendi',
+      product: result.product,
+      adminUrl: adminUrl
+    };
+
+  } catch (error) {
+    console.error('❌ Multi-URL upload error:', error);
+    return {
+      success: false,
+      message: `Upload hatası: ${error instanceof Error ? error.message : 'Bilinmeyen hata'}`
+    };
+  }
+}

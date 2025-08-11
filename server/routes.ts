@@ -43,9 +43,91 @@ import { generateComprehensiveShopifyCSV, generateFeatureSummary, type Comprehen
 import shopifyTrendyolMatcher from './shopify-trendyol-matcher';
 import { scrapeMultipleUrls } from './multi-url-scraper';
 import { generateMultiVariantShopifyCSV } from './multi-variant-csv-generator';
-import { uploadProductToShopify, testShopifyConnection, uploadMultiUrlProductToShopify } from './shopify-api-uploader';
+import { uploadProductToShopify, testShopifyConnection } from './shopify-api-uploader';
+import { uploadMultiUrlProductToShopify } from './multi-url-shopify-uploader';
 import { eq, desc, or, and, isNotNull, inArray } from 'drizzle-orm';
 import axios from 'axios';
+
+// Multi-URL product verisini CSV formatına dönüştür
+function convertMultiUrlProductToCSV(productData: any): string {
+  const colors = productData.variants?.colors || [];
+  const sizes = ['S', 'M', 'L', 'XL', '2XL'];
+  
+  // Renk tespiti için fonksiyon
+  function extractColor(colorText: string): string {
+    const text = colorText.toLowerCase();
+    if (text.includes('beyaz')) return 'Beyaz';
+    if (text.includes('yesil') || text.includes('yeşil')) return 'Yeşil';
+    if (text.includes('siyah')) return 'Siyah';
+    if (text.includes('mavi')) return 'Mavi';
+    if (text.includes('kirmizi') || text.includes('kırmızı')) return 'Kırmızı';
+    return 'Çok Renkli';
+  }
+  
+  // CSV başlıkları
+  let csvContent = 'Handle,Title,Body (HTML),Vendor,Product Type,Tags,Published,Option1 Name,Option1 Value,Option2 Name,Option2 Value,Variant SKU,Variant Grams,Variant Inventory Tracker,Variant Inventory Qty,Variant Inventory Policy,Variant Fulfillment Service,Variant Price,Variant Compare At Price,Variant Requires Shipping,Variant Taxable,Variant Barcode,Image Src,Image Position,Image Alt Text,Gift Card,SEO Title,SEO Description,Google Shopping / Google Product Category,Google Shopping / Gender,Google Shopping / Age Group,Google Shopping / MPN,Google Shopping / AdWords Grouping,Google Shopping / AdWords Labels,Google Shopping / Condition,Google Shopping / Custom Product,Google Shopping / Custom Label 0,Google Shopping / Custom Label 1,Google Shopping / Custom Label 2,Google Shopping / Custom Label 3,Google Shopping / Custom Label 4,Variant Image,Variant Weight Unit,Cost per item,Included / United States,Price / United States,Compare At Price / United States,Status\n';
+  
+  const extractedColors = colors.map(extractColor).filter((color, index, arr) => arr.indexOf(color) === index && color !== 'Çok Renkli');
+  if (extractedColors.length === 0) extractedColors.push('Çok Renkli');
+  
+  console.log('🎨 CSV Extracted colors:', extractedColors);
+  console.log('📏 CSV Sizes:', sizes);
+  
+  let variantIndex = 0;
+  
+  extractedColors.forEach((color, colorIndex) => {
+    sizes.forEach((size, sizeIndex) => {
+      const handle = productData.title?.toLowerCase().replace(/[^a-z0-9]/g, '-').replace(/-+/g, '-') || 'product';
+      const isFirstVariant = variantIndex === 0;
+      const imageIndex = variantIndex % (productData.images?.length || 1);
+      const imageUrl = productData.images?.[imageIndex]?.url || '';
+      
+      // Her varyant için CSV satırı oluştur
+      const row = [
+        handle, // Handle
+        isFirstVariant ? productData.title || 'Ürün' : '', // Title
+        isFirstVariant ? `<p>${productData.title}</p>` : '', // Body HTML
+        isFirstVariant ? (productData.brand || 'Unknown') : '', // Vendor
+        isFirstVariant ? 'Apparel & Accessories > Clothing' : '', // Product Type
+        isFirstVariant ? 'multi-url, auto-generated' : '', // Tags
+        isFirstVariant ? 'TRUE' : '', // Published
+        isFirstVariant ? 'Renk' : '', // Option1 Name
+        color, // Option1 Value
+        isFirstVariant ? 'Beden' : '', // Option2 Name
+        size, // Option2 Value
+        `${handle}-${color}-${size}`.toLowerCase(), // Variant SKU
+        '0', // Variant Grams
+        'shopify', // Variant Inventory Tracker
+        '10', // Variant Inventory Qty
+        'deny', // Variant Inventory Policy
+        'manual', // Variant Fulfillment Service
+        productData.price?.withProfit?.toString() || '100', // Variant Price
+        productData.price?.original?.toString() || '90', // Variant Compare At Price
+        'TRUE', // Variant Requires Shipping
+        'TRUE', // Variant Taxable
+        '', // Variant Barcode
+        imageUrl, // Image Src
+        imageIndex + 1, // Image Position
+        `${productData.title} - ${color} ${size}`, // Image Alt Text
+        'FALSE', // Gift Card
+        '', '', '', '', '', '', '', '', '', '', '', '', '', '', '', '', '', // SEO and Google Shopping fields
+        '', // Variant Image
+        'kg', // Variant Weight Unit
+        '0', // Cost per item
+        'TRUE', // Included / United States
+        productData.price?.withProfit?.toString() || '100', // Price / United States
+        productData.price?.original?.toString() || '90', // Compare At Price / United States
+        'active' // Status
+      ];
+      
+      csvContent += row.map(field => `"${field}"`).join(',') + '\n';
+      variantIndex++;
+    });
+  });
+  
+  console.log(`📊 Generated CSV with ${variantIndex} variants`);
+  return csvContent;
+}
 
 
 function generateSingleProductShopifyCSV(product: any): string {
@@ -1515,11 +1597,17 @@ export function registerRoutes(app: Express): Server {
       
       // Eğer productData varsa ve csvContent yoksa multi-URL upload kullan
       if (productData && !csvContent) {
-        console.log('🔄 ✅ Multi-URL product data detected, using special upload');
-        const uploadResult = await uploadMultiUrlProductToShopify(productData, productTitle);
+        console.log('🔄 ✅ Multi-URL product data detected - Using direct uploader');
+        console.log('🎨 ROUTE DEBUG - Colors in productData:', productData.variants?.colors);
+        console.log('📋 ROUTE DEBUG - AllVariants:', productData.variants?.allVariants);
+        
+        // Direkt multi-URL uploader kullan
+        const uploadResult = await uploadMultiUrlProductToShopify(productData, productTitle || productData.title);
         return res.json(uploadResult);
       } else {
         console.log('🔄 ❌ Multi-URL condition not met, checking CSV...');
+        console.log('   productData exists:', !!productData);
+        console.log('   csvContent exists:', !!csvContent);
       }
       
       // CSV yükleme
@@ -1555,6 +1643,42 @@ export function registerRoutes(app: Express): Server {
         error: 'Shopify upload failed',
         message: error instanceof Error ? error.message : 'Shopify upload failed'
       });
+    }
+  });
+
+  // Debug endpoint
+  app.get('/api/debug-multi-url', async (req, res) => {
+    try {
+      const testData = {
+        title: "Test Product",
+        brand: "Test Brand",
+        price: { original: 100, withProfit: 110 },
+        images: [{ url: "https://example.com/image.jpg" }],
+        variants: {
+          colors: ["Erkek Beyaz Gomlek", "Erkek Yesil Gomlek"]
+        }
+      };
+      
+      console.log('🔍 DEBUG TEST - Colors:', testData.variants.colors);
+      
+      // Test color extraction
+      const extractColor = (text: string): string => {
+        const lowerText = text.toLowerCase();
+        if (lowerText.includes('beyaz')) return 'Beyaz';
+        if (lowerText.includes('yesil') || lowerText.includes('yeşil')) return 'Yeşil';
+        return 'Çok Renkli';
+      };
+      
+      const extractedColors = testData.variants.colors.map(extractColor);
+      console.log('🎨 Extracted colors:', extractedColors);
+      
+      return res.json({
+        success: true,
+        originalColors: testData.variants.colors,
+        extractedColors: extractedColors
+      });
+    } catch (error) {
+      return res.status(500).json({ error: error.message });
     }
   });
 

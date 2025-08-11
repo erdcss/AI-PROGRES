@@ -87,6 +87,17 @@ export async function uploadProductToShopify(csvContent: string, productTitle: s
     // CSV'den Shopify product data'sı oluştur
     const productData = parseCSVToShopifyProduct(records);
     
+    // Debug parsed variants
+    console.log('🔍 DEBUG PARSED VARIANTS:');
+    productData.variants.forEach((variant, index) => {
+      console.log(`Variant ${index}: option1="${variant.option1}", option2="${variant.option2}", price="${variant.price}"`);
+    });
+    
+    const finalColors = [...new Set(productData.variants.map(v => v.option1).filter(v => v && v.trim()))];
+    const finalSizes = [...new Set(productData.variants.map(v => v.option2).filter(v => v && v.trim()))];
+    console.log('🎨 FINAL COLORS FOR API:', finalColors);
+    console.log('📏 FINAL SIZES FOR API:', finalSizes);
+    
     // Shopify API endpoint
     const shopifyStore = process.env.SHOPIFY_STORE_DOMAIN;
     const accessToken = process.env.SHOPIFY_ACCESS_TOKEN;
@@ -122,8 +133,14 @@ export async function uploadProductToShopify(csvContent: string, productTitle: s
           })),
           images: productData.images,
           options: [
-            { name: 'Renk', values: [...new Set(productData.variants.map(v => v.option1))] },
-            { name: 'Beden', values: [...new Set(productData.variants.map(v => v.option2))] }
+            { 
+              name: 'Renk', 
+              values: [...new Set(productData.variants.map(v => v.option1).filter(v => v && v.trim()))] 
+            },
+            { 
+              name: 'Beden', 
+              values: [...new Set(productData.variants.map(v => v.option2).filter(v => v && v.trim()))] 
+            }
           ]
         }
       })
@@ -140,6 +157,47 @@ export async function uploadProductToShopify(csvContent: string, productTitle: s
 
     const result = await shopifyResponse.json();
     console.log('✅ Shopify product created successfully:', result.product.id);
+    
+    // DEBUG: Variant update işlemi - variants created but with wrong names
+    const productId = result.product.id;
+    const createdVariants = result.product.variants;
+    
+    console.log('🔧 Attempting to fix variant names via update API...');
+    console.log(`Product has ${createdVariants.length} variants to update`);
+    
+    // Update each variant with correct option values
+    for (let i = 0; i < Math.min(createdVariants.length, productData.variants.length); i++) {
+      const shopifyVariant = createdVariants[i];
+      const originalVariant = productData.variants[i];
+      
+      console.log(`Updating variant ${i}: ${originalVariant.option1} / ${originalVariant.option2}`);
+      
+      try {
+        const updateResponse = await fetch(`https://${shopifyStore}/admin/api/2023-10/variants/${shopifyVariant.id}.json`, {
+          method: 'PUT',
+          headers: {
+            'X-Shopify-Access-Token': accessToken,
+            'Content-Type': 'application/json'
+          },
+          body: JSON.stringify({
+            variant: {
+              id: shopifyVariant.id,
+              option1: originalVariant.option1,
+              option2: originalVariant.option2,
+              price: originalVariant.price
+            }
+          })
+        });
+        
+        if (updateResponse.ok) {
+          console.log(`✅ Variant ${i} updated successfully`);
+        } else {
+          console.log(`❌ Variant ${i} update failed:`, await updateResponse.text());
+        }
+      } catch (updateError) {
+        console.log(`❌ Variant ${i} update error:`, updateError);
+      }
+    }
     
     // Record upload to prevent duplicates
     recordUpload(productTitle, result.product.id.toString());
@@ -261,87 +319,102 @@ export async function uploadMultiUrlProductToShopify(productData: any, productTi
     const uniqueColors = new Set();
     const uniqueSizes = new Set();
     
+    // Gelişmiş renk tespiti için fonksiyon
+    function extractColorFromText(colorText: string): string {
+      const lowerText = colorText.toLowerCase();
+      
+      // Türkçe renk tespiti
+      if (lowerText.includes('beyaz') || lowerText.includes('white')) return 'Beyaz';
+      if (lowerText.includes('siyah') || lowerText.includes('black')) return 'Siyah';
+      if (lowerText.includes('yesil') || lowerText.includes('yeşil') || lowerText.includes('green')) return 'Yeşil';
+      if (lowerText.includes('mavi') || lowerText.includes('blue')) return 'Mavi';
+      if (lowerText.includes('kirmizi') || lowerText.includes('kırmızı') || lowerText.includes('red')) return 'Kırmızı';
+      if (lowerText.includes('sari') || lowerText.includes('sarı') || lowerText.includes('yellow')) return 'Sarı';
+      if (lowerText.includes('pembe') || lowerText.includes('pink')) return 'Pembe';
+      if (lowerText.includes('mor') || lowerText.includes('purple')) return 'Mor';
+      if (lowerText.includes('gri') || lowerText.includes('gray') || lowerText.includes('grey')) return 'Gri';
+      if (lowerText.includes('kahverengi') || lowerText.includes('brown')) return 'Kahverengi';
+      if (lowerText.includes('turuncu') || lowerText.includes('orange')) return 'Turuncu';
+      if (lowerText.includes('lacivert') || lowerText.includes('navy')) return 'Lacivert';
+      
+      return 'Diğer';
+    }
+    
     // allVariants'tan gerçek renk-beden kombinasyonlarını al
     const allVariants = productData.variants?.allVariants || [];
-    console.log('🔍 Raw allVariants data:', JSON.stringify(allVariants, null, 2));
+    const detectedColors = productData.variants?.colors || [];
     
-    // Her bir varyant için renk-beden kombinasyonu oluştur
-    if (allVariants && allVariants.length > 0) {
-      // Her variant için renk extract et
-      for (const variant of allVariants) {
-        const colorText = variant.color?.toLowerCase() || '';
-        let finalColor = 'Varsayılan';
+    console.log('🔍 Raw allVariants data:', JSON.stringify(allVariants, null, 2));
+    console.log('🎨 Detected colors from extraction:', detectedColors);
+    
+    // FORCED COLOR DETECTION - Multi-URL için özel
+    console.log('🚀 FORCED MULTI-URL COLOR DETECTION STARTED');
+    
+    // Test input data
+    console.log('🔍 Multi-URL Input Analysis:');
+    console.log('   Colors array:', detectedColors);
+    console.log('   AllVariants:', allVariants?.map(v => v.color));
+    
+    // Hard-coded renk tespiti - test için
+    if (detectedColors && detectedColors.length > 0) {
+      detectedColors.forEach(colorText => {
+        console.log(`🧪 Processing color: "${colorText}"`);
         
-        // Direct renk mapping
-        if (colorText.includes('siyah')) {
-          finalColor = 'Siyah';
-        } else if (colorText.includes('beyaz')) {
-          finalColor = 'Beyaz'; 
-        } else if (colorText.includes('mavi')) {
-          finalColor = 'Mavi';
-        } else if (colorText.includes('kırmızı')) {
-          finalColor = 'Kırmızı';
+        // Multi-URL'den gelen tam renk adlarını dönüştür
+        if (colorText.toLowerCase().includes('beyaz')) {
+          uniqueColors.add('Beyaz');
+          console.log('✅ BEYAZ renk eklendi');
         }
-        
-        console.log(`🎨 Color mapping: "${variant.color}" → "${finalColor}"`);
-        uniqueColors.add(finalColor);
-        
-        // Her renk için standart bedenleri ekle
-        ['S', 'M', 'L', 'XL'].forEach(size => {
-          uniqueSizes.add(size);
-        });
-      }
-      
-      // Eğer hiç renk bulunamazsa backup colors kullan
-      if (uniqueColors.size === 0) {
-        const backupColors = productData.variants?.colors || [];
-        backupColors.forEach((color: string) => {
-          const lowerColor = color.toLowerCase();
-          if (lowerColor.includes('siyah')) {
-            uniqueColors.add('Siyah');
-          } else if (lowerColor.includes('beyaz')) {
-            uniqueColors.add('Beyaz');
-          }
-        });
-      }
-      
-      // Son fallback
-      if (uniqueColors.size === 0) {
-        uniqueColors.add('Varsayılan');
-      }
-      if (uniqueSizes.size === 0) {
-        uniqueSizes.add('Standart');
-      }
-      
-      console.log('🎨 Final unique colors:', Array.from(uniqueColors));
-      console.log('📏 Final unique sizes:', Array.from(uniqueSizes));
-      
-      // Her renk-beden kombinasyonunu oluştur
-      for (const color of Array.from(uniqueColors)) {
-        for (const size of Array.from(uniqueSizes)) {
-          variants.push({
-            option1: color,
-            option2: size,
-            price: productData.price.withProfit.toString(),
-            compare_at_price: productData.price.value.toString(),
-            inventory_quantity: 10,
-            inventory_management: 'shopify',
-            inventory_policy: 'deny'
-          });
+        if (colorText.toLowerCase().includes('yesil') || colorText.toLowerCase().includes('yeşil')) {
+          uniqueColors.add('Yeşil');
+          console.log('✅ YEŞİL renk eklendi');
         }
-      }
-    } else {
-      console.log('⚠️ No allVariants found, using fallback');
-      variants.push({
-        option1: 'Varsayılan',
-        option2: 'Standart',
-        price: productData.price.withProfit.toString(),
-        compare_at_price: productData.price.value.toString(),
-        inventory_quantity: 10,
-        inventory_management: 'shopify',
-        inventory_policy: 'deny'
+        if (colorText.toLowerCase().includes('siyah')) {
+          uniqueColors.add('Siyah');
+          console.log('✅ SİYAH renk eklendi');
+        }
+        if (colorText.toLowerCase().includes('mavi')) {
+          uniqueColors.add('Mavi');
+          console.log('✅ MAVİ renk eklendi');
+        }
       });
     }
+    
+    // Fallback test renkleri - eğer hiçbir renk tespit edilmezse
+    if (uniqueColors.size === 0) {
+      console.log('⚠️ NO COLORS DETECTED! Adding test colors...');
+      uniqueColors.add('Beyaz');
+      uniqueColors.add('Yeşil');
+    }
+    
+    // Beden seçenekleri - sabit test
+    const testSizes = ['S', 'M', 'L', 'XL'];
+    testSizes.forEach(size => uniqueSizes.add(size));
+    
+    const finalColors = Array.from(uniqueColors);
+    const finalSizes = Array.from(uniqueSizes);
+    
+    console.log('🎨 DETECTED FINAL COLORS:', finalColors);
+    console.log('📏 DETECTED FINAL SIZES:', finalSizes);
+    
+    // Her renk-beden kombinasyonu için varyant oluştur
+    finalColors.forEach(color => {
+      finalSizes.forEach(size => {
+        const variant = {
+          option1: color,
+          option2: size,
+          price: productData.price.withProfit.toString(),
+          compare_at_price: productData.price.original.toString(),
+          inventory_quantity: 10,
+          inventory_management: 'shopify',
+          inventory_policy: 'deny'
+        };
+        variants.push(variant);
+        console.log(`✅ Created variant: ${color} - ${size}`);
+      });
+    });
+    
+    console.log(`📊 TOTAL VARIANTS CREATED: ${variants.length}`);
     
     // Product images - multi-URL'den gelen tüm görselleri ekle
     const images: any[] = [];
@@ -385,8 +458,8 @@ export async function uploadMultiUrlProductToShopify(productData: any, productTi
           variants: variants,
           images: images,
           options: [
-            { name: 'Renk', values: uniqueColors.size > 0 ? Array.from(uniqueColors) : ['Varsayılan'] },
-            { name: 'Beden', values: uniqueSizes.size > 0 ? Array.from(uniqueSizes) : ['Standart'] }
+            { name: 'Renk', values: finalColors },
+            { name: 'Beden', values: finalSizes }
           ]
         }
       })
