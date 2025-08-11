@@ -9,6 +9,7 @@ import { Loader2, ShoppingCart, Link, Copy, X, Home, Plus, Trash2, Package, Pale
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
+import { CSVPreview } from "@/components/CSVPreview";
 
 import { toast } from "@/hooks/use-toast";
 import { useLocation } from "wouter";
@@ -582,6 +583,13 @@ function ScraperPage() {
                 </div>
               </CardContent>
             </Card>
+          </div>
+        )}
+
+        {/* CSV Preview Section - At bottom of page */}
+        {product && (
+          <div className="mt-8">
+            <CSVPreview product={product} isVisible={!!product} />
           </div>
         )}
       </div>
