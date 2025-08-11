@@ -66,6 +66,8 @@ function ScraperPage() {
   const [productFeatures, setProductFeatures] = useState<any[]>([]);
   const [persistentTags, setPersistentTags] = useState<string[]>([]);
   const [newTag, setNewTag] = useState('');
+  const [draggedUrls, setDraggedUrls] = useState<string[]>([]);
+  const [isDragOver, setIsDragOver] = useState(false);
   
   const singleForm = useForm<ScrapeFormData>({
     resolver: zodResolver(scrapeSchema),
@@ -274,6 +276,85 @@ function ScraperPage() {
     setPersistentTags([]);
   };
 
+  // Sürükle-bırak fonksiyonları
+  const handleDragOver = (e: React.DragEvent) => {
+    e.preventDefault();
+    setIsDragOver(true);
+  };
+
+  const handleDragLeave = (e: React.DragEvent) => {
+    e.preventDefault();
+    setIsDragOver(false);
+  };
+
+  const handleDrop = (e: React.DragEvent) => {
+    e.preventDefault();
+    setIsDragOver(false);
+    
+    const text = e.dataTransfer.getData('text/plain');
+    const urls = text.split('\n').filter(line => 
+      line.trim() && 
+      (line.includes('trendyol.com') || line.includes('arcelik.com.tr'))
+    );
+    
+    if (urls.length > 0) {
+      const newUrls = urls.filter(url => !draggedUrls.includes(url.trim()));
+      setDraggedUrls(prev => [...prev, ...newUrls.map(url => url.trim())]);
+      toast({
+        title: "URL'ler Eklendi",
+        description: `${newUrls.length} yeni URL eklendi`
+      });
+    }
+  };
+
+  const addUrlManually = () => {
+    const url = singleForm.getValues('url');
+    if (url.trim() && !draggedUrls.includes(url.trim())) {
+      setDraggedUrls(prev => [...prev, url.trim()]);
+      singleForm.setValue('url', '');
+      toast({
+        title: "URL Eklendi",
+        description: "URL listeye eklendi"
+      });
+    }
+  };
+
+  const removeUrl = (indexToRemove: number) => {
+    setDraggedUrls(prev => prev.filter((_, index) => index !== indexToRemove));
+  };
+
+  const clearAllUrls = () => {
+    setDraggedUrls([]);
+  };
+
+  const processAllUrls = async () => {
+    if (draggedUrls.length === 0) {
+      toast({
+        title: "Hata",
+        description: "İşlemek için URL eklemeniz gerekiyor",
+        variant: "destructive"
+      });
+      return;
+    }
+
+    for (let i = 0; i < draggedUrls.length; i++) {
+      const url = draggedUrls[i];
+      try {
+        await singleScrapeMutation.mutateAsync({ url, persistentTags });
+        toast({
+          title: `${i + 1}/${draggedUrls.length} Tamamlandı`,
+          description: `${url} işlendi`
+        });
+      } catch (error) {
+        toast({
+          title: `${i + 1}/${draggedUrls.length} Hata`,
+          description: `${url} işlenemedi`,
+          variant: "destructive"
+        });
+      }
+    }
+  };
+
   const onMultiSubmit = multiForm.handleSubmit((data) => {
     multiUrlScrapeMutation.mutate(data);
   });
@@ -403,21 +484,48 @@ function ScraperPage() {
                     onSubmit={onSingleSubmit} 
                     className="space-y-4"
                   >
+                    {/* Sürükle-Bırak Alanı */}
                     <div className="space-y-3">
-                      <label className="text-white font-thin text-sm">Ürün URL'si</label>
-                      <div className="relative">
-                        <Input
-                          placeholder="https://www.trendyol.com/..."
-                          {...singleForm.register("url")}
-                          className="business-input h-14 text-base pl-4 pr-24"
-                          disabled={singleScrapeMutation.isPending}
-                        />
-                        <div className="absolute right-2 top-1/2 transform -translate-y-1/2 flex gap-1">
+                      <label className="text-white font-thin text-sm">Ürün URL'leri - Sürükle Bırak veya Manuel Ekle</label>
+                      
+                      {/* Sürükle-Bırak Alanı */}
+                      <div 
+                        className={`border-2 border-dashed transition-all duration-200 rounded-lg p-8 text-center ${
+                          isDragOver 
+                            ? 'border-cyan-400 bg-cyan-900/20' 
+                            : 'border-slate-600 bg-slate-800/50'
+                        }`}
+                        onDragOver={handleDragOver}
+                        onDragLeave={handleDragLeave}
+                        onDrop={handleDrop}
+                      >
+                        <div className="flex flex-col items-center gap-3">
+                          <Package className="w-8 h-8 text-cyan-400/70" />
+                          <div>
+                            <p className="text-white font-medium">
+                              Trendyol veya Arçelik URL'lerini buraya sürükleyin
+                            </p>
+                            <p className="text-slate-400 text-sm mt-1">
+                              Veya aşağıdaki alandan manuel olarak ekleyin
+                            </p>
+                          </div>
+                        </div>
+                      </div>
+
+                      {/* Manuel URL Ekleme */}
+                      <div className="flex gap-2">
+                        <div className="relative flex-1">
+                          <Input
+                            placeholder="https://www.trendyol.com/..."
+                            {...singleForm.register("url")}
+                            className="business-input h-12 text-base pl-4 pr-20"
+                            disabled={singleScrapeMutation.isPending}
+                          />
                           <Button
                             type="button"
                             size="sm"
                             variant="ghost"
-                            className="h-8 w-8 p-0 text-white hover:bg-blue-800"
+                            className="absolute right-2 top-1/2 transform -translate-y-1/2 h-8 w-8 p-0 text-white hover:bg-blue-800"
                             onClick={() => {
                               navigator.clipboard.readText().then(text => {
                                 singleForm.setValue('url', text);
@@ -430,18 +538,16 @@ function ScraperPage() {
                           >
                             <Copy className="w-4 h-4" />
                           </Button>
-                          <Button
-                            type="button"
-                            size="sm"
-                            variant="ghost"
-                            className="h-8 w-8 p-0 text-white hover:bg-blue-800"
-                            onClick={() => {
-                              singleForm.setValue('url', '');
-                            }}
-                          >
-                            <X className="w-4 h-4" />
-                          </Button>
                         </div>
+                        <Button
+                          type="button"
+                          onClick={addUrlManually}
+                          disabled={singleScrapeMutation.isPending}
+                          className="bg-blue-600 hover:bg-blue-700 text-white px-4 h-12"
+                        >
+                          <Plus className="w-4 h-4 mr-2" />
+                          Ekle
+                        </Button>
                       </div>
                     </div>
 
@@ -503,24 +609,80 @@ function ScraperPage() {
                         )}
                       </div>
                     </div>
+
+                    {/* URL Listesi */}
+                    {draggedUrls.length > 0 && (
+                      <div className="space-y-3">
+                        <div className="flex items-center justify-between">
+                          <label className="text-white font-thin text-sm">
+                            Eklenmiş URL'ler ({draggedUrls.length})
+                          </label>
+                          <Button
+                            type="button"
+                            onClick={clearAllUrls}
+                            variant="ghost"
+                            className="text-red-400 hover:text-red-300 text-xs h-6 px-2"
+                          >
+                            Tümünü Sil
+                          </Button>
+                        </div>
+                        <div className="max-h-40 overflow-y-auto space-y-2 bg-slate-800/30 rounded-lg p-3">
+                          {draggedUrls.map((url, index) => (
+                            <div key={index} className="flex items-center gap-2 bg-slate-700/50 px-3 py-2 rounded-md">
+                              <span className="text-cyan-400 text-xs font-mono">#{index + 1}</span>
+                              <span className="text-white text-xs flex-1 truncate">{url}</span>
+                              <Button
+                                type="button"
+                                onClick={() => removeUrl(index)}
+                                variant="ghost"
+                                className="h-6 w-6 p-0 text-red-400 hover:text-red-300"
+                              >
+                                <X className="w-3 h-3" />
+                              </Button>
+                            </div>
+                          ))}
+                        </div>
+                      </div>
+                    )}
                     
                     <div className="flex gap-3">
-                      <Button
-                        type="submit"
-                        disabled={singleScrapeMutation.isPending || uploadToShopifyMutation.isPending}
-                        className="business-button flex-1 h-14 text-lg font-thin"
-                      >
-                        {singleScrapeMutation.isPending ? (
-                          <div className="flex items-center gap-3">
-                            <Loader2 className="w-5 h-5 animate-spin" />
-                            <span>Ürün Verisi Çekiliyor...</span>
-                          </div>
-                        ) : (
-                          <span>SHOPIFY'A AKTAR</span>
-                        )}
-                      </Button>
+                      {draggedUrls.length > 0 ? (
+                        <Button 
+                          type="button"
+                          onClick={processAllUrls}
+                          disabled={singleScrapeMutation.isPending}
+                          className="business-button flex-1 h-14 text-lg font-thin"
+                        >
+                          {singleScrapeMutation.isPending ? (
+                            <div className="flex items-center gap-2">
+                              <Loader2 className="w-5 h-5 animate-spin" />
+                              İşleniyor...
+                            </div>
+                          ) : (
+                            <div className="flex items-center gap-2">
+                              <Package className="w-5 h-5" />
+                              TÜM ÜRÜNLERİ SHOPIFY'A AKTAR ({draggedUrls.length})
+                            </div>
+                          )}
+                        </Button>
+                      ) : (
+                        <Button
+                          type="submit"
+                          disabled={singleScrapeMutation.isPending || uploadToShopifyMutation.isPending}
+                          className="business-button flex-1 h-14 text-lg font-thin"
+                        >
+                          {singleScrapeMutation.isPending ? (
+                            <div className="flex items-center gap-3">
+                              <Loader2 className="w-5 h-5 animate-spin" />
+                              <span>Ürün Verisi Çekiliyor...</span>
+                            </div>
+                          ) : (
+                            <span>SHOPIFY'A AKTAR</span>
+                          )}
+                        </Button>
+                      )}
                       
-                      {product && (
+                      {product && !draggedUrls.length && (
                         <Button
                           type="button"
                           disabled={uploadToShopifyMutation.isPending || singleScrapeMutation.isPending}
