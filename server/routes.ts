@@ -48,6 +48,90 @@ import { uploadMultiUrlProductToShopify } from './multi-url-shopify-uploader';
 import { eq, desc, or, and, isNotNull, inArray } from 'drizzle-orm';
 import axios from 'axios';
 
+// Product verisini Shopify CSV formatına dönüştür
+function convertProductToShopifyCSV(productData: any): string {
+  const handle = productData.title?.toLowerCase().replace(/[^a-z0-9]/g, '-').replace(/-+/g, '-') || 'product';
+  
+  // CSV başlıkları
+  const headers = [
+    'Handle', 'Title', 'Body (HTML)', 'Vendor', 'Product Type', 'Tags', 'Published',
+    'Option1 Name', 'Option1 Value', 'Option2 Name', 'Option2 Value',
+    'Variant SKU', 'Variant Grams', 'Variant Inventory Tracker', 'Variant Inventory Qty',
+    'Variant Inventory Policy', 'Variant Fulfillment Service', 'Variant Price',
+    'Variant Compare At Price', 'Variant Requires Shipping', 'Variant Taxable',
+    'Variant Barcode', 'Image Src', 'Image Position', 'Image Alt Text',
+    'Gift Card', 'SEO Title', 'SEO Description', 'Google Shopping / Google Product Category',
+    'Google Shopping / Gender', 'Google Shopping / Age Group', 'Google Shopping / MPN',
+    'Google Shopping / AdWords Grouping', 'Google Shopping / AdWords Labels',
+    'Google Shopping / Condition', 'Google Shopping / Custom Product',
+    'Google Shopping / Custom Label 0', 'Google Shopping / Custom Label 1',
+    'Google Shopping / Custom Label 2', 'Google Shopping / Custom Label 3',
+    'Google Shopping / Custom Label 4', 'Variant Image', 'Variant Weight Unit',
+    'Cost per item', 'Included / United States', 'Price / United States',
+    'Compare At Price / United States', 'Status'
+  ];
+  
+  let csvContent = headers.join(',') + '\n';
+  
+  const colors = productData.variants?.colors || ['Standart'];
+  const sizes = productData.variants?.sizes || ['Tek Beden'];
+  const images = productData.images || [];
+  const price = productData.price?.withProfit || productData.price?.original || 100;
+  const comparePrice = productData.price?.original || price;
+  
+  let variantIndex = 0;
+  
+  colors.forEach((color) => {
+    sizes.forEach((size) => {
+      const isFirstVariant = variantIndex === 0;
+      const imageIndex = variantIndex % Math.max(images.length, 1);
+      const imageUrl = images[imageIndex] || '';
+      
+      const row = [
+        handle, // Handle
+        isFirstVariant ? productData.title || 'Ürün' : '', // Title
+        isFirstVariant ? `<p><strong>${productData.brand}</strong></p><p>${productData.title}</p>` : '', // Body HTML
+        isFirstVariant ? (productData.brand || 'Unknown') : '', // Vendor
+        isFirstVariant ? 'Apparel & Accessories > Clothing' : '', // Product Type
+        isFirstVariant ? 'trendyol, auto-generated' : '', // Tags
+        isFirstVariant ? 'TRUE' : '', // Published
+        isFirstVariant ? 'Renk' : '', // Option1 Name
+        color, // Option1 Value
+        isFirstVariant ? 'Beden' : '', // Option2 Name
+        size, // Option2 Value
+        `${handle}-${color}-${size}`.toLowerCase().replace(/[^a-z0-9-]/g, ''), // Variant SKU
+        '0', // Variant Grams
+        'shopify', // Variant Inventory Tracker
+        '10', // Variant Inventory Qty
+        'deny', // Variant Inventory Policy
+        'manual', // Variant Fulfillment Service
+        price.toString(), // Variant Price
+        comparePrice.toString(), // Variant Compare At Price
+        'TRUE', // Variant Requires Shipping
+        'TRUE', // Variant Taxable
+        '', // Variant Barcode
+        imageUrl, // Image Src
+        (imageIndex + 1).toString(), // Image Position
+        `${productData.title} - ${color} ${size}`, // Image Alt Text
+        'FALSE', // Gift Card
+        '', '', '', '', '', '', '', '', '', '', '', '', '', '', '', '', '', // SEO and Google Shopping fields
+        '', // Variant Image
+        'kg', // Variant Weight Unit
+        '0', // Cost per item
+        'TRUE', // Included / United States
+        price.toString(), // Price / United States
+        comparePrice.toString(), // Compare At Price / United States
+        'active' // Status
+      ];
+      
+      csvContent += row.map(field => `"${field}"`).join(',') + '\n';
+      variantIndex++;
+    });
+  });
+  
+  return csvContent;
+}
+
 // Multi-URL product verisini CSV formatına dönüştür
 function convertMultiUrlProductToCSV(productData: any): string {
   const colors = productData.variants?.colors || [];
@@ -1809,6 +1893,39 @@ export function registerRoutes(app: Express): Server {
     } catch (error) {
       console.error('Multi-variant discovery error:', error);
       res.status(500).json({ message: 'Multi-variant discovery hatası', error: (error as Error).message });
+    }
+  });
+
+  // Generate multi-variant CSV endpoint (for client compatibility)
+  app.post('/api/generate-multi-variant-csv', async (req, res) => {
+    try {
+      const { productData } = req.body;
+      
+      if (!productData) {
+        return res.status(400).json({
+          success: false,
+          message: 'Product data is required'
+        });
+      }
+
+      console.log('📊 Generating CSV for product:', productData.title);
+      
+      // Create CSV content with the product data format from scenario scraping
+      const csvContent = convertProductToShopifyCSV(productData);
+      
+      return res.json({
+        success: true,
+        csvContent: csvContent,
+        message: 'CSV generated successfully'
+      });
+      
+    } catch (error) {
+      console.error('❌ CSV generation error:', error);
+      return res.status(500).json({
+        success: false,
+        error: 'CSV generation failed',
+        message: error instanceof Error ? error.message : 'CSV generation failed'
+      });
     }
   });
 
