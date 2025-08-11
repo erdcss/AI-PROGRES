@@ -1595,22 +1595,7 @@ export function registerRoutes(app: Express): Server {
       console.log('   productData type:', typeof productData);
       console.log('   productData keys:', productData ? Object.keys(productData).slice(0, 5) : 'none');
       
-      // Eğer productData varsa ve csvContent yoksa multi-URL upload kullan
-      if (productData && !csvContent) {
-        console.log('🔄 ✅ Multi-URL product data detected - Using direct uploader');
-        console.log('🎨 ROUTE DEBUG - Colors in productData:', productData.variants?.colors);
-        console.log('📋 ROUTE DEBUG - AllVariants:', productData.variants?.allVariants);
-        
-        // Direkt multi-URL uploader kullan
-        const uploadResult = await uploadMultiUrlProductToShopify(productData, productTitle || productData.title);
-        return res.json(uploadResult);
-      } else {
-        console.log('🔄 ❌ Multi-URL condition not met, checking CSV...');
-        console.log('   productData exists:', !!productData);
-        console.log('   csvContent exists:', !!csvContent);
-      }
-      
-      // CSV yükleme
+      // CSV upload'u öncelik ver - multi-URL da CSV generate ediyor
       if (csvContent) {
         console.log(`🛒 Uploading CSV to Shopify: ${productTitle}`);
         const uploadResult = await uploadProductToShopify(csvContent, productTitle);
@@ -1629,6 +1614,18 @@ export function registerRoutes(app: Express): Server {
           });
         }
       }
+      
+      // Eğer sadece productData varsa direkt upload kullan
+      if (productData && !csvContent) {
+        console.log('🔄 ✅ Multi-URL product data detected - Using direct uploader');
+        console.log('🎨 ROUTE DEBUG - Colors in productData:', productData.variants?.colors);
+        console.log('📋 ROUTE DEBUG - AllVariants:', productData.variants?.allVariants);
+        
+        // Direkt multi-URL uploader kullan
+        const uploadResult = await uploadMultiUrlProductToShopify(productData, productTitle || productData.title);
+        return res.json(uploadResult);
+      }
+
       
       console.log('❌ Neither CSV content nor product data provided');
       return res.status(400).json({
