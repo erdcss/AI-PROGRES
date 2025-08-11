@@ -1093,6 +1093,26 @@ export function registerRoutes(app: Express): Server {
           // Send Telegram notification with product URL and title
           await sendProductExtractionNotification(url, result.title, result.brand, result.price);
           
+          // CSV generation için gerekli veri hazırla
+          const csvProductData = {
+            title: result.title,
+            brand: result.brand,
+            price: result.price,
+            images: result.images,
+            variants: result.variants,
+            features: result.features,
+            tags: result.tags
+          };
+          
+          // CSV içeriğini generate et
+          let csvContent = '';
+          try {
+            csvContent = generateMultiVariantShopifyCSV(csvProductData);
+            console.log(`📋 CSV generated for ${result.title}: ${csvContent.length} characters`);
+          } catch (csvError) {
+            console.warn('⚠️ CSV generation failed, continuing without CSV:', csvError);
+          }
+          
           return res.json({
             success: true,
             extractionMethod: 'scenario-based-scraper',
@@ -1105,6 +1125,7 @@ export function registerRoutes(app: Express): Server {
             features: result.features,
             variants: result.variants,
             tags: result.tags,
+            csvContent: csvContent,
             extractionDetails: result.extractionDetails
           });
         } else {
