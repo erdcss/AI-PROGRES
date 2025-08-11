@@ -1931,6 +1931,7 @@ export function registerRoutes(app: Express): Server {
       console.log('📥 Shopify upload request received');
       console.log('Request body keys:', Object.keys(req.body));
       console.log('CSV Content exists:', !!csvContent);
+      console.log('CSV Content preview:', csvContent ? csvContent.substring(0, 200) + '...' : 'null');
       console.log('Product Data exists:', !!productData);
       console.log('Product Title:', productTitle);
       
