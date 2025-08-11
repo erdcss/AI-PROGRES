@@ -171,6 +171,39 @@ function ScraperPage() {
     }
   });
 
+  // Toplu Shopify yükleme mutation'ı
+  const bulkUploadMutation = useMutation({
+    mutationFn: async () => {
+      const results = [];
+      for (const preview of csvPreviews) {
+        try {
+          await uploadToShopify(preview.csvContent, preview.productTitle);
+          results.push({ success: true, title: preview.productTitle });
+        } catch (error) {
+          results.push({ success: false, title: preview.productTitle, error });
+        }
+      }
+      return results;
+    },
+    onError: (error) => {
+      console.error('Bulk upload error:', error);
+      toast({
+        title: "Toplu Yükleme Hatası",
+        description: "Shopify'a yüklenirken bir hata oluştu",
+        variant: "destructive"
+      });
+    },
+    onSuccess: (results) => {
+      const successCount = results.filter(r => r.success).length;
+      const failCount = results.length - successCount;
+      
+      toast({
+        title: "Toplu Yükleme Tamamlandı",
+        description: `${successCount} ürün başarıyla yüklendi${failCount > 0 ? `, ${failCount} ürün başarısız` : ''}`
+      });
+    }
+  });
+
   const uploadToShopifyMutation = useMutation({
     mutationFn: async () => {
       if (!product) {
@@ -399,6 +432,21 @@ function ScraperPage() {
 
   const clearAllUrls = () => {
     setDraggedUrls([]);
+  };
+
+  // Tüm CSV'leri Shopify'a yükleme fonksiyonu
+  const uploadAllCSVsToShopify = async () => {
+    if (csvPreviews.length === 0) {
+      toast({
+        title: "Hata",
+        description: "Yüklenecek CSV dosyası bulunamadı",
+        variant: "destructive"
+      });
+      return;
+    }
+    
+    console.log('🛒 Starting bulk Shopify upload for', csvPreviews.length, 'products');
+    bulkUploadMutation.mutate();
   };
 
   const processAllUrls = async () => {
@@ -778,28 +826,50 @@ function ScraperPage() {
                       </div>
                     )}
                     
-                    <div className="flex gap-3">
+                    <div className="space-y-3">
                       {draggedUrls.length > 0 ? (
-                        <Button 
-                          type="button"
-                          onClick={processAllUrls}
-                          disabled={singleScrapeMutation.isPending}
-                          className="business-button flex-1 h-14 text-lg font-thin"
-                        >
-                          {singleScrapeMutation.isPending ? (
-                            <div className="flex items-center gap-2">
-                              <Loader2 className="w-5 h-5 animate-spin" />
-                              İşleniyor...
-                            </div>
-                          ) : (
-                            <div className="flex items-center gap-2">
-                              <Package className="w-5 h-5" />
-                              TÜM ÜRÜNLERİ SHOPIFY'A AKTAR ({draggedUrls.length})
-                            </div>
-                          )}
-                        </Button>
+                        <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
+                          <Button 
+                            type="button"
+                            onClick={processAllUrls}
+                            disabled={singleScrapeMutation.isPending}
+                            className="bg-gradient-to-r from-green-600 to-emerald-600 hover:from-green-700 hover:to-emerald-700 text-white h-14 text-lg font-medium"
+                          >
+                            {singleScrapeMutation.isPending ? (
+                              <div className="flex items-center gap-2">
+                                <Loader2 className="w-5 h-5 animate-spin" />
+                                Veriler Çekiliyor... ({draggedUrls.length})
+                              </div>
+                            ) : (
+                              <div className="flex items-center gap-2">
+                                <Package className="w-5 h-5" />
+                                ÜRÜN VERİLERİNİ ÇEK ({draggedUrls.length})
+                              </div>
+                            )}
+                          </Button>
+                          
+                          <Button 
+                            type="button"
+                            onClick={uploadAllCSVsToShopify}
+                            disabled={csvPreviews.length === 0 || bulkUploadMutation.isPending}
+                            className="bg-gradient-to-r from-cyan-600 to-blue-600 hover:from-cyan-700 hover:to-blue-700 text-white h-14 text-lg font-medium"
+                          >
+                            {bulkUploadMutation.isPending ? (
+                              <div className="flex items-center gap-2">
+                                <Loader2 className="w-5 h-5 animate-spin" />
+                                Shopify'a Yükleniyor... ({csvPreviews.length})
+                              </div>
+                            ) : (
+                              <div className="flex items-center gap-2">
+                                <ShoppingCart className="w-5 h-5" />
+                                SHOPIFY'A AKTAR ({csvPreviews.length})
+                              </div>
+                            )}
+                          </Button>
+                        </div>
                       ) : (
-                        <Button
+                        <div className="flex gap-3">
+                          <Button
                           type="submit"
                           disabled={singleScrapeMutation.isPending || uploadToShopifyMutation.isPending}
                           className="business-button flex-1 h-14 text-lg font-thin"
@@ -813,6 +883,7 @@ function ScraperPage() {
                             <span>SHOPIFY'A AKTAR</span>
                           )}
                         </Button>
+                        </div>
                       )}
                       
                       {product && !draggedUrls.length && (
