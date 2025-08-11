@@ -48,6 +48,68 @@ import { uploadMultiUrlProductToShopify } from './multi-url-shopify-uploader';
 import { eq, desc, or, and, isNotNull, inArray } from 'drizzle-orm';
 import axios from 'axios';
 
+// Enhanced description creator with features
+function createEnhancedDescription(productData: any): string {
+  let description = `<div class="product-description">`;
+  
+  // Brand and title section
+  description += `<h2><strong>${productData.brand}</strong></h2>`;
+  description += `<p>${productData.title}</p>`;
+  
+  // Price information
+  if (productData.price) {
+    description += `<div class="price-info">`;
+    description += `<p><strong>💰 Fiyat:</strong> ${productData.price.profitFormatted || productData.price.withProfit + ' TL'}</p>`;
+    if (productData.price.original && productData.price.original !== productData.price.withProfit) {
+      description += `<p><em>Orijinal Fiyat: ${productData.price.original} TL</em></p>`;
+    }
+    description += `</div>`;
+  }
+  
+  // Product features section
+  if (productData.features && productData.features.length > 0) {
+    description += `<div class="product-features">`;
+    description += `<h3>🔧 Ürün Özellikleri:</h3>`;
+    description += `<ul>`;
+    
+    productData.features.forEach((feature) => {
+      if (feature.key && feature.value) {
+        description += `<li><strong>${feature.key}:</strong> ${feature.value}</li>`;
+      }
+    });
+    
+    description += `</ul>`;
+    description += `</div>`;
+  }
+  
+  // Variant information
+  if (productData.variants) {
+    description += `<div class="variant-info">`;
+    description += `<h3>📦 Mevcut Seçenekler:</h3>`;
+    
+    if (productData.variants.colors && productData.variants.colors.length > 0) {
+      description += `<p><strong>Renkler:</strong> ${productData.variants.colors.join(', ')}</p>`;
+    }
+    
+    if (productData.variants.sizes && productData.variants.sizes.length > 0) {
+      description += `<p><strong>Bedenler:</strong> ${productData.variants.sizes.join(', ')}</p>`;
+    }
+    
+    description += `</div>`;
+  }
+  
+  // Tags section
+  if (productData.tags && productData.tags.length > 0) {
+    description += `<div class="product-tags">`;
+    description += `<p><strong>🏷️ Kategoriler:</strong> ${productData.tags.join(', ')}</p>`;
+    description += `</div>`;
+  }
+  
+  description += `</div>`;
+  
+  return description;
+}
+
 // Product verisini Shopify CSV formatına dönüştür
 function convertProductToShopifyCSV(productData: any): string {
   const handle = productData.title?.toLowerCase().replace(/[^a-z0-9]/g, '-').replace(/-+/g, '-') || 'product';
@@ -90,7 +152,7 @@ function convertProductToShopifyCSV(productData: any): string {
       const row = [
         handle, // Handle
         isFirstVariant ? productData.title || 'Ürün' : '', // Title
-        isFirstVariant ? `<p><strong>${productData.brand}</strong></p><p>${productData.title}</p>` : '', // Body HTML
+        isFirstVariant ? createEnhancedDescription(productData) : '', // Body HTML
         isFirstVariant ? (productData.brand || 'Unknown') : '', // Vendor
         isFirstVariant ? 'Apparel & Accessories > Clothing' : '', // Product Type
         isFirstVariant ? 'trendyol, auto-generated' : '', // Tags
