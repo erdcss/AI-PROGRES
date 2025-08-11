@@ -586,10 +586,39 @@ function ScraperPage() {
           </div>
         )}
 
-        {/* CSV Preview Section - At bottom of page */}
-        {product && (
+        {/* CSV Preview Section - Single Variant */}
+        {scrapingMode === 'single' && product && (
           <div className="mt-8">
-            <CSVPreview product={product} isVisible={!!product} />
+            <Card className="business-card">
+              <CardHeader className="business-header">
+                <CardTitle className="text-white font-thin text-lg flex items-center gap-2">
+                  <Package className="w-5 h-5 text-cyan-400/70" />
+                  CSV Ön İzleme - Tek Varyant
+                </CardTitle>
+                <p className="text-cyan-400/70 text-sm font-thin">Shopify için hazırlanmış CSV dosyası ön görünümü</p>
+              </CardHeader>
+              <CardContent className="p-6">
+                <CSVPreview product={product} isVisible={true} />
+              </CardContent>
+            </Card>
+          </div>
+        )}
+
+        {/* CSV Preview Section - Multi Variant */}
+        {scrapingMode === 'multi-url' && product && (
+          <div className="mt-8">
+            <Card className="business-card">
+              <CardHeader className="business-header">
+                <CardTitle className="text-white font-thin text-lg flex items-center gap-2">
+                  <Palette className="w-5 h-5 text-cyan-400/70" />
+                  CSV Ön İzleme - Çoklu Varyant
+                </CardTitle>
+                <p className="text-cyan-400/70 text-sm font-thin">Birleştirilmiş ürün varyantları için CSV dosyası ön görünümü</p>
+              </CardHeader>
+              <CardContent className="p-6">
+                <CSVPreview product={product} isVisible={true} />
+              </CardContent>
+            </Card>
           </div>
         )}
       </div>
