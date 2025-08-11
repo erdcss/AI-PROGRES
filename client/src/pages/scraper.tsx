@@ -130,9 +130,9 @@ function ScraperPage() {
     onSuccess: (data) => {
       setProduct(data);
       
-      // Her ürün için ayrı CSV preview ekle
-      if (data.csvContent) {
-        console.log('🎯 CSV Content found, adding to previews:', data.title);
+      // Sadece tek URL işleminde CSV preview ekle, bulk işlemde processAllUrls halletsin
+      if (data.csvContent && draggedUrls.length === 0) {
+        console.log('🎯 Single URL CSV Content found, adding to previews:', data.title);
         const newCSVPreview = {
           id: `csv-${Date.now()}-${Math.random().toString(36).substr(2, 9)}`,
           productTitle: data.title || 'Ürün',
@@ -145,17 +145,14 @@ function ScraperPage() {
           createdAt: new Date().toISOString()
         };
         
-        console.log('📋 Adding CSV preview:', newCSVPreview.id, newCSVPreview.productTitle);
-        setCsvPreviews(prev => {
-          console.log('📋 Current CSV previews count:', prev.length);
-          return [newCSVPreview, ...prev];
-        });
+        console.log('📋 Adding Single URL CSV preview:', newCSVPreview.id, newCSVPreview.productTitle);
+        setCsvPreviews(prev => [newCSVPreview, ...prev]);
         
         toast({
           title: "Başarılı", 
           description: "Ürün verisi çekildi ve CSV önizleme eklendi"
         });
-      } else {
+      } else if (draggedUrls.length === 0) {
         toast({
           title: "Başarılı",
           description: "Tek varyant ürün verisi çekildi"

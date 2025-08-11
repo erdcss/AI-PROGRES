@@ -53,24 +53,26 @@ export function CSVDrawerPreview({ csvPreviews, onDownload, onShopifyUpload }: C
   }
 
   return (
-    <div className="space-y-4">
-      <div className="flex items-center gap-2 mb-4">
-        <FileText className="w-5 h-5 text-cyan-400" />
-        <h3 className="text-white font-thin text-lg">CSV Dosya Önizlemeleri</h3>
-        <Badge variant="secondary" className="bg-cyan-900/30 text-cyan-300">
-          {csvPreviews.length} dosya
-        </Badge>
-      </div>
-
-      <div className="space-y-3">
+    <Card className="business-card bg-gradient-to-br from-slate-900/90 via-slate-800/50 to-slate-900/90 backdrop-blur border border-cyan-800/30">
+      <CardHeader className="business-header pb-3">
+        <div className="flex items-center gap-2">
+          <FileText className="w-5 h-5 text-cyan-400" />
+          <CardTitle className="text-white font-thin text-lg">CSV Dosya Önizlemeleri</CardTitle>
+          <Badge variant="secondary" className="bg-cyan-900/30 text-cyan-300">
+            {csvPreviews.length} dosya
+          </Badge>
+        </div>
+      </CardHeader>
+      
+      <CardContent className="p-4 space-y-3">
         {csvPreviews.map((preview) => {
           const isExpanded = expandedItems.has(preview.id);
           const { headers, rows } = parseCSVContent(preview.csvContent);
           const variantCount = preview.variants.colors.length * preview.variants.sizes.length;
 
           return (
-            <Card key={preview.id} className="bg-slate-800/50 border border-cyan-800/30">
-              <CardHeader className="pb-3">
+            <Card key={preview.id} className="bg-slate-800/30 border border-slate-600/40 hover:border-cyan-600/50 transition-colors">
+              <CardHeader className="pb-2">
                 <div className="flex items-center justify-between">
                   <div className="flex items-center gap-3 flex-1">
                     <FileText className="w-5 h-5 text-cyan-400" />
@@ -242,7 +244,7 @@ export function CSVDrawerPreview({ csvPreviews, onDownload, onShopifyUpload }: C
             </Card>
           );
         })}
-      </div>
-    </div>
+      </CardContent>
+    </Card>
   );
 }
