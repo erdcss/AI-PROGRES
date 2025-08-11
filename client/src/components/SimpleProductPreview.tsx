@@ -50,11 +50,11 @@ export function SimpleProductPreview({ product }: SimpleProductPreviewProps) {
   const safeVariants = variants || { colors: [], sizes: [], stockMap: {} };
 
   // Use price details from API response - %10 kar marjı
-  const priceDetails = typeof price === 'object' ? price : {
-    original: Math.round((typeof price === 'number' ? price : 0) / 1.10),
-    withProfit: typeof price === 'number' ? price : 0,
-    formatted: `${Math.round((typeof price === 'number' ? price : 0) / 1.10).toFixed(0)} TL`,
-    profitFormatted: `${(typeof price === 'number' ? price : 0).toFixed(0)} TL`,
+  const priceDetails = typeof price === 'object' && price.withProfit ? price : {
+    original: typeof price === 'number' ? price : 0,
+    withProfit: Math.round((typeof price === 'number' ? price : 0) * 1.10),
+    formatted: `${(typeof price === 'number' ? price : 0).toFixed(0)} TL`,
+    profitFormatted: `${Math.round((typeof price === 'number' ? price : 0) * 1.10).toFixed(0)} TL`,
     currency: 'TL'
   };
 
@@ -248,7 +248,7 @@ export function SimpleProductPreview({ product }: SimpleProductPreviewProps) {
               // Check stock for this size across all colors
               const isInStock = variants.colors.some(color => {
                 const key = `${color}-${size}`;
-                return variants.stockMap[key] === true;
+                return variants.stockMap && variants.stockMap[key] === true;
               });
               
               return (

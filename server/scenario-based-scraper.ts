@@ -167,6 +167,13 @@ export async function scenarioBasedScrape(url: string): Promise<ScenarioBasedRes
     const uniqueSizes = variants.map(v => v.size).filter(s => s && s.trim() !== '' && !['1', 'Standart', 'Varsayılan'].includes(s));
     const sizes = Array.from(new Set(uniqueSizes));
     
+    // Create stockMap object for frontend
+    const stockMap: Record<string, boolean> = {};
+    variants.forEach(variant => {
+      const key = `${variant.color}-${variant.size}`;
+      stockMap[key] = variant.inStock;
+    });
+    
     return {
       success: true,
       scenario: detection.scenario,
@@ -179,6 +186,7 @@ export async function scenarioBasedScrape(url: string): Promise<ScenarioBasedRes
       variants: {
         colors: colors,
         sizes: sizes,
+        stockMap: stockMap,
         allVariants: variants
       },
       tags: advancedTags, // Added advanced tags
