@@ -233,25 +233,67 @@ export function SimpleProductPreview({ product }: SimpleProductPreviewProps) {
         </div>
       )}
 
-      {/* Compact Variant Summary */}
-      {getVariantCount() > 0 && (
-        <div className="bg-slate-800/30 rounded-lg p-2">
-          <div className="flex items-center justify-between">
-            <div className="flex items-center gap-2">
-              <Palette className="h-3 w-3 text-purple-400" />
-              <span className="text-xs font-medium text-gray-300">Varyantlar</span>
-            </div>
-            <div className="flex items-center gap-3 text-xs">
-              <span className="text-purple-400 bg-purple-400/10 px-1.5 py-0.5 rounded">{getVariantCount()}</span>
+      {/* Detailed Size Variants Display */}
+      {variants && variants.sizes && variants.sizes.length > 0 && (
+        <div className="bg-slate-800/30 rounded-lg p-4">
+          <div className="flex items-center gap-2 mb-3">
+            <Palette className="h-4 w-4 text-purple-400" />
+            <span className="text-sm font-medium text-gray-300">Beden Seçenekleri</span>
+            <span className="text-xs text-purple-400 bg-purple-400/10 px-2 py-1 rounded">{variants.sizes.length}</span>
+          </div>
+          
+          {/* Size Grid - All sizes displayed */}
+          <div className="grid grid-cols-3 sm:grid-cols-6 gap-2">
+            {variants.sizes.map((size, index) => {
+              // Check stock for this size across all colors
+              const isInStock = variants.colors.some(color => {
+                const key = `${color}-${size}`;
+                return variants.stockMap[key] === true;
+              });
+              
+              return (
+                <div
+                  key={index}
+                  className={`
+                    relative px-3 py-2 rounded-lg border text-center text-sm font-medium transition-all duration-200
+                    ${isInStock 
+                      ? 'bg-green-500/20 border-green-400/50 text-green-300 hover:bg-green-500/30' 
+                      : 'bg-gray-800/50 border-gray-600/50 text-gray-500 opacity-60'
+                    }
+                  `}
+                >
+                  <div className="font-bold">{size}</div>
+                  <div className="text-xs mt-0.5">
+                    {isInStock ? (
+                      <span className="text-green-400">Stokta</span>
+                    ) : (
+                      <span className="text-gray-500">Tükendi</span>
+                    )}
+                  </div>
+                  
+                  {/* Stock indicator dot */}
+                  <div className={`
+                    absolute -top-1 -right-1 w-3 h-3 rounded-full border-2 border-slate-800
+                    ${isInStock ? 'bg-green-400' : 'bg-gray-600'}
+                  `} />
+                </div>
+              );
+            })}
+          </div>
+          
+          {/* Stock Summary */}
+          <div className="mt-3 flex items-center justify-between text-xs">
+            <div className="flex items-center gap-4">
               <div className="flex items-center gap-1">
-                <span className="text-green-400">{getInStockCount()}</span>
-                <span className="text-gray-400">stokta</span>
+                <div className="w-2 h-2 bg-green-400 rounded-full"></div>
+                <span className="text-green-400">{getInStockCount()} Stokta</span>
               </div>
               <div className="flex items-center gap-1">
-                <span className="text-red-400">{getVariantCount() - getInStockCount()}</span>
-                <span className="text-gray-400">tükendi</span>
+                <div className="w-2 h-2 bg-gray-600 rounded-full"></div>
+                <span className="text-gray-500">{getVariantCount() - getInStockCount()} Tükendi</span>
               </div>
             </div>
+            <span className="text-gray-400">Toplam {variants.sizes.length} beden</span>
           </div>
         </div>
       )}
