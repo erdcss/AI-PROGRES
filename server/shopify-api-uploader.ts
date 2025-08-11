@@ -93,13 +93,13 @@ export async function uploadProductToShopify(csvContent: string, productTitle: s
       console.log(`Variant ${index}: option1="${variant.option1}", option2="${variant.option2}", price="${variant.price}"`);
     });
     
-    const finalColors = [...new Set(productData.variants.map(v => v.option1).filter(v => v && v.trim()))];
-    const finalSizes = [...new Set(productData.variants.map(v => v.option2).filter(v => v && v.trim()))];
+    const finalColors = Array.from(new Set(productData.variants.map(v => v.option1).filter(v => v && v.trim())));
+    const finalSizes = Array.from(new Set(productData.variants.map(v => v.option2).filter(v => v && v.trim())));
     console.log('🎨 FINAL COLORS FOR API:', finalColors);
     console.log('📏 FINAL SIZES FOR API:', finalSizes);
     
     // Shopify API endpoint
-    const shopifyStore = process.env.SHOPIFY_STORE_DOMAIN;
+    const shopifyStore = process.env.SHOPIFY_SHOP_DOMAIN;
     const accessToken = process.env.SHOPIFY_ACCESS_TOKEN;
     
     if (!shopifyStore || !accessToken) {
@@ -135,11 +135,11 @@ export async function uploadProductToShopify(csvContent: string, productTitle: s
           options: [
             { 
               name: 'Renk', 
-              values: [...new Set(productData.variants.map(v => v.option1).filter(v => v && v.trim()))] 
+              values: Array.from(new Set(productData.variants.map(v => v.option1).filter(v => v && v.trim())))
             },
             { 
               name: 'Beden', 
-              values: [...new Set(productData.variants.map(v => v.option2).filter(v => v && v.trim()))] 
+              values: Array.from(new Set(productData.variants.map(v => v.option2).filter(v => v && v.trim())))
             }
           ]
         }
@@ -313,7 +313,7 @@ export async function uploadMultiUrlProductToShopify(productData: any, productTi
     }
     
     // Shopify API endpoint
-    const shopifyStore = process.env.SHOPIFY_STORE_DOMAIN;
+    const shopifyStore = process.env.SHOPIFY_SHOP_DOMAIN;
     const accessToken = process.env.SHOPIFY_ACCESS_TOKEN;
     
     if (!shopifyStore || !accessToken) {
@@ -324,12 +324,12 @@ export async function uploadMultiUrlProductToShopify(productData: any, productTi
     }
 
     // Multi-URL verilerinden doğru variants ve colors oluştur
-    const variants = [];
+    const variants: any[] = [];
     const uniqueColors = new Set();
     const uniqueSizes = new Set();
     
     // Gelişmiş renk tespiti için fonksiyon
-    function extractColorFromText(colorText: string): string {
+    const extractColorFromText = (colorText: string): string => {
       const lowerText = colorText.toLowerCase();
       
       // Türkçe renk tespiti
@@ -347,7 +347,7 @@ export async function uploadMultiUrlProductToShopify(productData: any, productTi
       if (lowerText.includes('lacivert') || lowerText.includes('navy')) return 'Lacivert';
       
       return 'Diğer';
-    }
+    };
     
     // allVariants'tan gerçek renk-beden kombinasyonlarını al
     const allVariants = productData.variants?.allVariants || [];
@@ -362,11 +362,11 @@ export async function uploadMultiUrlProductToShopify(productData: any, productTi
     // Test input data
     console.log('🔍 Multi-URL Input Analysis:');
     console.log('   Colors array:', detectedColors);
-    console.log('   AllVariants:', allVariants?.map(v => v.color));
+    console.log('   AllVariants:', allVariants?.map((v: any) => v.color));
     
     // Hard-coded renk tespiti - test için
     if (detectedColors && detectedColors.length > 0) {
-      detectedColors.forEach(colorText => {
+      detectedColors.forEach((colorText: any) => {
         console.log(`🧪 Processing color: "${colorText}"`);
         
         // Multi-URL'den gelen tam renk adlarını dönüştür
@@ -463,7 +463,7 @@ export async function uploadMultiUrlProductToShopify(productData: any, productTi
           body_html: createProductDescription(productData),
           vendor: productData.brand,
           product_type: productType,
-          tags: generateProductTags(productData, allColors),
+          tags: generateProductTags(productData, Array.from(uniqueColors)),
           variants: variants,
           images: images,
           options: [
@@ -548,7 +548,7 @@ function createProductDescription(productData: any): string {
     ${productData.description ? `<p>${productData.description}</p>` : ''}
     ${productData.features?.length > 0 ? `
       <h3>Ürün Özellikleri</h3>
-      <ul>${productData.features.map(f => `<li>${f}</li>`).join('')}</ul>
+      <ul>${productData.features.map((f: any) => `<li>${f}</li>`).join('')}</ul>
     ` : ''}
   `.trim();
 }
@@ -598,7 +598,7 @@ function generateProductTags(productData: any, colors: string[]): string {
     ...productData.tags || []
   ];
   
-  return [...new Set(tags)].filter(Boolean).join(', ');
+  return Array.from(new Set(tags)).filter(Boolean).join(', ');
 }
 
 async function sendTelegramNotification(data: any) {
@@ -629,13 +629,13 @@ async function sendTelegramNotification(data: any) {
 // Test connection to Shopify
 export async function testShopifyConnection(): Promise<{ success: boolean; message: string; store?: string }> {
   try {
-    const shopifyStore = process.env.SHOPIFY_STORE_DOMAIN;
+    const shopifyStore = process.env.SHOPIFY_SHOP_DOMAIN;
     const accessToken = process.env.SHOPIFY_ACCESS_TOKEN;
     
     if (!shopifyStore || !accessToken) {
       return { 
         success: false, 
-        message: 'SHOPIFY_STORE_DOMAIN veya SHOPIFY_ACCESS_TOKEN environment variable\'ları bulunamadı' 
+        message: 'SHOPIFY_SHOP_DOMAIN veya SHOPIFY_ACCESS_TOKEN environment variable\'ları bulunamadı' 
       };
     }
 
