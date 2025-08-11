@@ -64,6 +64,8 @@ function ScraperPage() {
   const [scrapingMode, setScrapingMode] = useState<ScrapingMode>('single');
   const [allImages, setAllImages] = useState<any[]>([]);
   const [productFeatures, setProductFeatures] = useState<any[]>([]);
+  const [persistentTags, setPersistentTags] = useState<string[]>([]);
+  const [newTag, setNewTag] = useState('');
   
   const singleForm = useForm<ScrapeFormData>({
     resolver: zodResolver(scrapeSchema),
@@ -80,13 +82,13 @@ function ScraperPage() {
   });
 
   const singleScrapeMutation = useMutation({
-    mutationFn: async (data: ScrapeFormData) => {
+    mutationFn: async (data: ScrapeFormData & { persistentTags?: string[] }) => {
       const response = await fetch("/api/scenario-scrape", {
         method: "POST",
         headers: {
           "Content-Type": "application/json",
         },
-        body: JSON.stringify({ url: data.url, mode: 'single' }),
+        body: JSON.stringify({ url: data.url, mode: 'single', persistentTags: data.persistentTags }),
       });
       
       if (!response.ok) {
@@ -250,13 +252,28 @@ function ScraperPage() {
   });
 
   const onSingleSubmit = singleForm.handleSubmit((data) => {
-    // Start the main scraping process
-    singleScrapeMutation.mutate(data);
+    // Start the main scraping process with persistent tags
+    singleScrapeMutation.mutate({ ...data, persistentTags });
     
     // Also extract all images and features in parallel
     extractAllImagesMutation.mutate(data.url);
     extractFeaturesMutation.mutate(data.url);
   });
+
+  const addTag = () => {
+    if (newTag.trim() && !persistentTags.includes(newTag.trim())) {
+      setPersistentTags([...persistentTags, newTag.trim()]);
+      setNewTag('');
+    }
+  };
+
+  const removeTag = (tagToRemove: string) => {
+    setPersistentTags(persistentTags.filter(tag => tag !== tagToRemove));
+  };
+
+  const clearAllTags = () => {
+    setPersistentTags([]);
+  };
 
   const onMultiSubmit = multiForm.handleSubmit((data) => {
     multiUrlScrapeMutation.mutate(data);
@@ -426,6 +443,65 @@ function ScraperPage() {
                             <X className="w-4 h-4" />
                           </Button>
                         </div>
+                      </div>
+                    </div>
+
+                    {/* Persistent Tags Section */}
+                    <div className="space-y-3">
+                      <label className="text-white font-thin text-sm">Ürüne Eklenecek Etiketler</label>
+                      <div className="space-y-3">
+                        <div className="flex gap-2">
+                          <Input
+                            placeholder="Etiket ekle (örn: elektronik, telefon)"
+                            value={newTag}
+                            onChange={(e) => setNewTag(e.target.value)}
+                            onKeyPress={(e) => e.key === 'Enter' && (e.preventDefault(), addTag())}
+                            className="business-input flex-1"
+                            disabled={singleScrapeMutation.isPending}
+                          />
+                          <Button
+                            type="button"
+                            onClick={addTag}
+                            disabled={!newTag.trim() || singleScrapeMutation.isPending}
+                            className="bg-green-600 hover:bg-green-700 text-white px-4"
+                          >
+                            <Plus className="w-4 h-4" />
+                          </Button>
+                        </div>
+                        
+                        {persistentTags.length > 0 && (
+                          <div className="space-y-2">
+                            <div className="flex items-center justify-between">
+                              <span className="text-white/70 text-xs">Aktif Etiketler ({persistentTags.length})</span>
+                              <Button
+                                type="button"
+                                onClick={clearAllTags}
+                                variant="ghost"
+                                className="text-red-400 hover:text-red-300 text-xs h-6 px-2"
+                              >
+                                Tümünü Sil
+                              </Button>
+                            </div>
+                            <div className="flex flex-wrap gap-2">
+                              {persistentTags.map((tag, index) => (
+                                <div key={index} className="flex items-center gap-1 bg-cyan-900/30 px-2 py-1 rounded-md border border-cyan-800/40">
+                                  <span className="text-cyan-300 text-xs">{tag}</span>
+                                  <Button
+                                    type="button"
+                                    onClick={() => removeTag(tag)}
+                                    variant="ghost"
+                                    className="h-4 w-4 p-0 text-cyan-400 hover:text-red-400"
+                                  >
+                                    <X className="w-3 h-3" />
+                                  </Button>
+                                </div>
+                              ))}
+                            </div>
+                            <p className="text-yellow-400/70 text-xs">
+                              Bu etiketler silinene kadar tüm ürünlere otomatik eklenecek
+                            </p>
+                          </div>
+                        )}
                       </div>
                     </div>
                     

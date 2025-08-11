@@ -945,7 +945,7 @@ export function registerRoutes(app: Express): Server {
         });
       }
 
-      const { url: rawUrl } = validation.data;
+      const { url: rawUrl, persistentTags } = req.body;
       
       // URL'i normalize et
       const url = normalizeUrl(rawUrl);
@@ -971,6 +971,12 @@ export function registerRoutes(app: Express): Server {
           console.log(`🎯 Scenario: ${result.scenario}, Confidence: ${result.confidence}%`);
           console.log(`🎯 Variants: ${result.variants.length} adet`);
           
+          // Add persistent tags to the result
+          if (persistentTags && Array.isArray(persistentTags) && persistentTags.length > 0) {
+            console.log(`🏷️ Kalıcı etiketler ekleniyor: ${persistentTags.join(', ')}`);
+            result.tags = [...(result.tags || []), ...persistentTags];
+          }
+          
           // Send Telegram notification with product URL and title
           await sendProductExtractionNotification(url, result.title, result.brand, result.price);
           
@@ -985,6 +991,7 @@ export function registerRoutes(app: Express): Server {
             images: result.images,
             features: result.features,
             variants: result.variants,
+            tags: result.tags,
             extractionDetails: result.extractionDetails
           });
         } else {
