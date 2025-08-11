@@ -72,53 +72,51 @@ export function CSVDrawerPreview({ csvPreviews, onDownload, onShopifyUpload }: C
 
           return (
             <Card key={preview.id} className="bg-slate-800/30 border border-slate-600/40 hover:border-cyan-600/50 transition-colors">
-              <CardHeader className="pb-2">
-                <div className="flex items-center justify-between">
-                  <div className="flex items-center gap-3 flex-1">
-                    <FileText className="w-5 h-5 text-cyan-400" />
-                    <div className="flex-1 min-w-0">
-                      <CardTitle className="text-white font-medium text-sm truncate leading-tight">
-                        {preview.productTitle}
+              <CardHeader className="pb-1 pt-2">
+                <div className="flex items-center justify-between gap-2">
+                  <div className="flex items-center gap-2 flex-1 min-w-0">
+                    <FileText className="w-4 h-4 text-cyan-400 flex-shrink-0" />
+                    <div className="flex-1 min-w-0 overflow-hidden">
+                      <CardTitle className="text-white font-medium text-xs truncate leading-tight mb-1">
+                        {preview.productTitle.length > 40 ? preview.productTitle.substring(0, 40) + '...' : preview.productTitle}
                       </CardTitle>
-                      <div className="flex items-center gap-2 mt-1 flex-wrap">
-                        <Badge variant="outline" className="text-cyan-300 border-cyan-800 text-xs px-2 py-0 h-5">
-                          {variantCount} varyant
+                      <div className="flex items-center gap-1 flex-wrap">
+                        <Badge variant="outline" className="text-cyan-300 border-cyan-800 text-xs px-1.5 py-0 h-4 text-xs">
+                          {variantCount}v
                         </Badge>
-                        <Badge variant="outline" className="text-green-300 border-green-800 text-xs px-2 py-0 h-5">
-                          {headers.length} sütun
+                        <Badge variant="outline" className="text-green-300 border-green-800 text-xs px-1.5 py-0 h-4 text-xs">
+                          {headers.length}s
                         </Badge>
-                        <Badge variant="outline" className="text-purple-300 border-purple-800 text-xs px-2 py-0 h-5">
-                          {preview.images.length} görsel
+                        <Badge variant="outline" className="text-purple-300 border-purple-800 text-xs px-1.5 py-0 h-4 text-xs">
+                          {preview.images.length}g
                         </Badge>
                       </div>
                     </div>
                   </div>
                   
-                  <div className="flex items-center gap-1 flex-shrink-0">
+                  <div className="flex items-center gap-0.5 flex-shrink-0">
                     <Button
                       onClick={() => onDownload(preview.id, `${preview.productTitle.replace(/[^a-zA-Z0-9]/g, '-')}.csv`)}
                       variant="outline"
                       size="sm"
-                      className="text-green-400 border-green-600/30 hover:bg-green-600/10 h-8 px-2 text-xs"
+                      className="text-green-400 border-green-600/30 hover:bg-green-600/10 h-6 px-1.5 text-xs"
                     >
-                      <Download className="w-3 h-3 mr-1" />
-                      İndir
+                      <Download className="w-3 h-3" />
                     </Button>
                     
                     <Button
                       onClick={() => onShopifyUpload(preview.id)}
                       size="sm"
-                      className="bg-blue-600 hover:bg-blue-700 text-white h-8 px-2 text-xs"
+                      className="bg-blue-600 hover:bg-blue-700 text-white h-6 px-1.5 text-xs"
                     >
-                      <ShoppingCart className="w-3 h-3 mr-1" />
-                      Shopify
+                      <ShoppingCart className="w-3 h-3" />
                     </Button>
                     
                     <Button
                       onClick={() => toggleExpanded(preview.id)}
                       variant="ghost"
                       size="sm"
-                      className="text-cyan-400 hover:text-cyan-300 hover:bg-cyan-900/20 h-8 px-2"
+                      className="text-cyan-400 hover:text-cyan-300 hover:bg-cyan-900/20 h-6 px-1.5"
                     >
                       {isExpanded ? (
                         <ChevronUp className="w-3 h-3" />
