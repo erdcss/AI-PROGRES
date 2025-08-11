@@ -852,7 +852,7 @@ function ScraperPage() {
                             type="button"
                             onClick={uploadAllCSVsToShopify}
                             disabled={csvPreviews.length === 0 || bulkUploadMutation.isPending}
-                            className="bg-gradient-to-r from-cyan-600 to-blue-600 hover:from-cyan-700 hover:to-blue-700 text-white h-14 text-lg font-medium"
+                            className="bg-gradient-to-r from-cyan-600 to-blue-600 hover:from-cyan-700 hover:to-blue-700 text-white h-14 text-lg font-medium transition-all duration-200 shadow-lg hover:shadow-xl"
                           >
                             {bulkUploadMutation.isPending ? (
                               <div className="flex items-center gap-2">
@@ -867,6 +867,7 @@ function ScraperPage() {
                             )}
                           </Button>
                         </div>
+                        
                       ) : (
                         <div className="flex gap-3">
                           <Button
@@ -884,6 +885,40 @@ function ScraperPage() {
                           )}
                         </Button>
                         </div>
+                      )}
+                      
+                      {/* CSV Oluşturulduktan Sonra Animasyonlu Kompakt Buton */}
+                      {csvPreviews.length > 0 && (
+                        <motion.div
+                          initial={{ opacity: 0, y: -20, scale: 0.9 }}
+                          animate={{ opacity: 1, y: 0, scale: 1 }}
+                          transition={{ 
+                            duration: 0.4, 
+                            delay: 0.2,
+                            type: "spring",
+                            stiffness: 200
+                          }}
+                          className="mt-4"
+                        >
+                          <Button 
+                            type="button"
+                            onClick={uploadAllCSVsToShopify}
+                            disabled={csvPreviews.length === 0 || bulkUploadMutation.isPending}
+                            className="w-full bg-gradient-to-r from-purple-600 via-blue-600 to-cyan-600 hover:from-purple-700 hover:via-blue-700 hover:to-cyan-700 text-white h-12 text-base font-medium rounded-lg shadow-lg hover:shadow-xl transition-all duration-300 transform hover:scale-[1.02]"
+                          >
+                            {bulkUploadMutation.isPending ? (
+                              <div className="flex items-center gap-2">
+                                <Loader2 className="w-4 h-4 animate-spin" />
+                                Shopify'a Yükleniyor... ({csvPreviews.length})
+                              </div>
+                            ) : (
+                              <div className="flex items-center gap-2">
+                                <ShoppingCart className="w-4 h-4" />
+                                TÜM ÜRÜNLERİ SHOPIFY'A AKTAR ({csvPreviews.length})
+                              </div>
+                            )}
+                          </Button>
+                        </motion.div>
                       )}
                       
                       {product && !draggedUrls.length && (
