@@ -60,8 +60,8 @@ export function extractAllProductImages(htmlContent: string): string[] {
         });
       }
     }
-  } catch (e) {
-    console.log('Product state parsing error:', e.message);
+  } catch (e: any) {
+    console.log('Product state parsing error:', e?.message || e);
   }
   
   // 2. Aggressive image extraction with multiple patterns
@@ -138,8 +138,8 @@ export function extractAllProductImages(htmlContent: string): string[] {
   console.log(`🔍 Hash patterns bulundu: ${htmlContent.match(/[a-f0-9]{8}-[a-f0-9]{4}-[a-f0-9]{4}-[a-f0-9]{4}-[a-f0-9]{12}/gi)?.length || 0}`);
   
   // Generate more images from the existing pattern
-  if (productImages.length <= 3) {
-    const baseImage = productImages[0];
+  if (finalImages.length <= 3) {
+    const baseImage = finalImages[0];
     const hashMatch = baseImage.match(/([a-f0-9]{8}-[a-f0-9]{4}-[a-f0-9]{4}-[a-f0-9]{4}-[a-f0-9]{12})/);
     if (hashMatch) {
       const hash = hashMatch[1];
@@ -168,7 +168,7 @@ export function extractAllProductImages(htmlContent: string): string[] {
     return updatedImages;
   }
   
-
+  return finalImages;
 }
 
 function optimizeImageUrl(url: string): string {

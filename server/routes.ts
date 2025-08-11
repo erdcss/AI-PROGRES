@@ -475,6 +475,92 @@ async function generateCSVPreview(csvPath?: string) {
   }
 }
 
+// Extract product features from HTML content
+function extractProductFeaturesFromHTML(htmlContent: string): Array<{ key: string; value: string }> {
+  const features: Array<{ key: string; value: string }> = [];
+  
+  try {
+    // 1. Extract from product state
+    const productStateMatch = htmlContent.match(/window\.__PRODUCT_DETAIL_APP_INITIAL_STATE__\s*=\s*({.*?});/);
+    if (productStateMatch) {
+      const productState = JSON.parse(productStateMatch[1]);
+      
+      // Product specifications
+      if (productState.product?.attributes) {
+        Object.entries(productState.product.attributes).forEach(([key, value]: [string, any]) => {
+          if (value && typeof value === 'string' && key !== 'id') {
+            features.push({
+              key: key.charAt(0).toUpperCase() + key.slice(1),
+              value: value.toString()
+            });
+          }
+        });
+      }
+
+      // Additional product details
+      if (productState.product?.details) {
+        Object.entries(productState.product.details).forEach(([key, value]: [string, any]) => {
+          if (value && typeof value === 'string') {
+            features.push({
+              key: key.charAt(0).toUpperCase() + key.slice(1),
+              value: value.toString()
+            });
+          }
+        });
+      }
+    }
+
+    // 2. Extract from description tables
+    const tableMatches = htmlContent.match(/<table[^>]*>(.*?)<\/table>/gis);
+    if (tableMatches) {
+      tableMatches.forEach(table => {
+        const rowMatches = table.match(/<tr[^>]*>(.*?)<\/tr>/gis);
+        if (rowMatches) {
+          rowMatches.forEach(row => {
+            const cellMatches = row.match(/<t[dh][^>]*>(.*?)<\/t[dh]>/gis);
+            if (cellMatches && cellMatches.length >= 2) {
+              const key = cellMatches[0].replace(/<[^>]*>/g, '').trim();
+              const value = cellMatches[1].replace(/<[^>]*>/g, '').trim();
+              if (key && value && key.length < 100 && value.length < 200) {
+                features.push({ key, value });
+              }
+            }
+          });
+        }
+      });
+    }
+
+    // 3. Extract from lists
+    const listMatches = htmlContent.match(/<ul[^>]*class[^>]*(?:feature|spec|detail)[^>]*>(.*?)<\/ul>/gis);
+    if (listMatches) {
+      listMatches.forEach(list => {
+        const itemMatches = list.match(/<li[^>]*>(.*?)<\/li>/gis);
+        if (itemMatches) {
+          itemMatches.forEach((item, index) => {
+            const text = item.replace(/<[^>]*>/g, '').trim();
+            if (text && text.length < 200) {
+              features.push({
+                key: `Özellik ${index + 1}`,
+                value: text
+              });
+            }
+          });
+        }
+      });
+    }
+
+  } catch (error) {
+    console.error('Feature extraction error:', error);
+  }
+
+  // Remove duplicates and return
+  const uniqueFeatures = features.filter((feature, index, self) => 
+    index === self.findIndex(f => f.key === feature.key && f.value === feature.value)
+  );
+
+  return uniqueFeatures.slice(0, 20); // Limit to 20 features
+}
+
 const urlSchema = z.object({
   url: z.string().min(1, "URL boş olamaz")
 });
@@ -1641,8 +1727,19 @@ export function registerRoutes(app: Express): Server {
 
       console.log('🖼️ TÜM ürün görselleri çıkarılıyor...');
       
-      // Tüm görselleri çıkar
-      const allImages = await extractAllProductImages(url);
+      // First get HTML content from URL
+      const axios = require('axios');
+      const response = await axios.get(url, {
+        headers: {
+          'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36'
+        }
+      });
+      
+      // Import the comprehensive image extractor
+      const { extractAllProductImages } = await import('./comprehensive-image-extractor');
+      
+      // Extract all images from HTML content
+      const allImages = extractAllProductImages(response.data);
       
       if (allImages.length === 0) {
         console.log('⚠️ Hiç görsel bulunamadı');
@@ -1654,14 +1751,10 @@ export function registerRoutes(app: Express): Server {
       res.json({
         success: true,
         imageCount: allImages.length,
-        images: allImages,
+        images: allImages.map(img => ({ url: img })),
         summary: {
-          highQuality: allImages.filter(img => img.quality === 'high').length,
-          mediumQuality: allImages.filter(img => img.quality === 'medium').length,
-          lowQuality: allImages.filter(img => img.quality === 'low').length,
-          mainImages: allImages.filter(img => img.type === 'main').length,
-          colorVariants: allImages.filter(img => img.type === 'color').length,
-          detailImages: allImages.filter(img => img.type === 'detail').length
+          totalImages: allImages.length,
+          uniqueImages: [...new Set(allImages)].length
         }
       });
     } catch (error) {
@@ -1684,8 +1777,18 @@ export function registerRoutes(app: Express): Server {
 
       console.log('📄 Tüm görseller için CSV oluşturuluyor...');
       
-      // Tüm görselleri çıkar
-      const allImages = await extractAllProductImages(url);
+      // First get HTML content from URL
+      const response = await axios.get(url, {
+        headers: {
+          'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36'
+        }
+      });
+      
+      // Import the comprehensive image extractor
+      const { extractAllProductImages } = await import('./comprehensive-image-extractor');
+      
+      // Extract all images from HTML content
+      const allImages = extractAllProductImages(response.data);
       
       if (allImages.length === 0) {
         return res.status(400).json({ message: "Görsel bulunamadı" });
@@ -1701,6 +1804,44 @@ export function registerRoutes(app: Express): Server {
       console.error('Görsel CSV oluşturma hatası:', error);
       res.status(500).json({ 
         message: "CSV oluşturulamadı", 
+        error: error instanceof Error ? error.message : 'Bilinmeyen hata'
+      });
+    }
+  });
+
+  // Product Features Extraction endpoint
+  app.post('/api/extract-features', async (req, res) => {
+    try {
+      const { url } = req.body;
+      
+      if (!url) {
+        return res.status(400).json({ message: "URL gerekli" });
+      }
+
+      console.log('🔍 Ürün özellikleri çıkarılıyor...');
+      
+      // First get HTML content from URL
+      const axios = require('axios');
+      const response = await axios.get(url, {
+        headers: {
+          'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36'
+        }
+      });
+      
+      // Extract features from HTML content
+      const features = extractProductFeaturesFromHTML(response.data);
+      
+      console.log(`✅ ${features.length} özellik başarıyla çıkarıldı`);
+      
+      res.json({
+        success: true,
+        featureCount: features.length,
+        features: features
+      });
+    } catch (error) {
+      console.error('Özellik çıkarma hatası:', error);
+      res.status(500).json({ 
+        message: "Özellikler çıkarılamadı", 
         error: error instanceof Error ? error.message : 'Bilinmeyen hata'
       });
     }
