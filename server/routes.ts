@@ -43,7 +43,7 @@ import { generateComprehensiveShopifyCSV, generateFeatureSummary, type Comprehen
 import shopifyTrendyolMatcher from './shopify-trendyol-matcher';
 import { scrapeMultipleUrls } from './multi-url-scraper';
 import { generateMultiVariantShopifyCSV } from './multi-variant-csv-generator';
-import { uploadProductToShopify, testShopifyConnection } from './shopify-api-uploader';
+import { uploadProductToShopify, testShopifyConnection, uploadMultiUrlProductToShopify } from './shopify-api-uploader';
 import { eq, desc, or, and, isNotNull, inArray } from 'drizzle-orm';
 import axios from 'axios';
 
@@ -1499,40 +1499,46 @@ export function registerRoutes(app: Express): Server {
   // Shopify upload endpoint
   app.post('/api/shopify-upload', async (req, res) => {
     try {
-      const { csvContent, productTitle } = req.body;
+      const { csvContent, productTitle, productData } = req.body;
       
       console.log('📥 Shopify upload request received');
       console.log('Request body keys:', Object.keys(req.body));
       console.log('CSV Content exists:', !!csvContent);
+      console.log('Product Data exists:', !!productData);
       console.log('Product Title:', productTitle);
       
-      if (!csvContent) {
-        console.log('❌ CSV content missing');
-        return res.status(400).json({
-          success: false,
-          message: 'CSV content is required'
-        });
+      // Multi-URL product data yükleme
+      if (productData && productData.variants && productData.variants.allVariants) {
+        console.log('🔄 Multi-URL product data detected, using special upload');
+        const uploadResult = await uploadMultiUrlProductToShopify(productData, productTitle);
+        return res.json(uploadResult);
       }
       
-      console.log(`🛒 Uploading product to Shopify: ${productTitle}`);
-      
-      const uploadResult = await uploadProductToShopify(csvContent, productTitle);
-      
-      console.log('📤 Upload result:', uploadResult);
-      
-      if (uploadResult.success) {
-        return res.json({
-          success: true,
-          productId: uploadResult.productId,
-          message: uploadResult.message
-        });
-      } else {
-        return res.status(400).json({
-          success: false,
-          error: uploadResult.message,
-          message: uploadResult.message
-        });
+      // CSV yükleme
+      if (csvContent) {
+        console.log(`🛒 Uploading CSV to Shopify: ${productTitle}`);
+        const uploadResult = await uploadProductToShopify(csvContent, productTitle);
+        
+        if (uploadResult.success) {
+          return res.json({
+            success: true,
+            productId: uploadResult.productId,
+            message: uploadResult.message
+          });
+        } else {
+          return res.status(400).json({
+            success: false,
+            error: uploadResult.message,
+            message: uploadResult.message
+          });
+        }
       }
+      
+      console.log('❌ Neither CSV content nor product data provided');
+      return res.status(400).json({
+        success: false,
+        message: 'CSV content veya product data gerekli'
+      });
       
     } catch (error) {
       console.error('❌ Shopify upload endpoint error:', error);
