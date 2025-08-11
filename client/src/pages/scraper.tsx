@@ -85,6 +85,32 @@ function ScraperPage() {
 
   const singleScrapeMutation = useMutation({
     mutationFn: async (data: ScrapeFormData & { persistentTags?: string[] }) => {
+      // Shopify URL'lerini tespit et ve doğru endpoint'e yönlendir
+      if (data.url.includes('.myshopify.com') || data.url.includes('shopify.com')) {
+        // Bu bir Shopify URL'si - CSV generation endpoint'ine git
+        console.log('🛒 Shopify URL detected, redirecting to CSV generation');
+        const response = await fetch("/api/generate-multi-variant-csv", {
+          method: "POST", 
+          headers: {
+            "Content-Type": "application/json",
+          },
+          body: JSON.stringify({ 
+            productData: { 
+              url: data.url, 
+              title: "Shopify Product",
+              tags: data.persistentTags || []
+            }
+          }),
+        });
+        
+        if (!response.ok) {
+          const errorData = await response.json().catch(() => ({}));
+          throw new Error(errorData.message || `HTTP ${response.status}`);
+        }
+        return response.json();
+      }
+      
+      // Normal Trendyol/Arçelik URL'leri için scenario-scrape
       const response = await fetch("/api/scenario-scrape", {
         method: "POST",
         headers: {
@@ -101,10 +127,20 @@ function ScraperPage() {
     },
     onSuccess: (data) => {
       setProduct(data);
-      toast({
-        title: "Başarılı",
-        description: "Tek varyant ürün verisi çekildi"
-      });
+      
+      // CSV content varsa direkt Shopify'a yükle
+      if (data.csvContent) {
+        uploadToShopify(data.csvContent, data.title || 'Product');
+        toast({
+          title: "Başarılı", 
+          description: "Ürün verisi çekildi ve Shopify'a aktarılıyor"
+        });
+      } else {
+        toast({
+          title: "Başarılı",
+          description: "Tek varyant ürün verisi çekildi"
+        });
+      }
     },
     onError: (error: any) => {
       toast({
@@ -340,19 +376,31 @@ function ScraperPage() {
     for (let i = 0; i < draggedUrls.length; i++) {
       const url = draggedUrls[i];
       try {
-        await singleScrapeMutation.mutateAsync({ url, persistentTags });
+        // Her URL için ayrı ayrı işlem yap
+        const data = await singleScrapeMutation.mutateAsync({ url, persistentTags });
+        
+        // Eğer CSV content varsa Shopify'a yükle
+        if (data.csvContent) {
+          await uploadToShopify(data.csvContent, data.title || `Product ${i + 1}`);
+        }
+        
         toast({
           title: `${i + 1}/${draggedUrls.length} Tamamlandı`,
-          description: `${url} işlendi`
+          description: `${url} işlendi ve Shopify'a aktarıldı`
         });
       } catch (error) {
         toast({
           title: `${i + 1}/${draggedUrls.length} Hata`,
-          description: `${url} işlenemedi`,
+          description: `${url} işlenemedi: ${error instanceof Error ? error.message : 'Bilinmeyen hata'}`,
           variant: "destructive"
         });
       }
     }
+    
+    toast({
+      title: "Toplu İşlem Tamamlandı",
+      description: `${draggedUrls.length} ürün işlendi`
+    });
   };
 
   const onMultiSubmit = multiForm.handleSubmit((data) => {
