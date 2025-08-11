@@ -53,10 +53,10 @@ export function CSVDrawerPreview({ csvPreviews, onDownload, onShopifyUpload }: C
   }
 
   return (
-    <div className="mt-8 space-y-4">
-      <div className="flex items-center gap-2">
+    <div className="space-y-4">
+      <div className="flex items-center gap-2 mb-4">
         <FileText className="w-5 h-5 text-cyan-400" />
-        <h2 className="text-white font-thin text-xl">CSV Dosya Önizlemeleri</h2>
+        <h3 className="text-white font-thin text-lg">CSV Dosya Önizlemeleri</h3>
         <Badge variant="secondary" className="bg-cyan-900/30 text-cyan-300">
           {csvPreviews.length} dosya
         </Badge>
@@ -69,26 +69,23 @@ export function CSVDrawerPreview({ csvPreviews, onDownload, onShopifyUpload }: C
           const variantCount = preview.variants.colors.length * preview.variants.sizes.length;
 
           return (
-            <Card key={preview.id} className="business-card border border-cyan-800/30">
-              <CardHeader 
-                className="business-header cursor-pointer"
-                onClick={() => toggleExpanded(preview.id)}
-              >
+            <Card key={preview.id} className="bg-slate-800/50 border border-cyan-800/30">
+              <CardHeader className="pb-3">
                 <div className="flex items-center justify-between">
-                  <div className="flex items-center gap-3">
-                    <Package className="w-5 h-5 text-cyan-400" />
-                    <div>
-                      <CardTitle className="text-white font-thin text-lg">
+                  <div className="flex items-center gap-3 flex-1">
+                    <FileText className="w-5 h-5 text-cyan-400" />
+                    <div className="flex-1">
+                      <CardTitle className="text-white font-medium text-base truncate">
                         {preview.productTitle}
                       </CardTitle>
-                      <div className="flex items-center gap-4 mt-1">
-                        <Badge variant="outline" className="text-cyan-300 border-cyan-800">
+                      <div className="flex items-center gap-3 mt-1">
+                        <Badge variant="outline" className="text-cyan-300 border-cyan-800 text-xs">
                           {variantCount} varyant
                         </Badge>
-                        <Badge variant="outline" className="text-green-300 border-green-800">
+                        <Badge variant="outline" className="text-green-300 border-green-800 text-xs">
                           {headers.length} sütun
                         </Badge>
-                        <Badge variant="outline" className="text-purple-300 border-purple-800">
+                        <Badge variant="outline" className="text-purple-300 border-purple-800 text-xs">
                           {preview.images.length} görsel
                         </Badge>
                       </div>
@@ -97,34 +94,42 @@ export function CSVDrawerPreview({ csvPreviews, onDownload, onShopifyUpload }: C
                   
                   <div className="flex items-center gap-2">
                     <Button
-                      onClick={(e) => {
-                        e.stopPropagation();
-                        onDownload(preview.id, `${preview.productTitle.replace(/[^a-zA-Z0-9]/g, '-')}.csv`);
-                      }}
-                      variant="ghost"
+                      onClick={() => onDownload(preview.id, `${preview.productTitle.replace(/[^a-zA-Z0-9]/g, '-')}.csv`)}
+                      variant="outline"
                       size="sm"
-                      className="text-green-400 hover:text-green-300 hover:bg-green-900/20"
+                      className="text-green-400 border-green-600/30 hover:bg-green-600/10"
                     >
-                      <Download className="w-4 h-4" />
+                      <Download className="w-4 h-4 mr-1" />
+                      İndir
                     </Button>
                     
                     <Button
-                      onClick={(e) => {
-                        e.stopPropagation();
-                        onShopifyUpload(preview.id);
-                      }}
-                      variant="ghost"
+                      onClick={() => onShopifyUpload(preview.id)}
                       size="sm"
-                      className="text-blue-400 hover:text-blue-300 hover:bg-blue-900/20"
+                      className="bg-blue-600 hover:bg-blue-700 text-white"
                     >
-                      <ShoppingCart className="w-4 h-4" />
+                      <ShoppingCart className="w-4 h-4 mr-1" />
+                      Shopify
                     </Button>
                     
-                    {isExpanded ? (
-                      <ChevronUp className="w-5 h-5 text-cyan-400" />
-                    ) : (
-                      <ChevronDown className="w-5 h-5 text-cyan-400" />
-                    )}
+                    <Button
+                      onClick={() => toggleExpanded(preview.id)}
+                      variant="ghost"
+                      size="sm"
+                      className="text-cyan-400 hover:text-cyan-300 hover:bg-cyan-900/20"
+                    >
+                      {isExpanded ? (
+                        <>
+                          <ChevronUp className="w-4 h-4 mr-1" />
+                          Gizle
+                        </>
+                      ) : (
+                        <>
+                          <ChevronDown className="w-4 h-4 mr-1" />
+                          Göster
+                        </>
+                      )}
+                    </Button>
                   </div>
                 </div>
               </CardHeader>
@@ -228,27 +233,7 @@ export function CSVDrawerPreview({ csvPreviews, onDownload, onShopifyUpload }: C
                           </div>
                         </div>
 
-                        {/* Actions */}
-                        <div className="flex justify-end gap-3 pt-4 border-t border-cyan-800/20">
-                          <Button
-                            onClick={() => onDownload(preview.id, `${preview.productTitle.replace(/[^a-zA-Z0-9]/g, '-')}.csv`)}
-                            variant="outline"
-                            size="sm"
-                            className="text-green-400 border-green-800 hover:bg-green-900/20"
-                          >
-                            <Download className="w-4 h-4 mr-2" />
-                            CSV İndir
-                          </Button>
-                          
-                          <Button
-                            onClick={() => onShopifyUpload(preview.id)}
-                            size="sm"
-                            className="bg-blue-600 hover:bg-blue-700 text-white"
-                          >
-                            <ShoppingCart className="w-4 h-4 mr-2" />
-                            Shopify'a Yükle
-                          </Button>
-                        </div>
+
                       </div>
                     </CardContent>
                   </motion.div>
