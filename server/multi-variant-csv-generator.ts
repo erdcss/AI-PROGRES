@@ -144,8 +144,8 @@ export function generateMultiVariantShopifyCSV(product: CombinedProduct): string
     }
     
     row.push('FALSE'); // Gift Card
-    row.push(product.title.substring(0, 70)); // SEO Title
-    row.push(product.description.substring(0, 160)); // SEO Description
+    row.push((product.title || '').substring(0, 70)); // SEO Title
+    row.push((product.description || product.title || '').substring(0, 160)); // SEO Description
     
     // Varyant görseli (renk bazında)
     const colorImages = imagesByColor[variant.color];
