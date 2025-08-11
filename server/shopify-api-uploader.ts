@@ -1,5 +1,36 @@
 import { parse } from 'csv-parse/sync';
 
+// Duplicate prevention için upload history
+const uploadHistory = new Map<string, { productId: string; timestamp: number }>();
+
+// Product duplicate check fonksiyonu
+function generateProductHash(title: string, brand?: string): string {
+  const cleanTitle = title.toLowerCase().replace(/[^a-zA-Z0-9ğüşıöçĞÜŞIÖÇ]/g, '');
+  const cleanBrand = brand?.toLowerCase().replace(/[^a-zA-Z0-9ğüşıöçĞÜŞIÖÇ]/g, '') || '';
+  return `${cleanBrand}-${cleanTitle}`;
+}
+
+function isDuplicateProduct(title: string, brand?: string): { isDuplicate: boolean; existingProductId?: string } {
+  const hash = generateProductHash(title, brand);
+  const existing = uploadHistory.get(hash);
+  
+  if (existing && (Date.now() - existing.timestamp) < 30000) { // 30 saniye içinde duplicate
+    return { isDuplicate: true, existingProductId: existing.productId };
+  }
+  
+  return { isDuplicate: false };
+}
+
+function recordUpload(title: string, productId: string, brand?: string): void {
+  const hash = generateProductHash(title, brand);
+  uploadHistory.set(hash, { productId, timestamp: Date.now() });
+  
+  // 5 dakika sonra temizle
+  setTimeout(() => {
+    uploadHistory.delete(hash);
+  }, 300000);
+}
+
 interface ShopifyProductData {
   handle: string;
   title: string;
@@ -26,6 +57,16 @@ export async function uploadProductToShopify(csvContent: string, productTitle: s
     console.log('🛒 Shopify upload başlatılıyor...');
     console.log('CSV Content Length:', csvContent.length);
     console.log('Product Title:', productTitle);
+    
+    // Duplicate check for CSV uploads too
+    const duplicateCheck = isDuplicateProduct(productTitle);
+    if (duplicateCheck.isDuplicate) {
+      console.log('🚫 DUPLICATE CSV PRODUCT DETECTED - Blocking upload');
+      return {
+        success: false,
+        message: `Bu ürün yakın zamanda yüklendi (Product ID: ${duplicateCheck.existingProductId}). Lütfen birkaç dakika bekleyin.`
+      };
+    }
     
     // Parse CSV content
     const records = parse(csvContent, {
@@ -99,6 +140,9 @@ export async function uploadProductToShopify(csvContent: string, productTitle: s
 
     const result = await shopifyResponse.json();
     console.log('✅ Shopify product created successfully:', result.product.id);
+    
+    // Record upload to prevent duplicates
+    recordUpload(productTitle, result.product.id.toString());
     
     return { 
       success: true, 
@@ -184,7 +228,22 @@ function parseCSVToShopifyProduct(records: any[]): ShopifyProductData {
 // Multi-URL product data için özel upload fonksiyonu
 export async function uploadMultiUrlProductToShopify(productData: any, productTitle: string): Promise<{ success: boolean; productId?: string; shopifyProductId?: string; adminUrl?: string; storeUrl?: string; message: string; product?: any }> {
   try {
-    console.log('🔄 Multi-URL product data uploading to Shopify...');
+    console.log('🔄 ===== MULTI-URL UPLOAD FUNCTION STARTED =====');
+    console.log('📦 Product Title:', productTitle);
+    console.log('📊 Product Data Keys:', Object.keys(productData));
+    console.log('📸 Images count:', productData.images?.length || 0);
+    
+    // Duplicate check
+    const brand = productData.brand || 'Unknown';
+    const duplicateCheck = isDuplicateProduct(productTitle, brand);
+    
+    if (duplicateCheck.isDuplicate) {
+      console.log('🚫 DUPLICATE PRODUCT DETECTED - Blocking upload');
+      return {
+        success: false,
+        message: `Bu ürün yakın zamanda yüklendi (Product ID: ${duplicateCheck.existingProductId}). Lütfen birkaç dakika bekleyin.`
+      };
+    }
     
     // Shopify API endpoint
     const shopifyStore = process.env.SHOPIFY_STORE_DOMAIN;
@@ -197,54 +256,69 @@ export async function uploadMultiUrlProductToShopify(productData: any, productTi
       };
     }
 
-    // Multi-URL verilerinden proper variants oluştur
+    // Multi-URL verilerinden doğru variants ve colors oluştur
     const variants = [];
+    const uniqueColors = new Set();
+    const uniqueSizes = new Set();
     
-    // allVariants'tan doğru renk-beden kombinasyonlarını al
+    // allVariants'tan gerçek renk-beden kombinasyonlarını al
     const allVariants = productData.variants?.allVariants || [];
-    console.log('🔍 All variants data:', allVariants);
+    console.log('🔍 Raw allVariants data:', JSON.stringify(allVariants, null, 2));
     
-    // Eğer allVariants varsa onları kullan
+    // Her bir varyant için renk-beden kombinasyonu oluştur
     if (allVariants && allVariants.length > 0) {
+      // Her variant için renk extract et
       for (const variant of allVariants) {
-        // Direct color mapping - hardcoded fix için
-        let finalColor = 'Varsayılan';
         const colorText = variant.color?.toLowerCase() || '';
+        let finalColor = 'Varsayılan';
         
-        if (colorText.includes('siyah') || colorText.includes('black')) {
+        // Direct renk mapping
+        if (colorText.includes('siyah')) {
           finalColor = 'Siyah';
-        } else if (colorText.includes('beyaz') || colorText.includes('white')) {
-          finalColor = 'Beyaz';
-        } else if (colorText.includes('mavi') || colorText.includes('blue')) {
+        } else if (colorText.includes('beyaz')) {
+          finalColor = 'Beyaz'; 
+        } else if (colorText.includes('mavi')) {
           finalColor = 'Mavi';
-        } else if (colorText.includes('kırmızı') || colorText.includes('red')) {
+        } else if (colorText.includes('kırmızı')) {
           finalColor = 'Kırmızı';
         }
         
-        console.log(`🎨 Direct mapping: "${variant.color}" → "${finalColor}"`);
+        console.log(`🎨 Color mapping: "${variant.color}" → "${finalColor}"`);
+        uniqueColors.add(finalColor);
         
-        variants.push({
-          option1: finalColor,
-          option2: 'Standart',
-          price: variant.price || productData.price.withProfit.toString(),
-          compare_at_price: productData.price.value.toString(),
-          inventory_quantity: variant.stock || 10,
-          inventory_management: 'shopify',
-          inventory_policy: 'deny'
+        // Her renk için standart bedenleri ekle
+        ['S', 'M', 'L', 'XL'].forEach(size => {
+          uniqueSizes.add(size);
         });
       }
-    } else {
-      // Fallback: colors ve sizes kullan
-      const allColors = productData.variants?.colors || [];
-      const allSizes = productData.variants?.sizes || ['Standart'];
       
-      console.log('🔄 Fallback mode - Colors:', allColors, 'Sizes:', allSizes);
+      // Eğer hiç renk bulunamazsa backup colors kullan
+      if (uniqueColors.size === 0) {
+        const backupColors = productData.variants?.colors || [];
+        backupColors.forEach((color: string) => {
+          const lowerColor = color.toLowerCase();
+          if (lowerColor.includes('siyah')) {
+            uniqueColors.add('Siyah');
+          } else if (lowerColor.includes('beyaz')) {
+            uniqueColors.add('Beyaz');
+          }
+        });
+      }
       
-      const cleanedColors = allColors.map(c => extractColorFromLongName(c));
-      console.log('🎨 Cleaned colors:', cleanedColors);
+      // Son fallback
+      if (uniqueColors.size === 0) {
+        uniqueColors.add('Varsayılan');
+      }
+      if (uniqueSizes.size === 0) {
+        uniqueSizes.add('Standart');
+      }
       
-      for (const color of cleanedColors) {
-        for (const size of allSizes) {
+      console.log('🎨 Final unique colors:', Array.from(uniqueColors));
+      console.log('📏 Final unique sizes:', Array.from(uniqueSizes));
+      
+      // Her renk-beden kombinasyonunu oluştur
+      for (const color of Array.from(uniqueColors)) {
+        for (const size of Array.from(uniqueSizes)) {
           variants.push({
             option1: color,
             option2: size,
@@ -256,17 +330,43 @@ export async function uploadMultiUrlProductToShopify(productData: any, productTi
           });
         }
       }
+    } else {
+      console.log('⚠️ No allVariants found, using fallback');
+      variants.push({
+        option1: 'Varsayılan',
+        option2: 'Standart',
+        price: productData.price.withProfit.toString(),
+        compare_at_price: productData.price.value.toString(),
+        inventory_quantity: 10,
+        inventory_management: 'shopify',
+        inventory_policy: 'deny'
+      });
     }
     
-    // Product images
-    const images = productData.images?.slice(0, 10).map((img, index) => ({
-      src: img.url,
-      alt: img.alt || productData.title,
-      position: index + 1
-    })) || [];
+    // Product images - multi-URL'den gelen tüm görselleri ekle
+    const images: any[] = [];
+    if (productData.images && productData.images.length > 0) {
+      productData.images.slice(0, 10).forEach((img: any, index: number) => {
+        images.push({
+          src: img.url,
+          alt: img.alt || productData.title || 'Product Image',
+          position: index + 1
+        });
+      });
+    }
+    
+    console.log(`📸 Adding ${images.length} images to Shopify product`);
 
     // Category'yi düzelt
     const productType = determineProductCategory(productData.title, productData.brand);
+    
+    // allColors için fallback
+    const allColors = Array.from(uniqueColors);
+    
+    console.log(`📊 Final variant count: ${variants.length}`);
+    console.log(`📸 Final image count: ${images.length}`);
+    console.log(`🎨 Final colors: ${allColors.join(', ')}`);
+    console.log(`📏 Final sizes: ${Array.from(uniqueSizes).join(', ')}`);
     
     // Shopify product create API call
     const shopifyResponse = await fetch(`https://${shopifyStore}/admin/api/2023-10/products.json`, {
@@ -285,8 +385,8 @@ export async function uploadMultiUrlProductToShopify(productData: any, productTi
           variants: variants,
           images: images,
           options: [
-            { name: 'Renk', values: [...new Set(variants.map(v => v.option1))] },
-            { name: 'Beden', values: [...new Set(variants.map(v => v.option2))] }
+            { name: 'Renk', values: uniqueColors.size > 0 ? Array.from(uniqueColors) : ['Varsayılan'] },
+            { name: 'Beden', values: uniqueSizes.size > 0 ? Array.from(uniqueSizes) : ['Standart'] }
           ]
         }
       })
@@ -305,6 +405,9 @@ export async function uploadMultiUrlProductToShopify(productData: any, productTi
     const productId = result.product.id;
     
     console.log('✅ Multi-URL product created successfully:', productId);
+    
+    // Record upload to prevent duplicates
+    recordUpload(productTitle, productId.toString(), brand);
     
     // URLs oluştur
     const adminUrl = `https://${shopifyStore}/admin/products/${productId}`;

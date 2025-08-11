@@ -1507,11 +1507,19 @@ export function registerRoutes(app: Express): Server {
       console.log('Product Data exists:', !!productData);
       console.log('Product Title:', productTitle);
       
-      // Multi-URL product data yükleme
-      if (productData && productData.variants && productData.variants.allVariants) {
-        console.log('🔄 Multi-URL product data detected, using special upload');
+      // Multi-URL product data yükleme - daha basit condition
+      console.log('🧪 Route condition check:');
+      console.log('   productData exists:', !!productData);
+      console.log('   productData type:', typeof productData);
+      console.log('   productData keys:', productData ? Object.keys(productData).slice(0, 5) : 'none');
+      
+      // Eğer productData varsa ve csvContent yoksa multi-URL upload kullan
+      if (productData && !csvContent) {
+        console.log('🔄 ✅ Multi-URL product data detected, using special upload');
         const uploadResult = await uploadMultiUrlProductToShopify(productData, productTitle);
         return res.json(uploadResult);
+      } else {
+        console.log('🔄 ❌ Multi-URL condition not met, checking CSV...');
       }
       
       // CSV yükleme
