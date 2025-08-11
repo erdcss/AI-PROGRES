@@ -978,45 +978,14 @@ function ScraperPage() {
           </div>
         )}
 
-        {/* CSV Preview Section - Single Variant */}
-        {product && (
-          <div className="mt-8">
-            <Card className="business-card">
-              <CardHeader className="business-header">
-                <CardTitle className="text-white font-thin text-lg flex items-center gap-2">
-                  <Package className="w-5 h-5 text-cyan-400/70" />
-                  CSV Ön İzleme - Tek Varyant
-                </CardTitle>
-                <p className="text-cyan-400/70 text-sm font-thin">Shopify için hazırlanmış CSV dosyası ön görünümü</p>
-              </CardHeader>
-              <CardContent className="p-6">
-                <CSVPreview product={product} isVisible={true} />
-              </CardContent>
-            </Card>
-          </div>
-        )}
+
 
         {/* CSV Drawer Preview - Tüm CSV'ler */}
-        {csvPreviews.length > 0 && (
-          <div className="mt-8">
-            <Card className="business-card">
-              <CardHeader className="business-header">
-                <CardTitle className="text-white font-thin text-lg flex items-center gap-2">
-                  <FileText className="w-5 h-5 text-cyan-400/70" />
-                  CSV Dosyaları ({csvPreviews.length})
-                </CardTitle>
-                <p className="text-cyan-400/70 text-sm font-thin">Her ürün için ayrı CSV dosyası oluşturuldu</p>
-              </CardHeader>
-              <CardContent className="p-6">
-                <CSVDrawerPreview 
-                  csvPreviews={csvPreviews}
-                  onDownload={handleCSVDownload}
-                  onShopifyUpload={handleCSVShopifyUpload}
-                />
-              </CardContent>
-            </Card>
-          </div>
-        )}
+        <CSVDrawerPreview 
+          csvPreviews={csvPreviews}
+          onDownload={handleCSVDownload}
+          onShopifyUpload={handleCSVShopifyUpload}
+        />
       </div>
     </div>
   );
