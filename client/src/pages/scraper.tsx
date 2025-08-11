@@ -62,6 +62,8 @@ function ScraperPage() {
   const [product, setProduct] = useState<Product | null>(null);
   const [, setLocation] = useLocation();
   const [scrapingMode, setScrapingMode] = useState<ScrapingMode>('single');
+  const [allImages, setAllImages] = useState<any[]>([]);
+  const [productFeatures, setProductFeatures] = useState<any[]>([]);
   
   const singleForm = useForm<ScrapeFormData>({
     resolver: zodResolver(scrapeSchema),
@@ -175,6 +177,72 @@ function ScraperPage() {
     onError: (error: any) => {
       toast({
         title: "Hata",
+        description: error.message,
+        variant: "destructive"
+      });
+    }
+  });
+
+  // All Images extraction mutation
+  const extractAllImagesMutation = useMutation({
+    mutationFn: async (url: string) => {
+      const response = await fetch("/api/comprehensive-images", {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+        },
+        body: JSON.stringify({ url }),
+      });
+      
+      if (!response.ok) {
+        const errorData = await response.json().catch(() => ({}));
+        throw new Error(errorData.message || `HTTP ${response.status}`);
+      }
+      return response.json();
+    },
+    onSuccess: (data) => {
+      setAllImages(data.images || []);
+      toast({
+        title: "Tüm Görseller Çıkarıldı",
+        description: `${data.totalImages} görsel bulundu ve kategorize edildi`
+      });
+    },
+    onError: (error: any) => {
+      toast({
+        title: "Görsel Çıkarma Hatası",
+        description: error.message,
+        variant: "destructive"
+      });
+    }
+  });
+
+  // Product features extraction mutation
+  const extractFeaturesMutation = useMutation({
+    mutationFn: async (url: string) => {
+      const response = await fetch("/api/scenario-scrape", {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+        },
+        body: JSON.stringify({ url }),
+      });
+      
+      if (!response.ok) {
+        const errorData = await response.json().catch(() => ({}));
+        throw new Error(errorData.message || `HTTP ${response.status}`);
+      }
+      return response.json();
+    },
+    onSuccess: (data) => {
+      setProductFeatures(data.features || []);
+      toast({
+        title: "Ürün Özellikleri Çıkarıldı",
+        description: `${data.features?.length || 0} özellik bulundu`
+      });
+    },
+    onError: (error: any) => {
+      toast({
+        title: "Özellik Çıkarma Hatası",
         description: error.message,
         variant: "destructive"
       });
@@ -393,6 +461,54 @@ function ScraperPage() {
                         </Button>
                       )}
                     </div>
+                    
+                    {/* Additional extraction options */}
+                    {singleForm.watch('url') && (
+                      <div className="mt-6 pt-6 border-t border-cyan-800/30">
+                        <p className="text-white/70 font-thin text-sm mb-4">Gelişmiş Çıkarma Seçenekleri</p>
+                        <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
+                          <Button
+                            type="button"
+                            variant="outline"
+                            disabled={extractAllImagesMutation.isPending}
+                            onClick={() => extractAllImagesMutation.mutate(singleForm.getValues('url'))}
+                            className="business-button-outline h-12 text-sm"
+                          >
+                            {extractAllImagesMutation.isPending ? (
+                              <div className="flex items-center gap-2">
+                                <Loader2 className="w-4 h-4 animate-spin" />
+                                <span>Görseller Çıkarılıyor...</span>
+                              </div>
+                            ) : (
+                              <div className="flex items-center gap-2">
+                                <Image className="w-4 h-4" />
+                                <span>Tüm Görselleri Getir</span>
+                              </div>
+                            )}
+                          </Button>
+                          
+                          <Button
+                            type="button"
+                            variant="outline"
+                            disabled={extractFeaturesMutation.isPending}
+                            onClick={() => extractFeaturesMutation.mutate(singleForm.getValues('url'))}
+                            className="business-button-outline h-12 text-sm"
+                          >
+                            {extractFeaturesMutation.isPending ? (
+                              <div className="flex items-center gap-2">
+                                <Loader2 className="w-4 h-4 animate-spin" />
+                                <span>Özellikler Çıkarılıyor...</span>
+                              </div>
+                            ) : (
+                              <div className="flex items-center gap-2">
+                                <Eye className="w-4 h-4" />
+                                <span>Ürün Özelliklerini Getir</span>
+                              </div>
+                            )}
+                          </Button>
+                        </div>
+                      </div>
+                    )}
                   </motion.form>
                 </CardContent>
               </Card>
@@ -401,6 +517,68 @@ function ScraperPage() {
 
 
         </div>
+
+        {/* All Images Display Section */}
+        {allImages.length > 0 && (
+          <div className="mt-8">
+            <Card className="business-card">
+              <CardHeader className="business-header">
+                <CardTitle className="text-white font-thin text-lg flex items-center gap-2">
+                  <Image className="w-5 h-5 text-cyan-400/70" />
+                  Tüm Ürün Görselleri ({allImages.length})
+                </CardTitle>
+              </CardHeader>
+              <CardContent className="p-6">
+                <div className="grid grid-cols-2 md:grid-cols-4 lg:grid-cols-6 gap-4">
+                  {allImages.slice(0, 24).map((image, index) => (
+                    <div key={index} className="relative group">
+                      <img
+                        src={image.url || image}
+                        alt={`Ürün görseli ${index + 1}`}
+                        className="w-full h-24 object-cover rounded-lg border border-cyan-800/30 group-hover:border-cyan-600 transition-colors"
+                        onError={(e) => {
+                          e.currentTarget.style.display = 'none';
+                        }}
+                      />
+                      <div className="absolute inset-0 bg-black/50 opacity-0 group-hover:opacity-100 transition-opacity rounded-lg flex items-center justify-center">
+                        <span className="text-white text-xs">{index + 1}</span>
+                      </div>
+                    </div>
+                  ))}
+                </div>
+                {allImages.length > 24 && (
+                  <p className="text-white/60 text-sm mt-4 text-center">
+                    ve {allImages.length - 24} görsel daha...
+                  </p>
+                )}
+              </CardContent>
+            </Card>
+          </div>
+        )}
+
+        {/* Product Features Display Section */}
+        {productFeatures.length > 0 && (
+          <div className="mt-8">
+            <Card className="business-card">
+              <CardHeader className="business-header">
+                <CardTitle className="text-white font-thin text-lg flex items-center gap-2">
+                  <Eye className="w-5 h-5 text-cyan-400/70" />
+                  Ürün Özellikleri ({productFeatures.length})
+                </CardTitle>
+              </CardHeader>
+              <CardContent className="p-6">
+                <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                  {productFeatures.map((feature, index) => (
+                    <div key={index} className="flex justify-between items-center p-3 bg-slate-800/30 rounded-lg border border-cyan-800/20">
+                      <span className="text-white/80 font-medium text-sm">{feature.key}</span>
+                      <span className="text-cyan-400 text-sm">{feature.value}</span>
+                    </div>
+                  ))}
+                </div>
+              </CardContent>
+            </Card>
+          </div>
+        )}
 
         {/* CSV Preview Section - Single Variant */}
         {product && (

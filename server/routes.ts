@@ -48,6 +48,31 @@ import { uploadMultiUrlProductToShopify } from './multi-url-shopify-uploader';
 import { eq, desc, or, and, isNotNull, inArray } from 'drizzle-orm';
 import axios from 'axios';
 
+// Telegram notification for product extraction
+async function sendProductExtractionNotification(url: string, title: string, brand: string, price: any) {
+  try {
+    const message = `
+🔄 <b>ÜRÜN ÇEKİLDİ</b>
+
+📦 <b>Ürün:</b> ${title}
+🏢 <b>Marka:</b> ${brand}
+💰 <b>Orijinal Fiyat:</b> ${price.original} TL
+💵 <b>Kar Marjlı Fiyat:</b> ${price.withProfit} TL
+🔗 <b>URL:</b> ${url}
+
+✅ <b>Shopify'a aktarıma hazır</b>
+    `.trim();
+
+    // Import filtered telegram notifier
+    const { sendFilteredTelegramNotification } = await import('./filtered-telegram-notifier');
+    
+    await sendFilteredTelegramNotification(message);
+    console.log('📱 Telegram ürün bildirim gönderildi');
+  } catch (error) {
+    console.error('❌ Telegram bildirim hatası:', error);
+  }
+}
+
 // Enhanced description creator with features
 function createEnhancedDescription(productData: any): string {
   let description = `<div class="product-description">`;
@@ -941,6 +966,9 @@ export function registerRoutes(app: Express): Server {
         if (result.success) {
           console.log(`🎯 Scenario: ${result.scenario}, Confidence: ${result.confidence}%`);
           console.log(`🎯 Variants: ${result.variants.length} adet`);
+          
+          // Send Telegram notification with product URL and title
+          await sendProductExtractionNotification(url, result.title, result.brand, result.price);
           
           return res.json({
             success: true,
