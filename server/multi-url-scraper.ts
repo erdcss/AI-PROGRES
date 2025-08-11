@@ -220,6 +220,54 @@ function generateTags(title: string, description: string, colors: string[]): str
   return Array.from(tags);
 }
 
+function extractBrandFromUrl(url: string): string {
+  const urlMatch = url.match(/trendyol\.com\/([^\/]+)\//);
+  if (urlMatch) {
+    const brand = urlMatch[1]
+      .split('-')
+      .map(word => word.charAt(0).toUpperCase() + word.slice(1))
+      .join('-');
+    return brand;
+  }
+  return 'Brand';
+}
+
+function extractCategoryFromTitle(title: string): string {
+  if (!title) return 'Genel';
+  
+  const lowerTitle = title.toLowerCase();
+  
+  if (lowerTitle.includes('gömlek') || lowerTitle.includes('shirt')) return 'Gömlek';
+  if (lowerTitle.includes('elbise') || lowerTitle.includes('dress')) return 'Elbise';
+  if (lowerTitle.includes('pantolon') || lowerTitle.includes('pants')) return 'Pantolon';
+  if (lowerTitle.includes('ceket') || lowerTitle.includes('jacket')) return 'Ceket';
+  if (lowerTitle.includes('ayakkabı') || lowerTitle.includes('shoe')) return 'Ayakkabı';
+  if (lowerTitle.includes('çanta') || lowerTitle.includes('bag')) return 'Çanta';
+  if (lowerTitle.includes('kozmetik') || lowerTitle.includes('makeup')) return 'Kozmetik';
+  if (lowerTitle.includes('telefon') || lowerTitle.includes('phone')) return 'Elektronik';
+  if (lowerTitle.includes('ev') || lowerTitle.includes('home')) return 'Ev & Yaşam';
+  
+  return 'Giyim';
+}
+
+function generateProductDescription(title: string, brand: string, features: Array<{key: string, value: string}>): string {
+  let description = `<h2>${title}</h2>`;
+  
+  if (brand) {
+    description += `<p><strong>Marka:</strong> ${brand}</p>`;
+  }
+  
+  if (features && features.length > 0) {
+    description += '<h3>Ürün Özellikleri</h3><ul>';
+    features.forEach(feature => {
+      description += `<li><strong>${feature.key}:</strong> ${feature.value}</li>`;
+    });
+    description += '</ul>';
+  }
+  
+  return description;
+}
+
 interface MultiUrlScrapeRequest {
   urls: Array<{
     url: string;
@@ -264,6 +312,7 @@ export async function scrapeMultipleUrls(request: MultiUrlScrapeRequest): Promis
   }> = [];
   
   let mainProduct: any = null; // İlk URL'den alınacak ortak bilgiler
+  let allFeatures: Array<{ key: string; value: string }> = []; // Ürün özellikleri
   
   for (const { url } of request.urls) {
     try {
@@ -296,94 +345,89 @@ export async function scrapeMultipleUrls(request: MultiUrlScrapeRequest): Promis
       
       console.log(`🔒 FINAL: Bu URL'nin tek rengi → ${finalColor}`);
       
-      // Extract basic product info (use first URL as main product info)
+      // Extract complete product info using scenario-based scraper for first URL
       if (!mainProduct) {
-        const titleElement = $('h1.pr-new-br[data-testid="product-detail-name"]');
-        const title = titleElement.text().trim();
+        console.log(`🎯 Getting complete product data from first URL using scenario-based scraper`);
         
-        const brandElement = $('a[data-testid="product-detail-brand"]');
-        const brand = brandElement.text().trim();
-        
-        const descriptionElement = $('.product-detail-description, .detail-desc-text');
-        const description = descriptionElement.text().trim();
-        
-        // Extract price with improved logic
-        let price: any = "0";
-        
-        // Try JSON-LD first for most accurate price
-        const jsonLdScripts = $('script[type="application/ld+json"]');
-        let priceFound = false;
-        
-        for (let i = 0; i < jsonLdScripts.length; i++) {
-          try {
-            const jsonData = JSON.parse($(jsonLdScripts[i]).html() || '{}');
-            if (jsonData.offers && jsonData.offers.price) {
-              const originalPrice = parseFloat(jsonData.offers.price);
-              const finalPrice = Math.round(originalPrice * 1.10); // 10% profit
-              price = {
-                profitFormatted: `${finalPrice} TL`,
-                value: originalPrice,
-                withProfit: finalPrice
-              };
-              console.log(`💰 Price from JSON-LD: ${originalPrice} TL → ${finalPrice} TL`);
-              priceFound = true;
-              break;
-            }
-          } catch (e) {
-            // Continue to next script
-          }
-        }
-        
-        // Fallback to DOM extraction if JSON-LD fails
-        if (!priceFound) {
-          const priceSelectors = [
-            '.prc-dsc', 
-            '.prc-org', 
-            '[data-testid="price-current-price"]',
-            '.price-current',
-            '.current-price',
-            '.sale-price'
-          ];
+        try {
+          const { scenarioBasedScrape } = await import('./scenario-based-scraper');
+          const scenarioResult = await scenarioBasedScrape(url);
           
-          for (const selector of priceSelectors) {
-            const priceElement = $(selector);
-            if (priceElement.length > 0) {
-              const priceText = priceElement.first().text().trim();
-              const priceMatch = priceText.match(/[\d.,]+/);
-              if (priceMatch) {
-                const originalPrice = parseFloat(priceMatch[0].replace(',', '.'));
-                const finalPrice = Math.round(originalPrice * 1.10); // 10% profit
-                price = {
-                  profitFormatted: `${finalPrice} TL`,
-                  value: originalPrice,
-                  withProfit: finalPrice
-                };
-                console.log(`💰 Price from DOM (${selector}): ${originalPrice} TL → ${finalPrice} TL`);
-                priceFound = true;
-                break;
-              }
+          if (scenarioResult.success) {
+            console.log(`✅ Scenario-based data extraction successful`);
+            
+            // Use scenario-based data and create mainProduct
+            const title = scenarioResult.title;
+            const brand = scenarioResult.brand;
+            const description = scenarioResult.features && scenarioResult.features.length > 0 
+              ? scenarioResult.features.map(f => `${f.key}: ${f.value}`).join('. ') 
+              : '';
+            
+            // Store all features for later use
+            allFeatures = scenarioResult.features || [];
+            
+            // Create mainProduct from scenario data
+            mainProduct = {
+              id: url.split('-p-')[1]?.split('?')[0] || Date.now().toString(),
+              title: title,
+              brand: brand,
+              description: description,
+              price: scenarioResult.price,
+              category: extractCategoryFromTitle(title)
+            };
+            
+            console.log(`📋 Extracted ${allFeatures.length} features from scenario-based scraper`);
+            console.log(`✅ Main product created: ${title} - ${brand}`);
+            
+            // Add images from scenario-based result to combinedImages
+            if (scenarioResult.images && scenarioResult.images.length > 0) {
+              scenarioResult.images.forEach(imageUrl => {
+                combinedImages.push({
+                  url: imageUrl,
+                  alt: `${title} - ${finalColor}`,
+                  colorName: finalColor
+                });
+              });
+              console.log(`📸 Added ${scenarioResult.images.length} images from scenario-based scraper`);
             }
+          } else {
+            console.log(`⚠️ Scenario-based extraction failed, using basic extraction`);
+            // Fallback to basic extraction
+            const titleElement = $('h1.pr-new-br[data-testid="product-detail-name"], h1');
+            const title = titleElement.text().trim() || 'Product';
+            
+            const brandElement = $('a[data-testid="product-detail-brand"]');
+            const brand = brandElement.text().trim() || extractBrandFromUrl(url);
+            
+            const descriptionElement = $('.product-detail-description, .detail-desc-text');
+            const description = descriptionElement.text().trim();
+            
+            // Create fallback mainProduct
+            mainProduct = {
+              id: url.split('-p-')[1]?.split('?')[0] || Date.now().toString(),
+              title: title,
+              brand: brand,
+              description: description,
+              price: { profitFormatted: '0 TL', value: 0, withProfit: 0 },
+              category: extractCategoryFromTitle(title)
+            };
+            
+            console.log(`⚠️ Created fallback main product: ${title} - ${brand}`);
           }
-        }
-        
-        // Default price if nothing found
-        if (!priceFound) {
-          console.log('⚠️ No price found, using default');
-          price = {
-            profitFormatted: "0 TL",
-            value: 0,
-            withProfit: 0
+        } catch (error) {
+          console.error(`❌ Error during scenario-based extraction:`, error);
+          // Create minimal fallback
+          const title = $('h1').first().text().trim() || 'Product';
+          const brand = extractBrandFromUrl(url);
+          mainProduct = {
+            id: url.split('-p-')[1]?.split('?')[0] || Date.now().toString(),
+            title: title,
+            brand: brand,
+            description: '',
+            price: { profitFormatted: '0 TL', value: 0, withProfit: 0 },
+            category: 'Genel'
           };
         }
-        
-        mainProduct = {
-          id: url.split('-p-')[1]?.split('?')[0] || Date.now().toString(),
-          title,
-          brand,
-          description,
-          price,
-          category: 'Kozmetik'
-        };
       }
       
       // Extract images for this color
@@ -439,17 +483,8 @@ export async function scrapeMultipleUrls(request: MultiUrlScrapeRequest): Promis
     throw new Error('Failed to extract main product information from any URL');
   }
   
-  // Extract features from first URL
-  let features: Array<{ key: string; value: string }> = [];
-  if (request.urls.length > 0) {
-    try {
-      const firstResponse = await fetchWithRetry(request.urls[0].url);
-      const firstCheerio = cheerio.load(firstResponse);
-      features = extractFeaturesFromContent(firstCheerio, firstResponse);
-    } catch (error) {
-      console.error('❌ Failed to extract features:', error);
-    }
-  }
+  // Features are already extracted in allFeatures from scenario-based scraper
+  const features = allFeatures;
   
   // Generate tags
   const tags = generateTags(mainProduct.title, mainProduct.description, Array.from(combinedColors));
