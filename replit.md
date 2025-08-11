@@ -27,6 +27,9 @@ The application features a full-stack architecture with clear separation of conc
 - **Enhanced Color Detection System** (August 2025): Implemented intelligent color detection with multiple fallback strategies including script analysis, DOM inspection, and URL parsing. System now prioritizes authentic color data and avoids false color detection.
 - **Improved Stock Management**: Advanced stock checking algorithms that validate availability through button states, script data, and HTML patterns. Provides accurate in-stock/out-of-stock status for size variants.
 - **UI Terminology Updates**: Changed user interface from "Renk" (Color) to "Ürün" (Product) terminology for better user understanding. Updated button text to "SHOPIFY'A AKTAR" for clearer action indication.
+- **Fake Variant Data Removal** (August 2025): Completely disabled automatic fake variant generation in extractEnhancedVariants function. System now returns empty variant arrays instead of generating misleading size/color combinations that don't exist.
+- **Enhanced Product Features Extraction** (August 2025): Improved feature extraction system with additional selectors for Turkish e-commerce patterns, category detection from breadcrumbs, brand information extraction, and product code/SKU identification. Increased feature limit to 20 items.
+- **CSV Preview UI Optimization**: Implemented ultra-compact CSV preview cards with aggressive text truncation, minimized badge sizes, removed button text (icons only), and title length limits to prevent overflow issues.
 
 ## External Dependencies
 

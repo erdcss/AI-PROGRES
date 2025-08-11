@@ -41,14 +41,26 @@ export function generateMultiVariantShopifyCSV(product: CombinedProduct): string
     .replace(/\s+/g, '-')
     .substring(0, 50);
 
-  // Body HTML oluştur
-  let bodyHtml = `<p><strong>${product.brand}</strong></p>`;
-  bodyHtml += `<p>${product.description}</p>`;
+  // Enhanced Body HTML with category and better structure
+  let bodyHtml = `<p><strong>Marka:</strong> ${product.brand}</p>`;
+  
+  // Add category if available
+  const categoryFeature = product.features.find(f => f.key.toLowerCase().includes('kategori'));
+  if (categoryFeature) {
+    bodyHtml += `<p><strong>Kategori:</strong> ${categoryFeature.value}</p>`;
+  }
+  
+  if (product.description && product.description !== 'undefined') {
+    bodyHtml += `<p><strong>Açıklama:</strong> ${product.description}</p>`;
+  }
   
   if (product.features.length > 0) {
     bodyHtml += '<h3>Ürün Özellikleri:</h3><ul>';
     product.features.forEach(feature => {
-      bodyHtml += `<li><strong>${feature.key}:</strong> ${feature.value}</li>`;
+      // Skip category as it's already added above
+      if (!feature.key.toLowerCase().includes('kategori')) {
+        bodyHtml += `<li><strong>${feature.key}:</strong> ${feature.value}</li>`;
+      }
     });
     bodyHtml += '</ul>';
   }
@@ -92,11 +104,29 @@ export function generateMultiVariantShopifyCSV(product: CombinedProduct): string
     }
   });
 
+  // Sahte varyant kontrolü - eğer varyant yoksa tek ürün olarak işle
+  let actualVariants = product.variants.allVariants || [];
+  
+  // Sahte varyantları filtrele - sadece gerçek varyantları tut
+  if (actualVariants.length === 0 || 
+      (actualVariants.length === 1 && 
+       (actualVariants[0].color === 'Varsayılan' || actualVariants[0].size === 'STANDART'))) {
+    // Tek ürün olarak işle - varyant yok
+    actualVariants = [{
+      color: 'Tek Renk',
+      colorCode: 'single',
+      size: 'Tek Beden',
+      inStock: true
+    }];
+  }
+  
+  console.log(`📊 Processing ${actualVariants.length} actual variants (filtered from ${product.variants.allVariants?.length || 0} total)`);
+  
   // Tüm varyantları işle
   let imagePosition = 1;
   let isFirstRow = true;
   
-  product.variants.allVariants.forEach((variant, index) => {
+  actualVariants.forEach((variant, index) => {
     const row: string[] = [];
     
     // İlk satır için ürün bilgileri
@@ -117,11 +147,24 @@ export function generateMultiVariantShopifyCSV(product: CombinedProduct): string
       row.push(''); // Published (boş)
     }
     
-    // Option bilgileri
-    row.push('Renk'); // Option1 Name
-    row.push(variant.color); // Option1 Value
-    row.push('Beden'); // Option2 Name
-    row.push(variant.size); // Option2 Value
+    // Option bilgileri - sadece gerçek varyantlar için
+    if (actualVariants.length > 1 && variant.color !== 'Tek Renk') {
+      row.push('Renk'); // Option1 Name
+      row.push(variant.color); // Option1 Value
+      if (variant.size !== 'Tek Beden') {
+        row.push('Beden'); // Option2 Name
+        row.push(variant.size); // Option2 Value
+      } else {
+        row.push(''); // Option2 Name
+        row.push(''); // Option2 Value
+      }
+    } else {
+      // Tek ürün - option yok
+      row.push(''); // Option1 Name
+      row.push(''); // Option1 Value
+      row.push(''); // Option2 Name
+      row.push(''); // Option2 Value
+    }
     
     // Varyant bilgileri
     row.push(`${productHandle}-${variant.colorCode}-${variant.size.toLowerCase()}`); // Variant SKU

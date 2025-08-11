@@ -173,14 +173,20 @@ export async function extractEnhancedFeatures($: cheerio.CheerioAPI, htmlContent
     }
   });
 
-  // Method 2: Product specification tables
+  // Method 2: Enhanced product specification tables with Turkish e-commerce patterns
   const specSelectors = [
     '.product-detail-attributes .detail-attr-item',
     '.product-features .feature-item',
     '.attribute-list .attribute-item',
     '.product-specs tr',
     '.detail-table tr',
-    '.properties-table tr'
+    '.properties-table tr',
+    '.detail-attr-container .detail-attr-item',
+    '.product-detail-info .detail-desc',
+    '.feature-list .feature-item',
+    '.spec-row',
+    '.attribute-row',
+    '.product-feature-list li'
   ];
 
   specSelectors.forEach(selector => {
@@ -222,9 +228,41 @@ export async function extractEnhancedFeatures($: cheerio.CheerioAPI, htmlContent
     });
   });
 
-  console.log(`✅ Extracted ${features.length} unique product features`);
+  // Method 3: Extract category information from breadcrumb and metadata
+  $('.breadcrumb a, .breadcrumb-item, .category-link').each((_, el) => {
+    const categoryText = $(el).text().trim();
+    if (categoryText && categoryText.length > 2 && categoryText.length < 50 && 
+        !processedKeys.has('kategori')) {
+      features.push({ key: 'Kategori', value: categoryText });
+      processedKeys.add('kategori');
+    }
+  });
+
+  // Method 4: Extract brand information
+  const brandSelectors = ['.brand-name', '.product-brand', '[data-testid="brand"]', '.vendor-name'];
+  brandSelectors.forEach(selector => {
+    const brandText = $(selector).first().text().trim();
+    if (brandText && brandText.length > 1 && brandText.length < 30 && 
+        !processedKeys.has('marka')) {
+      features.push({ key: 'Marka', value: brandText });
+      processedKeys.add('marka');
+    }
+  });
+
+  // Method 5: Extract product code/SKU
+  const codeSelectors = ['.product-code', '.sku', '[data-testid="product-code"]', '.model-no'];
+  codeSelectors.forEach(selector => {
+    const codeText = $(selector).first().text().trim();
+    if (codeText && codeText.length > 3 && codeText.length < 30 && 
+        !processedKeys.has('ürün kodu')) {
+      features.push({ key: 'Ürün Kodu', value: codeText });
+      processedKeys.add('ürün kodu');
+    }
+  });
+
+  console.log(`✅ Extracted ${features.length} unique product features with category and brand info`);
   
-  return features.slice(0, 15); // Limit to 15 most relevant features
+  return features.slice(0, 20); // Increased to 20 to include category and brand info
 }
 
 /**
@@ -240,8 +278,10 @@ export function extractEnhancedVariants($: cheerio.CheerioAPI, htmlContent: stri
   
   // Return empty array immediately to avoid generating fake variants
   return [];
-  
-  // Method 1: Enhanced size extraction with Turkish size patterns
+
+  /* Disabled fake variant generation code below */
+  /*
+  // DISABLED - Method 1: Enhanced size extraction with Turkish size patterns
   const sizeSelectors = [
     '.sp-itm', // Trendyol size items
     '.variant-size',
@@ -422,4 +462,5 @@ export function extractEnhancedVariants($: cheerio.CheerioAPI, htmlContent: stri
   console.log(`✅ Generated ${variants.length} variants from ${colors.size} colors and ${sizes.size} sizes`);
   
   return variants;
+  */ // End of disabled fake variant generation
 }
