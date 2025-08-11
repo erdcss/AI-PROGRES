@@ -252,12 +252,11 @@ function ScraperPage() {
   });
 
   const onSingleSubmit = singleForm.handleSubmit((data) => {
-    // Start the main scraping process with persistent tags
+    // Start the main scraping process with persistent tags - this already includes image extraction
     singleScrapeMutation.mutate({ ...data, persistentTags });
     
-    // Also extract all images and features in parallel
-    extractAllImagesMutation.mutate(data.url);
-    extractFeaturesMutation.mutate(data.url);
+    // No need for additional comprehensive image extraction since scenario-based scraper already extracts all needed images
+    // Removed: extractAllImagesMutation.mutate(data.url); to prevent "Görsel Çıkarma Hatası" notifications
   });
 
   const addTag = () => {
