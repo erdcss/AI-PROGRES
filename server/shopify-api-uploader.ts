@@ -236,7 +236,16 @@ function parseCSVToShopifyProduct(records: any[]): ShopifyProductData {
   
   // Variants - SKU'su olan kayıtlar
   const variants = records
-    .filter(record => record['Variant SKU'] && record['Variant SKU'].trim())
+    .filter(record => {
+      // Debug log to see what we're filtering
+      console.log('🔍 Record check:', {
+        hasSKU: !!record['Variant SKU'],
+        sku: record['Variant SKU'],
+        option1: record['Option1 Value'],
+        option2: record['Option2 Value']
+      });
+      return record['Variant SKU'] && record['Variant SKU'].trim();
+    })
     .map(record => {
       const variant = {
         option1: record['Option1 Value'] || '',

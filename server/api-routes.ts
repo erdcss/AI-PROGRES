@@ -517,10 +517,23 @@ router.post('/color-selection', async (req, res) => {
   }
 });
 
-// Shopify upload endpoint for Arçelik
+// Shopify upload endpoint for Arçelik and CSV uploads
 router.post('/api/shopify-upload', async (req, res) => {
   try {
-    const { productData, platform } = req.body;
+    const { productData, platform, csvContent, productTitle } = req.body;
+    
+    console.log('🚀 API-ROUTES: Shopify upload intercepted');
+    console.log('Request body keys:', Object.keys(req.body));
+    console.log('CSV Content exists:', !!csvContent);
+    console.log('Product Data exists:', !!productData);
+    
+    // Handle CSV uploads - redirect to proper handler
+    if (csvContent) {
+      console.log('📄 CSV upload detected - delegating to CSV uploader');
+      const { uploadProductToShopify } = await import('./shopify-api-uploader');
+      const result = await uploadProductToShopify(csvContent, productTitle);
+      return res.json(result);
+    }
     
     if (!productData || !productData.title) {
       return res.status(400).json({ 
