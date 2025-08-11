@@ -10,6 +10,7 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { CSVPreview } from "@/components/CSVPreview";
+import { CSVDrawerPreview } from "@/components/CSVDrawerPreview";
 
 import { toast } from "@/hooks/use-toast";
 import { useLocation } from "wouter";
@@ -68,6 +69,7 @@ function ScraperPage() {
   const [newTag, setNewTag] = useState('');
   const [draggedUrls, setDraggedUrls] = useState<string[]>([]);
   const [isDragOver, setIsDragOver] = useState(false);
+  const [csvPreviews, setCsvPreviews] = useState<any[]>([]);
   
   const singleForm = useForm<ScrapeFormData>({
     resolver: zodResolver(scrapeSchema),
@@ -128,12 +130,25 @@ function ScraperPage() {
     onSuccess: (data) => {
       setProduct(data);
       
-      // CSV content varsa direkt Shopify'a yükle
+      // Her ürün için ayrı CSV preview ekle
       if (data.csvContent) {
-        uploadToShopify(data.csvContent, data.title || 'Product');
+        const newCSVPreview = {
+          id: `csv-${Date.now()}-${Math.random().toString(36).substr(2, 9)}`,
+          productTitle: data.title || 'Ürün',
+          csvContent: data.csvContent,
+          variants: {
+            colors: data.variants?.colors || ['Standart'],
+            sizes: data.variants?.sizes || ['Tek Beden']
+          },
+          images: data.images?.map((img: any) => typeof img === 'string' ? img : img.url) || [],
+          createdAt: new Date().toISOString()
+        };
+        
+        setCsvPreviews(prev => [newCSVPreview, ...prev]);
+        
         toast({
           title: "Başarılı", 
-          description: "Ürün verisi çekildi ve Shopify'a aktarılıyor"
+          description: "Ürün verisi çekildi ve CSV önizleme eklendi"
         });
       } else {
         toast({
@@ -204,14 +219,32 @@ function ScraperPage() {
     },
     onSuccess: (data) => {
       setProduct(data);
-      toast({
-        title: "Başarılı",
-        description: `${data.variants?.colors?.length || 0} renk varyantı birleştirildi`
-      });
       
-      // Sadece Shopify'a yükleme - CSV indirme kaldırıldı
+      // Multi-URL ürün için CSV preview ekle
       if (data.csvContent) {
-        uploadToShopify(data.csvContent, data.title || 'Multi-Variant Product');
+        const newCSVPreview = {
+          id: `csv-${Date.now()}-${Math.random().toString(36).substr(2, 9)}`,
+          productTitle: data.title || 'Multi-Variant Product',
+          csvContent: data.csvContent,
+          variants: {
+            colors: data.variants?.colors || [],
+            sizes: data.variants?.sizes || []
+          },
+          images: data.images?.map((img: any) => typeof img === 'string' ? img : img.url) || [],
+          createdAt: new Date().toISOString()
+        };
+        
+        setCsvPreviews(prev => [newCSVPreview, ...prev]);
+        
+        toast({
+          title: "Başarılı",
+          description: `${data.variants?.colors?.length || 0} renk varyantı birleştirildi ve CSV eklendi`
+        });
+      } else {
+        toast({
+          title: "Başarılı",
+          description: `${data.variants?.colors?.length || 0} renk varyantı birleştirildi`
+        });
       }
     },
     onError: (error: any) => {
@@ -379,14 +412,26 @@ function ScraperPage() {
         // Her URL için ayrı ayrı işlem yap
         const data = await singleScrapeMutation.mutateAsync({ url, persistentTags });
         
-        // Eğer CSV content varsa Shopify'a yükle
+        // Her ürün için ayrı CSV preview ekle
         if (data.csvContent) {
-          await uploadToShopify(data.csvContent, data.title || `Product ${i + 1}`);
+          const newCSVPreview = {
+            id: `csv-bulk-${i}-${Date.now()}-${Math.random().toString(36).substr(2, 9)}`,
+            productTitle: data.title || `Ürün ${i + 1}`,
+            csvContent: data.csvContent,
+            variants: {
+              colors: data.variants?.colors || ['Standart'],
+              sizes: data.variants?.sizes || ['Tek Beden']
+            },
+            images: data.images?.map((img: any) => typeof img === 'string' ? img : img.url) || [],
+            createdAt: new Date().toISOString()
+          };
+          
+          setCsvPreviews(prev => [newCSVPreview, ...prev]);
         }
         
         toast({
           title: `${i + 1}/${draggedUrls.length} Tamamlandı`,
-          description: `${url} işlendi ve Shopify'a aktarıldı`
+          description: `${data.title || url} işlendi ve CSV eklendi`
         });
       } catch (error) {
         toast({
@@ -399,7 +444,7 @@ function ScraperPage() {
     
     toast({
       title: "Toplu İşlem Tamamlandı",
-      description: `${draggedUrls.length} ürün işlendi`
+      description: `${draggedUrls.length} ürün işlendi ve CSV önizlemeleri eklendi`
     });
   };
 
@@ -431,6 +476,22 @@ function ScraperPage() {
       document.body.appendChild(link);
       link.click();
       document.body.removeChild(link);
+    }
+  };
+
+  // CSV indirme fonksiyonu
+  const handleCSVDownload = (id: string, filename: string) => {
+    const preview = csvPreviews.find(p => p.id === id);
+    if (preview) {
+      downloadCSV(preview.csvContent, filename);
+    }
+  };
+
+  // CSV Shopify upload fonksiyonu  
+  const handleCSVShopifyUpload = async (id: string) => {
+    const preview = csvPreviews.find(p => p.id === id);
+    if (preview) {
+      await uploadToShopify(preview.csvContent, preview.productTitle);
     }
   };
 
@@ -839,6 +900,13 @@ function ScraperPage() {
             </Card>
           </div>
         )}
+
+        {/* CSV Drawer Preview - Tüm CSV'ler */}
+        <CSVDrawerPreview 
+          csvPreviews={csvPreviews}
+          onDownload={handleCSVDownload}
+          onShopifyUpload={handleCSVShopifyUpload}
+        />
       </div>
     </div>
   );
