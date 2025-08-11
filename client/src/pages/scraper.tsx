@@ -250,7 +250,12 @@ function ScraperPage() {
   });
 
   const onSingleSubmit = singleForm.handleSubmit((data) => {
+    // Start the main scraping process
     singleScrapeMutation.mutate(data);
+    
+    // Also extract all images and features in parallel
+    extractAllImagesMutation.mutate(data.url);
+    extractFeaturesMutation.mutate(data.url);
   });
 
   const onMultiSubmit = multiForm.handleSubmit((data) => {
@@ -461,54 +466,6 @@ function ScraperPage() {
                         </Button>
                       )}
                     </div>
-                    
-                    {/* Additional extraction options */}
-                    {singleForm.watch('url') && (
-                      <div className="mt-6 pt-6 border-t border-cyan-800/30">
-                        <p className="text-white/70 font-thin text-sm mb-4">Gelişmiş Çıkarma Seçenekleri</p>
-                        <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
-                          <Button
-                            type="button"
-                            variant="outline"
-                            disabled={extractAllImagesMutation.isPending}
-                            onClick={() => extractAllImagesMutation.mutate(singleForm.getValues('url'))}
-                            className="business-button-outline h-12 text-sm"
-                          >
-                            {extractAllImagesMutation.isPending ? (
-                              <div className="flex items-center gap-2">
-                                <Loader2 className="w-4 h-4 animate-spin" />
-                                <span>Görseller Çıkarılıyor...</span>
-                              </div>
-                            ) : (
-                              <div className="flex items-center gap-2">
-                                <Image className="w-4 h-4" />
-                                <span>Tüm Görselleri Getir</span>
-                              </div>
-                            )}
-                          </Button>
-                          
-                          <Button
-                            type="button"
-                            variant="outline"
-                            disabled={extractFeaturesMutation.isPending}
-                            onClick={() => extractFeaturesMutation.mutate(singleForm.getValues('url'))}
-                            className="business-button-outline h-12 text-sm"
-                          >
-                            {extractFeaturesMutation.isPending ? (
-                              <div className="flex items-center gap-2">
-                                <Loader2 className="w-4 h-4 animate-spin" />
-                                <span>Özellikler Çıkarılıyor...</span>
-                              </div>
-                            ) : (
-                              <div className="flex items-center gap-2">
-                                <Eye className="w-4 h-4" />
-                                <span>Ürün Özelliklerini Getir</span>
-                              </div>
-                            )}
-                          </Button>
-                        </div>
-                      </div>
-                    )}
                   </motion.form>
                 </CardContent>
               </Card>

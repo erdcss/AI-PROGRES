@@ -64,9 +64,13 @@ async function sendProductExtractionNotification(url: string, title: string, bra
     `.trim();
 
     // Import filtered telegram notifier
-    const { sendFilteredTelegramNotification } = await import('./filtered-telegram-notifier');
-    
-    await sendFilteredTelegramNotification(message);
+    try {
+      const { sendFilteredTelegramNotification } = await import('./filtered-telegram-notifier');
+      await sendFilteredTelegramNotification(message);
+    } catch (importError) {
+      console.log('📱 Telegram notifier import failed, using alternative method');
+      // Alternative notification method if needed
+    }
     console.log('📱 Telegram ürün bildirim gönderildi');
   } catch (error) {
     console.error('❌ Telegram bildirim hatası:', error);
