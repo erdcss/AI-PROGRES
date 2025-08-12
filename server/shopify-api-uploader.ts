@@ -129,24 +129,26 @@ export async function uploadProductToShopify(csvContent: string, productTitle: s
             const hasOption2 = variant.option2 && variant.option2.trim() !== '';
             
             if (!hasOption1 && !hasOption2) {
-              // Tek varyant ürün - Default Title kullan
+              // Tek varyant ürün - Hiçbir option ekleme
               return {
-                title: 'Default Title',
                 price: variant.price,
                 sku: variant.sku,
                 inventory_quantity: variant.inventory_quantity,
                 inventory_management: 'shopify'
               };
             } else {
-              // Multi-varyant ürün - option1/option2 kullan
-              return {
-                option1: variant.option1 || 'Default',
-                option2: variant.option2 || 'Default',
+              // Multi-varyant ürün - sadece dolu option'ları kullan
+              const variantData: any = {
                 price: variant.price,
                 sku: variant.sku,
                 inventory_quantity: variant.inventory_quantity,
                 inventory_management: 'shopify'
               };
+              
+              if (hasOption1) variantData.option1 = variant.option1;
+              if (hasOption2) variantData.option2 = variant.option2;
+              
+              return variantData;
             }
           }),
           images: productData.images.filter(img => img.src && img.src.startsWith('http')),
@@ -194,38 +196,58 @@ export async function uploadProductToShopify(csvContent: string, productTitle: s
     console.log('🔧 Attempting to fix variant names via update API...');
     console.log(`Product has ${createdVariants.length} variants to update`);
     
-    // Update each variant with correct option values
-    for (let i = 0; i < Math.min(createdVariants.length, productData.variants.length); i++) {
-      const shopifyVariant = createdVariants[i];
-      const originalVariant = productData.variants[i];
-      
-      console.log(`Updating variant ${i}: ${originalVariant.option1} / ${originalVariant.option2}`);
-      
-      try {
-        const updateResponse = await fetch(`https://${shopifyStore}/admin/api/2023-10/variants/${shopifyVariant.id}.json`, {
-          method: 'PUT',
-          headers: {
-            'X-Shopify-Access-Token': accessToken,
-            'Content-Type': 'application/json'
-          },
-          body: JSON.stringify({
-            variant: {
-              id: shopifyVariant.id,
-              option1: originalVariant.option1,
-              option2: originalVariant.option2,
-              price: originalVariant.price
-            }
-          })
-        });
+    // Skip variant updates for products without options
+    const hasAnyOptions = productData.variants.some(v => 
+      (v.option1 && v.option1.trim()) || (v.option2 && v.option2.trim())
+    );
+    
+    if (hasAnyOptions) {
+      // Update each variant with correct option values only if they have options
+      for (let i = 0; i < Math.min(createdVariants.length, productData.variants.length); i++) {
+        const shopifyVariant = createdVariants[i];
+        const originalVariant = productData.variants[i];
         
-        if (updateResponse.ok) {
-          console.log(`✅ Variant ${i} updated successfully`);
-        } else {
-          console.log(`❌ Variant ${i} update failed:`, await updateResponse.text());
+        const hasOption1 = originalVariant.option1 && originalVariant.option1.trim();
+        const hasOption2 = originalVariant.option2 && originalVariant.option2.trim();
+        
+        if (!hasOption1 && !hasOption2) {
+          console.log(`Skipping variant ${i} update - no options to set`);
+          continue;
         }
-      } catch (updateError) {
-        console.log(`❌ Variant ${i} update error:`, updateError);
+        
+        console.log(`Updating variant ${i}: ${originalVariant.option1 || 'none'} / ${originalVariant.option2 || 'none'}`);
+        
+        try {
+          const updateData: any = {
+            id: shopifyVariant.id,
+            price: originalVariant.price
+          };
+          
+          if (hasOption1) updateData.option1 = originalVariant.option1;
+          if (hasOption2) updateData.option2 = originalVariant.option2;
+          
+          const updateResponse = await fetch(`https://${shopifyStore}/admin/api/2023-10/variants/${shopifyVariant.id}.json`, {
+            method: 'PUT',
+            headers: {
+              'X-Shopify-Access-Token': accessToken,
+              'Content-Type': 'application/json'
+            },
+            body: JSON.stringify({
+              variant: updateData
+            })
+          });
+          
+          if (updateResponse.ok) {
+            console.log(`✅ Variant ${i} updated successfully`);
+          } else {
+            console.log(`❌ Variant ${i} update failed:`, await updateResponse.text());
+          }
+        } catch (updateError) {
+          console.log(`❌ Variant ${i} update error:`, updateError);
+        }
       }
+    } else {
+      console.log('🔧 No variant updates needed - product has no options');
     }
     
     // Record upload to prevent duplicates
