@@ -30,6 +30,7 @@ import SOSControl from "@/pages/sos-control";
 import ProductReviews from "@/pages/product-reviews";
 import MemoryTrackingPage from "@/pages/MemoryTrackingPage";
 import SavedUrlsPage from "@/pages/SavedUrlsPage";
+import ShopifyTrackingPage from "@/pages/ShopifyTrackingPage";
 import { TBotAssistant } from "@/components/TBotAssistant";
 
 // Login component with password protection
@@ -317,6 +318,11 @@ function Router() {
       <Route path="/scraper/arcelik">
         <PageTransition>
           <ArcelikScraper />
+        </PageTransition>
+      </Route>
+      <Route path="/shopify-tracking">
+        <PageTransition>
+          <ShopifyTrackingPage />
         </PageTransition>
       </Route>
       </Switch>

@@ -260,3 +260,58 @@ export const urlSchema = z.object({
 export const csvPreviewSchema = z.object({
   url: z.string().url()
 });
+
+// Shopify transferred products tracking - Shopify'a aktarılan ürün takibi
+export const shopifyTransferredProducts = pgTable('shopify_transferred_products', {
+  id: serial('id').primaryKey(),
+  sourceUrl: text('source_url').notNull().unique(),
+  shopifyProductId: text('shopify_product_id'),
+  shopifyHandle: text('shopify_handle'),
+  title: text('title').notNull(),
+  brand: text('brand'),
+  originalPrice: decimal('original_price', { precision: 10, scale: 2 }),
+  shopifyPrice: decimal('shopify_price', { precision: 10, scale: 2 }),
+  profitMargin: decimal('profit_margin', { precision: 5, scale: 2 }).default('10.00'),
+  variantCount: integer('variant_count').default(1),
+  imageCount: integer('image_count').default(0),
+  transferredAt: timestamp('transferred_at').defaultNow(),
+  lastChecked: timestamp('last_checked'),
+  currentStatus: text('current_status').default('active'), // active, inactive, error, deleted
+  trackingEnabled: boolean('tracking_enabled').default(true),
+  notificationSettings: jsonb('notification_settings').default({
+    priceChanges: true,
+    stockChanges: true,
+    statusChanges: true,
+    detailedReports: true
+  }),
+  sourceData: jsonb('source_data'), // Original extracted data
+  shopifyData: jsonb('shopify_data'), // Shopify product data
+  lastNotificationAt: timestamp('last_notification_at'),
+  changeCount: integer('change_count').default(0),
+  createdAt: timestamp('created_at').notNull().defaultNow(),
+  updatedAt: timestamp('updated_at').notNull().defaultNow()
+});
+
+// Shopify product change tracking - Ürün değişiklik takibi
+export const shopifyProductChanges = pgTable('shopify_product_changes', {
+  id: serial('id').primaryKey(),
+  productId: integer('product_id').references(() => shopifyTransferredProducts.id),
+  changeType: text('change_type').notNull(), // 'price', 'stock', 'status', 'content', 'variant'
+  fieldName: text('field_name'), // Hangi alan değişti
+  oldValue: text('old_value'),
+  newValue: text('new_value'),
+  changeDetails: jsonb('change_details'),
+  severity: text('severity').default('medium'), // 'low', 'medium', 'high', 'critical'
+  sourceUrl: text('source_url'),
+  detectedAt: timestamp('detected_at').defaultNow(),
+  notificationSent: boolean('notification_sent').default(false),
+  notificationSentAt: timestamp('notification_sent_at'),
+  telegramMessageId: text('telegram_message_id'),
+  createdAt: timestamp('created_at').notNull().defaultNow()
+});
+
+// Type exports for new tables
+export type ShopifyTransferredProduct = typeof shopifyTransferredProducts.$inferSelect;
+export type InsertShopifyTransferredProduct = typeof shopifyTransferredProducts.$inferInsert;
+export type ShopifyProductChange = typeof shopifyProductChanges.$inferSelect;
+export type InsertShopifyProductChange = typeof shopifyProductChanges.$inferInsert;

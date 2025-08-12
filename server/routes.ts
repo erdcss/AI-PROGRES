@@ -1103,27 +1103,55 @@ export function registerRoutes(app: Express): Server {
           // Send Telegram notification with product URL and title
           await sendProductExtractionNotification(url, result.title, result.brand, result.price);
           
+          // Shopify transfer tracking kaydı oluştur
+          try {
+            const { shopifyTransferTracker } = await import('./shopify-transfer-tracker');
+            await shopifyTransferTracker.registerTransferredProduct({
+              sourceUrl: url,
+              title: result.title,
+              brand: result.brand,
+              originalPrice: result.price.original,
+              shopifyPrice: result.price.withProfit,
+              profitMargin: ((result.price.withProfit - result.price.original) / result.price.original * 100),
+              variantCount: result.variants.length,
+              imageCount: result.images.length,
+              sourceData: {
+                variants: result.variants,
+                images: result.images,
+                features: result.features,
+                tags: result.tags,
+                scenario: result.scenario,
+                confidence: result.confidence
+              }
+            });
+            console.log('📦 Shopify transfer kaydı oluşturuldu');
+          } catch (trackingError) {
+            console.error('⚠️ Shopify transfer tracking hatası (devam ediyor):', trackingError);
+          }
+
           // Ürün yüklendiğinde detaylı Telegram bildirimi
           try {
             const { sendFilteredTelegramNotification } = await import('./filtered-telegram-notifier');
             const message = `
-🎯 <b>YENİ ÜRÜN YÜKLEME BAŞARILI</b>
+🎯 <b>YENİ ÜRÜN SHOPIFY'A AKTARILDI</b>
 
 📦 <b>Ürün:</b> ${result.title}
 🏢 <b>Marka:</b> ${result.brand || 'Bilinmeyen Marka'}
 💰 <b>Orijinal Fiyat:</b> ${result.price.original} TL
-💵 <b>Kar Marjlı Fiyat:</b> ${result.price.withProfit} TL
+💵 <b>Shopify Fiyatı:</b> ${result.price.withProfit} TL
+📈 <b>Kar Marjı:</b> %${((result.price.withProfit - result.price.original) / result.price.original * 100).toFixed(1)}
 🎨 <b>Varyant Sayısı:</b> ${result.variants.length} adet
 📸 <b>Görsel Sayısı:</b> ${result.images.length} adet
 
-🔗 <b>Trendyol URL:</b> ${url}
+🔗 <b>Kaynak URL:</b> ${url}
 
-⏰ <b>Tarih:</b> ${new Date().toLocaleString('tr-TR')}
-🤖 <b>Durum:</b> Sistem aktif - Otomatik takip eklendi
+⏰ <b>Transfer Tarihi:</b> ${new Date().toLocaleString('tr-TR')}
+🤖 <b>Durum:</b> Aktif takip başlatıldı - Anlık bildirimler açık
+🔔 <b>Takip:</b> Fiyat, stok ve durum değişiklikleri izleniyor
             `.trim();
             
             await sendFilteredTelegramNotification(message);
-            console.log('📱 Ürün yükleme bildirimi Telegram\'a gönderildi');
+            console.log('📱 Shopify transfer bildirimi Telegram\'a gönderildi');
           } catch (telegramError) {
             console.error('⚠️ Telegram bildirimi hatası:', telegramError);
           }
@@ -3709,5 +3737,70 @@ export function registerRoutes(app: Express): Server {
 
   console.log('🎯 URL Tracking Service API endpoints registered');
   console.log('🔍 Saved URLs Manager API endpoints registered');
+
+  // ==== SHOPIFY TRANSFER TRACKING API ENDPOINTS ====
+  
+  // Shopify transfer listesi
+  app.get('/api/shopify/transferred-products', async (req, res) => {
+    try {
+      const { shopifyTransferTracker } = await import('./shopify-transfer-tracker');
+      const limit = parseInt(req.query.limit as string) || 50;
+      const products = await shopifyTransferTracker.getTrackedProducts(limit);
+      
+      res.json({
+        success: true,
+        products,
+        total: products.length
+      });
+    } catch (error) {
+      console.error('❌ Shopify transferred products listesi hatası:', error);
+      res.status(500).json({
+        success: false,
+        error: 'Shopify ürün listesi alınamadı'
+      });
+    }
+  });
+
+  // Shopify transfer istatistikleri
+  app.get('/api/shopify/transfer-stats', async (req, res) => {
+    try {
+      const { shopifyTransferTracker } = await import('./shopify-transfer-tracker');
+      const stats = await shopifyTransferTracker.getStats();
+      
+      res.json({
+        success: true,
+        stats
+      });
+    } catch (error) {
+      console.error('❌ Shopify transfer istatistikleri hatası:', error);
+      res.status(500).json({
+        success: false,
+        error: 'İstatistikler alınamadı'
+      });
+    }
+  });
+
+  // Son değişiklikler
+  app.get('/api/shopify/recent-changes', async (req, res) => {
+    try {
+      const { shopifyTransferTracker } = await import('./shopify-transfer-tracker');
+      const limit = parseInt(req.query.limit as string) || 20;
+      
+      const changes = await shopifyTransferTracker.getRecentChanges(limit);
+      
+      res.json({
+        success: true,
+        changes
+      });
+    } catch (error) {
+      console.error('❌ Son değişiklikler hatası:', error);
+      res.status(500).json({
+        success: false,
+        error: 'Son değişiklikler alınamadı'
+      });
+    }
+  });
+
+  console.log('📦 Shopify transfer tracking API endpoints registered');
   return httpServer;
 }

@@ -563,6 +563,15 @@ app.use('/api/sos', sosRoutes);
     // Scheduler API endpoints removed - handled in routes.ts to prevent conflicts
 
     // Initialize scheduler system
+    // Shopify monitoring sistemini başlat
+    setTimeout(() => {
+      import('./shopify-monitoring-service').then(({ shopifyMonitoringService }) => {
+        console.log('📦 Shopify monitoring service başlatıldı');
+      }).catch(error => {
+        console.warn('⚠️ Shopify monitoring service başlatma hatası:', error);
+      });
+    }, 2000);
+
     setTimeout(() => {
       import('./simple-scheduler').then(({ initializeScheduler }) => {
         initializeScheduler();
