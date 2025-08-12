@@ -363,10 +363,18 @@ function smartCurrencyConversion(price: number, context: string = ''): number {
     return 24960;
   }
   
-  // Genel kuruş patterns için conversion uygula
-  if (price >= 10000) {
+  // Genel kuruş patterns için daha akıllı conversion
+  if (price >= 100000) {
+    // Çok büyük değerler (100,000+) muhtemelen kuruş
     const converted = price / 100;
-    console.log(`🚨 HIGH VALUE CONVERSION: ${price} kuruş → ${converted} TL`);
+    console.log(`🚨 VERY HIGH VALUE CONVERSION: ${price} kuruş → ${converted} TL`);
+    return converted;
+  }
+  
+  if (price >= 10000 && price <= 99999) {
+    // 10,000-99,999 arası: muhtemelen kuruş ama kontrol et
+    const converted = price / 100;
+    console.log(`🔍 HIGH VALUE CHECK: ${price} - converting to ${converted} TL (assuming kuruş)`);
     return converted;
   }
   
