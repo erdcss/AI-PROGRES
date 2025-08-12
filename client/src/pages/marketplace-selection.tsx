@@ -15,7 +15,28 @@ const MarketplaceSelection = () => {
     {
       name: "Trendyol",
       description: "Ürün çıkarma ve Shopify aktarım",
-      icon: <Store className="w-8 h-8 text-white" />,
+      icon: (
+        <svg 
+          width="32" 
+          height="32" 
+          viewBox="0 0 200 200" 
+          className="rounded-lg"
+        >
+          <rect width="200" height="200" rx="25" fill="#FF6000"/>
+          <rect x="0" y="65" width="200" height="70" fill="#000000"/>
+          <text 
+            x="100" 
+            y="110" 
+            textAnchor="middle" 
+            fill="white" 
+            fontSize="32" 
+            fontFamily="Arial, sans-serif" 
+            fontWeight="bold"
+          >
+            trendyol
+          </text>
+        </svg>
+      ),
       available: true,
       path: "/scraper/trendyol"
     },
