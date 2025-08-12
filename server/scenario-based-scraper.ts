@@ -1323,7 +1323,8 @@ function buildVariantsArray(variantResult: any, scenario: ExtractionScenario): a
 async function extractVariantsDirect($: cheerio.CheerioAPI, htmlContent: string, url: string, title: string): Promise<Array<{color: string, colorCode: string, size: string, inStock: boolean}>> {
   const variants: Array<{color: string, colorCode: string, size: string, inStock: boolean}> = [];
   
-  // Method 1: Enhanced color extraction with modern Trendyol selectors
+  // Method 1: AUTHENTIC COLOR EXTRACTION - Enhanced DOM-based color detection
+  console.log('🎨 AUTHENTIC COLOR EXTRACTION - Scanning DOM for genuine color variants...');
   const colors: string[] = [];
   
   // Modern Trendyol color selectors including slicing-attributes structure
@@ -1350,13 +1351,17 @@ async function extractVariantsDirect($: cheerio.CheerioAPI, htmlContent: string,
   ];
   
   colorSelectors.forEach(selector => {
+    console.log(`🔍 Checking selector "${selector}" for colors...`);
+    const found = $(selector);
+    console.log(`🔍 Selector "${selector}" found ${found.length} elements`);
+    
     $(selector).each((_, el) => {
       const $el = $(el);
       const colorName = $el.attr('title') || $el.attr('alt') || $el.attr('data-color') || 
                        $el.attr('aria-label') || $el.text().trim();
       if (colorName && colorName.length > 0 && colorName.length < 30) {
         colors.push(colorName);
-        console.log(`🎨 Found color via selector "${selector}": ${colorName}`);
+        console.log(`🎨 FOUND COLOR via "${selector}": ${colorName}`);
       }
     });
   });
@@ -1460,10 +1465,66 @@ async function extractVariantsDirect($: cheerio.CheerioAPI, htmlContent: string,
     // Fallback: Any button that might contain sizes
     'button[class*="size"]',
     'button[id*="size"]'
-  // ❌ ALL SIZE EXTRACTION DISABLED TO PREVENT FAKE VARIANTS
-  console.log('🚫 All size extraction methods disabled to prevent fake variant generation');
+  // ✅ AUTHENTIC SIZE EXTRACTION - Enable DOM-based size detection for multi-variant products
+  console.log('🎨 AUTHENTIC SIZE EXTRACTION - Scanning DOM for genuine size variants...');
   
-  /* COMPLETELY DISABLED SIZE EXTRACTION:
+  // Modern Trendyol size selectors - ENABLED FOR AUTHENTIC DETECTION
+  const sizeSelectors = [
+    // Primary Trendyol size selectors
+    '[data-testid*="size"] button',
+    '[data-testid*="variant"] button', 
+    '.variants-size button',
+    '.product-variants .size-item',
+    '.variant-buttons button[data-size]',
+    '.size-selector button',
+    '.product-size-options button',
+    'button[data-size]',
+    'button[aria-label*="beden"]',
+    'button[aria-label*="size"]',
+    // Additional size containers
+    '.size-option',
+    '.variant-size',
+    '.variant-option[data-size]',
+    '.size-option button',
+    '.variant-size button',
+    '.size-variant-item',
+    'div[data-testid*="size-variant"]',
+    '.product-detail-size button',
+    '.pr-in-sz button',
+    '.size-variants button',
+    // Fallback: Any button that might contain sizes
+    'button[class*="size"]',
+    'button[id*="size"]'
+  ];
+  
+  sizeSelectors.forEach(selector => {
+    console.log(`🔍 Checking selector "${selector}" for sizes...`);
+    const found = $(selector);
+    console.log(`🔍 Selector "${selector}" found ${found.length} elements`);
+    
+    $(selector).each((_, el) => {
+      const $el = $(el);
+      const sizeName = $el.text().trim() || $el.attr('title') || $el.attr('data-size') || 
+                      $el.attr('aria-label');
+      
+      if (sizeName && typeof sizeName === 'string' && sizeName.length > 0 && sizeName.length < 10) {
+        // Enhanced size pattern for Turkish and international sizes
+        const sizePattern = /^(XXS|XS|S|M|L|XL|XXL|XXXL|2XL|3XL|\d+(\.\d+)?|Tek\s*Beden|One\s*Size)$/i;
+        const cleanSizeName = sizeName.trim();
+        
+        if (sizePattern.test(cleanSizeName)) {
+          sizes.push(cleanSizeName);
+          const stockStatus = $el.is('[disabled]') || $el.hasClass('disabled') || 
+                            $el.hasClass('out-of-stock') || $el.hasClass('sold-out') ? '(STOKTA YOK)' : '(STOKTA VAR)';
+          console.log(`👕 FOUND SIZE: "${cleanSizeName}" ${stockStatus} [via: ${selector}]`);
+        } else {
+          console.log(`❌ Size rejected: "${cleanSizeName}" (doesn't match pattern) [via: ${selector}]`);
+        }
+      }
+    });
+  });
+  
+  /* PREVIOUSLY DISABLED SIZE EXTRACTION:
   sizeSelectors.forEach(selector => {
     $(selector).each((_, el) => {
       const $el = $(el);
@@ -1531,11 +1592,20 @@ async function extractVariantsDirect($: cheerio.CheerioAPI, htmlContent: string,
   });
   */
   
-  // Combine only authentic colors (no sizes)
-  const allRawColors = Array.from(new Set([...colors])); // Removed jsonExtractedColors to prevent fake generation
+  // METHOD 3: Enable JavaScript extraction for comprehensive variant detection
+  console.log('🔍 Extracting colors and sizes from JavaScript data...');
+  const jsonExtractedColors = extractColorsFromJS($, htmlContent);
+  const jsonExtractedSizes = extractSizesFromJS($, htmlContent);
   
-  // ❌ NO SIZE FILTERING - Sizes completely disabled
-  const allSizes: string[] = []; // Always empty to prevent fake size variants
+  console.log(`🔍 JS extracted colors: [${jsonExtractedColors.join(', ')}]`);
+  console.log(`🔍 JS extracted sizes: [${jsonExtractedSizes.join(', ')}]`);
+  
+  // Combine all authentic colors and sizes
+  const allRawColors = Array.from(new Set([...colors, ...jsonExtractedColors]));
+  
+  // ✅ ENABLE SIZE FILTERING - Combine authentic sizes from DOM and JS
+  const allSizes = Array.from(new Set([...sizes, ...jsonExtractedSizes]));
+  console.log(`🔍 Combined authentic sizes: [${allSizes.join(', ')}]`);
   
   console.log(`🔍 Raw colors detected: ${allRawColors.length} [${allRawColors.join(', ')}]`);
   
