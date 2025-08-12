@@ -1536,8 +1536,12 @@ async function extractVariantsDirect($: cheerio.CheerioAPI, htmlContent: string,
   const urlColor = extractColorFromURL(htmlContent);
   console.log(`🔍 DEBUG: urlColor = ${urlColor}`);
   
-  // ABSOLUTE SINGLE COLOR: En yaygın rengi al (frequency-based selection)
-  if (scriptColors.length > 0) {
+  // PRIORITY 1: Title-based color detection (most reliable for Turkish products)
+  const titleColor = extractColorFromTitle(title);
+  if (titleColor) {
+    detectedColors = [titleColor];
+    console.log(`🎯 FINAL: Title-based color: ${titleColor}`);
+  } else if (scriptColors.length > 0) {
     detectedColors = [scriptColors[0]];
     console.log(`🎯 FINAL: Script color selected: ${detectedColors[0]}`);
   } else if (activeColor) {
@@ -1560,12 +1564,44 @@ async function extractVariantsDirect($: cheerio.CheerioAPI, htmlContent: string,
       console.log(`🎯 FINAL: Most frequent color selected: ${sortedColors[0][0]} (found ${sortedColors[0][1]} times)`);
       console.log(`📊 All color frequencies: ${sortedColors.map(([c, count]) => `${c}:${count}`).join(', ')}`);
     } else {
-      detectedColors = ['Standart'];
-      console.log(`🎯 FINAL: Fallback to Standart`);
+      // Enhanced fallback with additional color detection
+      const titleColor = extractColorFromTitle(title);
+      const descriptionColor = extractColorFromDescription(htmlContent);
+      
+      if (titleColor) {
+        detectedColors = [titleColor];
+        console.log(`🎯 FINAL: Fallback to title color: ${titleColor}`);
+      } else if (descriptionColor) {
+        detectedColors = [descriptionColor];
+        console.log(`🎯 FINAL: Fallback to description color: ${descriptionColor}`);
+      } else {
+        detectedColors = ['Tek Renk'];
+        console.log(`🎯 FINAL: Fallback to generic label: Tek Renk`);
+      }
     }
   } else {
-    detectedColors = ['Standart'];
-    console.log(`🎯 FINAL: Default color: Standart`);
+    // Enhanced color detection before defaulting
+    const titleColor = extractColorFromTitle(title);
+    const descriptionColor = extractColorFromDescription(htmlContent);
+    const metaColor = extractColorFromMeta($);
+    const categoryColor = extractColorFromCategory($);
+    
+    if (titleColor) {
+      detectedColors = [titleColor];
+      console.log(`🎯 FINAL: Title-based color: ${titleColor}`);
+    } else if (descriptionColor) {
+      detectedColors = [descriptionColor];
+      console.log(`🎯 FINAL: Description-based color: ${descriptionColor}`);
+    } else if (metaColor) {
+      detectedColors = [metaColor];
+      console.log(`🎯 FINAL: Meta-based color: ${metaColor}`);
+    } else if (categoryColor) {
+      detectedColors = [categoryColor];
+      console.log(`🎯 FINAL: Category-based color: ${categoryColor}`);
+    } else {
+      detectedColors = ['Tek Renk'];
+      console.log(`🎯 FINAL: Generic product label: Tek Renk`);
+    }
   }
   
   const filteredColors = detectedColors;
@@ -2723,4 +2759,117 @@ function getColorCode(colorName: string): string {
   };
   
   return colorHues[firstChar] || '#E8D7C2';
+}
+
+/**
+ * Extract color from product title
+ */
+function extractColorFromTitle(title: string): string | null {
+  const colorKeywords = [
+    // Türkçe renkler
+    'siyah', 'beyaz', 'kırmızı', 'mavi', 'yeşil', 'sarı', 'mor', 'pembe', 
+    'gri', 'kahve', 'turuncu', 'lacivert', 'krem', 'bej', 'bordo', 'füme', 
+    'ekru', 'vizon', 'mint', 'pudra', 'altın', 'gümüş', 'rose', 'bronz',
+    'bakır', 'platin', 'çelik', 'titanyum', 'gül kurusu', 'açık mavi',
+    // İngilizce renkler
+    'black', 'white', 'red', 'blue', 'green', 'yellow', 'purple', 'pink',
+    'grey', 'gray', 'brown', 'orange', 'navy', 'cream', 'beige', 'silver',
+    'gold', 'bronze', 'copper', 'platinum', 'steel', 'titanium',
+    // Özel durumlar
+    '14 ayar', '18 ayar', '22 ayar', 'ayar altin', 'ayar altın'
+  ];
+  
+  const titleLower = title.toLowerCase();
+  for (const color of colorKeywords) {
+    if (titleLower.includes(color)) {
+      // Convert to Turkish if needed
+      const colorMap: Record<string, string> = {
+        'black': 'Siyah', 'white': 'Beyaz', 'red': 'Kırmızı', 'blue': 'Mavi',
+        'green': 'Yeşil', 'yellow': 'Sarı', 'purple': 'Mor', 'pink': 'Pembe',
+        'grey': 'Gri', 'gray': 'Gri', 'brown': 'Kahve', 'orange': 'Turuncu',
+        'navy': 'Lacivert', 'cream': 'Krem', 'beige': 'Bej', 'silver': 'Gümüş',
+        'gold': 'Altın', 'bronze': 'Bronz', 'copper': 'Bakır', 'platinum': 'Platin',
+        'steel': 'Çelik', 'titanium': 'Titanyum',
+        // Özel altın durumları
+        '14 ayar': '14 Ayar Altın', '18 ayar': '18 Ayar Altın', '22 ayar': '22 Ayar Altın',
+        'ayar altin': 'Altın', 'ayar altın': 'Altın', 'altin': 'Altın'
+      };
+      
+      const finalColor = colorMap[color] || color.charAt(0).toUpperCase() + color.slice(1);
+      console.log(`🎨 Color extracted from title: ${finalColor}`);
+      return finalColor;
+    }
+  }
+  return null;
+}
+
+/**
+ * Extract color from product description
+ */
+function extractColorFromDescription(htmlContent: string): string | null {
+  const descriptionPatterns = [
+    /renk[:\s]*([a-zA-ZçşığüöĞŞIİÇÜÖ]+)/i,
+    /color[:\s]*([a-zA-Z]+)/i,
+    /renkli[:\s]*([a-zA-ZçşığüöĞŞIİÇÜÖ]+)/i,
+    /"color"[:\s]*"([^"]+)"/i,
+    /"renk"[:\s]*"([^"]+)"/i
+  ];
+  
+  for (const pattern of descriptionPatterns) {
+    const match = htmlContent.match(pattern);
+    if (match && match[1] && match[1].length > 2) {
+      const color = match[1].charAt(0).toUpperCase() + match[1].slice(1).toLowerCase();
+      console.log(`🎨 Color extracted from description: ${color}`);
+      return color;
+    }
+  }
+  return null;
+}
+
+/**
+ * Extract color from meta tags
+ */
+function extractColorFromMeta($: any): string | null {
+  const metaSelectors = [
+    'meta[name="color"]',
+    'meta[property="product:color"]',
+    'meta[name="product-color"]',
+    'meta[property="og:color"]'
+  ];
+  
+  for (const selector of metaSelectors) {
+    const content = $(selector).attr('content');
+    if (content && content.length > 2 && content.length < 50) {
+      const color = content.charAt(0).toUpperCase() + content.slice(1).toLowerCase();
+      console.log(`🎨 Color extracted from meta: ${color}`);
+      return color;
+    }
+  }
+  return null;
+}
+
+/**
+ * Extract color from category information
+ */
+function extractColorFromCategory($: any): string | null {
+  const categorySelectors = [
+    '.breadcrumb .active',
+    '.category-name',
+    '.product-category',
+    'nav .active'
+  ];
+  
+  const colorKeywords = ['siyah', 'beyaz', 'kırmızı', 'mavi', 'yeşil'];
+  
+  for (const selector of categorySelectors) {
+    const text = $(selector).text().toLowerCase();
+    for (const color of colorKeywords) {
+      if (text.includes(color)) {
+        const finalColor = color.charAt(0).toUpperCase() + color.slice(1);
+        console.log(`🎨 Color extracted from category: ${finalColor}`);
+        return finalColor;
+      }
+    }
+  }
+  return null;
 }
