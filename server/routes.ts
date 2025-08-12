@@ -1103,6 +1103,31 @@ export function registerRoutes(app: Express): Server {
           // Send Telegram notification with product URL and title
           await sendProductExtractionNotification(url, result.title, result.brand, result.price);
           
+          // Ürün yüklendiğinde detaylı Telegram bildirimi
+          try {
+            const { sendFilteredTelegramNotification } = await import('./filtered-telegram-notifier');
+            const message = `
+🎯 <b>YENİ ÜRÜN YÜKLEME BAŞARILI</b>
+
+📦 <b>Ürün:</b> ${result.title}
+🏢 <b>Marka:</b> ${result.brand || 'Bilinmeyen Marka'}
+💰 <b>Orijinal Fiyat:</b> ${result.price.original} TL
+💵 <b>Kar Marjlı Fiyat:</b> ${result.price.withProfit} TL
+🎨 <b>Varyant Sayısı:</b> ${result.variants.length} adet
+📸 <b>Görsel Sayısı:</b> ${result.images.length} adet
+
+🔗 <b>Trendyol URL:</b> ${url}
+
+⏰ <b>Tarih:</b> ${new Date().toLocaleString('tr-TR')}
+🤖 <b>Durum:</b> Sistem aktif - Otomatik takip eklendi
+            `.trim();
+            
+            await sendFilteredTelegramNotification(message);
+            console.log('📱 Ürün yükleme bildirimi Telegram\'a gönderildi');
+          } catch (telegramError) {
+            console.error('⚠️ Telegram bildirimi hatası:', telegramError);
+          }
+          
           // Otomatik URL tracking ekleme (sadece Trendyol URL'leri için)
           try {
             console.log('🎯 Scraping sonrası otomatik tracking ekleniyor...');
