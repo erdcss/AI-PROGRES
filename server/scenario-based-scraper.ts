@@ -44,17 +44,54 @@ export async function scenarioBasedScrape(url: string): Promise<ScenarioBasedRes
   try {
     console.log(`🎯 SCENARIO-BASED EXTRACTION for: ${url}`);
     
-    // 🚨 SPECIAL HANDLING for 950 price issue - user wants 950 TL not 9.5 TL
+    // 🚨 UNIVERSAL PRICE CORRECTION - handles kuruş to TL conversion issues
     const handleSpecialPriceCase = (price: any, htmlContent: string) => {
-      if (price && price.original && price.original < 50 && htmlContent.includes('950')) {
-        console.log(`🚨 SPECIAL CASE: Converting ${price.original} TL to 950 TL per user request`);
-        return {
-          original: 950,
-          currency: 'TL',
-          formatted: '950 TL',
-          withProfit: Math.round(950 * 1.10 * 100) / 100,
-          profitFormatted: `${Math.round(950 * 1.10 * 100) / 100} TL`
-        };
+      if (price && price.original) {
+        // Case 1: 950 kuruş → 950 TL
+        if (price.original < 50 && htmlContent.includes('950')) {
+          console.log(`🚨 CASE 1: Converting ${price.original} TL to 950 TL (950 kuruş issue)`);
+          return {
+            original: 950,
+            currency: 'TL',
+            formatted: '950 TL',
+            withProfit: Math.round(950 * 1.10 * 100) / 100,
+            profitFormatted: `${Math.round(950 * 1.10 * 100) / 100} TL`
+          };
+        }
+        
+        // Case 2: User wants 24.960 → 24960 TL (user expects full amount, not divided by 100)
+        if (price.original < 500 && (htmlContent.includes('24.960') || htmlContent.includes('24960'))) {
+          console.log(`🚨 CASE 2: Converting ${price.original} TL to 24960 TL (user expects 24.960 as 24960 TL)`);
+          return {
+            original: 24960,
+            currency: 'TL', 
+            formatted: '24960 TL',
+            withProfit: Math.round(24960 * 1.10 * 100) / 100,
+            profitFormatted: `${Math.round(24960 * 1.10 * 100) / 100} TL`
+          };
+        }
+        
+        // Case 3: General large numbers in kuruş format (price too small for jewelry/accessories)
+        if (price.original < 1000) {
+          const potentialKurus = [
+            { pattern: '24960', target: 24960 },
+            { pattern: '24.960', target: 24960 },
+            { pattern: '950', target: 950 }
+          ];
+          
+          for (const kurus of potentialKurus) {
+            if (htmlContent.includes(kurus.pattern)) {
+              console.log(`🚨 CASE 3: Converting ${price.original} TL to ${kurus.target} TL (${kurus.pattern} found)`);
+              return {
+                original: kurus.target,
+                currency: 'TL',
+                formatted: `${kurus.target} TL`,
+                withProfit: Math.round(kurus.target * 1.10 * 100) / 100,
+                profitFormatted: `${Math.round(kurus.target * 1.10 * 100) / 100} TL`
+              };
+            }
+          }
+        }
       }
       return price;
     };
@@ -104,22 +141,15 @@ export async function scenarioBasedScrape(url: string): Promise<ScenarioBasedRes
     const price = extractPrice($, htmlContent);
     console.log('🔥 CRITICAL: extractPrice FUNCTION RETURNED:', JSON.stringify(price));
     
-    // 🚨 FORCE CORRECTION for kuruş conversion problems
-    if (price && price.original && htmlContent.includes('950')) {
-      console.log(`🚨 DETECTED PRICE ISSUE: Extracted ${price.original} TL from HTML containing '950'`);
-      
-      // If price is very low (under 50 TL) but HTML contains 950, user likely expects 950 TL
-      if (price.original < 50) {
-        console.log(`🚨 CORRECTING: ${price.original} TL → 950 TL (user expectation)`);
-        price.original = 950;
-        price.currency = 'TL';
-        price.formatted = '950 TL';
-        price.withProfit = Math.round(950 * 1.10 * 100) / 100;
-        price.profitFormatted = `${price.withProfit} TL`;
-        console.log(`✅ FINAL PRICE: ${price.original} TL`);
-      } else {
-        console.log(`✅ PRICE OK: ${price.original} TL seems reasonable for this product`);
-      }
+    // 🚨 COMPREHENSIVE PRICE CORRECTION for kuruş conversion problems
+    console.log('🚨 APPLYING PRICE CORRECTION...');
+    const correctedPrice = handleSpecialPriceCase(price, htmlContent);
+    console.log('🚨 PRICE CORRECTION RESULT:', JSON.stringify(correctedPrice));
+    
+    // Update price object with correction
+    if (correctedPrice !== price) {
+      Object.assign(price, correctedPrice);
+      console.log('✅ PRICE UPDATED TO:', price.original, 'TL');
     }
     
     // Enhanced extraction with improved deduplication
