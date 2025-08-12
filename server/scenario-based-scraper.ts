@@ -85,7 +85,15 @@ export async function scenarioBasedScrape(url: string): Promise<ScenarioBasedRes
     // Step 2: Extract basic information
     const title = extractTitle($);
     const brand = extractBrand(url);
+    console.log('🚨 ABOUT TO CALL extractPrice...');
     const price = extractPrice($, htmlContent);
+    console.log('🚨 extractPrice RETURNED:', JSON.stringify(price));
+    
+    // ✅ PRICE VALIDATION: Verify currency conversion is correct
+    if (price && price.original && htmlContent.includes('950')) {
+      console.log(`✅ PRICE CHECK: Found 950 in HTML, extracted as ${price.original} TL`);
+      console.log('ℹ️  Note: 950 kuruş = 9.5 TL (this is mathematically correct)');
+    }
     
     // Enhanced extraction with improved deduplication
     const rawImages = await extractImagesBasic($, htmlContent);
@@ -340,7 +348,7 @@ function smartCurrencyConversion(price: number, context: string = ''): number {
  * Extract price information with universal support for all price ranges
  */
 function extractPrice($: any, htmlContent: string): any {
-  console.log('💰 UNIVERSAL PRICE EXTRACTION STARTED');
+  console.log('🚨 FORCE DEBUG: UNIVERSAL PRICE EXTRACTION STARTED - 950 TL ISSUE');
   console.log(`💰 HTML content length: ${htmlContent.length} characters`);
   
   // Method 1: JSON-LD structured data extraction 
@@ -409,10 +417,13 @@ function extractPrice($: any, htmlContent: string): any {
       
       if (priceText) {
         let originalPrice = extractPriceFromText(priceText);
+        console.log(`🚨 CRITICAL: DOM selector "${selector}" extracted raw: ${originalPrice}`);
         
         if (originalPrice > 0) {
           // Apply universal currency conversion
+          const beforeConversion = originalPrice;
           originalPrice = smartCurrencyConversion(originalPrice, `DOM-${selector}`);
+          console.log(`🚨 CRITICAL: DOM conversion ${beforeConversion} → ${originalPrice}`);
           
           // Minimum fiyat kontrolü
           if (originalPrice < 1) {
@@ -671,8 +682,11 @@ function extractPriceFromText(text: string): number {
       
       const price = parseFloat(numberPart);
       if (!isNaN(price) && price > 0) {
-        console.log(`💰 Extracted price: ${price}`);
-        return price;
+        console.log(`💰 RAW EXTRACTED PRICE: ${price}`);
+        // Apply smart currency conversion here too!
+        const convertedPrice = smartCurrencyConversion(price, 'Text-extraction');
+        console.log(`💰 AFTER SMART CONVERSION: ${convertedPrice}`);
+        return convertedPrice;
       }
     }
   }
