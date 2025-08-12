@@ -41,7 +41,7 @@ export class UrlTrackingService {
       const extractionResult = await scenarioBasedScrape(url);
       
       if (!extractionResult.success) {
-        throw new Error(`Extraction failed: ${extractionResult.error}`);
+        throw new Error(`Extraction failed: ${extractionResult.error || 'Unknown error'}`);
       }
 
       // Database'e kaydet
@@ -139,16 +139,16 @@ export class UrlTrackingService {
       const extractionResult = await scenarioBasedScrape(url);
       
       if (!extractionResult.success) {
-        console.log(`❌ Extraction failed for ${url}: ${extractionResult.error}`);
+        console.log(`❌ Extraction failed for ${url}: ${extractionResult.error || 'Unknown error'}`);
         
         // Error durumunu güncelle
         await db
           .update(urlTracking)
           .set({
             status: 'error',
-            errorMessage: extractionResult.error,
+            errorMessage: extractionResult.error || 'Unknown error',
             lastChecked: new Date(),
-            checkCount: existing.checkCount + 1,
+            checkCount: (existing.checkCount || 0) + 1,
             updatedAt: new Date()
           })
           .where(eq(urlTracking.url, url));
@@ -159,17 +159,31 @@ export class UrlTrackingService {
       const newPrice = extractionResult.price.original;
       const currentPrice = parseFloat(existing.currentPrice || '0');
       
+      // Stok durumu kontrolü
+      const previousStock = (existing.extractedData as any)?.stockStatus || 'unknown';
+      const currentStock = (extractionResult as any).stockStatus || 'unknown';
+      const stockChanged = previousStock !== currentStock;
+      
       // Fiyat değişikliği var mı?
       const priceChanged = Math.abs(newPrice - currentPrice) > 0.01;
       
-      if (priceChanged) {
-        console.log(`💰 FIYAT DEĞİŞİKLİĞİ TESPIT EDİLDİ: ${currentPrice} TL → ${newPrice} TL`);
+      // Fiyat veya stok değişikliği varsa bildir
+      if (priceChanged || stockChanged) {
+        console.log(`🔔 DEĞİŞİKLİK TESPİT EDİLDİ: ${existing.productTitle}`);
+        
+        if (priceChanged) {
+          console.log(`💰 FIYAT DEĞİŞİKLİĞİ: ${currentPrice} TL → ${newPrice} TL`);
+        }
+        
+        if (stockChanged) {
+          console.log(`📦 STOK DEĞİŞİKLİĞİ: ${previousStock} → ${currentStock}`);
+        }
         
         const changePercent = currentPrice > 0 ? ((newPrice - currentPrice) / currentPrice) * 100 : 0;
         
         // Price history'ye kaydet
         await db.insert(priceHistory).values({
-          variantId: existing.id, // Temporary foreign key
+          variantId: existing.id,
           oldPrice: currentPrice.toString(),
           newPrice: newPrice.toString(),
           changeType: newPrice > currentPrice ? 'increase' : 'decrease',
@@ -177,8 +191,16 @@ export class UrlTrackingService {
           changePercentage: changePercent.toString()
         });
 
-        // Telegram bildirimi gönder
-        await this.sendPriceChangeNotification(existing, currentPrice, newPrice, changePercent);
+        // Kapsamlı bildirim gönder (fiyat + stok)
+        await this.sendComprehensiveChangeNotification(existing, {
+          priceChanged,
+          stockChanged,
+          oldPrice: currentPrice,
+          newPrice,
+          changePercent,
+          oldStock: previousStock,
+          newStock: currentStock
+        });
         
         // URL tracking güncelle
         await db
@@ -197,7 +219,7 @@ export class UrlTrackingService {
           })
           .where(eq(urlTracking.url, url));
         
-        console.log(`📊 Fiyat güncellendi: ${existing.productTitle} - ${changePercent.toFixed(2)}% değişim`);
+        console.log(`📊 Ürün güncellendi: ${existing.productTitle} - ${priceChanged ? `Fiyat: ${changePercent.toFixed(2)}%` : ''} ${stockChanged ? `Stok: ${currentStock}` : ''}`);
       } else {
         // Sadece check time güncelle
         await db
@@ -205,7 +227,7 @@ export class UrlTrackingService {
           .set({
             lastChecked: new Date(),
             lastSuccessfulCheck: new Date(),
-            checkCount: existing.checkCount + 1,
+            checkCount: (existing.checkCount || 0) + 1,
             status: 'active',
             extractedData: extractionResult,
             updatedAt: new Date()
@@ -223,7 +245,7 @@ export class UrlTrackingService {
         .update(urlTracking)
         .set({
           status: 'error',
-          errorMessage: error.message,
+          errorMessage: (error as Error).message,
           lastChecked: new Date(),
           updatedAt: new Date()
         })
@@ -267,25 +289,78 @@ export class UrlTrackingService {
     };
   }
 
-  async sendPriceChangeNotification(urlTrack: any, oldPrice: number, newPrice: number, changePercent: number) {
+  async sendComprehensiveChangeNotification(urlTrack: any, changes: {
+    priceChanged: boolean;
+    stockChanged: boolean;
+    oldPrice: number;
+    newPrice: number;
+    changePercent: number;
+    oldStock: string;
+    newStock: string;
+  }) {
     try {
-      const changeType = newPrice > oldPrice ? '📈 ARTIŞ' : '📉 DÜŞÜŞ';
-      const changeIcon = newPrice > oldPrice ? '🔺' : '🔻';
-      const priceDiff = Math.abs(newPrice - oldPrice);
+      const { priceChanged, stockChanged, oldPrice, newPrice, changePercent, oldStock, newStock } = changes;
+      
+      let alertType = '';
+      let alertIcon = '';
+      let priority = '';
+      
+      // Öncelik belirleme
+      if (stockChanged && newStock === 'out_of_stock') {
+        alertType = 'STOK TÜKENDİ';
+        alertIcon = '🚨';
+        priority = 'YÜKSEK ÖNCELİK';
+      } else if (stockChanged && newStock === 'in_stock') {
+        alertType = 'STOK GELDİ';
+        alertIcon = '✅';
+        priority = 'ORTA ÖNCELİK';
+      } else if (priceChanged) {
+        alertType = newPrice > oldPrice ? 'FİYAT ARTIŞI' : 'FİYAT DÜŞÜŞÜ';
+        alertIcon = newPrice > oldPrice ? '📈' : '📉';
+        priority = Math.abs(changePercent) > 20 ? 'YÜKSEK ÖNCELİK' : 'NORMAL';
+      }
+      
+      const changeDetails = [];
+      
+      // Fiyat değişikliği detayları
+      if (priceChanged) {
+        const priceDiff = Math.abs(newPrice - oldPrice);
+        const priceIcon = newPrice > oldPrice ? '🔺' : '🔻';
+        changeDetails.push(
+          `${priceIcon} <b>Fiyat Değişikliği:</b>`,
+          `• Eski: ${oldPrice.toFixed(2)} TL`,
+          `• Yeni: ${newPrice.toFixed(2)} TL`, 
+          `• Değişim: ${changePercent.toFixed(2)}% (${priceDiff.toFixed(2)} TL)`
+        );
+      }
+      
+      // Stok değişikliği detayları
+      if (stockChanged) {
+        const stockIcon = newStock === 'in_stock' ? '✅' : newStock === 'out_of_stock' ? '❌' : '❓';
+        const stockText = this.getStockDisplayText(newStock);
+        const oldStockText = this.getStockDisplayText(oldStock);
+        
+        changeDetails.push(
+          `${stockIcon} <b>Stok Durumu:</b>`,
+          `• Eski: ${oldStockText}`,
+          `• Yeni: ${stockText}`
+        );
+      }
+      
+      // Temiz Trendyol URL'si oluştur
+      const cleanUrl = this.cleanTrendyolUrl(urlTrack.url);
       
       const message = `
-🎯 <b>FİYAT DEĞİŞİKLİĞİ ALERTİ</b>
+${alertIcon} <b>${alertType} - ${priority}</b>
 
 📦 <b>Ürün:</b> ${urlTrack.productTitle || 'Bilinmeyen Ürün'}
 
-${changeIcon} <b>${changeType}</b>
-💰 <b>Eski Fiyat:</b> ${oldPrice.toFixed(2)} TL
-💰 <b>Yeni Fiyat:</b> ${newPrice.toFixed(2)} TL
-📊 <b>Değişim:</b> ${changePercent.toFixed(2)}% (${priceDiff.toFixed(2)} TL)
+${changeDetails.join('\n')}
 
-🔗 <b>URL:</b> ${urlTrack.url}
+🔗 <b>Ürün Sayfası:</b> <a href="${cleanUrl}">Trendyol'da Görüntüle</a>
 
-⏰ <b>Tarih:</b> ${new Date().toLocaleString('tr-TR')}
+⏰ <b>Tespit Zamanı:</b> ${new Date().toLocaleString('tr-TR')}
+${priority === 'YÜKSEK ÖNCELİK' ? '\n⚡ <b>HEMEN KONTROL EDİN!</b>' : ''}
       `.trim();
 
       // Filtered Telegram notifier kullan
@@ -338,8 +413,8 @@ ${changeIcon} <b>${changeType}</b>
       `.trim();
 
       try {
-        const { sendFilteredTelegramNotification } = await import('./filtered-telegram-notifier');
-        await sendFilteredTelegramNotification(message);
+        const { filteredNotifier } = await import('./filtered-telegram-notifier');
+        await filteredNotifier.sendNotification(message);
         console.log('📱 Tracking başlangıç bildirimi Telegram\'a gönderildi');
       } catch (importError) {
         console.log('📱 Telegram notifier import failed for tracking start notification');
@@ -347,6 +422,29 @@ ${changeIcon} <b>${changeType}</b>
       
     } catch (error) {
       console.error('❌ Tracking başlangıç bildirimi hatası:', error);
+    }
+  }
+
+  // Stok durumu görüntü metni
+  getStockDisplayText(stockStatus: string): string {
+    const stockTexts: { [key: string]: string } = {
+      'in_stock': 'Stokta Var ✅',
+      'out_of_stock': 'Stok Tükendi ❌',
+      'limited_stock': 'Sınırlı Stok ⚠️',
+      'unknown': 'Bilinmiyor ❓'
+    };
+    return stockTexts[stockStatus] || stockStatus;
+  }
+
+  // Temiz Trendyol URL'si oluştur
+  cleanTrendyolUrl(url: string): string {
+    try {
+      const urlObj = new URL(url);
+      // Query parametrelerini temizle, sadece temel URL'yi bırak
+      return `${urlObj.protocol}//${urlObj.host}${urlObj.pathname}`;
+    } catch (error) {
+      // URL parse edilemezse orijinal URL'yi döndür
+      return url;
     }
   }
 }
