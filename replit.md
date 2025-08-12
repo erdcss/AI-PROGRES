@@ -35,6 +35,8 @@ The application features a full-stack architecture with clear separation of conc
 - **Enhanced Product Preview UI** (August 2025): Added 300x100 product preview cards above CSV listings with image slider, price comparison (original vs 10% markup), and dynamic variant information display.
 - **Advanced Price Extraction** (August 2025): Improved CSV price parsing with multiple fallback strategies including header-based detection and title price extraction for accurate pricing information in product previews.
 - **Complete Fake Variant Elimination** (August 2025): Disabled all remaining hardcoded size generation across focused-extractor, working-variant-extractor, and scenario-based systems. System now exclusively uses authentic product data from actual e-commerce sources.
+- **Critical Image System Fix** (August 12, 2025): Resolved complete image upload failure to Shopify by fixing data format incompatibility between scenario-based scraper and CSV generator. Implemented unified image format with {url, colorName, position, alt} structure.
+- **Enhanced Price Processing System** (August 12, 2025): Fixed critical price calculation bugs including kuruş/TL conversion (>1000 values), minimum price enforcement (>1 TL), profit margin calculation accuracy, and compare price generation with 2-decimal precision.
 
 ## External Dependencies
 
