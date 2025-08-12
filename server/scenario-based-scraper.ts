@@ -457,6 +457,10 @@ function extractPrice($: any, htmlContent: string): any {
   
   // Method 2: HTML DOM extraction with Turkish price patterns - GÜNCEL SELECTORS
   const priceSelectors = [
+    // YENİ PATTERN: price-container içinde discounted class'ı (82.99 TL pattern)
+    '.price-container .discounted',
+    '.price-container span.discounted',
+    '[data-testid="normal-price"] .discounted',
     // Güncel Trendyol fiyat selectors - 2024/2025
     '[data-testid="price-current-price"]',
     '.prc-dsc', 
@@ -486,6 +490,11 @@ function extractPrice($: any, htmlContent: string): any {
       if (priceText) {
         let originalPrice = extractPriceFromText(priceText);
         console.log(`🚨 CRITICAL: DOM selector "${selector}" extracted raw: ${originalPrice}`);
+        
+        // ÖZELLİK: 82.99 TL gibi değerler için ek kontrol
+        if (originalPrice > 0 && originalPrice < 100 && priceText.includes('.')) {
+          console.log(`💰 NEW FORMAT DETECTED: ${originalPrice} TL (82.99 style)`);
+        }
         
         if (originalPrice > 0) {
           // Apply universal currency conversion
@@ -716,8 +725,10 @@ function extractPrice($: any, htmlContent: string): any {
 function extractPriceFromText(text: string): number {
   console.log(`💰 Parsing price text: "${text}"`);
   
-  // Turkish price patterns
+  // Turkish price patterns - YENİ 82.99 pattern eklendi
   const patterns = [
+    // YENİ: 82.99 TL pattern (nokta ile ondalık)
+    /(\d{1,3}\.\d{2})\s*(?:TL|₺)?/i,
     // Standard format: 149,90 TL or 149.90 TL
     /(\d{1,3}(?:[.,]\d{2}))\s*(?:TL|₺)/i,
     // Large numbers: 1.499,90 TL or 1,499.90 TL
