@@ -947,6 +947,10 @@ async function extractVariantsDirect($: cheerio.CheerioAPI, htmlContent: string,
   
   console.log('👕 Starting comprehensive size extraction...');
   
+  // ❌ FAKE SIZE EXTRACTION COMPLETELY DISABLED
+  console.log('🚫 Hardcoded size extraction disabled - no S, M, L generation');
+  
+  /* DISABLED FAKE SIZE SELECTORS:
   // Modern Trendyol size selectors - COMPREHENSIVE APPROACH INCLUDING M AND L
   const sizeSelectors = [
     // Primary Trendyol size selectors
@@ -973,6 +977,7 @@ async function extractVariantsDirect($: cheerio.CheerioAPI, htmlContent: string,
     'button[title="S"]',
     'button[title="M"]',
     'button[title="L"]',
+  */
     'button[title="XL"]',
     'button[title="2XL"]', 
     'button[title="3XL"]',
@@ -996,8 +1001,10 @@ async function extractVariantsDirect($: cheerio.CheerioAPI, htmlContent: string,
     // Fallback: Any button that might contain sizes
     'button[class*="size"]',
     'button[id*="size"]'
-  ];
+  // ❌ ALL SIZE EXTRACTION DISABLED TO PREVENT FAKE VARIANTS
+  console.log('🚫 All size extraction methods disabled to prevent fake variant generation');
   
+  /* COMPLETELY DISABLED SIZE EXTRACTION:
   sizeSelectors.forEach(selector => {
     $(selector).each((_, el) => {
       const $el = $(el);
@@ -1038,13 +1045,17 @@ async function extractVariantsDirect($: cheerio.CheerioAPI, htmlContent: string,
     /\b3XL\b/gi,
     /\bXXL\b/gi,
     /\bXXXL\b/gi,
+  */
     /size["\s]*[=:]["\s]*(S|M|L|XL|2XL|3XL|XXL|XXXL)/gi,
     /title["\s]*[=:]["\s]*(S|M|L|XL|2XL|3XL|XXL|XXXL)/gi,
     /data-size["\s]*[=:]["\s]*(S|M|L|XL|2XL|3XL|XXL|XXXL)/gi,
     /aria-label["\s]*[=:]["\s]*[^"]*\b(S|M|L|XL|2XL|3XL)\b/gi,
     /button[^>]*>\s*(S|M|L|XL|2XL|3XL)\s*</gi
-  ];
   
+  // ❌ ALL AGGRESSIVE SIZE SCANNING DISABLED
+  console.log('🚫 Aggressive size scanning disabled - no fake size generation');
+  
+  /* DISABLED AGGRESSIVE SIZE SCANNING:
   aggressiveSizePatterns.forEach((pattern, index) => {
     const matches = htmlContent.match(pattern);
     if (matches) {
@@ -1059,17 +1070,13 @@ async function extractVariantsDirect($: cheerio.CheerioAPI, htmlContent: string,
       });
     }
   });
+  */
   
-  // Combine all found colors and sizes with safety checks
-  const allRawColors = Array.from(new Set([...colors, ...jsonExtractedColors]));
+  // Combine only authentic colors (no sizes)
+  const allRawColors = Array.from(new Set([...colors])); // Removed jsonExtractedColors to prevent fake generation
   
-  // Safety filter: Only accept valid string sizes and exclude invalid values
-  const filteredSizes = [...sizes, ...jsonExtractedSizes].filter(size => {
-    return size && typeof size === 'string' && size.toString().trim() !== '' && 
-           size !== '1' && size !== '0' && size !== 'undefined' && size !== 'null';
-  });
-  
-  const allSizes = Array.from(new Set(filteredSizes));
+  // ❌ NO SIZE FILTERING - Sizes completely disabled
+  const allSizes: string[] = []; // Always empty to prevent fake size variants
   
   console.log(`🔍 Raw colors detected: ${allRawColors.length} [${allRawColors.join(', ')}]`);
   
@@ -1133,8 +1140,8 @@ async function extractVariantsDirect($: cheerio.CheerioAPI, htmlContent: string,
     .map(size => String(size));
   console.log(`👕 Bedenler: [${safeSizeList.join(', ')}]`);
   
-  // Build variants with stock check
-  if (filteredColors.length > 0 && allSizes.length > 0) {
+  // Build variants - Only color variants, no sizes to prevent fake generation
+  if (filteredColors.length > 0) {
     // Multi-variant product - filter out fake sizes ve güvenlik kontrolü
     const realSizes = allSizes.filter(size => {
       if (!size || typeof size !== 'string') return false;

@@ -84,40 +84,91 @@ export function CSVDrawerPreview({ csvPreviews, onDownload, onShopifyUpload }: C
     const hasMultipleImages = preview.images && preview.images.length > 1;
     const currentImageUrl = preview.images?.[currentImageIndex] || '';
     
-    // Parse price from CSV if available
+    // Enhanced price parsing from CSV with multiple strategies
     const parsePriceFromCSV = () => {
-      if (preview.price) {
+      if (preview.price && preview.price.original > 0) {
         return preview.price;
       }
       
-      // Try to extract price from CSV content with better parsing
+      // Try to extract price from CSV content with advanced parsing
       const lines = preview.csvContent.split('\n').filter(line => line.trim());
       if (lines.length < 2) return { original: 0, withProfit: 0 };
       
-      const headers = lines[0].split(',').map(h => h.replace(/"/g, '').trim());
-      const firstDataRow = lines[1].split(',').map(cell => cell.replace(/"/g, '').trim());
+      // Parse CSV with proper comma splitting (handling quoted values)
+      const parseCSVLine = (line: string) => {
+        const result = [];
+        let current = '';
+        let inQuotes = false;
+        
+        for (let i = 0; i < line.length; i++) {
+          const char = line[i];
+          if (char === '"') {
+            inQuotes = !inQuotes;
+          } else if (char === ',' && !inQuotes) {
+            result.push(current.trim());
+            current = '';
+          } else {
+            current += char;
+          }
+        }
+        result.push(current.trim());
+        return result;
+      };
       
-      // Find price column index  
-      const priceIndex = headers.findIndex(h => 
-        h.includes('Variant Price') || h.includes('Price') || h.includes('price')
-      );
+      const headers = parseCSVLine(lines[0]).map(h => h.replace(/"/g, '').trim());
+      const firstDataRow = parseCSVLine(lines[1]).map(cell => cell.replace(/"/g, '').trim());
       
-      if (priceIndex !== -1 && firstDataRow[priceIndex]) {
-        const priceValue = parseFloat(firstDataRow[priceIndex]) || 0;
-        return {
-          original: Math.round(priceValue / 1.1), // Reverse calculate original
-          withProfit: priceValue
-        };
+      console.log('🔍 CSV Headers:', headers);
+      console.log('🔍 First Data Row:', firstDataRow);
+      
+      // Multiple price detection strategies
+      const priceIndicators = [
+        'Variant Price', 'Price', 'price', 'Fiyat', 'fiyat',
+        'Cost', 'cost', 'Amount', 'amount', 'Value', 'value'
+      ];
+      
+      let priceValue = 0;
+      
+      // Strategy 1: Find price column by header name
+      for (const indicator of priceIndicators) {
+        const priceIndex = headers.findIndex(h => h.includes(indicator));
+        if (priceIndex !== -1 && firstDataRow[priceIndex]) {
+          const extracted = parseFloat(firstDataRow[priceIndex].replace(/[^0-9.,]/g, '').replace(',', '.'));
+          if (extracted > 0) {
+            priceValue = extracted;
+            console.log(`💰 Price found via header "${indicator}": ${priceValue}`);
+            break;
+          }
+        }
       }
       
-      // Try to extract from title if it contains price info
-      const title = preview.productTitle;
-      const priceMatch = title.match(/(\d+[.,]\d+|\d+)\s*(?:TL|₺|lira)/i);
-      if (priceMatch) {
-        const extractedPrice = parseFloat(priceMatch[1].replace(',', '.'));
+      // Strategy 2: Search all cells for price-like values
+      if (priceValue === 0) {
+        for (const cell of firstDataRow) {
+          const cleaned = cell.replace(/[^0-9.,]/g, '').replace(',', '.');
+          const extracted = parseFloat(cleaned);
+          if (extracted > 10 && extracted < 10000) { // Reasonable price range
+            priceValue = extracted;
+            console.log(`💰 Price found via cell search: ${priceValue}`);
+            break;
+          }
+        }
+      }
+      
+      // Strategy 3: Extract from title
+      if (priceValue === 0) {
+        const title = preview.productTitle;
+        const priceMatch = title.match(/(\d+[.,]\d+|\d+)\s*(?:TL|₺|lira)/i);
+        if (priceMatch) {
+          priceValue = parseFloat(priceMatch[1].replace(',', '.'));
+          console.log(`💰 Price found via title: ${priceValue}`);
+        }
+      }
+      
+      if (priceValue > 0) {
         return {
-          original: Math.round(extractedPrice / 1.1),
-          withProfit: extractedPrice
+          original: Math.round(priceValue / 1.1), // Reverse calculate original (remove 10% markup)
+          withProfit: Math.round(priceValue)
         };
       }
       
