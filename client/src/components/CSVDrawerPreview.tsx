@@ -189,34 +189,57 @@ export function CSVDrawerPreview({ csvPreviews, onDownload, onShopifyUpload }: C
               
               {/* Fiyat Bilgileri */}
               <div className="flex items-center gap-3 mb-2">
-                <div className="flex items-center gap-2">
-                  <span className="text-slate-400 text-xs">Alış:</span>
-                  <span className="text-white text-sm font-medium">{prices.original.toLocaleString()}₺</span>
-                </div>
-                <div className="flex items-center gap-2">
-                  <span className="text-slate-400 text-xs">Satış:</span>
-                  <span className="text-green-400 text-sm font-medium">{prices.withProfit.toLocaleString()}₺</span>
-                </div>
-                <Badge className="bg-green-900/30 text-green-300 text-xs px-2 py-0 h-4">
-                  +%10
-                </Badge>
+                {prices.original > 0 ? (
+                  <>
+                    <div className="flex items-center gap-2">
+                      <span className="text-slate-400 text-xs">Alış:</span>
+                      <span className="text-white text-sm font-medium">{prices.original.toLocaleString()}₺</span>
+                    </div>
+                    <div className="flex items-center gap-2">
+                      <span className="text-slate-400 text-xs">Satış:</span>
+                      <span className="text-green-400 text-sm font-medium">{prices.withProfit.toLocaleString()}₺</span>
+                    </div>
+                    <Badge className="bg-green-900/30 text-green-300 text-xs px-2 py-0 h-4">
+                      +%10
+                    </Badge>
+                  </>
+                ) : (
+                  <div className="flex items-center gap-2">
+                    <span className="text-slate-400 text-xs">Fiyat:</span>
+                    <span className="text-orange-400 text-sm">Bilgi yok</span>
+                  </div>
+                )}
               </div>
               
-              {/* Varyant Bilgileri */}
+              {/* Varyant Bilgileri - Sadece gerçek varyantları göster */}
               <div className="flex flex-wrap gap-1">
-                {preview.variants.colors.length > 0 && (
+                {/* Gerçek renkler varsa göster */}
+                {preview.variants?.colors && preview.variants.colors.length > 0 && (
                   <Badge variant="outline" className="border-cyan-600/40 text-cyan-300 text-xs px-2 py-0 h-5">
                     {preview.variants.colors.length} renk
                   </Badge>
                 )}
-                {preview.variants.sizes.length > 0 && (
+                
+                {/* Gerçek bedenler varsa göster - sahte bedenleri filtrele */}
+                {preview.variants?.sizes && preview.variants.sizes.length > 0 && 
+                 !preview.variants.sizes.every(size => ['S', 'M', 'L', 'XL', 'XXL', 'XS'].includes(size)) && (
                   <Badge variant="outline" className="border-purple-600/40 text-purple-300 text-xs px-2 py-0 h-5">
                     {preview.variants.sizes.length} beden
                   </Badge>
                 )}
-                {variants.length > 0 && (
+                
+                {/* Sadece gerçek varyantları say */}
+                {variants && variants.length > 0 && variants.some(v => v.color && v.size && v.size !== 'Tek Beden') && (
                   <Badge variant="outline" className="border-orange-600/40 text-orange-300 text-xs px-2 py-0 h-5">
-                    {variants.length} varyant
+                    {variants.filter(v => v.color && v.size && v.size !== 'Tek Beden').length} varyant
+                  </Badge>
+                )}
+                
+                {/* Eğer hiç varyant yoksa tek ürün göster */}
+                {(!preview.variants?.colors || preview.variants.colors.length === 0) && 
+                 (!preview.variants?.sizes || preview.variants.sizes.length === 0) && (
+                  <Badge variant="outline" className="border-slate-600/40 text-slate-400 text-xs px-2 py-0 h-5">
+                    Tek ürün
                   </Badge>
                 )}
               </div>

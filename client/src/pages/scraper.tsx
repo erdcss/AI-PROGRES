@@ -263,10 +263,12 @@ function ScraperPage() {
           csvContent: data.csvContent,
           variants: {
             colors: data.variants?.colors || [],
-            sizes: data.variants?.sizes || []
+            sizes: data.variants?.sizes || [],
+            allVariants: data.variants?.allVariants || []
           },
           images: data.images?.map((img: any) => typeof img === 'string' ? img : img.url) || [],
-          createdAt: new Date().toISOString()
+          createdAt: new Date().toISOString(),
+          price: data.price || null // Fiyat bilgisini ekle
         };
         
         setCsvPreviews(prev => [newCSVPreview, ...prev]);
@@ -343,6 +345,30 @@ function ScraperPage() {
     },
     onSuccess: (data) => {
       setProductFeatures(data.features || []);
+      
+      // Bulk CSV için ürün verilerini kaydet
+      if (data.csvContent) {
+        const newCSVPreview = {
+          id: `csv-bulk-${csvPreviews.length}-${Date.now()}-${Math.random().toString(36).substr(2, 9)}`,
+          productTitle: data.title || 'Scenario-based Product',
+          csvContent: data.csvContent,
+          variants: {
+            colors: data.variants?.colors || [],
+            sizes: data.variants?.sizes || [],
+            allVariants: data.variants?.allVariants || []
+          },
+          images: data.images?.map((img: any) => typeof img === 'string' ? img : img.url) || [],
+          createdAt: new Date().toISOString(),
+          price: data.price || null // Fiyat bilgisini ekle
+        };
+        
+        console.log('🎯 Bulk CSV Content found, adding to previews:', data.title);
+        console.log('📋 Adding Bulk CSV preview:', newCSVPreview.id, newCSVPreview.productTitle);
+        console.log('📋 Current Bulk CSV previews count:', csvPreviews.length);
+        
+        setCsvPreviews(prev => [newCSVPreview, ...prev]);
+      }
+      
       toast({
         title: "Ürün Özellikleri Çıkarıldı",
         description: `${data.features?.length || 0} özellik bulundu`
