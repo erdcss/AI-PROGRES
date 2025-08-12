@@ -348,18 +348,26 @@ function extractPrice($: any, htmlContent: string): any {
     }
   }
   
-  // Method 2: HTML DOM extraction with Turkish price patterns
+  // Method 2: HTML DOM extraction with Turkish price patterns - GÜNCEL SELECTORS
   const priceSelectors = [
+    // Güncel Trendyol fiyat selectors - 2024/2025
+    '[data-testid="price-current-price"]',
     '.prc-dsc', 
     '.prc-slg',
-    '[data-testid="price-current-price"]',
+    '.price-discount',
+    '.discounted-price-value',
+    '.product-price-container .price',
     '.product-price .price',
     '.price-current',
     '.current-price',
+    '.final-price',
+    '.selling-price',
+    // Eski fallback selectors
     '.price', 
     '.sale-price',
     '.price-now',
-    '.discounted-price'
+    '.product-final-price',
+    '.discount-price'
   ];
   
   for (const selector of priceSelectors) {
@@ -399,17 +407,28 @@ function extractPrice($: any, htmlContent: string): any {
     }
   }
   
-  // Method 3: Script data extraction (for API-based prices)
+  // Method 3: Script data extraction (for API-based prices) - GENİŞLETİLMİŞ
   const scriptTags = $('script');
   for (let i = 0; i < scriptTags.length; i++) {
     const scriptContent = $(scriptTags[i]).html() || '';
     
-    // Look for price patterns in script content
+    // Look for price patterns in script content - Trendyol API patterns dahil
     const pricePatterns = [
+      // JSON API patterns
       /"price":\s*(\d+\.?\d*)/g,
       /"currentPrice":\s*(\d+\.?\d*)/g,
       /"originalPrice":\s*(\d+\.?\d*)/g,
-      /price["\']:\s*["\']?(\d+\.?\d*)/g
+      /"sellingPrice":\s*(\d+\.?\d*)/g,
+      /"discountedPrice":\s*(\d+\.?\d*)/g,
+      // Trendyol specific patterns
+      /"prc-dsc"[^}]*["\']?(\d+[.,]\d+)/g,
+      /"priceText"[^}]*["\']?(\d+[.,]\d+)/g,
+      /priceValue["\']:\s*["\']?(\d+\.?\d*)/g,
+      /price["\']:\s*["\']?(\d+\.?\d*)/g,
+      // Window data patterns
+      /window\.__INITIAL_STATE__[^}]*price[^}]*["\']?(\d+[.,]\d+)/g,
+      // React component patterns
+      /priceProps[^}]*value[^}]*["\']?(\d+[.,]\d+)/g
     ];
     
     for (const pattern of pricePatterns) {
@@ -446,13 +465,60 @@ function extractPrice($: any, htmlContent: string): any {
     }
   }
   
-  console.log('⚠️ No price found - using default');
+  // Method 4: Desperate text search in entire HTML content
+  console.log('💰 Method 4: Searching entire HTML content for price patterns...');
+  const priceMatches = htmlContent.match(/(\d{1,4})[.,](\d{2})\s*(?:TL|₺)/g);
+  if (priceMatches && priceMatches.length > 0) {
+    console.log(`💰 Found price patterns in HTML: ${priceMatches.slice(0, 3).join(', ')}`);
+    
+    // En yüksek fiyatı seç (genellikle ana ürün fiyatı)
+    let bestPrice = 0;
+    for (const match of priceMatches) {
+      const cleanMatch = match.replace(/[^\d.,]/g, '');
+      let price = 0;
+      
+      if (cleanMatch.includes(',')) {
+        price = parseFloat(cleanMatch.replace(',', '.'));
+      } else {
+        price = parseFloat(cleanMatch);
+      }
+      
+      if (price > bestPrice && price < 10000) { // Makul fiyat aralığı
+        bestPrice = price;
+      }
+    }
+    
+    if (bestPrice > 0) {
+      console.log(`💰 HTML content price found: ${bestPrice}`);
+      
+      // Kuruş/TL kontrolü
+      if (bestPrice > 1000) {
+        console.log(`⚠️ High price detected (${bestPrice}) - converting from kuruş to TL`);
+        bestPrice = bestPrice / 100;
+      }
+      
+      if (bestPrice >= 1) {
+        const finalPrice = Math.round(bestPrice * 1.10 * 100) / 100;
+        console.log(`💰 HTML processed: ${bestPrice} TL → ${finalPrice} TL`);
+        
+        return {
+          original: bestPrice,
+          currency: 'TL',
+          formatted: `${bestPrice} TL`,
+          withProfit: finalPrice,
+          profitFormatted: `${finalPrice} TL`
+        };
+      }
+    }
+  }
+  
+  console.log('⚠️ No price found anywhere - using intelligent default');
   return {
-    original: 29.90,
+    original: 49.90,
     currency: 'TL',
-    formatted: '29.90 TL',
-    withProfit: 32.89,
-    profitFormatted: '32.89 TL'
+    formatted: '49.90 TL',
+    withProfit: 54.89,
+    profitFormatted: '54.89 TL'
   };
 }
 
