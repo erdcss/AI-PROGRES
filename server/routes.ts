@@ -1083,7 +1083,9 @@ export function registerRoutes(app: Express): Server {
       if (url.includes('trendyol.com')) {
         console.log("🎯 SCENARIO-BASED EXTRACTION başlıyor...");
         
+        console.log('🚨 ROUTES: About to call scenarioBasedScrape...');
         const result = await scenarioBasedScrape(url);
+        console.log('🚨 ROUTES: scenarioBasedScrape returned price:', result.price?.original);
         
         if (result.success) {
           console.log(`🎯 Scenario: ${result.scenario}, Confidence: ${result.confidence}%`);
