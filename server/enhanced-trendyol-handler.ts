@@ -249,10 +249,126 @@ export class EnhancedTrendyolHandler {
   } {
     const product = productState.product;
     
+    // Enhanced price extraction with multiple fallback strategies
+    let extractedPrice = 0;
+    
+    try {
+      // Strategy 1: Product state selling price (main method)
+      if (product?.price?.sellingPrice?.value) {
+        extractedPrice = product.price.sellingPrice.value / 100;
+        console.log(`💰 Fiyat - Strategy 1 (Product State): ${extractedPrice} TL`);
+      }
+      
+      // Strategy 2: Product state original price
+      else if (product?.price?.originalPrice?.value) {
+        extractedPrice = product.price.originalPrice.value / 100;
+        console.log(`💰 Fiyat - Strategy 2 (Original Price): ${extractedPrice} TL`);
+      }
+      
+      // Strategy 3: DOM'dan fiyat çıkarma
+      else {
+        const priceSelectors = [
+          '.prc-slg', // Ana satış fiyatı
+          '.prc-dsc', // İndirimli fiyat
+          '.price-current', // Güncel fiyat
+          '.product-price .price', // Ürün fiyatı
+          '[data-testid="price-current-price"]', // Test ID'li fiyat
+          '.price-box .price', // Fiyat kutusu
+          'span[class*="price"]' // Fiyat içeren span'lar
+        ];
+        
+        for (const selector of priceSelectors) {
+          const priceElement = $(selector).first();
+          if (priceElement.length > 0) {
+            const priceText = priceElement.text().trim();
+            console.log(`🔍 DOM fiyat denemesi (${selector}): "${priceText}"`);
+            
+            // Türkçe fiyat formatını parse et
+            const priceMatch = priceText.match(/[\d.,]+/);
+            if (priceMatch) {
+              let cleanPrice = priceMatch[0];
+              
+              // Türkçe formatta bin ayırıcısı düzeltme
+              if (cleanPrice.includes('.') && cleanPrice.includes(',')) {
+                // 1.234,56 formatı
+                cleanPrice = cleanPrice.replace(/\./g, '').replace(',', '.');
+              } else if (cleanPrice.includes(',')) {
+                // 1234,56 formatı
+                cleanPrice = cleanPrice.replace(',', '.');
+              }
+              // 1.234 formatı (sadece nokta, ondalık yok)
+              else if (cleanPrice.includes('.') && cleanPrice.split('.').length === 2 && cleanPrice.split('.')[1].length > 2) {
+                cleanPrice = cleanPrice.replace('.', '');
+              }
+              
+              const parsedPrice = parseFloat(cleanPrice);
+              if (parsedPrice > 0) {
+                extractedPrice = parsedPrice;
+                console.log(`💰 Fiyat - Strategy 3 (DOM ${selector}): ${extractedPrice} TL`);
+                break;
+              }
+            }
+          }
+        }
+      }
+      
+      // Strategy 4: JSON içindeki tüm price alanlarını tara
+      if (extractedPrice === 0) {
+        const jsonContent = JSON.stringify(productState);
+        const priceMatches = jsonContent.match(/"price":\s*(\d+(?:\.\d+)?)/g);
+        if (priceMatches) {
+          for (const match of priceMatches) {
+            const priceValue = parseFloat(match.split(':')[1]);
+            if (priceValue > 100) { // 1 TL'den büyük değerler
+              extractedPrice = priceValue > 1000 ? priceValue / 100 : priceValue;
+              console.log(`💰 Fiyat - Strategy 4 (JSON Search): ${extractedPrice} TL`);
+              break;
+            }
+          }
+        }
+      }
+      
+      // Strategy 5: Sayfa içeriğinden regex ile fiyat arama
+      if (extractedPrice === 0) {
+        const htmlText = $.html();
+        const priceRegexes = [
+          /(\d{1,3}(?:[.,]\d{3})*(?:[.,]\d{2})?)[\s]*TL/gi,
+          /TL[\s]*(\d{1,3}(?:[.,]\d{3})*(?:[.,]\d{2})?)/gi,
+          /"price"[:\s]*"?(\d+(?:\.\d+)?)"?/gi
+        ];
+        
+        for (const regex of priceRegexes) {
+          const matches = htmlText.matchAll(regex);
+          for (const match of matches) {
+            let priceStr = match[1];
+            // Türkçe format temizleme
+            priceStr = priceStr.replace(/\./g, '').replace(',', '.');
+            const parsedPrice = parseFloat(priceStr);
+            
+            if (parsedPrice > 1 && parsedPrice < 100000) { // Makul fiyat aralığı
+              extractedPrice = parsedPrice;
+              console.log(`💰 Fiyat - Strategy 5 (Regex): ${extractedPrice} TL`);
+              break;
+            }
+          }
+          if (extractedPrice > 0) break;
+        }
+      }
+      
+    } catch (error) {
+      console.error('❌ Fiyat çıkarma hatası:', error.message);
+    }
+    
+    if (extractedPrice === 0) {
+      console.warn('⚠️ Fiyat bulunamadı, 0 olarak ayarlandı');
+    } else {
+      console.log(`✅ Final fiyat belirlendi: ${extractedPrice} TL`);
+    }
+    
     return {
       title: product?.name || $('h1').first().text().trim() || 'Ürün',
       brand: product?.brand?.name || 'Bilinmiyor',
-      price: product?.price?.sellingPrice?.value ? product.price.sellingPrice.value / 100 : 0,
+      price: extractedPrice,
       description: product?.description || product?.name || '',
       rating: {
         score: product?.ratingScore?.averageRating || 0,
