@@ -3,7 +3,7 @@
  */
 
 import { shopifyTransferTracker } from './shopify-transfer-tracker';
-import { sendFilteredTelegramNotification } from './filtered-telegram-notifier';
+import { filteredNotifier } from './filtered-telegram-notifier';
 import cron from 'node-cron';
 
 export class ShopifyMonitoringService {
@@ -116,7 +116,7 @@ ${changeTypeEmoji} <b>Değişiklik Türü:</b> ${this.getChangeTypeText(change.c
 🎨 <b>Varyant Sayısı:</b> ${product.variantCount}
       `.trim();
 
-      await sendFilteredTelegramNotification(message);
+      await filteredNotifier.sendTaskCompletionReport('shopify-change', 'success', message);
       
       // Bildirim gönderildi olarak işaretle
       await shopifyTransferTracker.markNotificationSent(change.id);
@@ -154,7 +154,7 @@ ${recentChanges.map((item, index) =>
 ⏰ <b>Rapor Zamanı:</b> ${new Date().toLocaleString('tr-TR')}
         `.trim();
 
-        await sendFilteredTelegramNotification(message);
+        await filteredNotifier.sendSystemAnalysis({ message });
       }
       
     } catch (error) {
@@ -195,7 +195,7 @@ ${recentChanges.slice(0, 5).map((item, index) =>
 ⏰ <b>Rapor Tarihi:</b> ${new Date().toLocaleDateString('tr-TR')}
       `.trim();
 
-      await sendFilteredTelegramNotification(message);
+      await filteredNotifier.sendDailyZReport({ message });
       console.log('📊 Günlük Shopify raporu gönderildi');
       
     } catch (error) {

@@ -70,6 +70,7 @@
     "input-otp": "^1.2.4",
     "lucide-react": "^0.453.0",
     "memorystore": "^1.6.7",
+    "node-cron": "^4.2.1",
     "node-fetch": "^3.3.2",
     "node-schedule": "^2.1.1",
     "node-telegram-bot-api": "^0.66.0",
