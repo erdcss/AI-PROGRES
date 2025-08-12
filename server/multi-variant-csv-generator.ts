@@ -267,6 +267,7 @@ export function generateMultiVariantShopifyCSV(product: CombinedProduct): string
       }
       comparePrice = (Math.round(origPrice * 100) / 100).toString();
       console.log(`💰 CSV: Compare price from original: ${comparePrice}`);
+      console.log(`💰 CSV: FIXED - Using CORRECTED price: ${origPrice} for compare`);
     } else if (basePrice !== '0' && originalPrice > 0) {
       // Kar marjı öncesi fiyatı karşılaştırma fiyatı olarak göster
       comparePrice = (Math.round(originalPrice * 100) / 100).toString();

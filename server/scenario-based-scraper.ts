@@ -43,6 +43,7 @@ export interface ScenarioBasedResult {
 export async function scenarioBasedScrape(url: string): Promise<ScenarioBasedResult> {
   try {
     console.log(`🎯 SCENARIO-BASED EXTRACTION for: ${url}`);
+    console.log(`🚨 DEBUGGING: Current URL being processed: ${url}`);
     
     // 🚨 UNIVERSAL PRICE CORRECTION - handles kuruş to TL conversion issues
     const handleSpecialPriceCase = (price: any, htmlContent: string) => {
@@ -142,14 +143,24 @@ export async function scenarioBasedScrape(url: string): Promise<ScenarioBasedRes
     console.log('🔥 CRITICAL: extractPrice FUNCTION RETURNED:', JSON.stringify(price));
     
     // 🚨 COMPREHENSIVE PRICE CORRECTION for kuruş conversion problems
-    console.log('🚨 APPLYING PRICE CORRECTION...');
+    console.log('🚨 APPLYING PRICE CORRECTION... Raw price:', price.original);
+    console.log('🚨 HTML contains 24960?', htmlContent.includes('24960'));
+    console.log('🚨 HTML contains 24.960?', htmlContent.includes('24.960'));
+    
     const correctedPrice = handleSpecialPriceCase(price, htmlContent);
     console.log('🚨 PRICE CORRECTION RESULT:', JSON.stringify(correctedPrice));
     
-    // Update price object with correction
-    if (correctedPrice !== price) {
-      Object.assign(price, correctedPrice);
-      console.log('✅ PRICE UPDATED TO:', price.original, 'TL');
+    // Force update price object with correction
+    if (correctedPrice && correctedPrice.original !== price.original) {
+      console.log('🚨 FORCING PRICE UPDATE:', price.original, '->', correctedPrice.original);
+      price.original = correctedPrice.original;
+      price.currency = correctedPrice.currency;
+      price.formatted = correctedPrice.formatted;
+      price.withProfit = correctedPrice.withProfit;
+      price.profitFormatted = correctedPrice.profitFormatted;
+      console.log('✅ PRICE FORCEFULLY UPDATED TO:', price.original, 'TL');
+    } else {
+      console.log('❌ NO PRICE CORRECTION APPLIED');
     }
     
     // Enhanced extraction with improved deduplication
