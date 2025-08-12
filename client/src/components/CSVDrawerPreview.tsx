@@ -1,5 +1,5 @@
 import { useState } from 'react';
-import { ChevronDown, ChevronUp, Download, Eye, FileText, Package, ShoppingCart } from 'lucide-react';
+import { ChevronDown, ChevronUp, Download, Eye, FileText, Package, ShoppingCart, ChevronLeft, ChevronRight } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Badge } from '@/components/ui/badge';
@@ -12,8 +12,19 @@ interface CSVPreviewData {
   variants: {
     colors: string[];
     sizes: string[];
+    allVariants?: Array<{
+      color: string;
+      colorCode: string;
+      size: string;
+      inStock: boolean;
+    }>;
   };
   images: string[];
+  price?: {
+    original: number;
+    withProfit: number;
+  };
+  brand?: string;
   createdAt: string;
 }
 
@@ -25,6 +36,7 @@ interface CSVDrawerPreviewProps {
 
 export function CSVDrawerPreview({ csvPreviews, onDownload, onShopifyUpload }: CSVDrawerPreviewProps) {
   const [expandedItems, setExpandedItems] = useState<Set<string>>(new Set());
+  const [selectedImageIndex, setSelectedImageIndex] = useState<{[key: string]: number}>({});
 
   const toggleExpanded = (id: string) => {
     const newExpanded = new Set(expandedItems);
@@ -34,6 +46,20 @@ export function CSVDrawerPreview({ csvPreviews, onDownload, onShopifyUpload }: C
       newExpanded.add(id);
     }
     setExpandedItems(newExpanded);
+  };
+
+  const nextImage = (previewId: string, totalImages: number) => {
+    setSelectedImageIndex(prev => ({
+      ...prev,
+      [previewId]: ((prev[previewId] || 0) + 1) % totalImages
+    }));
+  };
+
+  const prevImage = (previewId: string, totalImages: number) => {
+    setSelectedImageIndex(prev => ({
+      ...prev,
+      [previewId]: ((prev[previewId] || 0) - 1 + totalImages) % totalImages
+    }));
   };
 
   const parseCSVContent = (csvContent: string) => {
@@ -52,6 +78,135 @@ export function CSVDrawerPreview({ csvPreviews, onDownload, onShopifyUpload }: C
     return null;
   }
 
+  // Product Preview Component
+  const ProductPreview = ({ preview }: { preview: CSVPreviewData }) => {
+    const currentImageIndex = selectedImageIndex[preview.id] || 0;
+    const hasMultipleImages = preview.images && preview.images.length > 1;
+    const currentImageUrl = preview.images?.[currentImageIndex] || '';
+    
+    // Parse price from CSV if available
+    const parsePriceFromCSV = () => {
+      if (preview.price) {
+        return preview.price;
+      }
+      
+      // Try to extract price from CSV content
+      const lines = preview.csvContent.split('\n');
+      const priceIndex = lines[0]?.indexOf('Variant Price');
+      if (priceIndex !== -1) {
+        const priceCell = lines[1]?.split(',')[priceIndex];
+        const price = parseFloat(priceCell?.replace(/"/g, '') || '0');
+        return {
+          original: Math.round(price / 1.1), // Reverse calculate original
+          withProfit: price
+        };
+      }
+      return { original: 0, withProfit: 0 };
+    };
+    
+    const prices = parsePriceFromCSV();
+    const variants = preview.variants?.allVariants || [];
+    
+    return (
+      <Card className="bg-slate-800/40 border border-slate-600/50 mb-3">
+        <CardContent className="p-3">
+          <div className="flex gap-3 h-[100px]">
+            {/* Sol taraf - Görsel ve Slider */}
+            <div className="relative w-[120px] h-[100px] flex-shrink-0 bg-slate-700/30 rounded overflow-hidden border border-slate-600/30">
+              {currentImageUrl ? (
+                <>
+                  <img 
+                    src={currentImageUrl} 
+                    alt={preview.productTitle}
+                    className="w-full h-full object-cover"
+                    onError={(e) => {
+                      (e.target as HTMLImageElement).src = 'https://via.placeholder.com/120x100?text=No+Image';
+                    }}
+                  />
+                  
+                  {hasMultipleImages && (
+                    <>
+                      <button
+                        onClick={() => prevImage(preview.id, preview.images.length)}
+                        className="absolute left-1 top-1/2 -translate-y-1/2 bg-black/50 text-white p-1 rounded-full opacity-70 hover:opacity-100 transition-opacity"
+                      >
+                        <ChevronLeft className="w-3 h-3" />
+                      </button>
+                      
+                      <button
+                        onClick={() => nextImage(preview.id, preview.images.length)}
+                        className="absolute right-1 top-1/2 -translate-y-1/2 bg-black/50 text-white p-1 rounded-full opacity-70 hover:opacity-100 transition-opacity"
+                      >
+                        <ChevronRight className="w-3 h-3" />
+                      </button>
+                      
+                      <div className="absolute bottom-1 left-1/2 -translate-x-1/2 flex gap-1">
+                        {preview.images.map((_, index) => (
+                          <div
+                            key={index}
+                            className={`w-1.5 h-1.5 rounded-full ${
+                              index === currentImageIndex ? 'bg-cyan-400' : 'bg-white/40'
+                            }`}
+                          />
+                        ))}
+                      </div>
+                    </>
+                  )}
+                </>
+              ) : (
+                <div className="w-full h-full flex items-center justify-center text-slate-400 text-xs">
+                  <Package className="w-6 h-6" />
+                </div>
+              )}
+            </div>
+            
+            {/* Sağ taraf - Ürün Bilgileri */}
+            <div className="flex-1 flex flex-col justify-between min-w-0">
+              {/* Ürün Başlığı */}
+              <h3 className="text-white font-medium text-sm leading-tight truncate mb-1">
+                {preview.productTitle}
+              </h3>
+              
+              {/* Fiyat Bilgileri */}
+              <div className="flex items-center gap-3 mb-2">
+                <div className="flex items-center gap-2">
+                  <span className="text-slate-400 text-xs">Alış:</span>
+                  <span className="text-white text-sm font-medium">{prices.original.toLocaleString()}₺</span>
+                </div>
+                <div className="flex items-center gap-2">
+                  <span className="text-slate-400 text-xs">Satış:</span>
+                  <span className="text-green-400 text-sm font-medium">{prices.withProfit.toLocaleString()}₺</span>
+                </div>
+                <Badge className="bg-green-900/30 text-green-300 text-xs px-2 py-0 h-4">
+                  +%10
+                </Badge>
+              </div>
+              
+              {/* Varyant Bilgileri */}
+              <div className="flex flex-wrap gap-1">
+                {preview.variants.colors.length > 0 && (
+                  <Badge variant="outline" className="border-cyan-600/40 text-cyan-300 text-xs px-2 py-0 h-5">
+                    {preview.variants.colors.length} renk
+                  </Badge>
+                )}
+                {preview.variants.sizes.length > 0 && (
+                  <Badge variant="outline" className="border-purple-600/40 text-purple-300 text-xs px-2 py-0 h-5">
+                    {preview.variants.sizes.length} beden
+                  </Badge>
+                )}
+                {variants.length > 0 && (
+                  <Badge variant="outline" className="border-orange-600/40 text-orange-300 text-xs px-2 py-0 h-5">
+                    {variants.length} varyant
+                  </Badge>
+                )}
+              </div>
+            </div>
+          </div>
+        </CardContent>
+      </Card>
+    );
+  };
+
   return (
     <Card className="business-card bg-gradient-to-br from-slate-900/90 via-slate-800/50 to-slate-900/90 backdrop-blur border border-cyan-800/30">
       <CardHeader className="business-header pb-2">
@@ -64,14 +219,19 @@ export function CSVDrawerPreview({ csvPreviews, onDownload, onShopifyUpload }: C
         </div>
       </CardHeader>
       
-      <CardContent className="p-3 space-y-2">
+      <CardContent className="p-3 space-y-3">
         {csvPreviews.map((preview) => {
           const isExpanded = expandedItems.has(preview.id);
           const { headers, rows } = parseCSVContent(preview.csvContent);
           const variantCount = preview.variants.colors.length * preview.variants.sizes.length;
 
           return (
-            <Card key={preview.id} className="bg-slate-800/30 border border-slate-600/40 hover:border-cyan-600/50 transition-colors">
+            <div key={preview.id} className="space-y-2">
+              {/* Ürün Önizleme Alanı */}
+              <ProductPreview preview={preview} />
+              
+              {/* CSV Önizleme Kartı */}
+              <Card className="bg-slate-800/30 border border-slate-600/40 hover:border-cyan-600/50 transition-colors">
               <CardHeader className="pb-1 pt-2">
                 <div className="flex items-center justify-between gap-2">
                   <div className="flex items-center gap-2 flex-1 min-w-0">
@@ -234,6 +394,7 @@ export function CSVDrawerPreview({ csvPreviews, onDownload, onShopifyUpload }: C
                 )}
               </AnimatePresence>
             </Card>
+            </div>
           );
         })}
       </CardContent>
