@@ -47,6 +47,8 @@ import { uploadProductToShopify, testShopifyConnection } from './shopify-api-upl
 import { uploadMultiUrlProductToShopify } from './multi-url-shopify-uploader';
 import { eq, desc, or, and, isNotNull, inArray } from 'drizzle-orm';
 import axios from 'axios';
+import { urlTrackingService } from './url-tracking-service';
+import { urlTracking } from '@shared/schema';
 
 // Telegram notification for product extraction
 async function sendProductExtractionNotification(url: string, title: string, brand: string, price: any) {
@@ -3362,5 +3364,131 @@ export function registerRoutes(app: Express): Server {
     }
   });
 
+  // URL Tracking API endpoints - ÜRÜN URL'LERİNİ HAFIZAYa KAYDET VE TAKİP ET
+  app.post("/api/tracking/add", async (req, res) => {
+    try {
+      const { url, trackingInterval = 300 } = req.body;
+      
+      if (!url) {
+        return res.status(400).json({ 
+          success: false, 
+          error: "URL gerekli" 
+        });
+      }
+
+      console.log(`🎯 URL tracking'e ekleme isteği: ${url}`);
+      
+      const result = await urlTrackingService.addUrlToTracking(url, trackingInterval);
+      
+      if (result.success) {
+        res.json({
+          success: true,
+          message: "URL tracking sistemi eklendi",
+          data: result.trackedUrl,
+          extraction: result.extractionResult
+        });
+      } else {
+        res.status(400).json({
+          success: false,
+          error: result.error
+        });
+      }
+    } catch (error) {
+      console.error("❌ Tracking add error:", error);
+      res.status(500).json({
+        success: false,
+        error: error.message
+      });
+    }
+  });
+
+  app.get("/api/tracking/list", async (req, res) => {
+    try {
+      const trackedUrls = await urlTrackingService.getAllTrackedUrls();
+      
+      res.json({
+        success: true,
+        data: trackedUrls,
+        total: trackedUrls.length
+      });
+    } catch (error) {
+      console.error("❌ Tracking list error:", error);
+      res.status(500).json({
+        success: false,
+        error: error.message
+      });
+    }
+  });
+
+  app.delete("/api/tracking/remove", async (req, res) => {
+    try {
+      const { url } = req.body;
+      
+      if (!url) {
+        return res.status(400).json({ 
+          success: false, 
+          error: "URL gerekli" 
+        });
+      }
+
+      await urlTrackingService.removeUrlFromTracking(url);
+      
+      res.json({
+        success: true,
+        message: "URL tracking'den kaldırıldı"
+      });
+    } catch (error) {
+      console.error("❌ Tracking remove error:", error);
+      res.status(500).json({
+        success: false,
+        error: error.message
+      });
+    }
+  });
+
+  app.get("/api/tracking/stats", async (req, res) => {
+    try {
+      const stats = await urlTrackingService.getTrackingStats();
+      
+      res.json({
+        success: true,
+        stats
+      });
+    } catch (error) {
+      console.error("❌ Tracking stats error:", error);
+      res.status(500).json({
+        success: false,
+        error: error.message
+      });
+    }
+  });
+
+  app.post("/api/tracking/check", async (req, res) => {
+    try {
+      const { url } = req.body;
+      
+      if (!url) {
+        return res.status(400).json({ 
+          success: false, 
+          error: "URL gerekli" 
+        });
+      }
+
+      await urlTrackingService.checkUrl(url);
+      
+      res.json({
+        success: true,
+        message: "URL kontrol edildi"
+      });
+    } catch (error) {
+      console.error("❌ Tracking check error:", error);
+      res.status(500).json({
+        success: false,
+        error: error.message
+      });
+    }
+  });
+
+  console.log('🎯 URL Tracking Service API endpoints registered');
   return httpServer;
 }

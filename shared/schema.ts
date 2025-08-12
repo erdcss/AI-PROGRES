@@ -94,6 +94,34 @@ export const monitoringSchedules = pgTable('monitoring_schedules', {
   lastCheckAt: timestamp('last_check_at'),
   nextCheckAt: timestamp('next_check_at'),
   consecutiveFailures: integer('consecutive_failures').notNull().default(0),
+  realTimeTracking: boolean('real_time_tracking').notNull().default(false), // Anlık takip aktif mi
+  trackingEnabled: boolean('tracking_enabled').notNull().default(true), // URL tracking açık mı
+  notificationSettings: jsonb('notification_settings').default({}), // Bildirim ayarları
+  createdAt: timestamp('created_at').notNull().defaultNow(),
+  updatedAt: timestamp('updated_at').notNull().defaultNow()
+});
+
+// Real-time URL tracking table - Anlık URL takip sistemi
+export const urlTracking = pgTable('url_tracking', {
+  id: serial('id').primaryKey(),
+  url: text('url').notNull().unique(),
+  productTitle: text('product_title'),
+  currentPrice: decimal('current_price', { precision: 10, scale: 2 }),
+  previousPrice: decimal('previous_price', { precision: 10, scale: 2 }),
+  originalPrice: decimal('original_price', { precision: 10, scale: 2 }),
+  currency: text('currency').default('TL'),
+  status: text('status').default('active'), // active, error, out_of_stock, monitoring
+  lastChecked: timestamp('last_checked').defaultNow(),
+  lastSuccessfulCheck: timestamp('last_successful_check'),
+  checkCount: integer('check_count').default(0),
+  isTracking: boolean('is_tracking').default(true),
+  trackingInterval: integer('tracking_interval').default(300), // saniye (5 dakika)
+  priceChangeAlert: boolean('price_change_alert').default(true),
+  stockAlert: boolean('stock_alert').default(true),
+  errorMessage: text('error_message'),
+  extractedData: jsonb('extracted_data'), // Son çekilen tam veri
+  lastPriceChange: timestamp('last_price_change'),
+  priceChangePercent: decimal('price_change_percent', { precision: 5, scale: 2 }),
   createdAt: timestamp('created_at').notNull().defaultNow(),
   updatedAt: timestamp('updated_at').notNull().defaultNow()
 });
@@ -182,6 +210,12 @@ export const insertMonitoringScheduleSchema = createInsertSchema(monitoringSched
   updatedAt: true
 });
 
+export const insertUrlTrackingSchema = createInsertSchema(urlTracking).omit({
+  id: true,
+  createdAt: true,
+  updatedAt: true
+});
+
 // Export the table schemas for use in other files
 export const variants = productVariants;
 
@@ -198,6 +232,8 @@ export type ShopifySyncLog = typeof shopifySyncLogs.$inferSelect;
 export type InsertShopifySyncLog = z.infer<typeof insertShopifySyncLogSchema>;
 export type MonitoringSchedule = typeof monitoringSchedules.$inferSelect;
 export type InsertMonitoringSchedule = z.infer<typeof insertMonitoringScheduleSchema>;
+export type UrlTracking = typeof urlTracking.$inferSelect;
+export type InsertUrlTracking = z.infer<typeof insertUrlTrackingSchema>;
 
 // Legacy schemas for backward compatibility
 export const urlSchema = z.object({
