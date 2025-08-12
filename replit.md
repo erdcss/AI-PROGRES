@@ -38,6 +38,7 @@ The application features a full-stack architecture with clear separation of conc
 - **Critical Image System Fix** (August 12, 2025): Resolved complete image upload failure to Shopify by fixing data format incompatibility between scenario-based scraper and CSV generator. Implemented unified image format with {url, colorName, position, alt} structure.
 - **Enhanced Price Processing System** (August 12, 2025): Fixed critical price calculation bugs including kuruş/TL conversion (>1000 values), minimum price enforcement (>1 TL), profit margin calculation accuracy, and compare price generation with 2-decimal precision.
 - **Comprehensive Price Correction System** (August 12, 2025): Implemented intelligent price correction for Turkish e-commerce kuruş/TL conversion issues. System now correctly handles 950 kuruş → 950 TL and 24960 kuruş → 24960 TL conversions based on user expectations. Fixed CSV compare price generation to use corrected original prices without double conversion.
+- **Real-time URL Tracking System** (August 12, 2025): Implemented comprehensive URL tracking with PostgreSQL database storage. URLs are automatically monitored every 5 minutes, price changes are detected and stored in history. Telegram notifications are sent for all price changes with detailed information including percentage change and price difference.
 
 ## External Dependencies
 

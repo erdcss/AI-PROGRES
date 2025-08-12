@@ -81,6 +81,9 @@ export class UrlTrackingService {
       
       console.log(`✅ URL tracking eklendi: ${extractionResult.title} - ${extractionResult.price.original} TL`);
       
+      // İlk ekleme bildirimi gönder
+      await this.sendTrackingStartedNotification(extractionResult, url);
+      
       return {
         success: true,
         trackedUrl,
@@ -173,6 +176,9 @@ export class UrlTrackingService {
           changeAmount: Math.abs(newPrice - currentPrice).toString(),
           changePercentage: changePercent.toString()
         });
+
+        // Telegram bildirimi gönder
+        await this.sendPriceChangeNotification(existing, currentPrice, newPrice, changePercent);
         
         // URL tracking güncelle
         await db
@@ -259,6 +265,89 @@ export class UrlTrackingService {
         return t.lastChecked && t.lastChecked > oneHourAgo;
       }).length
     };
+  }
+
+  async sendPriceChangeNotification(urlTrack: any, oldPrice: number, newPrice: number, changePercent: number) {
+    try {
+      const changeType = newPrice > oldPrice ? '📈 ARTIŞ' : '📉 DÜŞÜŞ';
+      const changeIcon = newPrice > oldPrice ? '🔺' : '🔻';
+      const priceDiff = Math.abs(newPrice - oldPrice);
+      
+      const message = `
+🎯 <b>FİYAT DEĞİŞİKLİĞİ ALERTİ</b>
+
+📦 <b>Ürün:</b> ${urlTrack.productTitle || 'Bilinmeyen Ürün'}
+
+${changeIcon} <b>${changeType}</b>
+💰 <b>Eski Fiyat:</b> ${oldPrice.toFixed(2)} TL
+💰 <b>Yeni Fiyat:</b> ${newPrice.toFixed(2)} TL
+📊 <b>Değişim:</b> ${changePercent.toFixed(2)}% (${priceDiff.toFixed(2)} TL)
+
+🔗 <b>URL:</b> ${urlTrack.url}
+
+⏰ <b>Tarih:</b> ${new Date().toLocaleString('tr-TR')}
+      `.trim();
+
+      // Filtered Telegram notifier kullan
+      try {
+        const { sendFilteredTelegramNotification } = await import('./filtered-telegram-notifier');
+        await sendFilteredTelegramNotification(message);
+        console.log('📱 Fiyat değişiklik bildirimi Telegram\'a gönderildi');
+      } catch (importError) {
+        console.log('📱 Telegram notifier import failed, using direct API method');
+        
+        // Direct API call as fallback
+        const telegramBotToken = process.env.TELEGRAM_BOT_TOKEN;
+        const chatId = process.env.TELEGRAM_CHAT_ID || '1219880063';
+        
+        if (telegramBotToken) {
+          const axios = await import('axios');
+          await axios.default.post(`https://api.telegram.org/bot${telegramBotToken}/sendMessage`, {
+            chat_id: chatId,
+            text: message,
+            parse_mode: 'HTML',
+            disable_web_page_preview: true
+          });
+          console.log('📱 Fiyat değişiklik bildirimi direkt API ile gönderildi');
+        } else {
+          console.log('⚠️ Telegram bot token bulunamadı, bildirim gönderilemedi');
+        }
+      }
+      
+    } catch (error) {
+      console.error('❌ Telegram bildirim gönderimi hatası:', error);
+    }
+  }
+
+  async sendTrackingStartedNotification(extractionResult: any, url: string) {
+    try {
+      const message = `
+🎯 <b>YENİ ÜRÜN TAKİBE EKLENDİ</b>
+
+📦 <b>Ürün:</b> ${extractionResult.title}
+🏢 <b>Marka:</b> ${extractionResult.brand || 'Bilinmeyen Marka'}
+💰 <b>Başlangıç Fiyatı:</b> ${extractionResult.price.original} TL
+💵 <b>Kar Marjlı Fiyat:</b> ${extractionResult.price.withProfit} TL
+
+🔄 <b>Takip Durumu:</b> Aktif (5 dakikada bir kontrol)
+🔔 <b>Bildirimler:</b> Fiyat değişikliklerinde otomatik bildirim
+
+🔗 <b>URL:</b> ${url}
+
+⏰ <b>Başlangıç:</b> ${new Date().toLocaleString('tr-TR')}
+      `.trim();
+
+      try {
+        const { sendFilteredTelegramNotification } = await import('./filtered-telegram-notifier');
+        await sendFilteredTelegramNotification(message);
+        console.log('📱 Tracking başlangıç bildirimi Telegram\'a gönderildi');
+      } catch (importError) {
+        console.log('📱 Telegram notifier import failed for tracking start notification');
+      }
+      
+    } catch (error) {
+      console.error('❌ Tracking başlangıç bildirimi hatası:', error);
+    }
   }
 }
 
