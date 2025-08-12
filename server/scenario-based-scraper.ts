@@ -169,19 +169,20 @@ export async function scenarioBasedScrape(url: string): Promise<ScenarioBasedRes
     if (directVariants.length > 0) {
       console.log(`🔄 Direct extraction found variants: ${directVariants.length} (existing: ${variants.length})`);
       
-      // 🚨 SINGLE COLOR POLICY ENFORCEMENT - No merging allowed
-      console.log(`🚨 ENFORCING SINGLE COLOR POLICY - Using only direct extraction`);
+      // ✅ INTELLIGENT COLOR PROCESSING - Allow authentic multi-color products
+      console.log(`🎨 INTELLIGENT COLOR PROCESSING - Processing all authentic variants`);
       
       if (directVariants.length > 0) {
-        // Force single color if multiple detected
+        // Allow all authentic colors for multi-color products
         const uniqueColors = [...new Set(directVariants.map(v => v.color))];
         if (uniqueColors.length > 1) {
-          console.log(`🚨 FORCING SINGLE COLOR: Found ${uniqueColors.length} colors [${uniqueColors.join(', ')}], keeping only: ${uniqueColors[0]}`);
-          variants = directVariants.filter(v => v.color === uniqueColors[0]);
+          console.log(`🎨 MULTI-COLOR PRODUCT: Found ${uniqueColors.length} colors [${uniqueColors.join(', ')}] - keeping all authentic variants`);
+          variants = directVariants; // Keep all variants
         } else {
+          console.log(`🎨 SINGLE-COLOR PRODUCT: Found 1 color [${uniqueColors[0]}] - standard processing`);
           variants = directVariants;
         }
-        console.log(`✅ SINGLE COLOR RESULT: ${variants.length} variants with color: ${variants[0]?.color || 'none'}`);
+        console.log(`✅ FINAL RESULT: ${variants.length} variants with colors: ${uniqueColors.join(', ')}`);
       } else if (variants.length === 0) {
         console.log('⚠️ No variants found from any method');
         variants = [];
@@ -1379,6 +1380,26 @@ async function extractVariantsDirect($: cheerio.CheerioAPI, htmlContent: string,
       });
     }
   });
+
+  // Enhanced pattern for multi-color products - look for variant buttons in product detail
+  $('button[class*="variant"], button[data-testid*="variant"], div[data-testid*="variant"] button').each((_, el) => {
+    const $el = $(el);
+    const buttonText = $el.text().trim().toLowerCase();
+    const title = $el.attr('title') || '';
+    const ariaLabel = $el.attr('aria-label') || '';
+    
+    // Look for Turkish/English color keywords in button content
+    const colorKeywords = ['altın', 'altin', 'gold', 'gümüş', 'gumus', 'silver', 'siyah', 'black', 'beyaz', 'white'];
+    colorKeywords.forEach(keyword => {
+      if (buttonText.includes(keyword) || title.toLowerCase().includes(keyword) || ariaLabel.toLowerCase().includes(keyword)) {
+        const mappedColor = mapColorName(keyword);
+        if (mappedColor && !colors.includes(mappedColor)) {
+          colors.push(mappedColor);
+          console.log(`🎨 Found color from variant button: ${mappedColor} (from ${keyword})`);
+        }
+      }
+    });
+  });
   
   // Method 2: Enhanced size extraction with modern Trendyol selectors  
   const sizes: string[] = [];
@@ -1518,11 +1539,11 @@ async function extractVariantsDirect($: cheerio.CheerioAPI, htmlContent: string,
   
   console.log(`🔍 Raw colors detected: ${allRawColors.length} [${allRawColors.join(', ')}]`);
   
-  // ✅ FORCED SINGLE COLOR POLICY: Sadece 1 renk döndür
+  // ✅ INTELLIGENT MULTI-COLOR POLICY: Allow authentic multi-color products
   let detectedColors: string[] = [];
   
-  console.log(`🚨 FORCING SINGLE COLOR POLICY - Raw colors: [${allRawColors.join(', ')}]`);
-  console.log(`🔥 CRITICAL DEBUG: About to execute frequency-based selection logic`);
+  console.log(`🎨 MULTI-COLOR DETECTION - Raw colors: [${allRawColors.join(', ')}]`);
+  console.log(`🔥 CRITICAL DEBUG: About to execute intelligent multi-color selection logic`);
   
   // 1. Önce script verilerinden gerçek renk bilgisini bul
   const scriptColors = extractActualColorsFromScript($, htmlContent);
@@ -1536,19 +1557,31 @@ async function extractVariantsDirect($: cheerio.CheerioAPI, htmlContent: string,
   const urlColor = extractColorFromURL(htmlContent);
   console.log(`🔍 DEBUG: urlColor = ${urlColor}`);
   
-  // PRIORITY 1: Title-based color detection (most reliable for Turkish products)
-  console.log(`🔍 DEBUG: About to extract color from title: "${title}"`);
-  let titleColor = null;
+  // PRIORITY 1: Enhanced multi-color detection from title and content
+  console.log(`🔍 DEBUG: About to extract all colors from title: "${title}"`);
+  let titleColors = [];
   try {
-    titleColor = extractColorFromTitle(title);
-    console.log(`🔍 DEBUG: Title color extraction result: ${titleColor}`);
+    // Extract ALL colors from title, not just first one
+    const titleColor = extractColorFromTitle(title);
+    if (titleColor) titleColors.push(titleColor);
+    
+    // Additional color detection for multi-variant products
+    const additionalColors = extractAllColorsFromTitle(title);
+    additionalColors.forEach(color => {
+      if (!titleColors.includes(color)) {
+        titleColors.push(color);
+      }
+    });
+    
+    console.log(`🔍 DEBUG: Title colors extraction result: [${titleColors.join(', ')}]`);
   } catch (error) {
     console.log(`⚠️ DEBUG: Title color extraction error: ${error.message}`);
-    titleColor = null;
+    titleColors = [];
   }
-  if (titleColor) {
-    detectedColors = [titleColor];
-    console.log(`🎯 FINAL: Title-based color: ${titleColor}`);
+  
+  if (titleColors.length > 0) {
+    detectedColors = titleColors;
+    console.log(`🎯 FINAL: Multi-color from title: [${titleColors.join(', ')}]`);
   } else if (scriptColors.length > 0) {
     detectedColors = [scriptColors[0]];
     console.log(`🎯 FINAL: Script color selected: ${detectedColors[0]}`);
@@ -2820,7 +2853,7 @@ function extractColorFromTitle(title: string): string | null {
         'steel': 'Çelik', 'titanium': 'Titanyum',
         // Özel altın durumları
         '14 ayar': '14 Ayar Altın', '18 ayar': '18 Ayar Altın', '22 ayar': '22 Ayar Altın',
-        'ayar altin': 'Altın', 'ayar altın': 'Altın', 'altin': 'Altın'
+        'ayar altin': 'Altın', 'ayar altın': 'Altın', 'altin': 'Altın', 'altın': 'Altın', 'gümüş': 'Gümüş', 'gumus': 'Gümüş'
       };
       
       const finalColor = colorMap[color] || color.charAt(0).toUpperCase() + color.slice(1);
@@ -2829,6 +2862,78 @@ function extractColorFromTitle(title: string): string | null {
     }
   }
   return null;
+}
+
+/**
+ * Extract ALL colors from product title for multi-color detection
+ */
+function extractAllColorsFromTitle(title: string): string[] {
+  const colors: string[] = [];
+  
+  if (!title || typeof title !== 'string') {
+    return colors;
+  }
+  
+  const colorKeywords = [
+    // Türkçe renkler
+    'siyah', 'beyaz', 'kırmızı', 'mavi', 'yeşil', 'sarı', 'mor', 'pembe', 
+    'gri', 'kahve', 'turuncu', 'lacivert', 'krem', 'bej', 'bordo', 'füme', 
+    'ekru', 'vizon', 'mint', 'pudra', 'altın', 'gümüş', 'rose', 'bronz',
+    'bakır', 'platin', 'çelik', 'titanyum', 'gül kurusu', 'açık mavi',
+    // İngilizce renkler
+    'black', 'white', 'red', 'blue', 'green', 'yellow', 'purple', 'pink',
+    'grey', 'gray', 'brown', 'orange', 'navy', 'cream', 'beige', 'silver',
+    'gold', 'bronze', 'copper', 'platinum', 'steel', 'titanium',
+    // Özel durumlar
+    '14 ayar', '18 ayar', '22 ayar', 'ayar altin', 'ayar altın', 'altin', 'gumus'
+  ];
+  
+  const colorMap: Record<string, string> = {
+    'black': 'Siyah', 'white': 'Beyaz', 'red': 'Kırmızı', 'blue': 'Mavi',
+    'green': 'Yeşil', 'yellow': 'Sarı', 'purple': 'Mor', 'pink': 'Pembe',
+    'grey': 'Gri', 'gray': 'Gri', 'brown': 'Kahve', 'orange': 'Turuncu',
+    'navy': 'Lacivert', 'cream': 'Krem', 'beige': 'Bej', 'silver': 'Gümüş',
+    'gold': 'Altın', 'bronze': 'Bronz', 'copper': 'Bakır', 'platinum': 'Platin',
+    'steel': 'Çelik', 'titanium': 'Titanyum',
+    // Özel altın durumları
+    '14 ayar': '14 Ayar Altın', '18 ayar': '18 Ayar Altın', '22 ayar': '22 Ayar Altın',
+    'ayar altin': 'Altın', 'ayar altın': 'Altın', 'altin': 'Altın', 'altın': 'Altın', 
+    'gümüş': 'Gümüş', 'gumus': 'Gümüş'
+  };
+  
+  const titleLower = title.toLowerCase();
+  
+  for (const color of colorKeywords) {
+    if (titleLower.includes(color)) {
+      const finalColor = colorMap[color] || color.charAt(0).toUpperCase() + color.slice(1);
+      if (!colors.includes(finalColor)) {
+        colors.push(finalColor);
+        console.log(`🎨 Multi-color found: ${finalColor}`);
+      }
+    }
+  }
+  
+  return colors;
+}
+
+/**
+ * Helper function to map color names consistently
+ */
+function mapColorName(colorKeyword: string): string | null {
+  const colorMap: Record<string, string> = {
+    'altın': 'Altın', 'altin': 'Altın', 'gold': 'Altın',
+    'gümüş': 'Gümüş', 'gumus': 'Gümüş', 'silver': 'Gümüş',
+    'siyah': 'Siyah', 'black': 'Siyah',
+    'beyaz': 'Beyaz', 'white': 'Beyaz',
+    'mavi': 'Mavi', 'blue': 'Mavi',
+    'kırmızı': 'Kırmızı', 'red': 'Kırmızı',
+    'yeşil': 'Yeşil', 'green': 'Yeşil',
+    'sarı': 'Sarı', 'yellow': 'Sarı',
+    'mor': 'Mor', 'purple': 'Mor',
+    'pembe': 'Pembe', 'pink': 'Pembe'
+  };
+  
+  return colorMap[colorKeyword.toLowerCase()] || null;
 }
 
 /**
