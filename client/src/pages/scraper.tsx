@@ -658,8 +658,8 @@ function ScraperPage() {
               <div className="flex items-center gap-3">
                 <div className="w-12 h-12 flex items-center justify-center">
                   <svg 
-                    width="48" 
-                    height="48" 
+                    width="64" 
+                    height="64" 
                     viewBox="0 0 200 200" 
                     className="rounded-lg"
                   >

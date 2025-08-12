@@ -17,8 +17,8 @@ const MarketplaceSelection = () => {
       description: "Ürün çıkarma ve Shopify aktarım",
       icon: (
         <svg 
-          width="32" 
-          height="32" 
+          width="64" 
+          height="64" 
           viewBox="0 0 200 200" 
           className="rounded-lg"
         >
