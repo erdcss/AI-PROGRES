@@ -2,7 +2,7 @@ import { useLocation } from "wouter";
 import { 
   Store, ShoppingCart, Package, BarChart3, 
   MessageSquare, Shield, Bot, AlertTriangle, 
-  Database, Clock
+  Database, Clock, Truck
 } from "lucide-react";
 import { RealTimeClock } from "@/components/RealTimeClock";
 
@@ -118,12 +118,9 @@ const MainDashboard = () => {
       <div className="max-w-6xl mx-auto px-6 py-16">
         {/* Header */}
         <header className="text-center mb-20">
-          <h1 className="text-2xl text-white mb-2">
-            Veri Transfer Programı
+          <h1 className="text-4xl font-bold text-white mb-8">
+            E-Ticaret Veri İstasyonu
           </h1>
-          <p className="text-gray-400 text-sm mb-8">
-            Ürün çıkarma ve analiz sistemi
-          </p>
           <div className="inline-flex items-center gap-2 bg-slate-800 rounded-md px-3 py-1.5 text-sm">
             <Clock className="w-3.5 h-3.5 text-blue-400" />
             <RealTimeClock />

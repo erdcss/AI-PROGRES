@@ -3,7 +3,7 @@ import TelegramBot from 'node-telegram-bot-api';
 
 export class FilteredTelegramNotifier {
   private bot: TelegramBot | null = null;
-  private chatId: string = '1219880063';
+  private chatId: string = process.env.TELEGRAM_CHAT_ID || '';
   private isConnected: boolean = false;
 
   constructor() {
@@ -11,7 +11,7 @@ export class FilteredTelegramNotifier {
   }
 
   private initializeBot() {
-    const token = '7687164814:AAGw-Z0yBYuyfbkA-4bIWhJg_WxxWj14hxk';
+    const token = process.env.TELEGRAM_BOT_TOKEN;
     
     if (!token) {
       console.log('Telegram bot token not found');

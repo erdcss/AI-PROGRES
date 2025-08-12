@@ -11,8 +11,8 @@ export class TelegramIntegration {
   }
 
   private initializeBot() {
-    const token = '7687164814:AAGw-Z0yBYuyfbkA-4bIWhJg_WxxWj14hxk';
-    this.chatId = '1219880063'; // User chat ID
+    const token = process.env.TELEGRAM_BOT_TOKEN;
+    this.chatId = process.env.TELEGRAM_CHAT_ID || null;
     
     if (!token) {
       console.log('Telegram bot token not found');
