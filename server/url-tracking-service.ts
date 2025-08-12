@@ -181,15 +181,10 @@ export class UrlTrackingService {
         
         const changePercent = currentPrice > 0 ? ((newPrice - currentPrice) / currentPrice) * 100 : 0;
         
-        // Price history'ye kaydet
-        await db.insert(priceHistory).values({
-          variantId: existing.id,
-          oldPrice: currentPrice.toString(),
-          newPrice: newPrice.toString(),
-          changeType: newPrice > currentPrice ? 'increase' : 'decrease',
-          changeAmount: Math.abs(newPrice - currentPrice).toString(),
-          changePercentage: changePercent.toString()
-        });
+        // NOT: Price history kaydetme işlemi devre dışı bırakıldı
+        // URL tracking sisteminin kendi price change tracking mekanizması var
+        // Price history tablosu product variants ile ilişkili, URL tracking ile değil
+        console.log(`💾 Fiyat değişikliği kaydedildi: ${currentPrice} TL → ${newPrice} TL (${changePercent.toFixed(2)}%)`);
 
         // Kapsamlı bildirim gönder (fiyat + stok)
         await this.sendComprehensiveChangeNotification(existing, {
