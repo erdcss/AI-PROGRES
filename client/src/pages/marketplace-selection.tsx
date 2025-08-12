@@ -219,7 +219,7 @@ const MarketplaceSelection = () => {
             <p className="text-white font-bold text-lg">Sık kullanılan sistem araçları</p>
           </div>
 
-          <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
+          <div className="grid grid-cols-1 md:grid-cols-4 gap-6">
             <button
               onClick={() => setLocation("/replit-agent")}
               className="business-button p-6 rounded-2xl text-white hover:scale-105 transition-all duration-300 flex items-center gap-4"
@@ -242,6 +242,14 @@ const MarketplaceSelection = () => {
             >
               <Activity className="w-8 h-8" />
               <span className="font-black text-lg">ZAMANLI GÖREVLER</span>
+            </button>
+
+            <button
+              onClick={() => setLocation("/shopify-products")}
+              className="business-button p-6 rounded-2xl text-white hover:scale-105 transition-all duration-300 flex items-center gap-4"
+            >
+              <Database className="w-8 h-8" />
+              <span className="font-black text-lg">SHOPIFY ÜRÜNLERİ</span>
             </button>
           </div>
         </motion.section>

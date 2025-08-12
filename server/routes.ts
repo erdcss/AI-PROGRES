@@ -50,6 +50,7 @@ import axios from 'axios';
 import { urlTrackingService } from './url-tracking-service';
 import { urlTracking } from '@shared/schema';
 import { savedUrlsManager } from './saved-urls-manager';
+import { shopifyProductsManager } from './shopify-products-manager';
 
 // Telegram notification for product extraction
 async function sendProductExtractionNotification(url: string, title: string, brand: string, price: any) {
@@ -2013,6 +2014,106 @@ export function registerRoutes(app: Express): Server {
         success: false,
         error: 'Multi-URL extraction failed',
         message: error instanceof Error ? error.message : 'Multi-URL extraction failed'
+      });
+    }
+  });
+
+  // Shopify Products Management API Endpoints
+  
+  // Test Shopify connection
+  app.get('/api/shopify/test-connection', async (req, res) => {
+    try {
+      const isConnected = await shopifyProductsManager.testConnection();
+      res.json({
+        success: isConnected,
+        message: isConnected ? 'Shopify bağlantısı başarılı' : 'Shopify bağlantısı başarısız'
+      });
+    } catch (error: any) {
+      res.status(500).json({
+        success: false,
+        message: error.message
+      });
+    }
+  });
+
+  // Fetch all Shopify products
+  app.get('/api/shopify/products', async (req, res) => {
+    try {
+      const products = await shopifyProductsManager.fetchAllShopifyProducts();
+      res.json({
+        success: true,
+        count: products.length,
+        products
+      });
+    } catch (error: any) {
+      res.status(500).json({
+        success: false,
+        message: error.message
+      });
+    }
+  });
+
+  // Sync database with Shopify products
+  app.post('/api/shopify/sync-database', async (req, res) => {
+    try {
+      const syncResult = await shopifyProductsManager.syncWithDatabase();
+      res.json({
+        success: true,
+        ...syncResult
+      });
+    } catch (error: any) {
+      res.status(500).json({
+        success: false,
+        message: error.message
+      });
+    }
+  });
+
+  // Refresh matched products from source sites
+  app.post('/api/shopify/refresh-products', async (req, res) => {
+    try {
+      // First sync to get matched products
+      const syncResult = await shopifyProductsManager.syncWithDatabase();
+      
+      // Then refresh from source sites
+      const refreshResult = await shopifyProductsManager.refreshMatchedProducts(
+        syncResult.details.matchedProducts
+      );
+      
+      res.json({
+        success: true,
+        sync: syncResult,
+        refresh: refreshResult
+      });
+    } catch (error: any) {
+      res.status(500).json({
+        success: false,
+        message: error.message
+      });
+    }
+  });
+
+  // Get specific Shopify product
+  app.get('/api/shopify/products/:productId', async (req, res) => {
+    try {
+      const { productId } = req.params;
+      const product = await shopifyProductsManager.fetchShopifyProduct(productId);
+      
+      if (product) {
+        res.json({
+          success: true,
+          product
+        });
+      } else {
+        res.status(404).json({
+          success: false,
+          message: 'Ürün bulunamadı'
+        });
+      }
+    } catch (error: any) {
+      res.status(500).json({
+        success: false,
+        message: error.message
       });
     }
   });

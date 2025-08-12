@@ -31,6 +31,7 @@ import ProductReviews from "@/pages/product-reviews";
 import MemoryTrackingPage from "@/pages/MemoryTrackingPage";
 import SavedUrlsPage from "@/pages/SavedUrlsPage";
 import ShopifyTrackingPage from "@/pages/ShopifyTrackingPage";
+import ShopifyProductsPage from './pages/shopify-products';
 import { TBotAssistant } from "@/components/TBotAssistant";
 
 // Login component with password protection
@@ -323,6 +324,11 @@ function Router() {
       <Route path="/shopify-tracking">
         <PageTransition>
           <ShopifyTrackingPage />
+        </PageTransition>
+      </Route>
+      <Route path="/shopify-products">
+        <PageTransition>
+          <ShopifyProductsPage />
         </PageTransition>
       </Route>
       </Switch>
