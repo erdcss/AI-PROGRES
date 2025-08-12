@@ -33,12 +33,8 @@ export class VariantValidator {
     'Çok Renkli', 'Desenli', 'Karışık', 'Varsayılan'
   ];
 
-  // Geçerli beden seçenekleri
-  private static readonly VALID_SIZES = [
-    'XXS', 'XS', 'S', 'M', 'L', 'XL', 'XXL', '2XL', '3XL', '4XL', '5XL',
-    '28', '30', '32', '34', '36', '38', '40', '42', '44', '46', '48', '50',
-    'Tek Beden', 'Standart', 'Free Size', 'OS', 'One Size'
-  ];
+  // ❌ SAHTE BEDEN DOĞRULAMASI ENGELLENDİ - Her beden geçerli kabul edilecek
+  private static readonly VALID_SIZES: string[] = []; // Accept any authentic size
 
   /**
    * Varyant verilerini doğrula

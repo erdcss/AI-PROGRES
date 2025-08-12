@@ -104,34 +104,24 @@ export async function uploadMultiUrlProductToShopify(
       extractedColors.push('Çok Renkli');
     }
     
-    // Standard sizes
-    const sizes = ['S', 'M', 'L', 'XL'];
+    // ❌ SAHTE BEDEN VERİSİ ENGELLENDI - Sadece gerçek varyantlar 
+    const sizes: string[] = []; // No fake sizes
     
     console.log('🎨 Extracted colors:', extractedColors);
     console.log('📏 Using sizes:', sizes);
 
-    // Create variants (color x size combinations)
-    const variants = [];
-    const options = [
-      { name: 'Renk', values: extractedColors },
-      { name: 'Beden', values: sizes }
-    ];
-
-    extractedColors.forEach(color => {
-      sizes.forEach(size => {
-        variants.push({
-          option1: color,
-          option2: size,
-          price: productData.price.withProfit.toFixed(2),
-          compare_at_price: productData.price.original.toFixed(2),
-          inventory_quantity: 10,
-          inventory_management: 'shopify',
-          inventory_policy: 'deny',
-          requires_shipping: true,
-          taxable: true
-        });
-      });
-    });
+    // ❌ SAHTE VARYANT OLUŞTURMA ENGELLENDİ - Tek ürün olarak yükle
+    const variants = [{
+      price: productData.price.withProfit.toFixed(2),
+      compare_at_price: productData.price.original.toFixed(2),
+      inventory_quantity: 10,
+      inventory_management: 'shopify',
+      inventory_policy: 'deny',
+      requires_shipping: true,
+      taxable: true
+    }];
+    
+    console.log('⚠️ FAKE VARIANT CREATION DISABLED - Processing as single product');
 
     console.log(`📊 Created ${variants.length} variants`);
 

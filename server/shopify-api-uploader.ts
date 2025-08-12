@@ -396,9 +396,8 @@ export async function uploadMultiUrlProductToShopify(productData: any, productTi
       uniqueColors.add('Yeşil');
     }
     
-    // Beden seçenekleri - sabit test
-    const testSizes = ['S', 'M', 'L', 'XL'];
-    testSizes.forEach(size => uniqueSizes.add(size));
+    // ❌ SAHTE BEDEN VERİSİ ENGELLENDI - Sadece gerçek varyantlar kullanılacak
+    console.log('⚠️ FAKE SIZE GENERATION DISABLED - Only real variants will be used');
     
     const finalColors = Array.from(uniqueColors);
     const finalSizes = Array.from(uniqueSizes);
@@ -406,22 +405,16 @@ export async function uploadMultiUrlProductToShopify(productData: any, productTi
     console.log('🎨 DETECTED FINAL COLORS:', finalColors);
     console.log('📏 DETECTED FINAL SIZES:', finalSizes);
     
-    // Her renk-beden kombinasyonu için varyant oluştur
-    finalColors.forEach(color => {
-      finalSizes.forEach(size => {
-        const variant = {
-          option1: color,
-          option2: size,
-          price: productData.price.withProfit.toString(),
-          compare_at_price: productData.price.original.toString(),
-          inventory_quantity: 10,
-          inventory_management: 'shopify',
-          inventory_policy: 'deny'
-        };
-        variants.push(variant);
-        console.log(`✅ Created variant: ${color} - ${size}`);
-      });
-    });
+    // ❌ SAHTE VARYANT OLUŞTURMA ENGELLENDİ - Tek ürün yüklemesi
+    const singleVariant = {
+      price: productData.price.withProfit.toString(),
+      compare_at_price: productData.price.original.toString(),
+      inventory_quantity: 10,
+      inventory_management: 'shopify',
+      inventory_policy: 'deny'
+    };
+    variants.push(singleVariant);
+    console.log('⚠️ FAKE VARIANT CREATION DISABLED - Single product upload');
     
     console.log(`📊 TOTAL VARIANTS CREATED: ${variants.length}`);
     

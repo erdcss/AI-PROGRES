@@ -104,20 +104,21 @@ export function generateMultiVariantShopifyCSV(product: CombinedProduct): string
     }
   });
 
-  // Sahte varyant kontrolü - eğer varyant yoksa tek ürün olarak işle
+  // ❌ SAHTE VARYANT ENGELLEME - Sadece gerçek varyantlar kullanılır
   let actualVariants = product.variants.allVariants || [];
   
-  // Sahte varyantları filtrele - sadece gerçek varyantları tut
-  if (actualVariants.length === 0 || 
-      (actualVariants.length === 1 && 
-       (actualVariants[0].color === 'Varsayılan' || actualVariants[0].size === 'STANDART'))) {
-    // Tek ürün olarak işle - varyant yok
+  // Gerçek varyant kontrolü - eğer hiçbir gerçek varyant yoksa tek ürün
+  if (actualVariants.length === 0) {
+    // Varyant yok - tek ürün olarak işle
     actualVariants = [{
-      color: 'Tek Renk',
+      color: '',
       colorCode: 'single',
-      size: 'Tek Beden',
+      size: '',
       inStock: true
     }];
+    console.log('📦 No real variants found - processing as single product');
+  } else {
+    console.log(`📦 Processing ${actualVariants.length} real variants`);
   }
   
   console.log(`📊 Processing ${actualVariants.length} actual variants (filtered from ${product.variants.allVariants?.length || 0} total)`);

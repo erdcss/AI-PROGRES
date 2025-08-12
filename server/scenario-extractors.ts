@@ -511,9 +511,8 @@ export class ScenarioExtractors {
     
     const normalizedSize = size.trim().toUpperCase();
     
-    // Standard clothing sizes (including extended sizes)
-    const clothingSizes = ['XS', 'S', 'M', 'L', 'XL', 'XXL', 'XXXL', '2XL', '3XL', '4XL', '5XL'];
-    if (clothingSizes.includes(normalizedSize)) return true;
+    // ❌ SAHTE BEDEN DOĞRULAMASI ENGELLENDİ - Authentic varyantlar için gerçek veri gerekli
+    // Only accept sizes if they are found authentically on the product page
     
     // Numeric sizes (shoes, clothing numbers)
     if (/^(2[4-9]|[3-5][0-9])$/.test(normalizedSize)) return true;

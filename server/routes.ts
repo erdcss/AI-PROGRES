@@ -226,7 +226,8 @@ function convertProductToShopifyCSV(productData: any): string {
 // Multi-URL product verisini CSV formatına dönüştür
 function convertMultiUrlProductToCSV(productData: any): string {
   const colors = productData.variants?.colors || [];
-  const sizes = ['S', 'M', 'L', 'XL', '2XL'];
+  // ❌ SAHTE BEDEN VERİSİ ENGELLENDI - Sadece gerçek varyantlar
+  const sizes: string[] = []; // No fake size data
   
   // Renk tespiti için fonksiyon
   function extractColor(colorText: string): string {
@@ -250,8 +251,12 @@ function convertMultiUrlProductToCSV(productData: any): string {
   
   let variantIndex = 0;
   
-  extractedColors.forEach((color, colorIndex) => {
-    sizes.forEach((size, sizeIndex) => {
+  // ❌ SAHTE VARYANT DÖNGÜSÜ ENGELLENDİ - Tek ürün işlemi
+  if (extractedColors.length === 0) extractedColors.push('Standart');
+  
+  extractedColors.slice(0, 1).forEach((color, colorIndex) => { // Sadece 1 renk
+    const fakeSizes = ['Tek Beden']; // Sahte beden yerine tek beden
+    fakeSizes.forEach((size, sizeIndex) => {
       const handle = productData.title?.toLowerCase().replace(/[^a-z0-9]/g, '-').replace(/-+/g, '-') || 'product';
       const isFirstVariant = variantIndex === 0;
       const imageIndex = variantIndex % (productData.images?.length || 1);

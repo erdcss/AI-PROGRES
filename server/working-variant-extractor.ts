@@ -41,11 +41,8 @@ export function extractWorkingVariants(html: string): VariantData {
     }
   });
   
-  // Extract sizes - look for common clothing sizes
-  const sizePatterns = [
-    'XS', 'S', 'M', 'L', 'XL', 'XXL', '3XL',
-    '34', '36', '38', '39', '40', '41', '42', '43', '44', '45', '46', '47', '48'
-  ];
+  // ❌ SAHTE BEDEN VERİSİ ENGELLENDI - Sadece gerçek varyantlar tespit edilecek
+  const sizePatterns: string[] = []; // No predefined fake sizes
   
   sizePatterns.forEach(size => {
     // Look for sizes in various HTML contexts

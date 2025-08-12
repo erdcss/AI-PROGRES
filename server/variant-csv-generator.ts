@@ -127,10 +127,10 @@ export function generateVariantCSV(productData: any): { csvContent: string; file
     });
   }
 
-  // Fallback: Eğer stock matrix yoksa temel varyantlar oluştur
+  // ❌ SAHTE VARYANT FALLBACK ENGELLENDI - Gerçek varyant yoksa tek ürün
   if (rows.length === 0) {
     const colors = productData.variants?.colors || [{ name: 'Standart' }];
-    const sizes = ['S', 'M', 'L', 'XL'];
+    const sizes: string[] = []; // No fake size fallback
     
     colors.forEach((color: any) => {
       sizes.forEach((size: string, index: number) => {

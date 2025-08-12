@@ -1050,7 +1050,7 @@ async function extractVariantsDirect($: cheerio.CheerioAPI, htmlContent: string,
     if (matches) {
       matches.forEach(match => {
         let extractedSize = match.replace(/[^A-Z0-9]/g, '');
-        if (extractedSize && ['S', 'M', 'L', 'XL', '2XL', '3XL', 'XXL', 'XXXL'].includes(extractedSize)) {
+        if (extractedSize && extractedSize.length > 0) {
           if (!sizes.includes(extractedSize)) {
             sizes.push(extractedSize);
             console.log(`👕 AGGRESSIVE SCAN FOUND: ${extractedSize} via pattern ${index}`);
