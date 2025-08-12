@@ -174,6 +174,23 @@ export async function scenarioBasedScrape(url: string): Promise<ScenarioBasedRes
       stockMap[key] = variant.inStock;
     });
     
+    // ✅ GÖRSEL VERİSİ UYUMLULUK DÜZELTME - CSV formatına uygun hale getir
+    console.log(`📸 SCENARIO: Converting ${images.length} images to CSV-compatible format`);
+    const csvCompatibleImages = images.map((imageUrl, index) => {
+      console.log(`📸 SCENARIO: Processing image ${index + 1}: ${imageUrl}`);
+      return {
+        url: imageUrl,
+        colorName: colors.length > 0 ? colors[0] : 'Standart', // İlk rengi ata veya Standart
+        position: index + 1,
+        alt: title || 'Product Image'
+      };
+    });
+    
+    console.log(`📸 SCENARIO: Created ${csvCompatibleImages.length} CSV-compatible images`);
+    csvCompatibleImages.forEach((img, idx) => {
+      console.log(`📸 SCENARIO: Image ${idx + 1}: ${img.url} (Color: ${img.colorName})`);
+    });
+
     return {
       success: true,
       scenario: detection.scenario,
@@ -181,7 +198,7 @@ export async function scenarioBasedScrape(url: string): Promise<ScenarioBasedRes
       title,
       brand,
       price,
-      images,
+      images: csvCompatibleImages, // CSV uyumlu format
       features,
       variants: {
         colors: colors,

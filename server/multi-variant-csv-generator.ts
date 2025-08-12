@@ -276,34 +276,49 @@ export function generateMultiVariantShopifyCSV(product: CombinedProduct): string
     row.push('TRUE'); // Variant Requires Shipping
     row.push('TRUE'); // Variant Taxable
     
-    // ✅ GÖRSELLER - TÜM SATIRLARDA GÖRSELLERI EKLE
-    if (isFirstRow && product.images && product.images.length > 0) {
-      // İlk görsel için - Ana ürün görseli
-      const firstImage = product.images[0]?.url || '';
-      console.log(`📸 CSV: Adding main product image: ${firstImage}`);
-      row.push(firstImage); // Image Src
-      row.push('1'); // Image Position
+    // ✅ GELİŞTİRİLMİŞ GÖRSEL SİSTEMİ - TÜM GÖRSELLERLE UYUMLU
+    if (product.images && product.images.length > 0) {
+      // Variant için uygun görseli seç
+      let selectedImage = '';
+      let imagePosition = '1';
+      
+      if (isFirstRow) {
+        // İlk satır - ana ürün görseli
+        selectedImage = product.images[0]?.url || '';
+        imagePosition = '1';
+        console.log(`📸 CSV: Adding main product image: ${selectedImage}`);
+      } else {
+        // Sonraki satırlar - renk bazında veya sıralı görsel seçimi
+        const variantIndex = actualVariants.indexOf(variant);
+        const colorBasedImage = variant.color && variant.color !== '' ? 
+          product.images.find(img => img.colorName === variant.color) : null;
+          
+        if (colorBasedImage) {
+          selectedImage = colorBasedImage.url;
+          imagePosition = (colorBasedImage.position || variantIndex + 1).toString();
+          console.log(`📸 CSV: Using color-based image for ${variant.color}: ${selectedImage}`);
+        } else if (variantIndex < product.images.length) {
+          selectedImage = product.images[variantIndex]?.url || '';
+          imagePosition = (variantIndex + 1).toString();
+          console.log(`📸 CSV: Using sequential image ${variantIndex + 1}: ${selectedImage}`);
+        } else {
+          // Fallback - başka görsel varsa onları kullan
+          const fallbackIndex = variantIndex % product.images.length;
+          selectedImage = product.images[fallbackIndex]?.url || '';
+          imagePosition = (fallbackIndex + 1).toString();
+          console.log(`📸 CSV: Using fallback image: ${selectedImage}`);
+        }
+      }
+      
+      row.push(selectedImage); // Image Src
+      row.push(imagePosition); // Image Position
       row.push(product.title || 'Product Image'); // Image Alt Text
-    } else if (isFirstRow) {
-      // İlk satır ama görsel yok
-      console.log('⚠️ CSV: No images available for main product');
+    } else {
+      // Hiç görsel yok
+      console.log('⚠️ CSV: No images available for product');
       row.push(''); // Image Src
       row.push(''); // Image Position  
       row.push(''); // Image Alt Text
-    } else {
-      // Sonraki satırlar - ek görseller ekleyebiliriz
-      const additionalImageIndex = actualVariants.indexOf(variant);
-      if (additionalImageIndex < product.images.length && product.images[additionalImageIndex]) {
-        const additionalImage = product.images[additionalImageIndex].url;
-        console.log(`📸 CSV: Adding additional image ${additionalImageIndex + 1}: ${additionalImage}`);
-        row.push(additionalImage); // Image Src
-        row.push((additionalImageIndex + 1).toString()); // Image Position
-        row.push(`${product.title} - Image ${additionalImageIndex + 1}`); // Image Alt Text
-      } else {
-        row.push(''); // Image Src
-        row.push(''); // Image Position
-        row.push(''); // Image Alt Text
-      }
     }
     
     row.push('FALSE'); // Gift Card
