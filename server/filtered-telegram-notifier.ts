@@ -116,6 +116,24 @@ export class FilteredTelegramNotifier {
     await this.sendMessage(sosMessage);
   }
 
+  // Genel bildirim gönderme metodu
+  async sendNotification(message: string) {
+    if (!this.shouldNotify() || !this.bot) {
+      console.log('📢 Telegram bildirim gönderilemiyor - Bot:', !!this.bot, 'Connected:', this.isConnected);
+      return;
+    }
+
+    try {
+      await this.bot.sendMessage(this.chatId, message, { 
+        parse_mode: 'HTML',
+        disable_web_page_preview: true 
+      });
+      console.log('✅ Telegram bildirimi gönderildi:', message.substring(0, 50) + '...');
+    } catch (error: any) {
+      console.error('❌ Telegram bildirimi gönderilemedi:', error.message);
+    }
+  }
+
   private async sendMessage(message: string) {
     try {
       await this.bot!.sendMessage(this.chatId, message, { parse_mode: 'Markdown' });

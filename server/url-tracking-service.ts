@@ -290,8 +290,8 @@ ${changeIcon} <b>${changeType}</b>
 
       // Filtered Telegram notifier kullan
       try {
-        const { sendFilteredTelegramNotification } = await import('./filtered-telegram-notifier');
-        await sendFilteredTelegramNotification(message);
+        const { filteredNotifier } = await import('./filtered-telegram-notifier');
+        await filteredNotifier.sendNotification(message);
         console.log('📱 Fiyat değişiklik bildirimi Telegram\'a gönderildi');
       } catch (importError) {
         console.log('📱 Telegram notifier import failed, using direct API method');

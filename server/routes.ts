@@ -2605,6 +2605,33 @@ export function registerRoutes(app: Express): Server {
     }
   });
 
+  // Manuel Telegram test endpoint
+  app.post('/api/manual-telegram-test', async (req, res) => {
+    try {
+      const { message } = req.body;
+      const { filteredNotifier } = await import('./filtered-telegram-notifier');
+      
+      if (!message) {
+        return res.status(400).json({
+          success: false,
+          message: 'Mesaj parametresi gerekli'
+        });
+      }
+
+      await filteredNotifier.sendNotification(message);
+      
+      res.json({
+        success: true,
+        message: 'Manuel test mesajı gönderildi'
+      });
+    } catch (error: any) {
+      res.status(500).json({
+        success: false,
+        message: `Manuel test hatası: ${error.message}`
+      });
+    }
+  });
+
   // Shopify Test Connection Endpoint
   app.post('/api/shopify/test-connection', async (req, res) => {
     try {
