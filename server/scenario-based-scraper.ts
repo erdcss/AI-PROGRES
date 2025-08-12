@@ -321,10 +321,11 @@ function extractPrice($: any, htmlContent: string): any {
         let originalPrice = parseFloat(jsonData.offers.price);
         console.log(`💰 JSON-LD raw price: ${originalPrice}`);
         
-        // ✅ KURUŞ/TL DÖNÜŞÜM KONTROLÜ
-        if (originalPrice > 1000) {
-          console.log(`⚠️ High price detected (${originalPrice}) - converting from kuruş to TL`);
+        // ✅ KURUŞ/TL DÖNÜŞÜM KONTROLÜ - DAHA AKILLI
+        if (originalPrice > 500) {
+          console.log(`⚠️ High price detected (${originalPrice}) - likely in kuruş, converting to TL`);
           originalPrice = originalPrice / 100;
+          console.log(`✅ After conversion: ${originalPrice} TL`);
         }
         
         // Minimum fiyat kontrolü
@@ -381,10 +382,11 @@ function extractPrice($: any, htmlContent: string): any {
         let originalPrice = extractPriceFromText(priceText);
         
         if (originalPrice > 0) {
-          // ✅ KURUŞ/TL DÖNÜŞÜM KONTROLÜ
-          if (originalPrice > 1000) {
-            console.log(`⚠️ High price detected (${originalPrice}) - converting from kuruş to TL`);
+          // ✅ KURUŞ/TL DÖNÜŞÜM KONTROLÜ - DAHA AKILLI
+          if (originalPrice > 500) {
+            console.log(`⚠️ High price detected (${originalPrice}) - likely in kuruş, converting to TL`);
             originalPrice = originalPrice / 100;
+            console.log(`✅ After conversion: ${originalPrice} TL`);
           }
           
           // Minimum fiyat kontrolü
@@ -439,10 +441,11 @@ function extractPrice($: any, htmlContent: string): any {
         console.log(`💰 Script price found: ${originalPrice}`);
         
         if (originalPrice > 0) {
-          // ✅ KURUŞ/TL DÖNÜŞÜM KONTROLÜ
-          if (originalPrice > 1000) {
-            console.log(`⚠️ High price detected (${originalPrice}) - converting from kuruş to TL`);
+          // ✅ KURUŞ/TL DÖNÜŞÜM KONTROLÜ - DAHA AKILLI
+          if (originalPrice > 500) {
+            console.log(`⚠️ High price detected (${originalPrice}) - likely in kuruş, converting to TL`);
             originalPrice = originalPrice / 100;
+            console.log(`✅ After conversion: ${originalPrice} TL`);
           }
           
           // Minimum fiyat kontrolü
@@ -540,9 +543,10 @@ function extractPrice($: any, htmlContent: string): any {
       let finalPrice = bestPrice.value;
       
       // Final kuruş/TL check
-      if (finalPrice > 1000) {
-        console.log(`⚠️ High price detected (${finalPrice}) - converting from kuruş to TL`);
+      if (finalPrice > 500) {
+        console.log(`⚠️ High price detected (${finalPrice}) - likely in kuruş, converting to TL`);
         finalPrice = finalPrice / 100;
+        console.log(`✅ After conversion: ${finalPrice} TL`);
       }
       
       if (finalPrice >= 1) {
@@ -585,9 +589,10 @@ function extractPrice($: any, htmlContent: string): any {
       console.log(`💰 HTML content price found: ${bestPrice}`);
       
       // Kuruş/TL kontrolü
-      if (bestPrice > 1000) {
-        console.log(`⚠️ High price detected (${bestPrice}) - converting from kuruş to TL`);
+      if (bestPrice > 500) {
+        console.log(`⚠️ High price detected (${bestPrice}) - likely in kuruş, converting to TL`);
         bestPrice = bestPrice / 100;
+        console.log(`✅ After conversion: ${bestPrice} TL`);
       }
       
       if (bestPrice >= 1) {
