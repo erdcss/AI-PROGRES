@@ -940,27 +940,7 @@ function ScraperPage() {
                         </div>
                       )}
 
-                      
-                      {product && !draggedUrls.length && (
-                        <Button
-                          type="button"
-                          disabled={uploadToShopifyMutation.isPending || singleScrapeMutation.isPending}
-                          onClick={() => uploadToShopifyMutation.mutate()}
-                          className="bg-gradient-to-r from-green-600 to-emerald-700 hover:from-green-700 hover:to-emerald-800 text-white h-14 px-6 text-lg font-thin transition-all duration-200"
-                        >
-                          {uploadToShopifyMutation.isPending ? (
-                            <div className="flex items-center gap-2">
-                              <Loader2 className="w-5 h-5 animate-spin" />
-                              <span>Shopify'a Yükleniyor...</span>
-                            </div>
-                          ) : (
-                            <div className="flex items-center gap-2">
-                              <ShoppingCart className="w-5 h-5" />
-                              <span>Shopify'a Yükle</span>
-                            </div>
-                          )}
-                        </Button>
-                      )}
+
                     </div>
                   </motion.form>
                 </CardContent>
