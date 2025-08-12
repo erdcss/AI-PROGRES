@@ -257,17 +257,14 @@ export function generateMultiVariantShopifyCSV(product: CombinedProduct): string
     row.push(''); // Variant Inventory Tracker - Boş = takip yok
     row.push(basePrice); // Variant Price
     
-    // ✅ GELİŞMİŞ KARŞILAŞTIRMA FİYATI HESAPLAMA
+    // ✅ DOĞRU KARŞILAŞTIRMA FİYATI - corrected original price kullan
     let comparePrice = '';
     if (typeof product.price === 'object' && product.price.original) {
-      let origPrice = parseFloat(product.price.original.toString());
-      // Kuruş kontrolü
-      if (origPrice > 1000) {
-        origPrice = origPrice / 100;
-      }
-      comparePrice = (Math.round(origPrice * 100) / 100).toString();
-      console.log(`💰 CSV: Compare price from original: ${comparePrice}`);
-      console.log(`💰 CSV: FIXED - Using CORRECTED price: ${origPrice} for compare`);
+      // DOĞRUDAN corrected original price'ı kullan - kuruş conversion yapılmış
+      const origPrice = parseFloat(product.price.original.toString());
+      comparePrice = origPrice.toString();
+      console.log(`💰 CSV: Compare price from CORRECTED original: ${comparePrice}`);
+      console.log(`💰 CSV: NO ADDITIONAL CONVERSION - Using corrected price directly`);
     } else if (basePrice !== '0' && originalPrice > 0) {
       // Kar marjı öncesi fiyatı karşılaştırma fiyatı olarak göster
       comparePrice = (Math.round(originalPrice * 100) / 100).toString();
