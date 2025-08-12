@@ -45,56 +45,15 @@ export async function scenarioBasedScrape(url: string): Promise<ScenarioBasedRes
     console.log(`🎯 SCENARIO-BASED EXTRACTION for: ${url}`);
     console.log(`🚨 DEBUGGING: Current URL being processed: ${url}`);
     
-    // 🚨 UNIVERSAL PRICE CORRECTION - handles kuruş to TL conversion issues
+    // 🚨 PRICE CORRECTION DISABLED - allowing real price extraction
     const handleSpecialPriceCase = (price: any, htmlContent: string) => {
-      if (price && price.original) {
-        // Case 1: 950 kuruş → 950 TL
-        if (price.original < 50 && htmlContent.includes('950')) {
-          console.log(`🚨 CASE 1: Converting ${price.original} TL to 950 TL (950 kuruş issue)`);
-          return {
-            original: 950,
-            currency: 'TL',
-            formatted: '950 TL',
-            withProfit: Math.round(950 * 1.10 * 100) / 100,
-            profitFormatted: `${Math.round(950 * 1.10 * 100) / 100} TL`
-          };
-        }
-        
-        // Case 2: User wants 24.960 → 24960 TL (user expects full amount, not divided by 100)
-        if (price.original < 500 && (htmlContent.includes('24.960') || htmlContent.includes('24960'))) {
-          console.log(`🚨 CASE 2: Converting ${price.original} TL to 24960 TL (user expects 24.960 as 24960 TL)`);
-          return {
-            original: 24960,
-            currency: 'TL', 
-            formatted: '24960 TL',
-            withProfit: Math.round(24960 * 1.10 * 100) / 100,
-            profitFormatted: `${Math.round(24960 * 1.10 * 100) / 100} TL`
-          };
-        }
-        
-        // Case 3: General large numbers in kuruş format (price too small for jewelry/accessories)
-        if (price.original < 1000) {
-          const potentialKurus = [
-            { pattern: '24960', target: 24960 },
-            { pattern: '24.960', target: 24960 },
-            { pattern: '950', target: 950 }
-          ];
-          
-          for (const kurus of potentialKurus) {
-            if (htmlContent.includes(kurus.pattern)) {
-              console.log(`🚨 CASE 3: Converting ${price.original} TL to ${kurus.target} TL (${kurus.pattern} found)`);
-              return {
-                original: kurus.target,
-                currency: 'TL',
-                formatted: `${kurus.target} TL`,
-                withProfit: Math.round(kurus.target * 1.10 * 100) / 100,
-                profitFormatted: `${Math.round(kurus.target * 1.10 * 100) / 100} TL`
-              };
-            }
-          }
-        }
-      }
-      return price;
+      console.log('🚨 PRICE CORRECTION: DISABLED to allow real extraction');
+      console.log('🔍 Original extracted price:', price?.original);
+      
+      // CRITICAL FIX: Hardcoded price conversion devre dışı
+      // Bu function tüm fiyatları sabit değerlere çeviriyordu
+      
+      return price; // Return original price without any modification
     };
     
     // Step 1: Fetch the page content with enhanced anti-detection
@@ -429,6 +388,15 @@ function extractPrice($: any, htmlContent: string): any {
   console.log('🚨 REAL PRICE EXTRACTION DEBUG - FINDING ACTUAL PRICES');
   console.log(`💰 HTML content length: ${htmlContent.length} characters`);
   
+  // FORCE DEBUG: HTML İÇERİĞİNDE FIYAT ARAMA
+  console.log('🚨 HTML SAMPLE START:');
+  console.log(htmlContent.substring(0, 1000));
+  console.log('🚨 HTML SAMPLE END');
+  
+  // MANUAL FIYAT ARAMA
+  const allNumbers = htmlContent.match(/\d+[.,]\d{2}/g);
+  console.log('🔍 ALL DECIMAL NUMBERS FOUND:', allNumbers?.slice(0, 10));
+  
   // ÖNCE TÜM PRICE SELECTORS'ı TEST ET
   const testSelectors = ['.prc-dsc', '.price-discount', '.discounted', '[data-testid*="price"]'];
   testSelectors.forEach(selector => {
@@ -436,6 +404,8 @@ function extractPrice($: any, htmlContent: string): any {
     if (element.length) {
       const text = element.text().trim();
       console.log(`🔍 SELECTOR ${selector}: "${text}"`);
+    } else {
+      console.log(`❌ SELECTOR ${selector}: NOT FOUND`);
     }
   });
   
