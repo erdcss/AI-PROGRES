@@ -87,26 +87,75 @@ export async function fixedAuthenticScrape(url: string): Promise<FixedProductDat
     
     console.log('🔍 Enhanced price detection starting...');
     
-    // First, try to extract price from JSON-LD structured data (most reliable)
+    // First, try DOM extraction for REAL prices with decimal precision
     let priceFound = false;
-    for (const script of jsonLdScripts) {
-      try {
-        const data = JSON.parse($(script).html() || '{}');
-        if (data.offers && data.offers.price) {
-          originalPrice = Math.round(parseFloat(data.offers.price));
-          console.log(`🎯 FOUND JSON-LD price: ${originalPrice} TL`);
-          console.log('💰 USING JSON-LD structured data price (most reliable)');
-          priceFound = true;
-          break;
-        } else if (data.price) {
-          originalPrice = Math.round(parseFloat(data.price));
-          console.log(`🎯 FOUND JSON-LD direct price: ${originalPrice} TL`);
-          console.log('💰 USING JSON-LD direct price (most reliable)');
+    console.log('🔍 TRYING DOM-FIRST extraction for precise pricing...');
+    
+    const priceSelectors = [
+      '.price-container span:contains(","):contains("TL")',
+      '[data-testid*="price"] span:contains(",")',
+      '.price span:contains(","):contains("TL")',
+      '.product-price span:contains(","):contains("TL")',
+      '.current-price:contains(","):contains("TL")',
+      '.sale-price:contains(","):contains("TL")',
+      '.discounted-price:contains(","):contains("TL")',
+      '.final-price:contains(","):contains("TL")'
+    ];
+    
+    for (const selector of priceSelectors) {
+      const priceElement = $(selector).first();
+      if (priceElement.length) {
+        const priceText = priceElement.text().trim();
+        console.log(`🔍 DOM SELECTOR "${selector}": "${priceText}"`);
+        
+        // Extract decimal prices like "67,13 TL"
+        const decimalMatch = priceText.match(/(\d+)[.,](\d{2})\s*(?:TL|₺)/);
+        if (decimalMatch) {
+          const wholePart = parseInt(decimalMatch[1]);
+          const decimalPart = parseInt(decimalMatch[2]);
+          originalPrice = wholePart + (decimalPart / 100);
+          console.log(`💰 DOM DECIMAL EXTRACTION: ${originalPrice} TL (${wholePart}.${decimalPart})`);
           priceFound = true;
           break;
         }
-      } catch (e) {
-        // Continue to next script
+      }
+    }
+    
+    // Fallback to general HTML search for decimal prices
+    if (!priceFound) {
+      console.log('🔍 General HTML search for decimal prices...');
+      const htmlDecimalMatch = html.match(/(\d+)[.,](\d{2})\s*(?:TL|₺)/);
+      if (htmlDecimalMatch) {
+        const wholePart = parseInt(htmlDecimalMatch[1]);
+        const decimalPart = parseInt(htmlDecimalMatch[2]);
+        originalPrice = wholePart + (decimalPart / 100);
+        console.log(`💰 HTML DECIMAL EXTRACTION: ${originalPrice} TL (${wholePart}.${decimalPart})`);
+        priceFound = true;
+      }
+    }
+    
+    // Fallback to JSON-LD if DOM extraction fails (less precise)
+    if (!priceFound) {
+      console.log('⚠️ DOM failed, falling back to JSON-LD (may lose decimal precision)...');
+      for (const script of jsonLdScripts) {
+        try {
+          const data = JSON.parse($(script).html() || '{}');
+          if (data.offers && data.offers.price) {
+            originalPrice = Math.round(parseFloat(data.offers.price) * 100) / 100;
+            console.log(`🎯 FALLBACK JSON-LD price: ${originalPrice} TL (precision preserved)`);
+            console.log('💰 USING JSON-LD structured data price (fallback)');
+            priceFound = true;
+            break;
+          } else if (data.price) {
+            originalPrice = Math.round(parseFloat(data.price) * 100) / 100;
+            console.log(`🎯 FALLBACK JSON-LD direct price: ${originalPrice} TL (precision preserved)`);
+            console.log('💰 USING JSON-LD direct price (fallback)');
+            priceFound = true;
+            break;
+          }
+        } catch (e) {
+          // Continue to next script
+        }
       }
     }
     
@@ -163,8 +212,8 @@ export async function fixedAuthenticScrape(url: string): Promise<FixedProductDat
       }
     }
     
-    // Apply 15% profit margin
-    const finalPrice = originalPrice > 0 ? Math.round(originalPrice * 1.15) : 0;
+    // Apply 15% profit margin - preserve precision
+    const finalPrice = originalPrice > 0 ? Math.round(originalPrice * 1.15 * 100) / 100 : 0;
     console.log(`💰 Final price: ${originalPrice} TL → ${finalPrice} TL (15% profit)`);
     
     // Extract images
@@ -880,11 +929,11 @@ export async function fixedAuthenticScrape(url: string): Promise<FixedProductDat
       title,
       brand: capitalizedBrand,
       price: {
-        original: originalPrice,
+        original: parseFloat(originalPrice.toFixed(2)),
         currency: 'TL',
-        formatted: `${originalPrice} TL`,
-        withProfit: finalPrice,
-        profitFormatted: `${finalPrice} TL`
+        formatted: `${originalPrice.toFixed(2)} TL`,
+        withProfit: parseFloat(finalPrice.toFixed(2)),
+        profitFormatted: `${finalPrice.toFixed(2)} TL`
       },
       images,
       features,

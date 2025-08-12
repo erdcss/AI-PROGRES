@@ -387,7 +387,8 @@ function smartCurrencyConversion(price: number, context: string = ''): number {
   }
   
   console.log(`✅ NO CONVERSION NEEDED: ${price} TL`);
-  return price;
+  // Ondalık hassasiyeti koru
+  return Math.round(price * 100) / 100;
 }
 
 /**
@@ -418,43 +419,7 @@ function extractPrice($: any, htmlContent: string): any {
     }
   });
   
-  // Method 1: JSON-LD structured data extraction 
-  const jsonLdScripts = $('script[type="application/ld+json"]');
-  for (let i = 0; i < jsonLdScripts.length; i++) {
-    try {
-      const jsonData = JSON.parse($(jsonLdScripts[i]).html() || '{}');
-      if (jsonData.offers && jsonData.offers.price) {
-        let originalPrice = parseFloat(jsonData.offers.price);
-        console.log(`💰 JSON-LD raw price: ${originalPrice}`);
-        console.log(`🔧 DEBUG: About to apply smart conversion for ${originalPrice}`);
-        
-        // Apply universal currency conversion
-        originalPrice = smartCurrencyConversion(originalPrice, 'JSON-LD');
-        console.log(`✅ DEBUG: After smart conversion: ${originalPrice}`);
-        
-        // Minimum fiyat kontrolü
-        if (originalPrice < 1) {
-          console.log(`⚠️ Very low price (${originalPrice}) - setting minimum`);
-          originalPrice = 10;
-        }
-        
-        const finalPrice = Math.round(originalPrice * 1.10 * 100) / 100; // 2 decimal precision
-        console.log(`💰 JSON-LD processed: ${originalPrice} TL → ${finalPrice} TL`);
-        
-        return {
-          original: originalPrice,
-          currency: 'TL',
-          formatted: `${originalPrice} TL`,
-          withProfit: finalPrice,
-          profitFormatted: `${finalPrice} TL`
-        };
-      }
-    } catch (e) {
-      console.log(`⚠️ JSON-LD parse error: ${e}`);
-    }
-  }
-  
-  // Method 2: HTML DOM extraction with Turkish price patterns - GÜNCEL SELECTORS
+  // Method 1: ÖNCE DOM extraction ile ondalık hassasiyeti koru - GÜNCEL SELECTORS
   const priceSelectors = [
     // YENİ PATTERN: price-container içinde discounted class'ı (82.99 TL pattern)
     '.price-container .discounted',
@@ -484,7 +449,49 @@ function extractPrice($: any, htmlContent: string): any {
     const priceElement = $(selector).first();
     if (priceElement.length) {
       const priceText = priceElement.text().trim();
-      console.log(`💰 Testing selector ${selector}: "${priceText}"`);
+      console.log(`🔍 SELECTOR ${selector}: "${priceText}"`);
+      
+      // HASSASİYET: Ondalık kısmı içeren price pattern'ları (67,13 TL | 67.13 TL)
+      const decimalMatches = priceText.match(/(\d+[.,]\d{2})\s*TL/);
+      if (decimalMatches) {
+        const priceStr = decimalMatches[1].replace(',', '.');
+        const originalPrice = parseFloat(priceStr);
+        console.log(`💰 DOM DECIMAL PRICE FOUND: ${originalPrice} TL (exact precision)`);
+        
+        if (originalPrice > 0) {
+          const finalPrice = Math.round(originalPrice * 1.10 * 100) / 100;
+          console.log(`✅ DOM PRECISE EXTRACTION SUCCESS: ${originalPrice} TL → ${finalPrice} TL`);
+          
+          return {
+            original: parseFloat(originalPrice.toFixed(2)),
+            currency: 'TL',
+            formatted: `${originalPrice.toFixed(2)} TL`,
+            withProfit: parseFloat(finalPrice.toFixed(2)),
+            profitFormatted: `${finalPrice.toFixed(2)} TL`
+          };
+        }
+      }
+      
+      // ENHANCED: Daha geniş ondalık pattern arama (HTML içeriğinde 67,13 patternı)
+      const allDecimalMatches = priceText.match(/\b(\d{1,4}[.,]\d{2})\b/);
+      if (allDecimalMatches && !priceText.toLowerCase().includes('yıl')) {
+        const priceStr = allDecimalMatches[1].replace(',', '.');
+        const originalPrice = parseFloat(priceStr);
+        console.log(`💰 ENHANCED DECIMAL DETECTION: ${originalPrice} TL`);
+        
+        if (originalPrice > 10 && originalPrice < 10000) {  // Mantıklı fiyat aralığı
+          const finalPrice = Math.round(originalPrice * 1.10 * 100) / 100;
+          console.log(`✅ ENHANCED EXTRACTION SUCCESS: ${originalPrice} TL → ${finalPrice} TL`);
+          
+          return {
+            original: parseFloat(originalPrice.toFixed(2)),
+            currency: 'TL',
+            formatted: `${originalPrice.toFixed(2)} TL`,
+            withProfit: parseFloat(finalPrice.toFixed(2)),
+            profitFormatted: `${finalPrice.toFixed(2)} TL`
+          };
+        }
+      }
       
       if (priceText) {
         let originalPrice = extractPriceFromText(priceText);
@@ -519,6 +526,47 @@ function extractPrice($: any, htmlContent: string): any {
           };
         }
       }
+    }
+  }
+  
+  // Method 2: JSON-LD structured data extraction (FALLBACK - ondalık kısım eksik olabilir)
+  console.log(`⚠️ DOM extraction failed, trying JSON-LD as fallback...`);
+  const jsonLdScripts = $('script[type="application/ld+json"]');
+  for (let i = 0; i < jsonLdScripts.length; i++) {
+    try {
+      const jsonData = JSON.parse($(jsonLdScripts[i]).html() || '{}');
+      if (jsonData.offers && jsonData.offers.price) {
+        let originalPrice = parseFloat(jsonData.offers.price);
+        console.log(`💰 JSON-LD raw price: ${originalPrice} (might be missing decimals)`);
+        
+        // YÜKSEK HASSASİYET: Ondalık kısmı koru
+        originalPrice = Math.round(originalPrice * 100) / 100;
+        console.log(`🔧 Precision preserved: ${originalPrice}`);
+        
+        // Apply universal currency conversion
+        originalPrice = smartCurrencyConversion(originalPrice, 'JSON-LD');
+        console.log(`✅ After smart conversion: ${originalPrice}`);
+        
+        // Minimum fiyat kontrolü
+        if (originalPrice < 1) {
+          console.log(`⚠️ Very low price (${originalPrice}) - setting minimum`);
+          originalPrice = 10;
+        }
+        
+        // YÜKSEK HASSASİYET: Kar marjı hesaplamasında da hassasiyeti koru
+        const finalPrice = Math.round(originalPrice * 1.10 * 100) / 100;
+        console.log(`💰 JSON-LD FALLBACK: ${originalPrice} TL → ${finalPrice} TL`);
+        
+        return {
+          original: parseFloat(originalPrice.toFixed(2)),
+          currency: 'TL',
+          formatted: `${originalPrice.toFixed(2)} TL`,
+          withProfit: parseFloat(finalPrice.toFixed(2)),
+          profitFormatted: `${finalPrice.toFixed(2)} TL`
+        };
+      }
+    } catch (e) {
+      console.log(`⚠️ JSON-LD parse error: ${e}`);
     }
   }
   
