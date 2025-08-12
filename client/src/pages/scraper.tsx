@@ -656,8 +656,27 @@ function ScraperPage() {
                 Ana Sayfa
               </Button>
               <div className="flex items-center gap-3">
-                <div className="w-10 h-10 bg-gradient-to-br from-cyan-800 to-blue-900 rounded-lg flex items-center justify-center">
-                  <span className="text-white font-thin text-lg">T</span>
+                <div className="w-12 h-12 flex items-center justify-center">
+                  <svg 
+                    width="48" 
+                    height="48" 
+                    viewBox="0 0 200 200" 
+                    className="rounded-lg"
+                  >
+                    <rect width="200" height="200" rx="25" fill="#FF6000"/>
+                    <rect x="0" y="65" width="200" height="70" fill="#000000"/>
+                    <text 
+                      x="100" 
+                      y="110" 
+                      textAnchor="middle" 
+                      fill="white" 
+                      fontSize="32" 
+                      fontFamily="Arial, sans-serif" 
+                      fontWeight="bold"
+                    >
+                      trendyol
+                    </text>
+                  </svg>
                 </div>
                 <div>
                   <h1 className="text-white font-thin text-xl tracking-wider">TRENDYOL</h1>
