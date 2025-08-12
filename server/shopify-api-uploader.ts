@@ -129,20 +129,26 @@ export async function uploadProductToShopify(csvContent: string, productTitle: s
             const hasOption2 = variant.option2 && variant.option2.trim() !== '';
             
             if (!hasOption1 && !hasOption2) {
-              // Tek varyant ürün - Hiçbir option ekleme
+              // Tek varyant ürün - Envanter takibi YOK
               return {
                 price: variant.price,
                 sku: variant.sku,
-                inventory_quantity: variant.inventory_quantity,
-                inventory_management: 'shopify'
+                inventory_quantity: 0,
+                inventory_management: null,
+                inventory_policy: 'continue',
+                requires_shipping: true,
+                taxable: true
               };
             } else {
-              // Multi-varyant ürün - sadece dolu option'ları kullan
+              // Multi-varyant ürün - Envanter takibi YOK
               const variantData: any = {
                 price: variant.price,
                 sku: variant.sku,
-                inventory_quantity: variant.inventory_quantity,
-                inventory_management: 'shopify'
+                inventory_quantity: 0,
+                inventory_management: null,
+                inventory_policy: 'continue',
+                requires_shipping: true,
+                taxable: true
               };
               
               if (hasOption1) variantData.option1 = variant.option1;
@@ -303,7 +309,7 @@ function parseCSVToShopifyProduct(records: any[]): ShopifyProductData {
         option2: record['Option2 Value'] || '',
         price: record['Variant Price'] || '0',
         sku: record['Variant SKU'] || '',
-        inventory_quantity: parseInt(record['Variant Inventory Qty']) || 0,
+        inventory_quantity: 0, // Envanter takibi yok
         image: record['Variant Image'] || record['Image Src'] || ''
       };
       console.log('📦 Parsed variant:', variant);
