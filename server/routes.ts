@@ -1102,6 +1102,15 @@ export function registerRoutes(app: Express): Server {
           // Send Telegram notification with product URL and title
           await sendProductExtractionNotification(url, result.title, result.brand, result.price);
           
+          // Otomatik URL tracking ekleme (sadece Trendyol URL'leri için)
+          try {
+            console.log('🎯 Scraping sonrası otomatik tracking ekleniyor...');
+            await urlTrackingService.addUrlToTracking(url, 300, 'auto-scraping');
+            console.log('✅ Otomatik tracking eklendi');
+          } catch (trackingError) {
+            console.error('⚠️ Otomatik tracking ekleme hatası (devam ediyor):', trackingError);
+          }
+          
           // CSV generation için gerekli veri hazırla
           const csvProductData = {
             title: result.title,
@@ -1135,6 +1144,7 @@ export function registerRoutes(app: Express): Server {
             variants: result.variants,
             tags: result.tags,
             csvContent: csvContent,
+            trackingActive: true,
             extractionDetails: result.extractionDetails
           });
         } else {
@@ -3335,13 +3345,25 @@ export function registerRoutes(app: Express): Server {
       if (shopifyProductId) {
         console.log('✅ Ürün başarıyla Shopify\'a yüklendi:', shopifyProductId);
         
+        // Ürünü otomatik olarak tracking'e ekle
+        try {
+          if (trendyolUrl && trendyolUrl.includes('trendyol.com')) {
+            console.log('🎯 Yüklenen ürün otomatik tracking sistemi ekleniyor...');
+            await urlTrackingService.addUrlToTracking(trendyolUrl, 300, 'auto-shopify-upload');
+            console.log('✅ Ürün otomatik tracking sistemi eklendi');
+          }
+        } catch (trackingError) {
+          console.error('⚠️ Otomatik tracking ekleme hatası (devam ediyor):', trackingError);
+        }
+        
         return res.json({
           success: true,
-          message: `Ürün başarıyla Shopify'a yüklendi!`,
+          message: `Ürün başarıyla Shopify'a yüklendi ve otomatik takip sistemi aktif edildi!`,
           data: {
             shopifyProductId,
             productTitle: productData.title,
             variantCount: savedVariants.length,
+            trackingActive: true,
             shopifyUrl: `https://${process.env.SHOPIFY_STORE_DOMAIN}/admin/products/${shopifyProductId}`
           }
         });

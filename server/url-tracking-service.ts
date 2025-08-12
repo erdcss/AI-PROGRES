@@ -33,9 +33,9 @@ export class UrlTrackingService {
     console.log('✅ URL Tracking Service başlatıldı');
   }
 
-  async addUrlToTracking(url: string, trackingInterval: number = 300): Promise<any> {
+  async addUrlToTracking(url: string, trackingInterval: number = 300, source: string = 'manual'): Promise<any> {
     try {
-      console.log(`🎯 URL tracking'e ekleniyor: ${url}`);
+      console.log(`🎯 URL tracking'e ekleniyor: ${url} (source: ${source})`);
       
       // İlk extraction yap
       const extractionResult = await scenarioBasedScrape(url);
