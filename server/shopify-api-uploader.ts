@@ -81,7 +81,7 @@ export async function uploadProductToShopify(csvContent: string, productTitle: s
       return { success: false, message: 'CSV içeriği boş veya geçersiz' };
     }
 
-    console.log('📋 First record keys:', Object.keys(records[0]));
+    console.log('📋 First record keys:', Object.keys(records[0] as Record<string, unknown>));
     console.log('📋 First record data:', JSON.stringify(records[0], null, 2));
 
     // CSV'den Shopify product data'sı oluştur
@@ -466,13 +466,16 @@ export async function uploadMultiUrlProductToShopify(productData: any, productTi
     console.log('🎨 DETECTED FINAL COLORS:', finalColors);
     console.log('📏 DETECTED FINAL SIZES:', finalSizes);
     
-    // ❌ SAHTE VARYANT OLUŞTURMA ENGELLENDİ - Tek ürün yüklemesi
+    // ✅ ENVANTER TAKİBİ DEVRE DIŞI - Sınırsız stok
     const singleVariant = {
       price: productData.price.withProfit.toString(),
       compare_at_price: productData.price.original.toString(),
-      inventory_quantity: 10,
-      inventory_management: 'shopify',
-      inventory_policy: 'deny'
+      inventory_quantity: 0, // 0 = Sınırsız stok
+      inventory_management: null, // Envanter takibi YOK
+      inventory_policy: 'continue', // Stok biterse de satmaya devam et
+      requires_shipping: true,
+      taxable: true,
+      fulfillment_service: 'manual'
     };
     variants.push(singleVariant);
     console.log('⚠️ FAKE VARIANT CREATION DISABLED - Single product upload');
@@ -532,7 +535,7 @@ export async function uploadMultiUrlProductToShopify(productData: any, productTi
           body_html: createProductDescription(productData),
           vendor: productData.brand,
           product_type: productType,
-          tags: generateProductTags(productData, Array.from(uniqueColors)),
+          tags: generateProductTags(productData, allColors),
           variants: variants,
           images: images,
           // ❌ OPTIONS ENGELLENDİ - Tek ürün için options gerekmez

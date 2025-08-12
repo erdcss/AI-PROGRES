@@ -25,7 +25,8 @@ export function generateMultiVariantShopifyCSV(product: CombinedProduct): string
   const headers = [
     'Handle', 'Title', 'Body (HTML)', 'Vendor', 'Tags', 'Published',
     'Option1 Name', 'Option1 Value', 'Option2 Name', 'Option2 Value', 
-    'Variant SKU', 'Variant Inventory Qty', 'Variant Price', 'Variant Compare At Price',
+    'Variant SKU', 'Variant Inventory Qty', 'Variant Inventory Policy', 'Variant Inventory Tracker',
+    'Variant Price', 'Variant Compare At Price', 'Variant Requires Shipping', 'Variant Taxable',
     'Image Src', 'Image Position', 'Image Alt Text', 'Gift Card', 
     'SEO Title', 'SEO Description', 'Variant Image', 'Variant Weight Unit', 'Status'
   ];
@@ -210,7 +211,9 @@ export function generateMultiVariantShopifyCSV(product: CombinedProduct): string
     }
     
     row.push(variantSku); // Variant SKU
-    row.push(variant.inStock ? '20' : '0'); // Variant Inventory Qty (increased stock)
+    row.push('0'); // Variant Inventory Qty - ENVANTER TAKİBİ YOK (0 = sınırsız)
+    row.push('continue'); // Variant Inventory Policy - Stok biterse de satmaya devam et
+    row.push(''); // Variant Inventory Tracker - Boş = takip yok
     row.push(basePrice); // Variant Price
     
     // Enhanced Compare At Price - show original price if profit was added
@@ -224,6 +227,8 @@ export function generateMultiVariantShopifyCSV(product: CombinedProduct): string
       comparePrice = originalPrice;
     }
     row.push(comparePrice); // Variant Compare At Price
+    row.push('TRUE'); // Variant Requires Shipping
+    row.push('TRUE'); // Variant Taxable
     
     // Görseller - İlk satırda görselleri ekle
     if (isFirstRow) {

@@ -110,15 +110,16 @@ export async function uploadMultiUrlProductToShopify(
     console.log('🎨 Extracted colors:', extractedColors);
     console.log('📏 Using sizes:', sizes);
 
-    // ❌ SAHTE VARYANT OLUŞTURMA ENGELLENDİ - Tek ürün olarak yükle
+    // ✅ ENVANTER TAKİBİ DEVRE DIŞI - Sınırsız stok
     const variants = [{
       price: productData.price.withProfit.toFixed(2),
       compare_at_price: productData.price.original.toFixed(2),
-      inventory_quantity: 10,
-      inventory_management: 'shopify',
-      inventory_policy: 'deny',
+      inventory_quantity: 0, // 0 = Sınırsız stok
+      inventory_management: null, // Envanter takibi YOK
+      inventory_policy: 'continue', // Stok biterse de satmaya devam et
       requires_shipping: true,
-      taxable: true
+      taxable: true,
+      fulfillment_service: 'manual'
     }];
     
     console.log('⚠️ FAKE VARIANT CREATION DISABLED - Processing as single product');
@@ -127,7 +128,7 @@ export async function uploadMultiUrlProductToShopify(
 
     // Prepare images - URL validation ekle
     const images = productData.images?.map((img, index) => {
-      const imageUrl = img.url || img.src || '';
+      const imageUrl = img.url || '';
       console.log(`📸 Image ${index + 1}: ${imageUrl}`);
       
       return {
@@ -159,7 +160,6 @@ export async function uploadMultiUrlProductToShopify(
     };
 
     console.log('📤 Shopify API request payload hazırlandı');
-    console.log('🔍 Options:', JSON.stringify(options, null, 2));
     console.log('🔍 First variant:', JSON.stringify(variants[0], null, 2));
 
     const shopifyResponse = await fetch(`https://${shopifyStore}/admin/api/2023-10/products.json`, {
