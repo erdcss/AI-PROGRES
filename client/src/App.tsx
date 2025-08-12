@@ -29,6 +29,7 @@ import ReplitAgent from "@/pages/replit-agent-fixed";
 import SOSControl from "@/pages/sos-control";
 import ProductReviews from "@/pages/product-reviews";
 import MemoryTrackingPage from "@/pages/MemoryTrackingPage";
+import SavedUrlsPage from "@/pages/SavedUrlsPage";
 import { TBotAssistant } from "@/components/TBotAssistant";
 
 // Login component with password protection
@@ -271,6 +272,11 @@ function Router() {
       <Route path="/data-analysis">
         <PageTransition>
           <ProductDataAnalysisPage />
+        </PageTransition>
+      </Route>
+      <Route path="/saved-urls">
+        <PageTransition>
+          <SavedUrlsPage />
         </PageTransition>
       </Route>
       <Route path="/scheduler">

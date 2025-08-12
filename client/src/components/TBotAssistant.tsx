@@ -34,7 +34,8 @@ import {
   Mic,
   Camera,
   FileText,
-  Download
+  Download,
+  Bookmark
 } from 'lucide-react';
 
 interface Message {
@@ -63,6 +64,7 @@ export function TBotAssistant() {
   const navigationPages = [
     { name: 'Ana Sayfa', path: '/', icon: Home, description: 'Platform seçimi' },
     { name: 'Trendyol', path: '/trendyol', icon: ShoppingCart, description: 'Ürün çıkarma' },
+    { name: 'Kayıtlı URL\'ler', path: '/saved-urls', icon: Bookmark, description: 'Trendyol URL arama' },
     { name: 'Arçelik', path: '/arcelik', icon: Cpu, description: 'Beyaz eşya ürünleri' },
     { name: 'Fiyat Karşılaştırma', path: '/price-comparison', icon: BarChart3, description: 'Fiyat analizi' },
     { name: 'Sistem Durumu', path: '/system-status', icon: Shield, description: 'Sistem kontrolü' },

@@ -49,6 +49,7 @@ import { eq, desc, or, and, isNotNull, inArray } from 'drizzle-orm';
 import axios from 'axios';
 import { urlTrackingService } from './url-tracking-service';
 import { urlTracking } from '@shared/schema';
+import { savedUrlsManager } from './saved-urls-manager';
 
 // Telegram notification for product extraction
 async function sendProductExtractionNotification(url: string, title: string, brand: string, price: any) {
@@ -3511,6 +3512,177 @@ export function registerRoutes(app: Express): Server {
     }
   });
 
+  // URL arama ve yönetim endpoints
+  app.get("/api/saved-urls/search", async (req, res) => {
+    try {
+      const { q } = req.query;
+      
+      if (!q || typeof q !== 'string') {
+        return res.status(400).json({
+          success: false,
+          error: "Arama terimi gerekli"
+        });
+      }
+
+      console.log(`🔍 URL arama: "${q}"`);
+      const results = await savedUrlsManager.searchSavedUrls(q);
+      
+      res.json({
+        success: true,
+        query: q,
+        results: results,
+        total: results.length
+      });
+    } catch (error) {
+      console.error("❌ URL arama hatası:", error);
+      res.status(500).json({
+        success: false,
+        error: error.message
+      });
+    }
+  });
+
+  app.get("/api/saved-urls/all", async (req, res) => {
+    try {
+      console.log('📋 Tüm kayıtlı URL\'ler getiriliyor...');
+      const urls = await savedUrlsManager.getAllSavedUrls();
+      
+      res.json({
+        success: true,
+        urls: urls,
+        total: urls.length
+      });
+    } catch (error) {
+      console.error("❌ URL listesi hatası:", error);
+      res.status(500).json({
+        success: false,
+        error: error.message
+      });
+    }
+  });
+
+  app.get("/api/saved-urls/recent", async (req, res) => {
+    try {
+      const { limit } = req.query;
+      const limitNum = limit ? parseInt(limit as string) : 10;
+      
+      console.log(`📅 Son ${limitNum} URL getiriliyor...`);
+      const urls = await savedUrlsManager.getRecentUrls(limitNum);
+      
+      res.json({
+        success: true,
+        urls: urls,
+        total: urls.length
+      });
+    } catch (error) {
+      console.error("❌ Son URL'ler hatası:", error);
+      res.status(500).json({
+        success: false,
+        error: error.message
+      });
+    }
+  });
+
+  app.get("/api/saved-urls/popular", async (req, res) => {
+    try {
+      console.log('🔥 Popüler URL\'ler getiriliyor...');
+      const urls = await savedUrlsManager.getPopularUrls();
+      
+      res.json({
+        success: true,
+        urls: urls,
+        total: urls.length
+      });
+    } catch (error) {
+      console.error("❌ Popüler URL'ler hatası:", error);
+      res.status(500).json({
+        success: false,
+        error: error.message
+      });
+    }
+  });
+
+  app.get("/api/saved-urls/stats", async (req, res) => {
+    try {
+      console.log('📊 URL istatistikleri getiriliyor...');
+      const stats = await savedUrlsManager.getUrlStats();
+      
+      res.json({
+        success: true,
+        stats: stats
+      });
+    } catch (error) {
+      console.error("❌ URL istatistikleri hatası:", error);
+      res.status(500).json({
+        success: false,
+        error: error.message
+      });
+    }
+  });
+
+  app.post("/api/saved-urls/check", async (req, res) => {
+    try {
+      const { url } = req.body;
+      
+      if (!url) {
+        return res.status(400).json({
+          success: false,
+          error: "URL gerekli"
+        });
+      }
+
+      console.log(`🔍 URL kontrol ediliyor: ${url}`);
+      const isSaved = await savedUrlsManager.isUrlSaved(url);
+      
+      res.json({
+        success: true,
+        url: url,
+        isSaved: isSaved
+      });
+    } catch (error) {
+      console.error("❌ URL kontrol hatası:", error);
+      res.status(500).json({
+        success: false,
+        error: error.message
+      });
+    }
+  });
+
+  app.delete("/api/saved-urls/delete", async (req, res) => {
+    try {
+      const { url } = req.body;
+      
+      if (!url) {
+        return res.status(400).json({
+          success: false,
+          error: "URL gerekli"
+        });
+      }
+
+      console.log(`🗑️ URL siliniyor: ${url}`);
+      const deleted = await savedUrlsManager.deleteUrl(url);
+      
+      if (deleted) {
+        res.json({
+          success: true,
+          message: "URL başarıyla silindi"
+        });
+      } else {
+        res.status(500).json({
+          success: false,
+          error: "URL silinemedi"
+        });
+      }
+    } catch (error) {
+      console.error("❌ URL silme hatası:", error);
+      res.status(500).json({
+        success: false,
+        error: error.message
+      });
+    }
+  });
+
   console.log('🎯 URL Tracking Service API endpoints registered');
+  console.log('🔍 Saved URLs Manager API endpoints registered');
   return httpServer;
 }
