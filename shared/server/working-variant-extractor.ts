@@ -41,6 +41,10 @@ export function extractWorkingVariants(html: string): VariantData {
     }
   });
   
+  // ❌ FAKE SIZE EXTRACTION DISABLED
+  console.log('🚫 Hardcoded size pattern extraction disabled to prevent fake variants');
+  
+  /* DISABLED FAKE SIZE EXTRACTION:
   // Extract sizes - look for common clothing sizes
   const sizePatterns = [
     'XS', 'S', 'M', 'L', 'XL', 'XXL', '3XL',
@@ -62,6 +66,7 @@ export function extractWorkingVariants(html: string): VariantData {
       sizes.push(size);
     }
   });
+  */
   
   // If we found colors but no sizes, add a default size
   if (colors.length > 0 && sizes.length === 0) {

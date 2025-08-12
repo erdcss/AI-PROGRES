@@ -90,17 +90,37 @@ export function CSVDrawerPreview({ csvPreviews, onDownload, onShopifyUpload }: C
         return preview.price;
       }
       
-      // Try to extract price from CSV content
-      const lines = preview.csvContent.split('\n');
-      const priceIndex = lines[0]?.indexOf('Variant Price');
-      if (priceIndex !== -1) {
-        const priceCell = lines[1]?.split(',')[priceIndex];
-        const price = parseFloat(priceCell?.replace(/"/g, '') || '0');
+      // Try to extract price from CSV content with better parsing
+      const lines = preview.csvContent.split('\n').filter(line => line.trim());
+      if (lines.length < 2) return { original: 0, withProfit: 0 };
+      
+      const headers = lines[0].split(',').map(h => h.replace(/"/g, '').trim());
+      const firstDataRow = lines[1].split(',').map(cell => cell.replace(/"/g, '').trim());
+      
+      // Find price column index  
+      const priceIndex = headers.findIndex(h => 
+        h.includes('Variant Price') || h.includes('Price') || h.includes('price')
+      );
+      
+      if (priceIndex !== -1 && firstDataRow[priceIndex]) {
+        const priceValue = parseFloat(firstDataRow[priceIndex]) || 0;
         return {
-          original: Math.round(price / 1.1), // Reverse calculate original
-          withProfit: price
+          original: Math.round(priceValue / 1.1), // Reverse calculate original
+          withProfit: priceValue
         };
       }
+      
+      // Try to extract from title if it contains price info
+      const title = preview.productTitle;
+      const priceMatch = title.match(/(\d+[.,]\d+|\d+)\s*(?:TL|₺|lira)/i);
+      if (priceMatch) {
+        const extractedPrice = parseFloat(priceMatch[1].replace(',', '.'));
+        return {
+          original: Math.round(extractedPrice / 1.1),
+          withProfit: extractedPrice
+        };
+      }
+      
       return { original: 0, withProfit: 0 };
     };
     

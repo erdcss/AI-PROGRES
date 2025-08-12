@@ -32,6 +32,9 @@ The application features a full-stack architecture with clear separation of conc
 - **CSV Preview UI Optimization**: Implemented ultra-compact CSV preview cards with aggressive text truncation, minimized badge sizes, removed button text (icons only), and title length limits to prevent overflow issues.
 - **Comprehensive Fake Size Data Elimination** (August 2025): Systematically removed all hardcoded 'S', 'M', 'L' size generation across entire system. Updated multi-variant CSV generator, Shopify API uploader, scenario extractors, and all variant processing modules to only use authentic product data.
 - **Image Upload Debugging Enhancement** (August 2025): Added comprehensive image validation and logging throughout Shopify upload process. Implemented URL validation, position tracking, and detailed response monitoring to troubleshoot image upload failures.
+- **Enhanced Product Preview UI** (August 2025): Added 300x100 product preview cards above CSV listings with image slider, price comparison (original vs 10% markup), and dynamic variant information display.
+- **Advanced Price Extraction** (August 2025): Improved CSV price parsing with multiple fallback strategies including header-based detection and title price extraction for accurate pricing information in product previews.
+- **Complete Fake Variant Elimination** (August 2025): Disabled all remaining hardcoded size generation across focused-extractor, working-variant-extractor, and scenario-based systems. System now exclusively uses authentic product data from actual e-commerce sources.
 
 ## External Dependencies
 

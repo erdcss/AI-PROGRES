@@ -79,24 +79,22 @@ function determineProductType(slug: string): string {
 }
 
 function generateVariants(productType: string) {
+  // ❌ FAKE VARIANT GENERATION DISABLED
+  // Return empty variants to prevent fake data generation
+  console.log('🚫 Fake variant generation disabled - returning empty variants');
+  
+  return {
+    colors: [],
+    sizes: []
+  };
+  
+  /* DISABLED FAKE VARIANT CODE:
   const variants = {
     colors: ['Siyah', 'Beyaz', 'Lacivert', 'Kırmızı'],
     sizes: ['S', 'M', 'L', 'XL']
   };
-
-  // Adjust based on product type
-  if (productType === 'dress') {
-    variants.colors = ['Siyah', 'Beyaz', 'Lacivert', 'Kırmızı', 'Yeşil'];
-    variants.sizes = ['XS', 'S', 'M', 'L', 'XL'];
-  } else if (productType === 'shoes') {
-    variants.colors = ['Siyah', 'Beyaz', 'Kahverengi'];
-    variants.sizes = ['36', '37', '38', '39', '40'];
-  } else if (productType === 'bag') {
-    variants.colors = ['Siyah', 'Kahverengi', 'Bej'];
-    variants.sizes = ['Tek Beden'];
-  }
-
-  return variants;
+  // ... rest of fake variant generation code
+  */
 }
 
 function generateRealisticStock(colors: string[], sizes: string[]): Record<string, boolean> {

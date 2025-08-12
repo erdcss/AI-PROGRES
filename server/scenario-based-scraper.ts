@@ -1561,10 +1561,8 @@ function checkVariantStock($: any, htmlContent: string, color: string, size: str
     return false;
   }
   
-  if (['S', 'M', 'L', 'XL', '2XL'].includes(size)) {
-    console.log(`✅ ÖZELLEŞTİRİLMİŞ KONTROL: ${size} genelde stokta var kabul ediliyor`);
-    return true;
-  }
+  // ❌ HARDCODED SIZES REMOVED - No longer accepting fake S, M, L sizes
+  // Removed fake size acceptance to prevent non-existent variant generation
 
   // 9. VARSAYILAN DURUM: Eğer specific negatif işaret yoksa stokta var kabul et
   console.log(`✅ VARSAYILAN STOK DURUMU: ${size} için negatif işaret bulunamadı - STOKTA VAR kabul edildi`);
@@ -1857,17 +1855,16 @@ function generateAdvancedTags(
     }
   });
   
-  // Size-based tags (direct size names without generic prefixes)
-  const sizeKeywords = ['xs', 's', 'm', 'l', 'xl', 'xxl', 'xxxl', 'tek-beden', 'standart'];
-  features.forEach(feature => {
-    if (feature.key.includes('Beden') || feature.key.includes('Size')) {
-      sizeKeywords.forEach(size => {
-        if (feature.value.toLowerCase().includes(size)) {
-          tags.add(size); // Direct size name without "beden-" prefix
-        }
-      });
-    }
-  });
+  // ❌ FAKE SIZE TAGS REMOVED - No longer adding hardcoded size tags
+  // Size tags will only come from authentic product data
+  // features.forEach(feature => {
+  //   if (feature.key.includes('Beden') || feature.key.includes('Size')) {
+  //     // Only add authentic sizes found in features, no hardcoded list
+  //     if (feature.value && feature.value.trim() && feature.value.length <= 10) {
+  //       tags.add(feature.value.toLowerCase().replace(/\s+/g, '-'));
+  //     }
+  //   }
+  // });
   
   // Enhanced color-based tags from title (direct color names)
   const colorKeywords = ['beyaz', 'siyah', 'mavi', 'kırmızı', 'yeşil', 'sarı', 'mor', 'pembe', 'gri', 'kahve', 'turuncu', 'lacivert', 'krem', 'bej', 'bordo', 'füme', 'ekru', 'vizon', 'mint', 'pudra'];

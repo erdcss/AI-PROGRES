@@ -732,6 +732,10 @@ export async function extractFocusedData(url: string): Promise<FocusedProductDat
   if (sizeSet.size === 0) {
     console.log('Varyantlardan beden bulunamadı, HTML taranıyor...');
 
+    // ❌ FAKE SIZE SEARCH DISABLED - No longer searching for hardcoded sizes
+    console.log('🚫 Hardcoded size search disabled to prevent fake variant generation');
+    
+    /* DISABLED FAKE SIZE SEARCH:
     // HTML'de yaygın beden formatlarını ara
     const commonSizes = ['XS', 'S', 'M', 'L', 'XL', 'XXL', 'XXXL'];
     for (let i = 34; i <= 54; i += 2) {
@@ -751,6 +755,7 @@ export async function extractFocusedData(url: string): Promise<FocusedProductDat
         console.log(`✓ HTML'den beden: ${size}`);
       }
     });
+    */
   }
 
   // Debug: Ürün durumunu ve bulunan bedenleri detaylı logla
@@ -867,22 +872,16 @@ export async function extractFocusedData(url: string): Promise<FocusedProductDat
     return a.localeCompare(b);
   });
 
-  // Beden sıralaması burada yapılacak
-  const sizeOrderTemp = ['XS', 'S', 'M', 'L', 'XL', 'XXL', 'XXXL'];
+  // ❌ FAKE SIZE ORDER REMOVED - Simple alphabetical/numeric sorting only
   const sortedSizes = sizeOptions.sort((a, b) => {
-    const aIndex = sizeOrderTemp.indexOf(a);
-    const bIndex = sizeOrderTemp.indexOf(b);
-
-    if (aIndex !== -1 && bIndex !== -1) {
-      return aIndex - bIndex;
-    }
-
+    // Try numeric comparison first
     const aNum = parseInt(a);
     const bNum = parseInt(b);
     if (!isNaN(aNum) && !isNaN(bNum)) {
       return aNum - bNum;
     }
-
+    
+    // Otherwise alphabetical
     return a.localeCompare(b);
   });
 
