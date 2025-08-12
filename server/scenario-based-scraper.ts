@@ -163,7 +163,7 @@ export async function scenarioBasedScrape(url: string): Promise<ScenarioBasedRes
     
     // Always try direct DOM extraction to get more color variants
     console.log('🔄 Trying direct DOM extraction for additional variants...');
-    const directVariants = await extractVariantsDirect($, htmlContent, url);
+    const directVariants = await extractVariantsDirect($, htmlContent, url, title);
     
     // Merge direct extraction results if they provide more colors/sizes
     if (directVariants.length > 0) {
@@ -1319,7 +1319,7 @@ function buildVariantsArray(variantResult: any, scenario: ExtractionScenario): a
 /**
  * Extract variants directly from DOM elements
  */
-async function extractVariantsDirect($: cheerio.CheerioAPI, htmlContent: string, url: string): Promise<Array<{color: string, colorCode: string, size: string, inStock: boolean}>> {
+async function extractVariantsDirect($: cheerio.CheerioAPI, htmlContent: string, url: string, title: string): Promise<Array<{color: string, colorCode: string, size: string, inStock: boolean}>> {
   const variants: Array<{color: string, colorCode: string, size: string, inStock: boolean}> = [];
   
   // Method 1: Enhanced color extraction with modern Trendyol selectors
@@ -1537,7 +1537,15 @@ async function extractVariantsDirect($: cheerio.CheerioAPI, htmlContent: string,
   console.log(`🔍 DEBUG: urlColor = ${urlColor}`);
   
   // PRIORITY 1: Title-based color detection (most reliable for Turkish products)
-  const titleColor = extractColorFromTitle(title);
+  console.log(`🔍 DEBUG: About to extract color from title: "${title}"`);
+  let titleColor = null;
+  try {
+    titleColor = extractColorFromTitle(title);
+    console.log(`🔍 DEBUG: Title color extraction result: ${titleColor}`);
+  } catch (error) {
+    console.log(`⚠️ DEBUG: Title color extraction error: ${error.message}`);
+    titleColor = null;
+  }
   if (titleColor) {
     detectedColors = [titleColor];
     console.log(`🎯 FINAL: Title-based color: ${titleColor}`);
@@ -1565,8 +1573,14 @@ async function extractVariantsDirect($: cheerio.CheerioAPI, htmlContent: string,
       console.log(`📊 All color frequencies: ${sortedColors.map(([c, count]) => `${c}:${count}`).join(', ')}`);
     } else {
       // Enhanced fallback with additional color detection
-      const titleColor = extractColorFromTitle(title);
-      const descriptionColor = extractColorFromDescription(htmlContent);
+      let titleColor = null;
+      let descriptionColor = null;
+      try {
+        titleColor = extractColorFromTitle(title);
+        descriptionColor = extractColorFromDescription(htmlContent);
+      } catch (error) {
+        console.log(`⚠️ DEBUG: Fallback color extraction error: ${error.message}`);
+      }
       
       if (titleColor) {
         detectedColors = [titleColor];
@@ -1581,10 +1595,18 @@ async function extractVariantsDirect($: cheerio.CheerioAPI, htmlContent: string,
     }
   } else {
     // Enhanced color detection before defaulting
-    const titleColor = extractColorFromTitle(title);
-    const descriptionColor = extractColorFromDescription(htmlContent);
-    const metaColor = extractColorFromMeta($);
-    const categoryColor = extractColorFromCategory($);
+    let titleColor = null;
+    let descriptionColor = null;
+    let metaColor = null;
+    let categoryColor = null;
+    try {
+      titleColor = extractColorFromTitle(title);
+      descriptionColor = extractColorFromDescription(htmlContent);
+      metaColor = extractColorFromMeta($);
+      categoryColor = extractColorFromCategory($);
+    } catch (error) {
+      console.log(`⚠️ DEBUG: Enhanced color extraction error: ${error.message}`);
+    }
     
     if (titleColor) {
       detectedColors = [titleColor];
@@ -2765,6 +2787,12 @@ function getColorCode(colorName: string): string {
  * Extract color from product title
  */
 function extractColorFromTitle(title: string): string | null {
+  console.log(`🔍 DEBUG: extractColorFromTitle called with: "${title}"`);
+  
+  if (!title || typeof title !== 'string') {
+    console.log(`⚠️ DEBUG: Invalid title provided: ${title}`);
+    return null;
+  }
   const colorKeywords = [
     // Türkçe renkler
     'siyah', 'beyaz', 'kırmızı', 'mavi', 'yeşil', 'sarı', 'mor', 'pembe', 
