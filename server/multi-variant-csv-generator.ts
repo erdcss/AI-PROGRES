@@ -96,28 +96,58 @@ export function generateMultiVariantShopifyCSV(product: CombinedProduct): string
   
   bodyHtml += `</div>`;
 
-  // Fiyat hesapla - %10 kar marjı ile
+  // ✅ GELİŞMİŞ FİYAT HESAPLAMA - Kuruş/TL dönüşümü dahil
   let basePrice = '0';
-  if (typeof product.price === 'object') {
+  let originalPrice = 0;
+  
+  console.log(`💰 CSV: Processing price data:`, product.price);
+  
+  if (typeof product.price === 'object' && product.price !== null) {
     if (product.price.withProfit) {
       basePrice = product.price.withProfit.toString();
+      console.log(`💰 CSV: Using withProfit: ${basePrice}`);
+    } else if (product.price.original) {
+      originalPrice = parseFloat(product.price.original.toString());
+      console.log(`💰 CSV: Using original price: ${originalPrice}`);
     } else if (product.price.value) {
-      const originalPrice = parseFloat(product.price.value.toString());
-      const finalPrice = Math.round(originalPrice * 1.10); // 10% profit
-      basePrice = finalPrice.toString();
+      originalPrice = parseFloat(product.price.value.toString());
+      console.log(`💰 CSV: Using price value: ${originalPrice}`);
     }
   } else if (typeof product.price === 'number') {
-    const finalPrice = Math.round(product.price * 1.10); // 10% profit
-    basePrice = finalPrice.toString();
+    originalPrice = product.price;
+    console.log(`💰 CSV: Using number price: ${originalPrice}`);
   } else if (typeof product.price === 'string') {
     const priceMatch = product.price.match(/[\d.,]+/);
     if (priceMatch) {
-      const originalPrice = parseFloat(priceMatch[0].replace(',', '.'));
-      const finalPrice = Math.round(originalPrice * 1.10); // 10% profit
-      basePrice = finalPrice.toString();
-    } else {
-      basePrice = '0';
+      originalPrice = parseFloat(priceMatch[0].replace(',', '.'));
+      console.log(`💰 CSV: Parsed string price: ${originalPrice}`);
     }
+  }
+  
+  // FİYAT ARAL KONTROLÜ VE DÜZELTME
+  if (originalPrice > 0 && basePrice === '0') {
+    // Fiyat çok yüksekse (>1000 TL), muhtemelen kuruş cinsinden gelmiş
+    if (originalPrice > 1000) {
+      console.log(`⚠️ CSV: High price detected (${originalPrice}), likely in kuruş - converting to TL`);
+      originalPrice = originalPrice / 100; // Kuruştan TL'ye çevir
+    }
+    
+    // Fiyat çok düşükse (<1 TL), muhtemelen hatalı
+    if (originalPrice < 1) {
+      console.log(`⚠️ CSV: Very low price detected (${originalPrice}) - setting minimum price`);
+      originalPrice = 10; // Minimum 10 TL
+    }
+    
+    // %10 kar marjı ekle
+    const finalPrice = Math.round(originalPrice * 1.10 * 100) / 100; // 2 ondalık basamak
+    basePrice = finalPrice.toString();
+    console.log(`💰 CSV: Final calculated price: ${originalPrice} -> ${basePrice} (with 10% profit)`);
+  }
+  
+  // Son kontrol - hala 0 ise varsayılan fiyat
+  if (basePrice === '0' || parseFloat(basePrice) < 1) {
+    basePrice = '29.90'; // Varsayılan fiyat
+    console.log(`💰 CSV: Using default price: ${basePrice}`);
   }
 
   // ✅ TÜM GÖRSELLERİ KONTROL ET VE GRUPLA
@@ -227,15 +257,20 @@ export function generateMultiVariantShopifyCSV(product: CombinedProduct): string
     row.push(''); // Variant Inventory Tracker - Boş = takip yok
     row.push(basePrice); // Variant Price
     
-    // Enhanced Compare At Price - show original price if profit was added
+    // ✅ GELİŞMİŞ KARŞILAŞTIRMA FİYATI HESAPLAMA
     let comparePrice = '';
     if (typeof product.price === 'object' && product.price.original) {
-      comparePrice = product.price.original.toString();
-    } else if (basePrice !== '0') {
-      // Calculate original from profit price (reverse calculation)
-      const profitPrice = parseFloat(basePrice);
-      const originalPrice = Math.round(profitPrice / 1.10).toString();
-      comparePrice = originalPrice;
+      let origPrice = parseFloat(product.price.original.toString());
+      // Kuruş kontrolü
+      if (origPrice > 1000) {
+        origPrice = origPrice / 100;
+      }
+      comparePrice = (Math.round(origPrice * 100) / 100).toString();
+      console.log(`💰 CSV: Compare price from original: ${comparePrice}`);
+    } else if (basePrice !== '0' && originalPrice > 0) {
+      // Kar marjı öncesi fiyatı karşılaştırma fiyatı olarak göster
+      comparePrice = (Math.round(originalPrice * 100) / 100).toString();
+      console.log(`💰 CSV: Compare price calculated: ${comparePrice}`);
     }
     row.push(comparePrice); // Variant Compare At Price
     row.push('TRUE'); // Variant Requires Shipping
