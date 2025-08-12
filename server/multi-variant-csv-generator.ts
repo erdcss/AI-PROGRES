@@ -120,20 +120,31 @@ export function generateMultiVariantShopifyCSV(product: CombinedProduct): string
     }
   }
 
-  // Görselleri renklerine göre grupla
+  // ✅ TÜM GÖRSELLERİ KONTROL ET VE GRUPLA
+  console.log(`📸 CSV: Processing ${product.images.length} total images`);
+  product.images.forEach((img, idx) => {
+    console.log(`📸 CSV: Image ${idx + 1}: ${img.url} (Color: ${img.colorName || 'none'})`);
+  });
+
   const imagesByColor: { [color: string]: string[] } = {};
   const generalImages: string[] = [];
   
   product.images.forEach(img => {
-    if (img.colorName) {
-      if (!imagesByColor[img.colorName]) {
-        imagesByColor[img.colorName] = [];
+    if (img.url) { // URL varsa işle
+      if (img.colorName && img.colorName !== '' && img.colorName !== 'none') {
+        if (!imagesByColor[img.colorName]) {
+          imagesByColor[img.colorName] = [];
+        }
+        imagesByColor[img.colorName].push(img.url);
+        console.log(`📸 CSV: Added to ${img.colorName}: ${img.url}`);
+      } else {
+        generalImages.push(img.url);
+        console.log(`📸 CSV: Added to general images: ${img.url}`);
       }
-      imagesByColor[img.colorName].push(img.url);
-    } else {
-      generalImages.push(img.url);
     }
   });
+
+  console.log(`📸 CSV: Organized images - Colors: ${Object.keys(imagesByColor).length}, General: ${generalImages.length}`);
 
   // ❌ SAHTE VARYANT ENGELLEME - Sadece gerçek varyantlar kullanılır
   let actualVariants = product.variants.allVariants || [];
@@ -300,29 +311,53 @@ export function generateMultiVariantShopifyCSV(product: CombinedProduct): string
     isFirstRow = false;
   });
 
-  // Kalan görselleri ekle (renk bazında)
+  // ✅ TÜM GÖRSELLERI EKLE - Hem renk bazında hem genel görseller
+  console.log(`📸 CSV: Processing additional images - Colors: ${Object.keys(imagesByColor).length}, General: ${generalImages.length}`);
+  
+  // Kalan renk bazlı görselleri ekle
   Object.entries(imagesByColor).forEach(([colorName, images]) => {
-    images.slice(1).forEach(imageUrl => { // İlk görsel zaten varyant görseli olarak kullanıldı
+    console.log(`📸 CSV: Adding ${images.length - 1} additional images for color: ${colorName}`);
+    images.slice(1).forEach((imageUrl, idx) => { // İlk görsel zaten varyant görseli olarak kullanıldı
       const imageRow = Array(headers.length).fill('');
       imageRow[0] = productHandle; // Handle
-      imageRow[14] = imageUrl; // Image Src
-      imageRow[15] = imagePosition.toString(); // Image Position
-      imageRow[16] = `${product.title} - ${colorName}`; // Image Alt Text
+      imageRow[18] = imageUrl; // Image Src (18. index)
+      imageRow[19] = imagePosition.toString(); // Image Position (19. index)
+      imageRow[20] = `${product.title} - ${colorName} ${idx + 2}`; // Image Alt Text (20. index)
+      console.log(`📸 CSV: Added image row for ${colorName} - Position ${imagePosition}: ${imageUrl}`);
       rows.push(imageRow);
       imagePosition++;
     });
   });
 
   // Genel görselleri ekle (renk bazında olmayan)
-  generalImages.slice(1).forEach(imageUrl => {
+  console.log(`📸 CSV: Adding ${generalImages.length - 1} general images`);
+  generalImages.slice(1).forEach((imageUrl, idx) => {
     const imageRow = Array(headers.length).fill('');
     imageRow[0] = productHandle; // Handle
-    imageRow[14] = imageUrl; // Image Src
-    imageRow[15] = imagePosition.toString(); // Image Position
-    imageRow[16] = product.title; // Image Alt Text
+    imageRow[18] = imageUrl; // Image Src (18. index)
+    imageRow[19] = imagePosition.toString(); // Image Position (19. index)
+    imageRow[20] = `${product.title} - Image ${idx + 2}`; // Image Alt Text (20. index)
+    console.log(`📸 CSV: Added general image row - Position ${imagePosition}: ${imageUrl}`);
     rows.push(imageRow);
     imagePosition++;
   });
+
+  // Eğer hiç görsel yoksa, product.images dizisinden doğrudan ekle
+  if (generalImages.length === 0 && Object.keys(imagesByColor).length === 0 && product.images.length > 1) {
+    console.log(`📸 CSV: No categorized images found, adding from product.images array`);
+    product.images.slice(1).forEach((img, idx) => {
+      if (img.url) {
+        const imageRow = Array(headers.length).fill('');
+        imageRow[0] = productHandle; // Handle
+        imageRow[18] = img.url; // Image Src
+        imageRow[19] = imagePosition.toString(); // Image Position
+        imageRow[20] = `${product.title} - Additional Image ${idx + 2}`; // Image Alt Text
+        console.log(`📸 CSV: Added direct image row - Position ${imagePosition}: ${img.url}`);
+        rows.push(imageRow);
+        imagePosition++;
+      }
+    });
+  }
 
   // CSV formatına dönüştür
   return rows.map(row => 

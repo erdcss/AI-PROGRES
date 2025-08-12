@@ -157,7 +157,11 @@ export async function uploadProductToShopify(csvContent: string, productTitle: s
               return variantData;
             }
           }),
-          images: productData.images.filter(img => img.src && img.src.startsWith('http')),
+          images: productData.images.filter(img => img.src && img.src.startsWith('http')).map(img => ({
+            src: img.src,
+            alt: img.alt || productData.title,
+            position: img.position || 1
+          })),
           // FIX: Sadece dolu option'lar varsa options ekle
           ...((() => {
             const validOption1Values = Array.from(new Set(productData.variants.map(v => v.option1).filter(v => v && v.trim())));
@@ -188,11 +192,18 @@ export async function uploadProductToShopify(csvContent: string, productTitle: s
 
     const result = await shopifyResponse.json();
     console.log('✅ Shopify product created successfully:', result.product.id);
+    console.log('📸 Input images count:', productData.images.length);
+    console.log('📸 Input images:', productData.images.map(img => img.src).slice(0, 3));
     console.log('📸 Created product images count:', result.product.images?.length || 0);
+    
     if (result.product.images && result.product.images.length > 0) {
-      console.log('📸 First created image:', result.product.images[0]);
+      console.log('📸 Successfully created images:');
+      result.product.images.forEach((img: any, idx: number) => {
+        console.log(`   ${idx + 1}: ${img.src}`);
+      });
     } else {
       console.log('❌ NO IMAGES WERE CREATED IN SHOPIFY PRODUCT!');
+      console.log('🔍 Debug: Input image data:', JSON.stringify(productData.images, null, 2));
     }
     
     // DEBUG: Variant update işlemi - variants created but with wrong names
