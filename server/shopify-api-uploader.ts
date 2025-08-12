@@ -131,7 +131,7 @@ export async function uploadProductToShopify(csvContent: string, productTitle: s
             inventory_quantity: variant.inventory_quantity,
             inventory_management: 'shopify'
           })),
-          images: productData.images,
+          images: productData.images.filter(img => img.src && img.src.startsWith('http')),
           options: [
             { 
               name: 'Renk', 
@@ -157,6 +157,12 @@ export async function uploadProductToShopify(csvContent: string, productTitle: s
 
     const result = await shopifyResponse.json();
     console.log('✅ Shopify product created successfully:', result.product.id);
+    console.log('📸 Created product images count:', result.product.images?.length || 0);
+    if (result.product.images && result.product.images.length > 0) {
+      console.log('📸 First created image:', result.product.images[0]);
+    } else {
+      console.log('❌ NO IMAGES WERE CREATED IN SHOPIFY PRODUCT!');
+    }
     
     // DEBUG: Variant update işlemi - variants created but with wrong names
     const productId = result.product.id;
@@ -259,14 +265,23 @@ function parseCSVToShopifyProduct(records: any[]): ShopifyProductData {
       return variant;
     });
     
-  // Images - Image Src olan kayıtlar
+  // Images - URL validation ile
   const images = records
-    .filter(record => record['Image Src'] && record['Image Src'].trim())
-    .map((record, index) => ({
-      src: record['Image Src'],
-      alt: record['Image Alt Text'] || firstRecord.Title || 'Product Image',
-      position: parseInt(record['Image Position']) || (index + 1)
-    }));
+    .filter(record => {
+      const imageSrc = record['Image Src'];
+      const isValid = imageSrc && imageSrc.trim() && imageSrc.startsWith('http');
+      console.log(`📸 Image validation: "${imageSrc}" -> ${isValid ? 'VALID' : 'INVALID'}`);
+      return isValid;
+    })
+    .map((record, index) => {
+      const imageData = {
+        src: record['Image Src'],
+        alt: record['Image Alt Text'] || firstRecord.Title || 'Product Image',
+        position: parseInt(record['Image Position']) || (index + 1)
+      };
+      console.log(`📸 Processed image ${index + 1}:`, imageData);
+      return imageData;
+    });
   
   const productData = {
     handle: firstRecord.Handle || 'default-handle',
@@ -282,7 +297,8 @@ function parseCSVToShopifyProduct(records: any[]): ShopifyProductData {
     handle: productData.handle,
     title: productData.title,
     variantCount: variants.length,
-    imageCount: images.length
+    imageCount: images.length,
+    firstImageUrl: images[0]?.src || 'No images'
   });
   
   if (variants.length === 0) {
@@ -418,19 +434,34 @@ export async function uploadMultiUrlProductToShopify(productData: any, productTi
     
     console.log(`📊 TOTAL VARIANTS CREATED: ${variants.length}`);
     
-    // Product images - multi-URL'den gelen tüm görselleri ekle
+    // Product images - URL validation ve detailed logging
     const images: any[] = [];
     if (productData.images && productData.images.length > 0) {
+      console.log(`📸 Processing ${productData.images.length} product images...`);
+      
       productData.images.slice(0, 10).forEach((img: any, index: number) => {
-        images.push({
-          src: img.url,
-          alt: img.alt || productData.title || 'Product Image',
-          position: index + 1
-        });
+        const imageUrl = img.url || img.src || '';
+        console.log(`📸 Image ${index + 1}: URL="${imageUrl}", alt="${img.alt || ''}"`);
+        
+        if (imageUrl && imageUrl.startsWith('http')) {
+          images.push({
+            src: imageUrl,
+            alt: img.alt || productData.title || 'Product Image',
+            position: index + 1
+          });
+          console.log(`✅ Image ${index + 1} added successfully`);
+        } else {
+          console.log(`❌ Image ${index + 1} skipped - invalid URL: ${imageUrl}`);
+        }
       });
     }
     
-    console.log(`📸 Adding ${images.length} images to Shopify product`);
+    console.log(`📸 Final validated images count: ${images.length}`);
+    if (images.length > 0) {
+      console.log('📸 First image that will be sent to Shopify:', images[0]);
+    } else {
+      console.log('⚠️ NO IMAGES TO SEND TO SHOPIFY API!');
+    }
 
     // Category'yi düzelt
     const productType = determineProductCategory(productData.title, productData.brand);
@@ -459,10 +490,11 @@ export async function uploadMultiUrlProductToShopify(productData: any, productTi
           tags: generateProductTags(productData, Array.from(uniqueColors)),
           variants: variants,
           images: images,
-          options: [
-            { name: 'Renk', values: finalColors },
-            { name: 'Beden', values: finalSizes }
-          ]
+          // ❌ OPTIONS ENGELLENDİ - Tek ürün için options gerekmez
+          // options: [
+          //   { name: 'Renk', values: finalColors },
+          //   { name: 'Beden', values: finalSizes }
+          // ]
         }
       })
     });

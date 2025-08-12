@@ -30,6 +30,8 @@ The application features a full-stack architecture with clear separation of conc
 - **Fake Variant Data Removal** (August 2025): Completely disabled automatic fake variant generation in extractEnhancedVariants function. System now returns empty variant arrays instead of generating misleading size/color combinations that don't exist.
 - **Enhanced Product Features Extraction** (August 2025): Improved feature extraction system with additional selectors for Turkish e-commerce patterns, category detection from breadcrumbs, brand information extraction, and product code/SKU identification. Increased feature limit to 20 items.
 - **CSV Preview UI Optimization**: Implemented ultra-compact CSV preview cards with aggressive text truncation, minimized badge sizes, removed button text (icons only), and title length limits to prevent overflow issues.
+- **Comprehensive Fake Size Data Elimination** (August 2025): Systematically removed all hardcoded 'S', 'M', 'L' size generation across entire system. Updated multi-variant CSV generator, Shopify API uploader, scenario extractors, and all variant processing modules to only use authentic product data.
+- **Image Upload Debugging Enhancement** (August 2025): Added comprehensive image validation and logging throughout Shopify upload process. Implemented URL validation, position tracking, and detailed response monitoring to troubleshoot image upload failures.
 
 ## External Dependencies
 

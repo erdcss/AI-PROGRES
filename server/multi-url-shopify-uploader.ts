@@ -125,14 +125,24 @@ export async function uploadMultiUrlProductToShopify(
 
     console.log(`📊 Created ${variants.length} variants`);
 
-    // Prepare images
-    const images = productData.images?.map((img, index) => ({
-      src: img.url,
-      alt: `${productTitle} - Image ${index + 1}`,
-      position: index + 1
-    })) || [];
+    // Prepare images - URL validation ekle
+    const images = productData.images?.map((img, index) => {
+      const imageUrl = img.url || img.src || '';
+      console.log(`📸 Image ${index + 1}: ${imageUrl}`);
+      
+      return {
+        src: imageUrl,
+        alt: `${productTitle} - Image ${index + 1}`,
+        position: index + 1
+      };
+    }).filter(img => img.src && img.src.startsWith('http')) || [];
 
-    // Create Shopify product
+    console.log(`📸 Validated ${images.length} images for upload`);
+    if (images.length > 0) {
+      console.log('📸 First image URL:', images[0].src);
+    }
+
+    // Create Shopify product - options kaldırıldı (tek ürün için gerekli değil)
     const productPayload = {
       product: {
         title: productTitle,
@@ -144,8 +154,7 @@ export async function uploadMultiUrlProductToShopify(
         status: 'active',
         published: true,
         variants: variants,
-        images: images,
-        options: options
+        images: images
       }
     };
 
@@ -176,6 +185,13 @@ export async function uploadMultiUrlProductToShopify(
     const productId = result.product.id;
     
     console.log('✅ Product created with ID:', productId);
+    console.log('📸 Created product images count:', result.product.images?.length || 0);
+    if (result.product.images && result.product.images.length > 0) {
+      console.log('📸 First created image URL:', result.product.images[0].src);
+    } else {
+      console.log('❌ NO IMAGES WERE UPLOADED TO SHOPIFY!');
+      console.log('📸 Sent images to API:', images.length);
+    }
     
     // Record upload
     recordUpload(productTitle, productId.toString(), brand);
