@@ -310,6 +310,7 @@ function extractBrand(url: string): string {
  */
 function extractPrice($: any, htmlContent: string): any {
   console.log('💰 GELIŞMIŞ FİYAT ÇIKARMA BAŞLADI');
+  console.log(`💰 HTML content length: ${htmlContent.length} characters`);
   
   // Method 1: JSON-LD structured data extraction 
   const jsonLdScripts = $('script[type="application/ld+json"]');
@@ -465,11 +466,103 @@ function extractPrice($: any, htmlContent: string): any {
     }
   }
   
-  // Method 4: Desperate text search in entire HTML content
-  console.log('💰 Method 4: Searching entire HTML content for price patterns...');
+  // Method 4: Advanced HTML content analysis with all price patterns
+  console.log('💰 Method 4: Comprehensive HTML price pattern search...');
+  
+  // Tüm olası fiyat formatlarını ara
+  const allPricePatterns = [
+    /(\d{1,4})[.,](\d{2})\s*(?:TL|₺)/g,  // 199,90 TL format
+    /(\d{1,3})[.,](\d{3})[.,](\d{2})\s*(?:TL|₺)/g,  // 1.199,90 TL format
+    /"price":(\d+)/g,  // JSON price values
+    /"currentPrice":(\d+)/g,  // JSON currentPrice
+    /"originalPrice":(\d+)/g,  // JSON originalPrice
+    /data-price["\']?\s*:\s*["\']?(\d+[.,]?\d*)/g,  // data-price attributes
+    /price["\']?\s*:\s*["\']?(\d+[.,]?\d*)/g,  // general price properties
+    /(\d+)\s*kuruş/gi,  // kuruş values
+    /₺\s*(\d+[.,]?\d*)/g,  // ₺ symbol prices
+    /TL\s*(\d+[.,]?\d*)/g   // TL prefix prices
+  ];
+  
+  const allMatches = [];
+  for (const pattern of allPricePatterns) {
+    const matches = [...htmlContent.matchAll(pattern)];
+    allMatches.push(...matches);
+  }
+  
+  console.log(`💰 Found ${allMatches.length} total price matches in HTML`);
+  
+  if (allMatches.length > 0) {
+    // Process all matches and find the most likely product price
+    const processedPrices = [];
+    
+    for (const match of allMatches) {
+      let priceValue = 0;
+      const fullMatch = match[0];
+      
+      if (match[1] && match[2] && match[3]) {
+        // Format: 1.199,90 TL
+        const thousands = parseInt(match[1]);
+        const hundreds = parseInt(match[2]);
+        const decimals = parseInt(match[3]);
+        priceValue = thousands * 1000 + hundreds + (decimals / 100);
+      } else if (match[1] && match[2]) {
+        // Format: 199,90 TL
+        const whole = parseInt(match[1]);
+        const decimals = parseInt(match[2]);
+        priceValue = whole + (decimals / 100);
+      } else if (match[1]) {
+        // Single number
+        priceValue = parseFloat(match[1].replace(',', '.'));
+        
+        // If it's a very large number, likely in kuruş
+        if (priceValue > 10000) {
+          priceValue = priceValue / 100;
+        }
+      }
+      
+      if (priceValue > 0 && priceValue < 50000) {  // Reasonable price range
+        processedPrices.push({
+          value: priceValue,
+          source: fullMatch,
+          confidence: calculatePriceConfidence(fullMatch, priceValue)
+        });
+      }
+    }
+    
+    if (processedPrices.length > 0) {
+      // Sort by confidence and pick the best one
+      processedPrices.sort((a, b) => b.confidence - a.confidence);
+      const bestPrice = processedPrices[0];
+      
+      console.log(`💰 Best price candidate: ${bestPrice.value} TL (from: "${bestPrice.source}", confidence: ${bestPrice.confidence})`);
+      console.log(`💰 All price candidates:`, processedPrices.slice(0, 5).map(p => `${p.value}TL (${p.confidence})`));
+      
+      let finalPrice = bestPrice.value;
+      
+      // Final kuruş/TL check
+      if (finalPrice > 1000) {
+        console.log(`⚠️ High price detected (${finalPrice}) - converting from kuruş to TL`);
+        finalPrice = finalPrice / 100;
+      }
+      
+      if (finalPrice >= 1) {
+        const profitPrice = Math.round(finalPrice * 1.10 * 100) / 100;
+        console.log(`💰 Final processed price: ${finalPrice} TL → ${profitPrice} TL`);
+        
+        return {
+          original: finalPrice,
+          currency: 'TL',
+          formatted: `${finalPrice} TL`,
+          withProfit: profitPrice,
+          profitFormatted: `${profitPrice} TL`
+        };
+      }
+    }
+  }
+  
   const priceMatches = htmlContent.match(/(\d{1,4})[.,](\d{2})\s*(?:TL|₺)/g);
   if (priceMatches && priceMatches.length > 0) {
-    console.log(`💰 Found price patterns in HTML: ${priceMatches.slice(0, 3).join(', ')}`);
+    console.log(`💰 Found basic price patterns in HTML: ${priceMatches.slice(0, 3).join(', ')}`);
     
     // En yüksek fiyatı seç (genellikle ana ürün fiyatı)
     let bestPrice = 0;
@@ -568,6 +661,31 @@ function extractPriceFromText(text: string): number {
   
   console.log('💰 No valid price found in text');
   return 0;
+}
+
+// ✅ FİYAT GÜVENİLİRLİK SKORU HESAPLAMA
+function calculatePriceConfidence(priceText: string, priceValue: number): number {
+  let confidence = 0;
+  
+  // Higher confidence for proper TL/₺ format
+  if (priceText.includes('TL') || priceText.includes('₺')) confidence += 30;
+  
+  // Higher confidence for decimal places
+  if (priceText.includes(',') || priceText.includes('.')) confidence += 20;
+  
+  // Higher confidence for reasonable price range
+  if (priceValue >= 10 && priceValue <= 5000) confidence += 25;
+  
+  // Higher confidence for currentPrice/originalPrice JSON fields
+  if (priceText.includes('currentPrice') || priceText.includes('originalPrice')) confidence += 20;
+  
+  // Lower confidence for very high/low values
+  if (priceValue < 1 || priceValue > 10000) confidence -= 30;
+  
+  // Higher confidence for specific Trendyol price selectors
+  if (priceText.includes('prc-dsc') || priceText.includes('price-discount')) confidence += 15;
+  
+  return Math.max(0, Math.min(100, confidence));
 }
 
 async function extractImagesBasic($: cheerio.CheerioAPI, htmlContent: string): Promise<string[]> {
