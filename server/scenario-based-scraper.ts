@@ -1592,19 +1592,25 @@ async function extractVariantsDirect($: cheerio.CheerioAPI, htmlContent: string,
   });
   */
   
-  // METHOD 3: Enable JavaScript extraction for comprehensive variant detection
-  console.log('🔍 Extracting colors and sizes from JavaScript data...');
+  // METHOD 3: Enable JavaScript and JSON-LD extraction for comprehensive variant detection
+  console.log('🔍 Extracting colors and sizes from JavaScript data and JSON-LD...');
   const jsonExtractedColors = extractColorsFromJS($, htmlContent);
   const jsonExtractedSizes = extractSizesFromJS($, htmlContent);
+  
+  // NEW: Extract from JSON-LD structured data
+  const jsonLdVariants = extractVariantsFromJsonLD($, htmlContent);
+  console.log(`🔍 JSON-LD extracted variants: ${jsonLdVariants.colors.length} colors, ${jsonLdVariants.sizes.length} sizes`);
+  console.log(`🔍 JSON-LD colors: [${jsonLdVariants.colors.join(', ')}]`);
+  console.log(`🔍 JSON-LD sizes: [${jsonLdVariants.sizes.join(', ')}]`);
   
   console.log(`🔍 JS extracted colors: [${jsonExtractedColors.join(', ')}]`);
   console.log(`🔍 JS extracted sizes: [${jsonExtractedSizes.join(', ')}]`);
   
-  // Combine all authentic colors and sizes
-  const allRawColors = Array.from(new Set([...colors, ...jsonExtractedColors]));
+  // Combine all authentic colors and sizes from all sources
+  const allRawColors = Array.from(new Set([...colors, ...jsonExtractedColors, ...jsonLdVariants.colors]));
   
-  // ✅ ENABLE SIZE FILTERING - Combine authentic sizes from DOM and JS
-  const allSizes = Array.from(new Set([...sizes, ...jsonExtractedSizes]));
+  // ✅ ENABLE SIZE FILTERING - Combine authentic sizes from DOM, JS and JSON-LD  
+  const allSizes = Array.from(new Set([...sizes, ...jsonExtractedSizes, ...jsonLdVariants.sizes]));
   console.log(`🔍 Combined authentic sizes: [${allSizes.join(', ')}]`);
   
   console.log(`🔍 Raw colors detected: ${allRawColors.length} [${allRawColors.join(', ')}]`);
@@ -1817,6 +1823,110 @@ async function extractVariantsDirect($: cheerio.CheerioAPI, htmlContent: string,
   
   // Return all unique authentic variants (both in-stock and out-of-stock)
   return uniqueVariants;
+}
+
+/**
+ * Extract variants from JSON-LD structured data
+ */
+function extractVariantsFromJsonLD($: cheerio.CheerioAPI, htmlContent: string): {colors: string[], sizes: string[]} {
+  const colors: string[] = [];
+  const sizes: string[] = [];
+  
+  // Look for JSON-LD script tags
+  $('script[type="application/ld+json"]').each((_, script) => {
+    const scriptContent = $(script).html();
+    if (!scriptContent) return;
+    
+    try {
+      const jsonData = JSON.parse(scriptContent);
+      console.log(`🔍 JSON-LD: Processing script block, has hasVariant: ${!!jsonData.hasVariant}`);
+      
+      // Extract from hasVariant array
+      if (jsonData.hasVariant && Array.isArray(jsonData.hasVariant)) {
+        console.log(`🔍 JSON-LD: Found ${jsonData.hasVariant.length} variants in hasVariant array`);
+        
+        jsonData.hasVariant.forEach((variant: any, index: number) => {
+          // Extract color from variant
+          if (variant.color) {
+            if (Array.isArray(variant.color)) {
+              variant.color.forEach((c: string) => {
+                if (c && typeof c === 'string') {
+                  colors.push(c);
+                  console.log(`🎨 JSON-LD variant ${index}: Found color: ${c}`);
+                }
+              });
+            } else if (typeof variant.color === 'string') {
+              colors.push(variant.color);
+              console.log(`🎨 JSON-LD variant ${index}: Found color: ${variant.color}`);
+            }
+          }
+          
+          // Extract size from variant
+          if (variant.size) {
+            if (Array.isArray(variant.size)) {
+              variant.size.forEach((s: string) => {
+                if (s && typeof s === 'string' && s !== 'Standart') {
+                  sizes.push(s);
+                  console.log(`👕 JSON-LD variant ${index}: Found size: ${s}`);
+                }
+              });
+            } else if (typeof variant.size === 'string' && variant.size !== 'Standart') {
+              sizes.push(variant.size);
+              console.log(`👕 JSON-LD variant ${index}: Found size: ${variant.size}`);
+            }
+          }
+          
+          // Extract from name if contains size/color info
+          if (variant.name && typeof variant.name === 'string') {
+            const nameColors = extractColorFromTitle(variant.name);
+            nameColors.forEach(c => {
+              if (!colors.includes(c)) {
+                colors.push(c);
+                console.log(`🎨 JSON-LD variant ${index}: Color from name: ${c}`);
+              }
+            });
+          }
+        });
+      }
+      
+      // Extract from main product data if present
+      if (jsonData.color) {
+        if (Array.isArray(jsonData.color)) {
+          jsonData.color.forEach((c: string) => {
+            if (c && typeof c === 'string' && !colors.includes(c)) {
+              colors.push(c);
+              console.log(`🎨 JSON-LD main: Found color: ${c}`);
+            }
+          });
+        } else if (typeof jsonData.color === 'string' && !colors.includes(jsonData.color)) {
+          colors.push(jsonData.color);
+          console.log(`🎨 JSON-LD main: Found color: ${jsonData.color}`);
+        }
+      }
+      
+      if (jsonData.size) {
+        if (Array.isArray(jsonData.size)) {
+          jsonData.size.forEach((s: string) => {
+            if (s && typeof s === 'string' && s !== 'Standart' && !sizes.includes(s)) {
+              sizes.push(s);
+              console.log(`👕 JSON-LD main: Found size: ${s}`);
+            }
+          });
+        } else if (typeof jsonData.size === 'string' && jsonData.size !== 'Standart' && !sizes.includes(jsonData.size)) {
+          sizes.push(jsonData.size);
+          console.log(`👕 JSON-LD main: Found size: ${jsonData.size}`);
+        }
+      }
+      
+    } catch (error) {
+      console.log(`❌ JSON-LD parsing error: ${error}`);
+    }
+  });
+  
+  return {
+    colors: Array.from(new Set(colors)),
+    sizes: Array.from(new Set(sizes))
+  };
 }
 
 /**

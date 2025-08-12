@@ -40,6 +40,7 @@ The application features a full-stack architecture with clear separation of conc
 - **Comprehensive Price Correction System** (August 12, 2025): Implemented intelligent price correction for Turkish e-commerce kuruş/TL conversion issues. System now correctly handles 950 kuruş → 950 TL and 24960 kuruş → 24960 TL conversions based on user expectations. Fixed CSV compare price generation to use corrected original prices without double conversion.
 - **Real-time URL Tracking System** (August 12, 2025): Implemented comprehensive URL tracking with PostgreSQL database storage. URLs are automatically monitored every 5 minutes, price changes are detected and stored in history. Telegram notifications are sent for all price changes with detailed information including percentage change and price difference.
 - **Dynamic Product Color Detection** (August 12, 2025): Replaced "Standart" color labels with intelligent color extraction from product titles, descriptions, and metadata. System now detects Turkish color names (Altın, Siyah, Beyaz, etc.) and specific product characteristics (14 Ayar Altın) for accurate product categorization.
+- **Enhanced JSON-LD Variant Detection** (August 12, 2025): Implemented comprehensive JSON-LD structured data extraction for variant detection. System now successfully captures both colors and sizes from Trendyol's hasVariant arrays, including measurement-based sizes (e.g., "42 cm"). Multi-source extraction combines DOM selectors, JavaScript data, and JSON-LD structured data for maximum accuracy.
 
 ## External Dependencies
 
