@@ -123,25 +123,48 @@ export async function uploadProductToShopify(csvContent: string, productTitle: s
           vendor: productData.vendor,
           tags: productData.tags,
           handle: productData.handle,
-          variants: productData.variants.map(variant => ({
-            option1: variant.option1,
-            option2: variant.option2,
-            price: variant.price,
-            sku: variant.sku,
-            inventory_quantity: variant.inventory_quantity,
-            inventory_management: 'shopify'
-          })),
-          images: productData.images.filter(img => img.src && img.src.startsWith('http')),
-          options: [
-            { 
-              name: 'Renk', 
-              values: Array.from(new Set(productData.variants.map(v => v.option1).filter(v => v && v.trim())))
-            },
-            { 
-              name: 'Beden', 
-              values: Array.from(new Set(productData.variants.map(v => v.option2).filter(v => v && v.trim())))
+          variants: productData.variants.map(variant => {
+            // FIX: Eğer option1 ve option2 boşsa, varyant olmayan ürün olarak işle
+            const hasOption1 = variant.option1 && variant.option1.trim() !== '';
+            const hasOption2 = variant.option2 && variant.option2.trim() !== '';
+            
+            if (!hasOption1 && !hasOption2) {
+              // Tek varyant ürün - Default Title kullan
+              return {
+                title: 'Default Title',
+                price: variant.price,
+                sku: variant.sku,
+                inventory_quantity: variant.inventory_quantity,
+                inventory_management: 'shopify'
+              };
+            } else {
+              // Multi-varyant ürün - option1/option2 kullan
+              return {
+                option1: variant.option1 || 'Default',
+                option2: variant.option2 || 'Default',
+                price: variant.price,
+                sku: variant.sku,
+                inventory_quantity: variant.inventory_quantity,
+                inventory_management: 'shopify'
+              };
             }
-          ]
+          }),
+          images: productData.images.filter(img => img.src && img.src.startsWith('http')),
+          // FIX: Sadece dolu option'lar varsa options ekle
+          ...((() => {
+            const validOption1Values = Array.from(new Set(productData.variants.map(v => v.option1).filter(v => v && v.trim())));
+            const validOption2Values = Array.from(new Set(productData.variants.map(v => v.option2).filter(v => v && v.trim())));
+            
+            const options = [];
+            if (validOption1Values.length > 0) {
+              options.push({ name: 'Renk', values: validOption1Values });
+            }
+            if (validOption2Values.length > 0) {
+              options.push({ name: 'Beden', values: validOption2Values });
+            }
+            
+            return options.length > 0 ? { options } : {};
+          })())
         }
       })
     });
