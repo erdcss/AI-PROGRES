@@ -455,6 +455,11 @@ function ScraperPage() {
 
   const clearAllUrls = () => {
     setDraggedUrls([]);
+    setCsvPreviews([]); // CSV önizlemelerini de temizle
+    toast({
+      title: "Temizlendi",
+      description: "Tüm URL'ler ve CSV önizlemeleri silindi"
+    });
   };
 
   // Tüm CSV'leri Shopify'a yükleme fonksiyonu
