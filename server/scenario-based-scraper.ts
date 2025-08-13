@@ -4,6 +4,7 @@
  */
 
 import axios from 'axios';
+import puppeteer from 'puppeteer';
 import * as cheerio from 'cheerio';
 import { ScenarioManager, ExtractionScenario } from './scenario-manager';
 import { ScenarioExtractors } from './scenario-extractors';
@@ -57,41 +58,85 @@ export async function scenarioBasedScrape(url: string): Promise<ScenarioBasedRes
       return price; // Return original price without any modification
     };
     
-    // Step 1: Fetch the page content with enhanced anti-detection
-    const userAgents = [
-      'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36',
-      'Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36',
-      'Mozilla/5.0 (Windows NT 10.0; Win64; x64; rv:120.0) Gecko/20100101 Firefox/120.0',
-      'Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/605.1.15 (KHTML, like Gecko) Version/17.1 Safari/605.1.15'
-    ];
+    // Step 1: Fetch the page content using Puppeteer to avoid 403 errors
+    let browser;
+    let htmlContent = '';
+    let $: cheerio.CheerioAPI;
     
-    const randomUserAgent = userAgents[Math.floor(Math.random() * userAgents.length)];
-    
-    const response = await axios.get(url, {
-      headers: {
-        'User-Agent': randomUserAgent,
-        'Accept': 'text/html,application/xhtml+xml,application/xml;q=0.9,image/webp,image/apng,*/*;q=0.8',
-        'Accept-Language': 'tr-TR,tr;q=0.9,en-US;q=0.8,en;q=0.7',
-        'Accept-Encoding': 'gzip, deflate, br',
-        'Cache-Control': 'no-cache',
-        'Pragma': 'no-cache',
-        'Sec-Fetch-Dest': 'document',
-        'Sec-Fetch-Mode': 'navigate',
-        'Sec-Fetch-Site': 'none',
-        'Sec-Fetch-User': '?1',
-        'Upgrade-Insecure-Requests': '1',
-        'DNT': '1',
-        'Connection': 'keep-alive'
-      },
-      timeout: 30000,
-      maxRedirects: 5,
-      validateStatus: function (status) {
-        return status >= 200 && status < 300;
-      }
-    });
-    
-    const htmlContent = response.data;
-    const $ = cheerio.load(htmlContent);
+    try {
+      // Try Puppeteer first for better success rate
+      console.log('🚀 Using Puppeteer for enhanced extraction...');
+      browser = await puppeteer.launch({
+        headless: true,
+        args: [
+          '--no-sandbox',
+          '--disable-setuid-sandbox',
+          '--disable-dev-shm-usage',
+          '--disable-accelerated-2d-canvas',
+          '--no-first-run',
+          '--no-zygote',
+          '--single-process',
+          '--disable-gpu'
+        ]
+      });
+      
+      const page = await browser.newPage();
+      await page.setUserAgent('Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36');
+      
+      // Navigate to the page
+      await page.goto(url, { waitUntil: 'networkidle2', timeout: 30000 });
+      
+      // Wait for product data to load
+      await page.waitForSelector('h1, .product-title, [data-testid="product-title"]', { timeout: 10000 });
+      
+      // Get page content
+      htmlContent = await page.content();
+      $ = cheerio.load(htmlContent);
+      
+      await browser.close();
+      console.log('✅ Puppeteer extraction successful');
+    } catch (puppeteerError) {
+      console.log('⚠️ Puppeteer failed, trying axios fallback...', puppeteerError.message);
+      if (browser) await browser.close();
+      
+      // Fallback to axios if Puppeteer fails
+      const userAgents = [
+        'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36',
+        'Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36'
+      ];
+      
+      const randomUserAgent = userAgents[Math.floor(Math.random() * userAgents.length)];
+      
+      const response = await axios.get(url, {
+        headers: {
+          'User-Agent': randomUserAgent,
+          'Accept': 'text/html,application/xhtml+xml,application/xml;q=0.9,image/avif,image/webp,image/apng,*/*;q=0.8',
+          'Accept-Language': 'tr-TR,tr;q=0.9,en-US;q=0.8,en;q=0.7',
+          'Accept-Encoding': 'gzip, deflate, br',
+          'Cache-Control': 'no-cache',
+          'Pragma': 'no-cache',
+          'Sec-Ch-Ua': '"Not_A Brand";v="8", "Chromium";v="120", "Google Chrome";v="120"',
+          'Sec-Ch-Ua-Mobile': '?0',
+          'Sec-Ch-Ua-Platform': '"Windows"',
+          'Sec-Fetch-Dest': 'document',
+          'Sec-Fetch-Mode': 'navigate',
+          'Sec-Fetch-Site': 'none',
+          'Sec-Fetch-User': '?1',
+          'Upgrade-Insecure-Requests': '1',
+          'DNT': '1',
+          'Connection': 'keep-alive',
+          'Referer': 'https://www.google.com/'
+        },
+        timeout: 30000,
+        maxRedirects: 5,
+        validateStatus: function (status) {
+          return status >= 200 && status < 400;
+        }
+      });
+      
+      htmlContent = response.data;
+      $ = cheerio.load(htmlContent);
+    }
     
     console.log(`📄 HTML content loaded: ${htmlContent.length} characters`);
     
