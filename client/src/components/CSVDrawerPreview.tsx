@@ -84,6 +84,49 @@ export function CSVDrawerPreview({ csvPreviews, onDownload, onShopifyUpload }: C
     const hasMultipleImages = preview.images && preview.images.length > 1;
     const currentImageUrl = preview.images?.[currentImageIndex] || '';
     
+    // Extract tracking ID from CSV
+    const getTrackingId = () => {
+      const lines = preview.csvContent.split('\n').filter(line => line.trim());
+      if (lines.length < 2) return null;
+      
+      // Parse CSV with proper comma splitting (handling quoted values)
+      const parseCSVLine = (line: string) => {
+        const result = [];
+        let current = '';
+        let inQuotes = false;
+        
+        for (let i = 0; i < line.length; i++) {
+          const char = line[i];
+          if (char === '"') {
+            inQuotes = !inQuotes;
+          } else if (char === ',' && !inQuotes) {
+            result.push(current.trim());
+            current = '';
+          } else {
+            current += char;
+          }
+        }
+        result.push(current.trim());
+        return result;
+      };
+      
+      const headers = parseCSVLine(lines[0]).map(h => h.replace(/"/g, '').trim());
+      const firstDataRow = parseCSVLine(lines[1]).map(cell => cell.replace(/"/g, '').trim());
+      
+      // Find the metafield column
+      const metafieldIndex = headers.findIndex(h => 
+        h.includes('Metafield') && h.includes('custom.repli_t_id')
+      );
+      
+      if (metafieldIndex !== -1 && firstDataRow[metafieldIndex]) {
+        return firstDataRow[metafieldIndex];
+      }
+      
+      return null;
+    };
+    
+    const trackingId = getTrackingId();
+    
     // Enhanced price parsing from CSV with multiple strategies
     const parsePriceFromCSV = () => {
       if (preview.price && preview.price.original > 0) {
@@ -233,10 +276,20 @@ export function CSVDrawerPreview({ csvPreviews, onDownload, onShopifyUpload }: C
             
             {/* Sağ taraf - Ürün Bilgileri */}
             <div className="flex-1 flex flex-col justify-between min-w-0">
-              {/* Ürün Başlığı */}
-              <h3 className="text-white font-medium text-sm leading-tight truncate mb-1">
-                {preview.productTitle}
-              </h3>
+              {/* Ürün Başlığı ve Tracking ID */}
+              <div className="mb-1">
+                <h3 className="text-white font-medium text-sm leading-tight truncate">
+                  {preview.productTitle}
+                </h3>
+                {trackingId && (
+                  <div className="flex items-center gap-2 mt-1">
+                    <span className="text-slate-500 text-xs">ID:</span>
+                    <Badge className="bg-purple-900/30 text-purple-300 text-xs px-2 py-0 h-4 font-mono">
+                      {trackingId}
+                    </Badge>
+                  </div>
+                )}
+              </div>
               
               {/* Fiyat Bilgileri */}
               <div className="flex items-center gap-3 mb-2">
