@@ -87,6 +87,19 @@ export async function uploadProductToShopify(csvContent: string, productTitle: s
     // CSV'den Shopify product data'sı oluştur
     const productData = parseCSVToShopifyProduct(records);
     
+    // Extract metafield value from CSV
+    const firstRecord = records[0] as any;
+    let trackingId = null;
+    
+    // Find metafield column
+    for (const key of Object.keys(firstRecord)) {
+      if (key.includes('Metafield') && key.includes('custom.repli_t_id')) {
+        trackingId = firstRecord[key];
+        console.log(`🔑 Found tracking ID in CSV: ${trackingId}`);
+        break;
+      }
+    }
+    
     // Debug parsed variants
     console.log('🔍 DEBUG PARSED VARIANTS:');
     productData.variants.forEach((variant, index) => {
@@ -97,6 +110,17 @@ export async function uploadProductToShopify(csvContent: string, productTitle: s
     const finalSizes = Array.from(new Set(productData.variants.map(v => v.option2).filter(v => v && v.trim())));
     console.log('🎨 FINAL COLORS FOR API:', finalColors);
     console.log('📏 FINAL SIZES FOR API:', finalSizes);
+    
+    // Debug metafield
+    if (trackingId) {
+      console.log('📌 METAFIELD DEBUG: Will send to Shopify:');
+      console.log('   Namespace: custom');
+      console.log('   Key: repli_t_id');
+      console.log('   Value:', trackingId);
+      console.log('   Type: single_line_text_field');
+    } else {
+      console.log('⚠️ NO TRACKING ID FOUND IN CSV - Metafield will not be sent');
+    }
     
     // Shopify API endpoint
     const shopifyStore = process.env.SHOPIFY_SHOP_DOMAIN;
@@ -109,8 +133,8 @@ export async function uploadProductToShopify(csvContent: string, productTitle: s
       };
     }
 
-    // Shopify product create API call
-    const shopifyResponse = await fetch(`https://${shopifyStore}/admin/api/2023-10/products.json`, {
+    // Shopify product create API call - Updated to 2024-01 for better metafield support
+    const shopifyResponse = await fetch(`https://${shopifyStore}/admin/api/2024-01/products.json`, {
       method: 'POST',
       headers: {
         'X-Shopify-Access-Token': accessToken,
@@ -123,6 +147,17 @@ export async function uploadProductToShopify(csvContent: string, productTitle: s
           vendor: productData.vendor,
           tags: productData.tags,
           handle: productData.handle,
+          // Add metafields if tracking ID exists
+          ...(trackingId ? {
+            metafields: [
+              {
+                namespace: 'custom',
+                key: 'replit_id',  // Changed to match Shopify admin panel field
+                value: trackingId,
+                type: 'single_line_text_field'
+              }
+            ]
+          } : {}),
           variants: productData.variants.map(variant => {
             // FIX: Eğer option1 ve option2 boşsa, varyant olmayan ürün olarak işle
             const hasOption1 = variant.option1 && variant.option1.trim() !== '';
@@ -191,10 +226,43 @@ export async function uploadProductToShopify(csvContent: string, productTitle: s
     }
 
     const result = await shopifyResponse.json();
-    console.log('✅ Shopify product created successfully:', result.product.id);
+    const productId = result.product.id;
+    console.log('✅ Shopify product created successfully:', productId);
     console.log('📸 Input images count:', productData.images.length);
     console.log('📸 Input images:', productData.images.map(img => img.src).slice(0, 3));
     console.log('📸 Created product images count:', result.product.images?.length || 0);
+    
+    // Update metafield separately if tracking ID exists
+    if (trackingId) {
+      console.log(`📌 Updating metafield for product ${productId} with tracking ID: ${trackingId}`);
+      try {
+        const metafieldResponse = await fetch(`https://${shopifyStore}/admin/api/2024-01/products/${productId}/metafields.json`, {
+          method: 'POST',
+          headers: {
+            'X-Shopify-Access-Token': accessToken,
+            'Content-Type': 'application/json'
+          },
+          body: JSON.stringify({
+            metafield: {
+              namespace: 'custom',
+              key: 'replit_id',  // Changed from repli_t_id to replit_id to match admin panel
+              value: trackingId,
+              type: 'single_line_text_field'
+            }
+          })
+        });
+        
+        if (metafieldResponse.ok) {
+          const metafieldResult = await metafieldResponse.json();
+          console.log('✅ Metafield added successfully:', metafieldResult.metafield.id);
+        } else {
+          const error = await metafieldResponse.json();
+          console.log('⚠️ Failed to add metafield:', error);
+        }
+      } catch (error) {
+        console.log('⚠️ Error adding metafield:', error);
+      }
+    }
     
     if (result.product.images && result.product.images.length > 0) {
       console.log('📸 Successfully created images:');
@@ -207,7 +275,6 @@ export async function uploadProductToShopify(csvContent: string, productTitle: s
     }
     
     // DEBUG: Variant update işlemi - variants created but with wrong names
-    const productId = result.product.id;
     const createdVariants = result.product.variants;
     
     console.log('🔧 Attempting to fix variant names via update API...');
@@ -378,6 +445,10 @@ export async function uploadMultiUrlProductToShopify(productData: any, productTi
     console.log('📊 Product Data Keys:', Object.keys(productData));
     console.log('📸 Images count:', productData.images?.length || 0);
     
+    // Generate unique tracking ID for multi-URL upload
+    const uniqueTrackingId = `trendyol_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`;
+    console.log(`🔑 Generated tracking ID: ${uniqueTrackingId}`);
+    
     // Duplicate check
     const brand = productData.brand || 'Unknown';
     const duplicateCheck = isDuplicateProduct(productTitle, brand);
@@ -539,8 +610,8 @@ export async function uploadMultiUrlProductToShopify(productData: any, productTi
     console.log(`🎨 Final colors: ${allColors.join(', ')}`);
     console.log(`📏 Final sizes: ${Array.from(uniqueSizes).join(', ')}`);
     
-    // Shopify product create API call
-    const shopifyResponse = await fetch(`https://${shopifyStore}/admin/api/2023-10/products.json`, {
+    // Shopify product create API call - Updated to 2024-01 for better metafield support
+    const shopifyResponse = await fetch(`https://${shopifyStore}/admin/api/2024-01/products.json`, {
       method: 'POST',
       headers: {
         'X-Shopify-Access-Token': accessToken,
@@ -553,6 +624,15 @@ export async function uploadMultiUrlProductToShopify(productData: any, productTi
           vendor: productData.brand,
           product_type: productType,
           tags: generateProductTags(productData, allColors),
+          // Add metafields with unique tracking ID
+          metafields: [
+            {
+              namespace: 'custom',
+              key: 'replit_id',  // Changed to match Shopify admin panel field
+              value: uniqueTrackingId,
+              type: 'single_line_text_field'
+            }
+          ],
           variants: variants,
           images: images,
           // ❌ OPTIONS ENGELLENDİ - Tek ürün için options gerekmez

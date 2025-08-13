@@ -29,7 +29,7 @@ export function generateMultiVariantShopifyCSV(product: CombinedProduct): string
     'Variant Price', 'Variant Compare At Price', 'Variant Requires Shipping', 'Variant Taxable',
     'Image Src', 'Image Position', 'Image Alt Text', 'Gift Card', 
     'SEO Title', 'SEO Description', 'Variant Image', 'Variant Weight Unit', 'Status',
-    'Metafield: custom.repli_t_id [single_line_text_field]'
+    'Metafield: custom.replit_id [single_line_text_field]'
   ];
 
   const rows: string[][] = [];
@@ -298,7 +298,7 @@ export function generateMultiVariantShopifyCSV(product: CombinedProduct): string
           
         if (colorBasedImage) {
           selectedImage = colorBasedImage.url;
-          imagePosition = (colorBasedImage.position || variantIndex + 1).toString();
+          imagePosition = ((colorBasedImage as any).position || variantIndex + 1).toString();
           console.log(`📸 CSV: Using color-based image for ${variant.color}: ${selectedImage}`);
         } else if (variantIndex < product.images.length) {
           selectedImage = product.images[variantIndex]?.url || '';

@@ -27,7 +27,7 @@ export interface CSVRow {
   'Option2 Value': string;
   'SEO Title': string;
   'SEO Description': string;
-  'Metafield: custom.repli_t_id [single_line_text_field]': string;
+  'Metafield: custom.replit_id [single_line_text_field]': string;
 }
 
 /**
@@ -50,7 +50,7 @@ export function generateProfessionalCSV(productData: any): string {
     Tags: createTags(productData),
     'SEO Title': `${productData.title} | ${productData.brand}`,
     'SEO Description': createSEODescription(productData),
-    'Metafield: custom.repli_t_id [single_line_text_field]': uniqueTrackingId
+    'Metafield: custom.replit_id [single_line_text_field]': uniqueTrackingId
   };
   
   // Her renk varyantı için satır oluştur
@@ -81,7 +81,7 @@ export function generateProfessionalCSV(productData: any): string {
           Tags: '',
           'SEO Title': '',
           'SEO Description': '',
-          'Metafield: custom.repli_t_id [single_line_text_field]': ''
+          'Metafield: custom.replit_id [single_line_text_field]': ''
         })
       });
     });

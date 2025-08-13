@@ -1,0 +1,2 @@
+Handle,Title,Body (HTML),Vendor,Tags,Published,Variant SKU,Variant Price,Image Src,Status,Metafield: custom.replit_id [single_line_text_field]
+test-metafield-product,Test Product with ID,<p>Testing metafield functionality</p>,Test Brand,test,TRUE,SKU123,99.99,https://via.placeholder.com/500,active,test_tracking_id_999

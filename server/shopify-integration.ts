@@ -56,7 +56,7 @@ export class ShopifyIntegration {
     
     this.shopUrl = process.env.SHOPIFY_STORE_DOMAIN;
     this.accessToken = process.env.SHOPIFY_ACCESS_TOKEN;
-    this.baseUrl = `https://${this.shopUrl}/admin/api/2023-10/`;
+    this.baseUrl = `https://${this.shopUrl}/admin/api/2024-01/`;
   }
 
   private getHeaders(): AxiosRequestConfig['headers'] {
