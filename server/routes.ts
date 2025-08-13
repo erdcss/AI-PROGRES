@@ -52,6 +52,7 @@ import { urlTrackingService } from './url-tracking-service';
 import { urlTracking } from '@shared/schema';
 import { savedUrlsManager } from './saved-urls-manager';
 import { shopifyProductsManager } from './shopify-products-manager';
+import { shopifyApiService } from './shopify-api-service';
 
 // Telegram notification for product extraction
 async function sendProductExtractionNotification(url: string, title: string, brand: string, price: any) {
@@ -2896,28 +2897,25 @@ export function registerRoutes(app: Express): Server {
       console.log('🔄 Shopify ürünleri hafızaya kaydediliyor (pagination ile tüm ürünler)...');
       
       // Shopify'dan TÜM ürünleri çek (pagination ile 1000+ ürün destegi)
-      const shopifyProducts = await shopifyIntegration.fetchProductsFromShopify();
+      const result = await shopifyApiService.syncAllProducts();
       
-      if (shopifyProducts.length === 0) {
+      if (!result.success) {
         return res.json({
-          success: true,
-          message: 'Shopify hesabında ürün bulunamadı',
+          success: false,
+          message: result.error || 'Shopify ürünleri alınırken hata oluştu',
           savedProducts: 0,
           savedVariants: 0
         });
       }
       
-      // Ürünleri veritabanına kaydet
-      const result = await shopifyIntegration.saveProductsToDatabase(shopifyProducts);
-      
-      console.log(`✅ Shopify hafızaya kaydetme tamamlandı: ${result.savedProducts} ürün, ${result.savedVariants} varyant`);
+      console.log(`✅ Shopify hafızaya kaydetme tamamlandı: ${result.newProducts} yeni, ${result.updatedProducts} güncellenen ürün`);
       
       res.json({
         success: true,
-        message: `Shopify ürünleri başarıyla hafızaya kaydedildi: ${result.savedProducts} ürün, ${result.savedVariants} varyant`,
-        savedProducts: result.savedProducts,
-        savedVariants: result.savedVariants,
-        totalFetched: shopifyProducts.length
+        message: `Shopify ürünleri başarıyla hafızaya kaydedildi: ${result.totalProducts} ürün`,
+        savedProducts: result.totalProducts,
+        savedVariants: 0,
+        totalFetched: result.totalProducts
       });
       
     } catch (error: any) {
@@ -2929,53 +2927,7 @@ export function registerRoutes(app: Express): Server {
     }
   });
 
-  // Hafızadaki Shopify ürünlerini listeleme endpoint'i
-  app.get('/api/shopify/memory-products', async (req, res) => {
-    try {
-      console.log('📋 Hafızadaki Shopify ürünleri listeleniyor...');
-      
-      const memoryProducts = await db.query.products.findMany({
-        where: eq(productsTable.sourcePlatform, 'shopify'),
-        with: {
-          variants: true
-        },
-        orderBy: [productsTable.updatedAt]
-      });
-      
-      const formattedProducts = memoryProducts.map(product => ({
-        id: product.id,
-        title: product.title,
-        brand: product.brand,
-        currentPrice: product.currentPrice,
-        shopifyProductId: product.shopifyProductId,
-        shopifyUrl: product.shopifyUrl,
-        transferDate: product.createdAt?.toISOString().split('T')[0],
-        shopifyStatus: product.syncStatus,
-        profitMargin: product.profitMargin,
-        sourcePlatform: product.sourcePlatform,
-        stockStatus: product.stockStatus,
-        lastChecked: product.lastChecked,
-        variantCount: product.variants?.length || 0
-      }));
-      
-      res.json({
-        success: true,
-        products: formattedProducts,
-        summary: {
-          totalProducts: formattedProducts.length,
-          totalValue: formattedProducts.reduce((sum, p) => sum + parseFloat(p.currentPrice || '0'), 0).toFixed(2),
-          platformBreakdown: { shopify: formattedProducts.length }
-        }
-      });
-      
-    } catch (error: any) {
-      console.error('❌ Hafızadaki Shopify ürünleri listeleme hatası:', error);
-      res.status(500).json({
-        success: false,
-        error: `Ürün listeleme hatası: ${error.message}`
-      });
-    }
-  });
+
 
   // Image proxy endpoint for CORS issues
   app.get('/api/image-proxy', async (req, res) => {
@@ -3167,6 +3119,131 @@ export function registerRoutes(app: Express): Server {
         success: false, 
         error: 'Recent activity failed', 
         details: error.message 
+      });
+    }
+  });
+
+  // ================================
+  // SHOPIFY API SERVICE ENDPOINTS
+  // ================================
+
+  // Shopify ürün senkronizasyonu (tüm ürünleri çek ve hafızaya kaydet)
+  app.post('/api/shopify/sync-all-products', async (req, res) => {
+    try {
+      console.log('🔄 Shopify ürün senkronizasyonu başlatılıyor...');
+      const result = await shopifyApiService.syncAllProducts();
+      
+      res.json({
+        success: result.success,
+        message: result.success 
+          ? `${result.totalProducts} ürün senkronize edildi (${result.newProducts} yeni, ${result.updatedProducts} güncellendi)`
+          : 'Senkronizasyon başarısız',
+        totalProducts: result.totalProducts,
+        newProducts: result.newProducts,
+        updatedProducts: result.updatedProducts
+      });
+    } catch (error) {
+      console.error('❌ Shopify sync hatası:', error);
+      res.status(500).json({
+        success: false,
+        error: error.message,
+        message: 'Shopify senkronizasyon hatası'
+      });
+    }
+  });
+
+  // Hafızadaki Shopify ürünlerini listele
+  app.get('/api/shopify/memory-products', async (req, res) => {
+    try {
+      const limit = parseInt(req.query.limit as string) || 50;
+      const offset = parseInt(req.query.offset as string) || 0;
+      
+      const result = await shopifyApiService.getMemoryProducts(limit, offset);
+      
+      res.json({
+        success: result.success,
+        products: result.products,
+        total: result.total,
+        limit,
+        offset
+      });
+    } catch (error) {
+      console.error('❌ Hafızadaki Shopify ürünleri listeleme hatası:', error);
+      res.status(500).json({
+        success: false,
+        error: error.message,
+        message: 'Ürün listeleme hatası'
+      });
+    }
+  });
+
+  // Benzersiz ID ile ürün getir
+  app.get('/api/shopify/product/:trackingId', async (req, res) => {
+    try {
+      const { trackingId } = req.params;
+      const result = await shopifyApiService.getProductByTrackingId(trackingId);
+      
+      if (result.success) {
+        res.json({
+          success: true,
+          product: result.product
+        });
+      } else {
+        res.status(404).json({
+          success: false,
+          error: result.error,
+          message: 'Ürün bulunamadı'
+        });
+      }
+    } catch (error) {
+      console.error('❌ Ürün getirme hatası:', error);
+      res.status(500).json({
+        success: false,
+        error: error.message,
+        message: 'Ürün getirme hatası'
+      });
+    }
+  });
+
+  // Ürün takibini aktifleştir
+  app.post('/api/shopify/enable-tracking/:trackingId', async (req, res) => {
+    try {
+      const { trackingId } = req.params;
+      const { trackingInterval } = req.body;
+      
+      const result = await shopifyApiService.enableProductTracking(trackingId, trackingInterval || 300);
+      
+      res.json({
+        success: result.success,
+        message: result.success ? 'Ürün takibi aktifleştirildi' : 'Takip aktifleştirme başarısız',
+        error: result.error
+      });
+    } catch (error) {
+      console.error('❌ Ürün takibi aktifleştirme hatası:', error);
+      res.status(500).json({
+        success: false,
+        error: error.message,
+        message: 'Takip aktifleştirme hatası'
+      });
+    }
+  });
+
+  // Hafıza istatistikleri
+  app.get('/api/shopify/memory-stats', async (req, res) => {
+    try {
+      const result = await shopifyApiService.getMemoryStats();
+      
+      res.json({
+        success: result.success,
+        stats: result.stats,
+        error: result.error
+      });
+    } catch (error) {
+      console.error('❌ Hafıza istatistik hatası:', error);
+      res.status(500).json({
+        success: false,
+        error: error.message,
+        message: 'İstatistik getirme hatası'
       });
     }
   });

@@ -10,6 +10,7 @@ import { eq, desc, or, and, isNotNull } from 'drizzle-orm';
 import { getSystemStatus, sendStatusToTelegram } from './simple-system-status';
 import { ManualColorOverride, generateColorSelectionData, type ManualColorSelection } from './manual-color-override';
 import { enhancedErrorDetection } from './enhanced-error-detection';
+import { shopifyApiService } from './shopify-api-service';
 
 // Dynamic product category determination
 function determineProductCategory(productData: any): string {
@@ -2455,7 +2456,8 @@ router.get('/api/shopify/fetch-products', async (req, res) => {
     const limit = parseInt(req.query.limit as string) || 50;
     
     console.log(`🔍 Shopify'dan ${limit} ürün çekiliyor...`);
-    const products = await shopifyIntegration.fetchProductsFromShopify(limit);
+    const result = await shopifyApiService.getMemoryProducts(limit);
+    const products = result.products || [];
     
     res.json({
       success: true,
@@ -2594,9 +2596,16 @@ router.post('/api/shopify/sync-all-products', async (req, res) => {
     
     // Önce ürünleri çek
     console.log(`🔄 Shopify'dan ${limit} ürün çekiliyor ve memory'e kaydediliyor...`);
-    const products = await shopifyIntegration.fetchProductsFromShopify(limit);
+    const result = await shopifyApiService.syncAllProducts();
     
-    if (products.length === 0) {
+    if (!result.success) {
+      return res.status(500).json({
+        success: false,
+        error: result.error || 'Shopify ürünleri alınırken hata oluştu'
+      });
+    }
+    
+    if (result.totalProducts === 0) {
       return res.json({
         success: true,
         message: 'Shopify mağazasında ürün bulunamadı',
@@ -2604,64 +2613,14 @@ router.post('/api/shopify/sync-all-products', async (req, res) => {
       });
     }
     
-    // Memory'e kaydet
-    let savedCount = 0;
-    const errors = [];
-    
-    for (const product of products) {
-      try {
-        memorySystem.storeProduct({
-          title: product.title,
-          brand: product.brand,
-          currentPrice: product.currentPrice,
-          originalPrice: product.originalPrice,
-          images: product.images,
-          stockStatus: product.stockStatus,
-          sourcePlatform: 'shopify',
-          shopifyProductId: product.shopifyProductId,
-          shopifyUrl: product.shopifyUrl,
-          trendyolUrl: null,
-          sourceUrl: product.shopifyUrl,
-          features: [
-            { key: 'Product Type', value: product.productType },
-            { key: 'Handle', value: product.handle },
-            { key: 'Tags', value: product.tags?.join(', ') || '' },
-            { key: 'Variants', value: product.variants?.length?.toString() || '0' }
-          ],
-          colorOptions: [],
-          sizeOptions: [],
-          isActive: true,
-          profitMargin: '15.00',
-          syncStatus: 'synced'
-        });
-        
-        savedCount++;
-      } catch (error) {
-        errors.push({
-          product: product.title,
-          error: error instanceof Error ? error.message : 'Bilinmeyen hata'
-        });
-      }
-    }
-    
-    // Telegram bildirimi
-    if (telegramIntegration && savedCount > 0) {
-      await telegramIntegration.sendNotification(
-        `🔄 SHOPIFY SENKRONIZASYON TAMAMLANDI\n\n` +
-        `📦 ${savedCount} ürün senkronize edildi\n` +
-        `💰 Toplam değer: ${products.reduce((sum, p) => sum + parseFloat(p.currentPrice || '0'), 0).toFixed(2)} TL\n` +
-        `🏪 Shopify → Memory System\n` +
-        `⏰ ${new Date().toLocaleDateString('tr-TR')} ${new Date().toLocaleTimeString('tr-TR')}\n\n` +
-        `${errors.length > 0 ? `⚠️ ${errors.length} hata` : '✅ Başarılı'}`
-      );
-    }
-    
+    // Memory'e kaydet (result already saved products)
     res.json({
       success: true,
-      fetchedCount: products.length,
-      savedCount,
-      errors,
-      message: `${savedCount} ürün Shopify'dan çekilip memory'e kaydedildi`
+      message: `${result.totalProducts} ürün başarıyla sync edildi`,
+      savedCount: result.totalProducts,
+      newProducts: result.newProducts,
+      updatedProducts: result.updatedProducts,
+      totalProcessed: result.totalProducts
     });
     
   } catch (error) {

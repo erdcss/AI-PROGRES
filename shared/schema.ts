@@ -101,6 +101,39 @@ export const monitoringSchedules = pgTable('monitoring_schedules', {
   updatedAt: timestamp('updated_at').notNull().defaultNow()
 });
 
+// Shopify Memory Products table - Hafızadaki Shopify ürünleri
+export const shopifyMemoryProducts = pgTable('shopify_memory_products', {
+  id: serial('id').primaryKey(),
+  uniqueTrackingId: text('unique_tracking_id').notNull().unique(), // Benzersiz takip ID'si
+  shopifyProductId: text('shopify_product_id').notNull().unique(),
+  shopifyVariantId: text('shopify_variant_id'),
+  title: text('title').notNull(),
+  handle: text('handle').notNull(),
+  vendor: text('vendor'),
+  productType: text('product_type'),
+  tags: text('tags').array().default([]),
+  status: text('status').notNull(), // active, archived, draft
+  price: decimal('price', { precision: 10, scale: 2 }),
+  compareAtPrice: decimal('compare_at_price', { precision: 10, scale: 2 }),
+  inventoryQuantity: integer('inventory_quantity').default(0),
+  inventoryPolicy: text('inventory_policy').default('deny'),
+  sku: text('sku'),
+  barcode: text('barcode'),
+  weight: decimal('weight', { precision: 8, scale: 3 }),
+  weightUnit: text('weight_unit').default('kg'),
+  images: jsonb('images').default([]),
+  options: jsonb('options').default([]), // Color, Size vs
+  variants: jsonb('variants').default([]), // Tüm varyantlar
+  metafields: jsonb('metafields').default({}),
+  shopifyCreatedAt: timestamp('shopify_created_at'),
+  shopifyUpdatedAt: timestamp('shopify_updated_at'),
+  lastSyncAt: timestamp('last_sync_at').defaultNow(),
+  isTracking: boolean('is_tracking').default(false),
+  trackingInterval: integer('tracking_interval').default(300),
+  createdAt: timestamp('created_at').notNull().defaultNow(),
+  updatedAt: timestamp('updated_at').notNull().defaultNow()
+});
+
 // Real-time URL tracking table - Anlık URL takip sistemi
 export const urlTracking = pgTable('url_tracking', {
   id: serial('id').primaryKey(),
@@ -261,6 +294,7 @@ export const csvPreviewSchema = z.object({
   url: z.string().url()
 });
 
+
 // Shopify transferred products tracking - Shopify'a aktarılan ürün takibi
 export const shopifyTransferredProducts = pgTable('shopify_transferred_products', {
   id: serial('id').primaryKey(),
@@ -311,6 +345,8 @@ export const shopifyProductChanges = pgTable('shopify_product_changes', {
 });
 
 // Type exports for new tables
+export type ShopifyMemoryProduct = typeof shopifyMemoryProducts.$inferSelect;
+export type InsertShopifyMemoryProduct = typeof shopifyMemoryProducts.$inferInsert;
 export type ShopifyTransferredProduct = typeof shopifyTransferredProducts.$inferSelect;
 export type InsertShopifyTransferredProduct = typeof shopifyTransferredProducts.$inferInsert;
 export type ShopifyProductChange = typeof shopifyProductChanges.$inferSelect;
