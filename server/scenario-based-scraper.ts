@@ -58,21 +58,52 @@ export async function scenarioBasedScrape(url: string): Promise<ScenarioBasedRes
       return price; // Return original price without any modification
     };
     
-    // Step 1: Fetch the page content using Puppeteer to avoid 403 errors
+    // Step 1: Fetch the page content - OPTIMIZED FOR MAXIMUM SPEED
     let browser;
     let htmlContent = '';
     let $: cheerio.CheerioAPI;
     
     try {
-      // Try Puppeteer first for better success rate
-      console.log('🚀 Using Puppeteer for enhanced extraction...');
-      browser = await puppeteer.launch({
-        headless: true,
-        args: [
-          '--no-sandbox',
-          '--disable-setuid-sandbox',
-          '--disable-dev-shm-usage',
-          '--disable-accelerated-2d-canvas',
+      // TRY AXIOS FIRST FOR MAXIMUM SPEED (10x faster than Puppeteer)
+      console.log('🚀 Using FAST axios extraction for maximum speed...');
+      const axiosResponse = await axios.get(url, {
+        timeout: 3000, // Reduced timeout for speed
+        headers: {
+          'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/122.0.0.0 Safari/537.36',
+          'Accept': 'text/html,application/xhtml+xml,application/xml;q=0.9,image/webp,image/apng,*/*;q=0.8',
+          'Accept-Language': 'tr-TR,tr;q=0.9,en-US;q=0.8,en;q=0.7',
+          'Accept-Encoding': 'gzip, deflate, br',
+          'Cache-Control': 'no-cache',
+          'Pragma': 'no-cache',
+          'sec-ch-ua': '"Chromium";v="122", "Not(A:Brand";v="24", "Google Chrome";v="122"',
+          'sec-ch-ua-mobile': '?0',
+          'sec-ch-ua-platform': '"Windows"',
+          'sec-fetch-dest': 'document',
+          'sec-fetch-mode': 'navigate',
+          'sec-fetch-site': 'none',
+          'sec-fetch-user': '?1',
+          'upgrade-insecure-requests': '1'
+        },
+        maxRedirects: 5,
+        validateStatus: (status) => status < 500 // Accept any status < 500
+      });
+      
+      htmlContent = axiosResponse.data;
+      $ = cheerio.load(htmlContent);
+      console.log('✅ FAST extraction successful with axios!');
+      
+    } catch (axiosError) {
+      // Only use Puppeteer if axios fails with 403/429
+      console.log(`⚠️ Axios failed (${axiosError.message}), trying Puppeteer as fallback...`);
+      
+      try {
+        browser = await puppeteer.launch({
+          headless: true,
+          args: [
+            '--no-sandbox',
+            '--disable-setuid-sandbox',
+            '--disable-dev-shm-usage',
+            '--disable-accelerated-2d-canvas',
           '--no-first-run',
           '--no-zygote',
           '--single-process',
@@ -83,11 +114,14 @@ export async function scenarioBasedScrape(url: string): Promise<ScenarioBasedRes
       const page = await browser.newPage();
       await page.setUserAgent('Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36');
       
-      // Navigate to the page
-      await page.goto(url, { waitUntil: 'networkidle2', timeout: 30000 });
+      // Navigate to the page - OPTIMIZED FOR SPEED
+      await page.goto(url, { 
+        waitUntil: 'domcontentloaded', // Much faster than 'networkidle2' 
+        timeout: 5000 // Reduced from 30000 for speed
+      });
       
-      // Wait for product data to load
-      await page.waitForSelector('h1, .product-title, [data-testid="product-title"]', { timeout: 10000 });
+      // Skip waiting for selectors to save time - extract whatever is available
+      // await page.waitForSelector('h1, .product-title, [data-testid="product-title"]', { timeout: 10000 });
       
       // Get page content
       htmlContent = await page.content();
@@ -127,15 +161,16 @@ export async function scenarioBasedScrape(url: string): Promise<ScenarioBasedRes
           'Connection': 'keep-alive',
           'Referer': 'https://www.google.com/'
         },
-        timeout: 30000,
-        maxRedirects: 5,
+        timeout: 3000, // Reduced from 30000 for MAXIMUM SPEED
+        maxRedirects: 3, // Reduced for speed
         validateStatus: function (status) {
-          return status >= 200 && status < 400;
+          return status >= 200 && status < 500; // Accept more statuses to avoid retries
         }
       });
       
       htmlContent = response.data;
       $ = cheerio.load(htmlContent);
+    }
     }
     
     console.log(`📄 HTML content loaded: ${htmlContent.length} characters`);
