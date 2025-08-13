@@ -25,6 +25,7 @@ import { testImageExtraction } from './direct-image-test';
 import { initializeScheduler, getSchedulerStatus, executeTaskManually } from './simple-scheduler';
 import { manualFeatureExtraction } from './manual-feature-test';
 import { preciseFeatureExtraction } from './precise-feature-extractor';
+import { testUltimatePriceExtraction } from './test-ultimate-price';
 import { generateBoutiqueCSV } from './boutique-csv-generator';
 import { extractAllColorImages, generateMultiColorCSV } from './multi-color-image-extractor';
 import { extractMayoColorVariants, generateMayoColorCSV } from './mayo-color-extractor';
@@ -799,6 +800,43 @@ export function registerRoutes(app: Express): Server {
       console.error("❌ Manuel test hatası:", error);
       res.status(500).json({
         error: "Manuel test sırasında hata oluştu",
+        details: error instanceof Error ? error.message : 'Bilinmeyen hata'
+      });
+    }
+  });
+
+  // Ultimate Price Extractor Test Endpoint
+  app.post("/api/test-ultimate-price", async (req, res) => {
+    try {
+      const { url } = req.body;
+      console.log("🎯 Ultimate Price Extractor test başlatılıyor...");
+      
+      // Use provided URL or default test URL
+      const testUrl = url || "https://www.trendyol.com/hbtasarim/kiraz-tasarim-bileklik-p-941019763?boutiqueId=61&merchantId=406896";
+      
+      console.log(`📍 Test URL: ${testUrl}`);
+      
+      const result = await testUltimatePriceExtraction(testUrl);
+      
+      if (result) {
+        console.log(`✅ Ultimate Price test tamamlandı: ${result.original} TL via ${result.method}`);
+        res.json({
+          success: true,
+          price: result,
+          message: `Price extracted: ${result.original} TL via ${result.method}`
+        });
+      } else {
+        console.log("❌ Ultimate Price test başarısız");
+        res.status(500).json({
+          success: false,
+          error: "Price extraction failed"
+        });
+      }
+    } catch (error) {
+      console.error("❌ Ultimate Price test hatası:", error);
+      res.status(500).json({
+        success: false,
+        error: "Price test sırasında hata oluştu",
         details: error instanceof Error ? error.message : 'Bilinmeyen hata'
       });
     }

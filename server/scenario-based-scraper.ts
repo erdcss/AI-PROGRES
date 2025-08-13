@@ -9,6 +9,7 @@ import { ScenarioManager, ExtractionScenario } from './scenario-manager';
 import { ScenarioExtractors } from './scenario-extractors';
 import { ImageDeduplicator, extractEnhancedFeatures, extractEnhancedVariants } from './improved-image-deduplicator';
 import { colorFilter } from './color-filter';
+import { ultimatePriceExtract } from './ultimate-price-extractor';
 
 export interface ScenarioBasedResult {
   success: boolean;
@@ -97,35 +98,13 @@ export async function scenarioBasedScrape(url: string): Promise<ScenarioBasedRes
     // Step 2: Extract basic information
     const title = extractTitle($);
     const brand = extractBrand(url);
-    console.log('🔥 CRITICAL: ABOUT TO CALL extractPrice FUNCTION');
-    console.log('🔥 SAMPLE HTML FOR PRICE:', htmlContent.substring(0, 200));
-    const price = extractPrice($, htmlContent);
-    console.log('🔥 CRITICAL: extractPrice FUNCTION RETURNED:', JSON.stringify(price));
+    console.log('🔥 ULTIMATE PRICE EXTRACTOR: Starting comprehensive price extraction');
+    const price = ultimatePriceExtract($, htmlContent);
+    console.log('🔥 ULTIMATE PRICE EXTRACTOR RESULT:', JSON.stringify(price));
     
-    // FORCE TEST: Try to find specific price patterns manually
-    const manualPriceSearch = htmlContent.match(/(\d+)[.,](\d{2})\s*(?:TL|₺)/g);
-    console.log('🔍 MANUAL PRICE SEARCH FOUND:', manualPriceSearch?.slice(0, 3));
-    
-    // 🚨 COMPREHENSIVE PRICE CORRECTION for kuruş conversion problems
-    console.log('🚨 APPLYING PRICE CORRECTION... Raw price:', price.original);
-    console.log('🚨 HTML contains 24960?', htmlContent.includes('24960'));
-    console.log('🚨 HTML contains 24.960?', htmlContent.includes('24.960'));
-    
-    const correctedPrice = handleSpecialPriceCase(price, htmlContent);
-    console.log('🚨 PRICE CORRECTION RESULT:', JSON.stringify(correctedPrice));
-    
-    // Force update price object with correction
-    if (correctedPrice && correctedPrice.original !== price.original) {
-      console.log('🚨 FORCING PRICE UPDATE:', price.original, '->', correctedPrice.original);
-      price.original = correctedPrice.original;
-      price.currency = correctedPrice.currency;
-      price.formatted = correctedPrice.formatted;
-      price.withProfit = correctedPrice.withProfit;
-      price.profitFormatted = correctedPrice.profitFormatted;
-      console.log('✅ PRICE FORCEFULLY UPDATED TO:', price.original, 'TL');
-    } else {
-      console.log('❌ NO PRICE CORRECTION APPLIED');
-    }
+    // Ultimate Price Extractor handles all price correction automatically
+    console.log('✅ ULTIMATE PRICE EXTRACTION COMPLETED');
+    console.log(`💰 Final price: ${price.original} TL via ${price.method}`);
     
     // Enhanced extraction with improved deduplication
     const rawImages = await extractImagesBasic($, htmlContent);
