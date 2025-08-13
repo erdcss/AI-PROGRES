@@ -113,6 +113,7 @@ export const ProductDataAnalysis: React.FC = () => {
   const [shopifyMemoryProducts, setShopifyMemoryProducts] = useState<ShopifyProduct[]>([]);
   const [isLoadingShopifyProducts, setIsLoadingShopifyProducts] = useState(false);
   const [isMatching, setIsMatching] = useState(false);
+  const [isRemovingUrl, setIsRemovingUrl] = useState<string | null>(null);
 
   // Refresh all data function
   const handleRefreshAll = async () => {
@@ -126,7 +127,8 @@ export const ProductDataAnalysis: React.FC = () => {
         refetchShopifyProducts(),
         refetchShopifyStats(),
         refetchScheduler(),
-        loadShopifyMemoryProducts()
+        loadShopifyMemoryProducts(),
+        refetchTrackedUrls()
       ]);
     } catch (error) {
       console.error('Refresh failed:', error);
@@ -180,6 +182,28 @@ export const ProductDataAnalysis: React.FC = () => {
   });
   
   const scheduledTasks = schedulerData?.status || [];
+
+  // Fetch tracked URLs
+  const { data: trackedUrlsData, refetch: refetchTrackedUrls } = useQuery<{
+    success: boolean, 
+    data: Array<{
+      id: number;
+      url: string;
+      productTitle: string;
+      currentPrice: string;
+      originalPrice: string;
+      currency: string;
+      status: string;
+      isTracking: boolean;
+      lastChecked: string;
+    }>,
+    total: number
+  }>({
+    queryKey: ['/api/tracking/list'],
+    refetchInterval: 30000,
+  });
+
+  const trackedUrls = trackedUrlsData?.data || [];
   
   // Update current date and time every second
   useEffect(() => {
@@ -315,6 +339,47 @@ export const ProductDataAnalysis: React.FC = () => {
       setChatMessages(prev => [...prev, errorMessage]);
     } finally {
       setIsClearingMemory(false);
+    }
+  };
+
+  // Remove URL from tracking
+  const handleRemoveTracking = async (url: string) => {
+    setIsRemovingUrl(url);
+    try {
+      const response = await fetch('/api/tracking/remove', {
+        method: 'DELETE',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({ url }),
+      });
+
+      const result = await response.json();
+
+      if (result.success) {
+        const successMessage: ChatMessage = {
+          id: Date.now().toString(),
+          type: 'ai',
+          content: `✅ Ürün takipten çıkarıldı: ${url.substring(0, 50)}...`,
+          timestamp: new Date().toLocaleTimeString('tr-TR')
+        };
+        setChatMessages(prev => [...prev, successMessage]);
+        
+        // Refresh tracked URLs list
+        await refetchTrackedUrls();
+      } else {
+        throw new Error(result.error || 'Takipten çıkarma başarısız');
+      }
+    } catch (error) {
+      const errorMessage: ChatMessage = {
+        id: Date.now().toString(),
+        type: 'ai',
+        content: `❌ Takipten çıkarma hatası: ${error instanceof Error ? error.message : 'Bilinmeyen hata'}`,
+        timestamp: new Date().toLocaleTimeString('tr-TR')
+      };
+      setChatMessages(prev => [...prev, errorMessage]);
+    } finally {
+      setIsRemovingUrl(null);
     }
   };
 
@@ -873,6 +938,84 @@ export const ProductDataAnalysis: React.FC = () => {
                       </div>
                     )}
                   </div>
+                </ScrollArea>
+              </CardContent>
+            </Card>
+          </motion.div>
+
+          {/* Tracked Products List */}
+          <motion.div
+            initial={{ opacity: 0, x: 20 }}
+            animate={{ opacity: 1, x: 0 }}
+            transition={{ duration: 0.6, delay: 0.5 }}
+          >
+            <Card className="bg-gradient-to-br from-slate-800/50 to-orange-900/30 border-orange-500/30 backdrop-blur-sm">
+              <CardHeader>
+                <CardTitle className="text-xl text-white flex items-center gap-2">
+                  <Package className="w-5 h-5 text-orange-400" />
+                  Takipteki Ürünler ({trackedUrls.length})
+                </CardTitle>
+                <CardDescription className="text-gray-400">
+                  Fiyat takibindeki ürünleri buradan yönetin
+                </CardDescription>
+              </CardHeader>
+              <CardContent>
+                <ScrollArea className="h-64">
+                  {trackedUrls.length === 0 ? (
+                    <div className="text-center py-8">
+                      <p className="text-gray-400">Henüz takibe alınan ürün bulunmuyor</p>
+                    </div>
+                  ) : (
+                    <div className="space-y-2">
+                      {trackedUrls.map((item) => (
+                        <div key={item.id} className="p-3 bg-slate-800/50 rounded-lg border border-slate-600/30 hover:border-orange-500/30 transition-colors">
+                          <div className="flex items-start justify-between">
+                            <div className="flex-1 min-w-0">
+                              <h4 className="font-medium text-white text-sm leading-tight truncate">
+                                {item.productTitle || 'Ürün Adı Yükleniyor...'}
+                              </h4>
+                              <div className="flex items-center gap-3 mt-2">
+                                <span className="text-orange-400 font-bold text-sm">
+                                  {item.currentPrice} {item.currency}
+                                </span>
+                                {item.originalPrice && item.originalPrice !== item.currentPrice && (
+                                  <span className="text-gray-400 line-through text-sm">
+                                    {item.originalPrice} {item.currency}
+                                  </span>
+                                )}
+                                <Badge 
+                                  variant="outline" 
+                                  className={`text-xs ${
+                                    item.isTracking 
+                                      ? 'border-green-500/50 text-green-400' 
+                                      : 'border-gray-500/50 text-gray-400'
+                                  }`}
+                                >
+                                  {item.isTracking ? 'Aktif' : 'Pasif'}
+                                </Badge>
+                              </div>
+                              <div className="text-xs text-gray-500 mt-1 truncate">
+                                {item.url}
+                              </div>
+                            </div>
+                            <Button
+                              onClick={() => handleRemoveTracking(item.url)}
+                              disabled={isRemovingUrl === item.url}
+                              size="sm"
+                              variant="destructive"
+                              className="ml-2 bg-red-600/80 hover:bg-red-600 text-white"
+                            >
+                              {isRemovingUrl === item.url ? (
+                                <RefreshCw className="w-3 h-3 animate-spin" />
+                              ) : (
+                                'Kaldır'
+                              )}
+                            </Button>
+                          </div>
+                        </div>
+                      ))}
+                    </div>
+                  )}
                 </ScrollArea>
               </CardContent>
             </Card>
