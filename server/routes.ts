@@ -1327,8 +1327,30 @@ export function registerRoutes(app: Express): Server {
       // Enhanced product data extraction for Trendyol products
       if (url.includes('trendyol.com')) {
         try {
-          // Use fixed authentic Trendyol scraper for accurate data extraction
-          console.log("🎯 Using Fixed Authentic Trendyol Scraper for accurate data...");
+          // ULTRA SPEED EXTRACTOR - MAXIMUM A++ PERFORMANCE
+          console.log("⚡⚡⚡ ULTRA SPEED EXTRACTOR - MAXIMUM A++ PERFORMANCE!");
+          const { ultraSpeedExtract } = await import('./ultra-speed-extractor');
+          const ultraResult = await ultraSpeedExtract(url);
+          
+          if (ultraResult && ultraResult.success) {
+            console.log("🚀🚀🚀 ULTRA SPEED SUCCESS - MAXIMUM PERFORMANCE ACHIEVED!");
+            
+            return res.json({
+              success: true,
+              extractionMethod: 'ultra-speed-a++',
+              brand: ultraResult.brand,
+              title: ultraResult.title,
+              price: ultraResult.price?.withProfit || ultraResult.price?.original || ultraResult.price,
+              images: ultraResult.images,
+              features: [],
+              variants: ultraResult.variants,
+              tags: ultraResult.tags || [],
+              extractionTime: ultraResult.extractionTime
+            });
+          }
+          
+          // Fallback to fixed authentic scraper if ultra-speed fails
+          console.log("🎯 Ultra-speed failed, trying Fixed Authentic Trendyol Scraper...");
           const cleanResult = await fixedAuthenticScrape(url);
           
           if (cleanResult.success) {
@@ -1555,6 +1577,47 @@ export function registerRoutes(app: Express): Server {
       return res.status(500).json({
         success: false,
         message: 'Internal server error'
+      });
+    }
+  });
+
+  // ULTRA SPEED BATCH EXTRACTION - Process multiple URLs in parallel
+  app.post('/api/batch-extract', async (req, res) => {
+    try {
+      const { urls } = req.body;
+      
+      if (!urls || !Array.isArray(urls) || urls.length === 0) {
+        return res.status(400).json({
+          success: false,
+          message: 'URLs array is required'
+        });
+      }
+      
+      console.log(`⚡⚡⚡ ULTRA SPEED BATCH EXTRACTION - Processing ${urls.length} URLs in parallel!`);
+      
+      const { ultraSpeedBatchExtract } = await import('./ultra-speed-extractor');
+      const startTime = Date.now();
+      
+      const results = await ultraSpeedBatchExtract(urls);
+      const processingTime = Date.now() - startTime;
+      
+      console.log(`🚀🚀🚀 BATCH EXTRACTION COMPLETE - ${urls.length} URLs in ${processingTime}ms!`);
+      console.log(`⚡ Average speed: ${Math.round(processingTime / urls.length)}ms per URL`);
+      
+      return res.json({
+        success: true,
+        totalUrls: urls.length,
+        processingTime,
+        averageSpeed: Math.round(processingTime / urls.length),
+        results
+      });
+      
+    } catch (error) {
+      console.error('Batch extraction error:', error);
+      return res.status(500).json({
+        success: false,
+        message: 'Batch extraction failed',
+        error: error instanceof Error ? error.message : 'Unknown error'
       });
     }
   });
