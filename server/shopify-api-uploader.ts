@@ -147,17 +147,7 @@ export async function uploadProductToShopify(csvContent: string, productTitle: s
           vendor: productData.vendor,
           tags: productData.tags,
           handle: productData.handle,
-          // Add metafields if tracking ID exists
-          ...(trackingId ? {
-            metafields: [
-              {
-                namespace: 'custom',
-                key: 'repli_t_id',  // Changed to match Shopify admin panel field
-                value: trackingId,
-                type: 'single_line_text_field'
-              }
-            ]
-          } : {}),
+          // Metafield will be added separately after product creation
           variants: productData.variants.map(variant => {
             // FIX: Eğer option1 ve option2 boşsa, varyant olmayan ürün olarak işle
             const hasOption1 = variant.option1 && variant.option1.trim() !== '';
