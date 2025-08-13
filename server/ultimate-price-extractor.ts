@@ -169,8 +169,52 @@ export class UltimatePriceExtractor {
           
           if (priceText) {
             console.log(`   Element ${i}: "${priceText}"`);
+            
+            // CRITICAL FIX: Special handling for "Son X Günün" pattern
+            if (priceText.includes('Son') && priceText.includes('Günün')) {
+              console.log(`   🚨 Detected "Son X Günün" pattern in: "${priceText}"`);
+              
+              // Extract ALL prices that end with TL
+              const allPriceMatches = [...priceText.matchAll(/(\d+)\s*TL/g)];
+              console.log(`   🔍 Found ${allPriceMatches.length} price matches`);
+              
+              if (allPriceMatches.length > 0) {
+                // Log all matches for debugging
+                allPriceMatches.forEach((match, idx) => {
+                  console.log(`      Match ${idx}: ${match[0]} -> ${match[1]} TL`);
+                });
+                
+                // Get the LAST price (which should be the current/sale price)
+                const lastMatch = allPriceMatches[allPriceMatches.length - 1];
+                const actualPrice = parseInt(lastMatch[1]);
+                
+                console.log(`   🎯 Selected LAST price: ${actualPrice} TL (from "${lastMatch[0]}")`);
+                
+                // Always use the last price when "Son X Günün" pattern is detected
+                if (actualPrice > 0) {
+                  const withProfit = Math.round(actualPrice * 1.10 * 100) / 100;
+                  
+                  return {
+                    original: actualPrice,
+                    currency: 'TL',
+                    formatted: `${actualPrice} TL`,
+                    withProfit: withProfit,
+                    profitFormatted: `${withProfit.toFixed(2)} TL`,
+                    method: `Current Selector: ${selector} (Last Price)`,
+                    raw: priceText
+                  };
+                }
+              }
+            }
+            
+            // Normal extraction but skip if it's "30" from "Son 30 Günün"
             const extracted = this.parsePrice(priceText, `Current Selector: ${selector}`);
             if (extracted && extracted.original > 0) {
+              // Skip if it's "30" and raw contains "Son 30 Günün"
+              if (extracted.original === 30 && priceText.includes('Son 30 Günün')) {
+                console.log(`   ⚠️ Skipping false positive: 30 from "Son 30 Günün"`);
+                continue;
+              }
               return extracted;
             }
           }
@@ -445,16 +489,71 @@ export class UltimatePriceExtractor {
     // Clean the price string
     const cleanStr = priceStr.toString().trim();
     
-    // Extract numeric parts with decimal support
+    // CRITICAL FIX: Find ALL price patterns with TL symbol
+    // Priority: Look for numbers directly followed by TL or ₺ symbols
+    const pricePatterns = [
+      /(\d+)[.,](\d{2})\s*(?:TL|₺)/g,  // Decimal prices: 78.99 TL
+      /(\d+)\s*(?:TL|₺)/g               // Integer prices: 78 TL
+    ];
+    
+    let allPrices: number[] = [];
+    
+    // Extract ALL prices with TL symbol
+    for (const pattern of pricePatterns) {
+      const matches = [...cleanStr.matchAll(pattern)];
+      for (const match of matches) {
+        let price = 0;
+        if (match[2]) {
+          // Decimal price
+          price = parseInt(match[1]) + (parseInt(match[2]) / 100);
+        } else {
+          // Integer price
+          price = parseInt(match[1]);
+        }
+        
+        // Filter out common non-price numbers (like "Son 30 Günün")
+        // Ignore numbers less than 10 or in contexts like "30 Gün"
+        if (price >= 10 && price < 100000) {
+          // Check if this is NOT in a day/month context
+          const contextCheck = cleanStr.substring(Math.max(0, match.index! - 10), match.index! + match[0].length + 10);
+          if (!contextCheck.match(/\b(gün|ay|hafta|yıl|dakika|saat)\b/i)) {
+            allPrices.push(price);
+            console.log(`💰 Found price: ${price} TL at position ${match.index}`);
+          }
+        }
+      }
+    }
+    
+    // If we found prices with TL symbol, use the LAST one (usually the current price)
+    if (allPrices.length > 0) {
+      // Sort and get the most likely current price (usually the last or smallest)
+      const selectedPrice = allPrices[allPrices.length - 1]; // Take the last price found
+      console.log(`💰 Selected price from ${allPrices.length} options: ${selectedPrice} TL (all prices: ${allPrices.join(', ')})`);
+      
+      const withProfit = Math.round(selectedPrice * 1.10 * 100) / 100;
+      
+      return {
+        original: parseFloat(selectedPrice.toFixed(2)),
+        currency: 'TL',
+        formatted: `${selectedPrice.toFixed(2)} TL`,
+        withProfit: parseFloat(withProfit.toFixed(2)),
+        profitFormatted: `${withProfit.toFixed(2)} TL`,
+        method: method,
+        raw: priceStr
+      };
+    }
+    
+    // Fallback: If no price with TL found, try to extract any decimal number
     const decimalMatch = cleanStr.match(/(\d+)[.,](\d{2})/);
     if (decimalMatch) {
       const wholePart = parseInt(decimalMatch[1]);
       const decimalPart = parseInt(decimalMatch[2]);
       const price = wholePart + (decimalPart / 100);
       
-      console.log(`💰 Decimal extraction: ${wholePart}.${decimalPart} = ${price} TL`);
-      
-      if (price > 0 && price < 100000) { // Reasonable price range
+      // Skip if it looks like a day number
+      if (price >= 10 && price < 100000 && !cleanStr.includes(`${wholePart} gün`)) {
+        console.log(`💰 Fallback decimal extraction: ${wholePart}.${decimalPart} = ${price} TL`);
+        
         const withProfit = Math.round(price * 1.10 * 100) / 100;
         
         return {
@@ -462,27 +561,6 @@ export class UltimatePriceExtractor {
           currency: 'TL',
           formatted: `${price.toFixed(2)} TL`,
           withProfit: parseFloat(withProfit.toFixed(2)),
-          profitFormatted: `${withProfit.toFixed(2)} TL`,
-          method: method,
-          raw: priceStr
-        };
-      }
-    }
-    
-    // Try integer extraction
-    const intMatch = cleanStr.match(/(\d+)/);
-    if (intMatch) {
-      const price = parseInt(intMatch[1]);
-      console.log(`💰 Integer extraction: ${price} TL`);
-      
-      if (price > 0 && price < 100000) { // Reasonable price range
-        const withProfit = Math.round(price * 1.10 * 100) / 100;
-        
-        return {
-          original: price,
-          currency: 'TL',
-          formatted: `${price} TL`,
-          withProfit: withProfit,
           profitFormatted: `${withProfit.toFixed(2)} TL`,
           method: method,
           raw: priceStr
