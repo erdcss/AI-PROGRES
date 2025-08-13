@@ -152,7 +152,7 @@ export async function uploadProductToShopify(csvContent: string, productTitle: s
             metafields: [
               {
                 namespace: 'custom',
-                key: 'replit_id',  // Changed to match Shopify admin panel field
+                key: 'repli_t_id',  // Changed to match Shopify admin panel field
                 value: trackingId,
                 type: 'single_line_text_field'
               }
@@ -245,7 +245,7 @@ export async function uploadProductToShopify(csvContent: string, productTitle: s
           body: JSON.stringify({
             metafield: {
               namespace: 'custom',
-              key: 'replit_id',  // Changed from repli_t_id to replit_id to match admin panel
+              key: 'repli_t_id',  // Changed to match admin panel field
               value: trackingId,
               type: 'single_line_text_field'
             }
@@ -628,7 +628,7 @@ export async function uploadMultiUrlProductToShopify(productData: any, productTi
           metafields: [
             {
               namespace: 'custom',
-              key: 'replit_id',  // Changed to match Shopify admin panel field
+              key: 'repli_t_id',  // Changed to match Shopify admin panel field
               value: uniqueTrackingId,
               type: 'single_line_text_field'
             }

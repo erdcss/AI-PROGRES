@@ -29,7 +29,7 @@ export function generateMultiVariantShopifyCSV(product: CombinedProduct): string
     'Variant Price', 'Variant Compare At Price', 'Variant Requires Shipping', 'Variant Taxable',
     'Image Src', 'Image Position', 'Image Alt Text', 'Gift Card', 
     'SEO Title', 'SEO Description', 'Variant Image', 'Variant Weight Unit', 'Status',
-    'Metafield: custom.replit_id [single_line_text_field]'
+    'Metafield: custom.repli_t_id [single_line_text_field]'
   ];
 
   const rows: string[][] = [];
