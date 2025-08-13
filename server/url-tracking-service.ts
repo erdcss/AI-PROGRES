@@ -2,6 +2,9 @@ import { db } from './db';
 import { urlTracking, priceHistory } from '@shared/schema';
 import { eq, desc } from 'drizzle-orm';
 import { scenarioBasedScrape } from './scenario-based-scraper';
+import { ultimatePriceExtract } from './ultimate-price-extractor';
+import axios from 'axios';
+import * as cheerio from 'cheerio';
 
 export class UrlTrackingService {
   private trackingIntervals: Map<string, NodeJS.Timeout> = new Map();
@@ -135,18 +138,64 @@ export class UrlTrackingService {
         return;
       }
 
-      // Yeni extraction
-      const extractionResult = await scenarioBasedScrape(url);
+      // ULTIMATE PRICE EXTRACTION - Doğru fiyat tespiti için
+      console.log(`🎯 ULTIMATE PRICE EXTRACTION başlatılıyor: ${url}`);
       
-      if (!extractionResult.success) {
-        console.log(`❌ Extraction failed for ${url}: ${extractionResult.error || 'Unknown error'}`);
+      let newPrice: number;
+      let extractionResult: any;
+      
+      try {
+        // HTML'i çek
+        const response = await axios.get(url, {
+          headers: {
+            'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36',
+            'Accept': 'text/html,application/xhtml+xml,application/xml;q=0.9,image/webp,*/*;q=0.8',
+            'Accept-Language': 'tr-TR,tr;q=0.9,en-US;q=0.8,en;q=0.7'
+          },
+          timeout: 15000
+        });
+        
+        const $ = cheerio.load(response.data);
+        
+        // Ultimate Price Extractor kullan
+        const priceResult = ultimatePriceExtract($, response.data);
+        console.log(`🎯 ULTIMATE PRICE RESULT: ${priceResult.original} TL via ${priceResult.method}`);
+        
+        newPrice = priceResult.original;
+        
+        // Fallback olarak scenario-based scrape kullan (sadece title vs için)
+        extractionResult = await scenarioBasedScrape(url);
+        if (extractionResult.success) {
+          // Fiyatı Ultimate Price Extractor sonucu ile değiştir
+          extractionResult.price = {
+            original: newPrice,
+            currency: 'TL',
+            formatted: `${newPrice} TL`,
+            withProfit: Math.round(newPrice * 1.10 * 100) / 100,
+            profitFormatted: `${Math.round(newPrice * 1.10 * 100) / 100} TL`
+          };
+        }
+        
+      } catch (priceError) {
+        console.error(`❌ Ultimate Price Extraction failed, fallback to scenario-based: ${priceError.message}`);
+        
+        // Fallback to scenario-based scraper
+        extractionResult = await scenarioBasedScrape(url);
+        if (!extractionResult.success) {
+          throw new Error(`Both extraction methods failed: ${extractionResult.error}`);
+        }
+        newPrice = extractionResult.price.original;
+      }
+      
+      if (!extractionResult.success || newPrice <= 0) {
+        console.log(`❌ Extraction failed for ${url}: ${extractionResult.error || 'Invalid price'}`);
         
         // Error durumunu güncelle
         await db
           .update(urlTracking)
           .set({
             status: 'error',
-            errorMessage: extractionResult.error || 'Unknown error',
+            errorMessage: extractionResult.error || 'Invalid price extracted',
             lastChecked: new Date(),
             checkCount: (existing.checkCount || 0) + 1,
             updatedAt: new Date()
@@ -156,7 +205,6 @@ export class UrlTrackingService {
         return;
       }
 
-      const newPrice = extractionResult.price.original;
       const currentPrice = parseFloat(existing.currentPrice || '0');
       
       // Stok durumu kontrolü
@@ -164,8 +212,23 @@ export class UrlTrackingService {
       const currentStock = (extractionResult as any).stockStatus || 'unknown';
       const stockChanged = previousStock !== currentStock;
       
-      // Fiyat değişikliği var mı?
-      const priceChanged = Math.abs(newPrice - currentPrice) > 0.01;
+      // Fiyat değişikliği var mı? (0.05 TL tolerans ile sahte bildirimleri engelle)
+      const priceChanged = Math.abs(newPrice - currentPrice) > 0.05;
+      
+      // Fiyat mantıklı aralıkta mı kontrol et (10-10000 TL arası)
+      if (newPrice < 10 || newPrice > 10000) {
+        console.log(`⚠️ Mantıksız fiyat tespit edildi: ${newPrice} TL - bildirim gönderilmiyor`);
+        return;
+      }
+      
+      // Çok büyük fiyat değişikliklerini filtrele (>500% veya <%90 azalma)
+      if (currentPrice > 0) {
+        const changePercent = Math.abs((newPrice - currentPrice) / currentPrice) * 100;
+        if (changePercent > 500) {
+          console.log(`⚠️ Aşırı fiyat değişikliği tespit edildi (%${changePercent.toFixed(2)}) - bildirim gönderilmiyor`);
+          return;
+        }
+      }
       
       // Fiyat veya stok değişikliği varsa bildir
       if (priceChanged || stockChanged) {
