@@ -2631,8 +2631,21 @@ function generateAdvancedTags(
     });
   });
   
-  // Material-based tags (direct material names without generic prefixes)
-  const materialKeywords = ['pamuk', 'cotton', 'polyester', 'elastan', 'spandex', 'lycra', 'viskon', 'ipek', 'yün', 'keten', 'denim', 'jean', 'plastik', 'metal', 'cam', 'seramik', 'ahşap', 'silikon'];
+  // Enhanced material-based tags including jewelry materials
+  const materialKeywords = [
+    'pamuk', 'cotton', 'polyester', 'elastan', 'spandex', 'lycra', 'viskon', 'ipek', 'yün', 'keten', 
+    'denim', 'jean', 'plastik', 'metal', 'cam', 'seramik', 'ahşap', 'silikon',
+    'altın', 'gümüş', 'bronz', 'çelik', 'pırlanta', 'elmas', 'zirkon', 'inci', 'bakır', 'platin'
+  ];
+  
+  // Check materials in title first
+  materialKeywords.forEach(keyword => {
+    if (titleLower.includes(keyword)) {
+      tags.add(keyword);
+    }
+  });
+  
+  // Then check in features
   features.forEach(feature => {
     if (feature.key.includes('Malzeme') || feature.key.includes('Material') || feature.key.includes('Kumaş') || feature.key.includes('Materyal')) {
       materialKeywords.forEach(keyword => {
@@ -2642,6 +2655,29 @@ function generateAdvancedTags(
       });
     }
   });
+  
+  // Jewelry and accessory specific tags
+  const jewelryKeywords = ['kolye', 'bileklik', 'yüzük', 'küpe', 'broş', 'takı', 'aksesuar', 'zincir', 'halat', 'burgu', 'pandora', 'charm', 'piercing', 'halhal'];
+  jewelryKeywords.forEach(keyword => {
+    if (titleLower.includes(keyword)) {
+      tags.add(keyword);
+      if (keyword !== 'takı' && keyword !== 'aksesuar') {
+        tags.add('takı'); // Also add general jewelry tag
+        tags.add('aksesuar'); // Also add general accessory tag
+      }
+    }
+  });
+  
+  // Karat-specific tags for gold jewelry  
+  const karatPattern = /(\d+)\s*ayar/gi;
+  const karatMatches = title.match(karatPattern);
+  if (karatMatches) {
+    karatMatches.forEach(match => {
+      tags.add(match.toLowerCase().replace(/\s+/g, '-'));
+      tags.add('kuyumcu'); // Add jeweler tag for karat items
+      tags.add('altın-takı'); // Add gold jewelry tag
+    });
+  }
   
   // ❌ FAKE SIZE TAGS REMOVED - No longer adding hardcoded size tags
   // Size tags will only come from authentic product data
@@ -2694,7 +2730,25 @@ function generateAdvancedTags(
     }
   });
   
-  console.log(`🏷️ Generated ${tags.size} enhanced category-based tags`);
+  // Add source marketplace tag
+  tags.add('trendyol');
+  
+  // Add brand-based category tags if applicable
+  if (brand) {
+    const brandLower = brand.toLowerCase();
+    if (brandLower.includes('kuyumcu') || brandLower.includes('jewelry')) {
+      tags.add('kuyumcu');
+      tags.add('takı');
+    }
+  }
+  
+  // Parse price for premium tags
+  if (title.includes('premium') || title.includes('lüks') || title.includes('luxury')) {
+    tags.add('premium');
+    tags.add('lüks');
+  }
+  
+  console.log(`🏷️ Generated ${tags.size} enhanced category-based tags: ${Array.from(tags).join(', ')}`);
   return Array.from(tags);
 }
 

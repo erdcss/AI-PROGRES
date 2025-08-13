@@ -434,6 +434,7 @@ export async function uploadMultiUrlProductToShopify(productData: any, productTi
     console.log('📦 Product Title:', productTitle);
     console.log('📊 Product Data Keys:', Object.keys(productData));
     console.log('📸 Images count:', productData.images?.length || 0);
+    console.log('🏷️ Incoming tags:', productData.tags);
     
     // Generate unique tracking ID for multi-URL upload
     const uniqueTrackingId = `trendyol_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`;
@@ -751,14 +752,67 @@ function extractColorFromProductTitle(title: string): string {
 }
 
 function generateProductTags(productData: any, colors: string[]): string {
-  const tags = [
-    'auto-generated',
-    productData.brand?.toLowerCase(),
-    ...colors.map(c => extractColorFromLongName(c).toLowerCase()),
-    ...productData.tags || []
-  ];
+  const tags = [];
   
-  return Array.from(new Set(tags)).filter(Boolean).join(', ');
+  // Add auto-generated tag
+  tags.push('auto-generated');
+  
+  // Add brand
+  if (productData.brand) {
+    tags.push(productData.brand.toLowerCase());
+  }
+  
+  // Add colors
+  colors.forEach(color => {
+    const cleanColor = extractColorFromLongName(color).toLowerCase();
+    if (cleanColor) tags.push(cleanColor);
+  });
+  
+  // Add tags from productData (from scenario-based scraper)
+  if (productData.tags && Array.isArray(productData.tags)) {
+    tags.push(...productData.tags);
+  }
+  
+  // Add category from title
+  const title = productData.title?.toLowerCase() || '';
+  const categoryKeywords = {
+    'kolye': 'kolye',
+    'bileklik': 'bileklik',
+    'yüzük': 'yüzük',
+    'küpe': 'küpe',
+    'saat': 'saat',
+    'çanta': 'çanta',
+    'ayakkabı': 'ayakkabı',
+    'elbise': 'elbise',
+    'takı': 'takı',
+    'aksesuar': 'aksesuar',
+    'giyim': 'giyim',
+    'elektronik': 'elektronik'
+  };
+  
+  Object.entries(categoryKeywords).forEach(([keyword, tag]) => {
+    if (title.includes(keyword)) {
+      tags.push(tag);
+    }
+  });
+  
+  // Add material tags from title
+  const materialKeywords = ['altın', 'gümüş', 'çelik', 'bronz', 'deri', 'kumaş', 'pamuk'];
+  materialKeywords.forEach(material => {
+    if (title.includes(material)) {
+      tags.push(material);
+    }
+  });
+  
+  // Add Trendyol tag
+  tags.push('trendyol');
+  
+  // Remove duplicates and join
+  const uniqueTags = Array.from(new Set(tags.filter(Boolean)));
+  
+  console.log(`🏷️ Generated ${uniqueTags.length} tags for Shopify: ${uniqueTags.join(', ')}`);
+  
+  return uniqueTags.join(', ');
 }
 
 async function sendTelegramNotification(data: any) {
