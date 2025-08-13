@@ -532,7 +532,7 @@ export async function uploadMultiUrlProductToShopify(productData: any, productTi
     const productType = determineProductCategory(productData.title, productData.brand);
     
     // allColors için fallback
-    const allColors = Array.from(uniqueColors);
+    const allColors: string[] = Array.from(uniqueColors) as string[];
     
     console.log(`📊 Final variant count: ${variants.length}`);
     console.log(`📸 Final image count: ${images.length}`);

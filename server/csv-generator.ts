@@ -27,6 +27,7 @@ export interface CSVRow {
   'Option2 Value': string;
   'SEO Title': string;
   'SEO Description': string;
+  'Metafield: custom.repli_t_id [single_line_text_field]': string;
 }
 
 /**
@@ -34,6 +35,10 @@ export interface CSVRow {
  */
 export function generateProfessionalCSV(productData: any): string {
   const rows: CSVRow[] = [];
+  
+  // Benzersiz takip ID'si oluştur veya mevcut olanı kullan
+  const uniqueTrackingId = productData.uniqueTrackingId || 
+    `trendyol_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`;
   
   // Ana ürün bilgileri
   const baseProduct = {
@@ -44,7 +49,8 @@ export function generateProfessionalCSV(productData: any): string {
     'Product Type': productData.aiAnalysis?.category || 'General',
     Tags: createTags(productData),
     'SEO Title': `${productData.title} | ${productData.brand}`,
-    'SEO Description': createSEODescription(productData)
+    'SEO Description': createSEODescription(productData),
+    'Metafield: custom.repli_t_id [single_line_text_field]': uniqueTrackingId
   };
   
   // Her renk varyantı için satır oluştur
@@ -74,7 +80,8 @@ export function generateProfessionalCSV(productData: any): string {
           'Product Type': '',
           Tags: '',
           'SEO Title': '',
-          'SEO Description': ''
+          'SEO Description': '',
+          'Metafield: custom.repli_t_id [single_line_text_field]': ''
         })
       });
     });

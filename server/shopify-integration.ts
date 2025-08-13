@@ -69,7 +69,7 @@ export class ShopifyIntegration {
   /**
    * Convert ScenarioBasedResult to Shopify Product format
    */
-  convertToShopifyProduct(productData: ScenarioBasedResult): ShopifyProduct {
+  convertToShopifyProduct(productData: ScenarioBasedResult, uniqueTrackingId?: string): ShopifyProduct {
     // Generate clean product title
     const title = productData.title;
     
@@ -103,7 +103,7 @@ export class ShopifyIntegration {
                 ? variant.size
                 : 'Default',
           price: productData.price.original.toString(),
-          sku: variant.sku || `${handle}-${index + 1}`,
+          sku: (variant as any).sku || `${handle}-${index + 1}`,
           inventory_quantity: variant.inStock ? 10 : 0,
           inventory_management: 'shopify',
           option1: hasColors ? variant.color : hasSizes ? variant.size : undefined,
@@ -128,7 +128,7 @@ export class ShopifyIntegration {
     // Create options
     const options: ShopifyOption[] = [];
     if (hasColors) {
-      const colorOptions = [...new Set(productData.variants.map(v => v.color).filter(c => c && c !== 'Varsayılan'))];
+      const colorOptions = Array.from(new Set(productData.variants.map(v => v.color).filter(c => c && c !== 'Varsayılan')));
       if (colorOptions.length > 0) {
         options.push({
           name: 'Color',
@@ -138,7 +138,7 @@ export class ShopifyIntegration {
     }
     
     if (hasSizes) {
-      const sizeOptions = [...new Set(productData.variants.map(v => v.size).filter(s => s && s !== 'Standart'))];
+      const sizeOptions = Array.from(new Set(productData.variants.map(v => v.size).filter(s => s && s !== 'Standart')));
       if (sizeOptions.length > 0) {
         options.push({
           name: 'Size',
@@ -166,14 +166,32 @@ export class ShopifyIntegration {
    */
   async createProduct(productData: ScenarioBasedResult): Promise<{ success: boolean; productId?: number; error?: string }> {
     try {
-      const shopifyProduct = this.convertToShopifyProduct(productData);
+      // Generate unique tracking ID
+      const uniqueTrackingId = (productData as any).uniqueTrackingId || 
+        `trendyol_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`;
+      
+      const shopifyProduct = this.convertToShopifyProduct(productData, uniqueTrackingId);
+      
+      // Add metafields to the product
+      const productWithMetafields = {
+        ...shopifyProduct,
+        metafields: [
+          {
+            namespace: 'custom',
+            key: 'repli_t_id',
+            value: uniqueTrackingId,
+            type: 'single_line_text_field'
+          }
+        ]
+      };
       
       console.log(`🛍️ Creating Shopify product: ${shopifyProduct.title}`);
       console.log(`📦 Variants: ${shopifyProduct.variants.length}, Images: ${shopifyProduct.images.length}`);
+      console.log(`🔑 Unique Tracking ID: ${uniqueTrackingId}`);
 
       const response = await axios.post(
         `${this.baseUrl}products.json`,
-        { product: shopifyProduct },
+        { product: productWithMetafields },
         { headers: this.getHeaders() }
       );
 

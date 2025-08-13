@@ -21,18 +21,23 @@ interface CombinedProduct {
 }
 
 export function generateMultiVariantShopifyCSV(product: CombinedProduct): string {
-  // HEADERS - Shopify import formatına uygun
+  // HEADERS - Shopify import formatına uygun (Metafield dahil)
   const headers = [
     'Handle', 'Title', 'Body (HTML)', 'Vendor', 'Tags', 'Published',
     'Option1 Name', 'Option1 Value', 'Option2 Name', 'Option2 Value', 
     'Variant SKU', 'Variant Inventory Qty', 'Variant Inventory Policy', 'Variant Inventory Tracker',
     'Variant Price', 'Variant Compare At Price', 'Variant Requires Shipping', 'Variant Taxable',
     'Image Src', 'Image Position', 'Image Alt Text', 'Gift Card', 
-    'SEO Title', 'SEO Description', 'Variant Image', 'Variant Weight Unit', 'Status'
+    'SEO Title', 'SEO Description', 'Variant Image', 'Variant Weight Unit', 'Status',
+    'Metafield: custom.repli_t_id [single_line_text_field]'
   ];
 
   const rows: string[][] = [];
   rows.push(headers);
+
+  // Benzersiz takip ID'si oluştur veya mevcut olanı kullan
+  const uniqueTrackingId = (product as any).uniqueTrackingId || 
+    `trendyol_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`;
 
   // Handle oluştur (Türkçe karakter temizleme)
   const productHandle = product.title.toLowerCase()
@@ -354,6 +359,13 @@ export function generateMultiVariantShopifyCSV(product: CombinedProduct): string
     
     row.push('kg'); // Variant Weight Unit
     row.push('active'); // Status
+    
+    // Metafield: Benzersiz takip ID'si (sadece ilk satır için)
+    if (actualVariants.indexOf(variant) === 0) {
+      row.push(uniqueTrackingId); // İlk varyant için ID'yi ekle
+    } else {
+      row.push(''); // Diğer varyantlar için boş
+    }
 
     rows.push(row);
     isFirstRow = false;
