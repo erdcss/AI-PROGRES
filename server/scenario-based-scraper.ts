@@ -11,6 +11,8 @@ import { ScenarioExtractors } from './scenario-extractors';
 import { ImageDeduplicator, extractEnhancedFeatures, extractEnhancedVariants } from './improved-image-deduplicator';
 import { colorFilter } from './color-filter';
 import { ultimatePriceExtract } from './ultimate-price-extractor';
+import { proxyRotator } from './advanced-proxy-rotator';
+import { tryAlternativeSources } from './alternative-data-sources';
 
 // Enhanced caching system with longer duration
 const extractionCache = new Map<string, {data: any, timestamp: number}>();
@@ -31,6 +33,46 @@ const userAgents = [
 // Get random user agent
 function getRandomUserAgent(): string {
   return userAgents[Math.floor(Math.random() * userAgents.length)];
+}
+
+// Process structured data from mobile API
+function processStructuredData(data: any, url: string): ScenarioBasedResult {
+  const profitMargin = 1.20; // 20% kar marjı
+  
+  return {
+    success: true,
+    scenario: 'api-structured' as ExtractionScenario,
+    confidence: 95,
+    title: data.title || 'Bilinmiyor',
+    brand: data.brand || 'Bilinmiyor',
+    price: {
+      original: data.price?.original || 0,
+      currency: data.price?.currency || 'TL',
+      formatted: `${data.price?.original || 0} ${data.price?.currency || 'TL'}`,
+      withProfit: Math.round((data.price?.original || 0) * profitMargin),
+      profitFormatted: `${Math.round((data.price?.original || 0) * profitMargin)} ${data.price?.currency || 'TL'}`
+    },
+    images: data.images || [],
+    features: [],
+    variants: data.variants ? data.variants.map((v: any) => ({
+      color: v.color || 'Varsayılan',
+      colorCode: '#C0A888',
+      size: v.size || '',
+      inStock: v.inStock !== false
+    })) : [{
+      color: 'Varsayılan',
+      colorCode: '#C0A888',
+      size: '',
+      inStock: true
+    }],
+    tags: [data.brand?.toLowerCase(), 'trendyol'].filter(Boolean),
+    extractionDetails: {
+      scenario: 'api-structured',
+      confidence: 95,
+      evidence: ['Mobile API success'],
+      strategy: 'mobile-api'
+    }
+  };
 }
 
 export interface ScenarioBasedResult {
@@ -92,70 +134,54 @@ export async function scenarioBasedScrape(url: string): Promise<ScenarioBasedRes
     let $: cheerio.CheerioAPI;
     
     try {
-      // TRY AXIOS FIRST FOR MAXIMUM SPEED (10x faster than Puppeteer)
-      console.log('🚀 Using FAST axios extraction for maximum speed...');
+      // USE ADVANCED PROXY ROTATION SYSTEM FOR ANTI-BLOCKING
+      console.log('🚀 Using ADVANCED PROXY ROTATION for maximum success rate...');
       
-      // MAXIMUM SPEED MODE: Increase delay to avoid blocking
-      const isCached = extractionCache.has(url);
-      if (!isCached) {
-        const delay = 2000 + Math.random() * 3000; // 2-5 seconds delay to avoid blocking
-        await new Promise(resolve => setTimeout(resolve, delay));
-      }
+      const rotationResult = await proxyRotator.extractWithRetries(url, 3);
       
-      const axiosResponse = await axios.get(url, {
-        timeout: 10000, // Increased timeout for better reliability
-        headers: {
-          'User-Agent': getRandomUserAgent(),
-          'Accept': 'text/html,application/xhtml+xml,application/xml;q=0.9,image/webp,image/apng,*/*;q=0.8',
-          'Accept-Language': 'tr-TR,tr;q=0.9,en-US;q=0.8,en;q=0.7',
-          'Accept-Encoding': 'gzip, deflate, br',
-          'Cache-Control': 'no-cache',
-          'Connection': 'keep-alive',
-          'Upgrade-Insecure-Requests': '1',
-          'Sec-Fetch-Dest': 'document',
-          'Sec-Fetch-Mode': 'navigate',
-          'Sec-Fetch-Site': 'none',
-          'Sec-Fetch-User': '?1',
-          'DNT': '1'
-        },
-        maxRedirects: 5,
-        validateStatus: (status) => status < 500
-      });
-      
-      htmlContent = axiosResponse.data;
-      
-      // Check if we're blocked
-      if (htmlContent.includes('Sorry, you have been blocked') || 
-          htmlContent.includes('Access Denied') ||
-          htmlContent.includes('Erişim Engellendi') ||
-          htmlContent.includes('429') ||
-          htmlContent.includes('403') ||
-          htmlContent.length < 1000) {
-        console.log('⚠️ Blocked by Trendyol - returning quick error...');
+      if (!rotationResult.success) {
+        console.log('⚠️ Proxy rotation failed - trying alternative data sources...');
         
-        // Return immediately for maximum speed - no waiting
-        return {
-          success: false,
-          scenario: 'error' as ExtractionScenario,
-          confidence: 0,
-          title: 'Yüklenemiyor',
-          brand: 'Bilinmiyor',
-          price: { original: 0, currency: 'TL', formatted: '0 TL', withProfit: 0, profitFormatted: '0 TL' },
-          images: [],
-          features: [],
-          variants: [],
-          tags: [],
-          extractionDetails: {
-            scenario: 'blocked',
-            confidence: 0,
-            evidence: ['Site access blocked'],
-            strategy: 'none'
+        // Try alternative data sources as fallback
+        const alternativeResult = await tryAlternativeSources(url);
+        
+        if (alternativeResult && alternativeResult.success) {
+          if (alternativeResult.html) {
+            // Got HTML from alternative source
+            htmlContent = alternativeResult.html;
+            $ = cheerio.load(htmlContent);
+            console.log(`✅ Alternative source successful: ${alternativeResult.source}`);
+          } else {
+            // Got structured data from mobile API
+            console.log('✅ Using mobile API structured data');
+            return processStructuredData(alternativeResult, url);
           }
-        };
+        } else {
+          console.log('❌ All data sources exhausted');
+          return {
+            success: false,
+            scenario: 'error' as ExtractionScenario,
+            confidence: 0,
+            title: 'Yüklenemiyor',
+            brand: 'Bilinmiyor',
+            price: { original: 0, currency: 'TL', formatted: '0 TL', withProfit: 0, profitFormatted: '0 TL' },
+            images: [],
+            features: [],
+            variants: [],
+            tags: [],
+            extractionDetails: {
+              scenario: 'blocked',
+              confidence: 0,
+              evidence: ['All data sources exhausted'],
+              strategy: 'all-sources-failed'
+            }
+          };
+        }
       }
       
+      htmlContent = rotationResult.html;
       $ = cheerio.load(htmlContent);
-      console.log('✅ FAST extraction successful with axios!');
+      console.log('✅ ADVANCED ROTATION extraction successful!');
       
     } catch (axiosError) {
       // Only use Puppeteer if axios fails with 403/429

@@ -5,7 +5,7 @@ async function testSimpleExtraction() {
     console.log('Testing simple Trendyol extraction...');
     
     // Test with a simple product URL
-    const testUrl = 'https://www.trendyol.com/koton/kadin-gri-tisort-2yak13027ek-801';
+    const testUrl = 'https://www.trendyol.com/nike/air-force-1-07-erkek-sneaker-ayakkabi-315122-111-p-1758665';
     
     const response = await axios.post('http://localhost:5000/api/scenario-scrape', {
       url: testUrl
