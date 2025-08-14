@@ -128,6 +128,16 @@ function ScraperPage() {
       return response.json();
     },
     onSuccess: (data) => {
+      // Check if extraction actually succeeded
+      if (!data || !data.success) {
+        toast({
+          title: "Hata",
+          description: "Ürün verisi çekilemedi",
+          variant: "destructive"
+        });
+        return;
+      }
+      
       setProduct(data);
       
       // Sadece tek URL işleminde CSV preview ekle, bulk işlemde processAllUrls halletsin

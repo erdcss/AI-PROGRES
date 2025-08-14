@@ -36,7 +36,8 @@ interface SimpleProductPreviewProps {
 }
 
 export function SimpleProductPreview({ product }: SimpleProductPreviewProps) {
-  if (!product || !product.success) {
+  // More thorough validation of product data
+  if (!product || !product.success || product.title === 'Yüklenemiyor' || product.brand === 'Bilinmiyor') {
     return null;
   }
 

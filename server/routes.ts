@@ -1243,9 +1243,13 @@ export function registerRoutes(app: Express): Server {
           });
         } else {
           console.log("❌ Scenario-based extraction failed");
-          return res.status(500).json({
+          // Return 503 Service Unavailable when blocked
+          const statusCode = result.extractionDetails?.scenario === 'blocked' ? 503 : 500;
+          return res.status(statusCode).json({
             success: false,
-            message: 'Scenario-based extraction failed',
+            message: result.extractionDetails?.scenario === 'blocked' 
+              ? 'Trendyol tarafından engellendiniz. Lütfen birkaç dakika bekleyin.'
+              : 'Scenario-based extraction failed',
             details: result.extractionDetails
           });
         }
