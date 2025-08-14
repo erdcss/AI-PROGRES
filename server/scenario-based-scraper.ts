@@ -12,9 +12,9 @@ import { ImageDeduplicator, extractEnhancedFeatures, extractEnhancedVariants } f
 import { colorFilter } from './color-filter';
 import { ultimatePriceExtract } from './ultimate-price-extractor';
 
-// Enhanced caching system
+// Enhanced caching system with longer duration
 const extractionCache = new Map<string, {data: any, timestamp: number}>();
-const CACHE_DURATION = 30 * 60 * 1000; // 30 minutes cache
+const CACHE_DURATION = 60 * 60 * 1000; // 60 minutes cache for better performance
 
 // User-agent rotation
 const userAgents = [
@@ -92,31 +92,26 @@ export async function scenarioBasedScrape(url: string): Promise<ScenarioBasedRes
       // TRY AXIOS FIRST FOR MAXIMUM SPEED (10x faster than Puppeteer)
       console.log('🚀 Using FAST axios extraction for maximum speed...');
       
-      // Minimal delay for maximum speed (1-2 seconds)
-      const delay = 1000 + Math.random() * 1000;
-      console.log(`⏳ Waiting ${Math.round(delay/1000)}s before request...`);
-      await new Promise(resolve => setTimeout(resolve, delay));
+      // MAXIMUM SPEED MODE: No delay for cached items
+      const isCached = extractionCache.has(url);
+      if (!isCached) {
+        const delay = 100 + Math.random() * 200; // 100-300ms for new items only
+        await new Promise(resolve => setTimeout(resolve, delay));
+      }
       
       const axiosResponse = await axios.get(url, {
-        timeout: 5000, // Increased timeout
+        timeout: 3000, // Faster timeout
         headers: {
           'User-Agent': getRandomUserAgent(),
           'Accept': 'text/html,application/xhtml+xml,application/xml;q=0.9,image/webp,image/apng,*/*;q=0.8',
-          'Accept-Language': 'tr-TR,tr;q=0.9,en-US;q=0.8,en;q=0.7',
-          'Accept-Encoding': 'gzip, deflate, br',
-          'Cache-Control': 'no-cache',
-          'Pragma': 'no-cache',
-          'sec-ch-ua': '"Chromium";v="122", "Not(A:Brand";v="24", "Google Chrome";v="122"',
-          'sec-ch-ua-mobile': '?0',
-          'sec-ch-ua-platform': '"Windows"',
-          'sec-fetch-dest': 'document',
-          'sec-fetch-mode': 'navigate',
-          'sec-fetch-site': 'none',
-          'sec-fetch-user': '?1',
-          'upgrade-insecure-requests': '1'
+          'Accept-Language': 'tr-TR,tr;q=0.9',
+          'Accept-Encoding': 'gzip, deflate',
+          'Cache-Control': 'max-age=0',
+          'Connection': 'keep-alive',
+          'Upgrade-Insecure-Requests': '1'
         },
-        maxRedirects: 5,
-        validateStatus: (status) => status < 500 // Accept any status < 500
+        maxRedirects: 3,
+        validateStatus: (status) => status < 500
       });
       
       htmlContent = axiosResponse.data;

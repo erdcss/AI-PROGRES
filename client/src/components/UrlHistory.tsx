@@ -14,7 +14,7 @@ interface HistoryResponse {
 export function UrlHistory({ onSelect }: Props) {
   const { data } = useQuery<HistoryResponse>({
     queryKey: ['/api/history'],
-    refetchInterval: 1000
+    refetchInterval: 5000 // Reduced frequency for better performance
   });
 
   const urls = data?.urls || [];
