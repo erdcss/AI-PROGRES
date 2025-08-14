@@ -78,9 +78,9 @@ class CircuitBreaker {
   private lastFailureTime: number = 0;
   private state: 'CLOSED' | 'OPEN' | 'HALF_OPEN' = 'CLOSED';
   
-  private readonly failureThreshold = 5;
-  private readonly recoveryTimeout = 300000; // 5 minutes
-  private readonly halfOpenTimeout = 60000; // 1 minute
+  private readonly failureThreshold = 10; // Increased threshold
+  private readonly recoveryTimeout = 60000; // 1 minute (faster recovery)
+  private readonly halfOpenTimeout = 30000; // 30 seconds
 
   isBlocked(): boolean {
     if (this.state === 'OPEN') {
@@ -116,12 +116,18 @@ const circuitBreaker = new CircuitBreaker();
 
 // Request timing to avoid rapid-fire requests
 let lastRequestTime = 0;
-const MIN_REQUEST_INTERVAL = 8000; // 8 seconds between requests
+const MIN_REQUEST_INTERVAL = 3000; // 3 seconds between requests (faster)
 
 export class AdvancedProxyRotator {
   private currentUserAgentIndex = 0;
   private currentHeadersIndex = 0;
   private sessionData = new Map<string, any>();
+
+  // Reset circuit breaker manually
+  resetCircuitBreaker(): void {
+    circuitBreaker.recordSuccess();
+    console.log('🔄 Circuit breaker manually reset');
+  }
 
   private getRandomUserAgent(): string {
     // Rotate through user agents in sequence to avoid repetition

@@ -6,11 +6,12 @@
 import axios from 'axios';
 import * as cheerio from 'cheerio';
 
-// Trendyol mobile API endpoints (less monitored)
+// Updated Trendyol mobile API endpoints (latest working endpoints)
 const TRENDYOL_MOBILE_API = {
-  productDetails: (productId: string) => `https://public-mdc.trendyol.com/discovery-web-productgw-service/api/productDetail/${productId}`,
-  search: (query: string) => `https://public-mdc.trendyol.com/discovery-web-searchgw-service/v2/api/infinite-scroll?q=${encodeURIComponent(query)}`,
-  productReviews: (productId: string) => `https://public-mdc.trendyol.com/discovery-web-socialgw-service/v1/review/product/${productId}?page=0&size=20`
+  productDetails: (productId: string) => `https://public.trendyol.com/discovery-web-productgw-service/api/productDetail/${productId}`,
+  searchV2: (productId: string) => `https://public.trendyol.com/discovery-web-searchgw-service/v2/api/filter/products?pi=${productId}`,
+  productInfo: (productId: string) => `https://cdn.dsmcdn.com/products/${productId}/product.json`,
+  priceInfo: (productId: string) => `https://public.trendyol.com/discovery-web-productgw-service/api/price/${productId}`
 };
 
 // Extract product ID from Trendyol URL
@@ -19,47 +20,62 @@ function extractProductId(url: string): string | null {
   return match ? match[1] : null;
 }
 
-// Try alternative mobile API approach
+// Try alternative mobile API approach with multiple endpoints
 export async function tryMobileAPI(url: string): Promise<any> {
   const productId = extractProductId(url);
   if (!productId) {
     return null;
   }
 
-  try {
-    console.log(`📱 Trying mobile API for product ID: ${productId}`);
-    
-    const response = await axios.get(TRENDYOL_MOBILE_API.productDetails(productId), {
-      timeout: 10000,
-      headers: {
-        'User-Agent': 'TrendyolMobiOS/3.8.1 (iPhone; iOS 15.0; tr_TR)',
-        'Accept': 'application/json',
-        'Accept-Language': 'tr-TR',
-        'Cache-Control': 'no-cache'
-      }
-    });
+  // Try multiple API endpoints
+  const endpoints = [
+    TRENDYOL_MOBILE_API.productDetails(productId),
+    TRENDYOL_MOBILE_API.searchV2(productId),
+    TRENDYOL_MOBILE_API.productInfo(productId),
+    TRENDYOL_MOBILE_API.priceInfo(productId)
+  ];
 
-    const data = response.data;
-    if (data && data.result) {
-      console.log('✅ Mobile API successful!');
-      return {
-        success: true,
-        title: data.result.name || 'Bilinmiyor',
-        brand: data.result.brand?.name || 'Bilinmiyor',
-        price: {
-          original: data.result.price?.originalPrice || data.result.price?.discountedPrice || 0,
-          currency: 'TL'
-        },
-        images: data.result.images?.map((img: any) => img.url) || [],
-        description: data.result.description || '',
-        category: data.result.category?.name || '',
-        variants: data.result.variants || []
-      };
+  for (let i = 0; i < endpoints.length; i++) {
+    try {
+      console.log(`📱 Trying mobile API endpoint ${i+1}/4 for product ID: ${productId}`);
+      
+      const response = await axios.get(endpoints[i], {
+        timeout: 8000,
+        headers: {
+          'User-Agent': 'TrendyolMobiOS/4.2.1 (iPhone; iOS 17.0; tr_TR)',
+          'Accept': 'application/json',
+          'Accept-Language': 'tr-TR',
+          'Cache-Control': 'no-cache',
+          'X-Requested-With': 'XMLHttpRequest'
+        }
+      });
+
+      const data = response.data;
+      if (data && (data.result || data.product || data.products)) {
+        console.log(`✅ Mobile API endpoint ${i+1} successful!`);
+        const productData = data.result || data.product || data.products?.[0] || data;
+        
+        return {
+          success: true,
+          title: productData.name || productData.title || 'Bilinmiyor',
+          brand: productData.brand?.name || productData.brandName || 'Bilinmiyor',
+          price: {
+            original: productData.price?.originalPrice || productData.price?.discountedPrice || productData.originalPrice || productData.price || 0,
+            currency: 'TL'
+          },
+          images: productData.images?.map((img: any) => img.url || img) || [],
+          description: productData.description || '',
+          category: productData.category?.name || '',
+          variants: productData.variants || []
+        };
+      }
+    } catch (error) {
+      console.log(`❌ Mobile API endpoint ${i+1} failed: ${error.message}`);
+      continue; // Try next endpoint
     }
-  } catch (error) {
-    console.log(`❌ Mobile API failed: ${error.message}`);
   }
 
+  console.log('❌ All mobile API endpoints failed');
   return null;
 }
 

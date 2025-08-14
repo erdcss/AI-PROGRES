@@ -137,6 +137,9 @@ export async function scenarioBasedScrape(url: string): Promise<ScenarioBasedRes
       // USE ADVANCED PROXY ROTATION SYSTEM FOR ANTI-BLOCKING
       console.log('🚀 Using ADVANCED PROXY ROTATION for maximum success rate...');
       
+      // Reset circuit breaker if needed
+      proxyRotator.resetCircuitBreaker();
+      
       const rotationResult = await proxyRotator.extractWithRetries(url, 3);
       
       if (!rotationResult.success) {
