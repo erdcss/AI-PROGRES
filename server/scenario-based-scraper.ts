@@ -12,6 +12,24 @@ import { ImageDeduplicator, extractEnhancedFeatures, extractEnhancedVariants } f
 import { colorFilter } from './color-filter';
 import { ultimatePriceExtract } from './ultimate-price-extractor';
 
+// Enhanced caching system
+const extractionCache = new Map<string, {data: any, timestamp: number}>();
+const CACHE_DURATION = 30 * 60 * 1000; // 30 minutes cache
+
+// User-agent rotation
+const userAgents = [
+  'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/122.0.0.0 Safari/537.36',
+  'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/121.0.0.0 Safari/537.36',
+  'Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/122.0.0.0 Safari/537.36',
+  'Mozilla/5.0 (Windows NT 10.0; Win64; x64; rv:122.0) Gecko/20100101 Firefox/122.0',
+  'Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/605.1.15 (KHTML, like Gecko) Version/17.2 Safari/605.1.15'
+];
+
+// Get random user agent
+function getRandomUserAgent(): string {
+  return userAgents[Math.floor(Math.random() * userAgents.length)];
+}
+
 export interface ScenarioBasedResult {
   success: boolean;
   scenario: ExtractionScenario;
@@ -47,6 +65,13 @@ export async function scenarioBasedScrape(url: string): Promise<ScenarioBasedRes
     console.log(`🎯 SCENARIO-BASED EXTRACTION for: ${url}`);
     console.log(`🚨 DEBUGGING: Current URL being processed: ${url}`);
     
+    // Check cache first
+    const cached = extractionCache.get(url);
+    if (cached && (Date.now() - cached.timestamp) < CACHE_DURATION) {
+      console.log('✅ Using cached data for:', url);
+      return cached.data;
+    }
+    
     // 🚨 PRICE CORRECTION DISABLED - allowing real price extraction
     const handleSpecialPriceCase = (price: any, htmlContent: string) => {
       console.log('🚨 PRICE CORRECTION: DISABLED to allow real extraction');
@@ -67,15 +92,15 @@ export async function scenarioBasedScrape(url: string): Promise<ScenarioBasedRes
       // TRY AXIOS FIRST FOR MAXIMUM SPEED (10x faster than Puppeteer)
       console.log('🚀 Using FAST axios extraction for maximum speed...');
       
-      // Add 3-5 second random delay to avoid blocking
-      const delay = 3000 + Math.random() * 2000;
-      console.log(`⏳ Waiting ${Math.round(delay/1000)}s before request to avoid blocking...`);
+      // Minimal delay for maximum speed (1-2 seconds)
+      const delay = 1000 + Math.random() * 1000;
+      console.log(`⏳ Waiting ${Math.round(delay/1000)}s before request...`);
       await new Promise(resolve => setTimeout(resolve, delay));
       
       const axiosResponse = await axios.get(url, {
         timeout: 5000, // Increased timeout
         headers: {
-          'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/122.0.0.0 Safari/537.36',
+          'User-Agent': getRandomUserAgent(),
           'Accept': 'text/html,application/xhtml+xml,application/xml;q=0.9,image/webp,image/apng,*/*;q=0.8',
           'Accept-Language': 'tr-TR,tr;q=0.9,en-US;q=0.8,en;q=0.7',
           'Accept-Encoding': 'gzip, deflate, br',
@@ -103,13 +128,9 @@ export async function scenarioBasedScrape(url: string): Promise<ScenarioBasedRes
           htmlContent.includes('429') ||
           htmlContent.includes('403') ||
           htmlContent.length < 1000) {
-        console.log('⚠️ Blocked by Trendyol, waiting before returning error...');
+        console.log('⚠️ Blocked by Trendyol - returning quick error...');
         
-        // Wait longer to allow rate limit to reset
-        const waitTime = 15000 + Math.random() * 10000; // 15-25 seconds
-        console.log(`⏳ Waiting ${Math.round(waitTime/1000)}s to allow rate limit reset...`);
-        await new Promise(resolve => setTimeout(resolve, waitTime));
-        
+        // Return immediately for maximum speed - no waiting
         return {
           success: false,
           scenario: 'error' as ExtractionScenario,
@@ -332,7 +353,8 @@ export async function scenarioBasedScrape(url: string): Promise<ScenarioBasedRes
       console.log(`📸 SCENARIO: Image ${idx + 1}: ${img.url} (Color: ${img.colorName})`);
     });
 
-    return {
+    // Save successful result to cache
+    const result = {
       success: true,
       scenario: detection.scenario,
       confidence: detection.confidence,
@@ -355,6 +377,12 @@ export async function scenarioBasedScrape(url: string): Promise<ScenarioBasedRes
         strategy: detection.suggestedStrategy
       }
     };
+    
+    // Cache the successful result
+    extractionCache.set(url, { data: result, timestamp: Date.now() });
+    console.log('✅ Result cached for future use:', url);
+    
+    return result;
     
   } catch (error: any) {
     console.error(`❌ Scenario-based scraper error: ${error.message}`);
