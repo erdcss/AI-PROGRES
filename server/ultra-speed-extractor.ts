@@ -22,7 +22,9 @@ const fastAxios = axios.create({
 
 // Rate limiting to prevent blocking
 let lastRequestTime = 0;
-const MIN_REQUEST_INTERVAL = 500; // Minimum 500ms between requests
+const MIN_REQUEST_INTERVAL = 2000; // Increased to 2 seconds between requests
+let consecutiveBlocks = 0; // Track consecutive blocks
+const MAX_CONSECUTIVE_BLOCKS = 3;
 
 // Ultra-fast single product extraction with rate limiting
 export async function ultraSpeedExtract(url: string): Promise<any> {
@@ -33,9 +35,18 @@ export async function ultraSpeedExtract(url: string): Promise<any> {
     return cached.data;
   }
 
-  // Rate limiting - wait if necessary
+  // Enhanced rate limiting with circuit breaker
   const now = Date.now();
   const timeSinceLastRequest = now - lastRequestTime;
+  
+  // If we've been blocked too many times, wait longer
+  if (consecutiveBlocks >= MAX_CONSECUTIVE_BLOCKS) {
+    console.log('⚠️ Circuit breaker activated - waiting 10 seconds...');
+    await new Promise(resolve => setTimeout(resolve, 10000));
+    consecutiveBlocks = 0; // Reset counter after long wait
+  }
+  
+  // Regular rate limiting
   if (timeSinceLastRequest < MIN_REQUEST_INTERVAL) {
     await new Promise(resolve => setTimeout(resolve, MIN_REQUEST_INTERVAL - timeSinceLastRequest));
   }
@@ -50,14 +61,21 @@ export async function ultraSpeedExtract(url: string): Promise<any> {
     if (html.includes('Sorry, you have been blocked') || 
         html.includes('Access Denied') ||
         html.includes('Erişim Engellendi') ||
+        html.includes('429') ||
+        html.includes('403') ||
         html.length < 1000) {
-      console.log('⚠️ Blocked by Trendyol, waiting before retry...');
+      consecutiveBlocks++;
+      console.log(`⚠️ Blocked by Trendyol (${consecutiveBlocks}/${MAX_CONSECUTIVE_BLOCKS}), waiting before retry...`);
       
-      // Wait 3 seconds before returning error to allow rate limit to reset
-      await new Promise(resolve => setTimeout(resolve, 3000));
+      // Exponential backoff based on consecutive blocks
+      const waitTime = Math.min(3000 * Math.pow(2, consecutiveBlocks), 30000);
+      await new Promise(resolve => setTimeout(resolve, waitTime));
       
       throw new Error('BLOCKED_BY_TRENDYOL');
     }
+    
+    // Reset counter on successful request
+    consecutiveBlocks = 0;
 
     // Parallel extraction of all data
     const [title, brand, price, images, tags] = await Promise.all([
@@ -133,31 +151,38 @@ export async function ultraSpeedExtract(url: string): Promise<any> {
   }
 }
 
-// Parallel batch extraction for multiple URLs with smart rate limiting
+// Sequential batch extraction with maximum safety
 export async function ultraSpeedBatchExtract(urls: string[]): Promise<any[]> {
-  // Process URLs with controlled concurrency and delays to avoid blocking
-  const batchSize = 3; // Reduced from 10 to avoid rate limiting
+  console.log(`📦 Processing ${urls.length} URLs sequentially to avoid blocking...`);
   const results = [];
   
-  for (let i = 0; i < urls.length; i += batchSize) {
-    const batch = urls.slice(i, i + batchSize);
+  // Process URLs one by one with delays to avoid any blocking
+  for (let i = 0; i < urls.length; i++) {
+    const url = urls[i];
+    console.log(`🔄 Processing ${i + 1}/${urls.length}: ${url}`);
     
-    // Process batch with staggered delays
-    const batchPromises = batch.map((url, index) => 
-      new Promise(async (resolve) => {
-        // Add staggered delay for each request in the batch
-        await new Promise(r => setTimeout(r, index * 200));
-        const result = await ultraSpeedExtractWithRetry(url);
-        resolve(result);
-      })
-    );
+    // Add delay before each request (except the first)
+    if (i > 0) {
+      const delay = 3000 + Math.random() * 2000; // 3-5 seconds random delay
+      console.log(`⏳ Waiting ${Math.round(delay/1000)}s before next request...`);
+      await new Promise(resolve => setTimeout(resolve, delay));
+    }
     
-    const batchResults = await Promise.all(batchPromises);
-    results.push(...batchResults);
-    
-    // Add delay between batches to avoid rate limiting
-    if (i + batchSize < urls.length) {
-      await new Promise(resolve => setTimeout(resolve, 1000));
+    try {
+      const result = await ultraSpeedExtractWithRetry(url, 1); // Reduced retries
+      results.push(result);
+    } catch (error) {
+      console.log(`❌ Failed to extract ${url}, using placeholder`);
+      results.push({
+        success: false,
+        error: 'extraction_failed',
+        title: 'Yüklenemiyor',
+        brand: 'Bilinmiyor',
+        price: { original: 0, currency: 'TL', formatted: '0 TL', withProfit: 0, profitFormatted: '0 TL' },
+        images: [],
+        tags: [],
+        variants: { colors: [], sizes: [], allVariants: [] }
+      });
     }
   }
   

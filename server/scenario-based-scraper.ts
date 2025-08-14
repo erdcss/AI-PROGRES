@@ -66,8 +66,14 @@ export async function scenarioBasedScrape(url: string): Promise<ScenarioBasedRes
     try {
       // TRY AXIOS FIRST FOR MAXIMUM SPEED (10x faster than Puppeteer)
       console.log('🚀 Using FAST axios extraction for maximum speed...');
+      
+      // Add 3-5 second random delay to avoid blocking
+      const delay = 3000 + Math.random() * 2000;
+      console.log(`⏳ Waiting ${Math.round(delay/1000)}s before request to avoid blocking...`);
+      await new Promise(resolve => setTimeout(resolve, delay));
+      
       const axiosResponse = await axios.get(url, {
-        timeout: 3000, // Reduced timeout for speed
+        timeout: 5000, // Increased timeout
         headers: {
           'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/122.0.0.0 Safari/537.36',
           'Accept': 'text/html,application/xhtml+xml,application/xml;q=0.9,image/webp,image/apng,*/*;q=0.8',
@@ -95,14 +101,21 @@ export async function scenarioBasedScrape(url: string): Promise<ScenarioBasedRes
           htmlContent.includes('Access Denied') ||
           htmlContent.includes('Erişim Engellendi') ||
           htmlContent.includes('429') ||
+          htmlContent.includes('403') ||
           htmlContent.length < 1000) {
-        console.log('⚠️ Blocked by Trendyol, returning error response');
+        console.log('⚠️ Blocked by Trendyol, waiting before returning error...');
+        
+        // Wait longer to allow rate limit to reset
+        const waitTime = 15000 + Math.random() * 10000; // 15-25 seconds
+        console.log(`⏳ Waiting ${Math.round(waitTime/1000)}s to allow rate limit reset...`);
+        await new Promise(resolve => setTimeout(resolve, waitTime));
+        
         return {
           success: false,
           scenario: 'error' as ExtractionScenario,
           confidence: 0,
-          title: '',
-          brand: '',
+          title: 'Yüklenemiyor',
+          brand: 'Bilinmiyor',
           price: { original: 0, currency: 'TL', formatted: '0 TL', withProfit: 0, profitFormatted: '0 TL' },
           images: [],
           features: [],

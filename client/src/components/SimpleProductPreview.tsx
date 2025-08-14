@@ -42,6 +42,30 @@ export function SimpleProductPreview({ product }: SimpleProductPreviewProps) {
 
   const { brand, title, price, images, colorOptions, sizeOptions, variants, stockAnalysis, features } = product;
   
+  // Filter out blocked/error responses
+  const errorIndicators = ['Sorry, you have been blocked', '429', '403', 'Access Denied', 'Erişim Engellendi', 'undefined', 'null', 'Yüklenemiyor', 'Bilinmiyor'];
+  const titleLower = (title || '').toLowerCase();
+  const brandLower = (brand || '').toLowerCase();
+  
+  if (errorIndicators.some(indicator => 
+    titleLower.includes(indicator.toLowerCase()) || 
+    brandLower.includes(indicator.toLowerCase())
+  ) || !title || title.length < 3 || !brand || brand.length < 2) {
+    console.log('Blocked/error product detected, not displaying:', title);
+    return null;
+  }
+  
+  // Check for valid price
+  const hasValidPrice = price && (
+    (typeof price === 'number' && price > 0) ||
+    (typeof price === 'object' && price.original > 0)
+  );
+  
+  if (!hasValidPrice) {
+    console.log('Product has no valid price, not displaying:', title);
+    return null;
+  }
+  
   // Safety check for arrays
   const safeImages = images || [];
   const safeColorOptions = colorOptions || [];
