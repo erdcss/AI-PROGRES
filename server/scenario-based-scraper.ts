@@ -16,13 +16,16 @@ import { ultimatePriceExtract } from './ultimate-price-extractor';
 const extractionCache = new Map<string, {data: any, timestamp: number}>();
 const CACHE_DURATION = 60 * 60 * 1000; // 60 minutes cache for better performance
 
-// User-agent rotation
+// User-agent rotation - updated with latest versions to avoid detection
 const userAgents = [
-  'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/122.0.0.0 Safari/537.36',
-  'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/121.0.0.0 Safari/537.36',
-  'Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/122.0.0.0 Safari/537.36',
-  'Mozilla/5.0 (Windows NT 10.0; Win64; x64; rv:122.0) Gecko/20100101 Firefox/122.0',
-  'Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/605.1.15 (KHTML, like Gecko) Version/17.2 Safari/605.1.15'
+  'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/131.0.0.0 Safari/537.36',
+  'Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/131.0.0.0 Safari/537.36',
+  'Mozilla/5.0 (X11; Linux x86_64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/131.0.0.0 Safari/537.36',
+  'Mozilla/5.0 (Windows NT 10.0; Win64; x64; rv:133.0) Gecko/20100101 Firefox/133.0',
+  'Mozilla/5.0 (Macintosh; Intel Mac OS X 10.15; rv:133.0) Gecko/20100101 Firefox/133.0',
+  'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/131.0.0.0 Safari/537.36 Edg/131.0.2903.70',
+  'Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/605.1.15 (KHTML, like Gecko) Version/18.2 Safari/605.1.15',
+  'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/131.0.0.0 Safari/537.36 OPR/117.0.0.0'
 ];
 
 // Get random user agent
@@ -92,25 +95,30 @@ export async function scenarioBasedScrape(url: string): Promise<ScenarioBasedRes
       // TRY AXIOS FIRST FOR MAXIMUM SPEED (10x faster than Puppeteer)
       console.log('🚀 Using FAST axios extraction for maximum speed...');
       
-      // MAXIMUM SPEED MODE: No delay for cached items
+      // MAXIMUM SPEED MODE: Increase delay to avoid blocking
       const isCached = extractionCache.has(url);
       if (!isCached) {
-        const delay = 100 + Math.random() * 200; // 100-300ms for new items only
+        const delay = 2000 + Math.random() * 3000; // 2-5 seconds delay to avoid blocking
         await new Promise(resolve => setTimeout(resolve, delay));
       }
       
       const axiosResponse = await axios.get(url, {
-        timeout: 3000, // Faster timeout
+        timeout: 10000, // Increased timeout for better reliability
         headers: {
           'User-Agent': getRandomUserAgent(),
           'Accept': 'text/html,application/xhtml+xml,application/xml;q=0.9,image/webp,image/apng,*/*;q=0.8',
-          'Accept-Language': 'tr-TR,tr;q=0.9',
-          'Accept-Encoding': 'gzip, deflate',
-          'Cache-Control': 'max-age=0',
+          'Accept-Language': 'tr-TR,tr;q=0.9,en-US;q=0.8,en;q=0.7',
+          'Accept-Encoding': 'gzip, deflate, br',
+          'Cache-Control': 'no-cache',
           'Connection': 'keep-alive',
-          'Upgrade-Insecure-Requests': '1'
+          'Upgrade-Insecure-Requests': '1',
+          'Sec-Fetch-Dest': 'document',
+          'Sec-Fetch-Mode': 'navigate',
+          'Sec-Fetch-Site': 'none',
+          'Sec-Fetch-User': '?1',
+          'DNT': '1'
         },
-        maxRedirects: 3,
+        maxRedirects: 5,
         validateStatus: (status) => status < 500
       });
       
