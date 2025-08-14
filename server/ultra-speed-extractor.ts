@@ -20,7 +20,11 @@ const fastAxios = axios.create({
   }
 });
 
-// Ultra-fast single product extraction
+// Rate limiting to prevent blocking
+let lastRequestTime = 0;
+const MIN_REQUEST_INTERVAL = 500; // Minimum 500ms between requests
+
+// Ultra-fast single product extraction with rate limiting
 export async function ultraSpeedExtract(url: string): Promise<any> {
   // Check cache first
   const cacheKey = url.toLowerCase();
@@ -29,10 +33,35 @@ export async function ultraSpeedExtract(url: string): Promise<any> {
     return cached.data;
   }
 
+  // Rate limiting - wait if necessary
+  const now = Date.now();
+  const timeSinceLastRequest = now - lastRequestTime;
+  if (timeSinceLastRequest < MIN_REQUEST_INTERVAL) {
+    await new Promise(resolve => setTimeout(resolve, MIN_REQUEST_INTERVAL - timeSinceLastRequest));
+  }
+  lastRequestTime = Date.now();
+
   try {
     const response = await fastAxios.get(url);
     const $ = cheerio.load(response.data);
     const html = response.data;
+    
+    // Check if we're blocked
+    if (html.includes('Sorry, you have been blocked') || 
+        html.includes('Access Denied') ||
+        html.includes('Erişim Engellendi')) {
+      console.log('⚠️ Blocked by Trendyol, returning cached or error response');
+      return {
+        success: false,
+        error: 'Geçici olarak erişim engellendi. Lütfen birkaç saniye bekleyin.',
+        title: 'Ürün yüklenemiyor',
+        brand: 'Bilinmiyor',
+        price: { original: 0, currency: 'TL', formatted: '0 TL' },
+        images: [],
+        tags: [],
+        variants: { colors: [], sizes: [], allVariants: [] }
+      };
+    }
 
     // Parallel extraction of all data
     const [title, brand, price, images, tags] = await Promise.all([
@@ -85,21 +114,67 @@ export async function ultraSpeedExtract(url: string): Promise<any> {
   }
 }
 
-// Parallel batch extraction for multiple URLs
+// Parallel batch extraction for multiple URLs with smart rate limiting
 export async function ultraSpeedBatchExtract(urls: string[]): Promise<any[]> {
-  // Process all URLs in parallel with max concurrency of 10
-  const batchSize = 10;
+  // Process URLs with controlled concurrency and delays to avoid blocking
+  const batchSize = 3; // Reduced from 10 to avoid rate limiting
   const results = [];
   
   for (let i = 0; i < urls.length; i += batchSize) {
     const batch = urls.slice(i, i + batchSize);
-    const batchResults = await Promise.all(
-      batch.map(url => ultraSpeedExtract(url))
+    
+    // Process batch with staggered delays
+    const batchPromises = batch.map((url, index) => 
+      new Promise(async (resolve) => {
+        // Add staggered delay for each request in the batch
+        await new Promise(r => setTimeout(r, index * 200));
+        const result = await ultraSpeedExtractWithRetry(url);
+        resolve(result);
+      })
     );
+    
+    const batchResults = await Promise.all(batchPromises);
     results.push(...batchResults);
+    
+    // Add delay between batches to avoid rate limiting
+    if (i + batchSize < urls.length) {
+      await new Promise(resolve => setTimeout(resolve, 1000));
+    }
   }
   
   return results;
+}
+
+// Extract with retry logic for failed requests
+async function ultraSpeedExtractWithRetry(url: string, retries = 2): Promise<any> {
+  for (let attempt = 0; attempt <= retries; attempt++) {
+    const result = await ultraSpeedExtract(url);
+    
+    if (result.success) {
+      return result;
+    }
+    
+    // If blocked, wait longer before retry
+    if (!result.success && result.error?.includes('erişim engellendi') && attempt < retries) {
+      console.log(`⏳ Retry attempt ${attempt + 1} for ${url} after delay...`);
+      await new Promise(resolve => setTimeout(resolve, 2000 * (attempt + 1)));
+      continue;
+    }
+    
+    return result;
+  }
+  
+  // Return error result if all retries failed
+  return {
+    success: false,
+    error: 'Ürün bilgileri alınamadı. Lütfen daha sonra tekrar deneyin.',
+    title: 'Yüklenemiyor',
+    brand: 'Bilinmiyor',
+    price: { original: 0, currency: 'TL', formatted: '0 TL' },
+    images: [],
+    tags: [],
+    variants: { colors: [], sizes: [], allVariants: [] }
+  };
 }
 
 // Fast extraction helpers
