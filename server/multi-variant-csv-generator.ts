@@ -378,8 +378,12 @@ export function generateMultiVariantShopifyCSV(product: CombinedProduct): string
       if (product.brand && product.brand !== 'undefined') parts.push(product.brand);
       if (product.title) parts.push(product.title);
       if (product.category) parts.push(product.category);
-      if (product.variants.colors.length > 0) parts.push(`${product.variants.colors.length} renk seçeneği`);
-      if (product.variants.sizes.length > 0) parts.push(`${product.variants.sizes.length} beden seçeneği`);
+      if (product.variants && product.variants.colors && product.variants.colors.length > 0) {
+        parts.push(`${product.variants.colors.length} renk seçeneği`);
+      }
+      if (product.variants && product.variants.sizes && product.variants.sizes.length > 0) {
+        parts.push(`${product.variants.sizes.length} beden seçeneği`);
+      }
       
       seoDescription = parts.join(', ').substring(0, 160);
     }

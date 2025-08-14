@@ -58,7 +58,7 @@ export class ShopifyTransferTracker {
           .where(eq(shopifyTransferredProducts.id, existingProduct.id))
           .returning();
 
-        console.log('✅ Mevcut Shopify transfer kaydı güncellendi:', updatedProduct[0].id);
+        console.log('✅ Mevcut Shopify transfer kaydı güncellendi:', updatedProduct[0]?.id);
         return updatedProduct[0];
       } else {
         // Yeni kayıt oluştur
@@ -87,7 +87,7 @@ export class ShopifyTransferTracker {
           })
           .returning();
 
-        console.log('✅ Yeni Shopify transfer kaydı oluşturuldu:', newProduct[0].id);
+        console.log('✅ Yeni Shopify transfer kaydı oluşturuldu:', newProduct[0]?.id);
         
         // URL tracking sistemine de ekle
         try {

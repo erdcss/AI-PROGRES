@@ -1,5 +1,7 @@
 import { motion } from "framer-motion";
 import { Package, Image as ImageIcon, Tags, Palette, DollarSign, Info } from "lucide-react";
+import { apiRequest } from '@/lib/queryClient';
+import { useState } from 'react';
 
 interface SimpleProductPreviewProps {
   product: {
@@ -36,12 +38,48 @@ interface SimpleProductPreviewProps {
 }
 
 export function SimpleProductPreview({ product }: SimpleProductPreviewProps) {
+  const [transferLoading, setTransferLoading] = useState(false);
+
   // More thorough validation of product data
   if (!product || !product.success || product.title === 'Yüklenemiyor' || product.brand === 'Bilinmiyor') {
     return null;
   }
 
   const { brand, title, price, images, colorOptions, sizeOptions, variants, stockAnalysis, features } = product;
+
+  const handleShopifyTransfer = async () => {
+    setTransferLoading(true);
+    try {
+      console.log('Shopify transfer starting...');
+      
+      // Product data for Shopify upload
+      const productData = {
+        title,
+        brand,
+        price: typeof price === 'object' ? price : { original: price || 0, withProfit: (price || 0) * 1.1 },
+        images,
+        variants: variants || { colors: [], sizes: [] },
+        features: features || []
+      };
+
+      const response = await apiRequest('/api/shopify-upload', {
+        method: 'POST',
+        body: JSON.stringify({ productData, productTitle: title }),
+        headers: { 'Content-Type': 'application/json' }
+      });
+
+      if (response.success) {
+        alert('Ürün başarıyla Shopify\'a aktarıldı!');
+      } else {
+        alert('Transfer sırasında bir hata oluştu: ' + response.error);
+      }
+    } catch (error) {
+      console.error('Shopify transfer error:', error);
+      alert('Transfer işlemi başarısız oldu');
+    } finally {
+      setTransferLoading(false);
+    }
+  };
   
   // Filter out blocked/error responses
   const errorIndicators = ['Sorry, you have been blocked', '429', '403', 'Access Denied', 'Erişim Engellendi', 'undefined', 'null', 'Yüklenemiyor', 'Bilinmiyor'];
@@ -322,6 +360,34 @@ export function SimpleProductPreview({ product }: SimpleProductPreviewProps) {
           </div>
         </div>
       )}
+
+      {/* Shopify Transfer Action Button */}
+      <div className="bg-gradient-to-r from-green-600/20 to-blue-600/20 border border-green-500/30 rounded-lg p-4">
+        <div className="flex items-center justify-between">
+          <div className="flex items-center gap-3">
+            <div className="p-2 bg-green-500/20 rounded-lg">
+              <svg className="h-5 w-5 text-green-400" fill="currentColor" viewBox="0 0 24 24">
+                <path d="M4 4h16l-1 10H5L4 4zM2 2l2 2h16l-3 12H6L5 6H2V2zm6 16a2 2 0 104 0 2 2 0 00-4 0zm8 0a2 2 0 104 0 2 2 0 00-4 0z"/>
+              </svg>
+            </div>
+            <div>
+              <h3 className="text-white font-semibold">Shopify'a Aktar</h3>
+              <p className="text-sm text-gray-300">Bu ürünü Shopify mağazanıza ekleyin</p>
+            </div>
+          </div>
+          <button
+            onClick={handleShopifyTransfer}
+            disabled={transferLoading}
+            className={`px-4 py-2 rounded-lg font-medium transition-all duration-200 ${
+              transferLoading 
+                ? 'bg-gray-600 cursor-not-allowed' 
+                : 'bg-green-600 hover:bg-green-700 hover:shadow-lg hover:shadow-green-500/25'
+            } text-white`}
+          >
+            {transferLoading ? 'Aktarılıyor...' : 'Şimdi Aktar'}
+          </button>
+        </div>
+      </div>
 
       {/* Simplified Product Specifications - Compact Grid */}
       {features.length > 0 && (
