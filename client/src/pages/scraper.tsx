@@ -131,8 +131,8 @@ function ScraperPage() {
       // Check if extraction actually succeeded
       if (!data || !data.success) {
         toast({
-          title: "Hata",
-          description: "Ürün verisi çekilemedi",
+          title: "CSV Önizleme Oluşturulamadı",
+          description: "Trendyol tarafından engellendiniz. Lütfen birkaç dakika bekleyip tekrar deneyin veya farklı bir URL kullanın.",
           variant: "destructive"
         });
         return;

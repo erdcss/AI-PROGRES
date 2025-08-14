@@ -75,7 +75,28 @@ export function CSVDrawerPreview({ csvPreviews, onDownload, onShopifyUpload }: C
   };
 
   if (csvPreviews.length === 0) {
-    return null;
+    return (
+      <div className="mt-8">
+        <Card className="business-card">
+          <CardHeader className="business-header">
+            <CardTitle className="text-white font-thin text-lg flex items-center gap-2">
+              <FileText className="w-5 h-5 text-yellow-400/70" />
+              CSV Önizleme
+            </CardTitle>
+          </CardHeader>
+          <CardContent className="p-6">
+            <div className="text-center py-8">
+              <Package className="w-12 h-12 text-gray-500 mx-auto mb-4" />
+              <p className="text-gray-400 mb-2">CSV önizleme bulunamadı</p>
+              <p className="text-gray-500 text-sm">
+                Trendyol tarafından engellenmiş olabilirsiniz. 
+                Lütfen birkaç dakika bekleyip tekrar deneyin.
+              </p>
+            </div>
+          </CardContent>
+        </Card>
+      </div>
+    );
   }
 
   // Product Preview Component
