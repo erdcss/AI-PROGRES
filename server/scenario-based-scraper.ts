@@ -454,21 +454,12 @@ export async function scenarioBasedScrape(url: string): Promise<ScenarioBasedRes
  * Extract product title from page
  */
 function extractTitle($: any): string {
-  // Try multiple selectors for title
-  const titleSelectors = [
-    'script[type="application/ld+json"]',
-    'h1',
-    '.product-title',
-    '.product-name',
-    'title'
-  ];
-  
-  // First try JSON-LD
+  // First try JSON-LD for most reliable title
   const jsonLdScripts = $('script[type="application/ld+json"]');
   for (let i = 0; i < jsonLdScripts.length; i++) {
     try {
       const jsonData = JSON.parse($(jsonLdScripts[i]).html() || '{}');
-      if (jsonData.name) {
+      if (jsonData.name && jsonData.name !== '429' && jsonData.name.length > 3) {
         console.log(`✅ Title from JSON-LD: ${jsonData.name}`);
         return jsonData.name;
       }
@@ -477,14 +468,43 @@ function extractTitle($: any): string {
     }
   }
   
-  // Try other selectors
-  for (const selector of titleSelectors.slice(1)) {
+  // Try multiple DOM selectors for title with validation
+  const titleSelectors = [
+    'h1.pr-new-br span',
+    'h1 span',
+    '.pr-new-br span', 
+    'h1',
+    '.product-title',
+    '.product-name',
+    '[data-testid="product-title"]',
+    '.pr-in-nm',
+    '.product-detail-title h1'
+  ];
+  
+  for (const selector of titleSelectors) {
     const element = $(selector).first();
-    if (element.length && element.text().trim()) {
-      return element.text().trim();
+    const title = element.length ? element.text().trim() : '';
+    
+    // Validate title - reject rate limiting indicators
+    if (title && title !== '429' && 
+        !title.includes('Rate limit') && 
+        !title.includes('Blocked') && 
+        !title.includes('Error') && 
+        title.length > 3 &&
+        title !== 'Product') {
+      console.log(`✅ Title found via ${selector}: ${title}`);
+      return title;
     }
   }
   
+  // Last fallback - try page title
+  const pageTitle = $('title').text().replace(' - Trendyol', '').trim();
+  if (pageTitle && pageTitle !== '429' && pageTitle.length > 3) {
+    console.log(`✅ Title from page title: ${pageTitle}`);
+    return pageTitle;
+  }
+  
+  console.log('⚠️ No valid title found, using fallback');
   return 'Product';
 }
 

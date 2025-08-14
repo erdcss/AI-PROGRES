@@ -76,6 +76,95 @@ export async function tryMobileAPI(url: string): Promise<any> {
   }
 
   console.log('❌ All mobile API endpoints failed');
+  
+  // Try direct product page scraping as last resort
+  try {
+    console.log('🔄 Trying direct page scraping as final fallback...');
+    const response = await axios.get(url.replace(/\?.*/, ''), {
+      timeout: 8000,
+      headers: {
+        'User-Agent': 'Mozilla/5.0 (compatible; Googlebot/2.1; +http://www.google.com/bot.html)',
+        'Accept': 'text/html,application/xhtml+xml',
+        'Accept-Language': 'tr-TR,tr;q=0.9',
+        'Cache-Control': 'no-cache'
+      }
+    });
+    
+    if (response.status === 200) {
+      console.log('✅ Direct scraping successful!');
+      
+      // Enhanced HTML parsing for better data extraction
+      const html = response.data;
+      
+      // Extract title with multiple patterns
+      let title = 'Product';
+      const titlePatterns = [
+        /<h1[^>]*class="[^"]*pr-new-br[^"]*"[^>]*><span[^>]*>([^<]+)/i,
+        /<h1[^>]*>([^<]+)/i,
+        /"name"\s*:\s*"([^"]+)"/i,
+        /<title>([^<]+)/i
+      ];
+      
+      for (const pattern of titlePatterns) {
+        const match = html.match(pattern);
+        if (match && match[1] && match[1].trim().length > 3 && match[1] !== '429') {
+          title = match[1].trim().replace(' - Trendyol', '');
+          break;
+        }
+      }
+      
+      // Extract brand from URL or content
+      let brand = 'Unknown';
+      const brandMatch = url.match(/trendyol\.com\/([^\/]+)/);
+      if (brandMatch && brandMatch[1] !== 'p') {
+        brand = brandMatch[1].replace(/[-_]/g, ' ');
+      }
+      
+      // Extract price with multiple patterns
+      let price = 0;
+      const pricePatterns = [
+        /"price"\s*:\s*"?(\d+\.?\d*)"?/i,
+        /"discountedPrice"\s*:\s*"?(\d+\.?\d*)"?/i,
+        /"originalPrice"\s*:\s*"?(\d+\.?\d*)"?/i,
+        /data-price="(\d+\.?\d*)"/i,
+        /class="[^"]*price[^"]*"[^>]*>[\s\S]*?(\d+\.?\d+)/i
+      ];
+      
+      for (const pattern of pricePatterns) {
+        const match = html.match(pattern);
+        if (match && match[1]) {
+          price = parseFloat(match[1]);
+          if (price > 0) break;
+        }
+      }
+      
+      // Extract images
+      const images = [];
+      const imageMatches = html.match(/https:\/\/cdn\.dsmcdn\.com\/[^"'\s]+\.(jpg|jpeg|png|webp)/gi);
+      if (imageMatches) {
+        images.push(...imageMatches.slice(0, 5).map(url => ({ url, alt: title })));
+      }
+      
+      console.log(`✅ Extracted: title="${title}", brand="${brand}", price=${price}, images=${images.length}`);
+      
+      return {
+        success: true,
+        title,
+        brand,
+        price: {
+          original: price,
+          currency: 'TL'
+        },
+        images,
+        description: '',
+        category: '',
+        variants: []
+      };
+    }
+  } catch (directError) {
+    console.log(`❌ Direct scraping also failed: ${directError.message}`);
+  }
+  
   return null;
 }
 

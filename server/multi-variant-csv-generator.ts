@@ -27,15 +27,22 @@ export function generateMultiVariantShopifyCSV(product: CombinedProduct): string
     return '';
   }
   
-  // Check for blocked/error responses
-  const errorIndicators = ['Sorry, you have been blocked', '429', '403', 'Access Denied', 'Erişim Engellendi', 'undefined', 'null'];
+  // Enhanced check for blocked/error responses and poor quality data
+  const errorIndicators = [
+    'Sorry, you have been blocked', '429', '403', 'Access Denied', 'Erişim Engellendi', 
+    'Rate limit', 'Blocked', 'Error', 'undefined', 'null', 'Product', 'Bilinmeyen Ürün'
+  ];
   const titleLower = product.title.toLowerCase();
   
-  if (errorIndicators.some(indicator => titleLower.includes(indicator.toLowerCase())) ||
+  const isErrorContent = errorIndicators.some(indicator => titleLower.includes(indicator.toLowerCase())) ||
       product.title.length < 3 ||
+      product.title === 'Product' ||
       product.brand === 'Bilinmiyor' ||
-      product.brand === 'Lütfen bekleyin') {
-    console.log(`⚠️ Blocked/error product detected: "${product.title}", skipping CSV generation`);
+      product.brand === 'Lütfen bekleyin' ||
+      product.brand === 'Unknown';
+      
+  if (isErrorContent) {
+    console.log(`⚠️ Poor quality/blocked product detected: "${product.title}" (brand: ${product.brand}), skipping CSV generation`);
     return '';
   }
   
