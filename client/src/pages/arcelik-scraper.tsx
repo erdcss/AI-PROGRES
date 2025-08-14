@@ -155,11 +155,7 @@ const ArcelikScraper = () => {
   // CSV generation mutation
   const generateCSVMutation = useMutation({
     mutationFn: async (productData: ExtractedProduct) => {
-      const response = await apiRequest('/api/comprehensive-csv', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ productData })
-      });
+      const response = await apiRequest('POST', '/api/comprehensive-csv', { productData });
       
       if (!response.ok) {
         throw new Error('CSV oluşturma başarısız');

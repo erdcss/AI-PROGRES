@@ -34,10 +34,12 @@ interface SimpleProductPreviewProps {
       key: string;
       value: string;
     }>;
+    sourceUrl?: string;
   };
+  sourceUrl?: string;
 }
 
-export function SimpleProductPreview({ product }: SimpleProductPreviewProps) {
+export function SimpleProductPreview({ product, sourceUrl }: SimpleProductPreviewProps) {
   const [transferLoading, setTransferLoading] = useState(false);
 
   // More thorough validation of product data
@@ -59,19 +61,21 @@ export function SimpleProductPreview({ product }: SimpleProductPreviewProps) {
         price: typeof price === 'object' ? price : { original: price || 0, withProfit: (price || 0) * 1.1 },
         images,
         variants: variants || { colors: [], sizes: [] },
-        features: features || []
+        features: features || [],
+        sourceUrl: sourceUrl || product.sourceUrl
       };
 
-      const response = await apiRequest('/api/shopify-upload', {
-        method: 'POST',
-        body: JSON.stringify({ productData, productTitle: title }),
-        headers: { 'Content-Type': 'application/json' }
+      const response = await apiRequest('POST', '/api/shopify-upload', { 
+        productData, 
+        productTitle: title 
       });
+      
+      const result = await response.json();
 
-      if (response.success) {
-        alert('Ürün başarıyla Shopify\'a aktarıldı!');
+      if (result.success) {
+        alert('Ürün başarıyla Shopify\'a aktarıldı! Shopify ID: ' + result.productId);
       } else {
-        alert('Transfer sırasında bir hata oluştu: ' + response.error);
+        alert('Transfer sırasında bir hata oluştu: ' + (result.error || result.message));
       }
     } catch (error) {
       console.error('Shopify transfer error:', error);
