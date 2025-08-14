@@ -89,6 +89,34 @@ export async function scenarioBasedScrape(url: string): Promise<ScenarioBasedRes
       });
       
       htmlContent = axiosResponse.data;
+      
+      // Check if we're blocked
+      if (htmlContent.includes('Sorry, you have been blocked') || 
+          htmlContent.includes('Access Denied') ||
+          htmlContent.includes('Erişim Engellendi') ||
+          htmlContent.includes('429') ||
+          htmlContent.length < 1000) {
+        console.log('⚠️ Blocked by Trendyol, returning error response');
+        return {
+          success: false,
+          scenario: 'error' as ExtractionScenario,
+          confidence: 0,
+          title: '',
+          brand: '',
+          price: { original: 0, currency: 'TL', formatted: '0 TL', withProfit: 0, profitFormatted: '0 TL' },
+          images: [],
+          features: [],
+          variants: [],
+          tags: [],
+          extractionDetails: {
+            scenario: 'blocked',
+            confidence: 0,
+            evidence: ['Site access blocked'],
+            strategy: 'none'
+          }
+        };
+      }
+      
       $ = cheerio.load(htmlContent);
       console.log('✅ FAST extraction successful with axios!');
       

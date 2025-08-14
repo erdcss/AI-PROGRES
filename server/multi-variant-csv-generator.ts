@@ -21,6 +21,35 @@ interface CombinedProduct {
 }
 
 export function generateMultiVariantShopifyCSV(product: CombinedProduct): string {
+  // Validate product before processing - Skip error responses
+  if (!product || !product.title || !product.brand) {
+    console.log('⚠️ Invalid product data, skipping CSV generation');
+    return '';
+  }
+  
+  // Check for blocked/error responses
+  const errorIndicators = ['Sorry, you have been blocked', '429', '403', 'Access Denied', 'Erişim Engellendi', 'undefined', 'null'];
+  const titleLower = product.title.toLowerCase();
+  
+  if (errorIndicators.some(indicator => titleLower.includes(indicator.toLowerCase())) ||
+      product.title.length < 3 ||
+      product.brand === 'Bilinmiyor' ||
+      product.brand === 'Lütfen bekleyin') {
+    console.log(`⚠️ Blocked/error product detected: "${product.title}", skipping CSV generation`);
+    return '';
+  }
+  
+  // Check for valid price
+  const hasValidPrice = product.price && (
+    (typeof product.price === 'number' && product.price > 0) ||
+    (typeof product.price === 'object' && (product.price.original > 0 || product.price.withProfit > 0))
+  );
+  
+  if (!hasValidPrice) {
+    console.log('⚠️ Product has no valid price, skipping CSV generation');
+    return '';
+  }
+  
   // HEADERS - Shopify import formatına uygun (Metafield dahil)
   const headers = [
     'Handle', 'Title', 'Body (HTML)', 'Vendor', 'Tags', 'Published',

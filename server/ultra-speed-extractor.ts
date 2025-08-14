@@ -49,18 +49,14 @@ export async function ultraSpeedExtract(url: string): Promise<any> {
     // Check if we're blocked
     if (html.includes('Sorry, you have been blocked') || 
         html.includes('Access Denied') ||
-        html.includes('Erişim Engellendi')) {
-      console.log('⚠️ Blocked by Trendyol, returning cached or error response');
-      return {
-        success: false,
-        error: 'Geçici olarak erişim engellendi. Lütfen birkaç saniye bekleyin.',
-        title: 'Ürün yüklenemiyor',
-        brand: 'Bilinmiyor',
-        price: { original: 0, currency: 'TL', formatted: '0 TL' },
-        images: [],
-        tags: [],
-        variants: { colors: [], sizes: [], allVariants: [] }
-      };
+        html.includes('Erişim Engellendi') ||
+        html.length < 1000) {
+      console.log('⚠️ Blocked by Trendyol, waiting before retry...');
+      
+      // Wait 3 seconds before returning error to allow rate limit to reset
+      await new Promise(resolve => setTimeout(resolve, 3000));
+      
+      throw new Error('BLOCKED_BY_TRENDYOL');
     }
 
     // Parallel extraction of all data
@@ -106,10 +102,33 @@ export async function ultraSpeedExtract(url: string): Promise<any> {
     }
 
     return result;
-  } catch (error) {
+  } catch (error: any) {
+    console.log(`❌ Ultra-speed extraction failed: ${error.message}`);
+    
+    // If blocked, return a special error response
+    if (error.message === 'BLOCKED_BY_TRENDYOL') {
+      return {
+        success: false,
+        error: 'blocked',
+        title: 'Yükleniyor...',
+        brand: 'Lütfen bekleyin',
+        price: { original: 0, currency: 'TL', formatted: '0 TL', withProfit: 0, profitFormatted: '0 TL' },
+        images: [],
+        tags: [],
+        variants: { colors: [], sizes: [], allVariants: [] }
+      };
+    }
+    
+    // For other errors, return generic error
     return {
       success: false,
-      error: error.message
+      error: error.message || 'Extraction failed',
+      title: 'Hata oluştu',
+      brand: 'Bilinmiyor',
+      price: { original: 0, currency: 'TL', formatted: '0 TL', withProfit: 0, profitFormatted: '0 TL' },
+      images: [],
+      tags: [],
+      variants: { colors: [], sizes: [], allVariants: [] }
     };
   }
 }
@@ -148,29 +167,37 @@ export async function ultraSpeedBatchExtract(urls: string[]): Promise<any[]> {
 // Extract with retry logic for failed requests
 async function ultraSpeedExtractWithRetry(url: string, retries = 2): Promise<any> {
   for (let attempt = 0; attempt <= retries; attempt++) {
+    if (attempt > 0) {
+      // Exponential backoff - wait longer on each retry
+      const delay = Math.min(1000 * Math.pow(2, attempt), 5000);
+      console.log(`⏳ Retry attempt ${attempt} for ${url} after ${delay}ms delay...`);
+      await new Promise(resolve => setTimeout(resolve, delay));
+    }
+    
     const result = await ultraSpeedExtract(url);
     
-    if (result.success) {
+    if (result.success !== false) {
       return result;
     }
     
-    // If blocked, wait longer before retry
-    if (!result.success && result.error?.includes('erişim engellendi') && attempt < retries) {
-      console.log(`⏳ Retry attempt ${attempt + 1} for ${url} after delay...`);
-      await new Promise(resolve => setTimeout(resolve, 2000 * (attempt + 1)));
+    // If blocked, don't retry immediately
+    if (result.error === 'blocked' && attempt < retries) {
       continue;
     }
     
-    return result;
+    // For non-blocking errors on last attempt, return the error
+    if (attempt === retries) {
+      return result;
+    }
   }
   
   // Return error result if all retries failed
   return {
     success: false,
-    error: 'Ürün bilgileri alınamadı. Lütfen daha sonra tekrar deneyin.',
+    error: 'timeout',
     title: 'Yüklenemiyor',
-    brand: 'Bilinmiyor',
-    price: { original: 0, currency: 'TL', formatted: '0 TL' },
+    brand: 'Lütfen bekleyin',
+    price: { original: 0, currency: 'TL', formatted: '0 TL', withProfit: 0, profitFormatted: '0 TL' },
     images: [],
     tags: [],
     variants: { colors: [], sizes: [], allVariants: [] }
