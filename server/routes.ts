@@ -1186,7 +1186,7 @@ export function registerRoutes(app: Express): Server {
 🔗 <b>Kaynak URL:</b> ${url}
 
 ⏰ <b>Transfer Tarihi:</b> ${new Date().toLocaleString('tr-TR')}
-🤖 <b>Durum:</b> Aktif takip başlatıldı - Anlık bildirimler açık
+🤖 <b>Durum:</b> Shopify'a aktarıldı - Takip sistemi aktif
 🔔 <b>Takip:</b> Fiyat, stok ve durum değişiklikleri izleniyor
             `.trim();
             
@@ -1196,14 +1196,9 @@ export function registerRoutes(app: Express): Server {
             console.error('⚠️ Telegram bildirimi hatası:', telegramError);
           }
           
-          // Otomatik URL tracking ekleme (sadece Trendyol URL'leri için)
-          try {
-            console.log('🎯 Scraping sonrası otomatik tracking ekleniyor...');
-            await urlTrackingService.addUrlToTracking(url, 300, 'auto-scraping');
-            console.log('✅ Otomatik tracking eklendi');
-          } catch (trackingError) {
-            console.error('⚠️ Otomatik tracking ekleme hatası (devam ediyor):', trackingError);
-          }
+          // ✅ Otomatik tracking kaldırıldı - Kullanıcı önce ürün verilerini görecek
+          // Tracking sadece Shopify'a aktarım sonrası aktif olacak
+          console.log('ℹ️  Ürün verisi çekildi, tracking Shopify transfer sonrası aktif olacak');
           
           // CSV generation için gerekli veri hazırla
           const csvProductData = {
@@ -1238,7 +1233,7 @@ export function registerRoutes(app: Express): Server {
             variants: result.variants,
             tags: result.tags,
             csvContent: csvContent,
-            trackingActive: true,
+            trackingActive: false, // Tracking sadece Shopify transfer sonrası aktif
             extractionDetails: result.extractionDetails
           });
         } else {
