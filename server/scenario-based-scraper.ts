@@ -232,6 +232,102 @@ function detectBlockingResponse(htmlContent: string, $: cheerio.CheerioAPI): Blo
   };
 }
 
+// 🛡️ PRODUCT TITLE VALIDATION SYSTEM
+function isValidProductTitle(title: string): boolean {
+  if (!title || typeof title !== 'string') return false;
+  
+  const cleanTitle = title.trim().toLowerCase();
+  console.log(`🔍 TITLE VALIDATION: Checking "${cleanTitle}"`);
+  
+  // Check 1: Empty or too short
+  if (cleanTitle.length < 3) {
+    console.log(`❌ TITLE REJECTED: Too short (${cleanTitle.length} chars)`);
+    return false;
+  }
+  
+  // Check 2: Blocking message indicators
+  const blockingTitleKeywords = [
+    'sorry, you have been blocked',
+    'sorry you have been blocked',
+    'access denied',
+    'erişim engellendi',
+    'blocked',
+    'engellendi',
+    'error',
+    'hata',
+    '403',
+    '429',
+    '503',
+    'forbidden',
+    'yasak',
+    'captcha',
+    'robot',
+    'bot detected',
+    'verification',
+    'doğrulama',
+    'security check',
+    'güvenlik',
+    'rate limit',
+    'çok fazla'
+  ];
+  
+  for (const keyword of blockingTitleKeywords) {
+    if (cleanTitle.includes(keyword)) {
+      console.log(`❌ TITLE REJECTED: Contains blocking keyword "${keyword}"`);
+      return false;
+    }
+  }
+  
+  // Check 3: Common error page titles
+  const errorPageTitles = [
+    'page not found',
+    'sayfa bulunamadı',
+    '404',
+    'not found',
+    'bulunamadı',
+    'maintenance',
+    'bakım',
+    'temporarily unavailable',
+    'geçici olarak kullanılamıyor'
+  ];
+  
+  for (const errorTitle of errorPageTitles) {
+    if (cleanTitle.includes(errorTitle)) {
+      console.log(`❌ TITLE REJECTED: Error page title "${errorTitle}"`);
+      return false;
+    }
+  }
+  
+  // Check 4: Must contain at least one letter (not just numbers/symbols)
+  if (!/[a-zA-ZçğıöşüÇĞIİÖŞÜ]/.test(cleanTitle)) {
+    console.log(`❌ TITLE REJECTED: No letters found`);
+    return false;
+  }
+  
+  console.log(`✅ TITLE VALIDATED: "${title}" is a valid product title`);
+  return true;
+}
+
+// 🧹 TITLE SANITIZATION SYSTEM
+function sanitizeProductTitle(title: string): string {
+  if (!title) return 'Ürün Adı Yok';
+  
+  let cleanTitle = title.trim();
+  
+  // Remove common site suffixes
+  cleanTitle = cleanTitle.replace(/ - Trendyol$/, '');
+  cleanTitle = cleanTitle.replace(/ \| Trendyol$/, '');
+  cleanTitle = cleanTitle.replace(/\s+/g, ' '); // Normalize spaces
+  
+  // If title is still invalid after cleaning, return safe fallback
+  if (!isValidProductTitle(cleanTitle)) {
+    console.log(`⚠️ SANITIZATION: Invalid title after cleaning, using fallback`);
+    return 'Ürün Bilgisi Alınamadı';
+  }
+  
+  return cleanTitle;
+}
+
 export interface ScenarioBasedResult {
   success: boolean;
   scenario: ExtractionScenario;
@@ -301,8 +397,18 @@ export async function scenarioBasedScrape(url: string): Promise<ScenarioBasedRes
         });
         
         htmlContent = directResult.data;
-        $ = cheerio.load(htmlContent);
-        console.log('✅ SPEED MODE: Direct scraping successful in <3s!');
+        
+        // 🛡️ SAFE HTML PARSING with error handling
+        try {
+          $ = cheerio.load(htmlContent, {
+            xml: false,
+            decodeEntities: false // Prevent HTML entity parsing issues
+          });
+          console.log('✅ SPEED MODE: Direct scraping successful in <3s!');
+        } catch (parseError) {
+          console.log(`❌ HTML parsing error: ${parseError.message}`);
+          throw new Error(`HTML parsing failed: ${parseError.message}`);
+        }
         
       } catch (directError) {
         console.log('⚠️ Direct scraping failed, trying advanced methods...');
@@ -331,8 +437,18 @@ export async function scenarioBasedScrape(url: string): Promise<ScenarioBasedRes
             });
             
             htmlContent = finalResult.data;
-            $ = cheerio.load(htmlContent);
-            console.log('✅ Final fallback successful!');
+            
+            // 🛡️ SAFE HTML PARSING with error handling
+            try {
+              $ = cheerio.load(htmlContent, {
+                xml: false,
+                decodeEntities: false
+              });
+              console.log('✅ Final fallback successful!');
+            } catch (parseError) {
+              console.log(`❌ Final fallback HTML parsing error: ${parseError.message}`);
+              throw parseError;
+            }
             
           } catch (finalError) {
             console.log('❌ All extraction methods failed');
@@ -357,8 +473,18 @@ export async function scenarioBasedScrape(url: string): Promise<ScenarioBasedRes
           }
         } else {
           htmlContent = rotationResult.html;
-          $ = cheerio.load(htmlContent);
-          console.log('✅ ADVANCED ROTATION extraction successful!');
+          
+          // 🛡️ SAFE HTML PARSING with error handling
+          try {
+            $ = cheerio.load(htmlContent, {
+              xml: false,
+              decodeEntities: false
+            });
+            console.log('✅ ADVANCED ROTATION extraction successful!');
+          } catch (parseError) {
+            console.log(`❌ Rotation HTML parsing error: ${parseError.message}`);
+            throw parseError;
+          }
         }
       }
       
@@ -395,7 +521,17 @@ export async function scenarioBasedScrape(url: string): Promise<ScenarioBasedRes
       
       // Get page content
       htmlContent = await page.content();
-      $ = cheerio.load(htmlContent);
+      
+      // 🛡️ SAFE HTML PARSING with error handling
+      try {
+        $ = cheerio.load(htmlContent, {
+          xml: false,
+          decodeEntities: false
+        });
+      } catch (parseError) {
+        console.log(`❌ Puppeteer HTML parsing error: ${parseError.message}`);
+        throw parseError;
+      }
       
       await browser.close();
       console.log('✅ Puppeteer extraction successful');
@@ -473,55 +609,187 @@ export async function scenarioBasedScrape(url: string): Promise<ScenarioBasedRes
     
     console.log('✅ No blocking detected - proceeding with data extraction');
     
-    // Step 2: Extract basic information
-    const title = extractTitle($);
-    const brand = extractBrand(url);
-    console.log('🔥 ULTIMATE PRICE EXTRACTOR: Starting comprehensive price extraction');
-    const price = ultimatePriceExtract($, htmlContent);
-    console.log('🔥 ULTIMATE PRICE EXTRACTOR RESULT:', JSON.stringify(price));
+    // 🛡️ COMPREHENSIVE EXTRACTION ERROR HANDLER
+    let title, brand, price;
+    try {
+      console.log('🔍 Step 2: Starting basic information extraction with error handling...');
+      
+      // Step 2: Extract basic information with individual error handling
+      try {
+        title = extractTitle($);
+        console.log(`✅ Title extraction successful: "${title}"`);
+      } catch (titleError) {
+        console.log(`❌ Title extraction failed: ${titleError.message}`);
+        title = 'Ürün Bilgisi Alınamadı';
+      }
+      
+      try {
+        brand = extractBrand(url);
+        console.log(`✅ Brand extraction successful: "${brand}"`);
+      } catch (brandError) {
+        console.log(`❌ Brand extraction failed: ${brandError.message}`);
+        brand = 'Bilinmiyor';
+      }
+      
+      console.log('🔥 ULTIMATE PRICE EXTRACTOR: Starting comprehensive price extraction');
+      try {
+        price = ultimatePriceExtract($, htmlContent);
+        console.log('🔥 ULTIMATE PRICE EXTRACTOR RESULT:', JSON.stringify(price));
+      } catch (priceError) {
+        console.log(`❌ Price extraction failed: ${priceError.message}`);
+        price = {
+          original: 0,
+          currency: 'TL',
+          formatted: '0 TL',
+          withProfit: 0,
+          profitFormatted: '0 TL',
+          method: 'EXTRACTION_FAILED',
+          raw: 'PRICE_EXTRACTION_ERROR'
+        };
+      }
+    } catch (basicExtractionError) {
+      console.log(`❌ CRITICAL: Basic extraction completely failed: ${basicExtractionError.message}`);
+      
+      // Return error result for completely failed extraction
+      return {
+        success: false,
+        scenario: 'error' as ExtractionScenario,
+        confidence: 0,
+        title: 'Extraction Hatası',
+        brand: 'Bilinmiyor',
+        price: { original: 0, currency: 'TL', formatted: '0 TL', withProfit: 0, profitFormatted: '0 TL' },
+        images: [],
+        features: [],
+        variants: [],
+        tags: [],
+        extractionDetails: {
+          scenario: 'extraction-error',
+          confidence: 0,
+          evidence: [`Basic extraction failed: ${basicExtractionError.message}`],
+          strategy: 'error-fallback'
+        }
+      };
+    }
     
     // Ultimate Price Extractor handles all price correction automatically
     console.log('✅ ULTIMATE PRICE EXTRACTION COMPLETED');
     console.log(`💰 Final price: ${price.original} TL via ${price.method}`);
     
-    // 🎆 DATA EXTRACTION SUCCESSFUL - No blocking detected
-    // Enhanced extraction with improved deduplication
-    const rawImages = await extractImagesBasic($, htmlContent);
-    const images = ImageDeduplicator.deduplicateImages(rawImages);
-    const features = await extractEnhancedFeatures($, htmlContent);
+    // 🎆 ADVANCED DATA EXTRACTION with comprehensive error handling
+    let rawImages = [], images = [], features = [], detection, scenarioManager;
     
-    // Enhanced category-based tag generation will be handled by generateAdvancedTags
-    
-    console.log(`✅ Basic info: title="${title}", brand="${brand}", price=${price.original}`);
-    
-    // Step 3: Initialize scenario manager and detect scenario
-    const scenarioManager = new ScenarioManager();
-    const detection = scenarioManager.detectScenario(htmlContent, $);
+    try {
+      console.log('🔍 Step 3: Starting advanced extraction with error handling...');
+      
+      // Enhanced extraction with improved deduplication
+      try {
+        rawImages = await extractImagesBasic($, htmlContent);
+        images = ImageDeduplicator.deduplicateImages(rawImages);
+        console.log(`✅ Image extraction successful: ${images.length} images`);
+      } catch (imageError) {
+        console.log(`❌ Image extraction failed: ${imageError.message}`);
+        images = [];
+      }
+      
+      try {
+        features = await extractEnhancedFeatures($, htmlContent);
+        console.log(`✅ Features extraction successful: ${features.length} features`);
+      } catch (featuresError) {
+        console.log(`❌ Features extraction failed: ${featuresError.message}`);
+        features = [];
+      }
+      
+      console.log(`✅ Basic info: title="${title}", brand="${brand}", price=${price.original}`);
+      
+      // Step 3: Initialize scenario manager and detect scenario
+      try {
+        scenarioManager = new ScenarioManager();
+        detection = scenarioManager.detectScenario(htmlContent, $);
+        console.log(`✅ Scenario detection successful: ${detection.scenario}`);
+      } catch (scenarioError) {
+        console.log(`❌ Scenario detection failed: ${scenarioError.message}`);
+        detection = {
+          scenario: 'single-variant' as ExtractionScenario,
+          confidence: 50,
+          evidence: ['Fallback scenario due to detection error'],
+          suggestedStrategy: 'basic'
+        };
+      }
+    } catch (advancedExtractionError) {
+      console.log(`❌ CRITICAL: Advanced extraction failed: ${advancedExtractionError.message}`);
+      
+      // Set safe fallback values
+      images = [];
+      features = [];
+      detection = {
+        scenario: 'single-variant' as ExtractionScenario,
+        confidence: 30,
+        evidence: ['Advanced extraction error fallback'],
+        suggestedStrategy: 'basic'
+      };
+    }
     
     console.log(`🎯 Detected scenario: ${detection.scenario} (${detection.confidence}% confidence)`);
     console.log(`📋 Evidence: ${detection.evidence.join(', ')}`);
-    console.log(`💡 Strategy: ${detection.suggestedStrategy}`);
+    console.log(`💡 Strategy: ${detection.suggestedStrategy || 'basic'}`);
     
-    // Step 4: Get scenario configuration and extract variants
-    const config = scenarioManager.getScenarioConfig(detection.scenario);
-    if (!config) {
-      throw new Error(`No configuration found for scenario: ${detection.scenario}`);
+    // Step 4: Get scenario configuration and extract variants with error handling
+    let variants = [];
+    try {
+      console.log('🔍 Step 4: Starting variant extraction with error handling...');
+      
+      const config = scenarioManager?.getScenarioConfig(detection.scenario);
+      if (!config) {
+        console.log(`❌ No configuration found for scenario: ${detection.scenario}, using default`);
+        variants = [{
+          color: 'Varsayılan',
+          colorCode: '#C0A888',
+          size: '',
+          inStock: true
+        }];
+      } else {
+        try {
+          const variantResult = ScenarioExtractors.extractByScenario(
+            detection.scenario,
+            config,
+            $,
+            htmlContent,
+            title
+          );
+          
+          // Step 5: Build final variants array with enhanced extraction
+          variants = buildVariantsArray(variantResult, detection.scenario);
+          console.log(`✅ Variant extraction successful: ${variants.length} variants`);
+        } catch (variantExtractionError) {
+          console.log(`❌ Variant extraction failed: ${variantExtractionError.message}`);
+          variants = [{
+            color: 'Varsayılan',
+            colorCode: '#C0A888',
+            size: '',
+            inStock: true
+          }];
+        }
+      }
+    } catch (variantError) {
+      console.log(`❌ CRITICAL: Variant processing failed: ${variantError.message}`);
+      variants = [{
+        color: 'Varsayılan',
+        colorCode: '#C0A888',
+        size: '',
+        inStock: true
+      }];
     }
     
-    const variantResult = ScenarioExtractors.extractByScenario(
-      detection.scenario,
-      config,
-      $,
-      htmlContent,
-      title
-    );
-    
-    // Step 5: Build final variants array with enhanced extraction
-    let variants = buildVariantsArray(variantResult, detection.scenario);
-    
-    // Always try direct DOM extraction to get more color variants
-    console.log('🔄 Trying direct DOM extraction for additional variants...');
-    const directVariants = await extractVariantsDirect($, htmlContent, url, title);
+    // Always try direct DOM extraction to get more color variants with error handling
+    let directVariants = [];
+    try {
+      console.log('🔄 Trying direct DOM extraction for additional variants...');
+      directVariants = await extractVariantsDirect($, htmlContent, url, title);
+      console.log(`✅ Direct variant extraction successful: ${directVariants.length} variants`);
+    } catch (directVariantError) {
+      console.log(`❌ Direct variant extraction failed: ${directVariantError.message}`);
+      directVariants = [];
+    }
     
     // Merge direct extraction results if they provide more colors/sizes
     if (directVariants.length > 0) {
@@ -659,18 +927,27 @@ export async function scenarioBasedScrape(url: string): Promise<ScenarioBasedRes
  * Extract product title from page
  */
 function extractTitle($: any): string {
-  // First try JSON-LD for most reliable title
-  const jsonLdScripts = $('script[type="application/ld+json"]');
-  for (let i = 0; i < jsonLdScripts.length; i++) {
-    try {
-      const jsonData = JSON.parse($(jsonLdScripts[i]).html() || '{}');
-      if (jsonData.name && isValidProductTitle(jsonData.name)) {
-        console.log(`✅ Title from JSON-LD: ${jsonData.name}`);
-        return jsonData.name;
+  console.log('🔍 TITLE EXTRACTION: Starting with comprehensive error handling...');
+  
+  try {
+    // First try JSON-LD for most reliable title
+    console.log('📜 Trying JSON-LD title extraction...');
+    const jsonLdScripts = $('script[type="application/ld+json"]');
+    for (let i = 0; i < jsonLdScripts.length; i++) {
+      try {
+        const jsonData = JSON.parse($(jsonLdScripts[i]).html() || '{}');
+        if (jsonData.name && isValidProductTitle(jsonData.name)) {
+          const sanitizedTitle = sanitizeProductTitle(jsonData.name);
+          console.log(`✅ Title from JSON-LD: ${sanitizedTitle}`);
+          return sanitizedTitle;
+        }
+      } catch (e) {
+        console.log(`⚠️ JSON-LD parsing error: ${e.message}`);
+        // Continue to next script
       }
-    } catch (e) {
-      // Continue to next script
     }
+  } catch (jsonLdError) {
+    console.log(`❌ JSON-LD extraction failed: ${jsonLdError.message}`);
   }
   
   // Try multiple DOM selectors for title with validation
@@ -686,58 +963,52 @@ function extractTitle($: any): string {
     '.product-detail-title h1'
   ];
   
-  for (const selector of titleSelectors) {
-    const element = $(selector).first();
-    const title = element.length ? element.text().trim() : '';
-    
-    // 🚨 ENHANCED TITLE VALIDATION - Reject ALL blocking indicators
-    if (title && title.length > 3 && isValidProductTitle(title)) {
-      console.log(`✅ Title found via ${selector}: ${title}`);
-      return title;
+  try {
+    console.log('🔍 Trying DOM selector title extraction...');
+    for (const selector of titleSelectors) {
+      try {
+        console.log(`🔍 Testing selector: ${selector}`);
+        const element = $(selector).first();
+        const title = element.length ? element.text().trim() : '';
+        
+        console.log(`📝 Raw title from ${selector}: "${title}"`);
+        
+        // 🚨 ENHANCED TITLE VALIDATION - Reject ALL blocking indicators
+        if (title && title.length > 3 && isValidProductTitle(title)) {
+          const sanitizedTitle = sanitizeProductTitle(title);
+          console.log(`✅ Title found via ${selector}: ${sanitizedTitle}`);
+          return sanitizedTitle;
+        }
+      } catch (selectorError) {
+        console.log(`⚠️ Selector ${selector} error: ${selectorError.message}`);
+        continue; // Try next selector
+      }
     }
+  } catch (domError) {
+    console.log(`❌ DOM title extraction failed: ${domError.message}`);
   }
   
   // Last fallback - try page title with enhanced validation
-  const pageTitle = $('title').text().replace(' - Trendyol', '').trim();
-  if (pageTitle && pageTitle.length > 3 && isValidProductTitle(pageTitle)) {
-    console.log(`✅ Title from page title: ${pageTitle}`);
-    return pageTitle;
+  try {
+    console.log('🔍 Trying page title extraction...');
+    const pageTitle = $('title').text().replace(' - Trendyol', '').trim();
+    console.log(`📝 Raw page title: "${pageTitle}"`);
+    
+    if (pageTitle && pageTitle.length > 3 && isValidProductTitle(pageTitle)) {
+      const sanitizedTitle = sanitizeProductTitle(pageTitle);
+      console.log(`✅ Title from page title: ${sanitizedTitle}`);
+      return sanitizedTitle;
+    }
+  } catch (pageTitleError) {
+    console.log(`❌ Page title extraction failed: ${pageTitleError.message}`);
   }
   
   // 🚨 ALL TITLE EXTRACTION FAILED - likely blocked content
   console.log('❌ All title extraction methods failed - content may be blocked');
-  return 'Product';
+  return 'Ürün Bilgisi Alınamadı';
 }
 
-// 🚨 ENHANCED TITLE VALIDATION FUNCTION
-function isValidProductTitle(title: string): boolean {
-  if (!title || typeof title !== 'string') return false;
-  
-  const titleLower = title.toLowerCase();
-  
-  // Block obvious error messages
-  const blockingTitleIndicators = [
-    'sorry, you have been blocked',
-    'sorry you have been blocked',
-    'access denied',
-    'erişim engellendi',
-    'rate limit',
-    'too many requests',
-    'çok fazla istek',
-    'blocked',
-    'engellendi',
-    'error',
-    'hata',
-    '403',
-    '429',
-    '503',
-    'forbidden',
-    'yasaklı',
-    'captcha',
-    'verification',
-    'doğrulama',
-    'security check',
-    'güvenlik kontrolü',
+// NOTE: isValidProductTitle and sanitizeProductTitle functions are already defined above
     'bot detected',
     'bot tespit',
     'service unavailable',

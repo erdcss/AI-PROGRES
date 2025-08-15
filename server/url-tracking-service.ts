@@ -45,7 +45,7 @@ export class UrlTrackingService {
       const extractionResult = await scenarioBasedScrape(url);
       
       if (!extractionResult.success) {
-        throw new Error(`Extraction failed: ${extractionResult.error || 'Unknown error'}`);
+        throw new Error(`Extraction failed: ${extractionResult.extractionDetails?.evidence?.[0] || 'Unknown error'}`);
       }
 
       // Database'e kaydet
@@ -97,7 +97,7 @@ export class UrlTrackingService {
       console.error(`❌ URL tracking eklenirken hata:`, error);
       return {
         success: false,
-        error: error.message
+        error: error instanceof Error ? error.message : String(error)
       };
     }
   }
@@ -245,7 +245,7 @@ export class UrlTrackingService {
         }
         
       } catch (priceError) {
-        console.error(`❌ Ultimate Price Extraction failed, fallback to scenario-based: ${priceError.message}`);
+        console.error(`❌ Ultimate Price Extraction failed, fallback to scenario-based: ${priceError instanceof Error ? priceError.message : String(priceError)}`);
         
         // Fallback to scenario-based scraper with blocking detection
         extractionResult = await scenarioBasedScrape(url);
@@ -415,7 +415,7 @@ export class UrlTrackingService {
             currentPrice: newPrice.toString(),
             lastChecked: new Date(),
             lastSuccessfulCheck: new Date(),
-            checkCount: existing.checkCount + 1,
+            checkCount: (existing.checkCount || 0) + 1,
             status: 'active',
             lastPriceChange: new Date(),
             priceChangePercent: changePercent.toString(),
@@ -506,6 +506,41 @@ export class UrlTrackingService {
     try {
       const { priceChanged, stockChanged, oldPrice, newPrice, changePercent, oldStock, newStock } = changes;
       
+      // 🚨 COMPREHENSIVE VALIDATION before sending notification
+      if (!this.validateEntryForNotification(urlTrack)) {
+        console.log(`🚫 TELEGRAM NOTIFICATION BLOCKED: Entry failed validation`);
+        
+        // Update database status to blocked and stop tracking
+        await db
+          .update(urlTracking)
+          .set({
+            status: 'blocked',
+            isTracking: false,
+            errorMessage: `Blocked during notification validation: ${urlTrack.productTitle}`,
+            lastChecked: new Date(),
+            updatedAt: new Date()
+          })
+          .where(eq(urlTracking.url, urlTrack.url));
+        
+        // Stop active tracking
+        this.stopTracking(urlTrack.url);
+        return; // Exit without sending notification
+      }
+      
+      // Additional price validation
+      if (newPrice <= 0 || newPrice > 1000000) {
+        console.log(`🚫 TELEGRAM NOTIFICATION BLOCKED: Invalid price ${newPrice} TL`);
+        return;
+      }
+      
+      // Check for extreme price changes (>1000%)
+      if (Math.abs(changePercent) > 1000) {
+        console.log(`🚫 TELEGRAM NOTIFICATION BLOCKED: Extreme price change ${changePercent.toFixed(2)}%`);
+        return;
+      }
+      
+      console.log(`✅ TELEGRAM NOTIFICATION VALIDATED: Title="${urlTrack.productTitle}", Price=${newPrice} TL, Change=${changePercent.toFixed(2)}%`);
+      
       let alertType = '';
       let alertIcon = '';
       let priority = '';
@@ -555,10 +590,13 @@ export class UrlTrackingService {
       // Temiz Trendyol URL'si oluştur
       const cleanUrl = this.cleanTrendyolUrl(urlTrack.url);
       
+      // Final title validation before message creation
+      const safeTitle = this.sanitizeProductTitle(urlTrack.productTitle);
+      
       const message = `
 ${alertIcon} <b>${alertType} - ${priority}</b>
 
-📦 <b>Ürün:</b> ${urlTrack.productTitle || 'Bilinmeyen Ürün'}
+📦 <b>Ürün:</b> ${safeTitle}
 
 ${changeDetails.join('\n')}
 
@@ -639,6 +677,144 @@ ${priority === 'YÜKSEK ÖNCELİK' ? '\n⚡ <b>HEMEN KONTROL EDİN!</b>' : ''}
       'unknown': 'Bilinmiyor ❓'
     };
     return stockTexts[stockStatus] || stockStatus;
+  }
+
+  // 🚨 DATABASE CLEANUP: Clean blocked entries
+  async cleanupBlockedEntries() {
+    try {
+      console.log('🧹 Starting cleanup of blocked URL entries...');
+      
+      // Find all entries with blocked titles
+      const allEntries = await db
+        .select()
+        .from(urlTracking);
+      
+      let cleanedCount = 0;
+      const blockingTitleIndicators = [
+        'sorry, you have been blocked',
+        'sorry you have been blocked',
+        'access denied',
+        'erişim engellendi',
+        'blocked',
+        'engellendi',
+        'error',
+        'hata',
+        '403',
+        '429',
+        '503'
+      ];
+      
+      for (const entry of allEntries) {
+        if (entry.productTitle) {
+          const titleLower = entry.productTitle.toLowerCase();
+          const hasBlockingTitle = blockingTitleIndicators.some(indicator => 
+            titleLower.includes(indicator)
+          );
+          
+          if (hasBlockingTitle) {
+            console.log(`🧹 Cleaning blocked entry: "${entry.productTitle}"`);
+            
+            // Update status to blocked and stop tracking
+            await db
+              .update(urlTracking)
+              .set({
+                status: 'blocked',
+                isTracking: false,
+                errorMessage: `Blocked title detected during cleanup: ${entry.productTitle}`,
+                updatedAt: new Date()
+              })
+              .where(eq(urlTracking.id, entry.id));
+            
+            // Stop any active tracking
+            this.stopTracking(entry.url);
+            cleanedCount++;
+          }
+        }
+      }
+      
+      console.log(`✅ Cleanup completed: ${cleanedCount} blocked entries cleaned`);
+      return { cleanedCount };
+    } catch (error) {
+      console.error('❌ Error during cleanup:', error);
+      return { cleanedCount: 0 };
+    }
+  }
+
+  // 🚨 VALIDATE ENTRY BEFORE NOTIFICATION
+  private validateEntryForNotification(urlTrack: any): boolean {
+    if (!urlTrack.productTitle) {
+      console.log(`🚫 Entry rejected: No product title`);
+      return false;
+    }
+    
+    const productTitle = urlTrack.productTitle.toLowerCase();
+    const blockingIndicators = [
+      'sorry, you have been blocked',
+      'sorry you have been blocked',
+      'access denied',
+      'erişim engellendi',
+      'blocked',
+      'engellendi',
+      'error',
+      'hata',
+      '403',
+      '429',
+      '503',
+      'forbidden',
+      'yasaklı',
+      'captcha',
+      'verification',
+      'doğrulama',
+      'security check',
+      'güvenlik kontrolü',
+      'bot detected',
+      'robot tespit',
+      'rate limit',
+      'too many requests',
+      'çok fazla istek',
+      'service unavailable',
+      'hizmet kullanılamıyor'
+    ];
+    
+    for (const indicator of blockingIndicators) {
+      if (productTitle.includes(indicator)) {
+        console.log(`🚫 Entry rejected: Contains blocking indicator "${indicator}"`);
+        return false;
+      }
+    }
+    
+    // Additional validation: Title should be at least 5 characters and not generic
+    if (urlTrack.productTitle.length < 5 || 
+        ['product', 'ürün', 'item'].includes(urlTrack.productTitle.toLowerCase())) {
+      console.log(`🚫 Entry rejected: Invalid title "${urlTrack.productTitle}"`);
+      return false;
+    }
+    
+    return true;
+  }
+
+  // 🚨 SANITIZE PRODUCT TITLE for safe display
+  private sanitizeProductTitle(title: string | null | undefined): string {
+    if (!title) return 'Bilinmeyen Ürün';
+    
+    // Remove any potentially dangerous HTML or script content
+    const cleanTitle = title
+      .replace(/<[^>]*>/g, '') // Remove HTML tags
+      .replace(/javascript:/gi, '') // Remove javascript: links
+      .replace(/on\w+\s*=/gi, '') // Remove event handlers
+      .trim();
+    
+    // Check if the cleaned title is still valid
+    if (cleanTitle.length < 3) {
+      return 'Bilinmeyen Ürün';
+    }
+    
+    // Truncate if too long
+    if (cleanTitle.length > 100) {
+      return cleanTitle.substring(0, 97) + '...';
+    }
+    
+    return cleanTitle;
   }
 
   // Temiz Trendyol URL'si oluştur
