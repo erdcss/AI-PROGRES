@@ -4112,5 +4112,17 @@ export function registerRoutes(app: Express): Server {
   });
 
   console.log('📦 Shopify transfer tracking API endpoints registered');
+
+  // AI-Powered Routes Integration
+  (async () => {
+    try {
+      const { addAIPoweredRoutes } = await import('./ai-powered-routes');
+      addAIPoweredRoutes(app);
+      console.log('🤖 AI-Powered routes başarıyla eklendi');
+    } catch (error) {
+      console.error('⚠️ AI routes yüklenemedi:', error);
+    }
+  })();
+
   return httpServer;
 }

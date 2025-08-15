@@ -1,9 +1,16 @@
 import { QueryClient, QueryFunction } from "@tanstack/react-query";
 
+export class APIRequestError extends Error {
+  constructor(message: string, public status?: number) {
+    super(message);
+    this.name = 'APIRequestError';
+  }
+}
+
 async function throwIfResNotOk(res: Response) {
   if (!res.ok) {
     const text = (await res.text()) || res.statusText;
-    throw new Error(`${res.status}: ${text}`);
+    throw new APIRequestError(`${res.status}: ${text}`, res.status);
   }
 }
 

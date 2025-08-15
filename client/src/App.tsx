@@ -10,6 +10,7 @@ import ComingSoon from "@/pages/coming-soon";
 import { TelegramPage } from "@/pages/telegram";
 import EmailSettings from "@/pages/EmailSettings";
 import ArcelikScraper from "@/pages/arcelik-scraper";
+import AIEnhancedScraper from "@/pages/ai-enhanced-scraper";
 // Removed auto-csv page import
 // Removed bulk-csv page import
 import { useState, useEffect } from "react";
@@ -319,6 +320,11 @@ function Router() {
       <Route path="/scraper/arcelik">
         <PageTransition>
           <ArcelikScraper />
+        </PageTransition>
+      </Route>
+      <Route path="/ai-enhanced">
+        <PageTransition>
+          <AIEnhancedScraper />
         </PageTransition>
       </Route>
       <Route path="/shopify-tracking">
