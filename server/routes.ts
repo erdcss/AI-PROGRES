@@ -1106,7 +1106,7 @@ export function registerRoutes(app: Express): Server {
         });
       }
 
-      const { url: rawUrl, persistentTags } = req.body;
+      const { url: rawUrl, persistentTags, onlyExtractData = false } = req.body;
       
       // URL'i normalize et
       const url = normalizeUrl(rawUrl);
@@ -1140,39 +1140,49 @@ export function registerRoutes(app: Express): Server {
             result.tags = [...(result.tags || []), ...persistentTags];
           }
           
-          // Send Telegram notification with product URL and title
-          await sendProductExtractionNotification(url, result.title, result.brand, result.price);
+          // ✅ Sadece veri çekme modunda otomatik işlemler yapılmaz
+          if (!onlyExtractData) {
+            // Send Telegram notification with product URL and title
+            await sendProductExtractionNotification(url, result.title, result.brand, result.price);
+          } else {
+            console.log('📝 Sadece veri çekme modu - Telegram bildirimi atlandı');
+          }
           
-          // Shopify transfer tracking kaydı oluştur
-          try {
-            const { shopifyTransferTracker } = await import('./shopify-transfer-tracker');
-            await shopifyTransferTracker.registerTransferredProduct({
-              sourceUrl: url,
-              title: result.title,
-              brand: result.brand,
-              originalPrice: result.price.original,
-              shopifyPrice: result.price.withProfit,
-              profitMargin: ((result.price.withProfit - result.price.original) / result.price.original * 100),
-              variantCount: result.variants.length,
-              imageCount: result.images.length,
-              sourceData: {
-                variants: result.variants,
-                images: result.images,
-                features: result.features,
-                tags: result.tags,
-                scenario: result.scenario,
-                confidence: result.confidence
-              }
-            });
-            console.log('📦 Shopify transfer kaydı oluşturuldu');
-          } catch (trackingError) {
-            console.error('⚠️ Shopify transfer tracking hatası (devam ediyor):', trackingError);
+          // ✅ Sadece Shopify transfer modunda Shopify tracking kaydı oluştur
+          if (!onlyExtractData) {
+            try {
+              const { shopifyTransferTracker } = await import('./shopify-transfer-tracker');
+              await shopifyTransferTracker.registerTransferredProduct({
+                sourceUrl: url,
+                title: result.title,
+                brand: result.brand,
+                originalPrice: result.price.original,
+                shopifyPrice: result.price.withProfit,
+                profitMargin: ((result.price.withProfit - result.price.original) / result.price.original * 100),
+                variantCount: result.variants.length,
+                imageCount: result.images.length,
+                sourceData: {
+                  variants: result.variants,
+                  images: result.images,
+                  features: result.features,
+                  tags: result.tags,
+                  scenario: result.scenario,
+                  confidence: result.confidence
+                }
+              });
+              console.log('📦 Shopify transfer kaydı oluşturuldu');
+            } catch (trackingError) {
+              console.error('⚠️ Shopify transfer tracking hatası (devam ediyor):', trackingError);
+            }
+          } else {
+            console.log('📝 Sadece veri çekme modu - Shopify transfer tracking atlandı');
           }
 
-          // Ürün yüklendiğinde detaylı Telegram bildirimi
-          try {
-            const { sendFilteredTelegramNotification } = await import('./filtered-telegram-notifier');
-            const message = `
+          // ✅ Sadece Shopify transfer modunda detaylı Telegram bildirimi
+          if (!onlyExtractData) {
+            try {
+              const { sendFilteredTelegramNotification } = await import('./filtered-telegram-notifier');
+              const message = `
 🎯 <b>YENİ ÜRÜN SHOPIFY'A AKTARILDI</b>
 
 📦 <b>Ürün:</b> ${result.title}
@@ -1188,12 +1198,15 @@ export function registerRoutes(app: Express): Server {
 ⏰ <b>Transfer Tarihi:</b> ${new Date().toLocaleString('tr-TR')}
 🤖 <b>Durum:</b> Shopify'a aktarıldı - Takip sistemi aktif
 🔔 <b>Takip:</b> Fiyat, stok ve durum değişiklikleri izleniyor
-            `.trim();
-            
-            await sendFilteredTelegramNotification(message);
-            console.log('📱 Shopify transfer bildirimi Telegram\'a gönderildi');
-          } catch (telegramError) {
-            console.error('⚠️ Telegram bildirimi hatası:', telegramError);
+              `.trim();
+              
+              await sendFilteredTelegramNotification(message);
+              console.log('📱 Shopify transfer bildirimi Telegram\'a gönderildi');
+            } catch (telegramError) {
+              console.error('⚠️ Telegram bildirimi hatası:', telegramError);
+            }
+          } else {
+            console.log('📝 Sadece veri çekme modu - Shopify transfer bildirimi atlandı');
           }
           
           // ✅ Otomatik tracking kaldırıldı - Kullanıcı önce ürün verilerini görecek

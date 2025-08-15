@@ -86,7 +86,7 @@ function ScraperPage() {
   });
 
   const singleScrapeMutation = useMutation({
-    mutationFn: async (data: ScrapeFormData & { persistentTags?: string[] }) => {
+    mutationFn: async (data: ScrapeFormData & { persistentTags?: string[]; onlyExtractData?: boolean }) => {
       // Shopify URL'lerini tespit et ve doğru endpoint'e yönlendir
       if (data.url.includes('.myshopify.com') || data.url.includes('shopify.com')) {
         // Bu bir Shopify URL'si - CSV generation endpoint'ine git
@@ -118,7 +118,12 @@ function ScraperPage() {
         headers: {
           "Content-Type": "application/json",
         },
-        body: JSON.stringify({ url: data.url, mode: 'single', persistentTags: data.persistentTags }),
+        body: JSON.stringify({ 
+          url: data.url, 
+          mode: 'single', 
+          persistentTags: data.persistentTags,
+          onlyExtractData: data.onlyExtractData || false
+        }),
       });
       
       if (!response.ok) {
@@ -240,6 +245,81 @@ function ScraperPage() {
     onError: (error: any) => {
       toast({
         title: "Hata",
+        description: error.message,
+        variant: "destructive"
+      });
+    }
+  });
+
+  // NEW: Dedicated Shopify transfer with tracking mutation
+  const shopifyTransferMutation = useMutation({
+    mutationFn: async (data: ScrapeFormData & { persistentTags?: string[] }) => {
+      // Shopify URL'lerini tespit et ve doğru endpoint'e yönlendir
+      if (data.url.includes('.myshopify.com') || data.url.includes('shopify.com')) {
+        // Bu bir Shopify URL'si - CSV generation endpoint'ine git
+        console.log('🛒 Shopify URL detected, redirecting to CSV generation');
+        const response = await fetch("/api/generate-multi-variant-csv", {
+          method: "POST", 
+          headers: {
+            "Content-Type": "application/json",
+          },
+          body: JSON.stringify({ 
+            productData: { 
+              url: data.url, 
+              title: "Shopify Product",
+              tags: data.persistentTags || []
+            }
+          }),
+        });
+        
+        if (!response.ok) {
+          const errorData = await response.json().catch(() => ({}));
+          throw new Error(errorData.message || `HTTP ${response.status}`);
+        }
+        return response.json();
+      }
+      
+      // Normal Trendyol/Arçelik URL'leri için scenario-scrape WITH SHOPIFY TRANSFER AND TRACKING
+      const response = await fetch("/api/scenario-scrape", {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+        },
+        body: JSON.stringify({ 
+          url: data.url, 
+          mode: 'single', 
+          persistentTags: data.persistentTags,
+          onlyExtractData: false // Enable Shopify transfer and tracking
+        }),
+      });
+      
+      if (!response.ok) {
+        const errorData = await response.json().catch(() => ({}));
+        throw new Error(errorData.message || `HTTP ${response.status}`);
+      }
+      return response.json();
+    },
+    onSuccess: (data) => {
+      // Check if extraction actually succeeded
+      if (!data || !data.success) {
+        toast({
+          title: "Shopify Transfer Başarısız",
+          description: "Trendyol tarafından engellendiniz. Lütfen birkaç dakika bekleyip tekrar deneyin veya farklı bir URL kullanın.",
+          variant: "destructive"
+        });
+        return;
+      }
+      
+      setProduct(data);
+      
+      toast({
+        title: "Başarılı", 
+        description: "Ürün Shopify'a aktarıldı ve takip sistemi başlatıldı"
+      });
+    },
+    onError: (error: any) => {
+      toast({
+        title: "Shopify Transfer Hatası",
         description: error.message,
         variant: "destructive"
       });
@@ -394,11 +474,17 @@ function ScraperPage() {
   });
 
   const onSingleSubmit = singleForm.handleSubmit((data) => {
-    // Start the main scraping process with persistent tags - this already includes image extraction
-    singleScrapeMutation.mutate({ ...data, persistentTags });
+    // Start the main scraping process with persistent tags - ONLY EXTRACT DATA (no tracking/transfer)
+    singleScrapeMutation.mutate({ ...data, persistentTags, onlyExtractData: true });
     
     // No need for additional comprehensive image extraction since scenario-based scraper already extracts all needed images
     // Removed: extractAllImagesMutation.mutate(data.url); to prevent "Görsel Çıkarma Hatası" notifications
+  });
+
+  // NEW: Function for Shopify transfer with tracking
+  const onShopifyTransfer = singleForm.handleSubmit((data) => {
+    // Start the Shopify transfer process with persistent tags - INCLUDES TRACKING
+    shopifyTransferMutation.mutate({ ...data, persistentTags });
   });
 
   const addTag = () => {
@@ -500,8 +586,8 @@ function ScraperPage() {
     for (let i = 0; i < draggedUrls.length; i++) {
       const url = draggedUrls[i];
       try {
-        // Her URL için ayrı ayrı işlem yap
-        const data = await singleScrapeMutation.mutateAsync({ url, persistentTags });
+        // Her URL için ayrı ayrı işlem yap (sadece veri çekme)
+        const data = await singleScrapeMutation.mutateAsync({ url, persistentTags, onlyExtractData: true });
         
         // Her ürün için ayrı CSV preview ekle
         if (data.csvContent) {
@@ -929,7 +1015,7 @@ function ScraperPage() {
                         <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
                           <Button
                             type="submit"
-                            disabled={singleScrapeMutation.isPending || uploadToShopifyMutation.isPending}
+                            disabled={singleScrapeMutation.isPending || shopifyTransferMutation.isPending}
                             className="bg-gradient-to-r from-green-600 to-emerald-600 hover:from-green-700 hover:to-emerald-700 text-white h-14 text-lg font-medium"
                           >
                             {singleScrapeMutation.isPending ? (
@@ -941,6 +1027,25 @@ function ScraperPage() {
                               <div className="flex items-center gap-2">
                                 <Package className="w-5 h-5" />
                                 <span>ÜRÜN VERİLERİNİ ÇEK</span>
+                              </div>
+                            )}
+                          </Button>
+                          
+                          <Button
+                            type="button"
+                            onClick={onShopifyTransfer}
+                            disabled={singleScrapeMutation.isPending || shopifyTransferMutation.isPending}
+                            className="bg-gradient-to-r from-blue-600 to-purple-600 hover:from-blue-700 hover:to-purple-700 text-white h-14 text-lg font-medium"
+                          >
+                            {shopifyTransferMutation.isPending ? (
+                              <div className="flex items-center gap-2">
+                                <Loader2 className="w-5 h-5 animate-spin" />
+                                <span>Shopify'a Aktarılıyor...</span>
+                              </div>
+                            ) : (
+                              <div className="flex items-center gap-2">
+                                <ShoppingCart className="w-5 h-5" />
+                                <span>SHOPIFY'A AKTAR</span>
                               </div>
                             )}
                           </Button>
