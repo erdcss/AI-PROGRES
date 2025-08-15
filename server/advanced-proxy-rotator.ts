@@ -171,7 +171,7 @@ export class AdvancedProxyRotator {
 
     // Create axios instance with current rotation settings
     const axiosInstance: AxiosInstance = axios.create({
-      timeout: 15000,
+      timeout: 5000,
       maxRedirects: 3,
       validateStatus: (status) => status < 500,
       headers: {
@@ -224,7 +224,7 @@ export class AdvancedProxyRotator {
   }
 
   // Multi-attempt extraction with different strategies
-  async extractWithRetries(url: string, maxAttempts: number = 3): Promise<{ html: string; success: boolean }> {
+  async extractWithRetries(url: string, maxAttempts: number = 2): Promise<{ html: string; success: boolean }> {
     console.log(`🎯 Starting extraction for: ${url}`);
     
     for (let attempt = 1; attempt <= maxAttempts; attempt++) {
@@ -238,8 +238,8 @@ export class AdvancedProxyRotator {
       }
       
       if (attempt < maxAttempts) {
-        // Exponential backoff between attempts
-        const waitTime = Math.min(5000 * Math.pow(2, attempt - 1), 30000);
+        // Fast retry - minimal wait time
+        const waitTime = 1000; // Only 1 second wait
         console.log(`⏳ Waiting ${waitTime/1000}s before retry...`);
         await new Promise(resolve => setTimeout(resolve, waitTime));
       }

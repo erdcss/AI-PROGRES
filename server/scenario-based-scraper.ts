@@ -134,57 +134,80 @@ export async function scenarioBasedScrape(url: string): Promise<ScenarioBasedRes
     let $: cheerio.CheerioAPI;
     
     try {
-      // USE ADVANCED PROXY ROTATION SYSTEM FOR ANTI-BLOCKING
-      console.log('🚀 Using ADVANCED PROXY ROTATION for maximum success rate...');
+      // ⚡ SPEED OPTIMIZATION: Try direct scraping FIRST (fastest method)
+      console.log('⚡ SPEED MODE: Trying direct scraping first...');
       
-      // Reset circuit breaker if needed
-      proxyRotator.resetCircuitBreaker();
-      
-      const rotationResult = await proxyRotator.extractWithRetries(url, 3);
-      
-      if (!rotationResult.success) {
-        console.log('⚠️ Proxy rotation failed - trying alternative data sources...');
+      try {
+        const directResult = await axios.get(url, {
+          headers: {
+            'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/131.0.0.0 Safari/537.36',
+            'Accept': 'text/html,application/xhtml+xml,application/xml;q=0.9,image/webp,*/*;q=0.8',
+            'Accept-Language': 'tr-TR,tr;q=0.9,en-US;q=0.8,en;q=0.7'
+          },
+          timeout: 3000 // Very fast timeout
+        });
         
-        // Try alternative data sources as fallback
-        const alternativeResult = await tryAlternativeSources(url);
+        htmlContent = directResult.data;
+        $ = cheerio.load(htmlContent);
+        console.log('✅ SPEED MODE: Direct scraping successful in <3s!');
         
-        if (alternativeResult && alternativeResult.success) {
-          if (alternativeResult.html) {
-            // Got HTML from alternative source
-            htmlContent = alternativeResult.html;
+      } catch (directError) {
+        console.log('⚠️ Direct scraping failed, trying advanced methods...');
+        
+        // Fallback to advanced proxy rotation only if direct fails
+        console.log('🚀 Using ADVANCED PROXY ROTATION as fallback...');
+        
+        // Reset circuit breaker if needed
+        proxyRotator.resetCircuitBreaker();
+        
+        const rotationResult = await proxyRotator.extractWithRetries(url, 2); // Reduced from 3 to 2
+        
+        if (!rotationResult.success) {
+          console.log('⚠️ Proxy rotation failed - trying final fallback...');
+          
+          // Skip mobile API attempts (they're mostly failing) and go straight to final fallback
+          console.log('🔄 Trying final direct scraping fallback...');
+          
+          try {
+            const finalResult = await axios.get(url, {
+              headers: {
+                'User-Agent': 'Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36',
+                'Accept': 'text/html,application/xhtml+xml,application/xml;q=0.9,*/*;q=0.8'
+              },
+              timeout: 5000
+            });
+            
+            htmlContent = finalResult.data;
             $ = cheerio.load(htmlContent);
-            console.log(`✅ Alternative source successful: ${alternativeResult.source}`);
-          } else {
-            // Got structured data from mobile API
-            console.log('✅ Using mobile API structured data');
-            return processStructuredData(alternativeResult, url);
+            console.log('✅ Final fallback successful!');
+            
+          } catch (finalError) {
+            console.log('❌ All extraction methods failed');
+            return {
+              success: false,
+              scenario: 'error' as ExtractionScenario,
+              confidence: 0,
+              title: 'Yüklenemiyor',
+              brand: 'Bilinmiyor',
+              price: { original: 0, currency: 'TL', formatted: '0 TL', withProfit: 0, profitFormatted: '0 TL' },
+              images: [],
+              features: [],
+              variants: [],
+              tags: [],
+              extractionDetails: {
+                scenario: 'blocked',
+                confidence: 0,
+                evidence: ['All extraction methods failed'],
+                strategy: 'all-methods-failed'
+              }
+            };
           }
         } else {
-          console.log('❌ All data sources exhausted');
-          return {
-            success: false,
-            scenario: 'error' as ExtractionScenario,
-            confidence: 0,
-            title: 'Yüklenemiyor',
-            brand: 'Bilinmiyor',
-            price: { original: 0, currency: 'TL', formatted: '0 TL', withProfit: 0, profitFormatted: '0 TL' },
-            images: [],
-            features: [],
-            variants: [],
-            tags: [],
-            extractionDetails: {
-              scenario: 'blocked',
-              confidence: 0,
-              evidence: ['All data sources exhausted'],
-              strategy: 'all-sources-failed'
-            }
-          };
+          htmlContent = rotationResult.html;
+          $ = cheerio.load(htmlContent);
+          console.log('✅ ADVANCED ROTATION extraction successful!');
         }
       }
-      
-      htmlContent = rotationResult.html;
-      $ = cheerio.load(htmlContent);
-      console.log('✅ ADVANCED ROTATION extraction successful!');
       
     } catch (axiosError) {
       // Only use Puppeteer if axios fails with 403/429
