@@ -11,6 +11,7 @@ import { TelegramPage } from "@/pages/telegram";
 import EmailSettings from "@/pages/EmailSettings";
 import ArcelikScraper from "@/pages/arcelik-scraper";
 import AIEnhancedScraper from "@/pages/ai-enhanced-scraper";
+import PriceMovementTest from "@/pages/price-movement-test";
 // Removed auto-csv page import
 // Removed bulk-csv page import
 import { useState, useEffect } from "react";
@@ -325,6 +326,11 @@ function Router() {
       <Route path="/ai-enhanced">
         <PageTransition>
           <AIEnhancedScraper />
+        </PageTransition>
+      </Route>
+      <Route path="/price-movement-test">
+        <PageTransition>
+          <PriceMovementTest />
         </PageTransition>
       </Route>
       <Route path="/shopify-tracking">

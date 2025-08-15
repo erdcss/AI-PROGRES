@@ -3,6 +3,7 @@ import { urlTracking, priceHistory } from '@shared/schema';
 import { eq, desc } from 'drizzle-orm';
 import { scenarioBasedScrape } from './scenario-based-scraper';
 import { ultimatePriceExtract } from './ultimate-price-extractor';
+import { enhancedPriceMovementTracker } from './enhanced-price-movement-tracker';
 import axios from 'axios';
 import * as cheerio from 'cheerio';
 
@@ -248,6 +249,11 @@ export class UrlTrackingService {
         // URL tracking sisteminin kendi price change tracking mekanizması var
         // Price history tablosu product variants ile ilişkili, URL tracking ile değil
         console.log(`💾 Fiyat değişikliği kaydedildi: ${currentPrice} TL → ${newPrice} TL (${changePercent.toFixed(2)}%)`);
+
+        // Enhanced Price Movement Tracker ile detaylı analiz
+        if (priceChanged) {
+          await enhancedPriceMovementTracker.trackPriceChange(url, newPrice);
+        }
 
         // Kapsamlı bildirim gönder (fiyat + stok)
         await this.sendComprehensiveChangeNotification(existing, {

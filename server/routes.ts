@@ -4124,5 +4124,16 @@ export function registerRoutes(app: Express): Server {
     }
   })();
 
+  // Enhanced Price Movement API Routes
+  (async () => {
+    try {
+      const { priceMovementApiRouter } = await import('./price-movement-api');
+      app.use('/api/price-movement', priceMovementApiRouter);
+      console.log('📊 Enhanced Price Movement API routes eklendi');
+    } catch (error) {
+      console.error('⚠️ Price Movement API routes yüklenemedi:', error);
+    }
+  })();
+
   return httpServer;
 }

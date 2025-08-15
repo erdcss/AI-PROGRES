@@ -159,6 +159,19 @@ export const urlTracking = pgTable('url_tracking', {
   updatedAt: timestamp('updated_at').notNull().defaultNow()
 });
 
+// URL Price History table - URL takip sistemi için detaylı fiyat geçmişi
+export const urlPriceHistory = pgTable('url_price_history', {
+  id: serial('id').primaryKey(),
+  url: text('url').notNull().references(() => urlTracking.url, { onDelete: 'cascade' }),
+  price: decimal('price', { precision: 10, scale: 2 }).notNull(),
+  previousPrice: decimal('previous_price', { precision: 10, scale: 2 }),
+  changeAmount: decimal('change_amount', { precision: 10, scale: 2 }),
+  changePercentage: decimal('change_percentage', { precision: 5, scale: 2 }),
+  recordedAt: timestamp('recorded_at').notNull().defaultNow(),
+  productTitle: text('product_title'),
+  currency: text('currency').default('TL')
+});
+
 // Relations
 export const productsRelations = relations(products, ({ many }) => ({
   variants: many(productVariants),
