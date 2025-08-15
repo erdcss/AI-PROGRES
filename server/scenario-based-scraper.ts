@@ -110,12 +110,8 @@ export async function scenarioBasedScrape(url: string): Promise<ScenarioBasedRes
     console.log(`🎯 SCENARIO-BASED EXTRACTION for: ${url}`);
     console.log(`🚨 DEBUGGING: Current URL being processed: ${url}`);
     
-    // Check cache first
-    const cached = extractionCache.get(url);
-    if (cached && (Date.now() - cached.timestamp) < CACHE_DURATION) {
-      console.log('✅ Using cached data for:', url);
-      return cached.data;
-    }
+    // CACHE COMPLETELY DISABLED for fresh price extraction
+    console.log('🔄 Cache disabled, extracting fresh data for correct prices');
     
     // 🚨 PRICE CORRECTION DISABLED - allowing real price extraction
     const handleSpecialPriceCase = (price: any, htmlContent: string) => {
