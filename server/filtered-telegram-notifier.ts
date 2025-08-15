@@ -134,7 +134,7 @@ export class FilteredTelegramNotifier {
     }
   }
 
-  private async sendMessage(message: string) {
+  public async sendMessage(message: string) {
     try {
       await this.bot!.sendMessage(this.chatId, message, { parse_mode: 'Markdown' });
       console.log('Filtered notification sent');
@@ -162,3 +162,8 @@ export class FilteredTelegramNotifier {
 }
 
 export const filteredNotifier = new FilteredTelegramNotifier();
+
+// Standalone function for backwards compatibility
+export async function sendFilteredTelegramNotification(message: string) {
+  return await filteredNotifier.sendNotification(message);
+}
