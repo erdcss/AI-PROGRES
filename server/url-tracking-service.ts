@@ -216,16 +216,29 @@ export class UrlTrackingService {
       // Fiyat değişikliği var mı? (0.05 TL tolerans ile sahte bildirimleri engelle)
       const priceChanged = Math.abs(newPrice - currentPrice) > 0.05;
       
-      // Fiyat mantıklı aralıkta mı kontrol et (10-10000 TL arası)
-      if (newPrice < 10 || newPrice > 10000) {
+      // Fiyat mantıklı aralıkta mı kontrol et (15-5000 TL arası, lüks ürünler için 15000 TL'ye kadar)
+      if (newPrice < 15 || newPrice > 15000) {
         console.log(`⚠️ Mantıksız fiyat tespit edildi: ${newPrice} TL - bildirim gönderilmiyor`);
         return;
       }
       
-      // Çok büyük fiyat değişikliklerini filtrele (>500% veya <%90 azalma)
-      if (currentPrice > 0) {
+      // Çok pahalı ürünler için ek doğrulama (5000 TL üzeri ürünler için)
+      if (newPrice > 5000) {
+        console.log(`💎 Lüks ürün fiyatı tespit edildi: ${newPrice} TL - ekstra doğrulama yapılıyor`);
+        // Lüks ürünlerde daha büyük fiyat değişikliklerine tolerans
+        if (currentPrice > 0) {
+          const luxuryChangePercent = Math.abs((newPrice - currentPrice) / currentPrice) * 100;
+          if (luxuryChangePercent > 100) { // Lüks ürünlerde %100'den fazla değişim engelle
+            console.log(`⚠️ Lüks ürün aşırı fiyat değişikliği (%${luxuryChangePercent.toFixed(2)}) - bildirim gönderilmiyor`);
+            return;
+          }
+        }
+      }
+      
+      // Normal ürünler için büyük fiyat değişikliklerini filtrele (>200% değişim)
+      if (currentPrice > 0 && newPrice <= 5000) {
         const changePercent = Math.abs((newPrice - currentPrice) / currentPrice) * 100;
-        if (changePercent > 500) {
+        if (changePercent > 200) {
           console.log(`⚠️ Aşırı fiyat değişikliği tespit edildi (%${changePercent.toFixed(2)}) - bildirim gönderilmiyor`);
           return;
         }

@@ -96,21 +96,35 @@ export class UltimatePriceExtractor {
         console.log(`   ${idx + 1}. ${res.original} TL via ${res.method}`);
       });
 
-      // Filter reasonable prices (10-100000 TL range for Turkish e-commerce - expanded for expensive items)
-      const reasonablePrices = allResults.filter(r => r.original >= 10 && r.original <= 100000);
+      // Filter reasonable prices (15-5000 TL range for most Turkish e-commerce products)
+      const reasonablePrices = allResults.filter(r => r.original >= 15 && r.original <= 5000);
       
       if (reasonablePrices.length > 0) {
-        // Sort by price (descending) and return the HIGHEST reasonable price
-        // This avoids incorrect lower prices like 25 TL when real price is 479.90 TL
-        reasonablePrices.sort((a, b) => b.original - a.original);
+        // Sort by price (ascending) and return the LOWEST reasonable price (customer wants discounts!)
+        // This prioritizes sale/discounted prices over original prices
+        reasonablePrices.sort((a, b) => a.original - b.original);
         const bestPrice = reasonablePrices[0];
-        console.log(`🎯 SELECTED BEST PRICE (HIGHEST): ${bestPrice.original} TL via ${bestPrice.method}`);
+        console.log(`🎯 SELECTED BEST PRICE (LOWEST): ${bestPrice.original} TL via ${bestPrice.method}`);
         return bestPrice;
       } else {
-        // No reasonable prices, return the highest found
-        allResults.sort((a, b) => b.original - a.original);
-        console.log(`⚠️ No reasonable prices found, using highest result: ${allResults[0].original} TL`);
-        return allResults[0];
+        // No reasonable prices, try expanded range for luxury items (5000-15000 TL)
+        const luxuryPrices = allResults.filter(r => r.original >= 5000 && r.original <= 15000);
+        if (luxuryPrices.length > 0) {
+          luxuryPrices.sort((a, b) => a.original - b.original);
+          console.log(`💎 Using luxury price range: ${luxuryPrices[0].original} TL`);
+          return luxuryPrices[0];
+        }
+        
+        // Last resort: filter out obviously wrong prices (>15000 TL) and use lowest
+        const filteredResults = allResults.filter(r => r.original <= 15000);
+        if (filteredResults.length > 0) {
+          filteredResults.sort((a, b) => a.original - b.original);
+          console.log(`🔧 Using filtered lowest result: ${filteredResults[0].original} TL`);
+          return filteredResults[0];
+        }
+        
+        console.log(`❌ All prices seem unreasonable, using fallback`);
+        return this.createFallbackPrice();
       }
     }
 
