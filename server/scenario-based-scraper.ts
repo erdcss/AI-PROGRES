@@ -402,12 +402,12 @@ export async function scenarioBasedScrape(url: string): Promise<ScenarioBasedRes
         try {
           $ = cheerio.load(htmlContent, {
             xml: false,
-            decodeEntities: false // Prevent HTML entity parsing issues
+            recognizeSelfClosing: true
           });
           console.log('✅ SPEED MODE: Direct scraping successful in <3s!');
-        } catch (parseError) {
-          console.log(`❌ HTML parsing error: ${parseError.message}`);
-          throw new Error(`HTML parsing failed: ${parseError.message}`);
+        } catch (parseError: any) {
+          console.log(`❌ HTML parsing error: ${parseError?.message || 'Unknown parsing error'}`);
+          throw new Error(`HTML parsing failed: ${parseError?.message || 'Unknown parsing error'}`);
         }
         
       } catch (directError) {
@@ -442,11 +442,11 @@ export async function scenarioBasedScrape(url: string): Promise<ScenarioBasedRes
             try {
               $ = cheerio.load(htmlContent, {
                 xml: false,
-                decodeEntities: false
+                recognizeSelfClosing: true
               });
               console.log('✅ Final fallback successful!');
-            } catch (parseError) {
-              console.log(`❌ Final fallback HTML parsing error: ${parseError.message}`);
+            } catch (parseError: any) {
+              console.log(`❌ Final fallback HTML parsing error: ${parseError?.message || 'Unknown parsing error'}`);
               throw parseError;
             }
             
@@ -478,11 +478,11 @@ export async function scenarioBasedScrape(url: string): Promise<ScenarioBasedRes
           try {
             $ = cheerio.load(htmlContent, {
               xml: false,
-              decodeEntities: false
+              recognizeSelfClosing: true
             });
             console.log('✅ ADVANCED ROTATION extraction successful!');
-          } catch (parseError) {
-            console.log(`❌ Rotation HTML parsing error: ${parseError.message}`);
+          } catch (parseError: any) {
+            console.log(`❌ Rotation HTML parsing error: ${parseError?.message || 'Unknown parsing error'}`);
             throw parseError;
           }
         }
@@ -526,10 +526,10 @@ export async function scenarioBasedScrape(url: string): Promise<ScenarioBasedRes
       try {
         $ = cheerio.load(htmlContent, {
           xml: false,
-          decodeEntities: false
+          recognizeSelfClosing: true
         });
-      } catch (parseError) {
-        console.log(`❌ Puppeteer HTML parsing error: ${parseError.message}`);
+      } catch (parseError: any) {
+        console.log(`❌ Puppeteer HTML parsing error: ${parseError?.message || 'Unknown parsing error'}`);
         throw parseError;
       }
       
@@ -618,16 +618,16 @@ export async function scenarioBasedScrape(url: string): Promise<ScenarioBasedRes
       try {
         title = extractTitle($);
         console.log(`✅ Title extraction successful: "${title}"`);
-      } catch (titleError) {
-        console.log(`❌ Title extraction failed: ${titleError.message}`);
+      } catch (titleError: any) {
+        console.log(`❌ Title extraction failed: ${titleError?.message || 'Unknown title error'}`);
         title = 'Ürün Bilgisi Alınamadı';
       }
       
       try {
         brand = extractBrand(url);
         console.log(`✅ Brand extraction successful: "${brand}"`);
-      } catch (brandError) {
-        console.log(`❌ Brand extraction failed: ${brandError.message}`);
+      } catch (brandError: any) {
+        console.log(`❌ Brand extraction failed: ${brandError?.message || 'Unknown brand error'}`);
         brand = 'Bilinmiyor';
       }
       
@@ -635,8 +635,8 @@ export async function scenarioBasedScrape(url: string): Promise<ScenarioBasedRes
       try {
         price = ultimatePriceExtract($, htmlContent);
         console.log('🔥 ULTIMATE PRICE EXTRACTOR RESULT:', JSON.stringify(price));
-      } catch (priceError) {
-        console.log(`❌ Price extraction failed: ${priceError.message}`);
+      } catch (priceError: any) {
+        console.log(`❌ Price extraction failed: ${priceError?.message || 'Unknown price error'}`);
         price = {
           original: 0,
           currency: 'TL',
@@ -647,8 +647,8 @@ export async function scenarioBasedScrape(url: string): Promise<ScenarioBasedRes
           raw: 'PRICE_EXTRACTION_ERROR'
         };
       }
-    } catch (basicExtractionError) {
-      console.log(`❌ CRITICAL: Basic extraction completely failed: ${basicExtractionError.message}`);
+    } catch (basicExtractionError: any) {
+      console.log(`❌ CRITICAL: Basic extraction completely failed: ${basicExtractionError?.message || 'Unknown basic extraction error'}`);
       
       // Return error result for completely failed extraction
       return {
@@ -665,7 +665,7 @@ export async function scenarioBasedScrape(url: string): Promise<ScenarioBasedRes
         extractionDetails: {
           scenario: 'extraction-error',
           confidence: 0,
-          evidence: [`Basic extraction failed: ${basicExtractionError.message}`],
+          evidence: [`Basic extraction failed: ${basicExtractionError?.message || 'Unknown error'}`],
           strategy: 'error-fallback'
         }
       };
@@ -1009,37 +1009,6 @@ function extractTitle($: any): string {
 }
 
 // NOTE: isValidProductTitle and sanitizeProductTitle functions are already defined above
-    'bot detected',
-    'bot tespit',
-    'service unavailable',
-    'hizmet kullanılamıyor',
-    'temporarily unavailable',
-    'geçici olarak kullanılamıyor',
-    'cloudflare',
-    'cf-ray'
-  ];
-  
-  for (const indicator of blockingTitleIndicators) {
-    if (titleLower.includes(indicator)) {
-      console.log(`🚫 TITLE REJECTED: Contains blocking indicator "${indicator}"`);
-      return false;
-    }
-  }
-  
-  // Additional checks
-  if (title.length < 5) {
-    console.log(`🚫 TITLE REJECTED: Too short (${title.length} chars)`);
-    return false;
-  }
-  
-  if (title === '429' || title === 'Product' || title === 'Ürün') {
-    console.log(`🚫 TITLE REJECTED: Generic/error title "${title}"`);
-    return false;
-  }
-  
-  console.log(`✅ TITLE VALIDATED: "${title}" passed all checks`);
-  return true;
-}
 
 /**
  * Extract brand from URL or page
