@@ -158,6 +158,73 @@ export class UrlTrackingService {
         
         const $ = cheerio.load(response.data);
         
+        // 🚨 CHECK FOR BLOCKING BEFORE PROCESSING
+        const blockingIndicators = [
+          'sorry, you have been blocked',
+          'sorry you have been blocked', 
+          'access denied',
+          'erişim engellendi',
+          'rate limited',
+          'too many requests',
+          'çok fazla istek',
+          'blocked by cloudflare',
+          'verification required',
+          'captcha required',
+          'security check',
+          'güvenlik kontrolü',
+          'bot detected',
+          'robot tespit',
+          'temporarily blocked',
+          'geçici olarak engellendi'
+        ];
+        
+        const htmlContent = response.data.toLowerCase();
+        let isBlocked = false;
+        let blockingReason = '';
+        
+        for (const indicator of blockingIndicators) {
+          if (htmlContent.includes(indicator)) {
+            isBlocked = true;
+            blockingReason = indicator;
+            break;
+          }
+        }
+        
+        // Check if content is too short (usually indicates blocking)
+        if (response.data.length < 1000) {
+          isBlocked = true;
+          blockingReason = `Content too short (${response.data.length} chars)`;
+        }
+        
+        // Check title for blocking indicators
+        const pageTitle = $('title').text().toLowerCase();
+        if (pageTitle.includes('blocked') || pageTitle.includes('error') || pageTitle.includes('403') || pageTitle.includes('429')) {
+          isBlocked = true;
+          blockingReason = `Blocked page title: ${pageTitle}`;
+        }
+        
+        if (isBlocked) {
+          console.log(`🚫 BLOCKING DETECTED in URL tracking: ${blockingReason}`);
+          console.log(`🚫 Content preview: ${response.data.substring(0, 200)}...`);
+          
+          // Update status to blocked without triggering notifications
+          await db
+            .update(urlTracking)
+            .set({
+              status: 'blocked',
+              errorMessage: `Site blocked: ${blockingReason}`,
+              lastChecked: new Date(),
+              checkCount: (existing.checkCount || 0) + 1,
+              updatedAt: new Date()
+            })
+            .where(eq(urlTracking.url, url));
+          
+          console.log(`⚠️ URL tracking updated with blocked status - no notification sent`);
+          return;
+        }
+        
+        console.log('✅ No blocking detected - proceeding with price extraction');
+        
         // Ultimate Price Extractor kullan
         const priceResult = ultimatePriceExtract($, response.data);
         console.log(`🎯 ULTIMATE PRICE RESULT: ${priceResult.original} TL via ${priceResult.method}`);
@@ -180,11 +247,72 @@ export class UrlTrackingService {
       } catch (priceError) {
         console.error(`❌ Ultimate Price Extraction failed, fallback to scenario-based: ${priceError.message}`);
         
-        // Fallback to scenario-based scraper
+        // Fallback to scenario-based scraper with blocking detection
         extractionResult = await scenarioBasedScrape(url);
+        
+        // Check if scenario-based scraper detected blocking
+        if (!extractionResult.success && extractionResult.scenario === 'blocked') {
+          console.log(`🚫 Scenario-based scraper detected blocking: ${extractionResult.extractionDetails.evidence.join(', ')}`);
+          
+          // Update status to blocked without sending notifications
+          await db
+            .update(urlTracking)
+            .set({
+              status: 'blocked',
+              errorMessage: `Extraction blocked: ${extractionResult.extractionDetails.evidence.join(', ')}`,
+              lastChecked: new Date(),
+              checkCount: (existing.checkCount || 0) + 1,
+              updatedAt: new Date()
+            })
+            .where(eq(urlTracking.url, url));
+          
+          console.log(`⚠️ URL tracking updated with scenario-blocked status - no notification sent`);
+          return;
+        }
+        
         if (!extractionResult.success) {
           throw new Error(`Both extraction methods failed: ${extractionResult.error}`);
         }
+        
+        // Final check: Validate extracted title for blocking indicators
+        if (extractionResult.title) {
+          const titleLower = extractionResult.title.toLowerCase();
+          const blockingTitleKeywords = [
+            'sorry, you have been blocked',
+            'sorry you have been blocked',
+            'access denied',
+            'erişim engellendi',
+            'blocked',
+            'engellendi',
+            'error',
+            'hata',
+            '403',
+            '429',
+            '503'
+          ];
+          
+          const hasBlockingTitle = blockingTitleKeywords.some(keyword => titleLower.includes(keyword));
+          
+          if (hasBlockingTitle) {
+            console.log(`🚫 BLOCKING DETECTED in extracted title: "${extractionResult.title}"`);
+            
+            // Update status to blocked
+            await db
+              .update(urlTracking)
+              .set({
+                status: 'blocked',
+                errorMessage: `Blocked title detected: ${extractionResult.title}`,
+                lastChecked: new Date(),
+                checkCount: (existing.checkCount || 0) + 1,
+                updatedAt: new Date()
+              })
+              .where(eq(urlTracking.url, url));
+            
+            console.log(`⚠️ URL tracking updated - blocked title detected, no notification sent`);
+            return;
+          }
+        }
+        
         newPrice = extractionResult.price.original;
       }
       

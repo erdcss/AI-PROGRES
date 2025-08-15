@@ -75,6 +75,163 @@ function processStructuredData(data: any, url: string): ScenarioBasedResult {
   };
 }
 
+// 🚫 COMPREHENSIVE BLOCKING DETECTION SYSTEM
+interface BlockingDetectionResult {
+  isBlocked: boolean;
+  reason: string;
+  blockingType: 'trendyol_block' | 'rate_limit' | 'access_denied' | 'captcha' | 'empty_content' | 'error_page' | 'none';
+}
+
+function detectBlockingResponse(htmlContent: string, $: cheerio.CheerioAPI): BlockingDetectionResult {
+  console.log('🔍 BLOCKING DETECTION: Starting comprehensive analysis...');
+  
+  // Check 1: HTML content length (too short usually indicates blocking)
+  if (htmlContent.length < 1000) {
+    console.log(`⚠️ BLOCKING CHECK: Content too short (${htmlContent.length} chars)`);
+    return {
+      isBlocked: true,
+      reason: 'Content too short - likely blocked response',
+      blockingType: 'empty_content'
+    };
+  }
+  
+  // Check 2: Direct blocking messages (case-insensitive)
+  const blockingKeywords = [
+    'sorry, you have been blocked',
+    'access denied',
+    'erişim engellendi',
+    'blocked by cloudflare',
+    'rate limited',
+    'too many requests',
+    'çok fazla istek',
+    'captcha required',
+    'please complete the captcha',
+    'verification required',
+    'bot detection',
+    'robot tespit',
+    'security check',
+    'güvenlik kontrolü',
+    'temporarily blocked',
+    'geçici olarak engellendi',
+    'ip blocked',
+    'ip engellendi',
+    'forbidden 403',
+    'error 403',
+    'error 429',
+    'error 503',
+    'service unavailable',
+    'hizmet kullanılamıyor',
+    'cloudflare ray id',
+    'cf-ray'
+  ];
+  
+  const contentLower = htmlContent.toLowerCase();
+  for (const keyword of blockingKeywords) {
+    if (contentLower.includes(keyword)) {
+      console.log(`🚫 BLOCKING DETECTED: Found keyword "${keyword}"`);
+      return {
+        isBlocked: true,
+        reason: `Blocking keyword detected: ${keyword}`,
+        blockingType: 'trendyol_block'
+      };
+    }
+  }
+  
+  // Check 3: Page title analysis
+  const pageTitle = $('title').text().toLowerCase();
+  const blockingTitles = [
+    'access denied',
+    'blocked',
+    'error',
+    '403',
+    '429',
+    '503',
+    'captcha',
+    'verification',
+    'security check',
+    'robot check'
+  ];
+  
+  for (const blockedTitle of blockingTitles) {
+    if (pageTitle.includes(blockedTitle)) {
+      console.log(`🚫 BLOCKING DETECTED: Page title contains "${blockedTitle}"`);
+      return {
+        isBlocked: true,
+        reason: `Blocking indicator in page title: ${blockedTitle}`,
+        blockingType: 'error_page'
+      };
+    }
+  }
+  
+  // Check 4: Body content analysis for blocking patterns
+  const bodyText = $('body').text().toLowerCase();
+  if (bodyText.includes('sorry') && (bodyText.includes('blocked') || bodyText.includes('denied'))) {
+    console.log(`🚫 BLOCKING DETECTED: Sorry + blocked/denied pattern in body`);
+    return {
+      isBlocked: true,
+      reason: 'Sorry + blocked/denied pattern detected in body content',
+      blockingType: 'trendyol_block'
+    };
+  }
+  
+  // Check 5: Look for product-specific content that indicates valid page
+  const validPageIndicators = [
+    '.product-',
+    '.pr-',
+    '.prc-',
+    '[data-testid="product',
+    '.price',
+    '.fiyat',
+    'h1.pr-new-br',
+    '.product-title',
+    '.product-name'
+  ];
+  
+  let hasValidIndicators = false;
+  for (const indicator of validPageIndicators) {
+    if ($(indicator).length > 0) {
+      hasValidIndicators = true;
+      break;
+    }
+  }
+  
+  // Check 6: If no product indicators and content looks like error page
+  if (!hasValidIndicators && contentLower.includes('error')) {
+    console.log(`🚫 BLOCKING DETECTED: No product indicators + error content`);
+    return {
+      isBlocked: true,
+      reason: 'No product indicators found and error content detected',
+      blockingType: 'error_page'
+    };
+  }
+  
+  // Check 7: HTTP status indicators in content
+  const httpErrorPatterns = [
+    /status\s*:?\s*40[0-9]/i,
+    /status\s*:?\s*50[0-9]/i,
+    /http\s*error\s*40[0-9]/i,
+    /http\s*error\s*50[0-9]/i
+  ];
+  
+  for (const pattern of httpErrorPatterns) {
+    if (pattern.test(htmlContent)) {
+      console.log(`🚫 BLOCKING DETECTED: HTTP error status pattern`);
+      return {
+        isBlocked: true,
+        reason: 'HTTP error status detected in content',
+        blockingType: 'error_page'
+      };
+    }
+  }
+  
+  console.log('✅ BLOCKING CHECK PASSED: No blocking indicators detected');
+  return {
+    isBlocked: false,
+    reason: 'No blocking detected',
+    blockingType: 'none'
+  };
+}
+
 export interface ScenarioBasedResult {
   success: boolean;
   scenario: ExtractionScenario;
@@ -288,6 +445,34 @@ export async function scenarioBasedScrape(url: string): Promise<ScenarioBasedRes
     
     console.log(`📄 HTML content loaded: ${htmlContent.length} characters`);
     
+    // 🚨 COMPREHENSIVE BLOCKING DETECTION - Check for blocking before ANY data extraction
+    const blockingCheck = detectBlockingResponse(htmlContent, $);
+    if (blockingCheck.isBlocked) {
+      console.log(`🚫 BLOCKING DETECTED: ${blockingCheck.reason}`);
+      console.log(`🚫 Blocked content preview: ${htmlContent.substring(0, 200)}...`);
+      
+      return {
+        success: false,
+        scenario: 'blocked' as ExtractionScenario,
+        confidence: 0,
+        title: 'Erişim Engellendi',
+        brand: 'Bilinmiyor',
+        price: { original: 0, currency: 'TL', formatted: '0 TL', withProfit: 0, profitFormatted: '0 TL' },
+        images: [],
+        features: [],
+        variants: [],
+        tags: [],
+        extractionDetails: {
+          scenario: 'blocked',
+          confidence: 0,
+          evidence: [blockingCheck.reason],
+          strategy: 'blocking-detection'
+        }
+      };
+    }
+    
+    console.log('✅ No blocking detected - proceeding with data extraction');
+    
     // Step 2: Extract basic information
     const title = extractTitle($);
     const brand = extractBrand(url);
@@ -299,6 +484,7 @@ export async function scenarioBasedScrape(url: string): Promise<ScenarioBasedRes
     console.log('✅ ULTIMATE PRICE EXTRACTION COMPLETED');
     console.log(`💰 Final price: ${price.original} TL via ${price.method}`);
     
+    // 🎆 DATA EXTRACTION SUCCESSFUL - No blocking detected
     // Enhanced extraction with improved deduplication
     const rawImages = await extractImagesBasic($, htmlContent);
     const images = ImageDeduplicator.deduplicateImages(rawImages);
@@ -478,7 +664,7 @@ function extractTitle($: any): string {
   for (let i = 0; i < jsonLdScripts.length; i++) {
     try {
       const jsonData = JSON.parse($(jsonLdScripts[i]).html() || '{}');
-      if (jsonData.name && jsonData.name !== '429' && jsonData.name.length > 3) {
+      if (jsonData.name && isValidProductTitle(jsonData.name)) {
         console.log(`✅ Title from JSON-LD: ${jsonData.name}`);
         return jsonData.name;
       }
@@ -504,27 +690,84 @@ function extractTitle($: any): string {
     const element = $(selector).first();
     const title = element.length ? element.text().trim() : '';
     
-    // Validate title - reject rate limiting indicators
-    if (title && title !== '429' && 
-        !title.includes('Rate limit') && 
-        !title.includes('Blocked') && 
-        !title.includes('Error') && 
-        title.length > 3 &&
-        title !== 'Product') {
+    // 🚨 ENHANCED TITLE VALIDATION - Reject ALL blocking indicators
+    if (title && title.length > 3 && isValidProductTitle(title)) {
       console.log(`✅ Title found via ${selector}: ${title}`);
       return title;
     }
   }
   
-  // Last fallback - try page title
+  // Last fallback - try page title with enhanced validation
   const pageTitle = $('title').text().replace(' - Trendyol', '').trim();
-  if (pageTitle && pageTitle !== '429' && pageTitle.length > 3) {
+  if (pageTitle && pageTitle.length > 3 && isValidProductTitle(pageTitle)) {
     console.log(`✅ Title from page title: ${pageTitle}`);
     return pageTitle;
   }
   
-  console.log('⚠️ No valid title found, using fallback');
+  // 🚨 ALL TITLE EXTRACTION FAILED - likely blocked content
+  console.log('❌ All title extraction methods failed - content may be blocked');
   return 'Product';
+}
+
+// 🚨 ENHANCED TITLE VALIDATION FUNCTION
+function isValidProductTitle(title: string): boolean {
+  if (!title || typeof title !== 'string') return false;
+  
+  const titleLower = title.toLowerCase();
+  
+  // Block obvious error messages
+  const blockingTitleIndicators = [
+    'sorry, you have been blocked',
+    'sorry you have been blocked',
+    'access denied',
+    'erişim engellendi',
+    'rate limit',
+    'too many requests',
+    'çok fazla istek',
+    'blocked',
+    'engellendi',
+    'error',
+    'hata',
+    '403',
+    '429',
+    '503',
+    'forbidden',
+    'yasaklı',
+    'captcha',
+    'verification',
+    'doğrulama',
+    'security check',
+    'güvenlik kontrolü',
+    'bot detected',
+    'bot tespit',
+    'service unavailable',
+    'hizmet kullanılamıyor',
+    'temporarily unavailable',
+    'geçici olarak kullanılamıyor',
+    'cloudflare',
+    'cf-ray'
+  ];
+  
+  for (const indicator of blockingTitleIndicators) {
+    if (titleLower.includes(indicator)) {
+      console.log(`🚫 TITLE REJECTED: Contains blocking indicator "${indicator}"`);
+      return false;
+    }
+  }
+  
+  // Additional checks
+  if (title.length < 5) {
+    console.log(`🚫 TITLE REJECTED: Too short (${title.length} chars)`);
+    return false;
+  }
+  
+  if (title === '429' || title === 'Product' || title === 'Ürün') {
+    console.log(`🚫 TITLE REJECTED: Generic/error title "${title}"`);
+    return false;
+  }
+  
+  console.log(`✅ TITLE VALIDATED: "${title}" passed all checks`);
+  return true;
 }
 
 /**
