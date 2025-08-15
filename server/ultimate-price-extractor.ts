@@ -505,71 +505,22 @@ export class UltimatePriceExtractor {
     // Clean the price string
     const cleanStr = priceStr.toString().trim();
     
-    // CRITICAL FIX: Find ALL price patterns with TL symbol
-    // Priority: Look for numbers directly followed by TL or ₺ symbols
-    const pricePatterns = [
-      /(\d+)[.,](\d{2})\s*(?:TL|₺)/g,  // Decimal prices: 78.99 TL
-      /(\d+)\s*(?:TL|₺)/g               // Integer prices: 78 TL
-    ];
+    // TURKISH PRICE FORMAT DETECTION AND PARSING
+    // Turkish format: 56.263,68 TL (56,263.68 TL in international format)
+    // Pattern: thousands separator = dot (.), decimal separator = comma (,)
     
-    let allPrices: number[] = [];
+    // Step 1: Look for full Turkish price format with TL symbol
+    const turkishPricePattern = /([\d.]+),(\d{2})\s*(?:TL|₺)/g;
+    let match = turkishPricePattern.exec(cleanStr);
     
-    // Extract ALL prices with TL symbol
-    for (const pattern of pricePatterns) {
-      const matches = [...cleanStr.matchAll(pattern)];
-      for (const match of matches) {
-        let price = 0;
-        if (match[2]) {
-          // Decimal price
-          price = parseInt(match[1]) + (parseInt(match[2]) / 100);
-        } else {
-          // Integer price
-          price = parseInt(match[1]);
-        }
-        
-        // Filter out common non-price numbers (like "Son 30 Günün")
-        // Ignore numbers less than 10 or in contexts like "30 Gün"
-        if (price >= 10 && price < 100000) {
-          // Check if this is NOT in a day/month context
-          const contextCheck = cleanStr.substring(Math.max(0, match.index! - 10), match.index! + match[0].length + 10);
-          if (!contextCheck.match(/\b(gün|ay|hafta|yıl|dakika|saat)\b/i)) {
-            allPrices.push(price);
-            console.log(`💰 Found price: ${price} TL at position ${match.index}`);
-          }
-        }
-      }
-    }
-    
-    // If we found prices with TL symbol, use the LAST one (usually the current price)
-    if (allPrices.length > 0) {
-      // Sort and get the most likely current price (usually the last or smallest)
-      const selectedPrice = allPrices[allPrices.length - 1]; // Take the last price found
-      console.log(`💰 Selected price from ${allPrices.length} options: ${selectedPrice} TL (all prices: ${allPrices.join(', ')})`);
+    if (match) {
+      const wholePart = match[1].replace(/\./g, ''); // Remove thousand separators
+      const decimalPart = match[2];
+      const price = parseFloat(wholePart + '.' + decimalPart);
       
-      const withProfit = Math.round(selectedPrice * 1.10 * 100) / 100;
+      console.log(`💰 TURKISH FORMAT: "${match[0]}" -> ${wholePart}.${decimalPart} = ${price} TL`);
       
-      return {
-        original: parseFloat(selectedPrice.toFixed(2)),
-        currency: 'TL',
-        formatted: `${selectedPrice.toFixed(2)} TL`,
-        withProfit: parseFloat(withProfit.toFixed(2)),
-        profitFormatted: `${withProfit.toFixed(2)} TL`,
-        method: method,
-        raw: priceStr
-      };
-    }
-    
-    // Fallback: If no price with TL found, try to extract any decimal number
-    const decimalMatch = cleanStr.match(/(\d+)[.,](\d{2})/);
-    if (decimalMatch) {
-      const wholePart = parseInt(decimalMatch[1]);
-      const decimalPart = parseInt(decimalMatch[2]);
-      const price = wholePart + (decimalPart / 100);
-      
-      // Skip if it looks like a day number
-      if (price >= 10 && price < 100000 && !cleanStr.includes(`${wholePart} gün`)) {
-        console.log(`💰 Fallback decimal extraction: ${wholePart}.${decimalPart} = ${price} TL`);
-        
+      if (price >= 10 && price <= 100000) {
         const withProfit = Math.round(price * 1.10 * 100) / 100;
         
         return {
@@ -578,12 +529,89 @@ export class UltimatePriceExtractor {
           formatted: `${price.toFixed(2)} TL`,
           withProfit: parseFloat(withProfit.toFixed(2)),
           profitFormatted: `${withProfit.toFixed(2)} TL`,
-          method: method,
+          method: method + ' (Turkish Format)',
           raw: priceStr
         };
       }
     }
     
+    // Step 2: Look for simpler decimal format with comma (no thousands)
+    const simpleDecimalPattern = /(\d+),(\d{2})\s*(?:TL|₺)/g;
+    match = simpleDecimalPattern.exec(cleanStr);
+    
+    if (match) {
+      const price = parseFloat(match[1] + '.' + match[2]);
+      console.log(`💰 SIMPLE DECIMAL: "${match[0]}" -> ${price} TL`);
+      
+      if (price >= 10 && price <= 100000) {
+        const withProfit = Math.round(price * 1.10 * 100) / 100;
+        
+        return {
+          original: parseFloat(price.toFixed(2)),
+          currency: 'TL',
+          formatted: `${price.toFixed(2)} TL`,
+          withProfit: parseFloat(withProfit.toFixed(2)),
+          profitFormatted: `${withProfit.toFixed(2)} TL`,
+          method: method + ' (Simple Decimal)',
+          raw: priceStr
+        };
+      }
+    }
+    
+    // Step 3: Look for integer prices
+    const integerPattern = /(\d+)\s*(?:TL|₺)/g;
+    match = integerPattern.exec(cleanStr);
+    
+    if (match) {
+      const price = parseInt(match[1]);
+      console.log(`💰 INTEGER: "${match[0]}" -> ${price} TL`);
+      
+      if (price >= 10 && price <= 100000) {
+        // Check if this is NOT in a day/month context
+        const contextCheck = cleanStr.substring(Math.max(0, match.index! - 10), match.index! + match[0].length + 10);
+        if (!contextCheck.match(/\b(gün|ay|hafta|yıl|dakika|saat)\b/i)) {
+          const withProfit = Math.round(price * 1.10 * 100) / 100;
+          
+          return {
+            original: parseFloat(price.toFixed(2)),
+            currency: 'TL',
+            formatted: `${price.toFixed(2)} TL`,
+            withProfit: parseFloat(withProfit.toFixed(2)),
+            profitFormatted: `${withProfit.toFixed(2)} TL`,
+            method: method + ' (Integer)',
+            raw: priceStr
+          };
+        }
+      }
+    }
+    
+    // Step 4: Fallback - try to extract without TL symbol
+    const fallbackTurkishPattern = /([\d.]+),(\d{2})/;
+    const fallbackMatch = cleanStr.match(fallbackTurkishPattern);
+    
+    if (fallbackMatch) {
+      const wholePart = fallbackMatch[1].replace(/\./g, '');
+      const decimalPart = fallbackMatch[2];
+      const price = parseFloat(wholePart + '.' + decimalPart);
+      
+      console.log(`💰 FALLBACK TURKISH: "${fallbackMatch[0]}" -> ${price} TL`);
+      
+      if (price >= 10 && price <= 100000) {
+        const withProfit = Math.round(price * 1.10 * 100) / 100;
+        
+        return {
+          original: parseFloat(price.toFixed(2)),
+          currency: 'TL',
+          formatted: `${price.toFixed(2)} TL`,
+          withProfit: parseFloat(withProfit.toFixed(2)),
+          profitFormatted: `${withProfit.toFixed(2)} TL`,
+          method: method + ' (Fallback Turkish)',
+          raw: priceStr
+        };
+      }
+    }
+    
+    console.log(`❌ No valid price found in: "${cleanStr}"`);
     return null;
   }
 
