@@ -145,8 +145,8 @@ function ScraperPage() {
       
       setProduct(data);
       
-      // Sadece tek URL işleminde CSV preview ekle, bulk işlemde processAllUrls halletsin
-      if (data.csvContent && draggedUrls.length === 0) {
+      // Her başarılı çekme için CSV preview ekle
+      if (data.csvContent) {
         console.log('🎯 Single URL CSV Content found, adding to previews:', data.title);
         const newCSVPreview = {
           id: `csv-${Date.now()}-${Math.random().toString(36).substr(2, 9)}`,
@@ -167,10 +167,10 @@ function ScraperPage() {
           title: "Başarılı", 
           description: "Ürün verisi çekildi ve CSV önizleme eklendi"
         });
-      } else if (draggedUrls.length === 0) {
+      } else {
         toast({
           title: "Başarılı",
-          description: "Tek varyant ürün verisi çekildi"
+          description: "Ürün verisi çekildi"
         });
       }
     },
