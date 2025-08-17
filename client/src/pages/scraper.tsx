@@ -436,28 +436,8 @@ function ScraperPage() {
     onSuccess: (data) => {
       setProductFeatures(data.features || []);
       
-      // Bulk CSV için ürün verilerini kaydet
-      if (data.csvContent) {
-        const newCSVPreview = {
-          id: `csv-bulk-${csvPreviews.length}-${Date.now()}-${Math.random().toString(36).substr(2, 9)}`,
-          productTitle: data.title || 'Scenario-based Product',
-          csvContent: data.csvContent,
-          variants: {
-            colors: data.variants?.colors || [],
-            sizes: data.variants?.sizes || [],
-            allVariants: data.variants?.allVariants || []
-          },
-          images: data.images?.map((img: any) => typeof img === 'string' ? img : img.url) || [],
-          createdAt: new Date().toISOString(),
-          price: data.price || null // Fiyat bilgisini ekle
-        };
-        
-        console.log('🎯 Bulk CSV Content found, adding to previews:', data.title);
-        console.log('📋 Adding Bulk CSV preview:', newCSVPreview.id, newCSVPreview.productTitle);
-        console.log('📋 Current Bulk CSV previews count:', csvPreviews.length);
-        
-        setCsvPreviews(prev => [newCSVPreview, ...prev]);
-      }
+      // extractFeaturesMutation sadece özellik çıkarma için kullanılıyor, CSV ekleme yapmıyor
+      // CSV önizlemesi sadece singleScrapeMutation tarafından ekleniyor
       
       toast({
         title: "Ürün Özellikleri Çıkarıldı",
@@ -589,27 +569,8 @@ function ScraperPage() {
         // Her URL için ayrı ayrı işlem yap (sadece veri çekme)
         const data = await singleScrapeMutation.mutateAsync({ url, persistentTags, onlyExtractData: true });
         
-        // Her ürün için ayrı CSV preview ekle
-        if (data.csvContent) {
-          console.log('🎯 Bulk CSV Content found, adding to previews:', data.title);
-          const newCSVPreview = {
-            id: `csv-bulk-${i}-${Date.now()}-${Math.random().toString(36).substr(2, 9)}`,
-            productTitle: data.title || `Ürün ${i + 1}`,
-            csvContent: data.csvContent,
-            variants: {
-              colors: data.variants?.colors || ['Standart'],
-              sizes: data.variants?.sizes || ['Tek Beden']
-            },
-            images: data.images?.map((img: any) => typeof img === 'string' ? img : img.url) || [],
-            createdAt: new Date().toISOString()
-          };
-          
-          console.log('📋 Adding Bulk CSV preview:', newCSVPreview.id, newCSVPreview.productTitle);
-          setCsvPreviews(prev => {
-            console.log('📋 Current Bulk CSV previews count:', prev.length);
-            return [newCSVPreview, ...prev];
-          });
-        }
+        // CSV önizlemesi singleScrapeMutation tarafından otomatik eklenir,
+        // burada tekrar eklemeye gerek yok
         
         toast({
           title: `${i + 1}/${draggedUrls.length} Tamamlandı`,
