@@ -416,8 +416,57 @@ function ScraperPage() {
     // Removed: extractAllImagesMutation.mutate(data.url); to prevent "Görsel Çıkarma Hatası" notifications
   });
 
-  // NEW: Function for Shopify transfer with tracking
+  // Shopify transfer mutation
+  const shopifyTransferMutation = useMutation({
+    mutationFn: async (data: ScrapeFormData & { persistentTags?: string[] }) => {
+      console.log('🛒 Shopify transfer starting...');
+      console.log('CSV previews available:', csvPreviews.length);
+      const response = await fetch("/api/shopify-upload", {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+        },
+        body: JSON.stringify({ 
+          productData: product,
+          productUrl: data.url,
+          persistentTags: data.persistentTags || []
+        }),
+      });
 
+      if (!response.ok) {
+        throw new Error(`HTTP ${response.status}`);
+      }
+
+      return response.json();
+    },
+    onSuccess: (data) => {
+      console.log('📤 Shopify response:', data);
+      if (data.success) {
+        toast({
+          title: "Başarılı!",
+          description: `Ürün Shopify'a eklendi. ID: ${data.productId}`,
+        });
+      } else {
+        toast({
+          title: "Hata",
+          description: data.message || "Shopify'a aktarım başarısız",
+          variant: "destructive",
+        });
+      }
+    },
+    onError: (error) => {
+      console.error('❌ Shopify transfer error:', error);
+      toast({
+        title: "Hata",
+        description: `Shopify aktarımı başarısız: ${error.message}`,
+        variant: "destructive",
+      });
+    },
+  });
+
+  const onShopifyTransfer = singleForm.handleSubmit((data) => {
+    shopifyTransferMutation.mutate({ ...data, persistentTags });
+  });
 
   const addTag = () => {
     if (newTag.trim() && !persistentTags.includes(newTag.trim())) {
@@ -908,10 +957,10 @@ function ScraperPage() {
                         </div>
                         
                       ) : (
-                        <div className="grid grid-cols-1 gap-3">
+                        <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
                           <Button
                             type="submit"
-                            disabled={singleScrapeMutation.isPending}
+                            disabled={singleScrapeMutation.isPending || shopifyTransferMutation.isPending}
                             className="bg-gradient-to-r from-green-600 to-emerald-600 hover:from-green-700 hover:to-emerald-700 text-white h-14 text-lg font-medium"
                           >
                             {singleScrapeMutation.isPending ? (
@@ -923,6 +972,25 @@ function ScraperPage() {
                               <div className="flex items-center gap-2">
                                 <Package className="w-5 h-5" />
                                 <span>ÜRÜN VERİLERİNİ ÇEK</span>
+                              </div>
+                            )}
+                          </Button>
+                          
+                          <Button
+                            type="button"
+                            onClick={onShopifyTransfer}
+                            disabled={singleScrapeMutation.isPending || shopifyTransferMutation.isPending || !product}
+                            className="bg-gradient-to-r from-blue-600 to-purple-600 hover:from-blue-700 hover:to-purple-700 text-white h-14 text-lg font-medium"
+                          >
+                            {shopifyTransferMutation.isPending ? (
+                              <div className="flex items-center gap-2">
+                                <Loader2 className="w-5 h-5 animate-spin" />
+                                <span>Shopify'a Aktarılıyor...</span>
+                              </div>
+                            ) : (
+                              <div className="flex items-center gap-2">
+                                <ShoppingCart className="w-5 h-5" />
+                                <span>SHOPIFY'A AKTAR</span>
                               </div>
                             )}
                           </Button>
