@@ -114,6 +114,14 @@ class CircuitBreaker {
 // Global circuit breaker instance
 const circuitBreaker = new CircuitBreaker();
 
+// Enhanced Circuit Breaker with forced reset capability
+export function forceResetCircuitBreaker() {
+  circuitBreaker.failures = 0;
+  circuitBreaker.state = 'CLOSED';
+  circuitBreaker.lastFailureTime = 0;
+  console.log('🔄 FORCED RESET: Circuit breaker manually reset to CLOSED state');
+}
+
 // Request timing to avoid rapid-fire requests
 let lastRequestTime = 0;
 const MIN_REQUEST_INTERVAL = 3000; // 3 seconds between requests (faster)

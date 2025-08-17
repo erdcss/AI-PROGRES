@@ -1700,6 +1700,27 @@ export function registerRoutes(app: Express): Server {
     });
   });
 
+  // Circuit breaker reset endpoint for Trendyol blocking issues
+  app.post('/api/reset-circuit-breaker', async (req, res) => {
+    try {
+      const { forceResetCircuitBreaker } = await import('./advanced-proxy-rotator');
+      forceResetCircuitBreaker();
+      console.log('🔄 API: Circuit breaker reset via endpoint');
+      res.json({ 
+        success: true, 
+        message: 'Circuit breaker has been reset - ready for new Trendyol requests',
+        timestamp: new Date().toISOString()
+      });
+    } catch (error) {
+      console.error('❌ API: Failed to reset circuit breaker:', error);
+      res.status(500).json({ 
+        success: false, 
+        message: 'Failed to reset circuit breaker',
+        error: error.message
+      });
+    }
+  });
+
   // Image proxy endpoint to bypass CORS restrictions
   app.get('/api/image-proxy', async (req, res) => {
     try {
