@@ -146,6 +146,30 @@ function ScraperPage() {
         return;
       }
       
+      // ADVANCED BLOCKING DETECTION: Check for typical blocking indicators
+      const isBlocked = data.title === "trendyol.com" || 
+                       data.price?.original === 0 || 
+                       !data.images || 
+                       data.images.length === 0 ||
+                       !data.csvContent ||
+                       data.csvContent.length === 0;
+      
+      if (isBlocked) {
+        console.log('❌ BLOCKING DETECTED: Invalid data received from server:', {
+          title: data.title,
+          price: data.price?.original,
+          imagesCount: data.images?.length || 0,
+          csvContentLength: data.csvContent?.length || 0
+        });
+        
+        toast({
+          title: "⚠️ Trendyol Blocking Tespit Edildi",
+          description: `Ürün verileri çekilemedi: Title="${data.title}", Fiyat=${data.price?.original}, Görseller=${data.images?.length || 0}. Lütfen birkaç dakika bekleyip tekrar deneyin.`,
+          variant: "destructive"
+        });
+        return;
+      }
+      
       console.log('✅ Single scrape successful, setting product data');
       setProduct(data);
       
