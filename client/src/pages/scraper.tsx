@@ -279,80 +279,7 @@ function ScraperPage() {
     }
   });
 
-  // NEW: Dedicated Shopify transfer with tracking mutation
-  const shopifyTransferMutation = useMutation({
-    mutationFn: async (data: ScrapeFormData & { persistentTags?: string[] }) => {
-      // Shopify URL'lerini tespit et ve doğru endpoint'e yönlendir
-      if (data.url.includes('.myshopify.com') || data.url.includes('shopify.com')) {
-        // Bu bir Shopify URL'si - CSV generation endpoint'ine git
-        console.log('🛒 Shopify URL detected, redirecting to CSV generation');
-        const response = await fetch("/api/generate-multi-variant-csv", {
-          method: "POST", 
-          headers: {
-            "Content-Type": "application/json",
-          },
-          body: JSON.stringify({ 
-            productData: { 
-              url: data.url, 
-              title: "Shopify Product",
-              tags: data.persistentTags || []
-            }
-          }),
-        });
-        
-        if (!response.ok) {
-          const errorData = await response.json().catch(() => ({}));
-          throw new Error(errorData.message || `HTTP ${response.status}`);
-        }
-        return response.json();
-      }
-      
-      // Normal Trendyol/Arçelik URL'leri için scenario-scrape WITH SHOPIFY TRANSFER AND TRACKING
-      const response = await fetch("/api/scenario-scrape", {
-        method: "POST",
-        headers: {
-          "Content-Type": "application/json",
-        },
-        body: JSON.stringify({ 
-          url: data.url, 
-          mode: 'single', 
-          persistentTags: data.persistentTags,
-          onlyExtractData: false // Enable Shopify transfer and tracking
-        }),
-      });
-      
-      if (!response.ok) {
-        const errorData = await response.json().catch(() => ({}));
-        throw new Error(errorData.message || `HTTP ${response.status}`);
-      }
-      return response.json();
-    },
-    onSuccess: (data) => {
-      // Check if extraction actually succeeded
-      if (!data || !data.success) {
-        toast({
-          title: "Shopify Transfer Başarısız",
-          description: "Trendyol tarafından engellendiniz. Lütfen birkaç dakika bekleyip tekrar deneyin veya farklı bir URL kullanın.",
-          variant: "destructive"
-        });
-        return;
-      }
-      
-      setProduct(data);
-      
-      toast({
-        title: "Başarılı", 
-        description: "Ürün Shopify'a aktarıldı ve takip sistemi başlatıldı"
-      });
-    },
-    onError: (error: any) => {
-      toast({
-        title: "Shopify Transfer Hatası",
-        description: error.message,
-        variant: "destructive"
-      });
-    }
-  });
+
 
   const multiUrlScrapeMutation = useMutation({
     mutationFn: async (data: MultiUrlFormData) => {
@@ -490,10 +417,7 @@ function ScraperPage() {
   });
 
   // NEW: Function for Shopify transfer with tracking
-  const onShopifyTransfer = singleForm.handleSubmit((data) => {
-    // Start the Shopify transfer process with persistent tags - INCLUDES TRACKING
-    shopifyTransferMutation.mutate({ ...data, persistentTags });
-  });
+
 
   const addTag = () => {
     if (newTag.trim() && !persistentTags.includes(newTag.trim())) {
@@ -980,31 +904,14 @@ function ScraperPage() {
                             )}
                           </Button>
                           
-                          <Button 
-                            type="button"
-                            onClick={uploadAllCSVsToShopify}
-                            disabled={csvPreviews.length === 0 || bulkUploadMutation.isPending}
-                            className="bg-gradient-to-r from-cyan-600 to-blue-600 hover:from-cyan-700 hover:to-blue-700 text-white h-14 text-lg font-medium transition-all duration-200 shadow-lg hover:shadow-xl"
-                          >
-                            {bulkUploadMutation.isPending ? (
-                              <div className="flex items-center gap-2">
-                                <Loader2 className="w-5 h-5 animate-spin" />
-                                Shopify'a Yükleniyor... ({csvPreviews.length})
-                              </div>
-                            ) : (
-                              <div className="flex items-center gap-2">
-                                <ShoppingCart className="w-5 h-5" />
-                                SHOPIFY'A AKTAR ({csvPreviews.length})
-                              </div>
-                            )}
-                          </Button>
+
                         </div>
                         
                       ) : (
-                        <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
+                        <div className="grid grid-cols-1 gap-3">
                           <Button
                             type="submit"
-                            disabled={singleScrapeMutation.isPending || shopifyTransferMutation.isPending}
+                            disabled={singleScrapeMutation.isPending}
                             className="bg-gradient-to-r from-green-600 to-emerald-600 hover:from-green-700 hover:to-emerald-700 text-white h-14 text-lg font-medium"
                           >
                             {singleScrapeMutation.isPending ? (
@@ -1020,51 +927,9 @@ function ScraperPage() {
                             )}
                           </Button>
                           
-                          <Button
-                            type="button"
-                            onClick={onShopifyTransfer}
-                            disabled={singleScrapeMutation.isPending || shopifyTransferMutation.isPending}
-                            className="bg-gradient-to-r from-blue-600 to-purple-600 hover:from-blue-700 hover:to-purple-700 text-white h-14 text-lg font-medium"
-                          >
-                            {shopifyTransferMutation.isPending ? (
-                              <div className="flex items-center gap-2">
-                                <Loader2 className="w-5 h-5 animate-spin" />
-                                <span>Shopify'a Aktarılıyor...</span>
-                              </div>
-                            ) : (
-                              <div className="flex items-center gap-2">
-                                <ShoppingCart className="w-5 h-5" />
-                                <span>SHOPIFY'A AKTAR</span>
-                              </div>
-                            )}
-                          </Button>
+
                           
-                          {csvPreviews.length > 0 && (
-                            <motion.div
-                              initial={{ opacity: 0, x: 20 }}
-                              animate={{ opacity: 1, x: 0 }}
-                              transition={{ duration: 0.3 }}
-                            >
-                              <Button 
-                                type="button"
-                                onClick={uploadAllCSVsToShopify}
-                                disabled={csvPreviews.length === 0 || bulkUploadMutation.isPending}
-                                className="w-full bg-gradient-to-r from-purple-600 via-blue-600 to-cyan-600 hover:from-purple-700 hover:via-blue-700 hover:to-cyan-700 text-white h-14 text-lg font-medium shadow-lg hover:shadow-xl transition-all duration-300"
-                              >
-                                {bulkUploadMutation.isPending ? (
-                                  <div className="flex items-center gap-2">
-                                    <Loader2 className="w-4 h-4 animate-spin" />
-                                    Shopify'a Yükleniyor... ({csvPreviews.length})
-                                  </div>
-                                ) : (
-                                  <div className="flex items-center gap-2">
-                                    <ShoppingCart className="w-4 h-4" />
-                                    SHOPIFY'A AKTAR ({csvPreviews.length})
-                                  </div>
-                                )}
-                              </Button>
-                            </motion.div>
-                          )}
+
                         </div>
                       )}
 
