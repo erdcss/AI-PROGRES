@@ -133,8 +133,11 @@ function ScraperPage() {
       return response.json();
     },
     onSuccess: (data) => {
+      console.log('🎯 Single scrape mutation onSuccess received:', data);
+      
       // Check if extraction actually succeeded
       if (!data || !data.success) {
+        console.log('❌ Single scrape failed or blocked:', data);
         toast({
           title: "CSV Önizleme Oluşturulamadı",
           description: "Trendyol tarafından engellendiniz. Lütfen birkaç dakika bekleyip tekrar deneyin veya farklı bir URL kullanın.",
@@ -143,6 +146,7 @@ function ScraperPage() {
         return;
       }
       
+      console.log('✅ Single scrape successful, setting product data');
       setProduct(data);
       
       // Her başarılı çekme için CSV preview ekle
