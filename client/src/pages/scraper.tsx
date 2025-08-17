@@ -139,8 +139,8 @@ function ScraperPage() {
       if (!data || !data.success) {
         console.log('❌ Single scrape failed or blocked:', data);
         toast({
-          title: "CSV Önizleme Oluşturulamadı",
-          description: "Trendyol tarafından engellendiniz. Lütfen birkaç dakika bekleyip tekrar deneyin veya farklı bir URL kullanın.",
+          title: "⚠️ Ürün Verileri Çekilemedi",
+          description: "Sistem hatası veya site engellemesi tespit edildi. Lütfen URL'yi kontrol edin veya 10-15 dakika sonra tekrar deneyin.",
           variant: "destructive"
         });
         return;
@@ -163,8 +163,8 @@ function ScraperPage() {
         });
         
         toast({
-          title: "⚠️ Trendyol Blocking Tespit Edildi",
-          description: `Ürün verileri çekilemedi: Title="${data.title}", Fiyat=${data.price?.original}, Görseller=${data.images?.length || 0}. Lütfen birkaç dakika bekleyip tekrar deneyin.`,
+          title: "🚫 Trendyol Blocking Sistemi Aktif",
+          description: `Trendyol tüm istekleri engelliyor. Sistemimiz bunu tespit etti. Lütfen 10-15 dakika bekleyip tekrar deneyin veya farklı bir e-ticaret sitesi URL'si kullanın.`,
           variant: "destructive"
         });
         return;
