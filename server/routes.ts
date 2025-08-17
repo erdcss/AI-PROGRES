@@ -37,7 +37,6 @@ import { scrapeAdvancedVariants, generateAdvancedVariantCSV } from './advanced-v
 import { runTrendyolVariantsSpider, generateScrapyOutput, generateScrapyCSV } from './scrapy-like-trendyol-scraper';
 import { fixedAuthenticScrape } from './fixed-authentic-scraper';
 import { scenarioBasedScrape } from './scenario-based-scraper';
-import { shopifyIntegration } from './shopify-integration';
 import { ProductManagementSystem } from './product-management-system';
 import { TelegramNotifications } from './comprehensive-telegram-notifier';
 import { generateComprehensiveShopifyCSV, generateFeatureSummary, type ComprehensiveProductData } from './comprehensive-csv-generator';
