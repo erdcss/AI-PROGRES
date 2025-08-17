@@ -5,6 +5,7 @@
 
 import * as cheerio from 'cheerio';
 import type { CheerioAPI } from 'cheerio';
+import { openaiPriceEnhancer } from './openai-price-enhancer';
 
 export interface ExtractedPrice {
   original: number;
@@ -29,7 +30,7 @@ export class UltimatePriceExtractor {
   /**
    * Main extraction method with multiple fallback strategies
    */
-  extractPrice(): ExtractedPrice {
+  async extractPrice(): Promise<ExtractedPrice> {
     console.log('🎯 ULTIMATE PRICE EXTRACTOR - Starting comprehensive extraction');
     console.log(`📄 HTML content length: ${this.htmlContent.length} characters`);
 
@@ -128,12 +129,136 @@ export class UltimatePriceExtractor {
         return filteredResults[0];
       }
         
-      console.log(`❌ All prices seem unreasonable, using fallback`);
+      console.log(`❌ All prices seem unreasonable, trying OpenAI enhancement`);
+      
+      // 🤖 OpenAI Enhancement - Kritik durumlarda devreye gir
+      if (openaiPriceEnhancer.isActive()) {
+        try {
+          console.log('🤖 OpenAI ile acil durum fiyat çıkarma başlatılıyor...');
+          
+          // Mevcut sonuçları OpenAI ile doğrula
+          if (allResults.length > 0) {
+            const priceData = allResults.map(r => ({
+              price: r.original,
+              method: r.method
+            }));
+            
+            const validation = await openaiPriceEnhancer.validatePriceResults(priceData, this.getProductContext());
+            
+            if (validation && validation.confidence > 0.7) {
+              console.log(`🎯 OpenAI doğrulama: ${validation.recommendedPrice} TL (güven: ${Math.round(validation.confidence * 100)}%)`);
+              
+              return {
+                original: validation.recommendedPrice,
+                currency: 'TL',
+                formatted: `${validation.recommendedPrice.toLocaleString('tr-TR')} TL`,
+                withProfit: validation.recommendedPrice * 1.1,
+                profitFormatted: `${(validation.recommendedPrice * 1.1).toLocaleString('tr-TR')} TL`,
+                method: `OpenAI-Validation (${validation.reasoning})`,
+                raw: `${validation.recommendedPrice}`
+              };
+            }
+          }
+          
+          // Kompleks HTML analizi
+          const complexAnalysis = await openaiPriceEnhancer.analyzeComplexPrice(
+            this.htmlContent, 
+            this.getProductTitle()
+          );
+          
+          if (complexAnalysis && complexAnalysis.confidence > 0.6 && complexAnalysis.isReasonable) {
+            console.log(`🤖 OpenAI karmaşık analiz: ${complexAnalysis.extractedPrice} TL`);
+            
+            return {
+              original: complexAnalysis.extractedPrice,
+              currency: complexAnalysis.currency,
+              formatted: `${complexAnalysis.extractedPrice.toLocaleString('tr-TR')} TL`,
+              withProfit: complexAnalysis.extractedPrice * 1.1,
+              profitFormatted: `${(complexAnalysis.extractedPrice * 1.1).toLocaleString('tr-TR')} TL`,
+              method: `OpenAI-Complex (${complexAnalysis.reasoning})`,
+              raw: `${complexAnalysis.extractedPrice}`
+            };
+          }
+          
+          // Son çare: Acil durum çıkarma
+          const emergencyPrice = await openaiPriceEnhancer.emergencyPriceExtraction(this.htmlContent);
+          if (emergencyPrice && emergencyPrice > 10 && emergencyPrice < 50000) {
+            console.log(`🚨 OpenAI acil durum: ${emergencyPrice} TL`);
+            
+            return {
+              original: emergencyPrice,
+              currency: 'TL',
+              formatted: `${emergencyPrice.toLocaleString('tr-TR')} TL`,
+              withProfit: emergencyPrice * 1.1,
+              profitFormatted: `${(emergencyPrice * 1.1).toLocaleString('tr-TR')} TL`,
+              method: 'OpenAI-Emergency',
+              raw: `${emergencyPrice}`
+            };
+          }
+        } catch (error) {
+          console.error('❌ OpenAI enhancement failed:', error);
+        }
+      }
+      
+      console.log(`❌ All enhancement methods failed, using fallback`);
       return this.createFallbackPrice();
     }
 
     console.log('❌ ALL EXTRACTION STRATEGIES FAILED');
     return this.createFallbackPrice();
+  }
+
+  /**
+   * Get product context for OpenAI analysis
+   */
+  private getProductContext(): string {
+    const title = this.getProductTitle();
+    const category = this.getProductCategory();
+    return `Ürün: ${title} | Kategori: ${category}`;
+  }
+
+  /**
+   * Extract product title from HTML
+   */
+  private getProductTitle(): string {
+    const titleSelectors = [
+      'h1.pr-new-br',
+      '.product-title',
+      '.pr-new-br',
+      'h1[data-test-id="product-title"]',
+      'h1',
+      'title'
+    ];
+
+    for (const selector of titleSelectors) {
+      const title = this.$(selector).first().text().trim();
+      if (title && title.length > 5) {
+        return title;
+      }
+    }
+
+    return 'Bilinmiyor';
+  }
+
+  /**
+   * Extract product category from breadcrumbs
+   */
+  private getProductCategory(): string {
+    const breadcrumbSelectors = [
+      '.breadcrumb',
+      '.breadcrumb-item',
+      '.category-breadcrumb',
+      '[data-test-id="breadcrumb"]'
+    ];
+
+    for (const selector of breadcrumbSelectors) {
+      const categories = this.$(selector).map((i, el) => this.$(el).text().trim()).get();
+      if (categories.length > 0) {
+        return categories.join(' > ');
+      }
+    }
+
+    return 'Genel';
   }
 
   /**
@@ -657,7 +782,7 @@ export class UltimatePriceExtractor {
 /**
  * Main function to use the Ultimate Price Extractor
  */
-export function ultimatePriceExtract($: CheerioAPI, htmlContent: string): ExtractedPrice {
+export async function ultimatePriceExtract($: CheerioAPI, htmlContent: string): Promise<ExtractedPrice> {
   const extractor = new UltimatePriceExtractor($, htmlContent);
-  return extractor.extractPrice();
+  return await extractor.extractPrice();
 }
