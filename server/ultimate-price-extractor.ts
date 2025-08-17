@@ -96,36 +96,40 @@ export class UltimatePriceExtractor {
         console.log(`   ${idx + 1}. ${res.original} TL via ${res.method}`);
       });
 
-      // Filter reasonable prices (15-5000 TL range for most Turkish e-commerce products)
-      const reasonablePrices = allResults.filter(r => r.original >= 15 && r.original <= 5000);
+      // Filter reasonable prices (10-50000 TL range for Turkish e-commerce products - includes jewelry, electronics, luxury items)
+      const reasonablePrices = allResults.filter(r => r.original >= 10 && r.original <= 50000);
       
       if (reasonablePrices.length > 0) {
-        // Sort by price (ascending) and return the LOWEST reasonable price (customer wants discounts!)
-        // This prioritizes sale/discounted prices over original prices
-        reasonablePrices.sort((a, b) => a.original - b.original);
-        const bestPrice = reasonablePrices[0];
-        console.log(`🎯 SELECTED BEST PRICE (LOWEST): ${bestPrice.original} TL via ${bestPrice.method}`);
-        return bestPrice;
-      } else {
-        // No reasonable prices, try expanded range for luxury items (5000-15000 TL)
-        const luxuryPrices = allResults.filter(r => r.original >= 5000 && r.original <= 15000);
-        if (luxuryPrices.length > 0) {
-          luxuryPrices.sort((a, b) => a.original - b.original);
-          console.log(`💎 Using luxury price range: ${luxuryPrices[0].original} TL`);
-          return luxuryPrices[0];
-        }
+        // For luxury items (>1000 TL), prefer higher prices as they're more likely to be correct
+        // For regular items (<1000 TL), prefer lower prices (discounted)
+        const luxuryItems = reasonablePrices.filter(r => r.original >= 1000);
+        const regularItems = reasonablePrices.filter(r => r.original < 1000);
         
-        // Last resort: filter out obviously wrong prices (>15000 TL) and use lowest
-        const filteredResults = allResults.filter(r => r.original <= 15000);
-        if (filteredResults.length > 0) {
-          filteredResults.sort((a, b) => a.original - b.original);
-          console.log(`🔧 Using filtered lowest result: ${filteredResults[0].original} TL`);
-          return filteredResults[0];
+        if (luxuryItems.length > 0) {
+          // For luxury items, select the HIGHEST reasonable price (original price, not ultra-discounted)
+          luxuryItems.sort((a, b) => b.original - a.original);
+          const bestPrice = luxuryItems[0];
+          console.log(`💎 SELECTED LUXURY PRICE (HIGHEST): ${bestPrice.original} TL via ${bestPrice.method}`);
+          return bestPrice;
+        } else if (regularItems.length > 0) {
+          // For regular items, select the lowest price (discounted)
+          regularItems.sort((a, b) => a.original - b.original);
+          const bestPrice = regularItems[0];
+          console.log(`🎯 SELECTED REGULAR PRICE (LOWEST): ${bestPrice.original} TL via ${bestPrice.method}`);
+          return bestPrice;
         }
-        
-        console.log(`❌ All prices seem unreasonable, using fallback`);
-        return this.createFallbackPrice();
       }
+      
+      // Last resort: filter out obviously wrong prices (>50000 TL) and use the most reasonable one
+      const filteredResults = allResults.filter(r => r.original <= 50000 && r.original >= 10);
+      if (filteredResults.length > 0) {
+        filteredResults.sort((a, b) => b.original - a.original); // Prefer higher prices for authenticity
+        console.log(`🔧 Using filtered highest result: ${filteredResults[0].original} TL`);
+        return filteredResults[0];
+      }
+        
+      console.log(`❌ All prices seem unreasonable, using fallback`);
+      return this.createFallbackPrice();
     }
 
     console.log('❌ ALL EXTRACTION STRATEGIES FAILED');
@@ -397,33 +401,50 @@ export class UltimatePriceExtractor {
   private tryRegexPatterns(): ExtractedPrice | null {
     console.log('🔍 Strategy 5: Comprehensive regex patterns on HTML content');
     
-    // First, try to find all price patterns and analyze them
-    const allPriceMatches = this.htmlContent.match(/\d+[.,]\d{2}\s*(?:TL|₺)/g);
-    if (allPriceMatches) {
+    // TURKISH PRICE FORMAT REGEX: Handles thousands separators with dots and decimal with comma
+    // Examples: 2.957,52 TL | 956,00 TL | 1.234,56 TL
+    const turkishPriceMatches = this.htmlContent.match(/(?:\d{1,3}\.)*\d{1,3},\d{2}\s*(?:TL|₺)/g);
+    const simplePriceMatches = this.htmlContent.match(/\d+[.,]\d{2}\s*(?:TL|₺)/g);
+    
+    let allPriceMatches = [];
+    if (turkishPriceMatches) allPriceMatches.push(...turkishPriceMatches);
+    if (simplePriceMatches) allPriceMatches.push(...simplePriceMatches);
+    
+    if (allPriceMatches.length > 0) {
       console.log(`🔍 Found ${allPriceMatches.length} potential prices:`, allPriceMatches.slice(0, 10));
       
       // Extract unique prices and sort them
       const uniquePrices = [...new Set(allPriceMatches)];
       const parsedPrices = uniquePrices
         .map(p => {
-          const match = p.match(/(\d+)[.,](\d{2})/);
+          // Handle Turkish format: 2.957,52 TL
+          if (p.includes(',')) {
+            const parts = p.replace(/[TL₺\s]/g, '').split(',');
+            if (parts.length === 2 && parts[1].length === 2) {
+              const wholePart = parts[0].replace(/\./g, ''); // Remove thousands separators
+              const price = parseFloat(wholePart + '.' + parts[1]);
+              return { original: p, parsed: price };
+            }
+          }
+          // Handle regular format: 299.00 TL
+          const match = p.match(/(\d+)[.](\d{2})/);
           if (match) {
             const price = parseFloat(match[1] + '.' + match[2]);
             return { original: p, parsed: price };
           }
           return null;
         })
-        .filter(p => p !== null && p.parsed > 10 && p.parsed < 1000) // Reasonable price range
-        .sort((a, b) => a.parsed - b.parsed); // Sort ascending (lowest first)
+        .filter(p => p !== null && p.parsed > 10 && p.parsed < 100000) // Expanded price range for luxury items
+        .sort((a, b) => b.parsed - a.parsed); // Sort descending (highest first for accuracy)
       
       console.log(`🔍 Parsed valid prices:`, parsedPrices);
       
-      // Return the lowest reasonable price (likely the sale price)
+      // Return the highest reasonable price (most likely to be accurate main price)
       if (parsedPrices.length > 0) {
-        const bestPrice = parsedPrices[0]; // Lowest price
-        console.log(`🎯 Selected lowest price: ${bestPrice.original} (${bestPrice.parsed} TL)`);
+        const bestPrice = parsedPrices[0]; // Highest price
+        console.log(`🎯 Selected highest price: ${bestPrice.original} (${bestPrice.parsed} TL)`);
         
-        const extracted = this.parsePrice(bestPrice.original, 'Regex Pattern - Lowest Price');
+        const extracted = this.parsePrice(bestPrice.original, 'Regex Pattern - Highest Price (Turkish Format)');
         if (extracted && extracted.original > 0) {
           return extracted;
         }
@@ -506,15 +527,15 @@ export class UltimatePriceExtractor {
     const cleanStr = priceStr.toString().trim();
     
     // TURKISH PRICE FORMAT DETECTION AND PARSING
-    // Turkish format: 56.263,68 TL (56,263.68 TL in international format)
+    // Turkish format: 2.957,52 TL (2,957.52 TL in international format)
     // Pattern: thousands separator = dot (.), decimal separator = comma (,)
     
     // Step 1: Look for full Turkish price format with TL symbol
-    const turkishPricePattern = /([\d.]+),(\d{2})\s*(?:TL|₺)/g;
+    const turkishPricePattern = /((?:\d{1,3}\.)*\d{1,3}),(\d{2})\s*(?:TL|₺)/g;
     let match = turkishPricePattern.exec(cleanStr);
     
     if (match) {
-      const wholePart = match[1].replace(/\./g, ''); // Remove thousand separators
+      const wholePart = match[1].replace(/\./g, ''); // Remove thousand separators (dots)
       const decimalPart = match[2];
       const price = parseFloat(wholePart + '.' + decimalPart);
       
