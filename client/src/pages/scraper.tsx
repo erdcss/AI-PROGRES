@@ -980,7 +980,7 @@ function ScraperPage() {
                             type="button"
                             onClick={onShopifyTransfer}
                             disabled={singleScrapeMutation.isPending || shopifyTransferMutation.isPending || !product}
-                            className="bg-gradient-to-r from-blue-600 to-purple-600 hover:from-blue-700 hover:to-purple-700 text-white h-14 text-lg font-medium"
+                            className="bg-gradient-to-r from-blue-600 to-purple-600 hover:from-blue-700 hover:to-purple-700 text-white h-14 text-lg font-medium disabled:opacity-50"
                           >
                             {shopifyTransferMutation.isPending ? (
                               <div className="flex items-center gap-2">
@@ -994,6 +994,26 @@ function ScraperPage() {
                               </div>
                             )}
                           </Button>
+                          
+                          {!product && (
+                            <div className="col-span-2 mt-4 p-4 bg-amber-50 border border-amber-200 rounded-lg">
+                              <div className="flex items-center gap-2 text-amber-800 mb-2">
+                                <Package className="w-4 h-4" />
+                                <span className="font-medium">Trendyol Engeli Aktif</span>
+                              </div>
+                              <p className="text-sm text-amber-700 mb-3">
+                                Trendyol şu anda veri çekmeyi engelliyor. Manuel ürün oluşturmak için CSV'den yükleyin.
+                              </p>
+                              <Button
+                                type="button"
+                                onClick={() => setLocation('/csv-upload')}
+                                className="bg-amber-600 hover:bg-amber-700 text-white text-sm"
+                              >
+                                <FileText className="w-4 h-4 mr-2" />
+                                CSV Yükle ve Shopify'a Aktar
+                              </Button>
+                            </div>
+                          )}
                           
 
                           
