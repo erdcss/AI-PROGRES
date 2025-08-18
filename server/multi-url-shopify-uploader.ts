@@ -10,7 +10,7 @@ interface MultiUrlProductData {
     original: number;
     withProfit: number;
   };
-  images: Array<{
+  images: string[] | Array<{
     url: string;
     alt?: string;
   }>;
@@ -126,17 +126,31 @@ export async function uploadMultiUrlProductToShopify(
 
     console.log(`📊 Created ${variants.length} variants`);
 
-    // Prepare images - URL validation ekle
-    const images = productData.images?.map((img, index) => {
-      const imageUrl = img.url || '';
-      console.log(`📸 Image ${index + 1}: ${imageUrl}`);
-      
-      return {
-        src: imageUrl,
-        alt: `${productTitle} - Image ${index + 1}`,
-        position: index + 1
-      };
-    }).filter(img => img.src && img.src.startsWith('http')) || [];
+    // Prepare images - Support both string[] and object[] formats
+    let imageUrls: string[] = [];
+    
+    if (Array.isArray(productData.images)) {
+      imageUrls = productData.images.map(img => {
+        // Handle both string[] and {url: string}[] formats
+        if (typeof img === 'string') {
+          return img;
+        } else if (img && typeof img === 'object' && img.url) {
+          return img.url;
+        }
+        return '';
+      }).filter(url => url && url.startsWith('http'));
+    }
+    
+    console.log(`📸 Processing ${imageUrls.length} image URLs for Shopify upload`);
+    imageUrls.forEach((url, index) => {
+      console.log(`📸 Image ${index + 1}: ${url}`);
+    });
+    
+    const images = imageUrls.map((imageUrl, index) => ({
+      src: imageUrl,
+      alt: `${productTitle} - Image ${index + 1}`,
+      position: index + 1
+    }));
 
     console.log(`📸 Validated ${images.length} images for upload`);
     if (images.length > 0) {
