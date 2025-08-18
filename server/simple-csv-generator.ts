@@ -85,7 +85,10 @@ export function generateSimpleCSV(data: SimpleProductData): string {
   // CSV formatına dönüştür
   const csvContent = [
     headers.join(','),
-    ...rows.map(row => row.map(cell => `"${cell.replace(/"/g, '""')}"`).join(','))
+    ...rows.map(row => row.map(cell => {
+      const cellStr = cell !== null && cell !== undefined ? String(cell) : '';
+      return `"${cellStr.replace(/"/g, '""')}"`;
+    }).join(','))
   ].join('\n');
   
   return csvContent;

@@ -228,7 +228,10 @@ export function generateMultiVariantCSV(result: CompleteMultiVariantResult): str
   // Convert to CSV format
   const csvContent = [
     headers.map(h => `"${h}"`).join(','),
-    ...rows.map(row => row.map(cell => `"${cell.replace(/"/g, '""')}"`).join(','))
+    ...rows.map(row => row.map(cell => {
+      const cellStr = cell !== null && cell !== undefined ? String(cell) : '';
+      return `"${cellStr.replace(/"/g, '""')}"`;
+    }).join(','))
   ].join('\n');
   
   return csvContent;

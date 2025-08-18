@@ -217,8 +217,11 @@ export function generateComprehensiveShopifyCSV(product: ComprehensiveProductDat
 
   // Convert to CSV format
   const csvContent = rows.map(row => 
-    row.map(cell => `"${cell.replace(/"/g, '""')}"`)
-      .join(',')
+    row.map(cell => {
+      // Ensure cell is string before calling replace
+      const cellStr = cell !== null && cell !== undefined ? String(cell) : '';
+      return `"${cellStr.replace(/"/g, '""')}"`;
+    }).join(',')
   ).join('\n');
 
   return csvContent;

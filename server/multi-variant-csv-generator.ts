@@ -463,10 +463,11 @@ export function generateMultiVariantShopifyCSV(product: CombinedProduct): string
   return rows.map(row => 
     row.map(cell => {
       // CSV için özel karakterleri escape et
-      if (typeof cell === 'string' && (cell.includes(',') || cell.includes('"') || cell.includes('\n'))) {
-        return `"${cell.replace(/"/g, '""')}"`;
+      const cellStr = cell !== null && cell !== undefined ? String(cell) : '';
+      if (cellStr.includes(',') || cellStr.includes('"') || cellStr.includes('\n')) {
+        return `"${cellStr.replace(/"/g, '""')}"`;
       }
-      return cell;
+      return cellStr;
     }).join(',')
   ).join('\n');
 }
