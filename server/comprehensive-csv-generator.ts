@@ -122,51 +122,98 @@ export function generateComprehensiveShopifyCSV(product: ComprehensiveProductDat
     { color: 'Varsayılan', colorCode: '#CCCCCC', size: 'Standart', inStock: true }
   ];
 
-  // Generate CSV rows
-  variants.forEach((variant, index) => {
-    product.images.forEach((image, imgIndex) => {
+  // Generate CSV rows - Handle empty images array with fallback
+  if (product.images.length === 0) {
+    console.log('⚠️ No images found - adding default product row without images');
+    // Create a single row for the product without images
+    variants.forEach((variant, index) => {
       const isFirstVariant = index === 0;
-      const isFirstImage = imgIndex === 0;
-
+      
       rows.push([
         productHandle,                                    // Handle
-        isFirstVariant && isFirstImage ? product.title : '', // Title
-        isFirstVariant && isFirstImage ? bodyHTML : '',   // Body (HTML)
-        isFirstVariant && isFirstImage ? product.brand : '', // Vendor
-        isFirstVariant && isFirstImage ? `${product.brand.toLowerCase()}, ${productCategory.toLowerCase()}, ${productMaterial.toLowerCase()}`.replace(/,\s*,/g, ',').replace(/^,|,$/g, '') : '', // Tags
-        isFirstVariant && isFirstImage ? 'TRUE' : '',     // Published
-        isFirstVariant && isFirstImage ? 'Renk' : '',     // Option1 Name
-        isFirstVariant ? variant.color : '',              // Option1 Value
-        isFirstVariant && isFirstImage ? 'Beden' : '',    // Option2 Name
-        isFirstVariant ? variant.size : '',               // Option2 Value
-        isFirstVariant ? `${productHandle}-${variant.color}-${variant.size}`.toLowerCase() : '', // Variant SKU
-        isFirstVariant ? (variant.inStock ? '10' : '0') : '', // Variant Inventory Qty
-        isFirstVariant ? product.price.withProfit.toString() : '', // Variant Price
-        isFirstVariant ? product.price.original.toString() : '', // Variant Compare At Price
-        image,                                            // Image Src
-        (imgIndex + 1).toString(),                        // Image Position
-        `${product.title} - ${variant.color}`,           // Image Alt Text
-        'FALSE',                                          // Gift Card
-        isFirstVariant && isFirstImage ? product.title : '', // SEO Title
-        isFirstVariant && isFirstImage ? featuresText.substring(0, 160) : '', // SEO Description
-        '',                                               // Variant Image
-        'kg',                                             // Variant Weight Unit
-        'active',                                         // Status
-        isFirstVariant && isFirstImage ? featuresText : '', // Product Features
-        isFirstVariant && isFirstImage ? productCategory : '', // Product Category
-        isFirstVariant && isFirstImage ? productMaterial : '', // Product Material
-        isFirstVariant && isFirstImage ? productColor : '',    // Product Color
-        isFirstVariant && isFirstImage ? productSize : '',     // Product Size
-        isFirstVariant && isFirstImage ? product.brand : '',   // Product Brand
-        isFirstVariant && isFirstImage ? productModel : '',    // Product Model
-        isFirstVariant && isFirstImage ? productSku : '',      // Product SKU
-        isFirstVariant && isFirstImage ? product.description || '' : '', // Product Description
-        isFirstVariant && isFirstImage ? additionalProperties : '', // Additional Properties
-        isFirstVariant && isFirstImage ? metaKeywords : '',     // Meta Keywords
-        isFirstVariant && isFirstImage ? productCategory : ''   // Product Type
+        isFirstVariant ? product.title : '',             // Title
+        isFirstVariant ? bodyHTML : '',                  // Body (HTML)
+        isFirstVariant ? product.brand : '',             // Vendor
+        isFirstVariant ? `${product.brand.toLowerCase()}, ${productCategory.toLowerCase()}, ${productMaterial.toLowerCase()}`.replace(/,\s*,/g, ',').replace(/^,|,$/g, '') : '', // Tags
+        isFirstVariant ? 'TRUE' : '',                    // Published
+        isFirstVariant ? 'Renk' : '',                    // Option1 Name
+        variant.color,                                   // Option1 Value
+        isFirstVariant ? 'Beden' : '',                   // Option2 Name
+        variant.size,                                    // Option2 Value
+        `${productHandle}-${variant.color}-${variant.size}`.toLowerCase(), // Variant SKU
+        variant.inStock ? '10' : '0',                    // Variant Inventory Qty
+        product.price.withProfit.toString(),             // Variant Price
+        product.price.original.toString(),               // Variant Compare At Price
+        '',                                              // Image Src (empty for no images)
+        '',                                              // Image Position
+        `${product.title} - ${variant.color}`,          // Image Alt Text
+        'FALSE',                                         // Gift Card
+        isFirstVariant ? product.title : '',            // SEO Title
+        isFirstVariant ? featuresText.substring(0, 160) : '', // SEO Description
+        '',                                              // Variant Image
+        'kg',                                            // Variant Weight Unit
+        'active',                                        // Status
+        isFirstVariant ? featuresText : '',             // Product Features
+        isFirstVariant ? productCategory : '',          // Product Category
+        isFirstVariant ? productMaterial : '',          // Product Material
+        isFirstVariant ? productColor : '',             // Product Color
+        isFirstVariant ? productSize : '',              // Product Size
+        isFirstVariant ? product.brand : '',            // Product Brand
+        isFirstVariant ? productModel : '',             // Product Model
+        isFirstVariant ? productSku : '',               // Product SKU
+        isFirstVariant ? product.description || '' : '', // Product Description
+        isFirstVariant ? additionalProperties : '',     // Additional Properties
+        isFirstVariant ? metaKeywords : '',             // Meta Keywords
+        isFirstVariant ? productCategory : ''           // Product Type
       ]);
     });
-  });
+  } else {
+    // Original logic for products with images
+    variants.forEach((variant, index) => {
+      product.images.forEach((image, imgIndex) => {
+        const isFirstVariant = index === 0;
+        const isFirstImage = imgIndex === 0;
+
+        rows.push([
+          productHandle,                                    // Handle
+          isFirstVariant && isFirstImage ? product.title : '', // Title
+          isFirstVariant && isFirstImage ? bodyHTML : '',   // Body (HTML)
+          isFirstVariant && isFirstImage ? product.brand : '', // Vendor
+          isFirstVariant && isFirstImage ? `${product.brand.toLowerCase()}, ${productCategory.toLowerCase()}, ${productMaterial.toLowerCase()}`.replace(/,\s*,/g, ',').replace(/^,|,$/g, '') : '', // Tags
+          isFirstVariant && isFirstImage ? 'TRUE' : '',     // Published
+          isFirstVariant && isFirstImage ? 'Renk' : '',     // Option1 Name
+          isFirstVariant ? variant.color : '',              // Option1 Value
+          isFirstVariant && isFirstImage ? 'Beden' : '',    // Option2 Name
+          isFirstVariant ? variant.size : '',               // Option2 Value
+          isFirstVariant ? `${productHandle}-${variant.color}-${variant.size}`.toLowerCase() : '', // Variant SKU
+          isFirstVariant ? (variant.inStock ? '10' : '0') : '', // Variant Inventory Qty
+          isFirstVariant ? product.price.withProfit.toString() : '', // Variant Price
+          isFirstVariant ? product.price.original.toString() : '', // Variant Compare At Price
+          image,                                            // Image Src
+          (imgIndex + 1).toString(),                        // Image Position
+          `${product.title} - ${variant.color}`,           // Image Alt Text
+          'FALSE',                                          // Gift Card
+          isFirstVariant && isFirstImage ? product.title : '', // SEO Title
+          isFirstVariant && isFirstImage ? featuresText.substring(0, 160) : '', // SEO Description
+          '',                                               // Variant Image
+          'kg',                                             // Variant Weight Unit
+          'active',                                         // Status
+          isFirstVariant && isFirstImage ? featuresText : '', // Product Features
+          isFirstVariant && isFirstImage ? productCategory : '', // Product Category
+          isFirstVariant && isFirstImage ? productMaterial : '', // Product Material
+          isFirstVariant && isFirstImage ? productColor : '',    // Product Color
+          isFirstVariant && isFirstImage ? productSize : '',     // Product Size
+          isFirstVariant && isFirstImage ? product.brand : '',   // Product Brand
+          isFirstVariant && isFirstImage ? productModel : '',    // Product Model
+          isFirstVariant && isFirstImage ? productSku : '',      // Product SKU
+          isFirstVariant && isFirstImage ? product.description || '' : '', // Product Description
+          isFirstVariant && isFirstImage ? additionalProperties : '', // Additional Properties
+          isFirstVariant && isFirstImage ? metaKeywords : '',     // Meta Keywords
+          isFirstVariant && isFirstImage ? productCategory : ''   // Product Type
+        ]);
+      });
+    });
+  }
 
   // Convert to CSV format
   const csvContent = rows.map(row => 
