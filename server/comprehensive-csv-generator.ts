@@ -168,51 +168,101 @@ export function generateComprehensiveShopifyCSV(product: ComprehensiveProductDat
       ]);
     });
   } else {
-    // Original logic for products with images
+    // 🖼️ FIXED IMAGE PROCESSING: Proper handling for products with images
+    console.log(`📸 COMPREHENSIVE CSV: Processing ${product.images.length} images for ${variants.length} variants`);
+    
     variants.forEach((variant, index) => {
-      product.images.forEach((image, imgIndex) => {
-        const isFirstVariant = index === 0;
-        const isFirstImage = imgIndex === 0;
+      // Only process each variant once, then add images separately
+      const isFirstVariant = index === 0;
+      
+      // Add main variant row with first image
+      rows.push([
+        productHandle,                                    // Handle
+        isFirstVariant ? product.title : '',             // Title
+        isFirstVariant ? bodyHTML : '',                  // Body (HTML)
+        isFirstVariant ? product.brand : '',             // Vendor
+        isFirstVariant ? `${product.brand.toLowerCase()}, ${productCategory.toLowerCase()}, ${productMaterial.toLowerCase()}`.replace(/,\s*,/g, ',').replace(/^,|,$/g, '') : '', // Tags
+        isFirstVariant ? 'TRUE' : '',                    // Published
+        isFirstVariant ? 'Renk' : '',                    // Option1 Name
+        variant.color,                                   // Option1 Value
+        isFirstVariant ? 'Beden' : '',                   // Option2 Name
+        variant.size,                                    // Option2 Value
+        `${productHandle}-${variant.color}-${variant.size}`.toLowerCase(), // Variant SKU
+        variant.inStock ? '10' : '0',                    // Variant Inventory Qty
+        product.price.withProfit.toString(),             // Variant Price
+        product.price.original.toString(),               // Variant Compare At Price
+        isFirstVariant && product.images.length > 0 ? product.images[0] : '', // Image Src - First image only for first variant
+        isFirstVariant && product.images.length > 0 ? '1' : '',              // Image Position
+        isFirstVariant && product.images.length > 0 ? `${product.title} - ${variant.color}` : '', // Image Alt Text
+        'FALSE',                                         // Gift Card
+        isFirstVariant ? product.title : '',            // SEO Title
+        isFirstVariant ? featuresText.substring(0, 160) : '', // SEO Description
+        isFirstVariant && product.images.length > 0 ? product.images[0] : '', // Variant Image
+        'kg',                                            // Variant Weight Unit
+        'active',                                        // Status
+        isFirstVariant ? featuresText : '',             // Product Features
+        isFirstVariant ? productCategory : '',          // Product Category
+        isFirstVariant ? productMaterial : '',          // Product Material
+        isFirstVariant ? productColor : '',             // Product Color
+        isFirstVariant ? productSize : '',              // Product Size
+        isFirstVariant ? product.brand : '',            // Product Brand
+        isFirstVariant ? productModel : '',             // Product Model
+        isFirstVariant ? productSku : '',               // Product SKU
+        isFirstVariant ? product.description || '' : '', // Product Description
+        isFirstVariant ? additionalProperties : '',     // Additional Properties
+        isFirstVariant ? metaKeywords : '',             // Meta Keywords
+        isFirstVariant ? productCategory : ''           // Product Type
+      ]);
+    });
 
+    // 🖼️ Now add all additional images as separate rows (skip first image since it's already used)
+    if (product.images.length > 1) {
+      console.log(`📸 Adding ${product.images.length - 1} additional image rows`);
+      
+      product.images.slice(1).forEach((image, imgIndex) => {
+        const imagePosition = imgIndex + 2; // +2 because first image is position 1
+        console.log(`📸 Adding image ${imagePosition}: ${image}`);
+        
         rows.push([
           productHandle,                                    // Handle
-          isFirstVariant && isFirstImage ? product.title : '', // Title
-          isFirstVariant && isFirstImage ? bodyHTML : '',   // Body (HTML)
-          isFirstVariant && isFirstImage ? product.brand : '', // Vendor
-          isFirstVariant && isFirstImage ? `${product.brand.toLowerCase()}, ${productCategory.toLowerCase()}, ${productMaterial.toLowerCase()}`.replace(/,\s*,/g, ',').replace(/^,|,$/g, '') : '', // Tags
-          isFirstVariant && isFirstImage ? 'TRUE' : '',     // Published
-          isFirstVariant && isFirstImage ? 'Renk' : '',     // Option1 Name
-          isFirstVariant ? variant.color : '',              // Option1 Value
-          isFirstVariant && isFirstImage ? 'Beden' : '',    // Option2 Name
-          isFirstVariant ? variant.size : '',               // Option2 Value
-          isFirstVariant ? `${productHandle}-${variant.color}-${variant.size}`.toLowerCase() : '', // Variant SKU
-          isFirstVariant ? (variant.inStock ? '10' : '0') : '', // Variant Inventory Qty
-          isFirstVariant ? product.price.withProfit.toString() : '', // Variant Price
-          isFirstVariant ? product.price.original.toString() : '', // Variant Compare At Price
-          image,                                            // Image Src
-          (imgIndex + 1).toString(),                        // Image Position
-          `${product.title} - ${variant.color}`,           // Image Alt Text
-          'FALSE',                                          // Gift Card
-          isFirstVariant && isFirstImage ? product.title : '', // SEO Title
-          isFirstVariant && isFirstImage ? featuresText.substring(0, 160) : '', // SEO Description
-          '',                                               // Variant Image
-          'kg',                                             // Variant Weight Unit
-          'active',                                         // Status
-          isFirstVariant && isFirstImage ? featuresText : '', // Product Features
-          isFirstVariant && isFirstImage ? productCategory : '', // Product Category
-          isFirstVariant && isFirstImage ? productMaterial : '', // Product Material
-          isFirstVariant && isFirstImage ? productColor : '',    // Product Color
-          isFirstVariant && isFirstImage ? productSize : '',     // Product Size
-          isFirstVariant && isFirstImage ? product.brand : '',   // Product Brand
-          isFirstVariant && isFirstImage ? productModel : '',    // Product Model
-          isFirstVariant && isFirstImage ? productSku : '',      // Product SKU
-          isFirstVariant && isFirstImage ? product.description || '' : '', // Product Description
-          isFirstVariant && isFirstImage ? additionalProperties : '', // Additional Properties
-          isFirstVariant && isFirstImage ? metaKeywords : '',     // Meta Keywords
-          isFirstVariant && isFirstImage ? productCategory : ''   // Product Type
+          '',                                              // Title
+          '',                                              // Body (HTML)
+          '',                                              // Vendor
+          '',                                              // Tags
+          '',                                              // Published
+          '',                                              // Option1 Name
+          '',                                              // Option1 Value
+          '',                                              // Option2 Name
+          '',                                              // Option2 Value
+          '',                                              // Variant SKU
+          '',                                              // Variant Inventory Qty
+          '',                                              // Variant Price
+          '',                                              // Variant Compare At Price
+          image,                                           // Image Src
+          imagePosition.toString(),                        // Image Position
+          `${product.title} - Görsel ${imagePosition}`,    // Image Alt Text
+          '',                                              // Gift Card
+          '',                                              // SEO Title
+          '',                                              // SEO Description
+          '',                                              // Variant Image
+          '',                                              // Variant Weight Unit
+          '',                                              // Status
+          '',                                              // Product Features
+          '',                                              // Product Category
+          '',                                              // Product Material
+          '',                                              // Product Color
+          '',                                              // Product Size
+          '',                                              // Product Brand
+          '',                                              // Product Model
+          '',                                              // Product SKU
+          '',                                              // Product Description
+          '',                                              // Additional Properties
+          '',                                              // Meta Keywords
+          ''                                               // Product Type
         ]);
       });
-    });
+    }
+    
   }
 
   // Convert to CSV format

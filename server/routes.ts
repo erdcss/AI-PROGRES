@@ -405,12 +405,32 @@ function generateSingleProductShopifyCSV(product: any): string {
   // ADDITIONAL PRODUCT IMAGES - Shopify format
   console.log(`📊 Shopify variant structure: "${productHandle}" - ${inStockSizes.length} variants created`);
   
-  // Add ALL product images as additional image rows
+  // 🖼️ CRITICAL FIX: Add ALL product images as additional image rows
   const startingImagePosition = inStockSizes.length + 1;
-  console.log(`📸 Adding ALL ${product.images.length} product images to CSV...`);
   
-  product.images.forEach((imageUrl: string, index: number) => {
+  // Ensure images array exists and is properly formatted
+  const productImages = Array.isArray(product.images) ? product.images : [];
+  console.log(`📸 CRITICAL DEBUG: product.images type:`, typeof product.images);
+  console.log(`📸 CRITICAL DEBUG: productImages array:`, productImages);
+  console.log(`📸 Adding ALL ${productImages.length} product images to CSV...`);
+  
+  if (productImages.length === 0) {
+    console.log(`⚠️ CRITICAL: No images found in product.images array!`);
+    console.log(`⚠️ Raw product.images:`, product.images);
+  }
+  
+  productImages.forEach((imageUrl: string | any, index: number) => {
+    // Handle both string URLs and objects with url property
+    const finalImageUrl = typeof imageUrl === 'string' ? imageUrl : imageUrl?.url || '';
+    
+    if (!finalImageUrl || !finalImageUrl.startsWith('http')) {
+      console.log(`⚠️ SKIPPING invalid image at index ${index}:`, imageUrl);
+      return;
+    }
+    
     const imagePosition = startingImagePosition + index;
+    console.log(`📸 Adding image ${index + 1}/${productImages.length}: ${finalImageUrl} (position ${imagePosition})`);
+    
     rows.push([
       productHandle,                                  // Handle
       '',                                             // Title
@@ -426,7 +446,7 @@ function generateSingleProductShopifyCSV(product: any): string {
       '',                                             // Variant Inventory Qty
       '',                                             // Variant Price
       '',                                             // Variant Compare At Price
-      imageUrl,                                      // Image Src - PRODUCT IMAGE
+      finalImageUrl,                                 // Image Src - PRODUCT IMAGE
       imagePosition.toString(),                      // Image Position
       `${product.title} - Görsel ${index + 1}`,     // Image Alt Text
       '',                                             // Gift Card
