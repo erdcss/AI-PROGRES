@@ -25,11 +25,11 @@ export class IntelligentRateLimiter {
   private currentSession: string = '';
   
   private config: RateLimitConfig = {
-    minDelay: 1500,      // 🚀 SPEED BOOST: 1.5 seconds minimum (was 5s)
-    maxDelay: 8000,      // 🚀 SPEED BOOST: 8 seconds maximum (was 15s)  
-    burstLimit: 5,       // 🚀 SPEED BOOST: Max 5 requests in burst (was 3)
-    cooldownPeriod: 30000, // 🚀 SPEED BOOST: 30 seconds cooldown (was 60s)
-    adaptiveMode: true   // Adapt based on success/failure patterns
+    minDelay: 500,       // 🚀 ULTRA SPEED: 0.5 seconds minimum (was 1.5s)
+    maxDelay: 3000,      // 🚀 ULTRA SPEED: 3 seconds maximum (was 8s)  
+    burstLimit: 10,      // 🚀 ULTRA SPEED: Max 10 requests in burst (was 5)
+    cooldownPeriod: 10000, // 🚀 ULTRA SPEED: 10 seconds cooldown (was 30s)
+    adaptiveMode: false  // 🚀 DISABLE adaptive mode to prevent delay increases
   };
 
   constructor(customConfig?: Partial<RateLimitConfig>) {
@@ -55,19 +55,21 @@ export class IntelligentRateLimiter {
     // Base delay calculation
     let delay = this.config.minDelay;
 
-    // Factor 1: Recent failure patterns
-    if (this.consecutiveFailures > 0) {
-      const failureMultiplier = Math.min(this.consecutiveFailures * 1.5, 5);
-      delay *= failureMultiplier;
-      console.log(`⚠️ Failure penalty: ${failureMultiplier}x delay (${this.consecutiveFailures} failures)`);
-    }
+    // 🚀 ULTRA SPEED: Remove failure penalty to maintain speed
+    // Factor 1: Recent failure patterns - DISABLED FOR SPEED
+    // if (this.consecutiveFailures > 0) {
+    //   const failureMultiplier = Math.min(this.consecutiveFailures * 1.5, 5);
+    //   delay *= failureMultiplier;
+    //   console.log(`⚠️ Failure penalty: ${failureMultiplier}x delay (${this.consecutiveFailures} failures)`);
+    // }
 
-    // Factor 2: Time since last success
-    const timeSinceSuccess = now - this.lastSuccessTime;
-    if (timeSinceSuccess > 5 * 60 * 1000 && this.lastSuccessTime > 0) {
-      delay *= 1.8; // Increase delay if no recent success
-      console.log('⚠️ No recent success penalty: 1.8x delay');
-    }
+    // 🚀 ULTRA SPEED: Remove time penalty to maintain speed
+    // Factor 2: Time since last success - DISABLED FOR SPEED
+    // const timeSinceSuccess = now - this.lastSuccessTime;
+    // if (timeSinceSuccess > 5 * 60 * 1000 && this.lastSuccessTime > 0) {
+    //   delay *= 1.8; // Increase delay if no recent success
+    //   console.log('⚠️ No recent success penalty: 1.8x delay');
+    // }
 
     // Factor 3: Request frequency analysis
     const recentRequests = this.requestHistory.filter(
@@ -83,13 +85,14 @@ export class IntelligentRateLimiter {
     const humanVariation = 0.5 + Math.random(); // 0.5x to 1.5x variation
     delay *= humanVariation;
 
-    // Factor 5: Time-of-day patterns (simulate human activity)
-    const hour = new Date().getHours();
-    if (hour >= 2 && hour <= 7) {
-      delay *= 1.5; // Slower during night hours
-    } else if (hour >= 9 && hour <= 17) {
-      delay *= 0.9; // Faster during business hours
-    }
+    // 🚀 ULTRA SPEED: Remove time-of-day penalties
+    // Factor 5: Time-of-day patterns - DISABLED FOR SPEED
+    // const hour = new Date().getHours();
+    // if (hour >= 2 && hour <= 7) {
+    //   delay *= 1.5; // Slower during night hours
+    // } else if (hour >= 9 && hour <= 17) {
+    //   delay *= 0.9; // Faster during business hours
+    // }
 
     // Ensure within bounds
     delay = Math.max(this.config.minDelay, Math.min(delay, this.config.maxDelay));

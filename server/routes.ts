@@ -52,6 +52,7 @@ import { urlTracking } from '@shared/schema';
 import { savedUrlsManager } from './saved-urls-manager';
 import { shopifyProductsManager } from './shopify-products-manager';
 import { shopifyApiService } from './shopify-api-service';
+import { speedOptimizedScraper } from './speed-optimized-scraper';
 
 // Telegram notification for product extraction
 async function sendProductExtractionNotification(url: string, title: string, brand: string, price: any) {
@@ -921,11 +922,35 @@ export function registerRoutes(app: Express): Server {
       const productIdMatch = url.match(/p-(\d+)/);
       const productId = productIdMatch ? productIdMatch[1] : null;
 
-      // Enhanced product data extraction for Trendyol products using scenario-based system
+      // Enhanced product data extraction for Trendyol products using SPEED-OPTIMIZED system
       if (url.includes('trendyol.com')) {
-        console.log("🎯 Using Scenario-Based Scraper for intelligent extraction");
+        console.log("🚀 SPEED SCRAPER: Starting ultra-fast extraction");
         
-        // Try Scenario-Based Scraper first for best accuracy and intelligence
+        // Try Speed-Optimized Scraper FIRST for maximum speed
+        const speedResult = await speedOptimizedScraper.extractProduct(url);
+        
+        if (speedResult.success && speedResult.data) {
+          console.log(`⚡ SPEED SUCCESS: ${speedResult.method} (${speedResult.responseTime}ms)`);
+          
+          // Apply 15% profit margin
+          const priceWithProfit = Math.round(speedResult.data.price * 1.15 * 100) / 100;
+          
+          return res.json({
+            success: true,
+            extractionMethod: `speed-optimized-${speedResult.method}`,
+            responseTime: speedResult.responseTime,
+            brand: speedResult.data.brand,
+            title: speedResult.data.title,
+            price: priceWithProfit,
+            images: speedResult.data.images,
+            features: [],
+            variants: speedResult.data.variants
+          });
+        }
+        
+        console.log("🎯 Speed failed, fallback to Scenario-Based Scraper");
+        
+        // Fallback to Scenario-Based Scraper if speed scraper fails
         const scenarioResult = await scenarioBasedScrape(url);
         
         if (scenarioResult.success) {

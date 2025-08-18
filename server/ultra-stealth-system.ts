@@ -78,17 +78,17 @@ export class UltraStealthSystem {
     console.log(`🎭 Fingerprint rotated to: ${this.currentFingerprint.platform}`);
   }
 
-  // Human-like delay patterns
+  // Human-like delay patterns - ULTRA SPEED VERSION
   private async humanDelay(): Promise<void> {
     if (!this.config.enableDelayVariation) return;
     
-    const baseDelay = 3000; // 3 seconds minimum
-    const variation = Math.random() * 4000; // 0-4 seconds variation
-    const humanPattern = Math.sin(this.requestCount * 0.1) * 1000; // Sine wave pattern
+    // 🚀 ULTRA SPEED: Minimal delays only
+    const baseDelay = 200; // 0.2 seconds minimum (was 3s)
+    const variation = Math.random() * 300; // 0-0.3 seconds variation (was 4s)
     
-    const totalDelay = baseDelay + variation + Math.abs(humanPattern);
+    const totalDelay = baseDelay + variation;
     
-    console.log(`⏱️ Human delay: ${Math.round(totalDelay)}ms (pattern-based)`);
+    console.log(`⚡ Ultra-fast delay: ${Math.round(totalDelay)}ms`);
     await new Promise(resolve => setTimeout(resolve, totalDelay));
     
     this.requestCount++;

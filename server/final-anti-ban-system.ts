@@ -145,23 +145,24 @@ export class FinalAntiBanSystem {
   }
 
   private async executeContextualDelay(context: RequestContext, strategyIndex: number): Promise<void> {
-    let delay = 2000; // Base 2 seconds
+    // 🚀 ULTRA SPEED: Minimal contextual delays
+    let delay = 200; // Base 0.2 seconds (was 2s)
 
-    // Increase delay based on failure count
-    delay += context.failureCount * 1000;
+    // 🚀 REMOVED: Failure-based delay increases for speed
+    // delay += context.failureCount * 1000;
 
-    // Increase delay based on global failure rate
-    if (this.globalFailureCount > 5) {
-      delay *= 2;
-    }
+    // 🚀 REMOVED: Global failure penalties for speed
+    // if (this.globalFailureCount > 5) {
+    //   delay *= 2;
+    // }
 
-    // Additional delay for subsequent strategies
-    delay += strategyIndex * 1500;
+    // Minimal strategy delay
+    delay += strategyIndex * 100; // 0.1s per strategy (was 1.5s)
 
-    // Random human-like variation
-    delay += Math.random() * 2000;
+    // Minimal random variation
+    delay += Math.random() * 200; // 0-0.2s variation (was 2s)
 
-    console.log(`⏱️ ANTI-BAN: Contextual delay ${Math.round(delay)}ms (failures: ${context.failureCount})`);
+    console.log(`⚡ ULTRA-FAST: Contextual delay ${Math.round(delay)}ms`);
     await new Promise(resolve => setTimeout(resolve, delay));
   }
 
