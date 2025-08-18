@@ -217,10 +217,26 @@ function ScraperPage() {
       const results = [];
       for (const preview of csvPreviews) {
         try {
-          await uploadToShopify(preview.csvContent, preview.productTitle);
-          results.push({ success: true, title: preview.productTitle });
+          const response = await fetch("/api/shopify/upload-csv-product", {
+            method: "POST",
+            headers: {
+              "Content-Type": "application/json",
+            },
+            body: JSON.stringify({ 
+              csvContent: preview.csvContent,
+              productTitle: preview.productTitle 
+            }),
+          });
+          
+          if (response.ok) {
+            const result = await response.json();
+            results.push({ success: true, title: preview.productTitle, shopifyId: result.shopifyId });
+          } else {
+            const errorData = await response.json().catch(() => ({}));
+            throw new Error(errorData.error || errorData.message || `HTTP ${response.status}`);
+          }
         } catch (error) {
-          results.push({ success: false, title: preview.productTitle, error });
+          results.push({ success: false, title: preview.productTitle, error: error.message });
         }
       }
       return results;
@@ -250,7 +266,7 @@ function ScraperPage() {
         throw new Error("Önce ürün verisi çekilmelidir");
       }
       
-      const response = await fetch("/api/shopify/add-product", {
+      const response = await fetch("/api/shopify/upload-product", {
         method: "POST",
         headers: {
           "Content-Type": "application/json",
@@ -267,7 +283,7 @@ function ScraperPage() {
     onSuccess: (data) => {
       toast({
         title: "Başarılı",
-        description: "Ürün Shopify'a başarıyla yüklendi"
+        description: `Ürün Shopify'a başarıyla yüklendi (ID: ${data.shopifyId})`
       });
     },
     onError: (error: any) => {
@@ -637,16 +653,32 @@ function ScraperPage() {
     if (preview) {
       console.log('🛒 Starting Shopify upload for:', preview.productTitle);
       try {
-        await uploadToShopify(preview.csvContent, preview.productTitle);
-        toast({
-          title: "Shopify'a Yüklendi",
-          description: `${preview.productTitle} başarıyla yüklendi`
+        const response = await fetch("/api/shopify/upload-csv-product", {
+          method: "POST",
+          headers: {
+            "Content-Type": "application/json",
+          },
+          body: JSON.stringify({ 
+            csvContent: preview.csvContent,
+            productTitle: preview.productTitle 
+          }),
         });
+        
+        if (response.ok) {
+          const result = await response.json();
+          toast({
+            title: "Shopify'a Yüklendi",
+            description: `${preview.productTitle} başarıyla yüklendi (ID: ${result.shopifyId})`
+          });
+        } else {
+          const errorData = await response.json().catch(() => ({}));
+          throw new Error(errorData.error || errorData.message || `HTTP ${response.status}`);
+        }
       } catch (error) {
         console.error('❌ Shopify upload failed:', error);
         toast({
           title: "Yükleme Hatası",
-          description: `${preview.productTitle} yüklenirken hata oluştu`,
+          description: `${preview.productTitle} yüklenirken hata oluştu: ${error instanceof Error ? error.message : 'Bilinmeyen hata'}`,
           variant: "destructive"
         });
       }
@@ -1079,11 +1111,36 @@ function ScraperPage() {
 
 
         {/* CSV Drawer Preview - Tüm CSV'ler */}
-        <CSVDrawerPreview 
-          csvPreviews={csvPreviews}
-          onDownload={handleCSVDownload}
-          onShopifyUpload={handleCSVShopifyUpload}
-        />
+        {csvPreviews.length > 0 && (
+          <div className="mt-8">
+            <CSVDrawerPreview 
+              csvPreviews={csvPreviews}
+              onDownload={handleCSVDownload}
+              onShopifyUpload={handleCSVShopifyUpload}
+            />
+            
+            {/* Toplu Shopify Yükleme Butonu */}
+            <div className="mt-4 flex justify-center">
+              <Button
+                onClick={uploadAllCSVsToShopify}
+                disabled={bulkUploadMutation.isPending}
+                className="bg-gradient-to-r from-blue-600 to-purple-600 hover:from-blue-700 hover:to-purple-700 text-white font-medium px-8 py-3"
+              >
+                {bulkUploadMutation.isPending ? (
+                  <div className="flex items-center gap-2">
+                    <Loader2 className="w-5 h-5 animate-spin" />
+                    Tüm Ürünler Shopify'a Yükleniyor... ({csvPreviews.length})
+                  </div>
+                ) : (
+                  <div className="flex items-center gap-2">
+                    <ShoppingCart className="w-5 h-5" />
+                    TÜM ÜRÜNLERİ SHOPIFY'A YÜKLE ({csvPreviews.length})
+                  </div>
+                )}
+              </Button>
+            </div>
+          </div>
+        )}
       </div>
     </div>
   );

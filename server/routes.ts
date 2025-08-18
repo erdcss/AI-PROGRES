@@ -2318,6 +2318,43 @@ export function registerRoutes(app: Express): Server {
     }
   });
 
+  // CSV-specific Shopify upload endpoint
+  app.post('/api/shopify/upload-csv-product', async (req, res) => {
+    try {
+      const { csvContent, productTitle } = req.body;
+      
+      if (!csvContent) {
+        return res.status(400).json({
+          success: false,
+          error: 'CSV content is required'
+        });
+      }
+      
+      console.log(`🛒 CSV Shopify Upload: ${productTitle}`);
+      const uploadResult = await uploadProductToShopify(csvContent, productTitle);
+      
+      if (uploadResult.success) {
+        return res.json({
+          success: true,
+          shopifyId: uploadResult.productId,
+          message: uploadResult.message
+        });
+      } else {
+        return res.status(400).json({
+          success: false,
+          error: uploadResult.message
+        });
+      }
+      
+    } catch (error) {
+      console.error('❌ CSV Shopify upload error:', error);
+      return res.status(500).json({
+        success: false,
+        error: error instanceof Error ? error.message : 'CSV upload failed'
+      });
+    }
+  });
+
   // Debug endpoint
   app.get('/api/debug-multi-url', async (req, res) => {
     try {
