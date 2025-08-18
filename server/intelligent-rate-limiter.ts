@@ -25,10 +25,10 @@ export class IntelligentRateLimiter {
   private currentSession: string = '';
   
   private config: RateLimitConfig = {
-    minDelay: 5000,      // 5 seconds minimum
-    maxDelay: 15000,     // 15 seconds maximum  
-    burstLimit: 3,       // Max 3 requests in burst
-    cooldownPeriod: 60000, // 1 minute cooldown after burst
+    minDelay: 1500,      // 🚀 SPEED BOOST: 1.5 seconds minimum (was 5s)
+    maxDelay: 8000,      // 🚀 SPEED BOOST: 8 seconds maximum (was 15s)  
+    burstLimit: 5,       // 🚀 SPEED BOOST: Max 5 requests in burst (was 3)
+    cooldownPeriod: 30000, // 🚀 SPEED BOOST: 30 seconds cooldown (was 60s)
     adaptiveMode: true   // Adapt based on success/failure patterns
   };
 

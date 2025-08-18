@@ -62,8 +62,8 @@ export class UltraStealthSystem {
   constructor(config: Partial<StealthConfig> = {}) {
     this.config = {
       enableFingerprinting: true,
-      enableProxyRotation: true,
-      enableDelayVariation: true,
+      enableProxyRotation: false,    // 🚀 SPEED BOOST: Disable proxy rotation for speed
+      enableDelayVariation: false,   // 🚀 SPEED BOOST: Disable delay variation for speed
       enableBehaviorMimicking: true,
       enableCacheStrategy: true,
       ...config

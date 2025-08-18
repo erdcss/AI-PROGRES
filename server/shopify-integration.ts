@@ -80,12 +80,35 @@ export class ShopifyIntegration {
       .replace(/\s+/g, '-')
       .substring(0, 100);
 
-    // Create images
-    const images: ShopifyImage[] = productData.images.map((src, index) => ({
-      src,
-      alt: `${title} - Görsel ${index + 1}`,
-      position: index + 1
-    }));
+    // 🖼️ SHOPIFY IMAGE FIX: Ensure images are properly formatted and validated
+    console.log(`📸 SHOPIFY INTEGRATION: Processing ${productData.images.length} images for product: ${title}`);
+    
+    const images: ShopifyImage[] = [];
+    if (productData.images && Array.isArray(productData.images)) {
+      productData.images.forEach((imageUrl, index) => {
+        if (imageUrl && typeof imageUrl === 'string' && imageUrl.startsWith('http')) {
+          images.push({
+            src: imageUrl,
+            alt: `${title} - Görsel ${index + 1}`,
+            position: index + 1
+          });
+          console.log(`📸 Added image ${index + 1}: ${imageUrl}`);
+        } else if (imageUrl && typeof imageUrl === 'object' && (imageUrl as any).url) {
+          // Handle {url: string} format
+          const imageObj = imageUrl as any;
+          images.push({
+            src: imageObj.url,
+            alt: `${title} - Görsel ${index + 1}`,
+            position: index + 1
+          });
+          console.log(`📸 Added image object ${index + 1}: ${imageObj.url}`);
+        } else {
+          console.log(`❌ Invalid image format at index ${index}:`, imageUrl);
+        }
+      });
+    }
+    
+    console.log(`✅ SHOPIFY IMAGES: ${images.length} valid images ready for upload`);
 
     // Create variants
     const variants: ShopifyVariant[] = [];

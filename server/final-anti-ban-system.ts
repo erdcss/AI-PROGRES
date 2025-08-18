@@ -33,10 +33,10 @@ export class FinalAntiBanSystem {
   constructor(config: Partial<AntibanConfig> = {}) {
     this.config = {
       enableRotatingIdentity: true,
-      enableDistributedRequests: true,
+      enableDistributedRequests: false,  // 🚀 SPEED BOOST: Disable distributed requests for speed
       enableCachingStrategy: true,
       enableFallbackMethods: true,
-      aggressiveness: 'extreme',
+      aggressiveness: 'medium',          // 🚀 SPEED BOOST: Reduce aggressiveness for speed
       ...config
     };
 
@@ -45,11 +45,11 @@ export class FinalAntiBanSystem {
   }
 
   private startSessionRotation(): void {
-    // Rotate session every 15 minutes for maximum stealth
+    // 🚀 SPEED BOOST: Rotate session every 30 minutes (was 15m) for speed
     this.sessionRotationTimer = setInterval(() => {
       console.log('🔄 ANTI-BAN: Session rotation initiated');
       intelligentRateLimiter.resetSession();
-    }, 15 * 60 * 1000);
+    }, 30 * 60 * 1000);
   }
 
   // Main anti-ban extraction method

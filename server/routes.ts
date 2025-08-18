@@ -2990,7 +2990,10 @@ export function registerRoutes(app: Express): Server {
           weight_unit: "kg",
           requires_shipping: true
         }],
-        images: (productData.images || []).slice(0, 3).map((url: string) => ({ src: url }))
+        images: (productData.images || []).slice(0, 10).map((url: string | any) => ({
+          src: typeof url === 'string' ? url : url.url || url,
+          alt: `${productData.title} - Product Image`
+        }))
       };
 
       console.log('Creating Shopify product:', shopifyProduct.title);
