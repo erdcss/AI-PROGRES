@@ -53,6 +53,7 @@ import { savedUrlsManager } from './saved-urls-manager';
 import { shopifyProductsManager } from './shopify-products-manager';
 import { shopifyApiService } from './shopify-api-service';
 import { speedOptimizedScraper } from './speed-optimized-scraper';
+import { simpleFastExtract } from './simple-fast-scraper';
 
 // Telegram notification for product extraction
 async function sendProductExtractionNotification(url: string, title: string, brand: string, price: any) {
@@ -924,9 +925,32 @@ export function registerRoutes(app: Express): Server {
 
       // Enhanced product data extraction for Trendyol products using SPEED-OPTIMIZED system
       if (url.includes('trendyol.com')) {
-        console.log("🚀 SPEED SCRAPER: Starting ultra-fast extraction");
+        console.log("🚀 SIMPLE FAST: Starting reliable extraction");
         
-        // Try Speed-Optimized Scraper FIRST for maximum speed
+        // Try Simple Fast Scraper FIRST for reliability
+        const fastResult = await simpleFastExtract(url);
+        
+        if (fastResult.success && fastResult.price && fastResult.price > 0) {
+          console.log(`⚡ SIMPLE FAST SUCCESS: ${fastResult.title}, ${fastResult.price} TL`);
+          
+          // Apply 15% profit margin
+          const priceWithProfit = Math.round(fastResult.price * 1.15 * 100) / 100;
+          
+          return res.json({
+            success: true,
+            extractionMethod: 'simple-fast-scraper',
+            brand: fastResult.brand,
+            title: fastResult.title,
+            price: priceWithProfit,
+            images: fastResult.images || [],
+            features: [],
+            variants: fastResult.variants || []
+          });
+        }
+        
+        console.log("🚀 Simple fast failed, trying Speed-Optimized Scraper");
+        
+        // Try Speed-Optimized Scraper as backup
         const speedResult = await speedOptimizedScraper.extractProduct(url);
         
         if (speedResult.success && speedResult.data) {
@@ -948,9 +972,33 @@ export function registerRoutes(app: Express): Server {
           });
         }
         
-        console.log("🎯 Speed failed, fallback to Scenario-Based Scraper");
+        console.log("🎯 Speed failed, trying Enhanced Scraper directly");
         
-        // Fallback to Scenario-Based Scraper if speed scraper fails
+        // Skip scenario-based scraper due to OpenAI quota issues, go straight to enhanced
+        console.log("🔧 Using Enhanced Scraper as primary method");
+        const enhancedResult = await scrapeWithEnhancedMethod(url);
+        
+        if (enhancedResult) {
+          console.log("🔧 Enhanced Scraper SUCCESS:", enhancedResult.title);
+          
+          // Apply 15% profit margin
+          const priceWithProfit = Math.round(enhancedResult.price * 1.15 * 100) / 100;
+          
+          return res.json({
+            success: true,
+            extractionMethod: 'enhanced-direct',
+            brand: enhancedResult.brand,
+            title: enhancedResult.title,
+            price: priceWithProfit,
+            images: enhancedResult.images,
+            features: [],
+            variants: enhancedResult.variants
+          });
+        }
+        
+        console.log("🔄 Enhanced failed, trying Scenario-Based as fallback");
+        
+        // Fallback to Scenario-Based Scraper if enhanced fails
         const scenarioResult = await scenarioBasedScrape(url);
         
         if (scenarioResult.success) {

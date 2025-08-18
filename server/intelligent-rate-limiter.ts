@@ -25,11 +25,11 @@ export class IntelligentRateLimiter {
   private currentSession: string = '';
   
   private config: RateLimitConfig = {
-    minDelay: 500,       // 🚀 ULTRA SPEED: 0.5 seconds minimum (was 1.5s)
-    maxDelay: 3000,      // 🚀 ULTRA SPEED: 3 seconds maximum (was 8s)  
-    burstLimit: 10,      // 🚀 ULTRA SPEED: Max 10 requests in burst (was 5)
-    cooldownPeriod: 10000, // 🚀 ULTRA SPEED: 10 seconds cooldown (was 30s)
-    adaptiveMode: false  // 🚀 DISABLE adaptive mode to prevent delay increases
+    minDelay: 300,       // 🚀 ULTRA SPEED: 0.3 seconds minimum
+    maxDelay: 1000,      // 🚀 ULTRA SPEED: 1 second maximum  
+    burstLimit: 15,      // 🚀 ULTRA SPEED: Max 15 requests in burst
+    cooldownPeriod: 5000, // 🚀 ULTRA SPEED: 5 seconds cooldown
+    adaptiveMode: false  // 🚀 DISABLE adaptive mode completely
   };
 
   constructor(customConfig?: Partial<RateLimitConfig>) {
@@ -71,9 +71,9 @@ export class IntelligentRateLimiter {
     //   console.log('⚠️ No recent success penalty: 1.8x delay');
     // }
 
-    // Factor 3: Request frequency analysis
+    // 🚀 ULTRA SPEED: Simplified frequency control
     const recentRequests = this.requestHistory.filter(
-      req => now - req.timestamp < 60000 // Last minute
+      req => now - req.timestamp < 30000 // Last 30 seconds only
     );
 
     if (recentRequests.length >= this.config.burstLimit) {
