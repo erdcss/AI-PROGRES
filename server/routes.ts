@@ -54,6 +54,7 @@ import { shopifyProductsManager } from './shopify-products-manager';
 import { shopifyApiService } from './shopify-api-service';
 import { speedOptimizedScraper } from './speed-optimized-scraper';
 import { simpleFastExtract } from './simple-fast-scraper';
+import { bypassExtraction } from './bypass-system';
 
 // Telegram notification for product extraction
 async function sendProductExtractionNotification(url: string, title: string, brand: string, price: any) {
@@ -925,9 +926,32 @@ export function registerRoutes(app: Express): Server {
 
       // Enhanced product data extraction for Trendyol products using SPEED-OPTIMIZED system
       if (url.includes('trendyol.com')) {
-        console.log("🚀 SIMPLE FAST: Starting reliable extraction");
+        console.log("🕵️ BYPASS SYSTEM: Starting anti-block extraction");
         
-        // Try Simple Fast Scraper FIRST for reliability
+        // Try Bypass System FIRST to avoid blocking
+        const bypassResult = await bypassExtraction(url);
+        
+        if (bypassResult.success && bypassResult.price && bypassResult.price > 0) {
+          console.log(`🔓 BYPASS SUCCESS: ${bypassResult.title}, ${bypassResult.price} TL (${bypassResult.method})`);
+          
+          // Apply 15% profit margin
+          const priceWithProfit = Math.round(bypassResult.price * 1.15 * 100) / 100;
+          
+          return res.json({
+            success: true,
+            extractionMethod: `bypass-${bypassResult.method}`,
+            brand: bypassResult.brand,
+            title: bypassResult.title,
+            price: priceWithProfit,
+            images: bypassResult.images || [],
+            features: [],
+            variants: bypassResult.variants || []
+          });
+        }
+        
+        console.log("🚀 Bypass failed, trying Simple Fast Scraper");
+        
+        // Try Simple Fast Scraper as backup
         const fastResult = await simpleFastExtract(url);
         
         if (fastResult.success && fastResult.price && fastResult.price > 0) {
