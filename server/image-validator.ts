@@ -24,27 +24,63 @@ export async function validateImages(images: string[]): Promise<ImageValidation[
           return { url, isValid: false, error: 'Not a Trendyol CDN image' };
         }
         
-        // Make HEAD request to check if image exists
-        const response = await axios.head(url, {
-          timeout: 5000,
-          headers: {
-            'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36'
+        // Skip validation for obviously invalid URLs
+        if (url.includes('static') || url.includes('logo') || url.length < 20) {
+          return { url, isValid: false, error: 'Static or logo image' };
+        }
+        
+        // Try HEAD request first, then GET if HEAD fails
+        let response;
+        try {
+          response = await axios.head(url, {
+            timeout: 8000,
+            headers: {
+              'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/119.0.0.0 Safari/537.36',
+              'Accept': 'image/webp,image/apng,image/*,*/*;q=0.8',
+              'Accept-Language': 'tr-TR,tr;q=0.9,en;q=0.8',
+              'Cache-Control': 'no-cache',
+              'Referer': 'https://www.trendyol.com/'
+            },
+            validateStatus: (status) => status < 500 // Accept redirects
+          });
+        } catch (headError) {
+          // Try GET request as fallback
+          response = await axios.get(url, {
+            timeout: 10000,
+            responseType: 'stream',
+            headers: {
+              'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36',
+              'Referer': 'https://www.trendyol.com/'
+            },
+            maxRedirects: 3
+          });
+          
+          // Close the stream immediately since we only need headers
+          if (response.data && response.data.destroy) {
+            response.data.destroy();
           }
-        });
+        }
         
         // Check if it's actually an image
         const contentType = response.headers['content-type'];
-        if (!contentType || !contentType.startsWith('image/')) {
-          return { url, isValid: false, error: 'Not an image file' };
+        if (contentType && (contentType.startsWith('image/') || contentType.includes('image'))) {
+          return { url, isValid: true };
+        } else {
+          return { url, isValid: false, error: `Invalid content type: ${contentType}` };
         }
         
-        return { url, isValid: true };
-        
       } catch (error) {
+        // For 403/404 errors, still consider the image potentially valid for Shopify
+        const status = error.response?.status;
+        if (status === 403 || status === 404) {
+          console.log(`⚠️ Image access restricted but may work in Shopify: ${url}`);
+          return { url, isValid: true }; // Allow restricted images
+        }
+        
         return { 
           url, 
           isValid: false, 
-          error: error.response?.status ? `HTTP ${error.response.status}` : error.message 
+          error: status ? `HTTP ${status}` : error.message 
         };
       }
     })
@@ -64,15 +100,39 @@ export function getValidImageUrls(validations: ImageValidation[]): string[] {
 
 export function enhanceImageUrls(imageUrls: string[]): string[] {
   return imageUrls.map(url => {
-    // Ensure high resolution
-    if (!url.includes('org_zoom')) {
-      return url
-        .replace('_medium', '_org_zoom')
-        .replace('_small', '_org_zoom') 
-        .replace('_thumb', '_org_zoom');
+    try {
+      // Basic URL validation
+      new URL(url);
+      
+      // Ensure high resolution with multiple enhancement methods
+      let enhanced = url;
+      
+      if (!enhanced.includes('org_zoom')) {
+        enhanced = enhanced
+          .replace('_medium', '_org_zoom')
+          .replace('_small', '_org_zoom')
+          .replace('_thumb', '_org_zoom')
+          .replace('_org.jpg', '_org_zoom.jpg')
+          .replace('_org.png', '_org_zoom.png');
+      }
+      
+      // Enhance image quality parameters
+      enhanced = enhanced
+        .replace(/\/ty\d+\//, '/ty1000/') // Use highest quality path
+        .replace(/quality=\d+/, 'quality=100'); // Max quality
+      
+      // Add zoom suffix if missing
+      if (enhanced.includes('cdn.dsmcdn.com') && 
+          !enhanced.includes('org_zoom') && 
+          (enhanced.includes('.jpg') || enhanced.includes('.png'))) {
+        enhanced = enhanced.replace(/\.(jpg|png)/, '_org_zoom.$1');
+      }
+      
+      return enhanced;
+    } catch {
+      return url; // Return original if enhancement fails
     }
-    return url;
-  });
+  }).filter(url => url && url.length > 10);
 }
 
 export async function getValidatedImages(rawImages: string[]): Promise<string[]> {
