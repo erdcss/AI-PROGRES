@@ -55,6 +55,7 @@ import { shopifyApiService } from './shopify-api-service';
 import { speedOptimizedScraper } from './speed-optimized-scraper';
 import { simpleFastExtract } from './simple-fast-scraper';
 import { bypassExtraction } from './bypass-system';
+import { emergencyExtraction } from './emergency-scraper';
 
 // Telegram notification for product extraction
 async function sendProductExtractionNotification(url: string, title: string, brand: string, price: any) {
@@ -926,9 +927,32 @@ export function registerRoutes(app: Express): Server {
 
       // Enhanced product data extraction for Trendyol products using SPEED-OPTIMIZED system
       if (url.includes('trendyol.com')) {
-        console.log("🕵️ BYPASS SYSTEM: Starting anti-block extraction");
+        console.log("🆘 EMERGENCY SCRAPER: Starting last resort extraction");
         
-        // Try Bypass System FIRST to avoid blocking
+        // Try Emergency Scraper FIRST - most reliable method
+        const emergencyResult = await emergencyExtraction(url);
+        
+        if (emergencyResult.success && emergencyResult.price && emergencyResult.price > 0) {
+          console.log(`🔥 EMERGENCY SUCCESS: ${emergencyResult.title}, ${emergencyResult.price} TL (${emergencyResult.method})`);
+          
+          // Apply 15% profit margin
+          const priceWithProfit = Math.round(emergencyResult.price * 1.15 * 100) / 100;
+          
+          return res.json({
+            success: true,
+            extractionMethod: `emergency-${emergencyResult.method}`,
+            brand: emergencyResult.brand,
+            title: emergencyResult.title,
+            price: priceWithProfit,
+            images: emergencyResult.images || [],
+            features: [],
+            variants: emergencyResult.variants || []
+          });
+        }
+        
+        console.log("🕵️ Emergency failed, trying Bypass System");
+        
+        // Try Bypass System as backup
         const bypassResult = await bypassExtraction(url);
         
         if (bypassResult.success && bypassResult.price && bypassResult.price > 0) {
