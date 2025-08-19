@@ -56,6 +56,7 @@ import { speedOptimizedScraper } from './speed-optimized-scraper';
 import { simpleFastExtract } from './simple-fast-scraper';
 import { bypassExtraction } from './bypass-system';
 import { emergencyExtraction } from './emergency-scraper';
+import { getValidatedImages } from './image-validator';
 
 // Telegram notification for product extraction
 async function sendProductExtractionNotification(url: string, title: string, brand: string, price: any) {
@@ -935,6 +936,10 @@ export function registerRoutes(app: Express): Server {
         if (emergencyResult.success && emergencyResult.price && emergencyResult.price > 0) {
           console.log(`🔥 EMERGENCY SUCCESS: ${emergencyResult.title}, ${emergencyResult.price} TL (${emergencyResult.method})`);
           
+          // Validate and enhance images
+          const validatedImages = await getValidatedImages(emergencyResult.images || []);
+          console.log(`📸 Image validation: ${validatedImages.length} valid images found`);
+          
           // Apply 15% profit margin
           const priceWithProfit = Math.round(emergencyResult.price * 1.15 * 100) / 100;
           
@@ -944,7 +949,7 @@ export function registerRoutes(app: Express): Server {
             brand: emergencyResult.brand,
             title: emergencyResult.title,
             price: priceWithProfit,
-            images: emergencyResult.images || [],
+            images: validatedImages,
             features: [],
             variants: emergencyResult.variants || []
           });

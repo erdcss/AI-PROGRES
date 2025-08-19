@@ -269,14 +269,53 @@ function parseProductFromHTML(html: string, source: string): EmergencyResult {
     }
   }
 
-  // Extract images
+  // Extract images with enhanced detection
   const images: string[] = [];
+  
+  // Method 1: Find all product images
   $('img').each((_, el) => {
-    const src = $(el).attr('src') || $(el).attr('data-src');
-    if (src && src.includes('cdn.dsmcdn.com') && src.includes('zoom')) {
-      if (!images.includes(src)) {
-        images.push(src);
+    const src = $(el).attr('src') || $(el).attr('data-src') || $(el).attr('data-original');
+    if (src && src.includes('cdn.dsmcdn.com')) {
+      // Convert to high resolution
+      let highResSrc = src;
+      if (!src.includes('org_zoom')) {
+        highResSrc = src.replace('_medium', '_org_zoom')
+                       .replace('_small', '_org_zoom')
+                       .replace('_thumb', '_org_zoom')
+                       .replace('.jpg', '_org_zoom.jpg')
+                       .replace('.png', '_org_zoom.png');
       }
+      if (!images.includes(highResSrc)) {
+        images.push(highResSrc);
+      }
+    }
+  });
+  
+  // Method 2: Extract from meta tags
+  const ogImage = $('meta[property="og:image"]').attr('content');
+  if (ogImage && ogImage.includes('cdn.dsmcdn.com')) {
+    const highResOg = ogImage.replace('_medium', '_org_zoom').replace('_small', '_org_zoom');
+    if (!images.includes(highResOg)) {
+      images.unshift(highResOg); // Add to beginning
+    }
+  }
+  
+  // Method 3: Search in script tags for image arrays
+  $('script').each((_, el) => {
+    const scriptContent = $(el).html() || '';
+    const imageMatches = scriptContent.match(/"url":\s*"([^"]*cdn\.dsmcdn\.com[^"]*)"/g);
+    if (imageMatches) {
+      imageMatches.forEach(match => {
+        const urlMatch = match.match(/"url":\s*"([^"]*)"/);
+        if (urlMatch && urlMatch[1]) {
+          const imgUrl = urlMatch[1].replace(/\\"/g, '"').replace(/\\\//g, '/');
+          const highResImg = imgUrl.includes('org_zoom') ? imgUrl : 
+                            imgUrl.replace('_medium', '_org_zoom').replace('_small', '_org_zoom');
+          if (!images.includes(highResImg)) {
+            images.push(highResImg);
+          }
+        }
+      });
     }
   });
 
@@ -286,14 +325,25 @@ function parseProductFromHTML(html: string, source: string): EmergencyResult {
     inStock: true
   }];
 
-  console.log(`🔍 EMERGENCY PARSED: "${title}", ${price} TL, ${images.length} images (${source})`);
+  // Validate and clean images
+  const validImages = images.filter(img => {
+    try {
+      new URL(img);
+      return img.includes('cdn.dsmcdn.com') && img.length > 10;
+    } catch {
+      return false;
+    }
+  });
+
+  console.log(`🔍 EMERGENCY PARSED: "${title}", ${price} TL, ${validImages.length} images (${source})`);
+  console.log(`📸 Images: ${validImages.slice(0, 3).join(', ')}${validImages.length > 3 ? '...' : ''}`);
 
   return {
     success: !!(title && title.length > 5),
     title,
     brand,
     price,
-    images: images.slice(0, 8),
+    images: validImages.slice(0, 10), // Limit to 10 valid images
     variants
   };
 }
