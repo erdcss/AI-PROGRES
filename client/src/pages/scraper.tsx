@@ -616,6 +616,30 @@ ${data.title.toLowerCase().replace(/[^a-z0-9]/g, '-')},${data.title},${data.bran
     });
   };
 
+  // Comprehensive clear all function to reset the entire page
+  const clearAllData = () => {
+    // Reset all forms
+    singleForm.reset();
+    multiForm.setValue('urls', [{ url: '' }]);
+    
+    // Clear all state
+    setProduct(null);
+    setCsvPreviews([]);
+    setAllImages([]);
+    setProductFeatures([]);
+    setPersistentTags([]);
+    setNewTag('');
+    setDraggedUrls([]);
+    
+    // Reset mode to single
+    setScrapingMode('single');
+    
+    toast({
+      title: "Sayfa Temizlendi",
+      description: "Tüm veriler ve formlar sıfırlandı"
+    });
+  };
+
   // Tüm CSV'leri Shopify'a yükleme fonksiyonu
   const uploadAllCSVsToShopify = async () => {
     if (csvPreviews.length === 0) {
@@ -805,6 +829,15 @@ ${data.title.toLowerCase().replace(/[^a-z0-9]/g, '-')},${data.title},${data.bran
               >
                 <Home className="w-4 h-4 mr-2" />
                 Ana Sayfa
+              </Button>
+              <Button
+                onClick={clearAllData}
+                variant="outline"
+                className="bg-red-600/10 border-red-600/30 text-red-400 hover:bg-red-600/20 hover:border-red-600/50 px-4 py-2"
+                disabled={singleScrapeMutation.isPending || shopifyTransferMutation.isPending}
+              >
+                <Trash2 className="w-4 h-4 mr-2" />
+                Tümünü Sil
               </Button>
               <div className="flex items-center gap-3">
                 <div className="w-12 h-12 flex items-center justify-center">
