@@ -152,10 +152,14 @@ function ScraperPage() {
       // ULTRA FAST BLOCKING CHECK: Just check if we have minimum data for preview
       const hasMinimumData = data.title && data.title !== "trendyol.com" && data.title.length > 5;
       
-      if (!hasMinimumData) {
+      // Check if we have CSV content even for blocked responses
+      const hasCSVData = data.csvContent && data.csvContent.length > 100;
+      
+      if (!hasMinimumData && !hasCSVData) {
         console.log('❌ NO USABLE DATA:', {
           title: data.title,
-          titleLength: data.title?.length || 0
+          titleLength: data.title?.length || 0,
+          hasCSV: !!data.csvContent
         });
         
         toast({
@@ -164,6 +168,20 @@ function ScraperPage() {
           variant: "destructive"
         });
         return;
+      }
+      
+      // Show warning for blocked responses but still process CSV
+      if (!hasMinimumData && hasCSVData) {
+        console.log('⚠️ BLOCKED RESPONSE with CSV data:', {
+          title: data.title,
+          hasCSV: !!data.csvContent
+        });
+        
+        toast({
+          title: "⚠️ Kısmi Veri",
+          description: "Trendyol engellemesi tespit edildi ancak CSV oluşturuldu",
+          variant: "default"
+        });
       }
       
       // Always proceed if we have basic title data
