@@ -1433,12 +1433,9 @@ export function registerRoutes(app: Express): Server {
         console.log('🚨 ROUTES: About to call scenarioBasedScrape with timeout...');
         
         const result = await Promise.race([
-          scenarioBasedScrape(url, {
-            persistentTags,
-            onlyExtractData
-          }),
+          scenarioBasedScrape(url),
           timeoutPromise
-        ]);
+        ]) as any;
         
         console.log('🚨 ROUTES: scenarioBasedScrape returned price:', result.price?.original);
         
@@ -1454,7 +1451,7 @@ export function registerRoutes(app: Express): Server {
 ${fallbackTitle.toLowerCase().replace(/[^a-z0-9]/g, '-')},${fallbackTitle},Trendyol,draft`;
               result.title = fallbackTitle; // Ensure we have a proper title
             } else {
-              const csvResult = await generateMultiVariantCSV({ productData: result });
+              const csvResult = await generateMultiVariantCSV(result);
               if (csvResult.success && csvResult.csvContent) {
                 result.csvContent = csvResult.csvContent;
                 console.log('✅ CSV content generated successfully for preview');
@@ -1480,6 +1477,7 @@ ${(result.title || 'product').toLowerCase().replace(/[^a-z0-9]/g, '-')},${result
           result.csvContent = `Handle,Title,Status\n${fallbackTitle.toLowerCase().replace(/[^a-z0-9]/g, '-')},${fallbackTitle},draft`;
           if (!result.title) result.title = fallbackTitle;
         }
+
         
         if (result.success) {
           console.log(`🎯 Scenario: ${result.scenario}, Confidence: ${result.confidence}%`);
