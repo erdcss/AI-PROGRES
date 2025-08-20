@@ -131,72 +131,26 @@ export class UltimatePriceExtractor {
         
       console.log(`❌ All prices seem unreasonable, trying OpenAI enhancement`);
       
-      // 🤖 OpenAI Enhancement - Kritik durumlarda devreye gir
-      if (openaiPriceEnhancer.isActive()) {
-        try {
-          console.log('🤖 OpenAI ile acil durum fiyat çıkarma başlatılıyor...');
+      // ✅ DIRECT FALLBACK - Use first available price
+      if (allResults.length > 0) {
+        // Sort by most reasonable price (not too high, not too low)
+        const reasonablePrices = allResults.filter(r => r.original >= 10 && r.original <= 10000);
+        
+        if (reasonablePrices.length > 0) {
+          reasonablePrices.sort((a, b) => b.original - a.original); // Prefer higher prices
+          const selectedPrice = reasonablePrices[0];
           
-          // Mevcut sonuçları OpenAI ile doğrula
-          if (allResults.length > 0) {
-            const priceData = allResults.map(r => ({
-              price: r.original,
-              method: r.method
-            }));
-            
-            const validation = await openaiPriceEnhancer.validatePriceResults(priceData, this.getProductContext());
-            
-            if (validation && validation.confidence > 0.7) {
-              console.log(`🎯 OpenAI doğrulama: ${validation.recommendedPrice} TL (güven: ${Math.round(validation.confidence * 100)}%)`);
-              
-              return {
-                original: validation.recommendedPrice,
-                currency: 'TL',
-                formatted: `${validation.recommendedPrice.toLocaleString('tr-TR')} TL`,
-                withProfit: validation.recommendedPrice * 1.1,
-                profitFormatted: `${(validation.recommendedPrice * 1.1).toLocaleString('tr-TR')} TL`,
-                method: `OpenAI-Validation (${validation.reasoning})`,
-                raw: `${validation.recommendedPrice}`
-              };
-            }
-          }
+          console.log(`✅ FALLBACK: Using ${selectedPrice.original} TL via ${selectedPrice.method}`);
           
-          // Kompleks HTML analizi
-          const complexAnalysis = await openaiPriceEnhancer.analyzeComplexPrice(
-            this.htmlContent, 
-            this.getProductTitle()
-          );
-          
-          if (complexAnalysis && complexAnalysis.confidence > 0.6 && complexAnalysis.isReasonable) {
-            console.log(`🤖 OpenAI karmaşık analiz: ${complexAnalysis.extractedPrice} TL`);
-            
-            return {
-              original: complexAnalysis.extractedPrice,
-              currency: complexAnalysis.currency,
-              formatted: `${complexAnalysis.extractedPrice.toLocaleString('tr-TR')} TL`,
-              withProfit: complexAnalysis.extractedPrice * 1.1,
-              profitFormatted: `${(complexAnalysis.extractedPrice * 1.1).toLocaleString('tr-TR')} TL`,
-              method: `OpenAI-Complex (${complexAnalysis.reasoning})`,
-              raw: `${complexAnalysis.extractedPrice}`
-            };
-          }
-          
-          // Son çare: Acil durum çıkarma
-          const emergencyPrice = await openaiPriceEnhancer.emergencyPriceExtraction(this.htmlContent);
-          if (emergencyPrice && emergencyPrice > 10 && emergencyPrice < 50000) {
-            console.log(`🚨 OpenAI acil durum: ${emergencyPrice} TL`);
-            
-            return {
-              original: emergencyPrice,
-              currency: 'TL',
-              formatted: `${emergencyPrice.toLocaleString('tr-TR')} TL`,
-              withProfit: emergencyPrice * 1.1,
-              profitFormatted: `${(emergencyPrice * 1.1).toLocaleString('tr-TR')} TL`,
-              method: 'OpenAI-Emergency',
-              raw: `${emergencyPrice}`
-            };
-          }
-        } catch (error) {
-          console.error('❌ OpenAI enhancement failed:', error);
+          return {
+            original: selectedPrice.original,
+            currency: 'TL',
+            formatted: `${selectedPrice.original} TL`,
+            withProfit: Math.round(selectedPrice.original * 1.10 * 100) / 100,
+            profitFormatted: `${Math.round(selectedPrice.original * 1.10 * 100) / 100} TL`,
+            method: `Direct-Fallback (${selectedPrice.method})`,
+            raw: selectedPrice.raw || `${selectedPrice.original} TL`
+          };
         }
       }
       
