@@ -149,31 +149,54 @@ function ScraperPage() {
         return;
       }
       
-      // ADVANCED BLOCKING DETECTION: Check for typical blocking indicators
-      const isBlocked = data.title === "trendyol.com" || 
-                       data.price?.original === 0 || 
-                       !data.images || 
-                       data.images.length === 0 ||
-                       !data.csvContent ||
-                       data.csvContent.length === 0;
+      // ENHANCED BLOCKING DETECTION: More sophisticated validation
+      const titleInvalid = !data.title || data.title === "trendyol.com" || data.title.length < 10;
+      const priceInvalid = !data.price && (!data.price?.original || data.price?.original === 0);
+      const imagesInvalid = !data.images || data.images.length === 0;
       
-      if (isBlocked) {
-        console.log('❌ BLOCKING DETECTED: Invalid data received from server:', {
+      // Only block if all critical data is missing (more lenient approach)
+      const isCriticallyBlocked = titleInvalid && imagesInvalid;
+      
+      if (isCriticallyBlocked) {
+        console.log('❌ CRITICAL BLOCKING DETECTED:', {
           title: data.title,
-          price: data.price?.original,
+          titleValid: !titleInvalid,
           imagesCount: data.images?.length || 0,
           csvContentLength: data.csvContent?.length || 0
         });
         
         toast({
-          title: "🚫 Trendyol Blocking Sistemi Aktif",
-          description: `Trendyol tüm istekleri engelliyor. Sistemimiz bunu tespit etti. Lütfen 10-15 dakika bekleyip tekrar deneyin veya farklı bir e-ticaret sitesi URL'si kullanın.`,
+          title: "🚫 Ürün Verisi Alınamadı",
+          description: `Bu ürün için veri çekilemedi. Farklı bir URL deneyin veya birkaç dakika sonra tekrar deneyin.`,
           variant: "destructive"
         });
         return;
       }
       
+      // Show warning for partial data but still proceed
+      if (titleInvalid || imagesInvalid) {
+        console.log('⚠️ PARTIAL DATA WARNING:', {
+          title: data.title,
+          titleValid: !titleInvalid,
+          imagesCount: data.images?.length || 0
+        });
+        
+        toast({
+          title: "⚠️ Kısmi Veri Alındı",
+          description: `Bazı ürün bilgileri eksik olabilir ancak işlem devam ediyor.`,
+          variant: "default"
+        });
+      }
+      
       console.log('✅ Single scrape successful, setting product data');
+      console.log('🔍 Raw data received:', {
+        title: data.title,
+        brand: data.brand,
+        price: data.price,
+        imagesCount: data.images?.length,
+        variantsColors: data.variants?.colors?.length,
+        csvContent: !!data.csvContent
+      });
       
       // Transform the received data to match our Product interface
       const transformedProduct: Product = {
@@ -195,6 +218,13 @@ function ScraperPage() {
         extractionMethod: data.extractionMethod,
         csvContent: data.csvContent
       };
+      
+      console.log('🔄 Setting transformed product:', {
+        id: transformedProduct.id,
+        title: transformedProduct.title,
+        imagesCount: transformedProduct.images?.length,
+        csvContent: !!transformedProduct.csvContent
+      });
       
       setProduct(transformedProduct);
       
@@ -1074,6 +1104,12 @@ function ScraperPage() {
         {/* Product Preview Section */}
         {product && (
           <div className="mt-8">
+            {console.log('🎯 PRODUCT PREVIEW RENDERING:', {
+              productExists: !!product,
+              productTitle: product.title,
+              productImagesLength: product.images?.length,
+              productCsvContent: !!product.csvContent
+            })}
             <Card className="business-card bg-gradient-to-br from-slate-900/90 via-slate-800/50 to-slate-900/90 backdrop-blur border border-cyan-800/30">
               <CardHeader className="business-header">
                 <CardTitle className="text-white font-thin text-lg flex items-center gap-2">
@@ -1219,6 +1255,11 @@ function ScraperPage() {
         {/* CSV Preview Section */}
         {product && product.csvContent && (
           <div className="mt-8">
+            {console.log('🎯 CSV PREVIEW RENDERING:', {
+              productExists: !!product,
+              csvContentExists: !!product.csvContent,
+              csvContentLength: product.csvContent?.length
+            })}
             <CSVPreview 
               csvContent={product.csvContent}
               productTitle={product.title}
