@@ -1189,20 +1189,42 @@ function ScraperPage() {
                       </div>
                     )}
                     
-                    {/* Shopify Aktarım Durumu */}
+                    {/* Shopify Aktarım Butonu */}
                     <div className="pt-4 border-t border-cyan-800/30">
-                      <div className="flex items-center gap-2 justify-between">
-                        <span className="text-white/70 text-sm">Shopify Aktarım:</span>
-                        <div className="flex items-center gap-2">
-                          <div className="w-2 h-2 bg-green-500 rounded-full animate-pulse"></div>
-                          <span className="text-green-400 text-sm">Hazır</span>
-                        </div>
-                      </div>
+                      <Button
+                        onClick={onShopifyTransfer}
+                        disabled={shopifyTransferMutation.isPending || !product.csvContent}
+                        className="w-full bg-gradient-to-r from-blue-600 to-purple-600 hover:from-blue-700 hover:to-purple-700 text-white font-medium py-3 disabled:opacity-50"
+                      >
+                        {shopifyTransferMutation.isPending ? (
+                          <div className="flex items-center gap-2">
+                            <Loader2 className="w-5 h-5 animate-spin" />
+                            <span>Shopify'a Aktarılıyor...</span>
+                          </div>
+                        ) : (
+                          <div className="flex items-center gap-2">
+                            <ShoppingCart className="w-5 h-5" />
+                            <span>SHOPIFY'A AKTAR</span>
+                          </div>
+                        )}
+                      </Button>
                     </div>
                   </div>
                 </div>
               </CardContent>
             </Card>
+          </div>
+        )}
+
+        {/* CSV Preview Section */}
+        {product && product.csvContent && (
+          <div className="mt-8">
+            <CSVPreview 
+              csvContent={product.csvContent}
+              productTitle={product.title}
+              onDownload={(content, filename) => downloadCSV(content, filename)}
+              onShopifyUpload={(csvContent) => uploadToShopify(csvContent, product.title)}
+            />
           </div>
         )}
 

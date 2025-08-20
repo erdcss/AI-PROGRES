@@ -5,70 +5,38 @@ import { Download, FileText, Package, Eye, EyeOff } from "lucide-react";
 import { motion, AnimatePresence } from "framer-motion";
 
 interface CSVPreviewProps {
-  product?: any;
-  isVisible?: boolean;
+  csvContent: string;
+  productTitle: string;
+  onDownload: (content: string, filename: string) => void;
+  onShopifyUpload: (csvContent: string) => void;
 }
 
-export function CSVPreview({ product, isVisible = true }: CSVPreviewProps) {
-  const [csvContent, setCsvContent] = useState<string>("");
+export function CSVPreview({ csvContent, productTitle, onDownload, onShopifyUpload }: CSVPreviewProps) {
   const [csvRows, setCsvRows] = useState<string[][]>([]);
   const [isExpanded, setIsExpanded] = useState(false);
-  const [isGenerating, setIsGenerating] = useState(false);
 
-  // Generate CSV content when product changes
+  // Parse CSV content when it changes
   useEffect(() => {
-    if (product && product.title) {
-      generateCSVContent();
+    if (csvContent) {
+      const rows = csvContent.split('\n')
+        .filter(row => row.trim().length > 0)
+        .map((row: string) => 
+          row.split(',').map((cell: string) => cell.replace(/"/g, '').trim())
+        );
+      setCsvRows(rows);
     }
-  }, [product]);
+  }, [csvContent]);
 
-  const generateCSVContent = async () => {
-    if (!product) return;
-
-    setIsGenerating(true);
-    try {
-      // Generate CSV using the multi-variant CSV generator
-      const response = await fetch("/api/generate-multi-variant-csv", {
-        method: "POST",
-        headers: {
-          "Content-Type": "application/json",
-        },
-        body: JSON.stringify({ productData: product }),
-      });
-
-      if (response.ok) {
-        const data = await response.json();
-        if (data.success && data.csvContent) {
-          setCsvContent(data.csvContent);
-          // Parse CSV into rows for preview
-          const rows = data.csvContent.split('\n').map((row: string) => 
-            row.split(',').map((cell: string) => cell.replace(/"/g, ''))
-          );
-          setCsvRows(rows);
-        }
-      }
-    } catch (error) {
-      console.error('CSV generation error:', error);
-    } finally {
-      setIsGenerating(false);
-    }
+  const handleDownload = () => {
+    const filename = `${productTitle?.slice(0, 30) || 'product'}-shopify.csv`;
+    onDownload(csvContent, filename);
   };
 
-  const downloadCSV = () => {
-    if (!csvContent) return;
-
-    const blob = new Blob([csvContent], { type: 'text/csv;charset=utf-8;' });
-    const link = document.createElement('a');
-    const url = URL.createObjectURL(blob);
-    link.setAttribute('href', url);
-    link.setAttribute('download', `${product?.title?.slice(0, 30) || 'product'}-shopify.csv`);
-    link.style.visibility = 'hidden';
-    document.body.appendChild(link);
-    link.click();
-    document.body.removeChild(link);
+  const handleShopifyUpload = () => {
+    onShopifyUpload(csvContent);
   };
 
-  if (!isVisible || !product) return null;
+  if (!csvContent) return null;
 
   return (
     <motion.div
@@ -94,17 +62,24 @@ export function CSVPreview({ product, isVisible = true }: CSVPreviewProps) {
                 {isExpanded ? <EyeOff className="w-4 h-4" /> : <Eye className="w-4 h-4" />}
                 {isExpanded ? 'Gizle' : 'Göster'}
               </Button>
-              {csvContent && (
-                <Button
-                  variant="outline"
-                  size="sm"
-                  onClick={downloadCSV}
-                  className="border-green-600/50 hover:bg-green-800/50 text-green-400 text-xs px-3 py-1"
-                >
-                  <Download className="w-4 h-4 mr-1" />
-                  İndir
-                </Button>
-              )}
+              <Button
+                variant="outline"
+                size="sm"
+                onClick={handleDownload}
+                className="border-green-600/50 hover:bg-green-800/50 text-green-400 text-xs px-3 py-1"
+              >
+                <Download className="w-4 h-4 mr-1" />
+                İndir
+              </Button>
+              <Button
+                variant="outline"
+                size="sm"
+                onClick={handleShopifyUpload}
+                className="border-blue-600/50 hover:bg-blue-800/50 text-blue-400 text-xs px-3 py-1"
+              >
+                <Package className="w-4 h-4 mr-1" />
+                Shopify'a Aktar
+              </Button>
             </div>
           </div>
         </CardHeader>
@@ -118,14 +93,7 @@ export function CSVPreview({ product, isVisible = true }: CSVPreviewProps) {
               transition={{ duration: 0.3 }}
             >
               <CardContent className="p-4">
-                {isGenerating ? (
-                  <div className="flex items-center justify-center py-8">
-                    <div className="flex items-center gap-2 text-slate-400">
-                      <Package className="w-5 h-5 animate-pulse" />
-                      <span>CSV dosyası oluşturuluyor...</span>
-                    </div>
-                  </div>
-                ) : csvRows.length > 0 ? (
+                {csvRows.length > 0 ? (
                   <div className="space-y-3">
                     {/* CSV Stats */}
                     <div className="flex items-center gap-4 text-sm text-slate-400">
@@ -184,19 +152,19 @@ export function CSVPreview({ product, isVisible = true }: CSVPreviewProps) {
                       <div className="bg-slate-800/30 rounded p-3">
                         <div className="text-xs text-slate-500 mb-1">Ürün Başlığı</div>
                         <div className="text-sm text-white font-medium truncate">
-                          {product.title}
+                          {productTitle}
                         </div>
                       </div>
                       <div className="bg-slate-800/30 rounded p-3">
-                        <div className="text-xs text-slate-500 mb-1">Varyant Sayısı</div>
+                        <div className="text-xs text-slate-500 mb-1">CSV Satır Sayısı</div>
                         <div className="text-sm text-green-400 font-medium">
-                          {product.variants?.allVariants?.length || 0} adet
+                          {csvRows.length - 1} adet
                         </div>
                       </div>
                       <div className="bg-slate-800/30 rounded p-3">
-                        <div className="text-xs text-slate-500 mb-1">Görsel Sayısı</div>
+                        <div className="text-xs text-slate-500 mb-1">CSV Boyutu</div>
                         <div className="text-sm text-blue-400 font-medium">
-                          {product.images?.length || 0} adet
+                          {Math.round(csvContent.length / 1024)} KB
                         </div>
                       </div>
                     </div>
