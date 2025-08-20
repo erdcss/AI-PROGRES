@@ -225,14 +225,28 @@ export function generateMultiVariantShopifyCSV(product: CombinedProduct): string
 
   // ✅ TÜM GÖRSELLERİ KONTROL ET VE GRUPLA
   console.log(`📸 CSV: Processing ${product.images.length} total images`);
-  product.images.forEach((img, idx) => {
-    console.log(`📸 CSV: Image ${idx + 1}: ${img.url} (Color: ${img.colorName || 'none'})`);
-  });
+  
+  // Handle both string arrays and object arrays
+  let processedImages: Array<{url: string, colorName?: string}> = [];
+  
+  if (Array.isArray(product.images)) {
+    product.images.forEach((img, idx) => {
+      if (typeof img === 'string') {
+        // String array - direct URLs
+        processedImages.push({url: img, colorName: 'none'});
+        console.log(`📸 CSV: Image ${idx + 1}: ${img} (string format)`);
+      } else if (img && typeof img === 'object' && img.url) {
+        // Object array with url property
+        processedImages.push({url: img.url, colorName: img.colorName || 'none'});
+        console.log(`📸 CSV: Image ${idx + 1}: ${img.url} (Color: ${img.colorName || 'none'})`);
+      }
+    });
+  }
 
   const imagesByColor: { [color: string]: string[] } = {};
   const generalImages: string[] = [];
   
-  product.images.forEach(img => {
+  processedImages.forEach(img => {
     if (img.url) { // URL varsa işle
       if (img.colorName && img.colorName !== '' && img.colorName !== 'none') {
         if (!imagesByColor[img.colorName]) {
@@ -334,49 +348,44 @@ export function generateMultiVariantShopifyCSV(product: CombinedProduct): string
     row.push('TRUE'); // Variant Taxable
     
     // ✅ GELİŞTİRİLMİŞ GÖRSEL SİSTEMİ - TÜM GÖRSELLERLE UYUMLU
-    if (product.images && product.images.length > 0) {
-      // Variant için uygun görseli seç
-      let selectedImage = '';
-      let imagePosition = '1';
-      
+    let selectedImage = '';
+    let imagePosition = '1';
+    
+    if (processedImages && processedImages.length > 0) {
       if (isFirstRow) {
         // İlk satır - ana ürün görseli
-        selectedImage = product.images[0]?.url || '';
+        selectedImage = processedImages[0].url;
         imagePosition = '1';
         console.log(`📸 CSV: Adding main product image: ${selectedImage}`);
       } else {
         // Sonraki satırlar - renk bazında veya sıralı görsel seçimi
         const variantIndex = actualVariants.indexOf(variant);
         const colorBasedImage = variant.color && variant.color !== '' ? 
-          product.images.find(img => img.colorName === variant.color) : null;
+          processedImages.find(img => img.colorName === variant.color) : null;
           
         if (colorBasedImage) {
           selectedImage = colorBasedImage.url;
-          imagePosition = ((colorBasedImage as any).position || variantIndex + 1).toString();
+          imagePosition = (variantIndex + 1).toString();
           console.log(`📸 CSV: Using color-based image for ${variant.color}: ${selectedImage}`);
-        } else if (variantIndex < product.images.length) {
-          selectedImage = product.images[variantIndex]?.url || '';
+        } else if (variantIndex < processedImages.length) {
+          selectedImage = processedImages[variantIndex].url;
           imagePosition = (variantIndex + 1).toString();
           console.log(`📸 CSV: Using sequential image ${variantIndex + 1}: ${selectedImage}`);
         } else {
           // Fallback - başka görsel varsa onları kullan
-          const fallbackIndex = variantIndex % product.images.length;
-          selectedImage = product.images[fallbackIndex]?.url || '';
+          const fallbackIndex = variantIndex % processedImages.length;
+          selectedImage = processedImages[fallbackIndex].url;
           imagePosition = (fallbackIndex + 1).toString();
           console.log(`📸 CSV: Using fallback image: ${selectedImage}`);
         }
       }
-      
-      row.push(selectedImage); // Image Src
-      row.push(imagePosition); // Image Position
-      row.push(product.title || 'Product Image'); // Image Alt Text
     } else {
-      // Hiç görsel yok
       console.log('⚠️ CSV: No images available for product');
-      row.push(''); // Image Src
-      row.push(''); // Image Position  
-      row.push(''); // Image Alt Text
     }
+    
+    row.push(selectedImage); // Image Src
+    row.push(imagePosition); // Image Position
+    row.push(product.title || 'Product Image'); // Image Alt Text
     
     row.push('FALSE'); // Gift Card
     

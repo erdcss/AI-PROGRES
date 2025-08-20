@@ -1451,6 +1451,21 @@ export function registerRoutes(app: Express): Server {
 ${fallbackTitle.toLowerCase().replace(/[^a-z0-9]/g, '-')},${fallbackTitle},Trendyol,draft`;
               result.title = fallbackTitle; // Ensure we have a proper title
             } else {
+              // ✅ FIX IMAGE FORMAT - Ensure images are in correct format for CSV generation
+              if (result.images && Array.isArray(result.images)) {
+                // Convert all images to proper format
+                result.images = result.images.map((img: any) => {
+                  if (typeof img === 'string') {
+                    return { url: img, colorName: 'none' };
+                  } else if (img && img.url) {
+                    return { url: img.url, colorName: img.colorName || 'none' };
+                  }
+                  return null;
+                }).filter(Boolean); // Remove null values
+                
+                console.log(`📸 CSV-PREP: Fixed ${result.images.length} images format for CSV generation`);
+              }
+              
               const csvResult = await generateMultiVariantCSV(result);
               if (csvResult.success && csvResult.csvContent) {
                 result.csvContent = csvResult.csvContent;
