@@ -1092,12 +1092,7 @@ ${data.title.toLowerCase().replace(/[^a-z0-9]/g, '-')},${data.title},${data.bran
         {/* Product Preview Section */}
         {product && (
           <div className="mt-8">
-            {console.log('🎯 PRODUCT PREVIEW RENDERING:', {
-              productExists: !!product,
-              productTitle: product.title,
-              productImagesLength: product.images?.length,
-              productCsvContent: !!product.csvContent
-            })}
+
             <Card className="business-card bg-gradient-to-br from-slate-900/90 via-slate-800/50 to-slate-900/90 backdrop-blur border border-cyan-800/30">
               <CardHeader className="business-header">
                 <CardTitle className="text-white font-thin text-lg flex items-center gap-2">
@@ -1240,22 +1235,7 @@ ${data.title.toLowerCase().replace(/[^a-z0-9]/g, '-')},${data.title},${data.bran
           </div>
         )}
 
-        {/* CSV Preview Section */}
-        {product && product.csvContent && (
-          <div className="mt-8">
-            {console.log('🎯 CSV PREVIEW RENDERING:', {
-              productExists: !!product,
-              csvContentExists: !!product.csvContent,
-              csvContentLength: product.csvContent?.length
-            })}
-            <CSVPreview 
-              csvContent={product.csvContent}
-              productTitle={product.title}
-              onDownload={(content, filename) => downloadCSV(content, filename)}
-              onShopifyUpload={(csvContent) => uploadToShopify(csvContent, product.title)}
-            />
-          </div>
-        )}
+
 
         {/* All Images Display Section */}
         {allImages.length > 0 && (

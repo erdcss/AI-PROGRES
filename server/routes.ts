@@ -1467,13 +1467,16 @@ ${fallbackTitle.toLowerCase().replace(/[^a-z0-9]/g, '-')},${fallbackTitle},Trend
               }
               
               // Enhanced CSV generation using comprehensive system
-              const { generateComprehensiveCSV } = await import('./multi-variant-csv-generator');
-              const csvResult = { success: true, csvContent: generateComprehensiveCSV({
+              const { generateMultiVariantShopifyCSV } = await import('./multi-variant-csv-generator');
+              const csvResult = { success: true, csvContent: generateMultiVariantShopifyCSV({
+                id: `product-${Date.now()}`,
                 title: result.title,
                 brand: result.brand,
                 price: result.price,
+                description: result.description || '',
+                category: result.category || '',
                 images: result.images || [],
-                variants: result.variants || [],
+                variants: result.variants || { colors: [], sizes: [], allVariants: [] },
                 features: result.features || [],
                 tags: result.tags || []
               }) };
