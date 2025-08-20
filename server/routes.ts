@@ -57,6 +57,61 @@ import { simpleFastExtract } from './simple-fast-scraper';
 import { bypassExtraction } from './bypass-system';
 import { emergencyExtraction } from './emergency-scraper';
 import { getValidatedImages } from './image-validator';
+import { bypassCloudflare } from './cloudflare-bypass';
+
+// Import emergency parser function for cloudflare bypass
+function parseProductFromHTML(html: string, source: string): any {
+  const cheerio = require('cheerio');
+  const $ = cheerio.load(html);
+  
+  // Extract title
+  let title = $('h1').first().text().trim() || 
+              $('meta[property="og:title"]').attr('content') ||
+              $('title').text().replace(' - Trendyol', '');
+  
+  if (!title || title.length < 5 || title.includes('trendyol.com')) {
+    return { success: false };
+  }
+  
+  // Extract brand
+  let brand = $('.product-brand').text().trim() || title.split(' ')[0];
+  
+  // Extract price
+  let price = 0;
+  const priceSelectors = ['.prc-dsc', '.prc-org', '.price-current', '.price'];
+  for (const selector of priceSelectors) {
+    const priceText = $(selector).text().trim();
+    if (priceText) {
+      const priceMatch = priceText.match(/[\d,\.]+/);
+      if (priceMatch) {
+        price = parseFloat(priceMatch[0].replace(',', '.'));
+        if (price > 0) break;
+      }
+    }
+  }
+  
+  // Extract images
+  const images = [];
+  $('img').each((_, el) => {
+    const src = $(el).attr('src') || $(el).attr('data-src');
+    if (src && src.includes('cdn.dsmcdn.com') && !src.includes('static')) {
+      const highRes = src.includes('org_zoom') ? src : 
+                     src.replace('_medium', '_org_zoom').replace('_small', '_org_zoom');
+      if (!images.includes(highRes)) {
+        images.push(highRes);
+      }
+    }
+  });
+  
+  return {
+    success: !!(title && title.length > 5),
+    title,
+    brand,
+    price,
+    images: images.slice(0, 10),
+    variants: [{ color: 'Standart', size: 'Standart', inStock: true }]
+  };
+}
 
 // Telegram notification for product extraction
 async function sendProductExtractionNotification(url: string, title: string, brand: string, price: any) {
@@ -930,7 +985,41 @@ export function registerRoutes(app: Express): Server {
       if (url.includes('trendyol.com')) {
         console.log("🆘 EMERGENCY SCRAPER: Starting last resort extraction");
         
-        // Try Emergency Scraper FIRST - most reliable method
+        // Try Cloudflare Bypass FIRST - most critical for blocking issues
+        console.log('🛡️ Trying Cloudflare bypass system...');
+        const cloudflareBypassResult = await bypassCloudflare(url);
+        
+        if (cloudflareBypassResult.success && cloudflareBypassResult.html) {
+          console.log('✅ CLOUDFLARE BYPASS SUCCESS: Parsing content...');
+          
+          // Use emergency parser on bypassed content
+          const emergencyParseResult = parseProductFromHTML(cloudflareBypassResult.html, 'cloudflare-bypass');
+          
+          if (emergencyParseResult.success && emergencyParseResult.title) {
+            console.log(`🛡️ BYPASS SUCCESS: ${emergencyParseResult.title}, ${emergencyParseResult.price} TL`);
+            
+            // Validate and enhance images
+            const validatedImages = await getValidatedImages(emergencyParseResult.images || []);
+            console.log(`📸 Image validation: ${validatedImages.length} valid images found`);
+            
+            // Apply 15% profit margin if price exists
+            const priceWithProfit = emergencyParseResult.price > 0 ? 
+              Math.round(emergencyParseResult.price * 1.15 * 100) / 100 : 0;
+            
+            return res.json({
+              success: true,
+              extractionMethod: 'cloudflare-bypass',
+              brand: emergencyParseResult.brand,
+              title: emergencyParseResult.title,
+              price: priceWithProfit,
+              images: validatedImages,
+              features: [],
+              variants: emergencyParseResult.variants || []
+            });
+          }
+        }
+        
+        // Try Emergency Scraper as fallback
         const emergencyResult = await emergencyExtraction(url);
         
         if (emergencyResult.success && emergencyResult.price && emergencyResult.price > 0) {

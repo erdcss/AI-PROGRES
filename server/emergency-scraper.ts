@@ -82,7 +82,35 @@ export async function emergencyExtraction(url: string): Promise<EmergencyResult>
 
   await delay(500);
 
-  // Method 4: Minimal direct request with long delay
+  // Method 4: Google Cache
+  try {
+    console.log('🔍 Trying Google Cache...');
+    const cacheResult = await tryGoogleCache(url);
+    if (cacheResult.success) {
+      console.log('✅ EMERGENCY SUCCESS: Google Cache');
+      return { ...cacheResult, method: 'google-cache' };
+    }
+  } catch (error) {
+    console.log('❌ Google Cache failed:', error.message);
+  }
+
+  await delay(500);
+
+  // Method 5: Archive.today
+  try {
+    console.log('📂 Trying Archive.today...');
+    const archiveTodayResult = await tryArchiveToday(url);
+    if (archiveTodayResult.success) {
+      console.log('✅ EMERGENCY SUCCESS: Archive.today');
+      return { ...archiveTodayResult, method: 'archive-today' };
+    }
+  } catch (error) {
+    console.log('❌ Archive.today failed:', error.message);
+  }
+
+  await delay(500);
+
+  // Method 6: Minimal direct request with long delay
   try {
     console.log('⏳ Trying slow direct request...');
     const directResult = await trySlowDirectRequest(url);
@@ -95,6 +123,58 @@ export async function emergencyExtraction(url: string): Promise<EmergencyResult>
   }
 
   console.log('❌ EMERGENCY SCRAPER: All methods exhausted');
+  return { success: false };
+}
+
+async function tryGoogleCache(url: string): Promise<EmergencyResult> {
+  const cacheUrl = `https://webcache.googleusercontent.com/search?q=cache:${encodeURIComponent(url)}`;
+  
+  try {
+    const response = await axios.get(cacheUrl, {
+      timeout: 15000,
+      headers: {
+        ...STEALTH_HEADERS,
+        'Accept': 'text/html,application/xhtml+xml,application/xml;q=0.9,*/*;q=0.8',
+        'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36'
+      },
+      maxRedirects: 3
+    });
+
+    return parseProductFromHTML(response.data, 'google-cache');
+  } catch (error) {
+    return { success: false };
+  }
+}
+
+async function tryArchiveToday(url: string): Promise<EmergencyResult> {
+  // Try multiple Archive.today endpoints
+  const archiveEndpoints = [
+    `https://archive.today/newest/${url}`,
+    `https://archive.ph/newest/${url}`,
+    `https://archive.md/newest/${url}`
+  ];
+  
+  for (const endpoint of archiveEndpoints) {
+    try {
+      const response = await axios.get(endpoint, {
+        timeout: 20000,
+        headers: {
+          ...STEALTH_HEADERS,
+          'User-Agent': 'Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36'
+        },
+        maxRedirects: 5
+      });
+
+      const result = parseProductFromHTML(response.data, 'archive-today');
+      if (result.success) {
+        return result;
+      }
+    } catch (error) {
+      console.log(`❌ Archive endpoint failed: ${endpoint}`);
+      await delay(1000);
+    }
+  }
+  
   return { success: false };
 }
 
