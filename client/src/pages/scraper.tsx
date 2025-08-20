@@ -38,18 +38,18 @@ type MultiUrlFormData = z.infer<typeof multiUrlSchema>;
 type ScrapingMode = 'single' | 'multi-url';
 
 interface Product {
-  id: string;
+  id?: string;
   title: string;
-  price: number | { profitFormatted: string };
-  images: Array<{ url: string; alt?: string }>;
-  description: string;
+  price?: number | { profitFormatted?: string; formatted?: string; original?: number; withProfit?: number };
+  images?: Array<string | { url: string; alt?: string }>;
+  description?: string;
   brand?: string;
   variants?: {
-    colors: string[];
-    sizes: string[];
-    allVariants: Array<{
+    colors?: string[];
+    sizes?: string[];
+    allVariants?: Array<{
       color: string;
-      colorCode: string;
+      colorCode?: string;
       size: string;
       inStock: boolean;
     }>;
@@ -57,6 +57,9 @@ interface Product {
   features?: Array<{ key: string; value: string }>;
   tags?: string[];
   category?: string;
+  success?: boolean;
+  extractionMethod?: string;
+  csvContent?: string;
 }
 
 function ScraperPage() {
@@ -171,7 +174,29 @@ function ScraperPage() {
       }
       
       console.log('✅ Single scrape successful, setting product data');
-      setProduct(data);
+      
+      // Transform the received data to match our Product interface
+      const transformedProduct: Product = {
+        id: data.id || `product-${Date.now()}`,
+        title: data.title || 'Ürün Başlığı Bulunamadı',
+        brand: data.brand || '',
+        price: data.price || { profitFormatted: 'Fiyat Yok' },
+        description: data.description || '',
+        images: data.images || [],
+        variants: {
+          colors: data.variants?.colors || [],
+          sizes: data.variants?.sizes || [],
+          allVariants: data.variants?.allVariants || []
+        },
+        features: data.features || [],
+        tags: data.tags || [],
+        category: data.category || '',
+        success: data.success,
+        extractionMethod: data.extractionMethod,
+        csvContent: data.csvContent
+      };
+      
+      setProduct(transformedProduct);
       
       // Her başarılı çekme için CSV preview ekle
       if (data.csvContent) {
@@ -1045,6 +1070,141 @@ function ScraperPage() {
 
 
         </div>
+
+        {/* Product Preview Section */}
+        {product && (
+          <div className="mt-8">
+            <Card className="business-card bg-gradient-to-br from-slate-900/90 via-slate-800/50 to-slate-900/90 backdrop-blur border border-cyan-800/30">
+              <CardHeader className="business-header">
+                <CardTitle className="text-white font-thin text-lg flex items-center gap-2">
+                  <Package className="w-5 h-5 text-cyan-400/70" />
+                  Ürün Ön İzleme
+                </CardTitle>
+              </CardHeader>
+              <CardContent className="p-6">
+                <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+                  {/* Sol Taraf - Görsel */}
+                  <div className="space-y-4">
+                    {product.images && product.images.length > 0 && (
+                      <div className="grid grid-cols-2 gap-2">
+                        {product.images.slice(0, 4).map((image, index) => {
+                          const imageUrl = typeof image === 'string' ? image : image.url;
+                          return (
+                            <img
+                              key={index}
+                              src={imageUrl}
+                              alt={product.title}
+                              className="w-full h-32 object-cover rounded-lg border border-cyan-800/30"
+                              onError={(e) => {
+                                e.currentTarget.style.display = 'none';
+                              }}
+                            />
+                          );
+                        })}
+                      </div>
+                    )}
+                  </div>
+                  
+                  {/* Sağ Taraf - Bilgiler */}
+                  <div className="space-y-4">
+                    {/* Marka */}
+                    {product.brand && (
+                      <div>
+                        <span className="text-blue-400 text-sm font-semibold uppercase">
+                          {product.brand}
+                        </span>
+                      </div>
+                    )}
+                    
+                    {/* Başlık */}
+                    <h2 className="text-white text-xl font-bold leading-tight">
+                      {product.title}
+                    </h2>
+                    
+                    {/* Fiyat */}
+                    {product.price && (
+                      <div className="space-y-1">
+                        <span className="text-yellow-400 text-lg font-bold">
+                          {typeof product.price === 'object' ? 
+                            (product.price.formatted || product.price.profitFormatted || 'Fiyat Yok') : 
+                            `${product.price} TL`
+                          }
+                        </span>
+                      </div>
+                    )}
+                    
+                    {/* Renkler */}
+                    {product.variants?.colors && product.variants.colors.length > 0 && (
+                      <div>
+                        <span className="text-white/70 text-sm">Renk Seçenekleri:</span>
+                        <div className="flex flex-wrap gap-2 mt-1">
+                          {product.variants.colors.map((color, index) => (
+                            <span 
+                              key={index}
+                              className="bg-cyan-900/30 text-cyan-300 px-2 py-1 rounded-md text-xs border border-cyan-800/40"
+                            >
+                              {color}
+                            </span>
+                          ))}
+                        </div>
+                      </div>
+                    )}
+                    
+                    {/* Bedenler */}
+                    {product.variants?.sizes && product.variants.sizes.length > 0 && (
+                      <div>
+                        <span className="text-white/70 text-sm">Beden Seçenekleri:</span>
+                        <div className="flex flex-wrap gap-2 mt-1">
+                          {product.variants.sizes.map((size, index) => (
+                            <span 
+                              key={index}
+                              className="bg-green-900/30 text-green-300 px-2 py-1 rounded-md text-xs border border-green-800/40"
+                            >
+                              {size}
+                            </span>
+                          ))}
+                        </div>
+                      </div>
+                    )}
+                    
+                    {/* Etiketler */}
+                    {product.tags && product.tags.length > 0 && (
+                      <div>
+                        <span className="text-white/70 text-sm">Etiketler:</span>
+                        <div className="flex flex-wrap gap-1 mt-1">
+                          {product.tags.slice(0, 6).map((tag, index) => (
+                            <span 
+                              key={index}
+                              className="bg-slate-800/50 text-slate-300 px-2 py-0.5 rounded text-xs"
+                            >
+                              {tag}
+                            </span>
+                          ))}
+                          {product.tags.length > 6 && (
+                            <span className="bg-slate-800/50 text-slate-400 px-2 py-0.5 rounded text-xs">
+                              +{product.tags.length - 6}
+                            </span>
+                          )}
+                        </div>
+                      </div>
+                    )}
+                    
+                    {/* Shopify Aktarım Durumu */}
+                    <div className="pt-4 border-t border-cyan-800/30">
+                      <div className="flex items-center gap-2 justify-between">
+                        <span className="text-white/70 text-sm">Shopify Aktarım:</span>
+                        <div className="flex items-center gap-2">
+                          <div className="w-2 h-2 bg-green-500 rounded-full animate-pulse"></div>
+                          <span className="text-green-400 text-sm">Hazır</span>
+                        </div>
+                      </div>
+                    </div>
+                  </div>
+                </div>
+              </CardContent>
+            </Card>
+          </div>
+        )}
 
         {/* All Images Display Section */}
         {allImages.length > 0 && (
