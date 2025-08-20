@@ -58,6 +58,9 @@ import { bypassExtraction } from './bypass-system';
 import { emergencyExtraction } from './emergency-scraper';
 import { getValidatedImages } from './image-validator';
 import { bypassCloudflare } from './cloudflare-bypass';
+import { advancedStealthScraper } from './advanced-stealth-scraper';
+import { proxyRotationSystem } from './proxy-rotation-system';
+import { trendyolDefenseSystem } from './trendyol-defense-system';
 
 // Import emergency parser function for cloudflare bypass
 function parseProductFromHTML(html: string, source: string): any {
@@ -981,11 +984,72 @@ export function registerRoutes(app: Express): Server {
       const productIdMatch = url.match(/p-(\d+)/);
       const productId = productIdMatch ? productIdMatch[1] : null;
 
-      // Enhanced product data extraction for Trendyol products using SPEED-OPTIMIZED system
+      // Enhanced product data extraction for Trendyol products using COMPREHENSIVE DEFENSE SYSTEM
       if (url.includes('trendyol.com')) {
-        console.log("🆘 EMERGENCY SCRAPER: Starting last resort extraction");
+        console.log("🛡️ TRENDYOL DEFENSE SYSTEM: Starting comprehensive anti-ban protection");
         
-        // Try Cloudflare Bypass FIRST - most critical for blocking issues
+        // Use the comprehensive defense system that intelligently selects the best strategy
+        const defenseResult = await trendyolDefenseSystem.defendAndExtract(url);
+        
+        if (defenseResult.success && defenseResult.title) {
+          console.log(`🛡️ DEFENSE SUCCESS: ${defenseResult.title}, ${defenseResult.price} TL (Method: ${defenseResult.method})`);
+          
+          // Validate and enhance images
+          const validatedImages = await getValidatedImages(defenseResult.images || []);
+          console.log(`📸 Image validation: ${validatedImages.length} valid images found`);
+          
+          // Apply 15% profit margin if price exists
+          const priceWithProfit = defenseResult.price > 0 ? 
+            Math.round(defenseResult.price * 1.15 * 100) / 100 : 0;
+          
+          return res.json({
+            success: true,
+            extractionMethod: defenseResult.method,
+            brand: defenseResult.brand,
+            title: defenseResult.title,
+            price: priceWithProfit,
+            images: validatedImages,
+            features: [],
+            variants: defenseResult.variants || [],
+            defenseAttempts: defenseResult.attempts
+          });
+        }
+
+        // Try Proxy Rotation System as backup
+        console.log('🌐 Trying Proxy Rotation System...');
+        const proxyResult = await proxyRotationSystem.makeProxyRequest(url);
+        
+        if (proxyResult.success && proxyResult.html) {
+          console.log(`🌐 PROXY SUCCESS: Using ${proxyResult.proxy}`);
+          
+          // Parse with emergency parser
+          const proxyParseResult = parseProductFromHTML(proxyResult.html, 'proxy-rotation');
+          
+          if (proxyParseResult.success && proxyParseResult.title) {
+            console.log(`🌐 PROXY PARSE SUCCESS: ${proxyParseResult.title}, ${proxyParseResult.price} TL`);
+            
+            // Validate and enhance images
+            const validatedImages = await getValidatedImages(proxyParseResult.images || []);
+            console.log(`📸 Image validation: ${validatedImages.length} valid images found`);
+            
+            // Apply 15% profit margin if price exists
+            const priceWithProfit = proxyParseResult.price > 0 ? 
+              Math.round(proxyParseResult.price * 1.15 * 100) / 100 : 0;
+            
+            return res.json({
+              success: true,
+              extractionMethod: `proxy-${proxyResult.proxy}`,
+              brand: proxyParseResult.brand,
+              title: proxyParseResult.title,
+              price: priceWithProfit,
+              images: validatedImages,
+              features: [],
+              variants: proxyParseResult.variants || []
+            });
+          }
+        }
+
+        // Try Cloudflare Bypass as third option
         console.log('🛡️ Trying Cloudflare bypass system...');
         const cloudflareBypassResult = await bypassCloudflare(url);
         
