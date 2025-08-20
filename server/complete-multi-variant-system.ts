@@ -177,7 +177,7 @@ export function generateMultiVariantCSV(result: CompleteMultiVariantResult): str
   
   const rows: string[][] = [];
   
-  for (const variant of result.variantData) {
+  for (const variant of (result.variantData || result.variants || [])) {
     if (variant.processing.success && variant.images.allImages.length > 0) {
       // Add rows for each image in this variant
       variant.images.allImages.forEach((image: any, index: number) => {

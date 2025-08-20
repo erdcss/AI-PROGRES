@@ -1466,7 +1466,17 @@ ${fallbackTitle.toLowerCase().replace(/[^a-z0-9]/g, '-')},${fallbackTitle},Trend
                 console.log(`📸 CSV-PREP: Fixed ${result.images.length} images format for CSV generation`);
               }
               
-              const csvResult = await generateMultiVariantCSV(result);
+              // Enhanced CSV generation using comprehensive system
+              const { generateComprehensiveCSV } = await import('./multi-variant-csv-generator');
+              const csvResult = { success: true, csvContent: generateComprehensiveCSV({
+                title: result.title,
+                brand: result.brand,
+                price: result.price,
+                images: result.images || [],
+                variants: result.variants || [],
+                features: result.features || [],
+                tags: result.tags || []
+              }) };
               if (csvResult.success && csvResult.csvContent) {
                 result.csvContent = csvResult.csvContent;
                 console.log('✅ CSV content generated successfully for preview');
