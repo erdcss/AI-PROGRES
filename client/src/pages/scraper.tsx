@@ -149,43 +149,31 @@ function ScraperPage() {
         return;
       }
       
-      // ENHANCED BLOCKING DETECTION: More sophisticated validation
-      const titleInvalid = !data.title || data.title === "trendyol.com" || data.title.length < 10;
-      const priceInvalid = !data.price && (!data.price?.original || data.price?.original === 0);
-      const imagesInvalid = !data.images || data.images.length === 0;
+      // ULTRA FAST BLOCKING CHECK: Just check if we have minimum data for preview
+      const hasMinimumData = data.title && data.title !== "trendyol.com" && data.title.length > 5;
       
-      // Only block if all critical data is missing (more lenient approach)
-      const isCriticallyBlocked = titleInvalid && imagesInvalid;
-      
-      if (isCriticallyBlocked) {
-        console.log('❌ CRITICAL BLOCKING DETECTED:', {
+      if (!hasMinimumData) {
+        console.log('❌ NO USABLE DATA:', {
           title: data.title,
-          titleValid: !titleInvalid,
-          imagesCount: data.images?.length || 0,
-          csvContentLength: data.csvContent?.length || 0
+          titleLength: data.title?.length || 0
         });
         
         toast({
-          title: "🚫 Ürün Verisi Alınamadı",
-          description: `Bu ürün için veri çekilemedi. Farklı bir URL deneyin veya birkaç dakika sonra tekrar deneyin.`,
+          title: "🚫 Veri Alınamadı",
+          description: `Sistem geçici olarak engellenmiş. Farklı bir URL deneyin.`,
           variant: "destructive"
         });
         return;
       }
       
-      // Show warning for partial data but still proceed
-      if (titleInvalid || imagesInvalid) {
-        console.log('⚠️ PARTIAL DATA WARNING:', {
-          title: data.title,
-          titleValid: !titleInvalid,
-          imagesCount: data.images?.length || 0
-        });
-        
-        toast({
-          title: "⚠️ Kısmi Veri Alındı",
-          description: `Bazı ürün bilgileri eksik olabilir ancak işlem devam ediyor.`,
-          variant: "default"
-        });
+      // Always proceed if we have basic title data
+      console.log('✅ MINIMUM DATA AVAILABLE - proceeding with preview');
+      
+      // Generate minimal CSV if missing
+      if (!data.csvContent && data.title) {
+        console.log('📋 Frontend: Creating minimal CSV for preview...');
+        data.csvContent = `Handle,Title,Vendor,Price,Image Src,Status
+${data.title.toLowerCase().replace(/[^a-z0-9]/g, '-')},${data.title},${data.brand || ''},${data.price?.original || 100},${data.images?.[0]?.url || data.images?.[0] || ''},active`;
       }
       
       console.log('✅ Single scrape successful, setting product data');

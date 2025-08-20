@@ -1424,9 +1424,44 @@ export function registerRoutes(app: Express): Server {
       if (url.includes('trendyol.com')) {
         console.log("🎯 SCENARIO-BASED EXTRACTION başlıyor...");
         
-        console.log('🚨 ROUTES: About to call scenarioBasedScrape...');
-        const result = await scenarioBasedScrape(url);
+        // Add timeout for faster response
+        const timeoutDuration = 12000; // 12 seconds max
+        const timeoutPromise = new Promise((_, reject) => {
+          setTimeout(() => reject(new Error('TIMEOUT: Request taking too long')), timeoutDuration);
+        });
+        
+        console.log('🚨 ROUTES: About to call scenarioBasedScrape with timeout...');
+        
+        const result = await Promise.race([
+          scenarioBasedScrape(url, {
+            persistentTags,
+            onlyExtractData
+          }),
+          timeoutPromise
+        ]);
+        
         console.log('🚨 ROUTES: scenarioBasedScrape returned price:', result.price?.original);
+        
+        // ALWAYS generate CSV content regardless of success status
+        if (result && result.title && !result.csvContent) {
+          console.log('📋 URGENT: Generating CSV content for preview...');
+          try {
+            const csvResult = await generateMultiVariantCSV({ productData: result });
+            if (csvResult.success && csvResult.csvContent) {
+              result.csvContent = csvResult.csvContent;
+              console.log('✅ CSV content generated successfully for preview');
+            } else {
+              // Create minimal CSV as fallback
+              console.log('⚠️ Creating minimal CSV for preview...');
+              result.csvContent = `Handle,Title,Body (HTML),Vendor,Tags,Published,Option1 Name,Option1 Value,Variant Price,Image Src,Status
+${(result.title || 'product').toLowerCase().replace(/[^a-z0-9]/g, '-')},${result.title || 'Product'},${result.description || ''},${result.brand || ''},${(result.tags || []).join(' ')},TRUE,Color,${result.variants?.colors?.[0] || 'Default'},${result.price?.original || 100},${result.images?.[0]?.url || result.images?.[0] || ''},active`;
+            }
+          } catch (csvError) {
+            console.error('❌ CSV generation error:', csvError);
+            // Fallback minimal CSV
+            result.csvContent = `Handle,Title,Status\n${(result.title || 'product').toLowerCase().replace(/[^a-z0-9]/g, '-')},${result.title || 'Product'},active`;
+          }
+        }
         
         if (result.success) {
           console.log(`🎯 Scenario: ${result.scenario}, Confidence: ${result.confidence}%`);

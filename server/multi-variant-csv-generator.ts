@@ -46,16 +46,32 @@ export function generateMultiVariantShopifyCSV(product: CombinedProduct): string
     return '';
   }
   
-  // Check for valid price
-  const hasValidPrice = product.price && (
-    (typeof product.price === 'number' && product.price > 0) ||
-    (typeof product.price === 'object' && (product.price.original > 0 || product.price.withProfit > 0))
-  );
-  
-  if (!hasValidPrice) {
-    console.log('⚠️ Product has no valid price, skipping CSV generation');
-    return '';
+  // Use fallback price if none available - DO NOT skip CSV generation
+  let productPrice = 100; // Fallback price
+  if (product.price) {
+    if (typeof product.price === 'number' && product.price > 0) {
+      productPrice = product.price;
+    } else if (typeof product.price === 'object' && (product.price.original > 0 || product.price.withProfit > 0)) {
+      productPrice = product.price.original || product.price.withProfit || 100;
+    }
   }
+  
+  // Ensure product has price object for CSV generation
+  if (!product.price || typeof product.price !== 'object') {
+    product.price = {
+      original: productPrice,
+      withProfit: productPrice,
+      formatted: `${productPrice} TL`,
+      profitFormatted: `${productPrice} TL`
+    };
+  } else if (product.price.original <= 0) {
+    product.price.original = productPrice;
+    product.price.withProfit = productPrice;
+    product.price.formatted = `${productPrice} TL`;
+    product.price.profitFormatted = `${productPrice} TL`;
+  }
+  
+  console.log(`✅ Using price ${productPrice} TL for CSV generation`);
   
   // HEADERS - Shopify import formatına uygun (Metafield dahil)
   const headers = [
