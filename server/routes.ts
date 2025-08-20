@@ -1442,25 +1442,43 @@ export function registerRoutes(app: Express): Server {
         
         console.log('🚨 ROUTES: scenarioBasedScrape returned price:', result.price?.original);
         
-        // ALWAYS generate CSV content regardless of success status
-        if (result && result.title && !result.csvContent) {
+        // ALWAYS generate CSV content regardless of success status - EVEN FOR BLOCKED RESPONSES
+        if (result && (result.title || result.success === false)) {
           console.log('📋 URGENT: Generating CSV content for preview...');
           try {
-            const csvResult = await generateMultiVariantCSV({ productData: result });
-            if (csvResult.success && csvResult.csvContent) {
-              result.csvContent = csvResult.csvContent;
-              console.log('✅ CSV content generated successfully for preview');
+            // For blocked responses, create basic CSV with available data
+            if (result.success === false) {
+              console.log('⚠️ Creating emergency CSV for blocked response...');
+              const fallbackTitle = result.title && result.title !== "trendyol.com" ? result.title : "Trendyol Ürünü";
+              result.csvContent = `Handle,Title,Vendor,Status
+${fallbackTitle.toLowerCase().replace(/[^a-z0-9]/g, '-')},${fallbackTitle},Trendyol,draft`;
+              result.title = fallbackTitle; // Ensure we have a proper title
             } else {
-              // Create minimal CSV as fallback
-              console.log('⚠️ Creating minimal CSV for preview...');
-              result.csvContent = `Handle,Title,Body (HTML),Vendor,Tags,Published,Option1 Name,Option1 Value,Variant Price,Image Src,Status
+              const csvResult = await generateMultiVariantCSV({ productData: result });
+              if (csvResult.success && csvResult.csvContent) {
+                result.csvContent = csvResult.csvContent;
+                console.log('✅ CSV content generated successfully for preview');
+              } else {
+                // Create comprehensive CSV as fallback
+                console.log('⚠️ Creating comprehensive CSV for preview...');
+                result.csvContent = `Handle,Title,Body (HTML),Vendor,Tags,Published,Option1 Name,Option1 Value,Variant Price,Image Src,Status
 ${(result.title || 'product').toLowerCase().replace(/[^a-z0-9]/g, '-')},${result.title || 'Product'},${result.description || ''},${result.brand || ''},${(result.tags || []).join(' ')},TRUE,Color,${result.variants?.colors?.[0] || 'Default'},${result.price?.original || 100},${result.images?.[0]?.url || result.images?.[0] || ''},active`;
+              }
             }
           } catch (csvError) {
             console.error('❌ CSV generation error:', csvError);
-            // Fallback minimal CSV
-            result.csvContent = `Handle,Title,Status\n${(result.title || 'product').toLowerCase().replace(/[^a-z0-9]/g, '-')},${result.title || 'Product'},active`;
+            // Ultimate fallback minimal CSV
+            const safeTitle = (result.title && result.title !== "trendyol.com") ? result.title : "Trendyol Ürünü";
+            result.csvContent = `Handle,Title,Status\n${safeTitle.toLowerCase().replace(/[^a-z0-9]/g, '-')},${safeTitle},draft`;
+            result.title = safeTitle;
           }
+        }
+        
+        // Ensure result has the proper structure for frontend
+        if (result && !result.csvContent) {
+          const fallbackTitle = "Trendyol Ürünü";
+          result.csvContent = `Handle,Title,Status\n${fallbackTitle.toLowerCase().replace(/[^a-z0-9]/g, '-')},${fallbackTitle},draft`;
+          if (!result.title) result.title = fallbackTitle;
         }
         
         if (result.success) {
