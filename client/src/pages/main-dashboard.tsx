@@ -2,7 +2,7 @@ import { useLocation } from "wouter";
 import { 
   Store, ShoppingCart, Package, BarChart3, 
   MessageSquare, Shield, Bot, AlertTriangle, 
-  Database, Clock, Truck
+  Database, Clock, Truck, Settings
 } from "lucide-react";
 import { RealTimeClock } from "@/components/RealTimeClock";
 
@@ -114,52 +114,71 @@ const MainDashboard = () => {
   };
 
   return (
-    <div className="min-h-screen bg-slate-900">
-      <div className="max-w-6xl mx-auto px-6 py-16">
+    <div className="min-h-screen bg-gray-50">
+      <div className="max-w-7xl mx-auto px-4 py-8">
         {/* Header */}
-        <header className="text-center mb-20">
-          <h1 className="text-4xl font-bold text-white mb-8">
-            E-Ticaret Veri İstasyonu
-          </h1>
-          <div className="inline-flex items-center gap-2 bg-slate-800 rounded-md px-3 py-1.5 text-sm">
-            <Clock className="w-3.5 h-3.5 text-blue-400" />
+        <header className="text-center mb-12">
+          <div className="flex items-center justify-center gap-3 mb-4">
+            <Settings className="w-8 h-8 text-blue-600" />
+            <h1 className="text-3xl font-semibold text-gray-900">
+              Veri Transfer Programı
+            </h1>
+          </div>
+          <p className="text-gray-600 text-lg mb-6">
+            Ürün verilerini çıkarabileceğiniz ve analiz edebileceğiniz platformları seçin
+          </p>
+          <div className="inline-flex items-center gap-2 bg-white border rounded-lg px-4 py-2 shadow-sm">
+            <Clock className="w-4 h-4 text-gray-500" />
             <RealTimeClock />
           </div>
         </header>
 
-        <main className="space-y-16">
+        <main className="space-y-12">
           {/* Ana Platformlar */}
           <section>
-            <h2 className="text-lg text-white mb-2 text-center">
-              Ürün Çıkarma Platformları
-            </h2>
-            <p className="text-gray-400 text-center text-sm mb-10">
-              Ürün verilerini çıkarıp Shopify'a aktarabileceğiniz platformlar
-            </p>
+            <div className="text-center mb-8">
+              <h2 className="text-xl font-semibold text-gray-900 mb-2">
+                Ürün Çıkarma Platformları
+              </h2>
+              <p className="text-gray-600">
+                Ürün verilerini çıkarıp Shopify'a aktarabileceğiniz platformlar
+              </p>
+            </div>
             
-            <div className="grid grid-cols-2 lg:grid-cols-4 gap-4">
+            <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6">
               {dataTransferOptions.slice(0, 4).map((option) => (
                 <div
                   key={option.name}
                   onClick={() => handleOptionClick(option)}
                   className={`
-                    bg-white/5 border border-white/10 rounded-lg p-6 cursor-pointer
-                    hover:bg-white/10 hover:border-white/20 transition-all
-                    ${!option.available ? 'opacity-40 cursor-not-allowed' : ''}
+                    bg-white border border-gray-200 rounded-xl p-6 cursor-pointer
+                    hover:shadow-lg hover:border-gray-300 transition-all duration-200
+                    ${!option.available ? 'opacity-60 cursor-not-allowed' : 'hover:-translate-y-1'}
                   `}
+                  data-testid={`platform-${option.name.toLowerCase()}`}
                 >
-                  <div className="flex items-center justify-center mb-4 text-slate-300">
-                    {option.icon}
+                  <div className="flex items-center justify-center mb-4">
+                    <div className="w-12 h-12 bg-blue-50 rounded-lg flex items-center justify-center text-blue-600">
+                      {option.icon}
+                    </div>
                   </div>
-                  <h3 className="text-white text-sm text-center mb-2">
+                  <h3 className="text-gray-900 font-medium text-center mb-2">
                     {option.name}
                   </h3>
-                  <p className="text-gray-400 text-xs text-center">
+                  <p className="text-gray-600 text-sm text-center leading-relaxed">
                     {option.description}
                   </p>
-                  {!option.available && (
-                    <div className="text-center mt-3">
-                      <span className="text-xs bg-slate-700 text-gray-300 px-2 py-1 rounded">Yakında</span>
+                  {option.available ? (
+                    <div className="text-center mt-4">
+                      <span className="text-xs bg-green-100 text-green-700 px-3 py-1 rounded-full font-medium">
+                        Aktif
+                      </span>
+                    </div>
+                  ) : (
+                    <div className="text-center mt-4">
+                      <span className="text-xs bg-gray-100 text-gray-600 px-3 py-1 rounded-full">
+                        Yakında
+                      </span>
                     </div>
                   )}
                 </div>
@@ -169,56 +188,69 @@ const MainDashboard = () => {
 
           {/* Sistem Araçları */}
           <section>
-            <h2 className="text-lg text-white mb-2 text-center">
-              Sistem Yönetimi
-            </h2>
-            <p className="text-gray-400 text-center text-sm mb-10">
-              Sistem durum takibi ve analiz araçları
-            </p>
+            <div className="text-center mb-8">
+              <h2 className="text-xl font-semibold text-gray-900 mb-2">
+                Sistem Yönetimi ve Analiz
+              </h2>
+              <p className="text-gray-600">
+                Shopify'a aktarılan ürünlerin analizi, takibi ve yönetimi
+              </p>
+            </div>
             
-            <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
-              {systemControlOptions.slice(0, 3).map((option) => (
+            <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6">
+              {systemControlOptions.map((option) => (
                 <div
                   key={option.name}
                   onClick={() => handleOptionClick(option)}
-                  className="bg-white/5 border border-white/10 rounded-lg p-6 cursor-pointer hover:bg-white/10 hover:border-white/20 transition-all"
+                  className="bg-white border border-gray-200 rounded-xl p-6 cursor-pointer hover:shadow-lg hover:border-gray-300 hover:-translate-y-1 transition-all duration-200"
+                  data-testid={`system-${option.name.toLowerCase().replace(/\s+/g, '-')}`}
                 >
-                  <div className="flex items-center justify-center mb-4 text-slate-300">
-                    {option.icon}
+                  <div className="flex items-center justify-center mb-4">
+                    <div className="w-12 h-12 bg-indigo-50 rounded-lg flex items-center justify-center text-indigo-600">
+                      {option.icon}
+                    </div>
                   </div>
-                  <h3 className="text-white text-sm text-center mb-2">
+                  <h3 className="text-gray-900 font-medium text-center mb-2 text-sm">
                     {option.name}
                   </h3>
-                  <p className="text-gray-400 text-xs text-center">
+                  <p className="text-gray-600 text-sm text-center leading-relaxed">
                     {option.description}
                   </p>
+                  <div className="text-center mt-4">
+                    <span className="text-xs bg-blue-100 text-blue-700 px-3 py-1 rounded-full font-medium">
+                      Aktif
+                    </span>
+                  </div>
                 </div>
               ))}
             </div>
           </section>
 
           {/* Hızlı Erişim */}
-          <section>
-            <h3 className="text-base text-white mb-8 text-center">
+          <section className="bg-white border border-gray-200 rounded-xl p-8">
+            <h3 className="text-lg font-semibold text-gray-900 mb-6 text-center">
               Hızlı Erişim
             </h3>
             
-            <div className="flex justify-center gap-3">
+            <div className="flex flex-wrap justify-center gap-3">
               <button
                 onClick={() => setLocation('/scraper/trendyol')}
-                className="bg-slate-700 hover:bg-slate-600 text-white px-4 py-2 rounded text-sm transition-colors"
+                className="bg-blue-600 hover:bg-blue-700 text-white px-6 py-2.5 rounded-lg text-sm font-medium transition-colors duration-200"
+                data-testid="quick-access-trendyol"
               >
                 Trendyol
               </button>
               <button
                 onClick={() => setLocation('/data-analysis')}
-                className="bg-slate-700 hover:bg-slate-600 text-white px-4 py-2 rounded text-sm transition-colors"
+                className="bg-indigo-600 hover:bg-indigo-700 text-white px-6 py-2.5 rounded-lg text-sm font-medium transition-colors duration-200"
+                data-testid="quick-access-data-analysis"
               >
                 Veri Analizi
               </button>
               <button
                 onClick={() => setLocation('/system-status')}
-                className="bg-slate-700 hover:bg-slate-600 text-white px-4 py-2 rounded text-sm transition-colors"
+                className="bg-green-600 hover:bg-green-700 text-white px-6 py-2.5 rounded-lg text-sm font-medium transition-colors duration-200"
+                data-testid="quick-access-system-status"
               >
                 Sistem Durumu
               </button>
