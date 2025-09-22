@@ -155,6 +155,13 @@ export const urlTracking = pgTable('url_tracking', {
   extractedData: jsonb('extracted_data'), // Son çekilen tam veri
   lastPriceChange: timestamp('last_price_change'),
   priceChangePercent: decimal('price_change_percent', { precision: 5, scale: 2 }),
+  // Shopify tracking fields
+  shopifyProductId: text('shopify_product_id'),
+  shopifyVariantIds: text('shopify_variant_ids'), // Comma-separated IDs
+  lastShopifySyncAt: timestamp('last_shopify_sync_at'),
+  syncStatus: text('sync_status').default('pending'), // pending, synced, failed, retry
+  transferredAt: timestamp('transferred_at'),
+  syncErrors: text('sync_errors'),
   createdAt: timestamp('created_at').notNull().defaultNow(),
   updatedAt: timestamp('updated_at').notNull().defaultNow()
 });
