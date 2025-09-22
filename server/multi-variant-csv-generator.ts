@@ -142,13 +142,20 @@ export function generateMultiVariantShopifyCSV(product: CombinedProduct): string
     }
   }
   
-  // Variant information summary
-  if (product.variants && product.variants.colors && product.variants.colors.length > 0) {
-    bodyHtml += `<p><strong>Mevcut Renkler:</strong> ${product.variants.colors.join(', ')}</p>`;
-  }
+  // ❌ SAHTE VARIANT BİLGİLERİ ENGELLENDI - Sadece gerçek varyant varsa göster
+  const realVariants = product.variants && product.variants.allVariants ? product.variants.allVariants.filter(v => v.color && v.color.trim() !== '') : [];
   
-  if (product.variants && product.variants.sizes && product.variants.sizes.length > 0) {
-    bodyHtml += `<p><strong>Mevcut Bedenler:</strong> ${product.variants.sizes.join(', ')}</p>`;
+  if (realVariants.length > 0) {
+    const realColors = [...new Set(realVariants.map(v => v.color).filter(c => c && c.trim() !== ''))];
+    const realSizes = [...new Set(realVariants.map(v => v.size).filter(s => s && s.trim() !== ''))];
+    
+    if (realColors.length > 0) {
+      bodyHtml += `<p><strong>Mevcut Renkler:</strong> ${realColors.join(', ')}</p>`;
+    }
+    
+    if (realSizes.length > 0) {
+      bodyHtml += `<p><strong>Mevcut Bedenler:</strong> ${realSizes.join(', ')}</p>`;
+    }
   }
   
   bodyHtml += `</div>`;
