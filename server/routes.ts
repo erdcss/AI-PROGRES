@@ -61,6 +61,9 @@ import { bypassCloudflare } from './cloudflare-bypass';
 import { advancedStealthScraper } from './advanced-stealth-scraper';
 import { proxyRotationSystem } from './proxy-rotation-system';
 import { trendyolDefenseSystem } from './trendyol-defense-system';
+import { memoryManager } from './memory-manager';
+import { notificationGateway } from './notification-gateway';
+import { setupAdminMemoryRoutes } from './admin-memory-routes';
 
 // Import emergency parser function for cloudflare bypass
 function parseProductFromHTML(html: string, source: string): any {
@@ -4580,6 +4583,15 @@ ${(result.title || 'product').toLowerCase().replace(/[^a-z0-9]/g, '-')},${result
       console.error('⚠️ Price Movement API routes yüklenemedi:', error);
     }
   })();
+
+  // Admin Memory Management Routes
+  setupAdminMemoryRoutes(app);
+
+  // Clear existing product memory cache on startup
+  console.log('🗑️ Clearing existing product memory cache...');
+  memoryManager.purgeAll();
+  notificationGateway.clearNotificationCache();
+  console.log('✅ Memory cache cleared successfully');
 
   return httpServer;
 }
