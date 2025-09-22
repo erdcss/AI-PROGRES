@@ -134,13 +134,20 @@ async function sendProductExtractionNotification(url: string, title: string, bra
 ✅ <b>Shopify'a aktarıma hazır</b>
     `.trim();
 
-    // Import filtered telegram notifier
+    // Send via new notification gateway
     try {
-      const { sendFilteredTelegramNotification } = await import('./filtered-telegram-notifier');
-      await sendFilteredTelegramNotification(message);
-    } catch (importError) {
-      console.log('📱 Telegram notifier import failed, using alternative method');
-      // Alternative notification method if needed
+      await notificationGateway.send({
+        type: 'product_upload',
+        url: url,
+        payload: {
+          title: productData.title,
+          brand: productData.brand,
+          price: productData.price?.withProfit || productData.price?.original
+        },
+        priority: 'medium'
+      });
+    } catch (error) {
+      console.log('📱 Notification gateway failed:', error);
     }
     console.log('📱 Telegram ürün bildirim gönderildi');
   } catch (error) {

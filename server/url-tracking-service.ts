@@ -4,6 +4,7 @@ import { eq, desc } from 'drizzle-orm';
 import { scenarioBasedScrape } from './scenario-based-scraper';
 import { ultimatePriceExtract } from './ultimate-price-extractor';
 import { enhancedPriceMovementTracker } from './enhanced-price-movement-tracker';
+import { notificationGateway } from './notification-gateway';
 import axios from 'axios';
 import * as cheerio from 'cheerio';
 
