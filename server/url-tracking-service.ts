@@ -227,8 +227,12 @@ export class UrlTrackingService {
         console.log('✅ No blocking detected - proceeding with price extraction');
         
         // Ultimate Price Extractor kullan
-        const priceResult = ultimatePriceExtract($, response.data);
-        console.log(`🎯 ULTIMATE PRICE RESULT: ${priceResult.original} TL via ${priceResult.method}`);
+        const priceResult = await ultimatePriceExtract($, response.data);
+        if (priceResult && priceResult.original && priceResult.method) {
+          console.log(`🎯 ULTIMATE PRICE RESULT: ${priceResult.original} TL via ${priceResult.method}`);
+        } else {
+          console.log(`🎯 ULTIMATE PRICE RESULT: Error - priceResult is null or undefined`);
+        }
         
         newPrice = priceResult.original;
         
