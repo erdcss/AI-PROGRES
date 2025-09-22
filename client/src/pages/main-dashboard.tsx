@@ -146,97 +146,107 @@ const MainDashboard = () => {
           </div>
         </header>
 
-        <main className="space-y-16">
-          {/* Üç Ana Bölüm - Yanyana */}
+        <main className="space-y-12">
+          {/* Kompakt Liste Formatı - Üç Bölüm */}
           <section className="animate-slide-up">
-            <div className="grid grid-cols-1 lg:grid-cols-3 gap-8">
+            <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
               {/* Ürün Çıkarma Platformları */}
-              <div className="card-glass rounded-3xl p-6 shadow-xl">
-                <div className="text-center mb-6">
-                  <div className="inline-flex items-center gap-2 mb-3">
-                    <div className="w-2 h-2 bg-blue-400 rounded-full"></div>
-                    <h2 className="text-lg font-bold text-white">
+              <div className="card-glass rounded-2xl p-5 shadow-xl">
+                <div className="text-center mb-4">
+                  <div className="inline-flex items-center gap-2 mb-2">
+                    <div className="w-1.5 h-1.5 bg-blue-400 rounded-full"></div>
+                    <h2 className="text-base font-bold text-white">
                       Ürün Çıkarma Platformları
                     </h2>
                   </div>
-                  <p className="text-slate-300 text-sm">
+                  <p className="text-slate-400 text-xs">
                     Shopify'a aktarabileceğiniz platformlar
                   </p>
                 </div>
                 
-                <div className="grid grid-cols-2 gap-4">
+                <div className="space-y-2">
                   {dataTransferOptions.slice(0, 4).map((option, index) => (
                     <div
                       key={option.name}
                       onClick={() => handleOptionClick(option)}
                       className={`
-                        group bg-slate-700/50 backdrop-blur-sm border border-slate-600/40 rounded-xl p-4 cursor-pointer
-                        transition-all duration-300 hover:shadow-lg hover:bg-slate-600/50 hover:-translate-y-1
-                        ${!option.available ? 'opacity-60 cursor-not-allowed hover:transform-none' : ''}
+                        group flex items-center justify-between p-3 bg-slate-700/30 border border-slate-600/30 rounded-lg cursor-pointer
+                        transition-all duration-200 hover:bg-slate-600/40 hover:border-slate-500/40 hover:scale-[1.02]
+                        ${!option.available ? 'opacity-60 cursor-not-allowed hover:scale-100' : ''}
                       `}
                       data-testid={`platform-${option.name.toLowerCase()}`}
                     >
-                      <div className="flex flex-col items-center text-center">
-                        <div className="w-10 h-10 bg-gradient-to-br from-blue-400 to-purple-500 rounded-lg flex items-center justify-center mb-3 shadow-md group-hover:scale-110 transition-transform duration-300">
-                          <div className="text-white text-lg">
+                      <div className="flex items-center gap-3">
+                        <div className="w-6 h-6 bg-gradient-to-br from-blue-400 to-purple-500 rounded-md flex items-center justify-center shadow-sm">
+                          <div className="text-white text-xs">
                             {option.icon}
                           </div>
                         </div>
-                        <h3 className="text-white font-medium text-sm mb-2">
-                          {option.name}
-                        </h3>
-                        {option.available ? (
-                          <span className="status-active text-xs px-2 py-1 rounded-full font-medium">
-                            Aktif
-                          </span>
-                        ) : (
-                          <span className="status-coming-soon text-xs px-2 py-1 rounded-full font-medium">
-                            Yakında
-                          </span>
-                        )}
+                        <div className="text-left">
+                          <h3 className="text-white font-medium text-sm">
+                            {option.name}
+                          </h3>
+                          <p className="text-slate-400 text-xs leading-tight">
+                            {option.description}
+                          </p>
+                        </div>
                       </div>
+                      {option.available ? (
+                        <span className="status-active text-xs px-2 py-1 rounded-md font-medium">
+                          Aktif
+                        </span>
+                      ) : (
+                        <span className="status-coming-soon text-xs px-2 py-1 rounded-md font-medium">
+                          Yakında
+                        </span>
+                      )}
                     </div>
                   ))}
                 </div>
               </div>
 
               {/* Sistem Yönetimi ve Analiz */}
-              <div className="card-glass rounded-3xl p-6 shadow-xl">
-                <div className="text-center mb-6">
-                  <div className="inline-flex items-center gap-2 mb-3">
-                    <div className="w-2 h-2 bg-emerald-400 rounded-full"></div>
-                    <h2 className="text-lg font-bold text-white">
+              <div className="card-glass rounded-2xl p-5 shadow-xl">
+                <div className="text-center mb-4">
+                  <div className="inline-flex items-center gap-2 mb-2">
+                    <div className="w-1.5 h-1.5 bg-emerald-400 rounded-full"></div>
+                    <h2 className="text-base font-bold text-white">
                       Sistem Yönetimi ve Analiz
                     </h2>
                   </div>
-                  <p className="text-slate-300 text-sm">
+                  <p className="text-slate-400 text-xs">
                     Analiz, takip ve yönetim araçları
                   </p>
                 </div>
                 
-                <div className="grid grid-cols-2 gap-4">
+                <div className="space-y-2">
                   {systemControlOptions.map((option, index) => (
                     <div
                       key={option.name}
                       onClick={() => handleOptionClick(option)}
-                      className="group bg-slate-700/50 backdrop-blur-sm border border-slate-600/40 rounded-xl p-4 cursor-pointer transition-all duration-300 hover:shadow-lg hover:bg-slate-600/50 hover:-translate-y-1"
+                      className="group flex items-center justify-between p-3 bg-slate-700/30 border border-slate-600/30 rounded-lg cursor-pointer transition-all duration-200 hover:bg-slate-600/40 hover:border-slate-500/40 hover:scale-[1.02]"
                       data-testid={`system-${option.name.toLowerCase().replace(/\s+/g, '-')}`}
                     >
-                      <div className="flex flex-col items-center text-center">
-                        <div className="w-10 h-10 bg-gradient-to-br from-emerald-400 to-blue-500 rounded-lg flex items-center justify-center mb-3 shadow-md group-hover:scale-110 transition-transform duration-300">
-                          <div className="text-white text-lg">
+                      <div className="flex items-center gap-3">
+                        <div className="w-6 h-6 bg-gradient-to-br from-emerald-400 to-blue-500 rounded-md flex items-center justify-center shadow-sm">
+                          <div className="text-white text-xs">
                             {option.icon}
                           </div>
                         </div>
-                        <h3 className="text-white font-medium text-sm mb-2 leading-tight">
-                          {option.name}
-                        </h3>
-                        <div className="flex items-center gap-1">
-                          <div className="w-1 h-1 bg-green-400 rounded-full animate-pulse"></div>
-                          <span className="status-active text-xs px-2 py-1 rounded-full font-medium">
-                            Aktif
-                          </span>
+                        <div className="text-left">
+                          <h3 className="text-white font-medium text-sm leading-tight">
+                            {option.name}
+                          </h3>
+                          <p className="text-slate-400 text-xs leading-tight">
+                            {option.description}
+                          </p>
                         </div>
+                      </div>
+                      <div className="flex items-center gap-1">
+                        <div className="w-1 h-1 bg-green-400 rounded-full animate-pulse"></div>
+                        <span className="status-active text-xs px-2 py-1 rounded-md font-medium">
+                          Aktif
+                        </span>
                       </div>
                     </div>
                   ))}
@@ -244,145 +254,103 @@ const MainDashboard = () => {
               </div>
 
               {/* Hızlı Erişim */}
-              <div className="card-glass rounded-3xl p-6 shadow-xl">
-                <div className="text-center mb-6">
-                  <div className="inline-flex items-center gap-2 mb-3">
-                    <div className="w-2 h-2 bg-orange-400 rounded-full"></div>
-                    <h2 className="text-lg font-bold text-white">
+              <div className="card-glass rounded-2xl p-5 shadow-xl">
+                <div className="text-center mb-4">
+                  <div className="inline-flex items-center gap-2 mb-2">
+                    <div className="w-1.5 h-1.5 bg-orange-400 rounded-full"></div>
+                    <h2 className="text-base font-bold text-white">
                       Hızlı Erişim
                     </h2>
                   </div>
-                  <p className="text-slate-300 text-sm">
+                  <p className="text-slate-400 text-xs">
                     En çok kullanılan araçlar
                   </p>
                 </div>
                 
-                <div className="space-y-3">
+                <div className="space-y-2">
                   <button
                     onClick={() => setLocation('/scraper/trendyol')}
-                    className="w-full group relative bg-gradient-to-r from-blue-500 to-blue-600 hover:from-blue-600 hover:to-blue-700 text-white px-4 py-3 rounded-xl font-semibold transition-all duration-300 shadow-md hover:shadow-lg hover:-translate-y-1"
+                    className="w-full group flex items-center justify-center gap-2 bg-gradient-to-r from-blue-500 to-blue-600 hover:from-blue-600 hover:to-blue-700 text-white px-3 py-2.5 rounded-lg font-medium transition-all duration-200 shadow-sm hover:shadow-md hover:scale-[1.02]"
                     data-testid="quick-access-trendyol"
                   >
-                    <div className="flex items-center justify-center gap-2">
-                      <Store className="w-4 h-4" />
-                      <span className="text-sm">Trendyol</span>
-                    </div>
+                    <Store className="w-4 h-4" />
+                    <span className="text-sm">Trendyol</span>
                   </button>
                   <button
                     onClick={() => setLocation('/data-analysis')}
-                    className="w-full group relative bg-gradient-to-r from-indigo-500 to-indigo-600 hover:from-indigo-600 hover:to-indigo-700 text-white px-4 py-3 rounded-xl font-semibold transition-all duration-300 shadow-md hover:shadow-lg hover:-translate-y-1"
+                    className="w-full group flex items-center justify-center gap-2 bg-gradient-to-r from-indigo-500 to-indigo-600 hover:from-indigo-600 hover:to-indigo-700 text-white px-3 py-2.5 rounded-lg font-medium transition-all duration-200 shadow-sm hover:shadow-md hover:scale-[1.02]"
                     data-testid="quick-access-data-analysis"
                   >
-                    <div className="flex items-center justify-center gap-2">
-                      <BarChart3 className="w-4 h-4" />
-                      <span className="text-sm">Veri Analizi</span>
-                    </div>
+                    <BarChart3 className="w-4 h-4" />
+                    <span className="text-sm">Veri Analizi</span>
                   </button>
                   <button
                     onClick={() => setLocation('/system-status')}
-                    className="w-full group relative bg-gradient-to-r from-emerald-500 to-emerald-600 hover:from-emerald-600 hover:to-emerald-700 text-white px-4 py-3 rounded-xl font-semibold transition-all duration-300 shadow-md hover:shadow-lg hover:-translate-y-1"
+                    className="w-full group flex items-center justify-center gap-2 bg-gradient-to-r from-emerald-500 to-emerald-600 hover:from-emerald-600 hover:to-emerald-700 text-white px-3 py-2.5 rounded-lg font-medium transition-all duration-200 shadow-sm hover:shadow-md hover:scale-[1.02]"
                     data-testid="quick-access-system-status"
                   >
-                    <div className="flex items-center justify-center gap-2">
-                      <Shield className="w-4 h-4" />
-                      <span className="text-sm">Sistem Durumu</span>
-                    </div>
+                    <Shield className="w-4 h-4" />
+                    <span className="text-sm">Sistem Durumu</span>
                   </button>
                 </div>
               </div>
             </div>
           </section>
 
-          {/* Liste Formatı */}
+          {/* İstatistikler ve Özet */}
           <section className="animate-slide-up" style={{animationDelay: '0.2s'}}>
-            <div className="card-glass rounded-3xl p-8 shadow-xl">
-              <div className="text-center mb-8">
-                <h2 className="text-2xl font-bold text-white mb-4">
-                  Tüm Özellikler - Liste Görünümü
+            <div className="card-glass rounded-2xl p-6 shadow-xl">
+              <div className="text-center mb-6">
+                <h2 className="text-xl font-bold text-white mb-2">
+                  Sistem Özeti
                 </h2>
-                <p className="text-slate-300">
-                  Platform ve sistem araçlarının detaylı listesi
+                <p className="text-slate-400 text-sm">
+                  Platform durumu ve hızlı istatistikler
                 </p>
               </div>
               
-              <div className="grid grid-cols-1 md:grid-cols-2 gap-8">
-                {/* Platformlar Listesi */}
-                <div>
-                  <h3 className="text-lg font-semibold text-white mb-4 flex items-center gap-2">
-                    <div className="w-2 h-2 bg-blue-400 rounded-full"></div>
-                    E-ticaret Platformları
-                  </h3>
-                  <div className="space-y-3">
-                    {dataTransferOptions.slice(0, 4).map((option) => (
-                      <div
-                        key={option.name}
-                        onClick={() => handleOptionClick(option)}
-                        className={`
-                          flex items-center justify-between p-4 bg-slate-700/30 border border-slate-600/30 rounded-xl cursor-pointer
-                          transition-all duration-200 hover:bg-slate-600/40 hover:border-slate-500/40
-                          ${!option.available ? 'opacity-60 cursor-not-allowed' : ''}
-                        `}
-                        data-testid={`list-platform-${option.name.toLowerCase()}`}
-                      >
-                        <div className="flex items-center gap-3">
-                          <div className="w-8 h-8 bg-gradient-to-br from-blue-400 to-purple-500 rounded-lg flex items-center justify-center">
-                            <div className="text-white text-sm">
-                              {option.icon}
-                            </div>
-                          </div>
-                          <div>
-                            <h4 className="text-white font-medium">{option.name}</h4>
-                            <p className="text-slate-400 text-sm">{option.description}</p>
-                          </div>
-                        </div>
-                        {option.available ? (
-                          <span className="status-active text-xs px-3 py-1 rounded-full font-medium">
-                            Aktif
-                          </span>
-                        ) : (
-                          <span className="status-coming-soon text-xs px-3 py-1 rounded-full font-medium">
-                            Yakında
-                          </span>
-                        )}
-                      </div>
-                    ))}
+              <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
+                <div className="text-center p-4 bg-slate-700/20 rounded-xl border border-slate-600/20">
+                  <div className="w-8 h-8 bg-gradient-to-br from-blue-400 to-purple-500 rounded-lg flex items-center justify-center mx-auto mb-2">
+                    <Store className="w-4 h-4 text-white" />
                   </div>
+                  <h3 className="text-white font-medium text-sm mb-1">Platformlar</h3>
+                  <p className="text-slate-400 text-xs">4 Platform</p>
+                  <p className="text-green-400 text-xs mt-1">2 Aktif</p>
                 </div>
-
-                {/* Sistem Araçları Listesi */}
-                <div>
-                  <h3 className="text-lg font-semibold text-white mb-4 flex items-center gap-2">
-                    <div className="w-2 h-2 bg-emerald-400 rounded-full"></div>
-                    Sistem Araçları
-                  </h3>
-                  <div className="space-y-3">
-                    {systemControlOptions.map((option) => (
-                      <div
-                        key={option.name}
-                        onClick={() => handleOptionClick(option)}
-                        className="flex items-center justify-between p-4 bg-slate-700/30 border border-slate-600/30 rounded-xl cursor-pointer transition-all duration-200 hover:bg-slate-600/40 hover:border-slate-500/40"
-                        data-testid={`list-system-${option.name.toLowerCase().replace(/\s+/g, '-')}`}
-                      >
-                        <div className="flex items-center gap-3">
-                          <div className="w-8 h-8 bg-gradient-to-br from-emerald-400 to-blue-500 rounded-lg flex items-center justify-center">
-                            <div className="text-white text-sm">
-                              {option.icon}
-                            </div>
-                          </div>
-                          <div>
-                            <h4 className="text-white font-medium">{option.name}</h4>
-                            <p className="text-slate-400 text-sm">{option.description}</p>
-                          </div>
-                        </div>
-                        <div className="flex items-center gap-2">
-                          <div className="w-2 h-2 bg-green-400 rounded-full animate-pulse"></div>
-                          <span className="status-active text-xs px-3 py-1 rounded-full font-medium">
-                            Aktif
-                          </span>
-                        </div>
-                      </div>
-                    ))}
+                
+                <div className="text-center p-4 bg-slate-700/20 rounded-xl border border-slate-600/20">
+                  <div className="w-8 h-8 bg-gradient-to-br from-emerald-400 to-blue-500 rounded-lg flex items-center justify-center mx-auto mb-2">
+                    <Settings className="w-4 h-4 text-white" />
                   </div>
+                  <h3 className="text-white font-medium text-sm mb-1">Sistem Araçları</h3>
+                  <p className="text-slate-400 text-xs">4 Araç</p>
+                  <p className="text-green-400 text-xs mt-1">Tümü Aktif</p>
+                </div>
+                
+                <div className="text-center p-4 bg-slate-700/20 rounded-xl border border-slate-600/20">
+                  <div className="w-8 h-8 bg-gradient-to-br from-orange-400 to-red-500 rounded-lg flex items-center justify-center mx-auto mb-2">
+                    <Clock className="w-4 h-4 text-white" />
+                  </div>
+                  <h3 className="text-white font-medium text-sm mb-1">Hızlı Erişim</h3>
+                  <p className="text-slate-400 text-xs">3 Kısayol</p>
+                  <p className="text-green-400 text-xs mt-1">Hazır</p>
+                </div>
+                
+                <div className="text-center p-4 bg-slate-700/20 rounded-xl border border-slate-600/20">
+                  <div className="w-8 h-8 bg-gradient-to-br from-green-400 to-emerald-500 rounded-lg flex items-center justify-center mx-auto mb-2">
+                    <Shield className="w-4 h-4 text-white" />
+                  </div>
+                  <h3 className="text-white font-medium text-sm mb-1">Sistem Durumu</h3>
+                  <p className="text-slate-400 text-xs">Çevrimiçi</p>
+                  <p className="text-green-400 text-xs mt-1">Sağlıklı</p>
+                </div>
+              </div>
+              
+              <div className="mt-6 text-center">
+                <div className="inline-flex items-center gap-2 text-slate-400 text-xs">
+                  <div className="w-2 h-2 bg-green-400 rounded-full animate-pulse"></div>
+                  <span>Son güncelleme: Az önce</span>
                 </div>
               </div>
             </div>
