@@ -38,7 +38,7 @@ import { runTrendyolVariantsSpider, generateScrapyOutput, generateScrapyCSV } fr
 import { fixedAuthenticScrape } from './fixed-authentic-scraper';
 import { scenarioBasedScrape } from './scenario-based-scraper';
 import { ProductManagementSystem } from './product-management-system';
-import { TelegramNotifications } from './comprehensive-telegram-notifier';
+// Legacy Telegram system removed - using notification gateway
 import { generateComprehensiveShopifyCSV, generateFeatureSummary, type ComprehensiveProductData } from './comprehensive-csv-generator';
 import shopifyTrendyolMatcher from './shopify-trendyol-matcher';
 import { scrapeMultipleUrls } from './multi-url-scraper';
@@ -134,15 +134,15 @@ async function sendProductExtractionNotification(url: string, title: string, bra
 ✅ <b>Shopify'a aktarıma hazır</b>
     `.trim();
 
-    // Send via new notification gateway
+    // Send via new notification gateway with correct parameters
     try {
       await notificationGateway.send({
         type: 'product_upload',
         url: url,
         payload: {
-          title: productData.title,
-          brand: productData.brand,
-          price: productData.price?.withProfit || productData.price?.original
+          title: title,
+          brand: brand,
+          price: price
         },
         priority: 'medium'
       });

@@ -7,7 +7,7 @@ import { db } from './db';
 import { products, productVariants, priceHistory, stockHistory, shopifySyncLogs, monitoringSchedules } from '@shared/schema';
 import { eq, and, desc } from 'drizzle-orm';
 import { scenarioBasedScrape } from './scenario-based-scraper';
-import { TelegramNotifications } from './comprehensive-telegram-notifier';
+import { notificationGateway } from './notification-gateway';
 // import { shopifyIntegration } from './shopify-integration';
 // import { extractProductReviews } from './product-reviews-extractor';
 // import { generateStrictCSV } from './strict-csv-generator';
@@ -31,7 +31,12 @@ export class ProductManagementSystem {
     
     try {
       // Send start notification
-      await TelegramNotifications.extractionStarted(trendyolUrl);
+      await notificationGateway.send({
+        type: 'product_upload',
+        url: trendyolUrl,
+        payload: { action: 'extraction_started' },
+        priority: 'low'
+      });
       
       // Step 1: Extract product data
       console.log(`📥 Step 1: Extracting product data...`);
@@ -39,14 +44,26 @@ export class ProductManagementSystem {
       
       if (!extractionResult.success) {
         const error = new Error(`Product extraction failed: ${extractionResult.title}`);
-        await TelegramNotifications.extractionFailed(trendyolUrl, error);
+        await notificationGateway.send({
+          type: 'error',
+          url: trendyolUrl,
+          payload: { error: 'extraction_failed', details: error.message },
+          priority: 'high'
+        });
         throw error;
       }
       
       // Send extraction completion notification
-      await TelegramNotifications.extractionCompleted({
-        ...extractionResult,
-        url: trendyolUrl
+      await notificationGateway.send({
+        type: 'product_upload',
+        url: trendyolUrl,
+        payload: { 
+          action: 'extraction_completed',
+          title: extractionResult.title,
+          brand: extractionResult.brand,
+          price: extractionResult.price?.original
+        },
+        priority: 'medium'
       });
       
       // Step 2: Store in memory/database
@@ -54,7 +71,12 @@ export class ProductManagementSystem {
       const storedProduct = await this.storeProductInMemory(extractionResult, trendyolUrl);
       
       // Send database operation notification
-      await TelegramNotifications.databaseOperation('Product Storage', storedProduct);
+      await notificationGateway.send({
+        type: 'product_upload',
+        url: trendyolUrl,
+        payload: { action: 'database_stored', productId: storedProduct.id },
+        priority: 'low'
+      });
       
       // Step 3: Sync to Shopify
       console.log(`🛒 Step 3: Syncing to Shopify...`);
@@ -74,13 +96,16 @@ export class ProductManagementSystem {
       
       // Step 7: Send comprehensive completion notification
       console.log(`📢 Step 7: Sending notifications...`);
-      await TelegramNotifications.completeWorkflow({
-        productId: storedProduct.id,
-        shopifyProductId: shopifyResult.shopifyProductId,
-        reviewsCount: reviewsResult.reviewsCount,
-        csvGenerated: csvResult.success,
-        monitoring: monitoringResult.success,
-        title: storedProduct.title
+      await notificationGateway.send({
+        type: 'product_upload',
+        url: trendyolUrl,
+        payload: { 
+          action: 'workflow_completed',
+          productId: storedProduct.id,
+          shopifyId: shopifyResult.shopifyProductId,
+          reviewsCount: reviewsResult.reviewsCount
+        },
+        priority: 'high'
       });
       
       console.log(`✅ Product workflow completed successfully`);
@@ -100,7 +125,16 @@ export class ProductManagementSystem {
       console.error(`❌ Product workflow failed:`, error);
       
       // Send comprehensive error notification
-      await TelegramNotifications.systemError(error, 'Complete Product Workflow');
+      await notificationGateway.send({
+        type: 'error',
+        url: trendyolUrl,
+        payload: { 
+          error: 'workflow_failed',
+          location: 'ProductManagementSystem.processProductComplete',
+          details: error.message
+        },
+        priority: 'high'
+      });
       
       return {
         success: false,
