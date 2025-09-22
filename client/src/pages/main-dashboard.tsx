@@ -114,146 +114,156 @@ const MainDashboard = () => {
   };
 
   return (
-    <div className="min-h-screen bg-gray-50">
+    <div className="min-h-screen bg-gradient-to-br from-blue-50 via-indigo-50 to-purple-50">
       <div className="max-w-7xl mx-auto px-4 py-8">
         {/* Header */}
         <header className="text-center mb-12">
-          <div className="flex items-center justify-center gap-3 mb-4">
-            <Settings className="w-8 h-8 text-blue-600" />
-            <h1 className="text-3xl font-semibold text-gray-900">
-              Veri Transfer Programı
-            </h1>
-          </div>
-          <p className="text-gray-600 text-lg mb-6">
-            Ürün verilerini çıkarabileceğiniz ve analiz edebileceğiniz platformları seçin
-          </p>
-          <div className="inline-flex items-center gap-2 bg-white border rounded-lg px-4 py-2 shadow-sm">
-            <Clock className="w-4 h-4 text-gray-500" />
-            <RealTimeClock />
+          <div className="bg-white/80 backdrop-blur-sm border border-white/20 rounded-2xl p-8 shadow-lg">
+            <div className="flex items-center justify-center gap-3 mb-4">
+              <div className="w-12 h-12 bg-gradient-to-r from-blue-600 to-purple-600 rounded-xl flex items-center justify-center">
+                <Settings className="w-6 h-6 text-white" />
+              </div>
+              <h1 className="text-3xl font-semibold text-gray-900">
+                Veri Transfer Programı
+              </h1>
+            </div>
+            <p className="text-gray-600 text-lg mb-6">
+              Ürün verilerini çıkarabileceğiniz ve analiz edebileceğiniz platformları seçin
+            </p>
+            <div className="inline-flex items-center gap-2 bg-white border rounded-lg px-4 py-2 shadow-sm">
+              <Clock className="w-4 h-4 text-gray-500" />
+              <RealTimeClock />
+            </div>
           </div>
         </header>
 
         <main className="space-y-12">
           {/* Ana Platformlar */}
           <section>
-            <div className="text-center mb-8">
-              <h2 className="text-xl font-semibold text-gray-900 mb-2">
-                Ürün Çıkarma Platformları
-              </h2>
-              <p className="text-gray-600">
-                Ürün verilerini çıkarıp Shopify'a aktarabileceğiniz platformlar
-              </p>
-            </div>
-            
-            <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6">
-              {dataTransferOptions.slice(0, 4).map((option) => (
-                <div
-                  key={option.name}
-                  onClick={() => handleOptionClick(option)}
-                  className={`
-                    bg-white border border-gray-200 rounded-xl p-6 cursor-pointer
-                    hover:shadow-lg hover:border-gray-300 transition-all duration-200
-                    ${!option.available ? 'opacity-60 cursor-not-allowed' : 'hover:-translate-y-1'}
-                  `}
-                  data-testid={`platform-${option.name.toLowerCase()}`}
-                >
-                  <div className="flex items-center justify-center mb-4">
-                    <div className="w-12 h-12 bg-blue-50 rounded-lg flex items-center justify-center text-blue-600">
-                      {option.icon}
+            <div className="bg-white/80 backdrop-blur-sm border border-white/20 rounded-2xl p-8 shadow-lg">
+              <div className="text-center mb-8">
+                <h2 className="text-xl font-semibold text-gray-900 mb-2">
+                  Ürün Çıkarma Platformları
+                </h2>
+                <p className="text-gray-600">
+                  Ürün verilerini çıkarıp Shopify'a aktarabileceğiniz platformlar
+                </p>
+              </div>
+              
+              <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6">
+                {dataTransferOptions.slice(0, 4).map((option) => (
+                  <div
+                    key={option.name}
+                    onClick={() => handleOptionClick(option)}
+                    className={`
+                      bg-white border border-gray-200 rounded-xl p-6 cursor-pointer
+                      hover:shadow-lg hover:border-gray-300 transition-all duration-200
+                      ${!option.available ? 'opacity-60 cursor-not-allowed' : 'hover:-translate-y-1'}
+                    `}
+                    data-testid={`platform-${option.name.toLowerCase()}`}
+                  >
+                    <div className="flex items-center justify-center mb-4">
+                      <div className="w-12 h-12 bg-gradient-to-r from-blue-100 to-purple-100 rounded-lg flex items-center justify-center text-blue-600">
+                        {option.icon}
+                      </div>
                     </div>
+                    <h3 className="text-gray-900 font-medium text-center mb-2">
+                      {option.name}
+                    </h3>
+                    <p className="text-gray-600 text-sm text-center leading-relaxed">
+                      {option.description}
+                    </p>
+                    {option.available ? (
+                      <div className="text-center mt-4">
+                        <span className="text-xs bg-green-100 text-green-700 px-3 py-1 rounded-full font-medium">
+                          Aktif
+                        </span>
+                      </div>
+                    ) : (
+                      <div className="text-center mt-4">
+                        <span className="text-xs bg-gray-100 text-gray-600 px-3 py-1 rounded-full">
+                          Yakında
+                        </span>
+                      </div>
+                    )}
                   </div>
-                  <h3 className="text-gray-900 font-medium text-center mb-2">
-                    {option.name}
-                  </h3>
-                  <p className="text-gray-600 text-sm text-center leading-relaxed">
-                    {option.description}
-                  </p>
-                  {option.available ? (
-                    <div className="text-center mt-4">
-                      <span className="text-xs bg-green-100 text-green-700 px-3 py-1 rounded-full font-medium">
-                        Aktif
-                      </span>
-                    </div>
-                  ) : (
-                    <div className="text-center mt-4">
-                      <span className="text-xs bg-gray-100 text-gray-600 px-3 py-1 rounded-full">
-                        Yakında
-                      </span>
-                    </div>
-                  )}
-                </div>
-              ))}
+                ))}
+              </div>
             </div>
           </section>
 
           {/* Sistem Araçları */}
           <section>
-            <div className="text-center mb-8">
-              <h2 className="text-xl font-semibold text-gray-900 mb-2">
-                Sistem Yönetimi ve Analiz
-              </h2>
-              <p className="text-gray-600">
-                Shopify'a aktarılan ürünlerin analizi, takibi ve yönetimi
-              </p>
-            </div>
-            
-            <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6">
-              {systemControlOptions.map((option) => (
-                <div
-                  key={option.name}
-                  onClick={() => handleOptionClick(option)}
-                  className="bg-white border border-gray-200 rounded-xl p-6 cursor-pointer hover:shadow-lg hover:border-gray-300 hover:-translate-y-1 transition-all duration-200"
-                  data-testid={`system-${option.name.toLowerCase().replace(/\s+/g, '-')}`}
-                >
-                  <div className="flex items-center justify-center mb-4">
-                    <div className="w-12 h-12 bg-indigo-50 rounded-lg flex items-center justify-center text-indigo-600">
-                      {option.icon}
+            <div className="bg-white/80 backdrop-blur-sm border border-white/20 rounded-2xl p-8 shadow-lg">
+              <div className="text-center mb-8">
+                <h2 className="text-xl font-semibold text-gray-900 mb-2">
+                  Sistem Yönetimi ve Analiz
+                </h2>
+                <p className="text-gray-600">
+                  Shopify'a aktarılan ürünlerin analizi, takibi ve yönetimi
+                </p>
+              </div>
+              
+              <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6">
+                {systemControlOptions.map((option) => (
+                  <div
+                    key={option.name}
+                    onClick={() => handleOptionClick(option)}
+                    className="bg-white border border-gray-200 rounded-xl p-6 cursor-pointer hover:shadow-lg hover:border-gray-300 hover:-translate-y-1 transition-all duration-200"
+                    data-testid={`system-${option.name.toLowerCase().replace(/\s+/g, '-')}`}
+                  >
+                    <div className="flex items-center justify-center mb-4">
+                      <div className="w-12 h-12 bg-gradient-to-r from-indigo-100 to-purple-100 rounded-lg flex items-center justify-center text-indigo-600">
+                        {option.icon}
+                      </div>
+                    </div>
+                    <h3 className="text-gray-900 font-medium text-center mb-2 text-sm">
+                      {option.name}
+                    </h3>
+                    <p className="text-gray-600 text-sm text-center leading-relaxed">
+                      {option.description}
+                    </p>
+                    <div className="text-center mt-4">
+                      <span className="text-xs bg-blue-100 text-blue-700 px-3 py-1 rounded-full font-medium">
+                        Aktif
+                      </span>
                     </div>
                   </div>
-                  <h3 className="text-gray-900 font-medium text-center mb-2 text-sm">
-                    {option.name}
-                  </h3>
-                  <p className="text-gray-600 text-sm text-center leading-relaxed">
-                    {option.description}
-                  </p>
-                  <div className="text-center mt-4">
-                    <span className="text-xs bg-blue-100 text-blue-700 px-3 py-1 rounded-full font-medium">
-                      Aktif
-                    </span>
-                  </div>
-                </div>
-              ))}
+                ))}
+              </div>
             </div>
           </section>
 
           {/* Hızlı Erişim */}
-          <section className="bg-white border border-gray-200 rounded-xl p-8">
-            <h3 className="text-lg font-semibold text-gray-900 mb-6 text-center">
-              Hızlı Erişim
-            </h3>
-            
-            <div className="flex flex-wrap justify-center gap-3">
-              <button
-                onClick={() => setLocation('/scraper/trendyol')}
-                className="bg-blue-600 hover:bg-blue-700 text-white px-6 py-2.5 rounded-lg text-sm font-medium transition-colors duration-200"
-                data-testid="quick-access-trendyol"
-              >
-                Trendyol
-              </button>
-              <button
-                onClick={() => setLocation('/data-analysis')}
-                className="bg-indigo-600 hover:bg-indigo-700 text-white px-6 py-2.5 rounded-lg text-sm font-medium transition-colors duration-200"
-                data-testid="quick-access-data-analysis"
-              >
-                Veri Analizi
-              </button>
-              <button
-                onClick={() => setLocation('/system-status')}
-                className="bg-green-600 hover:bg-green-700 text-white px-6 py-2.5 rounded-lg text-sm font-medium transition-colors duration-200"
-                data-testid="quick-access-system-status"
-              >
-                Sistem Durumu
-              </button>
+          <section>
+            <div className="bg-white/80 backdrop-blur-sm border border-white/20 rounded-2xl p-8 shadow-lg">
+              <h3 className="text-lg font-semibold text-gray-900 mb-6 text-center">
+                Hızlı Erişim
+              </h3>
+              
+              <div className="flex flex-wrap justify-center gap-3">
+                <button
+                  onClick={() => setLocation('/scraper/trendyol')}
+                  className="bg-gradient-to-r from-blue-600 to-blue-700 hover:from-blue-700 hover:to-blue-800 text-white px-6 py-2.5 rounded-lg text-sm font-medium transition-all duration-200 shadow-md hover:shadow-lg"
+                  data-testid="quick-access-trendyol"
+                >
+                  Trendyol
+                </button>
+                <button
+                  onClick={() => setLocation('/data-analysis')}
+                  className="bg-gradient-to-r from-indigo-600 to-indigo-700 hover:from-indigo-700 hover:to-indigo-800 text-white px-6 py-2.5 rounded-lg text-sm font-medium transition-all duration-200 shadow-md hover:shadow-lg"
+                  data-testid="quick-access-data-analysis"
+                >
+                  Veri Analizi
+                </button>
+                <button
+                  onClick={() => setLocation('/system-status')}
+                  className="bg-gradient-to-r from-green-600 to-green-700 hover:from-green-700 hover:to-green-800 text-white px-6 py-2.5 rounded-lg text-sm font-medium transition-all duration-200 shadow-md hover:shadow-lg"
+                  data-testid="quick-access-system-status"
+                >
+                  Sistem Durumu
+                </button>
+              </div>
             </div>
           </section>
         </main>
