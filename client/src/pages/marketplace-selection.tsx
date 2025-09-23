@@ -127,132 +127,157 @@ const MarketplaceSelection = () => {
         </div>
       </div>
 
-      {/* Main Content */}
-      <div className="max-w-7xl mx-auto px-6 py-12 space-y-16">
-        
-        {/* Ürün Çıkarma Platformları */}
-        <motion.section
-          initial={{ opacity: 0, y: 20 }}
-          animate={{ opacity: 1, y: 0 }}
-          transition={{ duration: 0.5, delay: 0.1 }}
-        >
-          <div className="text-center mb-12">
-            <h2 className="text-3xl font-black text-white mb-4">ÜRÜN ÇIKARMA PLATFORMLARI</h2>
-            <p className="text-white font-bold text-lg">Ürün verilerini çıkarıp Shopify'a aktarabileceğiniz platformlar</p>
-          </div>
+      {/* Main Content - 3 Column Layout */}
+      <div className="max-w-7xl mx-auto px-6 py-12">
+        <div className="grid grid-cols-1 lg:grid-cols-3 gap-8">
+          
+          {/* Column 1: Ürün Çıkarma Platformları */}
+          <motion.div
+            initial={{ opacity: 0, x: -20 }}
+            animate={{ opacity: 1, x: 0 }}
+            transition={{ duration: 0.5, delay: 0.1 }}
+            className="business-card p-6"
+          >
+            <div className="text-center mb-8">
+              <h2 className="text-2xl font-black text-white mb-2">ÜRÜN ÇIKARMA PLATFORMLARI</h2>
+              <p className="text-white font-bold text-sm">Ürün verilerini çıkarıp Shopify'a aktarabileceğiniz platformlar</p>
+            </div>
 
-          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-8">
-            {extractionPlatforms.map((platform, index) => (
-              <motion.div
-                key={platform.name}
-                initial={{ opacity: 0, y: 20 }}
+            <div className="space-y-4">
+              {extractionPlatforms.map((platform, index) => (
+                <motion.div
+                  key={platform.name}
+                  initial={{ opacity: 0, y: 10 }}
+                  animate={{ opacity: 1, y: 0 }}
+                  transition={{ duration: 0.3, delay: 0.1 + index * 0.05 }}
+                  className={`
+                    business-card p-4 cursor-pointer group card-hover
+                    ${!platform.available ? 'opacity-60' : ''}
+                  `}
+                  onClick={() => platform.available && setLocation(platform.path)}
+                >
+                  <div className="flex items-center gap-4">
+                    <div className="w-12 h-12 business-button rounded-xl flex items-center justify-center group-hover:scale-110 transition-transform duration-300">
+                      {platform.icon}
+                    </div>
+                    <div className="flex-1">
+                      <h3 className="text-lg font-black text-white mb-1">{platform.name}</h3>
+                      <p className="text-white font-bold text-xs mb-2">{platform.description}</p>
+                      <div className="flex items-center justify-between">
+                        {platform.available ? (
+                          <span className="text-white bg-green-600 px-2 py-1 rounded-full text-xs font-black">AKTİF</span>
+                        ) : (
+                          <span className="text-white bg-yellow-600 px-2 py-1 rounded-full text-xs font-black">YAKINDA</span>
+                        )}
+                        <ArrowRight className="w-4 h-4 text-white group-hover:translate-x-1 transition-all duration-300" />
+                      </div>
+                    </div>
+                  </div>
+                </motion.div>
+              ))}
+            </div>
+          </motion.div>
+
+          {/* Column 2: Sistem Analizi */}
+          <motion.div
+            initial={{ opacity: 0, y: 20 }}
+            animate={{ opacity: 1, y: 0 }}
+            transition={{ duration: 0.5, delay: 0.2 }}
+            className="business-card p-6"
+          >
+            <div className="text-center mb-8">
+              <h2 className="text-2xl font-black text-white mb-2">SİSTEM ANALİZ ALANI</h2>
+              <p className="text-white font-bold text-sm">Shopify'a aktarılan ürünlerin analizi, takibi ve yönetimi</p>
+            </div>
+
+            <div className="space-y-4">
+              {systemManagement.map((tool, index) => (
+                <motion.div
+                  key={tool.name}
+                  initial={{ opacity: 0, y: 10 }}
+                  animate={{ opacity: 1, y: 0 }}
+                  transition={{ duration: 0.3, delay: 0.2 + index * 0.05 }}
+                  className="business-card p-4 cursor-pointer group card-hover"
+                  onClick={() => setLocation(tool.path)}
+                >
+                  <div className="flex items-center gap-4">
+                    <div className="w-12 h-12 business-button rounded-xl flex items-center justify-center group-hover:scale-110 transition-transform duration-300">
+                      {tool.icon}
+                    </div>
+                    <div className="flex-1">
+                      <h3 className="text-lg font-black text-white mb-1">{tool.name}</h3>
+                      <p className="text-white font-bold text-xs mb-2">{tool.description}</p>
+                      <div className="flex items-center justify-between">
+                        <span className="text-white bg-green-600 px-2 py-1 rounded-full text-xs font-black">AKTİF</span>
+                        <ArrowRight className="w-4 h-4 text-white group-hover:translate-x-1 transition-all duration-300" />
+                      </div>
+                    </div>
+                  </div>
+                </motion.div>
+              ))}
+            </div>
+          </motion.div>
+
+          {/* Column 3: Hızlı Erişim */}
+          <motion.div
+            initial={{ opacity: 0, x: 20 }}
+            animate={{ opacity: 1, x: 0 }}
+            transition={{ duration: 0.5, delay: 0.3 }}
+            className="business-card p-6"
+          >
+            <div className="text-center mb-8">
+              <h2 className="text-2xl font-black text-white mb-2">HIZLI ERİŞİM ALANI</h2>
+              <p className="text-white font-bold text-sm">Sık kullanılan sistem araçları</p>
+            </div>
+
+            <div className="space-y-4">
+              <motion.button
+                initial={{ opacity: 0, y: 10 }}
                 animate={{ opacity: 1, y: 0 }}
-                transition={{ duration: 0.5, delay: 0.1 + index * 0.1 }}
-                className={`
-                  business-card p-8 cursor-pointer group card-hover
-                  ${!platform.available ? 'opacity-60' : ''}
-                `}
-                onClick={() => platform.available && setLocation(platform.path)}
+                transition={{ duration: 0.3, delay: 0.3 }}
+                onClick={() => setLocation("/replit-agent")}
+                className="w-full business-button p-4 rounded-xl text-white hover:scale-105 transition-all duration-300 flex items-center gap-4"
               >
-                <div className="w-20 h-20 business-button rounded-2xl flex items-center justify-center mb-6 group-hover:scale-110 transition-transform duration-300">
-                  {platform.icon}
-                </div>
-                <h3 className="text-2xl font-black text-white mb-3">{platform.name}</h3>
-                <p className="text-white font-bold text-sm mb-6">{platform.description}</p>
-                <div className="flex items-center justify-between">
-                  {platform.available ? (
-                    <span className="text-white bg-green-600 px-3 py-1 rounded-full text-sm font-black">AKTİF</span>
-                  ) : (
-                    <span className="text-white bg-yellow-600 px-3 py-1 rounded-full text-sm font-black">YAKINDA</span>
-                  )}
-                  <ArrowRight className="w-5 h-5 text-white group-hover:translate-x-1 transition-all duration-300" />
-                </div>
-              </motion.div>
-            ))}
-          </div>
-        </motion.section>
+                <Bot className="w-6 h-6" />
+                <span className="font-black text-sm">REPLIT AGENT</span>
+              </motion.button>
 
-        {/* Sistem Yönetimi ve Analiz */}
-        <motion.section
-          initial={{ opacity: 0, y: 20 }}
-          animate={{ opacity: 1, y: 0 }}
-          transition={{ duration: 0.5, delay: 0.3 }}
-        >
-          <div className="text-center mb-12">
-            <h2 className="text-3xl font-black text-white mb-4">SİSTEM YÖNETİMİ VE ANALİZ</h2>
-            <p className="text-white font-bold text-lg">Shopify'a aktarılan ürünlerin analizi, takibi ve yönetimi</p>
-          </div>
-
-          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-8">
-            {systemManagement.map((tool, index) => (
-              <motion.div
-                key={tool.name}
-                initial={{ opacity: 0, y: 20 }}
+              <motion.button
+                initial={{ opacity: 0, y: 10 }}
                 animate={{ opacity: 1, y: 0 }}
-                transition={{ duration: 0.5, delay: 0.3 + index * 0.1 }}
-                className="business-card p-8 cursor-pointer group card-hover"
-                onClick={() => setLocation(tool.path)}
+                transition={{ duration: 0.3, delay: 0.35 }}
+                onClick={() => setLocation("/sos-control")}
+                className="w-full business-button p-4 rounded-xl text-white hover:scale-105 transition-all duration-300 flex items-center gap-4"
               >
-                <div className="w-20 h-20 business-button rounded-2xl flex items-center justify-center mb-6 group-hover:scale-110 transition-transform duration-300">
-                  {tool.icon}
-                </div>
-                <h3 className="text-2xl font-black text-white mb-3">{tool.name}</h3>
-                <p className="text-white font-bold text-sm mb-6">{tool.description}</p>
-                <div className="flex items-center justify-between">
-                  <span className="text-white bg-green-600 px-3 py-1 rounded-full text-sm font-black">AKTİF</span>
-                  <ArrowRight className="w-5 h-5 text-white group-hover:translate-x-1 transition-all duration-300" />
-                </div>
-              </motion.div>
-            ))}
-          </div>
-        </motion.section>
+                <Shield className="w-6 h-6" />
+                <span className="font-black text-sm">S.O.S KONTROL</span>
+              </motion.button>
 
-        {/* Hızlı Erişim */}
-        <motion.section
-          initial={{ opacity: 0, y: 20 }}
-          animate={{ opacity: 1, y: 0 }}
-          transition={{ duration: 0.5, delay: 0.5 }}
-          className="business-card p-8"
-        >
-          <div className="text-center mb-8">
-            <h3 className="text-3xl font-black text-white mb-3">HIZLI ERİŞİM</h3>
-            <p className="text-white font-bold text-lg">Sık kullanılan sistem araçları</p>
-          </div>
+              <motion.button
+                initial={{ opacity: 0, y: 10 }}
+                animate={{ opacity: 1, y: 0 }}
+                transition={{ duration: 0.3, delay: 0.4 }}
+                onClick={() => setLocation("/scheduler")}
+                className="w-full business-button p-4 rounded-xl text-white hover:scale-105 transition-all duration-300 flex items-center gap-4"
+              >
+                <Activity className="w-6 h-6" />
+                <span className="font-black text-sm">ZAMANLI GÖREVLER</span>
+              </motion.button>
 
-          <div className="grid grid-cols-1 md:grid-cols-4 gap-6">
-            <button
-              onClick={() => setLocation("/replit-agent")}
-              className="business-button p-6 rounded-2xl text-white hover:scale-105 transition-all duration-300 flex items-center gap-4"
-            >
-              <Bot className="w-8 h-8" />
-              <span className="font-black text-lg">REPLIT AGENT</span>
-            </button>
-
-            <button
-              onClick={() => setLocation("/sos-control")}
-              className="business-button p-6 rounded-2xl text-white hover:scale-105 transition-all duration-300 flex items-center gap-4"
-            >
-              <Shield className="w-8 h-8" />
-              <span className="font-black text-lg">S.O.S KONTROL</span>
-            </button>
-
-            <button
-              onClick={() => setLocation("/scheduler")}
-              className="business-button p-6 rounded-2xl text-white hover:scale-105 transition-all duration-300 flex items-center gap-4"
-            >
-              <Activity className="w-8 h-8" />
-              <span className="font-black text-lg">ZAMANLI GÖREVLER</span>
-            </button>
-
-            <button
-              onClick={() => setLocation("/shopify-products")}
-              className="business-button p-6 rounded-2xl text-white hover:scale-105 transition-all duration-300 flex items-center gap-4"
-            >
-              <Database className="w-8 h-8" />
-              <span className="font-black text-lg">SHOPIFY ÜRÜNLERİ</span>
-            </button>
-          </div>
-        </motion.section>
+              <motion.button
+                initial={{ opacity: 0, y: 10 }}
+                animate={{ opacity: 1, y: 0 }}
+                transition={{ duration: 0.3, delay: 0.45 }}
+                onClick={() => setLocation("/shopify-products")}
+                className="w-full business-button p-4 rounded-xl text-white hover:scale-105 transition-all duration-300 flex items-center gap-4"
+              >
+                <Database className="w-6 h-6" />
+                <span className="font-black text-sm">SHOPIFY ÜRÜNLERİ</span>
+              </motion.button>
+            </div>
+          </motion.div>
+          
+        </div>
       </div>
     </div>
   );
