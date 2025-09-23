@@ -92,6 +92,8 @@ export const monitoringSchedules = pgTable('monitoring_schedules', {
   productId: integer('product_id').notNull().references(() => products.id, { onDelete: 'cascade' }),
   isActive: boolean('is_active').notNull().default(true),
   checkInterval: integer('check_interval').notNull().default(300), // saniye cinsinden (5 dakika)
+  scheduleType: text('schedule_type').notNull().default('interval'), // 'interval' | 'fixed_hours'
+  hoursOfDay: jsonb('hours_of_day').default([]), // [9, 12, 18] gibi saatler
   lastCheckAt: timestamp('last_check_at'),
   nextCheckAt: timestamp('next_check_at'),
   consecutiveFailures: integer('consecutive_failures').notNull().default(0),
