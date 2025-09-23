@@ -45,10 +45,18 @@ import { scrapeMultipleUrls } from './multi-url-scraper';
 import { generateMultiVariantShopifyCSV } from './multi-variant-csv-generator';
 import { uploadProductToShopify, testShopifyConnection } from './shopify-api-uploader';
 import { uploadMultiUrlProductToShopify } from './multi-url-shopify-uploader';
+import { v4 as uuidv4 } from 'uuid';
 import { eq, desc, or, and, isNotNull, inArray } from 'drizzle-orm';
 import axios from 'axios';
 import { urlTrackingService } from './url-tracking-service';
-import { urlTracking } from '@shared/schema';
+import { 
+  urlTracking, 
+  products, 
+  productVariants, 
+  priceHistory, 
+  stockHistory, 
+  monitoringSchedules 
+} from '@shared/schema';
 import { savedUrlsManager } from './saved-urls-manager';
 import { shopifyProductsManager } from './shopify-products-manager';
 import { shopifyApiService } from './shopify-api-service';
@@ -64,6 +72,135 @@ import { trendyolDefenseSystem } from './trendyol-defense-system';
 import { memoryManager } from './memory-manager';
 import { notificationGateway } from './notification-gateway';
 import { setupAdminMemoryRoutes } from './admin-memory-routes';
+
+// Helper function to register product for automated tracking
+async function registerProductForTracking(
+  shopifyProductId: string,
+  sourceUrl: string,
+  productData: any,
+  variants: any[] = []
+) {
+  try {
+    console.log('🎯 TRACKING REGISTRATION - Starting for:', shopifyProductId);
+    
+    // 1. Generate unique tracking ID
+    const uniqueTrackingId = uuidv4();
+    console.log('🆔 Generated tracking ID:', uniqueTrackingId);
+    
+    // 2. Insert product into database
+    const insertedProduct = await db.insert(products).values({
+      uniqueTrackingId,
+      trendyolUrl: sourceUrl,
+      trendyolProductId: productData?.trendyolProductId || extractProductIdFromUrl(sourceUrl),
+      shopifyProductId,
+      title: productData?.title || 'Shopify Product',
+      brand: productData?.brand || '',
+      description: productData?.description || '',
+      category: productData?.category || '',
+      images: productData?.images || [],
+      features: productData?.features || {},
+      colorOptions: productData?.colorOptions || [],
+      sizeOptions: productData?.sizeOptions || [],
+      originalPrice: productData?.originalPrice || '0',
+      currentPrice: productData?.currentPrice || '0',
+      stockStatus: 'in_stock',
+      sourceUrl: sourceUrl,
+      sourcePlatform: sourceUrl.includes('trendyol') ? 'trendyol' : 'arcelik',
+      isActive: true,
+      profitMargin: '15.00',
+      syncStatus: 'synced'
+    }).returning();
+    
+    const productId = insertedProduct[0].id;
+    console.log('✅ Product registered in DB:', productId);
+    
+    // 3. Insert variants
+    if (variants.length > 0) {
+      for (const variant of variants) {
+        await db.insert(productVariants).values({
+          productId,
+          color: variant.color || 'Varsayılan',
+          size: variant.size || 'Tek Beden',
+          sku: variant.sku || '',
+          trendyolPrice: variant.price || '0',
+          shopifyPrice: variant.shopifyPrice || variant.price || '0',
+          stockCount: variant.stockCount || 0,
+          inStock: variant.inStock !== false
+        });
+        
+        console.log(`✅ Variant registered: ${variant.color} - ${variant.size}`);
+      }
+    } else {
+      // Default variant if no variants provided
+      await db.insert(productVariants).values({
+        productId,
+        color: 'Varsayılan',
+        size: 'Tek Beden',
+        sku: '',
+        trendyolPrice: productData?.currentPrice || '0',
+        shopifyPrice: productData?.currentPrice || '0',
+        stockCount: 100,
+        inStock: true
+      });
+      console.log('✅ Default variant registered');
+    }
+    
+    // 4. Create monitoring schedule
+    const nextCheckAt = new Date(Date.now() + 5 * 60 * 1000); // 5 minutes from now
+    await db.insert(monitoringSchedules).values({
+      productId,
+      isActive: true,
+      checkInterval: 300, // 5 minutes
+      scheduleType: 'interval',
+      hoursOfDay: [],
+      nextCheckAt,
+      trackingEnabled: true,
+      realTimeTracking: false,
+      notificationSettings: {
+        priceChangeEnabled: true,
+        stockChangeEnabled: true,
+        telegramEnabled: true
+      }
+    });
+    
+    console.log('✅ Monitoring schedule created - next check in 5 minutes');
+    
+    // 5. Add to URL tracking service
+    try {
+      await urlTrackingService.addUrlToTracking(sourceUrl, 300, 'shopify-upload-auto');
+      console.log('✅ URL added to tracking service');
+    } catch (urlError) {
+      console.warn('⚠️ URL tracking service error (non-critical):', urlError);
+    }
+    
+    console.log('🎯 TRACKING REGISTRATION COMPLETED for:', uniqueTrackingId);
+    
+    return {
+      success: true,
+      trackingId: uniqueTrackingId,
+      productId,
+      message: 'Product successfully registered for automated tracking'
+    };
+    
+  } catch (error) {
+    console.error('❌ TRACKING REGISTRATION FAILED:', error);
+    return {
+      success: false,
+      error: (error as Error).message,
+      message: 'Failed to register product for tracking'
+    };
+  }
+}
+
+// Helper function to extract product ID from URL
+function extractProductIdFromUrl(url: string): string {
+  try {
+    const match = url.match(/-p-(\d+)/);
+    return match ? match[1] : url.split('/').pop() || '';
+  } catch {
+    return '';
+  }
+}
 
 // Import emergency parser function for cloudflare bypass
 function parseProductFromHTML(html: string, source: string): any {
@@ -2664,10 +2801,29 @@ ${(result.title || 'product').toLowerCase().replace(/[^a-z0-9]/g, '-')},${result
         const uploadResult = await uploadProductToShopify(csvContent, productTitle);
         
         if (uploadResult.success) {
+          // Register product for automated tracking
+          let trackingResult = null;
+          try {
+            // Extract source URL from request if available
+            const sourceUrl = req.body.sourceUrl || req.body.trendyolUrl || '';
+            if (sourceUrl) {
+              trackingResult = await registerProductForTracking(
+                uploadResult.productId,
+                sourceUrl,
+                req.body.productData || { title: productTitle },
+                req.body.variants || []
+              );
+              console.log('🎯 Tracking registration result:', trackingResult.success ? 'SUCCESS' : 'FAILED');
+            }
+          } catch (trackingError) {
+            console.warn('⚠️ Tracking registration failed (non-critical):', trackingError);
+          }
+          
           return res.json({
             success: true,
             productId: uploadResult.productId,
-            message: uploadResult.message
+            message: uploadResult.message,
+            tracking: trackingResult
           });
         } else {
           return res.status(400).json({
@@ -2686,6 +2842,31 @@ ${(result.title || 'product').toLowerCase().replace(/[^a-z0-9]/g, '-')},${result
         
         // Direkt multi-URL uploader kullan
         const uploadResult = await uploadMultiUrlProductToShopify(productData, productTitle || productData.title);
+        
+        // Register product for automated tracking if upload successful
+        if (uploadResult.success && uploadResult.productId) {
+          let trackingResult = null;
+          try {
+            const sourceUrl = productData.sourceUrl || productData.trendyolUrl || '';
+            if (sourceUrl) {
+              trackingResult = await registerProductForTracking(
+                uploadResult.productId,
+                sourceUrl,
+                productData,
+                productData.variants?.allVariants || []
+              );
+              console.log('🎯 Multi-URL Tracking registration result:', trackingResult.success ? 'SUCCESS' : 'FAILED');
+            }
+          } catch (trackingError) {
+            console.warn('⚠️ Multi-URL Tracking registration failed (non-critical):', trackingError);
+          }
+          
+          return res.json({
+            ...uploadResult,
+            tracking: trackingResult
+          });
+        }
+        
         return res.json(uploadResult);
       }
 
@@ -2722,10 +2903,28 @@ ${(result.title || 'product').toLowerCase().replace(/[^a-z0-9]/g, '-')},${result
       const uploadResult = await uploadProductToShopify(csvContent, productTitle);
       
       if (uploadResult.success) {
+        // Register product for automated tracking
+        let trackingResult = null;
+        try {
+          const sourceUrl = req.body.sourceUrl || req.body.trendyolUrl || '';
+          if (sourceUrl) {
+            trackingResult = await registerProductForTracking(
+              uploadResult.productId,
+              sourceUrl,
+              req.body.productData || { title: productTitle },
+              req.body.variants || []
+            );
+            console.log('🎯 CSV Tracking registration result:', trackingResult.success ? 'SUCCESS' : 'FAILED');
+          }
+        } catch (trackingError) {
+          console.warn('⚠️ CSV Tracking registration failed (non-critical):', trackingError);
+        }
+        
         return res.json({
           success: true,
           shopifyId: uploadResult.productId,
-          message: uploadResult.message
+          message: uploadResult.message,
+          tracking: trackingResult
         });
       } else {
         return res.status(400).json({
