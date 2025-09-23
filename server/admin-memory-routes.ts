@@ -1,6 +1,17 @@
 import type { Express } from "express";
 import { memoryManager } from './memory-manager';
 import { notificationGateway } from './notification-gateway';
+import { db } from './db';
+import { 
+  products, 
+  productVariants, 
+  priceHistory, 
+  stockHistory, 
+  shopifySyncLogs, 
+  monitoringSchedules, 
+  shopifyMemoryProducts, 
+  urlTracking 
+} from '@shared/schema';
 
 export function setupAdminMemoryRoutes(app: Express) {
   // Memory management endpoints
@@ -138,6 +149,106 @@ export function setupAdminMemoryRoutes(app: Express) {
       res.status(500).json({
         success: false,
         error: (error as Error).message
+      });
+    }
+  });
+
+  // COMPLETE MEMORY RESET - Hafıza sistemini tamamen temizle
+  app.post('/admin/memory/reset-complete', async (req, res) => {
+    try {
+      const { confirmReset = false } = req.body;
+      
+      if (!confirmReset) {
+        return res.status(400).json({
+          success: false,
+          error: 'Confirmation required. Set confirmReset: true to proceed.',
+          warning: 'This will clear ALL memory cache, database tracking data, and monitoring schedules.'
+        });
+      }
+
+      console.log('🔥 COMPLETE MEMORY RESET - Starting comprehensive cleanup...');
+      
+      // 1. Clear all memory cache
+      memoryManager.purgeAll();
+      console.log('✅ Memory cache purged');
+      
+      // 2. Clear notification cache
+      notificationGateway.clearNotificationCache();
+      console.log('✅ Notification cache cleared');
+      
+      // 3. Clear database tracking data (development only)
+      const dbResults = {
+        urlTracking: 0,
+        monitoringSchedules: 0,
+        shopifySyncLogs: 0,
+        priceHistory: 0,
+        stockHistory: 0,
+        productVariants: 0,
+        shopifyMemoryProducts: 0,
+        products: 0
+      };
+
+      try {
+        // Clear URL tracking data
+        const urlTrackingResult = await db.delete(urlTracking);
+        dbResults.urlTracking = urlTrackingResult.rowCount || 0;
+        
+        // Clear monitoring schedules
+        const monitoringResult = await db.delete(monitoringSchedules);
+        dbResults.monitoringSchedules = monitoringResult.rowCount || 0;
+        
+        // Clear sync logs
+        const syncLogsResult = await db.delete(shopifySyncLogs);
+        dbResults.shopifySyncLogs = syncLogsResult.rowCount || 0;
+        
+        // Clear price history
+        const priceHistoryResult = await db.delete(priceHistory);
+        dbResults.priceHistory = priceHistoryResult.rowCount || 0;
+        
+        // Clear stock history
+        const stockHistoryResult = await db.delete(stockHistory);
+        dbResults.stockHistory = stockHistoryResult.rowCount || 0;
+        
+        // Clear product variants
+        const variantsResult = await db.delete(productVariants);
+        dbResults.productVariants = variantsResult.rowCount || 0;
+        
+        // Clear Shopify memory products
+        const shopifyMemoryResult = await db.delete(shopifyMemoryProducts);
+        dbResults.shopifyMemoryProducts = shopifyMemoryResult.rowCount || 0;
+        
+        // Clear products (main table)
+        const productsResult = await db.delete(products);
+        dbResults.products = productsResult.rowCount || 0;
+        
+        console.log('✅ Database tracking data cleared:', dbResults);
+      } catch (dbError) {
+        console.error('⚠️ Database cleanup error:', dbError);
+        // Continue with response even if DB cleanup fails
+      }
+      
+      const totalCleared = Object.values(dbResults).reduce((sum, count) => sum + count, 0);
+      
+      res.json({
+        success: true,
+        message: `Complete memory reset executed successfully`,
+        details: {
+          memoryCache: 'purged',
+          notificationCache: 'cleared',
+          databaseRecords: dbResults,
+          totalDatabaseRecords: totalCleared
+        },
+        timestamp: new Date().toISOString()
+      });
+      
+      console.log(`🔥 COMPLETE MEMORY RESET FINISHED - ${totalCleared} database records cleared`);
+      
+    } catch (error) {
+      console.error('❌ Complete memory reset failed:', error);
+      res.status(500).json({
+        success: false,
+        error: (error as Error).message,
+        timestamp: new Date().toISOString()
       });
     }
   });

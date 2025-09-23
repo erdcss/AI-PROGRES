@@ -6,6 +6,7 @@ import { z } from 'zod';
 // Products table - Ana ürün bilgileri
 export const products = pgTable('products', {
   id: serial('id').primaryKey(),
+  uniqueTrackingId: text('unique_tracking_id').unique(), // Benzersiz takip ID'si
   trendyolUrl: text('trendyol_url').notNull().unique(),
   trendyolProductId: text('trendyol_product_id').notNull(),
   shopifyProductId: text('shopify_product_id'),
