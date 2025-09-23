@@ -34,6 +34,7 @@ import MemoryTrackingPage from "@/pages/MemoryTrackingPage";
 import SavedUrlsPage from "@/pages/SavedUrlsPage";
 import ShopifyTrackingPage from "@/pages/ShopifyTrackingPage";
 import ShopifyProductsPage from './pages/shopify-products';
+import TrackingDashboard from "@/pages/tracking-dashboard";
 import { TBotAssistant } from "@/components/TBotAssistant";
 
 // Login component with password protection
@@ -311,6 +312,11 @@ function Router() {
       <Route path="/memory-tracking">
         <PageTransition>
           <MemoryTrackingPage />
+        </PageTransition>
+      </Route>
+      <Route path="/tracking-dashboard">
+        <PageTransition>
+          <TrackingDashboard />
         </PageTransition>
       </Route>
       <Route path="/arcelik">

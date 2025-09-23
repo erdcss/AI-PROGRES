@@ -4790,6 +4790,214 @@ ${(result.title || 'product').toLowerCase().replace(/[^a-z0-9]/g, '-')},${result
     }
   })();
 
+  // ================================
+  // AUTOMATED TRACKING DASHBOARD API
+  // ================================
+
+  // Get comprehensive tracking system status
+  app.get('/api/tracking/dashboard-stats', async (req, res) => {
+    try {
+      // 1. URL Tracking Statistics
+      const urlTrackingStats = await urlTrackingService.getTrackingStatus();
+      
+      // 2. Shopify Products Statistics  
+      const shopifyStats = await shopifyApiService.getMemoryStats();
+      
+      // 3. Monitoring Schedules Statistics
+      const [totalSchedules] = await db
+        .select({ count: db.count() })
+        .from(monitoringSchedules);
+        
+      const [activeSchedules] = await db
+        .select({ count: db.count() })
+        .from(monitoringSchedules)
+        .where(and(
+          eq(monitoringSchedules.isActive, true),
+          eq(monitoringSchedules.trackingEnabled, true)
+        ));
+
+      // 4. Recent Product Updates (last 24 hours)
+      const twentyFourHoursAgo = new Date(Date.now() - 24 * 60 * 60 * 1000);
+      const recentUpdates = await db
+        .select({
+          id: products.id,
+          title: products.title,
+          sourceUrl: products.sourceUrl,
+          updatedAt: products.updatedAt,
+          uniqueTrackingId: products.uniqueTrackingId
+        })
+        .from(products)
+        .where(and(
+          isNotNull(products.updatedAt),
+          db.gte(products.updatedAt, twentyFourHoursAgo)
+        ))
+        .orderBy(desc(products.updatedAt))
+        .limit(10);
+
+      // 5. Scheduler Status
+      const schedulerStatus = getSchedulerStatus();
+
+      const dashboardData = {
+        success: true,
+        stats: {
+          // URL Tracking
+          urlTracking: {
+            totalUrls: urlTrackingStats.totalUrls || 0,
+            activeTracking: urlTrackingStats.activeTracking || 0,
+            errorUrls: urlTrackingStats.errors || 0,
+            lastHourChecks: urlTrackingStats.lastHourChecks || 0
+          },
+          
+          // Shopify Integration
+          shopify: {
+            totalProducts: shopifyStats.stats?.totalProducts || 0,
+            activeProducts: shopifyStats.stats?.activeProducts || 0,
+            trackedProducts: shopifyStats.stats?.trackedProducts || 0,
+            lastSyncedAt: shopifyStats.stats?.lastSyncedAt
+          },
+          
+          // Monitoring Schedules
+          schedules: {
+            total: totalSchedules.count || 0,
+            active: activeSchedules.count || 0,
+            types: {
+              interval: 0, // Will be calculated
+              fixedHours: 0 // Will be calculated
+            }
+          },
+          
+          // Recent Activity
+          recentActivity: {
+            last24Hours: recentUpdates.length,
+            recentUpdates: recentUpdates.slice(0, 5).map(update => ({
+              title: update.title,
+              trackingId: update.uniqueTrackingId,
+              updatedAt: update.updatedAt,
+              sourceUrl: update.sourceUrl
+            }))
+          },
+          
+          // System Status
+          system: {
+            scheduler: {
+              totalTasks: schedulerStatus.totalTasks || 0,
+              activeTasks: schedulerStatus.activeTasks || 0,
+              tasksRunning: schedulerStatus.activeTasks > 0
+            },
+            uptime: process.uptime(),
+            memoryUsage: process.memoryUsage()
+          }
+        },
+        timestamp: new Date().toISOString()
+      };
+
+      res.json(dashboardData);
+
+    } catch (error) {
+      console.error('❌ Dashboard stats error:', error);
+      res.status(500).json({
+        success: false,
+        error: 'Failed to fetch dashboard statistics',
+        details: (error as Error).message
+      });
+    }
+  });
+
+  // Get real-time active tracking items
+  app.get('/api/tracking/active-items', async (req, res) => {
+    try {
+      const limit = parseInt(req.query.limit as string) || 20;
+      
+      // Get active tracking URLs with recent activity
+      const activeTracking = await db
+        .select({
+          url: urlTracking.url,
+          productTitle: urlTracking.productTitle,
+          currentPrice: urlTracking.currentPrice,
+          currency: urlTracking.currency,
+          status: urlTracking.status,
+          lastChecked: urlTracking.lastChecked,
+          checkCount: urlTracking.checkCount,
+          trackingInterval: urlTracking.trackingInterval
+        })
+        .from(urlTracking)
+        .where(eq(urlTracking.isTracking, true))
+        .orderBy(desc(urlTracking.lastChecked))
+        .limit(limit);
+
+      res.json({
+        success: true,
+        activeItems: activeTracking,
+        total: activeTracking.length
+      });
+
+    } catch (error) {
+      console.error('❌ Active tracking items error:', error);
+      res.status(500).json({
+        success: false,
+        error: 'Failed to fetch active tracking items',
+        details: (error as Error).message
+      });
+    }
+  });
+
+  // Get recent price changes (last 7 days)
+  app.get('/api/tracking/recent-changes', async (req, res) => {
+    try {
+      const sevenDaysAgo = new Date(Date.now() - 7 * 24 * 60 * 60 * 1000);
+      
+      // Get recent URL tracking updates
+      const recentChanges = await db
+        .select({
+          url: urlTracking.url,
+          productTitle: urlTracking.productTitle,
+          currentPrice: urlTracking.currentPrice,
+          originalPrice: urlTracking.originalPrice,
+          currency: urlTracking.currency,
+          lastChecked: urlTracking.lastChecked,
+          status: urlTracking.status
+        })
+        .from(urlTracking)
+        .where(and(
+          isNotNull(urlTracking.lastChecked),
+          db.gte(urlTracking.lastChecked, sevenDaysAgo),
+          db.ne(urlTracking.currentPrice, urlTracking.originalPrice)
+        ))
+        .orderBy(desc(urlTracking.lastChecked))
+        .limit(15);
+
+      const changesWithCalculations = recentChanges.map(change => {
+        const currentPrice = parseFloat(change.currentPrice || '0');
+        const originalPrice = parseFloat(change.originalPrice || '0');
+        const priceChange = currentPrice - originalPrice;
+        const priceChangePercent = originalPrice > 0 ? ((priceChange / originalPrice) * 100) : 0;
+        
+        return {
+          ...change,
+          priceChange: priceChange.toFixed(2),
+          priceChangePercent: priceChangePercent.toFixed(2),
+          changeType: priceChange > 0 ? 'increase' : 'decrease'
+        };
+      });
+
+      res.json({
+        success: true,
+        recentChanges: changesWithCalculations,
+        total: changesWithCalculations.length
+      });
+
+    } catch (error) {
+      console.error('❌ Recent changes error:', error);
+      res.status(500).json({
+        success: false,
+        error: 'Failed to fetch recent changes',
+        details: (error as Error).message
+      });
+    }
+  });
+
+  console.log('🎯 Automated Tracking Dashboard API endpoints registered');
+
   // Admin Memory Management Routes
   setupAdminMemoryRoutes(app);
 

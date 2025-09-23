@@ -2,7 +2,7 @@ import { useLocation } from "wouter";
 import { 
   Store, ShoppingCart, Package, BarChart3, 
   MessageSquare, Shield, Bot, AlertTriangle, 
-  Database, Clock, Truck, Settings
+  Database, Clock, Truck, Settings, Activity
 } from "lucide-react";
 import { RealTimeClock } from "@/components/RealTimeClock";
 
@@ -86,6 +86,14 @@ const MainDashboard = () => {
       color: "from-green-500 to-green-600",
       available: true,
       path: "/memory-tracking"
+    },
+    {
+      name: "Otomatik Takip Sistemi",
+      description: "Anlık monitoring ve sistem durumu",
+      icon: <Activity className="w-6 h-6" />,
+      color: "from-blue-500 to-blue-600",
+      available: true,
+      path: "/tracking-dashboard"
     },
     {
       name: "Replit.Agent",
