@@ -1,5 +1,8 @@
 // Simple scheduling system for automated tasks
 import { filteredNotifier } from './filtered-telegram-notifier';
+import { db } from './db';
+import { monitoringSchedules, products, productVariants } from '@shared/schema';
+import { eq, and, lte } from 'drizzle-orm';
 
 let activeTimers: Map<string, NodeJS.Timeout> = new Map();
 
@@ -22,6 +25,11 @@ const TASKS = {
     description: 'Saatlik fiyat izleme ve değişiklik bildirimi',
     interval: 'hourly' // Her saat başı
   },
+  PRODUCT_SCHEDULE_MONITORING: {
+    name: 'product-schedule-monitoring',
+    description: 'Database monitoring schedules tablosuna göre ürün kontrolü',
+    interval: 'every-5-minutes' // 5 dakikada bir database'i kontrol et
+  },
   MORNING_ANALYSIS: {
     name: 'morning-analysis',
     description: '08:00 - Günlük analiz ve sistem kontrolü',
@@ -38,6 +46,146 @@ const TASKS = {
     time: '23:00'
   }
 };
+
+// Product Schedule Monitoring - Database'deki schedules'u kontrol et
+async function checkProductSchedules(): Promise<void> {
+  try {
+    console.log('🔍 Product schedules kontrol ediliyor...');
+    
+    const now = new Date();
+    const currentHour = now.getHours();
+    
+    // 1. Interval-based schedules (nextCheckAt geçmiş olanlar)
+    const intervalSchedules = await db.select({
+      scheduleId: monitoringSchedules.id,
+      productId: monitoringSchedules.productId,
+      checkInterval: monitoringSchedules.checkInterval,
+      productTitle: products.title,
+      sourceUrl: products.sourceUrl,
+      scheduleType: monitoringSchedules.scheduleType
+    })
+    .from(monitoringSchedules)
+    .innerJoin(products, eq(monitoringSchedules.productId, products.id))
+    .where(and(
+      eq(monitoringSchedules.isActive, true),
+      eq(monitoringSchedules.trackingEnabled, true),
+      eq(monitoringSchedules.scheduleType, 'interval'),
+      lte(monitoringSchedules.nextCheckAt, now)
+    ));
+
+    // 2. Fixed-hours schedules (hoursOfDay içinde current hour var mı)
+    const fixedHourSchedules = await db.select({
+      scheduleId: monitoringSchedules.id,
+      productId: monitoringSchedules.productId,
+      hoursOfDay: monitoringSchedules.hoursOfDay,
+      productTitle: products.title,
+      sourceUrl: products.sourceUrl,
+      scheduleType: monitoringSchedules.scheduleType
+    })
+    .from(monitoringSchedules)
+    .innerJoin(products, eq(monitoringSchedules.productId, products.id))
+    .where(and(
+      eq(monitoringSchedules.isActive, true),
+      eq(monitoringSchedules.trackingEnabled, true),
+      eq(monitoringSchedules.scheduleType, 'fixed_hours')
+    ));
+
+    // Filter fixed-hour schedules that should run now
+    const fixedHourToRun = fixedHourSchedules.filter(schedule => {
+      const hoursArray = Array.isArray(schedule.hoursOfDay) 
+        ? schedule.hoursOfDay as number[]
+        : [];
+      return hoursArray.includes(currentHour);
+    });
+
+    const totalSchedules = intervalSchedules.length + fixedHourToRun.length;
+    
+    if (totalSchedules === 0) {
+      console.log('📊 No products scheduled for monitoring at this time');
+      return;
+    }
+
+    console.log(`📋 Found ${totalSchedules} products to monitor:
+    - ${intervalSchedules.length} interval-based
+    - ${fixedHourToRun.length} fixed-hour schedules`);
+
+    // Process interval schedules
+    for (const schedule of intervalSchedules) {
+      await processProductSchedule(schedule);
+      
+      // Update nextCheckAt for interval schedules
+      const nextCheckAt = new Date(Date.now() + (schedule.checkInterval * 1000));
+      await db.update(monitoringSchedules)
+        .set({ 
+          nextCheckAt,
+          lastCheckAt: now 
+        })
+        .where(eq(monitoringSchedules.id, schedule.scheduleId));
+      
+      // Rate limiting
+      await sleep(1000);
+    }
+
+    // Process fixed-hour schedules
+    for (const schedule of fixedHourToRun) {
+      await processProductSchedule(schedule);
+      
+      // Update lastCheckAt for fixed-hour schedules
+      await db.update(monitoringSchedules)
+        .set({ lastCheckAt: now })
+        .where(eq(monitoringSchedules.id, schedule.scheduleId));
+      
+      // Rate limiting
+      await sleep(1000);
+    }
+
+    console.log(`✅ Product schedule monitoring completed - processed ${totalSchedules} products`);
+    
+  } catch (error) {
+    console.error('❌ Product schedule monitoring error:', error);
+    await sendTaskCompletionNotification('product-schedule-monitoring', 'error', 
+      `Failed to check product schedules: ${(error as Error).message}`);
+  }
+}
+
+// Process individual product schedule
+async function processProductSchedule(schedule: any): Promise<void> {
+  try {
+    console.log(`🔍 Processing: ${schedule.productTitle} (${schedule.scheduleType})`);
+    
+    // Import and use the existing monitoring service
+    const { urlTrackingService } = await import('./url-tracking-service');
+    
+    if (schedule.sourceUrl) {
+      // Add to URL tracking queue for processing
+      await urlTrackingService.addUrlToTracking(
+        schedule.sourceUrl, 
+        schedule.checkInterval || 300, 
+        'automated-schedule'
+      );
+      console.log(`✅ Added to tracking queue: ${schedule.productTitle}`);
+    }
+    
+  } catch (error) {
+    console.error(`❌ Failed to process schedule for ${schedule.productTitle}:`, error);
+    
+    // Increment failure count
+    try {
+      await db.update(monitoringSchedules)
+        .set({ 
+          consecutiveFailures: schedule.consecutiveFailures + 1
+        })
+        .where(eq(monitoringSchedules.id, schedule.scheduleId));
+    } catch (updateError) {
+      console.error('Failed to update failure count:', updateError);
+    }
+  }
+}
+
+// Sleep helper function
+function sleep(ms: number): Promise<void> {
+  return new Promise(resolve => setTimeout(resolve, ms));
+}
 
 // Calculate milliseconds until next occurrence of time (HH:MM format)
 function getMillisecondsUntilTime(timeString: string): number {
@@ -292,6 +440,9 @@ export function initializeScheduler(): void {
   // Schedule hourly price monitoring
   scheduleHourlyPriceMonitoring();
   
+  // Schedule product schedule monitoring (every 5 minutes)
+  scheduleProductScheduleMonitoring();
+  
   console.log(`✅ ${Object.keys(TASKS).length} zamanlı görev başarıyla kuruldu`);
   console.log('✅ Zamanlı görevler sistemi başlatıldı');
 }
@@ -320,6 +471,32 @@ function scheduleHourlyPriceMonitoring(): void {
   }, msUntilNextHour);
   
   activeTimers.set('hourly-price-monitoring', timer);
+}
+
+// Product schedule monitoring görevini zamanla (5 dakikada bir)
+function scheduleProductScheduleMonitoring(): void {
+  console.log('🕐 Product schedule monitoring sistemi başlatılıyor...');
+  
+  // İlk çalıştırma - 1 dakika sonra başla
+  const initialDelay = 1 * 60 * 1000; // 1 dakika
+  const intervalDuration = 5 * 60 * 1000; // 5 dakika
+  
+  console.log(`⏰ product-schedule-monitoring zamanlandı: 5 dakikada bir (1 dakika sonra başlar)`);
+  
+  const timer = setTimeout(async () => {
+    // İlk çalıştırma
+    await checkProductSchedules();
+    
+    // Sonraki çalıştırmalar için interval kur (5 dakikada bir)
+    const scheduleInterval = setInterval(async () => {
+      await checkProductSchedules();
+    }, intervalDuration);
+    
+    activeTimers.set('product-schedule-monitoring-interval', scheduleInterval as any);
+    
+  }, initialDelay);
+  
+  activeTimers.set('product-schedule-monitoring', timer);
 }
 
 // Bir sonraki saat başına kadar olan milisaniye
@@ -378,6 +555,9 @@ export async function executeTaskManually(taskName: string): Promise<boolean> {
         break;
       case 'evening-reports':
         await executeEveningReports();
+        break;
+      case 'product-schedule-monitoring':
+        await checkProductSchedules();
         break;
       default:
         console.error(`❌ Bilinmeyen görev: ${taskName}`);
