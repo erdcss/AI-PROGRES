@@ -1,10 +1,11 @@
 import { db } from './db';
-import { urlTracking, priceHistory } from '@shared/schema';
+import { urlTracking, priceHistory, products } from '@shared/schema';
 import { eq, desc } from 'drizzle-orm';
 import { scenarioBasedScrape } from './scenario-based-scraper';
 import { ultimatePriceExtract } from './ultimate-price-extractor';
 import { enhancedPriceMovementTracker } from './enhanced-price-movement-tracker';
 import { notificationGateway } from './notification-gateway';
+import { shopifyApiService } from './shopify-api-service';
 import axios from 'axios';
 import * as cheerio from 'cheerio';
 
@@ -388,6 +389,16 @@ export class UrlTrackingService {
         if (stockChanged) {
           console.log(`📦 STOK DEĞİŞİKLİĞİ: ${previousStock} → ${currentStock}`);
         }
+
+        // 🎯 SHOPIFY AUTO-UPDATE: Tespit edilen değişiklikleri Shopify'a uygula
+        await this.triggerShopifyAutoUpdate(existing, {
+          newPrice,
+          newStockStatus: currentStock,
+          oldPrice: currentPrice,
+          oldStockStatus: previousStock,
+          priceChanged,
+          stockChanged
+        });
         
         const changePercent = currentPrice > 0 ? ((newPrice - currentPrice) / currentPrice) * 100 : 0;
         
@@ -820,6 +831,79 @@ ${priority === 'YÜKSEK ÖNCELİK' ? '\n⚡ <b>HEMEN KONTROL EDİN!</b>' : ''}
     }
     
     return cleanTitle;
+  }
+
+  // 🎯 SHOPIFY AUTO-UPDATE: Değişiklikleri Shopify'a otomatik uygula
+  private async triggerShopifyAutoUpdate(urlTrack: any, changes: {
+    newPrice: number;
+    newStockStatus: string;
+    oldPrice: number;
+    oldStockStatus: string;
+    priceChanged: boolean;
+    stockChanged: boolean;
+  }) {
+    try {
+      console.log(`🔄 Shopify auto-update başlatılıyor: ${urlTrack.productTitle}`);
+      
+      // Source URL'ye karşılık gelen Shopify product'ını bul
+      const [productRecord] = await db
+        .select()
+        .from(products)
+        .where(eq(products.sourceUrl, urlTrack.url));
+
+      if (!productRecord) {
+        console.log(`⚠️ Shopify product bulunamadı: ${urlTrack.url}`);
+        return;
+      }
+
+      if (!productRecord.uniqueTrackingId) {
+        console.log(`⚠️ Unique tracking ID eksik: ${productRecord.title}`);
+        return;
+      }
+
+      console.log(`✅ Shopify product bulundu: ${productRecord.title} (ID: ${productRecord.uniqueTrackingId})`);
+
+      // Auto-update için yeni veri yapısı oluştur
+      const newData = {
+        price: changes.newPrice,
+        stockStatus: changes.newStockStatus,
+        extractedAt: new Date()
+      };
+
+      // Auto-update seçenekleri - güvenli politika
+      const updateOptions = {
+        enablePriceUpdates: true,
+        enableStockUpdates: true,
+        onlyPriceIncreases: true, // Sadece fiyat artışlarını uygula
+        priceChangeThreshold: 5 // %5'ten fazla değişiklikleri uygula
+      };
+
+      // Shopify API service ile güncelleme yap
+      const updateResult = await shopifyApiService.updateProductPricesAndStock(
+        productRecord.uniqueTrackingId,
+        newData,
+        updateOptions
+      );
+
+      if (updateResult.success) {
+        console.log(`✅ Shopify auto-update başarılı: ${productRecord.title}`);
+        
+        if (updateResult.changes && updateResult.changes.length > 0) {
+          const appliedChanges = updateResult.changes.filter((c: any) => c.shouldApply);
+          if (appliedChanges.length > 0) {
+            console.log(`🎯 Shopify'da ${appliedChanges.length} güncelleme uygulandı:`, 
+              appliedChanges.map((c: any) => `${c.type}: ${c.oldValue} → ${c.newValue}`));
+          } else {
+            console.log(`📊 Shopify politikası gereği güncelleme uygulanmadı`);
+          }
+        }
+      } else {
+        console.error(`❌ Shopify auto-update hatası: ${updateResult.error}`);
+      }
+
+    } catch (error) {
+      console.error(`❌ Shopify auto-update sistem hatası:`, error);
+    }
   }
 
   // Temiz Trendyol URL'si oluştur

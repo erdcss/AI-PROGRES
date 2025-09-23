@@ -370,6 +370,302 @@ export class ShopifyApiService {
       };
     }
   }
+
+  // ===============================
+  // AUTO-UPDATE SYSTEM
+  // ===============================
+
+  // Ürün fiyat ve stok güncelleme sistemi
+  async updateProductPricesAndStock(trackingId: string, newData: any, options: {
+    enablePriceUpdates?: boolean;
+    enableStockUpdates?: boolean;
+    onlyPriceIncreases?: boolean;
+    priceChangeThreshold?: number;
+  } = {}) {
+    try {
+      console.log(`🔄 Auto-update başlatılıyor: ${trackingId}`);
+      
+      // Default options
+      const updateOptions = {
+        enablePriceUpdates: true,
+        enableStockUpdates: true,
+        onlyPriceIncreases: true, // Sadece fiyat artışlarını uygula
+        priceChangeThreshold: 5, // %5'ten fazla değişiklikleri uygula
+        ...options
+      };
+
+      // Mevcut ürünü database'den getir
+      const productResult = await this.getProductByTrackingId(trackingId);
+      if (!productResult.success || !productResult.product) {
+        return {
+          success: false,
+          error: 'Ürün bulunamadı',
+          changes: []
+        };
+      }
+
+      const currentProduct = productResult.product;
+      
+      // Değişiklikleri tespit et
+      const changes = await this.detectChanges(currentProduct, newData, updateOptions);
+      
+      if (changes.length === 0) {
+        console.log(`📊 Güncelleme gerekmiyor: ${currentProduct.title}`);
+        return {
+          success: true,
+          message: 'Güncelleme gerekmiyor',
+          changes: []
+        };
+      }
+
+      console.log(`🔍 ${changes.length} değişiklik tespit edildi:`, changes.map(c => c.type));
+
+      // Güncellemeleri Shopify'a uygula
+      const updateResult = await this.applyUpdatesToShopify(currentProduct, changes);
+      
+      if (updateResult.success) {
+        // Database'deki kayıtları güncelle
+        await this.updateLocalProductRecord(trackingId, newData);
+        
+        console.log(`✅ Auto-update tamamlandı: ${currentProduct.title}`);
+        return {
+          success: true,
+          message: 'Güncelleme başarılı',
+          changes,
+          appliedChanges: updateResult.appliedChanges
+        };
+      } else {
+        console.error(`❌ Auto-update hatası: ${updateResult.error}`);
+        return {
+          success: false,
+          error: updateResult.error,
+          changes
+        };
+      }
+
+    } catch (error) {
+      console.error(`❌ Auto-update sistem hatası:`, error);
+      return {
+        success: false,
+        error: (error as Error).message,
+        changes: []
+      };
+    }
+  }
+
+  // Değişiklikleri tespit et
+  private async detectChanges(currentProduct: any, newData: any, options: any) {
+    const changes: Array<{
+      type: 'price' | 'stock' | 'variant_stock' | 'availability';
+      field: string;
+      oldValue: any;
+      newValue: any;
+      changePercentage?: number;
+      shouldApply: boolean;
+      reason: string;
+    }> = [];
+
+    try {
+      // 1. Ana fiyat değişikliği kontrolü
+      if (options.enablePriceUpdates && newData.price && currentProduct.price) {
+        const oldPrice = parseFloat(currentProduct.price);
+        const newPrice = parseFloat(newData.price);
+        
+        if (oldPrice !== newPrice) {
+          const changePercentage = ((newPrice - oldPrice) / oldPrice) * 100;
+          const isIncrease = newPrice > oldPrice;
+          
+          let shouldApply = false;
+          let reason = '';
+          
+          if (options.onlyPriceIncreases && isIncrease) {
+            shouldApply = Math.abs(changePercentage) >= options.priceChangeThreshold;
+            reason = shouldApply ? 'Fiyat artışı politikası' : `Değişim %${changePercentage.toFixed(1)} < eşik %${options.priceChangeThreshold}`;
+          } else if (!options.onlyPriceIncreases) {
+            shouldApply = Math.abs(changePercentage) >= options.priceChangeThreshold;
+            reason = shouldApply ? 'Tüm fiyat değişiklikleri' : `Değişim %${changePercentage.toFixed(1)} < eşik %${options.priceChangeThreshold}`;
+          } else {
+            reason = 'Fiyat düşüşü - politika gereği uygulanmıyor';
+          }
+
+          changes.push({
+            type: 'price',
+            field: 'price',
+            oldValue: oldPrice,
+            newValue: newPrice,
+            changePercentage: Math.abs(changePercentage),
+            shouldApply,
+            reason
+          });
+        }
+      }
+
+      // 2. Ana stok durumu kontrolü
+      if (options.enableStockUpdates && newData.stockStatus !== undefined) {
+        if (currentProduct.stockStatus !== newData.stockStatus) {
+          changes.push({
+            type: 'availability',
+            field: 'stockStatus',
+            oldValue: currentProduct.stockStatus,
+            newValue: newData.stockStatus,
+            shouldApply: true,
+            reason: 'Stok durumu değişikliği'
+          });
+        }
+      }
+
+      // 3. Varyant stok kontrolü (eğer varsa)
+      if (options.enableStockUpdates && newData.variants && currentProduct.variants) {
+        const oldVariants = JSON.parse(currentProduct.variants || '[]');
+        const newVariants = newData.variants;
+
+        for (const newVariant of newVariants) {
+          const oldVariant = oldVariants.find((v: any) => 
+            v.color === newVariant.color && v.size === newVariant.size
+          );
+
+          if (oldVariant && oldVariant.inStock !== newVariant.inStock) {
+            changes.push({
+              type: 'variant_stock',
+              field: `variants.${newVariant.color}_${newVariant.size}`,
+              oldValue: oldVariant.inStock,
+              newValue: newVariant.inStock,
+              shouldApply: true,
+              reason: `Varyant stok değişikliği: ${newVariant.color} - ${newVariant.size}`
+            });
+          }
+        }
+      }
+
+      return changes;
+
+    } catch (error) {
+      console.error('❌ Değişiklik tespiti hatası:', error);
+      return changes;
+    }
+  }
+
+  // Güncellemeleri Shopify'a uygula
+  private async applyUpdatesToShopify(currentProduct: any, changes: any[]) {
+    try {
+      const applicableChanges = changes.filter(c => c.shouldApply);
+      
+      if (applicableChanges.length === 0) {
+        return {
+          success: true,
+          message: 'Uygulanacak değişiklik yok',
+          appliedChanges: []
+        };
+      }
+
+      console.log(`🔄 Shopify'a ${applicableChanges.length} güncelleme uygulanıyor...`);
+
+      const appliedChanges: any[] = [];
+
+      // Shopify'dan mevcut ürün verisini çek
+      const shopifyProductResult = await this.getDirectProductData(currentProduct.shopifyProductId);
+      if (!shopifyProductResult.success) {
+        throw new Error('Shopify ürün verisi alınamadı');
+      }
+
+      const shopifyProduct = shopifyProductResult.product;
+
+      // Fiyat güncellemeleri
+      const priceChanges = applicableChanges.filter(c => c.type === 'price');
+      if (priceChanges.length > 0) {
+        for (const change of priceChanges) {
+          // Ana varyantın fiyatını güncelle (genelde ilk varyant)
+          if (shopifyProduct.variants && shopifyProduct.variants.length > 0) {
+            const mainVariant = shopifyProduct.variants[0];
+            
+            const updateData = {
+              variant: {
+                id: mainVariant.id,
+                price: change.newValue.toString()
+              }
+            };
+
+            const result = await this.makeRequest(`variants/${mainVariant.id}.json`, 'PUT', updateData);
+            
+            appliedChanges.push({
+              type: 'price',
+              variantId: mainVariant.id,
+              oldPrice: change.oldValue,
+              newPrice: change.newValue,
+              result: 'success'
+            });
+
+            console.log(`✅ Fiyat güncellendi: ${change.oldValue} TL → ${change.newValue} TL`);
+          }
+        }
+      }
+
+      // Stok durumu güncellemeleri
+      const stockChanges = applicableChanges.filter(c => c.type === 'availability');
+      if (stockChanges.length > 0) {
+        for (const change of stockChanges) {
+          // Ürün durumunu güncelle (active/archived)
+          const productStatus = change.newValue === 'in_stock' ? 'active' : 'archived';
+          
+          const updateData = {
+            product: {
+              id: shopifyProduct.id,
+              status: productStatus
+            }
+          };
+
+          const result = await this.makeRequest(`products/${shopifyProduct.id}.json`, 'PUT', updateData);
+          
+          appliedChanges.push({
+            type: 'availability',
+            productId: shopifyProduct.id,
+            oldStatus: change.oldValue,
+            newStatus: change.newValue,
+            result: 'success'
+          });
+
+          console.log(`✅ Stok durumu güncellendi: ${change.oldValue} → ${change.newValue}`);
+        }
+      }
+
+      return {
+        success: true,
+        message: `${appliedChanges.length} güncelleme uygulandı`,
+        appliedChanges
+      };
+
+    } catch (error) {
+      console.error('❌ Shopify güncelleme hatası:', error);
+      return {
+        success: false,
+        error: (error as Error).message,
+        appliedChanges: []
+      };
+    }
+  }
+
+  // Local database kaydını güncelle
+  private async updateLocalProductRecord(trackingId: string, newData: any) {
+    try {
+      const updateData: any = {
+        lastSyncAt: new Date()
+      };
+
+      if (newData.price) updateData.price = newData.price.toString();
+      if (newData.stockStatus) updateData.stockStatus = newData.stockStatus;
+      if (newData.variants) updateData.variants = JSON.stringify(newData.variants);
+
+      await db
+        .update(shopifyMemoryProducts)
+        .set(updateData)
+        .where(eq(shopifyMemoryProducts.uniqueTrackingId, trackingId));
+
+      console.log(`✅ Local kayıt güncellendi: ${trackingId}`);
+      
+    } catch (error) {
+      console.error('❌ Local kayıt güncelleme hatası:', error);
+    }
+  }
 }
 
 // Singleton instance
