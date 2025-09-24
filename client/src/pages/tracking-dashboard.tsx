@@ -531,6 +531,118 @@ const TrackingDashboard = () => {
             </span>
           </div>
         </div>
+
+        {/* Automation Information */}
+        <div className="mt-12 mb-8">
+          <div className="bg-gradient-to-br from-blue-900/20 to-purple-900/20 border border-blue-700/30 rounded-2xl p-8 backdrop-blur-sm">
+            <div className="text-center mb-6">
+              <div className="inline-flex items-center gap-3 mb-4">
+                <div className="p-3 bg-blue-500/20 rounded-xl">
+                  <Zap className="w-6 h-6 text-blue-400" />
+                </div>
+                <h3 className="text-2xl font-bold text-white">Otomatik Takip Sistemi Nasıl Çalışır?</h3>
+              </div>
+              <p className="text-slate-300 text-lg max-w-4xl mx-auto leading-relaxed">
+                Bu sistem, ürün fiyatlarını sürekli izleyerek size en güncel bilgileri sunar ve otomatik olarak Shopify mağazanızı senkronize eder.
+              </p>
+            </div>
+
+            <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
+              {/* Real-time Monitoring */}
+              <div className="bg-slate-800/40 border border-slate-700/40 rounded-xl p-6">
+                <div className="flex items-center gap-3 mb-4">
+                  <div className="p-2 bg-green-500/20 rounded-lg">
+                    <Monitor className="w-5 h-5 text-green-400" />
+                  </div>
+                  <h4 className="text-white font-semibold">Real-Time İzleme</h4>
+                </div>
+                <p className="text-slate-400 text-sm leading-relaxed">
+                  Sistem 5 dakikada bir tüm ürünleri kontrol eder. Fiyat değişiklikleri anında tespit edilir ve 
+                  Telegram üzerinden bildirim gönderilir.
+                </p>
+              </div>
+
+              {/* Shopify Sync */}
+              <div className="bg-slate-800/40 border border-slate-700/40 rounded-xl p-6">
+                <div className="flex items-center gap-3 mb-4">
+                  <div className="p-2 bg-blue-500/20 rounded-lg">
+                    <ShoppingCart className="w-5 h-5 text-blue-400" />
+                  </div>
+                  <h4 className="text-white font-semibold">Shopify Senkronizasyonu</h4>
+                </div>
+                <p className="text-slate-400 text-sm leading-relaxed">
+                  Fiyat değişiklikleri otomatik olarak Shopify mağazanıza yansıtılır. %10 kar marjı ile 
+                  güncellenen fiyatlar anlık olarak senkronize edilir.
+                </p>
+              </div>
+
+              {/* Scheduled Tasks */}
+              <div className="bg-slate-800/40 border border-slate-700/40 rounded-xl p-6">
+                <div className="flex items-center gap-3 mb-4">
+                  <div className="p-2 bg-purple-500/20 rounded-lg">
+                    <Clock className="w-5 h-5 text-purple-400" />
+                  </div>
+                  <h4 className="text-white font-semibold">Zamanlı Görevler</h4>
+                </div>
+                <p className="text-slate-400 text-sm leading-relaxed">
+                  Sistem günde 3 kez (08:00, 12:00, 23:00) kapsamlı kontroller yapar ve 
+                  detaylı raporları Telegram'a gönderir.
+                </p>
+              </div>
+
+              {/* Price Tracking */}
+              <div className="bg-slate-800/40 border border-slate-700/40 rounded-xl p-6">
+                <div className="flex items-center gap-3 mb-4">
+                  <div className="p-2 bg-yellow-500/20 rounded-lg">
+                    <TrendingUp className="w-5 h-5 text-yellow-400" />
+                  </div>
+                  <h4 className="text-white font-semibold">Fiyat Geçmişi</h4>
+                </div>
+                <p className="text-slate-400 text-sm leading-relaxed">
+                  Tüm fiyat değişiklikleri veritabanında saklanır. Trend analizi ve geçmiş 
+                  veriler ile en iyi satış stratejilerini belirleyebilirsiniz.
+                </p>
+              </div>
+
+              {/* Intelligent Notifications */}
+              <div className="bg-slate-800/40 border border-slate-700/40 rounded-xl p-6">
+                <div className="flex items-center gap-3 mb-4">
+                  <div className="p-2 bg-red-500/20 rounded-lg">
+                    <AlertTriangle className="w-5 h-5 text-red-400" />
+                  </div>
+                  <h4 className="text-white font-semibold">Akıllı Bildirimler</h4>
+                </div>
+                <p className="text-slate-400 text-sm leading-relaxed">
+                  Sistem önemli fiyat değişikliklerini (&gt;%20) yüksek öncelikli olarak işaretler. 
+                  Filtrelenmiş bildirimler ile sadece önemli güncellemeler alırsınız.
+                </p>
+              </div>
+
+              {/* Error Management */}
+              <div className="bg-slate-800/40 border border-slate-700/40 rounded-xl p-6">
+                <div className="flex items-center gap-3 mb-4">
+                  <div className="p-2 bg-orange-500/20 rounded-lg">
+                    <Settings className="w-5 h-5 text-orange-400" />
+                  </div>
+                  <h4 className="text-white font-semibold">Hata Yönetimi</h4>
+                </div>
+                <p className="text-slate-400 text-sm leading-relaxed">
+                  Sistem otomatik olarak hataları tespit eder ve düzeltmeye çalışır. 
+                  Engellenme durumlarında alternatif yöntemler devreye girer.
+                </p>
+              </div>
+            </div>
+
+            <div className="mt-8 text-center">
+              <div className="bg-slate-700/30 border border-slate-600/40 rounded-xl p-4">
+                <p className="text-slate-300 text-sm">
+                  <strong className="text-white">💡 İpucu:</strong> Dashboard'daki tüm veriler 30 saniyede bir otomatik olarak güncellenir. 
+                  Sistem 7/24 çalışarak işinizi kolaylaştırır ve manuel takip gerektirmez.
+                </p>
+              </div>
+            </div>
+          </div>
+        </div>
       </div>
     </div>
   );
