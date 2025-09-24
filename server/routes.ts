@@ -37,6 +37,7 @@ import { scrapeAdvancedVariants, generateAdvancedVariantCSV } from './advanced-v
 import { runTrendyolVariantsSpider, generateScrapyOutput, generateScrapyCSV } from './scrapy-like-trendyol-scraper';
 import { fixedAuthenticScrape } from './fixed-authentic-scraper';
 import { scenarioBasedScrape } from './scenario-based-scraper';
+import { detectRealStockStatus, convertToLegacyFormat } from './real-stock-detector';
 import { ProductManagementSystem } from './product-management-system';
 // Legacy Telegram system removed - using notification gateway
 import { generateComprehensiveShopifyCSV, generateFeatureSummary, type ComprehensiveProductData } from './comprehensive-csv-generator';
@@ -1585,6 +1586,28 @@ export function registerRoutes(app: Express): Server {
         ]) as any;
         
         console.log('🚨 ROUTES: scenarioBasedScrape returned price:', result.price?.original);
+        
+        // 🔍 ENHANCE VARIANTS WITH REAL STOCK DETECTION
+        if (result.success && result.$) {
+          console.log('🔍 Enhancing variants with real stock detection...');
+          try {
+            const realVariants = detectRealStockStatus(result.$, result.htmlContent || '');
+            if (realVariants.length > 0) {
+              result.variants = convertToLegacyFormat(realVariants);
+              console.log(`✅ Real stock detection successful: ${realVariants.filter(v => v.inStock).length}/${realVariants.length} in stock`);
+              
+              // Log stock status for each variant
+              realVariants.forEach(variant => {
+                console.log(`📦 ${variant.color} ${variant.size}: ${variant.inStock ? 'STOKTA' : 'TÜKENDİ'} (${variant.method})`);
+              });
+            } else {
+              console.log('⚠️ Real stock detection returned no variants, keeping original');
+            }
+          } catch (error) {
+            console.log('❌ Real stock detection failed:', error);
+            // Keep original variants if real detection fails
+          }
+        }
         
         // ALWAYS generate CSV content regardless of success status - EVEN FOR BLOCKED RESPONSES
         if (result && (result.title || result.success === false)) {
