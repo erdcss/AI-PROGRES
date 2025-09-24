@@ -72,6 +72,14 @@ const MainDashboard = () => {
   // Sistem Donanım ve Kontrol Merkezi
   const systemControlOptions = [
     {
+      name: "Otomatik Takip Sistemi",
+      description: "Anlık monitoring ve sistem durumu",
+      icon: <Activity className="w-6 h-6" />,
+      color: "from-purple-500 to-purple-600",
+      available: true,
+      path: "/tracking-dashboard"
+    },
+    {
       name: "Sistem Durumu & Hata Merkezi",
       description: "Hata izleme ve sistem durumu",
       icon: <Shield className="w-6 h-6" />,
@@ -86,14 +94,6 @@ const MainDashboard = () => {
       color: "from-green-500 to-green-600",
       available: true,
       path: "/memory-tracking"
-    },
-    {
-      name: "Otomatik Takip Sistemi",
-      description: "Anlık monitoring ve sistem durumu",
-      icon: <Activity className="w-6 h-6" />,
-      color: "from-blue-500 to-blue-600",
-      available: true,
-      path: "/tracking-dashboard"
     },
     {
       name: "Replit.Agent",
