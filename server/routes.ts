@@ -1588,10 +1588,17 @@ export function registerRoutes(app: Express): Server {
         console.log('🚨 ROUTES: scenarioBasedScrape returned price:', result.price?.original);
         
         // 🔍 ENHANCE VARIANTS WITH REAL STOCK DETECTION
-        if (result.success && result.$) {
+        if (result.success && result.htmlContent) {
           console.log('🔍 Enhancing variants with real stock detection...');
           try {
-            const realVariants = detectRealStockStatus(result.$, result.htmlContent || '');
+            // Create cheerio instance from htmlContent if not available
+            let $ = result.$;
+            if (!$) {
+              console.log('🔧 Creating cheerio instance from htmlContent...');
+              $ = cheerio.load(result.htmlContent);
+            }
+            
+            const realVariants = detectRealStockStatus($, result.htmlContent);
             if (realVariants.length > 0) {
               result.variants = convertToLegacyFormat(realVariants);
               console.log(`✅ Real stock detection successful: ${realVariants.filter(v => v.inStock).length}/${realVariants.length} in stock`);
