@@ -1583,7 +1583,14 @@ export function registerRoutes(app: Express): Server {
         console.log('🚀 ROUTES: Trying FAST PATH first...');
         
         // FAST PATH: Try ultra-fast extraction first
-        let result = await fastProductExtraction(url);
+        let result: any = null;
+        try {
+          result = await fastProductExtraction(url);
+          console.log('🔍 FAST PATH RESULT:', !!result);
+        } catch (fastError) {
+          console.log('❌ FAST PATH ERROR:', fastError.message);
+          result = null;
+        }
         
         if (!result) {
           console.log('🔄 ROUTES: Fast path failed, falling back to standard method...');

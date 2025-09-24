@@ -8,7 +8,16 @@ import * as cheerio from 'cheerio';
 import { ultimatePriceExtract } from './ultimate-price-extractor';
 
 // Keep-alive HTTP agent for connection reuse
-const httpAgent = new axios.defaults.httpAgent({
+import { Agent } from 'http';
+import { Agent as HttpsAgent } from 'https';
+
+const httpAgent = new Agent({
+  keepAlive: true,
+  maxSockets: 10,
+  timeout: 800 // 800ms network timeout
+});
+
+const httpsAgent = new HttpsAgent({
   keepAlive: true,
   maxSockets: 10,
   timeout: 800 // 800ms network timeout
@@ -74,7 +83,7 @@ async function fastAxiosRequest(url: string): Promise<{html: string, success: bo
         'Cache-Control': 'no-cache'
       },
       httpAgent: httpAgent,
-      httpsAgent: httpAgent
+      httpsAgent: httpsAgent
     });
     
     const duration = Date.now() - startTime;
