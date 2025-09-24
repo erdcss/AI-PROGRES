@@ -300,6 +300,14 @@ const MainDashboard = () => {
                     <Shield className="w-4 h-4" />
                     <span className="text-sm">Sistem Durumu</span>
                   </button>
+                  <button
+                    onClick={() => setLocation('/tracking-dashboard')}
+                    className="w-full group flex items-center justify-center gap-2 bg-gradient-to-r from-purple-500 to-purple-600 hover:from-purple-600 hover:to-purple-700 text-white px-3 py-2.5 rounded-lg font-medium transition-all duration-200 shadow-sm hover:shadow-md hover:scale-[1.02]"
+                    data-testid="quick-access-tracking-dashboard"
+                  >
+                    <Activity className="w-4 h-4" />
+                    <span className="text-sm">Takip Sistemi</span>
+                  </button>
                 </div>
               </div>
             </div>
