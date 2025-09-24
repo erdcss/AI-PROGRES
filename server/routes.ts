@@ -1586,6 +1586,9 @@ export function registerRoutes(app: Express): Server {
         ]) as any;
         
         console.log('🚨 ROUTES: scenarioBasedScrape returned price:', result.price?.original);
+        console.log('🔍 DEBUG: result.success:', result.success);
+        console.log('🔍 DEBUG: result.htmlContent exists:', !!result.htmlContent);
+        console.log('🔍 DEBUG: htmlContent length:', result.htmlContent?.length || 0);
         
         // 🔍 ENHANCE VARIANTS WITH REAL STOCK DETECTION
         if (result.success && result.htmlContent) {
