@@ -151,11 +151,24 @@ export function VariantDisplay({
               Mevcut Bedenler ({uniqueSizes.length})
             </h4>
             <div className="flex flex-wrap gap-2">
-              {uniqueSizes.map((size, index) => (
-                <Badge key={index} variant="outline" className="text-xs">
-                  {size}
-                </Badge>
-              ))}
+              {uniqueSizes.map((size, index) => {
+                // Check if this size has any out-of-stock variants
+                const hasOutOfStockVariant = variants.some(v => v.size === size && v.inStock === false);
+                const hasInStockVariant = variants.some(v => v.size === size && v.inStock !== false);
+                
+                return (
+                  <Badge 
+                    key={index} 
+                    variant={hasOutOfStockVariant && !hasInStockVariant ? "secondary" : "outline"} 
+                    className={`text-xs ${hasOutOfStockVariant && !hasInStockVariant ? 'line-through opacity-60' : ''}`}
+                  >
+                    {size}
+                    {hasOutOfStockVariant && !hasInStockVariant && (
+                      <span className="ml-1 text-red-400">✗</span>
+                    )}
+                  </Badge>
+                );
+              })}
             </div>
           </div>
         )}
@@ -185,12 +198,12 @@ export function VariantDisplay({
                       <div className="flex flex-col gap-1">
                         <div className="flex items-center gap-2">
                           {variant.color && (
-                            <span className="text-sm font-medium text-purple-300">
+                            <span className={`text-sm font-medium ${variant.inStock === false ? 'text-purple-400/60 line-through' : 'text-purple-300'}`}>
                               {variant.color}
                             </span>
                           )}
                           {variant.size && (
-                            <span className="text-sm text-green-300">
+                            <span className={`text-sm ${variant.inStock === false ? 'text-green-400/60 line-through' : 'text-green-300'}`}>
                               {variant.size}
                             </span>
                           )}
