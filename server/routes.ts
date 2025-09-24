@@ -37,6 +37,7 @@ import { scrapeAdvancedVariants, generateAdvancedVariantCSV } from './advanced-v
 import { runTrendyolVariantsSpider, generateScrapyOutput, generateScrapyCSV } from './scrapy-like-trendyol-scraper';
 import { fixedAuthenticScrape } from './fixed-authentic-scraper';
 import { scenarioBasedScrape } from './scenario-based-scraper';
+import { fastProductExtraction } from './fast-extraction-optimizer';
 import { detectRealStockStatus, convertToLegacyFormat } from './real-stock-detector';
 import { ProductManagementSystem } from './product-management-system';
 // Legacy Telegram system removed - using notification gateway
@@ -1573,18 +1574,26 @@ export function registerRoutes(app: Express): Server {
       if (url.includes('trendyol.com')) {
         console.log("🎯 SCENARIO-BASED EXTRACTION başlıyor...");
         
-        // Add timeout for faster response
-        const timeoutDuration = 12000; // 12 seconds max
+        // Add timeout for faster response - OPTIMIZED FOR SPEED
+        const timeoutDuration = 2000; // 2 seconds max for fast extraction
         const timeoutPromise = new Promise((_, reject) => {
           setTimeout(() => reject(new Error('TIMEOUT: Request taking too long')), timeoutDuration);
         });
         
-        console.log('🚨 ROUTES: About to call scenarioBasedScrape with timeout...');
+        console.log('🚀 ROUTES: Trying FAST PATH first...');
         
-        const result = await Promise.race([
-          scenarioBasedScrape(url),
-          timeoutPromise
-        ]) as any;
+        // FAST PATH: Try ultra-fast extraction first
+        let result = await fastProductExtraction(url);
+        
+        if (!result) {
+          console.log('🔄 ROUTES: Fast path failed, falling back to standard method...');
+          result = await Promise.race([
+            scenarioBasedScrape(url),
+            timeoutPromise
+          ]) as any;
+        } else {
+          console.log('⚡ ROUTES: Fast path SUCCESS!');
+        }
         
         console.log('🚨 ROUTES: scenarioBasedScrape returned price:', result.price?.original);
         console.log('🔍 DEBUG: result.success:', result.success);
