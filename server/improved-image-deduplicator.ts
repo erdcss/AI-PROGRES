@@ -274,10 +274,168 @@ export function extractEnhancedVariants($: cheerio.CheerioAPI, htmlContent: stri
   size: string;
   inStock: boolean;
 }> {
-  console.log('🚫 Enhanced variant extraction disabled - returning empty variants to avoid fake data');
+  console.log('🔍 Enhanced variant extraction starting - using comprehensive size/color detection');
   
-  // Return empty array immediately to avoid generating fake variants
-  return [];
+  const variants: Array<{
+    color: string;
+    colorCode: string;
+    size: string;
+    inStock: boolean;
+  }> = [];
+
+  // Method 1: Extract from Trendyol JSON structures in script tags
+  const scriptTags = $('script:not([src])');
+  scriptTags.each((_, script) => {
+    const scriptContent = $(script).html() || '';
+    
+    // Look for variants in __PRODUCT_DETAIL_APP_INITIAL_STATE__
+    const productDetailMatch = scriptContent.match(/window\.__PRODUCT_DETAIL_APP_INITIAL_STATE__\s*=\s*({.*?});/);
+    if (productDetailMatch) {
+      try {
+        const productData = JSON.parse(productDetailMatch[1]);
+        
+        if (productData.product?.variants) {
+          console.log(`📊 Found ${productData.product.variants.length} variants in product data`);
+          
+          // Group variants by color and size
+          const colorMap: Record<string, string[]> = {}; // color -> [sizes]
+          const stockMap: Record<string, boolean> = {}; // color_size -> stock status
+          
+          productData.product.variants.forEach((variant: any) => {
+            // Size variants (attributeType 2)
+            if ((variant.attributeType === 2 || variant.attributeType === '2') && variant.attributeValue) {
+              const sizeName = variant.attributeValue.toString().trim();
+              
+              // Validate size format
+              const isValidSize = (
+                sizeName.match(/^(XS|S|M|L|XL|XXL|XXXL|2XL|3XL)$/i) ||
+                (sizeName.match(/^\d{2}$/) && parseInt(sizeName) >= 28 && parseInt(sizeName) <= 54) ||
+                sizeName.match(/^(Tek Beden|One Size|OS)$/i)
+              );
+              
+              if (isValidSize) {
+                // Default color if no color variants
+                const defaultColor = 'Black';
+                if (!colorMap[defaultColor]) colorMap[defaultColor] = [];
+                if (!colorMap[defaultColor].includes(sizeName)) {
+                  colorMap[defaultColor].push(sizeName);
+                  
+                  // Check stock status - variant is in stock if it exists and not explicitly marked as out of stock
+                  const stockKey = `${defaultColor}_${sizeName}`;
+                  stockMap[stockKey] = variant.inStock !== false && 
+                                     variant.stock !== 0 && 
+                                     variant.available !== false;
+                  
+                  console.log(`📏 Found size: ${sizeName} (stock: ${stockMap[stockKey]})`);
+                }
+              }
+            }
+            
+            // Color variants (attributeType 1)
+            if ((variant.attributeType === 1 || variant.attributeType === '1') && variant.attributeValue) {
+              const colorName = variant.attributeValue.toString().trim();
+              if (!colorMap[colorName]) colorMap[colorName] = [];
+              
+              console.log(`🎨 Found color: ${colorName}`);
+            }
+          });
+          
+          // Generate variants from color/size combinations
+          Object.entries(colorMap).forEach(([color, sizes]) => {
+            if (sizes.length === 0) {
+              // No sizes found, add default size
+              variants.push({
+                color: color,
+                colorCode: '#000000',
+                size: 'Tek Beden',
+                inStock: true
+              });
+            } else {
+              // Add each size for this color
+              sizes.forEach(size => {
+                const stockKey = `${color}_${size}`;
+                variants.push({
+                  color: color,
+                  colorCode: '#000000',
+                  size: size,
+                  inStock: stockMap[stockKey] ?? true
+                });
+              });
+            }
+          });
+        }
+      } catch (error) {
+        console.log('❌ Error parsing product data JSON:', error);
+      }
+    }
+    
+    // Alternative: Look for direct size arrays
+    const sizeArrayMatch = scriptContent.match(/"sizes":\s*\[(.*?)\]/);
+    if (sizeArrayMatch && variants.length === 0) {
+      try {
+        const sizesStr = `[${sizeArrayMatch[1]}]`;
+        const sizes = JSON.parse(sizesStr);
+        
+        sizes.forEach((size: any) => {
+          const sizeName = typeof size === 'string' ? size : size.name || size.value;
+          
+          if (sizeName && sizeName.match(/^(XS|S|M|L|XL|XXL|XXXL|2XL|3XL)$/i)) {
+            variants.push({
+              color: 'Black',
+              colorCode: '#000000',
+              size: sizeName,
+              inStock: size.inStock !== false
+            });
+            console.log(`📏 Found size from array: ${sizeName}`);
+          }
+        });
+      } catch (error) {
+        console.log('❌ Error parsing sizes array:', error);
+      }
+    }
+  });
+
+  // Method 2: Fallback - Extract from DOM elements
+  if (variants.length === 0) {
+    console.log('🔍 No variants found in JSON, trying DOM extraction...');
+    
+    // Look for size selectors
+    const sizeSelectors = [
+      '.size-selection-text',
+      '.size-options button',
+      '.size-options .size-button',
+      '.product-options .size',
+      '[data-size]',
+      '.size-variant'
+    ];
+    
+    sizeSelectors.forEach(selector => {
+      $(selector).each((_, element) => {
+        const sizeText = $(element).text().trim() || $(element).attr('data-size') || $(element).val();
+        
+        if (sizeText && sizeText.match(/^(XS|S|M|L|XL|XXL|XXXL|2XL|3XL)$/i)) {
+          const isDisabled = $(element).hasClass('disabled') || $(element).attr('disabled');
+          
+          variants.push({
+            color: 'Black',
+            colorCode: '#000000',
+            size: sizeText,
+            inStock: !isDisabled
+          });
+          console.log(`📏 Found size from DOM: ${sizeText} (stock: ${!isDisabled})`);
+        }
+      });
+    });
+  }
+
+  // Remove duplicates
+  const uniqueVariants = variants.filter((variant, index, self) => 
+    index === self.findIndex(v => v.color === variant.color && v.size === variant.size)
+  );
+
+  console.log(`✅ Enhanced variant extraction complete: ${uniqueVariants.length} unique variants found`);
+  
+  return uniqueVariants;
 
   /* Disabled fake variant generation code below */
   /*

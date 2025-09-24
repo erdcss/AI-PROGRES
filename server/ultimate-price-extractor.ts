@@ -658,7 +658,32 @@ export class UltimatePriceExtractor {
       }
     }
     
-    // Step 3: Look for integer prices
+    // Step 3: TURKISH THOUSAND SEPARATOR FORMAT (2.790 TL) - ADD BEFORE INTEGER
+    const turkishThousandPattern = /((?:\d{1,3}\.)+\d{3})\s*(?:TL|₺)/g;
+    match = turkishThousandPattern.exec(cleanStr);
+    
+    if (match) {
+      const wholePart = match[1].replace(/\./g, ''); // Remove thousand separators (dots)
+      const price = parseInt(wholePart);
+      
+      console.log(`💰 TURKISH THOUSANDS: "${match[0]}" -> ${wholePart} = ${price} TL`);
+      
+      if (price >= 10 && price <= 100000) {
+        const withProfit = Math.round(price * 1.10 * 100) / 100;
+        
+        return {
+          original: parseFloat(price.toFixed(2)),
+          currency: 'TL',
+          formatted: `${price.toFixed(2)} TL`,
+          withProfit: parseFloat(withProfit.toFixed(2)),
+          profitFormatted: `${withProfit.toFixed(2)} TL`,
+          method: method + ' (Turkish Thousands)',
+          raw: priceStr
+        };
+      }
+    }
+    
+    // Step 4: Look for integer prices (moved from Step 3)
     const integerPattern = /(\d+)\s*(?:TL|₺)/g;
     match = integerPattern.exec(cleanStr);
     
@@ -685,7 +710,32 @@ export class UltimatePriceExtractor {
       }
     }
     
-    // Step 4: Fallback - try to extract without TL symbol
+    // Step 5: Fallback - try to extract without TL symbol (Turkish thousands)
+    const fallbackThousandPattern = /((?:\d{1,3}\.)+\d{3})(?!\.\d)/; // 2.790 but not 2.790,00
+    const thousandMatch = cleanStr.match(fallbackThousandPattern);
+    
+    if (thousandMatch) {
+      const wholePart = thousandMatch[1].replace(/\./g, '');
+      const price = parseInt(wholePart);
+      
+      console.log(`💰 FALLBACK THOUSANDS: "${thousandMatch[0]}" -> ${price} TL`);
+      
+      if (price >= 100 && price <= 100000) { // Higher minimum for fallback
+        const withProfit = Math.round(price * 1.10 * 100) / 100;
+        
+        return {
+          original: parseFloat(price.toFixed(2)),
+          currency: 'TL',
+          formatted: `${price.toFixed(2)} TL`,
+          withProfit: parseFloat(withProfit.toFixed(2)),
+          profitFormatted: `${withProfit.toFixed(2)} TL`,
+          method: method + ' (Fallback Thousands)',
+          raw: priceStr
+        };
+      }
+    }
+    
+    // Step 6: Fallback - try to extract without TL symbol (Turkish decimals)
     const fallbackTurkishPattern = /([\d.]+),(\d{2})/;
     const fallbackMatch = cleanStr.match(fallbackTurkishPattern);
     
