@@ -1589,6 +1589,7 @@ export function registerRoutes(app: Express): Server {
         console.log('🔍 DEBUG: result.success:', result.success);
         console.log('🔍 DEBUG: result.htmlContent exists:', !!result.htmlContent);
         console.log('🔍 DEBUG: htmlContent length:', result.htmlContent?.length || 0);
+        console.log('🔍 DEBUG: Full result keys:', Object.keys(result));
         
         // 🔍 ENHANCE VARIANTS WITH REAL STOCK DETECTION
         if (result.success && result.htmlContent) {
