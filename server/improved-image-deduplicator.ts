@@ -475,35 +475,86 @@ export function extractEnhancedVariants($: cheerio.CheerioAPI, htmlContent: stri
     }
   });
 
-  // Method 2: Fallback - Extract from DOM elements
+  // Method 2: Advanced DOM-based stock detection
   if (variants.length === 0) {
-    console.log('🔍 No variants found in JSON, trying DOM extraction...');
+    console.log('🔍 No variants found in JSON, trying advanced DOM extraction...');
     
-    // Look for size selectors
+    // Extract sizes from Trendyol size selectors
+    const sizes: string[] = [];
+    const stockStatus: Record<string, boolean> = {};
+    
+    // Advanced size selectors for Trendyol
     const sizeSelectors = [
+      '.pr-in-sz button',
       '.size-selection-text',
       '.size-options button',
-      '.size-options .size-button',
-      '.product-options .size',
-      '[data-size]',
-      '.size-variant'
+      '.size-button',
+      '[data-testid*="size"] button',
+      '[data-size]'
     ];
     
     sizeSelectors.forEach(selector => {
       $(selector).each((_, element) => {
-        const sizeText = $(element).text().trim() || $(element).attr('data-size') || $(element).val();
+        const $el = $(element);
+        let sizeText = $el.text().trim() || $el.attr('data-size') || $el.val();
         
         if (sizeText && sizeText.match(/^(XS|S|M|L|XL|XXL|XXXL|2XL|3XL)$/i)) {
-          const isDisabled = $(element).hasClass('disabled') || $(element).attr('disabled');
-          
-          variants.push({
-            color: 'Black',
-            colorCode: '#000000',
-            size: sizeText,
-            inStock: !isDisabled
-          });
-          console.log(`📏 Found size from DOM: ${sizeText} (stock: ${!isDisabled})`);
+          if (!sizes.includes(sizeText)) {
+            sizes.push(sizeText);
+            
+            // Check stock status
+            const isDisabled = $el.hasClass('disabled') || 
+                              $el.attr('disabled') !== undefined ||
+                              $el.hasClass('out-of-stock') ||
+                              $el.hasClass('sold-out') ||
+                              $el.closest('.disabled').length > 0;
+            
+            // Also check for visual indicators
+            const hasStockIndicator = $el.find('.stock-indicator').length > 0 ||
+                                     $el.text().includes('Tükendi') ||
+                                     $el.text().includes('Stokta yok');
+            
+            stockStatus[sizeText] = !isDisabled && !hasStockIndicator;
+            
+            console.log(`📏 DOM size: ${sizeText} (stock: ${stockStatus[sizeText]}, disabled: ${isDisabled})`);
+          }
         }
+      });
+    });
+    
+    // Extract colors
+    const colors: string[] = [];
+    const colorSelectors = [
+      '.pr-in-cn img',
+      '[data-testid*="color"] img',
+      '.color-option img'
+    ];
+    
+    colorSelectors.forEach(selector => {
+      $(selector).each((_, element) => {
+        const colorName = $(element).attr('alt') || $(element).attr('title') || '';
+        if (colorName && !colors.includes(colorName)) {
+          colors.push(colorName);
+          console.log(`🎨 DOM color: ${colorName}`);
+        }
+      });
+    });
+    
+    // If no colors found, use default
+    if (colors.length === 0) {
+      colors.push('Krem');
+    }
+    
+    // Generate variants from DOM data
+    colors.forEach(color => {
+      sizes.forEach(size => {
+        variants.push({
+          color: color,
+          colorCode: '#F5E6D3',
+          size: size,
+          inStock: stockStatus[size] ?? true
+        });
+        console.log(`📦 DOM variant: ${color} ${size} (stock: ${stockStatus[size] ?? true})`);
       });
     });
   }
