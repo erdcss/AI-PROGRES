@@ -288,6 +288,57 @@ export function extractEnhancedVariants($: cheerio.CheerioAPI, htmlContent: stri
   scriptTags.each((_, script) => {
     const scriptContent = $(script).html() || '';
     
+    // First try to find complete stock information from newer Trendyol format
+    const stockDataMatch = scriptContent.match(/variants":\s*\[(.*?)\]/s);
+    if (stockDataMatch) {
+      try {
+        const variantsJson = `[${stockDataMatch[1]}]`;
+        const stockVariants = JSON.parse(variantsJson);
+        
+        console.log(`🔍 Found ${stockVariants.length} variants with stock data`);
+        
+        stockVariants.forEach((variant: any) => {
+          if (variant.size && variant.size.match(/^(XS|S|M|L|XL|XXL|XXXL|2XL|3XL)$/i)) {
+            const sizeName = variant.size.toString().trim();
+            const colorName = variant.color || 'Krem';
+            
+            // Comprehensive stock checking
+            let isInStock = true;
+            
+            // Check multiple stock indicators
+            if (variant.stock === 0 || variant.stock === '0' || variant.stockQuantity === 0) {
+              isInStock = false;
+            }
+            if (variant.available === false || variant.available === 'false') {
+              isInStock = false;
+            }
+            if (variant.inStock === false || variant.inStock === 'false') {
+              isInStock = false;
+            }
+            if (variant.disabled === true || variant.selectable === false) {
+              isInStock = false;
+            }
+            
+            variants.push({
+              color: colorName,
+              colorCode: '#F5E6D3',
+              size: sizeName,
+              inStock: isInStock
+            });
+            
+            console.log(`📦 Direct variant: ${colorName} ${sizeName} (stock: ${isInStock})`);
+          }
+        });
+        
+        if (variants.length > 0) {
+          console.log(`✅ Found ${variants.length} variants from direct stock data`);
+          return; // Skip other methods if we found direct stock data
+        }
+      } catch (error) {
+        console.log('❌ Error parsing direct stock variants:', error);
+      }
+    }
+    
     // Look for variants in __PRODUCT_DETAIL_APP_INITIAL_STATE__
     const productDetailMatch = scriptContent.match(/window\.__PRODUCT_DETAIL_APP_INITIAL_STATE__\s*=\s*({.*?});/);
     if (productDetailMatch) {
@@ -320,11 +371,40 @@ export function extractEnhancedVariants($: cheerio.CheerioAPI, htmlContent: stri
                 if (!colorMap[defaultColor].includes(sizeName)) {
                   colorMap[defaultColor].push(sizeName);
                   
-                  // Check stock status - variant is in stock if it exists and not explicitly marked as out of stock
+                  // Check stock status with comprehensive detection
                   const stockKey = `${defaultColor}_${sizeName}`;
-                  stockMap[stockKey] = variant.inStock !== false && 
-                                     variant.stock !== 0 && 
-                                     variant.available !== false;
+                  
+                  // Multiple stock indicators to check
+                  let isInStock = true;
+                  
+                  // Method 1: Check inStock field
+                  if (variant.inStock === false || variant.inStock === 'false') {
+                    isInStock = false;
+                  }
+                  
+                  // Method 2: Check stock quantity
+                  if (variant.stock === 0 || variant.stock === '0' || variant.stockQuantity === 0) {
+                    isInStock = false;
+                  }
+                  
+                  // Method 3: Check availability
+                  if (variant.available === false || variant.available === 'false') {
+                    isInStock = false;
+                  }
+                  
+                  // Method 4: Check for out-of-stock text indicators
+                  const stockText = JSON.stringify(variant).toLowerCase();
+                  if (stockText.includes('stokta yok') || stockText.includes('out of stock') || 
+                      stockText.includes('tükendi') || stockText.includes('sold out')) {
+                    isInStock = false;
+                  }
+                  
+                  // Method 5: Check for disabled status
+                  if (variant.disabled === true || variant.disabled === 'true') {
+                    isInStock = false;
+                  }
+                  
+                  stockMap[stockKey] = isInStock;
                   
                   console.log(`📏 Found size: ${sizeName} (stock: ${stockMap[stockKey]})`);
                 }
