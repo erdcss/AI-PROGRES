@@ -79,7 +79,6 @@ export class EnhancedPriceMovementTracker {
       await db
         .update(urlTracking)
         .set({
-          previousPrice: trackingData.currentPrice,
           currentPrice: newPrice.toString(),
           lastPriceChange: new Date(),
           priceChangePercent: ((newPrice - previousPrice) / previousPrice * 100).toFixed(2),
@@ -123,7 +122,7 @@ export class EnhancedPriceMovementTracker {
           price: newPrice.toString(),
           previousPrice: previousPrice.toString(),
           changeAmount: (newPrice - previousPrice).toString(),
-          changePercentage: (((newPrice - previousPrice) / previousPrice) * 100).toString(),
+          changePercentage: (((newPrice - previousPrice) / previousPrice) * 100).toFixed(2),
           productTitle: trackingData?.productTitle || null,
           currency: 'TL'
         });
@@ -354,6 +353,12 @@ export class EnhancedPriceMovementTracker {
     try {
       const message = this.formatDetailedPriceMessage(data);
       
+      // Boş mesaj kontrolü - küçük değişimlerde bildirim gönderme
+      if (!message || message.trim() === '') {
+        console.log('📊 Mesaj boş - fiyat değişimi çok küçük, bildirim gönderilmiyor');
+        return;
+      }
+      
       await this.bot.sendMessage(this.chatId, message, {
         parse_mode: 'HTML',
         disable_web_page_preview: true
@@ -366,62 +371,47 @@ export class EnhancedPriceMovementTracker {
   }
 
   /**
-   * Format detailed price notification message
+   * Format simple price notification message
    */
   private formatDetailedPriceMessage(data: PriceMovementData): string {
-    const direction = data.changeAmount > 0 ? '📈' : '📉';
-    const changeText = data.changeAmount > 0 ? 'ARTTI' : 'DÜŞTÜ';
-    const trendIcon7 = data.trends.trend7Days === 'up' ? '⬆️' : data.trends.trend7Days === 'down' ? '⬇️' : '➡️';
-    const trendIcon30 = data.trends.trend30Days === 'up' ? '⬆️' : data.trends.trend30Days === 'down' ? '⬇️' : '➡️';
-    const volatilityIcon = data.trends.volatility === 'high' ? '🔥' : data.trends.volatility === 'medium' ? '⚡' : '🎯';
+    // Sadece >%20 değişikliklerde yüksek öncelik bildirimi gönder
+    const absChangePercentage = Math.abs(data.changePercentage);
+    const isHighPriority = absChangePercentage >= 20;
+    const isMediumPriority = absChangePercentage >= 10;
 
-    let message = `${direction} <b>FİYAT DEĞİŞİKLİĞİ - DETAYLI ANALİZ</b>\n\n`;
+    // Küçük değişimleri görmezden gel
+    if (absChangePercentage < 5) {
+      console.log(`📊 Küçük fiyat değişimi (%${absChangePercentage.toFixed(1)}) - bildirim gönderilmiyor`);
+      return '';
+    }
+
+    const direction = data.changeAmount > 0 ? '📈' : '📉';
+    const changeText = data.changeAmount > 0 ? 'FİYAT ARTIŞI' : 'FİYAT DÜŞÜŞÜ';
+    const priority = isHighPriority ? 'YÜKSEK ÖNCELİK' : isMediumPriority ? 'ORTA ÖNCELİK' : 'NORMAL';
+
+    let message = `${direction} <b>${changeText} - ${priority}</b>\n\n`;
     
-    // Product info
-    message += `📦 <b>Ürün:</b> ${data.productTitle}\n`;
-    message += `🔗 <b>URL:</b> ${data.url.substring(0, 50)}...\n\n`;
+    // Ürün bilgisi (sadece isim)
+    message += `📦 <b>Ürün:</b> ${data.productTitle.substring(0, 60)}${data.productTitle.length > 60 ? '...' : ''}\n\n`;
     
-    // Current price change
-    message += `💰 <b>FİYAT HAREKETİ</b>\n`;
-    message += `${direction} <b>${changeText}</b>\n`;
-    message += `💵 Eski fiyat: <b>${data.previousPrice.toFixed(2)} ${data.currency}</b>\n`;
-    message += `💵 Yeni fiyat: <b>${data.currentPrice.toFixed(2)} ${data.currency}</b>\n`;
-    message += `📊 Değişim: <b>${Math.abs(data.changeAmount).toFixed(2)} ${data.currency} (${Math.abs(data.changePercentage).toFixed(1)}%)</b>\n\n`;
+    // Fiyat değişimi (basit format)
+    message += `💰 ${data.previousPrice.toFixed(2)} TL → ${data.currentPrice.toFixed(2)} TL\n`;
+    message += `📊 Değişim: ${data.changeAmount > 0 ? '+' : ''}${data.changeAmount.toFixed(2)} TL (${data.changeAmount > 0 ? '+' : ''}${data.changePercentage.toFixed(1)}%)\n\n`;
     
-    // Historical analysis
-    message += `📈 <b>TARİHSEL ANALİZ</b>\n`;
-    message += `🎯 En düşük: <b>${data.trends.lowestPrice.price.toFixed(2)} ${data.currency}</b> (${this.formatDate(data.trends.lowestPrice.date)})\n`;
-    message += `🔝 En yüksek: <b>${data.trends.highestPrice.price.toFixed(2)} ${data.currency}</b> (${this.formatDate(data.trends.highestPrice.date)})\n`;
-    message += `📅 İlk fiyat: <b>${data.originalPrice.toFixed(2)} ${data.currency}</b>\n\n`;
-    
-    // Trend analysis
-    message += `📊 <b>TREND ANALİZİ</b>\n`;
-    message += `${trendIcon7} 7 günlük trend: <b>${this.getTrendText(data.trends.trend7Days)}</b>\n`;
-    message += `${trendIcon30} 30 günlük trend: <b>${this.getTrendText(data.trends.trend30Days)}</b>\n`;
-    message += `${volatilityIcon} Volatilite: <b>${this.getVolatilityText(data.trends.volatility)}</b>\n\n`;
-    
-    // Recent price history (last 5 changes)
-    if (data.priceHistory.length > 0) {
-      message += `📋 <b>SON FİYAT HAREKETLERİ</b>\n`;
-      const recentHistory = data.priceHistory.slice(0, 5);
-      recentHistory.forEach((item, index) => {
-        const changeIcon = item.changeFromPrevious && item.changeFromPrevious > 0 ? '📈' : 
-                          item.changeFromPrevious && item.changeFromPrevious < 0 ? '📉' : '➡️';
-        const changeText = item.changeFromPrevious ? 
-          ` (${changeIcon} ${item.changeFromPrevious > 0 ? '+' : ''}${item.changeFromPrevious.toFixed(2)} ${data.currency})` : '';
-        
-        message += `${index + 1}. ${item.price.toFixed(2)} ${data.currency}${changeText} - ${this.formatDateTime(item.timestamp)}\n`;
-      });
-      message += '\n';
+    // Sadece yüksek öncelikli değişimlerde trend bilgisi ekle
+    if (isHighPriority) {
+      const trend7 = this.getTrendText(data.trends.trend7Days);
+      message += `📈 7 günlük trend: ${trend7}\n\n`;
     }
     
-    // Recommendations
-    message += `💡 <b>ÖNERİLER</b>\n`;
-    data.recommendations.forEach(rec => {
-      message += `• ${rec}\n`;
-    });
+    // Basit öneri (sadece 1 tane)
+    if (data.changePercentage < -10) {
+      message += `💡 Önemli fiyat düşüşü - satın alma fırsatı\n\n`;
+    } else if (data.changePercentage > 15) {
+      message += `⚠️ Fiyat hızla yükseliyor - beklemek daha uygun\n\n`;
+    }
     
-    message += `\n⏰ <i>Analiz zamanı: ${this.formatDateTime(new Date())}</i>`;
+    message += `⏰ ${new Date().toLocaleTimeString('tr-TR')}`;
     
     return message;
   }

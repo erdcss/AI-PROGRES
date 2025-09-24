@@ -40,15 +40,16 @@ export class FilteredTelegramNotifier {
       return;
     }
 
-    const statusIcon = status === 'success' ? '✅' : '❌';
+    // Sadece hata durumlarında bildirim gönder (başarılı işlemler için spam yapma)
+    if (status === 'success') return;
+
     const taskDisplayName = this.getTaskDisplayName(taskName);
     
     const message = 
-      `${statusIcon} **GÖREV TAMAMLANDI**\n\n` +
-      `📋 **Görev:** ${taskDisplayName}\n` +
-      `🕐 **Zaman:** ${new Date().toLocaleString('tr-TR')}\n` +
-      `📊 **Durum:** ${status === 'success' ? 'Başarılı' : 'Hata'}\n\n` +
-      `📝 **Detaylar:**\n${details}`;
+      `❌ Görev Hatası\n` +
+      `${taskDisplayName}\n` +
+      `${new Date().toLocaleTimeString('tr-TR')}\n` +
+      `${details}`;
 
     await this.sendMessage(message);
   }
