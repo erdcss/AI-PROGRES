@@ -108,11 +108,12 @@ export function generateMultiVariantShopifyCSV(product: CombinedProduct): string
   }
   
   // Category information
-  const categoryFeature = product.features.find(f => 
-    f.key.toLowerCase().includes('kategori') || 
-    f.key.toLowerCase().includes('category') ||
-    f.key.toLowerCase().includes('type')
-  );
+  const categoryFeature = product.features && product.features.length > 0 ? 
+    product.features.find(f => 
+      f.key.toLowerCase().includes('kategori') || 
+      f.key.toLowerCase().includes('category') ||
+      f.key.toLowerCase().includes('type')
+    ) : null;
   if (categoryFeature && categoryFeature.value.trim() !== '') {
     bodyHtml += `<p><strong>Kategori:</strong> ${categoryFeature.value}</p>`;
   } else if (product.category && product.category.trim() !== '') {

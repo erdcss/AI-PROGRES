@@ -111,25 +111,31 @@ async function parallelBasicExtraction($: any, htmlContent: string): Promise<any
   console.log('⚡ PARALLEL BASIC: Starting parallel extraction...');
   
   const extractionPromises = [
-    // Title extraction - fastest selectors first
+    // Title extraction - UPDATED Trendyol selectors
     Promise.race([
-      Promise.resolve($('h1.pr-new-br').first().text().trim()),
+      Promise.resolve($('h1.pr-new-br span').first().text().trim()),
+      Promise.resolve($('h1 span').first().text().trim()),
       Promise.resolve($('h1').first().text().trim()),
-      Promise.resolve($('.product-title').first().text().trim()),
-      Promise.resolve($('title').text().replace('- Trendyol', '').trim())
+      Promise.resolve($('[data-testid="product-name"]').first().text().trim()),
+      Promise.resolve($('.pr-in-nm').first().text().trim()),
+      Promise.resolve($('title').text().replace('- Trendyol', '').replace(' | Trendyol', '').trim())
     ]).catch(() => 'Ürün'),
     
-    // Brand extraction
+    // Brand extraction - UPDATED Trendyol selectors
     Promise.race([
+      Promise.resolve($('[data-testid="merchantName"]').first().text().trim()),
+      Promise.resolve($('.pr-in-mn a').first().text().trim()),
       Promise.resolve($('.product-brand').first().text().trim()),
-      Promise.resolve($('[data-testid="brand"]').first().text().trim()),
-      Promise.resolve($('.brand-name').first().text().trim())
+      Promise.resolve($('.brand-name').first().text().trim()),
+      Promise.resolve($('a[href*="/brand/"]').first().text().trim())
     ]).catch(() => 'Marka'),
     
-    // Primary image
+    // Primary image - UPDATED Trendyol selectors
     Promise.race([
-      Promise.resolve($('img.product-image').first().attr('src')),
       Promise.resolve($('.product-images img').first().attr('src')),
+      Promise.resolve($('[data-testid="product-image"] img').first().attr('src')),
+      Promise.resolve($('.pr-in-im img').first().attr('src')),
+      Promise.resolve($('img[src*="cdn.dsmcdn.com"]').first().attr('src')),
       Promise.resolve($('img[alt*="ürün"]').first().attr('src'))
     ]).catch(() => null),
     
@@ -248,9 +254,10 @@ async function fastVariantsExtraction($: any): Promise<any[]> {
     
     // Default sizes if none found
     const defaultSizes = ['S', 'M', 'L', 'XL'];
-    const sizes = sizeButtons.length > 0 ? 
-      sizeButtons.map((i: number, el: any) => $(el).text().trim()).get() : 
-      defaultSizes;
+    const extractedSizes = sizeButtons.length > 0 ? 
+      sizeButtons.map((i: number, el: any) => $(el).text().trim()).get().filter(s => s && s.length <= 4) : 
+      [];
+    const sizes = extractedSizes.length > 0 ? extractedSizes : defaultSizes;
     
     // Single color from title (faster than multi-color detection)
     const title = $('h1').first().text().toLowerCase();
@@ -326,7 +333,26 @@ export async function fastProductExtraction(url: string): Promise<any> {
     ]);
     console.log(`⚡ FAST EXTRACTION: Parallel extraction in ${Date.now() - parallelStart}ms`);
     
-    // Step 4: Assemble result
+    // Step 4: Quick image collection (100ms budget)
+    const imageStart = Date.now();
+    const allImages: any[] = [];
+    
+    // Collect all product images fast
+    $('img[src*="cdn.dsmcdn.com"]').each((i: number, el: any) => {
+      const src = $(el).attr('src');
+      if (src && src.includes('_org_zoom') && allImages.length < 8) {
+        allImages.push({ url: src, colorName: 'none' });
+      }
+    });
+    
+    // Add primary image if not in list
+    if (basicData.primaryImage && !allImages.find(img => img.url === basicData.primaryImage)) {
+      allImages.unshift({ url: basicData.primaryImage, colorName: 'none' });
+    }
+    
+    console.log(`📸 FAST IMAGES: Collected ${allImages.length} images in ${Date.now() - imageStart}ms`);
+    
+    // Step 5: Assemble result
     const result = {
       success: true,
       extractionMethod: 'fast-extraction-optimizer',
@@ -340,9 +366,11 @@ export async function fastProductExtraction(url: string): Promise<any> {
         withProfit: 110,
         method: 'Fallback'
       },
-      images: basicData.primaryImage ? [{ url: basicData.primaryImage, colorName: 'none' }] : [],
+      images: allImages,
       variants: variants,
       category: basicData.category,
+      features: [], // Empty features array to prevent CSV errors
+      description: '', // Empty description to prevent errors
       htmlContent: html,
       $: $
     };
