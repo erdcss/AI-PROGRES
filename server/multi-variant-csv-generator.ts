@@ -21,8 +21,13 @@ interface CombinedProduct {
 }
 
 export function generateMultiVariantShopifyCSV(product: CombinedProduct): string {
+  // Apply brand sanitization to product before processing
+  const { sanitizeProduct } = require('./brand-sanitizer');
+  const sanitizedProduct = sanitizeProduct(product);
+  console.log('🧹 CSV: Trendyol branding removed from product data');
+  
   // Validate product before processing - Skip error responses
-  if (!product || !product.title || !product.brand) {
+  if (!sanitizedProduct || !sanitizedProduct.title || !sanitizedProduct.brand) {
     console.log('⚠️ Invalid product data, skipping CSV generation');
     return '';
   }
@@ -32,14 +37,14 @@ export function generateMultiVariantShopifyCSV(product: CombinedProduct): string
     'Sorry, you have been blocked', '429', '403', 'Access Denied', 'Erişim Engellendi', 
     'Rate limit', 'Blocked', 'Error', 'undefined', 'null', 'Product', 'Bilinmeyen Ürün'
   ];
-  const titleLower = product.title.toLowerCase();
+  const titleLower = sanitizedProduct.title.toLowerCase();
   
   const isErrorContent = errorIndicators.some(indicator => titleLower.includes(indicator.toLowerCase())) ||
-      product.title.length < 3 ||
-      product.title === 'Product' ||
-      product.brand === 'Bilinmiyor' ||
-      product.brand === 'Lütfen bekleyin' ||
-      product.brand === 'Unknown';
+      sanitizedProduct.title.length < 3 ||
+      sanitizedProduct.title === 'Product' ||
+      sanitizedProduct.brand === 'Bilinmiyor' ||
+      sanitizedProduct.brand === 'Lütfen bekleyin' ||
+      sanitizedProduct.brand === 'Unknown';
       
   if (isErrorContent) {
     console.log(`⚠️ Poor quality/blocked product detected: "${product.title}" (brand: ${product.brand}), skipping CSV generation`);

@@ -1379,18 +1379,35 @@ export function registerRoutes(app: Express): Server {
           if (jsStateResult && jsStateResult.success && jsStateResult.title !== 'Ürün') {
             console.log(`🎯 JavaScript State Extraction SUCCESS: ${jsStateResult.title} by ${jsStateResult.brand}`);
             
+            // Normalize price to numeric value
+            let normalizedPrice = null;
+            if (jsStateResult.price && typeof jsStateResult.price === 'object') {
+              normalizedPrice = jsStateResult.price.withProfit || jsStateResult.price.original;
+            } else if (typeof jsStateResult.price === 'number') {
+              normalizedPrice = jsStateResult.price;
+            }
+            
+            // Apply brand sanitization
+            const { sanitizeProduct } = await import('./brand-sanitizer');
+            const sanitizedResult = sanitizeProduct({
+              ...jsStateResult,
+              price: normalizedPrice
+            });
+            
             // Process variants from JS state
-            const processedVariants = processVariantsFromFeatures(jsStateResult.features || [], jsStateResult.variants || []);
+            const processedVariants = processVariantsFromFeatures(sanitizedResult.features || [], sanitizedResult.variants || []);
+            
+            console.log(`🧹 BRAND SANITIZED: ${sanitizedResult.title} by ${sanitizedResult.brand}`);
             
             return res.json({
               success: true,
               extractionMethod: 'javascript-state-extractor',
-              confidence: jsStateResult.confidence,
-              brand: jsStateResult.brand,
-              title: jsStateResult.title,
-              price: jsStateResult.price,
-              images: jsStateResult.images,
-              features: jsStateResult.features,
+              confidence: sanitizedResult.confidence,
+              brand: sanitizedResult.brand,
+              title: sanitizedResult.title,
+              price: sanitizedResult.price,
+              images: sanitizedResult.images,
+              features: sanitizedResult.features,
               variants: processedVariants
             });
           }
