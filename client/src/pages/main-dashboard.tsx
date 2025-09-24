@@ -253,14 +253,6 @@ const MainDashboard = () => {
                     <span className="text-sm">Trendyol</span>
                   </button>
                   <button
-                    onClick={() => setLocation('/data-analysis')}
-                    className="w-full group flex items-center justify-center gap-2 bg-gradient-to-r from-indigo-500 to-indigo-600 hover:from-indigo-600 hover:to-indigo-700 text-white px-3 py-2.5 rounded-lg font-medium transition-all duration-200 shadow-sm hover:shadow-md hover:scale-[1.02]"
-                    data-testid="quick-access-data-analysis"
-                  >
-                    <BarChart3 className="w-4 h-4" />
-                    <span className="text-sm">Veri Analizi</span>
-                  </button>
-                  <button
                     onClick={() => setLocation('/system-status')}
                     className="w-full group flex items-center justify-center gap-2 bg-gradient-to-r from-emerald-500 to-emerald-600 hover:from-emerald-600 hover:to-emerald-700 text-white px-3 py-2.5 rounded-lg font-medium transition-all duration-200 shadow-sm hover:shadow-md hover:scale-[1.02]"
                     data-testid="quick-access-system-status"
@@ -308,7 +300,7 @@ const MainDashboard = () => {
                     <Settings className="w-4 h-4 text-white" />
                   </div>
                   <h3 className="text-white font-medium text-sm mb-1">Sistem Araçları</h3>
-                  <p className="text-slate-400 text-xs">4 Araç</p>
+                  <p className="text-slate-400 text-xs">3 Araç</p>
                   <p className="text-green-400 text-xs mt-1">Tümü Aktif</p>
                 </div>
                 
