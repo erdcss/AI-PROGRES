@@ -51,34 +51,10 @@ const MainDashboard = () => {
       available: false,
       path: "/coming-soon/n11"
     },
-    {
-      name: "Ürün Veri Analizi",
-      description: "Hafıza sistemi ve analiz",
-      icon: <BarChart3 className="w-6 h-6" />,
-      color: "from-purple-500 to-purple-600",
-      available: true,
-      path: "/data-analysis"
-    },
-    {
-      name: "Ürün Yorumları",
-      description: "Yorum çıkarma ve yönetim",
-      icon: <MessageSquare className="w-6 h-6" />,
-      color: "from-blue-500 to-blue-600",
-      available: true,
-      path: "/product-reviews"
-    }
   ];
 
   // Sistem Donanım ve Kontrol Merkezi
   const systemControlOptions = [
-    {
-      name: "Memory Tracking",
-      description: "Ürün takip ve fiyat değişim izleme",
-      icon: <Database className="w-6 h-6" />,
-      color: "from-green-500 to-green-600",
-      available: true,
-      path: "/memory-tracking"
-    },
     {
       name: "Sistem Durumu & Hata Merkezi",
       description: "Hata izleme ve sistem durumu",
