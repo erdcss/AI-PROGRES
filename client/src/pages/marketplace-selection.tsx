@@ -45,6 +45,13 @@ const MarketplaceSelection = () => {
   // Sistem Yönetimi ve Analiz
   const systemManagement = [
     {
+      name: "Otomatik Takip Sistemi",
+      description: "Ürün fiyat izleme ve Shopify senkronizasyonu",
+      icon: <Activity className="w-8 h-8 text-white" />,
+      available: true,
+      path: "/tracking-dashboard"
+    },
+    {
       name: "Sistem Durumu",
       description: "Hata izleme ve sistem durumu",
       icon: <Shield className="w-8 h-8 text-white" />,
