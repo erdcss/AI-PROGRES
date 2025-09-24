@@ -46,32 +46,63 @@ export function detectRealStockStatus($: cheerio.CheerioAPI, htmlContent: string
           
           // Genişletilmiş beden aralığı - Mavi t-shirt görseli referans alınarak
           if (sizeName && sizeName.match(/^(XS|S|M|L|XL|XXL|XXXL|2XL|3XL|4XL|5XL)$/i)) {
-            // Stock status tespiti - multiple indicators
+            // Enhanced stock status detection - Mavi t-shirt case optimized
             let inStock = true;
             let stockReason = 'default true';
             
-            // Check 1: inStock field
+            // Check 1: inStock field (primary indicator)
             if (variant.inStock === false) {
               inStock = false;
               stockReason = 'inStock=false';
             }
             
-            // Check 2: stock quantity
-            if (variant.stock !== undefined && variant.stock <= 0) {
+            // Check 2: stock quantity (multiple field variations)
+            if ((variant.stock !== undefined && variant.stock <= 0) ||
+                (variant.quantity !== undefined && variant.quantity <= 0) ||
+                (variant.availableQuantity !== undefined && variant.availableQuantity <= 0) ||
+                (variant.stockCount !== undefined && variant.stockCount <= 0)) {
               inStock = false;
-              stockReason = `stock=${variant.stock}`;
+              stockReason = `stock=${variant.stock || variant.quantity || variant.availableQuantity || variant.stockCount}`;
             }
             
-            // Check 3: available field  
-            if (variant.available === false) {
+            // Check 3: available/active field variations  
+            if (variant.available === false || 
+                variant.isAvailable === false || 
+                variant.active === false || 
+                variant.isActive === false) {
               inStock = false;
-              stockReason = 'available=false';
+              stockReason = 'available/active=false';
             }
             
-            // Check 4: disabled/selectable
-            if (variant.disabled === true || variant.selectable === false) {
+            // Check 4: disabled/selectable/clickable
+            if (variant.disabled === true || 
+                variant.selectable === false || 
+                variant.isSelectable === false ||
+                variant.clickable === false ||
+                variant.isClickable === false) {
               inStock = false;
               stockReason = 'disabled/not selectable';
+            }
+            
+            // Check 5: soldOut flag variations
+            if (variant.soldOut === true || 
+                variant.isSoldOut === true || 
+                variant.outOfStock === true || 
+                variant.isOutOfStock === true) {
+              inStock = false;
+              stockReason = 'soldOut flag';
+            }
+            
+            // Check 6: status field checks
+            if (variant.status && typeof variant.status === 'string') {
+              const status = variant.status.toLowerCase();
+              if (status.includes('unavailable') || 
+                  status.includes('soldout') || 
+                  status.includes('disabled') ||
+                  status.includes('inactive')) {
+                inStock = false;
+                stockReason = `status=${variant.status}`;
+              }
             }
             
             variants.push({
@@ -98,8 +129,8 @@ export function detectRealStockStatus($: cheerio.CheerioAPI, htmlContent: string
     const sizes: string[] = [];
     const sizeStockMap: Record<string, boolean> = {};
     
-    // Trendyol size selectors
-    const sizeButtons = $('.pr-in-sz button, .size-button, [data-testid*="size"] button');
+    // Enhanced Trendyol size selectors - comprehensive coverage
+    const sizeButtons = $('.pr-in-sz button, .size-button, [data-testid*="size"] button, .variant-size button, .product-variant button, .size-variant button, .pr-bd-v button, .variant-list button');
     
     sizeButtons.each((_, button) => {
       const $button = $(button);
