@@ -6,6 +6,7 @@
 import axios from 'axios';
 import * as cheerio from 'cheerio';
 import { ultimatePriceExtract } from './ultimate-price-extractor';
+import { extractFromTrendyolJavaScriptState } from './trendyol-js-extractor';
 
 // Keep-alive HTTP agent for connection reuse
 import { Agent } from 'http';
@@ -330,12 +331,27 @@ export async function fastProductExtraction(url: string): Promise<any> {
       throw new Error('Fast request failed');
     }
     
-    // Step 2: Parse with Cheerio (100ms budget)
+    // Step 2: Try JavaScript State Extraction FIRST (fastest method)
+    const jsStateStart = Date.now();
+    const jsStateResult = extractFromTrendyolJavaScriptState(html);
+    console.log(`⚡ FAST EXTRACTION: JS State extraction in ${Date.now() - jsStateStart}ms`);
+    
+    if (jsStateResult && jsStateResult.success && jsStateResult.title !== 'Ürün') {
+      console.log(`🎯 JS-STATE SUCCESS: ${jsStateResult.title} by ${jsStateResult.brand}`);
+      
+      // Add missing fields for compatibility
+      jsStateResult.htmlContent = html;
+      jsStateResult.$ = cheerio.load(html);
+      
+      return jsStateResult;
+    }
+    
+    // Step 3: Fallback to DOM parsing if JS extraction fails
     const parseStart = Date.now();
     const $ = cheerio.load(html);
     console.log(`⚡ FAST EXTRACTION: Cheerio parsing in ${Date.now() - parseStart}ms`);
     
-    // Step 3: Parallel extraction (800ms budget)
+    // Step 4: Parallel extraction (800ms budget)
     const parallelStart = Date.now();
     const [basicData, price, variants] = await Promise.all([
       parallelBasicExtraction($, html),
@@ -344,7 +360,7 @@ export async function fastProductExtraction(url: string): Promise<any> {
     ]);
     console.log(`⚡ FAST EXTRACTION: Parallel extraction in ${Date.now() - parallelStart}ms`);
     
-    // Step 4: Quick image collection (100ms budget)
+    // Step 5: Quick image collection (100ms budget)
     const imageStart = Date.now();
     const allImages: any[] = [];
     
@@ -363,7 +379,7 @@ export async function fastProductExtraction(url: string): Promise<any> {
     
     console.log(`📸 FAST IMAGES: Collected ${allImages.length} images in ${Date.now() - imageStart}ms`);
     
-    // Step 5: Assemble result
+    // Step 6: Assemble result
     const result = {
       success: true,
       extractionMethod: 'fast-extraction-optimizer',

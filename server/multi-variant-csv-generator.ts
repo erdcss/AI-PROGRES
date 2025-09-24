@@ -160,11 +160,11 @@ export function generateMultiVariantShopifyCSV(product: CombinedProduct): string
     const realSizes = [...new Set(realVariants.map(v => v.size).filter(s => s && s.trim() !== ''))];
     
     if (realColors.length > 0) {
-      bodyHtml += `<p><strong>Mevcut Renkler:</strong> ${realColors.join(', ')}</p>`;
+      bodyHtml += `<p><strong>Mevcut Renkler:</strong> ${realColors && Array.isArray(realColors) ? realColors.join(', ') : 'Çeşitli Renkler'}</p>`;
     }
     
     if (realSizes.length > 0) {
-      bodyHtml += `<p><strong>Mevcut Bedenler:</strong> ${realSizes.join(', ')}</p>`;
+      bodyHtml += `<p><strong>Mevcut Bedenler:</strong> ${realSizes && Array.isArray(realSizes) ? realSizes.join(', ') : 'Çeşitli Bedenler'}</p>`;
     }
   }
   
@@ -312,7 +312,7 @@ export function generateMultiVariantShopifyCSV(product: CombinedProduct): string
       row.push(product.title); // Title
       row.push(bodyHtml); // Body (HTML)
       row.push(product.brand || ''); // Vendor
-      row.push(product.tags.join(', ')); // Tags
+      row.push(product.tags && Array.isArray(product.tags) ? product.tags.join(', ') : 'trendyol'); // Tags
       row.push('TRUE'); // Published
     } else {
       // Sonraki satırlarda sadece varyant bilgileri
