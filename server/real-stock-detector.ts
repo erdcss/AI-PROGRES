@@ -44,7 +44,8 @@ export function detectRealStockStatus($: cheerio.CheerioAPI, htmlContent: string
         sizeVariants.forEach((variant: any) => {
           const sizeName = variant.attributeValue?.toString().trim();
           
-          if (sizeName && sizeName.match(/^(XS|S|M|L|XL|XXL|XXXL|2XL|3XL)$/i)) {
+          // Genişletilmiş beden aralığı - Mavi t-shirt görseli referans alınarak
+          if (sizeName && sizeName.match(/^(XS|S|M|L|XL|XXL|XXXL|2XL|3XL|4XL|5XL)$/i)) {
             // Stock status tespiti - multiple indicators
             let inStock = true;
             let stockReason = 'default true';
@@ -104,7 +105,8 @@ export function detectRealStockStatus($: cheerio.CheerioAPI, htmlContent: string
       const $button = $(button);
       const sizeText = $button.text().trim();
       
-      if (sizeText && sizeText.match(/^(XS|S|M|L|XL|XXL|XXXL|2XL|3XL)$/i)) {
+      // Genişletilmiş beden aralığı - Mavi t-shirt görseli referans alınarak  
+      if (sizeText && sizeText.match(/^(XS|S|M|L|XL|XXL|XXXL|2XL|3XL|4XL|5XL)$/i)) {
         if (!sizes.includes(sizeText)) {
           sizes.push(sizeText);
           
