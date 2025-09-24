@@ -107,13 +107,21 @@ export function generateMultiVariantShopifyCSV(product: CombinedProduct): string
     bodyHtml += `<p><strong>Marka:</strong> ${product.brand}</p>`;
   }
   
-  // Category information
-  const categoryFeature = product.features && product.features.length > 0 ? 
-    product.features.find(f => 
-      f.key.toLowerCase().includes('kategori') || 
-      f.key.toLowerCase().includes('category') ||
-      f.key.toLowerCase().includes('type')
-    ) : null;
+  // Category information - SAFE NULL CHECK
+  let categoryFeature = null;
+  if (product.features && Array.isArray(product.features) && product.features.length > 0) {
+    try {
+      categoryFeature = product.features.find(f => 
+        f && f.key && typeof f.key === 'string' &&
+        (f.key.toLowerCase().includes('kategori') || 
+         f.key.toLowerCase().includes('category') ||
+         f.key.toLowerCase().includes('type'))
+      );
+    } catch (error) {
+      console.log('⚠️ CSV: Category feature extraction error:', error.message);
+      categoryFeature = null;
+    }
+  }
   if (categoryFeature && categoryFeature.value.trim() !== '') {
     bodyHtml += `<p><strong>Kategori:</strong> ${categoryFeature.value}</p>`;
   } else if (product.category && product.category.trim() !== '') {
@@ -125,10 +133,11 @@ export function generateMultiVariantShopifyCSV(product: CombinedProduct): string
     bodyHtml += `<div class="description"><strong>Ürün Açıklaması:</strong><br/>${product.description}</div>`;
   }
   
-  // Product features - comprehensive listing
-  if (product.features && product.features.length > 0) {
+  // Product features - comprehensive listing with SAFE NULL CHECK
+  if (product.features && Array.isArray(product.features) && product.features.length > 0) {
     const validFeatures = product.features.filter(f => 
-      f.key && f.value && 
+      f && f.key && f.value && 
+      typeof f.key === 'string' && typeof f.value === 'string' &&
       f.key.trim() !== '' && 
       f.value.trim() !== '' &&
       !f.key.toLowerCase().includes('kategori') // Skip category as it's already added
