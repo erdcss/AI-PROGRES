@@ -110,23 +110,45 @@ export function detectRealStockStatus($: cheerio.CheerioAPI, htmlContent: string
         if (!sizes.includes(sizeText)) {
           sizes.push(sizeText);
           
-          // Stock detection from DOM
+          // Enhanced stock detection from DOM - optimized for Mavi t-shirt case
           const isDisabled = $button.hasClass('disabled') ||
                            $button.hasClass('sold-out') ||
                            $button.hasClass('out-of-stock') ||
+                           $button.hasClass('inactive') ||
+                           $button.hasClass('unavailable') ||
+                           $button.hasClass('grey') ||
+                           $button.hasClass('gray') ||
                            $button.attr('disabled') !== undefined ||
-                           $button.closest('.disabled').length > 0;
+                           $button.attr('aria-disabled') === 'true' ||
+                           $button.closest('.disabled').length > 0 ||
+                           $button.closest('.sold-out').length > 0;
           
-          // Check for text indicators
+          // Check for text indicators and visual style cues
           const buttonText = $button.text().toLowerCase();
           const hasOutOfStockText = buttonText.includes('tükendi') || 
                                    buttonText.includes('stokta yok') || 
                                    buttonText.includes('sold out');
           
-          const inStock = !isDisabled && !hasOutOfStockText;
+          // Visual style checks for gray/disabled appearance
+          const buttonStyle = $button.attr('style') || '';
+          const hasGrayStyle = buttonStyle.includes('opacity: 0') ||
+                              buttonStyle.includes('opacity:0') ||
+                              buttonStyle.includes('cursor: not-allowed') ||
+                              buttonStyle.includes('color: #ccc') ||
+                              buttonStyle.includes('color:#ccc') ||
+                              buttonStyle.includes('color: gray') ||
+                              buttonStyle.includes('background: #f5f5f5');
+          
+          // Computed style checks 
+          const hasGrayComputed = $button.css('opacity') === '0.3' ||
+                                 $button.css('opacity') === '0.5' ||
+                                 $button.css('cursor') === 'not-allowed' ||
+                                 $button.css('pointer-events') === 'none';
+          
+          const inStock = !isDisabled && !hasOutOfStockText && !hasGrayStyle && !hasGrayComputed;
           sizeStockMap[sizeText] = inStock;
           
-          console.log(`📏 DOM size: ${sizeText} = ${inStock ? 'STOKTA' : 'TÜKENDİ'} (disabled: ${isDisabled}, text: ${hasOutOfStockText})`);
+          console.log(`📏 DOM size: ${sizeText} = ${inStock ? 'STOKTA' : 'TÜKENDİ'} (disabled: ${isDisabled}, text: ${hasOutOfStockText}, style: ${hasGrayStyle}, computed: ${hasGrayComputed})`);
         }
       }
     });
