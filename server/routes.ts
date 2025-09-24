@@ -1541,6 +1541,7 @@ export function registerRoutes(app: Express): Server {
   // Dedicated scenario-based scraping endpoint
   app.post('/api/scenario-scrape', async (req, res) => {
     console.log("🎯 Scenario-based scrape isteği alındı");
+    console.log("🔧 CORRECT ENDPOINT: /api/scenario-scrape being used");
     
     try {
       const validation = urlSchema.safeParse(req.body);
