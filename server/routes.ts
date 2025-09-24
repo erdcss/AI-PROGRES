@@ -1351,9 +1351,56 @@ export function registerRoutes(app: Express): Server {
           });
         }
         
-        console.log("🔄 Enhanced failed, trying Scenario-Based as fallback");
+        console.log("🔄 Enhanced failed, trying JavaScript State Extraction first");
         
-        // Fallback to Scenario-Based Scraper if enhanced fails
+        // Try JavaScript State Extraction first (modern anti-blocking)
+        try {
+          console.log("🔧 Attempting JavaScript State Extraction for:", url);
+          
+          const response = await axios.get(url, {
+            timeout: 10000,
+            headers: {
+              'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/131.0.0.0 Safari/537.36',
+              'Accept': 'text/html,application/xhtml+xml,application/xml;q=0.9,image/webp,image/apng,*/*;q=0.8',
+              'Accept-Language': 'tr-TR,tr;q=0.9,en-US;q=0.8,en;q=0.7',
+              'Accept-Encoding': 'gzip, deflate, br',
+              'Connection': 'keep-alive',
+              'Upgrade-Insecure-Requests': '1',
+              'Sec-Fetch-Dest': 'document',
+              'Sec-Fetch-Mode': 'navigate',
+              'Sec-Fetch-Site': 'none',
+              'Cache-Control': 'no-cache'
+            }
+          });
+          
+          const { extractFromTrendyolJavaScriptState } = await import('./trendyol-js-extractor');
+          const jsStateResult = extractFromTrendyolJavaScriptState(response.data);
+          
+          if (jsStateResult && jsStateResult.success && jsStateResult.title !== 'Ürün') {
+            console.log(`🎯 JavaScript State Extraction SUCCESS: ${jsStateResult.title} by ${jsStateResult.brand}`);
+            
+            // Process variants from JS state
+            const processedVariants = processVariantsFromFeatures(jsStateResult.features || [], jsStateResult.variants || []);
+            
+            return res.json({
+              success: true,
+              extractionMethod: 'javascript-state-extractor',
+              confidence: jsStateResult.confidence,
+              brand: jsStateResult.brand,
+              title: jsStateResult.title,
+              price: jsStateResult.price,
+              images: jsStateResult.images,
+              features: jsStateResult.features,
+              variants: processedVariants
+            });
+          }
+        } catch (jsError) {
+          console.log("⚠️ JavaScript State Extraction failed:", jsError.message);
+        }
+        
+        console.log("🔄 JS State failed, trying Scenario-Based as fallback");
+        
+        // Fallback to Scenario-Based Scraper if JS state extraction fails
         const scenarioResult = await scenarioBasedScrape(url);
         
         if (scenarioResult.success) {
