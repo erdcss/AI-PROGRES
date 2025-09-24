@@ -45,27 +45,6 @@ const MarketplaceSelection = () => {
   // Sistem Yönetimi ve Analiz
   const systemManagement = [
     {
-      name: "Ürün Veri Analizi",
-      description: "Shopify'a aktarılan ürünlerin detaylı analizi",
-      icon: <BarChart3 className="w-8 h-8 text-white" />,
-      available: true,
-      path: "/product-data-analysis"
-    },
-    {
-      name: "Ürün Yorumları",
-      description: "Platform bazlı ürün yorumları yönetimi",
-      icon: <MessageSquare className="w-8 h-8 text-white" />,
-      available: true,
-      path: "/product-reviews"
-    },
-    {
-      name: "Memory Tracking",
-      description: "Ürün takip ve fiyat değişim izleme",
-      icon: <Database className="w-8 h-8 text-white" />,
-      available: true,
-      path: "/memory-tracking"
-    },
-    {
       name: "Sistem Durumu",
       description: "Hata izleme ve sistem durumu",
       icon: <Shield className="w-8 h-8 text-white" />,
