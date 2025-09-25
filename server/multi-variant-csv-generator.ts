@@ -285,8 +285,16 @@ export async function generateMultiVariantShopifyCSV(product: CombinedProduct): 
 
   console.log(`📸 CSV: Organized images - Colors: ${Object.keys(imagesByColor).length}, General: ${generalImages.length}`);
 
+  // 🔧 SCHEMA NORMALIZATION: Support both flat array and nested structure
+  const inputVariants = Array.isArray(product.variants) ? product.variants : (product.variants?.allVariants || []);
+  console.log(`🧩 CSV: Input variants structure:`, { 
+    isArray: Array.isArray(product.variants),
+    flatCount: Array.isArray(product.variants) ? product.variants.length : 0,
+    nestedCount: product.variants?.allVariants?.length || 0
+  });
+  
   // ✅ REAL VARIANT DETECTION - Accept variants with color OR size
-  let actualVariants = product.variants.allVariants || [];
+  let actualVariants = inputVariants;
   
   // Filter for real variants: must have either color or size (not both required)
   const realVariants = actualVariants.filter(v => 
