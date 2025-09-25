@@ -20,10 +20,10 @@ interface CombinedProduct {
   tags: string[];
 }
 
-export function generateMultiVariantShopifyCSV(product: CombinedProduct): string {
+export async function generateMultiVariantShopifyCSV(product: CombinedProduct): Promise<string> {
   // Apply brand sanitization to product before processing
-  const { sanitizeProduct } = require('./brand-sanitizer');
-  const sanitizedProduct = sanitizeProduct(product);
+  const brandSanitizer = await import('./brand-sanitizer');
+  const sanitizedProduct = brandSanitizer.sanitizeProduct(product);
   console.log('🧹 CSV: Trendyol branding removed from product data');
   
   // Validate product before processing - Skip error responses

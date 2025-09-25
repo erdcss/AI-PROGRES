@@ -131,19 +131,31 @@ function extractProductFromState(stateData: any): any {
  */
 function extractPriceFromState(product: any): any {
   try {
+    console.log('💰 JS-STATE: Analyzing price data from state...');
+    console.log('💰 JS-STATE: Product price keys:', Object.keys(product).filter(key => key.toLowerCase().includes('price')));
+    
     const priceSources = [
       product.price?.originalPrice,
       product.price?.sellingPrice,
+      product.price?.discountedPrice,
       product.originalPrice,
       product.sellingPrice,
+      product.discountedPrice,
       product.priceInfo?.originalPrice,
-      product.priceInfo?.sellingPrice
+      product.priceInfo?.sellingPrice,
+      product.priceInfo?.discountedPrice,
+      product.merchant?.originalPrice,
+      product.merchant?.sellingPrice,
+      product.variants?.[0]?.price,
+      product.skus?.[0]?.originalPrice,
+      product.skus?.[0]?.sellingPrice
     ];
     
     let originalPrice = null;
     for (const source of priceSources) {
       if (source && typeof source === 'number' && source > 0) {
         originalPrice = source;
+        console.log(`💰 JS-STATE: Found numeric price: ${originalPrice}`);
         break;
       }
     }
@@ -345,6 +357,35 @@ function extractFromDOM(htmlContent: string): any {
     const brand = $('[data-testid="merchantName"]').first().text().trim() || 
                  $('.pr-in-mn a').first().text().trim() || 'Marka';
     
+    // Enhanced price extraction from DOM
+    let price = null;
+    const priceSelectors = [
+      '.prc-dsc', '.prc-slg', '.prc-org', '.price-p13n-price', '.pr-bx-price',
+      '.discount-price', '.selling-price', '.original-price',
+      '[data-testid="price-current-price"]', '[data-testid="price-original-price"]'
+    ];
+    
+    for (const selector of priceSelectors) {
+      const priceText = $(selector).text().trim();
+      if (priceText) {
+        const match = priceText.match(/(\d{1,3}(?:\.\d{3})*,\d{2})/);
+        if (match) {
+          const parsedPrice = parseFloat(match[1].replace(/\./g, '').replace(',', '.'));
+          if (parsedPrice > 0) {
+            price = {
+              original: parsedPrice,
+              currency: 'TL',
+              formatted: `${parsedPrice} TL`,
+              withProfit: Math.round(parsedPrice * 1.1 * 100) / 100,
+              method: 'DOM Price Extractor'
+            };
+            console.log(`💰 JS-STATE: DOM price found: ${parsedPrice} TL`);
+            break;
+          }
+        }
+      }
+    }
+    
     // Try to find images in DOM
     const images: any[] = [];
     $('img[src*="cdn.dsmcdn.com"]').each((i: number, el: any) => {
@@ -357,7 +398,7 @@ function extractFromDOM(htmlContent: string): any {
     return {
       title: title !== 'Ürün' ? title : 'Trendyol Ürünü',
       brand: brand !== 'Marka' ? brand : 'Trendyol',
-      price: null, // Will be handled by price extractor
+      price: price,
       images: images,
       variants: [],
       category: 'Kategori',

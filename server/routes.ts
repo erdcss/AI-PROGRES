@@ -1730,7 +1730,7 @@ ${fallbackTitle.toLowerCase().replace(/[^a-z0-9]/g, '-')},${fallbackTitle},Trend
               
               // Enhanced CSV generation using comprehensive system
               const { generateMultiVariantShopifyCSV } = await import('./multi-variant-csv-generator');
-              const csvResult = { success: true, csvContent: generateMultiVariantShopifyCSV({
+              const csvResult = { success: true, csvContent: await generateMultiVariantShopifyCSV({
                 id: `product-${Date.now()}`,
                 title: result.title,
                 brand: result.brand,
@@ -1866,7 +1866,7 @@ ${(result.title || 'product').toLowerCase().replace(/[^a-z0-9]/g, '-')},${result
           // CSV içeriğini generate et
           let csvContent = '';
           try {
-            csvContent = generateMultiVariantShopifyCSV(csvProductData);
+            csvContent = await generateMultiVariantShopifyCSV(csvProductData);
             console.log(`📋 CSV generated for ${result.title}: ${csvContent.length} characters`);
           } catch (csvError) {
             console.warn('⚠️ CSV generation failed, continuing without CSV:', csvError);
@@ -2772,7 +2772,7 @@ ${(result.title || 'product').toLowerCase().replace(/[^a-z0-9]/g, '-')},${result
       });
       
       // CSV oluştur
-      const csvContent = generateMultiVariantShopifyCSV(result);
+      const csvContent = await generateMultiVariantShopifyCSV(result);
       
       return res.json({
         success: true,
