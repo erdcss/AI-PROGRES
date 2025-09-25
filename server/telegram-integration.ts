@@ -144,6 +144,15 @@ export class TelegramIntegration {
 
   // Send stock out notification
   async sendStockOutNotification(productName: string, variant: string) {
+    // 🔕 DEVELOPMENT MODE: Bildirim engelleme
+    const appEnv = process.env.APP_ENV || 'development';
+    const telegramMode = process.env.TELEGRAM_MODE || 'off';
+    
+    if (appEnv === 'development' || telegramMode === 'off') {
+      console.log('🔕 Development mode: Stock notification blocked');
+      return;
+    }
+    
     if (!this.bot || !this.chatId) {
       console.log('Telegram not configured for stock notification');
       return;
@@ -167,6 +176,15 @@ export class TelegramIntegration {
 
   // Send stock restore notification
   async sendStockRestoreNotification(productName: string, variant: string) {
+    // 🔕 DEVELOPMENT MODE: Bildirim engelleme
+    const appEnv = process.env.APP_ENV || 'development';
+    const telegramMode = process.env.TELEGRAM_MODE || 'off';
+    
+    if (appEnv === 'development' || telegramMode === 'off') {
+      console.log('🔕 Development mode: Stock restore notification blocked');
+      return;
+    }
+    
     if (!this.bot || !this.chatId) {
       console.log('Telegram not configured for stock restore notification');
       return;
@@ -190,6 +208,15 @@ export class TelegramIntegration {
 
   // Send price change notification
   async sendPriceChangeNotification(productName: string, oldPrice: number, newPrice: number) {
+    // 🔕 DEVELOPMENT MODE: Bildirim engelleme
+    const appEnv = process.env.APP_ENV || 'development';
+    const telegramMode = process.env.TELEGRAM_MODE || 'off';
+    
+    if (appEnv === 'development' || telegramMode === 'off') {
+      console.log('🔕 Development mode: Price change notification blocked');
+      return;
+    }
+    
     if (!this.bot || !this.chatId) {
       console.log('Telegram not configured for price notification');
       return;
@@ -385,6 +412,15 @@ export class TelegramIntegration {
   // Send general notification
   async sendNotification(message: string) {
     console.log('📱 Telegram notification attempt - bot:', !!this.bot, 'chatId:', !!this.chatId);
+    
+    // 🔕 DEVELOPMENT MODE: Bildirim engelleme
+    const appEnv = process.env.APP_ENV || 'development';
+    const telegramMode = process.env.TELEGRAM_MODE || 'off';
+    
+    if (appEnv === 'development' || telegramMode === 'off') {
+      console.log('🔕 Development mode: Telegram notification blocked');
+      return;
+    }
     
     if (!this.bot || !this.chatId) {
       console.log('❌ Telegram not configured - Bot token:', !!this.bot, 'Chat ID:', !!this.chatId);
