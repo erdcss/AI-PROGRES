@@ -11,6 +11,16 @@ export class TelegramIntegration {
   }
 
   private initializeBot() {
+    // 🔕 DEVELOPMENT MODE: Telegram bildirimler kapalı
+    const appEnv = process.env.APP_ENV || 'development';
+    const telegramMode = process.env.TELEGRAM_MODE || 'off';
+    
+    if (appEnv === 'development' || telegramMode === 'off') {
+      console.log('🔕 DEVELOPMENT MODE: Telegram notifications disabled');
+      this.isConnected = false;
+      return;
+    }
+    
     const token = process.env.TELEGRAM_BOT_TOKEN;
     this.chatId = process.env.TELEGRAM_CHAT_ID || null;
     
