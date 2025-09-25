@@ -70,7 +70,7 @@ export function extractAdvancedVariants(htmlContent: string, productId: string):
                       const price = parseFloat(variant.price);
                       if (!isNaN(price)) {
                         variantPricing[colorValue] = price;
-                        variantSpecificPricing[colorValue] = price * 1.10;
+                        variantSpecificPricing[colorValue] = price * 1.15;
                       }
                     }
                     

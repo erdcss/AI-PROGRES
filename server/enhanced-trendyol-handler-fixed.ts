@@ -508,7 +508,7 @@ export async function scrapeTrendyolProduct(inputUrl: string) {
       csvRows.push(headers.join(','));
 
       const basePrice = parseFloat(basicProductData.price) || 100;
-      const finalPrice = (basePrice * 1.1).toFixed(2);
+      const finalPrice = (basePrice * 1.15).toFixed(2);
       
       variantData.sizes.forEach((size: string, index: number) => {
         const handle = basicProductData.title.toLowerCase()

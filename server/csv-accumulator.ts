@@ -125,7 +125,7 @@ export class CSVAccumulator {
         
         product.variants.forEach((variant, variantIndex) => {
           const isFirstVariantOfProduct = variantIndex === 0;
-          const finalPrice = Math.round(variant.price * 1.10);
+          const finalPrice = Math.round(variant.price * 1.15);
           const comparePrice = Math.round(variant.price * 1.25);
           const costPrice = Math.round(variant.price * 0.8);
           
@@ -148,7 +148,7 @@ export class CSVAccumulator {
             'Image Src': variant.images[0] || '',
             'Cost per item': costPrice.toString(),
             'Google Shopping / Custom Label 0': `Orijinal: ₺${variant.price}`,
-            'Google Shopping / Custom Label 1': `Kar: %10`,
+            'Google Shopping / Custom Label 1': `Kar: %15`,
             'Google Shopping / Custom Label 2': `Stok: ${variant.stock}`
           });
         });

@@ -1149,7 +1149,7 @@ function extractStockVariants(htmlContent: string) {
               basePrice = 890; // fallback
             }
             
-            const finalPrice = Math.round(basePrice * 1.10);
+            const finalPrice = Math.round(basePrice * 1.15);
             
             variants.stockMatrix[`${variant.color}-${variant.size}`] = {
               product_title: basicData.title || 'Ürün',
@@ -1162,7 +1162,7 @@ function extractStockVariants(htmlContent: string) {
               originalPrice: basePrice,
               price: finalPrice,
               variant_price: finalPrice,
-              profitMargin: '10%',
+              profitMargin: '15%',
               image_urls: [],
               sku: `${variant.color.toLowerCase().replace(/\s+/g, '-')}-${variant.size.toLowerCase().replace(/\s+/g, '-')}`
             };

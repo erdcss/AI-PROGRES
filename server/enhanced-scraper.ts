@@ -90,8 +90,8 @@ export async function scrapeWithEnhancedImages(url: string): Promise<InsertProdu
   // Kar marjı ekle
   if (price && !isNaN(parseFloat(price))) {
     const originalPrice = parseFloat(price);
-    const priceWithProfit = (originalPrice * 1.10).toFixed(2);  // %10 kâr payı
-    console.log(`Orijinal fiyat: ${originalPrice}, %10 kar marjı: ${priceWithProfit}`);
+    const priceWithProfit = (originalPrice * 1.15).toFixed(2);  // %15 kâr payı
+    console.log(`Orijinal fiyat: ${originalPrice}, %15 kar marjı: ${priceWithProfit}`);
     price = priceWithProfit;
   }
 

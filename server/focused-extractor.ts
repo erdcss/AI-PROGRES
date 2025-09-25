@@ -220,7 +220,7 @@ export async function extractFocusedData(url: string): Promise<FocusedProductDat
     }
   }
 
-  const priceWithProfit = Math.round(priceNum * 1.1 * 100) / 100;
+  const priceWithProfit = Math.round(priceNum * 1.15 * 100) / 100;
 
   const priceData = {
     original: priceNum,
@@ -230,13 +230,13 @@ export async function extractFocusedData(url: string): Promise<FocusedProductDat
     profitFormatted: formatTurkishPrice(priceWithProfit)
   };
 
-  console.log(`✓ Fiyat: ${priceData.formatted} → %10 kar: ${priceData.profitFormatted}`);
+  console.log(`✓ Fiyat: ${priceData.formatted} → %15 kar: ${priceData.profitFormatted}`);
       originalPrice = originalPrice / 100;
     }
     // 50-9999 arası değerler zaten TL cinsinden kabul edilir
 
     const currency = product.price.sellingPrice.currency || 'TRY';
-    const profitPrice = Math.round(originalPrice * 1.1 * 100) / 100;
+    const profitPrice = Math.round(originalPrice * 1.15 * 100) / 100;
 
     priceData = {
       original: originalPrice,
@@ -260,7 +260,7 @@ export async function extractFocusedData(url: string): Promise<FocusedProductDat
     }
 
     const currency = product.price.originalPrice.currency || 'TRY';
-    const profitPrice = Math.round(originalPrice * 1.1 * 100) / 100;
+    const profitPrice = Math.round(originalPrice * 1.15 * 100) / 100;
 
     priceData = {
       original: originalPrice,
@@ -275,7 +275,7 @@ export async function extractFocusedData(url: string): Promise<FocusedProductDat
   // 3. Direct price field kontrolü
   if (!foundPrice && product.price && typeof product.price === 'number') {
     const originalPrice = product.price;
-    const profitPrice = Math.round(originalPrice * 1.1 * 100) / 100;
+    const profitPrice = Math.round(originalPrice * 1.15 * 100) / 100;
 
     priceData = {
       original: originalPrice,
@@ -310,7 +310,7 @@ export async function extractFocusedData(url: string): Promise<FocusedProductDat
           originalPrice = originalPrice / 100;
         }
 
-        const profitPrice = Math.round(originalPrice * 1.1 * 100) / 100;
+        const profitPrice = Math.round(originalPrice * 1.15 * 100) / 100;
 
         priceData = {
           original: originalPrice,
