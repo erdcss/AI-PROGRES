@@ -142,7 +142,7 @@ export class UltimatePriceExtractor {
       // Last resort: filter out obviously wrong prices (>100000 TL) and use the most reasonable one
       const filteredResults = allResults.filter(r => r.original <= 100000 && r.original >= 10);
       if (filteredResults.length > 0) {
-        filteredResults.sort((a, b) => b.original - a.original); // Prefer higher prices for authenticity
+        filteredResults.sort((a, b) => a.original - b.original); // Prefer lower prices for better deals
         console.log(`🔧 Using filtered highest result: ${filteredResults[0].original} TL`);
         return filteredResults[0];
       }
@@ -155,7 +155,7 @@ export class UltimatePriceExtractor {
         const reasonablePrices = allResults.filter(r => r.original >= 10 && r.original <= 100000);
         
         if (reasonablePrices.length > 0) {
-          reasonablePrices.sort((a, b) => b.original - a.original); // Prefer higher prices
+          reasonablePrices.sort((a, b) => a.original - b.original); // Prefer lower reasonable prices
           const selectedPrice = reasonablePrices[0];
           
           console.log(`✅ FALLBACK: Using ${selectedPrice.original} TL via ${selectedPrice.method}`);
@@ -318,7 +318,7 @@ export class UltimatePriceExtractor {
                 
                 // Always use the last price when "Son X Günün" pattern is detected
                 if (actualPrice > 0) {
-                  const withProfit = Math.round(actualPrice * 1.15 * 100) / 100;
+                  const withProfit = Math.round(actualPrice * PROFIT_MARGIN * 100) / 100;
                   
                   return {
                     original: actualPrice,
@@ -326,7 +326,7 @@ export class UltimatePriceExtractor {
                     formatted: `${actualPrice} TL`,
                     withProfit: withProfit,
                     profitFormatted: `${withProfit.toFixed(2)} TL`,
-                    method: `Current Selector: ${selector} (Last Price)`,
+                    method: `Current Price Selectors [${selector}] (discounted)`,
                     raw: priceText
                   };
                 }
