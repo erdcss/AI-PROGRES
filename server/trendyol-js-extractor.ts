@@ -253,13 +253,29 @@ function extractVariantsFromState(product: any): any[] {
   try {
     const variants: any[] = [];
     
-    // Look for variants in state
+    // ENHANCED: Look for variants in multiple locations
     const variantSources = [
       product.allVariants,
       product.variants,
       product.productVariants,
-      product.options
+      product.options,
+      product.hasVariant,
+      product.productOptions,
+      product.attributes,
+      product.sizeOptions,
+      product.colorOptions,
+      product.variantList
     ];
+    
+    console.log('🔍 JS-STATE: Checking variant sources:', {
+      allVariants: !!product.allVariants,
+      variants: !!product.variants,
+      productVariants: !!product.productVariants,
+      options: !!product.options,
+      hasVariant: !!product.hasVariant,
+      productOptions: !!product.productOptions,
+      attributes: !!product.attributes
+    });
     
     let allVariants = null;
     for (const source of variantSources) {
@@ -270,10 +286,32 @@ function extractVariantsFromState(product: any): any[] {
     }
     
     if (allVariants) {
+      console.log(`🔍 JS-STATE: Processing ${allVariants.length} variants from source`);
+      
       for (const variant of allVariants) {
-        const size = variant.size || variant.attributeValue || variant.name;
-        const color = variant.color || extractColorFromTitle(product.name) || 'Varsayılan';
-        const inStock = variant.inStock !== false && variant.stock !== 0;
+        // ENHANCED: Multiple size field checks
+        const size = variant.size || 
+                    variant.attributeValue || 
+                    variant.name || 
+                    variant.value || 
+                    variant.optionValue ||
+                    variant.sizeName;
+        
+        // ENHANCED: Multiple color field checks  
+        const color = variant.color || 
+                     variant.colorName ||
+                     variant.optionColor ||
+                     variant.attribute?.color ||
+                     extractColorFromTitle(product.name) || 
+                     'Varsayılan';
+        
+        // ENHANCED: Better stock detection
+        const inStock = variant.inStock !== false && 
+                       variant.stock !== 0 &&
+                       variant.available !== false &&
+                       variant.status !== 'out-of-stock';
+        
+        console.log(`🔍 JS-STATE: Variant found - Color: ${color}, Size: ${size}, InStock: ${inStock}`);
         
         // Accept variants with either color OR size (not requiring both)
         if (color || size) {
