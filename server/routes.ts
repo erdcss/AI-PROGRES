@@ -1308,7 +1308,7 @@ export function registerRoutes(app: Express): Server {
         // Try Speed-Optimized Scraper as backup
         const speedResult = await speedOptimizedScraper.extractProduct(url);
         
-        if (speedResult.success && speedResult.data) {
+        if (speedResult.success && speedResult.data && speedResult.data.title && speedResult.data.price) {
           console.log(`⚡ SPEED SUCCESS: ${speedResult.method} (${speedResult.responseTime}ms)`);
           
           // Apply 15% profit margin
@@ -1333,7 +1333,7 @@ export function registerRoutes(app: Express): Server {
         console.log("🔧 Using Enhanced Scraper as primary method");
         const enhancedResult = await scrapeWithEnhancedMethod(url);
         
-        if (enhancedResult) {
+        if (enhancedResult && enhancedResult.success && enhancedResult.title && enhancedResult.price) {
           console.log("🔧 Enhanced Scraper SUCCESS:", enhancedResult.title);
           
           // Apply 15% profit margin
