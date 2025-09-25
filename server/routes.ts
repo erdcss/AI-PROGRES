@@ -1739,8 +1739,9 @@ export function registerRoutes(app: Express): Server {
           priceType: typeof result?.price
         });
         
-        if (result && result.success && (result.price === null || result.price === undefined || !result.price)) {
-          console.log('🚨 EMERGENCY: Price is missing/null, trying manual extraction for Apple Watch product');
+        // 🚨 EMERGENCY: Force manual price extraction for ANY null price (regardless of success)
+        if (result && (result.price === null || result.price === undefined || !result.price)) {
+          console.log('🚨 EMERGENCY: Price is missing/null, FORCING manual extraction regardless of success status');
           
           try {
             const axios = await import('axios');
@@ -1754,13 +1755,41 @@ export function registerRoutes(app: Express): Server {
             const htmlContent = manualResponse.data;
             console.log("🔍 EMERGENCY: HTML length:", htmlContent.length);
             
-            // Manual price extraction for 999,90 TL pattern
-            const priceMatches = htmlContent.match(/(\d{1,3}(?:\.\d{3})*),(\d{2})\s*TL/g);
-            console.log("🔍 EMERGENCY: Price matches found:", priceMatches?.slice(0, 5));
+            // Enhanced price extraction patterns for Turkish e-commerce
+            const pricePatterns = [
+              /(\d{1,3}(?:\.\d{3})*),(\d{2})\s*TL/g,  // 999,90 TL format
+              /(\d{1,4}),(\d{2})\s*TL/g,              // 1499,99 TL format
+              /"price":\s*"([^"]+)"/g,                // JSON price field
+              /"currentPrice":\s*(\d+(?:\.\d+)?)/g,   // currentPrice field
+              /sepette\s+(\d{1,4}),(\d{2})\s*TL/gi,   // "sepette" price
+              /indirimli\s+(\d{1,4}),(\d{2})\s*TL/gi, // discounted price
+            ];
             
-            if (priceMatches && priceMatches.length > 0) {
-              // Find the highest reasonable price (avoiding clearly wrong ones)
-              const validPrices = priceMatches.map(match => {
+            let allMatches = [];
+            pricePatterns.forEach((pattern, index) => {
+              const matches = [...htmlContent.matchAll(pattern)];
+              console.log(`🔍 EMERGENCY: Pattern ${index + 1} found ${matches.length} matches`);
+              allMatches.push(...matches);
+            });
+            
+            console.log("🔍 EMERGENCY: Total price matches found:", allMatches.length);
+            
+            if (allMatches && allMatches.length > 0) {
+              // Extract and process all found prices
+              const validPrices = allMatches.map(match => {
+                // Handle different match formats
+                if (match[1] && match[2]) {
+                  // Turkish format: 999,90 TL
+                  const thousands = match[1].replace(/\./g, '');
+                  const decimals = match[2];
+                  return parseFloat(`${thousands}.${decimals}`);
+                } else if (match[1]) {
+                  // JSON format or single capture
+                  const price = match[1].replace(/[^\d.,]/g, '').replace(',', '.');
+                  return parseFloat(price);
+                }
+                return 0;
+              }).filter(price => price > 10 && price < 10000); // reasonable range
                 const numMatch = match.match(/(\d{1,3}(?:\.\d{3})*),(\d{2})/);
                 if (numMatch) {
                   const thousands = numMatch[1].replace(/\./g, '');
