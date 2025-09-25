@@ -1721,6 +1721,64 @@ export function registerRoutes(app: Express): Server {
           console.log('⚡ ROUTES: Fast path SUCCESS!');
         }
         
+        // 🚨 EMERGENCY: Manual price fix if price is null
+        if (result && result.success && result.price === null) {
+          console.log('🚨 EMERGENCY: Price is null, trying manual extraction for 999,90 TL');
+          
+          try {
+            const axios = await import('axios');
+            const manualResponse = await axios.default.get(url, {
+              timeout: 8000,
+              headers: {
+                'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36'
+              }
+            });
+            
+            const htmlContent = manualResponse.data;
+            console.log("🔍 EMERGENCY: HTML length:", htmlContent.length);
+            
+            // Manual price extraction for 999,90 TL pattern
+            const priceMatches = htmlContent.match(/(\d{1,3}(?:\.\d{3})*),(\d{2})\s*TL/g);
+            console.log("🔍 EMERGENCY: Price matches found:", priceMatches?.slice(0, 5));
+            
+            if (priceMatches && priceMatches.length > 0) {
+              // Find the highest reasonable price (avoiding clearly wrong ones)
+              const validPrices = priceMatches.map(match => {
+                const numMatch = match.match(/(\d{1,3}(?:\.\d{3})*),(\d{2})/);
+                if (numMatch) {
+                  const thousands = numMatch[1].replace(/\./g, '');
+                  const decimals = numMatch[2];
+                  return parseFloat(`${thousands}.${decimals}`);
+                }
+                return 0;
+              }).filter(price => price > 10 && price < 10000); // reasonable range
+              
+              if (validPrices.length > 0) {
+                const extractedPrice = Math.max(...validPrices); // take highest reasonable price
+                console.log("🎯 EMERGENCY: Found valid price:", extractedPrice, "TL");
+                
+                // Apply 10% profit margin
+                const priceWithProfit = Math.round(extractedPrice * 1.10 * 100) / 100;
+                
+                // Update result with manual price
+                result.price = {
+                  original: extractedPrice,
+                  withProfit: priceWithProfit,
+                  formatted: `${extractedPrice} TL`,
+                  profitFormatted: `${priceWithProfit} TL`
+                };
+                
+                console.log("✅ EMERGENCY: Price fixed!", {
+                  original: extractedPrice,
+                  withProfit: priceWithProfit
+                });
+              }
+            }
+          } catch (manualError) {
+            console.warn("⚠️ EMERGENCY: Manual extraction failed:", manualError.message);
+          }
+        }
+        
         console.log('🚨 ROUTES: scenarioBasedScrape returned price:', result.price?.original);
         console.log('🔍 DEBUG: result.success:', result.success);
         console.log('🔍 DEBUG: result.htmlContent exists:', !!result.htmlContent);
