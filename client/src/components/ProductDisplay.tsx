@@ -6,7 +6,7 @@ import { motion } from "framer-motion";
 import { useState } from "react";
 import { toast } from "@/hooks/use-toast";
 import { VariantDisplay } from "@/components/VariantDisplay";
-import { ProductVariants } from "@/components/ProductVariants";
+import ProductVariants from "@/components/ProductVariants";
 
 interface ProductDisplayProps {
   data: {

@@ -1922,7 +1922,12 @@ ${(result.title || 'product').toLowerCase().replace(/[^a-z0-9]/g, '-')},${result
         
         if (result.success) {
           console.log(`🎯 Scenario: ${result.scenario}, Confidence: ${result.confidence}%`);
-          console.log(`🎯 Variants: ${result.variants.length} adet`);
+          console.log(`🎯 Variants: ${result.variants?.length || 0} adet`);
+          
+          // Ensure variants is always an array
+          if (!result.variants) {
+            result.variants = [];
+          }
           
           // Add persistent tags to the result
           if (persistentTags && Array.isArray(persistentTags) && persistentTags.length > 0) {
@@ -1949,8 +1954,8 @@ ${(result.title || 'product').toLowerCase().replace(/[^a-z0-9]/g, '-')},${result
                 originalPrice: result.price.original,
                 shopifyPrice: result.price.withProfit,
                 profitMargin: ((result.price.withProfit - result.price.original) / result.price.original * 100),
-                variantCount: result.variants.length,
-                imageCount: result.images.length,
+                variantCount: result.variants?.length || 0,
+                imageCount: result.images?.length || 0,
                 sourceData: {
                   variants: result.variants,
                   images: result.images,
