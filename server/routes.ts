@@ -1790,14 +1790,6 @@ export function registerRoutes(app: Express): Server {
                 }
                 return 0;
               }).filter(price => price > 10 && price < 10000); // reasonable range
-                const numMatch = match.match(/(\d{1,3}(?:\.\d{3})*),(\d{2})/);
-                if (numMatch) {
-                  const thousands = numMatch[1].replace(/\./g, '');
-                  const decimals = numMatch[2];
-                  return parseFloat(`${thousands}.${decimals}`);
-                }
-                return 0;
-              }).filter(price => price > 10 && price < 10000); // reasonable range
               
               if (validPrices.length > 0) {
                 const extractedPrice = Math.max(...validPrices); // take highest reasonable price
