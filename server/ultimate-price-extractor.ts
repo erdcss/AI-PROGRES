@@ -7,6 +7,9 @@ import * as cheerio from 'cheerio';
 import type { CheerioAPI } from 'cheerio';
 import { openaiPriceEnhancer } from './openai-price-enhancer';
 
+// 15% standardized profit margin
+const PROFIT_MARGIN = 1.15;
+
 export interface ExtractedPrice {
   original: number;
   currency: string;
@@ -161,8 +164,8 @@ export class UltimatePriceExtractor {
             original: selectedPrice.original,
             currency: 'TL',
             formatted: `${selectedPrice.original} TL`,
-            withProfit: Math.round(selectedPrice.original * 1.10 * 100) / 100,
-            profitFormatted: `${Math.round(selectedPrice.original * 1.10 * 100) / 100} TL`,
+            withProfit: Math.round(selectedPrice.original * PROFIT_MARGIN * 100) / 100,
+            profitFormatted: `${Math.round(selectedPrice.original * PROFIT_MARGIN * 100) / 100} TL`,
             method: `Direct-Fallback (${selectedPrice.method})`,
             raw: selectedPrice.raw || `${selectedPrice.original} TL`
           };
@@ -645,7 +648,7 @@ export class UltimatePriceExtractor {
       console.log(`💰 TURKISH FORMAT: "${match[0]}" -> ${wholePart}.${decimalPart} = ${price} TL`);
       
       if (price >= 10 && price <= 100000) {
-        const withProfit = Math.round(price * 1.10 * 100) / 100;
+        const withProfit = Math.round(price * PROFIT_MARGIN * 100) / 100;
         
         return {
           original: parseFloat(price.toFixed(2)),
@@ -668,7 +671,7 @@ export class UltimatePriceExtractor {
       console.log(`💰 SIMPLE DECIMAL: "${match[0]}" -> ${price} TL`);
       
       if (price >= 10 && price <= 100000) {
-        const withProfit = Math.round(price * 1.10 * 100) / 100;
+        const withProfit = Math.round(price * PROFIT_MARGIN * 100) / 100;
         
         return {
           original: parseFloat(price.toFixed(2)),
@@ -693,7 +696,7 @@ export class UltimatePriceExtractor {
       console.log(`💰 TURKISH THOUSANDS: "${match[0]}" -> ${wholePart} = ${price} TL`);
       
       if (price >= 10 && price <= 100000) {
-        const withProfit = Math.round(price * 1.10 * 100) / 100;
+        const withProfit = Math.round(price * PROFIT_MARGIN * 100) / 100;
         
         return {
           original: parseFloat(price.toFixed(2)),
@@ -719,7 +722,7 @@ export class UltimatePriceExtractor {
         // Check if this is NOT in a day/month context
         const contextCheck = cleanStr.substring(Math.max(0, match.index! - 10), match.index! + match[0].length + 10);
         if (!contextCheck.match(/\b(gün|ay|hafta|yıl|dakika|saat)\b/i)) {
-          const withProfit = Math.round(price * 1.10 * 100) / 100;
+          const withProfit = Math.round(price * PROFIT_MARGIN * 100) / 100;
           
           return {
             original: parseFloat(price.toFixed(2)),
@@ -745,7 +748,7 @@ export class UltimatePriceExtractor {
       console.log(`💰 FALLBACK THOUSANDS: "${thousandMatch[0]}" -> ${price} TL`);
       
       if (price >= 100 && price <= 100000) { // Higher minimum for fallback
-        const withProfit = Math.round(price * 1.10 * 100) / 100;
+        const withProfit = Math.round(price * PROFIT_MARGIN * 100) / 100;
         
         return {
           original: parseFloat(price.toFixed(2)),
@@ -771,7 +774,7 @@ export class UltimatePriceExtractor {
       console.log(`💰 FALLBACK TURKISH: "${fallbackMatch[0]}" -> ${price} TL`);
       
       if (price >= 10 && price <= 100000) {
-        const withProfit = Math.round(price * 1.10 * 100) / 100;
+        const withProfit = Math.round(price * PROFIT_MARGIN * 100) / 100;
         
         return {
           original: parseFloat(price.toFixed(2)),
@@ -797,7 +800,7 @@ export class UltimatePriceExtractor {
     
     // Return realistic fallback that won't break CSV
     const fallbackPrice = 100;
-    const profitPrice = Math.round(fallbackPrice * 1.10 * 100) / 100;
+    const profitPrice = Math.round(fallbackPrice * PROFIT_MARGIN * 100) / 100;
     
     return {
       original: fallbackPrice,
