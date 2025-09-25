@@ -158,11 +158,11 @@ export async function generateMultiVariantShopifyCSV(product: CombinedProduct): 
   }
   
   // ❌ SAHTE VARIANT BİLGİLERİ ENGELLENDI - Sadece gerçek varyant varsa göster
-  const realVariants = product.variants && product.variants.allVariants ? product.variants.allVariants.filter(v => v.color && v.color.trim() !== '') : [];
+  const htmlVariants = product.variants && product.variants.allVariants ? product.variants.allVariants.filter(v => v.color && v.color.trim() !== '') : [];
   
-  if (realVariants.length > 0) {
-    const realColors = [...new Set(realVariants.map(v => v.color).filter(c => c && c.trim() !== ''))];
-    const realSizes = [...new Set(realVariants.map(v => v.size).filter(s => s && s.trim() !== ''))];
+  if (htmlVariants.length > 0) {
+    const realColors = [...new Set(htmlVariants.map(v => v.color).filter(c => c && c.trim() !== ''))];
+    const realSizes = [...new Set(htmlVariants.map(v => v.size).filter(s => s && s.trim() !== ''))];
     
     if (realColors.length > 0) {
       bodyHtml += `<p><strong>Mevcut Renkler:</strong> ${realColors && Array.isArray(realColors) ? realColors.join(', ') : 'Çeşitli Renkler'}</p>`;
