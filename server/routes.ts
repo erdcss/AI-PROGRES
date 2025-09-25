@@ -1721,9 +1721,16 @@ export function registerRoutes(app: Express): Server {
           console.log('⚡ ROUTES: Fast path SUCCESS!');
         }
         
-        // 🚨 EMERGENCY: Manual price fix if price is null
-        if (result && result.success && result.price === null) {
-          console.log('🚨 EMERGENCY: Price is null, trying manual extraction for 999,90 TL');
+        // 🚨 EMERGENCY: Manual price fix if price is null or missing
+        console.log('🔍 EMERGENCY CHECK:', {
+          hasResult: !!result,
+          success: result?.success,
+          priceValue: result?.price,
+          priceType: typeof result?.price
+        });
+        
+        if (result && result.success && (result.price === null || result.price === undefined || !result.price)) {
+          console.log('🚨 EMERGENCY: Price is missing/null, trying manual extraction for Apple Watch product');
           
           try {
             const axios = await import('axios');
