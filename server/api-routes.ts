@@ -572,7 +572,7 @@ router.post('/api/shopify-upload', async (req, res) => {
         { name: 'Renk', values: [productData.variants?.[0]?.color || 'Varsayılan'] },
         { name: 'Beden', values: [productData.variants?.[0]?.size || 'Standart'] }
       ],
-      images: productData.images ? productData.images.map(img => ({ 
+      images: productData.images ? productData.images.map((img: any) => ({ 
         src: typeof img === 'string' ? img : img.url 
       })) : []
     };
