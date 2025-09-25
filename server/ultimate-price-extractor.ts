@@ -34,6 +34,7 @@ export class UltimatePriceExtractor {
    * Main extraction method with multiple fallback strategies
    */
   async extractPrice(): Promise<ExtractedPrice> {
+    console.log('🚨🚨🚨 DEBUGGING: ULTIMATE PRICE EXTRACTOR ENTRY POINT 🚨🚨🚨');
     console.log('🎯 ULTIMATE PRICE EXTRACTOR - Starting comprehensive extraction');
     console.log(`📄 HTML content length: ${this.htmlContent.length} characters`);
 
@@ -818,6 +819,15 @@ export class UltimatePriceExtractor {
  * Main function to use the Ultimate Price Extractor
  */
 export async function ultimatePriceExtract($: CheerioAPI, htmlContent: string): Promise<ExtractedPrice> {
-  const extractor = new UltimatePriceExtractor($, htmlContent);
-  return await extractor.extractPrice();
+  console.log('🔥 ULTIMATE PRICE EXTRACT FUNCTION ENTRY POINT 🔥');
+  try {
+    const extractor = new UltimatePriceExtractor($, htmlContent);
+    console.log('✅ UltimatePriceExtractor instance created');
+    const result = await extractor.extractPrice();
+    console.log('✅ extractPrice completed successfully');
+    return result;
+  } catch (error) {
+    console.log('❌ ULTIMATE PRICE EXTRACT ERROR:', error);
+    throw error;
+  }
 }
