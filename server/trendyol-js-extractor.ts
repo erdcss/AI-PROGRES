@@ -275,10 +275,11 @@ function extractVariantsFromState(product: any): any[] {
         const color = variant.color || extractColorFromTitle(product.name) || 'Varsayılan';
         const inStock = variant.inStock !== false && variant.stock !== 0;
         
-        if (size) {
+        // Accept variants with either color OR size (not requiring both)
+        if (color || size) {
           variants.push({
-            color: color,
-            size: size,
+            color: color || '',
+            size: size || '',
             inStock: inStock,
             inventory: inStock ? 10 : 0
           });
@@ -286,19 +287,10 @@ function extractVariantsFromState(product: any): any[] {
       }
     }
     
-    // Fallback: create default variants
+    // ❌ REMOVED FAKE FALLBACK - No more synthetic size generation
+    // If no variants found, return empty array to handle as single product
     if (variants.length === 0) {
-      const defaultSizes = ['S', 'M', 'L', 'XL'];
-      const defaultColor = extractColorFromTitle(product.name) || 'Varsayılan';
-      
-      for (const size of defaultSizes) {
-        variants.push({
-          color: defaultColor,
-          size: size,
-          inStock: true,
-          inventory: 10
-        });
-      }
+      console.log('📦 JS-STATE: No variants found - will be processed as single product without fake sizes');
     }
     
     console.log(`📦 JS-STATE: Extracted ${variants.length} variants`);

@@ -285,21 +285,27 @@ export async function generateMultiVariantShopifyCSV(product: CombinedProduct): 
 
   console.log(`📸 CSV: Organized images - Colors: ${Object.keys(imagesByColor).length}, General: ${generalImages.length}`);
 
-  // ❌ SAHTE VARYANT ENGELLEME - Sadece gerçek varyantlar kullanılır
+  // ✅ REAL VARIANT DETECTION - Accept variants with color OR size
   let actualVariants = product.variants.allVariants || [];
   
-  // Gerçek varyant kontrolü - eğer hiçbir gerçek varyant yoksa tek ürün
-  if (actualVariants.length === 0) {
-    // Varyant yok - tek ürün olarak işle
+  // Filter for real variants: must have either color or size (not both required)
+  const realVariants = actualVariants.filter(v => 
+    (v.color && v.color.trim() !== '' && v.color !== 'Tek Renk') || 
+    (v.size && v.size.trim() !== '')
+  );
+  
+  if (realVariants.length === 0) {
+    // No real variants - process as single product
     actualVariants = [{
       color: '',
-      colorCode: 'single',
+      colorCode: 'single', 
       size: '',
       inStock: true
     }];
     console.log('📦 No real variants found - processing as single product');
   } else {
-    console.log(`📦 Processing ${actualVariants.length} real variants`);
+    actualVariants = realVariants;
+    console.log(`📦 Processing ${actualVariants.length} REAL variants (color-only or size-only accepted)`);
   }
   
   console.log(`📊 Processing ${actualVariants.length} actual variants (filtered from ${product.variants.allVariants?.length || 0} total)`);
