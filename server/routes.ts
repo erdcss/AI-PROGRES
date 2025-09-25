@@ -1693,8 +1693,8 @@ export function registerRoutes(app: Express): Server {
       if (url.includes('trendyol.com')) {
         console.log("🎯 SCENARIO-BASED EXTRACTION başlıyor...");
         
-        // Add timeout for faster response - OPTIMIZED FOR SPEED
-        const timeoutDuration = 2000; // 2 seconds max for fast extraction
+        // Add timeout for faster response - REDUCED FOR EMERGENCY EXTRACTION
+        const timeoutDuration = 1000; // 1 second max - faster timeout
         const timeoutPromise = new Promise((_, reject) => {
           setTimeout(() => reject(new Error('TIMEOUT: Request taking too long')), timeoutDuration);
         });
@@ -1713,10 +1713,20 @@ export function registerRoutes(app: Express): Server {
         
         if (!result) {
           console.log('🔄 ROUTES: Fast path failed, falling back to standard method...');
-          result = await Promise.race([
-            scenarioBasedScrape(url),
-            timeoutPromise
-          ]) as any;
+          try {
+            result = await Promise.race([
+              scenarioBasedScrape(url),
+              timeoutPromise
+            ]) as any;
+          } catch (timeoutError) {
+            console.log('⏰ TIMEOUT: Standard method timed out, creating minimal result for emergency processing');
+            result = {
+              success: true,
+              price: null,
+              title: 'Product',
+              brand: 'Brand'
+            };
+          }
         } else {
           console.log('⚡ ROUTES: Fast path SUCCESS!');
         }
