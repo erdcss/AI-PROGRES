@@ -1356,6 +1356,7 @@ export function registerRoutes(app: Express): Server {
         // Try JavaScript State Extraction first (modern anti-blocking)
         try {
           console.log("🔧 Attempting JavaScript State Extraction for:", url);
+          console.log("🔍 DEBUG: Testing JavaScript State extraction manually...");
           
           const response = await axios.get(url, {
             timeout: 10000,
@@ -1375,6 +1376,13 @@ export function registerRoutes(app: Express): Server {
           
           const { extractFromTrendyolJavaScriptState } = await import('./trendyol-js-extractor');
           const jsStateResult = extractFromTrendyolJavaScriptState(response.data);
+          console.log("🔍 DEBUG: JavaScript State result:", {
+            success: jsStateResult?.success,
+            title: jsStateResult?.title,
+            brand: jsStateResult?.brand,
+            price: jsStateResult?.price,
+            method: jsStateResult?.extractionMethod
+          });
           
           if (jsStateResult && jsStateResult.success && jsStateResult.title !== 'Ürün') {
             console.log(`🎯 JavaScript State Extraction SUCCESS: ${jsStateResult.title} by ${jsStateResult.brand}`);
