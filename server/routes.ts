@@ -1333,7 +1333,7 @@ export function registerRoutes(app: Express): Server {
         console.log("🔧 Using Enhanced Scraper as primary method");
         const enhancedResult = await scrapeWithEnhancedMethod(url);
         
-        if (enhancedResult && enhancedResult.success && enhancedResult.title && enhancedResult.price) {
+        if (enhancedResult && enhancedResult.title && enhancedResult.price) {
           console.log("🔧 Enhanced Scraper SUCCESS:", enhancedResult.title);
           
           // Apply 15% profit margin
@@ -1866,7 +1866,18 @@ ${(result.title || 'product').toLowerCase().replace(/[^a-z0-9]/g, '-')},${result
           // CSV içeriğini generate et
           let csvContent = '';
           try {
-            csvContent = await generateMultiVariantShopifyCSV(csvProductData);
+            csvContent = await generateMultiVariantShopifyCSV({
+              id: `product-${Date.now()}`,
+              title: csvProductData.title,
+              brand: csvProductData.brand,
+              price: csvProductData.price,
+              description: csvProductData.description || '',
+              category: csvProductData.category || 'Kategori',
+              images: csvProductData.images,
+              variants: csvProductData.variants,
+              features: csvProductData.features,
+              tags: csvProductData.tags
+            });
             console.log(`📋 CSV generated for ${result.title}: ${csvContent.length} characters`);
           } catch (csvError) {
             console.warn('⚠️ CSV generation failed, continuing without CSV:', csvError);
