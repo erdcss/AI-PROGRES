@@ -113,11 +113,26 @@ export class UltimatePriceExtractor {
           console.log(`💎 SELECTED HIGH-VALUE PRICE (LOWEST HIGH): ${bestPrice.original} TL via ${bestPrice.method}`);
           return bestPrice;
         } else if (regularItems.length > 0) {
-          // For regular items, select the highest reasonable price
-          regularItems.sort((a, b) => b.original - a.original);
-          const bestPrice = regularItems[0];
-          console.log(`🎯 SELECTED REGULAR PRICE (HIGHEST): ${bestPrice.original} TL via ${bestPrice.method}`);
-          return bestPrice;
+          // For regular items, prefer discounted/current prices over original prices
+          const discountedPrices = regularItems.filter(r => 
+            r.method.includes('Current Price Selectors') && 
+            (r.method.includes('.prc-dsc') || r.method.includes('.prc-slg') || 
+             r.method.includes('discounted') || r.method.includes('sale'))
+          );
+          
+          if (discountedPrices.length > 0) {
+            // Select the lowest among discounted prices (best deal for customer)
+            discountedPrices.sort((a, b) => a.original - b.original);
+            const bestPrice = discountedPrices[0];
+            console.log(`🎯 SELECTED DISCOUNTED PRICE (LOWEST): ${bestPrice.original} TL via ${bestPrice.method}`);
+            return bestPrice;
+          } else {
+            // Fallback to lowest regular price
+            regularItems.sort((a, b) => a.original - b.original);
+            const bestPrice = regularItems[0];
+            console.log(`🎯 SELECTED REGULAR PRICE (LOWEST): ${bestPrice.original} TL via ${bestPrice.method}`);
+            return bestPrice;
+          }
         }
       }
       
@@ -222,21 +237,27 @@ export class UltimatePriceExtractor {
     console.log('🔍 Strategy 1: Current price selectors');
     
     const currentPriceSelectors = [
-      // ORIGINAL PRICE SELECTORS (may be higher than discounted)
+      // PRIORITIZE DISCOUNTED/CURRENT PRICE SELECTORS FIRST
+      '.prc-dsc', // Discounted price - TOP PRIORITY
+      '.prc-slg', // Sale price - TOP PRIORITY
+      '[data-testid="price-current-price"]', // Current price data attribute
+      '.discounted-price',
+      '.sale-price',
+      '.discount-price', 
+      '.price-sale',
+      '.promotion-price',
+      '.campaign-price',
+      '.special-price',
+      '.price-current',
+      '.final-price',
+      '.selling-price',
+      // ORIGINAL PRICE SELECTORS - LOWER PRIORITY (may be higher than discounted)
       '.prc-org',
       '.original-price',
       '.price-original',
       '.was-price',
       '.before-discount',
-      // SALE/DISCOUNTED PRICE SELECTORS (usually lower/better price)
-      '.prc-slg',
-      '.sale-price', 
-      '.discounted-price',
-      '.price-sale',
-      '.promotion-price',
-      '.campaign-price',
-      '.special-price',
-      // CURRENT PRICE SELECTORS (could be either)
+      // REMAINING CURRENT PRICE SELECTORS
       '.prc-dsc',
       '.price-discount',
       '.discounted-price-value', 
@@ -269,12 +290,12 @@ export class UltimatePriceExtractor {
           if (priceText) {
             console.log(`   Element ${i}: "${priceText}"`);
             
-            // CRITICAL FIX: Special handling for "Son X Günün" pattern
+            // CRITICAL FIX: Special handling for "Son X Günün" pattern with Turkish decimal format
             if (priceText.includes('Son') && priceText.includes('Günün')) {
               console.log(`   🚨 Detected "Son X Günün" pattern in: "${priceText}"`);
               
-              // Extract ALL prices that end with TL
-              const allPriceMatches = [...priceText.matchAll(/(\d+)\s*TL/g)];
+              // Extract ALL prices with Turkish format support (149,90 TL or 149 TL)
+              const allPriceMatches = [...priceText.matchAll(/(\d{1,3}(?:\.\d{3})*(?:,\d{2})?|\d{1,6})\s*TL/g)];
               console.log(`   🔍 Found ${allPriceMatches.length} price matches`);
               
               if (allPriceMatches.length > 0) {
@@ -285,13 +306,16 @@ export class UltimatePriceExtractor {
                 
                 // Get the LAST price (which should be the current/sale price)
                 const lastMatch = allPriceMatches[allPriceMatches.length - 1];
-                const actualPrice = parseInt(lastMatch[1]);
+                let priceStr = lastMatch[1];
+                
+                // Convert Turkish format to number: 149,90 -> 149.90
+                const actualPrice = parseFloat(priceStr.replace(/\./g, '').replace(',', '.'));
                 
                 console.log(`   🎯 Selected LAST price: ${actualPrice} TL (from "${lastMatch[0]}")`);
                 
                 // Always use the last price when "Son X Günün" pattern is detected
                 if (actualPrice > 0) {
-                  const withProfit = Math.round(actualPrice * 1.10 * 100) / 100;
+                  const withProfit = Math.round(actualPrice * 1.15 * 100) / 100;
                   
                   return {
                     original: actualPrice,
