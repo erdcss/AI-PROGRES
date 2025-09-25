@@ -135,20 +135,23 @@ function extractPriceFromState(product: any): any {
     console.log('💰 JS-STATE: Product price keys:', Object.keys(product).filter(key => key.toLowerCase().includes('price')));
     
     const priceSources = [
-      product.price?.originalPrice,
+      // PRIORITIZE DISCOUNTED/SELLING PRICES FIRST
       product.price?.sellingPrice,
       product.price?.discountedPrice,
-      product.originalPrice,
       product.sellingPrice,
       product.discountedPrice,
-      product.priceInfo?.originalPrice,
       product.priceInfo?.sellingPrice,
       product.priceInfo?.discountedPrice,
-      product.merchant?.originalPrice,
       product.merchant?.sellingPrice,
+      product.skus?.[0]?.sellingPrice,
+      product.variants?.[0]?.sellingPrice,
+      // ORIGINAL PRICES AS FALLBACK
+      product.price?.originalPrice,
+      product.originalPrice,
+      product.priceInfo?.originalPrice,
+      product.merchant?.originalPrice,
       product.variants?.[0]?.price,
-      product.skus?.[0]?.originalPrice,
-      product.skus?.[0]?.sellingPrice
+      product.skus?.[0]?.originalPrice
     ];
     
     let originalPrice = null;
@@ -161,11 +164,12 @@ function extractPriceFromState(product: any): any {
     }
     
     if (!originalPrice) {
-      // Try string parsing
+      // Try string parsing - PRIORITIZE SELLING PRICE TEXT
       const priceStrings = [
-        product.price?.originalPriceText,
         product.price?.sellingPriceText,
-        product.priceText
+        product.price?.discountedPriceText,
+        product.priceText,
+        product.price?.originalPriceText
       ];
       
       for (const priceStr of priceStrings) {
@@ -184,7 +188,7 @@ function extractPriceFromState(product: any): any {
         original: originalPrice,
         currency: 'TL',
         formatted: `${originalPrice} TL`,
-        withProfit: Math.round(originalPrice * 1.1 * 100) / 100,
+        withProfit: Math.round(originalPrice * 1.15 * 100) / 100,
         method: 'JavaScript State'
       };
     }
