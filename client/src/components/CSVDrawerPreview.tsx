@@ -5,6 +5,7 @@ import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Badge } from '@/components/ui/badge';
 import { motion, AnimatePresence } from 'framer-motion';
 import { normalizePrice, formatOriginalPrice, formatSalePrice, formatProfitAmount, formatProfitPercentage, isValidPrice } from '@/utils/price-utils';
+import { PriceEditor } from '@/components/PriceEditor';
 
 interface CSVPreviewData {
   id: string;
@@ -38,6 +39,7 @@ interface CSVDrawerPreviewProps {
 export function CSVDrawerPreview({ csvPreviews, onDownload, onShopifyUpload }: CSVDrawerPreviewProps) {
   const [expandedItems, setExpandedItems] = useState<Set<string>>(new Set());
   const [selectedImageIndex, setSelectedImageIndex] = useState<{[key: string]: number}>({});
+  const [updatedPrices, setUpdatedPrices] = useState<{[key: string]: any}>({});
 
   const toggleExpanded = (id: string) => {
     const newExpanded = new Set(expandedItems);
@@ -319,12 +321,14 @@ export function CSVDrawerPreview({ csvPreviews, onDownload, onShopifyUpload }: C
               {/* Fiyat Bilgileri */}
               <div className="flex items-center gap-3 mb-2">
                 {(() => {
-                  const standardPrice = (preview.price && preview.price.original > 0) 
-                    ? normalizePrice(preview.price) 
+                  // Use updated price if available, otherwise use original price
+                  const priceToUse = updatedPrices[preview.id] || preview.price;
+                  const standardPrice = (priceToUse && priceToUse.original > 0) 
+                    ? normalizePrice(priceToUse) 
                     : null;
                     
                   return standardPrice ? (
-                    <>
+                    <div className="flex items-center gap-2 flex-wrap">
                       <div className="flex items-center gap-2">
                         <span className="text-slate-400 text-xs">Alış:</span>
                         <span className="text-white text-sm font-medium">{formatOriginalPrice(standardPrice)}</span>
@@ -336,7 +340,21 @@ export function CSVDrawerPreview({ csvPreviews, onDownload, onShopifyUpload }: C
                       <Badge className="bg-green-900/30 text-green-300 text-xs px-2 py-0 h-4">
                         {formatProfitPercentage(standardPrice)}
                       </Badge>
-                    </>
+                      <PriceEditor
+                        currentPrice={standardPrice}
+                        productTitle={preview.productTitle}
+                        onPriceUpdate={(newPrice) => {
+                          setUpdatedPrices(prev => ({
+                            ...prev,
+                            [preview.id]: {
+                              original: newPrice.original,
+                              withProfit: newPrice.withProfit
+                            }
+                          }));
+                        }}
+                        className="ml-1"
+                      />
+                    </div>
                   ) : (
                     <div className="flex items-center gap-2">
                       <span className="text-slate-400 text-xs">Fiyat:</span>

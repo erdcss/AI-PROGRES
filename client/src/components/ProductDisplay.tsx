@@ -8,6 +8,7 @@ import { toast } from "@/hooks/use-toast";
 import { VariantDisplay } from "@/components/VariantDisplay";
 import ProductVariants from "@/components/ProductVariants";
 import { normalizePrice, formatOriginalPrice, formatSalePrice, formatProfitAmount, formatProfitPercentage, isValidPrice } from '@/utils/price-utils';
+import { PriceEditor } from '@/components/PriceEditor';
 
 interface ProductDisplayProps {
   data: {
@@ -44,9 +45,11 @@ interface ProductDisplayProps {
 
 export function ProductDisplay({ data }: ProductDisplayProps) {
   const [currentImageIndex, setCurrentImageIndex] = useState(0);
+  const [updatedPrice, setUpdatedPrice] = useState<any>(null);
   
-  // Normalize price for consistent display using imported utilities
-  const standardPrice = isValidPrice(data.price) ? normalizePrice(data.price) : null;
+  // Use updated price if available, otherwise use original price
+  const priceToUse = updatedPrice || data.price;
+  const standardPrice = isValidPrice(priceToUse) ? normalizePrice(priceToUse) : null;
   
   // Images processing helper
   const processImages = (images: string[] | Array<{ url: string; alt?: string }>) => {
@@ -138,7 +141,7 @@ export function ProductDisplay({ data }: ProductDisplayProps) {
                 {data.brand}
               </Badge>
               {standardPrice && (
-                <div className="flex flex-col items-start">
+                <div className="flex flex-col items-start gap-2">
                   <div className="flex items-center gap-2">
                     <span className="text-sm text-gray-300">Alış:</span>
                     <span className="text-lg text-red-300 line-through">{formatOriginalPrice(standardPrice)}</span>
@@ -150,6 +153,17 @@ export function ProductDisplay({ data }: ProductDisplayProps) {
                       {formatProfitAmount(standardPrice)} ({formatProfitPercentage(standardPrice)})
                     </Badge>
                   </div>
+                  <PriceEditor
+                    currentPrice={standardPrice}
+                    productTitle={data.title}
+                    onPriceUpdate={(newPrice) => {
+                      setUpdatedPrice({
+                        original: newPrice.original,
+                        withProfit: newPrice.withProfit
+                      });
+                    }}
+                    className="mt-1"
+                  />
                 </div>
               )}
             </div>

@@ -6,7 +6,7 @@ import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger } from 
 import { Badge } from '@/components/ui/badge';
 import { Edit3, DollarSign, AlertCircle, Check } from 'lucide-react';
 import { toast } from '@/hooks/use-toast';
-import { normalizePrice, formatOriginalPrice, formatSalePrice, validatePriceInput, calculatePriceWithCustomMargin, type StandardPrice } from '@/utils/price-utils';
+import { normalizePrice, formatOriginalPrice, formatSalePrice, formatProfitAmount, formatProfitPercentage, validatePriceInput, calculatePriceWithCustomMargin, type StandardPrice } from '@/utils/price-utils';
 
 interface PriceEditorProps {
   currentPrice: StandardPrice;

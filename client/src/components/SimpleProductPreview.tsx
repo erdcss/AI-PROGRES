@@ -3,6 +3,7 @@ import { Package, Image as ImageIcon, Tags, Palette, DollarSign, Info } from "lu
 import { apiRequest } from '@/lib/queryClient';
 import { useState } from 'react';
 import { normalizePrice, formatOriginalPrice, formatSalePrice, formatProfitAmount, formatProfitPercentage, isValidPrice } from '@/utils/price-utils';
+import { PriceEditor } from '@/components/PriceEditor';
 
 interface SimpleProductPreviewProps {
   product: {
@@ -42,6 +43,7 @@ interface SimpleProductPreviewProps {
 
 export function SimpleProductPreview({ product, sourceUrl }: SimpleProductPreviewProps) {
   const [transferLoading, setTransferLoading] = useState(false);
+  const [updatedPrice, setUpdatedPrice] = useState<any>(null);
 
   // More thorough validation of product data
   if (!product || !product.success || product.title === 'Yüklenemiyor' || product.brand === 'Bilinmiyor') {
@@ -117,8 +119,9 @@ export function SimpleProductPreview({ product, sourceUrl }: SimpleProductPrevie
   const safeFeatures = features || [];
   const safeVariants = variants || { colors: [], sizes: [], stockMap: {} };
 
-  // Standardized price handling with consistent formatting
-  const standardPrice = isValidPrice(price) ? normalizePrice(price) : null;
+  // Use updated price if available, otherwise use original price
+  const priceToUse = updatedPrice || price;
+  const standardPrice = isValidPrice(priceToUse) ? normalizePrice(priceToUse) : null;
 
   // Handle variants format (object)
   const getVariantCount = () => {
@@ -244,7 +247,20 @@ export function SimpleProductPreview({ product, sourceUrl }: SimpleProductPrevie
           {/* Fiyat Bilgileri */}
           {standardPrice && (
             <div className="mt-4 bg-slate-800/50 rounded-lg p-3">
-              <div className="text-slate-400 text-sm mb-3">Satış Fiyatı</div>
+              <div className="flex items-center justify-between mb-3">
+                <div className="text-slate-400 text-sm">Satış Fiyatı</div>
+                <PriceEditor
+                  currentPrice={standardPrice}
+                  productTitle={title}
+                  onPriceUpdate={(newPrice) => {
+                    setUpdatedPrice({
+                      original: newPrice.original,
+                      withProfit: newPrice.withProfit
+                    });
+                  }}
+                  className=""
+                />
+              </div>
               <div className="flex justify-between items-center">
                 <div className="text-center">
                   <div className="text-orange-400 text-sm">Alış</div>
