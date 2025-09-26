@@ -1693,8 +1693,8 @@ export function registerRoutes(app: Express): Server {
       if (url.includes('trendyol.com')) {
         console.log("🎯 SCENARIO-BASED EXTRACTION başlıyor...");
         
-        // Add timeout for faster response - REDUCED FOR EMERGENCY EXTRACTION
-        const timeoutDuration = 1000; // 1 second max - faster timeout
+        // Add timeout for faster response - EXTENDED FOR RELIABLE EXTRACTION
+        const timeoutDuration = 8000; // 8 seconds max - reliable timeout
         const timeoutPromise = new Promise((_, reject) => {
           setTimeout(() => reject(new Error('TIMEOUT: Request taking too long')), timeoutDuration);
         });
@@ -1719,13 +1719,28 @@ export function registerRoutes(app: Express): Server {
               timeoutPromise
             ]) as any;
           } catch (timeoutError) {
-            console.log('⏰ TIMEOUT: Standard method timed out, creating minimal result for emergency processing');
-            result = {
-              success: true,
-              price: null,
-              title: 'Product',
-              brand: 'Brand'
-            };
+            console.log('⏰ TIMEOUT: Standard method timed out after 8 seconds - trying emergency extraction');
+            
+            // Try emergency extraction instead of generic fallback
+            try {
+              const emergencyExtr = await import('./alternative-data-sources');
+              const emergencyResult = await emergencyExtr.emergencyExtraction(url);
+              
+              if (emergencyResult && emergencyResult.success) {
+                console.log('✅ Emergency extraction succeeded:', emergencyResult.title);
+                result = emergencyResult;
+              } else {
+                throw new Error('Emergency extraction failed');
+              }
+            } catch (emergencyError) {
+              console.log('❌ Emergency extraction also failed, using fallback with real URL data');
+              result = {
+                success: false,
+                error: 'Extraction timeout - site may be slow or blocking requests',
+                title: 'Ürün Yüklenemedi',
+                brand: 'Bilinmiyor'
+              };
+            }
           }
         } else {
           console.log('⚡ ROUTES: Fast path SUCCESS!');
