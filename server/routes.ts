@@ -1741,10 +1741,14 @@ export function registerRoutes(app: Express): Server {
         
         // 🚨 EMERGENCY: Force manual price extraction for ANY null price (regardless of success)
         if (result && (result.price === null || result.price === undefined || !result.price)) {
-          console.log('🚨 EMERGENCY: Price is missing/null, FORCING manual extraction regardless of success status');
+          console.log('🚨 EMERGENCY: Price is missing/null, FORCING Ultimate Price Extractor regardless of success status');
           
           try {
+            console.log('🔥 EMERGENCY: Using Ultimate Price Extractor for accurate pricing');
             const axios = await import('axios');
+            const cheerio = await import('cheerio');
+            const { ultimatePriceExtract } = await import('./ultimate-price-extractor');
+            
             const manualResponse = await axios.default.get(url, {
               timeout: 8000,
               headers: {
@@ -1755,62 +1759,27 @@ export function registerRoutes(app: Express): Server {
             const htmlContent = manualResponse.data;
             console.log("🔍 EMERGENCY: HTML length:", htmlContent.length);
             
-            // Enhanced price extraction patterns for Turkish e-commerce
-            const pricePatterns = [
-              /(\d{1,3}(?:\.\d{3})*),(\d{2})\s*TL/g,  // 999,90 TL format
-              /(\d{1,4}),(\d{2})\s*TL/g,              // 1499,99 TL format
-              /"price":\s*"([^"]+)"/g,                // JSON price field
-              /"currentPrice":\s*(\d+(?:\.\d+)?)/g,   // currentPrice field
-              /sepette\s+(\d{1,4}),(\d{2})\s*TL/gi,   // "sepette" price
-              /indirimli\s+(\d{1,4}),(\d{2})\s*TL/gi, // discounted price
-            ];
+            // Use Ultimate Price Extractor for accurate price detection
+            const $ = cheerio.load(htmlContent);
+            const extractedPrice = await ultimatePriceExtract($, htmlContent);
+            console.log('🎯 EMERGENCY: Ultimate Price Extractor result:', JSON.stringify(extractedPrice, null, 2));
             
-            let allMatches = [];
-            pricePatterns.forEach((pattern, index) => {
-              const matches = [...htmlContent.matchAll(pattern)];
-              console.log(`🔍 EMERGENCY: Pattern ${index + 1} found ${matches.length} matches`);
-              allMatches.push(...matches);
-            });
-            
-            console.log("🔍 EMERGENCY: Total price matches found:", allMatches.length);
-            
-            if (allMatches && allMatches.length > 0) {
-              // Extract and process all found prices
-              const validPrices = allMatches.map(match => {
-                // Handle different match formats
-                if (match[1] && match[2]) {
-                  // Turkish format: 999,90 TL
-                  const thousands = match[1].replace(/\./g, '');
-                  const decimals = match[2];
-                  return parseFloat(`${thousands}.${decimals}`);
-                } else if (match[1]) {
-                  // JSON format or single capture
-                  const price = match[1].replace(/[^\d.,]/g, '').replace(',', '.');
-                  return parseFloat(price);
-                }
-                return 0;
-              }).filter(price => price > 10 && price < 10000); // reasonable range
-              
-              if (validPrices.length > 0) {
-                const extractedPrice = Math.max(...validPrices); // take highest reasonable price
-                console.log("🎯 EMERGENCY: Found valid price:", extractedPrice, "TL");
+            if (extractedPrice && extractedPrice.original > 0) {
+                console.log("🎯 EMERGENCY: Ultimate Price Extractor found valid price:", extractedPrice.original, "TL");
                 
-                // Apply 10% profit margin
-                const priceWithProfit = Math.round(extractedPrice * 1.10 * 100) / 100;
-                
-                // Update result with manual price
+                // Update result with Ultimate Price Extractor result (already has 15% profit margin)
                 result.price = {
-                  original: extractedPrice,
-                  withProfit: priceWithProfit,
-                  formatted: `${extractedPrice} TL`,
-                  profitFormatted: `${priceWithProfit} TL`
+                  original: extractedPrice.original,
+                  withProfit: extractedPrice.withProfit,
+                  formatted: extractedPrice.formatted,
+                  profitFormatted: extractedPrice.profitFormatted
                 };
                 
-                console.log("✅ EMERGENCY: Price fixed!", {
-                  original: extractedPrice,
-                  withProfit: priceWithProfit
+                console.log("✅ EMERGENCY: Ultimate Price Extractor fixed price!", {
+                  original: extractedPrice.original,
+                  withProfit: extractedPrice.withProfit,
+                  method: extractedPrice.method
                 });
-              }
             }
           } catch (manualError) {
             console.warn("⚠️ EMERGENCY: Manual extraction failed:", manualError.message);
