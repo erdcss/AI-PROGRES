@@ -7,6 +7,7 @@ import { useState } from "react";
 import { toast } from "@/hooks/use-toast";
 import { VariantDisplay } from "@/components/VariantDisplay";
 import ProductVariants from "@/components/ProductVariants";
+import { normalizePrice, formatOriginalPrice, formatSalePrice, formatProfitAmount, formatProfitPercentage, isValidPrice } from '@/utils/price-utils';
 
 interface ProductDisplayProps {
   data: {
@@ -44,32 +45,8 @@ interface ProductDisplayProps {
 export function ProductDisplay({ data }: ProductDisplayProps) {
   const [currentImageIndex, setCurrentImageIndex] = useState(0);
   
-  // Price formatting helper with profit calculation
-  const formatPrice = (price: string | number | { profitFormatted: string; original?: number; withProfit?: number }) => {
-    if (typeof price === 'string') return price;
-    if (typeof price === 'number') return `${price} TL`;
-    if (typeof price === 'object' && price?.profitFormatted) return price.profitFormatted;
-    return 'Fiyat bilgisi yok';
-  };
-
-  // Extract price information for detailed display
-  const getPriceDetails = (price: any) => {
-    if (typeof price === 'object' && price?.original && price?.withProfit) {
-      const original = Number(price.original);
-      const withProfit = Number(price.withProfit);
-      const profit = withProfit - original;
-      const profitPercentage = ((profit / original) * 100).toFixed(1);
-      
-      return {
-        hasDetails: true,
-        original: original.toFixed(2),
-        withProfit: withProfit.toFixed(2),
-        profit: profit.toFixed(2),
-        profitPercentage
-      };
-    }
-    return { hasDetails: false };
-  };
+  // Normalize price for consistent display using imported utilities
+  const standardPrice = isValidPrice(data.price) ? normalizePrice(data.price) : null;
   
   // Images processing helper
   const processImages = (images: string[] | Array<{ url: string; alt?: string }>) => {
@@ -160,30 +137,21 @@ export function ProductDisplay({ data }: ProductDisplayProps) {
               <Badge variant="secondary" className="bg-white/20 text-white">
                 {data.brand}
               </Badge>
-              {(() => {
-                const priceDetails = getPriceDetails(data.price);
-                if (priceDetails.hasDetails) {
-                  return (
-                    <div className="flex flex-col items-start">
-                      <div className="flex items-center gap-2">
-                        <span className="text-sm text-gray-300">Geliş:</span>
-                        <span className="text-lg text-red-300 line-through">{priceDetails.original} TL</span>
-                      </div>
-                      <div className="flex items-center gap-2">
-                        <span className="text-sm text-gray-300">Satış:</span>
-                        <span className="text-xl font-semibold text-green-400">{priceDetails.withProfit} TL</span>
-                        <Badge variant="outline" className="bg-green-500/20 text-green-300 border-green-500/30">
-                          +{priceDetails.profit} TL (%{priceDetails.profitPercentage})
-                        </Badge>
-                      </div>
-                    </div>
-                  );
-                } else {
-                  return (
-                    <span className="text-xl font-semibold text-green-400">{formatPrice(data.price)}</span>
-                  );
-                }
-              })()}
+              {standardPrice && (
+                <div className="flex flex-col items-start">
+                  <div className="flex items-center gap-2">
+                    <span className="text-sm text-gray-300">Alış:</span>
+                    <span className="text-lg text-red-300 line-through">{formatOriginalPrice(standardPrice)}</span>
+                  </div>
+                  <div className="flex items-center gap-2">
+                    <span className="text-sm text-gray-300">Satış:</span>
+                    <span className="text-xl font-semibold text-green-400">{formatSalePrice(standardPrice)}</span>
+                    <Badge variant="outline" className="bg-green-500/20 text-green-300 border-green-500/30">
+                      {formatProfitAmount(standardPrice)} ({formatProfitPercentage(standardPrice)})
+                    </Badge>
+                  </div>
+                </div>
+              )}
             </div>
           </div>
 

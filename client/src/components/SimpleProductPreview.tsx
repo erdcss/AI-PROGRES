@@ -2,6 +2,7 @@ import { motion } from "framer-motion";
 import { Package, Image as ImageIcon, Tags, Palette, DollarSign, Info } from "lucide-react";
 import { apiRequest } from '@/lib/queryClient';
 import { useState } from 'react';
+import { normalizePrice, formatOriginalPrice, formatSalePrice, formatProfitAmount, formatProfitPercentage, isValidPrice } from '@/utils/price-utils';
 
 interface SimpleProductPreviewProps {
   product: {
@@ -116,14 +117,8 @@ export function SimpleProductPreview({ product, sourceUrl }: SimpleProductPrevie
   const safeFeatures = features || [];
   const safeVariants = variants || { colors: [], sizes: [], stockMap: {} };
 
-  // Use price details from API response - %10 kar marjı
-  const priceDetails = typeof price === 'object' && price.withProfit ? price : {
-    original: typeof price === 'number' ? price : 0,
-    withProfit: Math.round((typeof price === 'number' ? price : 0) * 1.10),
-    formatted: `${(typeof price === 'number' ? price : 0).toFixed(0)} TL`,
-    profitFormatted: `${Math.round((typeof price === 'number' ? price : 0) * 1.10).toFixed(0)} TL`,
-    currency: 'TL'
-  };
+  // Standardized price handling with consistent formatting
+  const standardPrice = isValidPrice(price) ? normalizePrice(price) : null;
 
   // Handle variants format (object)
   const getVariantCount = () => {
@@ -247,22 +242,22 @@ export function SimpleProductPreview({ product, sourceUrl }: SimpleProductPrevie
           )}
           
           {/* Fiyat Bilgileri */}
-          {priceDetails && (
+          {standardPrice && (
             <div className="mt-4 bg-slate-800/50 rounded-lg p-3">
               <div className="text-slate-400 text-sm mb-3">Satış Fiyatı</div>
               <div className="flex justify-between items-center">
                 <div className="text-center">
-                  <div className="text-orange-400 text-sm">Orijinal</div>
-                  <div className="text-orange-300 font-bold text-xl">{priceDetails.formatted}</div>
+                  <div className="text-orange-400 text-sm">Alış</div>
+                  <div className="text-orange-300 font-bold text-xl">{formatOriginalPrice(standardPrice)}</div>
                 </div>
                 <div className="text-center">
-                  <div className="text-green-400 text-sm">Kar Marjlı</div>
-                  <div className="text-green-300 font-bold text-xl">{priceDetails.profitFormatted}</div>
+                  <div className="text-green-400 text-sm">Satış</div>
+                  <div className="text-green-300 font-bold text-xl">{formatSalePrice(standardPrice)}</div>
                 </div>
                 <div className="text-center">
-                  <div className="text-blue-400 text-sm">%10 Kar Marjı</div>
+                  <div className="text-blue-400 text-sm">Kar Marjı</div>
                   <div className="text-blue-300 font-bold text-xl">
-                    {Math.round((priceDetails.withProfit - priceDetails.original) || 0)} TL
+                    {formatProfitAmount(standardPrice)}
                   </div>
                 </div>
               </div>

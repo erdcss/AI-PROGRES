@@ -4,6 +4,7 @@ import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Badge } from '@/components/ui/badge';
 import { motion, AnimatePresence } from 'framer-motion';
+import { normalizePrice, formatOriginalPrice, formatSalePrice, formatProfitAmount, formatProfitPercentage, isValidPrice } from '@/utils/price-utils';
 
 interface CSVPreviewData {
   id: string;
@@ -317,26 +318,32 @@ export function CSVDrawerPreview({ csvPreviews, onDownload, onShopifyUpload }: C
               
               {/* Fiyat Bilgileri */}
               <div className="flex items-center gap-3 mb-2">
-                {prices.original > 0 ? (
-                  <>
+                {(() => {
+                  const standardPrice = (preview.price && preview.price.original > 0) 
+                    ? normalizePrice(preview.price) 
+                    : null;
+                    
+                  return standardPrice ? (
+                    <>
+                      <div className="flex items-center gap-2">
+                        <span className="text-slate-400 text-xs">Alış:</span>
+                        <span className="text-white text-sm font-medium">{formatOriginalPrice(standardPrice)}</span>
+                      </div>
+                      <div className="flex items-center gap-2">
+                        <span className="text-slate-400 text-xs">Satış:</span>
+                        <span className="text-green-400 text-sm font-medium">{formatSalePrice(standardPrice)}</span>
+                      </div>
+                      <Badge className="bg-green-900/30 text-green-300 text-xs px-2 py-0 h-4">
+                        {formatProfitPercentage(standardPrice)}
+                      </Badge>
+                    </>
+                  ) : (
                     <div className="flex items-center gap-2">
-                      <span className="text-slate-400 text-xs">Alış:</span>
-                      <span className="text-white text-sm font-medium">{prices.original.toLocaleString()}₺</span>
+                      <span className="text-slate-400 text-xs">Fiyat:</span>
+                      <span className="text-orange-400 text-sm">Bilgi yok</span>
                     </div>
-                    <div className="flex items-center gap-2">
-                      <span className="text-slate-400 text-xs">Satış:</span>
-                      <span className="text-green-400 text-sm font-medium">{prices.withProfit.toLocaleString()}₺</span>
-                    </div>
-                    <Badge className="bg-green-900/30 text-green-300 text-xs px-2 py-0 h-4">
-                      +%10
-                    </Badge>
-                  </>
-                ) : (
-                  <div className="flex items-center gap-2">
-                    <span className="text-slate-400 text-xs">Fiyat:</span>
-                    <span className="text-orange-400 text-sm">Bilgi yok</span>
-                  </div>
-                )}
+                  );
+                })()}
               </div>
               
               {/* Varyant Bilgileri - Sadece gerçek varyantları göster */}
