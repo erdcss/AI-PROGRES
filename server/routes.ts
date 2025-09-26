@@ -3141,9 +3141,13 @@ ${(result.title || 'product').toLowerCase().replace(/[^a-z0-9]/g, '-')},${result
   // CSV-specific Shopify upload endpoint
   app.post('/api/shopify/upload-csv-product', async (req, res) => {
     try {
+      console.log('🔍 DEBUG: Request body keys:', Object.keys(req.body));
+      console.log('🔍 DEBUG: Request body:', JSON.stringify(req.body, null, 2));
+      
       const { csvContent, productTitle } = req.body;
       
       if (!csvContent) {
+        console.log('❌ CSV content is missing or empty');
         return res.status(400).json({
           success: false,
           error: 'CSV content is required'

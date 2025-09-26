@@ -47,11 +47,20 @@ export function sanitizeProduct(productData: any): any {
       .trim();
   }
   
-  // Sanitize brand - if it's "Trendyol", replace with actual brand or empty
+  // Sanitize brand - if it's "Trendyol", replace with actual brand or fallback
   if (sanitized.brand && sanitized.brand.toLowerCase() === 'trendyol') {
-    // Try to extract actual brand from title
-    const brandMatch = sanitized.title?.match(/^([A-Z][a-zA-Z]+)\s/);
-    sanitized.brand = brandMatch ? brandMatch[1] : '';
+    // Try to extract actual brand from title (case insensitive)
+    const brandMatch = sanitized.title?.match(/^([A-Za-z][a-zA-Z0-9]+)\s/) || 
+                      sanitized.title?.match(/([A-Za-z][a-zA-Z0-9]+)/);
+    
+    if (brandMatch) {
+      // Capitalize first letter
+      sanitized.brand = brandMatch[1].charAt(0).toUpperCase() + brandMatch[1].slice(1).toLowerCase();
+    } else {
+      // Fallback: Use a generic brand name instead of empty string
+      sanitized.brand = 'Generic';
+    }
+    console.log(`🧹 BRAND SANITIZER: "Trendyol" → "${sanitized.brand}"`);
   }
   
   // Sanitize description

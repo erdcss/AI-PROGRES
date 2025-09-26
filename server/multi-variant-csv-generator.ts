@@ -27,9 +27,15 @@ export async function generateMultiVariantShopifyCSV(product: CombinedProduct): 
   console.log('🧹 CSV: Trendyol branding removed from product data');
   
   // Validate product before processing - Skip error responses
-  if (!sanitizedProduct || !sanitizedProduct.title || !sanitizedProduct.brand) {
+  if (!sanitizedProduct || !sanitizedProduct.title) {
     console.log('⚠️ Invalid product data, skipping CSV generation');
     return '';
+  }
+  
+  // Ensure brand exists (fallback if empty)
+  if (!sanitizedProduct.brand || sanitizedProduct.brand.trim() === '') {
+    sanitizedProduct.brand = 'Generic';
+    console.log('🔧 CSV: Empty brand detected, using fallback: Generic');
   }
   
   // Enhanced check for blocked/error responses and poor quality data
