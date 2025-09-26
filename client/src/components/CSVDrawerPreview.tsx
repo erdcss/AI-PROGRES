@@ -151,7 +151,10 @@ export function CSVDrawerPreview({ csvPreviews, onDownload, onShopifyUpload }: C
     // Enhanced price parsing from CSV with multiple strategies
     const parsePriceFromCSV = () => {
       if (preview.price && preview.price.original > 0) {
-        return preview.price;
+        return {
+          original: preview.price.original,
+          withProfit: preview.price.withProfit
+        };
       }
       
       // Try to extract price from CSV content with advanced parsing
@@ -231,8 +234,8 @@ export function CSVDrawerPreview({ csvPreviews, onDownload, onShopifyUpload }: C
       
       if (priceValue > 0) {
         return {
-          original: Math.round(priceValue / 1.1), // Reverse calculate original (remove 10% markup)
-          withProfit: Math.round(priceValue)
+          original: Math.round(priceValue), // Use the actual price from CSV
+          withProfit: Math.round(priceValue * 1.1) // Apply 10% markup
         };
       }
       
