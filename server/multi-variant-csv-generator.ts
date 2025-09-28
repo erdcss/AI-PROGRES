@@ -373,9 +373,17 @@ export async function generateMultiVariantShopifyCSV(product: CombinedProduct): 
         : (product.title.split(' ')[0] || 'Generic');
       row.push(vendorName); // Vendor
       
-      // ✅ KATEGORİ ALANI: Product Type olarak kategori ekle
-      const productCategory = product.category || 'Genel Ürünler';
+      // ✅ KATEGORİ ALANI: Product Type olarak sanitize edilmiş kategori ekle
+      const productCategory = (sanitizedProduct.category && 
+                              sanitizedProduct.category.trim() !== '' && 
+                              sanitizedProduct.category !== 'Kategori' &&
+                              sanitizedProduct.category !== 'Genel Ürünler') 
+                              ? sanitizedProduct.category 
+                              : (product.category && product.category !== 'Kategori') 
+                              ? product.category 
+                              : 'Genel Ürünler';
       row.push(productCategory); // Product Type
+      console.log(`🏷️ CSV: Product Type eklendi: "${productCategory}"`);
       
       row.push(product.tags && Array.isArray(product.tags) ? product.tags.join(', ') : 'trendyol'); // Tags
       row.push('TRUE'); // Published
