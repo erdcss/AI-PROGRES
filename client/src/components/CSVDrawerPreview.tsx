@@ -364,37 +364,50 @@ export function CSVDrawerPreview({ csvPreviews, onDownload, onShopifyUpload }: C
                 })()}
               </div>
               
-              {/* Varyant Bilgileri - Sadece gerçek varyantları göster */}
+              {/* ✅ FIXED: Varyant Bilgileri - allVariants'tan gerçek varyantları göster */}
               <div className="flex flex-wrap gap-1">
                 {/* Gerçek renkler varsa göster */}
-                {preview.variants?.colors && preview.variants.colors.length > 0 && (
-                  <Badge variant="outline" className="border-cyan-600/40 text-cyan-300 text-xs px-2 py-0 h-5">
-                    {preview.variants.colors.length} renk
-                  </Badge>
-                )}
+                {(() => {
+                  const allVariants = preview.variants?.allVariants || [];
+                  const uniqueColors = [...new Set(allVariants.map(v => v.color).filter(Boolean))];
+                  return uniqueColors.length > 0 && (
+                    <Badge variant="outline" className="border-cyan-600/40 text-cyan-300 text-xs px-2 py-0 h-5">
+                      {uniqueColors.length} renk
+                    </Badge>
+                  );
+                })()}
                 
-                {/* Gerçek bedenler varsa göster - sahte bedenleri filtrele */}
-                {preview.variants?.sizes && preview.variants.sizes.length > 0 && 
-                 !preview.variants.sizes.every(size => ['S', 'M', 'L', 'XL', 'XXL', 'XS'].includes(size)) && (
-                  <Badge variant="outline" className="border-purple-600/40 text-purple-300 text-xs px-2 py-0 h-5">
-                    {preview.variants.sizes.length} beden
-                  </Badge>
-                )}
+                {/* Gerçek bedenler varsa göster */}
+                {(() => {
+                  const allVariants = preview.variants?.allVariants || [];
+                  const uniqueSizes = [...new Set(allVariants.map(v => v.size).filter(Boolean))];
+                  return uniqueSizes.length > 0 && (
+                    <Badge variant="outline" className="border-purple-600/40 text-purple-300 text-xs px-2 py-0 h-5">
+                      {uniqueSizes.length} beden
+                    </Badge>
+                  );
+                })()}
                 
-                {/* Sadece gerçek varyantları say */}
-                {variants && variants.length > 0 && variants.some(v => v.color && v.size && v.size !== 'Tek Beden') && (
-                  <Badge variant="outline" className="border-orange-600/40 text-orange-300 text-xs px-2 py-0 h-5">
-                    {variants.filter(v => v.color && v.size && v.size !== 'Tek Beden').length} varyant
-                  </Badge>
-                )}
+                {/* Toplam varyant sayısı */}
+                {(() => {
+                  const allVariants = preview.variants?.allVariants || [];
+                  const validVariants = allVariants.filter(v => v.color && v.size);
+                  return validVariants.length > 0 && (
+                    <Badge variant="outline" className="border-orange-600/40 text-orange-300 text-xs px-2 py-0 h-5">
+                      {validVariants.length} varyant
+                    </Badge>
+                  );
+                })()}
                 
                 {/* Eğer hiç varyant yoksa tek ürün göster */}
-                {(!preview.variants?.colors || preview.variants.colors.length === 0) && 
-                 (!preview.variants?.sizes || preview.variants.sizes.length === 0) && (
-                  <Badge variant="outline" className="border-slate-600/40 text-slate-400 text-xs px-2 py-0 h-5">
-                    Tek ürün
-                  </Badge>
-                )}
+                {(() => {
+                  const allVariants = preview.variants?.allVariants || [];
+                  return allVariants.length === 0 && (
+                    <Badge variant="outline" className="border-slate-600/40 text-slate-400 text-xs px-2 py-0 h-5">
+                      Tek ürün
+                    </Badge>
+                  );
+                })()}
               </div>
             </div>
           </div>
@@ -419,7 +432,13 @@ export function CSVDrawerPreview({ csvPreviews, onDownload, onShopifyUpload }: C
         {csvPreviews.map((preview) => {
           const isExpanded = expandedItems.has(preview.id);
           const { headers, rows } = parseCSVContent(preview.csvContent);
-          const variantCount = preview.variants.colors.length * preview.variants.sizes.length;
+          // ✅ FIXED: Calculate variant count from allVariants array
+          const allVariants = preview.variants?.allVariants || [];
+          const variantCount = allVariants.length;
+          
+          // Extract unique colors and sizes from allVariants
+          const uniqueColors = [...new Set(allVariants.map(v => v.color).filter(Boolean))];
+          const uniqueSizes = [...new Set(allVariants.map(v => v.size).filter(Boolean))];
 
           return (
             <div key={preview.id} className="space-y-2">
@@ -526,61 +545,77 @@ export function CSVDrawerPreview({ csvPreviews, onDownload, onShopifyUpload }: C
                           </table>
                         </div>
 
-                        {/* Product Details */}
+                        {/* ✅ FIXED: Product Details - Use allVariants data */}
                         <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
-                          <div className="space-y-2">
-                            <h4 className="text-cyan-300 font-medium text-sm">Renkler</h4>
-                            <div className="flex flex-wrap gap-1">
-                              {preview.variants.colors.slice(0, 4).map((color, index) => (
-                                <Badge key={index} variant="secondary" className="text-xs bg-blue-900/20 text-blue-300">
-                                  {color}
-                                </Badge>
-                              ))}
-                              {preview.variants.colors.length > 4 && (
-                                <Badge variant="secondary" className="text-xs bg-slate-700 text-slate-300">
-                                  +{preview.variants.colors.length - 4}
-                                </Badge>
-                              )}
-                            </div>
-                          </div>
-
-                          <div className="space-y-2">
-                            <h4 className="text-cyan-300 font-medium text-sm">Bedenler</h4>
-                            <div className="flex flex-wrap gap-1">
-                              {preview.variants.sizes.slice(0, 4).map((size, index) => (
-                                <Badge key={index} variant="secondary" className="text-xs bg-green-900/20 text-green-300">
-                                  {size}
-                                </Badge>
-                              ))}
-                              {preview.variants.sizes.length > 4 && (
-                                <Badge variant="secondary" className="text-xs bg-slate-700 text-slate-300">
-                                  +{preview.variants.sizes.length - 4}
-                                </Badge>
-                              )}
-                            </div>
-                          </div>
-
-                          <div className="space-y-2">
-                            <h4 className="text-cyan-300 font-medium text-sm">Görseller</h4>
-                            <div className="flex gap-2">
-                              {preview.images.slice(0, 3).map((image, index) => (
-                                <img
-                                  key={index}
-                                  src={image}
-                                  alt={`Product ${index + 1}`}
-                                  className="w-12 h-12 object-cover rounded border border-cyan-800/30"
-                                  onError={(e) => {
-                                    e.currentTarget.style.display = 'none';
-                                  }}
-                                />
-                              ))}
-                              {preview.images.length > 3 && (
-                                <div className="w-12 h-12 bg-slate-700 rounded border border-cyan-800/30 flex items-center justify-center">
-                                  <span className="text-xs text-slate-400">+{preview.images.length - 3}</span>
+                          {(() => {
+                            const allVariants = preview.variants?.allVariants || [];
+                            const uniqueColors = [...new Set(allVariants.map(v => v.color).filter(Boolean))];
+                            const uniqueSizes = [...new Set(allVariants.map(v => v.size).filter(Boolean))];
+                            
+                            return (
+                              <>
+                                <div className="space-y-2">
+                                  <h4 className="text-cyan-300 font-medium text-sm">Renkler ({uniqueColors.length})</h4>
+                                  <div className="flex flex-wrap gap-1">
+                                    {uniqueColors.slice(0, 4).map((color, index) => (
+                                      <Badge key={index} variant="secondary" className="text-xs bg-blue-900/20 text-blue-300">
+                                        {color}
+                                      </Badge>
+                                    ))}
+                                    {uniqueColors.length > 4 && (
+                                      <Badge variant="secondary" className="text-xs bg-slate-700 text-slate-300">
+                                        +{uniqueColors.length - 4}
+                                      </Badge>
+                                    )}
+                                    {uniqueColors.length === 0 && (
+                                      <span className="text-slate-500 text-xs">Renk bilgisi yok</span>
+                                    )}
+                                  </div>
                                 </div>
-                              )}
-                            </div>
-                          </div>
+
+                                <div className="space-y-2">
+                                  <h4 className="text-cyan-300 font-medium text-sm">Bedenler ({uniqueSizes.length})</h4>
+                                  <div className="flex flex-wrap gap-1">
+                                    {uniqueSizes.slice(0, 4).map((size, index) => (
+                                      <Badge key={index} variant="secondary" className="text-xs bg-green-900/20 text-green-300">
+                                        {size}
+                                      </Badge>
+                                    ))}
+                                    {uniqueSizes.length > 4 && (
+                                      <Badge variant="secondary" className="text-xs bg-slate-700 text-slate-300">
+                                        +{uniqueSizes.length - 4}
+                                      </Badge>
+                                    )}
+                                    {uniqueSizes.length === 0 && (
+                                      <span className="text-slate-500 text-xs">Beden bilgisi yok</span>
+                                    )}
+                                  </div>
+                                </div>
+                                
+                                <div className="space-y-2">
+                                  <h4 className="text-cyan-300 font-medium text-sm">Görseller ({preview.images.length})</h4>
+                                  <div className="flex gap-2">
+                                    {preview.images.slice(0, 3).map((image, index) => (
+                                      <img
+                                        key={index}
+                                        src={image}
+                                        alt={`Product ${index + 1}`}
+                                        className="w-12 h-12 object-cover rounded border border-cyan-800/30"
+                                        onError={(e) => {
+                                          e.currentTarget.style.display = 'none';
+                                        }}
+                                      />
+                                    ))}
+                                    {preview.images.length > 3 && (
+                                      <div className="w-12 h-12 bg-slate-700 rounded border border-cyan-800/30 flex items-center justify-center">
+                                        <span className="text-xs text-slate-400">+{preview.images.length - 3}</span>
+                                      </div>
+                                    )}
+                                  </div>
+                                </div>
+                              </>
+                            );
+                          })()}
                         </div>
 
 
