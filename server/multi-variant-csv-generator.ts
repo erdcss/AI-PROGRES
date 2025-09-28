@@ -38,6 +38,20 @@ export async function generateMultiVariantShopifyCSV(product: CombinedProduct): 
     console.log('🔧 CSV: Empty brand detected, using fallback: Generic');
   }
   
+  // ✅ MARKA DOĞRULAMA: Trendyol marka ismini engelle
+  if (sanitizedProduct.brand && sanitizedProduct.brand.toLowerCase() === 'trendyol') {
+    // Gerçek markayı title'dan çıkarmaya çalış
+    const titleWords = sanitizedProduct.title.split(' ');
+    const possibleBrand = titleWords[0];
+    if (possibleBrand && possibleBrand.length > 2 && possibleBrand.toLowerCase() !== 'trendyol') {
+      sanitizedProduct.brand = possibleBrand;
+      console.log(`🏷️ CSV: Trendyol markası "${possibleBrand}" ile değiştirildi`);
+    } else {
+      sanitizedProduct.brand = 'Generic';
+      console.log(`🏷️ CSV: Trendyol markası "Generic" ile değiştirildi`);
+    }
+  }
+  
   // Enhanced check for blocked/error responses and poor quality data
   const errorIndicators = [
     'Sorry, you have been blocked', '429', '403', 'Access Denied', 'Erişim Engellendi', 
@@ -312,14 +326,9 @@ export async function generateMultiVariantShopifyCSV(product: CombinedProduct): 
   );
   
   if (realVariants.length === 0) {
-    // No real variants - process as single product
-    actualVariants = [{
-      color: '',
-      colorCode: 'single', 
-      size: '',
-      inStock: true
-    }];
-    console.log('📦 No real variants found - processing as single product');
+    // 🚫 SAHTE VARYANT ENGELLEMESİ - Varyant yoksa boş bırak
+    console.log('🚫 SAHTE VARYANT ENGELLEMESİ: Gerçek varyant bulunamadı - varyant oluşturulmayacak');
+    actualVariants = []; // Boş varyant listesi
   } else {
     actualVariants = realVariants;
     console.log(`📦 Processing ${actualVariants.length} REAL variants (color-only or size-only accepted)`);
@@ -339,7 +348,11 @@ export async function generateMultiVariantShopifyCSV(product: CombinedProduct): 
       row.push(productHandle); // Handle
       row.push(product.title); // Title
       row.push(bodyHtml); // Body (HTML)
-      row.push(product.brand || ''); // Vendor
+      // ✅ VENDOR ALANI: Marka ismini doğrula ve Trendyol'u engelle
+      const vendorName = (product.brand && product.brand.toLowerCase() !== 'trendyol') 
+        ? product.brand 
+        : (product.title.split(' ')[0] || 'Generic');
+      row.push(vendorName); // Vendor
       row.push(product.tags && Array.isArray(product.tags) ? product.tags.join(', ') : 'trendyol'); // Tags
       row.push('TRUE'); // Published
     } else {
