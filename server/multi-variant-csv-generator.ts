@@ -98,9 +98,9 @@ export async function generateMultiVariantShopifyCSV(product: CombinedProduct): 
   
   console.log(`✅ Using price ${productPrice} TL for CSV generation`);
   
-  // HEADERS - Shopify import formatına uygun (Metafield dahil)
+  // HEADERS - Shopify import formatına uygun (Kategori ve Metafield dahil)
   const headers = [
-    'Handle', 'Title', 'Body (HTML)', 'Vendor', 'Tags', 'Published',
+    'Handle', 'Title', 'Body (HTML)', 'Vendor', 'Product Type', 'Tags', 'Published',
     'Option1 Name', 'Option1 Value', 'Option2 Name', 'Option2 Value', 
     'Variant SKU', 'Variant Inventory Qty', 'Variant Inventory Policy', 'Variant Inventory Tracker',
     'Variant Price', 'Variant Compare At Price', 'Variant Requires Shipping', 'Variant Taxable',
@@ -353,6 +353,11 @@ export async function generateMultiVariantShopifyCSV(product: CombinedProduct): 
         ? product.brand 
         : (product.title.split(' ')[0] || 'Generic');
       row.push(vendorName); // Vendor
+      
+      // ✅ KATEGORİ ALANI: Product Type olarak kategori ekle
+      const productCategory = product.category || 'Genel Ürünler';
+      row.push(productCategory); // Product Type
+      
       row.push(product.tags && Array.isArray(product.tags) ? product.tags.join(', ') : 'trendyol'); // Tags
       row.push('TRUE'); // Published
     } else {
@@ -361,6 +366,7 @@ export async function generateMultiVariantShopifyCSV(product: CombinedProduct): 
       row.push(''); // Title (boş)
       row.push(''); // Body (boş)
       row.push(''); // Vendor (boş)
+      row.push(''); // Product Type (boş)
       row.push(''); // Tags (boş)
       row.push(''); // Published (boş)
     }
