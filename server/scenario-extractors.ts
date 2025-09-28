@@ -106,7 +106,7 @@ export class ScenarioExtractors {
       console.log(`🎨 Colors from HTML: [${colors.join(', ')}]`);
     }
     
-    // Method 3: Advanced pattern matching in HTML
+    // Method 3: Advanced pattern matching in HTML - with validation
     if (colors.length === 0) {
       const htmlColorPatterns = [
         /color[^>]*>(BEYAZ|SİYAH|MAVİ|KIRMIZI|YEŞİL|SARI|MOR|PEMBE|GRİ|KAHVE|TURUNCU|LACİVERT|KREM)/gi,
@@ -114,24 +114,31 @@ export class ScenarioExtractors {
         /renk[^>]*>(BEYAZ|SİYAH|MAVİ|KIRMIZI|YEŞİL|SARI|MOR|PEMBE|GRİ|KAHVE|TURUNCU|LACİVERT|KREM)/gi
       ];
       
+      const candidateColors: string[] = [];
       htmlColorPatterns.forEach((pattern, index) => {
         const matches = htmlContent.match(pattern);
-        if (matches && colors.length === 0) {
+        if (matches) {
           matches.forEach(match => {
             const colorMatch = match.match(/(BEYAZ|SİYAH|MAVİ|KIRMIZI|YEŞİL|SARI|MOR|PEMBE|GRİ|KAHVE|TURUNCU|LACİVERT|KREM)/i);
             if (colorMatch) {
-              colors.push(colorMatch[1]);
-              console.log(`🎨 Color "${colorMatch[1]}" found via HTML pattern ${index + 1}`);
+              candidateColors.push(colorMatch[1].toLowerCase()); // Normalize case
+              console.log(`🎨 Color candidate "${colorMatch[1]}" found via HTML pattern ${index + 1}`);
             }
           });
         }
       });
+      
+      // ✅ ENHANCED: Apply validation to HTML-extracted colors
+      colors = candidateColors.filter(color => this.isValidColor(color));
+      console.log(`🎨 HTML pattern validation: ${candidateColors.length} candidates -> ${colors.length} valid colors`);
     }
     
-    // Default fallback only if absolutely no colors found
+    // ✅ ENHANCED: Final validation pass for all extracted colors
+    colors = colors.filter(color => this.isValidColor(color));
+    
+    // ✅ FIXED: NO FALLBACK - Return empty if no authentic colors found
     if (colors.length === 0) {
-      colors = ['Standart'];
-      console.log(`🎨 No colors found, using default: Standart`);
+      console.log(`❌ No authentic colors found after validation - returning empty array`);
     }
     
     // Size güvenlik kontrolü - string olmayan değerleri filtrele ve comma-separated string'leri ayır
@@ -159,13 +166,13 @@ export class ScenarioExtractors {
     console.log(`📏 Multi-size: ${stockedSizes.length} sizes found [${stockedSizes.join(', ')}], color="${colors[0]}"`);
     console.log(`📦 Stoktaki bedenler: [${stockedSizes.join(', ')}] (toplam ${safeSizes.length} bedenden ${stockedSizes.length} tanesi stoktaki)`);
     
-    // CRITICAL: If no authentic sizes found, convert to single variant
+    // ✅ FIXED: NO FALLBACK - Return empty if no authentic sizes found
     if (stockedSizes.length === 0) {
-      console.log(`🔄 No in-stock sizes found - converting to single variant`);
+      console.log(`❌ No authentic sizes found - product has no size variants`);
       return {
-        sizes: ['Tek Beden'],
-        colors,
-        stockMap: new Map([['Tek Beden', true]]),
+        sizes: [],
+        colors: [],
+        stockMap: new Map(),
         priceMap,
         imageMap
       };
@@ -182,19 +189,23 @@ export class ScenarioExtractors {
     
     const extractedColors = this.extractColors($, config.colorSelectors, htmlContent, title);
     
+    // ✅ ENHANCED: Apply validation to extracted colors
+    const validatedColors = extractedColors.filter(color => this.isValidColor(color));
+    
     // ✅ TEK RENK POLİTİKASI: Sadece ilk rengi al
     let finalColors: string[] = [];
     
-    if (extractedColors.length > 0) {
-      const singleColor = extractedColors[0]; // SADECE İLK RENK
+    if (validatedColors.length > 0) {
+      const singleColor = validatedColors[0]; // SADECE İLK RENK
       finalColors = [singleColor];
-      console.log(`🎯 SINGLE COLOR policy applied: ${singleColor} (from ${extractedColors.length} available colors)`);
+      console.log(`🎯 SINGLE COLOR policy applied: ${singleColor} (from ${validatedColors.length} validated colors)`);
     } else {
-      console.log(`🎨 No color found, using default`);
-      finalColors = ['Default Color'];
+      console.log(`❌ No authentic color found after validation - returning empty array`);
+      finalColors = [];
     }
     
-    const sizes = ['Tek Beden'];
+    // ✅ FIXED: NO FALLBACK - Return empty sizes if no authentic size data
+    const sizes: string[] = [];
     const stockMap = this.extractColorStockStatus($, config.stockSelectors, finalColors);
     const priceMap = new Map<string, number>();
     const imageMap = new Map<string, string[]>();
@@ -213,6 +224,9 @@ export class ScenarioExtractors {
     const rawSizes = this.extractSizes($, config.sizeSelectors, htmlContent);
     const extractedColors = this.extractColors($, config.colorSelectors, htmlContent, title);
     
+    // ✅ ENHANCED: Apply validation to extracted colors
+    const validatedColors = extractedColors.filter(color => this.isValidColor(color));
+    
     // Size güvenlik kontrolü ve comma-separated string'leri ayır
     const safeSizes: string[] = [];
     rawSizes.forEach((size: any) => {
@@ -228,16 +242,16 @@ export class ScenarioExtractors {
       }
     });
     
-    // ✅ TEK RENK POLİTİKASI: Sadece ilk rengi al
+    // ✅ ENHANCED: Use validated colors only
     let finalColors: string[] = [];
     
-    if (extractedColors.length > 0) {
-      const singleColor = extractedColors[0]; // SADECE İLK RENK
+    if (validatedColors.length > 0) {
+      const singleColor = validatedColors[0]; // SADECE İLK VALIDATED RENK
       finalColors = [singleColor];
-      console.log(`🎯 SINGLE COLOR for matrix: ${singleColor} (from ${extractedColors.length} available colors)`);
+      console.log(`🎯 SINGLE COLOR for matrix: ${singleColor} (from ${validatedColors.length} validated colors)`);
     } else {
-      finalColors = ['Default Color'];
-      console.log(`🎨 No color found for matrix, using default`);
+      finalColors = [];
+      console.log(`❌ No authentic color found after validation for matrix - returning empty array`);
     }
     
     const stockMap = this.extractMatrixStockStatus($, config.stockSelectors, safeSizes, finalColors);
@@ -275,7 +289,11 @@ export class ScenarioExtractors {
     
     // Try to extract what variants were available
     const sizes = this.extractSizes($, config.sizeSelectors, htmlContent);
-    const colors = this.extractColors($, config.colorSelectors, htmlContent, title);
+    const rawColors = this.extractColors($, config.colorSelectors, htmlContent, title);
+    
+    // ✅ ENHANCED: Apply validation to extracted colors
+    const colors = rawColors.filter(color => this.isValidColor(color));
+    
     const stockMap = new Map<string, boolean>();
     const priceMap = new Map<string, number>();
     const imageMap = new Map<string, string[]>();
@@ -302,7 +320,11 @@ export class ScenarioExtractors {
     
     // Use all available extraction methods
     const sizes = this.extractSizes($, config.sizeSelectors, htmlContent);
-    const colors = this.extractColors($, config.colorSelectors, htmlContent, title);
+    const rawColors = this.extractColors($, config.colorSelectors, htmlContent, title);
+    
+    // ✅ ENHANCED: Apply validation to extracted colors
+    const colors = rawColors.filter(color => this.isValidColor(color));
+    
     const stockMap = this.extractMatrixStockStatus($, config.stockSelectors, sizes, colors);
     const priceMap = new Map<string, number>();
     const imageMap = new Map<string, string[]>();
@@ -672,16 +694,67 @@ export class ScenarioExtractors {
   }
 
   /**
-   * Check if a value is a valid color
+   * ✅ ENHANCED: Balanced Turkish color validation - Exclude materials but allow legitimate colors
    */
   private static isValidColor(value: string): boolean {
-    const validColors = [
-      'beyaz', 'siyah', 'mavi', 'kırmızı', 'yeşil', 'sarı', 'mor', 'pembe', 'gri', 'kahve',
-      'turuncu', 'lacivert', 'krem', 'bej', 'white', 'black', 'blue', 'red', 'green',
-      'yellow', 'purple', 'pink', 'gray', 'brown', 'orange', 'navy', 'cream', 'beige'
+    if (!value || typeof value !== 'string') return false;
+    
+    const normalizedValue = value.toLowerCase().trim();
+    
+    // ❌ STRICT EXCLUSION: Material names that are NOT colors
+    const excludedMaterials = [
+      'çelik', 'metal', 'ahşap', 'cam', 'plastik', 'seramik', 'granit', 'mermer',
+      'steel', 'wood', 'glass', 'plastic', 'ceramic', 'granite', 'marble',
+      'alüminyum', 'aluminum', 'bakır', 'copper', 'bronz', 'bronze', 'deri', 'leather',
+      'tekstil', 'fabric', 'polyester', 'pamuk', 'cotton', 'yün', 'wool'
     ];
     
-    return validColors.includes(value.toLowerCase()) && value.length > 2 && value.length < 20;
+    // ❌ REJECT materials immediately
+    if (excludedMaterials.includes(normalizedValue)) {
+      console.log(`❌ Color validation: "${value}" rejected (material name)`);
+      return false;
+    }
+    
+    // ✅ EXPANDED Turkish/English color vocabulary
+    const validColors = [
+      // Basic Turkish colors
+      'beyaz', 'siyah', 'mavi', 'kırmızı', 'yeşil', 'sarı', 'mor', 'pembe', 'gri', 'kahve',
+      'turuncu', 'lacivert', 'krem', 'bej', 'bordo', 'haki', 'füme', 'ekru', 'pudra',
+      // Extended Turkish colors
+      'antrasit', 'camel', 'altın', 'gümüş', 'taş', 'mint', 'turkuaz', 'petrol', 'hardal',
+      'lila', 'çok renkli', 'melanj', 'gri melanj', 'siyah melanj', 'koyu', 'açık',
+      'koyu mavi', 'açık mavi', 'koyu gri', 'açık gri', 'vizon', 'deve tabanı',
+      // Basic English colors
+      'white', 'black', 'blue', 'red', 'green', 'yellow', 'purple', 'pink', 'gray', 'grey',
+      'brown', 'orange', 'navy', 'cream', 'beige', 'burgundy', 'khaki', 'smoke',
+      // Extended English colors
+      'indigo', 'gold', 'silver', 'rose', 'mint', 'turquoise', 'olive', 'mustard',
+      'lilac', 'multicolor', 'maroon', 'coral', 'salmon', 'plum', 'teal', 'magenta'
+    ];
+    
+    // ✅ LENGTH CHECK: Reasonable color name length
+    if (normalizedValue.length < 2 || normalizedValue.length > 20) {
+      console.log(`❌ Color validation: "${value}" rejected (invalid length)`);
+      return false;
+    }
+    
+    // ✅ CHECK valid colors list
+    const isInWhitelist = validColors.includes(normalizedValue);
+    
+    // ✅ PATTERN CHECK: Allow color-like words that aren't materials
+    const colorPattern = /^[a-zçşığüöĞŞIİÇÜÖ\s-]+$/i;
+    const looksLikeColor = colorPattern.test(normalizedValue) && 
+                          !normalizedValue.match(/\d/) && // No numbers
+                          !normalizedValue.includes('size') && // Not size-related
+                          !normalizedValue.includes('beden');
+    
+    const isValid = isInWhitelist || looksLikeColor;
+    
+    if (!isValid) {
+      console.log(`❌ Color validation: "${value}" rejected (pattern/whitelist)`);
+    }
+    
+    return isValid;
   }
 
   /**
