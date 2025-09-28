@@ -545,11 +545,16 @@ router.post('/api/shopify-upload', async (req, res) => {
 
     console.log(`🛒 Shopify upload başlatılıyor - Platform: ${platform || 'unknown'}`);
     
+    // ✅ SHOPIFY UPLOAD: Brand sanitizer uygula (API ROUTES 1)
+    const { sanitizeProduct } = await import('./brand-sanitizer');
+    const sanitizedData1 = sanitizeProduct(productData);
+    console.log(`🧹 SHOPIFY API-1: Marka sanitize edildi: "${productData.brand}" → "${sanitizedData1.brand}"`);
+    
     // Enhanced product creation with advanced tagging
     const shopifyProduct = {
-      title: productData.title || 'Test Ürün',
-      body_html: generateProductDescription(productData),
-      vendor: productData.brand || 'Genel',
+      title: sanitizedData1.title || 'Test Ürün',
+      body_html: generateProductDescription(sanitizedData1),
+      vendor: sanitizedData1.brand || 'Genel',
       product_type: determineProductCategory(productData),
       status: 'active',
       published: true,
@@ -674,11 +679,15 @@ router.post('/api/shopify/add-product', async (req, res) => {
 
     console.log('🛒 [ERROR CENTER BRAIN] Shopify API product creation initiated:', productData.title);
     
+    // ✅ SHOPIFY UPLOAD: Brand sanitizer uygula (API ROUTES 2)  
+    const sanitizedData2 = sanitizeProduct(productData);
+    console.log(`🧹 SHOPIFY API-2: Marka sanitize edildi: "${productData.brand}" → "${sanitizedData2.brand}"`);
+    
     // Enhanced product creation with advanced tagging
     const shopifyProduct = {
-      title: productData.title || 'Test Ürün',
-      body_html: generateProductDescription(productData),
-      vendor: productData.brand || 'Genel',
+      title: sanitizedData2.title || 'Test Ürün',
+      body_html: generateProductDescription(sanitizedData2),
+      vendor: sanitizedData2.brand || 'Genel',
       product_type: "Genel Ürün",
       status: "active",
       published: true,
@@ -854,23 +863,27 @@ router.post('/shopify-upload', async (req, res) => {
       featuresHtml += '</ul>';
     }
 
+    // ✅ SHOPIFY UPLOAD: Brand sanitizer uygula (API ROUTES 3)
+    const sanitizedData3 = sanitizeProduct(productData);
+    console.log(`🧹 SHOPIFY API-3: Marka sanitize edildi: "${productData.brand}" → "${sanitizedData3.brand}"`);
+    
     // Detaylı HTML açıklama - template formatına uygun
-    const bodyHtml = `${productData.brand || 'Marka'} ${productData.title || 'Ürün'}. ${featuresHtml}`;
+    const bodyHtml = `<p><strong>Marka:</strong> ${sanitizedData3.brand || 'Bilinmiyor'}</p><p>${sanitizedData3.title || 'Ürün'}</p>. ${featuresHtml}`;
 
     // Varyantları Shopify formatında hazırla
-    const basePrice = productData.price?.withProfit || 100;
+    const basePrice = sanitizedData3.price?.withProfit || 100;
     const shopifyVariants = ShopifyVariantFixer.createShopifyVariants(cleanVariants, basePrice);
     const productOptions = ShopifyVariantFixer.createProductOptions(cleanVariants);
 
     // SEO başlık ve açıklama
-    const seoTitle = `${productData.title} - ${productData.brand} | Turmarkt`;
-    const seoDescription = `${productData.title} ürününü Turmarkt'tan satın alın. ${productData.brand} markası, kaliteli ve uygun fiyatlı ürünler.`;
+    const seoTitle = `${sanitizedData3.title} - ${sanitizedData3.brand} | Turmarkt`;
+    const seoDescription = `${sanitizedData3.title} ürününü Turmarkt'tan satın alın. ${sanitizedData3.brand} markası, kaliteli ve uygun fiyatlı ürünler.`;
 
     // Shopify product objesi - varyant fixer ile oluşturulan verilerle
     const shopifyProduct = {
-      title: productData.title || 'Ürün',
+      title: sanitizedData3.title || 'Ürün',
       body_html: bodyHtml,
-      vendor: productData.brand || 'Genel',
+      vendor: sanitizedData3.brand || 'Genel',
       product_type: determineProductCategory(productData),
       tags: generateAITags(productData).join(', '),
       variants: shopifyVariants,
