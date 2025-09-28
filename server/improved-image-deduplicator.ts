@@ -357,11 +357,16 @@ export function extractEnhancedVariants($: cheerio.CheerioAPI, htmlContent: stri
             if ((variant.attributeType === 2 || variant.attributeType === '2') && variant.attributeValue) {
               const sizeName = variant.attributeValue.toString().trim();
               
-              // Validate size format
+              // ✅ ENHANCED Size validation - Accept all authentic product sizes
               const isValidSize = (
-                sizeName.match(/^(XS|S|M|L|XL|XXL|XXXL|2XL|3XL)$/i) ||
-                (sizeName.match(/^\d{2}$/) && parseInt(sizeName) >= 28 && parseInt(sizeName) <= 54) ||
-                sizeName.match(/^(Tek Beden|One Size|OS)$/i)
+                // Standard clothing sizes
+                sizeName.match(/^(XS|S|M|L|XL|XXL|XXXL|2XL|3XL|4XL|5XL)$/i) ||
+                // Numeric sizes (shoes, clothing numbers)
+                (sizeName.match(/^\d{1,2}$/) && parseInt(sizeName) >= 24 && parseInt(sizeName) <= 60) ||
+                // Special sizes
+                sizeName.match(/^(Tek\s*Beden|One\s*Size|OS|STANDART|STD|UNIVERSAL|FREE)$/i) ||
+                // Alphanumeric sizes (reasonable length)
+                (sizeName.match(/^[A-Z0-9\/\-]{1,8}$/i) && sizeName.length >= 1 && sizeName.length <= 8)
               );
               
               if (isValidSize) {

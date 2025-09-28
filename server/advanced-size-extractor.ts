@@ -147,20 +147,53 @@ export async function extractVariantStockInfo($: cheerio.CheerioAPI): Promise<Va
 }
 
 /**
- * Geçerli beden kontrolü
+ * ✅ ENHANCED Geçerli beden kontrolü - Tüm otantik ürün bedenlerini kabul eder
  */
 function isValidSize(size: string): boolean {
   if (!size || typeof size !== 'string') return false;
   
-  const trimmedSize = size.trim().toUpperCase();
+  const normalizedSize = size.trim().toUpperCase();
+  
+  // Exclude clearly invalid values
+  if (normalizedSize.length > 15 || normalizedSize === '1' || normalizedSize === '0') return false;
   
   const validPatterns = [
-    /^(XS|S|M|L|XL|XXL|XXXL)$/,
-    /^\d{2,3}$/,
-    /^(28|30|32|34|36|38|40|42|44|46|48|50)$/
+    // 1. Standard clothing sizes
+    /^(XS|S|M|L|XL|XXL|XXXL|2XL|3XL|4XL|5XL)$/,
+    // 2. Numeric sizes (24-60)
+    /^(2[4-9]|[3-6][0-9])$/,
+    // 3. US clothing sizes (0-30)
+    /^([0-9]|[12][0-9]|30)$/,
+    // 4. Special size formats
+    /^(TEK\s*BEDEN|ONE\s*SIZE|OS|STANDART|STD|UNIVERSAL|FREE|F)$/i,
+    // 5. Size ranges
+    /^(XS|S|M|L|XL)-?(XS|S|M|L|XL)$/,
+    /^\d{2}-?\d{2}$/,
+    // 6. Double sizes
+    /^\d{1,2}[\/\-]\d{1,2}$/,
+    // 7. Kids sizes
+    /^\d{1,2}[MTYX]$/,
+    // 8. Turkish sizes
+    /^(KÜÇÜK|ORTA|BÜYÜK)$/,
+    // 9. Any reasonable alphanumeric size (1-8 characters)
+    /^[A-Z0-9\/\-]{1,8}$/
   ];
 
-  return validPatterns.some(pattern => pattern.test(trimmedSize));
+  // Check against patterns
+  if (validPatterns.some(pattern => pattern.test(normalizedSize))) {
+    // Additional filtering for clearly invalid values
+    const invalidPatterns = [
+      /^0+$/, // All zeros
+      /^\d{5,}$/, // Too many digits
+      /^[A-Z]{6,}$/, // Too many letters
+    ];
+    
+    if (invalidPatterns.some(pattern => pattern.test(normalizedSize))) return false;
+    
+    return true;
+  }
+
+  return false;
 }
 
 /**

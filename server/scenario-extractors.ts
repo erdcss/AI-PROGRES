@@ -511,21 +511,60 @@ export class ScenarioExtractors {
     
     const normalizedSize = size.trim().toUpperCase();
     
-    // ❌ SAHTE BEDEN DOĞRULAMASI ENGELLENDİ - Authentic varyantlar için gerçek veri gerekli
-    // Only accept sizes if they are found authentically on the product page
+    // Exclude clearly invalid values
+    if (normalizedSize.length > 15 || normalizedSize === '1' || normalizedSize === '0') return false;
     
-    // Numeric sizes (shoes, clothing numbers)
+    // ✅ ENHANCED SIZE VALIDATION - Accept authentic product sizes
+    
+    // 1. Standard clothing sizes (S, M, L, XL, etc.)
+    if (/^(XS|S|M|L|XL|XXL|XXXL|2XL|3XL|4XL|5XL)$/.test(normalizedSize)) return true;
+    
+    // 2. Numeric sizes for shoes (24-54)
     if (/^(2[4-9]|[3-5][0-9])$/.test(normalizedSize)) return true;
     
-    // EU sizes
-    if (/^(3[6-9]|4[0-9]|5[0-2])$/.test(normalizedSize)) return true;
+    // 3. EU clothing sizes (34-60)
+    if (/^(3[4-9]|[4-6][0-9])$/.test(normalizedSize)) return true;
     
-    // Additional special cases
-    if (normalizedSize === '1') return false; // "1" is not a valid size
+    // 4. US clothing sizes (0-30)
+    if (/^([0-9]|[12][0-9]|30)$/.test(normalizedSize)) return true;
     
-    // Don't allow generic terms that aren't real sizes
-    const invalidSizes = ['TEK BEDEN', 'STD', 'STANDARD', 'STANDART', 'ONE SIZE', 'OS', 'GENEL', '1'];
-    if (invalidSizes.includes(normalizedSize)) return false;
+    // 5. Bra sizes (A, B, C, D, DD, DDD, etc.)
+    if (/^(A{1,3}|B{1,3}|C{1,3}|D{1,3}|E{1,3}|F{1,3}|G{1,3})$/.test(normalizedSize)) return true;
+    
+    // 6. Special size formats
+    if (/^(TEK\s*BEDEN|ONE\s*SIZE|OS|STANDART|STD|UNIVERSAL|FREE|F)$/i.test(normalizedSize)) return true;
+    
+    // 7. Size ranges like "S-M", "38-40", etc.
+    if (/^(XS|S|M|L|XL)-?(XS|S|M|L|XL)$/.test(normalizedSize)) return true;
+    if (/^\d{2}-?\d{2}$/.test(normalizedSize)) return true;
+    
+    // 8. Double sizes like "6-8", "10/12", etc.
+    if (/^\d{1,2}[\/\-]\d{1,2}$/.test(normalizedSize)) return true;
+    
+    // 9. Baby/Kids sizes like "0-3M", "2T", "3Y", etc.
+    if (/^\d{1,2}[MTYX]$/.test(normalizedSize)) return true;
+    if (/^\d{1,2}-\d{1,2}[MY]$/.test(normalizedSize)) return true;
+    
+    // 10. UK sizes and other formats
+    if (/^UK\s?\d{1,2}$/.test(normalizedSize)) return true;
+    if (/^EU\s?\d{2}$/.test(normalizedSize)) return true;
+    
+    // 11. Turkish specific sizes
+    if (/^(KÜÇÜK|ORTA|BÜYÜK)$/.test(normalizedSize)) return true;
+    
+    // 12. Accept any reasonable alphanumeric size (2-8 characters)
+    if (/^[A-Z0-9\/\-]{1,8}$/.test(normalizedSize) && normalizedSize.length >= 1 && normalizedSize.length <= 8) {
+      // Additional filtering for clearly invalid values
+      const invalidPatterns = [
+        /^0+$/, // All zeros
+        /^\d{5,}$/, // Too many digits
+        /^[A-Z]{6,}$/, // Too many letters
+      ];
+      
+      if (invalidPatterns.some(pattern => pattern.test(normalizedSize))) return false;
+      
+      return true;
+    }
     
     return false;
   }
