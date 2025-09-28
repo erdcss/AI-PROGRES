@@ -476,22 +476,32 @@ export async function generateMultiVariantShopifyCSV(product: CombinedProduct): 
     
     row.push('FALSE'); // Gift Card
     
-    // Enhanced SEO Title - brand + product name
-    const seoTitle = product.brand && product.brand !== 'undefined' 
-      ? `${product.brand} ${product.title}`.substring(0, 70)
+    // ✅ SEO TITLE: Sanitize edilmiş marka kullan, Trendyol'u engelle
+    const safeBrand = (sanitizedProduct.brand && 
+                       sanitizedProduct.brand.toLowerCase() !== 'trendyol' && 
+                       sanitizedProduct.brand !== 'undefined') 
+                       ? sanitizedProduct.brand 
+                       : '';
+    const seoTitle = safeBrand 
+      ? `${safeBrand} ${product.title}`.substring(0, 70)
       : (product.title || '').substring(0, 70);
     row.push(seoTitle); // SEO Title
+    console.log(`🏷️ CSV: SEO Title: "${seoTitle}"`);
     
-    // Enhanced SEO Description - comprehensive product summary
+    // ✅ SEO DESCRIPTION: Sanitize edilmiş marka ve kategori kullan
     let seoDescription = '';
     if (product.description && product.description !== 'undefined' && product.description.trim() !== '') {
       seoDescription = product.description.substring(0, 160);
     } else {
-      // Create description from available data
+      // Create description from available data - NO TRENDYOL
       const parts = [];
-      if (product.brand && product.brand !== 'undefined') parts.push(product.brand);
+      if (safeBrand) parts.push(safeBrand); // Sanitize edilmiş marka
       if (product.title) parts.push(product.title);
-      if (product.category) parts.push(product.category);
+      if (sanitizedProduct.category && 
+          sanitizedProduct.category !== 'Kategori' && 
+          sanitizedProduct.category !== 'Genel Ürünler') {
+        parts.push(sanitizedProduct.category);
+      }
       if (product.variants && product.variants.colors && product.variants.colors.length > 0) {
         parts.push(`${product.variants.colors.length} renk seçeneği`);
       }
@@ -502,6 +512,7 @@ export async function generateMultiVariantShopifyCSV(product: CombinedProduct): 
       seoDescription = parts.join(', ').substring(0, 160);
     }
     row.push(seoDescription); // SEO Description
+    console.log(`🏷️ CSV: SEO Description: "${seoDescription}"`);
     
     // Varyant görseli (renk bazında)
     const colorImages = imagesByColor[variant.color];
