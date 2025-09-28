@@ -3811,10 +3811,15 @@ ${(result.title || 'product').toLowerCase().replace(/[^a-z0-9]/g, '-')},${result
 
       console.log('🛒 Shopify API product creation initiated:', productData.title);
       
+      // ✅ SHOPIFY UPLOAD: Brand sanitizer uygula
+      const { sanitizeProduct } = await import('./brand-sanitizer');
+      const sanitizedData = sanitizeProduct(productData);
+      console.log(`🧹 SHOPIFY: Marka sanitize edildi: "${productData.brand}" → "${sanitizedData.brand}"`);
+      
       const shopifyProduct = {
-        title: productData.title || 'Test Ürün',
-        body_html: `<p>${productData.brand} ${productData.title}</p>`,
-        vendor: productData.brand || 'Genel',
+        title: sanitizedData.title || 'Test Ürün',
+        body_html: `<p><strong>Marka:</strong> ${sanitizedData.brand || 'Bilinmiyor'}</p><p>${sanitizedData.title}</p>`,
+        vendor: sanitizedData.brand || 'Genel',
         product_type: "Genel Ürün",
         status: "active",
         published: true,
