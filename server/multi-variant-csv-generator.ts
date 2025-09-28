@@ -127,9 +127,15 @@ export async function generateMultiVariantShopifyCSV(product: CombinedProduct): 
   // Enhanced Body HTML with comprehensive product data
   let bodyHtml = `<div class="product-details">`;
   
-  // Brand information
-  if (product.brand && product.brand.trim() !== '' && product.brand !== 'undefined') {
-    bodyHtml += `<p><strong>Marka:</strong> ${product.brand}</p>`;
+  // ✅ MARKA BİLGİSİ: Sanitize edilmiş markayı kullan, Trendyol'u engelle
+  if (sanitizedProduct.brand && 
+      sanitizedProduct.brand.trim() !== '' && 
+      sanitizedProduct.brand !== 'undefined' &&
+      sanitizedProduct.brand.toLowerCase() !== 'trendyol') {
+    bodyHtml += `<p><strong>Marka:</strong> ${sanitizedProduct.brand}</p>`;
+    console.log(`🏷️ CSV: Marka HTML'e eklendi: ${sanitizedProduct.brand}`);
+  } else {
+    console.log('🚫 CSV: Trendyol markası HTML\'e eklenmedi - engellendi');
   }
   
   // Category information - SAFE NULL CHECK
@@ -147,10 +153,18 @@ export async function generateMultiVariantShopifyCSV(product: CombinedProduct): 
       categoryFeature = null;
     }
   }
-  if (categoryFeature && categoryFeature.value.trim() !== '') {
+  // ✅ KATEGORİ BİLGİSİ: Gerçek kategoriyi kullan
+  if (categoryFeature && categoryFeature.value && categoryFeature.value.trim() !== '' && categoryFeature.value !== 'Kategori') {
     bodyHtml += `<p><strong>Kategori:</strong> ${categoryFeature.value}</p>`;
-  } else if (product.category && product.category.trim() !== '') {
-    bodyHtml += `<p><strong>Kategori:</strong> ${product.category}</p>`;
+    console.log(`🏷️ CSV: Kategori HTML'e eklendi: ${categoryFeature.value}`);
+  } else if (sanitizedProduct.category && 
+             sanitizedProduct.category.trim() !== '' && 
+             sanitizedProduct.category !== 'Kategori' &&
+             sanitizedProduct.category !== 'Genel Ürünler') {
+    bodyHtml += `<p><strong>Kategori:</strong> ${sanitizedProduct.category}</p>`;
+    console.log(`🏷️ CSV: Ürün kategorisi HTML'e eklendi: ${sanitizedProduct.category}`);
+  } else {
+    console.log('🚫 CSV: Geçersiz kategori HTML\'e eklenmedi');
   }
   
   // Product description
@@ -326,9 +340,14 @@ export async function generateMultiVariantShopifyCSV(product: CombinedProduct): 
   );
   
   if (realVariants.length === 0) {
-    // 🚫 SAHTE VARYANT ENGELLEMESİ - Varyant yoksa boş bırak
-    console.log('🚫 SAHTE VARYANT ENGELLEMESİ: Gerçek varyant bulunamadı - varyant oluşturulmayacak');
-    actualVariants = []; // Boş varyant listesi
+    // 🚫 SAHTE VARYANT ENGELLEMESİ - Tek ürün olarak işle
+    console.log('🚫 SAHTE VARYANT ENGELLEMESİ: Gerçek varyant bulunamadı - tek ürün olarak işleniyor');
+    actualVariants = [{
+      color: '',
+      colorCode: '',
+      size: '',
+      inStock: true
+    }];
   } else {
     actualVariants = realVariants;
     console.log(`📦 Processing ${actualVariants.length} REAL variants (color-only or size-only accepted)`);
@@ -371,11 +390,14 @@ export async function generateMultiVariantShopifyCSV(product: CombinedProduct): 
       row.push(''); // Published (boş)
     }
     
-    // Option bilgileri - sadece gerçek varyantlar için
-    if (actualVariants.length > 1 && variant.color !== 'Tek Renk') {
+    // ✅ OPTION BİLGİLERİ: Sadece gerçek varyantlar için, sahte varyant engellendi
+    const hasRealColors = actualVariants.some(v => v.color && v.color.trim() !== '' && v.color !== 'Tek Renk');
+    const hasRealSizes = actualVariants.some(v => v.size && v.size.trim() !== '' && v.size !== 'Tek Beden');
+    
+    if (actualVariants.length > 1 && hasRealColors && variant.color && variant.color.trim() !== '') {
       row.push('Renk'); // Option1 Name
       row.push(variant.color); // Option1 Value
-      if (variant.size !== 'Tek Beden') {
+      if (hasRealSizes && variant.size && variant.size.trim() !== '' && variant.size !== 'Tek Beden') {
         row.push('Beden'); // Option2 Name
         row.push(variant.size); // Option2 Value
       } else {
@@ -383,7 +405,8 @@ export async function generateMultiVariantShopifyCSV(product: CombinedProduct): 
         row.push(''); // Option2 Value
       }
     } else {
-      // Tek ürün - option yok
+      // 🚫 SAHTE VARYANT ENGELLEMESİ: Tek ürün - option yok
+      console.log('🚫 CSV: Sahte varyant engellendi - option bilgileri boş bırakıldı');
       row.push(''); // Option1 Name
       row.push(''); // Option1 Value
       row.push(''); // Option2 Name

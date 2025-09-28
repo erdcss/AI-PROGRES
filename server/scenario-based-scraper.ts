@@ -204,28 +204,38 @@ function extractCategoryFromProduct($: any, htmlContent: string, title: string, 
   // Method 4: URL path analysis - Trendyol URL'lerinden kategori çıkarma
   try {
     // Example: /elektronik/telefon-aksesuar/... -> Elektronik
-    const urlPattern = /trendyol\.com\/([^\/]+)/;
-    const match = htmlContent.match(urlPattern);
-    if (match && match[1] && match[1] !== 'p' && match[1] !== 'sr') {
-      const categoryFromUrl = match[1].replace(/-/g, ' ')
-        .replace(/\b\w/g, l => l.toUpperCase());
-      console.log(`🏷️ Category extracted from URL: ${categoryFromUrl}`);
-      return categoryFromUrl;
+    const currentUrl = htmlContent.match(/window\.location\.href.*?=.*?["'](.*?)["']/)?.[1] || 
+                       htmlContent.match(/url.*?:.*?["'](.*?)["']/)?.[1];
+    
+    if (currentUrl) {
+      const urlPattern = /trendyol\.com\/([^\/\?]+)/;
+      const match = currentUrl.match(urlPattern);
+      if (match && match[1] && 
+          match[1] !== 'p' && 
+          match[1] !== 'sr' && 
+          match[1] !== 'butik' &&
+          match[1].length > 2) {
+        const categoryFromUrl = match[1].replace(/-/g, ' ')
+          .replace(/\b\w/g, l => l.toUpperCase());
+        console.log(`🏷️ Category extracted from URL: ${categoryFromUrl}`);
+        return categoryFromUrl;
+      }
     }
   } catch (e) {
     console.log(`⚠️ URL category extraction failed: ${e.message}`);
   }
   
-  // Method 5: Title-based category inference
+  // Method 5: Title-based category inference - Enhanced with more keywords
   const categoryKeywords = {
-    'Elektronik': ['telefon', 'laptop', 'tablet', 'kulaklık', 'şarj', 'kılıf', 'bluetooth'],
-    'Giyim': ['tişört', 'pantolon', 'elbise', 'ayakkabı', 'bot', 'terlik', 'çorap'],
-    'Ev & Yaşam': ['yatak', 'masa', 'sandalye', 'lamba', 'perde', 'halı', 'dekor'],
-    'Kozmetik': ['parfüm', 'krem', 'makyaj', 'şampuan', 'sabun', 'bakım'],
-    'Spor': ['fitness', 'koşu', 'yoga', 'antrenman', 'sporcu', 'dumbbell'],
+    'Gıda & İçecek': ['meyve', 'sebze', 'kuru', 'cipsi', 'dried', 'kurutulmuş', 'freeze', 'gıda', 'yemek', 'atıştırmalık', 'şeftali', 'incir'],
+    'Elektronik': ['telefon', 'laptop', 'tablet', 'kulaklık', 'şarj', 'kılıf', 'bluetooth', 'kamera', 'hoparlör'],
+    'Giyim': ['tişört', 't-shirt', 'pantolon', 'elbise', 'ayakkabı', 'bot', 'terlik', 'çorap', 'gömlek', 'erkek', 'kadın'],
+    'Ev & Yaşam': ['yatak', 'masa', 'sandalye', 'lamba', 'perde', 'halı', 'dekor', 'havlu', 'set', 'mutfak', 'saklama', 'kutusu'],
+    'Kozmetik': ['parfüm', 'krem', 'makyaj', 'şampuan', 'sabun', 'bakım', 'güzellik'],
+    'Spor': ['fitness', 'koşu', 'yoga', 'antrenman', 'sporcu', 'dumbbell', 'spor'],
     'Kitap': ['kitap', 'roman', 'hikaye', 'şiir', 'ders', 'akademik'],
     'Oyuncak': ['oyuncak', 'bebek', 'lego', 'puzzle', 'top', 'araba'],
-    'Mutfak': ['tencere', 'tabak', 'bardak', 'bıçak', 'kaşık', 'blender'],
+    'Mutfak': ['tencere', 'tabak', 'bardak', 'bıçak', 'kaşık', 'blender', 'deepfreeze', 'buzluk'],
     'Bahçe': ['bitki', 'tohum', 'saksı', 'bahçe', 'çiçek', 'gübre'],
     'Otomotiv': ['araba', 'lastik', 'motor', 'yedek', 'aksesuar', 'otomobil']
   };
