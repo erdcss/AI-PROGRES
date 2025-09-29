@@ -4,7 +4,7 @@ import { zodResolver } from "@hookform/resolvers/zod";
 import { z } from "zod";
 import { useMutation, useQuery } from "@tanstack/react-query";
 import { motion } from "framer-motion";
-import { Loader2, ShoppingCart, Link, Copy, X, Home, Plus, Trash2, Package, Palette, Eye, Image, FileText } from "lucide-react";
+import { Loader2, ShoppingCart, Link, Copy, X, Home, Plus, Trash2, Package, Palette, Eye, Image, FileText, Shirt } from "lucide-react";
 
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -1286,7 +1286,183 @@ ${data.title.toLowerCase().replace(/[^a-z0-9]/g, '-')},${data.title},${data.bran
           </div>
         )}
 
+        {/* Variant Preview Section */}
+        {product && product.variants && (
+          (() => {
+            // Handle both array and object variant formats
+            let variants = product.variants;
+            let allVariants = [];
+            
+            if (Array.isArray(product.variants)) {
+              // Backend array format
+              allVariants = product.variants;
+              const colors = [...new Set(allVariants.map(v => v.color))];
+              const sizes = [...new Set(allVariants.map(v => v.size))];
+              variants = { colors, sizes, allVariants };
+            } else if (product.variants.allVariants && Array.isArray(product.variants.allVariants)) {
+              // Object format with allVariants array
+              allVariants = product.variants.allVariants;
+            } else if (product.variants.colors && product.variants.sizes) {
+              // Object format with separate colors/sizes arrays
+              for (const color of product.variants.colors) {
+                for (const size of product.variants.sizes) {
+                  allVariants.push({
+                    color,
+                    size,
+                    inStock: true // Default to in stock if no specific info
+                  });
+                }
+              }
+            }
 
+            // Only show if we have actual variants
+            if (allVariants.length === 0 && (!variants?.colors?.length && !variants?.sizes?.length)) {
+              return null;
+            }
+
+            const hasVariants = allVariants.length > 0 || (variants?.colors?.length > 0 || variants?.sizes?.length > 0);
+            
+            return hasVariants ? (
+              <div className="mt-8">
+                <Card className="business-card bg-gradient-to-br from-slate-900/90 via-slate-800/50 to-slate-900/90 backdrop-blur border border-cyan-800/30">
+                  <CardHeader className="business-header">
+                    <CardTitle className="text-white font-thin text-lg flex items-center gap-2">
+                      <Palette className="w-5 h-5 text-purple-400/70" />
+                      Ürün Varyantları
+                      {allVariants.length > 0 && (
+                        <span className="text-purple-400 text-sm bg-purple-400/10 px-2 py-1 rounded">
+                          {allVariants.length} varyant
+                        </span>
+                      )}
+                    </CardTitle>
+                  </CardHeader>
+                  <CardContent className="p-6">
+                    <div className="space-y-6">
+                      
+                      {/* Color Options */}
+                      {variants?.colors && variants.colors.length > 0 && (
+                        <div>
+                          <h3 className="text-white font-medium mb-3 flex items-center gap-2">
+                            <div className="w-3 h-3 bg-gradient-to-r from-red-400 to-blue-400 rounded-full"></div>
+                            Renk Seçenekleri ({variants.colors.length})
+                          </h3>
+                          <div className="grid grid-cols-3 sm:grid-cols-6 lg:grid-cols-8 gap-3">
+                            {variants.colors.map((color, index) => (
+                              <div
+                                key={index}
+                                className="bg-cyan-900/20 border border-cyan-800/40 rounded-lg p-3 text-center hover:border-cyan-600/60 transition-all duration-200"
+                              >
+                                <div className="text-cyan-300 font-medium text-sm">{color}</div>
+                                <div className="text-cyan-500 text-xs mt-1">Mevcut</div>
+                              </div>
+                            ))}
+                          </div>
+                        </div>
+                      )}
+
+                      {/* Size Options */}
+                      {variants?.sizes && variants.sizes.length > 0 && (
+                        <div>
+                          <h3 className="text-white font-medium mb-3 flex items-center gap-2">
+                            <Shirt className="w-4 h-4 text-green-400" />
+                            Beden Seçenekleri ({variants.sizes.length})
+                          </h3>
+                          <div className="grid grid-cols-4 sm:grid-cols-8 lg:grid-cols-12 gap-2">
+                            {variants.sizes.map((size, index) => (
+                              <div
+                                key={index}
+                                className="bg-green-900/20 border border-green-800/40 rounded-lg p-2 text-center hover:border-green-600/60 transition-all duration-200"
+                              >
+                                <div className="text-green-300 font-bold text-sm">{size}</div>
+                                <div className="text-green-500 text-xs">Stokta</div>
+                              </div>
+                            ))}
+                          </div>
+                        </div>
+                      )}
+
+                      {/* All Variants Detail */}
+                      {allVariants.length > 0 && (
+                        <div>
+                          <h3 className="text-white font-medium mb-3 flex items-center gap-2">
+                            <Package className="w-4 h-4 text-blue-400" />
+                            Tüm Varyant Kombinasyonları ({allVariants.length})
+                          </h3>
+                          <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-3 max-h-96 overflow-y-auto">
+                            {allVariants.slice(0, 20).map((variant, index) => (
+                              <div
+                                key={index}
+                                className={`border rounded-lg p-3 transition-all duration-200 ${
+                                  variant.inStock 
+                                    ? 'bg-slate-800/40 border-slate-600/50 hover:border-blue-500/60' 
+                                    : 'bg-red-900/20 border-red-800/40 opacity-60'
+                                }`}
+                              >
+                                <div className="flex items-center justify-between">
+                                  <div>
+                                    <div className="text-white text-sm font-medium">
+                                      {variant.color} / {variant.size}
+                                    </div>
+                                    <div className={`text-xs mt-1 ${
+                                      variant.inStock ? 'text-green-400' : 'text-red-400'
+                                    }`}>
+                                      {variant.inStock ? '✓ Stokta' : '✗ Tükendi'}
+                                    </div>
+                                  </div>
+                                  <div className={`w-3 h-3 rounded-full ${
+                                    variant.inStock ? 'bg-green-400' : 'bg-red-400'
+                                  }`} />
+                                </div>
+                              </div>
+                            ))}
+                          </div>
+                          
+                          {allVariants.length > 20 && (
+                            <div className="mt-3 text-center">
+                              <span className="text-slate-400 text-sm bg-slate-800/30 px-3 py-1 rounded">
+                                +{allVariants.length - 20} varyant daha
+                              </span>
+                            </div>
+                          )}
+                          
+                          {/* Variant Summary */}
+                          <div className="mt-4 flex justify-between items-center p-3 bg-slate-800/30 rounded-lg border border-slate-600/30">
+                            <div className="flex items-center gap-4">
+                              <div className="flex items-center gap-2">
+                                <div className="w-2 h-2 bg-green-400 rounded-full"></div>
+                                <span className="text-green-400 text-sm">
+                                  {allVariants.filter(v => v.inStock).length} Stokta
+                                </span>
+                              </div>
+                              <div className="flex items-center gap-2">
+                                <div className="w-2 h-2 bg-red-400 rounded-full"></div>
+                                <span className="text-red-400 text-sm">
+                                  {allVariants.filter(v => !v.inStock).length} Tükendi
+                                </span>
+                              </div>
+                            </div>
+                            <span className="text-slate-400 text-sm">
+                              Toplam {allVariants.length} varyant
+                            </span>
+                          </div>
+                        </div>
+                      )}
+
+                      {/* No Variants Message */}
+                      {(!variants?.colors?.length && !variants?.sizes?.length && allVariants.length === 0) && (
+                        <div className="text-center py-8">
+                          <Package className="w-12 h-12 text-slate-500 mx-auto mb-3" />
+                          <p className="text-slate-400 text-sm">Bu ürün için varyant bilgisi bulunamadı</p>
+                          <p className="text-slate-500 text-xs mt-1">Tek varyantlı ürün olarak işlenecek</p>
+                        </div>
+                      )}
+                    </div>
+                  </CardContent>
+                </Card>
+              </div>
+            ) : null;
+          })()
+        )}
 
         {/* All Images Display Section */}
         {allImages.length > 0 && (
