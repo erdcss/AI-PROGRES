@@ -50,7 +50,26 @@ export function SimpleProductPreview({ product, sourceUrl }: SimpleProductPrevie
     return null;
   }
 
-  const { brand, title, price, images, colorOptions, sizeOptions, variants, stockAnalysis, features } = product;
+  const { brand, title, price, images, colorOptions, sizeOptions, stockAnalysis, features } = product;
+  
+  // ✅ Handle both array and object variant formats
+  let variants = product.variants;
+  
+  // Convert backend array format to frontend object format if needed
+  if (Array.isArray(product.variants)) {
+    const variantArray = product.variants;
+    const colors = [...new Set(variantArray.map(v => v.color))];
+    const sizes = [...new Set(variantArray.map(v => v.size))];
+    const stockMap: Record<string, boolean> = {};
+    
+    variantArray.forEach(v => {
+      const key = `${v.color}-${v.size}`;
+      stockMap[key] = v.inStock;
+    });
+    
+    variants = { colors, sizes, stockMap };
+    console.log('🔄 Converted array variants to object format:', variants);
+  }
 
   const handleShopifyTransfer = async () => {
     setTransferLoading(true);
