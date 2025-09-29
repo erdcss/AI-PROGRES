@@ -15,6 +15,7 @@ import {
   Lock
 } from "lucide-react";
 import { useToast } from "@/hooks/use-toast";
+import { useIsMobile } from "@/hooks/use-mobile";
 
 const SOSControl = () => {
   const [, setLocation] = useLocation();
@@ -24,6 +25,7 @@ const SOSControl = () => {
   const [showConfirmDialog, setShowConfirmDialog] = useState<string | null>(null);
   const [isLoading, setIsLoading] = useState(false);
   const { toast } = useToast();
+  const isMobile = useIsMobile();
 
   const handleAuth = () => {
     // Using the same password as login (turmarkt123)
@@ -141,14 +143,26 @@ const SOSControl = () => {
       <div className="min-h-screen w-full bg-gradient-to-br from-red-900 via-gray-900 to-black fixed inset-0 overflow-y-auto">
         <div className="absolute inset-0 bg-[url('data:image/svg+xml,%3Csvg width=%2260%22 height=%2260%22 viewBox=%220 0 60 60%22 xmlns=%22http://www.w3.org/2000/svg%22%3E%3Cg fill=%22none%22 fill-rule=%22evenodd%22%3E%3Cg fill=%22%23dc2626%22 fill-opacity=%220.1%22%3E%3Ccircle cx=%2230%22 cy=%2230%22 r=%221%22/%3E%3C/g%3E%3C/g%3E%3C/svg%3E')] opacity-20"></div>
         
-        <div className="relative z-10 min-h-screen flex items-center justify-center p-6">
-          <div className="bg-black/40 backdrop-blur-sm rounded-xl border border-red-500/20 p-8 w-full max-w-md">
+        <div className={`relative z-10 min-h-screen flex items-center justify-center ${
+          isMobile ? 'p-4' : 'p-6'
+        }`}>
+          <div className={`bg-black/40 backdrop-blur-sm rounded-xl border border-red-500/20 w-full ${
+            isMobile ? 'max-w-sm p-6' : 'max-w-md p-8'
+          }`}>
             <div className="text-center mb-8">
-              <div className="mx-auto w-16 h-16 bg-red-600/20 rounded-full flex items-center justify-center mb-4">
-                <Shield className="w-8 h-8 text-red-500" />
+              <div className={`mx-auto bg-red-600/20 rounded-full flex items-center justify-center mb-4 ${
+                isMobile ? 'w-14 h-14' : 'w-16 h-16'
+              }`}>
+                <Shield className={`text-red-500 ${
+                  isMobile ? 'w-7 h-7' : 'w-8 h-8'
+                }`} />
               </div>
-              <h1 className="text-2xl font-bold text-white mb-2">S.O.S Kontrol Paneli</h1>
-              <p className="text-red-400 text-sm">Sistem Operasyonları & Güvenlik</p>
+              <h1 className={`font-bold text-white mb-2 ${
+                isMobile ? 'text-xl' : 'text-2xl'
+              }`}>S.O.S Kontrol Paneli</h1>
+              <p className={`text-red-400 ${
+                isMobile ? 'text-xs' : 'text-sm'
+              }`}>Sistem Operasyonları & Güvenlik</p>
             </div>
 
             <div className="space-y-4">
@@ -162,7 +176,9 @@ const SOSControl = () => {
                     value={password}
                     onChange={(e) => setPassword(e.target.value)}
                     onKeyDown={(e) => e.key === 'Enter' && handleAuth()}
-                    className="w-full bg-gray-800 text-white rounded-lg px-4 py-3 pr-12 focus:outline-none focus:ring-2 focus:ring-red-500 border border-gray-700"
+                    className={`w-full bg-gray-800 text-white rounded-lg pr-12 focus:outline-none focus:ring-2 focus:ring-red-500 border border-gray-700 ${
+                      isMobile ? 'px-4 py-4' : 'px-4 py-3'
+                    }`}
                     placeholder="Şifrenizi girin..."
                   />
                   <button
@@ -177,7 +193,9 @@ const SOSControl = () => {
 
               <button
                 onClick={handleAuth}
-                className="w-full bg-red-600 hover:bg-red-700 text-white font-medium py-3 rounded-lg transition-colors flex items-center justify-center space-x-2"
+                className={`w-full bg-red-600 hover:bg-red-700 text-white font-medium rounded-lg transition-colors flex items-center justify-center space-x-2 active:scale-95 ${
+                  isMobile ? 'py-4' : 'py-3'
+                }`}
               >
                 <Lock className="w-5 h-5" />
                 <span>Güvenli Giriş</span>
@@ -185,7 +203,9 @@ const SOSControl = () => {
 
               <button
                 onClick={() => setLocation("/")}
-                className="w-full bg-gray-700 hover:bg-gray-600 text-white font-medium py-3 rounded-lg transition-colors flex items-center justify-center space-x-2"
+                className={`w-full bg-gray-700 hover:bg-gray-600 text-white font-medium rounded-lg transition-colors flex items-center justify-center space-x-2 active:scale-95 ${
+                  isMobile ? 'py-4' : 'py-3'
+                }`}
               >
                 <ArrowLeft className="w-5 h-5" />
                 <span>Ana Sayfaya Dön</span>
@@ -213,41 +233,67 @@ const SOSControl = () => {
       
       <div className="relative z-10 min-h-screen">
         {/* Header */}
-        <div className="bg-black/20 backdrop-blur-sm border-b border-red-500/20 p-4">
-          <div className="max-w-7xl mx-auto flex items-center justify-between">
-            <div className="flex items-center space-x-4">
+        <div className={`bg-black/20 backdrop-blur-sm border-b border-red-500/20 ${
+          isMobile ? 'p-4' : 'p-4'
+        }`}>
+          <div className={`mx-auto flex items-center ${
+            isMobile ? 'max-w-full flex-col gap-4' : 'max-w-7xl justify-between'
+          }`}>
+            <div className={`flex items-center ${
+              isMobile ? 'flex-col gap-3' : 'space-x-4'
+            }`}>
               <button
                 onClick={() => setLocation("/")}
-                className="text-white/70 hover:text-white transition-colors"
+                className={`text-white/70 hover:text-white transition-colors active:scale-95 ${
+                  isMobile ? 'self-start' : ''
+                }`}
               >
                 <ArrowLeft className="w-6 h-6" />
               </button>
-              <div className="flex items-center space-x-3">
+              <div className={`flex items-center ${
+                isMobile ? 'flex-col gap-2' : 'space-x-3'
+              }`}>
                 <div className="relative">
-                  <Shield className="w-8 h-8 text-red-500" />
+                  <Shield className={`text-red-500 ${
+                    isMobile ? 'w-10 h-10' : 'w-8 h-8'
+                  }`} />
                   <div className="absolute -top-1 -right-1 w-3 h-3 bg-red-500 rounded-full animate-pulse"></div>
                 </div>
-                <div>
-                  <h1 className="text-xl font-bold text-white">S.O.S Kontrol Paneli</h1>
-                  <p className="text-sm text-red-400">Sistem Operasyonları & Güvenlik</p>
+                <div className={isMobile ? 'text-center' : ''}>
+                  <h1 className={`font-bold text-white ${
+                    isMobile ? 'text-lg' : 'text-xl'
+                  }`}>S.O.S Kontrol Paneli</h1>
+                  <p className={`text-red-400 ${
+                    isMobile ? 'text-xs' : 'text-sm'
+                  }`}>Sistem Operasyonları & Güvenlik</p>
                 </div>
               </div>
             </div>
             
-            <div className="flex items-center space-x-2 text-sm text-red-400">
-              <div className="w-2 h-2 bg-red-500 rounded-full animate-pulse"></div>
-              <span>Kritik Erişim</span>
-            </div>
+            {!isMobile && (
+              <div className="flex items-center space-x-2 text-sm text-red-400">
+                <div className="w-2 h-2 bg-red-500 rounded-full animate-pulse"></div>
+                <span>Kritik Erişim</span>
+              </div>
+            )}
           </div>
         </div>
 
-        <div className="max-w-4xl mx-auto p-6">
+        <div className={`mx-auto ${
+          isMobile ? 'max-w-full px-4 py-4' : 'max-w-4xl p-6'
+        }`}>
           <div className="mb-8">
-            <h2 className="text-2xl font-bold text-white mb-2">Sistem Kontrol Merkezine Hoş Geldiniz</h2>
-            <p className="text-gray-300">Aşağıdaki kritik operasyonları dikkatli bir şekilde kullanın. Her işlem geri alınamaz sonuçlara yol açabilir.</p>
+            <h2 className={`font-bold text-white mb-2 ${
+              isMobile ? 'text-xl text-center' : 'text-2xl'
+            }`}>Sistem Kontrol Merkezine Hoş Geldiniz</h2>
+            <p className={`text-gray-300 ${
+              isMobile ? 'text-sm text-center' : ''
+            }`}>Aşağıdaki kritik operasyonları dikkatli bir şekilde kullanın. Her işlem geri alınamaz sonuçlara yol açabilir.</p>
           </div>
 
-          <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
+          <div className={`grid gap-6 ${
+            isMobile ? 'grid-cols-1' : 'grid-cols-1 md:grid-cols-3'
+          }`}>
             {/* Clear Memory Button */}
             <motion.div
               whileHover={{ scale: 1.02 }}
