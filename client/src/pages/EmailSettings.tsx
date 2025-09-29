@@ -7,12 +7,14 @@ import { Badge } from '@/components/ui/badge';
 import { useToast } from '@/hooks/use-toast';
 import { Mail, Clock, Send, CheckCircle } from 'lucide-react';
 import PageLayout from "@/components/PageLayout";
+import { useIsMobile } from '@/hooks/use-mobile';
 
 export default function EmailSettings() {
   const [email, setEmail] = useState('');
   const [isLoading, setIsLoading] = useState(false);
   const [testLoading, setTestLoading] = useState(false);
   const { toast } = useToast();
+  const isMobile = useIsMobile();
 
   const handleSetEmail = async () => {
     if (!email || !email.includes('@')) {
@@ -97,8 +99,8 @@ export default function EmailSettings() {
       backTo="/"
       backLabel="Ana Sayfa"
     >
-        <div className="max-w-4xl mx-auto w-full">
-          <div className="grid gap-6">
+        <div className={`w-full ${isMobile ? 'px-4' : 'max-w-4xl mx-auto'}`}>
+          <div className={`grid ${isMobile ? 'gap-8' : 'gap-6'}`}>
           {/* Email Configuration */}
           <Card className="glassmorphism-card border-0 shadow-2xl">
           <CardHeader>
@@ -107,22 +109,30 @@ export default function EmailSettings() {
               E-posta Adresi
             </CardTitle>
           </CardHeader>
-          <CardContent className="space-y-4">
-            <div className="space-y-2">
-              <Label htmlFor="email">Rapor alacak e-posta adresi</Label>
-              <div className="flex gap-2">
+          <CardContent className={`${isMobile ? 'space-y-6' : 'space-y-4'}`}>
+            <div className={`${isMobile ? 'space-y-4' : 'space-y-2'}`}>
+              <Label htmlFor="email" className={`${isMobile ? 'text-base font-semibold' : ''}`}>
+                Rapor alacak e-posta adresi
+              </Label>
+              <div className={`flex ${isMobile ? 'flex-col gap-4' : 'gap-2'}`}>
                 <Input
                   id="email"
                   type="email"
                   placeholder="ornek@gmail.com"
                   value={email}
                   onChange={(e) => setEmail(e.target.value)}
-                  className="flex-1"
+                  className={`${isMobile ? 'w-full' : 'flex-1'}`}
+                  data-testid="input-email-address"
                 />
                 <Button 
                   onClick={handleSetEmail} 
                   disabled={isLoading}
-                  className="min-w-24"
+                  className={`transition-all duration-200 active:scale-95 ${
+                    isMobile 
+                      ? 'w-full h-12 text-base font-semibold' 
+                      : 'min-w-24'
+                  }`}
+                  data-testid="button-save-email"
                 >
                   {isLoading ? "Kaydediliyor..." : "Kaydet"}
                 </Button>
@@ -171,15 +181,20 @@ export default function EmailSettings() {
               Test Raporu
             </CardTitle>
           </CardHeader>
-          <CardContent>
-            <p className="text-sm text-muted-foreground mb-4">
+          <CardContent className={`${isMobile ? 'space-y-6' : ''}`}>
+            <p className={`text-muted-foreground mb-4 ${isMobile ? 'text-base' : 'text-sm'}`}>
               E-posta sisteminin çalışıp çalışmadığını test etmek için örnek rapor gönderin
             </p>
             <Button 
               onClick={handleTestReport}
               disabled={testLoading}
               variant="outline"
-              className="w-full sm:w-auto"
+              className={`transition-all duration-200 active:scale-95 ${
+                isMobile 
+                  ? 'w-full h-12 text-base font-semibold' 
+                  : 'w-full sm:w-auto'
+              }`}
+              data-testid="button-send-test-report"
             >
               {testLoading ? "Gönderiliyor..." : "Test Raporu Gönder"}
             </Button>

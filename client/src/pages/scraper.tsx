@@ -14,6 +14,7 @@ import { CSVDrawerPreview } from "@/components/CSVDrawerPreview";
 
 import { toast } from "@/hooks/use-toast";
 import { useLocation } from "wouter";
+import { useIsMobile } from "@/hooks/use-mobile";
 
 
 const scrapeSchema = z.object({
@@ -73,6 +74,7 @@ function ScraperPage() {
   const [draggedUrls, setDraggedUrls] = useState<string[]>([]);
   const [isDragOver, setIsDragOver] = useState(false);
   const [csvPreviews, setCsvPreviews] = useState<any[]>([]);
+  const isMobile = useIsMobile();
   
   const singleForm = useForm<ScrapeFormData>({
     resolver: zodResolver(scrapeSchema),
@@ -925,19 +927,21 @@ ${data.title.toLowerCase().replace(/[^a-z0-9]/g, '-')},${data.title},${data.bran
                       </div>
 
                       {/* Manuel URL Ekleme */}
-                      <div className="flex gap-2">
+                      <div className={`flex ${isMobile ? 'flex-col gap-4' : 'gap-2'}`}>
                         <div className="relative flex-1">
                           <Input
                             placeholder="https://www.trendyol.com/..."
                             {...singleForm.register("url")}
-                            className="business-input h-12 text-base pl-4 pr-20"
+                            type="url"
+                            className={`business-input pl-4 ${isMobile ? 'h-14 text-base pr-16' : 'h-12 text-base pr-20'}`}
                             disabled={singleScrapeMutation.isPending}
+                            data-testid="input-product-url"
                           />
                           <Button
                             type="button"
                             size="sm"
                             variant="ghost"
-                            className="absolute right-2 top-1/2 transform -translate-y-1/2 h-8 w-8 p-0 text-white hover:bg-blue-800"
+                            className={`absolute right-2 top-1/2 transform -translate-y-1/2 text-white hover:bg-blue-800 transition-all duration-200 active:scale-95 ${isMobile ? 'h-10 w-10 p-0' : 'h-8 w-8 p-0'}`}
                             onClick={() => {
                               navigator.clipboard.readText().then(text => {
                                 singleForm.setValue('url', text);
@@ -947,17 +951,23 @@ ${data.title.toLowerCase().replace(/[^a-z0-9]/g, '-')},${data.title},${data.bran
                                 });
                               });
                             }}
+                            data-testid="button-paste-url"
                           >
-                            <Copy className="w-4 h-4" />
+                            <Copy className={`${isMobile ? 'w-5 h-5' : 'w-4 h-4'}`} />
                           </Button>
                         </div>
                         <Button
                           type="button"
                           onClick={addUrlManually}
                           disabled={singleScrapeMutation.isPending}
-                          className="bg-blue-600 hover:bg-blue-700 text-white px-4 h-12"
+                          className={`bg-blue-600 hover:bg-blue-700 text-white transition-all duration-200 active:scale-95 ${
+                            isMobile 
+                              ? 'w-full h-14 text-base font-semibold px-4' 
+                              : 'px-4 h-12'
+                          }`}
+                          data-testid="button-add-url"
                         >
-                          <Plus className="w-4 h-4 mr-2" />
+                          <Plus className={`mr-2 ${isMobile ? 'w-5 h-5' : 'w-4 h-4'}`} />
                           Ekle
                         </Button>
                       </div>
@@ -967,22 +977,28 @@ ${data.title.toLowerCase().replace(/[^a-z0-9]/g, '-')},${data.title},${data.bran
                     <div className="space-y-3">
                       <label className="text-white font-thin text-sm">Ürüne Eklenecek Etiketler</label>
                       <div className="space-y-3">
-                        <div className="flex gap-2">
+                        <div className={`flex ${isMobile ? 'flex-col gap-4' : 'gap-2'}`}>
                           <Input
                             placeholder="Etiket ekle (örn: elektronik, telefon)"
                             value={newTag}
                             onChange={(e) => setNewTag(e.target.value)}
                             onKeyPress={(e) => e.key === 'Enter' && (e.preventDefault(), addTag())}
-                            className="business-input flex-1"
+                            className={`business-input ${isMobile ? 'h-14 text-base' : ''} flex-1`}
                             disabled={singleScrapeMutation.isPending}
+                            data-testid="input-product-tag"
                           />
                           <Button
                             type="button"
                             onClick={addTag}
                             disabled={!newTag.trim() || singleScrapeMutation.isPending}
-                            className="bg-green-600 hover:bg-green-700 text-white px-4"
+                            className={`bg-green-600 hover:bg-green-700 text-white transition-all duration-200 active:scale-95 ${
+                              isMobile 
+                                ? 'w-full h-14 text-base font-semibold px-4' 
+                                : 'px-4'
+                            }`}
+                            data-testid="button-add-tag"
                           >
-                            <Plus className="w-4 h-4" />
+                            <Plus className={`${isMobile ? 'w-5 h-5' : 'w-4 h-4'}`} />
                           </Button>
                         </div>
                         
