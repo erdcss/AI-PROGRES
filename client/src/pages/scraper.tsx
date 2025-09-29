@@ -1315,12 +1315,21 @@ ${data.title.toLowerCase().replace(/[^a-z0-9]/g, '-')},${data.title},${data.bran
               }
             }
 
-            // Only show if we have actual variants
-            if (allVariants.length === 0 && (!variants?.colors?.length && !variants?.sizes?.length)) {
-              return null;
+            // Convert array format to object format after processing
+            if (Array.isArray(product.variants) && allVariants.length > 0) {
+              const colors = [...new Set(allVariants.map(v => v.color))];
+              const sizes = [...new Set(allVariants.map(v => v.size))];
+              variants = { colors, sizes, allVariants };
+              console.log('🔄 Array variants converted to object format:', variants);
             }
 
+            // Only show if we have actual variants
             const hasVariants = allVariants.length > 0 || (variants?.colors?.length > 0 || variants?.sizes?.length > 0);
+            
+            if (!hasVariants) {
+              console.log('❌ No variants found to display');
+              return null;
+            }
             
             return hasVariants ? (
               <div className="mt-8">
