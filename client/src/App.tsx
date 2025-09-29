@@ -36,6 +36,7 @@ import ShopifyTrackingPage from "@/pages/ShopifyTrackingPage";
 import ShopifyProductsPage from './pages/shopify-products';
 import TrackingDashboard from "@/pages/tracking-dashboard";
 import { TBotAssistant } from "@/components/TBotAssistant";
+import { MobileNavigation } from "@/components/MobileNavigation";
 
 // Login component with password protection
 function LoginScreen({ onLogin }: { onLogin: () => void }) {
@@ -397,6 +398,7 @@ function App() {
   return (
     <QueryClientProvider client={queryClient}>
       <div className="business-bg min-h-screen">
+        <MobileNavigation />
         <Router />
         <TBotAssistant />
       </div>
