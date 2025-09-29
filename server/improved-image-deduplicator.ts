@@ -298,9 +298,45 @@ export function extractEnhancedVariants($: cheerio.CheerioAPI, htmlContent: stri
         console.log(`🔍 Found ${stockVariants.length} variants with stock data`);
         
         stockVariants.forEach((variant: any) => {
-          if (variant.size && variant.size.match(/^(XS|S|M|L|XL|XXL|XXXL|2XL|3XL)$/i)) {
-            const sizeName = variant.size.toString().trim();
-            const colorName = variant.color || 'Krem';
+          // ✅ ENHANCED: Accept all authentic sizes (no restrictive filtering)
+          if (variant.size || variant.sizeName || variant.attributeValue) {
+            const sizeName = (variant.size || variant.sizeName || variant.attributeValue || '').toString().trim();
+            
+            // ✅ Accept wide range of authentic sizes
+            const isValidSize = sizeName && (
+              // Standard clothing sizes
+              sizeName.match(/^(XS|S|M|L|XL|XXL|XXXL|2XL|3XL|4XL|5XL)$/i) ||
+              // Combined sizes  
+              sizeName.match(/^(S\/M|M\/L|L\/XL|XL\/XXL)$/i) ||
+              // Numeric sizes (shoes, clothing)
+              (sizeName.match(/^\d{1,2}$/) && parseInt(sizeName) >= 24 && parseInt(sizeName) <= 60) ||
+              // Ranges like 34/36, 38-40
+              sizeName.match(/^\d{2}[\/\-]\d{2}$/) ||
+              // Special sizes
+              sizeName.match(/^(Tek\s*Beden|One\s*Size|OS|STANDART|STD|UNIVERSAL|FREE|BÜYÜK|KÜÇÜK)$/i) ||
+              // Reasonable alphanumeric (2-8 chars)
+              (sizeName.match(/^[A-Z0-9\/\-\s]{1,8}$/i) && sizeName.length >= 1)
+            );
+            
+            if (isValidSize) {
+              // ✅ Extract real color from product data instead of defaulting to 'Krem'
+              let colorName = 'Varsayılan'; // Better default than hard-coded color
+              
+              // Try multiple color sources
+              if (variant.color && variant.color !== 'undefined') {
+                colorName = variant.color;
+              } else if (variant.colorName) {
+                colorName = variant.colorName;
+              }
+              
+              // ✅ Better color code mapping
+              let colorCode = '#808080'; // Default gray instead of hard-coded cream
+              if (colorName.toLowerCase().includes('siyah') || colorName.toLowerCase().includes('black')) colorCode = '#000000';
+              else if (colorName.toLowerCase().includes('beyaz') || colorName.toLowerCase().includes('white')) colorCode = '#FFFFFF';
+              else if (colorName.toLowerCase().includes('kırmızı') || colorName.toLowerCase().includes('red')) colorCode = '#FF0000';
+              else if (colorName.toLowerCase().includes('mavi') || colorName.toLowerCase().includes('blue')) colorCode = '#0000FF';
+              else if (colorName.toLowerCase().includes('antrasit')) colorCode = '#2F4F4F';
+              else if (colorName.toLowerCase().includes('gri') || colorName.toLowerCase().includes('gray')) colorCode = '#808080';
             
             // Comprehensive stock checking
             let isInStock = true;
@@ -319,14 +355,15 @@ export function extractEnhancedVariants($: cheerio.CheerioAPI, htmlContent: stri
               isInStock = false;
             }
             
-            variants.push({
-              color: colorName,
-              colorCode: '#F5E6D3',
-              size: sizeName,
-              inStock: isInStock
-            });
+              variants.push({
+                color: colorName,
+                colorCode: colorCode,
+                size: sizeName,
+                inStock: isInStock
+              });
             
-            console.log(`📦 Direct variant: ${colorName} ${sizeName} (stock: ${isInStock})`);
+              console.log(`📦 Enhanced variant: ${colorName} ${sizeName} (stock: ${isInStock})`);
+            }
           }
         });
         
@@ -370,8 +407,8 @@ export function extractEnhancedVariants($: cheerio.CheerioAPI, htmlContent: stri
               );
               
               if (isValidSize) {
-                // Default color if no color variants
-                const defaultColor = 'Black';
+                // ✅ Extract real color from product or use better default
+                const defaultColor = 'Varsayılan'; // Better than hard-coded 'Black'
                 if (!colorMap[defaultColor]) colorMap[defaultColor] = [];
                 if (!colorMap[defaultColor].includes(sizeName)) {
                   colorMap[defaultColor].push(sizeName);
@@ -464,10 +501,20 @@ export function extractEnhancedVariants($: cheerio.CheerioAPI, htmlContent: stri
         sizes.forEach((size: any) => {
           const sizeName = typeof size === 'string' ? size : size.name || size.value;
           
-          if (sizeName && sizeName.match(/^(XS|S|M|L|XL|XXL|XXXL|2XL|3XL)$/i)) {
+          // ✅ ENHANCED: Accept wider range of sizes
+          const isValidSize = sizeName && (
+            sizeName.match(/^(XS|S|M|L|XL|XXL|XXXL|2XL|3XL|4XL|5XL)$/i) ||
+            sizeName.match(/^(S\/M|M\/L|L\/XL|XL\/XXL)$/i) ||
+            (sizeName.match(/^\d{1,2}$/) && parseInt(sizeName) >= 24 && parseInt(sizeName) <= 60) ||
+            sizeName.match(/^\d{2}[\/\-]\d{2}$/) ||
+            sizeName.match(/^(Tek\s*Beden|One\s*Size|OS|STANDART|STD|UNIVERSAL|FREE)$/i) ||
+            (sizeName.match(/^[A-Z0-9\/\-\s]{1,8}$/i) && sizeName.length >= 1)
+          );
+          
+          if (isValidSize) {
             variants.push({
-              color: 'Black',
-              colorCode: '#000000',
+              color: 'Varsayılan', // Better than hard-coded 'Black'
+              colorCode: '#808080', // Gray instead of black
               size: sizeName,
               inStock: size.inStock !== false
             });
@@ -501,9 +548,19 @@ export function extractEnhancedVariants($: cheerio.CheerioAPI, htmlContent: stri
     sizeSelectors.forEach(selector => {
       $(selector).each((_, element) => {
         const $el = $(element);
-        let sizeText = $el.text().trim() || $el.attr('data-size') || $el.val();
+        let sizeText = $el.text().trim() || $el.attr('data-size') || String($el.val() || '').trim();
         
-        if (sizeText && sizeText.match(/^(XS|S|M|L|XL|XXL|XXXL|2XL|3XL)$/i)) {
+        // ✅ ENHANCED: Accept wider range of sizes for DOM extraction  
+        const isValidSize = sizeText && (
+          sizeText.match(/^(XS|S|M|L|XL|XXL|XXXL|2XL|3XL|4XL|5XL)$/i) ||
+          sizeText.match(/^(S\/M|M\/L|L\/XL|XL\/XXL)$/i) ||
+          (sizeText.match(/^\d{1,2}$/) && parseInt(sizeText) >= 24 && parseInt(sizeText) <= 60) ||
+          sizeText.match(/^\d{2}[\/\-]\d{2}$/) ||
+          sizeText.match(/^(Tek\s*Beden|One\s*Size|OS|STANDART|STD|UNIVERSAL|FREE)$/i) ||
+          (sizeText.match(/^[A-Z0-9\/\-\s]{1,8}$/i) && sizeText.length >= 1)
+        );
+        
+        if (isValidSize) {
           if (!sizes.includes(sizeText)) {
             sizes.push(sizeText);
             
