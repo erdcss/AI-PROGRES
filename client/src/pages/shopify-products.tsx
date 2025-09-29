@@ -7,6 +7,7 @@ import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { Alert, AlertDescription } from '@/components/ui/alert';
 import { Loader2, RefreshCw, ShoppingBag, Database, ExternalLink, CheckCircle, XCircle, AlertTriangle } from 'lucide-react';
 import { useToast } from '@/hooks/use-toast';
+import { useIsMobile } from '@/hooks/use-mobile';
 
 interface ShopifyProduct {
   id: number;
@@ -53,6 +54,7 @@ export default function ShopifyProductsPage() {
   const { toast } = useToast();
   const queryClient = useQueryClient();
   const [selectedTab, setSelectedTab] = useState('products');
+  const isMobile = useIsMobile();
 
   // Test Shopify connection
   const { data: connectionStatus, isLoading: connectionLoading } = useQuery({
@@ -160,16 +162,26 @@ export default function ShopifyProductsPage() {
   };
 
   return (
-    <div className="container mx-auto p-6 space-y-6">
-      <div className="flex items-center justify-between">
-        <div>
-          <h1 className="text-3xl font-bold">Shopify Ürün Yönetimi</h1>
-          <p className="text-muted-foreground">
+    <div className={`mx-auto space-y-6 ${
+      isMobile ? 'px-4 py-4 max-w-full' : 'container px-6 py-6'
+    }`}>
+      <div className={`flex items-center ${
+        isMobile ? 'flex-col gap-4' : 'justify-between'
+      }`}>
+        <div className={`${isMobile ? 'text-center' : ''}`}>
+          <h1 className={`font-bold ${
+            isMobile ? 'text-2xl leading-tight' : 'text-3xl'
+          }`}>Shopify Ürün Yönetimi</h1>
+          <p className={`text-muted-foreground ${
+            isMobile ? 'text-sm mt-2' : ''
+          }`}>
             Shopify mağazanızdaki ürünleri görüntüleyin ve hafızadaki ürünlerle eşleştirin
           </p>
         </div>
         
-        <div className="flex items-center gap-3">
+        <div className={`flex items-center ${
+          isMobile ? 'flex-wrap gap-3 justify-center' : 'gap-3'
+        }`}>
           {connectionStatus && (
             <Badge 
               variant={connectionStatus.success ? "default" : "destructive"}
@@ -187,7 +199,8 @@ export default function ShopifyProductsPage() {
           <Button 
             onClick={() => refetchProducts()}
             disabled={productsLoading}
-            size="sm"
+            size={isMobile ? "default" : "sm"}
+            className={isMobile ? 'h-12 px-4' : ''}
           >
             <RefreshCw className={`w-4 h-4 mr-2 ${productsLoading ? 'animate-spin' : ''}`} />
             Yenile
@@ -205,7 +218,9 @@ export default function ShopifyProductsPage() {
       )}
 
       <Tabs value={selectedTab} onValueChange={setSelectedTab}>
-        <TabsList className="grid w-full grid-cols-3">
+        <TabsList className={`grid w-full ${
+          isMobile ? 'grid-cols-1 gap-2' : 'grid-cols-3'
+        }`}>
           <TabsTrigger value="products">
             <ShoppingBag className="w-4 h-4 mr-2" />
             Shopify Ürünleri
@@ -232,10 +247,14 @@ export default function ShopifyProductsPage() {
               Shopify ürünleri yükleniyor...
             </div>
           ) : (
-            <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-3">
+            <div className={`grid gap-4 ${
+              isMobile ? 'grid-cols-1' : 'md:grid-cols-2 lg:grid-cols-3'
+            }`}>
               {shopifyData?.products?.map((product: ShopifyProduct) => (
                 <Card key={product.id} className="hover:shadow-md transition-shadow">
-                  <CardHeader className="pb-3">
+                  <CardHeader className={`${
+                    isMobile ? 'pb-3 p-4' : 'pb-3'
+                  }`}>
                     <div className="flex items-start justify-between">
                       <CardTitle className="text-sm font-medium line-clamp-2">
                         {product.title}
