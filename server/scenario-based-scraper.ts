@@ -1438,9 +1438,16 @@ export async function scenarioBasedScrape(url: string): Promise<ScenarioBasedRes
     }
     
     // ✅ CRITICAL DEBUG - Force log to test if we reach this point
-    console.log('🚨 CRITICAL DEBUG: Reached enhanced variant extraction section');
+    console.log('🚨🚨🚨 CRITICAL DEBUG: Reached enhanced variant extraction section');
     console.log('🚨 URL CHECK:', url);
     console.log('🚨 Current variants count:', variants.length);
+    
+    // ✅ Check if this is target URL
+    const isTargetURL = url.includes('ethiquet/barry-kadin') || url.includes('p-819077297');
+    if (isTargetURL) {
+      console.log('🚨🚨🚨 TARGET URL DETECTED IN SCRAPER!');
+      console.log('🚨 Current variants before direct extraction:', JSON.stringify(variants, null, 2));
+    }
     
     // ✅ ENHANCED VARIANT EXTRACTION - Test direct extraction for better accuracy
     let directVariants = [];

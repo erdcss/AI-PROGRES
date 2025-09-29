@@ -1663,9 +1663,9 @@ export function registerRoutes(app: Express): Server {
     console.log("🎯 Scenario-based scrape isteği alındı");
     console.log("🔧 CORRECT ENDPOINT: /api/scenario-scrape being used");
     
-    // ✅ CRITICAL URL DEBUG - Log exactly what URL we receive
-    console.log("🚨🚨🚨 CRITICAL DEBUG: Raw request body:", JSON.stringify(req.body, null, 2));
-    console.log("🚨 Raw URL received:", req.body?.url);
+    // ✅ FORCE DEBUG - Simple logging to confirm execution
+    console.log("🚨 FORCE DEBUG: Endpoint reached");
+    console.log("🚨 URL:", req.body?.url);
     
     try {
       const validation = urlSchema.safeParse(req.body);
