@@ -274,23 +274,48 @@ const MarketplaceSelection = () => {
             initial={{ opacity: 0, x: 20 }}
             animate={{ opacity: 1, x: 0 }}
             transition={{ duration: 0.5, delay: 0.3 }}
-            className="business-card p-4 md:p-6 md:col-span-2 lg:col-span-1"
+            className={`business-card ${
+              isMobile 
+                ? 'p-6' 
+                : 'p-6 md:col-span-2 lg:col-span-1'
+            }`}
           >
-            <div className="text-center mb-6 md:mb-8">
-              <h2 className="text-lg md:text-2xl font-black text-white mb-2">HIZLI ERİŞİM ALANI</h2>
-              <p className="text-white font-bold text-xs md:text-sm">Sık kullanılan sistem araçları</p>
+            <div className={`text-center ${isMobile ? 'mb-6' : 'mb-8'}`}>
+              <h2 className={`font-black text-white mb-2 ${
+                isMobile ? 'text-xl' : 'text-2xl'
+              }`}>
+                HIZLI ERİŞİM ALANI
+              </h2>
+              <p className={`text-white font-bold ${
+                isMobile ? 'text-sm' : 'text-sm'
+              }`}>
+                Sık kullanılan sistem araçları
+              </p>
             </div>
 
-            <div className="grid grid-cols-2 md:grid-cols-1 gap-3 md:gap-4">
+            <div className={`grid gap-4 ${
+              isMobile 
+                ? 'grid-cols-1' 
+                : 'grid-cols-2 md:grid-cols-1'
+            }`}>
               <motion.button
                 initial={{ opacity: 0, y: 10 }}
                 animate={{ opacity: 1, y: 0 }}
                 transition={{ duration: 0.3, delay: 0.3 }}
                 onClick={() => setLocation("/replit-agent")}
-                className="w-full business-button p-3 md:p-4 rounded-xl text-white hover:scale-105 active:scale-95 transition-all duration-300 flex flex-col md:flex-row items-center gap-2 md:gap-4"
+                className={`w-full business-button rounded-xl text-white hover:scale-105 active:scale-95 transition-all duration-300 flex items-center ${
+                  isMobile 
+                    ? 'p-4 gap-4 flex-row justify-start' 
+                    : 'p-4 gap-4 flex-row'
+                }`}
+                data-testid="button-quick-replit-agent"
               >
-                <Bot className="w-5 h-5 md:w-6 md:h-6" />
-                <span className="font-black text-xs md:text-sm text-center md:text-left">REPLIT AGENT</span>
+                <Bot className={`${isMobile ? 'w-6 h-6' : 'w-6 h-6'}`} />
+                <span className={`font-black ${
+                  isMobile ? 'text-sm' : 'text-sm'
+                }`}>
+                  REPLIT AGENT
+                </span>
               </motion.button>
 
               <motion.button
@@ -298,10 +323,19 @@ const MarketplaceSelection = () => {
                 animate={{ opacity: 1, y: 0 }}
                 transition={{ duration: 0.3, delay: 0.35 }}
                 onClick={() => setLocation("/sos-control")}
-                className="w-full business-button p-3 md:p-4 rounded-xl text-white hover:scale-105 active:scale-95 transition-all duration-300 flex flex-col md:flex-row items-center gap-2 md:gap-4"
+                className={`w-full business-button rounded-xl text-white hover:scale-105 active:scale-95 transition-all duration-300 flex items-center ${
+                  isMobile 
+                    ? 'p-4 gap-4 flex-row justify-start' 
+                    : 'p-4 gap-4 flex-row'
+                }`}
+                data-testid="button-quick-sos-control"
               >
-                <Shield className="w-5 h-5 md:w-6 md:h-6" />
-                <span className="font-black text-xs md:text-sm text-center md:text-left">S.O.S KONTROL</span>
+                <Shield className={`${isMobile ? 'w-6 h-6' : 'w-6 h-6'}`} />
+                <span className={`font-black ${
+                  isMobile ? 'text-sm' : 'text-sm'
+                }`}>
+                  S.O.S KONTROL
+                </span>
               </motion.button>
 
               <motion.button
@@ -309,10 +343,19 @@ const MarketplaceSelection = () => {
                 animate={{ opacity: 1, y: 0 }}
                 transition={{ duration: 0.3, delay: 0.4 }}
                 onClick={() => setLocation("/scheduler")}
-                className="w-full business-button p-3 md:p-4 rounded-xl text-white hover:scale-105 active:scale-95 transition-all duration-300 flex flex-col md:flex-row items-center gap-2 md:gap-4"
+                className={`w-full business-button rounded-xl text-white hover:scale-105 active:scale-95 transition-all duration-300 flex items-center ${
+                  isMobile 
+                    ? 'p-4 gap-4 flex-row justify-start' 
+                    : 'p-4 gap-4 flex-row'
+                }`}
+                data-testid="button-quick-scheduler"
               >
-                <Activity className="w-5 h-5 md:w-6 md:h-6" />
-                <span className="font-black text-xs md:text-sm text-center md:text-left">ZAMANLI GÖREVLER</span>
+                <Activity className={`${isMobile ? 'w-6 h-6' : 'w-6 h-6'}`} />
+                <span className={`font-black ${
+                  isMobile ? 'text-sm' : 'text-sm'
+                }`}>
+                  ZAMANLI GÖREVLER
+                </span>
               </motion.button>
 
               <motion.button
@@ -320,10 +363,19 @@ const MarketplaceSelection = () => {
                 animate={{ opacity: 1, y: 0 }}
                 transition={{ duration: 0.3, delay: 0.45 }}
                 onClick={() => setLocation("/shopify-products")}
-                className="w-full business-button p-3 md:p-4 rounded-xl text-white hover:scale-105 active:scale-95 transition-all duration-300 flex flex-col md:flex-row items-center gap-2 md:gap-4"
+                className={`w-full business-button rounded-xl text-white hover:scale-105 active:scale-95 transition-all duration-300 flex items-center ${
+                  isMobile 
+                    ? 'p-4 gap-4 flex-row justify-start' 
+                    : 'p-4 gap-4 flex-row'
+                }`}
+                data-testid="button-quick-shopify-products"
               >
-                <Database className="w-5 h-5 md:w-6 md:h-6" />
-                <span className="font-black text-xs md:text-sm text-center md:text-left">SHOPIFY ÜRÜNLERİ</span>
+                <Database className={`${isMobile ? 'w-6 h-6' : 'w-6 h-6'}`} />
+                <span className={`font-black ${
+                  isMobile ? 'text-sm' : 'text-sm'
+                }`}>
+                  SHOPIFY ÜRÜNLERİ
+                </span>
               </motion.button>
             </div>
           </motion.div>
