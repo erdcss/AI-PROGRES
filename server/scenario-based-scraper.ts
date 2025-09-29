@@ -2945,6 +2945,14 @@ function buildVariantsArray(variantResult: any, scenario: ExtractionScenario): a
 async function extractVariantsDirect($: cheerio.CheerioAPI, htmlContent: string, url: string, title: string): Promise<Array<{color: string, colorCode: string, size: string, inStock: boolean}>> {
   const variants: Array<{color: string, colorCode: string, size: string, inStock: boolean}> = [];
   
+  // ✅ ENHANCED DEBUG for specific URL
+  const isTargetUrl = url.includes('ethiquet/barry-kadin') || url.includes('p-819077297');
+  if (isTargetUrl) {
+    console.log('🎯 TARGET URL DETECTED - Enhanced debugging enabled');
+    console.log('🎯 URL:', url);
+    console.log('🎯 Title:', title);
+  }
+  
   // Method 1: AUTHENTIC COLOR EXTRACTION - Enhanced DOM-based color detection
   console.log('🎨 AUTHENTIC COLOR EXTRACTION - Scanning DOM for genuine color variants...');
   const colors: string[] = [];
@@ -2973,9 +2981,11 @@ async function extractVariantsDirect($: cheerio.CheerioAPI, htmlContent: string,
   ];
   
   colorSelectors.forEach(selector => {
-    console.log(`🔍 Checking selector "${selector}" for colors...`);
     const found = $(selector);
-    console.log(`🔍 Selector "${selector}" found ${found.length} elements`);
+    if (isTargetUrl || found.length > 0) {
+      console.log(`🔍 Checking selector "${selector}" for colors...`);
+      console.log(`🔍 Selector "${selector}" found ${found.length} elements`);
+    }
     
     $(selector).each((_, el) => {
       const $el = $(el);
