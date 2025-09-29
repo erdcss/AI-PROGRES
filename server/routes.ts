@@ -2023,21 +2023,43 @@ ${(result.title || 'product').toLowerCase().replace(/[^a-z0-9]/g, '-')},${result
             console.warn('⚠️ CSV generation failed, continuing without CSV:', csvError);
           }
           
-          // ✅ VARYANT FIX: Ensure variants are properly formatted for frontend
+          // ✅ CRITICAL FIX: Normalize variants for frontend
           console.log('🔧 VARIANT DEBUG: result.variants type:', typeof result.variants);
           console.log('🔧 VARIANT DEBUG: result.variants:', JSON.stringify(result.variants, null, 2));
           
-          // Ensure variants are properly formatted
-          let formattedVariants = result.variants;
+          // Normalize variants to expected frontend format
+          let normalizedVariants;
           if (Array.isArray(result.variants)) {
-            console.log('✅ VARIANT FORMAT: Array format detected, sending as-is');
-            formattedVariants = result.variants;
+            console.log('✅ NORMALIZING: Array format detected, converting to object format');
+            const allVariants = result.variants;
+            const colors = [...new Set(allVariants.map(v => v.color).filter(c => c && c.trim() !== ''))];
+            const sizes = [...new Set(allVariants.map(v => v.size).filter(s => s && s.trim() !== ''))];
+            
+            // Build stockMap
+            const stockMap: Record<string, boolean> = {};
+            allVariants.forEach(variant => {
+              const key = `${variant.color}-${variant.size}`;
+              stockMap[key] = variant.inStock;
+            });
+            
+            normalizedVariants = {
+              colors,
+              sizes, 
+              allVariants,
+              stockMap
+            };
+            console.log(`🎯 NORMALIZED: ${colors.length} colors, ${sizes.length} sizes, ${allVariants.length} variants`);
           } else if (result.variants && typeof result.variants === 'object') {
-            console.log('✅ VARIANT FORMAT: Object format detected, sending as-is');
-            formattedVariants = result.variants;
+            console.log('✅ NORMALIZING: Object format detected, using as-is');
+            normalizedVariants = result.variants;
           } else {
-            console.log('⚠️ VARIANT FORMAT: No variants found, setting empty array');
-            formattedVariants = [];
+            console.log('⚠️ NORMALIZING: No variants found, creating empty object');
+            normalizedVariants = {
+              colors: [],
+              sizes: [],
+              allVariants: [],
+              stockMap: {}
+            };
           }
 
           return res.json({
@@ -2050,7 +2072,7 @@ ${(result.title || 'product').toLowerCase().replace(/[^a-z0-9]/g, '-')},${result
             price: result.price,
             images: result.images,
             features: result.features,
-            variants: formattedVariants,
+            variants: normalizedVariants,
             tags: result.tags,
             csvContent: csvContent,
             trackingActive: false, // Tracking sadece Shopify transfer sonrası aktif
