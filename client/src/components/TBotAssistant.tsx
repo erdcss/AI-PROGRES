@@ -7,6 +7,7 @@ import { ScrollArea } from '@/components/ui/scroll-area';
 import { Badge } from '@/components/ui/badge';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { useLocation } from 'wouter';
+import { useIsMobile } from '@/hooks/use-mobile';
 import { 
   MessageCircle, 
   X, 
@@ -50,6 +51,7 @@ export function TBotAssistant() {
   const [isMinimized, setIsMinimized] = useState(false);
   const [currentTab, setCurrentTab] = useState('chat');
   const [, setLocation] = useLocation();
+  const isMobile = useIsMobile();
   const [messages, setMessages] = useState<Message[]>([
     {
       id: '1',
@@ -180,20 +182,21 @@ export function TBotAssistant() {
             initial={{ scale: 0, opacity: 0, rotate: -180 }}
             animate={{ scale: 1, opacity: 1, rotate: 0 }}
             exit={{ scale: 0, opacity: 0, rotate: 180 }}
-            className="fixed bottom-4 right-4 sm:bottom-6 sm:right-6 z-50"
+            className={`fixed z-50 ${isMobile ? 'bottom-4 right-4' : 'bottom-6 right-6'}`}
             whileHover={{ scale: 1.1 }}
             whileTap={{ scale: 0.95 }}
           >
             <div className="relative">
               <Button
                 onClick={() => setIsOpen(true)}
-                className="business-button w-12 h-12 sm:w-16 sm:h-16 rounded-full shadow-2xl hover:shadow-3xl border-2 border-blue-400"
+                className={`business-button rounded-full shadow-2xl hover:shadow-3xl border-2 border-blue-400 active:scale-95 transition-transform duration-200 ${isMobile ? 'w-14 h-14' : 'w-16 h-16'}`}
                 size="sm"
+                data-testid="button-tbot-assistant"
               >
                 <div className="relative flex flex-col items-center">
-                  <Bot className="w-6 h-6 sm:w-8 sm:h-8 text-white" />
-                  <div className="absolute -top-1 -right-1 sm:-top-2 sm:-right-2 w-3 h-3 sm:w-4 sm:h-4 bg-green-500 rounded-full animate-ping"></div>
-                  <div className="absolute -top-1 -right-1 sm:-top-2 sm:-right-2 w-3 h-3 sm:w-4 sm:h-4 bg-green-400 rounded-full"></div>
+                  <Bot className={`text-white ${isMobile ? 'w-7 h-7' : 'w-8 h-8'}`} />
+                  <div className={`absolute -top-1 -right-1 bg-green-500 rounded-full animate-ping ${isMobile ? 'w-3 h-3' : 'w-4 h-4'}`}></div>
+                  <div className={`absolute -top-1 -right-1 bg-green-400 rounded-full ${isMobile ? 'w-3 h-3' : 'w-4 h-4'}`}></div>
                 </div>
               </Button>
               
@@ -221,9 +224,13 @@ export function TBotAssistant() {
             initial={{ opacity: 0, scale: 0.3, y: 50, x: 50 }}
             animate={{ opacity: 1, scale: 1, y: 0, x: 0 }}
             exit={{ opacity: 0, scale: 0.3, y: 50, x: 50 }}
-            className="fixed bottom-6 right-6 z-50"
+            className={`fixed z-50 ${isMobile ? 'inset-4 bottom-4' : 'bottom-6 right-6'}`}
           >
-            <Card className={`business-card w-[300px] sm:w-[480px] shadow-2xl border-2 border-blue-500 ${isMinimized ? 'h-16' : 'h-[450px] sm:h-[600px]'}`}>
+            <Card className={`business-card shadow-2xl border-2 border-blue-500 ${
+              isMobile ? 
+                (isMinimized ? 'h-16 w-72' : 'h-[calc(100vh-8rem)] w-full') : 
+                (isMinimized ? 'h-16 w-[300px]' : 'h-[600px] w-[480px]')
+            }`}>
               {/* Modern Header */}
               <CardHeader className="business-header p-2 sm:p-4 cursor-pointer bg-gradient-to-r from-blue-800 to-blue-900 border-b-2 border-blue-500" onClick={() => setIsMinimized(!isMinimized)}>
                 <div className="flex items-center justify-between">
@@ -285,32 +292,43 @@ export function TBotAssistant() {
 
               {/* Advanced Chat Content */}
               {!isMinimized && (
-                <CardContent className="p-0 flex flex-col h-[390px] sm:h-[540px]">
+                <CardContent className={`p-0 flex flex-col ${
+                  isMobile ? 'h-[calc(100vh-12rem)]' : 'h-[540px]'
+                }`}>
                   {/* Modern Tab System */}
                   <Tabs value={currentTab} onValueChange={setCurrentTab} className="h-full">
-                    <div className="p-2 sm:p-3 border-b business-border">
+                    <div className={`border-b business-border ${isMobile ? 'p-3' : 'p-3'}`}>
                       <TabsList className="grid w-full grid-cols-3 bg-blue-900">
-                        <TabsTrigger value="chat" className="text-xs font-bold text-white data-[state=active]:bg-blue-600 px-1 sm:px-3">
-                          <MessageCircle className="w-3 h-3 mr-1" />
-                          <span className="hidden sm:inline">Sohbet</span>
-                          <span className="sm:hidden">Chat</span>
+                        <TabsTrigger 
+                          value="chat" 
+                          className={`font-bold text-white data-[state=active]:bg-blue-600 transition-all duration-200 active:scale-95 ${isMobile ? 'text-xs px-2 py-3' : 'text-xs px-3'}`}
+                          data-testid="tab-chat"
+                        >
+                          <MessageCircle className={`mr-1 ${isMobile ? 'w-4 h-4' : 'w-3 h-3'}`} />
+                          {isMobile ? 'Sohbet' : <><span className="hidden sm:inline">Sohbet</span><span className="sm:hidden">Chat</span></>}
                         </TabsTrigger>
-                        <TabsTrigger value="navigation" className="text-xs font-bold text-white data-[state=active]:bg-blue-600 px-1 sm:px-3">
-                          <Navigation className="w-3 h-3 mr-1" />
-                          <span className="hidden sm:inline">Sayfa Geçiş</span>
-                          <span className="sm:hidden">Nav</span>
+                        <TabsTrigger 
+                          value="navigation" 
+                          className={`font-bold text-white data-[state=active]:bg-blue-600 transition-all duration-200 active:scale-95 ${isMobile ? 'text-xs px-2 py-3' : 'text-xs px-3'}`}
+                          data-testid="tab-navigation"
+                        >
+                          <Navigation className={`mr-1 ${isMobile ? 'w-4 h-4' : 'w-3 h-3'}`} />
+                          {isMobile ? 'Navigasyon' : <><span className="hidden sm:inline">Sayfa Geçiş</span><span className="sm:hidden">Nav</span></>}
                         </TabsTrigger>
-                        <TabsTrigger value="actions" className="text-xs font-bold text-white data-[state=active]:bg-blue-600 px-1 sm:px-3">
-                          <Zap className="w-3 h-3 mr-1" />
-                          <span className="hidden sm:inline">Hızlı İşlem</span>
-                          <span className="sm:hidden">Aksiyon</span>
+                        <TabsTrigger 
+                          value="actions" 
+                          className={`font-bold text-white data-[state=active]:bg-blue-600 transition-all duration-200 active:scale-95 ${isMobile ? 'text-xs px-2 py-3' : 'text-xs px-3'}`}
+                          data-testid="tab-actions"
+                        >
+                          <Zap className={`mr-1 ${isMobile ? 'w-4 h-4' : 'w-3 h-3'}`} />
+                          {isMobile ? 'İşlemler' : <><span className="hidden sm:inline">Hızlı İşlem</span><span className="sm:hidden">Aksiyon</span></>}
                         </TabsTrigger>
                       </TabsList>
                     </div>
 
                     {/* Chat Tab */}
                     <TabsContent value="chat" className="flex-1 m-0">
-                      <ScrollArea className="h-[290px] sm:h-[420px] p-2 sm:p-3">
+                      <ScrollArea className={`p-3 ${isMobile ? 'h-[calc(100vh-20rem)]' : 'h-[420px]'}`}>
                         <div className="space-y-2 sm:space-y-3">
                           {messages.map((message) => (
                             <motion.div 
@@ -319,7 +337,9 @@ export function TBotAssistant() {
                               animate={{ opacity: 1, y: 0 }}
                               className={`flex ${message.isBot ? 'justify-start' : 'justify-end'}`}
                             >
-                              <div className={`max-w-[90%] sm:max-w-[85%] rounded-xl p-2 sm:p-4 shadow-lg ${
+                              <div className={`rounded-xl shadow-lg ${
+                                isMobile ? 'max-w-[95%] p-3' : 'max-w-[85%] p-4'
+                              } ${
                                 message.isBot 
                                   ? 'bg-gradient-to-r from-blue-600 to-blue-700 text-white' 
                                   : 'bg-gradient-to-r from-gray-700 to-gray-800 text-white'
@@ -334,7 +354,7 @@ export function TBotAssistant() {
                                     <Badge variant="secondary" className="text-xs bg-green-500 text-white hidden sm:inline-flex">Online</Badge>
                                   </div>
                                 )}
-                                <p className="text-xs sm:text-sm font-bold text-white leading-relaxed">{message.text}</p>
+                                <p className={`font-bold text-white leading-relaxed ${isMobile ? 'text-sm' : 'text-sm'}`}>{message.text}</p>
                                 <p className="text-xs text-white/60 mt-1 sm:mt-2 flex items-center gap-1">
                                   <div className="w-1 h-1 bg-white/60 rounded-full"></div>
                                   {formatTime(message.timestamp)}
@@ -370,7 +390,7 @@ export function TBotAssistant() {
 
                     {/* Navigation Tab */}
                     <TabsContent value="navigation" className="flex-1 m-0">
-                      <ScrollArea className="h-[420px] p-3">
+                      <ScrollArea className={`p-3 ${isMobile ? 'h-[calc(100vh-20rem)]' : 'h-[420px]'}`}>
                         <div className="space-y-3">
                           <div className="text-center mb-4">
                             <h3 className="text-sm font-bold text-white mb-1">🚀 Sayfa Navigasyonu</h3>
@@ -386,8 +406,9 @@ export function TBotAssistant() {
                               >
                                 <Button
                                   onClick={() => handleNavigate(page.path, page.name)}
-                                  className="w-full h-auto p-4 business-border text-left bg-blue-900 hover:bg-blue-800 border-blue-600 justify-start"
+                                  className={`w-full h-auto text-left bg-blue-900 hover:bg-blue-800 border-blue-600 justify-start business-border active:scale-95 transition-all duration-200 ${isMobile ? 'p-4' : 'p-4'}`}
                                   variant="outline"
+                                  data-testid={`button-nav-${page.name.toLowerCase().replace(/\s+/g, '-')}`}
                                 >
                                   <div className="flex items-center justify-between w-full">
                                     <div className="flex items-center gap-3">
@@ -411,7 +432,7 @@ export function TBotAssistant() {
 
                     {/* Quick Actions Tab */}
                     <TabsContent value="actions" className="flex-1 m-0">
-                      <ScrollArea className="h-[420px] p-3">
+                      <ScrollArea className={`p-3 ${isMobile ? 'h-[calc(100vh-20rem)]' : 'h-[420px]'}`}>
                         <div className="space-y-3">
                           <div className="text-center mb-4">
                             <h3 className="text-sm font-bold text-white mb-1">⚡ Hızlı İşlemler</h3>
@@ -426,7 +447,8 @@ export function TBotAssistant() {
                               >
                                 <Button
                                   onClick={() => handleQuickCommand(cmd)}
-                                  className={`w-full h-auto p-4 text-left justify-start text-white font-bold border-0 ${cmd.color} hover:opacity-90`}
+                                  className={`w-full h-auto text-left justify-start text-white font-bold border-0 hover:opacity-90 active:scale-95 transition-all duration-200 ${cmd.color} ${isMobile ? 'p-4' : 'p-4'}`}
+                                  data-testid={`button-quick-${cmd.text.toLowerCase().replace(/\s+/g, '-')}`}
                                 >
                                   <div className="flex items-center gap-3">
                                     <span className="text-2xl">{cmd.icon}</span>
@@ -471,24 +493,29 @@ export function TBotAssistant() {
                     </TabsContent>
 
                   {/* Modern Input Section */}
-                  <div className="p-2 sm:p-3 border-t border-blue-600 bg-blue-950">
+                  <div className={`border-t border-blue-600 bg-blue-950 ${isMobile ? 'p-3' : 'p-3'}`}>
                     {currentTab === 'chat' && (
-                      <div className="space-y-1 sm:space-y-2">
-                        <div className="flex gap-1 sm:gap-2">
+                      <div className={`${isMobile ? 'space-y-3' : 'space-y-2'}`}>
+                        <div className={`flex ${isMobile ? 'gap-3' : 'gap-2'}`}>
                           <Input
                             placeholder="T Bot ile sohbet edin... 💬"
                             value={currentMessage}
                             onChange={(e) => setCurrentMessage(e.target.value)}
                             onKeyPress={(e) => e.key === 'Enter' && handleSendMessage()}
-                            className="business-input text-xs sm:text-sm flex-1"
+                            className={`business-input flex-1 ${isMobile ? 'text-base h-12 rounded-xl' : 'text-sm'}`}
+                            inputMode="text"
+                            autoComplete="off"
+                            autoCapitalize="sentences"
+                            data-testid="input-chat-message"
                           />
                           <Button
                             onClick={handleSendMessage}
                             disabled={!currentMessage.trim() || isTyping}
-                            className="business-button px-2 sm:px-4"
+                            className={`business-button active:scale-95 transition-transform duration-200 ${isMobile ? 'px-4 h-12 rounded-xl' : 'px-4'}`}
                             size="sm"
+                            data-testid="button-send-message"
                           >
-                            <Send className="w-3 h-3 sm:w-4 sm:h-4" />
+                            <Send className={`${isMobile ? 'w-5 h-5' : 'w-4 h-4'}`} />
                           </Button>
                         </div>
                         <div className="flex items-center justify-between text-xs text-white/60">
