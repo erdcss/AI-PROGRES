@@ -1457,7 +1457,22 @@ export async function scenarioBasedScrape(url: string): Promise<ScenarioBasedRes
     
     try {
       console.log('🔄 Trying direct DOM extraction for additional variants...');
-      directVariants = await extractVariantsDirect($, htmlContent, url, title);
+      
+      // ✅ SPIDER APPROACH: Extract JavaScript state data like the Python spider
+      console.log('🕷️ SPIDER METHOD: Extracting window.__PRODUCT_DETAIL_APP_INITIAL_STATE__ data...');
+      const jsStateVariants = extractJavaScriptStateVariants(htmlContent);
+      
+      if (jsStateVariants.length > 0) {
+        console.log(`🕷️ SPIDER SUCCESS: Found ${jsStateVariants.length} variants from JavaScript state`);
+        jsStateVariants.forEach((variant, idx) => {
+          console.log(`🕷️ JS State variant ${idx + 1}: ${variant.color} / ${variant.size} (${variant.inStock ? 'In Stock' : 'Out of Stock'})`);
+        });
+        directVariants = jsStateVariants;
+      } else {
+        console.log('🕷️ SPIDER FALLBACK: JavaScript state extraction failed, trying DOM extraction...');
+        directVariants = await extractVariantsDirect($, htmlContent, url, title);
+      }
+      
       console.log(`✅ Direct variant extraction successful: ${directVariants.length} variants`);
       
       // Log extracted variants for debugging
@@ -2945,6 +2960,80 @@ function buildVariantsArray(variantResult: any, scenario: ExtractionScenario): a
   
   console.log(`🔧 Built ${variants.length} authentic variants from scenario: ${scenario}`);
   return variants;
+}
+
+// ✅ SPIDER-INSPIRED JavaScript State Extraction
+function extractJavaScriptStateVariants(htmlContent: string): Array<{color: string, colorCode: string, size: string, inStock: boolean}> {
+  const variants: Array<{color: string, colorCode: string, size: string, inStock: boolean}> = [];
+  
+  try {
+    console.log('🕷️ Searching for window.__PRODUCT_DETAIL_APP_INITIAL_STATE__ data...');
+    
+    // Extract the JavaScript state object like the Python spider
+    const stateMatch = htmlContent.match(/window\.__PRODUCT_DETAIL_APP_INITIAL_STATE__\s*=\s*(\{.*?\});/s);
+    
+    if (stateMatch) {
+      console.log('🕷️ Found JavaScript state object, parsing...');
+      const productData = JSON.parse(stateMatch[1]);
+      
+      // Extract variants from the state object
+      const productVariants = productData?.product?.variants || [];
+      console.log(`🕷️ Found ${productVariants.length} variants in JavaScript state`);
+      
+      productVariants.forEach((v: any, index: number) => {
+        const color = v.attributeValue || v.color || 'Standart';
+        const size = v.attributeName || v.size || '';
+        const inStock = v.inStock !== false; // Default to true unless explicitly false
+        const barcode = v.barcode || '';
+        
+        console.log(`🕷️ Parsing variant ${index + 1}: color="${color}", size="${size}", inStock=${inStock}, barcode="${barcode}"`);
+        
+        // Generate color code
+        const colorCode = generateColorCode(color);
+        
+        variants.push({
+          color: color,
+          colorCode: colorCode,
+          size: size,
+          inStock: inStock
+        });
+      });
+      
+      console.log(`🕷️ SPIDER EXTRACTION COMPLETE: ${variants.length} variants extracted`);
+      return variants;
+      
+    } else {
+      console.log('🕷️ No window.__PRODUCT_DETAIL_APP_INITIAL_STATE__ found in HTML');
+    }
+    
+  } catch (error) {
+    console.log(`🕷️ JavaScript state extraction error: ${error.message}`);
+  }
+  
+  return variants;
+}
+
+// Helper function to generate color codes
+function generateColorCode(colorName: string): string {
+  // Color name to hex code mapping for Turkish colors
+  const colorMap: {[key: string]: string} = {
+    'siyah': '#000000',
+    'beyaz': '#FFFFFF', 
+    'krem': '#F5E6D3',
+    'gri': '#808080',
+    'lacivert': '#000080',
+    'mavi': '#0000FF',
+    'kırmızı': '#FF0000',
+    'pembe': '#FFC0CB',
+    'yeşil': '#008000',
+    'sarı': '#FFFF00',
+    'turuncu': '#FFA500',
+    'mor': '#800080',
+    'kahverengi': '#A52A2A'
+  };
+  
+  const normalizedColor = colorName.toLowerCase().trim();
+  return colorMap[normalizedColor] || '#808080'; // Default to gray
 }
 
 /**
