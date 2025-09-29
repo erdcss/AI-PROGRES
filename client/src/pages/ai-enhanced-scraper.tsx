@@ -7,6 +7,7 @@ import { Bot, Download, Sparkles, Brain, Target, TrendingUp, Zap, Cpu } from "lu
 import { APIRequestError, apiRequest } from "@/lib/queryClient";
 import { SimpleProductPreview } from "@/components/SimpleProductPreview";
 import { AIEnhancedProductPreview } from "@/components/AIEnhancedProductPreview";
+import { useIsMobile } from "@/hooks/use-mobile";
 
 interface AIEnhancedProduct {
   success: boolean;
@@ -39,6 +40,7 @@ export default function AIEnhancedScraper() {
   const [extractedProduct, setExtractedProduct] = useState<AIEnhancedProduct | null>(null);
   const [isExtracting, setIsExtracting] = useState(false);
   const [extractionType, setExtractionType] = useState<'normal' | 'ai'>('normal');
+  const isMobile = useIsMobile();
 
   const handleExtraction = async (useAI: boolean = false) => {
     if (!url.trim()) {
@@ -99,24 +101,42 @@ export default function AIEnhancedScraper() {
   };
 
   return (
-    <div className="min-h-screen bg-gradient-to-br from-slate-900 via-purple-900 to-slate-900 p-6">
-      <div className="max-w-7xl mx-auto space-y-8">
+    <div className={`min-h-screen bg-gradient-to-br from-slate-900 via-purple-900 to-slate-900 ${
+      isMobile ? 'p-4' : 'p-6'
+    }`}>
+      <div className={`mx-auto space-y-8 ${
+        isMobile ? 'max-w-full' : 'max-w-7xl'
+      }`}>
         {/* Header */}
         <motion.div
           initial={{ opacity: 0, y: 20 }}
           animate={{ opacity: 1, y: 0 }}
           className="text-center space-y-4"
         >
-          <div className="flex items-center justify-center gap-3 mb-4">
-            <div className="p-3 bg-purple-600/20 rounded-lg">
-              <Brain className="h-8 w-8 text-purple-400" />
+          <div className={`flex items-center justify-center mb-4 ${
+            isMobile ? 'flex-col gap-3' : 'gap-3'
+          }`}>
+            <div className={`bg-purple-600/20 rounded-lg ${
+              isMobile ? 'p-3' : 'p-3'
+            }`}>
+              <Brain className={`text-purple-400 ${
+                isMobile ? 'h-6 w-6' : 'h-8 w-8'
+              }`} />
             </div>
-            <h1 className="text-4xl font-bold text-white">AI-Enhanced Product Extractor</h1>
-            <div className="p-3 bg-blue-600/20 rounded-lg">
-              <Cpu className="h-8 w-8 text-blue-400" />
+            <h1 className={`font-bold text-white text-center ${
+              isMobile ? 'text-2xl leading-tight' : 'text-4xl'
+            }`}>AI-Enhanced Product Extractor</h1>
+            <div className={`bg-blue-600/20 rounded-lg ${
+              isMobile ? 'p-3' : 'p-3'
+            }`}>
+              <Cpu className={`text-blue-400 ${
+                isMobile ? 'h-6 w-6' : 'h-8 w-8'
+              }`} />
             </div>
           </div>
-          <p className="text-xl text-gray-300 max-w-3xl mx-auto">
+          <p className={`text-gray-300 mx-auto text-center ${
+            isMobile ? 'text-base px-4 max-w-full' : 'text-xl max-w-3xl'
+          }`}>
             OpenAI GPT-4o ile geliştirilmiş akıllı ürün veri çıkarma sistemi. 
             Ürün bilgilerini analiz eder, SEO optimizasyonu yapar ve kalite skorlaması sağlar.
           </p>
@@ -124,22 +144,28 @@ export default function AIEnhancedScraper() {
 
         {/* URL Input */}
         <Card className="bg-slate-800/30 backdrop-blur-sm border-purple-500/30">
-          <CardContent className="p-6">
-            <div className="space-y-4">
-              <div className="flex gap-4">
+          <CardContent className={`${isMobile ? 'p-4' : 'p-6'}`}>
+            <div className={`space-y-4 ${isMobile ? 'space-y-4' : 'space-y-4'}`}>
+              <div className={`${isMobile ? 'flex flex-col gap-3' : 'flex gap-4'}`}>
                 <Input
                   placeholder="Trendyol ürün URL'sini buraya yapıştırın..."
                   value={url}
                   onChange={(e) => setUrl(e.target.value)}
-                  className="flex-1 bg-slate-700/50 border-slate-600 text-white placeholder-gray-400"
+                  className={`bg-slate-700/50 border-slate-600 text-white placeholder-gray-400 ${
+                    isMobile ? 'w-full h-14' : 'flex-1'
+                  }`}
                 />
               </div>
               
-              <div className="flex gap-3 justify-center">
+              <div className={`flex ${
+                isMobile ? 'flex-col gap-3' : 'gap-3 justify-center'
+              }`}>
                 <Button
                   onClick={() => handleExtraction(false)}
                   disabled={isExtracting}
-                  className="bg-blue-600 hover:bg-blue-700 text-white px-6 py-2 flex items-center gap-2"
+                  className={`bg-blue-600 hover:bg-blue-700 text-white flex items-center gap-2 transition-all duration-200 active:scale-95 ${
+                    isMobile ? 'w-full h-14 px-4 py-3' : 'px-6 py-2'
+                  }`}
                 >
                   {isExtracting && extractionType === 'normal' ? (
                     <>
@@ -157,7 +183,9 @@ export default function AIEnhancedScraper() {
                 <Button
                   onClick={() => handleExtraction(true)}
                   disabled={isExtracting}
-                  className="bg-purple-600 hover:bg-purple-700 text-white px-6 py-2 flex items-center gap-2"
+                  className={`bg-purple-600 hover:bg-purple-700 text-white flex items-center gap-2 transition-all duration-200 active:scale-95 ${
+                    isMobile ? 'w-full h-14 px-4 py-3' : 'px-6 py-2'
+                  }`}
                 >
                   {isExtracting && extractionType === 'ai' ? (
                     <>
@@ -177,7 +205,9 @@ export default function AIEnhancedScraper() {
         </Card>
 
         {/* Features */}
-        <div className="grid md:grid-cols-3 gap-6">
+        <div className={`grid gap-6 ${
+          isMobile ? 'grid-cols-1' : 'md:grid-cols-3'
+        }`}>
           <Card className="bg-slate-800/30 backdrop-blur-sm border-blue-500/30">
             <CardContent className="p-6 text-center">
               <Target className="h-12 w-12 text-blue-400 mx-auto mb-4" />
@@ -222,7 +252,9 @@ export default function AIEnhancedScraper() {
               <div className="flex justify-center">
                 <Button
                   onClick={downloadCSV}
-                  className="bg-green-600 hover:bg-green-700 text-white px-6 py-2 flex items-center gap-2"
+                  className={`bg-green-600 hover:bg-green-700 text-white flex items-center gap-2 transition-all duration-200 active:scale-95 ${
+                    isMobile ? 'w-full h-14 px-4 py-3' : 'px-6 py-2'
+                  }`}
                 >
                   <Download className="h-4 w-4" />
                   Shopify CSV İndir
