@@ -7,6 +7,7 @@ import {
   Calendar, Globe, ShoppingCart, Settings, Play, Pause
 } from 'lucide-react';
 import { RealTimeClock } from "@/components/RealTimeClock";
+import { useIsMobile } from "@/hooks/use-mobile";
 
 interface DashboardStats {
   success: boolean;
@@ -85,6 +86,7 @@ interface RecentChange {
 const TrackingDashboard = () => {
   const [autoRefresh, setAutoRefresh] = useState(true);
   const [refreshInterval, setRefreshInterval] = useState(30000); // 30 seconds
+  const isMobile = useIsMobile();
 
   // Dashboard statistics query
   const { data: dashboardData, isLoading: statsLoading, refetch: refetchStats } = useQuery<DashboardStats>({
@@ -142,33 +144,45 @@ const TrackingDashboard = () => {
     <div className="min-h-screen bg-gradient-to-br from-slate-900 via-slate-800 to-slate-900 relative overflow-hidden">
       {/* Header */}
       <header className="bg-slate-800/50 border-b border-slate-700/50 backdrop-blur-sm sticky top-0 z-40">
-        <div className="max-w-7xl mx-auto px-6 py-4">
-          <div className="flex items-center justify-between">
-            <div className="flex items-center gap-4">
-              <div className="w-12 h-12 bg-gradient-to-r from-blue-500 via-purple-500 to-pink-500 rounded-xl flex items-center justify-center shadow-lg">
-                <Activity className="w-6 h-6 text-white" />
+        <div className={`mx-auto ${isMobile ? 'px-4 py-4 max-w-full' : 'max-w-7xl px-6 py-4'}`}>
+          <div className={`flex items-center ${isMobile ? 'flex-col gap-4' : 'justify-between'}`}>
+            <div className={`flex items-center ${isMobile ? 'flex-col gap-3 text-center' : 'gap-4'}`}>
+              <div className={`bg-gradient-to-r from-blue-500 via-purple-500 to-pink-500 rounded-xl flex items-center justify-center shadow-lg ${
+                isMobile ? 'w-14 h-14' : 'w-12 h-12'
+              }`}>
+                <Activity className={`text-white ${isMobile ? 'w-7 h-7' : 'w-6 h-6'}`} />
               </div>
-              <div>
-                <h1 className="text-2xl font-bold text-white tracking-tight">
+              <div className={`${isMobile ? 'text-center' : ''}`}>
+                <h1 className={`font-bold text-white tracking-tight ${
+                  isMobile ? 'text-xl leading-tight' : 'text-2xl'
+                }`}>
                   Otomatik Takip Sistemi
                 </h1>
-                <p className="text-slate-400 text-sm">
+                <p className={`text-slate-400 ${isMobile ? 'text-sm mt-1' : 'text-sm'}`}>
                   Anlık monitoring ve sistem durumu
                 </p>
               </div>
             </div>
             
-            <div className="flex items-center gap-4">
+            <div className={`flex items-center ${
+              isMobile 
+                ? 'flex-wrap justify-center gap-3' 
+                : 'gap-4'
+            }`}>
               {/* Auto Refresh Toggle */}
-              <div className="flex items-center gap-2 bg-slate-700/50 border border-slate-600/40 rounded-lg px-3 py-2">
+              <div className={`flex items-center gap-2 bg-slate-700/50 border border-slate-600/40 rounded-lg ${
+                isMobile ? 'px-3 py-2' : 'px-3 py-2'
+              }`}>
                 <button
                   onClick={() => setAutoRefresh(!autoRefresh)}
-                  className={`p-1 rounded ${autoRefresh ? 'text-green-400' : 'text-slate-400'}`}
+                  className={`p-1 rounded transition-all duration-200 active:scale-95 ${
+                    autoRefresh ? 'text-green-400' : 'text-slate-400'
+                  }`}
                   data-testid="auto-refresh-toggle"
                 >
                   {autoRefresh ? <Play className="w-4 h-4" /> : <Pause className="w-4 h-4" />}
                 </button>
-                <span className="text-slate-300 text-xs">
+                <span className={`text-slate-300 ${isMobile ? 'text-xs' : 'text-xs'}`}>
                   {autoRefresh ? 'Otomatik' : 'Duraklı'}
                 </span>
               </div>
@@ -176,16 +190,20 @@ const TrackingDashboard = () => {
               {/* Manual Refresh */}
               <button
                 onClick={() => refetchStats()}
-                className="p-2 bg-slate-700/50 border border-slate-600/40 rounded-lg text-slate-300 hover:text-white hover:bg-slate-600/50 transition-all"
+                className={`bg-slate-700/50 border border-slate-600/40 rounded-lg text-slate-300 hover:text-white hover:bg-slate-600/50 transition-all duration-200 active:scale-95 ${
+                  isMobile ? 'p-3' : 'p-2'
+                }`}
                 data-testid="manual-refresh"
               >
-                <RefreshCw className="w-4 h-4" />
+                <RefreshCw className={`${isMobile ? 'w-5 h-5' : 'w-4 h-4'}`} />
               </button>
 
               {/* Current Time */}
-              <div className="flex items-center gap-2 bg-slate-700/50 border border-slate-600/40 rounded-lg px-3 py-2">
-                <Clock className="w-4 h-4 text-slate-400" />
-                <span className="text-slate-200 text-sm font-medium">
+              <div className={`flex items-center gap-2 bg-slate-700/50 border border-slate-600/40 rounded-lg ${
+                isMobile ? 'px-3 py-2' : 'px-3 py-2'
+              }`}>
+                <Clock className={`text-slate-400 ${isMobile ? 'w-4 h-4' : 'w-4 h-4'}`} />
+                <span className={`text-slate-200 font-medium ${isMobile ? 'text-sm' : 'text-sm'}`}>
                   <RealTimeClock />
                 </span>
               </div>
@@ -194,9 +212,17 @@ const TrackingDashboard = () => {
         </div>
       </header>
 
-      <div className="max-w-7xl mx-auto px-6 py-8">
+      <div className={`mx-auto ${
+        isMobile 
+          ? 'px-4 py-6 max-w-full' 
+          : 'max-w-7xl px-6 py-8'
+      }`}>
         {/* Stats Cards Grid */}
-        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6 mb-8">
+        <div className={`grid gap-6 mb-8 ${
+          isMobile 
+            ? 'grid-cols-1' 
+            : 'grid-cols-1 md:grid-cols-2 lg:grid-cols-4'
+        }`}>
           {/* URL Tracking Stats */}
           <div className="bg-slate-800/60 border border-slate-700/50 rounded-xl p-6 backdrop-blur-sm">
             <div className="flex items-center justify-between mb-4">
@@ -315,9 +341,15 @@ const TrackingDashboard = () => {
         </div>
 
         {/* Main Content Grid */}
-        <div className="grid grid-cols-1 lg:grid-cols-3 gap-6 mb-8">
+        <div className={`grid gap-6 mb-8 ${
+          isMobile 
+            ? 'grid-cols-1' 
+            : 'grid-cols-1 lg:grid-cols-3'
+        }`}>
           {/* Active Tracking Items */}
-          <div className="lg:col-span-2 bg-slate-800/60 border border-slate-700/50 rounded-xl p-6 backdrop-blur-sm">
+          <div className={`bg-slate-800/60 border border-slate-700/50 rounded-xl backdrop-blur-sm ${
+            isMobile ? 'p-4' : 'p-6 lg:col-span-2'
+          }`}>
             <div className="flex items-center justify-between mb-6">
               <div className="flex items-center gap-3">
                 <div className="p-2 bg-blue-500/20 rounded-lg">
@@ -444,7 +476,11 @@ const TrackingDashboard = () => {
         </div>
 
         {/* System Health Section */}
-        <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
+        <div className={`grid gap-6 ${
+          isMobile 
+            ? 'grid-cols-1' 
+            : 'grid-cols-1 lg:grid-cols-2'
+        }`}>
           {/* Memory Usage */}
           <div className="bg-slate-800/60 border border-slate-700/50 rounded-xl p-6 backdrop-blur-sm">
             <div className="flex items-center gap-3 mb-6">
@@ -457,7 +493,9 @@ const TrackingDashboard = () => {
               </div>
             </div>
 
-            <div className="grid grid-cols-2 gap-4">
+            <div className={`grid gap-4 ${
+              isMobile ? 'grid-cols-1' : 'grid-cols-2'
+            }`}>
               <div className="bg-slate-700/30 rounded-lg p-4">
                 <p className="text-slate-400 text-sm mb-1">Heap Kullanımı</p>
                 <p className="text-white text-lg font-semibold">
@@ -547,7 +585,11 @@ const TrackingDashboard = () => {
               </p>
             </div>
 
-            <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
+            <div className={`grid gap-6 ${
+              isMobile 
+                ? 'grid-cols-1' 
+                : 'grid-cols-1 md:grid-cols-2 lg:grid-cols-3'
+            }`}>
               {/* Real-time Monitoring */}
               <div className="bg-slate-800/40 border border-slate-700/40 rounded-xl p-6">
                 <div className="flex items-center gap-3 mb-4">
