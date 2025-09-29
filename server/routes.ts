@@ -1663,6 +1663,10 @@ export function registerRoutes(app: Express): Server {
     console.log("🎯 Scenario-based scrape isteği alındı");
     console.log("🔧 CORRECT ENDPOINT: /api/scenario-scrape being used");
     
+    // ✅ CRITICAL URL DEBUG - Log exactly what URL we receive
+    console.log("🚨🚨🚨 CRITICAL DEBUG: Raw request body:", JSON.stringify(req.body, null, 2));
+    console.log("🚨 Raw URL received:", req.body?.url);
+    
     try {
       const validation = urlSchema.safeParse(req.body);
 
@@ -1677,6 +1681,17 @@ export function registerRoutes(app: Express): Server {
       
       // URL'i normalize et
       const url = normalizeUrl(rawUrl);
+      
+      // ✅ CRITICAL URL DEBUG - Log normalized URL
+      console.log("🚨 Normalized URL:", url);
+      
+      // ✅ Check if this is our target URL
+      const isTargetURL = url.includes('ethiquet/barry-kadin') || url.includes('p-819077297');
+      if (isTargetURL) {
+        console.log("🚨🚨🚨 TARGET URL CONFIRMED IN ROUTES:", url);
+      } else {
+        console.log("🚨 WARNING: Different URL detected:", url);
+      }
       console.log(`🎯 URL normalize edildi: ${rawUrl} -> ${url}`);
       
       // Normalize edilmiş URL'in geçerli olup olmadığını kontrol et
