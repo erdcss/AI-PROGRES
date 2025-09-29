@@ -2023,6 +2023,23 @@ ${(result.title || 'product').toLowerCase().replace(/[^a-z0-9]/g, '-')},${result
             console.warn('⚠️ CSV generation failed, continuing without CSV:', csvError);
           }
           
+          // ✅ VARYANT FIX: Ensure variants are properly formatted for frontend
+          console.log('🔧 VARIANT DEBUG: result.variants type:', typeof result.variants);
+          console.log('🔧 VARIANT DEBUG: result.variants:', JSON.stringify(result.variants, null, 2));
+          
+          // Ensure variants are properly formatted
+          let formattedVariants = result.variants;
+          if (Array.isArray(result.variants)) {
+            console.log('✅ VARIANT FORMAT: Array format detected, sending as-is');
+            formattedVariants = result.variants;
+          } else if (result.variants && typeof result.variants === 'object') {
+            console.log('✅ VARIANT FORMAT: Object format detected, sending as-is');
+            formattedVariants = result.variants;
+          } else {
+            console.log('⚠️ VARIANT FORMAT: No variants found, setting empty array');
+            formattedVariants = [];
+          }
+
           return res.json({
             success: true,
             extractionMethod: 'scenario-based-scraper',
@@ -2033,7 +2050,7 @@ ${(result.title || 'product').toLowerCase().replace(/[^a-z0-9]/g, '-')},${result
             price: result.price,
             images: result.images,
             features: result.features,
-            variants: result.variants,
+            variants: formattedVariants,
             tags: result.tags,
             csvContent: csvContent,
             trackingActive: false, // Tracking sadece Shopify transfer sonrası aktif
