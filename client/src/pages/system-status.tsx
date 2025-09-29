@@ -1,6 +1,7 @@
 import { useState, useEffect } from "react";
 import { motion } from "framer-motion";
 import { useLocation } from "wouter";
+import { useIsMobile } from "@/hooks/use-mobile";
 import { 
   ArrowLeft, 
   Activity, 
@@ -64,6 +65,7 @@ interface ErrorStats {
 const SystemStatusPage = () => {
   const [, setLocation] = useLocation();
   const [refreshKey, setRefreshKey] = useState(0);
+  const isMobile = useIsMobile();
 
   const { data: systemStatus, isLoading: statusLoading } = useQuery({
     queryKey: ['/api/system/enhanced-status', refreshKey],
@@ -133,13 +135,19 @@ const SystemStatusPage = () => {
   };
 
   return (
-    <div className="min-h-screen bg-gradient-to-br from-gray-900 via-slate-900 to-black text-white p-6">
-      <div className="max-w-7xl mx-auto">
+    <div className={`min-h-screen bg-gradient-to-br from-gray-900 via-slate-900 to-black text-white ${
+      isMobile ? 'p-4' : 'p-6'
+    }`}>
+      <div className={`mx-auto ${
+        isMobile ? 'max-w-full' : 'max-w-7xl'
+      }`}>
         {/* Header */}
         <motion.div
           initial={{ opacity: 0, y: -20 }}
           animate={{ opacity: 1, y: 0 }}
-          className="flex items-center justify-between mb-8"
+          className={`flex items-center mb-8 ${
+            isMobile ? 'flex-col gap-4' : 'justify-between'
+          }`}
         >
           <div className="flex items-center space-x-4">
             <button
@@ -149,10 +157,14 @@ const SystemStatusPage = () => {
               <ArrowLeft className="w-6 h-6" />
             </button>
             <div>
-              <h1 className="text-3xl font-bold text-transparent bg-clip-text bg-gradient-to-r from-emerald-400 to-teal-400">
+              <h1 className={`font-bold text-transparent bg-clip-text bg-gradient-to-r from-emerald-400 to-teal-400 ${
+                isMobile ? 'text-xl leading-tight' : 'text-3xl'
+              }`}>
                 🧠 Error Center Brain - Program Beyni
               </h1>
-              <p className="text-gray-400 mt-1">Tüm sistem operasyonlarını izleyen ve kontrol eden merkezi beyin sistemi</p>
+              <p className={`text-gray-400 mt-1 ${
+                isMobile ? 'text-sm' : ''
+              }`}>Tüm sistem operasyonlarını izleyen ve kontrol eden merkezi beyin sistemi</p>
             </div>
           </div>
           
@@ -178,7 +190,11 @@ const SystemStatusPage = () => {
           initial={{ opacity: 0, y: 20 }}
           animate={{ opacity: 1, y: 0 }}
           transition={{ delay: 0.1 }}
-          className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6 mb-8"
+          className={`grid gap-6 mb-8 ${
+            isMobile 
+              ? 'grid-cols-1' 
+              : 'grid-cols-1 md:grid-cols-2 lg:grid-cols-4'
+          }`}
         >
           {/* System Health */}
           <div className="bg-gradient-to-br from-emerald-800 to-emerald-900 p-6 rounded-xl border border-emerald-700">
@@ -264,7 +280,11 @@ const SystemStatusPage = () => {
           initial={{ opacity: 0, y: 20 }}
           animate={{ opacity: 1, y: 0 }}
           transition={{ delay: 0.2 }}
-          className="grid grid-cols-1 lg:grid-cols-2 gap-6 mb-8"
+          className={`grid gap-6 mb-8 ${
+            isMobile 
+              ? 'grid-cols-1' 
+              : 'grid-cols-1 lg:grid-cols-2'
+          }`}
         >
           {/* Core Services */}
           <div className="bg-gray-800 p-6 rounded-xl border border-gray-700">
@@ -368,7 +388,11 @@ const SystemStatusPage = () => {
           initial={{ opacity: 0, y: 20 }}
           animate={{ opacity: 1, y: 0 }}
           transition={{ delay: 0.4 }}
-          className="grid grid-cols-1 lg:grid-cols-3 gap-6 mb-8"
+          className={`grid gap-6 mb-8 ${
+            isMobile 
+              ? 'grid-cols-1' 
+              : 'grid-cols-1 lg:grid-cols-3'
+          }`}
         >
           {/* Memory Details */}
           <div className="bg-gray-800 p-6 rounded-xl border border-gray-700">
