@@ -1440,6 +1440,9 @@ export async function scenarioBasedScrape(url: string): Promise<ScenarioBasedRes
     // ✅ ENHANCED VARIANT EXTRACTION - Test direct extraction for better accuracy
     let directVariants = [];
     console.log('🔄 ENHANCED VARIANT EXTRACTION: Testing direct DOM extraction for comprehensive variant detection...');
+    console.log('🔄 Current scenario-based variants:', variants.length);
+    console.log('🔄 URL being processed:', url);
+    
     try {
       console.log('🔄 Trying direct DOM extraction for additional variants...');
       directVariants = await extractVariantsDirect($, htmlContent, url, title);
@@ -1455,27 +1458,20 @@ export async function scenarioBasedScrape(url: string): Promise<ScenarioBasedRes
     }
     
     // Merge direct extraction results if they provide more colors/sizes
+    console.log(`🔄 MERGING VARIANTS: Direct=${directVariants.length}, Scenario=${variants.length}`);
+    
     if (directVariants.length > 0) {
       console.log(`🔄 Direct extraction found variants: ${directVariants.length} (existing: ${variants.length})`);
       
-      // ✅ INTELLIGENT COLOR PROCESSING - Allow authentic multi-color products
+      // ✅ ALWAYS PREFER DIRECT EXTRACTION - More accurate for this URL
       console.log(`🎨 INTELLIGENT COLOR PROCESSING - Processing all authentic variants`);
+      console.log('🎯 FORCING DIRECT VARIANTS - Override scenario variants with direct extraction');
       
-      if (directVariants.length > 0) {
-        // Allow all authentic colors for multi-color products
-        const uniqueColors = [...new Set(directVariants.map(v => v.color))];
-        if (uniqueColors.length > 1) {
-          console.log(`🎨 MULTI-COLOR PRODUCT: Found ${uniqueColors.length} colors [${uniqueColors.join(', ')}] - keeping all authentic variants`);
-          variants = directVariants; // Keep all variants
-        } else {
-          console.log(`🎨 SINGLE-COLOR PRODUCT: Found 1 color [${uniqueColors[0]}] - standard processing`);
-          variants = directVariants;
-        }
-        console.log(`✅ FINAL RESULT: ${variants.length} variants with colors: ${uniqueColors.join(', ')}`);
-      } else if (variants.length === 0) {
-        console.log('⚠️ No variants found from any method');
-        variants = [];
-      }
+      variants = directVariants; // Always use direct extraction when available
+      const uniqueColors = [...new Set(directVariants.map(v => v.color))];
+      console.log(`✅ FINAL RESULT: ${variants.length} variants with colors: ${uniqueColors.join(', ')}`);
+    } else {
+      console.log(`⚠️ No direct variants found, keeping scenario variants: ${variants.length}`);
     }
     
     // 🚫 SAHTE VARYANT ENGELLEMESİ: Tüm sahte varyant üretimi durduruldu
