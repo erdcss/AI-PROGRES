@@ -80,6 +80,12 @@ export async function extractRealSizes(html: string, url: string): Promise<RealV
                         (size.match(/^\d{2}$/) && parseInt(size) >= 28 && parseInt(size) <= 54) ||
                         // European clothing sizes (34-56)
                         (size.match(/^\d{2}$/) && parseInt(size) >= 34 && parseInt(size) <= 56) ||
+                        // Age-based sizes for children's clothing (e.g., "6-8 yaş", "9-10 yaş", "12-14 yaş")
+                        size.match(/^\d{1,2}-\d{1,2}\s*(yaş|ya|age|yrs?|years?)$/i) ||
+                        // Single age sizes (e.g., "8 yaş", "10 yaş")
+                        size.match(/^\d{1,2}\s*(yaş|ya|age|yrs?|years?)$/i) ||
+                        // Month-based sizes for babies (e.g., "6-9 ay", "12-18 ay")
+                        size.match(/^\d{1,2}-\d{1,2}\s*(ay|aylık|months?|mo)$/i) ||
                         // Other valid size patterns
                         size.match(/^(Tek Beden|One Size|OS)$/i) ||
                         size.match(/^\d+\/\d+$/) // Size like "38/40"
@@ -89,7 +95,7 @@ export async function extractRealSizes(html: string, url: string): Promise<RealV
                       const isInvalidSize = (
                         size.match(/^\d+\.\d+$/) ||  // Decimal numbers like "34.99"
                         size.match(/^[A-Z]{1,3}$/) && !size.match(/^(XS|S|M|L|XL|XXL|XXXL|OS)$/i) || // Random letters like "AZ"
-                        parseFloat(size) < 10 && !size.match(/^[XS|S|M|L]/) // Small numbers that aren't sizes
+                        (parseFloat(size) < 10 && !size.match(/^[XS|S|M|L]/) && !size.match(/^\d{1,2}\s*(yaş|ya|age|yrs?|years?|ay|aylık|months?|mo)$/i)) // Small numbers that aren't sizes or ages
                       );
                       
                       if (isValidSize && !isInvalidSize) {
