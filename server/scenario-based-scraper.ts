@@ -1437,6 +1437,11 @@ export async function scenarioBasedScrape(url: string): Promise<ScenarioBasedRes
       }];
     }
     
+    // ✅ CRITICAL DEBUG - Force log to test if we reach this point
+    console.log('🚨 CRITICAL DEBUG: Reached enhanced variant extraction section');
+    console.log('🚨 URL CHECK:', url);
+    console.log('🚨 Current variants count:', variants.length);
+    
     // ✅ ENHANCED VARIANT EXTRACTION - Test direct extraction for better accuracy
     let directVariants = [];
     console.log('🔄 ENHANCED VARIANT EXTRACTION: Testing direct DOM extraction for comprehensive variant detection...');
