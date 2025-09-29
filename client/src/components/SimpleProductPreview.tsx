@@ -1,5 +1,5 @@
 import { motion } from "framer-motion";
-import { Package, Image as ImageIcon, Tags, Palette, DollarSign, Info } from "lucide-react";
+import { Package, Image as ImageIcon, Tags, Palette, DollarSign, Info, ChevronLeft, ChevronRight } from "lucide-react";
 import { apiRequest } from '@/lib/queryClient';
 import { useState } from 'react';
 import { normalizePrice, formatOriginalPrice, formatSalePrice, formatProfitAmount, formatProfitPercentage, isValidPrice } from '@/utils/price-utils';
@@ -44,6 +44,7 @@ interface SimpleProductPreviewProps {
 export function SimpleProductPreview({ product, sourceUrl }: SimpleProductPreviewProps) {
   const [transferLoading, setTransferLoading] = useState(false);
   const [updatedPrice, setUpdatedPrice] = useState<any>(null);
+  const [currentImageIndex, setCurrentImageIndex] = useState(0);
 
   // More thorough validation of product data
   if (!product || !product.success || product.title === 'Yüklenemiyor' || product.brand === 'Bilinmiyor') {
@@ -301,31 +302,78 @@ export function SimpleProductPreview({ product, sourceUrl }: SimpleProductPrevie
         </div>
       </div>
 
-      {/* Compact Images Section */}
+      {/* Image Slider Section */}
       {images.length > 0 && (
-        <div className="bg-slate-800/30 rounded-lg p-3">
-          <div className="flex items-center gap-2 mb-2">
+        <div className="bg-slate-800/30 rounded-lg p-4">
+          <div className="flex items-center gap-2 mb-4">
             <ImageIcon className="h-4 w-4 text-blue-400" />
             <span className="text-sm font-medium text-gray-300">Ürün Görselleri</span>
             <span className="text-xs text-blue-400 bg-blue-400/10 px-2 py-0.5 rounded">{images.length}</span>
           </div>
-          <div className="grid grid-cols-6 gap-2">
-            {images.slice(0, 6).map((image, index) => (
-              <div key={index} className="relative group">
-                <img
-                  src={image}
-                  alt={`${index + 1}`}
-                  className="w-full h-12 object-cover rounded border border-slate-600 group-hover:border-blue-400 transition-all duration-200"
-                  onError={(e) => {
-                    const target = e.target as HTMLImageElement;
-                    target.style.display = 'none';
-                  }}
-                />
-                <div className="absolute -bottom-1 -right-1 bg-blue-500 text-white text-xs w-4 h-4 rounded-full flex items-center justify-center">
-                  {index + 1}
-                </div>
+          
+          {/* Main Image Slider */}
+          <div className="relative">
+            <div className="aspect-square rounded-lg overflow-hidden bg-slate-700/50 border border-slate-600">
+              <img
+                src={images[currentImageIndex]}
+                alt={`Ürün görseli ${currentImageIndex + 1}`}
+                className="w-full h-full object-cover transition-all duration-300"
+                onError={(e) => {
+                  const target = e.target as HTMLImageElement;
+                  target.src = '/placeholder-image.png';
+                }}
+              />
+              
+              {/* Navigation Buttons */}
+              {images.length > 1 && (
+                <>
+                  <button
+                    onClick={() => setCurrentImageIndex(prev => prev === 0 ? images.length - 1 : prev - 1)}
+                    className="absolute left-2 top-1/2 transform -translate-y-1/2 bg-black/50 hover:bg-black/70 text-white p-2 rounded-full transition-all duration-200 backdrop-blur-sm"
+                  >
+                    <ChevronLeft className="h-4 w-4" />
+                  </button>
+                  <button
+                    onClick={() => setCurrentImageIndex(prev => prev === images.length - 1 ? 0 : prev + 1)}
+                    className="absolute right-2 top-1/2 transform -translate-y-1/2 bg-black/50 hover:bg-black/70 text-white p-2 rounded-full transition-all duration-200 backdrop-blur-sm"
+                  >
+                    <ChevronRight className="h-4 w-4" />
+                  </button>
+                </>
+              )}
+              
+              {/* Image Counter */}
+              <div className="absolute bottom-2 right-2 bg-black/70 text-white text-xs px-2 py-1 rounded backdrop-blur-sm">
+                {currentImageIndex + 1} / {images.length}
               </div>
-            ))}
+            </div>
+            
+            {/* Thumbnail Navigation */}
+            {images.length > 1 && (
+              <div className="flex gap-2 mt-3 overflow-x-auto pb-2">
+                {images.map((image, index) => (
+                  <button
+                    key={index}
+                    onClick={() => setCurrentImageIndex(index)}
+                    className={`flex-shrink-0 w-12 h-12 rounded border-2 overflow-hidden transition-all duration-200 ${
+                      currentImageIndex === index 
+                        ? 'border-blue-400 ring-2 ring-blue-400/30' 
+                        : 'border-slate-600 hover:border-slate-500'
+                    }`}
+                  >
+                    <img
+                      src={image}
+                      alt={`Thumbnail ${index + 1}`}
+                      className="w-full h-full object-cover"
+                      onError={(e) => {
+                        const target = e.target as HTMLImageElement;
+                        target.style.display = 'none';
+                      }}
+                    />
+                  </button>
+                ))}
+              </div>
+            )}
           </div>
         </div>
       )}
