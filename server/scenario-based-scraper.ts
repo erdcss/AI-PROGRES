@@ -1437,17 +1437,22 @@ export async function scenarioBasedScrape(url: string): Promise<ScenarioBasedRes
       }];
     }
     
-    // 🚫 SAHTE VARYANT ENGELLEMESİ - Direct DOM extraction devre dışı bırakıldı
+    // ✅ ENHANCED VARIANT EXTRACTION - Test direct extraction for better accuracy
     let directVariants = [];
-    console.log('🚫 SAHTE VARYANT ENGELLEMESİ: Direct variant extraction devre dışı - sadece otantik varyantlar kullanılıyor');
-    // try {
-    //   console.log('🔄 Trying direct DOM extraction for additional variants...');
-    //   directVariants = await extractVariantsDirect($, htmlContent, url, title);
-    //   console.log(`✅ Direct variant extraction successful: ${directVariants.length} variants`);
-    // } catch (directVariantError) {
-    //   console.log(`❌ Direct variant extraction failed: ${directVariantError.message}`);
-    //   directVariants = [];
-    // }
+    console.log('🔄 ENHANCED VARIANT EXTRACTION: Testing direct DOM extraction for comprehensive variant detection...');
+    try {
+      console.log('🔄 Trying direct DOM extraction for additional variants...');
+      directVariants = await extractVariantsDirect($, htmlContent, url, title);
+      console.log(`✅ Direct variant extraction successful: ${directVariants.length} variants`);
+      
+      // Log extracted variants for debugging
+      directVariants.forEach((variant, idx) => {
+        console.log(`🎯 Direct variant ${idx + 1}: ${variant.color} / ${variant.size} (${variant.inStock ? 'In Stock' : 'Out of Stock'})`);
+      });
+    } catch (directVariantError) {
+      console.log(`❌ Direct variant extraction failed: ${directVariantError.message}`);
+      directVariants = [];
+    }
     
     // Merge direct extraction results if they provide more colors/sizes
     if (directVariants.length > 0) {
