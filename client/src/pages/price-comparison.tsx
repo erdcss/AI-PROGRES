@@ -15,6 +15,7 @@ import { PageTransition, AnimatedContainer, cardVariants } from "@/components/Pa
 import { motion } from "framer-motion";
 import { Link } from "wouter";
 import { ArrowLeft } from "lucide-react";
+import { useIsMobile } from "@/hooks/use-mobile";
 
 const searchSchema = z.object({
   productName: z.string().min(3, "Ürün adı en az 3 karakter olmalıdır"),
@@ -75,6 +76,7 @@ const generateMockPriceData = (productName: string) => {
 export default function PriceComparisonPage() {
   const [comparisonData, setComparisonData] = useState<any>(null);
   const { toast } = useToast();
+  const isMobile = useIsMobile();
 
   const form = useForm<SearchFormData>({
     resolver: zodResolver(searchSchema),
@@ -115,7 +117,9 @@ export default function PriceComparisonPage() {
   return (
     <PageTransition>
       <AnimatedContainer className="min-h-screen bg-gradient-to-b from-slate-900 to-slate-800 text-white">
-        <div className="container mx-auto px-4 py-6 max-w-7xl">
+        <div className={`mx-auto max-w-7xl ${
+          isMobile ? 'px-4 py-4' : 'container px-4 py-6'
+        }`}>
           
           {/* Header */}
           <motion.div
@@ -125,26 +129,42 @@ export default function PriceComparisonPage() {
             className="text-center mb-8"
           >
             {/* Navigation */}
-            <div className="flex items-center justify-center gap-4 mb-6">
-              <Link href="/" className="inline-flex items-center gap-2 border border-blue-500/30 text-blue-200 hover:bg-blue-600/20 px-4 py-2 rounded-lg transition-all duration-200">
+            <div className={`flex items-center justify-center mb-6 ${
+              isMobile ? 'flex-col gap-3' : 'gap-4'
+            }`}>
+              <Link href="/" className={`inline-flex items-center gap-2 border border-blue-500/30 text-blue-200 hover:bg-blue-600/20 rounded-lg transition-all duration-200 active:scale-95 ${
+                isMobile ? 'px-4 py-3 w-full justify-center' : 'px-4 py-2'
+              }`}>
                 <ArrowLeft className="h-4 w-4" />
                 Veri Çıkarma
               </Link>
-              <ArrowLeft className="h-4 w-4 text-gray-400 rotate-180" />
-              <div className="bg-purple-600/20 text-purple-200 px-4 py-2 rounded-lg border border-purple-500/30">
+              {!isMobile && <ArrowLeft className="h-4 w-4 text-gray-400 rotate-180" />}
+              <div className={`bg-purple-600/20 text-purple-200 rounded-lg border border-purple-500/30 ${
+                isMobile ? 'px-4 py-3 w-full text-center' : 'px-4 py-2'
+              }`}>
                 Fiyat Karşılaştırma
               </div>
             </div>
             
-            <div className="flex items-center justify-center gap-3 mb-4">
-              <div className="w-12 h-12 bg-gradient-to-r from-purple-500 to-blue-600 rounded-lg flex items-center justify-center">
-                <BarChart3 className="h-6 w-6 text-white" />
+            <div className={`flex items-center justify-center mb-4 ${
+              isMobile ? 'flex-col gap-3' : 'gap-3'
+            }`}>
+              <div className={`bg-gradient-to-r from-purple-500 to-blue-600 rounded-lg flex items-center justify-center ${
+                isMobile ? 'w-14 h-14' : 'w-12 h-12'
+              }`}>
+                <BarChart3 className={`text-white ${
+                  isMobile ? 'h-7 w-7' : 'h-6 w-6'
+                }`} />
               </div>
-              <h1 className="text-4xl font-bold bg-gradient-to-r from-purple-400 to-blue-400 bg-clip-text text-transparent">
+              <h1 className={`font-bold bg-gradient-to-r from-purple-400 to-blue-400 bg-clip-text text-transparent text-center ${
+                isMobile ? 'text-2xl leading-tight' : 'text-4xl'
+              }`}>
                 Marketplace Fiyat Karşılaştırma
               </h1>
             </div>
-            <p className="text-xl text-gray-300 max-w-2xl mx-auto">
+            <p className={`text-gray-300 mx-auto text-center ${
+              isMobile ? 'text-base px-4 max-w-full' : 'text-xl max-w-2xl'
+            }`}>
               Türkiye'nin önde gelen e-ticaret platformlarında ürün fiyatlarını karşılaştırın ve en uygun teklifi bulun
             </p>
           </motion.div>
@@ -157,13 +177,13 @@ export default function PriceComparisonPage() {
             transition={{ delay: 0.2 }}
           >
             <Card className="bg-slate-800/50 border-slate-700 max-w-2xl mx-auto mb-8">
-              <CardHeader>
+              <CardHeader className={isMobile ? 'p-4' : ''}>
                 <CardTitle className="text-white flex items-center gap-2">
                   <Search className="h-5 w-5" />
                   Ürün Ara
                 </CardTitle>
               </CardHeader>
-              <CardContent>
+              <CardContent className={isMobile ? 'p-4 pt-0' : ''}>
                 <Form {...form}>
                   <form onSubmit={form.handleSubmit(onSubmit)} className="space-y-4">
                     <FormField
@@ -175,7 +195,9 @@ export default function PriceComparisonPage() {
                           <FormControl>
                             <Input
                               placeholder="Örn: iPhone 15, Samsung TV, Nike Ayakkabı..."
-                              className="bg-slate-700 border-slate-600 text-white placeholder-gray-400"
+                              className={`bg-slate-700 border-slate-600 text-white placeholder-gray-400 ${
+                                isMobile ? 'h-14' : ''
+                              }`}
                               {...field}
                             />
                           </FormControl>
@@ -185,7 +207,9 @@ export default function PriceComparisonPage() {
                     />
                     <Button
                       type="submit"
-                      className="w-full"
+                      className={`w-full transition-all duration-200 active:scale-95 ${
+                        isMobile ? 'h-14' : ''
+                      }`}
                       disabled={searchMutation.isPending}
                     >
                       {searchMutation.isPending ? (
@@ -213,7 +237,9 @@ export default function PriceComparisonPage() {
               initial="hidden"
               animate="visible"
               transition={{ delay: 0.4 }}
-              className="grid grid-cols-1 md:grid-cols-3 gap-6 max-w-4xl mx-auto mb-8"
+              className={`grid gap-6 max-w-4xl mx-auto mb-8 ${
+                isMobile ? 'grid-cols-1' : 'grid-cols-1 md:grid-cols-3'
+              }`}
             >
               <Card className="bg-slate-800/30 border-slate-700">
                 <CardContent className="p-6 text-center">
