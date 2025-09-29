@@ -93,16 +93,16 @@ function LoginScreen({ onLogin }: { onLogin: () => void }) {
   };
   
   return (
-    <div className="flex items-center justify-center min-h-screen business-bg">
-      <Card className="business-card w-[420px] shadow-2xl">
-        <CardHeader className="business-header space-y-6 text-center">
-          <div className="mx-auto w-16 h-16 bg-gradient-to-br from-blue-700 to-blue-900 rounded-2xl flex items-center justify-center shadow-lg">
-            <Lock className="h-8 w-8 text-white" />
+    <div className="flex items-center justify-center min-h-screen business-bg px-4">
+      <Card className="business-card w-full max-w-md md:max-w-lg shadow-2xl">
+        <CardHeader className="business-header space-y-4 md:space-y-6 text-center px-4 md:px-6">
+          <div className="mx-auto w-12 h-12 md:w-16 md:h-16 bg-gradient-to-br from-blue-700 to-blue-900 rounded-2xl flex items-center justify-center shadow-lg">
+            <Lock className="h-6 w-6 md:h-8 md:w-8 text-white" />
           </div>
-          <CardTitle className="text-3xl font-bold text-white">
+          <CardTitle className="text-2xl md:text-3xl font-bold text-white">
             Veri Transfer Programı
           </CardTitle>
-          <CardDescription className="text-white text-lg font-bold">
+          <CardDescription className="text-white text-base md:text-lg font-bold">
             Güvenli sistem erişimi için kimlik doğrulama
           </CardDescription>
           {success && (
@@ -116,7 +116,7 @@ function LoginScreen({ onLogin }: { onLogin: () => void }) {
         </CardHeader>
         {!success && (
           <>
-            <CardContent className="space-y-6 px-8">
+            <CardContent className="space-y-4 md:space-y-6 px-4 md:px-8">
               <div className="space-y-3">
                 <Label htmlFor="password" className="text-sm font-bold text-white">
                   Şifre
@@ -128,12 +128,14 @@ function LoginScreen({ onLogin }: { onLogin: () => void }) {
                   value={password}
                   onChange={(e) => setPassword(e.target.value)}
                   onKeyDown={handleKeyDown}
-                  className={`business-input h-12 text-lg rounded-xl ${error ? "border-red-500 focus:border-red-500" : ""}`}
+                  className={`business-input h-12 md:h-14 text-base md:text-lg rounded-xl ${error ? "border-red-500 focus:border-red-500" : ""}`}
                   autoFocus
+                  autoComplete="current-password"
+                  inputMode="text"
                 />
                 {error && (
                   <div className="text-sm text-red-400 flex items-center gap-2 p-3 bg-red-900/20 rounded-lg border border-red-500/30 animate-pulse">
-                    <AlertCircle className="h-4 w-4" />
+                    <AlertCircle className="h-4 w-4 flex-shrink-0" />
                     <span>Hatalı şifre</span>
                   </div>
                 )}
@@ -145,37 +147,39 @@ function LoginScreen({ onLogin }: { onLogin: () => void }) {
                 </Label>
                 <Input
                   id="captcha"
-                  type="text"
+                  type="number"
                   value={sum}
                   onChange={(e) => setSum(e.target.value)}
                   onKeyDown={handleKeyDown}
-                  className={`business-input h-12 text-lg rounded-xl ${captchaError ? "border-red-500 focus:border-red-500" : ""}`}
+                  className={`business-input h-12 md:h-14 text-base md:text-lg rounded-xl ${captchaError ? "border-red-500 focus:border-red-500" : ""}`}
                   placeholder="Toplamı yazın"
+                  inputMode="numeric"
+                  pattern="[0-9]*"
                 />
                 {captchaError && (
                   <div className="text-sm text-red-400 flex items-center gap-2 p-3 bg-red-900/20 rounded-lg border border-red-500/30 animate-pulse">
-                    <AlertCircle className="h-4 w-4" />
+                    <AlertCircle className="h-4 w-4 flex-shrink-0" />
                     <span>Hatalı toplama</span>
                   </div>
                 )}
               </div>
             </CardContent>
-            <CardFooter className="flex flex-col gap-4 px-8 pb-8">
+            <CardFooter className="flex flex-col gap-4 px-4 md:px-8 pb-6 md:pb-8">
               <Button 
                 onClick={handleLogin} 
-                className="business-button w-full h-12 text-lg font-bold rounded-xl shadow-lg transform transition-all duration-200 hover:scale-105" 
+                className="business-button w-full h-12 md:h-14 text-base md:text-lg font-bold rounded-xl shadow-lg transform transition-all duration-200 hover:scale-105 active:scale-95" 
                 variant="default"
               >
-                <ShieldCheck className="mr-2 h-5 w-5" />
+                <ShieldCheck className="mr-2 h-4 w-4 md:h-5 md:w-5" />
                 Giriş Yap
               </Button>
               
               <div className="flex justify-center">
-                <div className="flex items-center gap-3 px-4 py-2 bg-blue-900 rounded-full border business-border">
-                  <div className="w-8 h-8 bg-gradient-to-r from-blue-500 to-indigo-600 rounded-lg flex items-center justify-center shadow-sm">
-                    <span className="text-white text-sm font-bold">AI</span>
+                <div className="flex items-center gap-2 md:gap-3 px-3 md:px-4 py-2 bg-blue-900 rounded-full border business-border">
+                  <div className="w-6 h-6 md:w-8 md:h-8 bg-gradient-to-r from-blue-500 to-indigo-600 rounded-lg flex items-center justify-center shadow-sm">
+                    <span className="text-white text-xs md:text-sm font-bold">AI</span>
                   </div>
-                  <span className="text-sm text-white font-bold">Yapay Zeka Destekli</span>
+                  <span className="text-xs md:text-sm text-white font-bold">Yapay Zeka Destekli</span>
                 </div>
               </div>
             </CardFooter>
