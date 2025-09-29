@@ -507,7 +507,9 @@ export class ScenarioExtractors {
           const splitSizes = trimmedSize.split(',').map(s => s.trim()).filter(s => s.length > 0);
           splitSizes.forEach(s => {
             if (this.isValidSize(s)) {
-              finalSizesArray.push(s.toUpperCase());
+              // Preserve original case for age-based sizes, uppercase for standard sizes
+              const finalSize = /\d+.*yaş|\d+.*ay/i.test(s) ? s : s.toUpperCase();
+              finalSizesArray.push(finalSize);
             }
           });
         } else if (this.isValidSize(trimmedSize)) {
