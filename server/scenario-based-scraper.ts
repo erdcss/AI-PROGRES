@@ -1736,19 +1736,28 @@ function validateAndSanitizeVariants(rawVariants: Array<{color: string, size: st
   
   // Filter authentic variants - only if they have authentic colors and sizes
   const authenticVariants = rawVariants.filter(variant => {
-    // Must have valid color
-    if (!variant.color || !authenticColors.includes(variant.color)) {
-      console.log(`❌ Variant rejected - invalid color: ${variant.color}`);
+    console.log(`🔍 VARIANT CHECK: Color: "${variant.color}", Size: "${variant.size}", InStock: ${variant.inStock}`);
+    
+    // ✅ RELAXED COLOR VALIDATION: Allow any non-empty color
+    if (!variant.color || variant.color.trim() === '') {
+      console.log(`❌ Variant rejected - empty color: "${variant.color}"`);
       return false;
     }
     
-    // Must have valid size (not empty or default)
-    if (!variant.size || variant.size.trim() === '' || 
-        variant.size === 'Default' || variant.size === 'Standart') {
-      console.log(`❌ Variant rejected - invalid size: ${variant.size}`);
+    // ✅ RELAXED SIZE VALIDATION: Allow all authentic sizes including S/M/L
+    if (!variant.size || variant.size.trim() === '') {
+      console.log(`❌ Variant rejected - empty size: "${variant.size}"`);
       return false;
     }
     
+    // Only reject obviously fake/placeholder sizes
+    const fakeSizes = ['Default', 'Varsayılan', 'Placeholder', 'N/A', 'null', 'undefined'];
+    if (fakeSizes.includes(variant.size)) {
+      console.log(`❌ Variant rejected - fake size: "${variant.size}"`);
+      return false;
+    }
+    
+    console.log(`✅ Variant accepted: ${variant.color} / ${variant.size} (${variant.inStock ? 'In Stock' : 'Out of Stock'})`);
     return true;
   });
   

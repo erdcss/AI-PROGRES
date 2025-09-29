@@ -1323,8 +1323,19 @@ ${data.title.toLowerCase().replace(/[^a-z0-9]/g, '-')},${data.title},${data.bran
               console.log('🔄 Array variants converted to object format:', variants);
             }
 
-            // Only show if we have actual variants
-            const hasVariants = allVariants.length > 0 || (variants?.colors?.length > 0 || variants?.sizes?.length > 0);
+            // Debug variants structure
+            console.log('🔧 FRONTEND DEBUG: product.variants type:', typeof product.variants);
+            console.log('🔧 FRONTEND DEBUG: product.variants:', JSON.stringify(product.variants, null, 2));
+            console.log('🔧 FRONTEND DEBUG: allVariants length:', allVariants.length);
+            console.log('🔧 FRONTEND DEBUG: variants object:', variants);
+
+            // Only show if we have actual variants  
+            const hasVariants = allVariants.length > 0 || 
+                               (variants?.colors?.length > 0) || 
+                               (variants?.sizes?.length > 0) ||
+                               (variants?.allVariants?.length > 0);
+            
+            console.log('🔧 FRONTEND DEBUG: hasVariants:', hasVariants);
             
             if (!hasVariants) {
               console.log('❌ No variants found to display');
