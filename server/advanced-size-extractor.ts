@@ -44,7 +44,11 @@ export async function extractVariantStockInfo($: cheerio.CheerioAPI): Promise<Va
     // 2. Bedenleri çıkar (beden butonlarından)
     $('.pr-in-sz button').each((_, el) => {
       const text = $(el).text().trim();
-      if (text.match(/^(XS|S|M|L|XL|XXL|\d+)$/i)) {
+      // Expanded size pattern to include age-based and month-based sizes
+      if (text.match(/^(XS|S|M|L|XL|XXL|\d+)$/i) || 
+          text.match(/^\d{1,2}-\d{1,2}\s*(yaş|ya|age|yrs?|years?)$/i) ||
+          text.match(/^\d{1,2}\s*(yaş|ya|age|yrs?|years?)$/i) ||
+          text.match(/^\d{1,2}-\d{1,2}\s*(ay|aylık|months?|mo)$/i)) {
         if (!stockInfo.sizes.includes(text)) {
           stockInfo.sizes.push(text);
           console.log(`📏 Beden tespit edildi: ${text}`);
