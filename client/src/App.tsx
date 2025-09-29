@@ -2,6 +2,7 @@ import { Switch, Route } from "wouter";
 import { queryClient } from "./lib/queryClient";
 import { QueryClientProvider } from "@tanstack/react-query";
 import { Toaster } from "@/components/ui/toaster";
+import { useIsMobile } from "@/hooks/use-mobile";
 import ScraperPage from "@/pages/scraper";
 import PriceComparisonPage from "@/pages/price-comparison";
 import MarketplaceSelection from "@/pages/marketplace-selection";
@@ -199,6 +200,8 @@ function LoginScreen({ onLogin }: { onLogin: () => void }) {
 }
 
 function Router() {
+  const isMobile = useIsMobile();
+  
   return (
     <AnimatePresence mode="wait" initial={false}>
       <Switch>
@@ -215,7 +218,7 @@ function Router() {
       <Route path="/coming-soon/:platform?">
         {(params) => (
           <PageTransition>
-            <ComingSoon platform={params.platform} />
+            <ComingSoon platform={params?.platform} />
           </PageTransition>
         )}
       </Route>
@@ -223,8 +226,8 @@ function Router() {
       <Route path="/scraper/:platform?">
         {(params) => (
           <PageTransition>
-            <div className="container mx-auto p-4">
-              <div className="flex flex-col gap-4">
+            <div className={`mx-auto ${isMobile ? 'px-4 py-4 max-w-full' : 'container px-4 py-4'}`}>
+              <div className={`flex flex-col ${isMobile ? 'gap-4' : 'gap-4'}`}>
                 <ScraperPage />
                 <UrlHistory onSelect={(url) => {
                   // Find the scraper component and update its URL
@@ -242,8 +245,8 @@ function Router() {
       </Route>
       <Route path="/trendyol">
         <PageTransition>
-          <div className="container mx-auto p-4">
-            <div className="flex flex-col gap-4">
+          <div className={`mx-auto ${isMobile ? 'px-4 py-4 max-w-full' : 'container px-4 py-4'}`}>
+            <div className={`flex flex-col ${isMobile ? 'gap-4' : 'gap-4'}`}>
               <ScraperPage />
               <UrlHistory onSelect={(url) => {
                 // Find the scraper component and update its URL
