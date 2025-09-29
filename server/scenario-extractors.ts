@@ -468,11 +468,11 @@ export class ScenarioExtractors {
       console.log(`🔍 No structured data found, checking HTML patterns...`);
       
       const variantPatterns = [
-        /"variants":\s*\[[^\]]*"(XS|S|M|L|XL|XXL|XXXL|24|25|26|27|28|29|30|31|32|33|34|35|36|37|38|39|40|41|42|43|44|45|46|47|48|49|50)"/gi,
-        /"sizes":\s*\[[^\]]*"(XS|S|M|L|XL|XXL|XXXL|24|25|26|27|28|29|30|31|32|33|34|35|36|37|38|39|40|41|42|43|44|45|46|47|48|49|50)"/gi,
-        /"size":\s*"(XS|S|M|L|XL|XXL|XXXL|24|25|26|27|28|29|30|31|32|33|34|35|36|37|38|39|40|41|42|43|44|45|46|47|48|49|50)"/gi,
-        /data-variant-size="(XS|S|M|L|XL|XXL|XXXL|24|25|26|27|28|29|30|31|32|33|34|35|36|37|38|39|40|41|42|43|44|45|46|47|48|49|50)"/gi,
-        /data-size="(XS|S|M|L|XL|XXL|XXXL|24|25|26|27|28|29|30|31|32|33|34|35|36|37|38|39|40|41|42|43|44|45|46|47|48|49|50)"/gi
+        /"variants":\s*\[[^\]]*"(XS|S|M|L|XL|XXL|XXXL|24|25|26|27|28|29|30|31|32|33|34|35|36|37|38|39|40|41|42|43|44|45|46|47|48|49|50|\d{1,2}-\d{1,2}\s*yaş|\d{1,2}\s*yaş|\d{1,2}-\d{1,2}\s*ay)"/gi,
+        /"sizes":\s*\[[^\]]*"(XS|S|M|L|XL|XXL|XXXL|24|25|26|27|28|29|30|31|32|33|34|35|36|37|38|39|40|41|42|43|44|45|46|47|48|49|50|\d{1,2}-\d{1,2}\s*yaş|\d{1,2}\s*yaş|\d{1,2}-\d{1,2}\s*ay)"/gi,
+        /"size":\s*"(XS|S|M|L|XL|XXL|XXXL|24|25|26|27|28|29|30|31|32|33|34|35|36|37|38|39|40|41|42|43|44|45|46|47|48|49|50|\d{1,2}-\d{1,2}\s*yaş|\d{1,2}\s*yaş|\d{1,2}-\d{1,2}\s*ay)"/gi,
+        /data-variant-size="(XS|S|M|L|XL|XXL|XXXL|24|25|26|27|28|29|30|31|32|33|34|35|36|37|38|39|40|41|42|43|44|45|46|47|48|49|50|\d{1,2}-\d{1,2}\s*yaş|\d{1,2}\s*yaş|\d{1,2}-\d{1,2}\s*ay)"/gi,
+        /data-size="(XS|S|M|L|XL|XXL|XXXL|24|25|26|27|28|29|30|31|32|33|34|35|36|37|38|39|40|41|42|43|44|45|46|47|48|49|50|\d{1,2}-\d{1,2}\s*yaş|\d{1,2}\s*yaş|\d{1,2}-\d{1,2}\s*ay)"/gi
       ];
       
       variantPatterns.forEach((pattern, index) => {
@@ -480,11 +480,14 @@ export class ScenarioExtractors {
         if (matches) {
           console.log(`🔍 Variant pattern ${index + 1} found ${matches.length} matches`);
           matches.forEach(match => {
-            const sizeMatch = match.match(/(XS|S|M|L|XL|XXL|XXXL|24|25|26|27|28|29|30|31|32|33|34|35|36|37|38|39|40|41|42|43|44|45|46|47|48|49|50)/i);
+            const sizeMatch = match.match(/(XS|S|M|L|XL|XXL|XXXL|24|25|26|27|28|29|30|31|32|33|34|35|36|37|38|39|40|41|42|43|44|45|46|47|48|49|50|\d{1,2}-\d{1,2}\s*yaş|\d{1,2}\s*yaş|\d{1,2}-\d{1,2}\s*ay)/i);
             if (sizeMatch) {
-              extractedSizes.add(sizeMatch[1].toUpperCase());
+              // Preserve original case for age-based sizes, uppercase for standard sizes
+              const matchedSize = sizeMatch[1];
+              const finalSize = /\d+.*yaş|\d+.*ay/i.test(matchedSize) ? matchedSize : matchedSize.toUpperCase();
+              extractedSizes.add(finalSize);
               foundValidSizeElements = true;
-              console.log(`✅ AUTHENTIC Size "${sizeMatch[1].toUpperCase()}" found via pattern`);
+              console.log(`✅ AUTHENTIC Size "${finalSize}" found via pattern`);
             }
           });
         }
@@ -508,7 +511,9 @@ export class ScenarioExtractors {
             }
           });
         } else if (this.isValidSize(trimmedSize)) {
-          finalSizesArray.push(trimmedSize.toUpperCase());
+          // Preserve original case for age-based sizes, uppercase for standard sizes  
+          const finalSize = /\d+.*yaş|\d+.*ay/i.test(trimmedSize) ? trimmedSize : trimmedSize.toUpperCase();
+          finalSizesArray.push(finalSize);
         }
       }
     });
@@ -540,6 +545,12 @@ export class ScenarioExtractors {
     
     // 1. Standard clothing sizes (S, M, L, XL, etc.)
     if (/^(XS|S|M|L|XL|XXL|XXXL|2XL|3XL|4XL|5XL)$/.test(normalizedSize)) return true;
+    
+    // 1.5. Age-based sizes for children's clothing (ORIGINAL CASE PRESERVED)
+    const originalCase = size.trim(); // Preserve original case for age-based sizes
+    if (/^\d{1,2}-\d{1,2}\s*(yaş|ya|age|yrs?|years?)$/i.test(originalCase)) return true;
+    if (/^\d{1,2}\s*(yaş|ya|age|yrs?|years?)$/i.test(originalCase)) return true;
+    if (/^\d{1,2}-\d{1,2}\s*(ay|aylık|months?|mo)$/i.test(originalCase)) return true;
     
     // 2. Numeric sizes for shoes (24-54)
     if (/^(2[4-9]|[3-5][0-9])$/.test(normalizedSize)) return true;
