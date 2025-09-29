@@ -875,8 +875,8 @@ ${data.title.toLowerCase().replace(/[^a-z0-9]/g, '-')},${data.title},${data.bran
       </div>
 
       {/* Main Content */}
-      <div className="max-w-6xl mx-auto px-6 py-8">
-        <div className="grid grid-cols-1 gap-8">
+      <div className={`mx-auto ${isMobile ? 'px-4 py-6 max-w-full' : 'max-w-6xl px-6 py-8'}`}>
+        <div className={`grid grid-cols-1 ${isMobile ? 'gap-6' : 'gap-8'}`}>
           
           {/* Main Content Section */}
           <div>
@@ -885,41 +885,51 @@ ${data.title.toLowerCase().replace(/[^a-z0-9]/g, '-')},${data.title},${data.bran
             {/* Single Mode Form */}
             <div>
               <Card className="business-card bg-gradient-to-br from-slate-900/90 via-slate-800/50 to-slate-900/90 backdrop-blur border border-cyan-800/30">
-                <CardHeader className="business-header">
-                  <CardTitle className="text-white font-thin text-lg flex items-center gap-2">
-                    <Package className="w-5 h-5 text-cyan-400/70" />
-                    Tek Varyant Ürün
+                <CardHeader className={`business-header ${isMobile ? 'px-4 py-4' : 'px-6 py-4'}`}>
+                  <CardTitle className={`text-white font-thin flex items-center gap-2 ${
+                    isMobile ? 'text-lg' : 'text-lg'
+                  }`}>
+                    <Package className={`text-cyan-400/70 ${isMobile ? 'w-5 h-5' : 'w-5 h-5'}`} />
+                    <span className="leading-tight">Tek Varyant Ürün</span>
                   </CardTitle>
                 </CardHeader>
-                <CardContent className="p-6">
+                <CardContent className={`${isMobile ? 'p-4' : 'p-6'}`}>
                   <motion.form 
                     initial={{ opacity: 0, y: 20 }}
                     animate={{ opacity: 1, y: 0 }}
                     onSubmit={onSingleSubmit} 
-                    className="space-y-4"
+                    className={`${isMobile ? 'space-y-6' : 'space-y-4'}`}
                   >
                     {/* Sürükle-Bırak Alanı */}
-                    <div className="space-y-3">
-                      <label className="text-white font-thin text-sm">Ürün URL'leri - Sürükle Bırak veya Manuel Ekle</label>
+                    <div className={`${isMobile ? 'space-y-4' : 'space-y-3'}`}>
+                      <label className={`text-white font-thin block ${
+                        isMobile ? 'text-base mb-2' : 'text-sm'
+                      }`}>
+                        Ürün URL'leri - Sürükle Bırak veya Manuel Ekle
+                      </label>
                       
                       {/* Sürükle-Bırak Alanı */}
                       <div 
-                        className={`border-2 border-dashed transition-all duration-200 rounded-lg p-8 text-center ${
+                        className={`border-2 border-dashed transition-all duration-200 rounded-lg text-center ${
                           isDragOver 
                             ? 'border-cyan-400 bg-cyan-900/20' 
                             : 'border-slate-600 bg-slate-800/50'
-                        }`}
+                        } ${isMobile ? 'p-6' : 'p-8'}`}
                         onDragOver={handleDragOver}
                         onDragLeave={handleDragLeave}
                         onDrop={handleDrop}
                       >
-                        <div className="flex flex-col items-center gap-3">
-                          <Package className="w-8 h-8 text-cyan-400/70" />
-                          <div>
-                            <p className="text-white font-medium">
+                        <div className={`flex flex-col items-center ${isMobile ? 'gap-3' : 'gap-3'}`}>
+                          <Package className={`text-cyan-400/70 ${isMobile ? 'w-8 h-8' : 'w-8 h-8'}`} />
+                          <div className="text-center">
+                            <p className={`text-white font-medium leading-tight ${
+                              isMobile ? 'text-base' : 'text-base'
+                            }`}>
                               Trendyol veya Arçelik URL'lerini buraya sürükleyin
                             </p>
-                            <p className="text-slate-400 text-sm mt-1">
+                            <p className={`text-slate-400 mt-2 leading-tight ${
+                              isMobile ? 'text-sm' : 'text-sm'
+                            }`}>
                               Veya aşağıdaki alandan manuel olarak ekleyin
                             </p>
                           </div>
@@ -927,13 +937,17 @@ ${data.title.toLowerCase().replace(/[^a-z0-9]/g, '-')},${data.title},${data.bran
                       </div>
 
                       {/* Manuel URL Ekleme */}
-                      <div className={`flex ${isMobile ? 'flex-col gap-4' : 'gap-2'}`}>
-                        <div className="relative flex-1">
+                      <div className={`w-full ${isMobile ? 'space-y-4' : 'flex gap-2'}`}>
+                        <div className={`relative ${isMobile ? 'w-full' : 'flex-1'}`}>
                           <Input
                             placeholder="https://www.trendyol.com/..."
                             {...singleForm.register("url")}
                             type="url"
-                            className={`business-input pl-4 ${isMobile ? 'h-14 text-base pr-16' : 'h-12 text-base pr-20'}`}
+                            className={`business-input w-full ${
+                              isMobile 
+                                ? 'h-14 text-base pl-4 pr-16 rounded-lg' 
+                                : 'h-12 text-base pl-4 pr-20'
+                            }`}
                             disabled={singleScrapeMutation.isPending}
                             data-testid="input-product-url"
                           />
@@ -941,7 +955,9 @@ ${data.title.toLowerCase().replace(/[^a-z0-9]/g, '-')},${data.title},${data.bran
                             type="button"
                             size="sm"
                             variant="ghost"
-                            className={`absolute right-2 top-1/2 transform -translate-y-1/2 text-white hover:bg-blue-800 transition-all duration-200 active:scale-95 ${isMobile ? 'h-10 w-10 p-0' : 'h-8 w-8 p-0'}`}
+                            className={`absolute right-2 top-1/2 transform -translate-y-1/2 text-white hover:bg-blue-800 transition-all duration-200 active:scale-95 rounded-md ${
+                              isMobile ? 'h-10 w-10 p-0' : 'h-8 w-8 p-0'
+                            }`}
                             onClick={() => {
                               navigator.clipboard.readText().then(text => {
                                 singleForm.setValue('url', text);
@@ -960,30 +976,38 @@ ${data.title.toLowerCase().replace(/[^a-z0-9]/g, '-')},${data.title},${data.bran
                           type="button"
                           onClick={addUrlManually}
                           disabled={singleScrapeMutation.isPending}
-                          className={`bg-blue-600 hover:bg-blue-700 text-white transition-all duration-200 active:scale-95 ${
+                          className={`bg-blue-600 hover:bg-blue-700 text-white transition-all duration-200 active:scale-95 rounded-lg ${
                             isMobile 
-                              ? 'w-full h-14 text-base font-semibold px-4' 
-                              : 'px-4 h-12'
+                              ? 'w-full h-14 text-base font-semibold px-4 flex items-center justify-center' 
+                              : 'px-4 h-12 flex items-center'
                           }`}
                           data-testid="button-add-url"
                         >
-                          <Plus className={`mr-2 ${isMobile ? 'w-5 h-5' : 'w-4 h-4'}`} />
-                          Ekle
+                          <Plus className={`${isMobile ? 'w-5 h-5 mr-2' : 'w-4 h-4 mr-2'}`} />
+                          <span className="font-semibold">Ekle</span>
                         </Button>
                       </div>
                     </div>
 
                     {/* Persistent Tags Section */}
-                    <div className="space-y-3">
-                      <label className="text-white font-thin text-sm">Ürüne Eklenecek Etiketler</label>
-                      <div className="space-y-3">
-                        <div className={`flex ${isMobile ? 'flex-col gap-4' : 'gap-2'}`}>
+                    <div className={`${isMobile ? 'space-y-4' : 'space-y-3'}`}>
+                      <label className={`text-white font-thin block ${
+                        isMobile ? 'text-base mb-2' : 'text-sm'
+                      }`}>
+                        Ürüne Eklenecek Etiketler
+                      </label>
+                      <div className={`${isMobile ? 'space-y-4' : 'space-y-3'}`}>
+                        <div className={`w-full ${isMobile ? 'space-y-4' : 'flex gap-2'}`}>
                           <Input
                             placeholder="Etiket ekle (örn: elektronik, telefon)"
                             value={newTag}
                             onChange={(e) => setNewTag(e.target.value)}
                             onKeyPress={(e) => e.key === 'Enter' && (e.preventDefault(), addTag())}
-                            className={`business-input ${isMobile ? 'h-14 text-base' : ''} flex-1`}
+                            className={`business-input w-full ${
+                              isMobile 
+                                ? 'h-14 text-base rounded-lg' 
+                                : 'flex-1'
+                            }`}
                             disabled={singleScrapeMutation.isPending}
                             data-testid="input-product-tag"
                           />
@@ -991,14 +1015,15 @@ ${data.title.toLowerCase().replace(/[^a-z0-9]/g, '-')},${data.title},${data.bran
                             type="button"
                             onClick={addTag}
                             disabled={!newTag.trim() || singleScrapeMutation.isPending}
-                            className={`bg-green-600 hover:bg-green-700 text-white transition-all duration-200 active:scale-95 ${
+                            className={`bg-green-600 hover:bg-green-700 text-white transition-all duration-200 active:scale-95 rounded-lg ${
                               isMobile 
-                                ? 'w-full h-14 text-base font-semibold px-4' 
-                                : 'px-4'
+                                ? 'w-full h-14 text-base font-semibold px-4 flex items-center justify-center' 
+                                : 'px-4 flex items-center'
                             }`}
                             data-testid="button-add-tag"
                           >
-                            <Plus className={`${isMobile ? 'w-5 h-5' : 'w-4 h-4'}`} />
+                            <Plus className={`${isMobile ? 'w-5 h-5 mr-2' : 'w-4 h-4 mr-2'}`} />
+                            <span className="font-semibold">Etiket Ekle</span>
                           </Button>
                         </div>
                         
