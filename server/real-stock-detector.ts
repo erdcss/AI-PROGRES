@@ -21,13 +21,54 @@ export function detectRealStockStatus($: cheerio.CheerioAPI, htmlContent: string
   const variants: RealVariant[] = [];
   
   // Method 1: JavaScript window.__PRODUCT_DETAIL_APP_INITIAL_STATE__ analizi
-  const productStateMatch = htmlContent.match(/window\.__PRODUCT_DETAIL_APP_INITIAL_STATE__\s*=\s*({.*?});/);
+  const productStateMatch = htmlContent.match(/window\.__PRODUCT_DETAIL_APP_INITIAL_STATE__\s*=\s*({.*?});/s);
   if (productStateMatch) {
     try {
       const productState = JSON.parse(productStateMatch[1]);
       const product = productState.product;
       
       console.log('🔍 Product state bulundu, variant analizi yapılıyor...');
+      
+      // PRIORITY: Try SKU-level stock detection first (most reliable)
+      const skuSources = [product.skus, product.allVariants, product.variants];
+      let skuData: any[] | null = null;
+      
+      for (const source of skuSources) {
+        if (Array.isArray(source) && source.length > 0 && source[0].size !== undefined) {
+          skuData = source;
+          console.log(`✅ Found ${source.length} SKU-level entries for stock detection`);
+          break;
+        }
+      }
+      
+      // Build size->inStock map from SKU data
+      const sizeStockMap = new Map<string, boolean>();
+      if (skuData) {
+        skuData.forEach((sku: any) => {
+          const size = sku.size || sku.attributeValue;
+          if (size && typeof size === 'string') {
+            const normalizedSize = size.trim();
+            
+            // Check if this SKU is in stock
+            const isSkuInStock = sku.inStock !== false && 
+                                sku.soldOut !== true && 
+                                sku.isSoldOut !== true &&
+                                sku.outOfStock !== true &&
+                                (sku.quantity === undefined || sku.quantity > 0) &&
+                                (sku.stock === undefined || sku.stock > 0) &&
+                                (sku.availableQuantity === undefined || sku.availableQuantity > 0);
+            
+            // If any SKU with this size is in stock, mark size as in stock
+            if (isSkuInStock || !sizeStockMap.has(normalizedSize)) {
+              sizeStockMap.set(normalizedSize, isSkuInStock);
+            }
+            
+            if (isSkuInStock) {
+              console.log(`📦 SKU: ${normalizedSize} = STOKTA (from SKU data)`);
+            }
+          }
+        });
+      }
       
       if (product && product.variants && Array.isArray(product.variants)) {
         console.log(`📊 ${product.variants.length} variant bulundu state'de`);
@@ -46,7 +87,21 @@ export function detectRealStockStatus($: cheerio.CheerioAPI, htmlContent: string
           
           // Genişletilmiş beden aralığı - Mavi t-shirt görseli referans alınarak
           if (sizeName && sizeName.match(/^(XS|S|M|L|XL|XXL|XXXL|2XL|3XL|4XL|5XL)$/i)) {
-            // Enhanced stock status detection - Mavi t-shirt case optimized
+            // PRIORITY: Use SKU-level stock data if available
+            if (sizeStockMap.has(sizeName)) {
+              const skuInStock = sizeStockMap.get(sizeName)!;
+              variants.push({
+                color: defaultColor,
+                colorCode: '#F5E6D3',
+                size: sizeName,
+                inStock: skuInStock,
+                method: 'SKU-level data'
+              });
+              console.log(`📦 SKU variant: ${defaultColor} ${sizeName} = ${skuInStock ? 'STOKTA' : 'TÜKENDİ'} (SKU-level)`);
+              return; // Skip attribute-level checks
+            }
+            
+            // FALLBACK: Attribute-level checks (less reliable)
             let inStock = true;
             let stockReason = 'default true';
             
@@ -74,15 +129,7 @@ export function detectRealStockStatus($: cheerio.CheerioAPI, htmlContent: string
               stockReason = 'available/active=false';
             }
             
-            // Check 4: disabled/selectable/clickable
-            if (variant.disabled === true || 
-                variant.selectable === false || 
-                variant.isSelectable === false ||
-                variant.clickable === false ||
-                variant.isClickable === false) {
-              inStock = false;
-              stockReason = 'disabled/not selectable';
-            }
+            // Check 4: REMOVED - UI flags (disabled/selectable/clickable) are not stock indicators
             
             // Check 5: soldOut flag variations
             if (variant.soldOut === true || 
@@ -93,13 +140,11 @@ export function detectRealStockStatus($: cheerio.CheerioAPI, htmlContent: string
               stockReason = 'soldOut flag';
             }
             
-            // Check 6: status field checks
+            // Check 6: status field checks (only explicit out-of-stock states)
             if (variant.status && typeof variant.status === 'string') {
               const status = variant.status.toLowerCase();
               if (status.includes('unavailable') || 
-                  status.includes('soldout') || 
-                  status.includes('disabled') ||
-                  status.includes('inactive')) {
+                  status.includes('soldout')) {
                 inStock = false;
                 stockReason = `status=${variant.status}`;
               }
