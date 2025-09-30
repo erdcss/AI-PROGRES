@@ -2980,55 +2980,45 @@ function buildVariantsArray(variantResult: any, scenario: ExtractionScenario): a
   return variants;
 }
 
-// ✅ SPIDER-INSPIRED JavaScript State Extraction
+// ✅ CRITICAL FIX: Use trendyol-js-extractor which collects from ALL variant sources
 function extractJavaScriptStateVariants(htmlContent: string): Array<{color: string, colorCode: string, size: string, inStock: boolean}> {
-  const variants: Array<{color: string, colorCode: string, size: string, inStock: boolean}> = [];
+  console.log('🕷️ Starting JavaScript State variant extraction (ENHANCED)...');
   
   try {
-    console.log('🕷️ Searching for window.__PRODUCT_DETAIL_APP_INITIAL_STATE__ data...');
+    // Use the fixed extractor that collects from ALL variant sources
+    const result = extractFromTrendyolJavaScriptState(htmlContent);
     
-    // Extract the JavaScript state object like the Python spider
-    const stateMatch = htmlContent.match(/window\.__PRODUCT_DETAIL_APP_INITIAL_STATE__\s*=\s*(\{.*?\});/s);
-    
-    if (stateMatch) {
-      console.log('🕷️ Found JavaScript state object, parsing...');
-      const productData = JSON.parse(stateMatch[1]);
-      
-      // Extract variants from the state object
-      const productVariants = productData?.product?.variants || [];
-      console.log(`🕷️ Found ${productVariants.length} variants in JavaScript state`);
-      
-      productVariants.forEach((v: any, index: number) => {
-        const color = v.attributeValue || v.color || 'Standart';
-        const size = v.attributeName || v.size || '';
-        const inStock = v.inStock !== false; // Default to true unless explicitly false
-        const barcode = v.barcode || '';
-        
-        console.log(`🕷️ Parsing variant ${index + 1}: color="${color}", size="${size}", inStock=${inStock}, barcode="${barcode}"`);
-        
-        // Generate color code
-        const colorCode = generateColorCode(color);
-        
-        variants.push({
-          color: color,
-          colorCode: colorCode,
-          size: size,
-          inStock: inStock
-        });
-      });
-      
-      console.log(`🕷️ SPIDER EXTRACTION COMPLETE: ${variants.length} variants extracted`);
-      return variants;
-      
-    } else {
-      console.log('🕷️ No window.__PRODUCT_DETAIL_APP_INITIAL_STATE__ found in HTML');
+    if (!result || !result.variants || result.variants.length === 0) {
+      console.log('❌ No variants found in JavaScript state');
+      return [];
     }
     
+    const variants: Array<{color: string, colorCode: string, size: string, inStock: boolean}> = [];
+    
+    // Convert extracted variants to expected format
+    result.variants.forEach((v: any, index: number) => {
+      const color = v.color || 'Varsayılan';
+      const size = v.size || '';
+      const inStock = v.inStock !== false;
+      const colorCode = v.colorCode || generateColorCode(color);
+      
+      console.log(`🕷️ Variant ${index + 1}: color="${color}", size="${size}", inStock=${inStock}`);
+      
+      variants.push({
+        color: color,
+        colorCode: colorCode,
+        size: size,
+        inStock: inStock
+      });
+    });
+    
+    console.log(`✅ SPIDER EXTRACTION COMPLETE: ${variants.length} variants extracted from ALL sources`);
+    return variants;
+    
   } catch (error) {
-    console.log(`🕷️ JavaScript state extraction error: ${error.message}`);
+    console.log(`❌ JavaScript state extraction error: ${error.message}`);
+    return [];
   }
-  
-  return variants;
 }
 
 // Helper function to generate color codes

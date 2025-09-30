@@ -281,52 +281,61 @@ function extractVariantsFromState(product: any): any[] {
       attributes: !!product.attributes
     });
     
-    let allVariants = null;
+    // CRITICAL FIX: Collect variants from ALL sources, not just first one
+    const allVariantItems = new Map<string, any>(); // Use Map to deduplicate by size+color key
+    
     for (const source of variantSources) {
       if (Array.isArray(source) && source.length > 0) {
-        allVariants = source;
-        break;
+        console.log(`🔍 JS-STATE: Processing ${source.length} items from a variant source`);
+        
+        for (const variant of source) {
+          // ENHANCED: Multiple size field checks
+          const size = variant.size || 
+                      variant.attributeValue || 
+                      variant.name || 
+                      variant.value || 
+                      variant.optionValue ||
+                      variant.sizeName;
+          
+          // ENHANCED: Multiple color field checks - prioritize title extraction for accurate colors
+          const titleColor = extractColorFromTitle(product.name);
+          const color = titleColor || 
+                       variant.color || 
+                       variant.colorName ||
+                       variant.optionColor ||
+                       variant.attribute?.color ||
+                       'Varsayılan';
+          
+          // ENHANCED: Better stock detection
+          const inStock = variant.inStock !== false && 
+                         variant.stock !== 0 &&
+                         variant.available !== false &&
+                         variant.status !== 'out-of-stock';
+          
+          // Create unique key for deduplication
+          const variantKey = `${color || 'default'}-${size || 'default'}`;
+          
+          // Accept variants with either color OR size (not requiring both)
+          if (color || size) {
+            // Only add if not already exists OR if this one is in stock (prefer in-stock variants)
+            if (!allVariantItems.has(variantKey) || inStock) {
+              allVariantItems.set(variantKey, {
+                color: color || '',
+                size: size || '',
+                inStock: inStock,
+                inventory: inStock ? 10 : 0
+              });
+              console.log(`🔍 JS-STATE: Variant found - Color: ${color}, Size: ${size}, InStock: ${inStock}`);
+            }
+          }
+        }
       }
     }
     
-    if (allVariants) {
-      console.log(`🔍 JS-STATE: Processing ${allVariants.length} variants from source`);
-      
-      for (const variant of allVariants) {
-        // ENHANCED: Multiple size field checks
-        const size = variant.size || 
-                    variant.attributeValue || 
-                    variant.name || 
-                    variant.value || 
-                    variant.optionValue ||
-                    variant.sizeName;
-        
-        // ENHANCED: Multiple color field checks  
-        const color = variant.color || 
-                     variant.colorName ||
-                     variant.optionColor ||
-                     variant.attribute?.color ||
-                     extractColorFromTitle(product.name) || 
-                     'Varsayılan';
-        
-        // ENHANCED: Better stock detection
-        const inStock = variant.inStock !== false && 
-                       variant.stock !== 0 &&
-                       variant.available !== false &&
-                       variant.status !== 'out-of-stock';
-        
-        console.log(`🔍 JS-STATE: Variant found - Color: ${color}, Size: ${size}, InStock: ${inStock}`);
-        
-        // Accept variants with either color OR size (not requiring both)
-        if (color || size) {
-          variants.push({
-            color: color || '',
-            size: size || '',
-            inStock: inStock,
-            inventory: inStock ? 10 : 0
-          });
-        }
-      }
+    // Convert Map to array
+    if (allVariantItems.size > 0) {
+      variants.push(...Array.from(allVariantItems.values()));
+      console.log(`📦 JS-STATE: Collected ${variants.length} unique variants from all sources`);
     }
     
     // ❌ REMOVED FAKE FALLBACK - No more synthetic size generation
