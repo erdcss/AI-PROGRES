@@ -1407,33 +1407,50 @@ export async function scenarioBasedScrape(url: string): Promise<ScenarioBasedRes
         }];
       } else {
         try {
-          // PRIORITY: Try SKU-level stock detection first (most reliable)
-          console.log('🔍 Attempting SKU-level stock detection...');
-          const realStockVariants = detectRealStockStatus($, htmlContent);
+          // 🎯 PRIORITY 1: Try JavaScript State extraction FIRST (most comprehensive)
+          console.log('🔍 PRIORITY 1: Attempting JavaScript State extraction...');
+          const jsStateResult = extractFromTrendyolJavaScriptState(htmlContent);
           
-          if (realStockVariants && realStockVariants.length > 0) {
-            console.log(`✅ SKU-level stock detected: ${realStockVariants.length} variants`);
-            variants = realStockVariants.map(rv => ({
-              color: rv.color,
-              colorCode: rv.colorCode,
-              size: rv.size,
-              inStock: rv.inStock
+          if (jsStateResult && jsStateResult.variants && jsStateResult.variants.length > 0) {
+            console.log(`✅ JavaScript State extraction successful: ${jsStateResult.variants.length} variants`);
+            variants = jsStateResult.variants.map((v: any) => ({
+              color: v.color || 'Varsayılan',
+              colorCode: v.colorCode || '#808080',
+              size: v.size || '',
+              inStock: v.inStock !== false
             }));
-            console.log(`✅ Using SKU-level variants (bypassing scenario extraction)`);
+            console.log(`✅ Using JavaScript State variants (most reliable method)`);
           } else {
-            // FALLBACK: Use scenario-based extraction
-            console.log('⚠️ No SKU-level data found, falling back to scenario extraction');
-            const variantResult = ScenarioExtractors.extractByScenario(
-              detection.scenario,
-              config,
-              $,
-              htmlContent,
-              title
-            );
+            console.log('⚠️ JavaScript State extraction failed, trying SKU-level detection...');
             
-            // Step 5: Build final variants array with enhanced extraction
-            variants = buildVariantsArray(variantResult, detection.scenario);
-            console.log(`✅ Variant extraction successful: ${variants.length} variants`);
+            // PRIORITY 2: Try SKU-level stock detection
+            console.log('🔍 PRIORITY 2: Attempting SKU-level stock detection...');
+            const realStockVariants = detectRealStockStatus($, htmlContent);
+            
+            if (realStockVariants && realStockVariants.length > 0) {
+              console.log(`✅ SKU-level stock detected: ${realStockVariants.length} variants`);
+              variants = realStockVariants.map(rv => ({
+                color: rv.color,
+                colorCode: rv.colorCode,
+                size: rv.size,
+                inStock: rv.inStock
+              }));
+              console.log(`✅ Using SKU-level variants`);
+            } else {
+              // FALLBACK: Use scenario-based extraction
+              console.log('⚠️ No SKU-level data found, falling back to scenario extraction');
+              const variantResult = ScenarioExtractors.extractByScenario(
+                detection.scenario,
+                config,
+                $,
+                htmlContent,
+                title
+              );
+              
+              // Step 5: Build final variants array with enhanced extraction
+              variants = buildVariantsArray(variantResult, detection.scenario);
+              console.log(`✅ Variant extraction successful: ${variants.length} variants`);
+            }
           }
         } catch (variantExtractionError) {
           console.log(`❌ Variant extraction failed: ${variantExtractionError.message}`);

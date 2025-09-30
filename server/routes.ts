@@ -1714,17 +1714,11 @@ export function registerRoutes(app: Express): Server {
           setTimeout(() => reject(new Error('TIMEOUT: Request taking too long')), timeoutDuration);
         });
         
-        console.log('🚀 ROUTES: Trying FAST PATH first...');
+        console.log('🚀 ROUTES: Using scenario-based extraction for accurate variant detection...');
         
-        // FAST PATH: Try ultra-fast extraction first
+        // OPTIMIZATION: Use scenario-based scraper directly for more accurate variant detection
+        // Fast path is bypassed to ensure all variants are captured from JavaScript state
         let result: any = null;
-        try {
-          result = await fastProductExtraction(url);
-          console.log('🔍 FAST PATH RESULT:', !!result);
-        } catch (fastError) {
-          console.log('❌ FAST PATH ERROR:', fastError.message);
-          result = null;
-        }
         
         if (!result) {
           console.log('🔄 ROUTES: Fast path failed, falling back to standard method...');

@@ -251,6 +251,31 @@ function extractImagesFromState(product: any): any[] {
 }
 
 /**
+ * Helper function to generate color codes
+ */
+function generateColorCode(colorName: string): string {
+  // Color name to hex code mapping for Turkish colors
+  const colorMap: {[key: string]: string} = {
+    'siyah': '#000000',
+    'beyaz': '#FFFFFF', 
+    'krem': '#F5E6D3',
+    'gri': '#808080',
+    'lacivert': '#000080',
+    'mavi': '#0000FF',
+    'kırmızı': '#FF0000',
+    'pembe': '#FFC0CB',
+    'yeşil': '#008000',
+    'sarı': '#FFFF00',
+    'turuncu': '#FFA500',
+    'mor': '#800080',
+    'kahverengi': '#A52A2A'
+  };
+  
+  const normalizedColor = colorName.toLowerCase().trim();
+  return colorMap[normalizedColor] || '#808080'; // Default to gray
+}
+
+/**
  * Extract variants (sizes, colors) from state
  */
 function extractVariantsFromState(product: any): any[] {
@@ -312,6 +337,9 @@ function extractVariantsFromState(product: any): any[] {
                          variant.available !== false &&
                          variant.status !== 'out-of-stock';
           
+          // Generate color code for the variant
+          const colorCode = generateColorCode(color || 'Varsayılan');
+          
           // Create unique key for deduplication
           const variantKey = `${color || 'default'}-${size || 'default'}`;
           
@@ -321,6 +349,7 @@ function extractVariantsFromState(product: any): any[] {
             if (!allVariantItems.has(variantKey) || inStock) {
               allVariantItems.set(variantKey, {
                 color: color || '',
+                colorCode: colorCode,
                 size: size || '',
                 inStock: inStock,
                 inventory: inStock ? 10 : 0
