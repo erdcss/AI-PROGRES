@@ -322,19 +322,16 @@ function extractVariantsFromState(product: any): any[] {
                       variant.optionValue ||
                       variant.sizeName;
           
-          // ENHANCED: Multiple color field checks - prioritize title extraction for accurate colors
+          // SINGLE COLOR POLICY: Extract primary color from title only
+          // User requirement: Each product should have exactly ONE color
           const titleColor = extractColorFromTitle(product.name);
-          const color = titleColor || 
-                       variant.color || 
-                       variant.colorName ||
-                       variant.optionColor ||
-                       variant.attribute?.color ||
-                       'Varsayılan';
+          const color = titleColor || 'Varsayılan';
           
-          // CRITICAL FIX: Always mark as IN STOCK
-          // User confirmed that Trendyol's inStock data is unreliable
-          // If variant exists in the list, it means it's available
-          const inStock = true;
+          // REAL STOCK DETECTION: Use actual inStock field from variant
+          // Default to true only if field is undefined, false if explicitly set to false
+          const inStock = variant.inStock !== false && 
+                         variant.available !== false &&
+                         variant.stock !== 0;
           
           // Generate color code for the variant
           const colorCode = generateColorCode(color || 'Varsayılan');

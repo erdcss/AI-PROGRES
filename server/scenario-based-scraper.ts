@@ -1670,8 +1670,53 @@ export async function scenarioBasedScrape(url: string): Promise<ScenarioBasedRes
       };
     }
 
+    // 🎯 SINGLE COLOR ENFORCEMENT - Extract exactly ONE color per product
+    console.log('🎯 SINGLE COLOR ENFORCEMENT: Starting color filtering...');
+    console.log(`🎯 Before filtering: ${colors.length} colors - ${colors.join(', ')}`);
+    console.log(`🎯 Before filtering: ${variants.length} variants`);
+    
+    // Extract primary color from title
+    const primaryColorFromTitle = extractColorFromTitle(title);
+    console.log(`🎯 Primary color from title: ${primaryColorFromTitle || 'NOT FOUND'}`);
+    
+    // Determine single color to use
+    let singleColor: string;
+    if (primaryColorFromTitle && colors.includes(primaryColorFromTitle)) {
+      singleColor = primaryColorFromTitle;
+      console.log(`✅ Using color from title: ${singleColor}`);
+    } else if (primaryColorFromTitle) {
+      singleColor = primaryColorFromTitle;
+      console.log(`✅ Using color from title (not in variants): ${singleColor}`);
+    } else if (colors.length > 0) {
+      singleColor = colors[0];
+      console.log(`⚠️ No color in title, using first color: ${singleColor}`);
+    } else {
+      singleColor = 'Standart';
+      console.log(`⚠️ No colors found, using default: ${singleColor}`);
+    }
+    
+    // Filter colors array to single color
+    const filteredColors = [singleColor];
+    
+    // Filter variants to only include the single color
+    const filteredVariants = variants.filter(v => {
+      const matches = v.color === singleColor;
+      if (!matches) {
+        console.log(`🚫 Filtering out variant: ${v.color} / ${v.size}`);
+      }
+      return matches;
+    });
+    
+    // If no variants match, keep all sizes but assign the single color
+    const finalVariants = filteredVariants.length > 0 
+      ? filteredVariants 
+      : variants.map(v => ({ ...v, color: singleColor }));
+    
+    console.log(`✅ After filtering: 1 color - ${singleColor}`);
+    console.log(`✅ After filtering: ${finalVariants.length} variants`);
+
     // ✅ ENHANCED: Validate and sanitize variants before saving
-    const validatedVariants = validateAndSanitizeVariants(variants, colors);
+    const validatedVariants = validateAndSanitizeVariants(finalVariants, filteredColors);
     
     // Save successful result to cache
     const result = {
@@ -3075,90 +3120,21 @@ async function extractVariantsDirect($: cheerio.CheerioAPI, htmlContent: string,
     console.log('🎯 Title:', title);
   }
   
-  // Method 1: AUTHENTIC COLOR EXTRACTION - Enhanced DOM-based color detection
-  console.log('🎨 AUTHENTIC COLOR EXTRACTION - Scanning DOM for genuine color variants...');
+  // SINGLE COLOR POLICY: Extract primary color from title only
+  // User requirement: Each product should have exactly ONE color
+  console.log('🎨 SINGLE COLOR EXTRACTION - Extracting primary color from title...');
   const colors: string[] = [];
   
-  // Modern Trendyol color selectors including slicing-attributes structure
-  const colorSelectors = [
-    '[data-testid*="color"] button',
-    '[data-testid*="variant"] button', 
-    '.variants-color button',
-    '.product-variants .color-item',
-    '.variant-buttons button[title]',
-    '.color-selector button',
-    '.product-color-options button',
-    'button[data-color]',
-    'button[aria-label*="renk"]',
-    'button[aria-label*="color"]',
-    '.variant-option[data-color]',
-    '.color-option button',
-    '.variant-color button',
-    '.color-variant-item',
-    'div[data-testid*="color-variant"]',
-    // NEW: Trendyol slicing-attributes structure
-    '.slicing-attributes .slicing-attribute-section-value span[data-testid*="color"]',
-    '.slicing-attribute-section-value[data-testid*="color"]',
-    '.slicing-attribute-section span[data-testid*="color"]'
-  ];
-  
-  colorSelectors.forEach(selector => {
-    const found = $(selector);
-    if (isTargetUrl || found.length > 0) {
-      console.log(`🔍 Checking selector "${selector}" for colors...`);
-      console.log(`🔍 Selector "${selector}" found ${found.length} elements`);
-    }
-    
-    $(selector).each((_, el) => {
-      const $el = $(el);
-      const colorName = $el.attr('title') || $el.attr('alt') || $el.attr('data-color') || 
-                       $el.attr('aria-label') || $el.text().trim();
-      if (colorName && colorName.length > 0 && colorName.length < 30) {
-        colors.push(colorName);
-        console.log(`🎨 FOUND COLOR via "${selector}": ${colorName}`);
-      }
-    });
-  });
-
-  // Additional method for Trendyol's slicing-attributes structure
-  $('.slicing-attributes .slicing-attribute-section').each((_, section) => {
-    const $section = $(section);
-    
-    // Check if this is a color section
-    const sectionHeader = $section.find('.slicing-attribute-section-header').text().toLowerCase();
-    if (sectionHeader.includes('renk') || sectionHeader.includes('color')) {
-      
-      $section.find('.slicing-attribute-section-value span').each((_, valueSpan) => {
-        const $span = $(valueSpan);
-        const colorValue = $span.text().trim();
-        
-        if (colorValue && colorValue.length > 0) {
-          colors.push(colorValue);
-          console.log(`🎨 Found color from slicing-attributes: ${colorValue}`);
-        }
-      });
-    }
-  });
-
-  // Enhanced pattern for multi-color products - look for variant buttons in product detail
-  $('button[class*="variant"], button[data-testid*="variant"], div[data-testid*="variant"] button').each((_, el) => {
-    const $el = $(el);
-    const buttonText = $el.text().trim().toLowerCase();
-    const title = $el.attr('title') || '';
-    const ariaLabel = $el.attr('aria-label') || '';
-    
-    // Look for Turkish/English color keywords in button content
-    const colorKeywords = ['altın', 'altin', 'gold', 'gümüş', 'gumus', 'silver', 'siyah', 'black', 'beyaz', 'white'];
-    colorKeywords.forEach(keyword => {
-      if (buttonText.includes(keyword) || title.toLowerCase().includes(keyword) || ariaLabel.toLowerCase().includes(keyword)) {
-        const mappedColor = mapColorName(keyword);
-        if (mappedColor && !colors.includes(mappedColor)) {
-          colors.push(mappedColor);
-          console.log(`🎨 Found color from variant button: ${mappedColor} (from ${keyword})`);
-        }
-      }
-    });
-  });
+  // Extract color from product title
+  const titleColor = extractColorFromTitle(title);
+  if (titleColor) {
+    colors.push(titleColor);
+    console.log(`✅ PRIMARY COLOR from title: ${titleColor}`);
+  } else {
+    // Fallback: Default color if no color in title
+    colors.push('Varsayılan');
+    console.log(`⚠️ No color in title, using default: Varsayılan`);
+  }
   
   // Method 2: Enhanced size extraction with modern Trendyol selectors  
   const sizes: string[] = [];
@@ -3765,11 +3741,33 @@ function extractColorFromURL(htmlContent: string): string | null {
  * Gelişmiş stok kontrolü - Gerçek stok durumunu tespit et
  */
 function checkVariantStock($: any, htmlContent: string, color: string, size: string, url: string): boolean {
-  console.log(`🔍 GERÇEK STOK KONTROLÜ: ${color} - ${size} için kapsamlı stok analizi başlatılıyor...`);
+  console.log(`🔍 GERÇEK STOK KONTROLÜ: ${color} - ${size} için stok analizi başlatılıyor...`);
   
-  // CRITICAL FIX: User confirmed all sizes are in stock
-  // Trendyol's script data is unreliable, default to TRUE for all variants
-  console.log(`✅ FIX: ${size} bedeni varsayılan olarak STOKTA işaretleniyor`);
+  // 1. CHECK SCRIPT DATA: Look for inStock field in variant JSON
+  const scriptTags = $('script').toArray();
+  for (const script of scriptTags) {
+    const scriptContent = $(script).html() || '';
+    
+    // Modern Trendyol variant stock pattern
+    const sizePattern = new RegExp(`"size"\\s*:\\s*"${size}"[^}]*"inStock"\\s*:\\s*(true|false)`, 'gi');
+    const match = scriptContent.match(sizePattern);
+    
+    if (match && match[1]) {
+      const inStock = match[1] === 'true';
+      console.log(`✅ SCRIPT STOK VERİSİ: ${size} - ${inStock ? 'STOKTA VAR' : 'STOKTA YOK'}`);
+      return inStock;
+    }
+  }
+  
+  // 2. CHECK DOM: Look for active size buttons
+  const sizeButton = $(`button:contains("${size}"):not([disabled]):not(.disabled)`);
+  if (sizeButton.length > 0) {
+    console.log(`✅ DOM STOK KONTROLÜ: ${size} - STOKTA VAR (aktif buton)`);
+    return true;
+  }
+  
+  // 3. DEFAULT: If size exists in extraction, assume in stock
+  console.log(`⚠️ VARSAYILAN: ${size} - STOKTA VAR kabul edildi`);
   return true;
 }
 
