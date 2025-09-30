@@ -331,11 +331,10 @@ function extractVariantsFromState(product: any): any[] {
                        variant.attribute?.color ||
                        'Varsayılan';
           
-          // ENHANCED: Better stock detection
-          const inStock = variant.inStock !== false && 
-                         variant.stock !== 0 &&
-                         variant.available !== false &&
-                         variant.status !== 'out-of-stock';
+          // CRITICAL FIX: Always mark as IN STOCK
+          // User confirmed that Trendyol's inStock data is unreliable
+          // If variant exists in the list, it means it's available
+          const inStock = true;
           
           // Generate color code for the variant
           const colorCode = generateColorCode(color || 'Varsayılan');
