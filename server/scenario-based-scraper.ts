@@ -19,6 +19,7 @@ import { advancedBypassStrategies } from './advanced-bypass-strategies';
 import { ultraStealthSystem } from './ultra-stealth-system';
 import { intelligentRateLimiter } from './intelligent-rate-limiter';
 import { extractFromTrendyolJavaScriptState } from './trendyol-js-extractor';
+import { detectRealStockStatus } from './real-stock-detector';
 
 // Enhanced caching system with normal duration
 const extractionCache = new Map<string, {data: any, timestamp: number}>();
@@ -1406,17 +1407,34 @@ export async function scenarioBasedScrape(url: string): Promise<ScenarioBasedRes
         }];
       } else {
         try {
-          const variantResult = ScenarioExtractors.extractByScenario(
-            detection.scenario,
-            config,
-            $,
-            htmlContent,
-            title
-          );
+          // PRIORITY: Try SKU-level stock detection first (most reliable)
+          console.log('🔍 Attempting SKU-level stock detection...');
+          const realStockVariants = detectRealStockStatus($, htmlContent);
           
-          // Step 5: Build final variants array with enhanced extraction
-          variants = buildVariantsArray(variantResult, detection.scenario);
-          console.log(`✅ Variant extraction successful: ${variants.length} variants`);
+          if (realStockVariants && realStockVariants.length > 0) {
+            console.log(`✅ SKU-level stock detected: ${realStockVariants.length} variants`);
+            variants = realStockVariants.map(rv => ({
+              color: rv.color,
+              colorCode: rv.colorCode,
+              size: rv.size,
+              inStock: rv.inStock
+            }));
+            console.log(`✅ Using SKU-level variants (bypassing scenario extraction)`);
+          } else {
+            // FALLBACK: Use scenario-based extraction
+            console.log('⚠️ No SKU-level data found, falling back to scenario extraction');
+            const variantResult = ScenarioExtractors.extractByScenario(
+              detection.scenario,
+              config,
+              $,
+              htmlContent,
+              title
+            );
+            
+            // Step 5: Build final variants array with enhanced extraction
+            variants = buildVariantsArray(variantResult, detection.scenario);
+            console.log(`✅ Variant extraction successful: ${variants.length} variants`);
+          }
         } catch (variantExtractionError) {
           console.log(`❌ Variant extraction failed: ${variantExtractionError.message}`);
           variants = [{

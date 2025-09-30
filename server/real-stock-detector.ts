@@ -33,21 +33,38 @@ export function detectRealStockStatus($: cheerio.CheerioAPI, htmlContent: string
       const skuSources = [product.skus, product.allVariants, product.variants];
       let skuData: any[] | null = null;
       
+      // RELAXED SKU SOURCE DETECTION - Accept size OR attributeValue
       for (const source of skuSources) {
-        if (Array.isArray(source) && source.length > 0 && source[0].size !== undefined) {
-          skuData = source;
-          console.log(`✅ Found ${source.length} SKU-level entries for stock detection`);
-          break;
+        if (Array.isArray(source) && source.length > 0) {
+          const firstItem = source[0];
+          if (firstItem && (firstItem.size !== undefined || firstItem.attributeValue !== undefined || (firstItem.attributes && Array.isArray(firstItem.attributes)))) {
+            skuData = source;
+            console.log(`✅ Found ${source.length} SKU-level entries for stock detection`);
+            break;
+          }
         }
       }
       
-      // Build size->inStock map from SKU data
+      // Build size->inStock map from SKU data AND collect all sizes
       const sizeStockMap = new Map<string, boolean>();
+      const allSizesFromSKU = new Set<string>();
+      
       if (skuData) {
         skuData.forEach((sku: any) => {
-          const size = sku.size || sku.attributeValue;
+          // Extract size from multiple possible fields
+          let size = sku.size || sku.attributeValue || sku.value;
+          
+          // Also check nested attributes for size (attributeType: 2)
+          if (!size && sku.attributes && Array.isArray(sku.attributes)) {
+            const sizeAttr = sku.attributes.find((attr: any) => attr.attributeType === 2 || attr.type === 2);
+            if (sizeAttr) {
+              size = sizeAttr.value || sizeAttr.attributeValue;
+            }
+          }
+          
           if (size && typeof size === 'string') {
             const normalizedSize = size.trim();
+            allSizesFromSKU.add(normalizedSize);
             
             // Check if this SKU is in stock
             const isSkuInStock = sku.inStock !== false && 
@@ -63,9 +80,7 @@ export function detectRealStockStatus($: cheerio.CheerioAPI, htmlContent: string
               sizeStockMap.set(normalizedSize, isSkuInStock);
             }
             
-            if (isSkuInStock) {
-              console.log(`📦 SKU: ${normalizedSize} = STOKTA (from SKU data)`);
-            }
+            console.log(`📦 SKU: ${normalizedSize} = ${isSkuInStock ? 'STOKTA' : 'TÜKENDİ'} (from SKU data)`);
           }
         });
       }
@@ -82,25 +97,32 @@ export function detectRealStockStatus($: cheerio.CheerioAPI, htmlContent: string
         // Default color if no color variants
         const defaultColor = colorVariants.length > 0 ? colorVariants[0].attributeValue : 'Krem';
         
+        // EMIT ALL SIZES from SKU data first
+        allSizesFromSKU.forEach(sizeName => {
+          if (sizeName && sizeName.match(/^(XS|S|M|L|XL|XXL|XXXL|2XL|3XL|4XL|5XL)$/i)) {
+            const skuInStock = sizeStockMap.get(sizeName) || false;
+            variants.push({
+              color: defaultColor,
+              colorCode: '#F5E6D3',
+              size: sizeName,
+              inStock: skuInStock,
+              method: 'SKU-level data'
+            });
+            console.log(`📦 SKU variant (from allSizes): ${defaultColor} ${sizeName} = ${skuInStock ? 'STOKTA' : 'TÜKENDİ'}`);
+          }
+        });
+        
+        // Then check size variants for any missing sizes
         sizeVariants.forEach((variant: any) => {
           const sizeName = variant.attributeValue?.toString().trim();
           
+          // Skip if already added from SKU data
+          if (sizeName && allSizesFromSKU.has(sizeName)) {
+            return;
+          }
+          
           // Genişletilmiş beden aralığı - Mavi t-shirt görseli referans alınarak
           if (sizeName && sizeName.match(/^(XS|S|M|L|XL|XXL|XXXL|2XL|3XL|4XL|5XL)$/i)) {
-            // PRIORITY: Use SKU-level stock data if available
-            if (sizeStockMap.has(sizeName)) {
-              const skuInStock = sizeStockMap.get(sizeName)!;
-              variants.push({
-                color: defaultColor,
-                colorCode: '#F5E6D3',
-                size: sizeName,
-                inStock: skuInStock,
-                method: 'SKU-level data'
-              });
-              console.log(`📦 SKU variant: ${defaultColor} ${sizeName} = ${skuInStock ? 'STOKTA' : 'TÜKENDİ'} (SKU-level)`);
-              return; // Skip attribute-level checks
-            }
-            
             // FALLBACK: Attribute-level checks (less reliable)
             let inStock = true;
             let stockReason = 'default true';
