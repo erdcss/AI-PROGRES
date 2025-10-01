@@ -273,14 +273,11 @@ export class ScenarioManager {
 
       // Additional heuristics for better detection
       if (scenario === ExtractionScenario.MULTI_SIZE) {
-        // Look for common size patterns in HTML content
-        const sizePattern = /\b(XS|S|M|L|XL|XXL|XXXL)\b/gi;
-        const sizeMatches = htmlContent.match(sizePattern);
-        if (sizeMatches && sizeMatches.length > 2) {
-          score += sizeMatches.length;
-          evidence.push(`${sizeMatches.length} size references in HTML`);
-          console.log(`📏 ${scenario}: Found ${sizeMatches.length} size references in HTML`);
-        }
+        // ✅ FIXED: Only count real size buttons/elements, not random text
+        // Don't use regex on full HTML as it causes false positives
+        // Instead, rely on DOM selector counts which are more accurate
+        // The size selector count above already handles detection properly
+        console.log(`📏 ${scenario}: Relying on DOM selectors for accurate size detection`);
       }
 
       console.log(`🎯 ${scenario}: Total score = ${score}, Evidence: ${evidence.length} items`);

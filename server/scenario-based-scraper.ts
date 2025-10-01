@@ -279,7 +279,7 @@ function cleanHtmlForParsing(htmlContent: string): string {
   
   let cleaned = htmlContent
     // Remove or fix problematic script tags that often contain malformed HTML
-    .replace(/<script[^>]*>[ -￿]*?<\/script>/gi, '')
+    .replace(/<script[^>]*>[-￿]*?<\/script>/gi, '')
     // Fix unclosed quotes in attributes
     .replace(/(\w+)=([^"'\s>]+)(?=\s|>)/g, '$1="$2"')
     // Fix double quotes in attributes
@@ -623,6 +623,8 @@ export interface ScenarioBasedResult {
 
 export async function scenarioBasedScrape(url: string): Promise<ScenarioBasedResult> {
   const startTime = Date.now();
+  console.log(`🚨🚨🚨 FUNCTION ENTRY: scenarioBasedScrape called for ${url}`);
+  
   try {
     console.log(`🎯 SCENARIO-BASED EXTRACTION for: ${url}`);
     console.log(`🚨 DEBUGGING: Current URL being processed: ${url}`);
@@ -1396,70 +1398,95 @@ export async function scenarioBasedScrape(url: string): Promise<ScenarioBasedRes
     try {
       console.log('🔍 Step 4: Starting variant extraction with error handling...');
       
-      const config = scenarioManager?.getScenarioConfig(detection.scenario);
-      if (!config) {
-        console.log(`❌ No configuration found for scenario: ${detection.scenario}, using default`);
-        variants = [{
-          color: 'Varsayılan',
-          colorCode: '#C0A888',
-          size: '',
-          inStock: true
-        }];
+      // 🎯 PRIORITY 1: Try JavaScript State extraction FIRST (most comprehensive)
+      console.log('🔍 PRIORITY 1: Attempting JavaScript State extraction...');
+      console.log('🔍 HTML content length:', htmlContent.length);
+      console.log('🔍 Checking for __PRODUCT_DETAIL_APP_INITIAL_STATE__:', htmlContent.includes('__PRODUCT_DETAIL_APP_INITIAL_STATE__'));
+      
+      const jsStateResult = extractFromTrendyolJavaScriptState(htmlContent);
+      console.log('🔍 JS State result:', jsStateResult ? `Success - ${jsStateResult.variants?.length || 0} variants` : 'Failed/Null');
+      
+      if (jsStateResult && jsStateResult.variants && jsStateResult.variants.length > 0) {
+        console.log(`✅ JavaScript State extraction successful: ${jsStateResult.variants.length} variants`);
+        variants = jsStateResult.variants.map((v: any) => ({
+          color: v.color || 'Varsayılan',
+          colorCode: v.colorCode || '#808080',
+          size: v.size || '',
+          inStock: v.inStock !== false
+        }));
+        
+        // ✅ OVERRIDE SCENARIO: If JS State found variants, update scenario detection
+        const uniqueSizes = [...new Set(variants.map(v => v.size).filter(s => s))];
+        const uniqueColors = [...new Set(variants.map(v => v.color).filter(c => c && c !== 'Varsayılan'))];
+        
+        if (uniqueSizes.length > 1 && uniqueColors.length > 1) {
+          detection.scenario = ExtractionScenario.FULL_MATRIX;
+          console.log(`🔄 SCENARIO OVERRIDE: Multiple sizes (${uniqueSizes.length}) and colors (${uniqueColors.length}) → FULL_MATRIX`);
+        } else if (uniqueSizes.length > 1) {
+          detection.scenario = ExtractionScenario.MULTI_SIZE;
+          console.log(`🔄 SCENARIO OVERRIDE: Multiple sizes (${uniqueSizes.length}) → MULTI_SIZE`);
+        } else if (uniqueColors.length > 1) {
+          detection.scenario = ExtractionScenario.MULTI_COLOR;
+          console.log(`🔄 SCENARIO OVERRIDE: Multiple colors (${uniqueColors.length}) → MULTI_COLOR`);
+        }
+        
+        console.log(`✅ Using JavaScript State variants (most reliable method)`);
       } else {
-        try {
-          // 🎯 PRIORITY 1: Try JavaScript State extraction FIRST (most comprehensive)
-          console.log('🔍 PRIORITY 1: Attempting JavaScript State extraction...');
-          const jsStateResult = extractFromTrendyolJavaScriptState(htmlContent);
-          
-          if (jsStateResult && jsStateResult.variants && jsStateResult.variants.length > 0) {
-            console.log(`✅ JavaScript State extraction successful: ${jsStateResult.variants.length} variants`);
-            variants = jsStateResult.variants.map((v: any) => ({
-              color: v.color || 'Varsayılan',
-              colorCode: v.colorCode || '#808080',
-              size: v.size || '',
-              inStock: v.inStock !== false
-            }));
-            console.log(`✅ Using JavaScript State variants (most reliable method)`);
-          } else {
-            console.log('⚠️ JavaScript State extraction failed, trying SKU-level detection...');
-            
-            // PRIORITY 2: Try SKU-level stock detection
-            console.log('🔍 PRIORITY 2: Attempting SKU-level stock detection...');
-            const realStockVariants = detectRealStockStatus($, htmlContent);
-            
-            if (realStockVariants && realStockVariants.length > 0) {
-              console.log(`✅ SKU-level stock detected: ${realStockVariants.length} variants`);
-              variants = realStockVariants.map(rv => ({
-                color: rv.color,
-                colorCode: rv.colorCode,
-                size: rv.size,
-                inStock: rv.inStock
-              }));
-              console.log(`✅ Using SKU-level variants`);
-            } else {
-              // FALLBACK: Use scenario-based extraction
-              console.log('⚠️ No SKU-level data found, falling back to scenario extraction');
-              const variantResult = ScenarioExtractors.extractByScenario(
-                detection.scenario,
-                config,
-                $,
-                htmlContent,
-                title
-              );
-              
-              // Step 5: Build final variants array with enhanced extraction
-              variants = buildVariantsArray(variantResult, detection.scenario);
-              console.log(`✅ Variant extraction successful: ${variants.length} variants`);
-            }
-          }
-        } catch (variantExtractionError) {
-          console.log(`❌ Variant extraction failed: ${variantExtractionError.message}`);
+        console.log('⚠️ JavaScript State extraction failed, trying SKU-level detection...');
+        
+        const config = scenarioManager?.getScenarioConfig(detection.scenario);
+        if (!config) {
+          console.log(`❌ No configuration found for scenario: ${detection.scenario}, using default`);
           variants = [{
             color: 'Varsayılan',
             colorCode: '#C0A888',
             size: '',
             inStock: true
           }];
+        } else {
+          try {
+            // PRIORITY 2: Try SKU-level stock detection (SKIP for single-variant)
+            if (detection.scenario === ExtractionScenario.SINGLE_VARIANT) {
+              console.log('🚫 SINGLE-VARIANT: Skipping SKU-level detection to prevent fake sizes');
+              variants = [];
+            } else {
+              console.log('🔍 PRIORITY 2: Attempting SKU-level stock detection...');
+              const realStockVariants = detectRealStockStatus($, htmlContent);
+              
+              if (realStockVariants && realStockVariants.length > 0) {
+                console.log(`✅ SKU-level stock detected: ${realStockVariants.length} variants`);
+                variants = realStockVariants.map(rv => ({
+                  color: rv.color,
+                  colorCode: rv.colorCode,
+                  size: rv.size,
+                  inStock: rv.inStock
+                }));
+                console.log(`✅ Using SKU-level variants`);
+              } else {
+                // FALLBACK: Use scenario-based extraction
+                console.log('⚠️ No SKU-level data found, falling back to scenario extraction');
+                const variantResult = ScenarioExtractors.extractByScenario(
+                  detection.scenario,
+                  config,
+                  $,
+                  htmlContent,
+                  title
+                );
+                
+                // Step 5: Build final variants array with enhanced extraction
+                variants = buildVariantsArray(variantResult, detection.scenario);
+                console.log(`✅ Variant extraction successful: ${variants.length} variants`);
+              }
+            }
+          } catch (variantExtractionError) {
+            console.log(`❌ Variant extraction failed: ${variantExtractionError.message}`);
+            variants = [{
+              color: 'Varsayılan',
+              colorCode: '#C0A888',
+              size: '',
+              inStock: true
+            }];
+          }
         }
       }
     } catch (variantError) {
@@ -1484,65 +1511,55 @@ export async function scenarioBasedScrape(url: string): Promise<ScenarioBasedRes
       console.log('🚨 Current variants before direct extraction:', JSON.stringify(variants, null, 2));
     }
     
-    // ✅ ENHANCED VARIANT EXTRACTION - Test direct extraction for better accuracy
-    let directVariants = [];
-    console.log('🔄 ENHANCED VARIANT EXTRACTION: Testing direct DOM extraction for comprehensive variant detection...');
-    console.log('🔄 Current scenario-based variants:', variants.length);
-    console.log('🔄 URL being processed:', url);
-    
-    try {
-      console.log('🔄 Trying direct DOM extraction for additional variants...');
+    // ✅ SINGLE-VARIANT GUARD: Skip enhanced extraction for single-variant products
+    if (detection.scenario === ExtractionScenario.SINGLE_VARIANT) {
+      console.log('🚫 SINGLE-VARIANT PRODUCT: Skipping enhanced variant extraction to prevent fake size generation');
+      console.log('✅ Using scenario-based variants (empty for single product):', variants.length);
       
-      // ✅ SPIDER APPROACH: Extract JavaScript state data like the Python spider
-      console.log('🕷️ SPIDER METHOD: Extracting window.__PRODUCT_DETAIL_APP_INITIAL_STATE__ data...');
-      const jsStateVariants = extractJavaScriptStateVariants(htmlContent);
+      // For single-variant products, keep variants empty or use basic single variant
+      if (variants.length === 0) {
+        variants = [];
+        console.log('✅ Single-variant product: No variants generated (product has no size/color options)');
+      }
+    } else {
+      // ✅ ENHANCED VARIANT EXTRACTION - Only for multi-variant products
+      let directVariants = [];
+      console.log('🔄 ENHANCED VARIANT EXTRACTION: Testing enhanced extraction for multi-variant product...');
+      console.log('🔄 Current scenario-based variants:', variants.length);
+      console.log('🔄 URL being processed:', url);
       
-      if (jsStateVariants.length > 0) {
-        console.log(`🕷️ SPIDER SUCCESS: Found ${jsStateVariants.length} variants from JavaScript state`);
-        jsStateVariants.forEach((variant, idx) => {
-          console.log(`🕷️ JS State variant ${idx + 1}: ${variant.color} / ${variant.size} (${variant.inStock ? 'In Stock' : 'Out of Stock'})`);
+      try {
+        console.log('🔄 Trying enhanced variant extraction...');
+        
+        // Try enhanced variant extraction from improved-image-deduplicator
+        directVariants = extractEnhancedVariants($, htmlContent);
+        
+        console.log(`✅ Enhanced variant extraction: ${directVariants.length} variants`);
+        
+        // Log extracted variants for debugging
+        directVariants.forEach((variant, idx) => {
+          console.log(`🎯 Enhanced variant ${idx + 1}: ${variant.color} / ${variant.size} (${variant.inStock ? 'In Stock' : 'Out of Stock'})`);
         });
-        directVariants = jsStateVariants;
-      } else {
-        console.log('🕷️ SPIDER FALLBACK: JavaScript state extraction failed, trying DOM extraction...');
-        directVariants = await extractVariantsDirect($, htmlContent, url, title);
+      } catch (enhancedVariantError) {
+        console.log(`❌ Enhanced variant extraction failed: ${enhancedVariantError.message}`);
+        directVariants = [];
       }
       
-      console.log(`✅ Direct variant extraction successful: ${directVariants.length} variants`);
+      // Merge enhanced extraction results if they provide more colors/sizes
+      console.log(`🔄 MERGING VARIANTS: Enhanced=${directVariants.length}, Scenario=${variants.length}`);
       
-      // Log extracted variants for debugging
-      directVariants.forEach((variant, idx) => {
-        console.log(`🎯 Direct variant ${idx + 1}: ${variant.color} / ${variant.size} (${variant.inStock ? 'In Stock' : 'Out of Stock'})`);
-      });
-    } catch (directVariantError) {
-      console.log(`❌ Direct variant extraction failed: ${directVariantError.message}`);
-      directVariants = [];
-    }
-    
-    // Merge direct extraction results if they provide more colors/sizes
-    console.log(`🔄 MERGING VARIANTS: Direct=${directVariants.length}, Scenario=${variants.length}`);
-    
-    if (directVariants.length > 0) {
-      console.log(`🔄 Direct extraction found variants: ${directVariants.length} (existing: ${variants.length})`);
-      
-      // ✅ ALWAYS PREFER DIRECT EXTRACTION - More accurate for this URL
-      console.log(`🎨 INTELLIGENT COLOR PROCESSING - Processing all authentic variants`);
-      console.log('🎯 FORCING DIRECT VARIANTS - Override scenario variants with direct extraction');
-      
-      variants = directVariants; // Always use direct extraction when available
-      const uniqueColors = [...new Set(directVariants.map(v => v.color))];
-      console.log(`✅ FINAL RESULT: ${variants.length} variants with colors: ${uniqueColors.join(', ')}`);
-    } else {
-      console.log(`⚠️ No direct variants found, keeping scenario variants: ${variants.length}`);
-    }
-    
-    // 🚫 SAHTE VARYANT ENGELLEMESİ: Tüm sahte varyant üretimi durduruldu
-    if (directVariants.length === 0 && variants.length === 0) {
-      console.log('🚫 SAHTE VARYANT ENGELLEMESİ: Hiçbir otantik varyant bulunamadı - sahte varyant üretilmiyor');
-      variants = []; // Boş varyant döndür, sahte varyant üretme
-    } else if (variants.length === 0) {
-      console.log('🚫 SAHTE VARYANT ENGELLEMESİ: Scenario varyant bulunamadı - sahte varyant üretilmiyor');
-      variants = []; // Boş varyant döndür, sahte varyant üretme
+      if (directVariants.length > 0) {
+        console.log(`🔄 Enhanced extraction found variants: ${directVariants.length} (existing: ${variants.length})`);
+        
+        // Use enhanced variants if they provide better data
+        console.log(`🎨 USING ENHANCED VARIANTS - More comprehensive data`);
+        
+        variants = directVariants; // Use enhanced extraction
+        const uniqueColors = [...new Set(directVariants.map(v => v.color))];
+        console.log(`✅ FINAL RESULT: ${variants.length} variants with colors: ${uniqueColors.join(', ')}`);
+      } else {
+        console.log(`⚠️ No enhanced variants found, keeping scenario variants: ${variants.length}`);
+      }
     }
     
     // ✅ KATEGORİ ÇIKARMA SİSTEMİ EKLEME
