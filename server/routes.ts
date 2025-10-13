@@ -2071,6 +2071,10 @@ ${(result.title || 'product').toLowerCase().replace(/[^a-z0-9]/g, '-')},${result
             };
           }
 
+          // ✅ DEBUG: Log images before sending to frontend
+          console.log(`📸 ROUTES: Sending ${result.images?.length || 0} images to frontend`);
+          console.log(`📸 ROUTES: Images format:`, JSON.stringify(result.images?.slice(0, 2)));
+          
           return res.json({
             success: true,
             extractionMethod: 'scenario-based-scraper',

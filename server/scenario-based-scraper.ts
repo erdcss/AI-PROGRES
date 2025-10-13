@@ -597,6 +597,8 @@ export interface ScenarioBasedResult {
   confidence: number;
   title: string;
   brand: string;
+  category?: string;
+  description?: string; // Added description field
   price: {
     original: number;
     currency: string;
@@ -1566,6 +1568,10 @@ export async function scenarioBasedScrape(url: string): Promise<ScenarioBasedRes
     const category = extractCategoryFromProduct($, htmlContent, title, brand);
     console.log(`🏷️ Kategori çıkarıldı: "${category}"`);
     
+    // ✅ ÜRÜN AÇIKLAMASI ÇIKARMA
+    const description = extractDescription($);
+    console.log(`📝 Açıklama çıkarıldı: ${description ? description.substring(0, 80) + '...' : 'Açıklama bulunamadı'}`);
+    
     // Step 6: Generate advanced tags based on all extracted data
     const advancedTags = generateAdvancedTags(title, brand, features, url);
     
@@ -1743,6 +1749,7 @@ export async function scenarioBasedScrape(url: string): Promise<ScenarioBasedRes
       title,
       brand,
       category,
+      description, // Added description
       price,
       images: csvCompatibleImages.map(img => img.url), // CSV uyumlu format - strings only
       features,
@@ -1776,6 +1783,8 @@ export async function scenarioBasedScrape(url: string): Promise<ScenarioBasedRes
       confidence: 0,
       title: 'Product',
       brand: 'Brand',
+      category: '',
+      description: '', // Added description to error result
       price: {
         original: 0,
         currency: 'TL',
@@ -4671,6 +4680,77 @@ function mapColorName(colorKeyword: string): string | null {
   };
   
   return colorMap[colorKeyword.toLowerCase()] || null;
+}
+
+/**
+ * Extract product description from Trendyol page
+ */
+function extractDescription($: cheerio.CheerioAPI): string {
+  console.log('📝 Extracting product description...');
+  
+  // Method 1: Description selectors
+  const descriptionSelectors = [
+    '.detail-desc-wrapper',
+    '.product-detail-description',
+    '.product-description',
+    '.description-content',
+    '[data-testid="product-description"]',
+    '.detail-desc-text',
+    '.product-detail-content',
+    '.pr-in-cn .detail-desc-list',
+    '.product-info-description'
+  ];
+  
+  for (const selector of descriptionSelectors) {
+    const descElement = $(selector).first();
+    if (descElement.length > 0) {
+      const desc = descElement.text().trim();
+      if (desc && desc.length > 20 && !desc.toLowerCase().includes('trendyol')) {
+        console.log(`✅ Description found via ${selector}: ${desc.substring(0, 100)}...`);
+        return desc;
+      }
+    }
+  }
+  
+  // Method 2: Look for headings with "Açıklama", "Description", "Ürün Detayı"
+  $('h2, h3, h4, .section-title').each((_, heading) => {
+    const headingText = $(heading).text().trim().toLowerCase();
+    if (headingText.includes('açıklama') || headingText.includes('description') || 
+        headingText.includes('detay') || headingText.includes('product detail')) {
+      console.log(`🎯 Found description section: "${$(heading).text().trim()}"`);
+      
+      // Get next sibling or parent content
+      const nextElement = $(heading).next();
+      const parentSection = $(heading).parent();
+      
+      if (nextElement.length > 0) {
+        const desc = nextElement.text().trim();
+        if (desc && desc.length > 20) {
+          console.log(`✅ Description from next element: ${desc.substring(0, 100)}...`);
+          return desc;
+        }
+      }
+      
+      if (parentSection.length > 0) {
+        const desc = parentSection.text().trim();
+        if (desc && desc.length > 50) {
+          console.log(`✅ Description from parent: ${desc.substring(0, 100)}...`);
+          return desc;
+        }
+      }
+    }
+  });
+  
+  // Method 3: Generic paragraph text as fallback
+  const paragraphs = $('p').toArray().map(p => $(p).text().trim()).filter(t => t.length > 50);
+  if (paragraphs.length > 0) {
+    const longestPara = paragraphs.reduce((a, b) => a.length > b.length ? a : b);
+    console.log(`✅ Description from longest paragraph: ${longestPara.substring(0, 100)}...`);
+    return longestPara;
+  }
+  
+  console.log('⚠️ No description found');
+  return '';
 }
 
 /**

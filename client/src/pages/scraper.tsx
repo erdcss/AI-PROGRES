@@ -206,6 +206,11 @@ ${data.title.toLowerCase().replace(/[^a-z0-9]/g, '-')},${data.title},${data.bran
         csvContent: !!data.csvContent
       });
       
+      // ✅ DEBUG: Log images from API response
+      console.log('📸 FRONTEND: Received images from API:', data.images);
+      console.log('📸 FRONTEND: Images length:', data.images?.length);
+      console.log('📸 FRONTEND: First image:', data.images?.[0]);
+      
       // Transform the received data to match our Product interface
       const transformedProduct: Product = {
         id: data.id || `product-${Date.now()}`,
@@ -226,6 +231,9 @@ ${data.title.toLowerCase().replace(/[^a-z0-9]/g, '-')},${data.title},${data.bran
         extractionMethod: data.extractionMethod,
         csvContent: data.csvContent
       };
+      
+      console.log('📸 FRONTEND: transformedProduct.images:', transformedProduct.images);
+      console.log('📸 FRONTEND: transformedProduct.images.length:', transformedProduct.images?.length);
       
       console.log('🔄 Setting transformed product:', {
         id: transformedProduct.id,
