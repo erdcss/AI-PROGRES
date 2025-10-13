@@ -1232,47 +1232,128 @@ ${data.title.toLowerCase().replace(/[^a-z0-9]/g, '-')},${data.title},${data.bran
                       {product.title}
                     </h2>
                     
-                    {/* Fiyat */}
-                    {product.price && (
-                      <div className="space-y-1">
-                        <span className="text-yellow-400 text-lg font-bold">
-                          {typeof product.price === 'object' ? 
-                            (product.price.formatted || product.price.profitFormatted || 'Fiyat Yok') : 
-                            `${product.price} TL`
-                          }
+                    {/* Fiyat ve Görsel Sayısı */}
+                    <div className="flex items-center gap-4">
+                      {product.price && (
+                        <div>
+                          <span className="text-yellow-400 text-lg font-bold">
+                            {typeof product.price === 'object' ? 
+                              (product.price.formatted || product.price.profitFormatted || 'Fiyat Yok') : 
+                              `${product.price} TL`
+                            }
+                          </span>
+                        </div>
+                      )}
+                      {product.images && product.images.length > 0 && (
+                        <div className="flex items-center gap-1 text-white/60 text-sm">
+                          <Image className="w-4 h-4" />
+                          <span>{product.images.length} Görsel</span>
+                        </div>
+                      )}
+                    </div>
+
+                    {/* Kategori */}
+                    {product.category && (
+                      <div className="flex items-center gap-2">
+                        <span className="text-white/70 text-sm">Kategori:</span>
+                        <span className="bg-purple-900/30 text-purple-300 px-2 py-1 rounded text-xs border border-purple-800/40">
+                          {product.category}
                         </span>
                       </div>
                     )}
                     
-                    {/* Renkler */}
-                    {product.variants?.colors && product.variants.colors.length > 0 && (
-                      <div>
-                        <span className="text-white/70 text-sm">Renk Seçenekleri:</span>
-                        <div className="flex flex-wrap gap-2 mt-1">
-                          {product.variants.colors.map((color, index) => (
-                            <span 
-                              key={index}
-                              className="bg-cyan-900/30 text-cyan-300 px-2 py-1 rounded-md text-xs border border-cyan-800/40"
-                            >
-                              {color}
-                            </span>
-                          ))}
+                    {/* Varyant Detay Tablosu */}
+                    {product.variants?.allVariants && product.variants.allVariants.length > 0 && (
+                      <div className="space-y-2">
+                        <span className="text-white/70 text-sm flex items-center gap-2">
+                          <Shirt className="w-4 h-4" />
+                          Varyant Detayları ({product.variants.allVariants.length} adet):
+                        </span>
+                        <div className="bg-slate-800/30 rounded-lg border border-cyan-800/30 overflow-hidden">
+                          <div className="max-h-48 overflow-y-auto">
+                            <table className="w-full text-xs">
+                              <thead className="bg-cyan-900/20 sticky top-0">
+                                <tr>
+                                  <th className="text-left text-cyan-300 p-2 border-b border-cyan-800/30">Renk</th>
+                                  <th className="text-left text-cyan-300 p-2 border-b border-cyan-800/30">Beden</th>
+                                  <th className="text-center text-cyan-300 p-2 border-b border-cyan-800/30">Stok</th>
+                                </tr>
+                              </thead>
+                              <tbody>
+                                {product.variants.allVariants.map((variant, index) => (
+                                  <tr key={index} className="border-b border-slate-700/30 hover:bg-cyan-900/10">
+                                    <td className="p-2 text-white/80">{variant.color || '-'}</td>
+                                    <td className="p-2 text-white/80">{variant.size || '-'}</td>
+                                    <td className="p-2 text-center">
+                                      {variant.inStock ? (
+                                        <span className="inline-flex items-center gap-1 bg-green-900/30 text-green-300 px-2 py-0.5 rounded text-xs">
+                                          ✓ Stokta
+                                        </span>
+                                      ) : (
+                                        <span className="inline-flex items-center gap-1 bg-red-900/30 text-red-300 px-2 py-0.5 rounded text-xs">
+                                          ✗ Yok
+                                        </span>
+                                      )}
+                                    </td>
+                                  </tr>
+                                ))}
+                              </tbody>
+                            </table>
+                          </div>
                         </div>
                       </div>
                     )}
-                    
-                    {/* Bedenler */}
-                    {product.variants?.sizes && product.variants.sizes.length > 0 && (
-                      <div>
-                        <span className="text-white/70 text-sm">Beden Seçenekleri:</span>
-                        <div className="flex flex-wrap gap-2 mt-1">
-                          {product.variants.sizes.map((size, index) => (
-                            <span 
-                              key={index}
-                              className="bg-green-900/30 text-green-300 px-2 py-1 rounded-md text-xs border border-green-800/40"
-                            >
-                              {size}
-                            </span>
+
+                    {/* Renk ve Beden Özeti (varyant detayı yoksa) */}
+                    {(!product.variants?.allVariants || product.variants.allVariants.length === 0) && (
+                      <>
+                        {product.variants?.colors && product.variants.colors.length > 0 && (
+                          <div>
+                            <span className="text-white/70 text-sm">Renk Seçenekleri:</span>
+                            <div className="flex flex-wrap gap-2 mt-1">
+                              {product.variants.colors.map((color, index) => (
+                                <span 
+                                  key={index}
+                                  className="bg-cyan-900/30 text-cyan-300 px-2 py-1 rounded-md text-xs border border-cyan-800/40"
+                                >
+                                  {color}
+                                </span>
+                              ))}
+                            </div>
+                          </div>
+                        )}
+                        
+                        {product.variants?.sizes && product.variants.sizes.length > 0 && (
+                          <div>
+                            <span className="text-white/70 text-sm">Beden Seçenekleri:</span>
+                            <div className="flex flex-wrap gap-2 mt-1">
+                              {product.variants.sizes.map((size, index) => (
+                                <span 
+                                  key={index}
+                                  className="bg-green-900/30 text-green-300 px-2 py-1 rounded-md text-xs border border-green-800/40"
+                                >
+                                  {size}
+                                </span>
+                              ))}
+                            </div>
+                          </div>
+                        )}
+                      </>
+                    )}
+
+                    {/* Ürün Özellikleri */}
+                    {product.features && product.features.length > 0 && (
+                      <div className="space-y-2">
+                        <span className="text-white/70 text-sm flex items-center gap-2">
+                          <FileText className="w-4 h-4" />
+                          Ürün Özellikleri:
+                        </span>
+                        <div className="bg-slate-800/30 rounded-lg border border-cyan-800/30 p-3 max-h-32 overflow-y-auto">
+                          {product.features.map((feature, index) => (
+                            <div key={index} className="flex gap-2 text-xs py-1">
+                              <span className="text-cyan-400 min-w-[100px]">{feature.key}:</span>
+                              <span className="text-white/70">{feature.value}</span>
+                            </div>
                           ))}
                         </div>
                       </div>
