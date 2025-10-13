@@ -1,5 +1,7 @@
 import scrapy
 import json
+import re
+
 
 class TrendyolVariantsSpider(scrapy.Spider):
     name = "trendyol_variants"
@@ -9,69 +11,67 @@ class TrendyolVariantsSpider(scrapy.Spider):
     ]
 
     def parse(self, response):
-        # JSON state içinde varyant listesini bul
-        json_data = response.xpath("//script[contains(., '__PRELOADED_STATE__')]/text()").get()
-        if json_data:
-            try:
-                start = json_data.find('{')
-                data = json.loads(json_data[start:])
-                variants = data.get("product", {}).get("variants", [])
-                for v in variants:
-                    productId = v.get("productId")
-                    colorName = v.get("color")
-                    variant_url = f"https://www.trendyol.com/-p-{productId}"
-                    yield scrapy.Request(
-                        variant_url,
-                        callback=self.parse_variant,
-                        meta={"colorName": colorName}
-                    )
-            except Exception as e:
-                self.logger.error(f"JSON parse hatası: {e}")
+        js_text = response.xpath(
+            "//script[contains(., '__PRELOADED_STATE__')]/text()").get()
+        if js_text:
+            match = re.search(r'window\.__PRELOADED_STATE__\s*=\s*({.*});',
+                              js_text, re.DOTALL)
+            if match:
+                json_text = match.group(1)
+                try:
+                    data = json.loads(json_text)
+                    variants = data.get("product", {}).get("variants", [])
+                    for v in variants:
+                        productId = v.get("productId")
+                        colorName = v.get("color")
+                        variant_url = f"https://www.trendyol.com/-p-{productId}"
+                        yield scrapy.Request(variant_url,
+                                             callback=self.parse_variant,
+                                             meta={"colorName": colorName})
+                except Exception as e:
+                    self.logger.error(f"JSON parse hatası: {e}")
 
     def parse_variant(self, response):
+        # aynı mantık burada da geçerli
         color = response.meta.get("colorName")
-
-        # JSON datasını tekrar al
-        json_data = response.xpath("//script[contains(., '__PRELOADED_STATE__')]/text()").get()
+        js_text = response.xpath(
+            "//script[contains(., '__PRELOADED_STATE__')]/text()").get()
         attributes = {}
         stock_info = []
         product_name = ""
         images = []
         price = None
-        if json_data:
-            try:
-                start = json_data.find('{')
-                data = json.loads(json_data[start:])
-                product = data.get("product", {})
-                
-                # ürün adı
-                product_name = product.get("name")
-                
-                # fiyat
-                price = product.get("price", {}).get("sellingPrice", None)
-                
-                # özellikler
-                attr = product.get("attributes", [])
-                for a in attr:
-                    attributes[a.get("attributeName")] = a.get("attributeValue")
-                
-                # varyasyon beden / stok
-                variants = product.get("variants", [])
-                for v in variants:
-                    stock_info.append({
-                        "size": v.get("size"),
-                        "inStock": v.get("inStock"),
-                        "variantId": v.get("variantId"),
-                    })
-                
-                # resimler
-                images = []
-                medias = product.get("images", [])
-                for img in medias:
-                    images.append(img.get("url"))
+        if js_text:
+            match = re.search(r'window\.__PRELOADED_STATE__\s*=\s*({.*});',
+                              js_text, re.DOTALL)
+            if match:
+                json_text = match.group(1)
+                try:
+                    data = json.loads(json_text)
+                    product = data.get("product", {})
 
-            except Exception as e:
-                self.logger.error(f"JSON parse hatası 2: {e}")
+                    product_name = product.get("name")
+                    price = product.get("price", {}).get("sellingPrice", None)
+
+                    attr = product.get("attributes", [])
+                    for a in attr:
+                        attributes[a.get("attributeName")] = a.get(
+                            "attributeValue")
+
+                    variants = product.get("variants", [])
+                    for v in variants:
+                        stock_info.append({
+                            "size": v.get("size"),
+                            "inStock": v.get("inStock"),
+                            "variantId": v.get("variantId"),
+                        })
+
+                    medias = product.get("images", [])
+                    for img in medias:
+                        images.append(img.get("url"))
+
+                except Exception as e:
+                    self.logger.error(f"JSON parse hatası 2: {e}")
 
         yield {
             "product_name": product_name,
