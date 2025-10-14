@@ -3212,8 +3212,11 @@ ${(result.title || 'product').toLowerCase().replace(/[^a-z0-9]/g, '-')},${result
   // CSV-specific Shopify upload endpoint
   app.post('/api/shopify/upload-csv-product', async (req, res) => {
     try {
+      console.log('🔍 DEBUG: /api/shopify/upload-csv-product çağrıldı');
       console.log('🔍 DEBUG: Request body keys:', Object.keys(req.body));
-      console.log('🔍 DEBUG: Request body:', JSON.stringify(req.body, null, 2));
+      console.log('🔍 DEBUG: CSV length:', req.body.csvContent?.length || 0);
+      console.log('🔍 DEBUG: Product title:', req.body.productTitle);
+      console.log('🔍 DEBUG: Individual tags:', req.body.individualTags);
       
       const { csvContent, productTitle, individualTags } = req.body;
       
@@ -3224,6 +3227,8 @@ ${(result.title || 'product').toLowerCase().replace(/[^a-z0-9]/g, '-')},${result
           error: 'CSV content is required'
         });
       }
+      
+      console.log('✅ CSV content validated, proceeding with upload...');
       
       // Add individual tags to CSV if provided
       let modifiedCsvContent = csvContent;
