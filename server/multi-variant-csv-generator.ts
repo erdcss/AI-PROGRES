@@ -564,11 +564,11 @@ export async function generateMultiVariantShopifyCSV(product: CombinedProduct): 
     images.forEach((imageUrl, idx) => {
       if (!addedImageUrls.has(imageUrl)) {
         const imageRow = Array(headers.length).fill('');
-        imageRow[0] = productHandle; // Handle
-        imageRow[18] = imageUrl; // Image Src (18. index)
-        imageRow[19] = (imagePosition++).toString(); // Image Position (19. index)
-        imageRow[20] = `${product.title} - ${colorName}`; // Image Alt Text (20. index)
-        console.log(`📸 CSV: Added image row for ${colorName} - Position ${imageRow[19]}: ${imageUrl}`);
+        imageRow[0] = productHandle; // Handle (index 0)
+        imageRow[19] = imageUrl; // Image Src (index 19)
+        imageRow[20] = (imagePosition++).toString(); // Image Position (index 20)
+        imageRow[21] = `${product.title} - ${colorName}`; // Image Alt Text (index 21)
+        console.log(`📸 CSV: Added image row for ${colorName} - Position ${imageRow[20]}: ${imageUrl}`);
         rows.push(imageRow);
         addedImageUrls.add(imageUrl);
       }
@@ -580,11 +580,11 @@ export async function generateMultiVariantShopifyCSV(product: CombinedProduct): 
   generalImages.forEach((imageUrl, idx) => {
     if (!addedImageUrls.has(imageUrl)) {
       const imageRow = Array(headers.length).fill('');
-      imageRow[0] = productHandle; // Handle
-      imageRow[18] = imageUrl; // Image Src (18. index)
-      imageRow[19] = (imagePosition++).toString(); // Image Position (19. index)
-      imageRow[20] = `${product.title}`; // Image Alt Text (20. index)
-      console.log(`📸 CSV: Added general image row - Position ${imageRow[19]}: ${imageUrl}`);
+      imageRow[0] = productHandle; // Handle (index 0)
+      imageRow[19] = imageUrl; // Image Src (index 19)
+      imageRow[20] = (imagePosition++).toString(); // Image Position (index 20)
+      imageRow[21] = `${product.title}`; // Image Alt Text (index 21)
+      console.log(`📸 CSV: Added general image row - Position ${imageRow[20]}: ${imageUrl}`);
       rows.push(imageRow);
       addedImageUrls.add(imageUrl);
     }
@@ -597,11 +597,11 @@ export async function generateMultiVariantShopifyCSV(product: CombinedProduct): 
       const imgUrl = typeof img === 'string' ? img : img.url;
       if (imgUrl && !addedImageUrls.has(imgUrl)) {
         const imageRow = Array(headers.length).fill('');
-        imageRow[0] = productHandle; // Handle
-        imageRow[18] = imgUrl; // Image Src
-        imageRow[19] = (imagePosition++).toString(); // Image Position
-        imageRow[20] = `${product.title}`; // Image Alt Text
-        console.log(`📸 CSV: Added direct image row - Position ${imageRow[19]}: ${imgUrl}`);
+        imageRow[0] = productHandle; // Handle (index 0)
+        imageRow[19] = imgUrl; // Image Src (index 19)
+        imageRow[20] = (imagePosition++).toString(); // Image Position (index 20)
+        imageRow[21] = `${product.title}`; // Image Alt Text (index 21)
+        console.log(`📸 CSV: Added direct image row - Position ${imageRow[20]}: ${imgUrl}`);
         rows.push(imageRow);
         addedImageUrls.add(imgUrl);
       }
