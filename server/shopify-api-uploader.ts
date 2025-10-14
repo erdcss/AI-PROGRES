@@ -222,6 +222,45 @@ export async function uploadProductToShopify(csvContent: string, productTitle: s
     console.log('📸 Input images:', productData.images.map(img => img.src).slice(0, 3));
     console.log('📸 Created product images count:', result.product.images?.length || 0);
     
+    // Upload remaining images separately if initial upload didn't get all of them
+    if (productData.images.length > (result.product.images?.length || 0)) {
+      console.log('📸 Uploading remaining images separately...');
+      const existingImageUrls = new Set((result.product.images || []).map((img: any) => img.src));
+      
+      for (const image of productData.images) {
+        if (!existingImageUrls.has(image.src)) {
+          try {
+            const imageResponse = await fetch(`https://${shopifyStore}/admin/api/2023-10/products/${productId}/images.json`, {
+              method: 'POST',
+              headers: {
+                'X-Shopify-Access-Token': accessToken,
+                'Content-Type': 'application/json'
+              },
+              body: JSON.stringify({
+                image: {
+                  src: image.src,
+                  alt: image.alt,
+                  position: image.position
+                }
+              })
+            });
+            
+            if (imageResponse.ok) {
+              const imageResult = await imageResponse.json();
+              console.log(`✅ Added image ${image.position}: ${image.src.substring(0, 60)}...`);
+              existingImageUrls.add(image.src);
+            } else {
+              const error = await imageResponse.json();
+              console.log(`❌ Failed to add image ${image.position}:`, error);
+            }
+          } catch (imgError) {
+            console.log(`❌ Error adding image ${image.position}:`, imgError);
+          }
+        }
+      }
+      console.log(`📸 Final image count: ${existingImageUrls.size} / ${productData.images.length}`);
+    }
+    
     // Update metafield separately if tracking ID exists
     if (trackingId) {
       console.log(`📌 Updating metafield for product ${productId} with tracking ID: ${trackingId}`);
