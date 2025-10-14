@@ -1924,8 +1924,12 @@ ${(result.title || 'product').toLowerCase().replace(/[^a-z0-9]/g, '-')},${result
           
           // Add persistent tags to the result
           if (persistentTags && Array.isArray(persistentTags) && persistentTags.length > 0) {
-            console.log(`🏷️ Kalıcı etiketler ekleniyor: ${persistentTags.join(', ')}`);
-            result.tags = [...(result.tags || []), ...persistentTags];
+            console.log(`🏷️ PERSISTENT TAGS: ${persistentTags.length} adet kalıcı etiket ekleniyor`);
+            console.log(`🏷️ PERSISTENT TAGS: [${persistentTags.join(', ')}]`);
+            const originalTags = result.tags || [];
+            result.tags = [...originalTags, ...persistentTags];
+            console.log(`✅ TAGS MERGED: Ürün etiketleri (${originalTags.length}) + Kalıcı etiketler (${persistentTags.length}) = Toplam ${result.tags.length} etiket`);
+            console.log(`✅ FINAL TAGS FOR CSV: [${result.tags.join(', ')}]`);
           }
           
           // ✅ Sadece veri çekme modunda otomatik işlemler yapılmaz

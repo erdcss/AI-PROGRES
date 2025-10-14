@@ -1314,15 +1314,22 @@ ${data.title.toLowerCase().replace(/[^a-z0-9]/g, '-')},${data.title},${data.bran
                       <div className="space-y-2">
                         <span className="text-white/70 text-sm">Etiketler:</span>
                         <div className="flex flex-wrap gap-2">
-                          {product.tags.map((tag, index) => (
-                            <span 
-                              key={index}
-                              className="bg-gradient-to-r from-cyan-900/40 to-blue-900/40 text-cyan-300 px-3 py-1.5 rounded-md text-xs border border-cyan-800/40 hover:border-cyan-600/60 transition-all"
-                              data-testid={`tag-${index}`}
-                            >
-                              #{tag}
-                            </span>
-                          ))}
+                          {product.tags.map((tag, index) => {
+                            const isPersistentTag = persistentTags.includes(tag);
+                            return (
+                              <span 
+                                key={index}
+                                className={isPersistentTag 
+                                  ? "bg-gradient-to-r from-green-900/40 to-emerald-900/40 text-green-300 px-3 py-1.5 rounded-md text-xs border-2 border-green-600/60 hover:border-green-500/80 transition-all font-medium"
+                                  : "bg-gradient-to-r from-cyan-900/40 to-blue-900/40 text-cyan-300 px-3 py-1.5 rounded-md text-xs border border-cyan-800/40 hover:border-cyan-600/60 transition-all"
+                                }
+                                data-testid={`tag-${index}`}
+                                title={isPersistentTag ? "Kalıcı Etiket (CSV'ye otomatik eklendi)" : "Ürün Etiketi"}
+                              >
+                                #{tag}
+                              </span>
+                            );
+                          })}
                         </div>
                       </div>
                     )}

@@ -385,7 +385,10 @@ export async function generateMultiVariantShopifyCSV(product: CombinedProduct): 
       row.push(productCategory); // Product Type
       console.log(`🏷️ CSV: Product Type eklendi: "${productCategory}"`);
       
-      row.push(product.tags && Array.isArray(product.tags) ? product.tags.join(', ') : 'trendyol'); // Tags
+      // Tags - CSV'ye tüm etiketler ekleniyor (ürün + kalıcı)
+      const tagsForCSV = product.tags && Array.isArray(product.tags) ? product.tags.join(', ') : 'trendyol';
+      console.log(`🏷️ CSV: Adding ${product.tags?.length || 0} tags to CSV: [${tagsForCSV}]`);
+      row.push(tagsForCSV); // Tags
       row.push('TRUE'); // Published
     } else {
       // Sonraki satırlarda sadece varyant bilgileri
