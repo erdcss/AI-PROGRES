@@ -1201,26 +1201,62 @@ ${data.title.toLowerCase().replace(/[^a-z0-9]/g, '-')},${data.title},${data.bran
                 </CardTitle>
               </CardHeader>
               <CardContent className="p-6">
-                <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-                  {/* Sol Taraf - Görsel */}
+                <div className="grid grid-cols-1 lg:grid-cols-2 gap-8">
+                  {/* Sol Taraf - Görseller */}
                   <div className="space-y-4">
                     {product.images && product.images.length > 0 && (
-                      <div className="grid grid-cols-2 gap-2">
-                        {product.images.slice(0, 4).map((image, index) => {
-                          const imageUrl = typeof image === 'string' ? image : image.url;
-                          return (
-                            <img
-                              key={index}
-                              src={imageUrl}
-                              alt={product.title}
-                              className="w-full h-32 object-cover rounded-lg border border-cyan-800/30"
-                              onError={(e) => {
-                                e.currentTarget.style.display = 'none';
-                              }}
-                            />
-                          );
-                        })}
-                      </div>
+                      <>
+                        {/* Ana Büyük Görsel */}
+                        <div className="relative aspect-square rounded-lg overflow-hidden border-2 border-cyan-800/40 bg-slate-900/50">
+                          <img
+                            src={typeof product.images[0] === 'string' ? product.images[0] : product.images[0].url}
+                            alt={product.title}
+                            className="w-full h-full object-cover"
+                            data-testid="img-main-product"
+                            onError={(e) => {
+                              e.currentTarget.src = 'https://via.placeholder.com/400?text=Görsel+Yüklenemedi';
+                            }}
+                          />
+                          <div className="absolute top-2 right-2 bg-black/60 backdrop-blur-sm px-3 py-1 rounded-full">
+                            <span className="text-white text-sm font-medium flex items-center gap-1">
+                              <Image className="w-4 h-4" />
+                              {product.images.length} Görsel
+                            </span>
+                          </div>
+                        </div>
+
+                        {/* Küçük Thumbnail Galeri */}
+                        {product.images.length > 1 && (
+                          <div className="grid grid-cols-6 gap-2">
+                            {product.images.slice(1, 7).map((image, index) => {
+                              const imageUrl = typeof image === 'string' ? image : image.url;
+                              return (
+                                <div
+                                  key={index}
+                                  className="aspect-square rounded-md overflow-hidden border border-cyan-800/30 hover:border-cyan-500/60 transition-all cursor-pointer bg-slate-900/50"
+                                  data-testid={`img-thumbnail-${index + 1}`}
+                                >
+                                  <img
+                                    src={imageUrl}
+                                    alt={`${product.title} ${index + 2}`}
+                                    className="w-full h-full object-cover"
+                                    onError={(e) => {
+                                      e.currentTarget.style.display = 'none';
+                                    }}
+                                  />
+                                </div>
+                              );
+                            })}
+                            {product.images.length > 7 && (
+                              <div className="aspect-square rounded-md border border-cyan-800/30 bg-slate-800/50 flex items-center justify-center">
+                                <span className="text-cyan-300 text-sm font-medium">
+                                  +{product.images.length - 7}
+                                </span>
+                              </div>
+                            )}
+                          </div>
+                        )}
+                      </>
                     )}
                   </div>
                   
@@ -1236,35 +1272,88 @@ ${data.title.toLowerCase().replace(/[^a-z0-9]/g, '-')},${data.title},${data.bran
                     )}
                     
                     {/* Başlık */}
-                    <h2 className="text-white text-xl font-bold leading-tight">
+                    <h2 className="text-white text-2xl font-bold leading-tight">
                       {product.title}
                     </h2>
                     
-                    {/* Fiyat ve Görsel Sayısı */}
-                    <div className="flex items-center gap-4">
-                      {product.price && (
-                        <div>
-                          <span className="text-yellow-400 text-lg font-bold">
-                            {typeof product.price === 'object' ? 
-                              (product.price.formatted || product.price.profitFormatted || 'Fiyat Yok') : 
-                              `${product.price} TL`
-                            }
+                    {/* Fiyatlar - Hem Orijinal Hem Karlı */}
+                    {product.price && (
+                      <div className="space-y-2 border-t border-b border-cyan-800/30 py-4">
+                        {typeof product.price === 'object' && (
+                          <>
+                            {product.price.formatted && (
+                              <div className="flex items-center justify-between">
+                                <span className="text-white/70 text-sm">Orijinal Fiyat:</span>
+                                <span className="text-white/50 text-lg line-through" data-testid="text-original-price">
+                                  {product.price.formatted}
+                                </span>
+                              </div>
+                            )}
+                            {product.price.profitFormatted && (
+                              <div className="flex items-center justify-between">
+                                <span className="text-white/70 text-sm">Karlı Fiyat:</span>
+                                <span className="text-yellow-400 text-2xl font-bold" data-testid="text-profit-price">
+                                  {product.price.profitFormatted}
+                                </span>
+                              </div>
+                            )}
+                          </>
+                        )}
+                        {typeof product.price !== 'object' && (
+                          <span className="text-yellow-400 text-2xl font-bold">
+                            {product.price} TL
                           </span>
+                        )}
+                      </div>
+                    )}
+
+                    {/* Etiketler */}
+                    {product.tags && product.tags.length > 0 && (
+                      <div className="space-y-2">
+                        <span className="text-white/70 text-sm">Etiketler:</span>
+                        <div className="flex flex-wrap gap-2">
+                          {product.tags.map((tag, index) => (
+                            <span 
+                              key={index}
+                              className="bg-gradient-to-r from-cyan-900/40 to-blue-900/40 text-cyan-300 px-3 py-1.5 rounded-md text-xs border border-cyan-800/40 hover:border-cyan-600/60 transition-all"
+                              data-testid={`tag-${index}`}
+                            >
+                              #{tag}
+                            </span>
+                          ))}
                         </div>
-                      )}
-                      {product.images && product.images.length > 0 && (
-                        <div className="flex items-center gap-1 text-white/60 text-sm">
-                          <Image className="w-4 h-4" />
-                          <span>{product.images.length} Görsel</span>
-                        </div>
-                      )}
-                    </div>
+                      </div>
+                    )}
+
+                    {/* Shopify'a Aktar Butonu - Sadece Tekil Ürün */}
+                    {scrapingMode === 'single' && product.csvContent && (
+                      <div className="pt-2">
+                        <Button
+                          onClick={onShopifyTransfer}
+                          disabled={shopifyTransferMutation.isPending}
+                          className="w-full bg-gradient-to-r from-blue-600 to-purple-600 hover:from-blue-700 hover:to-purple-700 text-white font-medium py-3 disabled:opacity-50 shadow-lg shadow-blue-500/20"
+                          data-testid="button-shopify-transfer"
+                        >
+                          {shopifyTransferMutation.isPending ? (
+                            <div className="flex items-center gap-2">
+                              <Loader2 className="w-5 h-5 animate-spin" />
+                              <span>Shopify'a Aktarılıyor...</span>
+                            </div>
+                          ) : (
+                            <div className="flex items-center gap-2">
+                              <ShoppingCart className="w-5 h-5" />
+                              <span>SHOPIFY'A AKTAR</span>
+                            </div>
+                          )}
+                        </Button>
+                      </div>
+                    )}
 
                     {/* Kategori */}
                     {product.category && (
                       <div className="flex items-center gap-2">
                         <span className="text-white/70 text-sm">Kategori:</span>
-                        <span className="bg-purple-900/30 text-purple-300 px-2 py-1 rounded text-xs border border-purple-800/40">
+                        <span className="bg-purple-900/30 text-purple-300 px-3 py-1.5 rounded-md text-sm border border-purple-800/40">
                           {product.category}
                         </span>
                       </div>
@@ -1366,49 +1455,6 @@ ${data.title.toLowerCase().replace(/[^a-z0-9]/g, '-')},${data.title},${data.bran
                         </div>
                       </div>
                     )}
-                    
-                    {/* Etiketler */}
-                    {product.tags && product.tags.length > 0 && (
-                      <div>
-                        <span className="text-white/70 text-sm">Etiketler:</span>
-                        <div className="flex flex-wrap gap-1 mt-1">
-                          {product.tags.slice(0, 6).map((tag, index) => (
-                            <span 
-                              key={index}
-                              className="bg-slate-800/50 text-slate-300 px-2 py-0.5 rounded text-xs"
-                            >
-                              {tag}
-                            </span>
-                          ))}
-                          {product.tags.length > 6 && (
-                            <span className="bg-slate-800/50 text-slate-400 px-2 py-0.5 rounded text-xs">
-                              +{product.tags.length - 6}
-                            </span>
-                          )}
-                        </div>
-                      </div>
-                    )}
-                    
-                    {/* Shopify Aktarım Butonu */}
-                    <div className="pt-4 border-t border-cyan-800/30">
-                      <Button
-                        onClick={onShopifyTransfer}
-                        disabled={shopifyTransferMutation.isPending || !product.csvContent}
-                        className="w-full bg-gradient-to-r from-blue-600 to-purple-600 hover:from-blue-700 hover:to-purple-700 text-white font-medium py-3 disabled:opacity-50"
-                      >
-                        {shopifyTransferMutation.isPending ? (
-                          <div className="flex items-center gap-2">
-                            <Loader2 className="w-5 h-5 animate-spin" />
-                            <span>Shopify'a Aktarılıyor...</span>
-                          </div>
-                        ) : (
-                          <div className="flex items-center gap-2">
-                            <ShoppingCart className="w-5 h-5" />
-                            <span>SHOPIFY'A AKTAR</span>
-                          </div>
-                        )}
-                      </Button>
-                    </div>
                   </div>
                 </div>
               </CardContent>
