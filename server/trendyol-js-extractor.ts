@@ -103,6 +103,9 @@ function extractProductFromState(stateData: any): any {
     // Extract variants (sizes, colors)
     const variants = extractVariantsFromState(product);
     
+    // Extract product features/attributes
+    const features = extractFeaturesFromState(product);
+    
     const result = {
       title: title,
       brand: brand,
@@ -111,7 +114,7 @@ function extractProductFromState(stateData: any): any {
       variants: variants,
       category: product.category?.name || product.categoryName || 'Kategori',
       description: product.description || '',
-      features: [],
+      features: features,
       success: true,
       extractionMethod: 'trendyol-js-state-extractor',
       confidence: 99
@@ -480,5 +483,124 @@ function extractFromDOM(htmlContent: string): any {
   } catch (error) {
     console.log('❌ JS-STATE: DOM fallback failed:', error.message);
     return null;
+  }
+}
+
+/**
+ * Extract product features/attributes from JavaScript state
+ */
+function extractFeaturesFromState(product: any): Array<{key: string, value: string}> {
+  console.log('🔧 JS-STATE: Extracting product features from state...');
+  
+  const features: Array<{key: string, value: string}> = [];
+  const processedKeys = new Set<string>();
+  
+  try {
+    // Method 1: Extract from attributes array
+    const attributeSources = [
+      product.attributes,
+      product.productAttributes,
+      product.specifications,
+      product.specs,
+      product.contentDescriptions,
+      product.productFeatures
+    ];
+    
+    for (const source of attributeSources) {
+      if (Array.isArray(source)) {
+        console.log(`🔧 JS-STATE: Found ${source.length} items in attributes source`);
+        
+        source.forEach((attr: any) => {
+          let key = '';
+          let value = '';
+          
+          // Try different attribute structures
+          if (attr.key && attr.value) {
+            key = attr.key;
+            value = attr.value;
+          } else if (attr.attributeKey && attr.attributeValue) {
+            key = attr.attributeKey;
+            value = attr.attributeValue;
+          } else if (attr.name && attr.value) {
+            key = attr.name;
+            value = attr.value;
+          } else if (attr.label && attr.value) {
+            key = attr.label;
+            value = attr.value;
+          } else if (typeof attr === 'object' && attr.description) {
+            // Sometimes features are in description format
+            key = attr.title || attr.label || 'Özellik';
+            value = attr.description;
+          }
+          
+          // Clean and validate
+          if (key && value && typeof key === 'string' && typeof value === 'string') {
+            key = key.trim();
+            value = value.toString().trim();
+            
+            const keyLower = key.toLowerCase();
+            
+            // Skip duplicates and irrelevant fields
+            if (!processedKeys.has(keyLower) && 
+                key.length > 1 && 
+                value.length > 0 && 
+                value !== 'undefined' &&
+                !keyLower.includes('fiyat') &&
+                !keyLower.includes('price')) {
+              
+              features.push({ key, value });
+              processedKeys.add(keyLower);
+              console.log(`🔧 JS-STATE: Feature extracted - ${key}: ${value}`);
+            }
+          }
+        });
+      }
+    }
+    
+    // Method 2: Extract from contentDescriptions (often contains detailed features)
+    if (product.contentDescriptions && Array.isArray(product.contentDescriptions)) {
+      product.contentDescriptions.forEach((desc: any) => {
+        if (desc.description && desc.bold === false) {
+          // This is usually a feature description
+          const text = desc.description.trim();
+          
+          // Try to parse key-value format
+          const colonIndex = text.indexOf(':');
+          if (colonIndex > 0 && colonIndex < text.length - 1) {
+            const key = text.substring(0, colonIndex).trim();
+            const value = text.substring(colonIndex + 1).trim();
+            
+            const keyLower = key.toLowerCase();
+            if (!processedKeys.has(keyLower) && key.length > 1 && value.length > 0) {
+              features.push({ key, value });
+              processedKeys.add(keyLower);
+              console.log(`🔧 JS-STATE: Feature from description - ${key}: ${value}`);
+            }
+          }
+        }
+      });
+    }
+    
+    // Method 3: Extract from productGroupId info (size info, etc.)
+    if (product.productGroupId) {
+      features.push({ 
+        key: 'Ürün Grup ID', 
+        value: product.productGroupId.toString() 
+      });
+    }
+    
+    // Method 4: Add color info from title if available
+    const titleColor = extractColorFromTitle(product.name);
+    if (titleColor && !processedKeys.has('renk')) {
+      features.push({ key: 'Renk', value: titleColor });
+      processedKeys.add('renk');
+    }
+    
+    console.log(`✅ JS-STATE: Extracted ${features.length} product features`);
+    return features;
+    
+  } catch (error) {
+    console.log('❌ JS-STATE: Feature extraction error:', error.message);
+    return [];
   }
 }
