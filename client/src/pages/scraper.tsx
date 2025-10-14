@@ -261,7 +261,8 @@ ${data.title.toLowerCase().replace(/[^a-z0-9]/g, '-')},${data.title},${data.bran
             sizes: data.variants?.sizes || ['Tek Beden']
           },
           images: data.images?.map((img: any) => typeof img === 'string' ? img : img.url) || [],
-          createdAt: new Date().toISOString()
+          createdAt: new Date().toISOString(),
+          persistentTags: persistentTags || [] // Kalıcı etiketleri ekle
         };
         
         console.log('📋 Adding/Updating Single URL CSV preview:', newCSVPreview.id, newCSVPreview.productTitle);
@@ -308,6 +309,19 @@ ${data.title.toLowerCase().replace(/[^a-z0-9]/g, '-')},${data.title},${data.bran
       const results = [];
       for (const preview of csvPreviews) {
         try {
+          // Persistent tags ve individual tags'i birleştir
+          const allTags = [
+            ...(preview.persistentTags || []),
+            ...(individualTags[preview.id] || [])
+          ];
+          
+          console.log('🏷️ Uploading with tags:', {
+            previewId: preview.id,
+            persistentTags: preview.persistentTags || [],
+            individualTags: individualTags[preview.id] || [],
+            totalTags: allTags.length
+          });
+          
           const response = await fetch("/api/shopify/upload-csv-product", {
             method: "POST",
             headers: {
@@ -315,7 +329,8 @@ ${data.title.toLowerCase().replace(/[^a-z0-9]/g, '-')},${data.title},${data.bran
             },
             body: JSON.stringify({ 
               csvContent: preview.csvContent,
-              productTitle: preview.productTitle 
+              productTitle: preview.productTitle,
+              individualTags: allTags // Tüm etiketleri gönder
             }),
           });
           
