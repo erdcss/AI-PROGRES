@@ -3234,27 +3234,44 @@ ${(result.title || 'product').toLowerCase().replace(/[^a-z0-9]/g, '-')},${result
       let modifiedCsvContent = csvContent;
       if (individualTags && individualTags.length > 0) {
         console.log('📋 Adding individual tags to CSV:', individualTags);
-        const lines = csvContent.split('\n');
-        if (lines.length > 1) {
-          const headers = lines[0].split(',');
-          const tagsIndex = headers.findIndex(h => h.toLowerCase().includes('tags'));
+        
+        try {
+          const { parse } = require('csv-parse/sync');
+          const { stringify } = require('csv-stringify/sync');
           
-          if (tagsIndex !== -1) {
-            // Add tags to all data rows
-            const modifiedLines = lines.map((line, index) => {
-              if (index === 0) return line; // Keep header
-              const cells = line.split(',');
-              if (cells[tagsIndex]) {
-                // Append new tags to existing ones
-                const existingTags = cells[tagsIndex].replace(/"/g, '').trim();
-                const allTags = existingTags ? `${existingTags}, ${individualTags.join(', ')}` : individualTags.join(', ');
-                cells[tagsIndex] = `"${allTags}"`;
+          // Parse CSV with proper quote handling
+          const records = parse(csvContent, {
+            columns: true,
+            skip_empty_lines: true,
+            relax_quotes: true,
+            quote: '"',
+            escape: '"'
+          });
+          
+          if (records && records.length > 0) {
+            // Add tags to each record
+            records.forEach((record: any) => {
+              if (record.Tags !== undefined) {
+                const existingTags = record.Tags ? record.Tags.trim() : '';
+                const allTags = existingTags 
+                  ? `${existingTags}, ${individualTags.join(', ')}` 
+                  : individualTags.join(', ');
+                record.Tags = allTags;
               }
-              return cells.join(',');
             });
-            modifiedCsvContent = modifiedLines.join('\n');
-            console.log('✅ Tags added to CSV successfully');
+            
+            // Stringify back to CSV with proper quoting
+            modifiedCsvContent = stringify(records, {
+              header: true,
+              quoted: true,
+              quoted_empty: true
+            });
+            
+            console.log('✅ Tags added to CSV successfully with proper CSV parsing');
           }
+        } catch (csvError) {
+          console.error('❌ CSV parsing error, falling back to original:', csvError);
+          // Keep original CSV if parsing fails
         }
       }
       

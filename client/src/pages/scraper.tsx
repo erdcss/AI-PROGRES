@@ -439,7 +439,8 @@ ${data.title.toLowerCase().replace(/[^a-z0-9]/g, '-')},${data.title},${data.bran
           },
           images: data.images?.map((img: any) => typeof img === 'string' ? img : img.url) || [],
           createdAt: new Date().toISOString(),
-          price: data.price || null // Fiyat bilgisini ekle
+          price: data.price || null, // Fiyat bilgisini ekle
+          persistentTags: persistentTags || [] // Kalıcı etiketleri ekle
         };
         
         // Aynı ID'li preview varsa güncelle, yoksa ekle
