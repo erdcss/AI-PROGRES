@@ -122,7 +122,7 @@ export class ImageDeduplicator {
         // Then by quality: high > medium > low
         return this.getQualityScore(b.quality) - this.getQualityScore(a.quality);
       })
-      .slice(0, 8) // Limit to 8 high-quality images
+      // NO LIMIT - Get ALL high-quality images from Trendyol
       .map(img => this.optimizeImageUrl(img.url));
 
     console.log(`✨ Final result: ${uniqueImages.length} optimized unique images`);

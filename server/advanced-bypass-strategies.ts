@@ -168,7 +168,7 @@ export class AdvancedBypassStrategies {
         return {
           title: title || '',
           price: { original: price, currency: 'TL' },
-          images: images.slice(0, 8),
+          images: images, // NO LIMIT - Get ALL images
           source: 'mobile-stealth'
         };
       });
@@ -265,8 +265,8 @@ export class AdvancedBypassStrategies {
       const images = $('img[src*="cdn.dsmcdn.com"]')
         .map((_, img) => $(img).attr('src'))
         .get()
-        .filter(src => src && src.includes('prod/'))
-        .slice(0, 8);
+        .filter(src => src && src.includes('prod/'));
+        // NO LIMIT - Get ALL images
 
       if (title && price > 0) {
         return {

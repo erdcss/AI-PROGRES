@@ -245,7 +245,7 @@ export class EnhancedAntiBlocking {
         return {
           title,
           price: { original: price, currency: 'TL' },
-          images: images.slice(0, 10), // Limit to 10 images
+          images: images, // NO LIMIT - Get ALL images
           source: 'advanced-puppeteer'
         };
       });
@@ -298,8 +298,8 @@ export class EnhancedAntiBlocking {
       const images = $('img[src*="cdn.dsmcdn.com"]')
         .map((_, img) => $(img).attr('src'))
         .get()
-        .filter(src => src && src.includes('prod/'))
-        .slice(0, 10);
+        .filter(src => src && src.includes('prod/'));
+        // NO LIMIT - Get ALL images
 
       return {
         title,

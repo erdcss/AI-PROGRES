@@ -608,7 +608,17 @@ export interface ScenarioBasedResult {
   };
   images: string[];
   features: Array<{key: string, value: string}>;
-  variants: Array<{
+  variants: {
+    colors: string[];
+    sizes: string[];
+    stockMap?: Record<string, boolean>;
+    allVariants: Array<{
+      color: string;
+      colorCode: string;
+      size: string;
+      inStock: boolean;
+    }>;
+  } | Array<{
     color: string;
     colorCode: string;
     size: string;
@@ -653,6 +663,7 @@ export async function scenarioBasedScrape(url: string): Promise<ScenarioBasedRes
     let browser;
     let htmlContent = '';
     let $: cheerio.CheerioAPI;
+    let rotationResult: any = { success: false }; // Initialize for proxy rotation
     
     try {
       // ⚡ SPEED OPTIMIZATION: Try direct scraping FIRST (fastest method)
@@ -812,12 +823,16 @@ export async function scenarioBasedScrape(url: string): Promise<ScenarioBasedRes
                 },
                 images: antiBlockingResult.images || [],
                 features: [],
-                variants: [{
-                  color: antiBlockingResult.variants?.colors?.[0] || 'Standart',
-                  colorCode: '#C0A888',
-                  size: antiBlockingResult.variants?.sizes?.[0] || 'Tek Beden',
-                  inStock: true
-                }],
+                variants: {
+                  colors: antiBlockingResult.variants?.colors || ['Standart'],
+                  sizes: antiBlockingResult.variants?.sizes || ['Tek Beden'],
+                  allVariants: [{
+                    color: antiBlockingResult.variants?.colors?.[0] || 'Standart',
+                    colorCode: '#C0A888',
+                    size: antiBlockingResult.variants?.sizes?.[0] || 'Tek Beden',
+                    inStock: true
+                  }]
+                },
                 tags: ['trendyol', 'anti-blocking', antiBlockingResult.source],
                 extractionDetails: {
                   scenario: 'anti-blocking',
@@ -909,7 +924,7 @@ export async function scenarioBasedScrape(url: string): Promise<ScenarioBasedRes
             // Method 6: Reset circuit breaker and try proxy rotation
             console.log('🔄 Ultra bypass failed, trying proxy rotation...');
             proxyRotator.resetCircuitBreaker();
-            const rotationResult = await proxyRotator.extractWithRetries(url, 3);
+            rotationResult = await proxyRotator.extractWithRetries(url, 3);
           }
         }
         
@@ -983,7 +998,11 @@ export async function scenarioBasedScrape(url: string): Promise<ScenarioBasedRes
               price: { original: 0, currency: 'TL', formatted: '0 TL', withProfit: 0, profitFormatted: '0 TL' },
               images: [],
               features: [],
-              variants: [],
+              variants: {
+                colors: [],
+                sizes: [],
+                allVariants: []
+              },
               tags: [],
               extractionDetails: {
                 scenario: 'blocked',
@@ -4713,7 +4732,10 @@ function extractDescription($: cheerio.CheerioAPI): string {
   }
   
   // Method 2: Look for headings with "Açıklama", "Description", "Ürün Detayı"
+  let foundDesc = '';
   $('h2, h3, h4, .section-title').each((_, heading) => {
+    if (foundDesc) return false; // Stop if already found
+    
     const headingText = $(heading).text().trim().toLowerCase();
     if (headingText.includes('açıklama') || headingText.includes('description') || 
         headingText.includes('detay') || headingText.includes('product detail')) {
@@ -4727,7 +4749,8 @@ function extractDescription($: cheerio.CheerioAPI): string {
         const desc = nextElement.text().trim();
         if (desc && desc.length > 20) {
           console.log(`✅ Description from next element: ${desc.substring(0, 100)}...`);
-          return desc;
+          foundDesc = desc;
+          return false; // Stop iteration
         }
       }
       
@@ -4735,11 +4758,14 @@ function extractDescription($: cheerio.CheerioAPI): string {
         const desc = parentSection.text().trim();
         if (desc && desc.length > 50) {
           console.log(`✅ Description from parent: ${desc.substring(0, 100)}...`);
-          return desc;
+          foundDesc = desc;
+          return false; // Stop iteration
         }
       }
     }
   });
+  
+  if (foundDesc) return foundDesc;
   
   // Method 3: Generic paragraph text as fallback
   const paragraphs = $('p').toArray().map(p => $(p).text().trim()).filter(t => t.length > 50);

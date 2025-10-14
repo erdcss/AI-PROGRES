@@ -229,8 +229,8 @@ function extractImagesFromState(product: any): any[] {
             imageUrl = img.src;
           }
           
-          if (imageUrl && images.length < 8) {
-            // Ensure high quality image
+          if (imageUrl) {
+            // Ensure high quality image - NO LIMIT, get ALL images
             if (imageUrl.includes('_org_zoom') || imageUrl.includes('cdn.dsmcdn.com')) {
               images.push({ url: imageUrl, colorName: 'none' });
             }

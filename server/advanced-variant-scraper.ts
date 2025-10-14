@@ -268,8 +268,8 @@ async function extractDetailImagesFromVariant(variantUrl: string): Promise<strin
       }
     }
     
-    // Remove duplicates and limit to reasonable number
-    const uniqueImages = [...new Set(images)].slice(0, 15);
+    // Remove duplicates - NO LIMIT, get ALL images
+    const uniqueImages = [...new Set(images)];
     
     return uniqueImages;
     

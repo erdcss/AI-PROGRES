@@ -324,7 +324,7 @@ export class UltraStealthSystem {
         return {
           title: title || '',
           price: { original: price, currency: 'TL' },
-          images: images.slice(0, 10),
+          images: images, // NO LIMIT - Get ALL images
           brand: brand,
           source: 'human-behavior-automation'
         };
