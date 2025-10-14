@@ -440,7 +440,7 @@ export async function scrapeMultipleUrls(request: MultiUrlScrapeRequest): Promis
         }
       }
       
-      // Extract images for this color
+      // Extract images for this color - ALWAYS run, even if scenario-based already added some
       const colorImages: string[] = [];
       
       // Primary image
@@ -450,6 +450,7 @@ export async function scrapeMultipleUrls(request: MultiUrlScrapeRequest): Promis
         if (mainImageSrc) {
           const cleanImageUrl = mainImageSrc.replace(/\/ty\d+\//, '/ty1200/').replace(/_crop\.jpg$/, '_org_zoom.jpg');
           colorImages.push(cleanImageUrl);
+          console.log(`📸 Cheerio: Added primary image: ${cleanImageUrl}`);
         }
       }
       
@@ -460,17 +461,27 @@ export async function scrapeMultipleUrls(request: MultiUrlScrapeRequest): Promis
           const cleanImageUrl = imageSrc.replace(/\/ty\d+\//, '/ty1200/').replace(/_crop\.jpg$/, '_org_zoom.jpg');
           if (!colorImages.includes(cleanImageUrl)) {
             colorImages.push(cleanImageUrl);
+            console.log(`📸 Cheerio: Added gallery image: ${cleanImageUrl}`);
           }
         }
       });
       
+      console.log(`📸 Cheerio extraction found ${colorImages.length} images for ${finalColor}`);
+      
       // ✅ SADECE bu URL'nin rengini kaydet - İLK URL TİTLE KULLAN
       colorImages.forEach(imageUrl => {
-        combinedImages.push({
-          url: imageUrl,
-          alt: `${firstUrlTitle || mainProduct.title} - ${finalColor}`, // ✅ İLK URL TİTLE ÖNCELİK VER
-          colorName: finalColor // Bu URL'nin SADECE kendi rengi
-        });
+        // Check if already exists to avoid duplicates
+        const alreadyExists = combinedImages.some(img => img.url === imageUrl);
+        if (!alreadyExists) {
+          combinedImages.push({
+            url: imageUrl,
+            alt: `${firstUrlTitle || mainProduct.title} - ${finalColor}`, // ✅ İLK URL TİTLE ÖNCELİK VER
+            colorName: finalColor // Bu URL'nin SADECE kendi rengi
+          });
+          console.log(`📸 Added unique image to combinedImages: ${imageUrl}`);
+        } else {
+          console.log(`📸 Skipped duplicate image: ${imageUrl}`);
+        }
       });
       
       // Bu URL'nin bedenlerini çıkar (ortak beden havuzu)
@@ -533,6 +544,8 @@ export async function scrapeMultipleUrls(request: MultiUrlScrapeRequest): Promis
     tags: tags
   };
   
+  console.log(`📸 FINAL COMBINED IMAGES COUNT: ${combinedImages.length}`);
+  console.log(`📸 Sample images (first 3):`, combinedImages.slice(0, 3).map(img => img.url));
   console.log(`🎨 Multi-URL scraping completed: ${result.variants.colors.length} colors, ${result.variants.allVariants.length} variants, ${result.images.length} images`);
   
   return result;

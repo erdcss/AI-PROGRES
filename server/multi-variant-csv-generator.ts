@@ -550,50 +550,65 @@ export async function generateMultiVariantShopifyCSV(product: CombinedProduct): 
   // ✅ TÜM GÖRSELLERI EKLE - Hem renk bazında hem genel görseller
   console.log(`📸 CSV: Processing additional images - Colors: ${Object.keys(imagesByColor).length}, General: ${generalImages.length}`);
   
-  // Kalan renk bazlı görselleri ekle
+  // Track which images have been added to avoid duplicates
+  const addedImageUrls = new Set<string>();
+  
+  // İlk varyant satırında kullanılan görseli işaretle
+  if (processedImages.length > 0) {
+    addedImageUrls.add(processedImages[0].url);
+  }
+  
+  // Kalan TÜM görselleri ekle - color-based images
   Object.entries(imagesByColor).forEach(([colorName, images]) => {
-    console.log(`📸 CSV: Adding ${images.length - 1} additional images for color: ${colorName}`);
-    images.slice(1).forEach((imageUrl, idx) => { // İlk görsel zaten varyant görseli olarak kullanıldı
-      const imageRow = Array(headers.length).fill('');
-      imageRow[0] = productHandle; // Handle
-      imageRow[18] = imageUrl; // Image Src (18. index)
-      imageRow[19] = imagePosition.toString(); // Image Position (19. index)
-      imageRow[20] = `${product.title} - ${colorName} ${idx + 2}`; // Image Alt Text (20. index)
-      console.log(`📸 CSV: Added image row for ${colorName} - Position ${imagePosition}: ${imageUrl}`);
-      rows.push(imageRow);
-      imagePosition++;
+    console.log(`📸 CSV: Processing ${images.length} images for color: ${colorName}`);
+    images.forEach((imageUrl, idx) => {
+      if (!addedImageUrls.has(imageUrl)) {
+        const imageRow = Array(headers.length).fill('');
+        imageRow[0] = productHandle; // Handle
+        imageRow[18] = imageUrl; // Image Src (18. index)
+        imageRow[19] = (imagePosition++).toString(); // Image Position (19. index)
+        imageRow[20] = `${product.title} - ${colorName}`; // Image Alt Text (20. index)
+        console.log(`📸 CSV: Added image row for ${colorName} - Position ${imageRow[19]}: ${imageUrl}`);
+        rows.push(imageRow);
+        addedImageUrls.add(imageUrl);
+      }
     });
   });
 
   // Genel görselleri ekle (renk bazında olmayan)
-  console.log(`📸 CSV: Adding ${generalImages.length - 1} general images`);
-  generalImages.slice(1).forEach((imageUrl, idx) => {
-    const imageRow = Array(headers.length).fill('');
-    imageRow[0] = productHandle; // Handle
-    imageRow[18] = imageUrl; // Image Src (18. index)
-    imageRow[19] = imagePosition.toString(); // Image Position (19. index)
-    imageRow[20] = `${product.title} - Image ${idx + 2}`; // Image Alt Text (20. index)
-    console.log(`📸 CSV: Added general image row - Position ${imagePosition}: ${imageUrl}`);
-    rows.push(imageRow);
-    imagePosition++;
+  console.log(`📸 CSV: Processing ${generalImages.length} general images`);
+  generalImages.forEach((imageUrl, idx) => {
+    if (!addedImageUrls.has(imageUrl)) {
+      const imageRow = Array(headers.length).fill('');
+      imageRow[0] = productHandle; // Handle
+      imageRow[18] = imageUrl; // Image Src (18. index)
+      imageRow[19] = (imagePosition++).toString(); // Image Position (19. index)
+      imageRow[20] = `${product.title}`; // Image Alt Text (20. index)
+      console.log(`📸 CSV: Added general image row - Position ${imageRow[19]}: ${imageUrl}`);
+      rows.push(imageRow);
+      addedImageUrls.add(imageUrl);
+    }
   });
 
   // Eğer hiç görsel yoksa, product.images dizisinden doğrudan ekle
-  if (generalImages.length === 0 && Object.keys(imagesByColor).length === 0 && product.images.length > 1) {
-    console.log(`📸 CSV: No categorized images found, adding from product.images array`);
-    product.images.slice(1).forEach((img, idx) => {
-      if (img.url) {
+  if (addedImageUrls.size === 0 && product.images.length > 0) {
+    console.log(`📸 CSV: No categorized images found, adding ALL from product.images array (${product.images.length} images)`);
+    product.images.forEach((img, idx) => {
+      const imgUrl = typeof img === 'string' ? img : img.url;
+      if (imgUrl && !addedImageUrls.has(imgUrl)) {
         const imageRow = Array(headers.length).fill('');
         imageRow[0] = productHandle; // Handle
-        imageRow[18] = img.url; // Image Src
-        imageRow[19] = imagePosition.toString(); // Image Position
-        imageRow[20] = `${product.title} - Additional Image ${idx + 2}`; // Image Alt Text
-        console.log(`📸 CSV: Added direct image row - Position ${imagePosition}: ${img.url}`);
+        imageRow[18] = imgUrl; // Image Src
+        imageRow[19] = (imagePosition++).toString(); // Image Position
+        imageRow[20] = `${product.title}`; // Image Alt Text
+        console.log(`📸 CSV: Added direct image row - Position ${imageRow[19]}: ${imgUrl}`);
         rows.push(imageRow);
-        imagePosition++;
+        addedImageUrls.add(imgUrl);
       }
     });
   }
+  
+  console.log(`📸 CSV: TOTAL IMAGES ADDED TO CSV: ${addedImageUrls.size} (including main image in variant row)`);
 
   // CSV formatına dönüştür
   return rows.map(row => 
