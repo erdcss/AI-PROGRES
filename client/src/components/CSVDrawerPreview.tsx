@@ -547,12 +547,13 @@ export function CSVDrawerPreview({ csvPreviews, onDownload, onShopifyUpload }: C
                     </div>
                   </div>
                   
-                  <div className="flex items-center gap-0.5 flex-shrink-0">
+                  <div className="flex items-center gap-1 flex-shrink-0">
                     <Button
                       onClick={() => onDownload(preview.id, `${preview.productTitle.replace(/[^a-zA-Z0-9]/g, '-')}.csv`)}
                       variant="outline"
                       size="sm"
-                      className="text-green-400 border-green-600/30 hover:bg-green-600/10 h-6 px-1.5 text-xs"
+                      className="text-green-400 border-green-600/30 hover:bg-green-600/10 h-6 px-2 text-xs"
+                      title="CSV İndir"
                     >
                       <Download className="w-3 h-3" />
                     </Button>
@@ -560,13 +561,11 @@ export function CSVDrawerPreview({ csvPreviews, onDownload, onShopifyUpload }: C
                     <Button
                       onClick={() => onShopifyUpload(preview.id, individualTags[preview.id])}
                       size="sm"
-                      className="bg-gradient-to-r from-blue-600 to-purple-600 hover:from-blue-700 hover:to-purple-700 text-white h-7 px-3 text-xs font-medium shadow-lg shadow-blue-500/20"
+                      className="bg-gradient-to-r from-blue-600 to-purple-600 hover:from-blue-700 hover:to-purple-700 text-white h-6 px-2 text-xs font-medium"
                       data-testid={`button-shopify-upload-${preview.id}`}
+                      title={`${preview.productTitle} - Shopify'a Aktar`}
                     >
-                      <ShoppingCart className="w-3.5 h-3.5 mr-1.5" />
-                      <span className="truncate max-w-[120px]">
-                        {preview.productTitle.substring(0, 20)}...
-                      </span>
+                      <ShoppingCart className="w-3 h-3" />
                     </Button>
                     
                     <Button
@@ -574,6 +573,7 @@ export function CSVDrawerPreview({ csvPreviews, onDownload, onShopifyUpload }: C
                       variant="ghost"
                       size="sm"
                       className="text-cyan-400 hover:text-cyan-300 hover:bg-cyan-900/20 h-6 px-1.5"
+                      title={isExpanded ? "Küçült" : "Genişlet"}
                     >
                       {isExpanded ? (
                         <ChevronUp className="w-3 h-3" />
