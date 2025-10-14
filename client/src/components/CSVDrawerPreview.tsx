@@ -525,7 +525,7 @@ export function CSVDrawerPreview({ csvPreviews, onDownload, onShopifyUpload }: C
               
               {/* CSV Önizleme Kartı */}
               <Card className="bg-slate-800/30 border border-slate-600/40 hover:border-cyan-600/50 transition-colors">
-              <CardHeader className="pb-1 pt-2">
+              <CardHeader className="pb-1 pt-2 px-3">
                 <div className="flex items-center justify-between gap-2">
                   <div className="flex items-center gap-2 flex-1 min-w-0">
                     <FileText className="w-4 h-4 text-cyan-400 flex-shrink-0" />
@@ -533,26 +533,26 @@ export function CSVDrawerPreview({ csvPreviews, onDownload, onShopifyUpload }: C
                       <CardTitle className="text-white font-medium text-xs truncate leading-tight mb-1">
                         {preview.productTitle.length > 40 ? preview.productTitle.substring(0, 40) + '...' : preview.productTitle}
                       </CardTitle>
-                      <div className="flex items-center gap-1 flex-wrap">
-                        <Badge variant="outline" className="text-cyan-300 border-cyan-800 text-xs px-1.5 py-0 h-4 text-xs">
+                      <div className="flex items-center gap-1">
+                        <Badge variant="outline" className="text-cyan-300 border-cyan-800 text-[10px] px-1 py-0 h-4 leading-none">
                           {variantCount}v
                         </Badge>
-                        <Badge variant="outline" className="text-green-300 border-green-800 text-xs px-1.5 py-0 h-4 text-xs">
+                        <Badge variant="outline" className="text-green-300 border-green-800 text-[10px] px-1 py-0 h-4 leading-none">
                           {headers.length}s
                         </Badge>
-                        <Badge variant="outline" className="text-purple-300 border-purple-800 text-xs px-1.5 py-0 h-4 text-xs">
+                        <Badge variant="outline" className="text-purple-300 border-purple-800 text-[10px] px-1 py-0 h-4 leading-none">
                           {preview.images.length}g
                         </Badge>
                       </div>
                     </div>
                   </div>
                   
-                  <div className="flex items-center gap-1 flex-shrink-0">
+                  <div className="flex items-center gap-1 flex-shrink-0 ml-2">
                     <Button
                       onClick={() => onDownload(preview.id, `${preview.productTitle.replace(/[^a-zA-Z0-9]/g, '-')}.csv`)}
                       variant="outline"
                       size="sm"
-                      className="text-green-400 border-green-600/30 hover:bg-green-600/10 h-6 px-2 text-xs"
+                      className="text-green-400 border-green-600/30 hover:bg-green-600/10 h-6 w-6 p-0 flex items-center justify-center"
                       title="CSV İndir"
                     >
                       <Download className="w-3 h-3" />
@@ -561,7 +561,7 @@ export function CSVDrawerPreview({ csvPreviews, onDownload, onShopifyUpload }: C
                     <Button
                       onClick={() => onShopifyUpload(preview.id, individualTags[preview.id])}
                       size="sm"
-                      className="bg-gradient-to-r from-blue-600 to-purple-600 hover:from-blue-700 hover:to-purple-700 text-white h-6 px-2 text-xs font-medium"
+                      className="bg-gradient-to-r from-blue-600 to-purple-600 hover:from-blue-700 hover:to-purple-700 text-white h-6 w-6 p-0 flex items-center justify-center"
                       data-testid={`button-shopify-upload-${preview.id}`}
                       title={`${preview.productTitle} - Shopify'a Aktar`}
                     >
@@ -572,7 +572,7 @@ export function CSVDrawerPreview({ csvPreviews, onDownload, onShopifyUpload }: C
                       onClick={() => toggleExpanded(preview.id)}
                       variant="ghost"
                       size="sm"
-                      className="text-cyan-400 hover:text-cyan-300 hover:bg-cyan-900/20 h-6 px-1.5"
+                      className="text-cyan-400 hover:text-cyan-300 hover:bg-cyan-900/20 h-6 w-6 p-0 flex items-center justify-center"
                       title={isExpanded ? "Küçült" : "Genişlet"}
                     >
                       {isExpanded ? (

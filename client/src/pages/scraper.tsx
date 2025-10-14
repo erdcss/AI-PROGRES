@@ -247,8 +247,13 @@ ${data.title.toLowerCase().replace(/[^a-z0-9]/g, '-')},${data.title},${data.bran
       // Her başarılı çekme için CSV preview ekle
       if (data.csvContent) {
         console.log('🎯 Single URL CSV Content found, adding to previews:', data.title);
+        
+        // URL'e göre unique ID oluştur
+        const urlHash = data.url?.split('?')[0] || Date.now().toString();
+        const uniqueId = `csv-${urlHash.split('/').pop() || Date.now()}`;
+        
         const newCSVPreview = {
-          id: `csv-${Date.now()}-${Math.random().toString(36).substr(2, 9)}`,
+          id: uniqueId,
           productTitle: data.title || 'Ürün',
           csvContent: data.csvContent,
           variants: {
@@ -259,8 +264,23 @@ ${data.title.toLowerCase().replace(/[^a-z0-9]/g, '-')},${data.title},${data.bran
           createdAt: new Date().toISOString()
         };
         
-        console.log('📋 Adding Single URL CSV preview:', newCSVPreview.id, newCSVPreview.productTitle);
-        setCsvPreviews(prev => [newCSVPreview, ...prev]);
+        console.log('📋 Adding/Updating Single URL CSV preview:', newCSVPreview.id, newCSVPreview.productTitle);
+        
+        // Aynı ID'li preview varsa güncelle, yoksa ekle
+        setCsvPreviews(prev => {
+          const existingIndex = prev.findIndex(p => p.id === uniqueId);
+          if (existingIndex >= 0) {
+            // Mevcut preview'ı güncelle
+            const updated = [...prev];
+            updated[existingIndex] = newCSVPreview;
+            console.log('♻️ Updated existing CSV preview');
+            return updated;
+          } else {
+            // Yeni preview ekle
+            console.log('➕ Added new CSV preview');
+            return [newCSVPreview, ...prev];
+          }
+        });
         
         toast({
           title: "Başarılı", 
@@ -389,8 +409,11 @@ ${data.title.toLowerCase().replace(/[^a-z0-9]/g, '-')},${data.title},${data.bran
       
       // Multi-URL ürün için CSV preview ekle
       if (data.csvContent) {
+        // Multi-URL için unique ID oluştur (title'dan)
+        const uniqueId = `csv-multi-${(data.title || 'multi').toLowerCase().replace(/[^a-z0-9]/g, '-').substring(0, 30)}`;
+        
         const newCSVPreview = {
-          id: `csv-${Date.now()}-${Math.random().toString(36).substr(2, 9)}`,
+          id: uniqueId,
           productTitle: data.title || 'Multi-Variant Product',
           csvContent: data.csvContent,
           variants: {
@@ -403,7 +426,19 @@ ${data.title.toLowerCase().replace(/[^a-z0-9]/g, '-')},${data.title},${data.bran
           price: data.price || null // Fiyat bilgisini ekle
         };
         
-        setCsvPreviews(prev => [newCSVPreview, ...prev]);
+        // Aynı ID'li preview varsa güncelle, yoksa ekle
+        setCsvPreviews(prev => {
+          const existingIndex = prev.findIndex(p => p.id === uniqueId);
+          if (existingIndex >= 0) {
+            const updated = [...prev];
+            updated[existingIndex] = newCSVPreview;
+            console.log('♻️ Updated existing multi-URL CSV preview');
+            return updated;
+          } else {
+            console.log('➕ Added new multi-URL CSV preview');
+            return [newCSVPreview, ...prev];
+          }
+        });
         
         toast({
           title: "Başarılı",
