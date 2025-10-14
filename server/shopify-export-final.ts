@@ -19,25 +19,50 @@ export interface FocusedProductData {
     color: string;
     size: string;
     inStock: boolean;
-  }>;
+  }> | {
+    colors: string[];
+    sizes: string[];
+    allVariants: Array<{
+      color: string;
+      size: string;
+      inStock: boolean;
+    }>;
+  };
   features: Array<{
     key: string;
     value: string;
   }>;
   category: string;
-  sizeOptions: string[];
-  colorOptions: string[];
+  sizeOptions?: string[];
+  colorOptions?: string[];
 }
 
 // Veri dönüştürme fonksiyonu
 function convertToStrictFormat(data: FocusedProductData): any {
-  const strictVariants = data.variants.map(variant => ({
-    color: variant.color || 'Koyu Mavi',
-    size: variant.size,
-    stock: variant.inStock ? 25 : 0,
-    price: data.price.original,
-    images: data.images // Tüm görselleri her varyanta at
-  }));
+  // Handle both array and object variant formats
+  let variantsArray: Array<{color: string; size: string; inStock: boolean}> = [];
+  
+  if (Array.isArray(data.variants)) {
+    variantsArray = data.variants;
+  } else if (data.variants && 'allVariants' in data.variants) {
+    variantsArray = data.variants.allVariants || [];
+  }
+  
+  const strictVariants = variantsArray.length > 0 
+    ? variantsArray.map(variant => ({
+        color: variant.color || 'Koyu Mavi',
+        size: variant.size,
+        stock: variant.inStock ? 25 : 0,
+        price: data.price.original,
+        images: data.images // Tüm görselleri her varyanta at
+      }))
+    : [{
+        color: 'Standart',
+        size: 'Standart',
+        stock: 25,
+        price: data.price.original,
+        images: data.images
+      }];
 
   return {
     title: data.title,
