@@ -74,6 +74,7 @@ function ScraperPage() {
   const [draggedUrls, setDraggedUrls] = useState<string[]>([]);
   const [isDragOver, setIsDragOver] = useState(false);
   const [csvPreviews, setCsvPreviews] = useState<any[]>([]);
+  const [individualTags, setIndividualTags] = useState<{[key: string]: string[]}>({});
   const isMobile = useIsMobile();
   
   const singleForm = useForm<ScrapeFormData>({
@@ -1790,6 +1791,8 @@ ${data.title.toLowerCase().replace(/[^a-z0-9]/g, '-')},${data.title},${data.bran
               csvPreviews={csvPreviews}
               onDownload={handleCSVDownload}
               onShopifyUpload={handleCSVShopifyUpload}
+              individualTags={individualTags}
+              setIndividualTags={setIndividualTags}
             />
             
             {/* Toplu Shopify Yükleme Butonu */}

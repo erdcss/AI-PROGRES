@@ -35,13 +35,14 @@ interface CSVDrawerPreviewProps {
   csvPreviews: CSVPreviewData[];
   onDownload: (id: string, filename: string) => void;
   onShopifyUpload: (id: string, individualTags?: string[]) => void;
+  individualTags: {[key: string]: string[]};
+  setIndividualTags: React.Dispatch<React.SetStateAction<{[key: string]: string[]}>>;
 }
 
-export function CSVDrawerPreview({ csvPreviews, onDownload, onShopifyUpload }: CSVDrawerPreviewProps) {
+export function CSVDrawerPreview({ csvPreviews, onDownload, onShopifyUpload, individualTags, setIndividualTags }: CSVDrawerPreviewProps) {
   const [expandedItems, setExpandedItems] = useState<Set<string>>(new Set());
   const [selectedImageIndex, setSelectedImageIndex] = useState<{[key: string]: number}>({});
   const [updatedPrices, setUpdatedPrices] = useState<{[key: string]: any}>({});
-  const [individualTags, setIndividualTags] = useState<{[key: string]: string[]}>({});
   const [newTagInputs, setNewTagInputs] = useState<{[key: string]: string}>({});
 
   const toggleExpanded = (id: string) => {
