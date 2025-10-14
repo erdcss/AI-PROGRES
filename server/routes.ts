@@ -3211,7 +3211,7 @@ ${(result.title || 'product').toLowerCase().replace(/[^a-z0-9]/g, '-')},${result
       console.log('🔍 DEBUG: Request body keys:', Object.keys(req.body));
       console.log('🔍 DEBUG: Request body:', JSON.stringify(req.body, null, 2));
       
-      const { csvContent, productTitle } = req.body;
+      const { csvContent, productTitle, individualTags } = req.body;
       
       if (!csvContent) {
         console.log('❌ CSV content is missing or empty');
@@ -3221,8 +3221,36 @@ ${(result.title || 'product').toLowerCase().replace(/[^a-z0-9]/g, '-')},${result
         });
       }
       
+      // Add individual tags to CSV if provided
+      let modifiedCsvContent = csvContent;
+      if (individualTags && individualTags.length > 0) {
+        console.log('📋 Adding individual tags to CSV:', individualTags);
+        const lines = csvContent.split('\n');
+        if (lines.length > 1) {
+          const headers = lines[0].split(',');
+          const tagsIndex = headers.findIndex(h => h.toLowerCase().includes('tags'));
+          
+          if (tagsIndex !== -1) {
+            // Add tags to all data rows
+            const modifiedLines = lines.map((line, index) => {
+              if (index === 0) return line; // Keep header
+              const cells = line.split(',');
+              if (cells[tagsIndex]) {
+                // Append new tags to existing ones
+                const existingTags = cells[tagsIndex].replace(/"/g, '').trim();
+                const allTags = existingTags ? `${existingTags}, ${individualTags.join(', ')}` : individualTags.join(', ');
+                cells[tagsIndex] = `"${allTags}"`;
+              }
+              return cells.join(',');
+            });
+            modifiedCsvContent = modifiedLines.join('\n');
+            console.log('✅ Tags added to CSV successfully');
+          }
+        }
+      }
+      
       console.log(`🛒 CSV Shopify Upload: ${productTitle}`);
-      const uploadResult = await uploadProductToShopify(csvContent, productTitle);
+      const uploadResult = await uploadProductToShopify(modifiedCsvContent, productTitle);
       
       if (uploadResult.success) {
         // Register product for automated tracking

@@ -743,10 +743,11 @@ ${data.title.toLowerCase().replace(/[^a-z0-9]/g, '-')},${data.title},${data.bran
   };
 
   // CSV Shopify upload fonksiyonu  
-  const handleCSVShopifyUpload = async (id: string) => {
+  const handleCSVShopifyUpload = async (id: string, individualTags?: string[]) => {
     const preview = csvPreviews.find(p => p.id === id);
     if (preview) {
       console.log('🛒 Starting Shopify upload for:', preview.productTitle);
+      console.log('📋 Individual tags:', individualTags);
       try {
         const response = await fetch("/api/shopify/upload-csv-product", {
           method: "POST",
@@ -755,7 +756,8 @@ ${data.title.toLowerCase().replace(/[^a-z0-9]/g, '-')},${data.title},${data.bran
           },
           body: JSON.stringify({ 
             csvContent: preview.csvContent,
-            productTitle: preview.productTitle 
+            productTitle: preview.productTitle,
+            individualTags: individualTags || []
           }),
         });
         
@@ -763,7 +765,7 @@ ${data.title.toLowerCase().replace(/[^a-z0-9]/g, '-')},${data.title},${data.bran
           const result = await response.json();
           toast({
             title: "Shopify'a Yüklendi",
-            description: `${preview.productTitle} başarıyla yüklendi (ID: ${result.shopifyId})`
+            description: `${preview.productTitle.substring(0, 40)}... başarıyla yüklendi${individualTags && individualTags.length > 0 ? ` (${individualTags.length} etiket ile)` : ''}`
           });
         } else {
           const errorData = await response.json().catch(() => ({}));
@@ -773,7 +775,7 @@ ${data.title.toLowerCase().replace(/[^a-z0-9]/g, '-')},${data.title},${data.bran
         console.error('❌ Shopify upload failed:', error);
         toast({
           title: "Yükleme Hatası",
-          description: `${preview.productTitle} yüklenirken hata oluştu: ${error instanceof Error ? error.message : 'Bilinmeyen hata'}`,
+          description: `${preview.productTitle.substring(0, 30)}... yüklenirken hata: ${error instanceof Error ? error.message : 'Bilinmeyen hata'}`,
           variant: "destructive"
         });
       }

@@ -1,8 +1,9 @@
 import { useState } from 'react';
-import { ChevronDown, ChevronUp, Download, Eye, FileText, Package, ShoppingCart, ChevronLeft, ChevronRight } from 'lucide-react';
+import { ChevronDown, ChevronUp, Download, Eye, FileText, Package, ShoppingCart, ChevronLeft, ChevronRight, Tag, Plus, X } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Badge } from '@/components/ui/badge';
+import { Input } from '@/components/ui/input';
 import { motion, AnimatePresence } from 'framer-motion';
 import { normalizePrice, formatOriginalPrice, formatSalePrice, formatProfitAmount, formatProfitPercentage, isValidPrice } from '@/utils/price-utils';
 import { PriceEditor } from '@/components/PriceEditor';
@@ -33,13 +34,15 @@ interface CSVPreviewData {
 interface CSVDrawerPreviewProps {
   csvPreviews: CSVPreviewData[];
   onDownload: (id: string, filename: string) => void;
-  onShopifyUpload: (id: string) => void;
+  onShopifyUpload: (id: string, individualTags?: string[]) => void;
 }
 
 export function CSVDrawerPreview({ csvPreviews, onDownload, onShopifyUpload }: CSVDrawerPreviewProps) {
   const [expandedItems, setExpandedItems] = useState<Set<string>>(new Set());
   const [selectedImageIndex, setSelectedImageIndex] = useState<{[key: string]: number}>({});
   const [updatedPrices, setUpdatedPrices] = useState<{[key: string]: any}>({});
+  const [individualTags, setIndividualTags] = useState<{[key: string]: string[]}>({});
+  const [newTagInputs, setNewTagInputs] = useState<{[key: string]: string}>({});
 
   const toggleExpanded = (id: string) => {
     const newExpanded = new Set(expandedItems);
@@ -62,6 +65,27 @@ export function CSVDrawerPreview({ csvPreviews, onDownload, onShopifyUpload }: C
     setSelectedImageIndex(prev => ({
       ...prev,
       [previewId]: ((prev[previewId] || 0) - 1 + totalImages) % totalImages
+    }));
+  };
+
+  const addTag = (previewId: string) => {
+    const newTag = newTagInputs[previewId]?.trim();
+    if (newTag && newTag.length > 0) {
+      setIndividualTags(prev => ({
+        ...prev,
+        [previewId]: [...(prev[previewId] || []), newTag]
+      }));
+      setNewTagInputs(prev => ({
+        ...prev,
+        [previewId]: ''
+      }));
+    }
+  };
+
+  const removeTag = (previewId: string, tagIndex: number) => {
+    setIndividualTags(prev => ({
+      ...prev,
+      [previewId]: (prev[previewId] || []).filter((_, i) => i !== tagIndex)
     }));
   };
 
@@ -409,6 +433,60 @@ export function CSVDrawerPreview({ csvPreviews, onDownload, onShopifyUpload }: C
                   );
                 })()}
               </div>
+
+              {/* Bireysel Etiketler Bölümü */}
+              <div className="space-y-2 pt-3 border-t border-slate-700/30">
+                <div className="flex items-center gap-2">
+                  <Tag className="w-3.5 h-3.5 text-cyan-400" />
+                  <span className="text-slate-300 text-xs font-medium">Etiketler:</span>
+                </div>
+                
+                {/* Mevcut Etiketler */}
+                {individualTags[preview.id] && individualTags[preview.id].length > 0 && (
+                  <div className="flex flex-wrap gap-1.5">
+                    {individualTags[preview.id].map((tag, index) => (
+                      <Badge 
+                        key={index}
+                        variant="outline" 
+                        className="border-cyan-600/40 text-cyan-300 text-xs px-2 py-0.5 h-5 flex items-center gap-1 group hover:border-red-500/60"
+                        data-testid={`tag-individual-${preview.id}-${index}`}
+                      >
+                        #{tag}
+                        <X 
+                          className="w-3 h-3 cursor-pointer opacity-50 hover:opacity-100 text-red-400" 
+                          onClick={() => removeTag(preview.id, index)}
+                        />
+                      </Badge>
+                    ))}
+                  </div>
+                )}
+
+                {/* Etiket Ekleme Input */}
+                <div className="flex items-center gap-1.5">
+                  <Input
+                    value={newTagInputs[preview.id] || ''}
+                    onChange={(e) => setNewTagInputs(prev => ({ ...prev, [preview.id]: e.target.value }))}
+                    onKeyPress={(e) => {
+                      if (e.key === 'Enter') {
+                        e.preventDefault();
+                        addTag(preview.id);
+                      }
+                    }}
+                    placeholder="Etiket ekle..."
+                    className="h-7 text-xs bg-slate-800/50 border-slate-600/50 text-white placeholder:text-slate-500 focus:border-cyan-500/50"
+                    data-testid={`input-add-tag-${preview.id}`}
+                  />
+                  <Button
+                    onClick={() => addTag(preview.id)}
+                    size="sm"
+                    variant="outline"
+                    className="h-7 px-2 border-cyan-600/50 hover:bg-cyan-600/10 text-cyan-400"
+                    data-testid={`button-add-tag-${preview.id}`}
+                  >
+                    <Plus className="w-3.5 h-3.5" />
+                  </Button>
+                </div>
+              </div>
             </div>
           </div>
         </CardContent>
@@ -480,11 +558,15 @@ export function CSVDrawerPreview({ csvPreviews, onDownload, onShopifyUpload }: C
                     </Button>
                     
                     <Button
-                      onClick={() => onShopifyUpload(preview.id)}
+                      onClick={() => onShopifyUpload(preview.id, individualTags[preview.id])}
                       size="sm"
-                      className="bg-blue-600 hover:bg-blue-700 text-white h-6 px-1.5 text-xs"
+                      className="bg-gradient-to-r from-blue-600 to-purple-600 hover:from-blue-700 hover:to-purple-700 text-white h-7 px-3 text-xs font-medium shadow-lg shadow-blue-500/20"
+                      data-testid={`button-shopify-upload-${preview.id}`}
                     >
-                      <ShoppingCart className="w-3 h-3" />
+                      <ShoppingCart className="w-3.5 h-3.5 mr-1.5" />
+                      <span className="truncate max-w-[120px]">
+                        {preview.productTitle.substring(0, 20)}...
+                      </span>
                     </Button>
                     
                     <Button
