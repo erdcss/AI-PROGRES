@@ -808,6 +808,28 @@ export async function scenarioBasedScrape(url: string): Promise<ScenarioBasedRes
         try {
           $ = safeCheerioLoad(htmlContent);
           console.log('✅ SPEED MODE: Direct scraping successful in <3s!');
+          
+          // 🎨 CHECK FOR COLORS - If none found, use Puppeteer
+          const puppeteerColorsMetaTag = $('meta[name="puppeteer-colors"]').attr('content');
+          const hasColors = puppeteerColorsMetaTag && puppeteerColorsMetaTag.split(',').filter(c => c.trim()).length > 0;
+          
+          if (!hasColors) {
+            console.log('🎨 No colors detected in HTML, trying Puppeteer extraction...');
+            try {
+              const puppeteerResult = await tryPuppeteerColorExtraction(url);
+              if (puppeteerResult && puppeteerResult.success && puppeteerResult.htmlContent) {
+                htmlContent = puppeteerResult.htmlContent;
+                $ = safeCheerioLoad(htmlContent);
+                console.log('✅ Puppeteer colors injected into HTML');
+                if (puppeteerResult.colors && puppeteerResult.colors.length > 0) {
+                  console.log(`🎨 Extracted ${puppeteerResult.colors.length} colors:`, puppeteerResult.colors.join(', '));
+                }
+              }
+            } catch (puppeteerError) {
+              console.log('⚠️ Puppeteer color extraction failed, continuing without colors:', puppeteerError.message);
+            }
+          }
+          
           console.log('🔥 SPEED MODE: Calling Ultimate Price Extractor immediately...');
           
           // FORCE Ultimate Price Extractor as single source of truth
