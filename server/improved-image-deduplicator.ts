@@ -741,9 +741,61 @@ export function extractEnhancedVariants($: cheerio.CheerioAPI, htmlContent: stri
     try {
       const jsonData = JSON.parse($(script).html() || '{}');
       
+      // ✅ NEW: Extract color directly from variant.color field
+      if (jsonData.color && typeof jsonData.color === 'string') {
+        let colorValue = jsonData.color.trim();
+        
+        // Remove numeric suffixes (e.g., "beyaz-3645" → "beyaz")
+        colorValue = colorValue.replace(/-\d+$/, '');
+        
+        // Parse combined colors (e.g., "beyazkirmiziyesil" → ["beyaz", "kırmızı", "yeşil"])
+        const colorKeywords = ['beyaz', 'siyah', 'kirmizi', 'kırmızı', 'mavi', 'yesil', 'yeşil', 'sari', 'sarı', 'turuncu', 'mor', 'pembe', 'gri', 'kahve', 'lacivert', 'bordo', 'krem', 'bej'];
+        const foundColors: string[] = [];
+        
+        const colorLower = colorValue.toLowerCase();
+        colorKeywords.forEach(keyword => {
+          if (colorLower.includes(keyword)) {
+            // Capitalize first letter for proper display
+            const displayColor = keyword.charAt(0).toUpperCase() + keyword.slice(1);
+            if (!foundColors.includes(displayColor)) {
+              foundColors.push(displayColor);
+            }
+          }
+        });
+        
+        // If we found component colors, add them all
+        if (foundColors.length > 0) {
+          foundColors.forEach(color => {
+            colors.add(color);
+            console.log(`🎨 JSON-LD color found: ${color}`);
+          });
+        } else if (colorValue.length > 0 && colorValue.length < 30) {
+          // Single color not in keywords
+          const displayColor = colorValue.charAt(0).toUpperCase() + colorValue.slice(1).toLowerCase();
+          colors.add(displayColor);
+          console.log(`🎨 JSON-LD color found: ${displayColor}`);
+        }
+      }
+      
       // Extract variants from structured data
       if (jsonData.hasVariant && Array.isArray(jsonData.hasVariant)) {
         jsonData.hasVariant.forEach((variant: any) => {
+          // ✅ NEW: Check variant.color field first
+          if (variant.color && typeof variant.color === 'string') {
+            let colorValue = variant.color.trim();
+            colorValue = colorValue.replace(/-\d+$/, ''); // Remove suffix
+            
+            const colorKeywords = ['beyaz', 'siyah', 'kirmizi', 'kırmızı', 'mavi', 'yesil', 'yeşil', 'sari', 'sarı', 'turuncu', 'mor', 'pembe', 'gri', 'kahve', 'lacivert', 'bordo', 'krem', 'bej'];
+            const colorLower = colorValue.toLowerCase();
+            
+            colorKeywords.forEach(keyword => {
+              if (colorLower.includes(keyword)) {
+                const displayColor = keyword.charAt(0).toUpperCase() + keyword.slice(1);
+                colors.add(displayColor);
+              }
+            });
+          }
+          
           if (variant.name) {
             // Parse variant name for size/color info
             const variantName = variant.name.toLowerCase();
@@ -766,6 +818,7 @@ export function extractEnhancedVariants($: cheerio.CheerioAPI, htmlContent: stri
       }
     } catch (e) {
       // Continue with other methods
+      console.log('⚠️ JSON-LD parsing error:', e);
     }
   });
 
