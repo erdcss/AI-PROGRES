@@ -786,11 +786,72 @@ ${data.title.toLowerCase().replace(/[^a-z0-9]/g, '-')},${data.title},${data.bran
     }
   };
 
-  // CSV indirme fonksiyonu
+  // CSV indirme fonksiyonu - Manuel etiketleri ekleyerek
   const handleCSVDownload = (id: string, filename: string) => {
     const preview = csvPreviews.find(p => p.id === id);
     if (preview) {
-      downloadCSV(preview.csvContent, filename);
+      // Manuel etiketleri CSV'ye ekle
+      const manualTags = individualTags[id] || [];
+      let csvToDownload = preview.csvContent;
+      
+      if (manualTags.length > 0) {
+        const lines = csvToDownload.split('\n').filter(line => line.trim());
+        if (lines.length >= 2) {
+          // CSV parse fonksiyonu
+          const parseCSVLine = (line: string) => {
+            const result = [];
+            let current = '';
+            let inQuotes = false;
+            
+            for (let i = 0; i < line.length; i++) {
+              const char = line[i];
+              if (char === '"') {
+                inQuotes = !inQuotes;
+              } else if (char === ',' && !inQuotes) {
+                result.push(current.trim());
+                current = '';
+              } else {
+                current += char;
+              }
+            }
+            result.push(current.trim());
+            return result;
+          };
+
+          const headers = parseCSVLine(lines[0]).map(h => h.replace(/"/g, '').trim());
+          const tagsIndex = headers.findIndex(h => h.toLowerCase() === 'tags');
+
+          if (tagsIndex !== -1) {
+            const updatedLines = [lines[0]];
+            
+            for (let i = 1; i < lines.length; i++) {
+              const cells = parseCSVLine(lines[i]);
+              
+              if (i === 1 && cells[tagsIndex] !== undefined) {
+                const existingTags = cells[tagsIndex].replace(/"/g, '').trim();
+                const allTags = existingTags 
+                  ? `${existingTags}, ${manualTags.join(', ')}` 
+                  : manualTags.join(', ');
+                cells[tagsIndex] = `"${allTags}"`;
+              }
+              
+              const newLine = cells.map(cell => {
+                if (cell.includes(',') || cell.includes('"') || cell.includes('\n')) {
+                  return `"${cell.replace(/"/g, '""')}"`;
+                }
+                return cell;
+              }).join(',');
+              
+              updatedLines.push(newLine);
+            }
+            
+            csvToDownload = updatedLines.join('\n');
+            console.log(`✅ Manuel etiketler CSV'ye eklendi: ${manualTags.join(', ')}`);
+          }
+        }
+      }
+      
+      downloadCSV(csvToDownload, filename);
     }
   };
 

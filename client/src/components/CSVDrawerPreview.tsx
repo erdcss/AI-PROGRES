@@ -102,6 +102,69 @@ export function CSVDrawerPreview({ csvPreviews, onDownload, onShopifyUpload, ind
     return { headers, rows };
   };
 
+  // CSV içeriğine manuel etiketleri ekleyen fonksiyon
+  const addManualTagsToCSV = (csvContent: string, previewId: string): string => {
+    const manualTags = individualTags[previewId] || [];
+    if (manualTags.length === 0) return csvContent;
+
+    const lines = csvContent.split('\n').filter(line => line.trim());
+    if (lines.length < 2) return csvContent;
+
+    // CSV'yi parse et (quoted values'ları doğru handle et)
+    const parseCSVLine = (line: string) => {
+      const result = [];
+      let current = '';
+      let inQuotes = false;
+      
+      for (let i = 0; i < line.length; i++) {
+        const char = line[i];
+        if (char === '"') {
+          inQuotes = !inQuotes;
+        } else if (char === ',' && !inQuotes) {
+          result.push(current.trim());
+          current = '';
+        } else {
+          current += char;
+        }
+      }
+      result.push(current.trim());
+      return result;
+    };
+
+    const headers = parseCSVLine(lines[0]).map(h => h.replace(/"/g, '').trim());
+    const tagsIndex = headers.findIndex(h => h.toLowerCase() === 'tags');
+
+    if (tagsIndex === -1) return csvContent;
+
+    // Tüm satırları güncelle
+    const updatedLines = [lines[0]]; // Header'ı koru
+    
+    for (let i = 1; i < lines.length; i++) {
+      const cells = parseCSVLine(lines[i]);
+      
+      // İlk satırda etiketleri ekle
+      if (i === 1 && cells[tagsIndex] !== undefined) {
+        const existingTags = cells[tagsIndex].replace(/"/g, '').trim();
+        const allTags = existingTags 
+          ? `${existingTags}, ${manualTags.join(', ')}` 
+          : manualTags.join(', ');
+        cells[tagsIndex] = `"${allTags}"`;
+      }
+      
+      // Satırı yeniden oluştur (quoted values ile)
+      const newLine = cells.map(cell => {
+        if (cell.includes(',') || cell.includes('"') || cell.includes('\n')) {
+          return `"${cell.replace(/"/g, '""')}"`;
+        }
+        return cell;
+      }).join(',');
+      
+      updatedLines.push(newLine);
+    }
+
+    return updatedLines.join('\n');
+  };
+
   if (csvPreviews.length === 0) {
     return (
       <div className="mt-8">
@@ -435,14 +498,68 @@ export function CSVDrawerPreview({ csvPreviews, onDownload, onShopifyUpload, ind
                 })()}
               </div>
 
-              {/* Bireysel Etiketler Bölümü */}
+              {/* Etiketler Bölümü */}
               <div className="space-y-2 pt-3 border-t border-slate-700/30">
                 <div className="flex items-center gap-2">
                   <Tag className="w-3.5 h-3.5 text-cyan-400" />
                   <span className="text-slate-300 text-xs font-medium">Etiketler:</span>
                 </div>
                 
-                {/* Mevcut Etiketler */}
+                {/* CSV'den Gelen Ürün Etiketleri */}
+                {(() => {
+                  const lines = preview.csvContent.split('\n').filter(line => line.trim());
+                  if (lines.length < 2) return null;
+                  
+                  const parseCSVLine = (line: string) => {
+                    const result = [];
+                    let current = '';
+                    let inQuotes = false;
+                    
+                    for (let i = 0; i < line.length; i++) {
+                      const char = line[i];
+                      if (char === '"') {
+                        inQuotes = !inQuotes;
+                      } else if (char === ',' && !inQuotes) {
+                        result.push(current.trim());
+                        current = '';
+                      } else {
+                        current += char;
+                      }
+                    }
+                    result.push(current.trim());
+                    return result;
+                  };
+
+                  const headers = parseCSVLine(lines[0]).map(h => h.replace(/"/g, '').trim());
+                  const firstDataRow = parseCSVLine(lines[1]).map(cell => cell.replace(/"/g, '').trim());
+                  const tagsIndex = headers.findIndex(h => h.toLowerCase() === 'tags');
+                  
+                  if (tagsIndex !== -1 && firstDataRow[tagsIndex]) {
+                    const productTags = firstDataRow[tagsIndex]
+                      .split(',')
+                      .map(tag => tag.trim())
+                      .filter(tag => tag.length > 0);
+                    
+                    if (productTags.length > 0) {
+                      return (
+                        <div className="flex flex-wrap gap-1.5">
+                          {productTags.map((tag, index) => (
+                            <Badge 
+                              key={`product-tag-${index}`}
+                              variant="outline" 
+                              className="border-blue-600/40 text-blue-300 text-xs px-2 py-0.5 h-5"
+                            >
+                              #{tag}
+                            </Badge>
+                          ))}
+                        </div>
+                      );
+                    }
+                  }
+                  return null;
+                })()}
+                
+                {/* Manuel Eklenen Etiketler */}
                 {individualTags[preview.id] && individualTags[preview.id].length > 0 && (
                   <div className="flex flex-wrap gap-1.5">
                     {individualTags[preview.id].map((tag, index) => (
