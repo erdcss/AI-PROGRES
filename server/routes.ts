@@ -5167,18 +5167,18 @@ ${(result.title || 'product').toLowerCase().replace(/[^a-z0-9]/g, '-')},${result
   app.get('/api/tracking/dashboard-stats', async (req, res) => {
     try {
       // 1. URL Tracking Statistics
-      const urlTrackingStats = await urlTrackingService.getTrackingStatus();
+      const urlTrackingStats = await urlTrackingService.getTrackingStats();
       
       // 2. Shopify Products Statistics  
       const shopifyStats = await shopifyApiService.getMemoryStats();
       
       // 3. Monitoring Schedules Statistics
       const [totalSchedules] = await db
-        .select({ count: db.count() })
+        .select({ count: count() })
         .from(monitoringSchedules);
         
       const [activeSchedules] = await db
-        .select({ count: db.count() })
+        .select({ count: count() })
         .from(monitoringSchedules)
         .where(and(
           eq(monitoringSchedules.isActive, true),
@@ -5198,7 +5198,7 @@ ${(result.title || 'product').toLowerCase().replace(/[^a-z0-9]/g, '-')},${result
         .from(products)
         .where(and(
           isNotNull(products.updatedAt),
-          db.gte(products.updatedAt, twentyFourHoursAgo)
+          gte(products.updatedAt, twentyFourHoursAgo)
         ))
         .orderBy(desc(products.updatedAt))
         .limit(10);
@@ -5329,8 +5329,8 @@ ${(result.title || 'product').toLowerCase().replace(/[^a-z0-9]/g, '-')},${result
         .from(urlTracking)
         .where(and(
           isNotNull(urlTracking.lastChecked),
-          db.gte(urlTracking.lastChecked, sevenDaysAgo),
-          db.ne(urlTracking.currentPrice, urlTracking.originalPrice)
+          gte(urlTracking.lastChecked, sevenDaysAgo),
+          ne(urlTracking.currentPrice, urlTracking.originalPrice)
         ))
         .orderBy(desc(urlTracking.lastChecked))
         .limit(15);

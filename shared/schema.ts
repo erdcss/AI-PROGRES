@@ -232,45 +232,19 @@ export const monitoringSchedulesRelations = relations(monitoringSchedules, ({ on
 }));
 
 // Zod schemas for validation
-export const insertProductSchema = createInsertSchema(products).omit({
-  id: true,
-  createdAt: true,
-  updatedAt: true,
-  lastSyncAt: true
-});
+export const insertProductSchema = createInsertSchema(products);
 
-export const insertProductVariantSchema = createInsertSchema(productVariants).omit({
-  id: true,
-  createdAt: true,
-  updatedAt: true
-});
+export const insertProductVariantSchema = createInsertSchema(productVariants);
 
-export const insertPriceHistorySchema = createInsertSchema(priceHistory).omit({
-  id: true,
-  createdAt: true
-});
+export const insertPriceHistorySchema = createInsertSchema(priceHistory);
 
-export const insertStockHistorySchema = createInsertSchema(stockHistory).omit({
-  id: true,
-  createdAt: true
-});
+export const insertStockHistorySchema = createInsertSchema(stockHistory);
 
-export const insertShopifySyncLogSchema = createInsertSchema(shopifySyncLogs).omit({
-  id: true,
-  createdAt: true
-});
+export const insertShopifySyncLogSchema = createInsertSchema(shopifySyncLogs);
 
-export const insertMonitoringScheduleSchema = createInsertSchema(monitoringSchedules).omit({
-  id: true,
-  createdAt: true,
-  updatedAt: true
-});
+export const insertMonitoringScheduleSchema = createInsertSchema(monitoringSchedules);
 
-export const insertUrlTrackingSchema = createInsertSchema(urlTracking).omit({
-  id: true,
-  createdAt: true,
-  updatedAt: true
-});
+export const insertUrlTrackingSchema = createInsertSchema(urlTracking);
 
 // Export the table schemas for use in other files
 export const variants = productVariants;
