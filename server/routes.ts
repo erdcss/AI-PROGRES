@@ -1722,19 +1722,19 @@ export function registerRoutes(app: Express): Server {
           } catch (timeoutError) {
             console.log('⏰ TIMEOUT: Standard method timed out after 8 seconds - trying emergency extraction');
             
-            // Try emergency extraction instead of generic fallback
+            // Try alternative sources instead of generic fallback
             try {
-              const emergencyExtr = await import('./alternative-data-sources');
-              const emergencyResult = await emergencyExtr.emergencyExtraction(url);
+              const { tryAlternativeSources } = await import('./alternative-data-sources');
+              const emergencyResult = await tryAlternativeSources(url);
               
               if (emergencyResult && emergencyResult.success) {
-                console.log('✅ Emergency extraction succeeded:', emergencyResult.title);
+                console.log('✅ Alternative sources extraction succeeded:', emergencyResult.title);
                 result = emergencyResult;
               } else {
-                throw new Error('Emergency extraction failed');
+                throw new Error('Alternative sources extraction failed');
               }
             } catch (emergencyError) {
-              console.log('❌ Emergency extraction also failed, using fallback with real URL data');
+              console.log('❌ Alternative sources also failed, using fallback with real URL data');
               result = {
                 success: false,
                 error: 'Extraction timeout - site may be slow or blocking requests',
