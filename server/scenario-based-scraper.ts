@@ -1087,11 +1087,58 @@ export async function scenarioBasedScrape(url: string): Promise<ScenarioBasedRes
         timeout: 5000 // Reduced from 30000 for speed
       });
       
-      // Skip waiting for selectors to save time - extract whatever is available
-      // await page.waitForSelector('h1, .product-title, [data-testid="product-title"]', { timeout: 10000 });
+      // 🎨 EXTRACT COLOR VARIANTS from JavaScript State and DOM
+      let extractedColors: string[] = [];
+      try {
+        // Wait for color buttons to render (max 2 seconds)
+        await page.waitForSelector('.color-variants, [class*="color"], [class*="renk"]', { timeout: 2000 }).catch(() => {
+          console.log('⚠️ Color buttons not found in DOM');
+        });
+        
+        // Extract colors from JavaScript state and DOM
+        const colorData = await page.evaluate(() => {
+          const colors: string[] = [];
+          
+          // Method 1: JavaScript State
+          const win = window as any;
+          if (win.__PRODUCT_DETAIL_APP_INITIAL_STATE__) {
+            const state = win.__PRODUCT_DETAIL_APP_INITIAL_STATE__;
+            if (state.product?.variants) {
+              state.product.variants.forEach((v: any) => {
+                if (v.attributeName && v.attributeName.toLowerCase().includes('renk')) {
+                  colors.push(v.value || v.name);
+                }
+              });
+            }
+          }
+          
+          // Method 2: DOM Color Buttons
+          const colorButtons = document.querySelectorAll('[class*="color"], [class*="renk"], .slctn-item');
+          colorButtons.forEach((btn) => {
+            const colorName = btn.getAttribute('title') || btn.getAttribute('data-color') || btn.textContent?.trim();
+            if (colorName && colorName.length > 0 && colorName.length < 50) {
+              colors.push(colorName);
+            }
+          });
+          
+          return [...new Set(colors)]; // Remove duplicates
+        });
+        
+        extractedColors = colorData.filter((c: string) => c && c.length > 0);
+        if (extractedColors.length > 0) {
+          console.log(`🎨 Puppeteer extracted ${extractedColors.length} colors:`, extractedColors.join(', '));
+        }
+      } catch (colorError) {
+        console.log('⚠️ Color extraction failed:', colorError.message);
+      }
       
       // Get page content
       htmlContent = await page.content();
+      
+      // Inject extracted colors into HTML for downstream processing
+      if (extractedColors.length > 0) {
+        htmlContent = htmlContent.replace('</head>', `<meta name="puppeteer-colors" content="${extractedColors.join(',')}" /></head>`);
+      }
       
       // 🛡️ BULLET-PROOF HTML PARSING using new fix
       try {
@@ -3418,7 +3465,21 @@ async function extractVariantsDirect($: cheerio.CheerioAPI, htmlContent: string,
     titleColors = [];
   }
   
-  if (titleColors.length > 0) {
+  // PRIORITY 1.5: Puppeteer-extracted colors (HIGHEST PRIORITY if available)
+  let puppeteerColors: string[] = [];
+  try {
+    puppeteerColors = extractAllColorsFromMeta($);
+    if (puppeteerColors.length > 0) {
+      console.log(`🎨 PUPPETEER COLORS FOUND: ${puppeteerColors.length} colors - ${puppeteerColors.join(', ')}`);
+    }
+  } catch (error) {
+    console.log(`⚠️ Puppeteer color extraction error: ${error.message}`);
+  }
+  
+  if (puppeteerColors.length > 0) {
+    detectedColors = puppeteerColors;
+    console.log(`🎯 FINAL: Puppeteer-extracted colors (HIGHEST PRIORITY): [${puppeteerColors.join(', ')}]`);
+  } else if (titleColors.length > 0) {
     detectedColors = titleColors;
     console.log(`🎯 FINAL: Multi-color from title: [${titleColors.join(', ')}]`);
   } else if (scriptColors.length > 0) {
@@ -4803,10 +4864,11 @@ function extractColorFromDescription(htmlContent: string): string | null {
 }
 
 /**
- * Extract color from meta tags
+ * Extract color from meta tags (including Puppeteer-injected colors)
  */
 function extractColorFromMeta($: any): string | null {
   const metaSelectors = [
+    'meta[name="puppeteer-colors"]', // Puppeteer-extracted colors (PRIORITY)
     'meta[name="color"]',
     'meta[property="product:color"]',
     'meta[name="product-color"]',
@@ -4815,13 +4877,37 @@ function extractColorFromMeta($: any): string | null {
   
   for (const selector of metaSelectors) {
     const content = $(selector).attr('content');
-    if (content && content.length > 2 && content.length < 50) {
+    if (content && content.length > 2 && content.length < 500) {
+      // Handle multiple colors from Puppeteer (comma-separated)
+      if (selector === 'meta[name="puppeteer-colors"]' && content.includes(',')) {
+        const colors = content.split(',').map(c => c.trim()).filter(c => c.length > 0);
+        if (colors.length > 0) {
+          console.log(`🎨 Puppeteer extracted ${colors.length} colors from DOM:`, colors.join(', '));
+          return colors[0]; // Return first color for backward compatibility
+        }
+      }
+      
       const color = content.charAt(0).toUpperCase() + content.slice(1).toLowerCase();
       console.log(`🎨 Color extracted from meta: ${color}`);
       return color;
     }
   }
   return null;
+}
+
+/**
+ * Extract ALL colors from meta tags (including Puppeteer multi-color support)
+ */
+function extractAllColorsFromMeta($: any): string[] {
+  const puppeteerColors = $('meta[name="puppeteer-colors"]').attr('content');
+  if (puppeteerColors) {
+    const colors = puppeteerColors.split(',').map((c: string) => c.trim()).filter((c: string) => c.length > 0);
+    if (colors.length > 0) {
+      console.log(`🎨 Puppeteer extracted ALL colors:`, colors.join(', '));
+      return colors;
+    }
+  }
+  return [];
 }
 
 /**
