@@ -1461,6 +1461,66 @@ ${data.title.toLowerCase().replace(/[^a-z0-9]/g, '-')},${data.title},${data.bran
                         </span>
                       </div>
                     )}
+
+                    {/* Varyant Bilgileri - Kompakt Alan */}
+                    {(() => {
+                      const colors = product.variants?.colors?.filter(c => c && c !== 'Standart' && c !== 'Tek Renk') || [];
+                      const sizes = product.variants?.sizes?.filter(s => s && s !== 'Tek Beden') || [];
+                      const hasRealVariants = colors.length > 0 || sizes.length > 0;
+
+                      if (!hasRealVariants) return null;
+
+                      return (
+                        <div className="bg-gradient-to-r from-slate-800/40 to-slate-700/40 rounded-lg border border-cyan-800/30 p-3 space-y-2">
+                          <div className="flex items-center gap-2">
+                            <Shirt className="w-4 h-4 text-cyan-400" />
+                            <span className="text-cyan-300 text-sm font-medium">Varyant Bilgileri</span>
+                          </div>
+                          
+                          <div className="grid grid-cols-2 gap-3">
+                            {/* Renkler */}
+                            {colors.length > 0 && (
+                              <div className="space-y-1">
+                                <span className="text-white/60 text-xs">Renkler ({colors.length})</span>
+                                <div className="flex flex-wrap gap-1">
+                                  {colors.slice(0, 3).map((color, idx) => (
+                                    <span 
+                                      key={idx}
+                                      className="bg-purple-900/30 text-purple-300 px-2 py-0.5 rounded text-xs border border-purple-800/40"
+                                    >
+                                      {color}
+                                    </span>
+                                  ))}
+                                  {colors.length > 3 && (
+                                    <span className="text-purple-400 text-xs px-1">+{colors.length - 3}</span>
+                                  )}
+                                </div>
+                              </div>
+                            )}
+                            
+                            {/* Bedenler */}
+                            {sizes.length > 0 && (
+                              <div className="space-y-1">
+                                <span className="text-white/60 text-xs">Bedenler ({sizes.length})</span>
+                                <div className="flex flex-wrap gap-1">
+                                  {sizes.slice(0, 4).map((size, idx) => (
+                                    <span 
+                                      key={idx}
+                                      className="bg-green-900/30 text-green-300 px-2 py-0.5 rounded text-xs border border-green-800/40"
+                                    >
+                                      {size}
+                                    </span>
+                                  ))}
+                                  {sizes.length > 4 && (
+                                    <span className="text-green-400 text-xs px-1">+{sizes.length - 4}</span>
+                                  )}
+                                </div>
+                              </div>
+                            )}
+                          </div>
+                        </div>
+                      );
+                    })()}
                     
                     {/* Varyant Detay Tablosu */}
                     {product.variants?.allVariants && product.variants.allVariants.length > 0 && (
