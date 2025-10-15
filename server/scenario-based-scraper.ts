@@ -1661,19 +1661,50 @@ export async function scenarioBasedScrape(url: string): Promise<ScenarioBasedRes
                 }));
                 console.log(`✅ Using SKU-level variants`);
               } else {
-                // FALLBACK: Use scenario-based extraction
-                console.log('⚠️ No SKU-level data found, falling back to scenario extraction');
-                const variantResult = ScenarioExtractors.extractByScenario(
-                  detection.scenario,
-                  config,
-                  $,
-                  htmlContent,
-                  title
-                );
+                // TRY ENHANCED EXTRACTION FIRST
+                console.log('🎨 STEP 1: No SKU data, trying JSON-LD enhanced variant extraction...');
+                let directVariants: ProductVariant[] = [];
                 
-                // Step 5: Build final variants array with enhanced extraction
-                variants = buildVariantsArray(variantResult, detection.scenario);
-                console.log(`✅ Variant extraction successful: ${variants.length} variants`);
+                try {
+                  directVariants = extractEnhancedVariants($, htmlContent);
+                  console.log(`✅ Enhanced extraction: ${directVariants.length} variants found`);
+                  
+                  if (directVariants.length > 0) {
+                    directVariants.slice(0, 5).forEach((v, i) => {
+                      console.log(`🎯 Variant ${i + 1}: ${v.color} / ${v.size} (${v.inStock ? 'In Stock' : 'Out'})`);
+                    });
+                  }
+                } catch (err) {
+                  console.log(`❌ Enhanced extraction failed: ${err.message}`);
+                }
+                
+                // CHECK IF WE FOUND REAL COLORS
+                const realColors = [...new Set(directVariants.map(v => v.color).filter(c => c && c !== 'Varsayılan' && c !== 'Standart' && c !== 'STANDART'))];
+                const realSizes = [...new Set(directVariants.map(v => v.size).filter(s => s && s !== 'STANDART' && s !== 'Tek Beden'))];
+                const hasRealData = realColors.length > 0 || realSizes.length > 0;
+                
+                console.log(`🎨 Real data check: ${realColors.length} colors, ${realSizes.length} sizes`);
+                if (realColors.length > 0) {
+                  console.log(`🎨 Colors: ${realColors.join(', ')}`);
+                }
+                
+                if (hasRealData) {
+                  console.log(`✅ Using ${directVariants.length} enhanced variants with real data`);
+                  variants = directVariants;
+                } else {
+                  // FALLBACK: Use scenario-based extraction
+                  console.log('⚠️ No real variant data, falling back to scenario extraction');
+                  const variantResult = ScenarioExtractors.extractByScenario(
+                    detection.scenario,
+                    config,
+                    $,
+                    htmlContent,
+                    title
+                  );
+                  
+                  variants = buildVariantsArray(variantResult, detection.scenario);
+                  console.log(`✅ Scenario extraction: ${variants.length} variants`);
+                }
               }
             }
           } catch (variantExtractionError) {
@@ -1695,57 +1726,6 @@ export async function scenarioBasedScrape(url: string): Promise<ScenarioBasedRes
         size: '',
         inStock: true
       }];
-    }
-    
-    // ✅ ALWAYS TRY ENHANCED EXTRACTION FIRST - Then check if single-variant
-    console.log('🎨 STEP 1: Trying enhanced variant extraction for color/size detection...');
-    let directVariants = [];
-    
-    try {
-      // Try enhanced variant extraction from improved-image-deduplicator
-      directVariants = extractEnhancedVariants($, htmlContent);
-      
-      console.log(`✅ Enhanced variant extraction completed: ${directVariants.length} variants`);
-      
-      // Log extracted variants for debugging
-      if (directVariants.length > 0) {
-        directVariants.slice(0, 5).forEach((variant, idx) => {
-          console.log(`🎯 Enhanced variant ${idx + 1}: ${variant.color} / ${variant.size} (${variant.inStock ? 'In Stock' : 'Out of Stock'})`);
-        });
-        if (directVariants.length > 5) {
-          console.log(`... and ${directVariants.length - 5} more variants`);
-        }
-      }
-    } catch (enhancedVariantError) {
-      console.log(`❌ Enhanced variant extraction failed: ${enhancedVariantError.message}`);
-      directVariants = [];
-    }
-    
-    // ✅ CHECK IF WE FOUND REAL COLORS/SIZES
-    const extractedColors = [...new Set(directVariants.map(v => v.color).filter(c => c && c !== 'Varsayılan' && c !== 'Standart' && c !== 'STANDART'))];
-    const extractedSizes = [...new Set(directVariants.map(v => v.size).filter(s => s && s !== 'STANDART' && s !== 'Tek Beden'))];
-    const hasRealVariants = extractedColors.length > 0 || extractedSizes.length > 0;
-    
-    console.log(`🎨 VARIANT CHECK: Found ${extractedColors.length} real colors, ${extractedSizes.length} real sizes`);
-    if (extractedColors.length > 0) {
-      console.log(`🎨 Colors found: ${extractedColors.slice(0, 5).join(', ')}${extractedColors.length > 5 ? '...' : ''}`);
-    }
-    
-    // ✅ DECISION: Use enhanced variants if found real data, otherwise respect single-variant detection
-    if (hasRealVariants) {
-      console.log(`✅ REAL VARIANTS DETECTED: Using ${directVariants.length} enhanced variants`);
-      variants = directVariants;
-    } else if (detection.scenario === ExtractionScenario.SINGLE_VARIANT) {
-      console.log('🚫 SINGLE-VARIANT PRODUCT: No real colors/sizes found, keeping single variant');
-      if (variants.length === 0) {
-        variants = [];
-        console.log('✅ Single-variant product: No variants generated (product has no size/color options)');
-      }
-    } else if (directVariants.length > 0) {
-      console.log(`⚠️ Using ${directVariants.length} variants (no real colors detected but has size variations)`);
-      variants = directVariants;
-    } else if (variants.length > 0) {
-      console.log(`⚠️ No enhanced variants, keeping ${variants.length} scenario variants`);
     }
     
     // ✅ KATEGORİ ÇIKARMA SİSTEMİ EKLEME
