@@ -515,22 +515,17 @@ export function CSVDrawerPreview({ csvPreviews, onDownload, onShopifyUpload, ind
                       </Button>
                     </div>
                     
-                    {/* Etiket Ekleme Input - Gizli */}
+                    {/* Etiket Ekleme Input */}
                     <Input
                       value={newTagInputs[preview.id] || ''}
                       onChange={(e) => setNewTagInputs(prev => ({ ...prev, [preview.id]: e.target.value }))}
-                      onKeyPress={(e) => {
+                      onKeyDown={(e) => {
                         if (e.key === 'Enter') {
                           e.preventDefault();
                           addTag(preview.id);
                         }
                       }}
-                      onBlur={() => {
-                        if (newTagInputs[preview.id]?.trim()) {
-                          addTag(preview.id);
-                        }
-                      }}
-                      placeholder="Yeni etiket (Enter)"
+                      placeholder="Yeni etiket (Enter ile ekle)"
                       className="h-6 text-xs bg-slate-900/50 border-slate-600/30 text-white placeholder:text-slate-500 focus:border-cyan-500/50"
                       data-testid={`input-add-tag-${preview.id}`}
                     />
