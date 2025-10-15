@@ -1390,6 +1390,26 @@ ${data.title.toLowerCase().replace(/[^a-z0-9]/g, '-')},${data.title},${data.bran
                       </div>
                     )}
 
+                    {/* Renk Seçenekleri - Üstte Göster */}
+                    {product.variants?.colors && product.variants.colors.length > 0 && (
+                      <div className="space-y-2">
+                        <span className="text-white/70 text-sm flex items-center gap-2">
+                          <div className="w-3 h-3 bg-gradient-to-r from-red-400 to-blue-400 rounded-full"></div>
+                          Renk Seçenekleri:
+                        </span>
+                        <div className="flex flex-wrap gap-2">
+                          {product.variants.colors.map((color, index) => (
+                            <span 
+                              key={index}
+                              className="bg-gradient-to-r from-purple-900/40 to-pink-900/40 text-purple-300 px-3 py-1.5 rounded-md text-xs border border-purple-800/40 hover:border-purple-600/60 transition-all"
+                            >
+                              {color}
+                            </span>
+                          ))}
+                        </div>
+                      </div>
+                    )}
+
                     {/* Etiketler - Sadece Manuel Etiketler */}
                     {product.tags && product.tags.length > 0 && (
                       <div className="space-y-2">
