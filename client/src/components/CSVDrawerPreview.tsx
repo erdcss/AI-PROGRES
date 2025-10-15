@@ -464,6 +464,28 @@ export function CSVDrawerPreview({ csvPreviews, onDownload, onShopifyUpload, ind
                 </div>
               )}
               
+              {/* Fiyat Bilgileri */}
+              {prices.original > 0 && (
+                <div className="flex items-center gap-2 text-xs">
+                  <div className="flex items-center gap-1">
+                    <span className="text-slate-400">Alış:</span>
+                    <span className="text-orange-300 font-semibold">
+                      {prices.original.toLocaleString('tr-TR', { minimumFractionDigits: 2, maximumFractionDigits: 2 })} ₺
+                    </span>
+                  </div>
+                  <span className="text-slate-600">→</span>
+                  <div className="flex items-center gap-1">
+                    <span className="text-slate-400">Satış:</span>
+                    <span className="text-green-300 font-semibold">
+                      {prices.withProfit.toLocaleString('tr-TR', { minimumFractionDigits: 2, maximumFractionDigits: 2 })} ₺
+                    </span>
+                  </div>
+                  <Badge variant="outline" className="border-green-600/40 text-green-300 text-xs px-1.5 py-0 h-4">
+                    +%{(((prices.withProfit - prices.original) / prices.original) * 100).toFixed(1)}
+                  </Badge>
+                </div>
+              )}
+              
               {/* Varyant ve Etiketler */}
               <div className="space-y-1.5 pt-2 border-t border-slate-700/30">
                 {/* Varyant Sayısı */}

@@ -805,7 +805,8 @@ ${data.title.toLowerCase().replace(/[^a-z0-9]/g, '-')},${data.title},${data.bran
             for (let i = 1; i < lines.length; i++) {
               const cells = parseCSVLine(lines[i]);
               
-              if (i === 1 && cells[tagsIndex] !== undefined) {
+              // Etiketleri sadece ilk satıra değil, TÜM satırlara ekle (multi-variant için gerekli)
+              if (cells[tagsIndex] !== undefined) {
                 const existingTags = cells[tagsIndex].replace(/"/g, '').trim();
                 const allTags = existingTags 
                   ? `${existingTags}, ${manualTags.join(', ')}` 
@@ -824,7 +825,7 @@ ${data.title.toLowerCase().replace(/[^a-z0-9]/g, '-')},${data.title},${data.bran
             }
             
             csvToDownload = updatedLines.join('\n');
-            console.log(`✅ Manuel etiketler CSV'ye eklendi: ${manualTags.join(', ')}`);
+            console.log(`✅ Manuel etiketler tüm CSV satırlarına eklendi: ${manualTags.join(', ')}`);
           }
         }
       }
@@ -839,6 +840,68 @@ ${data.title.toLowerCase().replace(/[^a-z0-9]/g, '-')},${data.title},${data.bran
     if (preview) {
       console.log('🛒 Starting Shopify upload for:', preview.productTitle);
       console.log('📋 Individual tags:', individualTags);
+      
+      // Manuel etiketleri CSV'ye ekle
+      let csvToUpload = preview.csvContent;
+      const manualTags = individualTags || [];
+      
+      if (manualTags.length > 0) {
+        const lines = csvToUpload.split('\n').filter(line => line.trim());
+        if (lines.length >= 2) {
+          const parseCSVLine = (line: string) => {
+            const result = [];
+            let current = '';
+            let inQuotes = false;
+            
+            for (let i = 0; i < line.length; i++) {
+              const char = line[i];
+              if (char === '"') {
+                inQuotes = !inQuotes;
+              } else if (char === ',' && !inQuotes) {
+                result.push(current.trim());
+                current = '';
+              } else {
+                current += char;
+              }
+            }
+            result.push(current.trim());
+            return result;
+          };
+
+          const headers = parseCSVLine(lines[0]).map(h => h.replace(/"/g, '').trim());
+          const tagsIndex = headers.findIndex(h => h.toLowerCase() === 'tags');
+
+          if (tagsIndex !== -1) {
+            const updatedLines = [lines[0]];
+            
+            for (let i = 1; i < lines.length; i++) {
+              const cells = parseCSVLine(lines[i]);
+              
+              // Etiketleri sadece ilk satıra değil, TÜM satırlara ekle (multi-variant için gerekli)
+              if (cells[tagsIndex] !== undefined) {
+                const existingTags = cells[tagsIndex].replace(/"/g, '').trim();
+                const allTags = existingTags 
+                  ? `${existingTags}, ${manualTags.join(', ')}` 
+                  : manualTags.join(', ');
+                cells[tagsIndex] = `"${allTags}"`;
+              }
+              
+              const newLine = cells.map(cell => {
+                if (cell.includes(',') || cell.includes('"') || cell.includes('\n')) {
+                  return `"${cell.replace(/"/g, '""')}"`;
+                }
+                return cell;
+              }).join(',');
+              
+              updatedLines.push(newLine);
+            }
+            
+            csvToUpload = updatedLines.join('\n');
+            console.log(`✅ Manuel etiketler tüm CSV satırlarına eklendi: ${manualTags.join(', ')}`);
+          }
+        }
+      }
+      
       try {
         const response = await fetch("/api/shopify/upload-csv-product", {
           method: "POST",
@@ -846,7 +909,7 @@ ${data.title.toLowerCase().replace(/[^a-z0-9]/g, '-')},${data.title},${data.bran
             "Content-Type": "application/json",
           },
           body: JSON.stringify({ 
-            csvContent: preview.csvContent,
+            csvContent: csvToUpload,
             productTitle: preview.productTitle,
             individualTags: individualTags || []
           }),
