@@ -735,92 +735,111 @@ export function extractEnhancedVariants($: cheerio.CheerioAPI, htmlContent: stri
     });
   });
 
-  // Method 3: JSON-LD variant extraction
+  // Method 3: JSON-LD variant extraction - CRITICAL FIX
   const jsonLdScripts = $('script[type="application/ld+json"]');
+  const extractedVariants: Array<{ color: string; size: string; sku?: string; inStock: boolean }> = [];
+  
   jsonLdScripts.each((_, script) => {
     try {
       const jsonData = JSON.parse($(script).html() || '{}');
       
-      // ✅ NEW: Extract color directly from variant.color field
-      if (jsonData.color && typeof jsonData.color === 'string') {
-        let colorValue = jsonData.color.trim();
+      // ✅ CRITICAL: Extract variants directly from hasVariant array
+      if (jsonData['@type'] === 'Product' && jsonData.hasVariant && Array.isArray(jsonData.hasVariant)) {
+        console.log(`🎨 JSON-LD Product found with ${jsonData.hasVariant.length} variants`);
         
-        // Remove numeric suffixes (e.g., "beyaz-3645" → "beyaz")
-        colorValue = colorValue.replace(/-\d+$/, '');
-        
-        // Parse combined colors (e.g., "beyazkirmiziyesil" → ["beyaz", "kırmızı", "yeşil"])
-        const colorKeywords = ['beyaz', 'siyah', 'kirmizi', 'kırmızı', 'mavi', 'yesil', 'yeşil', 'sari', 'sarı', 'turuncu', 'mor', 'pembe', 'gri', 'kahve', 'lacivert', 'bordo', 'krem', 'bej'];
-        const foundColors: string[] = [];
-        
-        const colorLower = colorValue.toLowerCase();
-        colorKeywords.forEach(keyword => {
-          if (colorLower.includes(keyword)) {
-            // Capitalize first letter for proper display
-            const displayColor = keyword.charAt(0).toUpperCase() + keyword.slice(1);
-            if (!foundColors.includes(displayColor)) {
-              foundColors.push(displayColor);
-            }
-          }
-        });
-        
-        // If we found component colors, add them all
-        if (foundColors.length > 0) {
-          foundColors.forEach(color => {
-            colors.add(color);
-            console.log(`🎨 JSON-LD color found: ${color}`);
-          });
-        } else if (colorValue.length > 0 && colorValue.length < 30) {
-          // Single color not in keywords
-          const displayColor = colorValue.charAt(0).toUpperCase() + colorValue.slice(1).toLowerCase();
-          colors.add(displayColor);
-          console.log(`🎨 JSON-LD color found: ${displayColor}`);
-        }
-      }
-      
-      // Extract variants from structured data
-      if (jsonData.hasVariant && Array.isArray(jsonData.hasVariant)) {
-        jsonData.hasVariant.forEach((variant: any) => {
-          // ✅ NEW: Check variant.color field first
+        jsonData.hasVariant.forEach((variant: any, idx: number) => {
+          let extractedColor = '';
+          let extractedSize = '';
+          let variantSku = '';
+          let isAvailable = true;
+          
+          // Extract color from variant.color field
           if (variant.color && typeof variant.color === 'string') {
             let colorValue = variant.color.trim();
-            colorValue = colorValue.replace(/-\d+$/, ''); // Remove suffix
+            colorValue = colorValue.replace(/-\d+$/, ''); // Remove numeric suffix
             
+            // Parse combined colors
             const colorKeywords = ['beyaz', 'siyah', 'kirmizi', 'kırmızı', 'mavi', 'yesil', 'yeşil', 'sari', 'sarı', 'turuncu', 'mor', 'pembe', 'gri', 'kahve', 'lacivert', 'bordo', 'krem', 'bej'];
             const colorLower = colorValue.toLowerCase();
             
-            colorKeywords.forEach(keyword => {
+            let foundColor = false;
+            for (const keyword of colorKeywords) {
               if (colorLower.includes(keyword)) {
-                const displayColor = keyword.charAt(0).toUpperCase() + keyword.slice(1);
-                colors.add(displayColor);
+                extractedColor = keyword.charAt(0).toUpperCase() + keyword.slice(1);
+                foundColor = true;
+                break;
               }
-            });
-          }
-          
-          if (variant.name) {
-            // Parse variant name for size/color info
-            const variantName = variant.name.toLowerCase();
-            
-            // Extract sizes from variant names
-            const sizeMatch = variantName.match(/\b(xs|s|m|l|xl|xxl|\d{2,3})\b/i);
-            if (sizeMatch) {
-              sizes.add(sizeMatch[1].toUpperCase());
             }
             
-            // Extract colors from variant names
-            const turkishColors = ['beyaz', 'siyah', 'kırmızı', 'mavi', 'yeşil', 'sarı'];
-            turkishColors.forEach(color => {
-              if (variantName.includes(color)) {
-                colors.add(color.charAt(0).toUpperCase() + color.slice(1));
-              }
+            // If no keyword match, use raw value
+            if (!foundColor && colorValue.length > 0 && colorValue.length < 30) {
+              extractedColor = colorValue.charAt(0).toUpperCase() + colorValue.slice(1).toLowerCase();
+            }
+          }
+          
+          // Extract size from variant.name
+          if (variant.name && typeof variant.name === 'string') {
+            const sizeMatch = variant.name.match(/\b(XS|S|M|L|XL|XXL|\d{2,3})\b/i);
+            if (sizeMatch) {
+              extractedSize = sizeMatch[1].toUpperCase();
+            }
+          }
+          
+          // Extract SKU
+          if (variant.sku) {
+            variantSku = variant.sku;
+          }
+          
+          // Check availability
+          if (variant.availability === 'http://schema.org/OutOfStock') {
+            isAvailable = false;
+          }
+          
+          // Create variant object if we have color
+          if (extractedColor) {
+            extractedVariants.push({
+              color: extractedColor,
+              size: extractedSize || 'Tek Beden',
+              sku: variantSku,
+              inStock: isAvailable
             });
+            
+            colors.add(extractedColor);
+            if (extractedSize) {
+              sizes.add(extractedSize);
+            }
+            
+            if (idx < 5) {
+              console.log(`🎨 JSON-LD variant ${idx + 1}: Color=${extractedColor}, Size=${extractedSize || 'Tek Beden'}, Stock=${isAvailable}`);
+            }
           }
         });
+        
+        if (jsonData.hasVariant.length > 5) {
+          console.log(`... and ${jsonData.hasVariant.length - 5} more variants`);
+        }
       }
     } catch (e) {
-      // Continue with other methods
       console.log('⚠️ JSON-LD parsing error:', e);
     }
   });
+  
+  // ✅ If we found variants from JSON-LD, use them directly
+  if (extractedVariants.length > 0) {
+    console.log(`✅ Using ${extractedVariants.length} variants from JSON-LD hasVariant array`);
+    extractedVariants.forEach(v => {
+      variants.push({
+        color: v.color,
+        colorCode: v.color.toLowerCase().replace(/\s+/g, '-'),
+        size: v.size,
+        inStock: v.inStock
+      });
+    });
+    
+    // Return early - we have real data from JSON-LD
+    console.log(`✅ Enhanced variant extraction complete: ${variants.length} unique variants found`);
+    return variants;
+  }
 
   // Method 4: Pattern extraction from HTML content
   const htmlText = $.text();
