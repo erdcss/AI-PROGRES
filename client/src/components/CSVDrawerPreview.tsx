@@ -748,7 +748,12 @@ export function CSVDrawerPreview({ csvPreviews, onDownload, onShopifyUpload, ind
                       <CardTitle className="text-white font-medium text-xs truncate leading-tight mb-1">
                         {preview.productTitle.length > 40 ? preview.productTitle.substring(0, 40) + '...' : preview.productTitle}
                       </CardTitle>
-                      <div className="flex items-center gap-1">
+                      <div className="flex items-center gap-1 flex-wrap">
+                        {uniqueColors.length > 0 && uniqueColors[0] !== 'Standart' && uniqueColors[0] !== 'Tek Renk' && (
+                          <Badge variant="outline" className="text-pink-300 border-pink-800 text-[10px] px-1 py-0 h-4 leading-none">
+                            {uniqueColors.length}r
+                          </Badge>
+                        )}
                         <Badge variant="outline" className="text-cyan-300 border-cyan-800 text-[10px] px-1 py-0 h-4 leading-none">
                           {variantCount}v
                         </Badge>

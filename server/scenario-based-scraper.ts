@@ -809,9 +809,13 @@ export async function scenarioBasedScrape(url: string): Promise<ScenarioBasedRes
           $ = safeCheerioLoad(htmlContent);
           console.log('✅ SPEED MODE: Direct scraping successful in <3s!');
           
-          // 🎨 CHECK FOR COLORS - If none found, use Puppeteer
-          const puppeteerColorsMetaTag = $('meta[name="puppeteer-colors"]').attr('content');
-          const hasColors = puppeteerColorsMetaTag && puppeteerColorsMetaTag.split(',').filter(c => c.trim()).length > 0;
+          // 🎨 CHECK FOR COLORS - Extract variants and check if we have colors
+          console.log('🎨 Checking for color variants in HTML...');
+          const initialVariants = extractEnhancedVariants($, htmlContent);
+          const hasColors = initialVariants && initialVariants.length > 0 && 
+                           initialVariants.some(v => v.color && v.color !== 'Standart' && v.color !== 'Tek Renk');
+          
+          console.log(`🎨 Initial variant check: ${initialVariants?.length || 0} variants, hasColors: ${hasColors}`);
           
           if (!hasColors) {
             console.log('🎨 No colors detected in HTML, trying Puppeteer extraction...');
@@ -828,6 +832,8 @@ export async function scenarioBasedScrape(url: string): Promise<ScenarioBasedRes
             } catch (puppeteerError) {
               console.log('⚠️ Puppeteer color extraction failed, continuing without colors:', puppeteerError.message);
             }
+          } else {
+            console.log(`✅ Colors found in HTML: ${initialVariants.map(v => v.color).filter((c, i, arr) => arr.indexOf(c) === i).join(', ')}`);
           }
           
           console.log('🔥 SPEED MODE: Calling Ultimate Price Extractor immediately...');
