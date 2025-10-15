@@ -44,6 +44,8 @@ export function CSVDrawerPreview({ csvPreviews, onDownload, onShopifyUpload, ind
   const [selectedImageIndex, setSelectedImageIndex] = useState<{[key: string]: number}>({});
   const [updatedPrices, setUpdatedPrices] = useState<{[key: string]: any}>({});
   const [newTagInputs, setNewTagInputs] = useState<{[key: string]: string}>({});
+  const [selectedPreviews, setSelectedPreviews] = useState<Set<string>>(new Set());
+  const [bulkTagInput, setBulkTagInput] = useState('');
 
   const toggleExpanded = (id: string) => {
     const newExpanded = new Set(expandedItems);
@@ -88,6 +90,60 @@ export function CSVDrawerPreview({ csvPreviews, onDownload, onShopifyUpload, ind
       ...prev,
       [previewId]: (prev[previewId] || []).filter((_, i) => i !== tagIndex)
     }));
+  };
+
+  const toggleSelectAll = () => {
+    if (selectedPreviews.size === csvPreviews.length) {
+      setSelectedPreviews(new Set());
+    } else {
+      setSelectedPreviews(new Set(csvPreviews.map(p => p.id)));
+    }
+  };
+
+  const toggleSelectPreview = (id: string) => {
+    const newSelected = new Set(selectedPreviews);
+    if (newSelected.has(id)) {
+      newSelected.delete(id);
+    } else {
+      newSelected.add(id);
+    }
+    setSelectedPreviews(newSelected);
+  };
+
+  const addBulkTags = () => {
+    const tagsToAdd = bulkTagInput.split(',').map(tag => tag.trim()).filter(tag => tag.length > 0);
+    
+    if (tagsToAdd.length === 0) return;
+    
+    if (selectedPreviews.size === 0) {
+      // Hiçbir ürün seçili değilse tüm ürünlere ekle
+      setIndividualTags(prev => {
+        const updated = { ...prev };
+        csvPreviews.forEach(preview => {
+          const existingTags = prev[preview.id] || [];
+          const newTags = tagsToAdd.filter(tag => !existingTags.includes(tag));
+          if (newTags.length > 0) {
+            updated[preview.id] = [...existingTags, ...newTags];
+          }
+        });
+        return updated;
+      });
+    } else {
+      // Sadece seçili ürünlere ekle
+      setIndividualTags(prev => {
+        const updated = { ...prev };
+        selectedPreviews.forEach(previewId => {
+          const existingTags = prev[previewId] || [];
+          const newTags = tagsToAdd.filter(tag => !existingTags.includes(tag));
+          if (newTags.length > 0) {
+            updated[previewId] = [...existingTags, ...newTags];
+          }
+        });
+        return updated;
+      });
+    }
+    
+    setBulkTagInput('');
   };
 
   const parseCSVContent = (csvContent: string) => {
@@ -561,6 +617,54 @@ export function CSVDrawerPreview({ csvPreviews, onDownload, onShopifyUpload, ind
       </CardHeader>
       
       <CardContent className="p-3 space-y-3">
+        {/* Toplu Etiket Ekleme Alanı */}
+        <div className="bg-slate-800/50 border border-cyan-600/30 rounded-lg p-3 space-y-2">
+          <div className="flex items-center justify-between">
+            <div className="flex items-center gap-2">
+              <Tag className="w-4 h-4 text-cyan-400" />
+              <h4 className="text-sm font-medium text-cyan-300">Toplu Etiket Ekle</h4>
+            </div>
+            <Button
+              onClick={toggleSelectAll}
+              size="sm"
+              variant="outline"
+              className="h-6 text-xs border-slate-600 text-slate-300 hover:bg-cyan-900/20 hover:border-cyan-600 px-2"
+            >
+              {selectedPreviews.size === csvPreviews.length ? 'Hiçbirini Seçme' : 'Tümünü Seç'}
+            </Button>
+          </div>
+          <div className="flex gap-2">
+            <Input
+              type="text"
+              value={bulkTagInput}
+              onChange={(e) => setBulkTagInput(e.target.value)}
+              onKeyDown={(e) => {
+                if (e.key === 'Enter') {
+                  e.preventDefault();
+                  addBulkTags();
+                }
+              }}
+              placeholder="Etiketleri virgülle ayırın (örn: yeni, indirim, özel)"
+              className="flex-1 h-8 text-xs bg-slate-900/50 border border-slate-600/30 text-white placeholder:text-slate-500 focus:border-cyan-500/50"
+              data-testid="input-bulk-tags"
+            />
+            <Button
+              onClick={addBulkTags}
+              size="sm"
+              className="h-8 px-3 bg-cyan-600/80 hover:bg-cyan-600 text-white text-xs"
+              data-testid="button-add-bulk-tags"
+            >
+              <Plus className="w-3 h-3 mr-1" />
+              Ekle
+            </Button>
+          </div>
+          <p className="text-xs text-slate-400">
+            {selectedPreviews.size > 0 
+              ? `${selectedPreviews.size} seçili ürüne etiket eklenecek` 
+              : 'Hiçbir ürün seçili değil - tüm ürünlere eklenecek'}
+          </p>
+        </div>
+
         {csvPreviews.map((preview) => {
           const isExpanded = expandedItems.has(preview.id);
           const { headers, rows } = parseCSVContent(preview.csvContent);
@@ -582,6 +686,13 @@ export function CSVDrawerPreview({ csvPreviews, onDownload, onShopifyUpload, ind
               <CardHeader className="pb-1 pt-2 px-3">
                 <div className="flex items-center justify-between gap-2">
                   <div className="flex items-center gap-2 flex-1 min-w-0">
+                    <input
+                      type="checkbox"
+                      checked={selectedPreviews.has(preview.id)}
+                      onChange={() => toggleSelectPreview(preview.id)}
+                      className="w-4 h-4 rounded border-slate-600 text-cyan-600 focus:ring-cyan-500 focus:ring-offset-slate-900 cursor-pointer"
+                      data-testid={`checkbox-select-${preview.id}`}
+                    />
                     <FileText className="w-4 h-4 text-cyan-400 flex-shrink-0" />
                     <div className="flex-1 min-w-0 overflow-hidden">
                       <CardTitle className="text-white font-medium text-xs truncate leading-tight mb-1">
