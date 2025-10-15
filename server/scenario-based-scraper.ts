@@ -1697,67 +1697,55 @@ export async function scenarioBasedScrape(url: string): Promise<ScenarioBasedRes
       }];
     }
     
-    // ✅ CRITICAL DEBUG - Force log to test if we reach this point
-    console.log('🚨🚨🚨 CRITICAL DEBUG: Reached enhanced variant extraction section');
-    console.log('🚨 URL CHECK:', url);
-    console.log('🚨 Current variants count:', variants.length);
+    // ✅ ALWAYS TRY ENHANCED EXTRACTION FIRST - Then check if single-variant
+    console.log('🎨 STEP 1: Trying enhanced variant extraction for color/size detection...');
+    let directVariants = [];
     
-    // ✅ Check if this is target URL
-    const isTargetURL = url.includes('ethiquet/barry-kadin') || url.includes('p-819077297');
-    if (isTargetURL) {
-      console.log('🚨🚨🚨 TARGET URL DETECTED IN SCRAPER!');
-      console.log('🚨 Current variants before direct extraction:', JSON.stringify(variants, null, 2));
+    try {
+      // Try enhanced variant extraction from improved-image-deduplicator
+      directVariants = extractEnhancedVariants($, htmlContent);
+      
+      console.log(`✅ Enhanced variant extraction completed: ${directVariants.length} variants`);
+      
+      // Log extracted variants for debugging
+      if (directVariants.length > 0) {
+        directVariants.slice(0, 5).forEach((variant, idx) => {
+          console.log(`🎯 Enhanced variant ${idx + 1}: ${variant.color} / ${variant.size} (${variant.inStock ? 'In Stock' : 'Out of Stock'})`);
+        });
+        if (directVariants.length > 5) {
+          console.log(`... and ${directVariants.length - 5} more variants`);
+        }
+      }
+    } catch (enhancedVariantError) {
+      console.log(`❌ Enhanced variant extraction failed: ${enhancedVariantError.message}`);
+      directVariants = [];
     }
     
-    // ✅ SINGLE-VARIANT GUARD: Skip enhanced extraction for single-variant products
-    if (detection.scenario === ExtractionScenario.SINGLE_VARIANT) {
-      console.log('🚫 SINGLE-VARIANT PRODUCT: Skipping enhanced variant extraction to prevent fake size generation');
-      console.log('✅ Using scenario-based variants (empty for single product):', variants.length);
-      
-      // For single-variant products, keep variants empty or use basic single variant
+    // ✅ CHECK IF WE FOUND REAL COLORS/SIZES
+    const extractedColors = [...new Set(directVariants.map(v => v.color).filter(c => c && c !== 'Varsayılan' && c !== 'Standart' && c !== 'STANDART'))];
+    const extractedSizes = [...new Set(directVariants.map(v => v.size).filter(s => s && s !== 'STANDART' && s !== 'Tek Beden'))];
+    const hasRealVariants = extractedColors.length > 0 || extractedSizes.length > 0;
+    
+    console.log(`🎨 VARIANT CHECK: Found ${extractedColors.length} real colors, ${extractedSizes.length} real sizes`);
+    if (extractedColors.length > 0) {
+      console.log(`🎨 Colors found: ${extractedColors.slice(0, 5).join(', ')}${extractedColors.length > 5 ? '...' : ''}`);
+    }
+    
+    // ✅ DECISION: Use enhanced variants if found real data, otherwise respect single-variant detection
+    if (hasRealVariants) {
+      console.log(`✅ REAL VARIANTS DETECTED: Using ${directVariants.length} enhanced variants`);
+      variants = directVariants;
+    } else if (detection.scenario === ExtractionScenario.SINGLE_VARIANT) {
+      console.log('🚫 SINGLE-VARIANT PRODUCT: No real colors/sizes found, keeping single variant');
       if (variants.length === 0) {
         variants = [];
         console.log('✅ Single-variant product: No variants generated (product has no size/color options)');
       }
-    } else {
-      // ✅ ENHANCED VARIANT EXTRACTION - Only for multi-variant products
-      let directVariants = [];
-      console.log('🔄 ENHANCED VARIANT EXTRACTION: Testing enhanced extraction for multi-variant product...');
-      console.log('🔄 Current scenario-based variants:', variants.length);
-      console.log('🔄 URL being processed:', url);
-      
-      try {
-        console.log('🔄 Trying enhanced variant extraction...');
-        
-        // Try enhanced variant extraction from improved-image-deduplicator
-        directVariants = extractEnhancedVariants($, htmlContent);
-        
-        console.log(`✅ Enhanced variant extraction: ${directVariants.length} variants`);
-        
-        // Log extracted variants for debugging
-        directVariants.forEach((variant, idx) => {
-          console.log(`🎯 Enhanced variant ${idx + 1}: ${variant.color} / ${variant.size} (${variant.inStock ? 'In Stock' : 'Out of Stock'})`);
-        });
-      } catch (enhancedVariantError) {
-        console.log(`❌ Enhanced variant extraction failed: ${enhancedVariantError.message}`);
-        directVariants = [];
-      }
-      
-      // Merge enhanced extraction results if they provide more colors/sizes
-      console.log(`🔄 MERGING VARIANTS: Enhanced=${directVariants.length}, Scenario=${variants.length}`);
-      
-      if (directVariants.length > 0) {
-        console.log(`🔄 Enhanced extraction found variants: ${directVariants.length} (existing: ${variants.length})`);
-        
-        // Use enhanced variants if they provide better data
-        console.log(`🎨 USING ENHANCED VARIANTS - More comprehensive data`);
-        
-        variants = directVariants; // Use enhanced extraction
-        const uniqueColors = [...new Set(directVariants.map(v => v.color))];
-        console.log(`✅ FINAL RESULT: ${variants.length} variants with colors: ${uniqueColors.join(', ')}`);
-      } else {
-        console.log(`⚠️ No enhanced variants found, keeping scenario variants: ${variants.length}`);
-      }
+    } else if (directVariants.length > 0) {
+      console.log(`⚠️ Using ${directVariants.length} variants (no real colors detected but has size variations)`);
+      variants = directVariants;
+    } else if (variants.length > 0) {
+      console.log(`⚠️ No enhanced variants, keeping ${variants.length} scenario variants`);
     }
     
     // ✅ KATEGORİ ÇIKARMA SİSTEMİ EKLEME
