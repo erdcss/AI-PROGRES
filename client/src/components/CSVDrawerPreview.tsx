@@ -498,111 +498,115 @@ export function CSVDrawerPreview({ csvPreviews, onDownload, onShopifyUpload, ind
                 })()}
               </div>
 
-              {/* Etiketler Bölümü */}
-              <div className="space-y-2 pt-3 border-t border-slate-700/30">
-                <div className="flex items-center gap-2">
-                  <Tag className="w-3.5 h-3.5 text-cyan-400" />
-                  <span className="text-slate-300 text-xs font-medium">Etiketler:</span>
-                </div>
-                
-                {/* CSV'den Gelen Ürün Etiketleri */}
-                {(() => {
-                  const lines = preview.csvContent.split('\n').filter(line => line.trim());
-                  if (lines.length < 2) return null;
-                  
-                  const parseCSVLine = (line: string) => {
-                    const result = [];
-                    let current = '';
-                    let inQuotes = false;
-                    
-                    for (let i = 0; i < line.length; i++) {
-                      const char = line[i];
-                      if (char === '"') {
-                        inQuotes = !inQuotes;
-                      } else if (char === ',' && !inQuotes) {
-                        result.push(current.trim());
-                        current = '';
-                      } else {
-                        current += char;
-                      }
-                    }
-                    result.push(current.trim());
-                    return result;
-                  };
-
-                  const headers = parseCSVLine(lines[0]).map(h => h.replace(/"/g, '').trim());
-                  const firstDataRow = parseCSVLine(lines[1]).map(cell => cell.replace(/"/g, '').trim());
-                  const tagsIndex = headers.findIndex(h => h.toLowerCase() === 'tags');
-                  
-                  if (tagsIndex !== -1 && firstDataRow[tagsIndex]) {
-                    const productTags = firstDataRow[tagsIndex]
-                      .split(',')
-                      .map(tag => tag.trim())
-                      .filter(tag => tag.length > 0);
-                    
-                    if (productTags.length > 0) {
-                      return (
-                        <div className="flex flex-wrap gap-1.5">
-                          {productTags.map((tag, index) => (
-                            <Badge 
-                              key={`product-tag-${index}`}
-                              variant="outline" 
-                              className="border-blue-600/40 text-blue-300 text-xs px-2 py-0.5 h-5"
-                            >
-                              #{tag}
-                            </Badge>
-                          ))}
-                        </div>
-                      );
-                    }
-                  }
-                  return null;
-                })()}
-                
-                {/* Manuel Eklenen Etiketler */}
-                {individualTags[preview.id] && individualTags[preview.id].length > 0 && (
-                  <div className="flex flex-wrap gap-1.5">
-                    {individualTags[preview.id].map((tag, index) => (
-                      <Badge 
-                        key={index}
-                        variant="outline" 
-                        className="border-cyan-600/40 text-cyan-300 text-xs px-2 py-0.5 h-5 flex items-center gap-1 group hover:border-red-500/60"
-                        data-testid={`tag-individual-${preview.id}-${index}`}
-                      >
-                        #{tag}
-                        <X 
-                          className="w-3 h-3 cursor-pointer opacity-50 hover:opacity-100 text-red-400" 
-                          onClick={() => removeTag(preview.id, index)}
-                        />
-                      </Badge>
-                    ))}
+              {/* Etiketler Bölümü - Kompakt */}
+              <div className="pt-2 border-t border-slate-700/30">
+                <div className="flex items-start gap-2">
+                  <div className="flex items-center gap-1 mt-0.5">
+                    <Tag className="w-3 h-3 text-cyan-400" />
+                    <span className="text-slate-400 text-xs">Etiketler:</span>
                   </div>
-                )}
+                  
+                  <div className="flex-1 space-y-1.5">
+                    {/* Tüm Etiketler Tek Satırda */}
+                    <div className="flex flex-wrap gap-1">
+                      {/* CSV'den Gelen Ürün Etiketleri */}
+                      {(() => {
+                        const lines = preview.csvContent.split('\n').filter(line => line.trim());
+                        if (lines.length < 2) return null;
+                        
+                        const parseCSVLine = (line: string) => {
+                          const result = [];
+                          let current = '';
+                          let inQuotes = false;
+                          
+                          for (let i = 0; i < line.length; i++) {
+                            const char = line[i];
+                            if (char === '"') {
+                              inQuotes = !inQuotes;
+                            } else if (char === ',' && !inQuotes) {
+                              result.push(current.trim());
+                              current = '';
+                            } else {
+                              current += char;
+                            }
+                          }
+                          result.push(current.trim());
+                          return result;
+                        };
 
-                {/* Etiket Ekleme Input */}
-                <div className="flex items-center gap-1.5">
-                  <Input
-                    value={newTagInputs[preview.id] || ''}
-                    onChange={(e) => setNewTagInputs(prev => ({ ...prev, [preview.id]: e.target.value }))}
-                    onKeyPress={(e) => {
-                      if (e.key === 'Enter') {
-                        e.preventDefault();
-                        addTag(preview.id);
-                      }
-                    }}
-                    placeholder="Etiket ekle..."
-                    className="h-7 text-xs bg-slate-800/50 border-slate-600/50 text-white placeholder:text-slate-500 focus:border-cyan-500/50"
-                    data-testid={`input-add-tag-${preview.id}`}
-                  />
-                  <Button
-                    onClick={() => addTag(preview.id)}
-                    size="sm"
-                    variant="outline"
-                    className="h-7 px-2 border-cyan-600/50 hover:bg-cyan-600/10 text-cyan-400"
-                    data-testid={`button-add-tag-${preview.id}`}
-                  >
-                    <Plus className="w-3.5 h-3.5" />
-                  </Button>
+                        const headers = parseCSVLine(lines[0]).map(h => h.replace(/"/g, '').trim());
+                        const firstDataRow = parseCSVLine(lines[1]).map(cell => cell.replace(/"/g, '').trim());
+                        const tagsIndex = headers.findIndex(h => h.toLowerCase() === 'tags');
+                        
+                        if (tagsIndex !== -1 && firstDataRow[tagsIndex]) {
+                          const productTags = firstDataRow[tagsIndex]
+                            .split(',')
+                            .map(tag => tag.trim())
+                            .filter(tag => tag.length > 0);
+                          
+                          return productTags.map((tag, index) => (
+                            <Badge 
+                              key={`product-${index}`}
+                              variant="outline" 
+                              className="border-slate-600/40 text-slate-300 text-xs px-1.5 py-0 h-4"
+                            >
+                              {tag}
+                            </Badge>
+                          ));
+                        }
+                        return null;
+                      })()}
+                      
+                      {/* Manuel Eklenen Etiketler */}
+                      {individualTags[preview.id]?.map((tag, index) => (
+                        <Badge 
+                          key={`manual-${index}`}
+                          variant="outline" 
+                          className="border-cyan-600/50 text-cyan-300 text-xs px-1.5 py-0 h-4 flex items-center gap-0.5 hover:border-red-500/60 group"
+                          data-testid={`tag-individual-${preview.id}-${index}`}
+                        >
+                          {tag}
+                          <X 
+                            className="w-2.5 h-2.5 cursor-pointer opacity-0 group-hover:opacity-100 text-red-400 transition-opacity" 
+                            onClick={() => removeTag(preview.id, index)}
+                          />
+                        </Badge>
+                      ))}
+                      
+                      {/* Etiket Ekle Butonu */}
+                      <Button
+                        onClick={() => {
+                          const input = document.querySelector(`[data-testid="input-add-tag-${preview.id}"]`) as HTMLInputElement;
+                          if (input) input.focus();
+                        }}
+                        size="sm"
+                        variant="ghost"
+                        className="h-4 px-1 text-xs text-cyan-400 hover:text-cyan-300 hover:bg-cyan-900/20"
+                      >
+                        <Plus className="w-3 h-3" />
+                      </Button>
+                    </div>
+                    
+                    {/* Etiket Ekleme Input - Gizli */}
+                    <Input
+                      value={newTagInputs[preview.id] || ''}
+                      onChange={(e) => setNewTagInputs(prev => ({ ...prev, [preview.id]: e.target.value }))}
+                      onKeyPress={(e) => {
+                        if (e.key === 'Enter') {
+                          e.preventDefault();
+                          addTag(preview.id);
+                        }
+                      }}
+                      onBlur={() => {
+                        if (newTagInputs[preview.id]?.trim()) {
+                          addTag(preview.id);
+                        }
+                      }}
+                      placeholder="Yeni etiket (Enter)"
+                      className="h-6 text-xs bg-slate-900/50 border-slate-600/30 text-white placeholder:text-slate-500 focus:border-cyan-500/50"
+                      data-testid={`input-add-tag-${preview.id}`}
+                    />
+                  </div>
                 </div>
               </div>
             </div>
