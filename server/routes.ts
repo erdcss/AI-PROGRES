@@ -1677,7 +1677,7 @@ export function registerRoutes(app: Express): Server {
         });
       }
 
-      const { url: rawUrl, persistentTags, onlyExtractData = false } = req.body;
+      const { url: rawUrl, onlyExtractData = false } = req.body;
       
       // URL'i normalize et
       const url = normalizeUrl(rawUrl);
@@ -1922,14 +1922,10 @@ ${(result.title || 'product').toLowerCase().replace(/[^a-z0-9]/g, '-')},${result
             result.variants = [];
           }
           
-          // Add persistent tags to the result
-          if (persistentTags && Array.isArray(persistentTags) && persistentTags.length > 0) {
-            console.log(`🏷️ PERSISTENT TAGS: ${persistentTags.length} adet kalıcı etiket ekleniyor`);
-            console.log(`🏷️ PERSISTENT TAGS: [${persistentTags.join(', ')}]`);
-            const originalTags = result.tags || [];
-            result.tags = [...originalTags, ...persistentTags];
-            console.log(`✅ TAGS MERGED: Ürün etiketleri (${originalTags.length}) + Kalıcı etiketler (${persistentTags.length}) = Toplam ${result.tags.length} etiket`);
-            console.log(`✅ FINAL TAGS FOR CSV: [${result.tags.join(', ')}]`);
+          // Tags are no longer automatically added - only manual tags from CSV preview
+          console.log(`🏷️ Product extracted with ${(result.tags || []).length} tags`);
+          if (!result.tags) {
+            result.tags = [];
           }
           
           // ✅ Sadece veri çekme modunda otomatik işlemler yapılmaz
@@ -3929,7 +3925,7 @@ ${(result.title || 'product').toLowerCase().replace(/[^a-z0-9]/g, '-')},${result
         product_type: "Genel Ürün",
         status: "active",
         published: true,
-        tags: productData.tags ? productData.tags.join(', ') : "trendyol, import, scenario-based",
+        tags: productData.tags ? productData.tags.join(', ') : "",
         variants: [{
           title: "Varsayılan Başlık",
           price: (productData.price?.withProfit || 100).toString(),

@@ -69,8 +69,6 @@ function ScraperPage() {
   const [scrapingMode, setScrapingMode] = useState<ScrapingMode>('single');
   const [allImages, setAllImages] = useState<any[]>([]);
   const [productFeatures, setProductFeatures] = useState<any[]>([]);
-  const [persistentTags, setPersistentTags] = useState<string[]>([]);
-  const [newTag, setNewTag] = useState('');
   const [draggedUrls, setDraggedUrls] = useState<string[]>([]);
   const [isDragOver, setIsDragOver] = useState(false);
   const [csvPreviews, setCsvPreviews] = useState<any[]>([]);
@@ -92,7 +90,7 @@ function ScraperPage() {
   });
 
   const singleScrapeMutation = useMutation({
-    mutationFn: async (data: ScrapeFormData & { persistentTags?: string[]; onlyExtractData?: boolean }) => {
+    mutationFn: async (data: ScrapeFormData & { onlyExtractData?: boolean }) => {
       // Shopify URL'lerini tespit et ve doğru endpoint'e yönlendir
       if (data.url.includes('.myshopify.com') || data.url.includes('shopify.com')) {
         // Bu bir Shopify URL'si - CSV generation endpoint'ine git
@@ -106,7 +104,7 @@ function ScraperPage() {
             productData: { 
               url: data.url, 
               title: "Shopify Product",
-              tags: data.persistentTags || []
+              tags: []
             }
           }),
         });
@@ -127,7 +125,6 @@ function ScraperPage() {
         body: JSON.stringify({ 
           url: data.url, 
           mode: 'single', 
-          persistentTags: data.persistentTags,
           onlyExtractData: data.onlyExtractData || false
         }),
       });
@@ -262,8 +259,7 @@ ${data.title.toLowerCase().replace(/[^a-z0-9]/g, '-')},${data.title},${data.bran
             sizes: data.variants?.sizes || ['Tek Beden']
           },
           images: data.images?.map((img: any) => typeof img === 'string' ? img : img.url) || [],
-          createdAt: new Date().toISOString(),
-          persistentTags: persistentTags || [] // Kalıcı etiketleri ekle
+          createdAt: new Date().toISOString()
         };
         
         console.log('📋 Adding/Updating Single URL CSV preview:', newCSVPreview.id, newCSVPreview.productTitle);
@@ -439,8 +435,7 @@ ${data.title.toLowerCase().replace(/[^a-z0-9]/g, '-')},${data.title},${data.bran
           },
           images: data.images?.map((img: any) => typeof img === 'string' ? img : img.url) || [],
           createdAt: new Date().toISOString(),
-          price: data.price || null, // Fiyat bilgisini ekle
-          persistentTags: persistentTags || [] // Kalıcı etiketleri ekle
+          price: data.price || null // Fiyat bilgisini ekle
         };
         
         // Aynı ID'li preview varsa güncelle, yoksa ekle
@@ -548,8 +543,8 @@ ${data.title.toLowerCase().replace(/[^a-z0-9]/g, '-')},${data.title},${data.bran
   });
 
   const onSingleSubmit = singleForm.handleSubmit((data) => {
-    // Start the main scraping process with persistent tags - ONLY EXTRACT DATA (no tracking/transfer)
-    singleScrapeMutation.mutate({ ...data, persistentTags, onlyExtractData: true });
+    // Start the main scraping process - ONLY EXTRACT DATA (no tracking/transfer)
+    singleScrapeMutation.mutate({ ...data, onlyExtractData: true });
     
     // No need for additional comprehensive image extraction since scenario-based scraper already extracts all needed images
     // Removed: extractAllImagesMutation.mutate(data.url); to prevent "Görsel Çıkarma Hatası" notifications
@@ -557,7 +552,7 @@ ${data.title.toLowerCase().replace(/[^a-z0-9]/g, '-')},${data.title},${data.bran
 
   // Shopify transfer mutation
   const shopifyTransferMutation = useMutation({
-    mutationFn: async (data: ScrapeFormData & { persistentTags?: string[] }) => {
+    mutationFn: async (data: ScrapeFormData) => {
       console.log('🛒 Shopify transfer starting...');
       console.log('CSV previews available:', csvPreviews.length);
       const response = await fetch("/api/shopify-upload", {
@@ -567,8 +562,7 @@ ${data.title.toLowerCase().replace(/[^a-z0-9]/g, '-')},${data.title},${data.bran
         },
         body: JSON.stringify({ 
           productData: product,
-          productUrl: data.url,
-          persistentTags: data.persistentTags || []
+          productUrl: data.url
         }),
       });
 
@@ -604,23 +598,9 @@ ${data.title.toLowerCase().replace(/[^a-z0-9]/g, '-')},${data.title},${data.bran
   });
 
   const onShopifyTransfer = singleForm.handleSubmit((data) => {
-    shopifyTransferMutation.mutate({ ...data, persistentTags });
+    shopifyTransferMutation.mutate(data);
   });
 
-  const addTag = () => {
-    if (newTag.trim() && !persistentTags.includes(newTag.trim())) {
-      setPersistentTags([...persistentTags, newTag.trim()]);
-      setNewTag('');
-    }
-  };
-
-  const removeTag = (tagToRemove: string) => {
-    setPersistentTags(persistentTags.filter(tag => tag !== tagToRemove));
-  };
-
-  const clearAllTags = () => {
-    setPersistentTags([]);
-  };
 
   // Sürükle-bırak fonksiyonları
   const handleDragOver = (e: React.DragEvent) => {
@@ -689,8 +669,6 @@ ${data.title.toLowerCase().replace(/[^a-z0-9]/g, '-')},${data.title},${data.bran
     setCsvPreviews([]);
     setAllImages([]);
     setProductFeatures([]);
-    setPersistentTags([]);
-    setNewTag('');
     setDraggedUrls([]);
     
     // Reset mode to single
@@ -731,7 +709,7 @@ ${data.title.toLowerCase().replace(/[^a-z0-9]/g, '-')},${data.title},${data.bran
       const url = draggedUrls[i];
       try {
         // Her URL için ayrı ayrı işlem yap (sadece veri çekme)
-        const data = await singleScrapeMutation.mutateAsync({ url, persistentTags, onlyExtractData: true });
+        const data = await singleScrapeMutation.mutateAsync({ url, onlyExtractData: true });
         
         // CSV önizlemesi singleScrapeMutation tarafından otomatik eklenir,
         // burada tekrar eklemeye gerek yok
@@ -1112,79 +1090,6 @@ ${data.title.toLowerCase().replace(/[^a-z0-9]/g, '-')},${data.title},${data.bran
                       </div>
                     </div>
 
-                    {/* Persistent Tags Section */}
-                    <div className={`${isMobile ? 'space-y-4' : 'space-y-3'}`}>
-                      <label className={`text-white font-thin block ${
-                        isMobile ? 'text-base mb-2' : 'text-sm'
-                      }`}>
-                        Ürüne Eklenecek Etiketler
-                      </label>
-                      <div className={`${isMobile ? 'space-y-4' : 'space-y-3'}`}>
-                        <div className={`w-full ${isMobile ? 'space-y-4' : 'flex gap-2'}`}>
-                          <Input
-                            placeholder="Etiket ekle (örn: elektronik, telefon)"
-                            value={newTag}
-                            onChange={(e) => setNewTag(e.target.value)}
-                            onKeyPress={(e) => e.key === 'Enter' && (e.preventDefault(), addTag())}
-                            className={`business-input w-full ${
-                              isMobile 
-                                ? 'h-14 text-base rounded-lg' 
-                                : 'flex-1'
-                            }`}
-                            disabled={singleScrapeMutation.isPending}
-                            data-testid="input-product-tag"
-                          />
-                          <Button
-                            type="button"
-                            onClick={addTag}
-                            disabled={!newTag.trim() || singleScrapeMutation.isPending}
-                            className={`bg-green-600 hover:bg-green-700 text-white transition-all duration-200 active:scale-95 rounded-lg ${
-                              isMobile 
-                                ? 'w-full h-14 text-base font-semibold px-4 flex items-center justify-center' 
-                                : 'px-4 flex items-center'
-                            }`}
-                            data-testid="button-add-tag"
-                          >
-                            <Plus className={`${isMobile ? 'w-5 h-5 mr-2' : 'w-4 h-4 mr-2'}`} />
-                            <span className="font-semibold">Etiket Ekle</span>
-                          </Button>
-                        </div>
-                        
-                        {persistentTags.length > 0 && (
-                          <div className="space-y-2">
-                            <div className="flex items-center justify-between">
-                              <span className="text-white/70 text-xs">Aktif Etiketler ({persistentTags.length})</span>
-                              <Button
-                                type="button"
-                                onClick={clearAllTags}
-                                variant="ghost"
-                                className="text-red-400 hover:text-red-300 text-xs h-6 px-2"
-                              >
-                                Tümünü Sil
-                              </Button>
-                            </div>
-                            <div className="flex flex-wrap gap-2">
-                              {persistentTags.map((tag, index) => (
-                                <div key={index} className="flex items-center gap-1 bg-cyan-900/30 px-2 py-1 rounded-md border border-cyan-800/40">
-                                  <span className="text-cyan-300 text-xs">{tag}</span>
-                                  <Button
-                                    type="button"
-                                    onClick={() => removeTag(tag)}
-                                    variant="ghost"
-                                    className="h-4 w-4 p-0 text-cyan-400 hover:text-red-400"
-                                  >
-                                    <X className="w-3 h-3" />
-                                  </Button>
-                                </div>
-                              ))}
-                            </div>
-                            <p className="text-yellow-400/70 text-xs">
-                              Bu etiketler silinene kadar tüm ürünlere otomatik eklenecek
-                            </p>
-                          </div>
-                        )}
-                      </div>
-                    </div>
 
                     {/* URL Listesi */}
                     {draggedUrls.length > 0 && (
@@ -1422,27 +1327,20 @@ ${data.title.toLowerCase().replace(/[^a-z0-9]/g, '-')},${data.title},${data.bran
                       </div>
                     )}
 
-                    {/* Etiketler */}
+                    {/* Etiketler - Sadece Manuel Etiketler */}
                     {product.tags && product.tags.length > 0 && (
                       <div className="space-y-2">
                         <span className="text-white/70 text-sm">Etiketler:</span>
                         <div className="flex flex-wrap gap-2">
-                          {product.tags.map((tag, index) => {
-                            const isPersistentTag = persistentTags.includes(tag);
-                            return (
-                              <span 
-                                key={index}
-                                className={isPersistentTag 
-                                  ? "bg-gradient-to-r from-green-900/40 to-emerald-900/40 text-green-300 px-3 py-1.5 rounded-md text-xs border-2 border-green-600/60 hover:border-green-500/80 transition-all font-medium"
-                                  : "bg-gradient-to-r from-cyan-900/40 to-blue-900/40 text-cyan-300 px-3 py-1.5 rounded-md text-xs border border-cyan-800/40 hover:border-cyan-600/60 transition-all"
-                                }
-                                data-testid={`tag-${index}`}
-                                title={isPersistentTag ? "Kalıcı Etiket (CSV'ye otomatik eklendi)" : "Ürün Etiketi"}
-                              >
-                                #{tag}
-                              </span>
-                            );
-                          })}
+                          {product.tags.map((tag, index) => (
+                            <span 
+                              key={index}
+                              className="bg-gradient-to-r from-cyan-900/40 to-blue-900/40 text-cyan-300 px-3 py-1.5 rounded-md text-xs border border-cyan-800/40 hover:border-cyan-600/60 transition-all"
+                              data-testid={`tag-${index}`}
+                            >
+                              #{tag}
+                            </span>
+                          ))}
                         </div>
                       </div>
                     )}
