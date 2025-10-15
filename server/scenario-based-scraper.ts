@@ -339,7 +339,7 @@ function processStructuredData(data: any, url: string): ScenarioBasedResult {
       size: v.size || '',
       inStock: v.inStock !== false
     })).filter((v: any) => v.color || v.size) : [], // ❌ SAHTE VARIANT YOK - Boş array döndür
-    tags: [data.brand?.toLowerCase(), 'trendyol'].filter(Boolean),
+    tags: [data.brand?.toLowerCase()].filter(Boolean),
     extractionDetails: {
       scenario: 'api-structured',
       confidence: 95,
@@ -833,7 +833,7 @@ export async function scenarioBasedScrape(url: string): Promise<ScenarioBasedRes
                     inStock: true
                   }]
                 },
-                tags: ['trendyol', 'anti-blocking', antiBlockingResult.source],
+                tags: ['anti-blocking', antiBlockingResult.source],
                 extractionDetails: {
                   scenario: 'anti-blocking',
                   confidence: 90,
@@ -872,7 +872,7 @@ export async function scenarioBasedScrape(url: string): Promise<ScenarioBasedRes
                   size: ultimateStealthResult.variants?.sizes?.[0] || 'Tek Beden',
                   inStock: true
                 }],
-                tags: ['trendyol', 'ultimate-stealth', ultimateStealthResult.source],
+                tags: ['ultimate-stealth', ultimateStealthResult.source],
                 extractionDetails: {
                   scenario: 'ultimate-stealth',
                   confidence: 99,
@@ -911,7 +911,7 @@ export async function scenarioBasedScrape(url: string): Promise<ScenarioBasedRes
                   size: ultraAdvancedResult.variants?.sizes?.[0] || 'Tek Beden',
                   inStock: true
                 }],
-                tags: ['trendyol', 'ultra-bypass', ultraAdvancedResult.source],
+                tags: ['ultra-bypass', ultraAdvancedResult.source],
                 extractionDetails: {
                   scenario: 'ultra-bypass',
                   confidence: 95,
@@ -975,7 +975,7 @@ export async function scenarioBasedScrape(url: string): Promise<ScenarioBasedRes
                     size: 'Tek Beden',
                     inStock: true
                   }],
-                  tags: ['trendyol', 'fallback'],
+                  tags: ['fallback'],
                   extractionDetails: {
                     scenario: 'fallback-regex',
                     confidence: 50,
@@ -1045,7 +1045,7 @@ export async function scenarioBasedScrape(url: string): Promise<ScenarioBasedRes
                   size: 'Tek Beden',
                   inStock: true
                 }],
-                tags: ['trendyol', 'fallback'],
+                tags: ['fallback'],
                 extractionDetails: {
                   scenario: 'fallback-regex',
                   confidence: 50,
@@ -1190,7 +1190,7 @@ export async function scenarioBasedScrape(url: string): Promise<ScenarioBasedRes
             size: 'Tek Beden',
             inStock: true
           }],
-          tags: ['trendyol', 'regex-extraction'],
+          tags: ['regex-extraction'],
           extractionDetails: {
             scenario: 'regex-only',
             confidence: 65,
@@ -1234,7 +1234,7 @@ export async function scenarioBasedScrape(url: string): Promise<ScenarioBasedRes
             size: 'Tek Beden',
             inStock: true
           }],
-          tags: ['trendyol', 'blocked-bypass'],
+          tags: ['blocked-bypass'],
           extractionDetails: {
             scenario: 'bypass-blocked',
             confidence: 55,
@@ -1670,7 +1670,7 @@ export async function scenarioBasedScrape(url: string): Promise<ScenarioBasedRes
               size: 'Tek Beden',
               inStock: true
             }],
-            tags: ['trendyol', 'emergency-bypass'],
+            tags: ['emergency-bypass'],
             extractionDetails: {
               scenario: 'emergency-bypass',
               confidence: 85,
@@ -4189,8 +4189,8 @@ function generateAdvancedTags(
     }
   });
   
-  // Add source marketplace tag
-  tags.add('trendyol');
+  // ❌ REMOVED: Source marketplace tag 'trendyol' is no longer added
+  // tags.add('trendyol');
   
   // Add brand-based category tags if applicable
   if (brand) {

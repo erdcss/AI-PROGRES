@@ -85,18 +85,19 @@ export async function generateAdvancedTags($: cheerio.CheerioAPI, htmlContent: s
       }
     });
     
-    // Add 'Trendyol' as a source tag
-    tags.push('Trendyol');
+    // ❌ REMOVED: Trendyol tag is no longer added
+    // tags.push('Trendyol');
     
-    // Remove duplicates and limit to reasonable number
-    const uniqueTags = [...new Set(tags)];
+    // Remove duplicates, filter out 'trendyol', and limit to reasonable number
+    const uniqueTags = [...new Set(tags)]
+      .filter(tag => tag.toLowerCase() !== 'trendyol' && tag.toLowerCase() !== '#trendyol');
     const finalTags = uniqueTags.slice(0, 10); // Limit to 10 tags
     
-    console.log(`🏷️ Generated ${finalTags.length} tags: [${finalTags.join(', ')}]`);
+    console.log(`🏷️ Generated ${finalTags.length} tags (filtered out #trendyol): [${finalTags.join(', ')}]`);
     return finalTags;
     
   } catch (error: any) {
     console.log(`❌ Tag generation failed: ${error?.message || 'Unknown error'}`);
-    return ['Trendyol', 'Ürün']; // Return basic fallback tags
+    return []; // Return empty array instead of 'Trendyol' tag
   }
 }

@@ -385,9 +385,12 @@ export async function generateMultiVariantShopifyCSV(product: CombinedProduct): 
       row.push(productCategory); // Product Type
       console.log(`🏷️ CSV: Product Type eklendi: "${productCategory}"`);
       
-      // Tags - CSV'ye tüm etiketler ekleniyor (ürün + kalıcı)
-      const tagsForCSV = product.tags && Array.isArray(product.tags) ? product.tags.join(', ') : 'trendyol';
-      console.log(`🏷️ CSV: Adding ${product.tags?.length || 0} tags to CSV: [${tagsForCSV}]`);
+      // Tags - CSV'ye tüm etiketler ekleniyor (ürün + kalıcı), #trendyol filtreleniyor
+      const filteredTags = product.tags && Array.isArray(product.tags) 
+        ? product.tags.filter(tag => tag.toLowerCase() !== 'trendyol' && tag.toLowerCase() !== '#trendyol')
+        : [];
+      const tagsForCSV = filteredTags.length > 0 ? filteredTags.join(', ') : '';
+      console.log(`🏷️ CSV: Adding ${filteredTags.length} tags to CSV (filtered out #trendyol): [${tagsForCSV}]`);
       row.push(tagsForCSV); // Tags
       row.push('TRUE'); // Published
     } else {

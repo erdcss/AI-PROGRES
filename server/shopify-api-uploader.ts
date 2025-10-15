@@ -843,13 +843,14 @@ function generateProductTags(productData: any, colors: string[]): string {
     }
   });
   
-  // Add Trendyol tag
-  tags.push('trendyol');
+  // ❌ REMOVED: Trendyol tag is no longer added automatically
+  // tags.push('trendyol');
   
-  // Remove duplicates and join
-  const uniqueTags = Array.from(new Set(tags.filter(Boolean)));
+  // Remove duplicates, filter out 'trendyol', and join
+  const uniqueTags = Array.from(new Set(tags.filter(Boolean)))
+    .filter(tag => tag.toLowerCase() !== 'trendyol' && tag.toLowerCase() !== '#trendyol');
   
-  console.log(`🏷️ Generated ${uniqueTags.length} tags for Shopify: ${uniqueTags.join(', ')}`);
+  console.log(`🏷️ Generated ${uniqueTags.length} tags for Shopify (filtered out #trendyol): ${uniqueTags.join(', ')}`);
   
   return uniqueTags.join(', ');
 }
