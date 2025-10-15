@@ -339,9 +339,9 @@ export function CSVDrawerPreview({ csvPreviews, onDownload, onShopifyUpload, ind
     return (
       <Card className="bg-slate-800/40 border border-slate-600/50 mb-3">
         <CardContent className="p-3">
-          <div className="flex gap-3 h-[100px]">
+          <div className="flex gap-3">
             {/* Sol taraf - Görsel ve Slider */}
-            <div className="relative w-[120px] h-[100px] flex-shrink-0 bg-slate-700/30 rounded overflow-hidden border border-slate-600/30">
+            <div className="relative w-[100px] h-[100px] flex-shrink-0 bg-slate-700/30 rounded overflow-hidden border border-slate-600/30">
               {currentImageUrl ? (
                 <>
                   <img 
@@ -390,123 +390,51 @@ export function CSVDrawerPreview({ csvPreviews, onDownload, onShopifyUpload, ind
             </div>
             
             {/* Sağ taraf - Ürün Bilgileri */}
-            <div className="flex-1 flex flex-col justify-between min-w-0">
-              {/* Ürün Başlığı ve Tracking ID */}
-              <div className="mb-1">
-                <h3 className="text-white font-medium text-sm leading-tight truncate">
+            <div className="flex-1 min-w-0 space-y-2">
+              {/* Ürün Başlığı */}
+              <div>
+                <h3 className="text-white font-medium text-sm leading-tight line-clamp-2">
                   {preview.productTitle}
                 </h3>
-                {trackingId && (
-                  <div className="flex items-center gap-2 mt-1">
-                    <span className="text-slate-500 text-xs">ID:</span>
-                    <Badge className="bg-purple-900/30 text-purple-300 text-xs px-2 py-0 h-4 font-mono">
-                      {trackingId}
-                    </Badge>
-                  </div>
-                )}
               </div>
               
-              {/* Fiyat Bilgileri */}
-              <div className="flex items-center gap-3 mb-2">
-                {(() => {
-                  // Use updated price if available, otherwise use original price
-                  const priceToUse = updatedPrices[preview.id] || preview.price;
-                  const standardPrice = (priceToUse && priceToUse.original > 0) 
-                    ? normalizePrice(priceToUse) 
-                    : null;
+              {/* ID Bilgisi */}
+              {trackingId && (
+                <div className="flex items-center gap-1">
+                  <span className="text-slate-500 text-xs">ID:</span>
+                  <Badge className="bg-purple-900/30 text-purple-300 text-xs px-2 py-0 h-4 font-mono">
+                    {trackingId}
+                  </Badge>
+                </div>
+              )}
+              
+              {/* Varyant ve Etiketler */}
+              <div className="space-y-1.5 pt-2 border-t border-slate-700/30">
+                {/* Varyant Sayısı */}
+                <div className="flex gap-1">
+                  {(() => {
+                    const allVariants = preview.variants?.allVariants || [];
+                    const uniqueColors = [...new Set(allVariants.map(v => v.color).filter(Boolean))];
+                    const uniqueSizes = [...new Set(allVariants.map(v => v.size).filter(Boolean))];
                     
-                  return standardPrice ? (
-                    <div className="flex items-center gap-2 flex-wrap">
-                      <div className="flex items-center gap-2">
-                        <span className="text-slate-400 text-xs">Alış:</span>
-                        <span className="text-white text-sm font-medium">{formatOriginalPrice(standardPrice)}</span>
-                      </div>
-                      <div className="flex items-center gap-2">
-                        <span className="text-slate-400 text-xs">Satış:</span>
-                        <span className="text-green-400 text-sm font-medium">{formatSalePrice(standardPrice)}</span>
-                      </div>
-                      <Badge className="bg-green-900/30 text-green-300 text-xs px-2 py-0 h-4">
-                        {formatProfitPercentage(standardPrice)}
-                      </Badge>
-                      <PriceEditor
-                        currentPrice={standardPrice}
-                        productTitle={preview.productTitle}
-                        onPriceUpdate={(newPrice) => {
-                          setUpdatedPrices(prev => ({
-                            ...prev,
-                            [preview.id]: {
-                              original: newPrice.original,
-                              withProfit: newPrice.withProfit
-                            }
-                          }));
-                        }}
-                        className="ml-1"
-                      />
-                    </div>
-                  ) : (
-                    <div className="flex items-center gap-2">
-                      <span className="text-slate-400 text-xs">Fiyat:</span>
-                      <span className="text-orange-400 text-sm">Bilgi yok</span>
-                    </div>
-                  );
-                })()}
-              </div>
-              
-              {/* ✅ FIXED: Varyant Bilgileri - allVariants'tan gerçek varyantları göster */}
-              <div className="flex flex-wrap gap-1">
-                {/* Gerçek renkler varsa göster */}
-                {(() => {
-                  const allVariants = preview.variants?.allVariants || [];
-                  const uniqueColors = [...new Set(allVariants.map(v => v.color).filter(Boolean))];
-                  return uniqueColors.length > 0 && (
-                    <Badge variant="outline" className="border-cyan-600/40 text-cyan-300 text-xs px-2 py-0 h-5">
-                      {uniqueColors.length} renk
-                    </Badge>
-                  );
-                })()}
+                    if (allVariants.length === 0) {
+                      return <Badge variant="outline" className="border-slate-600/40 text-slate-400 text-xs px-1.5 py-0 h-4">Tek ürün</Badge>;
+                    }
+                    
+                    return (
+                      <>
+                        {uniqueColors.length > 0 && <Badge variant="outline" className="border-cyan-600/40 text-cyan-300 text-xs px-1.5 py-0 h-4">{uniqueColors.length} renk</Badge>}
+                        {uniqueSizes.length > 0 && <Badge variant="outline" className="border-purple-600/40 text-purple-300 text-xs px-1.5 py-0 h-4">{uniqueSizes.length} beden</Badge>}
+                      </>
+                    );
+                  })()}
+                </div>
                 
-                {/* Gerçek bedenler varsa göster */}
-                {(() => {
-                  const allVariants = preview.variants?.allVariants || [];
-                  const uniqueSizes = [...new Set(allVariants.map(v => v.size).filter(Boolean))];
-                  return uniqueSizes.length > 0 && (
-                    <Badge variant="outline" className="border-purple-600/40 text-purple-300 text-xs px-2 py-0 h-5">
-                      {uniqueSizes.length} beden
-                    </Badge>
-                  );
-                })()}
-                
-                {/* Toplam varyant sayısı */}
-                {(() => {
-                  const allVariants = preview.variants?.allVariants || [];
-                  const validVariants = allVariants.filter(v => v.color && v.size);
-                  return validVariants.length > 0 && (
-                    <Badge variant="outline" className="border-orange-600/40 text-orange-300 text-xs px-2 py-0 h-5">
-                      {validVariants.length} varyant
-                    </Badge>
-                  );
-                })()}
-                
-                {/* Eğer hiç varyant yoksa tek ürün göster */}
-                {(() => {
-                  const allVariants = preview.variants?.allVariants || [];
-                  return allVariants.length === 0 && (
-                    <Badge variant="outline" className="border-slate-600/40 text-slate-400 text-xs px-2 py-0 h-5">
-                      Tek ürün
-                    </Badge>
-                  );
-                })()}
-              </div>
-
-              {/* Etiketler Bölümü - Kompakt */}
-              <div className="pt-2 border-t border-slate-700/30">
-                <div className="flex items-start gap-2">
-                  <div className="flex items-center gap-1 mt-0.5">
-                    <Tag className="w-3 h-3 text-cyan-400" />
-                    <span className="text-slate-400 text-xs">Etiketler:</span>
-                  </div>
+                {/* Etiketler */}
+                <div className="flex items-start gap-1.5">
+                  <Tag className="w-3 h-3 text-cyan-400 mt-0.5 flex-shrink-0" />
                   
-                  <div className="flex-1 space-y-1.5">
+                  <div className="flex-1 space-y-1">
                     {/* Tüm Etiketler Tek Satırda */}
                     <div className="flex flex-wrap gap-1">
                       {/* CSV'den Gelen Ürün Etiketleri */}
