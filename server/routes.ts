@@ -3218,53 +3218,15 @@ ${(result.title || 'product').toLowerCase().replace(/[^a-z0-9]/g, '-')},${result
       
       console.log('✅ CSV content validated, proceeding with upload...');
       
-      // Add individual tags to CSV if provided
-      let modifiedCsvContent = csvContent;
+      // ✅ TAGS ALREADY ADDED BY FRONTEND - No need to parse/stringify CSV again
+      // Frontend adds individualTags to CSV before sending to backend
+      // Parsing and stringifying CSV again can cause data loss (images, special characters)
       if (individualTags && individualTags.length > 0) {
-        console.log('📋 Adding individual tags to CSV:', individualTags);
-        
-        try {
-          const { parse } = require('csv-parse/sync');
-          const { stringify } = require('csv-stringify/sync');
-          
-          // Parse CSV with proper quote handling
-          const records = parse(csvContent, {
-            columns: true,
-            skip_empty_lines: true,
-            relax_quotes: true,
-            quote: '"',
-            escape: '"'
-          });
-          
-          if (records && records.length > 0) {
-            // Add tags to each record
-            records.forEach((record: any) => {
-              if (record.Tags !== undefined) {
-                const existingTags = record.Tags ? record.Tags.trim() : '';
-                const allTags = existingTags 
-                  ? `${existingTags}, ${individualTags.join(', ')}` 
-                  : individualTags.join(', ');
-                record.Tags = allTags;
-              }
-            });
-            
-            // Stringify back to CSV with proper quoting
-            modifiedCsvContent = stringify(records, {
-              header: true,
-              quoted: true,
-              quoted_empty: true
-            });
-            
-            console.log('✅ Tags added to CSV successfully with proper CSV parsing');
-          }
-        } catch (csvError) {
-          console.error('❌ CSV parsing error, falling back to original:', csvError);
-          // Keep original CSV if parsing fails
-        }
+        console.log('📋 Individual tags already merged into CSV by frontend:', individualTags);
       }
       
       console.log(`🛒 CSV Shopify Upload: ${productTitle}`);
-      const uploadResult = await uploadProductToShopify(modifiedCsvContent, productTitle);
+      const uploadResult = await uploadProductToShopify(csvContent, productTitle);
       
       if (uploadResult.success) {
         // Register product for automated tracking
