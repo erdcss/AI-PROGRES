@@ -36,7 +36,7 @@ import { processCompleteMultiVariant, generateMultiVariantCSV, generateMultiVari
 import { scrapeAdvancedVariants, generateAdvancedVariantCSV } from './advanced-variant-scraper';
 import { runTrendyolVariantsSpider, generateScrapyOutput, generateScrapyCSV } from './scrapy-like-trendyol-scraper';
 import { fixedAuthenticScrape } from './fixed-authentic-scraper';
-import { scenarioBasedScrape } from './scenario-based-scraper';
+import { scenarioBasedScrape, extractionCache } from './scenario-based-scraper';
 import { fastProductExtraction } from './fast-extraction-optimizer';
 import { detectRealStockStatus, convertToLegacyFormat } from './real-stock-detector';
 import { ProductManagementSystem } from './product-management-system';
@@ -1654,6 +1654,10 @@ export function registerRoutes(app: Express): Server {
   app.post('/api/scenario-scrape', async (req, res) => {
     console.log("🎯 Scenario-based scrape isteği alındı");
     console.log("🔧 CORRECT ENDPOINT: /api/scenario-scrape being used");
+    
+    // 🔥 TEMPORARY: Clear cache to test new variant extraction
+    extractionCache.clear();
+    console.log("🗑️ CACHE CLEARED - Testing new variant extraction");
     
     // ✅ FORCE DEBUG - Simple logging to confirm execution
     console.log("🚨 FORCE DEBUG: Endpoint reached");

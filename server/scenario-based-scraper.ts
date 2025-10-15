@@ -22,7 +22,7 @@ import { extractFromTrendyolJavaScriptState } from './trendyol-js-extractor';
 import { detectRealStockStatus } from './real-stock-detector';
 
 // Enhanced caching system with normal duration
-const extractionCache = new Map<string, {data: any, timestamp: number}>();
+export const extractionCache = new Map<string, {data: any, timestamp: number}>();
 const CACHE_DURATION = 10 * 60 * 1000; // 10 minutes cache for better performance
 
 // User-agent rotation - updated with latest versions to avoid detection
