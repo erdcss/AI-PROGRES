@@ -1596,15 +1596,63 @@ export async function scenarioBasedScrape(url: string): Promise<ScenarioBasedRes
     try {
       console.log('🔍 Step 4: Starting variant extraction with error handling...');
       
-      // 🎯 PRIORITY 1: Try JavaScript State extraction FIRST (most comprehensive)
-      console.log('🔍 PRIORITY 1: Attempting JavaScript State extraction...');
-      console.log('🔍 HTML content length:', htmlContent.length);
-      console.log('🔍 Checking for __PRODUCT_DETAIL_APP_INITIAL_STATE__:', htmlContent.includes('__PRODUCT_DETAIL_APP_INITIAL_STATE__'));
+      // 🎯 PRIORITY 0: Try JSON-LD Enhanced Extraction FIRST (most reliable for colors)
+      console.log('🎨 PRIORITY 0: Trying JSON-LD enhanced variant extraction...');
+      let enhancedVariants: any[] = [];
       
-      const jsStateResult = extractFromTrendyolJavaScriptState(htmlContent);
-      console.log('🔍 JS State result:', jsStateResult ? `Success - ${jsStateResult.variants?.length || 0} variants` : 'Failed/Null');
+      try {
+        enhancedVariants = extractEnhancedVariants($, htmlContent);
+        console.log(`✅ Enhanced extraction: ${enhancedVariants.length} variants found`);
+        
+        if (enhancedVariants.length > 0) {
+          enhancedVariants.slice(0, 5).forEach((v, i) => {
+            console.log(`🎯 Variant ${i + 1}: ${v.color} / ${v.size} (${v.inStock ? 'In Stock' : 'Out'})`);
+          });
+        }
+      } catch (err) {
+        console.log(`❌ Enhanced extraction failed: ${err.message}`);
+      }
       
-      if (jsStateResult && jsStateResult.variants && jsStateResult.variants.length > 0) {
+      // Check if we found real colors
+      const realColors = [...new Set(enhancedVariants.map(v => v.color).filter(c => c && c !== 'Varsayılan' && c !== 'Standart' && c !== 'STANDART'))];
+      const realSizes = [...new Set(enhancedVariants.map(v => v.size).filter(s => s && s !== 'STANDART' && s !== 'Tek Beden'))];
+      const hasRealData = realColors.length > 0 || realSizes.length > 0;
+      
+      console.log(`🎨 Real data check: ${realColors.length} colors, ${realSizes.length} sizes`);
+      if (realColors.length > 0) {
+        console.log(`🎨 Colors found: ${realColors.join(', ')}`);
+      }
+      
+      if (hasRealData) {
+        console.log(`✅ Using ${enhancedVariants.length} JSON-LD variants with real color data`);
+        variants = enhancedVariants;
+        
+        // ✅ UPDATE SCENARIO: Update detection based on JSON-LD data
+        const uniqueSizes = [...new Set(variants.map(v => v.size).filter(s => s))];
+        const uniqueColors = [...new Set(variants.map(v => v.color).filter(c => c && c !== 'Varsayılan'))];
+        
+        if (uniqueSizes.length > 1 && uniqueColors.length > 1) {
+          detection.scenario = ExtractionScenario.FULL_MATRIX;
+          console.log(`🔄 SCENARIO OVERRIDE: Multiple sizes (${uniqueSizes.length}) and colors (${uniqueColors.length}) → FULL_MATRIX`);
+        } else if (uniqueSizes.length > 1) {
+          detection.scenario = ExtractionScenario.MULTI_SIZE;
+          console.log(`🔄 SCENARIO OVERRIDE: Multiple sizes (${uniqueSizes.length}) → MULTI_SIZE`);
+        } else if (uniqueColors.length > 1) {
+          detection.scenario = ExtractionScenario.MULTI_COLOR;
+          console.log(`🔄 SCENARIO OVERRIDE: Multiple colors (${uniqueColors.length}) → MULTI_COLOR`);
+        }
+      } else {
+        console.log('⚠️ No real variant data from JSON-LD, trying JavaScript State...');
+        
+        // 🎯 PRIORITY 1: Try JavaScript State extraction
+        console.log('🔍 PRIORITY 1: Attempting JavaScript State extraction...');
+        console.log('🔍 HTML content length:', htmlContent.length);
+        console.log('🔍 Checking for __PRODUCT_DETAIL_APP_INITIAL_STATE__:', htmlContent.includes('__PRODUCT_DETAIL_APP_INITIAL_STATE__'));
+        
+        const jsStateResult = extractFromTrendyolJavaScriptState(htmlContent);
+        console.log('🔍 JS State result:', jsStateResult ? `Success - ${jsStateResult.variants?.length || 0} variants` : 'Failed/Null');
+        
+        if (jsStateResult && jsStateResult.variants && jsStateResult.variants.length > 0) {
         console.log(`✅ JavaScript State extraction successful: ${jsStateResult.variants.length} variants`);
         variants = jsStateResult.variants.map((v: any) => ({
           color: v.color || 'Varsayılan',
@@ -1663,7 +1711,7 @@ export async function scenarioBasedScrape(url: string): Promise<ScenarioBasedRes
               } else {
                 // TRY ENHANCED EXTRACTION FIRST
                 console.log('🎨 STEP 1: No SKU data, trying JSON-LD enhanced variant extraction...');
-                let directVariants: ProductVariant[] = [];
+                let directVariants: any[] = [];
                 
                 try {
                   directVariants = extractEnhancedVariants($, htmlContent);
@@ -1717,6 +1765,7 @@ export async function scenarioBasedScrape(url: string): Promise<ScenarioBasedRes
             }];
           }
         }
+      }
       }
     } catch (variantError) {
       console.log(`❌ CRITICAL: Variant processing failed: ${variantError.message}`);
