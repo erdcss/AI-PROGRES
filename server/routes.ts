@@ -12,7 +12,7 @@ import { instantCSVGenerator } from "./instant-csv-generator-working";
 import { getCategoryConfig } from "./category-mapping";
 import { cleanTrendyolAttributes } from "./clean-attributes";
 import { parseJsonLdProductData, generateTagsFromJsonLd } from "./json-ld-parser";
-import { products as productsTable, products, productVariants, type InsertProduct, type InsertProductVariant } from "@shared/schema";
+import { products, productVariants, type InsertProduct, type InsertProductVariant, urlTracking, priceHistory, stockHistory, monitoringSchedules } from "@shared/schema";
 // import { getFinalImages } from "./final-image-solution";
 import { extractVariantStockInfo } from "./advanced-size-extractor";
 import { extractFocusedData } from './focused-extractor';
@@ -48,17 +48,9 @@ import { generateMultiVariantShopifyCSV } from './multi-variant-csv-generator';
 import { uploadProductToShopify, testShopifyConnection } from './shopify-api-uploader';
 import { uploadMultiUrlProductToShopify } from './multi-url-shopify-uploader';
 import { v4 as uuidv4 } from 'uuid';
-import { eq, desc, or, and, isNotNull, inArray } from 'drizzle-orm';
+import { eq, desc, or, and, isNotNull, inArray, count, gte, ne } from 'drizzle-orm';
 import axios from 'axios';
 import { urlTrackingService } from './url-tracking-service';
-import { 
-  urlTracking, 
-  products, 
-  productVariants, 
-  priceHistory, 
-  stockHistory, 
-  monitoringSchedules 
-} from '@shared/schema';
 import { savedUrlsManager } from './saved-urls-manager';
 import { shopifyProductsManager } from './shopify-products-manager';
 import { shopifyApiService } from './shopify-api-service';
@@ -2566,9 +2558,9 @@ ${(result.title || 'product').toLowerCase().replace(/[^a-z0-9]/g, '-')},${result
 
   // Image proxy endpoint to bypass CORS restrictions
   app.get('/api/image-proxy', async (req, res) => {
+    const imageUrl = req.query.url as string;
+    
     try {
-      const imageUrl = req.query.url as string;
-      
       if (!imageUrl || !imageUrl.includes('cdn.dsmcdn.com')) {
         return res.status(400).json({ error: 'Invalid image URL' });
       }
