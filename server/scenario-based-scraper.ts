@@ -633,6 +633,105 @@ export interface ScenarioBasedResult {
   };
 }
 
+// Puppeteer Color Extraction Function
+async function tryPuppeteerColorExtraction(url: string): Promise<{success: boolean, htmlContent?: string, colors?: string[]}> {
+  let browser;
+  try {
+    console.log('🎨 Starting Puppeteer color extraction...');
+    
+    browser = await puppeteer.launch({
+      headless: true,
+      args: [
+        '--no-sandbox',
+        '--disable-setuid-sandbox',
+        '--disable-dev-shm-usage',
+        '--disable-accelerated-2d-canvas',
+        '--no-first-run',
+        '--no-zygote',
+        '--single-process',
+        '--disable-gpu'
+      ]
+    });
+    
+    const page = await browser.newPage();
+    await page.setUserAgent('Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/131.0.0.0 Safari/537.36');
+    
+    // Navigate to the page
+    await page.goto(url, { 
+      waitUntil: 'domcontentloaded',
+      timeout: 8000
+    });
+    
+    // Extract colors from JavaScript State and DOM
+    let extractedColors: string[] = [];
+    try {
+      // Wait for color buttons to render
+      await page.waitForSelector('.color-variants, [class*="color"], [class*="renk"], .slctn-item', { timeout: 3000 }).catch(() => {
+        console.log('⚠️ Color buttons not found in DOM');
+      });
+      
+      const colorData = await page.evaluate(() => {
+        const colors: string[] = [];
+        
+        // Method 1: JavaScript State
+        const win = window as any;
+        if (win.__PRODUCT_DETAIL_APP_INITIAL_STATE__) {
+          const state = win.__PRODUCT_DETAIL_APP_INITIAL_STATE__;
+          if (state.product?.variants) {
+            state.product.variants.forEach((v: any) => {
+              if (v.attributeName && v.attributeName.toLowerCase().includes('renk')) {
+                colors.push(v.value || v.name);
+              }
+            });
+          }
+        }
+        
+        // Method 2: DOM Color Buttons
+        const colorButtons = document.querySelectorAll('[class*="color"], [class*="renk"], .slctn-item');
+        colorButtons.forEach((btn) => {
+          const colorName = btn.getAttribute('title') || btn.getAttribute('data-color') || btn.textContent?.trim();
+          if (colorName && colorName.length > 0 && colorName.length < 50) {
+            colors.push(colorName);
+          }
+        });
+        
+        return [...new Set(colors)];
+      });
+      
+      extractedColors = colorData.filter((c: string) => c && c.length > 0);
+      if (extractedColors.length > 0) {
+        console.log(`🎨 Puppeteer extracted ${extractedColors.length} colors:`, extractedColors.join(', '));
+      } else {
+        console.log('⚠️ No colors found by Puppeteer');
+      }
+    } catch (colorError) {
+      console.log('⚠️ Color extraction failed:', colorError.message);
+    }
+    
+    // Get page content
+    const htmlContent = await page.content();
+    
+    // Inject extracted colors into HTML
+    let finalHtml = htmlContent;
+    if (extractedColors.length > 0) {
+      finalHtml = htmlContent.replace('</head>', `<meta name="puppeteer-colors" content="${extractedColors.join(',')}" /></head>`);
+    }
+    
+    await browser.close();
+    console.log('✅ Puppeteer extraction successful');
+    
+    return {
+      success: true,
+      htmlContent: finalHtml,
+      colors: extractedColors
+    };
+  } catch (error) {
+    console.log('❌ Puppeteer extraction failed:', error.message);
+    if (browser) await browser.close();
+    return { success: false };
+  }
+}
+
 export async function scenarioBasedScrape(url: string): Promise<ScenarioBasedResult> {
   const startTime = Date.now();
   console.log(`🚨🚨🚨 FUNCTION ENTRY: scenarioBasedScrape called for ${url}`);
@@ -763,20 +862,23 @@ export async function scenarioBasedScrape(url: string): Promise<ScenarioBasedRes
         } catch (enhancedError) {
           console.log('⚠️ Enhanced headers failed, trying advanced Puppeteer...');
           
-          // Method 2: Advanced Puppeteer with stealth mode
-          console.log('📡 Method 2: Puppeteer stealth extraction...');
+          // Method 2: Advanced Puppeteer with color extraction
+          console.log('📡 Method 2: Puppeteer color extraction...');
           
           try {
-            const puppeteerResult = await this.tryPuppeteerStealth(url);
+            const puppeteerResult = await tryPuppeteerColorExtraction(url);
             if (puppeteerResult && puppeteerResult.success) {
               htmlContent = puppeteerResult.htmlContent;
               $ = safeCheerioLoad(htmlContent);
-              console.log('✅ Puppeteer stealth method successful!');
+              console.log('✅ Puppeteer color extraction successful!');
+              if (puppeteerResult.colors && puppeteerResult.colors.length > 0) {
+                console.log(`🎨 Colors extracted: ${puppeteerResult.colors.join(', ')}`);
+              }
             } else {
-              throw new Error('Puppeteer stealth failed');
+              throw new Error('Puppeteer extraction failed');
             }
           } catch (puppeteerError) {
-            console.log('⚠️ Puppeteer stealth failed, trying proxy rotation...');
+            console.log('⚠️ Puppeteer extraction failed, trying proxy rotation...');
             
             // Method 3: NEW Enhanced Anti-Blocking System ACTIVATION
             console.log('🛡️ ACTIVATING ENHANCED ANTI-BLOCKING SYSTEM...');
