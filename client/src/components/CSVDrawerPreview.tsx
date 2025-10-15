@@ -488,14 +488,42 @@ export function CSVDrawerPreview({ csvPreviews, onDownload, onShopifyUpload, ind
               
               {/* Varyant ve Etiketler */}
               <div className="space-y-1.5 pt-2 border-t border-slate-700/30">
+                {/* Renk Seçenekleri */}
+                {(() => {
+                  const colors = preview.variants?.colors || [];
+                  const allVariants = preview.variants?.allVariants || [];
+                  const uniqueColors = colors.length > 0 ? colors : [...new Set(allVariants.map(v => v.color).filter(Boolean))];
+                  
+                  if (uniqueColors.length > 0) {
+                    return (
+                      <div className="flex items-center gap-1.5">
+                        <span className="text-slate-400 text-xs flex-shrink-0">Renkler:</span>
+                        <div className="flex flex-wrap gap-1">
+                          {uniqueColors.map((color, idx) => (
+                            <Badge 
+                              key={idx}
+                              variant="outline" 
+                              className="border-cyan-600/40 text-cyan-300 text-xs px-1.5 py-0 h-4"
+                            >
+                              {color}
+                            </Badge>
+                          ))}
+                        </div>
+                      </div>
+                    );
+                  }
+                  return null;
+                })()}
+                
                 {/* Varyant Sayısı */}
                 <div className="flex gap-1">
                   {(() => {
                     const allVariants = preview.variants?.allVariants || [];
-                    const uniqueColors = [...new Set(allVariants.map(v => v.color).filter(Boolean))];
+                    const colors = preview.variants?.colors || [];
+                    const uniqueColors = colors.length > 0 ? colors : [...new Set(allVariants.map(v => v.color).filter(Boolean))];
                     const uniqueSizes = [...new Set(allVariants.map(v => v.size).filter(Boolean))];
                     
-                    if (allVariants.length === 0) {
+                    if (allVariants.length === 0 && uniqueColors.length === 0) {
                       return <Badge variant="outline" className="border-slate-600/40 text-slate-400 text-xs px-1.5 py-0 h-4">Tek ürün</Badge>;
                     }
                     
