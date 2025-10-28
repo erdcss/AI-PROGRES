@@ -40,7 +40,8 @@ import { scenarioBasedScrape, extractionCache } from './scenario-based-scraper';
 import { fastProductExtraction } from './fast-extraction-optimizer';
 import { detectRealStockStatus, convertToLegacyFormat } from './real-stock-detector';
 import { ProductManagementSystem } from './product-management-system';
-// Legacy Telegram system removed - using notification gateway
+import { monitoringService } from './monitoring-service';
+import { telegramIntegration } from './telegram-integration';
 import { generateComprehensiveShopifyCSV, generateFeatureSummary, type ComprehensiveProductData } from './comprehensive-csv-generator';
 import shopifyTrendyolMatcher from './shopify-trendyol-matcher';
 import { scrapeMultipleUrls } from './multi-url-scraper';
@@ -5332,6 +5333,174 @@ ${(result.title || 'product').toLowerCase().replace(/[^a-z0-9]/g, '-')},${result
   });
 
   console.log('🎯 Automated Tracking Dashboard API endpoints registered');
+
+  // ==================== MONITORING SERVICE ENDPOINTS ====================
+  
+  // Start monitoring service
+  app.post('/api/monitoring/start', (req, res) => {
+    try {
+      monitoringService.start();
+      res.json({
+        success: true,
+        message: 'Monitoring service başlatıldı',
+        status: 'running'
+      });
+    } catch (error) {
+      console.error('❌ Monitoring start error:', error);
+      res.status(500).json({
+        success: false,
+        error: 'Failed to start monitoring service',
+        details: (error as Error).message
+      });
+    }
+  });
+
+  // Stop monitoring service
+  app.post('/api/monitoring/stop', (req, res) => {
+    try {
+      monitoringService.stop();
+      res.json({
+        success: true,
+        message: 'Monitoring service durduruldu',
+        status: 'stopped'
+      });
+    } catch (error) {
+      console.error('❌ Monitoring stop error:', error);
+      res.status(500).json({
+        success: false,
+        error: 'Failed to stop monitoring service',
+        details: (error as Error).message
+      });
+    }
+  });
+
+  // Get monitoring status and stats
+  app.get('/api/monitoring/status', async (req, res) => {
+    try {
+      const stats = await monitoringService.getMonitoringStats();
+      res.json({
+        success: true,
+        ...stats
+      });
+    } catch (error) {
+      console.error('❌ Monitoring status error:', error);
+      res.status(500).json({
+        success: false,
+        error: 'Failed to get monitoring status',
+        details: (error as Error).message
+      });
+    }
+  });
+
+  // Add product to monitoring
+  app.post('/api/monitoring/add', async (req, res) => {
+    try {
+      const { url } = req.body;
+      
+      if (!url) {
+        return res.status(400).json({
+          success: false,
+          error: 'URL required'
+        });
+      }
+
+      const added = await monitoringService.addProductToMonitoring(url);
+      
+      if (added) {
+        res.json({
+          success: true,
+          message: 'Ürün monitoring\'e eklendi',
+          url
+        });
+      } else {
+        res.status(400).json({
+          success: false,
+          error: 'Failed to add product to monitoring'
+        });
+      }
+    } catch (error) {
+      console.error('❌ Monitoring add error:', error);
+      res.status(500).json({
+        success: false,
+        error: 'Failed to add product to monitoring',
+        details: (error as Error).message
+      });
+    }
+  });
+
+  // Remove product from monitoring
+  app.delete('/api/monitoring/remove/:id', async (req, res) => {
+    try {
+      const productId = parseInt(req.params.id);
+      
+      if (isNaN(productId)) {
+        return res.status(400).json({
+          success: false,
+          error: 'Invalid product ID'
+        });
+      }
+
+      const removed = await monitoringService.removeProductFromMonitoring(productId);
+      
+      if (removed) {
+        res.json({
+          success: true,
+          message: 'Ürün monitoring\'den çıkarıldı',
+          productId
+        });
+      } else {
+        res.status(400).json({
+          success: false,
+          error: 'Failed to remove product from monitoring'
+        });
+      }
+    } catch (error) {
+      console.error('❌ Monitoring remove error:', error);
+      res.status(500).json({
+        success: false,
+        error: 'Failed to remove product from monitoring',
+        details: (error as Error).message
+      });
+    }
+  });
+
+  // Get Telegram bot status
+  app.get('/api/telegram/status', (req, res) => {
+    try {
+      const status = telegramIntegration.getStatus();
+      res.json({
+        success: true,
+        ...status
+      });
+    } catch (error) {
+      console.error('❌ Telegram status error:', error);
+      res.status(500).json({
+        success: false,
+        error: 'Failed to get Telegram status',
+        details: (error as Error).message
+      });
+    }
+  });
+
+  // Test Telegram connection
+  app.post('/api/telegram/test', async (req, res) => {
+    try {
+      const testResult = await telegramIntegration.testConnection();
+      res.json({
+        success: testResult,
+        message: testResult ? 'Telegram bağlantısı başarılı' : 'Telegram bağlantısı başarısız'
+      });
+    } catch (error) {
+      console.error('❌ Telegram test error:', error);
+      res.status(500).json({
+        success: false,
+        error: 'Failed to test Telegram connection',
+        details: (error as Error).message
+      });
+    }
+  });
+
+  console.log('📊 Monitoring service API endpoints registered');
 
   // Admin Memory Management Routes
   setupAdminMemoryRoutes(app);

@@ -1,13 +1,14 @@
-import { memorySystem } from './memory-system';
-import { shopifyIntegration } from './shopify-integration';
+import { db } from './db';
+import { urlTracking, urlPriceHistory } from '@shared/schema';
+import { eq, desc, and, isNotNull, gte } from 'drizzle-orm';
 import { telegramIntegration } from './telegram-integration';
-import { scrapeProductData } from './enhanced-scraper-integration';
+import { scenarioBasedScrape } from './scenario-based-scraper';
 
 export class MonitoringService {
   private isRunning = false;
   private intervalId: NodeJS.Timeout | null = null;
 
-  constructor(private checkInterval: number = 30000) {} // Default 30 seconds for testing
+  constructor(private checkInterval: number = 300000) {} // 5 dakika
 
   // Monitoring service başlat
   start(): void {
@@ -22,6 +23,9 @@ export class MonitoringService {
     }, this.checkInterval);
 
     console.log(`🔄 Monitoring service başlatıldı (${this.checkInterval/1000}s aralıklarla)`);
+    
+    // İlk kontrolü hemen başlat
+    this.checkProducts();
   }
 
   // Monitoring service durdur
@@ -37,18 +41,29 @@ export class MonitoringService {
   // İzlenmesi gereken ürünleri kontrol et
   private async checkProducts(): Promise<void> {
     try {
-      const productsToCheck = await memorySystem.getProductsToMonitor();
+      console.log('🔍 Product schedules kontrol ediliyor...');
       
-      if (productsToCheck.length === 0) {
+      // URL tracking tablosundan tracking aktif ürünleri al
+      const trackedProducts = await db
+        .select()
+        .from(urlTracking)
+        .where(and(
+          eq(urlTracking.isTracking, true),
+          isNotNull(urlTracking.url)
+        ))
+        .limit(10);
+
+      if (trackedProducts.length === 0) {
+        console.log('📊 No products scheduled for monitoring at this time');
         return;
       }
 
-      console.log(`🔍 ${productsToCheck.length} ürün kontrol ediliyor...`);
+      console.log(`🔍 ${trackedProducts.length} ürün kontrol ediliyor...`);
 
-      for (const product of productsToCheck) {
+      for (const product of trackedProducts) {
         await this.checkSingleProduct(product);
         
-        // Rate limiting için kısa bekleme
+        // Rate limiting
         await this.sleep(2000);
       }
 
@@ -58,168 +73,127 @@ export class MonitoringService {
   }
 
   // Tekil ürün kontrolü
-  private async checkSingleProduct(product: any): Promise<void> {
+  private async checkSingleProduct(trackedProduct: any): Promise<void> {
     try {
-      console.log(`🔍 Kontrol ediliyor: ${product.title}`);
+      console.log(`🔍 Kontrol ediliyor: ${trackedProduct.productTitle}`);
 
-      // Mevcut varyantları al
-      const currentVariants = await memorySystem.getProductVariants(product.id);
+      const oldPrice = parseFloat(trackedProduct.currentPrice || '0');
       
       // Trendyol'dan güncel verileri çek
-      const freshData = await this.scrapeProductData(product.trendyolUrl);
+      const freshData = await this.scrapeProductData(trackedProduct.url);
       
-      if (!freshData) {
-        await memorySystem.incrementFailureCount(product.id);
-        console.log(`❌ Veri çekilemedi: ${product.title}`);
+      if (!freshData || !freshData.success) {
+        console.log(`❌ Veri çekilemedi: ${trackedProduct.productTitle}`);
         return;
       }
 
-      // Güncel varyantları kaydet (değişiklikleri otomatik algılar)
-      const updatedVariants = await memorySystem.saveVariants(product.id, freshData.variants || []);
-
-      // Değişiklikleri Shopify'a senkronize et
-      await this.syncChangesToShopify(product, currentVariants, updatedVariants);
-
-      // İzleme programını güncelle
-      await memorySystem.updateMonitoringSchedule(product.id);
+      // Yeni fiyatı al
+      const newPrice = parseFloat(freshData.price?.toString() || '0');
       
-      // Periyodik özet gönder (her 10 ürün kontrolünde bir)
-      if (Math.random() < 0.1) { // %10 olasılıkla
-        const stats = await memorySystem.getStats();
-        await telegramIntegration.sendMonitoringSummary({
-          totalProducts: stats.totalProducts,
-          inStockProducts: stats.activeProducts,
-          outOfStockProducts: stats.outOfStockProducts,
-          priceChanges: stats.recentPriceChanges
+      // Fiyat değişikliği kontrolü
+      if (oldPrice > 0 && newPrice > 0 && Math.abs(oldPrice - newPrice) > 0.01) {
+        console.log(`💰 Fiyat değişikliği tespit edildi: ${trackedProduct.productTitle}`);
+        console.log(`   Eski: ${oldPrice} TL → Yeni: ${newPrice} TL`);
+        
+        // URL tracking güncelle
+        await db.update(urlTracking)
+          .set({
+            currentPrice: newPrice.toString(),
+            lastChecked: new Date(),
+            lastPriceChange: new Date()
+          })
+          .where(eq(urlTracking.id, trackedProduct.id));
+
+        // Fiyat geçmişine kaydet
+        await db.insert(urlPriceHistory).values({
+          url: trackedProduct.url,
+          price: newPrice.toString(),
+          previousPrice: oldPrice.toString(),
+          productTitle: trackedProduct.productTitle,
+          currency: trackedProduct.currency || 'TL',
+          recordedAt: new Date()
         });
+
+        // Telegram bildirimi gönder
+        await telegramIntegration.sendPriceChangeNotification(
+          trackedProduct.productTitle,
+          oldPrice,
+          newPrice
+        );
+      } else {
+        // Fiyat değişmedi, sadece lastChecked güncelle
+        await db.update(urlTracking)
+          .set({
+            lastChecked: new Date()
+          })
+          .where(eq(urlTracking.id, trackedProduct.id));
+        
+        console.log(`✅ URL kontrol edildi (fiyat değişmedi): ${trackedProduct.productTitle}`);
       }
 
     } catch (error) {
-      console.error(`❌ ${product.title} kontrol hatası:`, error);
-      await memorySystem.incrementFailureCount(product.id);
+      console.error(`❌ ${trackedProduct.productTitle} kontrol hatası:`, error);
     }
   }
 
   // Trendyol'dan ürün verilerini çek
   private async scrapeProductData(url: string): Promise<any> {
     try {
-      return await scrapeProductData(url);
+      return await scenarioBasedScrape(url);
     } catch (error) {
       console.error('Scraping hatası:', error);
       return null;
     }
   }
 
-  // Değişiklikleri Shopify'a senkronize et
-  private async syncChangesToShopify(
-    product: any, 
-    oldVariants: any[], 
-    newVariants: any[]
-  ): Promise<void> {
-    if (!product.shopifyProductId) {
-      // Ürün henüz Shopify'da yoksa oluştur
-      const shopifyId = await shopifyIntegration.createProduct(product, newVariants);
-      if (shopifyId) {
-        console.log(`✅ Shopify'da ürün oluşturuldu: ${product.title}`);
-      }
-      return;
-    }
-
-    // Varyant değişikliklerini kontrol et ve senkronize et
-    for (let i = 0; i < newVariants.length; i++) {
-      const newVariant = newVariants[i];
-      const oldVariant = oldVariants.find(v => 
-        v.color === newVariant.color && v.size === newVariant.size
-      );
-
-      if (!oldVariant) {
-        // Yeni varyant - tam sync gerekebilir
-        continue;
-      }
-
-      // Fiyat değişikliği kontrolü
-      if (parseFloat(oldVariant.trendyolPrice) !== parseFloat(newVariant.trendyolPrice)) {
-        // %15 kar marjı ile Shopify fiyatını hesapla
-        const newTrendyolPrice = parseFloat(newVariant.trendyolPrice);
-        const newShopifyPrice = Math.round(newTrendyolPrice * 1.15 * 100) / 100;
-        
-        // Shopify price field'ını güncelle
-        newVariant.shopifyPrice = newShopifyPrice.toString();
-        
-        const updated = await shopifyIntegration.updateProductPrice(product, newVariant);
-        if (updated) {
-          console.log(`💰 Shopify fiyat güncellendi: ${newVariant.color} ${newVariant.size} - Trendyol: ${newTrendyolPrice} TL → Shopify: ${newShopifyPrice} TL (%15 kar marjı)`);
-          
-          // Telegram bildirimi gönder
-          await telegramIntegration.sendDetailedPriceChangeNotification(
-            product.title,
-            newVariant,
-            parseFloat(oldVariant.trendyolPrice),
-            parseFloat(newVariant.trendyolPrice)
-          );
-        }
-      }
-
-      // Stok durumu değişikliği kontrolü (Trendyol stoktan çıktığında Shopify'da sıfırla)
-      if (oldVariant.inStock !== newVariant.inStock) {
-        if (!newVariant.inStock) {
-          // Ürün stoktan çıktı - Shopify'da stok sıfırla
-          console.log(`🚨 Stoktan çıktı: ${newVariant.color} ${newVariant.size}`);
-          
-          const stockUpdated = await shopifyIntegration.setVariantStockToZero(product, newVariant);
-          if (stockUpdated) {
-            console.log(`📦 Shopify stok sıfırlandı: ${newVariant.color} ${newVariant.size}`);
-            
-            // Telegram bildirimi gönder
-            await telegramIntegration.sendStockOutNotification(
-              product.title,
-              `${newVariant.color} - ${newVariant.size}`
-            );
-          }
-        } else {
-          // Ürün tekrar stoka girdi
-          console.log(`✅ Stoka geri döndü: ${newVariant.color} ${newVariant.size}`);
-          
-          const stockUpdated = await shopifyIntegration.restoreVariantStock(product, newVariant);
-          if (stockUpdated) {
-            console.log(`📦 Shopify stok restore edildi: ${newVariant.color} ${newVariant.size}`);
-            
-            // Telegram bildirimi gönder
-            await telegramIntegration.sendStockRestoreNotification(
-              product.title,
-              `${newVariant.color} - ${newVariant.size}`
-            );
-          }
-        }
-      }
-
-      // Stok miktarı değişikliği kontrolü
-      if (oldVariant.stockCount !== newVariant.stockCount && newVariant.inStock) {
-        const updated = await shopifyIntegration.updateProductStock(product, newVariant);
-        if (updated) {
-          console.log(`📦 Shopify stok güncellendi: ${newVariant.color} ${newVariant.size} → ${newVariant.stockCount}`);
-        }
-      }
-    }
-  }
-
   // Yeni ürün izlemeye ekle
   async addProductToMonitoring(productUrl: string): Promise<boolean> {
     try {
-      // Önce ürünü scrape et ve kaydet
+      console.log(`📥 URL monitoring'e ekleniyor: ${productUrl}`);
+      
+      // Önce ürünü scrape et
       const productData = await this.scrapeProductData(productUrl);
-      if (!productData) {
+      if (!productData || !productData.success) {
         console.log('❌ Ürün verisi alınamadı, izlemeye eklenemedi');
         return false;
       }
 
-      // Memory system'e kaydet
-      const savedProduct = await memorySystem.saveProduct({
-        url: productUrl,
-        ...productData
-      });
+      const currentPrice = parseFloat(productData.price?.toString() || '0');
 
-      console.log(`✅ Ürün izlemeye eklendi: ${savedProduct.title}`);
+      // URL tracking tablosuna ekle
+      const existing = await db.select()
+        .from(urlTracking)
+        .where(eq(urlTracking.url, productUrl))
+        .limit(1);
+
+      if (existing.length > 0) {
+        // Güncelle - tracking aktif yap
+        await db.update(urlTracking)
+          .set({
+            isTracking: true,
+            lastChecked: new Date()
+          })
+          .where(eq(urlTracking.id, existing[0].id));
+        
+        console.log(`✅ URL tracking güncel lendi: ${productData.title}`);
+      } else {
+        // Yeni kayıt
+        await db.insert(urlTracking).values({
+          url: productUrl,
+          productTitle: productData.title || 'Unknown',
+          brand: productData.brand || '',
+          currentPrice: currentPrice.toString(),
+          originalPrice: currentPrice.toString(),
+          currency: 'TL',
+          isTracking: true,
+          trackingInterval: 300, // 5 dakika
+          lastChecked: new Date(),
+          status: 'active'
+        });
+        
+        console.log(`✅ URL monitoring'e eklendi: ${productData.title}`);
+      }
+
       return true;
 
     } catch (error) {
@@ -231,7 +205,10 @@ export class MonitoringService {
   // Ürünü izlemeden çıkar
   async removeProductFromMonitoring(productId: number): Promise<boolean> {
     try {
-      await memorySystem.updateMonitoringSchedule(productId, 0); // İzlemeyi durdur
+      await db.update(urlTracking)
+        .set({ isTracking: false })
+        .where(eq(urlTracking.id, productId));
+      
       console.log(`⏹️ Ürün izlemeden çıkarıldı (ID: ${productId})`);
       return true;
     } catch (error) {
@@ -243,12 +220,30 @@ export class MonitoringService {
   // Monitoring istatistikleri
   async getMonitoringStats(): Promise<any> {
     try {
-      const activeProducts = await memorySystem.getActiveProducts();
-      const productsToMonitor = await memorySystem.getProductsToMonitor();
+      const allTracked = await db.select()
+        .from(urlTracking)
+        .where(isNotNull(urlTracking.url));
+
+      const activeMonitored = await db.select()
+        .from(urlTracking)
+        .where(and(
+          eq(urlTracking.isTracking, true),
+          isNotNull(urlTracking.url)
+        ));
+
+      // Son 7 gün içindeki fiyat değişiklikleri
+      const sevenDaysAgo = new Date(Date.now() - 7 * 24 * 60 * 60 * 1000);
+      const recentChanges = await db.select()
+        .from(urlTracking)
+        .where(and(
+          isNotNull(urlTracking.lastPriceChange),
+          gte(urlTracking.lastPriceChange, sevenDaysAgo)
+        ));
       
       return {
-        totalProducts: activeProducts.length,
-        monitoredProducts: productsToMonitor.length,
+        totalProducts: allTracked.length,
+        monitoredProducts: activeMonitored.length,
+        recentPriceChanges: recentChanges.length,
         isRunning: this.isRunning,
         checkInterval: this.checkInterval,
         lastCheck: new Date().toISOString()
@@ -258,6 +253,7 @@ export class MonitoringService {
       return {
         totalProducts: 0,
         monitoredProducts: 0,
+        recentPriceChanges: 0,
         isRunning: this.isRunning,
         checkInterval: this.checkInterval,
         lastCheck: null
@@ -271,4 +267,4 @@ export class MonitoringService {
   }
 }
 
-export const monitoringService = new MonitoringService(300000); // 5 dakika aralıklarla
+export const monitoringService = new MonitoringService(300000); // 5 dakika
