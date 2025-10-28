@@ -3,12 +3,23 @@ import { urlTracking, urlPriceHistory } from '@shared/schema';
 import { eq, desc, and, isNotNull, gte } from 'drizzle-orm';
 import { telegramIntegration } from './telegram-integration';
 import { scenarioBasedScrape } from './scenario-based-scraper';
+import { ShopifyApiService } from './shopify-api-service';
 
 export class MonitoringService {
   private isRunning = false;
   private intervalId: NodeJS.Timeout | null = null;
+  private shopifyService: ShopifyApiService | null = null;
 
-  constructor(private checkInterval: number = 300000) {} // 5 dakika
+  constructor(private checkInterval: number = 300000) {
+    // Initialize Shopify service
+    try {
+      this.shopifyService = new ShopifyApiService();
+      console.log('✅ Shopify API Service initialized for monitoring');
+    } catch (error) {
+      console.log('⚠️ Shopify API Service initialization failed - auto-updates disabled');
+      this.shopifyService = null;
+    }
+  }
 
   // Monitoring service başlat
   start(): void {
@@ -53,6 +64,11 @@ export class MonitoringService {
         ))
         .limit(10);
 
+      console.log(`🔎 DEBUG: Query returned ${trackedProducts.length} products`);
+      if (trackedProducts.length > 0) {
+        console.log(`🔎 DEBUG: First product - ID: ${trackedProducts[0].id}, Title: ${trackedProducts[0].productTitle}`);
+      }
+
       if (trackedProducts.length === 0) {
         console.log('📊 No products scheduled for monitoring at this time');
         return;
@@ -95,12 +111,17 @@ export class MonitoringService {
         console.log(`💰 Fiyat değişikliği tespit edildi: ${trackedProduct.productTitle}`);
         console.log(`   Eski: ${oldPrice} TL → Yeni: ${newPrice} TL`);
         
+        // Fiyat değişikliği hesapla
+        const changePercentage = ((newPrice - oldPrice) / oldPrice) * 100;
+        const isIncrease = newPrice > oldPrice;
+        
         // URL tracking güncelle
         await db.update(urlTracking)
           .set({
             currentPrice: newPrice.toString(),
             lastChecked: new Date(),
-            lastPriceChange: new Date()
+            lastPriceChange: new Date(),
+            priceChangePercent: changePercentage.toFixed(2)
           })
           .where(eq(urlTracking.id, trackedProduct.id));
 
@@ -109,10 +130,53 @@ export class MonitoringService {
           url: trackedProduct.url,
           price: newPrice.toString(),
           previousPrice: oldPrice.toString(),
+          changeAmount: (newPrice - oldPrice).toFixed(2),
+          changePercentage: changePercentage.toFixed(2),
           productTitle: trackedProduct.productTitle,
           currency: trackedProduct.currency || 'TL',
           recordedAt: new Date()
         });
+
+        // 🔄 SHOPIFY OTOMATIK GÜNCELLEME
+        if (this.shopifyService && trackedProduct.shopifyProductId) {
+          try {
+            console.log(`🛒 Shopify fiyat güncelleniyor: ${trackedProduct.productTitle}`);
+            
+            // Yeni satış fiyatı hesapla (%10 kar marjı)
+            const newSellingPrice = Math.round(newPrice * 1.10 * 100) / 100;
+            const oldSellingPrice = Math.round(oldPrice * 1.10 * 100) / 100;
+            
+            // Shopify'ı güncelle
+            const updateResult = await this.updateShopifyPrice(
+              trackedProduct.shopifyProductId,
+              trackedProduct.shopifyVariantIds,
+              newSellingPrice,
+              newPrice // compare_at_price (Trendyol orijinal fiyat)
+            );
+            
+            if (updateResult.success) {
+              console.log(`✅ Shopify fiyat güncellendi: ${oldSellingPrice} TL → ${newSellingPrice} TL`);
+              
+              // Shopify sync bilgisi kaydet
+              await db.update(urlTracking)
+                .set({
+                  lastShopifySyncAt: new Date(),
+                  syncStatus: 'synced'
+                })
+                .where(eq(urlTracking.id, trackedProduct.id));
+            } else {
+              console.error(`❌ Shopify fiyat güncelleme hatası: ${updateResult.error}`);
+              await db.update(urlTracking)
+                .set({
+                  syncStatus: 'failed',
+                  syncErrors: updateResult.error
+                })
+                .where(eq(urlTracking.id, trackedProduct.id));
+            }
+          } catch (shopifyError) {
+            console.error(`❌ Shopify güncelleme hatası:`, shopifyError);
+          }
+        }
 
         // Telegram bildirimi gönder
         await telegramIntegration.sendPriceChangeNotification(
@@ -257,6 +321,54 @@ export class MonitoringService {
         isRunning: this.isRunning,
         checkInterval: this.checkInterval,
         lastCheck: null
+      };
+    }
+  }
+
+  // Shopify fiyat güncelleme fonksiyonu
+  private async updateShopifyPrice(
+    productId: string,
+    variantIds: string | null,
+    newPrice: number,
+    compareAtPrice: number
+  ): Promise<{ success: boolean; error?: string }> {
+    if (!this.shopifyService) {
+      return { success: false, error: 'Shopify service not initialized' };
+    }
+
+    try {
+      // Variant ID'leri parse et
+      const variantIdList = variantIds ? variantIds.split(',').map(id => id.trim()) : [];
+      
+      if (variantIdList.length === 0) {
+        return { success: false, error: 'No variant IDs found' };
+      }
+
+      // Her variant için fiyat güncelle
+      for (const variantId of variantIdList) {
+        try {
+          await this.shopifyService['makeRequest'](
+            `variants/${variantId}.json`,
+            'PUT',
+            {
+              variant: {
+                id: parseInt(variantId),
+                price: newPrice.toFixed(2),
+                compare_at_price: compareAtPrice.toFixed(2)
+              }
+            }
+          );
+          console.log(`✅ Variant ${variantId} fiyat güncellendi: ${newPrice} TL`);
+        } catch (variantError) {
+          console.error(`❌ Variant ${variantId} güncelleme hatası:`, variantError);
+        }
+      }
+
+      return { success: true };
+    } catch (error) {
+      return {
+        success: false,
+        error: (error as Error).message
       };
     }
   }
