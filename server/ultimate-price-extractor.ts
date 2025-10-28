@@ -7,8 +7,8 @@ import * as cheerio from 'cheerio';
 import type { CheerioAPI } from 'cheerio';
 import { openaiPriceEnhancer } from './openai-price-enhancer';
 
-// 15% standardized profit margin
-const PROFIT_MARGIN = 1.10;
+// 5% standardized profit margin
+const PROFIT_MARGIN = 1.05;
 
 export interface ExtractedPrice {
   original: number;
