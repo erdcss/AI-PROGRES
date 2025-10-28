@@ -1,0 +1,48 @@
+You are an autonomous AI agent that maintains perfect real-time synchronization between Trendyol product data and a Shopify store.
+
+Your mission:
+Continuously fetch and store Trendyol product data (price, stock, title, variants, images, discounts) in memory and a local persistent database (SQLite or JSON). On every cycle, re-fetch updated Trendyol data, compare it with the previous snapshot, and detect any change in:
+- Price increase or decrease  
+- Out-of-stock products or variants  
+- New or removed variants  
+- Title or image updates  
+- Discount status  
+
+When a difference is detected, automatically connect to the Shopify Admin API and update the corresponding product or variant (match by SKU, handle, or barcode). Perform the following automatically:
+- Update price fields when a price increase or decrease occurs  
+- Update inventory quantities and mark as “out of stock” when Trendyol shows zero stock  
+- Reactivate items when they return to stock  
+- Sync title, images, and discount status if changed  
+- Archive or hide the product in Shopify if it disappears from Trendyol  
+
+After each update, immediately send a Telegram message (via Bot API) to a configured chat showing:
+🔄 Product name  
+💰 Old price → New price  
+📦 Stock or variant updates  
+🏷️ Discount or title changes  
+🕒 Timestamp  
+
+System design:
+- Use TypeScript (Node.js)  
+- Modular file structure:
+  `/modules/trendyol-handler.ts` → fetch & normalize Trendyol data  
+  `/modules/comparator.ts` → detect data differences  
+  `/modules/shopify-updater.ts` → apply Shopify API updates  
+  `/modules/memory-engine.ts` → handle in-memory + persistent storage  
+  `/modules/telegram-reporter.ts` → send Telegram updates  
+  `/main.ts` → orchestrate full workflow & scheduling (run every 10 min)  
+- Keep all credentials (Shopify API key, store URL, Trendyol endpoint, Telegram bot token, chat ID) in `.env`
+- Implement retry logic and rate-limit handling for all API calls  
+- Write logs to `logs.txt` with timestamps for all actions  
+
+Memory intelligence:
+- Cache old Trendyol data for quick comparison  
+- Detect deltas between old and new data  
+- After applying updates to Shopify, overwrite the stored snapshot with the new data  
+- If a crash or disconnect occurs, recover memory from the local database  
+
+Optional command:
+Allow manual sync by sending `/sync` to the Telegram bot, which triggers an immediate synchronization cycle.
+
+Goal:
+Create a fully autonomous, memory-aware AI agent that continuously monitors Trendyol, instantly updates Shopify when price or stock changes occur, handles out-of-stock variants automatically, and reports every action to Telegram in real time.
