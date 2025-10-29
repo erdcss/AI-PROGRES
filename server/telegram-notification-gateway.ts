@@ -13,6 +13,11 @@ export class TelegramNotificationGateway {
   private readonly DEDUP_WINDOW_MS = 5 * 60 * 1000; // 5 minutes
   private readonly PRODUCT_THROTTLE_MS = 5 * 60 * 1000; // 5 minutes per product
   
+  // 🚨 TELEGRAM API RATE LIMITING
+  private messageTimestamps: number[] = [];
+  private readonly TELEGRAM_RATE_LIMIT = 20; // Max 20 messages per minute (safe limit)
+  private readonly TELEGRAM_WINDOW_MS = 60 * 1000; // 1 minute window
+  
   // ✅ BLOCKED NOTIFICATION TYPES - Ne notification göndermeyeceğiz
   private readonly BLOCKED_TYPES = [
     'tracking_started',
@@ -77,9 +82,18 @@ export class TelegramNotificationGateway {
       return false;
     }
 
-    // 6. Send notification
+    // 6. Check Telegram API rate limit
+    if (!await this.checkTelegramRateLimit()) {
+      console.log(`🚨 Telegram API rate limit reached - message queued or dropped`);
+      return false;
+    }
+
+    // 7. Send notification
     try {
       await filteredNotifier.sendNotification(message);
+      
+      // Record message timestamp for rate limiting
+      this.recordMessageSent();
       
       // 7. Cache this notification
       this.cacheNotification(hash, type, productId);
@@ -250,6 +264,48 @@ export class TelegramNotificationGateway {
     }
 
     return false;
+  }
+
+  /**
+   * Check Telegram API rate limit (20 messages per minute)
+   */
+  private async checkTelegramRateLimit(): Promise<boolean> {
+    const now = Date.now();
+    
+    // Clean old timestamps (older than 1 minute)
+    this.messageTimestamps = this.messageTimestamps.filter(
+      ts => now - ts < this.TELEGRAM_WINDOW_MS
+    );
+    
+    // Check if we're at the limit
+    if (this.messageTimestamps.length >= this.TELEGRAM_RATE_LIMIT) {
+      const oldestMessage = this.messageTimestamps[0];
+      const waitTime = this.TELEGRAM_WINDOW_MS - (now - oldestMessage);
+      
+      console.log(`⏰ Telegram rate limit: ${this.messageTimestamps.length}/${this.TELEGRAM_RATE_LIMIT} messages sent`);
+      console.log(`⏰ Need to wait ${Math.ceil(waitTime / 1000)}s before sending next message`);
+      
+      // Optional: Wait for the window to reset (uncomment to enable auto-wait)
+      // await new Promise(resolve => setTimeout(resolve, waitTime));
+      // this.messageTimestamps.shift(); // Remove oldest
+      // return true;
+      
+      return false; // Drop message to prevent rate limit
+    }
+    
+    return true;
+  }
+
+  /**
+   * Record message sent timestamp
+   */
+  private recordMessageSent(): void {
+    this.messageTimestamps.push(Date.now());
+    
+    // Keep max 100 timestamps in memory
+    if (this.messageTimestamps.length > 100) {
+      this.messageTimestamps = this.messageTimestamps.slice(-50);
+    }
   }
 
   /**

@@ -89,8 +89,10 @@ export class MonitoringService {
       for (const product of trackedProducts) {
         await this.checkSingleProduct(product);
         
-        // Rate limiting
-        await this.sleep(2000);
+        // 🚨 RATE LIMITING: 5-10 second delay between products to prevent blocking
+        const delay = 5000 + Math.random() * 5000; // Random 5-10 seconds
+        console.log(`⏱️ Waiting ${Math.round(delay/1000)}s before next product...`);
+        await this.sleep(delay);
       }
 
     } catch (error) {
@@ -105,13 +107,35 @@ export class MonitoringService {
 
       const oldPrice = parseFloat(trackedProduct.currentPrice || '0');
       
-      // Trendyol'dan güncel verileri çek
-      const freshData = await this.scrapeProductData(trackedProduct.url);
+      // 🔄 RETRY MECHANISM: Try up to 3 times with exponential backoff
+      let freshData = null;
+      let retryCount = 0;
+      const maxRetries = 3;
+      
+      while (retryCount < maxRetries && (!freshData || !freshData.success)) {
+        if (retryCount > 0) {
+          const backoffDelay = Math.min(1000 * Math.pow(2, retryCount), 10000); // 2s, 4s, 8s
+          console.log(`🔄 Retry ${retryCount}/${maxRetries} after ${backoffDelay}ms for: ${trackedProduct.productTitle}`);
+          await this.sleep(backoffDelay);
+        }
+        
+        // Trendyol'dan güncel verileri çek
+        freshData = await this.scrapeProductData(trackedProduct.url);
+        retryCount++;
+      }
       
       if (!freshData || !freshData.success) {
-        console.log(`❌ Veri çekilemedi: ${trackedProduct.productTitle}`);
+        console.log(`❌ Veri çekilemedi (${maxRetries} deneme sonrası): ${trackedProduct.productTitle}`);
+        
+        // Update last checked time even on failure
+        await db.update(urlTracking)
+          .set({ lastChecked: new Date() } as any)
+          .where(eq(urlTracking.id, trackedProduct.id));
+        
         return;
       }
+      
+      console.log(`✅ Veri başarıyla çekildi (${retryCount} deneme): ${trackedProduct.productTitle}`);
 
       // Yeni fiyatı al
       const newPrice = parseFloat(freshData.price?.toString() || '0');
