@@ -1308,35 +1308,34 @@ ${data.title.toLowerCase().replace(/[^a-z0-9]/g, '-')},${data.title},${data.bran
                           </div>
                         </div>
 
-                        {/* Küçük Thumbnail Galeri */}
+                        {/* Tüm Resim Galerisi - Grid Layout */}
                         {product.images.length > 1 && (
-                          <div className="grid grid-cols-6 gap-2">
-                            {product.images.slice(1, 7).map((image, index) => {
-                              const imageUrl = typeof image === 'string' ? image : image.url;
-                              return (
-                                <div
-                                  key={index}
-                                  className="aspect-square rounded-md overflow-hidden border border-cyan-800/30 hover:border-cyan-500/60 transition-all cursor-pointer bg-slate-900/50"
-                                  data-testid={`img-thumbnail-${index + 1}`}
-                                >
-                                  <img
-                                    src={imageUrl}
-                                    alt={`${product.title} ${index + 2}`}
-                                    className="w-full h-full object-cover"
-                                    onError={(e) => {
-                                      e.currentTarget.style.display = 'none';
-                                    }}
-                                  />
-                                </div>
-                              );
-                            })}
-                            {product.images.length > 7 && (
-                              <div className="aspect-square rounded-md border border-cyan-800/30 bg-slate-800/50 flex items-center justify-center">
-                                <span className="text-cyan-300 text-sm font-medium">
-                                  +{product.images.length - 7}
-                                </span>
-                              </div>
-                            )}
+                          <div className="space-y-2">
+                            <span className="text-white/70 text-xs">Tüm Görseller ({product.images.length}):</span>
+                            <div className="grid grid-cols-4 gap-2 max-h-96 overflow-y-auto p-1 bg-slate-900/30 rounded-lg border border-cyan-800/20">
+                              {product.images.map((image, index) => {
+                                const imageUrl = typeof image === 'string' ? image : image.url;
+                                return (
+                                  <div
+                                    key={index}
+                                    className="aspect-square rounded-md overflow-hidden border border-cyan-800/30 hover:border-cyan-500/60 transition-all cursor-pointer bg-slate-900/50 group relative"
+                                    data-testid={`img-gallery-${index}`}
+                                  >
+                                    <img
+                                      src={imageUrl}
+                                      alt={`${product.title} ${index + 1}`}
+                                      className="w-full h-full object-cover group-hover:scale-110 transition-transform duration-300"
+                                      onError={(e) => {
+                                        e.currentTarget.style.display = 'none';
+                                      }}
+                                    />
+                                    <div className="absolute bottom-1 right-1 bg-black/70 px-1.5 py-0.5 rounded text-white text-xs">
+                                      {index + 1}
+                                    </div>
+                                  </div>
+                                );
+                              })}
+                            </div>
                           </div>
                         )}
                       </>
@@ -1424,6 +1423,21 @@ ${data.title.toLowerCase().replace(/[^a-z0-9]/g, '-')},${data.title},${data.bran
                               #{tag}
                             </span>
                           ))}
+                        </div>
+                      </div>
+                    )}
+
+                    {/* Ürün Açıklaması */}
+                    {product.description && product.description.trim() && (
+                      <div className="space-y-2">
+                        <span className="text-white/70 text-sm flex items-center gap-2">
+                          <FileText className="w-4 h-4" />
+                          Ürün Açıklaması:
+                        </span>
+                        <div className="bg-slate-800/30 rounded-lg border border-cyan-800/30 p-4 max-h-40 overflow-y-auto">
+                          <p className="text-white/80 text-sm leading-relaxed whitespace-pre-wrap">
+                            {product.description}
+                          </p>
                         </div>
                       </div>
                     )}
@@ -1522,47 +1536,114 @@ ${data.title.toLowerCase().replace(/[^a-z0-9]/g, '-')},${data.title},${data.bran
                       );
                     })()}
                     
-                    {/* Varyant Detay Tablosu */}
-                    {product.variants?.allVariants && product.variants.allVariants.length > 0 && (
-                      <div className="space-y-2">
-                        <span className="text-white/70 text-sm flex items-center gap-2">
-                          <Shirt className="w-4 h-4" />
-                          Varyant Detayları ({product.variants.allVariants.length} adet):
-                        </span>
-                        <div className="bg-slate-800/30 rounded-lg border border-cyan-800/30 overflow-hidden">
-                          <div className="max-h-48 overflow-y-auto">
-                            <table className="w-full text-xs">
-                              <thead className="bg-cyan-900/20 sticky top-0">
-                                <tr>
-                                  <th className="text-left text-cyan-300 p-2 border-b border-cyan-800/30">Renk</th>
-                                  <th className="text-left text-cyan-300 p-2 border-b border-cyan-800/30">Beden</th>
-                                  <th className="text-center text-cyan-300 p-2 border-b border-cyan-800/30">Stok</th>
-                                </tr>
-                              </thead>
-                              <tbody>
-                                {product.variants.allVariants.map((variant, index) => (
-                                  <tr key={index} className="border-b border-slate-700/30 hover:bg-cyan-900/10">
-                                    <td className="p-2 text-white/80">{variant.color || '-'}</td>
-                                    <td className="p-2 text-white/80">{variant.size || '-'}</td>
-                                    <td className="p-2 text-center">
-                                      {variant.inStock ? (
-                                        <span className="inline-flex items-center gap-1 bg-green-900/30 text-green-300 px-2 py-0.5 rounded text-xs">
-                                          ✓ Stokta
-                                        </span>
-                                      ) : (
-                                        <span className="inline-flex items-center gap-1 bg-red-900/30 text-red-300 px-2 py-0.5 rounded text-xs">
-                                          ✗ Yok
-                                        </span>
-                                      )}
-                                    </td>
+                    {/* Varyant Detay Tablosu - Matrix Format */}
+                    {product.variants?.allVariants && product.variants.allVariants.length > 0 && (() => {
+                      const colors = Array.from(new Set(product.variants.allVariants.map(v => v.color)));
+                      const sizes = Array.from(new Set(product.variants.allVariants.map(v => v.size)));
+                      
+                      // Matrix formatına çevir
+                      if (colors.length > 0 && sizes.length > 0) {
+                        return (
+                          <div className="space-y-2">
+                            <span className="text-white/70 text-sm flex items-center gap-2">
+                              <Shirt className="w-4 h-4" />
+                              Varyant Matrisi ({colors.length} renk × {sizes.length} beden = {product.variants.allVariants.length} varyant):
+                            </span>
+                            <div className="bg-slate-800/30 rounded-lg border border-cyan-800/30 overflow-hidden">
+                              <div className="max-h-96 overflow-auto">
+                                <table className="w-full text-xs">
+                                  <thead className="bg-cyan-900/20 sticky top-0">
+                                    <tr>
+                                      <th className="text-left text-cyan-300 p-2 border-b border-cyan-800/30 sticky left-0 bg-cyan-900/20 z-10">
+                                        Renk / Beden
+                                      </th>
+                                      {sizes.map((size, idx) => (
+                                        <th key={idx} className="text-center text-cyan-300 p-2 border-b border-cyan-800/30 whitespace-nowrap">
+                                          {size}
+                                        </th>
+                                      ))}
+                                    </tr>
+                                  </thead>
+                                  <tbody>
+                                    {colors.map((color, colorIdx) => (
+                                      <tr key={colorIdx} className="border-b border-slate-700/30 hover:bg-cyan-900/10">
+                                        <td className="p-2 text-white/80 font-medium sticky left-0 bg-slate-800/50 border-r border-cyan-800/30">
+                                          {color}
+                                        </td>
+                                        {sizes.map((size, sizeIdx) => {
+                                          const variant = product.variants.allVariants.find(
+                                            v => v.color === color && v.size === size
+                                          );
+                                          return (
+                                            <td key={sizeIdx} className="p-2 text-center">
+                                              {variant ? (
+                                                variant.inStock ? (
+                                                  <span className="inline-flex items-center justify-center w-full bg-green-900/40 text-green-300 px-2 py-1 rounded text-xs font-medium border border-green-700/40">
+                                                    ✓
+                                                  </span>
+                                                ) : (
+                                                  <span className="inline-flex items-center justify-center w-full bg-red-900/40 text-red-400 px-2 py-1 rounded text-xs border border-red-700/40">
+                                                    ✗
+                                                  </span>
+                                                )
+                                              ) : (
+                                                <span className="text-white/30">-</span>
+                                              )}
+                                            </td>
+                                          );
+                                        })}
+                                      </tr>
+                                    ))}
+                                  </tbody>
+                                </table>
+                              </div>
+                            </div>
+                          </div>
+                        );
+                      }
+                      
+                      // Fallback: Liste formatı (tek renk veya tek beden varsa)
+                      return (
+                        <div className="space-y-2">
+                          <span className="text-white/70 text-sm flex items-center gap-2">
+                            <Shirt className="w-4 h-4" />
+                            Varyant Detayları ({product.variants.allVariants.length} adet):
+                          </span>
+                          <div className="bg-slate-800/30 rounded-lg border border-cyan-800/30 overflow-hidden">
+                            <div className="max-h-48 overflow-y-auto">
+                              <table className="w-full text-xs">
+                                <thead className="bg-cyan-900/20 sticky top-0">
+                                  <tr>
+                                    <th className="text-left text-cyan-300 p-2 border-b border-cyan-800/30">Renk</th>
+                                    <th className="text-left text-cyan-300 p-2 border-b border-cyan-800/30">Beden</th>
+                                    <th className="text-center text-cyan-300 p-2 border-b border-cyan-800/30">Stok</th>
                                   </tr>
-                                ))}
-                              </tbody>
-                            </table>
+                                </thead>
+                                <tbody>
+                                  {product.variants.allVariants.map((variant, index) => (
+                                    <tr key={index} className="border-b border-slate-700/30 hover:bg-cyan-900/10">
+                                      <td className="p-2 text-white/80">{variant.color || '-'}</td>
+                                      <td className="p-2 text-white/80">{variant.size || '-'}</td>
+                                      <td className="p-2 text-center">
+                                        {variant.inStock ? (
+                                          <span className="inline-flex items-center gap-1 bg-green-900/30 text-green-300 px-2 py-0.5 rounded text-xs">
+                                            ✓ Stokta
+                                          </span>
+                                        ) : (
+                                          <span className="inline-flex items-center gap-1 bg-red-900/30 text-red-300 px-2 py-0.5 rounded text-xs">
+                                            ✗ Yok
+                                          </span>
+                                        )}
+                                      </td>
+                                    </tr>
+                                  ))}
+                                </tbody>
+                              </table>
+                            </div>
                           </div>
                         </div>
-                      </div>
-                    )}
+                      );
+                    })()}
 
                     {/* Renk ve Beden Özeti (varyant detayı yoksa) */}
                     {(!product.variants?.allVariants || product.variants.allVariants.length === 0) && (
