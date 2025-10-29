@@ -82,6 +82,9 @@ export class UrlTrackingService {
           }
         });
 
+      // 🔗 Sync products table with url_tracking
+      await this.syncProductFromUrlTracking(trackedUrl.id);
+
       // Real-time tracking başlat
       this.startTracking(url, trackingInterval);
       
@@ -100,6 +103,93 @@ export class UrlTrackingService {
         success: false,
         error: error instanceof Error ? error.message : String(error)
       };
+    }
+  }
+
+  /**
+   * 🔗 Sync products table from url_tracking
+   * Creates or updates authoritative product record for variant FK integrity
+   */
+  async syncProductFromUrlTracking(urlTrackingId: number): Promise<number | null> {
+    try {
+      // Get url_tracking record
+      const [urlTrack] = await db
+        .select()
+        .from(urlTracking)
+        .where(eq(urlTracking.id, urlTrackingId));
+
+      if (!urlTrack) {
+        console.error(`❌ URL tracking ID ${urlTrackingId} not found`);
+        return null;
+      }
+
+      const extractedData = urlTrack.extractedData as any;
+      
+      // Extract Trendyol product ID from URL
+      const trendyolProductIdMatch = urlTrack.url.match(/-p-(\d+)/);
+      const trendyolProductId = trendyolProductIdMatch ? trendyolProductIdMatch[1] : `trendyol_${urlTrackingId}`;
+
+      // Create unique tracking ID
+      const uniqueTrackingId = `repli_t_${trendyolProductId}_${Date.now()}`;
+
+      // Prepare product data
+      const productData = {
+        uniqueTrackingId,
+        trendyolUrl: urlTrack.url,
+        trendyolProductId,
+        shopifyProductId: urlTrack.shopifyProductId || null,
+        title: urlTrack.productTitle,
+        brand: extractedData?.brand || 'Unknown Brand',
+        description: extractedData?.description || null,
+        category: extractedData?.category || null,
+        images: extractedData?.images || [],
+        features: extractedData?.features || {},
+        colorOptions: extractedData?.colors || [],
+        sizeOptions: extractedData?.sizes || [],
+        originalPrice: urlTrack.originalPrice,
+        currentPrice: urlTrack.currentPrice,
+        stockStatus: extractedData?.stockStatus || 'in_stock',
+        lastChecked: new Date(),
+        sourceUrl: urlTrack.url,
+        sourcePlatform: 'trendyol',
+        shopifyUrl: urlTrack.shopifyAdminUrl || null,
+        shopifyStoreUrl: urlTrack.shopifyStoreUrl || null,
+        isActive: urlTrack.isTracking,
+        profitMargin: '10.00',
+        updatedAt: new Date(),
+        lastSyncAt: new Date(),
+        syncStatus: 'synced'
+      };
+
+      // Insert or update product
+      const [product] = await db
+        .insert(products)
+        .values(productData)
+        .onConflictDoUpdate({
+          target: products.trendyolUrl,
+          set: {
+            ...productData,
+            updatedAt: new Date(),
+            lastSyncAt: new Date()
+          }
+        })
+        .returning();
+
+      console.log(`✅ Product synced to products table: ID ${product.id} - ${product.title}`);
+      
+      // Update url_tracking with product reference (optional, for tracking)
+      await db
+        .update(urlTracking)
+        .set({ 
+          productId: product.id,
+          updatedAt: new Date()
+        })
+        .where(eq(urlTracking.id, urlTrackingId));
+
+      return product.id;
+    } catch (error) {
+      console.error(`❌ Error syncing product from url_tracking:`, error);
+      return null;
     }
   }
 

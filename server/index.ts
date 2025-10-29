@@ -490,6 +490,65 @@ app.use('/api/sos', sosRoutes);
       });
     }
   });
+
+  // 🔗 Backfill products table from url_tracking - CRITICAL FOR VARIANT FK INTEGRITY
+  app.post('/api/url-tracking/backfill-products', async (req, res) => {
+    try {
+      console.log('🔄 Starting products backfill from url_tracking...');
+      const { urlTrackingService } = await import('./url-tracking-service');
+      const { db } = await import('./db');
+      const { urlTracking } = await import('@shared/schema');
+      
+      // Get all url_tracking entries
+      const allTracking = await db.select().from(urlTracking);
+      console.log(`📊 Found ${allTracking.length} url_tracking entries to backfill`);
+      
+      let synced = 0;
+      let failed = 0;
+      const results = [];
+      
+      for (const track of allTracking) {
+        try {
+          const productId = await urlTrackingService.syncProductFromUrlTracking(track.id);
+          if (productId) {
+            synced++;
+            results.push({ id: track.id, productId, title: track.productTitle, status: 'success' });
+          } else {
+            failed++;
+            results.push({ id: track.id, title: track.productTitle, status: 'failed' });
+          }
+        } catch (error) {
+          failed++;
+          console.error(`❌ Backfill failed for tracking ID ${track.id}:`, error);
+          results.push({ 
+            id: track.id, 
+            title: track.productTitle, 
+            status: 'error',
+            error: error instanceof Error ? error.message : 'Unknown error'
+          });
+        }
+      }
+      
+      console.log(`✅ Backfill complete: ${synced} synced, ${failed} failed`);
+      
+      res.json({
+        success: true,
+        message: `Backfill complete`,
+        total: allTracking.length,
+        synced,
+        failed,
+        results
+      });
+      
+    } catch (error) {
+      console.error('❌ Backfill endpoint error:', error);
+      res.status(500).json({
+        success: false,
+        error: 'Backfill işlemi başarısız',
+        details: error instanceof Error ? error.message : 'Unknown error'
+      });
+    }
+  });
   
   const server = await registerRoutes(app);
 

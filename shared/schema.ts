@@ -161,6 +161,7 @@ export const shopifyMemoryProducts = pgTable('shopify_memory_products', {
 export const urlTracking = pgTable('url_tracking', {
   id: serial('id').primaryKey(),
   url: text('url').notNull().unique(),
+  productId: integer('product_id').references(() => products.id, { onDelete: 'set null' }), // FK to products table
   productTitle: text('product_title'),
   currentPrice: decimal('current_price', { precision: 10, scale: 2 }),
   previousPrice: decimal('previous_price', { precision: 10, scale: 2 }),
@@ -181,6 +182,8 @@ export const urlTracking = pgTable('url_tracking', {
   // Shopify tracking fields
   shopifyProductId: text('shopify_product_id'),
   shopifyVariantIds: text('shopify_variant_ids'), // Comma-separated IDs
+  shopifyAdminUrl: text('shopify_admin_url'), // Shopify admin URL
+  shopifyStoreUrl: text('shopify_store_url'), // Shopify store URL
   lastShopifySyncAt: timestamp('last_shopify_sync_at'),
   syncStatus: text('sync_status').default('pending'), // pending, synced, failed, retry
   transferredAt: timestamp('transferred_at'),
