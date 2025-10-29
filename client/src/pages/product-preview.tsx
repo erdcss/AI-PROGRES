@@ -27,6 +27,7 @@ interface ProductData {
     allVariants: Variant[];
   };
   extractedData: {
+    title: string;
     price: {
       original: number;
       withProfit: number;
@@ -38,6 +39,52 @@ interface ProductData {
   };
 }
 
+interface BackendResponse {
+  success: boolean;
+  url: string;
+  totalVariants: number;
+  scenario?: string;
+  variants: Variant[];
+  extractedData: {
+    title?: string;
+    price?: string;
+    originalPrice?: string;
+    brand?: string;
+    images?: number;
+  };
+}
+
+function transformBackendData(response: BackendResponse): ProductData {
+  const colors = Array.from(new Set(response.variants.map(v => v.color)));
+  const sizes = Array.from(new Set(response.variants.map(v => v.size)));
+  
+  const originalPrice = parseFloat(response.extractedData.price || response.extractedData.originalPrice || "0");
+  const profitMargin = 1.15;
+  const withProfit = originalPrice * profitMargin;
+  
+  return {
+    url: response.url,
+    totalVariants: response.totalVariants,
+    variants: {
+      colors,
+      sizes,
+      stockMap: {},
+      allVariants: response.variants,
+    },
+    extractedData: {
+      title: response.extractedData.title || "Ürün",
+      price: {
+        original: originalPrice,
+        withProfit,
+        profitFormatted: `${withProfit.toFixed(2)} TL`,
+        formatted: `${originalPrice.toFixed(2)} TL`,
+      },
+      brand: response.extractedData.brand || "Bilinmiyor",
+      images: response.extractedData.images || 0,
+    },
+  };
+}
+
 export default function ProductPreview() {
   const [url, setUrl] = useState("");
   const [currentUrl, setCurrentUrl] = useState("");
@@ -46,6 +93,15 @@ export default function ProductPreview() {
   const { data, isLoading, error, refetch } = useQuery<ProductData>({
     queryKey: ["/api/test/hybrid-variants", currentUrl],
     enabled: !!currentUrl,
+    queryFn: async () => {
+      const response = await apiRequest("/api/test/hybrid-variants", {
+        method: "POST",
+        body: JSON.stringify({ url: currentUrl }),
+        headers: { "Content-Type": "application/json" },
+      });
+      return response as BackendResponse;
+    },
+    select: (response: BackendResponse) => transformBackendData(response),
   });
 
   const uploadToShopifyMutation = useMutation({
@@ -242,6 +298,12 @@ export default function ProductPreview() {
                   <CardTitle className="text-lg">Ürün Bilgileri</CardTitle>
                 </CardHeader>
                 <CardContent className="space-y-4">
+                  <div>
+                    <p className="text-sm text-muted-foreground mb-1">Ürün Başlığı</p>
+                    <p className="font-semibold text-lg" data-testid="text-product-title">
+                      {data.extractedData.title}
+                    </p>
+                  </div>
                   <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
                     <div>
                       <p className="text-sm text-muted-foreground">Marka</p>
