@@ -100,11 +100,15 @@ export class SystemDiagnostic {
       const scrapedData = await scenarioBasedScrape(testUrl);
 
       if (scrapedData && scrapedData.success) {
+        const variantCount = Array.isArray(scrapedData.variants) 
+          ? scrapedData.variants.length 
+          : (scrapedData.variants?.allVariants?.length || 0);
+        
         this.logResult('Trendyol Scraping', 'PASS', 'Successfully fetched product data', {
           title: scrapedData.title?.substring(0, 50),
           price: scrapedData.price,
           images: scrapedData.images?.length || 0,
-          variants: scrapedData.variants?.length || 0
+          variants: variantCount
         });
       } else {
         this.logResult('Trendyol Scraping', 'FAIL', 'Failed to fetch valid data', {
@@ -237,7 +241,7 @@ export class SystemDiagnostic {
     try {
       const testMessage = '🧪 System Diagnostic Test\n\n✅ Trendyol–Shopify system diagnostic completed successfully.\n\nAll components operational.';
       
-      await telegramIntegration.sendMessage(testMessage);
+      await telegramIntegration.sendGeneralNotification(testMessage);
       
       this.logResult('Telegram Notification', 'PASS', 'Test message sent', {
         mode: process.env.TELEGRAM_MODE || 'filtered',

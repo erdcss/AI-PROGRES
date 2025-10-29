@@ -563,6 +563,16 @@ app.use('/api/sos', sosRoutes);
     // Scheduler API endpoints removed - handled in routes.ts to prevent conflicts
 
     // Initialize scheduler system
+    // Monitoring service başlat (Trendyol fiyat takibi)
+    setTimeout(() => {
+      import('./monitoring-service').then(({ monitoringService }) => {
+        monitoringService.start();
+        console.log('🎯 Monitoring service başlatıldı');
+      }).catch(error => {
+        console.warn('⚠️ Monitoring service başlatma hatası:', error);
+      });
+    }, 2000);
+    
     // Shopify monitoring sistemini başlat
     setTimeout(() => {
       import('./shopify-monitoring-service').then(({ shopifyMonitoringService }) => {
@@ -570,7 +580,7 @@ app.use('/api/sos', sosRoutes);
       }).catch(error => {
         console.warn('⚠️ Shopify monitoring service başlatma hatası:', error);
       });
-    }, 2000);
+    }, 2500);
 
     setTimeout(() => {
       import('./simple-scheduler').then(({ initializeScheduler }) => {

@@ -239,7 +239,7 @@ export class MonitoringService {
           })
           .where(eq(urlTracking.id, existing[0].id));
         
-        console.log(`✅ URL tracking güncel lendi: ${productData.title}`);
+        console.log(`✅ URL tracking güncellendi: ${productData.title}`);
       } else {
         // Yeni kayıt
         await db.insert(urlTracking).values({
