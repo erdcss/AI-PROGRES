@@ -1061,7 +1061,7 @@ export async function extractFocusedData(url: string): Promise<FocusedProductDat
       }
     });
     
-    await page.waitForTimeout(2000); // Scroll için bekle
+    await new Promise(resolve => setTimeout(resolve, 2000)); // Scroll için bekle
     
     // Gelişmiş Trendyol özellik selectors
     const advancedSelectors = [

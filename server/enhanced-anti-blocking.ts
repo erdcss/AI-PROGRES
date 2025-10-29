@@ -225,7 +225,7 @@ export class EnhancedAntiBlocking {
       });
 
       // Wait for content to load
-      await page.waitForTimeout(3000);
+      await new Promise(resolve => setTimeout(resolve, 3000));
 
       // Extract data using multiple strategies
       const extractedData = await page.evaluate(() => {

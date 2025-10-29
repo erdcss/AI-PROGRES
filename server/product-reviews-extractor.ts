@@ -53,14 +53,14 @@ export async function extractProductReviews(trendyolUrl: string): Promise<Review
     await page.goto(trendyolUrl, { waitUntil: 'networkidle0' });
     
     // Wait for page to load
-    await page.waitForTimeout(3000);
+    await new Promise(resolve => setTimeout(resolve, 3000));
     
     // Try to find and click reviews tab
     try {
       const reviewsTab = await page.$('[data-testid="reviews-tab"], .reviews-tab, a[href*="yorumlar"]');
       if (reviewsTab) {
         await reviewsTab.click();
-        await page.waitForTimeout(2000);
+        await new Promise(resolve => setTimeout(resolve, 2000));
       }
     } catch (e) {
       console.log('Reviews tab not found, trying direct reviews section');
@@ -70,14 +70,14 @@ export async function extractProductReviews(trendyolUrl: string): Promise<Review
     await page.evaluate(() => {
       window.scrollTo(0, document.body.scrollHeight);
     });
-    await page.waitForTimeout(2000);
+    await new Promise(resolve => setTimeout(resolve, 2000));
     
     // Try to click "Show More" buttons
     try {
       const showMoreButtons = await page.$$('button[class*="show-more"], button[class*="load-more"], .load-more-reviews');
       for (const button of showMoreButtons) {
         await button.click();
-        await page.waitForTimeout(1000);
+        await new Promise(resolve => setTimeout(resolve, 1000));
       }
     } catch (e) {
       console.log('Show more buttons not found');

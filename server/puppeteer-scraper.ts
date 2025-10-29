@@ -7,6 +7,7 @@
 import puppeteer from 'puppeteer';
 import { join } from 'path';
 import * as os from 'os';
+import { execSync } from 'child_process';
 import fetch from 'node-fetch';
 import * as cheerio from 'cheerio';
 import { extractRealStockData, optimizeStockMap } from './stock-detector';
@@ -174,9 +175,16 @@ export async function scrapeProductWithPuppeteer(url: string): Promise<string> {
                            url.includes('kahve'));
     
     // Tarayıcıyı başlat - Sistem Chromium kullan
+    let executablePath;
+    try {
+      executablePath = execSync('which chromium-browser || which chromium || which google-chrome', { encoding: 'utf8' }).trim();
+    } catch (error) {
+      console.log('[PUPPETEER] Chromium bulunamadı, varsayılan kullanılacak');
+    }
+    
     browser = await puppeteer.launch({
       headless: true,
-      executablePath: '/nix/store/zi4f80l169xlmivz8vja8wlphq74qqk0-chromium-125.0.6422.141/bin/chromium',
+      executablePath: executablePath || undefined,
       ignoreDefaultArgs: ['--disable-extensions'],
       args: [
         '--no-sandbox',

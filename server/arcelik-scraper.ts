@@ -124,7 +124,7 @@ class ArcelikScraper {
       await page.goto(url, { waitUntil: 'networkidle2', timeout: 30000 });
       
       // Wait for content to load
-      await page.waitForTimeout(3000);
+      await new Promise(resolve => setTimeout(resolve, 3000));
       
       const content = await page.content();
       const $ = cheerio.load(content);

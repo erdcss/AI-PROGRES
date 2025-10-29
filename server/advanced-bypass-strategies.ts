@@ -153,7 +153,7 @@ export class AdvancedBypassStrategies {
       });
 
       // Wait and extract
-      await page.waitForTimeout(5000);
+      await new Promise(resolve => setTimeout(resolve, 5000));
       
       const mobileData = await page.evaluate(() => {
         const title = document.querySelector('h1, .product-name, [data-testid="product-name"]')?.textContent?.trim();

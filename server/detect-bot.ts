@@ -230,7 +230,7 @@ export async function detectAndBypassProtection(page: any) {
   });
 
   // Rastgele gecikme ekle (daha human-like davranış)
-  await page.waitForTimeout(Math.random() * 2000 + 1000);
+  await new Promise(resolve => setTimeout(resolve, Math.random() * 2000 + 1000));
   
   // User-Agent ve diğer header'ları ayarla
   await page.setUserAgent('Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36');
