@@ -87,8 +87,7 @@ export class UrlTrackingService {
       
       console.log(`✅ URL tracking eklendi: ${extractionResult.title} - ${extractionResult.price.original} TL`);
       
-      // İlk ekleme bildirimi gönder
-      await this.sendTrackingStartedNotification(extractionResult, url);
+      // ℹ️ Tracking started notifications are now blocked by gateway to reduce spam
       
       return {
         success: true,
@@ -653,36 +652,9 @@ ${priority === 'YÜKSEK ÖNCELİK' ? '\n⚡ <b>HEMEN KONTROL EDİN!</b>' : ''}
     }
   }
 
-  async sendTrackingStartedNotification(extractionResult: any, url: string) {
-    try {
-      const message = `
-🎯 <b>YENİ ÜRÜN TAKİBE EKLENDİ</b>
-
-📦 <b>Ürün:</b> ${extractionResult.title}
-🏢 <b>Marka:</b> ${extractionResult.brand || 'Bilinmeyen Marka'}
-💰 <b>Başlangıç Fiyatı:</b> ${extractionResult.price.original} TL
-💵 <b>Kar Marjlı Fiyat:</b> ${extractionResult.price.withProfit} TL
-
-🔄 <b>Takip Durumu:</b> Aktif (5 dakikada bir kontrol)
-🔔 <b>Bildirimler:</b> Fiyat değişikliklerinde otomatik bildirim
-
-🔗 <b>URL:</b> ${url}
-
-⏰ <b>Başlangıç:</b> ${new Date().toLocaleString('tr-TR')}
-      `.trim();
-
-      try {
-        const { filteredNotifier } = await import('./filtered-telegram-notifier');
-        await filteredNotifier.sendNotification(message);
-        console.log('📱 Tracking başlangıç bildirimi Telegram\'a gönderildi');
-      } catch (importError) {
-        console.log('📱 Telegram notifier import failed for tracking start notification');
-      }
-      
-    } catch (error) {
-      console.error('❌ Tracking başlangıç bildirimi hatası:', error);
-    }
-  }
+  // ❌ REMOVED: sendTrackingStartedNotification
+  // Tracking started notifications are now blocked by TelegramNotificationGateway
+  // to reduce spam. Only real changes (price, stock, variants) trigger notifications.
 
   // Stok durumu görüntü metni
   getStockDisplayText(stockStatus: string): string {
