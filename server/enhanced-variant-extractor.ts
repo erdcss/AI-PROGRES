@@ -259,20 +259,29 @@ export class EnhancedVariantExtractor {
   }
 
   /**
+   * Normalize size text by removing common prefixes
+   */
+  private normalizeSize(sizeText: string): string {
+    let cleaned = sizeText.trim();
+    
+    // Handle "Beden: XS" format - extract just the size part
+    const bedenMatch = cleaned.match(/^Beden:\s*(.+)$/i);
+    if (bedenMatch) {
+      cleaned = bedenMatch[1].trim();
+    }
+    
+    return cleaned;
+  }
+
+  /**
    * Validate if a size string is a real size (not a product attribute)
    */
   private isValidSize(sizeText: string): boolean {
     // Strict size pattern - only accept real clothing/product sizes
     const sizePattern = /^(XXS|XS|S|M|L|XL|XXL|XXXL|2XL|3XL|4XL|5XL|\d+(\.\d+)?|Tek\s*Beden|One\s*Size|STD|Standard)$/i;
     
-    let cleaned = sizeText.trim();
-    
-    // ✅ FIRST: Handle "Beden: XS" format - extract just the size part
-    const bedenMatch = cleaned.match(/^Beden:\s*(.+)$/i);
-    if (bedenMatch) {
-      cleaned = bedenMatch[1].trim();
-      console.log(`🔄 Stripped prefix: "${sizeText}" → "${cleaned}"`);
-    }
+    // Normalize first
+    const cleaned = this.normalizeSize(sizeText);
     
     // Product attribute patterns to REJECT (after prefix stripping)
     const attributePatterns = [
@@ -349,7 +358,7 @@ export class EnhancedVariantExtractor {
                 variants.push({
                   color: v.color || v.attributeValue || 'Standart',
                   colorCode: v.colorCode || v.colorHex,
-                  size: sizeValue,
+                  size: this.normalizeSize(sizeValue), // ✅ Use normalized value
                   sku: v.sku || v.barcode,
                   inStock: v.inStock !== false,
                   price: v.price || v.salePrice,
@@ -386,7 +395,7 @@ export class EnhancedVariantExtractor {
           variants.push({
             color: color.name,
             colorCode: color.code,
-            size: size.size,
+            size: this.normalizeSize(size.size), // ✅ Use normalized value
             inStock: size.inStock,
           });
         });
