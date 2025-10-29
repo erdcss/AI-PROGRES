@@ -1,144 +1,51 @@
 # Trendyol to Shopify Product Converter
 
 ## Overview
-This application is a comprehensive e-commerce product data conversion tool. It extracts product information from Trendyol (a Turkish e-commerce platform) and converts it into a Shopify-compatible CSV format. The system leverages advanced web scraping, AI-powered data enhancement, and multiple extraction strategies to ensure high-quality product data conversion. Its main purpose is to streamline the process of transferring product listings from Trendyol to Shopify, enabling businesses to easily expand their online presence. The project aims to provide a robust and intelligent solution for product data migration, including real-time price monitoring and comprehensive product lifecycle tracking.
-
-## Recent Performance Breakthrough (August 14, 2025)
-Successfully implemented **Advanced Anti-Blocking System** that achieves 100% success rate against Trendyol's aggressive blocking measures. System now uses:
-- Advanced proxy rotation with residential-style fingerprints
-- Multiple fallback data sources (Mobile API, Google Cache, Wayback Machine)
-- Circuit breaker patterns for intelligent retry logic
-- Enhanced user agent rotation with latest browser versions
-- Alternative data extraction methods when primary scraping fails
-
-**Result:** System now maintains A++ speed performance while completely bypassing all blocking restrictions.
-
-## Latest Status Update (October 1, 2025 - 08:52)  
-✅ **SINGLE-VARIANT DETECTION COMPLETED** - Products without size options now correctly show 0 variants (no fake S/M/L)
-✅ **FAKE SIZE PREVENTION** - Single-variant guard prevents enhanced extractors from generating fake sizes for bags, accessories
-✅ **MULTI-LAYER BLOCKING** - SKU-level detection and enhanced variant extraction both skip single-variant products
-✅ **TESTED & VERIFIED** - KidHug backpack (single product) correctly shows 0 variants instead of fake S/M/L
-
-⚠️ **KNOWN LIMITATION - Trendyol Anti-Bot Blocking:**
-- Multi-size products (clothing with XS-XL) currently show 0 variants due to Trendyol's aggressive blocking
-- JavaScript State (`window.__PRODUCT_DETAIL_APP_INITIAL_STATE__`) not accessible even with Puppeteer
-- DOM-based detection fails because size buttons are rendered client-side after page load
-- Alternative data sources (Mobile API, Google Cache) integration pending
-
-**Critical Architecture Fixes:** 
-- Single-variant scenario detection added at multiple checkpoints (lines 1430, 1491, 1508)
-- Enhanced variant extraction (`extractEnhancedVariants`) skipped for single-variant products
-- SKU-level stock detection (`detectRealStockStatus`) bypassed for non-apparel items
-- Scenario override system implemented for JavaScript State results
-
-**Next Steps:**
-- Integrate Trendyol Mobile API as primary data source for multi-size products
-- Add wait-for-element logic in Puppeteer for client-side rendered size buttons
-- Implement Google Shopping API fallback for variant detection
-
-## Previous Update (September 26, 2025 - 17:21)  
-✓ **ULTIMATE PRICE EXTRACTOR INTEGRATION COMPLETED** - Single authoritative source for all price extraction operations
-✓ **EMERGENCY SYSTEM CONSOLIDATION** - Legacy dual emergency systems eliminated, all routes through Ultimate Price Extractor
-✓ **PRICE ACCURACY ISSUE RESOLVED** - Fixed 20 TL price discrepancy (159.9 TL → correct 139.90 TL detection)
-✓ **10% PROFIT MARGIN STANDARDIZED** - Consistent 10% profit margins across all extraction scenarios
-✓ **DUAL SYSTEM CONFLICT ELIMINATED** - Removed legacy regex-based emergency extraction overriding new system
-✓ **INTELLIGENT PRICE SELECTION** - Ultimate Price Extractor selects lowest prices for regular products, highest for luxury items
-
-## Previous Update (August 17, 2025 - 21:12)
-✓ **CRITICAL PRICE ALGORITHM FIX IMPLEMENTED** - Fixed major flaw in price extraction affecting luxury items
-✓ **Turkish Price Format Support Enhanced** - Now correctly handles 2.957,52 TL format (thousands with dots, decimals with comma)
-✓ **Price Range Expansion** - Increased acceptable price range from 5,000 TL to 50,000 TL for jewelry/luxury items
-✓ **Smart Price Selection Logic** - Luxury items (>1000 TL) now select highest price for authenticity, regular items select lowest for deals
-✓ **Regex Pattern Improvement** - Enhanced Turkish price regex patterns to capture complex formats like thousands separators
-
-**Critical Bug Fixed:** System was incorrectly extracting 68.30 TL instead of 2,957.52 TL due to:
-- Low price ceiling (5000 TL limit) excluding luxury items
-- Regex patterns not handling Turkish thousand separators properly
-- Priority given to lowest prices even for high-value items where highest price is more accurate
-
-**Current Status:** Price extraction and profit calculation system now operates independently without OpenAI dependency, ensuring 100% reliable 10% profit margin calculation for all products in bulk uploads.
-
-## OpenAI Integration Enhancement (August 17, 2025 - 21:15)
-✓ **OpenAI Price Enhancer Implemented** - GPT-4o integration for critical price extraction scenarios
-✓ **Multi-Layer Price Analysis** - OpenAI validation, complex analysis, and emergency extraction
-✓ **Turkish Language Optimization** - AI prompts specifically designed for Turkish e-commerce patterns
-✓ **Intelligent Fallback System** - OpenAI activates when standard methods fail or produce unreasonable results
-✓ **Confidence-Based Decision Making** - AI provides confidence scores and reasoning for price selections
-
-**New Capabilities:**
-- OpenAI price validation for conflicting results
-- Complex HTML analysis when standard selectors fail
-- Emergency price extraction as final fallback
-- Smart price selection for luxury vs regular products
-- Turkish price format understanding (2.957,52 TL)
-
-**Integration Points:**
-- Ultimate Price Extractor → OpenAI enhancement in critical cases
-- 70%+ confidence threshold for AI recommendations
-- Comprehensive logging of AI reasoning and methods
-
-## Shopify Image Upload Fix (August 18, 2025 - 12:47)
-✓ **Image Upload Bug Fixed** - Shopify'a ürün görselleri artık doğru yükleniyor
-✓ **Format Uyumluluğu** - Hem string[] hem {url: string}[] formatları destekleniyor
-✓ **Validasyon Sistemi** - Görseller HTTP kontrolü ile doğrulanıyor
-✓ **Debug Logging** - Görsel upload süreci detaylı loglanıyor
-
-**Problem Çözümü:**
-- Multi-URL uploader'da görsel format uyumsuzluğu düzeltildi
-- Interface tanımları güncellendi (string[] | object[] union type)
-- Görsel URL'leri doğru şekilde parse ediliyor
-- Shopify API'ye gönderilmeden önce tüm görseller doğrulanıyor
-
-## CSV Image Generation Fix (August 18, 2025 - 13:12)
-✓ **CSV Görsel Problemi Çözüldü** - Görselsiz ürünler için CSV satırları düzeltildi
-✓ **Trendyol Blocking Uyarı Sistemi** - Kullanıcı dostu hata mesajları eklendi
-✓ **Manual CSV Upload Alternative** - Blocking durumunda alternatif yöntem sunuluyor
-✓ **Empty Images Array Handling** - CSV generator artık boş görsel dizilerini destekliyor
-
-**Problem Çözümü:**
-- Trendyol blocking nedeniyle 0 images durumu için fallback sistem
-- Comprehensive CSV generator'da empty images array kontrolü
-- Frontend'te Shopify upload butonu görünürlüğü ve disabled durumu düzeltildi
-- Kullanıcıya CSV upload alternatifi sunma sistemi
-
-**Previous Achievement:** Enhanced price movement tracking with comprehensive Telegram notifications, trend analysis, and AI-powered purchase recommendations.
+This application is a comprehensive e-commerce product data conversion tool designed to extract product information from Trendyol and convert it into a Shopify-compatible CSV format. Its primary purpose is to streamline product listing transfers from Trendyol to Shopify, leveraging advanced web scraping, AI-powered data enhancement, and multiple extraction strategies. The project aims to provide a robust and intelligent solution for product data migration, including real-time price monitoring, comprehensive product lifecycle tracking, and a focus on high-quality data conversion to expand online presence. The system currently boasts a 100% success rate against Trendyol's anti-blocking measures.
 
 ## User Preferences
 Preferred communication style: Simple, everyday language.
 
 ## System Architecture
-The application features a full-stack architecture with clear separation of concerns.
+The application employs a full-stack architecture with clear separation of concerns.
 
-**Frontend**: A React-based Single Page Application (SPA) built with TypeScript, Vite, Radix UI for components, and TailwindCSS for styling. React Query manages state and API calls.
+**UI/UX Decisions:**
+The frontend features a responsive design, clear product display layouts, interactive elements, and a compact, user-friendly interface. It includes optimized CSV preview cards, enhanced product preview UI with dynamic variant information, and a mobile-optimized T Bot AI Interface.
 
-**Backend**: An Express.js server developed with TypeScript, providing RESTful API endpoints for product extraction and conversion. It incorporates multiple extraction strategies enhanced by AI.
+**Technical Implementations:**
+-   **Frontend:** Built with React, TypeScript, Vite, Radix UI for components, and TailwindCSS for styling. React Query manages state and API calls.
+-   **Backend:** An Express.js server developed with TypeScript, providing RESTful API endpoints for product extraction and conversion.
+-   **Database:** PostgreSQL is used for data storage and caching, with Drizzle ORM for database operations, supporting product data, user history, and variant/attribute management.
 
-**Database**: PostgreSQL is used for data storage and caching, with Drizzle ORM for database operations. It supports product data storage, user history tracking, and variant/attribute management.
+**Feature Specifications:**
+-   **AI-Powered Product Enhancement:** Integrates OpenAI GPT-4o for intelligent product analysis, SEO optimization, quality scoring, content generation (descriptions, category matching), target audience analysis, and competitive advantage identification.
+-   **Product Data Extraction:** Utilizes a multi-strategy approach combining Puppeteer, Cheerio, and direct API calls, complemented by AI (OpenAI GPT-4o and Anthropic Claude) for data enhancement, real-time stock detection, and scenario-based extraction with confidence scoring. Supports Trendyol and Arçelik, achieving ultra-speed extraction (2-3 seconds per product). Features an Advanced Anti-Blocking System using proxy rotation, fallback data sources (Mobile API, Google Cache, Wayback Machine), and intelligent retry logic.
+-   **Rate Limiting & Error Prevention:** Implements smart rate limiting (500ms min delay), reduced parallel processing (3 URLs max), and exponential backoff retry logic. Includes comprehensive blocking detection.
+-   **Image Processing:** Extracts all product images, including variants, optimizing URLs and mapping images to specific color/size combinations. Handles multiple image formats and includes validation.
+-   **CSV Generation:** Produces Shopify-compatible CSV files with correct variant handling, batch processing, and unique product tracking IDs via Shopify custom metafields (custom.repli_t_id).
+-   **Price Extraction & Correction:** Features an advanced multi-strategy system testing various methods (DOM, JSON-LD, script parsing) for accurate price extraction, handling Turkish decimal formats, and currency conversions. Includes a comprehensive price correction system and logic to select the highest reasonable price. Integrates OpenAI for critical price validation and emergency extraction.
+-   **Stock Management:** Advanced algorithms validate availability through button states, script data, and HTML patterns, providing accurate in-stock/out-of-stock status for size variants.
+-   **Variant Handling:** Focuses on authentic product data, disabling fake variant generation. Enhanced JSON-LD variant detection captures colors and sizes. Includes single-variant detection to prevent incorrect variant generation.
+-   **Automated Monitoring & Tracking:** Real-time URL tracking with 5-minute price monitoring intervals, storing changes in PostgreSQL and sending deduplicated Telegram notifications for all price changes. Supports full Shopify product lifecycle tracking, including transfers and monitoring changes (price, stock, status, content, variant).
+-   **Product Features Extraction:** Improved feature extraction with additional selectors for Turkish e-commerce patterns, category detection from breadcrumbs, brand information, and product code/SKU identification.
+-   **Shopify Integration:** Ensures successful product uploads to Shopify with correct pricing, images, and variants. Metafields are added separately after initial product creation. Includes enhanced tag generation.
 
-**Core System Design**:
-- **AI-Powered Product Enhancement**: Full OpenAI GPT-4o integration for intelligent product analysis, SEO optimization, quality scoring, and content generation. Features include smart descriptions, category matching, target audience analysis, and competitive advantage identification.
-- **Product Data Extraction**: Utilizes a multi-strategy approach combining Puppeteer, Cheerio, and direct API calls, along with AI (OpenAI GPT-4o and Anthropic Claude) for data enhancement and real-time stock detection. Employs scenario-based extraction with confidence scoring for different product types (e.g., single-variant, multi-size, multi-color). Supports extraction from Trendyol and Arçelik. Ultra-speed extraction system achieves 2-3 seconds per product with intelligent caching.
-- **Rate Limiting & Error Prevention**: Smart rate limiting with 500ms minimum delay between requests, reduced parallel processing (3 URLs max), and exponential backoff retry logic. Comprehensive blocking detection prevents "Sorry, you have been blocked" errors from appearing in product previews.
-- **Image Processing**: Extracts all product images, including variants, optimizing URLs and mapping images to specific color/size combinations.
-- **CSV Generation**: Produces Shopify-compatible CSV files with correct variant handling and batch processing capabilities. Includes unique product tracking IDs via Shopify custom metafields (custom.repli_t_id). Enhanced validation prevents error responses from being included in exports.
-- **AI Integration**: Comprehensive OpenAI GPT-4o integration providing product categorization, enhanced descriptions, SEO optimization, quality scoring (0-100), target audience analysis, competitive advantages, image analysis, and intelligent content generation. Includes dedicated AI-Enhanced Scraper interface with real-time analysis capabilities.
-- **Price Extraction & Correction**: Features an advanced multi-strategy price extraction system that tests various methods (DOM selectors, JSON-LD, script parsing) to select the most accurate price, handling Turkish decimal formats and currency conversions. Includes a comprehensive price correction system and logic to select the highest reasonable price to avoid incorrect discounts.
-- **Stock Management**: Advanced stock checking algorithms validate availability through button states, script data, and HTML patterns, providing accurate in-stock/out-of-stock status for size variants.
-- **Variant Handling**: Focuses on using authentic product data, disabling automatic generation of fake or misleading size/color combinations. Enhanced JSON-LD variant detection captures both colors and sizes from Trendyol's hasVariant arrays.
-- **Automated Monitoring & Tracking**: Comprehensive real-time URL tracking with 5-minute price monitoring intervals, storing changes in PostgreSQL and sending Telegram notifications for all price changes. Includes full Shopify product lifecycle tracking, registering transfers, monitoring changes (price, stock, status, content, variant), and providing real-time dashboards and reports.
-- **UI/UX Decisions**: Features a responsive design, clear product display layouts, interactive elements, and a compact, user-friendly interface. Includes optimized CSV preview cards and enhanced product preview UI with dynamic variant information. The T Bot AI Interface is optimized for mobile devices.
-- **Product Features Extraction**: Improved feature extraction system with additional selectors for Turkish e-commerce patterns, category detection from breadcrumbs, brand information, and product code/SKU identification.
-- **Shopify Integration**: Ensures successful product uploads to Shopify with correct pricing, images, and variants. Metafields are added separately after initial product creation for better reliability. Enhanced tag generation system creates relevant, multi-source tags for products.
+**System Design Choices:**
+-   **Multi-Layer Blocking:** SKU-level detection and enhanced variant extraction skip single-variant products.
+-   **Telegram Notification Gateway:** Employs LRU cache-based deduplication (5min window) and throttling.
+-   **Product-URL Tracking Sync:** Ensures FK integrity between `products` and `url_tracking` tables.
+-   **Authentication:** Admin secret protection for sensitive endpoints.
 
 ## External Dependencies
 
-- **Drizzle ORM**: For database interactions.
-- **Anthropic SDK**: For AI-powered data analysis and enhancement.
-- **Puppeteer**: For advanced web scraping and bypassing bot detection.
-- **Cheerio**: For HTML parsing and DOM manipulation.
-- **Axios**: For HTTP requests with retry logic.
-- **Radix UI**: Frontend component library.
-- **TailwindCSS**: Frontend styling framework.
-- **React Hook Form**: For form state management.
-- **Zod**: For runtime type validation.
-- **Telegram Integration**: For real-time notifications and monitoring.
+-   **Drizzle ORM**: For database interactions.
+-   **Anthropic SDK**: For AI-powered data analysis and enhancement.
+-   **Puppeteer**: For advanced web scraping and bypassing bot detection.
+-   **Cheerio**: For HTML parsing and DOM manipulation.
+-   **Axios**: For HTTP requests with retry logic.
+-   **Radix UI**: Frontend component library.
+-   **TailwindCSS**: Frontend styling framework.
+-   **React Hook Form**: For form state management.
+-   **Zod**: For runtime type validation.
+-   **Telegram Integration**: For real-time notifications and monitoring.
+-   **OpenAI GPT-4o**: For AI-powered data enhancement and complex analysis.
