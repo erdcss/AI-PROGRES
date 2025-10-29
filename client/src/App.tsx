@@ -36,6 +36,7 @@ import SavedUrlsPage from "@/pages/SavedUrlsPage";
 import ShopifyTrackingPage from "@/pages/ShopifyTrackingPage";
 import ShopifyProductsPage from './pages/shopify-products';
 import TrackingDashboard from "@/pages/tracking-dashboard";
+import ProductPreview from "@/pages/product-preview";
 import { TBotAssistant } from "@/components/TBotAssistant";
 import { MobileNavigation } from "@/components/MobileNavigation";
 
@@ -355,6 +356,11 @@ function Router() {
       <Route path="/shopify-products">
         <PageTransition>
           <ShopifyProductsPage />
+        </PageTransition>
+      </Route>
+      <Route path="/product-preview">
+        <PageTransition>
+          <ProductPreview />
         </PageTransition>
       </Route>
       </Switch>
