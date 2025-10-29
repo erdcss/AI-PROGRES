@@ -135,6 +135,15 @@ export class MonitoringService {
           } as any)
           .where(eq(urlTracking.id, trackedProduct.id));
 
+        // 🔗 SYNC: Update products table to maintain FK integrity
+        try {
+          const { urlTrackingService } = await import('./url-tracking-service');
+          await urlTrackingService.syncProductFromUrlTracking(trackedProduct.id);
+          console.log(`🔗 Products table synced for tracking ID ${trackedProduct.id}`);
+        } catch (syncError) {
+          console.error('⚠️ Products sync failed (non-critical):', syncError);
+        }
+
         // Fiyat geçmişine kaydet
         await db.insert(urlPriceHistory).values({
           url: trackedProduct.url,
@@ -218,6 +227,14 @@ export class MonitoringService {
             lastChecked: new Date()
           } as any)
           .where(eq(urlTracking.id, trackedProduct.id));
+        
+        // 🔗 SYNC: Update products table even when price unchanged (ensures consistency)
+        try {
+          const { urlTrackingService } = await import('./url-tracking-service');
+          await urlTrackingService.syncProductFromUrlTracking(trackedProduct.id);
+        } catch (syncError) {
+          console.error('⚠️ Products sync failed (non-critical):', syncError);
+        }
         
         console.log(`✅ URL kontrol edildi (fiyat değişmedi): ${trackedProduct.productTitle}`);
       }

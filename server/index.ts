@@ -492,8 +492,22 @@ app.use('/api/sos', sosRoutes);
   });
 
   // 🔗 Backfill products table from url_tracking - CRITICAL FOR VARIANT FK INTEGRITY
+  // 🔒 ADMIN ONLY - Protected endpoint for data integrity operations
   app.post('/api/url-tracking/backfill-products', async (req, res) => {
     try {
+      // 🔒 Authentication check - Require admin secret or internal-only access
+      const adminSecret = req.headers['x-admin-secret'] || req.query.admin_secret;
+      const expectedSecret = process.env.ADMIN_SECRET || 'default-dev-secret-change-in-production';
+      
+      if (adminSecret !== expectedSecret) {
+        console.warn('⚠️ Unauthorized backfill attempt blocked');
+        return res.status(401).json({
+          success: false,
+          error: 'Unauthorized - Admin authentication required',
+          hint: 'Provide X-Admin-Secret header or admin_secret query parameter'
+        });
+      }
+      
       console.log('🔄 Starting products backfill from url_tracking...');
       const { urlTrackingService } = await import('./url-tracking-service');
       const { db } = await import('./db');
@@ -576,7 +590,7 @@ app.use('/api/sos', sosRoutes);
 
   // Serving the app on port 5000 for Replit workflow compatibility
   // this serves both the API and the client.
-  const port = process.env.PORT || 5000;
+  const port = Number(process.env.PORT) || 5000;
   
   // Graceful shutdown handling
   process.on('SIGTERM', () => {
