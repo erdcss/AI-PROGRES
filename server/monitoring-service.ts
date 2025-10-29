@@ -106,6 +106,7 @@ export class MonitoringService {
       console.log(`🔍 Kontrol ediliyor: ${trackedProduct.productTitle}`);
 
       const oldPrice = parseFloat(trackedProduct.currentPrice || '0');
+      let productsTableId: number | null = null;  // ✅ Declare at function scope
       
       // 🔄 RETRY MECHANISM: Try up to 3 times with exponential backoff
       let freshData = null;
@@ -162,8 +163,8 @@ export class MonitoringService {
         // 🔗 SYNC: Update products table to maintain FK integrity
         try {
           const { urlTrackingService } = await import('./url-tracking-service');
-          await urlTrackingService.syncProductFromUrlTracking(trackedProduct.id);
-          console.log(`🔗 Products table synced for tracking ID ${trackedProduct.id}`);
+          productsTableId = await urlTrackingService.syncProductFromUrlTracking(trackedProduct.id);
+          console.log(`🔗 Products table synced: urlTracking ID ${trackedProduct.id} → products ID ${productsTableId}`);
         } catch (syncError) {
           console.error('⚠️ Products sync failed (non-critical):', syncError);
         }
@@ -255,7 +256,8 @@ export class MonitoringService {
         // 🔗 SYNC: Update products table even when price unchanged (ensures consistency)
         try {
           const { urlTrackingService } = await import('./url-tracking-service');
-          await urlTrackingService.syncProductFromUrlTracking(trackedProduct.id);
+          productsTableId = await urlTrackingService.syncProductFromUrlTracking(trackedProduct.id);
+          console.log(`🔗 Products table synced: urlTracking ID ${trackedProduct.id} → products ID ${productsTableId}`);
         } catch (syncError) {
           console.error('⚠️ Products sync failed (non-critical):', syncError);
         }
@@ -268,23 +270,41 @@ export class MonitoringService {
         const allVariants = freshData.variants.allVariants;
         console.log(`🧩 VARIANT TRACKING: Checking ${allVariants.length} variants`);
 
-        // Convert scraped variants to VariantInfo format
-        const currentVariants: VariantInfo[] = allVariants.map((v: any) => ({
-          color: v.color || 'Standart',
-          size: v.size || 'Tek Beden',
-          sku: v.sku || undefined,
-          trendyolPrice: v.trendyolPrice ?? newPrice,
-          shopifyPrice: v.shopifyPrice ?? Math.round(newPrice * 1.10 * 100) / 100,
-          stockCount: v.stockCount ?? 0,
-          inStock: v.inStock ?? true
-        }));
+        // Ensure we have the products table ID before tracking variants
+        if (!productsTableId) {
+          console.log('⚠️ Syncing to products table before variant tracking...');
+          try {
+            const { urlTrackingService } = await import('./url-tracking-service');
+            productsTableId = await urlTrackingService.syncProductFromUrlTracking(trackedProduct.id);
+            console.log(`🔗 Products table synced: urlTracking ID ${trackedProduct.id} → products ID ${productsTableId}`);
+          } catch (syncError) {
+            console.error('❌ Failed to sync products table - cannot track variants:', syncError);
+            productsTableId = null;
+          }
+        }
 
-        // Track variant changes (compares with database, records changes, sends Telegram)
-        const comparisonResult = await this.variantTracker.trackVariants(
-          trackedProduct.id,
-          trackedProduct.productTitle,
-          currentVariants
-        );
+        // Only track variants if we have a valid products table ID
+        if (!productsTableId) {
+          console.error(`❌ Cannot track variants: No products table ID for urlTracking ID ${trackedProduct.id}`);
+        } else {
+          // Convert scraped variants to VariantInfo format
+          const currentVariants: VariantInfo[] = allVariants.map((v: any) => ({
+            color: v.color || 'Standart',
+            size: v.size || 'Tek Beden',
+            sku: v.sku || undefined,
+            trendyolPrice: v.trendyolPrice ?? newPrice,
+            shopifyPrice: v.shopifyPrice ?? Math.round(newPrice * 1.10 * 100) / 100,
+            stockCount: v.stockCount ?? 0,
+            inStock: v.inStock ?? true
+          }));
+
+          // Track variant changes using products table ID (compares with database, records changes, sends Telegram)
+          console.log(`🎯 VARIANT TRACKING: Starting full tracking process for product ${productsTableId}`);
+          const comparisonResult = await this.variantTracker.trackVariants(
+            productsTableId,  // ✅ Use products.id, NOT urlTracking.id
+            trackedProduct.productTitle,
+            currentVariants
+          );
 
         // Filter out-of-stock variants for Shopify sync
         const { available, outOfStock } = this.variantTracker.filterInStockVariants(currentVariants);
@@ -330,6 +350,7 @@ export class MonitoringService {
         } else {
           console.log('ℹ️ No variant changes detected, skipping Shopify sync');
         }
+        }  // ✅ Close the else block from line 289
       } else {
         console.log(`ℹ️ No variants found for ${trackedProduct.productTitle} (single-variant product)`);
       }

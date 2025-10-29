@@ -259,6 +259,66 @@ export class EnhancedVariantExtractor {
   }
 
   /**
+   * Validate if a size string is a real size (not a product attribute)
+   */
+  private isValidSize(sizeText: string): boolean {
+    // Strict size pattern - only accept real clothing/product sizes
+    const sizePattern = /^(XXS|XS|S|M|L|XL|XXL|XXXL|2XL|3XL|4XL|5XL|\d+(\.\d+)?|Tek\s*Beden|One\s*Size|STD|Standard)$/i;
+    
+    let cleaned = sizeText.trim();
+    
+    // ✅ FIRST: Handle "Beden: XS" format - extract just the size part
+    const bedenMatch = cleaned.match(/^Beden:\s*(.+)$/i);
+    if (bedenMatch) {
+      cleaned = bedenMatch[1].trim();
+      console.log(`🔄 Stripped prefix: "${sizeText}" → "${cleaned}"`);
+    }
+    
+    // Product attribute patterns to REJECT (after prefix stripping)
+    const attributePatterns = [
+      /^(Materyal|Material|Kumaş|Fabric)/i,
+      /^(Hacim|Volume|Kapasite|Capacity)/i,
+      /^(Renk|Color|Colour)/i,
+      /^(Kullanım|Usage|Kullanim)/i,
+      /^(Menşei|Origin|Mensei)/i,
+      /^(Kalıp|Fit|Kalip)/i,
+      /^(Yaka|Collar|Neck)/i,
+      /^(Paket|Package|Pack)/i,
+      /^(Koleksiyon|Collection)/i,
+      /^(Desen|Pattern)/i,
+      /^(Kol|Sleeve)/i,
+      /^(Cep|Pocket)/i,
+      /^(Boy|Length)/i,
+      /^(Ortam|Environment)/i,
+      /^(Ek\s*Özellik|Extra|Additional)/i,
+      /^(Sürdürülebilirlik|Sustainability)/i,
+      /^(Dokuma|Weave|Woven)/i,
+      /^(Siluet|Silhouette)/i,
+      /^(Kutu|Box)/i,
+      /^(Yıkama|Wash|Care)/i,
+      /^(Ürün\s*Güvenliği|Product\s*Safety)/i,
+      /^(Boyut\/Ebat|Dimension|Size\/Dimension)/i,
+    ];
+    
+    // Check if it's a product attribute
+    for (const pattern of attributePatterns) {
+      if (pattern.test(cleaned)) {
+        console.log(`❌ REJECTED ATTRIBUTE: "${cleaned}"`);
+        return false;
+      }
+    }
+    
+    // Check if it matches valid size pattern
+    if (sizePattern.test(cleaned)) {
+      console.log(`✅ VALID SIZE: "${cleaned}"`);
+      return true;
+    }
+    
+    console.log(`❌ REJECTED INVALID: "${cleaned}" (doesn't match size pattern)`);
+    return false;
+  }
+
+  /**
    * Parse variants from Puppeteer extracted data
    */
   private parseVariantsFromData(data: any): VariantInfo[] {
@@ -282,19 +342,24 @@ export class EnhancedVariantExtractor {
         for (const variantData of possiblePaths) {
           if (variantData && Array.isArray(variantData) && variantData.length > 0) {
             variantData.forEach((v: any) => {
-              variants.push({
-                color: v.color || v.attributeValue || 'Standart',
-                colorCode: v.colorCode || v.colorHex,
-                size: v.size || v.value || 'Tek Beden',
-                sku: v.sku || v.barcode,
-                inStock: v.inStock !== false,
-                price: v.price || v.salePrice,
-                stockCount: v.stock || v.quantity
-              });
+              const sizeValue = v.size || v.value || 'Tek Beden';
+              
+              // Validate size before adding
+              if (this.isValidSize(sizeValue)) {
+                variants.push({
+                  color: v.color || v.attributeValue || 'Standart',
+                  colorCode: v.colorCode || v.colorHex,
+                  size: sizeValue,
+                  sku: v.sku || v.barcode,
+                  inStock: v.inStock !== false,
+                  price: v.price || v.salePrice,
+                  stockCount: v.stock || v.quantity
+                });
+              }
             });
             
             if (variants.length > 0) {
-              console.log(`✅ Extracted ${variants.length} variants from JS State`);
+              console.log(`✅ Extracted ${variants.length} valid variants from JS State`);
               return variants;
             }
           }
@@ -309,7 +374,12 @@ export class EnhancedVariantExtractor {
       console.log('🎯 Parsing from DOM data...');
       
       const colors = data.domColors.length > 0 ? data.domColors : [{ name: 'Standart', code: null }];
-      const sizes = data.domSizes.length > 0 ? data.domSizes : [{ size: 'Tek Beden', inStock: true }];
+      
+      // Filter DOM sizes - only keep valid sizes
+      const validSizes = data.domSizes.filter((s: any) => this.isValidSize(s.size));
+      const sizes = validSizes.length > 0 ? validSizes : [{ size: 'Tek Beden', inStock: true }];
+
+      console.log(`🔍 Filtered sizes: ${data.domSizes.length} → ${validSizes.length} valid sizes`);
 
       colors.forEach((color: any) => {
         sizes.forEach((size: any) => {
