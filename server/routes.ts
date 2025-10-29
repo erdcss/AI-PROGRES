@@ -67,6 +67,7 @@ import { trendyolDefenseSystem } from './trendyol-defense-system';
 import { memoryManager } from './memory-manager';
 import { notificationGateway } from './notification-gateway';
 import { setupAdminMemoryRoutes } from './admin-memory-routes';
+import { setupTrackingDashboardAPI } from './tracking-dashboard-api';
 
 // Helper function to register product for automated tracking
 async function registerProductForTracking(
@@ -5634,6 +5635,9 @@ ${(result.title || 'product').toLowerCase().replace(/[^a-z0-9]/g, '-')},${result
 
   // Admin Memory Management Routes
   setupAdminMemoryRoutes(app);
+  
+  // Tracking Dashboard API Routes
+  setupTrackingDashboardAPI(app);
 
   // Clear existing product memory cache on startup
   console.log('🗑️ Clearing existing product memory cache...');
