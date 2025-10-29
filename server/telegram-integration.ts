@@ -98,7 +98,7 @@ export class TelegramIntegration {
         products.slice(0, 10).forEach((product, index) => {
           message += `${index + 1}. ${product.title}\n`;
           message += `   💰 ${product.currentPrice} TL\n`;
-          message += `   📦 Stok: ${product.isInStock ? 'Var' : 'Yok'}\n\n`;
+          message += `   📦 Stok: ${product.stockStatus === 'in_stock' ? 'Var' : 'Yok'}\n\n`;
         });
 
         if (products.length > 10) {
@@ -453,6 +453,117 @@ export class TelegramIntegration {
     } catch (error) {
       console.error('Telegram bot test failed:', error.message);
       return false;
+    }
+  }
+
+  /**
+   * ⚠️ Send price alert with optional error message
+   * Used for warning notifications about sync failures
+   */
+  async sendPriceAlert(
+    productTitle: string,
+    oldPrice: number,
+    newPrice: number,
+    changePercentage: number,
+    errorMessage?: string
+  ) {
+    if (!this.isConnected || !this.bot || !this.chatId) {
+      console.log(`⚠️ Price alert (Telegram disabled): ${productTitle} - ${errorMessage || 'Price changed'}`);
+      return;
+    }
+
+    try {
+      let message = `⚠️ <b>ALERT</b>\n\n`;
+      message += `📦 <b>${productTitle}</b>\n\n`;
+      
+      if (oldPrice > 0 && newPrice > 0) {
+        message += `💰 Price: ${oldPrice} TL → ${newPrice} TL (${changePercentage > 0 ? '+' : ''}${changePercentage.toFixed(2)}%)\n\n`;
+      }
+      
+      if (errorMessage) {
+        message += `❌ <b>Error:</b> ${errorMessage}\n\n`;
+      }
+      
+      message += `⏰ ${new Date().toLocaleString('tr-TR')}`;
+
+      await this.bot.sendMessage(this.chatId, message, { 
+        parse_mode: 'HTML',
+        disable_web_page_preview: true 
+      });
+      
+      console.log('✅ Price alert sent via Telegram');
+    } catch (error) {
+      console.error('❌ Failed to send price alert:', error);
+    }
+  }
+
+  /**
+   * 📊 Send comprehensive sync summary report
+   * Called after each monitoring cycle completes
+   */
+  async sendSyncSummaryReport(summary: {
+    totalChecked: number;
+    priceChanges: number;
+    variantChanges: number;
+    shopifyUpdates: {
+      successful: number;
+      failed: number;
+    };
+    details: Array<{
+      productTitle: string;
+      changes: string[];
+    }>;
+  }) {
+    // Skip in development mode
+    if (!this.isConnected || !this.bot || !this.chatId) {
+      console.log('📊 Sync summary (Telegram disabled):');
+      console.log(`   ✅ ${summary.totalChecked} products checked`);
+      console.log(`   💰 ${summary.priceChanges} price changes`);
+      console.log(`   🧩 ${summary.variantChanges} variant changes`);
+      console.log(`   ✅ ${summary.shopifyUpdates.successful} Shopify updates successful`);
+      console.log(`   ❌ ${summary.shopifyUpdates.failed} Shopify updates failed`);
+      return;
+    }
+
+    try {
+      // Build summary message
+      let message = '📊 <b>MONITORING CYCLE SUMMARY</b>\n\n';
+      
+      message += `🔍 <b>Products Checked:</b> ${summary.totalChecked}\n`;
+      message += `💰 <b>Price Changes:</b> ${summary.priceChanges}\n`;
+      message += `🧩 <b>Variant Changes:</b> ${summary.variantChanges}\n\n`;
+      
+      message += `<b>Shopify Sync Status:</b>\n`;
+      message += `   ✅ Successful: ${summary.shopifyUpdates.successful}\n`;
+      message += `   ❌ Failed: ${summary.shopifyUpdates.failed}\n\n`;
+
+      // Add detailed changes if any
+      if (summary.details.length > 0) {
+        message += '<b>Detailed Changes:</b>\n';
+        summary.details.slice(0, 5).forEach((detail, index) => {
+          message += `\n${index + 1}. ${detail.productTitle}\n`;
+          detail.changes.forEach(change => {
+            message += `   • ${change}\n`;
+          });
+        });
+
+        if (summary.details.length > 5) {
+          message += `\n...and ${summary.details.length - 5} more products`;
+        }
+      } else {
+        message += '✅ No changes detected in this cycle';
+      }
+
+      message += `\n\n⏰ ${new Date().toLocaleString('tr-TR')}`;
+
+      await this.bot.sendMessage(this.chatId, message, { 
+        parse_mode: 'HTML',
+        disable_web_page_preview: true 
+      });
+      
+      console.log('✅ Sync summary report sent via Telegram');
+    } catch (error) {
+      console.error('❌ Failed to send sync summary:', error);
     }
   }
 

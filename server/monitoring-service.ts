@@ -5,6 +5,7 @@ import { telegramIntegration } from './telegram-integration';
 import { scenarioBasedScrape } from './scenario-based-scraper';
 import { ShopifyApiService } from './shopify-api-service';
 import { VariantTrackingService } from './variant-tracking-service';
+import { shopifySyncManager } from './shopify-sync-manager';
 import type { VariantInfo } from './variant-tracking-service';
 
 export class MonitoringService {
@@ -26,6 +27,7 @@ export class MonitoringService {
     // Initialize Variant Tracker
     this.variantTracker = new VariantTrackingService(telegramIntegration);
     console.log('✅ Variant Tracking Service initialized');
+    console.log('🤖 ShopifySyncManager initialized for autonomous synchronization');
   }
 
   // Monitoring service başlat
@@ -144,27 +146,24 @@ export class MonitoringService {
           recordedAt: new Date()
         } as any);
 
-        // 🔄 SHOPIFY OTOMATIK GÜNCELLEME
-        if (this.shopifyService && trackedProduct.shopifyProductId) {
+        // 🤖 AUTONOMOUS SYNC: Price change detected, trigger Shopify sync
+        if (trackedProduct.shopifyProductId) {
           try {
-            console.log(`🛒 Shopify fiyat güncelleniyor: ${trackedProduct.productTitle}`);
+            console.log('\n🤖 AUTONOMOUS SYNC: Price change detected, triggering Shopify sync...');
             
-            // Yeni satış fiyatı hesapla (%10 kar marjı)
-            const newSellingPrice = Math.round(newPrice * 1.10 * 100) / 100;
-            const oldSellingPrice = Math.round(oldPrice * 1.10 * 100) / 100;
+            const syncResult = await shopifySyncManager.processChanges(trackedProduct.id, {
+              priceChange: {
+                oldPrice,
+                newPrice,
+                changeType: isIncrease ? 'increase' : 'decrease',
+                changePercentage
+              }
+            });
             
-            // Shopify'ı güncelle
-            const updateResult = await this.updateShopifyPrice(
-              trackedProduct.shopifyProductId,
-              trackedProduct.shopifyVariantIds,
-              newSellingPrice,
-              newPrice // compare_at_price (Trendyol orijinal fiyat)
-            );
-            
-            if (updateResult.success) {
-              console.log(`✅ Shopify fiyat güncellendi: ${oldSellingPrice} TL → ${newSellingPrice} TL`);
+            if (syncResult.success) {
+              console.log(`✅ Shopify price sync completed: ${syncResult.changes} changes applied`);
               
-              // Shopify sync bilgisi kaydet
+              // Update sync status
               await db.update(urlTracking)
                 .set({
                   lastShopifySyncAt: new Date(),
@@ -172,16 +171,35 @@ export class MonitoringService {
                 } as any)
                 .where(eq(urlTracking.id, trackedProduct.id));
             } else {
-              console.error(`❌ Shopify fiyat güncelleme hatası: ${updateResult.error}`);
+              console.error(`❌ Shopify price sync failed with ${syncResult.errors} errors`);
+              
               await db.update(urlTracking)
                 .set({
                   syncStatus: 'failed',
-                  syncErrors: updateResult.error
+                  syncErrors: `Price sync failed with ${syncResult.errors} errors`
                 } as any)
                 .where(eq(urlTracking.id, trackedProduct.id));
+              
+              // Send Telegram warning
+              await telegramIntegration.sendPriceAlert(
+                trackedProduct.productTitle,
+                oldPrice,
+                newPrice,
+                changePercentage,
+                `⚠️ Shopify sync failed with ${syncResult.errors} errors`
+              );
             }
-          } catch (shopifyError) {
-            console.error(`❌ Shopify güncelleme hatası:`, shopifyError);
+          } catch (syncError) {
+            console.error('❌ Shopify price sync error:', syncError);
+            
+            // Send Telegram warning
+            await telegramIntegration.sendPriceAlert(
+              trackedProduct.productTitle,
+              oldPrice,
+              newPrice,
+              changePercentage,
+              `❌ Shopify sync error: ${(syncError as Error).message}`
+            );
           }
         }
 
@@ -219,7 +237,7 @@ export class MonitoringService {
         }));
 
         // Track variant changes (compares with database, records changes, sends Telegram)
-        await this.variantTracker.trackVariants(
+        const comparisonResult = await this.variantTracker.trackVariants(
           trackedProduct.id,
           trackedProduct.productTitle,
           currentVariants
@@ -228,6 +246,49 @@ export class MonitoringService {
         // Filter out-of-stock variants for Shopify sync
         const { available, outOfStock } = this.variantTracker.filterInStockVariants(currentVariants);
         console.log(`📊 Variant Summary: ${available.length} available, ${outOfStock.length} out-of-stock (excluded from Shopify)`);
+
+        // 🤖 AUTONOMOUS SYNC: Apply changes to Shopify if any changes detected
+        if (comparisonResult && (comparisonResult.addedVariants.length > 0 || comparisonResult.removedVariants.length > 0 || comparisonResult.stockChanges.length > 0)) {
+          console.log('\n🤖 AUTONOMOUS SYNC: Changes detected, triggering Shopify sync...');
+          try {
+            // Convert comparison result to variant changes for sync manager
+            const variantChanges = [
+              ...comparisonResult.addedVariants.map((v: any) => ({ changeType: 'variant_added' as const, ...v })),
+              ...comparisonResult.removedVariants.map((v: any) => ({ changeType: 'variant_removed' as const, ...v })),
+              ...comparisonResult.stockChanges.map((v: any) => ({ changeType: 'variant_stock_changed' as const, ...v }))
+            ];
+            
+            const syncResult = await shopifySyncManager.processChanges(trackedProduct.id, {
+              variantChanges: variantChanges as any
+            });
+            
+            if (syncResult.success) {
+              console.log(`✅ Shopify sync completed: ${syncResult.changes} changes applied`);
+            } else {
+              console.error(`❌ Shopify sync failed with ${syncResult.errors} errors`);
+              // Send Telegram warning
+              await telegramIntegration.sendPriceAlert(
+                trackedProduct.productTitle,
+                0,
+                0,
+                0,
+                `⚠️ Shopify sync failed with ${syncResult.errors} errors`
+              );
+            }
+          } catch (syncError) {
+            console.error('❌ Shopify sync error:', syncError);
+            // Send Telegram warning
+            await telegramIntegration.sendPriceAlert(
+              trackedProduct.productTitle,
+              0,
+              0,
+              0,
+              `❌ Shopify sync error: ${(syncError as Error).message}`
+            );
+          }
+        } else {
+          console.log('ℹ️ No variant changes detected, skipping Shopify sync');
+        }
       } else {
         console.log(`ℹ️ No variants found for ${trackedProduct.productTitle} (single-variant product)`);
       }

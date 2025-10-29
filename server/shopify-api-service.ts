@@ -293,7 +293,7 @@ export class ShopifyApiService {
           isTracking: true,
           trackingInterval,
           updatedAt: new Date()
-        })
+        } as any)
         .where(eq(shopifyMemoryProducts.uniqueTrackingId, trackingId));
 
       console.log(`🎯 Ürün takibi aktifleştirildi: ${trackingId}`);
