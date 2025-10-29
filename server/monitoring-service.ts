@@ -2,6 +2,7 @@ import { db } from './db';
 import { urlTracking, urlPriceHistory } from '@shared/schema';
 import { eq, desc, and, isNotNull, gte } from 'drizzle-orm';
 import { telegramIntegration } from './telegram-integration';
+import { telegramGateway } from './telegram-notification-gateway';
 import { scenarioBasedScrape } from './scenario-based-scraper';
 import { ShopifyApiService } from './shopify-api-service';
 import { VariantTrackingService } from './variant-tracking-service';
@@ -180,34 +181,35 @@ export class MonitoringService {
                 } as any)
                 .where(eq(urlTracking.id, trackedProduct.id));
               
-              // Send Telegram warning
-              await telegramIntegration.sendPriceAlert(
-                trackedProduct.productTitle,
-                oldPrice,
-                newPrice,
-                changePercentage,
-                `⚠️ Shopify sync failed with ${syncResult.errors} errors`
+              // Send Telegram error notification via gateway
+              await telegramGateway.sendShopifySyncError(
+                trackedProduct.productTitle || 'Unknown',
+                trackedProduct.id,
+                'price_update',
+                `Price sync failed with ${syncResult.errors} errors`
               );
             }
           } catch (syncError) {
             console.error('❌ Shopify price sync error:', syncError);
             
-            // Send Telegram warning
-            await telegramIntegration.sendPriceAlert(
-              trackedProduct.productTitle,
-              oldPrice,
-              newPrice,
-              changePercentage,
-              `❌ Shopify sync error: ${(syncError as Error).message}`
+            // Send Telegram error notification via gateway
+            await telegramGateway.sendShopifySyncError(
+              trackedProduct.productTitle || 'Unknown',
+              trackedProduct.id,
+              'price_update',
+              (syncError as Error).message
             );
           }
         }
 
-        // Telegram bildirimi gönder
-        await telegramIntegration.sendPriceChangeNotification(
-          trackedProduct.productTitle,
+        // Send price change notification via gateway (with deduplication & filtering)
+        const shopifyUpdated = trackedProduct.shopifyProductId ? true : false;
+        await telegramGateway.sendPriceChange(
+          trackedProduct.productTitle || 'Unknown',
+          trackedProduct.id,
           oldPrice,
-          newPrice
+          newPrice,
+          shopifyUpdated
         );
       } else {
         // Fiyat değişmedi, sadece lastChecked güncelle
@@ -266,24 +268,22 @@ export class MonitoringService {
               console.log(`✅ Shopify sync completed: ${syncResult.changes} changes applied`);
             } else {
               console.error(`❌ Shopify sync failed with ${syncResult.errors} errors`);
-              // Send Telegram warning
-              await telegramIntegration.sendPriceAlert(
-                trackedProduct.productTitle,
-                0,
-                0,
-                0,
-                `⚠️ Shopify sync failed with ${syncResult.errors} errors`
+              // Send Telegram error notification via gateway
+              await telegramGateway.sendShopifySyncError(
+                trackedProduct.productTitle || 'Unknown',
+                trackedProduct.id,
+                'variant_sync',
+                `Variant sync failed with ${syncResult.errors} errors`
               );
             }
           } catch (syncError) {
             console.error('❌ Shopify sync error:', syncError);
-            // Send Telegram warning
-            await telegramIntegration.sendPriceAlert(
-              trackedProduct.productTitle,
-              0,
-              0,
-              0,
-              `❌ Shopify sync error: ${(syncError as Error).message}`
+            // Send Telegram error notification via gateway
+            await telegramGateway.sendShopifySyncError(
+              trackedProduct.productTitle || 'Unknown',
+              trackedProduct.id,
+              'variant_sync',
+              (syncError as Error).message
             );
           }
         } else {

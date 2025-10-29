@@ -15,6 +15,7 @@ import { db } from './db';
 import { productVariants, variantChanges, products } from '@shared/schema';
 import { eq, and } from 'drizzle-orm';
 import type { TelegramIntegration } from './telegram-integration.js';
+import { telegramGateway } from './telegram-notification-gateway';
 
 export interface VariantInfo {
   color: string;
@@ -262,18 +263,13 @@ export class VariantTrackingService {
   }
 
   /**
-   * Telegram bildirimi gönder
+   * Telegram bildirimi gönder (via gateway with deduplication & filtering)
    */
   async sendVariantChangeNotification(
     productId: number,
     productTitle: string,
     comparison: VariantComparisonResult
   ): Promise<void> {
-    if (!this.telegramIntegration) {
-      console.log('⚠️ Telegram integration not available');
-      return;
-    }
-
     const totalChanges = comparison.addedVariants.length + 
                         comparison.removedVariants.length + 
                         comparison.stockChanges.length;
@@ -282,46 +278,71 @@ export class VariantTrackingService {
       return; // No changes, no notification
     }
 
-    let message = `🧩 Varyant Değişikliği Tespit Edildi\n\n`;
-    message += `📦 Ürün: ${productTitle}\n`;
-    message += `🆔 Product ID: ${productId}\n\n`;
-
-    if (comparison.addedVariants.length > 0) {
-      message += `✅ Yeni Varyantlar (${comparison.addedVariants.length}):\n`;
-      comparison.addedVariants.forEach(v => {
-        message += `  • ${v.color} - ${v.size} ${v.inStock ? '✓' : '❌'}\n`;
-      });
-      message += `\n`;
+    // Send individual notifications via gateway (with deduplication)
+    
+    // 1. Added variants
+    for (const variant of comparison.addedVariants) {
+      await telegramGateway.sendVariantChange(
+        productTitle,
+        productId,
+        'variant_added',
+        variant.color,
+        variant.size,
+        { shopifyUpdated: true }
+      );
     }
 
-    if (comparison.removedVariants.length > 0) {
-      message += `🚫 Kaldırılan Varyantlar (${comparison.removedVariants.length}):\n`;
-      comparison.removedVariants.forEach(v => {
-        message += `  • ${v.color} - ${v.size}\n`;
-      });
-      message += `\n`;
+    // 2. Removed variants
+    for (const variant of comparison.removedVariants) {
+      await telegramGateway.sendVariantChange(
+        productTitle,
+        productId,
+        'variant_removed',
+        variant.color,
+        variant.size,
+        { shopifyUpdated: true }
+      );
     }
 
-    if (comparison.stockChanges.length > 0) {
-      message += `🔄 Stok Değişiklikleri (${comparison.stockChanges.length}):\n`;
-      comparison.stockChanges.slice(0, 5).forEach(c => { // İlk 5 değişiklik
-        const statusChange = !c.oldInStock && c.newInStock ? ' (Tekrar Stokta!)' :
-                            c.oldInStock && !c.newInStock ? ' (Tükendi!)' : '';
-        message += `  • ${c.color} - ${c.size}: ${c.oldStock} → ${c.newStock}${statusChange}\n`;
-      });
-      if (comparison.stockChanges.length > 5) {
-        message += `  ... ve ${comparison.stockChanges.length - 5} değişiklik daha\n`;
+    // 3. Stock changes
+    for (const change of comparison.stockChanges) {
+      // Determine change type
+      let changeType: 'variant_oos' | 'variant_back_in_stock' | 'stock_change';
+      
+      if (!change.oldInStock && change.newInStock) {
+        changeType = 'variant_back_in_stock';
+        await telegramGateway.sendVariantChange(
+          productTitle,
+          productId,
+          changeType,
+          change.color,
+          change.size,
+          { shopifyUpdated: true }
+        );
+      } else if (change.oldInStock && !change.newInStock) {
+        changeType = 'variant_oos';
+        await telegramGateway.sendVariantChange(
+          productTitle,
+          productId,
+          changeType,
+          change.color,
+          change.size,
+          { shopifyUpdated: true }
+        );
+      } else {
+        // Stock count changed but availability stayed the same
+        await telegramGateway.sendStockChange(
+          productTitle,
+          productId,
+          change.oldStock,
+          change.newStock,
+          change.color,
+          change.size
+        );
       }
     }
 
-    message += `\n🕒 ${new Date().toLocaleString('tr-TR')}`;
-
-    try {
-      await this.telegramIntegration.sendNotification(message);
-      console.log('✅ Telegram notification sent');
-    } catch (error) {
-      console.error('❌ Failed to send Telegram notification:', error);
-    }
+    console.log(`✅ Variant notifications sent via gateway (${totalChanges} changes)`);
   }
 
   /**
