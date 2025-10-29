@@ -156,11 +156,37 @@ export class EnhancedVariantExtractor {
           domStock: []
         };
 
-        // Try to extract JavaScript State
+        // Try to extract JavaScript State - multiple possible locations
         try {
-          if ((window as any).__PRODUCT_DETAIL_APP_INITIAL_STATE__) {
-            result.jsState = (window as any).__PRODUCT_DETAIL_APP_INITIAL_STATE__;
-            console.log('✅ JavaScript State found');
+          // Try known state variables
+          const stateVars = [
+            '__PRODUCT_DETAIL_APP_INITIAL_STATE__',
+            '__NEXT_DATA__',
+            'productDetailData',
+            'initialState'
+          ];
+          
+          for (const varName of stateVars) {
+            if ((window as any)[varName]) {
+              result.jsState = (window as any)[varName];
+              console.log(`✅ JavaScript State found: ${varName}`);
+              break;
+            }
+          }
+          
+          // Also search all window properties for variant data
+          if (!result.jsState) {
+            const windowKeys = Object.keys(window);
+            for (const key of windowKeys) {
+              if (key.includes('product') || key.includes('variant') || key.includes('detail')) {
+                const value = (window as any)[key];
+                if (value && typeof value === 'object' && (value.variants || value.allVariants || value.colors)) {
+                  result.jsState = value;
+                  console.log(`✅ JavaScript State found in: window.${key}`);
+                  break;
+                }
+              }
+            }
           }
         } catch (e) {
           console.log('⚠️ Cannot access JavaScript State');
@@ -180,17 +206,103 @@ export class EnhancedVariantExtractor {
           }
         });
 
-        // Extract colors from DOM
-        const colorElements = document.querySelectorAll('[class*="color"], [class*="renk"], .variant-option');
-        colorElements.forEach((el: any) => {
-          const colorName = el.getAttribute('title') || el.getAttribute('data-color') || el.textContent?.trim();
+        // Extract colors from DOM - ENHANCED with image-based color variants
+        // Method 1: Color selector elements (comprehensive selectors)
+        const colorElements = document.querySelectorAll(`
+          [class*="color"], [class*="renk"], [class*="variant"],
+          .slicing-attributes button, .slicing-attributes a,
+          [data-id*="color"], [data-id*="renk"],
+          .styles_contentWrapper img, .variant-item,
+          button[title]:not([class*="size"]):not([class*="beden"])
+        `.trim());
+        
+        result.colorExtractionStats = {
+          method1: colorElements.length,
+          method2: 0,
+          method3: 0
+        };
+        
+        // Debug: Log what we found
+        result.colorDebug = [];
+        
+        colorElements.forEach((el: any, index: number) => {
+          // Try multiple attribute sources
+          const colorName = 
+            el.getAttribute('title') || 
+            el.getAttribute('data-title') ||
+            el.getAttribute('data-color') || 
+            el.getAttribute('aria-label') ||
+            el.textContent?.trim() ||
+            el.alt;
+            
           const colorCode = el.style.backgroundColor || el.getAttribute('data-color-code');
-          if (colorName) {
+          
+          // Debug info
+          result.colorDebug.push({
+            index,
+            tag: el.tagName,
+            className: el.className,
+            title: el.getAttribute('title'),
+            dataTitle: el.getAttribute('data-title'),
+            ariaLabel: el.getAttribute('aria-label'),
+            text: el.textContent?.trim()?.substring(0, 50),
+            final: colorName
+          });
+          
+          if (colorName && colorName.length > 0 && colorName.length < 100) {
             result.domColors.push({
               name: colorName,
               code: colorCode
             });
           }
+        });
+        
+        // Method 2: Image-based color variants (Trendyol's slicing attributes)
+        const colorImages = document.querySelectorAll('.slicing-attributes img, [class*="slicing"] img, .attribute-media img, .attribute-media.renk img');
+        result.colorExtractionStats.method2 = colorImages.length;
+        
+        colorImages.forEach((img: any) => {
+          const colorName = img.alt || img.title || img.getAttribute('data-title');
+          const parent = img.closest('[title]');
+          const parentTitle = parent?.getAttribute('title');
+          
+          const finalColorName = colorName || parentTitle;
+          if (finalColorName && finalColorName.length > 0 && finalColorName.length < 100) {
+            result.domColors.push({
+              name: finalColorName,
+              code: null
+            });
+          }
+        });
+        
+        // Method 3: Check parent containers with title attributes OR children of .renk containers
+        const attributeContainers = document.querySelectorAll('.attribute-media[title], [class*="renk"][title]');
+        result.colorExtractionStats.method3 = attributeContainers.length;
+        
+        attributeContainers.forEach((container: any) => {
+          const colorName = container.getAttribute('title');
+          if (colorName && colorName.length > 0 && colorName.length < 100) {
+            result.domColors.push({
+              name: colorName,
+              code: null
+            });
+          }
+        });
+        
+        // Method 3b: If .renk containers have no title, check their children (buttons, links, images)
+        const renkContainers = document.querySelectorAll('.attribute-media.renk:not([title])');
+        renkContainers.forEach((container: any) => {
+          // Check buttons/links inside
+          const buttons = container.querySelectorAll('button[title], a[title]');
+          buttons.forEach((btn: any) => {
+            const colorName = btn.getAttribute('title');
+            if (colorName && colorName.length > 0 && colorName.length < 100) {
+              result.domColors.push({
+                name: colorName,
+                code: null
+              });
+            }
+          });
         });
 
         return result;
@@ -200,6 +312,18 @@ export class EnhancedVariantExtractor {
       console.log(`   - JavaScript State: ${variantData.jsState ? 'FOUND' : 'NOT FOUND'}`);
       console.log(`   - DOM Sizes: ${variantData.domSizes.length}`);
       console.log(`   - DOM Colors: ${variantData.domColors.length}`);
+      console.log('🎨 Color extraction methods:');
+      console.log(`   - Method 1 (selectors): ${variantData.colorExtractionStats?.method1 || 0} elements`);
+      console.log(`   - Method 2 (images): ${variantData.colorExtractionStats?.method2 || 0} images`);
+      console.log(`   - Method 3 (containers): ${variantData.colorExtractionStats?.method3 || 0} containers`);
+      
+      // Debug: Show what we found in color elements
+      if (variantData.colorDebug && variantData.colorDebug.length > 0) {
+        console.log('🔍 Color element debug info:');
+        variantData.colorDebug.forEach((dbg: any) => {
+          console.log(`   [${dbg.index}] <${dbg.tag}> class="${dbg.className?.substring(0, 40)}" title="${dbg.title}" aria="${dbg.ariaLabel}" → "${dbg.final}"`);
+        });
+      }
 
       // Parse variants from extracted data
       const variants = this.parseVariantsFromData(variantData);
@@ -382,7 +506,9 @@ export class EnhancedVariantExtractor {
     if (data.domSizes.length > 0 || data.domColors.length > 0) {
       console.log('🎯 Parsing from DOM data...');
       
-      const colors = data.domColors.length > 0 ? data.domColors : [{ name: 'Standart', code: null }];
+      // Deduplicate and clean colors
+      let uniqueColors = data.domColors.length > 0 ? this.deduplicateColors(data.domColors) : [{ name: 'Standart', code: null }];
+      console.log(`🎨 Deduplicated colors: ${data.domColors.length} → ${uniqueColors.length}`);
       
       // Filter DOM sizes - only keep valid sizes
       const validSizes = data.domSizes.filter((s: any) => this.isValidSize(s.size));
@@ -390,21 +516,92 @@ export class EnhancedVariantExtractor {
 
       console.log(`🔍 Filtered sizes: ${data.domSizes.length} → ${validSizes.length} valid sizes`);
 
-      colors.forEach((color: any) => {
+      uniqueColors.forEach((color: any) => {
         sizes.forEach((size: any) => {
           variants.push({
             color: color.name,
             colorCode: color.code,
-            size: this.normalizeSize(size.size), // ✅ Use normalized value
+            size: this.normalizeSize(size.size),
             inStock: size.inStock,
           });
         });
       });
 
-      console.log(`✅ Created ${variants.length} variant combinations from DOM`);
+      console.log(`✅ Created ${variants.length} variant combinations from DOM (${uniqueColors.length} colors × ${sizes.length} sizes)`);
     }
 
     return variants;
+  }
+
+  /**
+   * Deduplicate colors and clean up invalid entries
+   */
+  private deduplicateColors(colors: Array<{ name: string; code: string | null }>): Array<{ name: string; code: string | null }> {
+    console.log(`🎨 DEDUPLICATION INPUT: ${colors.length} colors`);
+    colors.forEach((c, i) => console.log(`   ${i + 1}. "${c.name}"`));
+    
+    const seen = new Set<string>();
+    const result: Array<{ name: string; code: string | null }> = [];
+
+    for (const color of colors) {
+      // Clean up color name
+      const cleaned = color.name.trim();
+      
+      // Skip if empty, too long, or already seen
+      if (!cleaned || cleaned.length === 0) {
+        console.log(`🚫 Skipping empty color`);
+        continue;
+      }
+      if (cleaned.length > 100) {
+        console.log(`🚫 Skipping too long: "${cleaned.substring(0, 50)}..."`);
+        continue;
+      }
+      if (seen.has(cleaned.toLowerCase())) {
+        console.log(`🚫 Skipping duplicate: "${cleaned}"`);
+        continue;
+      }
+      
+      // Skip if it's a product attribute (not a color)
+      const attributeKeywords = [
+        'beden', 'size', 'kalıp', 'fit', 'materyal', 'material',
+        'kumaş', 'fabric', 'desen', 'pattern', 'yaka', 'collar',
+        'kol', 'sleeve', 'boy', 'length', 'sezon', 'season'
+      ];
+      
+      const lowerCleaned = cleaned.toLowerCase();
+      const isAttribute = attributeKeywords.some(keyword => 
+        lowerCleaned.includes(keyword) && lowerCleaned.indexOf(keyword) < 10
+      );
+      
+      if (isAttribute) {
+        console.log(`🚫 Skipping attribute: "${cleaned}"`);
+        continue;
+      }
+      
+      // Skip if it looks like a size (S, M, L, XL, XXL, 2XL, 36, 38, etc.)
+      const sizePatterns = [
+        /^(XXS|XS|S|M|L|XL|XXL|XXXL)$/i,
+        /^\d{1,2}(XL)?$/i,  // Matches: XL, 2XL, 3XL, etc.
+        /^(36|38|40|42|44|46|48|50|52|54)$/,  // Shoe/clothing sizes
+        /^Tek\s*Beden$/i
+      ];
+      
+      const isSize = sizePatterns.some(pattern => pattern.test(cleaned));
+      if (isSize) {
+        console.log(`🚫 Skipping size as color: "${cleaned}"`);
+        continue;
+      }
+      
+      console.log(`✅ Accepting color: "${cleaned}"`);
+      seen.add(cleaned.toLowerCase());
+      result.push({
+        name: cleaned,
+        code: color.code
+      });
+    }
+
+    console.log(`🎨 DEDUPLICATION OUTPUT: ${result.length} colors`);
+    return result;
   }
 
   /**
