@@ -11,6 +11,7 @@
 import puppeteer from 'puppeteer';
 import axios from 'axios';
 import * as cheerio from 'cheerio';
+import { execSync } from 'child_process';
 
 interface VariantInfo {
   color: string;
@@ -88,8 +89,18 @@ export class EnhancedVariantExtractor {
     try {
       console.log('🚀 Launching Puppeteer with enhanced configuration...');
       
+      // Dynamically find chromium executable
+      let executablePath;
+      try {
+        executablePath = execSync('which chromium-browser || which chromium || which google-chrome', { encoding: 'utf8' }).trim();
+        console.log(`✅ Found chromium at: ${executablePath}`);
+      } catch (error) {
+        console.log('⚠️ Chromium not found, using Puppeteer default');
+      }
+      
       browser = await puppeteer.launch({
         headless: true,
+        executablePath: executablePath || undefined,
         args: [
           '--no-sandbox',
           '--disable-setuid-sandbox',
@@ -132,7 +143,7 @@ export class EnhancedVariantExtractor {
       }
 
       // Additional wait for JavaScript execution
-      await page.waitForTimeout(3000);
+      await new Promise(resolve => setTimeout(resolve, 3000));
 
       console.log('🔍 Extracting JavaScript State and DOM data...');
 

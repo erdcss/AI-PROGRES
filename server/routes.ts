@@ -5577,6 +5577,61 @@ ${(result.title || 'product').toLowerCase().replace(/[^a-z0-9]/g, '-')},${result
 
   console.log('🔬 System diagnostic API endpoint registered');
 
+  // 🧪 HYBRID VARIANT EXTRACTION TEST ENDPOINT
+  app.post('/api/test/hybrid-variants', async (req, res) => {
+    try {
+      const { url } = req.body;
+      
+      if (!url || typeof url !== 'string') {
+        return res.status(400).json({
+          success: false,
+          error: 'URL is required'
+        });
+      }
+
+      console.log(`\n🧪 HYBRID VARIANT TEST: Starting extraction for ${url}\n`);
+
+      // Run hybrid extraction
+      const result = await scenarioBasedScrape(url);
+
+      console.log(`\n✅ HYBRID VARIANT TEST COMPLETE\n`);
+      console.log(`📊 Variants found: ${result.variants?.length || 0}`);
+      console.log(`📊 Scenario: ${result.detectedScenario || 'unknown'}`);
+      
+      if (result.variants && result.variants.length > 0) {
+        console.log('\n🎯 Variant Details:');
+        result.variants.slice(0, 10).forEach((v: any, i: number) => {
+          console.log(`  ${i + 1}. ${v.color} / ${v.size} (${v.inStock ? 'In Stock' : 'Out of Stock'})`);
+        });
+      }
+
+      res.json({
+        success: true,
+        url,
+        totalVariants: result.variants?.length || 0,
+        scenario: result.detectedScenario,
+        variants: result.variants || [],
+        extractedData: {
+          title: result.productName,
+          price: result.price,
+          originalPrice: result.originalPrice,
+          brand: result.brand,
+          images: result.images?.length || 0
+        }
+      });
+
+    } catch (error) {
+      console.error('❌ Hybrid variant test error:', error);
+      res.status(500).json({
+        success: false,
+        error: (error as Error).message,
+        stack: (error as Error).stack
+      });
+    }
+  });
+
+  console.log('🧪 Hybrid variant test endpoint registered');
+
   // Admin Memory Management Routes
   setupAdminMemoryRoutes(app);
 
