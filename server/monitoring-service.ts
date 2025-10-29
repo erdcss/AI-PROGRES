@@ -203,16 +203,17 @@ export class MonitoringService {
       }
 
       // 🧩 VARIANT TRACKING - Varyant değişikliklerini tespit et
-      if (freshData.variants && Array.isArray(freshData.variants)) {
-        console.log(`🧩 VARIANT TRACKING: Checking ${freshData.variants.length} variants`);
+      if (freshData.variants?.allVariants && Array.isArray(freshData.variants.allVariants)) {
+        const allVariants = freshData.variants.allVariants;
+        console.log(`🧩 VARIANT TRACKING: Checking ${allVariants.length} variants`);
 
         // Convert scraped variants to VariantInfo format
-        const currentVariants: VariantInfo[] = freshData.variants.map((v: any) => ({
+        const currentVariants: VariantInfo[] = allVariants.map((v: any) => ({
           color: v.color || 'Standart',
           size: v.size || 'Tek Beden',
           sku: v.sku || undefined,
-          trendyolPrice: newPrice,
-          shopifyPrice: Math.round(newPrice * 1.10 * 100) / 100,
+          trendyolPrice: v.trendyolPrice ?? newPrice,
+          shopifyPrice: v.shopifyPrice ?? Math.round(newPrice * 1.10 * 100) / 100,
           stockCount: v.stockCount ?? 0,
           inStock: v.inStock ?? true
         }));
@@ -227,6 +228,8 @@ export class MonitoringService {
         // Filter out-of-stock variants for Shopify sync
         const { available, outOfStock } = this.variantTracker.filterInStockVariants(currentVariants);
         console.log(`📊 Variant Summary: ${available.length} available, ${outOfStock.length} out-of-stock (excluded from Shopify)`);
+      } else {
+        console.log(`ℹ️ No variants found for ${trackedProduct.productTitle} (single-variant product)`);
       }
 
     } catch (error) {
