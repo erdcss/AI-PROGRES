@@ -73,6 +73,26 @@ export const stockHistory = pgTable('stock_history', {
   createdAt: timestamp('created_at').notNull().defaultNow()
 });
 
+// Variant changes table - Varyant değişiklik takibi (yeni varyant ekleme/çıkarma)
+export const variantChanges = pgTable('variant_changes', {
+  id: serial('id').primaryKey(),
+  productId: integer('product_id').notNull().references(() => products.id, { onDelete: 'cascade' }),
+  variantId: integer('variant_id').references(() => productVariants.id, { onDelete: 'set null' }),
+  changeType: text('change_type').notNull(), // variant_added, variant_removed, variant_stock_changed, variant_oos, variant_back_in_stock
+  color: text('color'),
+  size: text('size'),
+  oldStockCount: integer('old_stock_count'),
+  newStockCount: integer('new_stock_count'),
+  oldInStock: boolean('old_in_stock'),
+  newInStock: boolean('new_in_stock'),
+  shopifySynced: boolean('shopify_synced').notNull().default(false),
+  shopifySyncAt: timestamp('shopify_sync_at'),
+  telegramNotified: boolean('telegram_notified').notNull().default(false),
+  telegramNotifiedAt: timestamp('telegram_notified_at'),
+  metadata: jsonb('metadata').default({}), // Ek bilgiler
+  createdAt: timestamp('created_at').notNull().defaultNow()
+});
+
 // Shopify sync logs table - Shopify senkronizasyon kayıtları
 export const shopifySyncLogs = pgTable('shopify_sync_logs', {
   id: serial('id').primaryKey(),
@@ -213,6 +233,17 @@ export const stockHistoryRelations = relations(stockHistory, ({ one }) => ({
   })
 }));
 
+export const variantChangesRelations = relations(variantChanges, ({ one }) => ({
+  product: one(products, {
+    fields: [variantChanges.productId],
+    references: [products.id]
+  }),
+  variant: one(productVariants, {
+    fields: [variantChanges.variantId],
+    references: [productVariants.id]
+  })
+}));
+
 export const shopifySyncLogsRelations = relations(shopifySyncLogs, ({ one }) => ({
   product: one(products, {
     fields: [shopifySyncLogs.productId],
@@ -240,6 +271,8 @@ export const insertPriceHistorySchema = createInsertSchema(priceHistory);
 
 export const insertStockHistorySchema = createInsertSchema(stockHistory);
 
+export const insertVariantChangeSchema = createInsertSchema(variantChanges);
+
 export const insertShopifySyncLogSchema = createInsertSchema(shopifySyncLogs);
 
 export const insertMonitoringScheduleSchema = createInsertSchema(monitoringSchedules);
@@ -258,6 +291,8 @@ export type PriceHistory = typeof priceHistory.$inferSelect;
 export type InsertPriceHistory = z.infer<typeof insertPriceHistorySchema>;
 export type StockHistory = typeof stockHistory.$inferSelect;
 export type InsertStockHistory = z.infer<typeof insertStockHistorySchema>;
+export type VariantChange = typeof variantChanges.$inferSelect;
+export type InsertVariantChange = z.infer<typeof insertVariantChangeSchema>;
 export type ShopifySyncLog = typeof shopifySyncLogs.$inferSelect;
 export type InsertShopifySyncLog = z.infer<typeof insertShopifySyncLogSchema>;
 export type MonitoringSchedule = typeof monitoringSchedules.$inferSelect;

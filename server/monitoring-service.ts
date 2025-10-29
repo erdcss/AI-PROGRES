@@ -4,11 +4,14 @@ import { eq, desc, and, isNotNull, gte } from 'drizzle-orm';
 import { telegramIntegration } from './telegram-integration';
 import { scenarioBasedScrape } from './scenario-based-scraper';
 import { ShopifyApiService } from './shopify-api-service';
+import { VariantTrackingService } from './variant-tracking-service';
+import type { VariantInfo } from './variant-tracking-service';
 
 export class MonitoringService {
   private isRunning = false;
   private intervalId: NodeJS.Timeout | null = null;
   private shopifyService: ShopifyApiService | null = null;
+  private variantTracker: VariantTrackingService;
 
   constructor(private checkInterval: number = 300000) {
     // Initialize Shopify service
@@ -19,6 +22,10 @@ export class MonitoringService {
       console.log('⚠️ Shopify API Service initialization failed - auto-updates disabled');
       this.shopifyService = null;
     }
+
+    // Initialize Variant Tracker
+    this.variantTracker = new VariantTrackingService(telegramIntegration);
+    console.log('✅ Variant Tracking Service initialized');
   }
 
   // Monitoring service başlat
@@ -122,7 +129,7 @@ export class MonitoringService {
             lastChecked: new Date(),
             lastPriceChange: new Date(),
             priceChangePercent: changePercentage.toFixed(2)
-          })
+          } as any)
           .where(eq(urlTracking.id, trackedProduct.id));
 
         // Fiyat geçmişine kaydet
@@ -135,7 +142,7 @@ export class MonitoringService {
           productTitle: trackedProduct.productTitle,
           currency: trackedProduct.currency || 'TL',
           recordedAt: new Date()
-        });
+        } as any);
 
         // 🔄 SHOPIFY OTOMATIK GÜNCELLEME
         if (this.shopifyService && trackedProduct.shopifyProductId) {
@@ -162,7 +169,7 @@ export class MonitoringService {
                 .set({
                   lastShopifySyncAt: new Date(),
                   syncStatus: 'synced'
-                })
+                } as any)
                 .where(eq(urlTracking.id, trackedProduct.id));
             } else {
               console.error(`❌ Shopify fiyat güncelleme hatası: ${updateResult.error}`);
@@ -170,7 +177,7 @@ export class MonitoringService {
                 .set({
                   syncStatus: 'failed',
                   syncErrors: updateResult.error
-                })
+                } as any)
                 .where(eq(urlTracking.id, trackedProduct.id));
             }
           } catch (shopifyError) {
@@ -189,10 +196,37 @@ export class MonitoringService {
         await db.update(urlTracking)
           .set({
             lastChecked: new Date()
-          })
+          } as any)
           .where(eq(urlTracking.id, trackedProduct.id));
         
         console.log(`✅ URL kontrol edildi (fiyat değişmedi): ${trackedProduct.productTitle}`);
+      }
+
+      // 🧩 VARIANT TRACKING - Varyant değişikliklerini tespit et
+      if (freshData.variants && Array.isArray(freshData.variants)) {
+        console.log(`🧩 VARIANT TRACKING: Checking ${freshData.variants.length} variants`);
+
+        // Convert scraped variants to VariantInfo format
+        const currentVariants: VariantInfo[] = freshData.variants.map((v: any) => ({
+          color: v.color || 'Standart',
+          size: v.size || 'Tek Beden',
+          sku: v.sku || undefined,
+          trendyolPrice: newPrice,
+          shopifyPrice: Math.round(newPrice * 1.10 * 100) / 100,
+          stockCount: v.stockCount ?? 0,
+          inStock: v.inStock ?? true
+        }));
+
+        // Track variant changes (compares with database, records changes, sends Telegram)
+        await this.variantTracker.trackVariants(
+          trackedProduct.id,
+          trackedProduct.productTitle,
+          currentVariants
+        );
+
+        // Filter out-of-stock variants for Shopify sync
+        const { available, outOfStock } = this.variantTracker.filterInStockVariants(currentVariants);
+        console.log(`📊 Variant Summary: ${available.length} available, ${outOfStock.length} out-of-stock (excluded from Shopify)`);
       }
 
     } catch (error) {
@@ -236,7 +270,7 @@ export class MonitoringService {
           .set({
             isTracking: true,
             lastChecked: new Date()
-          })
+          } as any)
           .where(eq(urlTracking.id, existing[0].id));
         
         console.log(`✅ URL tracking güncellendi: ${productData.title}`);
@@ -253,7 +287,7 @@ export class MonitoringService {
           trackingInterval: 300, // 5 dakika
           lastChecked: new Date(),
           status: 'active'
-        });
+        } as any);
         
         console.log(`✅ URL monitoring'e eklendi: ${productData.title}`);
       }
@@ -270,7 +304,7 @@ export class MonitoringService {
   async removeProductFromMonitoring(productId: number): Promise<boolean> {
     try {
       await db.update(urlTracking)
-        .set({ isTracking: false })
+        .set({ isTracking: false } as any)
         .where(eq(urlTracking.id, productId));
       
       console.log(`⏹️ Ürün izlemeden çıkarıldı (ID: ${productId})`);
