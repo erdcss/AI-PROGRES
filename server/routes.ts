@@ -5502,6 +5502,32 @@ ${(result.title || 'product').toLowerCase().replace(/[^a-z0-9]/g, '-')},${result
 
   console.log('📊 Monitoring service API endpoints registered');
 
+  // System Diagnostic Endpoint
+  app.post('/api/system/diagnostic', async (req, res) => {
+    try {
+      const { systemDiagnostic } = await import('./diagnostic-test');
+      console.log('\n🔬 Running full system diagnostic...\n');
+      
+      const result = await systemDiagnostic.runAll();
+      
+      res.json({
+        success: true,
+        passed: result.passed,
+        failed: result.failed,
+        report: result.report,
+        status: result.failed === 0 ? 'FULLY OPERATIONAL' : 'ISSUES DETECTED'
+      });
+    } catch (error) {
+      console.error('❌ Diagnostic error:', error);
+      res.status(500).json({
+        success: false,
+        error: (error as Error).message
+      });
+    }
+  });
+
+  console.log('🔬 System diagnostic API endpoint registered');
+
   // Admin Memory Management Routes
   setupAdminMemoryRoutes(app);
 
