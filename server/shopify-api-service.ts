@@ -666,6 +666,176 @@ export class ShopifyApiService {
       console.error('❌ Local kayıt güncelleme hatası:', error);
     }
   }
+
+  // ========== AUTONOMOUS SYNC API METHODS ==========
+
+  /**
+   * 💰 Update variant price
+   * Used by ShopifySyncManager for price changes
+   */
+  async updateVariantPrice(variantId: string, price: number, compareAtPrice?: number) {
+    try {
+      console.log(`💰 Updating Shopify variant ${variantId} price to ${price} TL`);
+      
+      const updateData: any = {
+        variant: {
+          id: parseInt(variantId),
+          price: price.toFixed(2)
+        }
+      };
+
+      if (compareAtPrice) {
+        updateData.variant.compare_at_price = compareAtPrice.toFixed(2);
+      }
+
+      const result = await this.makeRequest(`variants/${variantId}.json`, 'PUT', updateData);
+      
+      console.log(`✅ Variant price updated successfully`);
+      return { success: true, data: result };
+    } catch (error: any) {
+      console.error(`❌ Failed to update variant price:`, error.message);
+      throw error;
+    }
+  }
+
+  /**
+   * 📦 Update inventory quantity
+   * Used by ShopifySyncManager for stock changes
+   */
+  async updateInventory(variantId: string, quantity: number, locationId?: string) {
+    try {
+      console.log(`📦 Updating inventory for variant ${variantId} to ${quantity} units`);
+      
+      // First, get the variant to find its inventory_item_id
+      const variantResponse = await this.makeRequest(`variants/${variantId}.json`, 'GET');
+      const inventoryItemId = variantResponse.variant?.inventory_item_id;
+
+      if (!inventoryItemId) {
+        throw new Error('Inventory item ID not found for variant');
+      }
+
+      // Get available locations if not provided
+      if (!locationId) {
+        const locationsResponse = await this.makeRequest('locations.json', 'GET');
+        locationId = locationsResponse.locations?.[0]?.id?.toString();
+      }
+
+      if (!locationId) {
+        throw new Error('No location ID available');
+      }
+
+      // Update inventory level
+      const updateData = {
+        location_id: parseInt(locationId),
+        inventory_item_id: inventoryItemId,
+        available: quantity
+      };
+
+      const result = await this.makeRequest('inventory_levels/set.json', 'POST', updateData);
+      
+      console.log(`✅ Inventory updated successfully`);
+      return { success: true, data: result };
+    } catch (error: any) {
+      console.error(`❌ Failed to update inventory:`, error.message);
+      throw error;
+    }
+  }
+
+  /**
+   * ➕ Create new variant
+   * Used by ShopifySyncManager when new variant is added
+   */
+  async createVariant(productId: string, variantData: {
+    option1?: string;
+    option2?: string;
+    option3?: string;
+    price: number;
+    sku?: string;
+    inventory_quantity?: number;
+  }) {
+    try {
+      console.log(`➕ Creating new variant for product ${productId}`);
+      
+      const createData = {
+        variant: {
+          product_id: parseInt(productId),
+          option1: variantData.option1,
+          option2: variantData.option2,
+          option3: variantData.option3,
+          price: variantData.price.toFixed(2),
+          sku: variantData.sku,
+          inventory_quantity: variantData.inventory_quantity || 0,
+          inventory_management: 'shopify',
+          inventory_policy: 'deny'
+        }
+      };
+
+      const result = await this.makeRequest(`products/${productId}/variants.json`, 'POST', createData);
+      
+      console.log(`✅ Variant created successfully: ${result.variant?.id}`);
+      return { success: true, data: result, variantId: result.variant?.id };
+    } catch (error: any) {
+      console.error(`❌ Failed to create variant:`, error.message);
+      throw error;
+    }
+  }
+
+  /**
+   * 🗑️ Archive (delete) variant
+   * Used by ShopifySyncManager when variant is removed
+   */
+  async archiveVariant(variantId: string) {
+    try {
+      console.log(`🗑️ Archiving variant ${variantId}`);
+      
+      const result = await this.makeRequest(`variants/${variantId}.json`, 'DELETE');
+      
+      console.log(`✅ Variant archived successfully`);
+      return { success: true, data: result };
+    } catch (error: any) {
+      console.error(`❌ Failed to archive variant:`, error.message);
+      throw error;
+    }
+  }
+
+  /**
+   * 📦 Archive product
+   * Used by ShopifySyncManager when product is deleted from Trendyol
+   */
+  async archiveProduct(productId: string) {
+    try {
+      console.log(`📦 Archiving product ${productId}`);
+      
+      const updateData = {
+        product: {
+          id: parseInt(productId),
+          status: 'archived'
+        }
+      };
+
+      const result = await this.makeRequest(`products/${productId}.json`, 'PUT', updateData);
+      
+      console.log(`✅ Product archived successfully`);
+      return { success: true, data: result };
+    } catch (error: any) {
+      console.error(`❌ Failed to archive product:`, error.message);
+      throw error;
+    }
+  }
+
+  /**
+   * 🔍 Get variant by ID
+   * Helper method to fetch variant details including inventory_item_id
+   */
+  async getVariantById(variantId: string) {
+    try {
+      const result = await this.makeRequest(`variants/${variantId}.json`, 'GET');
+      return { success: true, variant: result.variant };
+    } catch (error: any) {
+      console.error(`❌ Failed to get variant:`, error.message);
+      throw error;
+    }
+  }
 }
 
 // Singleton instance

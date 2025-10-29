@@ -1,6 +1,6 @@
 import { db } from './db';
 import { shopifySyncLogs, variantChanges, priceHistory, stockHistory, urlTracking } from '@shared/schema';
-import { ShopifyApiService } from './shopify-api-service';
+import { shopifyApiService } from './shopify-api-service';
 import { eq } from 'drizzle-orm';
 import { appendFileSync } from 'fs';
 import { join } from 'path';
@@ -50,14 +50,12 @@ interface SyncResult {
  * - Sends Telegram notifications
  */
 export class ShopifySyncManager {
-  private shopifyApi: ShopifyApiService;
   private maxRetries = 3;
   private baseRetryDelay = 1000; // 1 second
   private logsPath = join(process.cwd(), 'logs.txt');
 
   constructor() {
-    this.shopifyApi = new ShopifyApiService();
-    console.log('🤖 ShopifySyncManager initialized');
+    console.log('🤖 ShopifySyncManager initialized with Shopify API integration');
   }
 
   /**
@@ -145,11 +143,10 @@ export class ShopifySyncManager {
     }
 
     try {
-      // Archive product in Shopify (set status to 'draft' or 'archived')
+      // Archive product in Shopify (set status to 'archived')
       await this.retryWithBackoff(async () => {
-        // TODO: Implement Shopify product archive API call
         console.log(`📦 Archiving Shopify product ${product.shopifyProductId}`);
-        // await this.shopifyApi.archiveProduct(product.shopifyProductId);
+        await shopifyApiService.archiveProduct(product.shopifyProductId);
       });
 
       result.details.productArchived = true;
@@ -168,6 +165,7 @@ export class ShopifySyncManager {
 
   /**
    * 💰 Handle price change - Update Shopify variant price
+   * For multi-variant products, updates ALL variants since price change is product-level
    */
   private async handlePriceChange(product: any, priceChange: PriceChange, result: SyncResult): Promise<void> {
     console.log(`💰 DECISION: Price ${priceChange.changeType} (${priceChange.changePercentage.toFixed(2)}%) → Update Shopify`);
@@ -177,24 +175,59 @@ export class ShopifySyncManager {
       return;
     }
 
+    // Get all Shopify variant IDs for this product (price change affects all variants)
+    const variantIds: string[] = [];
+    
+    if (product.shopifyVariantId) {
+      variantIds.push(product.shopifyVariantId);
+    }
+    
+    if (product.shopifyVariantIds) {
+      try {
+        const ids = typeof product.shopifyVariantIds === 'string' 
+          ? JSON.parse(product.shopifyVariantIds) 
+          : product.shopifyVariantIds;
+        if (Array.isArray(ids)) {
+          variantIds.push(...ids.filter((id: any) => id && !variantIds.includes(id)));
+        }
+      } catch (e) {
+        console.error('Failed to parse variant IDs:', e);
+      }
+    }
+
+    if (variantIds.length === 0) {
+      console.log('⚠️ No Shopify variant IDs found, skipping price update');
+      return;
+    }
+
+    console.log(`📦 Updating price for ${variantIds.length} variant(s)`);
+
     try {
       // Calculate new Shopify price with 10% profit margin
-      const newShopifyPrice = (priceChange.newPrice * 1.10).toFixed(2);
+      const newShopifyPrice = priceChange.newPrice * 1.10;
 
-      await this.retryWithBackoff(async () => {
-        console.log(`💵 Updating price: ${priceChange.oldPrice} TL → ${priceChange.newPrice} TL (Shopify: ${newShopifyPrice} TL)`);
-        
-        // TODO: Implement Shopify price update API call
-        // await this.shopifyApi.updateVariantPrice(product.shopifyVariantId, newShopifyPrice);
-      });
+      // Update all variants
+      for (const variantId of variantIds) {
+        await this.retryWithBackoff(async () => {
+          console.log(`💵 Updating variant ${variantId}: ${priceChange.oldPrice} TL → ${priceChange.newPrice} TL (Shopify: ${newShopifyPrice.toFixed(2)} TL)`);
+          
+          await shopifyApiService.updateVariantPrice(
+            variantId,
+            newShopifyPrice,
+            priceChange.newPrice // compare_at_price (original Trendyol price)
+          );
+        });
+      }
 
-      result.details.priceUpdates++;
-      result.changes++;
+      result.details.priceUpdates += variantIds.length;
+      result.changes += variantIds.length;
 
       await this.logSyncSuccess(product.id, null, 'update_price', {
         oldPrice: priceChange.oldPrice,
         newPrice: priceChange.newPrice,
-        shopifyPrice: newShopifyPrice
+        shopifyPrice: newShopifyPrice.toFixed(2),
+        variantCount: variantIds.length,
+        variantIds
       });
 
     } catch (error) {
@@ -202,6 +235,51 @@ export class ShopifySyncManager {
       result.errors++;
       await this.logSyncError(product.id, null, 'update_price', error as Error);
     }
+  }
+
+  /**
+   * 🔍 Get Shopify variant ID for a specific variant change
+   * Queries productVariants table to find the exact Shopify variant ID
+   */
+  private async getShopifyVariantId(change: VariantChange, product: any): Promise<string | null> {
+    // First, try to get from change.variantId (most accurate)
+    if (change.variantId) {
+      try {
+        const { productVariants } = await import('@shared/schema');
+        const [variant] = await db.select()
+          .from(productVariants)
+          .where(eq(productVariants.id, change.variantId))
+          .limit(1);
+        
+        if (variant?.shopifyVariantId) {
+          console.log(`✅ Found Shopify variant ID ${variant.shopifyVariantId} for variant ${change.variantId}`);
+          return variant.shopifyVariantId;
+        }
+      } catch (e) {
+        console.error('Failed to query variant:', e);
+      }
+    }
+
+    // Fallback: Use product-level variant ID (for single-variant products)
+    let variantId = product.shopifyVariantId;
+    if (!variantId && product.shopifyVariantIds) {
+      try {
+        const variantIds = typeof product.shopifyVariantIds === 'string' 
+          ? JSON.parse(product.shopifyVariantIds) 
+          : product.shopifyVariantIds;
+        variantId = variantIds[0];
+      } catch (e) {
+        console.error('Failed to parse variant IDs:', e);
+      }
+    }
+
+    if (variantId) {
+      console.log(`⚠️ Using fallback product-level variant ID: ${variantId}`);
+    } else {
+      console.log(`❌ No Shopify variant ID found`);
+    }
+
+    return variantId || null;
   }
 
   /**
@@ -259,24 +337,61 @@ export class ShopifySyncManager {
   private async handleVariantAdded(product: any, change: VariantChange, result: SyncResult): Promise<void> {
     console.log(`➕ DECISION: New variant added → Create in Shopify`);
 
-    await this.retryWithBackoff(async () => {
-      // TODO: Implement Shopify create variant API call
-      console.log(`📦 Creating variant: ${change.color} / ${change.size}`);
-      // await this.shopifyApi.createVariant(product.shopifyProductId, {
-      //   option1: change.color,
-      //   option2: change.size,
-      //   inventory_quantity: change.newStockCount || 0
-      // });
-    });
+    if (!product.shopifyProductId) {
+      console.log('⚠️ No Shopify product ID, skipping variant creation');
+      return;
+    }
 
-    result.details.variantsAdded++;
-    result.changes++;
+    try {
+      let newShopifyVariantId: string | null = null;
 
-    await this.logSyncSuccess(product.id, change.variantId, 'create_variant', {
-      color: change.color,
-      size: change.size,
-      stock: change.newStockCount
-    });
+      await this.retryWithBackoff(async () => {
+        console.log(`📦 Creating variant: ${change.color} / ${change.size}`);
+        
+        // Calculate Shopify price with 10% profit margin
+        const trendyolPrice = parseFloat(product.currentPrice || '0');
+        const shopifyPrice = trendyolPrice * 1.10;
+
+        const createResult = await shopifyApiService.createVariant(product.shopifyProductId, {
+          option1: change.color || undefined,
+          option2: change.size || undefined,
+          price: shopifyPrice,
+          sku: `${product.trendyolProductId}-${change.color}-${change.size}`.toLowerCase(),
+          inventory_quantity: change.newStockCount || 0
+        });
+
+        newShopifyVariantId = createResult.variantId?.toString() || null;
+        console.log(`✅ Created Shopify variant: ${newShopifyVariantId}`);
+      });
+
+      // Persist the new Shopify variant ID to database
+      if (newShopifyVariantId && change.variantId) {
+        try {
+          const { productVariants } = await import('@shared/schema');
+          await db.update(productVariants)
+            .set({ shopifyVariantId: newShopifyVariantId } as any)
+            .where(eq(productVariants.id, change.variantId));
+          
+          console.log(`💾 Persisted Shopify variant ID ${newShopifyVariantId} to database`);
+        } catch (dbError) {
+          console.error('❌ Failed to persist variant ID:', dbError);
+        }
+      }
+
+      result.details.variantsAdded++;
+      result.changes++;
+
+      await this.logSyncSuccess(product.id, change.variantId, 'create_variant', {
+        color: change.color,
+        size: change.size,
+        stock: change.newStockCount,
+        shopifyVariantId: newShopifyVariantId
+      });
+    } catch (error) {
+      console.error('❌ Failed to create variant:', error);
+      result.errors++;
+      await this.logSyncError(product.id, change.variantId, 'create_variant', error as Error);
+    }
   }
 
   /**
@@ -285,19 +400,54 @@ export class ShopifySyncManager {
   private async handleVariantRemoved(product: any, change: VariantChange, result: SyncResult): Promise<void> {
     console.log(`➖ DECISION: Variant removed → Archive in Shopify`);
 
-    await this.retryWithBackoff(async () => {
-      // TODO: Implement Shopify archive variant API call
-      console.log(`📦 Archiving variant: ${change.color} / ${change.size}`);
-      // await this.shopifyApi.archiveVariant(shopifyVariantId);
-    });
+    // Try to find Shopify variant ID from database
+    let shopifyVariantId: string | null = null;
+    
+    if (change.variantId) {
+      // Query productVariants table to find Shopify variant ID
+      try {
+        const { productVariants } = await import('@shared/schema');
+        const [variant] = await db.select()
+          .from(productVariants)
+          .where(eq(productVariants.id, change.variantId))
+          .limit(1);
+        
+        shopifyVariantId = variant?.shopifyVariantId || null;
+      } catch (e) {
+        console.error('Failed to query variant:', e);
+      }
+    }
 
-    result.details.variantsRemoved++;
-    result.changes++;
+    if (!shopifyVariantId) {
+      console.log('⚠️ No Shopify variant ID found, cannot archive variant - variant will remain in Shopify');
+      // Still log as success but with warning note
+      await this.logSyncSuccess(product.id, change.variantId, 'archive_variant_skipped', {
+        color: change.color,
+        size: change.size,
+        note: 'Shopify variant ID not found - manual cleanup may be required'
+      });
+      return;
+    }
 
-    await this.logSyncSuccess(product.id, change.variantId, 'archive_variant', {
-      color: change.color,
-      size: change.size
-    });
+    try {
+      await this.retryWithBackoff(async () => {
+        console.log(`📦 Archiving Shopify variant ${shopifyVariantId}: ${change.color} / ${change.size}`);
+        await shopifyApiService.archiveVariant(shopifyVariantId!);
+      });
+
+      result.details.variantsRemoved++;
+      result.changes++;
+
+      await this.logSyncSuccess(product.id, change.variantId, 'archive_variant', {
+        color: change.color,
+        size: change.size,
+        shopifyVariantId
+      });
+    } catch (error) {
+      console.error('❌ Failed to archive variant:', error);
+      result.errors++;
+      await this.logSyncError(product.id, change.variantId, 'archive_variant', error as Error);
+    }
   }
 
   /**
@@ -307,21 +457,35 @@ export class ShopifySyncManager {
     const stockDiff = (change.newStockCount || 0) - (change.oldStockCount || 0);
     console.log(`📦 DECISION: Stock changed (${stockDiff > 0 ? '+' : ''}${stockDiff}) → Update Shopify inventory`);
 
-    await this.retryWithBackoff(async () => {
-      // TODO: Implement Shopify inventory update API call
-      console.log(`📊 Updating inventory: ${change.oldStockCount} → ${change.newStockCount}`);
-      // await this.shopifyApi.updateInventory(shopifyInventoryItemId, change.newStockCount);
-    });
+    // Get the correct Shopify variant ID for this specific variant
+    const variantId = await this.getShopifyVariantId(change, product);
 
-    result.details.stockUpdates++;
-    result.changes++;
+    if (!variantId) {
+      console.log('⚠️ No Shopify variant ID found, skipping inventory update');
+      return;
+    }
 
-    await this.logSyncSuccess(product.id, change.variantId, 'update_stock', {
-      oldStock: change.oldStockCount,
-      newStock: change.newStockCount,
-      color: change.color,
-      size: change.size
-    });
+    try {
+      await this.retryWithBackoff(async () => {
+        console.log(`📊 Updating inventory: ${change.oldStockCount} → ${change.newStockCount}`);
+        await shopifyApiService.updateInventory(variantId, change.newStockCount || 0);
+      });
+
+      result.details.stockUpdates++;
+      result.changes++;
+
+      await this.logSyncSuccess(product.id, change.variantId, 'update_stock', {
+        oldStock: change.oldStockCount,
+        newStock: change.newStockCount,
+        color: change.color,
+        size: change.size,
+        variantId
+      });
+    } catch (error) {
+      console.error('❌ Failed to update stock:', error);
+      result.errors++;
+      await this.logSyncError(product.id, change.variantId, 'update_stock', error as Error);
+    }
   }
 
   /**
@@ -330,19 +494,33 @@ export class ShopifySyncManager {
   private async handleVariantOutOfStock(product: any, change: VariantChange, result: SyncResult): Promise<void> {
     console.log(`🚫 DECISION: Variant out of stock → Set Shopify inventory to 0`);
 
-    await this.retryWithBackoff(async () => {
-      // TODO: Implement Shopify inventory set to 0
-      console.log(`❌ Setting inventory to 0: ${change.color} / ${change.size}`);
-      // await this.shopifyApi.updateInventory(shopifyInventoryItemId, 0);
-    });
+    // Get the correct Shopify variant ID for this specific variant
+    const variantId = await this.getShopifyVariantId(change, product);
 
-    result.details.stockUpdates++;
-    result.changes++;
+    if (!variantId) {
+      console.log('⚠️ No Shopify variant ID found, skipping out-of-stock update');
+      return;
+    }
 
-    await this.logSyncSuccess(product.id, change.variantId, 'set_oos', {
-      color: change.color,
-      size: change.size
-    });
+    try {
+      await this.retryWithBackoff(async () => {
+        console.log(`❌ Setting inventory to 0: ${change.color} / ${change.size}`);
+        await shopifyApiService.updateInventory(variantId, 0);
+      });
+
+      result.details.stockUpdates++;
+      result.changes++;
+
+      await this.logSyncSuccess(product.id, change.variantId, 'set_oos', {
+        color: change.color,
+        size: change.size,
+        variantId
+      });
+    } catch (error) {
+      console.error('❌ Failed to set out-of-stock:', error);
+      result.errors++;
+      await this.logSyncError(product.id, change.variantId, 'set_oos', error as Error);
+    }
   }
 
   /**
@@ -351,20 +529,34 @@ export class ShopifySyncManager {
   private async handleVariantBackInStock(product: any, change: VariantChange, result: SyncResult): Promise<void> {
     console.log(`✅ DECISION: Variant back in stock → Reactivate in Shopify`);
 
-    await this.retryWithBackoff(async () => {
-      // TODO: Implement Shopify variant reactivation
-      console.log(`✅ Reactivating variant: ${change.color} / ${change.size} (Stock: ${change.newStockCount})`);
-      // await this.shopifyApi.updateInventory(shopifyInventoryItemId, change.newStockCount);
-    });
+    // Get the correct Shopify variant ID for this specific variant
+    const variantId = await this.getShopifyVariantId(change, product);
 
-    result.details.stockUpdates++;
-    result.changes++;
+    if (!variantId) {
+      console.log('⚠️ No Shopify variant ID found, skipping back-in-stock update');
+      return;
+    }
 
-    await this.logSyncSuccess(product.id, change.variantId, 'reactivate_variant', {
-      color: change.color,
-      size: change.size,
-      stock: change.newStockCount
-    });
+    try {
+      await this.retryWithBackoff(async () => {
+        console.log(`✅ Reactivating variant: ${change.color} / ${change.size} (Stock: ${change.newStockCount})`);
+        await shopifyApiService.updateInventory(variantId, change.newStockCount || 0);
+      });
+
+      result.details.stockUpdates++;
+      result.changes++;
+
+      await this.logSyncSuccess(product.id, change.variantId, 'reactivate_variant', {
+        color: change.color,
+        size: change.size,
+        stock: change.newStockCount,
+        variantId
+      });
+    } catch (error) {
+      console.error('❌ Failed to reactivate variant:', error);
+      result.errors++;
+      await this.logSyncError(product.id, change.variantId, 'reactivate_variant', error as Error);
+    }
   }
 
   /**
