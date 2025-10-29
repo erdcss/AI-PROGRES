@@ -5502,6 +5502,55 @@ ${(result.title || 'product').toLowerCase().replace(/[^a-z0-9]/g, '-')},${result
 
   console.log('📊 Monitoring service API endpoints registered');
 
+  // 🧪 MANUAL MONITORING TEST ENDPOINT - Test monitoring system manually
+  app.post('/api/monitoring/test/:productId', async (req, res) => {
+    try {
+      const productId = parseInt(req.params.productId);
+      
+      if (isNaN(productId)) {
+        return res.status(400).json({
+          success: false,
+          error: 'Invalid product ID'
+        });
+      }
+
+      console.log(`🧪 MANUAL TEST: Checking product ${productId}`);
+
+      // Get product from database
+      const [product] = await db.select()
+        .from(urlTracking)
+        .where(eq(urlTracking.id, productId))
+        .limit(1);
+
+      if (!product) {
+        return res.status(404).json({
+          success: false,
+          error: `Product ${productId} not found`
+        });
+      }
+
+      // Manually trigger monitoring check for this product
+      await (monitoringService as any).checkSingleProduct(product);
+
+      res.json({
+        success: true,
+        message: `Monitoring check completed for ${product.productTitle}`,
+        productId,
+        productTitle: product.productTitle,
+        shopifyProductId: product.shopifyProductId
+      });
+
+    } catch (error) {
+      console.error('❌ Manual monitoring test error:', error);
+      res.status(500).json({
+        success: false,
+        error: (error as Error).message
+      });
+    }
+  });
+
+  console.log('🧪 Manual monitoring test endpoint registered');
+
   // System Diagnostic Endpoint
   app.post('/api/system/diagnostic', async (req, res) => {
     try {
