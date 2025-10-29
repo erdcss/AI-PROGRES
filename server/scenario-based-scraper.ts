@@ -8,6 +8,7 @@ import puppeteer from 'puppeteer';
 import * as cheerio from 'cheerio';
 import { ScenarioManager, ExtractionScenario } from './scenario-manager';
 import { ScenarioExtractors } from './scenario-extractors';
+import { enhancedVariantExtractor } from './enhanced-variant-extractor';
 import { ImageDeduplicator, extractEnhancedFeatures, extractEnhancedVariants } from './improved-image-deduplicator';
 import { colorFilter } from './color-filter';
 import { ultimatePriceExtract } from './ultimate-price-extractor';
@@ -1678,7 +1679,49 @@ export async function scenarioBasedScrape(url: string): Promise<ScenarioBasedRes
         
         console.log(`✅ Using JavaScript State variants (most reliable method)`);
       } else {
-        console.log('⚠️ JavaScript State extraction failed, trying SKU-level detection...');
+        console.log('⚠️ JavaScript State extraction failed, trying HYBRID FALLBACK SYSTEM...');
+        
+        // 🎯 NEW: Try Enhanced Puppeteer with Hybrid Fallback
+        try {
+          console.log('🚀 Activating Hybrid Fallback System (Puppeteer + Google Cache)...');
+          const hybridResult = await enhancedVariantExtractor.extractVariants(url);
+          
+          if (hybridResult.success && hybridResult.variants.length > 0) {
+            console.log(`✅ Hybrid extraction successful via ${hybridResult.method}: ${hybridResult.variants.length} variants`);
+            variants = hybridResult.variants.map(v => ({
+              color: v.color || 'Varsayılan',
+              colorCode: v.colorCode || '#808080',
+              size: v.size || 'Tek Beden',
+              inStock: v.inStock !== false
+            }));
+            
+            // Update scenario based on hybrid results
+            const uniqueSizes = [...new Set(variants.map(v => v.size).filter(s => s && s !== 'Tek Beden'))];
+            const uniqueColors = [...new Set(variants.map(v => v.color).filter(c => c && c !== 'Varsayılan'))];
+            
+            if (uniqueSizes.length > 1 && uniqueColors.length > 1) {
+              detection.scenario = ExtractionScenario.FULL_MATRIX;
+              console.log(`🔄 SCENARIO OVERRIDE (Hybrid): Multiple sizes (${uniqueSizes.length}) and colors (${uniqueColors.length}) → FULL_MATRIX`);
+            } else if (uniqueSizes.length > 1) {
+              detection.scenario = ExtractionScenario.MULTI_SIZE;
+              console.log(`🔄 SCENARIO OVERRIDE (Hybrid): Multiple sizes (${uniqueSizes.length}) → MULTI_SIZE`);
+            } else if (uniqueColors.length > 1) {
+              detection.scenario = ExtractionScenario.MULTI_COLOR;
+              console.log(`🔄 SCENARIO OVERRIDE (Hybrid): Multiple colors (${uniqueColors.length}) → MULTI_COLOR`);
+            }
+            
+            console.log(`✅ Using Hybrid Fallback variants (${hybridResult.method})`);
+          } else {
+            console.log('⚠️ Hybrid extraction returned no variants, trying SKU-level detection...');
+          }
+        } catch (hybridError) {
+          console.log(`⚠️ Hybrid extraction failed: ${hybridError.message}, trying SKU-level detection...`);
+        }
+      }
+      
+      // Continue with SKU-level detection if hybrid failed
+      if (variants.length === 0) {
+        console.log('⚠️ All advanced methods failed, trying SKU-level detection...');
         
         const config = scenarioManager?.getScenarioConfig(detection.scenario);
         if (!config) {
