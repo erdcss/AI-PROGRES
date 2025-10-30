@@ -1949,53 +1949,13 @@ export async function scenarioBasedScrape(url: string): Promise<ScenarioBasedRes
       };
     }
 
-    // 🎯 SINGLE COLOR ENFORCEMENT - Extract exactly ONE color per product
-    console.log('🎯 SINGLE COLOR ENFORCEMENT: Starting color filtering...');
-    console.log(`🎯 Before filtering: ${colors.length} colors - ${colors.join(', ')}`);
-    console.log(`🎯 Before filtering: ${variants.length} variants`);
+    // ✅ MULTI-COLOR SUPPORT - Keep all colors and variants
+    console.log(`🎨 MULTI-COLOR EXTRACTION: Processing ${colors.length} colors`);
+    console.log(`🎨 Colors found: ${colors.join(', ')}`);
+    console.log(`🎨 Total variants: ${variants.length}`);
     
-    // Extract primary color from title
-    const primaryColorFromTitle = extractColorFromTitle(title);
-    console.log(`🎯 Primary color from title: ${primaryColorFromTitle || 'NOT FOUND'}`);
-    
-    // Determine single color to use
-    let singleColor: string;
-    if (primaryColorFromTitle && colors.includes(primaryColorFromTitle)) {
-      singleColor = primaryColorFromTitle;
-      console.log(`✅ Using color from title: ${singleColor}`);
-    } else if (primaryColorFromTitle) {
-      singleColor = primaryColorFromTitle;
-      console.log(`✅ Using color from title (not in variants): ${singleColor}`);
-    } else if (colors.length > 0) {
-      singleColor = colors[0];
-      console.log(`⚠️ No color in title, using first color: ${singleColor}`);
-    } else {
-      singleColor = 'Standart';
-      console.log(`⚠️ No colors found, using default: ${singleColor}`);
-    }
-    
-    // Filter colors array to single color
-    const filteredColors = [singleColor];
-    
-    // Filter variants to only include the single color
-    const filteredVariants = variants.filter(v => {
-      const matches = v.color === singleColor;
-      if (!matches) {
-        console.log(`🚫 Filtering out variant: ${v.color} / ${v.size}`);
-      }
-      return matches;
-    });
-    
-    // If no variants match, keep all sizes but assign the single color
-    const finalVariants = filteredVariants.length > 0 
-      ? filteredVariants 
-      : variants.map(v => ({ ...v, color: singleColor }));
-    
-    console.log(`✅ After filtering: 1 color - ${singleColor}`);
-    console.log(`✅ After filtering: ${finalVariants.length} variants`);
-
-    // ✅ ENHANCED: Validate and sanitize variants before saving
-    const validatedVariants = validateAndSanitizeVariants(finalVariants, filteredColors);
+    // ✅ ENHANCED: Validate and sanitize variants before saving (keep ALL colors)
+    const validatedVariants = validateAndSanitizeVariants(variants, colors);
     
     // Save successful result to cache
     const result = {
