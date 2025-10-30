@@ -1941,12 +1941,31 @@ ${(result.title || 'product').toLowerCase().replace(/[^a-z0-9]/g, '-')},${result
             result.tags = [];
           }
           
-          // ✅ Sadece veri çekme modunda otomatik işlemler yapılmaz
-          if (!onlyExtractData) {
-            // Send Telegram notification with product URL and title
-            await sendProductExtractionNotification(url, result.title, result.brand, result.price);
-          } else {
-            console.log('📝 Sadece veri çekme modu - Telegram bildirimi atlandı');
+          // ✅ TEK BİLDİRİM: Sadece veri çekme modunda basit bildirim gönder
+          if (onlyExtractData) {
+            try {
+              const { sendFilteredTelegramNotification } = await import('./filtered-telegram-notifier');
+              const variantInfo = result.variants?.allVariants || result.variants || [];
+              const variantCount = Array.isArray(variantInfo) ? variantInfo.length : (variantInfo.allVariants?.length || 0);
+              
+              const message = `
+🔍 <b>YENİ ÜRÜN VERİSİ ÇEKİLDİ</b>
+
+📦 <b>Ürün:</b> ${result.title}
+🏢 <b>Marka:</b> ${result.brand || 'Bilinmeyen'}
+💰 <b>Fiyat:</b> ${result.price.original} TL
+🎨 <b>Varyant:</b> ${variantCount} adet
+📸 <b>Görsel:</b> ${result.images?.length || 0} adet
+
+🔗 <b>Kaynak:</b> ${url}
+⏰ <b>Zaman:</b> ${new Date().toLocaleString('tr-TR')}
+              `.trim();
+              
+              await sendFilteredTelegramNotification(message);
+              console.log('📱 Ürün veri çekme bildirimi gönderildi');
+            } catch (error) {
+              console.error('⚠️ Telegram bildirimi hatası:', error);
+            }
           }
           
           // ✅ Sadece Shopify transfer modunda Shopify tracking kaydı oluştur
@@ -1979,36 +1998,8 @@ ${(result.title || 'product').toLowerCase().replace(/[^a-z0-9]/g, '-')},${result
             console.log('📝 Sadece veri çekme modu - Shopify transfer tracking atlandı');
           }
 
-          // ✅ Sadece Shopify transfer modunda detaylı Telegram bildirimi
-          if (!onlyExtractData) {
-            try {
-              const { sendFilteredTelegramNotification } = await import('./filtered-telegram-notifier');
-              const message = `
-🎯 <b>YENİ ÜRÜN SHOPIFY'A AKTARILDI</b>
-
-📦 <b>Ürün:</b> ${result.title}
-🏢 <b>Marka:</b> ${result.brand || 'Bilinmeyen Marka'}
-💰 <b>Orijinal Fiyat:</b> ${result.price.original} TL
-💵 <b>Shopify Fiyatı:</b> ${result.price.withProfit} TL
-📈 <b>Kar Marjı:</b> %${((result.price.withProfit - result.price.original) / result.price.original * 100).toFixed(1)}
-🎨 <b>Varyant Sayısı:</b> ${result.variants.length} adet
-📸 <b>Görsel Sayısı:</b> ${result.images.length} adet
-
-🔗 <b>Kaynak URL:</b> ${url}
-
-⏰ <b>Transfer Tarihi:</b> ${new Date().toLocaleString('tr-TR')}
-🤖 <b>Durum:</b> Shopify'a aktarıldı - Takip sistemi aktif
-🔔 <b>Takip:</b> Fiyat, stok ve durum değişiklikleri izleniyor
-              `.trim();
-              
-              await sendFilteredTelegramNotification(message);
-              console.log('📱 Shopify transfer bildirimi Telegram\'a gönderildi');
-            } catch (telegramError) {
-              console.error('⚠️ Telegram bildirimi hatası:', telegramError);
-            }
-          } else {
-            console.log('📝 Sadece veri çekme modu - Shopify transfer bildirimi atlandı');
-          }
+          // ✅ SHOPIFY TRANSFER BİLDİRİMİ KALDIRILDI - Sadece veri çekme modunda tek bildirim yeterli
+          console.log('📝 Telegram bildirimi: Sadece veri çekme modunda gönderildi, Shopify transfer bildirimi devre dışı');
           
           // ✅ Otomatik tracking kaldırıldı - Kullanıcı önce ürün verilerini görecek
           // Tracking sadece Shopify'a aktarım sonrası aktif olacak

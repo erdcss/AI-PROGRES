@@ -2134,6 +2134,13 @@ function validateAndSanitizeVariants(rawVariants: Array<{color: string, size: st
       return false;
     }
     
+    // ✅ STRICT FAKE COLOR REJECTION: Reject only obviously invalid colors
+    const fakeColors = ['Varsayılan', 'Default', 'none', 'null', 'undefined', 'N/A', 'Yıkama Talimatları media'];
+    if (fakeColors.includes(variant.color)) {
+      console.log(`❌ Variant rejected - fake color: "${variant.color}"`);
+      return false;
+    }
+    
     // ✅ RELAXED SIZE VALIDATION: Allow all authentic sizes including S/M/L
     if (!variant.size || variant.size.trim() === '') {
       console.log(`❌ Variant rejected - empty size: "${variant.size}"`);
@@ -2141,7 +2148,7 @@ function validateAndSanitizeVariants(rawVariants: Array<{color: string, size: st
     }
     
     // Only reject obviously fake/placeholder sizes
-    const fakeSizes = ['Default', 'Varsayılan', 'Placeholder', 'N/A', 'null', 'undefined'];
+    const fakeSizes = ['Default', 'Varsayılan', 'Placeholder', 'N/A', 'null', 'undefined', 'Tek Beden'];
     if (fakeSizes.includes(variant.size)) {
       console.log(`❌ Variant rejected - fake size: "${variant.size}"`);
       return false;
