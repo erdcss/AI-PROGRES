@@ -3,7 +3,7 @@ import { useLocation } from "wouter";
 import { 
   Store, ShoppingCart, Package, Truck, ArrowLeft, ArrowRight,
   BarChart3, MessageSquare, Database, Shield, Bot, 
-  ExternalLink, TrendingUp, Activity, Zap, Settings
+  ExternalLink, TrendingUp, Activity, Zap, Settings, Bell
 } from "lucide-react";
 import { RealTimeClock } from "@/components/RealTimeClock";
 import { useIsMobile } from "@/hooks/use-mobile";
@@ -375,6 +375,26 @@ const MarketplaceSelection = () => {
                   isMobile ? 'text-sm' : 'text-sm'
                 }`}>
                   SHOPIFY ÜRÜNLERİ
+                </span>
+              </motion.button>
+
+              <motion.button
+                initial={{ opacity: 0, y: 10 }}
+                animate={{ opacity: 1, y: 0 }}
+                transition={{ duration: 0.3, delay: 0.5 }}
+                onClick={() => setLocation("/telegram-notifications")}
+                className={`w-full business-button rounded-xl text-white hover:scale-105 active:scale-95 transition-all duration-300 flex items-center ${
+                  isMobile 
+                    ? 'p-4 gap-4 flex-row justify-start' 
+                    : 'p-4 gap-4 flex-row'
+                }`}
+                data-testid="button-quick-telegram-notifications"
+              >
+                <Bell className={`${isMobile ? 'w-6 h-6' : 'w-6 h-6'}`} />
+                <span className={`font-black ${
+                  isMobile ? 'text-sm' : 'text-sm'
+                }`}>
+                  TELEGRAM BİLDİRİMLERİ
                 </span>
               </motion.button>
             </div>
