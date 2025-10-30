@@ -19,7 +19,9 @@ import {
   XCircle,
   AlertCircle,
   Clock,
-  Filter
+  Filter,
+  Database,
+  RefreshCw
 } from 'lucide-react';
 import { format } from 'date-fns';
 
@@ -59,6 +61,13 @@ const notificationTypeColors: Record<string, string> = {
   stock_update: 'bg-purple-500',
   shopify_upload: 'bg-pink-500',
   test: 'bg-gray-500'
+};
+
+const statusColors: Record<string, string> = {
+  sent: 'text-green-500',
+  failed: 'text-red-500',
+  blocked: 'text-yellow-500',
+  pending: 'text-blue-500'
 };
 
 export function TelegramNotificationPanel() {
@@ -151,7 +160,30 @@ export function TelegramNotificationPanel() {
       queryClient.invalidateQueries({ queryKey: ['/api/telegram/history'] });
       toast({
         title: 'Başarılı',
-        description: 'Geçmiş temizlendi',
+        description: 'Bildirim geçmişi temizlendi',
+      });
+    }
+  });
+
+  // Hafıza temizleme mutation'ı
+  const clearMemoryMutation = useMutation({
+    mutationFn: async () => {
+      return apiRequest('/api/admin/clear-memory', {
+        method: 'POST',
+        body: JSON.stringify({ confirm: true })
+      });
+    },
+    onSuccess: () => {
+      toast({
+        title: 'Başarılı',
+        description: 'Tüm ürün hafızası temizlendi',
+      });
+    },
+    onError: (error: Error) => {
+      toast({
+        title: 'Hata',
+        description: error.message,
+        variant: 'destructive',
       });
     }
   });
@@ -177,13 +209,13 @@ export function TelegramNotificationPanel() {
         </CardHeader>
         <CardContent className="space-y-4">
           {/* Toplu İşlem Butonları */}
-          <div className="flex gap-2">
+          <div className="grid grid-cols-2 gap-2">
             <Button
               variant="outline"
               size="sm"
               onClick={() => toggleAllMutation.mutate(true)}
               disabled={allEnabled || toggleAllMutation.isPending}
-              className="flex-1"
+              className="w-full"
               data-testid="button-enable-all"
             >
               <Bell className="w-4 h-4 mr-2" />
@@ -194,7 +226,7 @@ export function TelegramNotificationPanel() {
               size="sm"
               onClick={() => toggleAllMutation.mutate(false)}
               disabled={allDisabled || toggleAllMutation.isPending}
-              className="flex-1"
+              className="w-full"
               data-testid="button-disable-all"
             >
               <BellOff className="w-4 h-4 mr-2" />
@@ -205,10 +237,26 @@ export function TelegramNotificationPanel() {
               size="sm"
               onClick={() => testNotificationMutation.mutate()}
               disabled={testNotificationMutation.isPending}
+              className="w-full"
               data-testid="button-test-notification"
             >
               <Send className="w-4 h-4 mr-2" />
-              Test
+              Test Gönder
+            </Button>
+            <Button
+              variant="destructive"
+              size="sm"
+              onClick={() => {
+                if (confirm('Tüm ürün hafızası temizlenecek. Emin misiniz?')) {
+                  clearMemoryMutation.mutate();
+                }
+              }}
+              disabled={clearMemoryMutation.isPending}
+              className="w-full"
+              data-testid="button-clear-memory"
+            >
+              <Database className="w-4 h-4 mr-2" />
+              Hafızayı Temizle
             </Button>
           </div>
 
@@ -334,9 +382,21 @@ export function TelegramNotificationPanel() {
                           <CheckCircle2 className="w-4 h-4 text-green-500" data-testid="icon-sent" />
                         ) : item.status === 'failed' ? (
                           <XCircle className="w-4 h-4 text-red-500" data-testid="icon-failed" />
+                        ) : item.status === 'blocked' ? (
+                          <AlertCircle className="w-4 h-4 text-yellow-500" data-testid="icon-blocked" />
                         ) : (
-                          <AlertCircle className="w-4 h-4 text-yellow-500" data-testid="icon-pending" />
+                          <Clock className="w-4 h-4 text-blue-500" data-testid="icon-pending" />
                         )}
+                        <Badge variant={
+                          item.status === 'sent' ? 'default' : 
+                          item.status === 'pending' ? 'secondary' :
+                          'destructive'
+                        }>
+                          {item.status === 'sent' ? 'Gönderildi' : 
+                           item.status === 'failed' ? 'Başarısız' : 
+                           item.status === 'blocked' ? 'Engellendi' :
+                           'Hazırlanıyor'}
+                        </Badge>
                         <span className="text-xs text-muted-foreground">
                           {format(new Date(item.sentAt), 'dd.MM.yyyy HH:mm')}
                         </span>
