@@ -289,7 +289,7 @@ export function extractEnhancedVariants($: cheerio.CheerioAPI, htmlContent: stri
     const scriptContent = $(script).html() || '';
     
     // First try to find complete stock information from newer Trendyol format
-    const stockDataMatch = scriptContent.match(/variants":\s*\[(.*?)\]/s);
+    const stockDataMatch = scriptContent.match(/"variants"\s*:\s*\[([^\]]*)\]/);
     if (stockDataMatch) {
       try {
         const variantsJson = `[${stockDataMatch[1]}]`;
