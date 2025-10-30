@@ -507,7 +507,17 @@ export class EnhancedVariantExtractor {
       console.log('🎯 Parsing from DOM data...');
       
       // Deduplicate and clean colors
-      let uniqueColors = data.domColors.length > 0 ? this.deduplicateColors(data.domColors) : [{ name: 'Standart', code: null }];
+      let uniqueColors = data.domColors.length > 0 ? this.deduplicateColors(data.domColors) : [];
+      
+      // ✅ FIX: Eğer renk bulunamadıysa ama bedenler varsa, fallback renk kullan
+      if (uniqueColors.length === 0 && data.domSizes.length > 0) {
+        console.log('⚠️ No valid colors found but sizes exist - using fallback color');
+        uniqueColors = [{ name: 'Standart', code: null }];
+      } else if (uniqueColors.length === 0) {
+        // Hiç renk ve beden yoksa standart kullan
+        uniqueColors = [{ name: 'Standart', code: null }];
+      }
+      
       console.log(`🎨 Deduplicated colors: ${data.domColors.length} → ${uniqueColors.length}`);
       
       // Filter DOM sizes - only keep valid sizes
