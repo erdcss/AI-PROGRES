@@ -373,11 +373,15 @@ export async function generateMultiVariantShopifyCSV(product: CombinedProduct): 
   const deduplicatedVariants = Array.from(uniqueVariants.values());
   console.log(`🔧 CSV: Deduplicated ${actualVariants.length} variants to ${deduplicatedVariants.length} unique combinations`);
   
-  // Tüm varyantları işle
+  // 🎯 CRITICAL FIX: Filter ONLY in-stock variants for CSV
+  const inStockVariants = deduplicatedVariants.filter(v => v.inStock !== false);
+  console.log(`✅ STOCK FILTER: ${deduplicatedVariants.length} total → ${inStockVariants.length} in-stock (${deduplicatedVariants.length - inStockVariants.length} out-of-stock excluded)`);
+  
+  // Tüm varyantları işle - SADECE STOKTA OLANLAR
   let imagePosition = 1;
   let isFirstRow = true;
   
-  deduplicatedVariants.forEach((variant, index) => {
+  inStockVariants.forEach((variant, index) => {
     const row: string[] = [];
     
     // İlk satır için ürün bilgileri
@@ -422,25 +426,25 @@ export async function generateMultiVariantShopifyCSV(product: CombinedProduct): 
       row.push(''); // Published (boş)
     }
     
-    // ✅ OPTION BİLGİLERİ: Sadece gerçek varyantlar için, sahte varyant engellendi
-    const hasRealColors = actualVariants.some(v => v.color && v.color.trim() !== '' && v.color !== 'Tek Renk');
-    const hasRealSizes = actualVariants.some(v => v.size && v.size.trim() !== '' && v.size !== 'Tek Beden');
+    // 🎯 FIX: Use actual variant color and size directly
+    const variantHasColor = variant.color && variant.color.trim() !== '' && variant.color !== 'Tek Renk' && variant.color !== 'Standart';
+    const variantHasSize = variant.size && variant.size.trim() !== '' && variant.size !== 'Tek Beden' && variant.size !== 'Standart';
     
-    if (actualVariants.length > 1 && hasRealColors && variant.color && variant.color.trim() !== '') {
+    // Always use Option1 for Color (if exists), Option2 for Size (if exists)
+    if (variantHasColor) {
       row.push('Renk'); // Option1 Name
-      row.push(variant.color); // Option1 Value
-      if (hasRealSizes && variant.size && variant.size.trim() !== '' && variant.size !== 'Tek Beden') {
-        row.push('Beden'); // Option2 Name
-        row.push(variant.size); // Option2 Value
-      } else {
-        row.push(''); // Option2 Name
-        row.push(''); // Option2 Value
-      }
+      row.push(variant.color); // Option1 Value - Use actual variant color
+      console.log(`📦 CSV Row ${index + 1}: Color = ${variant.color}`);
     } else {
-      // 🚫 SAHTE VARYANT ENGELLEMESİ: Tek ürün - option yok
-      console.log('🚫 CSV: Sahte varyant engellendi - option bilgileri boş bırakıldı');
       row.push(''); // Option1 Name
       row.push(''); // Option1 Value
+    }
+    
+    if (variantHasSize) {
+      row.push('Beden'); // Option2 Name
+      row.push(variant.size); // Option2 Value - Use actual variant size
+      console.log(`📦 CSV Row ${index + 1}: Size = ${variant.size}`);
+    } else {
       row.push(''); // Option2 Name
       row.push(''); // Option2 Value
     }
@@ -478,7 +482,7 @@ export async function generateMultiVariantShopifyCSV(product: CombinedProduct): 
         console.log(`📸 CSV: Adding main product image: ${selectedImage}`);
       } else {
         // Sonraki satırlar - renk bazında veya sıralı görsel seçimi
-        const variantIndex = actualVariants.indexOf(variant);
+        const variantIndex = inStockVariants.indexOf(variant); // Use inStockVariants instead of actualVariants
         const colorBasedImage = variant.color && variant.color !== '' ? 
           processedImages.find(img => img.colorName === variant.color) : null;
           
