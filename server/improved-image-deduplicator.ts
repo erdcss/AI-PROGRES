@@ -82,7 +82,11 @@ export class ImageDeduplicator {
       const excludePatterns = [
         'logo', 'icon', 'button', 'arrow', 'star', 'heart', 'badge',
         'banner', 'header', 'footer', 'nav', 'menu', 'social', 'sprite',
-        'common', 'web/', 'ui/', 'static/'
+        'common', 'web/', 'ui/', 'static/',
+        // Washing instruction images
+        'carelabel/', 'wash_at_', 'do_not_bleach', 'do_not_tumble', 
+        'iron_low', 'iron_high', 'dry_clean', 'hand_wash', 'bleach_',
+        'tumble_dry', 'line_dry', 'drip_dry', 'dry_flat'
       ];
       
       return !excludePatterns.some(pattern => url.toLowerCase().includes(pattern));
