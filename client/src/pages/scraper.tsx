@@ -1305,21 +1305,32 @@ ${data.title.toLowerCase().replace(/[^a-z0-9]/g, '-')},${data.title},${data.bran
                       <>
                         {/* Ana Büyük Görsel */}
                         <div className="relative aspect-square rounded-lg overflow-hidden border-2 border-cyan-800/40 bg-slate-900/50">
-                          <img
-                            src={typeof product.images[0] === 'string' ? product.images[0] : product.images[0].url}
-                            alt={product.title}
-                            className="w-full h-full object-cover"
-                            data-testid="img-main-product"
-                            onError={(e) => {
-                              e.currentTarget.src = 'https://via.placeholder.com/400?text=Görsel+Yüklenemedi';
-                            }}
-                          />
-                          <div className="absolute top-2 right-2 bg-black/60 backdrop-blur-sm px-3 py-1 rounded-full">
-                            <span className="text-white text-sm font-medium flex items-center gap-1">
-                              <Image className="w-4 h-4" />
-                              {product.images.length} Görsel
-                            </span>
-                          </div>
+                          {product.images && product.images.length > 0 && product.images[0] ? (
+                            <>
+                              <img
+                                src={typeof product.images[0] === 'string' ? product.images[0] : product.images[0].url}
+                                alt={product.title}
+                                className="w-full h-full object-cover"
+                                data-testid="img-main-product"
+                                onError={(e) => {
+                                  e.currentTarget.src = 'https://via.placeholder.com/400?text=Görsel+Yüklenemedi';
+                                }}
+                              />
+                              <div className="absolute top-2 right-2 bg-black/60 backdrop-blur-sm px-3 py-1 rounded-full">
+                                <span className="text-white text-sm font-medium flex items-center gap-1">
+                                  <Image className="w-4 h-4" />
+                                  {product.images.length} Görsel
+                                </span>
+                              </div>
+                            </>
+                          ) : (
+                            <div className="w-full h-full flex items-center justify-center">
+                              <div className="text-center">
+                                <Image className="w-16 h-16 mx-auto text-slate-600 mb-2" />
+                                <p className="text-slate-400 text-sm">Görsel bulunamadı</p>
+                              </div>
+                            </div>
+                          )}
                         </div>
 
                         {/* Tüm Resim Galerisi - Grid Layout */}
