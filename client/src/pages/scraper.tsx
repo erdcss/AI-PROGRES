@@ -1532,23 +1532,6 @@ ${data.title.toLowerCase().replace(/[^a-z0-9]/g, '-')},${data.title},${data.bran
                       </div>
                     )}
 
-                    {/* Etiketler - Sadece Manuel Etiketler */}
-                    {product.tags && product.tags.length > 0 && (
-                      <div className="space-y-2">
-                        <span className="text-white/70 text-sm">Etiketler:</span>
-                        <div className="flex flex-wrap gap-2">
-                          {product.tags.map((tag, index) => (
-                            <span 
-                              key={index}
-                              className="bg-gradient-to-r from-cyan-900/40 to-blue-900/40 text-cyan-300 px-3 py-1.5 rounded-md text-xs border border-cyan-800/40 hover:border-cyan-600/60 transition-all"
-                              data-testid={`tag-${index}`}
-                            >
-                              #{tag}
-                            </span>
-                          ))}
-                        </div>
-                      </div>
-                    )}
 
                     {/* Ürün Açıklaması */}
                     {product.description && product.description.trim() && (
@@ -1565,29 +1548,6 @@ ${data.title.toLowerCase().replace(/[^a-z0-9]/g, '-')},${data.title},${data.bran
                       </div>
                     )}
 
-                    {/* Shopify'a Aktar Butonu - Sadece Tekil Ürün */}
-                    {scrapingMode === 'single' && product.csvContent && (
-                      <div className="pt-2">
-                        <Button
-                          onClick={onShopifyTransfer}
-                          disabled={shopifyTransferMutation.isPending}
-                          className="w-full bg-gradient-to-r from-blue-600 to-purple-600 hover:from-blue-700 hover:to-purple-700 text-white font-medium py-3 disabled:opacity-50 shadow-lg shadow-blue-500/20"
-                          data-testid="button-shopify-transfer"
-                        >
-                          {shopifyTransferMutation.isPending ? (
-                            <div className="flex items-center gap-2">
-                              <Loader2 className="w-5 h-5 animate-spin" />
-                              <span>Shopify'a Aktarılıyor...</span>
-                            </div>
-                          ) : (
-                            <div className="flex items-center gap-2">
-                              <ShoppingCart className="w-5 h-5" />
-                              <span>SHOPIFY'A AKTAR</span>
-                            </div>
-                          )}
-                        </Button>
-                      </div>
-                    )}
 
                     {/* Kategori */}
                     {product.category && (
@@ -1659,114 +1619,6 @@ ${data.title.toLowerCase().replace(/[^a-z0-9]/g, '-')},${data.title},${data.bran
                       );
                     })()}
                     
-                    {/* Varyant Detay Tablosu - Matrix Format */}
-                    {product.variants?.allVariants && product.variants.allVariants.length > 0 && (() => {
-                      const colors = Array.from(new Set(product.variants.allVariants.map(v => v.color)));
-                      const sizes = Array.from(new Set(product.variants.allVariants.map(v => v.size)));
-                      
-                      // Matrix formatına çevir
-                      if (colors.length > 0 && sizes.length > 0) {
-                        return (
-                          <div className="space-y-2">
-                            <span className="text-white/70 text-sm flex items-center gap-2">
-                              <Shirt className="w-4 h-4" />
-                              Varyant Matrisi ({colors.length} renk × {sizes.length} beden = {product.variants.allVariants.length} varyant):
-                            </span>
-                            <div className="bg-slate-800/30 rounded-lg border border-cyan-800/30 overflow-hidden">
-                              <div className="max-h-96 overflow-auto">
-                                <table className="w-full text-xs">
-                                  <thead className="bg-cyan-900/20 sticky top-0">
-                                    <tr>
-                                      <th className="text-left text-cyan-300 p-2 border-b border-cyan-800/30 sticky left-0 bg-cyan-900/20 z-10">
-                                        Renk / Beden
-                                      </th>
-                                      {sizes.map((size, idx) => (
-                                        <th key={idx} className="text-center text-cyan-300 p-2 border-b border-cyan-800/30 whitespace-nowrap">
-                                          {size}
-                                        </th>
-                                      ))}
-                                    </tr>
-                                  </thead>
-                                  <tbody>
-                                    {colors.map((color, colorIdx) => (
-                                      <tr key={colorIdx} className="border-b border-slate-700/30 hover:bg-cyan-900/10">
-                                        <td className="p-2 text-white/80 font-medium sticky left-0 bg-slate-800/50 border-r border-cyan-800/30">
-                                          {color}
-                                        </td>
-                                        {sizes.map((size, sizeIdx) => {
-                                          const variant = product.variants.allVariants.find(
-                                            v => v.color === color && v.size === size
-                                          );
-                                          return (
-                                            <td key={sizeIdx} className="p-2 text-center">
-                                              {variant ? (
-                                                variant.inStock ? (
-                                                  <span className="inline-flex items-center justify-center w-full bg-green-900/40 text-green-300 px-2 py-1 rounded text-xs font-medium border border-green-700/40">
-                                                    ✓
-                                                  </span>
-                                                ) : (
-                                                  <span className="inline-flex items-center justify-center w-full bg-red-900/40 text-red-400 px-2 py-1 rounded text-xs border border-red-700/40">
-                                                    ✗
-                                                  </span>
-                                                )
-                                              ) : (
-                                                <span className="text-white/30">-</span>
-                                              )}
-                                            </td>
-                                          );
-                                        })}
-                                      </tr>
-                                    ))}
-                                  </tbody>
-                                </table>
-                              </div>
-                            </div>
-                          </div>
-                        );
-                      }
-                      
-                      // Fallback: Liste formatı (tek renk veya tek beden varsa)
-                      return (
-                        <div className="space-y-2">
-                          <span className="text-white/70 text-sm flex items-center gap-2">
-                            <Shirt className="w-4 h-4" />
-                            Varyant Detayları ({product.variants.allVariants.length} adet):
-                          </span>
-                          <div className="bg-slate-800/30 rounded-lg border border-cyan-800/30 overflow-hidden">
-                            <div className="max-h-48 overflow-y-auto">
-                              <table className="w-full text-xs">
-                                <thead className="bg-cyan-900/20 sticky top-0">
-                                  <tr>
-                                    <th className="text-left text-cyan-300 p-2 border-b border-cyan-800/30">Renk</th>
-                                    <th className="text-left text-cyan-300 p-2 border-b border-cyan-800/30">Beden</th>
-                                    <th className="text-center text-cyan-300 p-2 border-b border-cyan-800/30">Stok</th>
-                                  </tr>
-                                </thead>
-                                <tbody>
-                                  {product.variants.allVariants.map((variant, index) => (
-                                    <tr key={index} className="border-b border-slate-700/30 hover:bg-cyan-900/10">
-                                      <td className="p-2 text-white/80">{variant.color || '-'}</td>
-                                      <td className="p-2 text-white/80">{variant.size || '-'}</td>
-                                      <td className="p-2 text-center">
-                                        {variant.inStock ? (
-                                          <span className="inline-flex items-center gap-1 bg-green-900/30 text-green-300 px-2 py-0.5 rounded text-xs">
-                                            ✓ Stokta
-                                          </span>
-                                        ) : (
-                                          <span className="inline-flex items-center gap-1 bg-red-900/30 text-red-300 px-2 py-0.5 rounded text-xs">
-                                            ✗ Yok
-                                          </span>
-                                        )}
-                                      </td>
-                                    </tr>
-                                  ))}
-                                </tbody>
-                              </table>
-                            </div>
-                          </div>
-                        </div>
-                      );
-                    })()}
 
                     {/* Renk ve Beden Özeti (varyant detayı yoksa) */}
                     {(!product.variants?.allVariants || product.variants.allVariants.length === 0) && (
