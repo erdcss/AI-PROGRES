@@ -134,7 +134,7 @@ export class EnhancedVariantExtractor {
       try {
         await Promise.race(
           this.WAIT_SELECTORS.map(selector => 
-            page.waitForSelector(selector, { timeout: 10000 }).catch(() => null)
+            page.waitForSelector(selector, { timeout: 8000 }).catch(() => null)
           )
         );
         console.log('✅ Variant elements detected on page');
@@ -142,8 +142,8 @@ export class EnhancedVariantExtractor {
         console.log('⚠️ No variant selectors found (might be single-variant product)');
       }
 
-      // Additional wait for JavaScript execution
-      await new Promise(resolve => setTimeout(resolve, 3000));
+      // Additional wait for JavaScript execution (reduced for faster response)
+      await new Promise(resolve => setTimeout(resolve, 2000));
 
       console.log('🔍 Extracting JavaScript State and DOM data...');
 

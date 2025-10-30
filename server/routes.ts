@@ -1706,8 +1706,8 @@ export function registerRoutes(app: Express): Server {
       if (url.includes('trendyol.com')) {
         console.log("🎯 SCENARIO-BASED EXTRACTION başlıyor...");
         
-        // Add timeout for faster response - EXTENDED FOR RELIABLE EXTRACTION
-        const timeoutDuration = 8000; // 8 seconds max - reliable timeout
+        // Add timeout for faster response - EXTENDED FOR PUPPETEER
+        const timeoutDuration = 20000; // 20 seconds max - enough time for Puppeteer
         const timeoutPromise = new Promise((_, reject) => {
           setTimeout(() => reject(new Error('TIMEOUT: Request taking too long')), timeoutDuration);
         });
