@@ -4,14 +4,13 @@ import { zodResolver } from "@hookform/resolvers/zod";
 import { z } from "zod";
 import { useMutation, useQuery } from "@tanstack/react-query";
 import { motion } from "framer-motion";
-import { Loader2, ShoppingCart, Link, Copy, X, Home, Plus, Trash2, Package, Palette, Eye, Image, FileText, Shirt } from "lucide-react";
+import { Loader2, ShoppingCart, Link, Copy, X, Home, Plus, Trash2, Package, Palette, Eye, Image, FileText, Shirt, Bell } from "lucide-react";
 
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { CSVPreview } from "@/components/CSVPreview";
 import { CSVDrawerPreview } from "@/components/CSVDrawerPreview";
-import { TelegramNotificationPanel } from "@/components/TelegramNotificationPanel";
 
 import { toast } from "@/hooks/use-toast";
 import { useLocation } from "wouter";
@@ -996,15 +995,26 @@ ${data.title.toLowerCase().replace(/[^a-z0-9]/g, '-')},${data.title},${data.bran
                 onClick={() => setLocation('/')}
                 variant="outline"
                 className="business-button px-4 py-2"
+                data-testid="button-home"
               >
                 <Home className="w-4 h-4 mr-2" />
                 Ana Sayfa
+              </Button>
+              <Button
+                onClick={() => setLocation('/telegram-notifications')}
+                variant="outline"
+                className="bg-blue-600/10 border-blue-600/30 text-blue-400 hover:bg-blue-600/20 hover:border-blue-600/50 px-4 py-2"
+                data-testid="button-telegram-notifications"
+              >
+                <Bell className="w-4 h-4 mr-2" />
+                Telegram Bildirimleri
               </Button>
               <Button
                 onClick={clearAllData}
                 variant="outline"
                 className="bg-red-600/10 border-red-600/30 text-red-400 hover:bg-red-600/20 hover:border-red-600/50 px-4 py-2"
                 disabled={singleScrapeMutation.isPending || shopifyTransferMutation.isPending}
+                data-testid="button-clear-all"
               >
                 <Trash2 className="w-4 h-4 mr-2" />
                 Tümünü Sil
@@ -2103,15 +2113,6 @@ ${data.title.toLowerCase().replace(/[^a-z0-9]/g, '-')},${data.title},${data.bran
             </div>
           </div>
         )}
-        
-        {/* Telegram Bildirim Yönetim Paneli */}
-        <div className="max-w-6xl mx-auto px-6 py-8">
-          <div className="mb-6">
-            <h2 className="text-2xl font-bold text-white mb-2">Telegram Bildirim Yönetimi</h2>
-            <p className="text-slate-400">Telegram üzerinden alacağınız bildirimleri buradan yönetin ve geçmişi görüntüleyin</p>
-          </div>
-          <TelegramNotificationPanel />
-        </div>
       </div>
     </div>
   );

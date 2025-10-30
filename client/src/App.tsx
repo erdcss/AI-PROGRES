@@ -37,6 +37,7 @@ import ShopifyTrackingPage from "@/pages/ShopifyTrackingPage";
 import ShopifyProductsPage from './pages/shopify-products';
 import TrackingDashboard from "@/pages/tracking-dashboard";
 import ProductPreview from "@/pages/product-preview";
+import TelegramNotifications from "@/pages/TelegramNotifications";
 import { TBotAssistant } from "@/components/TBotAssistant";
 import { MobileNavigation } from "@/components/MobileNavigation";
 
@@ -361,6 +362,11 @@ function Router() {
       <Route path="/product-preview">
         <PageTransition>
           <ProductPreview />
+        </PageTransition>
+      </Route>
+      <Route path="/telegram-notifications">
+        <PageTransition>
+          <TelegramNotifications />
         </PageTransition>
       </Route>
       </Switch>
