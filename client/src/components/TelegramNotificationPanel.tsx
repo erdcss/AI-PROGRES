@@ -48,6 +48,7 @@ interface NotificationHistoryItem {
 const notificationTypeLabels: Record<string, string> = {
   new_product: 'Yeni Ürün',
   variant_change: 'Varyant Değişikliği',
+  variant_removed: 'Varyant Kaldırıldı',
   price_change: 'Fiyat Değişikliği',
   stock_update: 'Stok Güncelleme',
   shopify_upload: 'Shopify Yükleme',
@@ -57,6 +58,7 @@ const notificationTypeLabels: Record<string, string> = {
 const notificationTypeColors: Record<string, string> = {
   new_product: 'bg-green-500',
   variant_change: 'bg-blue-500',
+  variant_removed: 'bg-red-500',
   price_change: 'bg-orange-500',
   stock_update: 'bg-purple-500',
   shopify_upload: 'bg-pink-500',

@@ -5660,6 +5660,7 @@ ${(result.title || 'product').toLowerCase().replace(/[^a-z0-9]/g, '-')},${result
         const defaultSettings = [
           { notificationType: 'new_product', enabled: true, description: 'Yeni ürün eklendiğinde bildirim gönder' },
           { notificationType: 'variant_change', enabled: true, description: 'Ürün varyantları değiştiğinde bildirim gönder' },
+          { notificationType: 'variant_removed', enabled: false, description: 'Varyant kaldırıldığında bildirim gönder' },
           { notificationType: 'price_change', enabled: true, description: 'Fiyat değişikliklerinde bildirim gönder' },
           { notificationType: 'stock_update', enabled: true, description: 'Stok güncellemelerinde bildirim gönder' },
           { notificationType: 'shopify_upload', enabled: true, description: 'Shopify\'a ürün yüklendiğinde bildirim gönder' }
