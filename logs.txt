@@ -5850,3 +5850,31 @@ Details:
   - Variants Removed: 0
   - Product Archived: false
 ---
+
+[2025-10-30T13:29:25.057Z] SYNC AUDIT
+Product ID: 100
+Product: ETHIQUET Barry Kadın Regular Fit Normal Kalıp Pamuklu Dantel Detalı Ince Askılı Oyuk Yaka Siyah Atlet
+Success: true
+Changes: 0
+Errors: 0
+Details:
+  - Price Updates: 0
+  - Stock Updates: 0
+  - Variants Added: 0
+  - Variants Removed: 0
+  - Product Archived: false
+---
+
+[2025-10-30T13:30:13.639Z] SYNC AUDIT
+Product ID: 105
+Product: GRIMELANGE Lagertha Kadın %100 Organik Pamuklu Kalın Dokulu Oversize Fit Yuvarlak Yakalı Beyaz T-shirt
+Success: true
+Changes: 0
+Errors: 0
+Details:
+  - Price Updates: 0
+  - Stock Updates: 0
+  - Variants Added: 0
+  - Variants Removed: 0
+  - Product Archived: false
+---
