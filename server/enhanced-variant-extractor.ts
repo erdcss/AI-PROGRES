@@ -447,8 +447,9 @@ export class EnhancedVariantExtractor {
    * Validate if a size string is a real size (not a product attribute)
    */
   private isValidSize(sizeText: string): boolean {
-    // Strict size pattern - only accept real clothing/product sizes
-    const sizePattern = /^(XXS|XS|S|M|L|XL|XXL|XXXL|2XL|3XL|4XL|5XL|\d+(\.\d+)?|Tek\s*Beden|One\s*Size|STD|Standard)$/i;
+    // 🎯 CRITICAL FIX: Reject combined sizes like "373536373839404142"
+    // Only accept sizes with max 4 digits (e.g., "37", "105", "42.5")
+    const sizePattern = /^(XXS|XS|S|M|L|XL|XXL|XXXL|2XL|3XL|4XL|5XL|\d{1,4}(\.\d+)?|Tek\s*Beden|One\s*Size|STD|Standard)$/i;
     
     // Normalize first
     const cleaned = this.normalizeSize(sizeText);
