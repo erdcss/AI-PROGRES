@@ -208,9 +208,11 @@ export class EnhancedVariantExtractor {
 
         // Extract colors from DOM - ENHANCED with image-based color variants
         // Method 1: Color selector elements (comprehensive selectors)
+        // 🎯 BERSHKA FIX: Önce slicing-attributes button'ları kontrol et (renk thumbnail'ları)
         const colorElements = document.querySelectorAll(`
+          .slicing-attributes button[title],
+          .slicing-attributes a[title],
           [class*="color"], [class*="renk"], [class*="variant"],
-          .slicing-attributes button, .slicing-attributes a,
           [data-id*="color"], [data-id*="renk"],
           .styles_contentWrapper img, .variant-item,
           button[title]:not([class*="size"]):not([class*="beden"])
