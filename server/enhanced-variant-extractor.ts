@@ -263,13 +263,33 @@ export class EnhancedVariantExtractor {
         const colorImages = document.querySelectorAll('.slicing-attributes img, [class*="slicing"] img, .attribute-media img, .attribute-media.renk img');
         result.colorExtractionStats.method2 = colorImages.length;
         
-        colorImages.forEach((img: any) => {
+        colorImages.forEach((img: any, index: number) => {
           const colorName = img.alt || img.title || img.getAttribute('data-title');
           const parent = img.closest('[title]');
           const parentTitle = parent?.getAttribute('title');
+          const imgSrc = img.src || img.getAttribute('src');
           
-          const finalColorName = colorName || parentTitle;
-          if (finalColorName && finalColorName.length > 0 && finalColorName.length < 100) {
+          let finalColorName = colorName || parentTitle;
+          
+          // 🎯 CRITICAL FIX: If title/alt are null, check if this is a valid product variant image
+          // and create a placeholder that we can later map to actual color data
+          if (!finalColorName && imgSrc) {
+            // Check if this is a product image (not washing instructions, icons, etc.)
+            const isProductImage = imgSrc.includes('prod/') || imgSrc.includes('product/');
+            const isNotInstructionImage = !imgSrc.includes('carelabel') && 
+                                          !imgSrc.includes('wash_at') &&
+                                          !imgSrc.includes('bleach') &&
+                                          !imgSrc.includes('tumble') &&
+                                          !imgSrc.includes('iron_');
+            
+            if (isProductImage && isNotInstructionImage) {
+              // This is a valid color variant image - add URL for later processing
+              result.domColors.push({
+                name: `__COLOR_FROM_IMAGE_${index}__`,
+                code: imgSrc  // Store the image URL in the code field temporarily
+              });
+            }
+          } else if (finalColorName && finalColorName.length > 0 && finalColorName.length < 100) {
             result.domColors.push({
               name: finalColorName,
               code: null
@@ -293,7 +313,7 @@ export class EnhancedVariantExtractor {
         
         // Method 3b: If .renk containers have no title, check their children (buttons, links, images)
         const renkContainers = document.querySelectorAll('.attribute-media.renk:not([title])');
-        renkContainers.forEach((container: any) => {
+        renkContainers.forEach((container: any, containerIndex: number) => {
           // Check buttons/links inside
           const buttons = container.querySelectorAll('button[title], a[title]');
           buttons.forEach((btn: any) => {
@@ -305,6 +325,30 @@ export class EnhancedVariantExtractor {
               });
             }
           });
+          
+          // 🎯 BERSHKA FIX: If no title found, check for images inside the container
+          // These are color variant thumbnails
+          if (buttons.length === 0 || !buttons[0]?.getAttribute('title')) {
+            const images = container.querySelectorAll('img');
+            images.forEach((img: any) => {
+              const imgSrc = img.src || img.getAttribute('src');
+              if (imgSrc) {
+                const isProductImage = imgSrc.includes('prod/') || imgSrc.includes('product/');
+                const isNotInstructionImage = !imgSrc.includes('carelabel') && 
+                                              !imgSrc.includes('wash_at') &&
+                                              !imgSrc.includes('bleach') &&
+                                              !imgSrc.includes('tumble') &&
+                                              !imgSrc.includes('iron_');
+                
+                if (isProductImage && isNotInstructionImage) {
+                  result.domColors.push({
+                    name: `__COLOR_VARIANT_${containerIndex}__`,
+                    code: imgSrc  // Store URL for later processing
+                  });
+                }
+              }
+            });
+          }
         });
 
         return result;
@@ -552,12 +596,20 @@ export class EnhancedVariantExtractor {
     console.log(`🎨 DEDUPLICATION INPUT: ${colors.length} colors`);
     colors.forEach((c, i) => console.log(`   ${i + 1}. "${c.name}"`));
     
+    // First pass: extract placeholder color images
+    const placeholderColors = colors.filter(c => 
+      c.name.startsWith('__COLOR_FROM_IMAGE_') || c.name.startsWith('__COLOR_VARIANT_')
+    );
+    
+    console.log(`🎯 Found ${placeholderColors.length} placeholder color images (images with no title/alt)`);
+    
     const seen = new Set<string>();
     const result: Array<{ name: string; code: string | null }> = [];
 
     for (const color of colors) {
       // Clean up color name
       const cleaned = color.name.trim();
+      const lowerCleaned = cleaned.toLowerCase();
       
       // Skip if empty, too long, or already seen
       if (!cleaned || cleaned.length === 0) {
@@ -568,8 +620,21 @@ export class EnhancedVariantExtractor {
         console.log(`🚫 Skipping too long: "${cleaned.substring(0, 50)}..."`);
         continue;
       }
-      if (seen.has(cleaned.toLowerCase())) {
+      if (seen.has(lowerCleaned)) {
         console.log(`🚫 Skipping duplicate: "${cleaned}"`);
+        continue;
+      }
+      
+      // Skip invalid color values
+      const invalidValues = ['undefined', 'null', 'none', 'n/a'];
+      if (invalidValues.includes(lowerCleaned)) {
+        console.log(`🚫 Skipping invalid value: "${cleaned}"`);
+        continue;
+      }
+      
+      // Skip if it contains ":" (usually attributes like "Beden: XS")
+      if (cleaned.includes(':')) {
+        console.log(`🚫 Skipping attribute format: "${cleaned}"`);
         continue;
       }
       
@@ -577,12 +642,13 @@ export class EnhancedVariantExtractor {
       const attributeKeywords = [
         'beden', 'size', 'kalıp', 'fit', 'materyal', 'material',
         'kumaş', 'fabric', 'desen', 'pattern', 'yaka', 'collar',
-        'kol', 'sleeve', 'boy', 'length', 'sezon', 'season'
+        'kol', 'sleeve', 'boy', 'length', 'sezon', 'season',
+        'yıkama', 'talimat', 'wash', 'care', 'media', 'sepette',
+        'indirim', 'discount', '%', 'tl'
       ];
       
-      const lowerCleaned = cleaned.toLowerCase();
       const isAttribute = attributeKeywords.some(keyword => 
-        lowerCleaned.includes(keyword) && lowerCleaned.indexOf(keyword) < 10
+        lowerCleaned.includes(keyword)
       );
       
       if (isAttribute) {
@@ -604,12 +670,42 @@ export class EnhancedVariantExtractor {
         continue;
       }
       
+      // Skip placeholder colors for now - we'll process them separately
+      if (cleaned.startsWith('__COLOR_')) {
+        continue;
+      }
+      
       console.log(`✅ Accepting color: "${cleaned}"`);
       seen.add(cleaned.toLowerCase());
       result.push({
         name: cleaned,
         code: color.code
       });
+    }
+    
+    // 🎯 CRITICAL FIX: If we found NO valid colors but we have placeholder images,
+    // convert them to numbered color variants
+    if (result.length === 0 && placeholderColors.length > 0) {
+      console.log(`🎯 No color names found, but ${placeholderColors.length} color images detected`);
+      console.log(`🎯 Creating numbered color variants from images...`);
+      
+      // Deduplicate placeholder colors by their image URLs
+      const uniqueImageUrls = new Set<string>();
+      placeholderColors.forEach(pc => {
+        if (pc.code) {
+          uniqueImageUrls.add(pc.code);
+        }
+      });
+      
+      const uniquePlaceholders = Array.from(uniqueImageUrls);
+      uniquePlaceholders.forEach((imageUrl, index) => {
+        result.push({
+          name: `Renk ${index + 1}`,
+          code: imageUrl  // Store image URL for potential future use
+        });
+      });
+      
+      console.log(`✅ Created ${result.length} numbered color variants from images`);
     }
 
     console.log(`🎨 DEDUPLICATION OUTPUT: ${result.length} colors`);
