@@ -313,16 +313,12 @@ ${data.title.toLowerCase().replace(/[^a-z0-9]/g, '-')},${data.title},${data.bran
       const results = [];
       for (const preview of csvPreviews) {
         try {
-          // Persistent tags ve individual tags'i birleştir
-          const allTags = [
-            ...(preview.persistentTags || []),
-            ...(individualTags[preview.id] || [])
-          ];
+          // Manuel eklenen etiketleri al
+          const allTags = individualTags[preview.id] || [];
           
           console.log('🏷️ Uploading with tags:', {
             previewId: preview.id,
-            persistentTags: preview.persistentTags || [],
-            individualTags: individualTags[preview.id] || [],
+            individualTags: allTags,
             totalTags: allTags.length
           });
           

@@ -192,14 +192,14 @@ export function CSVDrawerPreview({ csvPreviews, onDownload, onShopifyUpload, ind
 
     if (tagsIndex === -1) return csvContent;
 
-    // Tüm satırları güncelle
+    // Tüm satırları güncelle - HER VARYANT SATIRINA etiket ekle
     const updatedLines = [lines[0]]; // Header'ı koru
     
     for (let i = 1; i < lines.length; i++) {
       const cells = parseCSVLine(lines[i]);
       
-      // İlk satırda etiketleri ekle
-      if (i === 1 && cells[tagsIndex] !== undefined) {
+      // TÜM satırlara etiketleri ekle (multi-variant için kritik!)
+      if (cells[tagsIndex] !== undefined) {
         const existingTags = cells[tagsIndex].replace(/"/g, '').trim();
         const allTags = existingTags 
           ? `${existingTags}, ${manualTags.join(', ')}` 
