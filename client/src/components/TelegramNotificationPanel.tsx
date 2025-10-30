@@ -88,10 +88,8 @@ export function TelegramNotificationPanel() {
   // Ayar güncelleme mutation'ı
   const updateSettingMutation = useMutation({
     mutationFn: async ({ type, enabled }: { type: string; enabled: boolean }) => {
-      return apiRequest(`/api/telegram/settings/${type}`, {
-        method: 'PUT',
-        body: JSON.stringify({ enabled })
-      });
+      const response = await apiRequest('PUT', `/api/telegram/settings/${type}`, { enabled });
+      return response.json();
     },
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ['/api/telegram/settings'] });
@@ -112,10 +110,8 @@ export function TelegramNotificationPanel() {
   // Tümünü aç/kapat mutation'ı
   const toggleAllMutation = useMutation({
     mutationFn: async (enabled: boolean) => {
-      return apiRequest('/api/telegram/settings/toggle-all', {
-        method: 'POST',
-        body: JSON.stringify({ enabled })
-      });
+      const response = await apiRequest('POST', '/api/telegram/settings/toggle-all', { enabled });
+      return response.json();
     },
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ['/api/telegram/settings'] });
@@ -129,9 +125,8 @@ export function TelegramNotificationPanel() {
   // Test bildirimi gönderme mutation'ı
   const testNotificationMutation = useMutation({
     mutationFn: async () => {
-      return apiRequest('/api/telegram/test', {
-        method: 'POST'
-      });
+      const response = await apiRequest('POST', '/api/telegram/test', undefined);
+      return response.json();
     },
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ['/api/telegram/history'] });
@@ -152,9 +147,8 @@ export function TelegramNotificationPanel() {
   // Geçmişi temizleme mutation'ı
   const clearHistoryMutation = useMutation({
     mutationFn: async () => {
-      return apiRequest('/api/telegram/history', {
-        method: 'DELETE'
-      });
+      const response = await apiRequest('DELETE', '/api/telegram/history', undefined);
+      return response.json();
     },
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ['/api/telegram/history'] });
@@ -168,10 +162,8 @@ export function TelegramNotificationPanel() {
   // Hafıza temizleme mutation'ı
   const clearMemoryMutation = useMutation({
     mutationFn: async () => {
-      return apiRequest('/api/admin/clear-memory', {
-        method: 'POST',
-        body: JSON.stringify({ confirm: true })
-      });
+      const response = await apiRequest('POST', '/api/admin/clear-memory', { confirm: true });
+      return response.json();
     },
     onSuccess: () => {
       toast({
