@@ -132,7 +132,25 @@ export class TelegramNotificationGateway {
   }
 
   /**
+   * Sahte varyant kontrolü - Telegram gateway seviyesinde de kontrol et
+   */
+  private isFakeVariant(color: string, size: string): boolean {
+    const FAKE_SIZES = ['Tek Beden', 'One Size', 'Standart', 'Standard', 'Tek', 'Universal', 'Boyutsuz', 'Genel'];
+    const FAKE_COLORS = ['Standart', 'Standard', 'Renksiz', 'Default'];
+    
+    const normalizedSize = size?.trim() || '';
+    const normalizedColor = color?.trim() || '';
+    
+    const isFakeSize = FAKE_SIZES.some(fake => normalizedSize.toLowerCase() === fake.toLowerCase());
+    const isFakeColor = FAKE_COLORS.some(fake => normalizedColor.toLowerCase() === fake.toLowerCase());
+    
+    // Beden VEYA renk sahte ise -> bildirim gönderme
+    return isFakeSize || isFakeColor;
+  }
+
+  /**
    * Send variant change notification
+   * ÇİFT GÜVENLİK: Hem servis hem gateway seviyesinde sahte varyant kontrolü
    */
   async sendVariantChange(
     productTitle: string,
@@ -142,6 +160,12 @@ export class TelegramNotificationGateway {
     size: string,
     metadata?: any
   ): Promise<boolean> {
+    // 🚫 ÇİFT GÜVENLİK: Gateway seviyesinde sahte varyant kontrolü
+    if (this.isFakeVariant(color, size)) {
+      console.log(`🚫 GATEWAY BLOCK: Fake variant notification blocked - ${color} / ${size} (${changeType})`);
+      return false;
+    }
+    
     let emoji = '';
     let title = '';
 

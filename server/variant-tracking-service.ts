@@ -71,22 +71,27 @@ export class VariantTrackingService {
   
   /**
    * Varyantın sahte olup olmadığını kontrol et
+   * ÖNEMLİ: Beden VEYA renk sahte ise filtrelenir (OR mantığı)
    */
   private isFakeVariant(color: string, size: string): boolean {
     const normalizedSize = size?.trim() || '';
     const normalizedColor = color?.trim() || '';
     
-    // Hem renk hem beden sahte ise, bu kesinlikle sahte bir varyant
+    // Beden kontrolü
     const isFakeSize = this.FAKE_SIZES.some(fake => 
       normalizedSize.toLowerCase() === fake.toLowerCase()
     );
+    
+    // Renk kontrolü
     const isFakeColor = this.FAKE_COLORS.some(fake => 
       normalizedColor.toLowerCase() === fake.toLowerCase()
     );
     
-    // Eğer beden "Tek Beden" gibiyse ve renk de sahte/genel ise -> SAHTEdir
-    if (isFakeSize && isFakeColor) {
-      console.log(`🚫 FAKE VARIANT DETECTED: ${color} / ${size} - IGNORING for notifications`);
+    // ⚡ KRİTİK: Beden VEYA renk sahte ise -> SAHTEdir (OR mantığı)
+    // Örnek: "Tek Beden + Normal Renk" = SAHTE
+    // Örnek: "XS + Standart" = SAHTE
+    if (isFakeSize || isFakeColor) {
+      console.log(`🚫 FAKE VARIANT DETECTED: ${color} / ${size} - SKIPPING notification (isFakeSize: ${isFakeSize}, isFakeColor: ${isFakeColor})`);
       return true;
     }
     
