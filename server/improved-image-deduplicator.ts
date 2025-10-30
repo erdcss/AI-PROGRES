@@ -297,6 +297,7 @@ export function extractEnhancedVariants($: cheerio.CheerioAPI, htmlContent: stri
     if (stockDataMatch) {
       try {
         const variantsJson = `[${stockDataMatch[1]}]`;
+        // Try to parse, but don't let parsing errors block other methods
         const stockVariants = JSON.parse(variantsJson);
         
         console.log(`🔍 Found ${stockVariants.length} variants with stock data`);
