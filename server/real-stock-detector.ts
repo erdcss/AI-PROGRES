@@ -296,12 +296,26 @@ export function detectRealStockStatus($: cheerio.CheerioAPI, htmlContent: string
 
 /**
  * Legacy format'a çevir (geriye uyumluluk için)
+ * Frontend'in beklediği format: { colors, sizes, allVariants }
  */
 export function convertToLegacyFormat(realVariants: RealVariant[]) {
-  return realVariants.map(variant => ({
+  // Extract unique colors and sizes
+  const uniqueColors = [...new Set(realVariants.map(v => v.color))];
+  const uniqueSizes = [...new Set(realVariants.map(v => v.size))];
+  
+  // Convert to allVariants format
+  const allVariants = realVariants.map(variant => ({
     color: variant.color,
     colorCode: variant.colorCode,
     size: variant.size,
     inStock: variant.inStock
   }));
+  
+  console.log(`🔄 convertToLegacyFormat: ${uniqueColors.length} colors, ${uniqueSizes.length} sizes, ${allVariants.length} total variants`);
+  
+  return {
+    colors: uniqueColors,
+    sizes: uniqueSizes,
+    allVariants: allVariants
+  };
 }

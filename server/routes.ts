@@ -1817,6 +1817,8 @@ export function registerRoutes(app: Express): Server {
         // 🔍 ENHANCE VARIANTS WITH REAL STOCK DETECTION
         if (result.success && result.htmlContent) {
           console.log('🔍 Enhancing variants with real stock detection...');
+          console.log('🔍 Current result.variants format:', typeof result.variants, Array.isArray(result.variants) ? 'array' : 'object');
+          
           try {
             // Create cheerio instance from htmlContent if not available
             let $ = result.$;
@@ -1827,8 +1829,22 @@ export function registerRoutes(app: Express): Server {
             
             const realVariants = detectRealStockStatus($, result.htmlContent);
             if (realVariants.length > 0) {
-              result.variants = convertToLegacyFormat(realVariants);
-              console.log(`✅ Real stock detection successful: ${realVariants.filter(v => v.inStock).length}/${realVariants.length} in stock`);
+              // Only override if result.variants is NOT already in the correct format
+              // Correct format has: { colors, sizes, allVariants }
+              const hasCorrectFormat = result.variants && 
+                                      typeof result.variants === 'object' && 
+                                      !Array.isArray(result.variants) &&
+                                      'colors' in result.variants && 
+                                      'sizes' in result.variants;
+              
+              if (!hasCorrectFormat) {
+                console.log('⚠️ result.variants not in correct format, using realVariants');
+                result.variants = convertToLegacyFormat(realVariants);
+              } else {
+                console.log('✅ result.variants already in correct format, keeping it');
+              }
+              
+              console.log(`✅ Real stock detection: ${realVariants.filter(v => v.inStock).length}/${realVariants.length} in stock`);
               
               // Log stock status for each variant
               realVariants.forEach(variant => {
