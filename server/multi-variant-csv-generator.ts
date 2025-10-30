@@ -355,11 +355,29 @@ export async function generateMultiVariantShopifyCSV(product: CombinedProduct): 
   
   console.log(`📊 Processing ${actualVariants.length} actual variants (filtered from ${product.variants.allVariants?.length || 0} total)`);
   
+  // 🚨 CRITICAL FIX: Deduplicate variants by color-size combination
+  const uniqueVariants = new Map<string, typeof actualVariants[0]>();
+  actualVariants.forEach(variant => {
+    const colorKey = (variant.color || '').trim().toLowerCase();
+    const sizeKey = (variant.size || '').trim().toLowerCase();
+    const uniqueKey = `${colorKey}|${sizeKey}`;
+    
+    if (!uniqueVariants.has(uniqueKey)) {
+      uniqueVariants.set(uniqueKey, variant);
+      console.log(`✅ CSV: Added unique variant: ${variant.color || 'no-color'} / ${variant.size || 'no-size'}`);
+    } else {
+      console.log(`⚠️ CSV: Skipping duplicate variant: ${variant.color || 'no-color'} / ${variant.size || 'no-size'}`);
+    }
+  });
+  
+  const deduplicatedVariants = Array.from(uniqueVariants.values());
+  console.log(`🔧 CSV: Deduplicated ${actualVariants.length} variants to ${deduplicatedVariants.length} unique combinations`);
+  
   // Tüm varyantları işle
   let imagePosition = 1;
   let isFirstRow = true;
   
-  actualVariants.forEach((variant, index) => {
+  deduplicatedVariants.forEach((variant, index) => {
     const row: string[] = [];
     
     // İlk satır için ürün bilgileri

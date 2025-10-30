@@ -379,6 +379,32 @@ export const shopifyProductChanges = pgTable('shopify_product_changes', {
   createdAt: timestamp('created_at').notNull().defaultNow()
 });
 
+// Telegram notification settings - Bildirim ayarları
+export const telegramNotificationSettings = pgTable('telegram_notification_settings', {
+  id: serial('id').primaryKey(),
+  userId: text('user_id').notNull().default('default'), // Çok kullanıcılı sistemler için
+  notificationType: text('notification_type').notNull().unique(), // 'new_product', 'variant_change', 'price_change', 'stock_update', 'shopify_upload'
+  enabled: boolean('enabled').notNull().default(true),
+  description: text('description'), // Bildirim açıklaması
+  createdAt: timestamp('created_at').notNull().defaultNow(),
+  updatedAt: timestamp('updated_at').notNull().defaultNow()
+});
+
+// Telegram notification history - Gönderilen bildirim geçmişi
+export const telegramNotificationHistory = pgTable('telegram_notification_history', {
+  id: serial('id').primaryKey(),
+  userId: text('user_id').notNull().default('default'),
+  notificationType: text('notification_type').notNull(), // 'new_product', 'variant_change', 'price_change', 'stock_update', 'shopify_upload', 'test'
+  message: text('message').notNull(),
+  productId: integer('product_id').references(() => products.id, { onDelete: 'set null' }),
+  productTitle: text('product_title'), // Ürün silinirse bile görünsün
+  status: text('status').notNull().default('sent'), // 'sent', 'failed', 'pending'
+  errorMessage: text('error_message'),
+  telegramMessageId: text('telegram_message_id'),
+  sentAt: timestamp('sent_at').notNull().defaultNow(),
+  metadata: jsonb('metadata').default({}) // Ek bilgiler (variant detayları, fiyat değişimi vb.)
+});
+
 // Type exports for new tables
 export type ShopifyMemoryProduct = typeof shopifyMemoryProducts.$inferSelect;
 export type InsertShopifyMemoryProduct = typeof shopifyMemoryProducts.$inferInsert;
@@ -386,3 +412,11 @@ export type ShopifyTransferredProduct = typeof shopifyTransferredProducts.$infer
 export type InsertShopifyTransferredProduct = typeof shopifyTransferredProducts.$inferInsert;
 export type ShopifyProductChange = typeof shopifyProductChanges.$inferSelect;
 export type InsertShopifyProductChange = typeof shopifyProductChanges.$inferInsert;
+export type TelegramNotificationSetting = typeof telegramNotificationSettings.$inferSelect;
+export type InsertTelegramNotificationSetting = typeof telegramNotificationSettings.$inferInsert;
+export type TelegramNotificationHistory = typeof telegramNotificationHistory.$inferSelect;
+export type InsertTelegramNotificationHistory = typeof telegramNotificationHistory.$inferInsert;
+
+// Insert schemas for Telegram tables
+export const insertTelegramNotificationSettingSchema = createInsertSchema(telegramNotificationSettings);
+export const insertTelegramNotificationHistorySchema = createInsertSchema(telegramNotificationHistory);

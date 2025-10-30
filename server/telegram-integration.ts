@@ -409,8 +409,8 @@ export class TelegramIntegration {
     }
   }
 
-  // Send general notification
-  async sendNotification(message: string) {
+  // Send general notification with user settings check and history logging
+  async sendNotification(message: string, notificationType: string = 'test', productId?: number, productTitle?: string, metadata?: any) {
     console.log('📱 Telegram notification attempt - bot:', !!this.bot, 'chatId:', !!this.chatId);
     
     // 🔕 DEVELOPMENT MODE: Bildirim engelleme
@@ -419,12 +419,34 @@ export class TelegramIntegration {
     
     if (appEnv === 'development' || telegramMode === 'off') {
       console.log('🔕 Development mode: Telegram notification blocked');
+      // History'ye yine de kaydet (test için)
+      await this.saveToHistory(message, notificationType, productId, productTitle, 'sent', null, metadata);
       return;
+    }
+    
+    // Kullanıcı ayarlarını kontrol et
+    try {
+      const { db } = await import('./db');
+      const { telegramNotificationSettings } = await import('@shared/schema');
+      const { eq } = await import('drizzle-orm');
+      
+      const settings = await db.select().from(telegramNotificationSettings)
+        .where(eq(telegramNotificationSettings.notificationType, notificationType));
+      
+      if (settings.length > 0 && !settings[0].enabled) {
+        console.log(`🔕 Notification type "${notificationType}" is disabled by user settings`);
+        // History'ye kaydet ama gönderme - kullanıcı hangi bildirimlerin engellendiğini görebilmeli
+        await this.saveToHistory(message, notificationType, productId, productTitle, 'blocked', 'Disabled by user settings', metadata);
+        return;
+      }
+    } catch (error) {
+      console.error('⚠️ Could not check user settings, sending anyway:', error);
     }
     
     if (!this.bot || !this.chatId) {
       console.log('❌ Telegram not configured - Bot token:', !!this.bot, 'Chat ID:', !!this.chatId);
       console.log('💡 Kullanıcı botla /start komutu göndermeli');
+      await this.saveToHistory(message, notificationType, productId, productTitle, 'failed', 'Telegram not configured', metadata);
       return;
     }
 
@@ -434,8 +456,40 @@ export class TelegramIntegration {
         disable_web_page_preview: true 
       });
       console.log('✅ General notification sent via Telegram');
+      await this.saveToHistory(message, notificationType, productId, productTitle, 'sent', null, metadata);
     } catch (error) {
       console.error('❌ Failed to send Telegram notification:', error);
+      await this.saveToHistory(message, notificationType, productId, productTitle, 'failed', (error as Error).message, metadata);
+    }
+  }
+  
+  // Save notification to history
+  private async saveToHistory(
+    message: string, 
+    notificationType: string, 
+    productId?: number, 
+    productTitle?: string, 
+    status: string = 'sent', 
+    errorMessage?: string | null,
+    metadata?: any
+  ) {
+    try {
+      const { db } = await import('./db');
+      const { telegramNotificationHistory } = await import('@shared/schema');
+      
+      await db.insert(telegramNotificationHistory).values({
+        notificationType,
+        message,
+        productId: productId || null,
+        productTitle: productTitle || null,
+        status,
+        errorMessage: errorMessage || null,
+        metadata: metadata || {}
+      });
+      
+      console.log(`📝 Notification saved to history: ${notificationType} - ${status}`);
+    } catch (error) {
+      console.error('❌ Failed to save notification to history:', error);
     }
   }
 

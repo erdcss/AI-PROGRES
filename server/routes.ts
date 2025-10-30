@@ -5645,6 +5645,153 @@ ${(result.title || 'product').toLowerCase().replace(/[^a-z0-9]/g, '-')},${result
   // Tracking Dashboard API Routes
   setupTrackingDashboardAPI(app);
 
+  // ========================================
+  // TELEGRAM BİLDİRİM AYARLARI API
+  // ========================================
+  
+  // Telegram bildirim ayarlarını getir
+  app.get('/api/telegram/settings', async (req, res) => {
+    try {
+      const { telegramNotificationSettings } = await import('@shared/schema');
+      const settings = await db.select().from(telegramNotificationSettings);
+      
+      // Eğer ayar yoksa, varsayılan ayarları oluştur
+      if (settings.length === 0) {
+        const defaultSettings = [
+          { notificationType: 'new_product', enabled: true, description: 'Yeni ürün eklendiğinde bildirim gönder' },
+          { notificationType: 'variant_change', enabled: true, description: 'Ürün varyantları değiştiğinde bildirim gönder' },
+          { notificationType: 'price_change', enabled: true, description: 'Fiyat değişikliklerinde bildirim gönder' },
+          { notificationType: 'stock_update', enabled: true, description: 'Stok güncellemelerinde bildirim gönder' },
+          { notificationType: 'shopify_upload', enabled: true, description: 'Shopify\'a ürün yüklendiğinde bildirim gönder' }
+        ];
+        
+        for (const setting of defaultSettings) {
+          await db.insert(telegramNotificationSettings).values(setting);
+        }
+        
+        const newSettings = await db.select().from(telegramNotificationSettings);
+        return res.json({ success: true, settings: newSettings });
+      }
+      
+      res.json({ success: true, settings });
+    } catch (error) {
+      console.error('❌ Telegram ayarları getirme hatası:', error);
+      res.status(500).json({ 
+        success: false, 
+        error: (error as Error).message 
+      });
+    }
+  });
+  
+  // Telegram bildirim ayarını güncelle
+  app.put('/api/telegram/settings/:type', async (req, res) => {
+    try {
+      const { type } = req.params;
+      const { enabled } = req.body;
+      const { telegramNotificationSettings } = await import('@shared/schema');
+      
+      await db.update(telegramNotificationSettings)
+        .set({ enabled, updatedAt: new Date() })
+        .where(eq(telegramNotificationSettings.notificationType, type));
+      
+      res.json({ success: true, message: 'Ayar güncellendi' });
+    } catch (error) {
+      console.error('❌ Telegram ayarı güncelleme hatası:', error);
+      res.status(500).json({ 
+        success: false, 
+        error: (error as Error).message 
+      });
+    }
+  });
+  
+  // Tüm bildirimleri aç/kapat
+  app.post('/api/telegram/settings/toggle-all', async (req, res) => {
+    try {
+      const { enabled } = req.body;
+      const { telegramNotificationSettings } = await import('@shared/schema');
+      
+      await db.update(telegramNotificationSettings)
+        .set({ enabled, updatedAt: new Date() });
+      
+      res.json({ success: true, message: `Tüm bildirimler ${enabled ? 'açıldı' : 'kapatıldı'}` });
+    } catch (error) {
+      console.error('❌ Toplu ayar güncelleme hatası:', error);
+      res.status(500).json({ 
+        success: false, 
+        error: (error as Error).message 
+      });
+    }
+  });
+  
+  // Telegram bildirim geçmişini getir
+  app.get('/api/telegram/history', async (req, res) => {
+    try {
+      const { telegramNotificationHistory } = await import('@shared/schema');
+      const { limit = '50', type, search } = req.query;
+      
+      let query = db.select().from(telegramNotificationHistory);
+      
+      // Tip filtrelemesi
+      if (type && typeof type === 'string' && type !== 'all') {
+        query = query.where(eq(telegramNotificationHistory.notificationType, type)) as any;
+      }
+      
+      // Arama filtrelemesi
+      if (search && typeof search === 'string') {
+        const { ilike } = await import('drizzle-orm');
+        query = query.where(ilike(telegramNotificationHistory.message, `%${search}%`)) as any;
+      }
+      
+      const history = await query
+        .orderBy(desc(telegramNotificationHistory.sentAt))
+        .limit(parseInt(limit as string));
+      
+      res.json({ success: true, history });
+    } catch (error) {
+      console.error('❌ Telegram geçmişi getirme hatası:', error);
+      res.status(500).json({ 
+        success: false, 
+        error: (error as Error).message 
+      });
+    }
+  });
+  
+  // Bildirim geçmişini temizle
+  app.delete('/api/telegram/history', async (req, res) => {
+    try {
+      const { telegramNotificationHistory } = await import('@shared/schema');
+      await db.delete(telegramNotificationHistory);
+      
+      res.json({ success: true, message: 'Geçmiş temizlendi' });
+    } catch (error) {
+      console.error('❌ Telegram geçmişi temizleme hatası:', error);
+      res.status(500).json({ 
+        success: false, 
+        error: (error as Error).message 
+      });
+    }
+  });
+  
+  // Test bildirimi gönder
+  app.post('/api/telegram/test', async (req, res) => {
+    try {
+      const message = '🧪 **Test Bildirimi**\n\nTelegram bağlantınız başarıyla çalışıyor!';
+      
+      // Telegram integration'ı kullanarak bildirim gönder - yeni parametre yapısı ile
+      await telegramIntegration.sendNotification(message, 'test', undefined, undefined, { source: 'manual_test' });
+      
+      res.json({ success: true, message: 'Test bildirimi gönderildi' });
+    } catch (error) {
+      console.error('❌ Test bildirimi hatası:', error);
+      res.status(500).json({ 
+        success: false, 
+        error: (error as Error).message 
+      });
+    }
+  });
+  
+  console.log('📱 Telegram notification API endpoints registered');
+
   // Clear existing product memory cache on startup
   console.log('🗑️ Clearing existing product memory cache...');
   memoryManager.purgeAll();

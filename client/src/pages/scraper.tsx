@@ -11,6 +11,7 @@ import { Input } from "@/components/ui/input";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { CSVPreview } from "@/components/CSVPreview";
 import { CSVDrawerPreview } from "@/components/CSVDrawerPreview";
+import { TelegramNotificationPanel } from "@/components/TelegramNotificationPanel";
 
 import { toast } from "@/hooks/use-toast";
 import { useLocation } from "wouter";
@@ -2102,6 +2103,15 @@ ${data.title.toLowerCase().replace(/[^a-z0-9]/g, '-')},${data.title},${data.bran
             </div>
           </div>
         )}
+        
+        {/* Telegram Bildirim Yönetim Paneli */}
+        <div className="max-w-6xl mx-auto px-6 py-8">
+          <div className="mb-6">
+            <h2 className="text-2xl font-bold text-white mb-2">Telegram Bildirim Yönetimi</h2>
+            <p className="text-slate-400">Telegram üzerinden alacağınız bildirimleri buradan yönetin ve geçmişi görüntüleyin</p>
+          </div>
+          <TelegramNotificationPanel />
+        </div>
       </div>
     </div>
   );
