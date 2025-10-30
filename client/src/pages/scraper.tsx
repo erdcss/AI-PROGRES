@@ -55,6 +55,13 @@ interface Product {
       inStock: boolean;
     }>;
   };
+  stockAnalysis?: {
+    totalVariants: number;
+    inStockVariants: number;
+    outOfStockVariants: number;
+    availableSizes: string[];
+    unavailableSizes: string[];
+  };
   features?: Array<{ key: string; value: string }>;
   tags?: string[];
   category?: string;
@@ -1389,23 +1396,121 @@ ${data.title.toLowerCase().replace(/[^a-z0-9]/g, '-')},${data.title},${data.bran
                       </div>
                     )}
 
-                    {/* Renk Seçenekleri - Üstte Göster */}
-                    {product.variants?.colors && product.variants.colors.length > 0 && (
-                      <div className="space-y-2">
-                        <span className="text-white/70 text-sm flex items-center gap-2">
-                          <div className="w-3 h-3 bg-gradient-to-r from-red-400 to-blue-400 rounded-full"></div>
-                          Renk Seçenekleri:
-                        </span>
-                        <div className="flex flex-wrap gap-2">
-                          {product.variants.colors.map((color, index) => (
-                            <span 
-                              key={index}
-                              className="bg-gradient-to-r from-purple-900/40 to-pink-900/40 text-purple-300 px-3 py-1.5 rounded-md text-xs border border-purple-800/40 hover:border-purple-600/60 transition-all"
-                            >
-                              {color}
+                    {/* Enhanced Variant Display - Always Show */}
+                    {product.variants && (product.variants.colors?.length > 0 || product.variants.sizes?.length > 0) && (
+                      <div className="bg-gradient-to-br from-indigo-900/30 via-purple-900/20 to-pink-900/30 rounded-xl border-2 border-indigo-500/30 p-4 space-y-4 shadow-lg">
+                        <div className="flex items-center gap-2 border-b border-indigo-500/20 pb-2">
+                          <Shirt className="w-5 h-5 text-indigo-400" />
+                          <span className="text-indigo-300 font-semibold text-base">Varyant Bilgileri</span>
+                          {product.variants.allVariants && (
+                            <span className="ml-auto bg-indigo-500/20 text-indigo-300 px-2 py-1 rounded-md text-xs font-medium">
+                              {product.variants.allVariants.length} Varyant
                             </span>
-                          ))}
+                          )}
                         </div>
+                        
+                        {/* Renkler */}
+                        {product.variants.colors && product.variants.colors.length > 0 && (
+                          <div className="space-y-2">
+                            <div className="flex items-center gap-2">
+                              <Palette className="w-4 h-4 text-purple-400" />
+                              <span className="text-white/80 text-sm font-medium">
+                                Renk Seçenekleri ({product.variants.colors.length})
+                              </span>
+                            </div>
+                            <div className="flex flex-wrap gap-2">
+                              {product.variants.colors.map((color, index) => {
+                                const inStock = product.variants.allVariants?.some(v => v.color === color && v.inStock);
+                                return (
+                                  <div 
+                                    key={index}
+                                    className="group relative"
+                                    data-testid={`variant-color-${index}`}
+                                  >
+                                    <div className={`
+                                      flex items-center gap-2 px-3 py-2 rounded-lg text-sm font-medium
+                                      transition-all duration-200 hover:scale-105
+                                      ${inStock !== false 
+                                        ? 'bg-gradient-to-r from-purple-600/40 to-pink-600/40 border-2 border-purple-500/50 text-purple-200' 
+                                        : 'bg-slate-700/40 border-2 border-slate-600/50 text-slate-400 opacity-60'
+                                      }
+                                    `}>
+                                      <div className={`w-3 h-3 rounded-full ${
+                                        inStock !== false 
+                                          ? 'bg-gradient-to-br from-purple-400 to-pink-400 shadow-lg shadow-purple-500/50' 
+                                          : 'bg-slate-500'
+                                      }`}></div>
+                                      <span>{color}</span>
+                                      {inStock === false && (
+                                        <span className="text-xs opacity-70">(Tükendi)</span>
+                                      )}
+                                    </div>
+                                  </div>
+                                );
+                              })}
+                            </div>
+                          </div>
+                        )}
+                        
+                        {/* Bedenler */}
+                        {product.variants.sizes && product.variants.sizes.length > 0 && (
+                          <div className="space-y-2">
+                            <div className="flex items-center gap-2">
+                              <Shirt className="w-4 h-4 text-green-400" />
+                              <span className="text-white/80 text-sm font-medium">
+                                Beden Seçenekleri ({product.variants.sizes.length})
+                              </span>
+                            </div>
+                            <div className="flex flex-wrap gap-2">
+                              {product.variants.sizes.map((size, index) => {
+                                const inStock = product.variants.allVariants?.some(v => v.size === size && v.inStock);
+                                const stockCount = product.variants.allVariants?.filter(v => v.size === size && v.inStock).length || 0;
+                                
+                                return (
+                                  <div 
+                                    key={index}
+                                    className="group relative"
+                                    data-testid={`variant-size-${index}`}
+                                  >
+                                    <div className={`
+                                      flex items-center gap-2 px-3 py-2 rounded-lg text-sm font-bold
+                                      transition-all duration-200 hover:scale-105
+                                      ${inStock !== false 
+                                        ? 'bg-gradient-to-r from-green-600/40 to-emerald-600/40 border-2 border-green-500/50 text-green-200' 
+                                        : 'bg-slate-700/40 border-2 border-slate-600/50 text-slate-400 opacity-60'
+                                      }
+                                    `}>
+                                      <span>{size}</span>
+                                      {inStock !== false && stockCount > 0 && (
+                                        <span className="text-xs bg-green-500/30 px-1.5 py-0.5 rounded">✓ {stockCount}</span>
+                                      )}
+                                      {inStock === false && (
+                                        <span className="text-xs opacity-70">✗</span>
+                                      )}
+                                    </div>
+                                  </div>
+                                );
+                              })}
+                            </div>
+                          </div>
+                        )}
+                        
+                        {/* Stok Özeti */}
+                        {product.stockAnalysis && (
+                          <div className="flex items-center gap-4 pt-2 border-t border-indigo-500/20 text-xs">
+                            <div className="flex items-center gap-1.5">
+                              <div className="w-2 h-2 bg-green-400 rounded-full"></div>
+                              <span className="text-green-300 font-medium">{product.stockAnalysis.inStockVariants} Stokta</span>
+                            </div>
+                            <div className="flex items-center gap-1.5">
+                              <div className="w-2 h-2 bg-red-400 rounded-full"></div>
+                              <span className="text-red-300 font-medium">{product.stockAnalysis.outOfStockVariants} Tükendi</span>
+                            </div>
+                            <div className="ml-auto text-slate-400">
+                              Toplam: {product.stockAnalysis.totalVariants} varyant
+                            </div>
+                          </div>
+                        )}
                       </div>
                     )}
 
