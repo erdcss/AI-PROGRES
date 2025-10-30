@@ -1814,8 +1814,19 @@ export function registerRoutes(app: Express): Server {
         console.log('🔍 DEBUG: htmlContent length:', result.htmlContent?.length || 0);
         console.log('🔍 DEBUG: Full result keys:', Object.keys(result));
         
-        // 🔍 ENHANCE VARIANTS WITH REAL STOCK DETECTION
-        if (result.success && result.htmlContent) {
+        // 🔍 ENHANCE VARIANTS WITH REAL STOCK DETECTION (only if needed)
+        // Check if variants are already in correct format from scenario-based-scraper
+        const hasValidVariants = result.variants && 
+                                typeof result.variants === 'object' && 
+                                !Array.isArray(result.variants) &&
+                                'allVariants' in result.variants &&
+                                Array.isArray(result.variants.allVariants) &&
+                                result.variants.allVariants.length > 0;
+        
+        if (hasValidVariants) {
+          console.log(`✅ Variants already extracted by scenario-based-scraper: ${result.variants.allVariants.length} variants`);
+          console.log(`🎨 Colors: ${result.variants.colors?.length || 0}, Sizes: ${result.variants.sizes?.length || 0}`);
+        } else if (result.success && result.htmlContent) {
           console.log('🔍 Enhancing variants with real stock detection...');
           console.log('🔍 Current result.variants format:', typeof result.variants, Array.isArray(result.variants) ? 'array' : 'object');
           
@@ -1829,20 +1840,8 @@ export function registerRoutes(app: Express): Server {
             
             const realVariants = detectRealStockStatus($, result.htmlContent);
             if (realVariants.length > 0) {
-              // Only override if result.variants is NOT already in the correct format
-              // Correct format has: { colors, sizes, allVariants }
-              const hasCorrectFormat = result.variants && 
-                                      typeof result.variants === 'object' && 
-                                      !Array.isArray(result.variants) &&
-                                      'colors' in result.variants && 
-                                      'sizes' in result.variants;
-              
-              if (!hasCorrectFormat) {
-                console.log('⚠️ result.variants not in correct format, using realVariants');
-                result.variants = convertToLegacyFormat(realVariants);
-              } else {
-                console.log('✅ result.variants already in correct format, keeping it');
-              }
+              console.log('⚠️ result.variants empty or invalid, using realVariants');
+              result.variants = convertToLegacyFormat(realVariants);
               
               console.log(`✅ Real stock detection: ${realVariants.filter(v => v.inStock).length}/${realVariants.length} in stock`);
               
