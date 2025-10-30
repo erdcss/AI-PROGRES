@@ -44,9 +44,53 @@ export interface VariantComparisonResult {
 
 export class VariantTrackingService {
   private telegramIntegration?: TelegramIntegration;
+  
+  // Sahte varyant bedenlerini tanımla
+  private readonly FAKE_SIZES = [
+    'Tek Beden',
+    'One Size',
+    'Standart',
+    'Standard',
+    'Tek',
+    'Universal',
+    'Boyutsuz',
+    'Genel'
+  ];
+  
+  // Sahte renkleri tanımla
+  private readonly FAKE_COLORS = [
+    'Standart',
+    'Standard',
+    'Renksiz',
+    'Default'
+  ];
 
   constructor(telegramIntegration?: TelegramIntegration) {
     this.telegramIntegration = telegramIntegration;
+  }
+  
+  /**
+   * Varyantın sahte olup olmadığını kontrol et
+   */
+  private isFakeVariant(color: string, size: string): boolean {
+    const normalizedSize = size?.trim() || '';
+    const normalizedColor = color?.trim() || '';
+    
+    // Hem renk hem beden sahte ise, bu kesinlikle sahte bir varyant
+    const isFakeSize = this.FAKE_SIZES.some(fake => 
+      normalizedSize.toLowerCase() === fake.toLowerCase()
+    );
+    const isFakeColor = this.FAKE_COLORS.some(fake => 
+      normalizedColor.toLowerCase() === fake.toLowerCase()
+    );
+    
+    // Eğer beden "Tek Beden" gibiyse ve renk de sahte/genel ise -> SAHTEdir
+    if (isFakeSize && isFakeColor) {
+      console.log(`🚫 FAKE VARIANT DETECTED: ${color} / ${size} - IGNORING for notifications`);
+      return true;
+    }
+    
+    return false;
   }
 
   /**
@@ -114,6 +158,18 @@ export class VariantTrackingService {
       );
 
       if (!stillExists) {
+        // Sahte varyant kontrolü - sahte varyantlar için bildirim GÖNDERME
+        if (this.isFakeVariant(existing.color, existing.size)) {
+          console.log(`🚫 SKIPPING fake variant removal notification: ${existing.color} - ${existing.size}`);
+          // Veritabanından sil ama bildirim gönderme
+          result.removedVariants.push({
+            id: existing.id,
+            color: existing.color,
+            size: existing.size
+          });
+          continue;
+        }
+        
         result.removedVariants.push({
           id: existing.id,
           color: existing.color,
@@ -292,8 +348,15 @@ export class VariantTrackingService {
       );
     }
 
-    // 2. Removed variants
+    // 2. Removed variants (SADECE gerçek varyantlar için bildirim gönder)
     for (const variant of comparison.removedVariants) {
+      // Sahte varyant kontrolü - bildirim GÖNDERME
+      if (this.isFakeVariant(variant.color, variant.size)) {
+        console.log(`🚫 SKIPPING Telegram notification for fake variant: ${variant.color} / ${variant.size}`);
+        continue; // Bu sahte varyant için bildirim gönderme
+      }
+      
+      // Gerçek varyant - bildirim gönder
       await telegramGateway.sendVariantChange(
         productTitle,
         productId,
