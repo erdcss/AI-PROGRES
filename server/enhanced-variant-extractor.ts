@@ -28,6 +28,11 @@ interface VariantExtractionResult {
   variants: VariantInfo[];
   method: string;
   extractedAt: Date;
+  otherColorVariants?: Array<{
+    name: string;
+    url: string;
+    itemNumber: string;
+  }>;
 }
 
 export class EnhancedVariantExtractor {
@@ -213,11 +218,34 @@ export class EnhancedVariantExtractor {
             for (const key of windowKeys) {
               if (key.includes('product') || key.includes('variant') || key.includes('detail')) {
                 const value = (window as any)[key];
-                if (value && typeof value === 'object' && (value.variants || value.allVariants || value.colors)) {
+                if (value && typeof value === 'object' && (value.variants || value.allVariants || value.colors || value.otherVariants)) {
                   result.jsState = value;
                   console.log(`✅ JavaScript State found in: window.${key}`);
                   break;
                 }
+              }
+            }
+          }
+          
+          // 🎨 CRITICAL: Extract otherVariants (all color variants of this product)
+          if (result.jsState) {
+            const possibleOtherVariantPaths = [
+              result.jsState.product?.otherVariants,
+              result.jsState.productDetail?.otherVariants,
+              result.jsState.otherVariants,
+              result.jsState.product?.allVariants,
+              result.jsState.allVariants
+            ];
+            
+            for (const otherVars of possibleOtherVariantPaths) {
+              if (otherVars && Array.isArray(otherVars) && otherVars.length > 0) {
+                result.otherColorVariants = otherVars.map((v: any) => ({
+                  name: v.name || v.colorName || v.value || 'Unknown',
+                  url: v.url || v.link,
+                  itemNumber: v.itemNumber || v.id
+                }));
+                console.log(`🎨 Found ${result.otherColorVariants.length} color variants in otherVariants`);
+                break;
               }
             }
           }
@@ -413,7 +441,8 @@ export class EnhancedVariantExtractor {
         success: variants.length > 0,
         variants,
         method: 'enhanced_puppeteer',
-        extractedAt: new Date()
+        extractedAt: new Date(),
+        otherColorVariants: variantData.otherColorVariants || []
       };
 
     } catch (error) {
