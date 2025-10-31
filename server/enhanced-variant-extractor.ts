@@ -142,8 +142,41 @@ export class EnhancedVariantExtractor {
         console.log('⚠️ No variant selectors found (might be single-variant product)');
       }
 
+      // 🎨 CRITICAL: Wait for color data to be populated by JavaScript
+      console.log('🎨 Waiting for color variant data to load...');
+      try {
+        await page.waitForFunction(() => {
+          // Check if color elements exist AND have valid title attributes (not "null")
+          const colorButtons = document.querySelectorAll('.slicing-attributes button[title], .attribute-media.renk button[title]');
+          const colorImages = document.querySelectorAll('.slicing-attributes img[alt], .attribute-media.renk img[alt]');
+          
+          // Count elements with valid (non-null, non-empty) titles
+          let validColorElements = 0;
+          colorButtons.forEach((btn: any) => {
+            const title = btn.getAttribute('title');
+            if (title && title !== 'null' && title.length > 0) {
+              validColorElements++;
+            }
+          });
+          colorImages.forEach((img: any) => {
+            const alt = img.getAttribute('alt');
+            if (alt && alt !== 'null' && alt.length > 0) {
+              validColorElements++;
+            }
+          });
+          
+          // Return true if we found at least 2 valid color elements (multi-color product)
+          return validColorElements >= 2;
+        }, { timeout: 6000 }).catch(() => {
+          console.log('⚠️ Color data timeout - proceeding with what we have');
+        });
+        console.log('✅ Color variant data loaded');
+      } catch (colorWaitError) {
+        console.log('⚠️ No color variants found or single-color product');
+      }
+
       // Additional wait for JavaScript execution (reduced for faster response)
-      await new Promise(resolve => setTimeout(resolve, 2000));
+      await new Promise(resolve => setTimeout(resolve, 1500));
 
       console.log('🔍 Extracting JavaScript State and DOM data...');
 
