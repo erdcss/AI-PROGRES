@@ -196,6 +196,17 @@ export class EnhancedVariantExtractor {
 
         // Try to extract JavaScript State - multiple possible locations
         try {
+          // 🔍 DEBUG: List all window properties to find the state
+          const allWindowKeys = Object.keys(window).filter(k => 
+            k.includes('INITIAL') || 
+            k.includes('STATE') || 
+            k.includes('DATA') || 
+            k.includes('product') ||
+            k.includes('detail') ||
+            k.startsWith('__')
+          );
+          console.log(`🔍 DEBUG: Window keys that might contain state: ${allWindowKeys.join(', ')}`);
+          
           // Try known state variables
           const stateVars = [
             '__PRODUCT_DETAIL_APP_INITIAL_STATE__',
