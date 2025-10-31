@@ -80,6 +80,7 @@ function ScraperPage() {
   const [isDragOver, setIsDragOver] = useState(false);
   const [csvPreviews, setCsvPreviews] = useState<any[]>([]);
   const [individualTags, setIndividualTags] = useState<{[key: string]: string[]}>({});
+  const [extractAllColors, setExtractAllColors] = useState(false);
   const isMobile = useIsMobile();
   
   const singleForm = useForm<ScrapeFormData>({
@@ -708,32 +709,77 @@ ${data.title.toLowerCase().replace(/[^a-z0-9]/g, '-')},${data.title},${data.bran
       return;
     }
 
-    for (let i = 0; i < draggedUrls.length; i++) {
-      const url = draggedUrls[i];
-      try {
-        // Her URL için ayrı ayrı işlem yap (sadece veri çekme)
-        const data = await singleScrapeMutation.mutateAsync({ url, onlyExtractData: true });
-        
-        // CSV önizlemesi singleScrapeMutation tarafından otomatik eklenir,
-        // burada tekrar eklemeye gerek yok
-        
-        toast({
-          title: `${i + 1}/${draggedUrls.length} Tamamlandı`,
-          description: `${data.title || url} işlendi ve CSV eklendi`
-        });
-      } catch (error) {
-        toast({
-          title: `${i + 1}/${draggedUrls.length} Hata`,
-          description: `${url} işlenemedi: ${error instanceof Error ? error.message : 'Bilinmeyen hata'}`,
-          variant: "destructive"
-        });
+    try {
+      console.log(`📦 Starting bulk scraping: ${draggedUrls.length} URLs`);
+      console.log(`🎨 Extract all colors: ${extractAllColors}`);
+
+      const response = await fetch("/api/scrape-bulk-urls", {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+        },
+        body: JSON.stringify({
+          urls: draggedUrls,
+          extractAllColors: extractAllColors
+        }),
+      });
+
+      if (!response.ok) {
+        const errorData = await response.json().catch(() => ({}));
+        throw new Error(errorData.error || `HTTP ${response.status}`);
       }
+
+      const bulkResult = await response.json();
+      
+      console.log('✅ Bulk scraping completed:', bulkResult);
+
+      // Show success toast with statistics
+      toast({
+        title: "Toplu İşlem Tamamlandı",
+        description: `✅ Başarılı: ${bulkResult.successfulUrls}, ❌ Hatalı: ${bulkResult.failedUrls}, 🎨 Toplam Varyant: ${bulkResult.combinedVariants.length}`
+      });
+
+      // Generate CSV from bulk results if we have variants
+      if (bulkResult.combinedVariants && bulkResult.combinedVariants.length > 0) {
+        const csvResponse = await fetch("/api/generate-bulk-csv", {
+          method: "POST",
+          headers: {
+            "Content-Type": "application/json",
+          },
+          body: JSON.stringify(bulkResult),
+        });
+
+        if (csvResponse.ok) {
+          const csvData = await csvResponse.json();
+          
+          // Add to CSV previews
+          const newPreview = {
+            id: `bulk-${Date.now()}`,
+            title: `Toplu Ürün (${bulkResult.successfulUrls} adet)`,
+            url: 'Birden Fazla URL',
+            csvContent: csvData.csvContent,
+            variantCount: bulkResult.combinedVariants.length,
+            colorCount: extractAllColors ? '(Tüm renkler)' : '',
+            timestamp: new Date().toISOString()
+          };
+          
+          setCsvPreviews(prev => [...prev, newPreview]);
+          
+          toast({
+            title: "CSV Hazır",
+            description: `${bulkResult.combinedVariants.length} varyant içeren CSV oluşturuldu`
+          });
+        }
+      }
+
+    } catch (error) {
+      console.error('❌ Bulk scraping error:', error);
+      toast({
+        title: "Toplu İşlem Hatası",
+        description: error instanceof Error ? error.message : 'Bilinmeyen hata',
+        variant: "destructive"
+      });
     }
-    
-    toast({
-      title: "Toplu İşlem Tamamlandı",
-      description: `${draggedUrls.length} ürün işlendi ve CSV önizlemeleri eklendi`
-    });
   };
 
   const onMultiSubmit = multiForm.handleSubmit((data) => {
@@ -1202,6 +1248,31 @@ ${data.title.toLowerCase().replace(/[^a-z0-9]/g, '-')},${data.title},${data.bran
                         </div>
                       </div>
                     )}
+                    
+                    {/* Tüm Renkleri Çek Checkbox */}
+                    <div className="flex items-start gap-3 bg-slate-800/30 rounded-lg p-4 border border-slate-700/50">
+                      <input
+                        type="checkbox"
+                        id="extractAllColors"
+                        checked={extractAllColors}
+                        onChange={(e) => setExtractAllColors(e.target.checked)}
+                        className="mt-1 w-4 h-4 rounded border-slate-600 text-cyan-500 focus:ring-cyan-500 focus:ring-offset-0"
+                        data-testid="checkbox-extract-all-colors"
+                      />
+                      <div className="flex-1">
+                        <label 
+                          htmlFor="extractAllColors" 
+                          className="text-white font-medium text-sm cursor-pointer flex items-center gap-2"
+                        >
+                          <Palette className="w-4 h-4 text-cyan-400" />
+                          Tüm Renkleri Otomatik Çek
+                        </label>
+                        <p className="text-slate-400 text-xs mt-1">
+                          Ürünün tüm renk varyantlarını otomatik olarak bulur ve hepsini çeker. 
+                          Her renk için ayrı URL'ler taranır ve tek CSV'de birleştirilir.
+                        </p>
+                      </div>
+                    </div>
                     
                     <div className="space-y-3">
                       {draggedUrls.length > 0 ? (

@@ -5793,6 +5793,111 @@ ${(result.title || 'product').toLowerCase().replace(/[^a-z0-9]/g, '-')},${result
   
   console.log('📱 Telegram notification API endpoints registered');
 
+  // 🌈 Multi-Color Scraping API
+  app.post('/api/scrape-all-colors', async (req, res) => {
+    try {
+      const { url } = req.body;
+      
+      if (!url) {
+        return res.status(400).json({ 
+          success: false, 
+          error: 'URL is required' 
+        });
+      }
+
+      console.log('🌈 Starting multi-color extraction for:', url);
+      
+      const { multiColorScraper } = await import('./multi-color-scraper');
+      const result = await multiColorScraper.scrapeAllColors(url);
+      
+      res.json({
+        success: result.success,
+        totalColors: result.totalColors,
+        successfulColors: result.successfulColors,
+        failedColors: result.failedColors,
+        colorResults: result.colorResults,
+        combinedData: result.combinedData
+      });
+      
+    } catch (error) {
+      console.error('❌ Multi-color scraping error:', error);
+      res.status(500).json({ 
+        success: false, 
+        error: (error as Error).message 
+      });
+    }
+  });
+
+  // 📦 Bulk URL Scraping API
+  app.post('/api/scrape-bulk-urls', async (req, res) => {
+    try {
+      const { urls, extractAllColors = false } = req.body;
+      
+      if (!urls || !Array.isArray(urls) || urls.length === 0) {
+        return res.status(400).json({ 
+          success: false, 
+          error: 'URLs array is required' 
+        });
+      }
+
+      console.log(`📦 Starting bulk scraping: ${urls.length} URLs`);
+      console.log(`🎨 Extract all colors: ${extractAllColors}`);
+      
+      const { bulkUrlScraper } = await import('./bulk-url-scraper');
+      const result = await bulkUrlScraper.scrapeMultipleUrls(urls, extractAllColors);
+      
+      res.json({
+        success: result.success,
+        totalUrls: result.totalUrls,
+        successfulUrls: result.successfulUrls,
+        failedUrls: result.failedUrls,
+        results: result.results,
+        combinedVariants: result.combinedVariants
+      });
+      
+    } catch (error) {
+      console.error('❌ Bulk scraping error:', error);
+      res.status(500).json({ 
+        success: false, 
+        error: (error as Error).message 
+      });
+    }
+  });
+
+  // 📝 Bulk CSV Generation API
+  app.post('/api/generate-bulk-csv', async (req, res) => {
+    try {
+      const bulkResult = req.body;
+      
+      if (!bulkResult || !bulkResult.combinedVariants) {
+        return res.status(400).json({ 
+          success: false, 
+          error: 'Bulk result data is required' 
+        });
+      }
+
+      console.log(`📝 Generating CSV from ${bulkResult.combinedVariants.length} variants`);
+      
+      const { bulkCSVGenerator } = await import('./bulk-csv-generator');
+      const csvContent = bulkCSVGenerator.generateShopifyCSV(bulkResult);
+      
+      res.json({
+        success: true,
+        csvContent,
+        variantCount: bulkResult.combinedVariants.length
+      });
+      
+    } catch (error) {
+      console.error('❌ Bulk CSV generation error:', error);
+      res.status(500).json({ 
+        success: false, 
+        error: (error as Error).message 
+      });
+    }
+  });
+
+  console.log('🌈 Multi-color and bulk scraping API endpoints registered');
+
   // Clear existing product memory cache on startup
   console.log('🗑️ Clearing existing product memory cache...');
   memoryManager.purgeAll();

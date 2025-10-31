@@ -787,6 +787,138 @@ export class EnhancedVariantExtractor {
   }
 
   /**
+   * Extract all color variant URLs from a product page
+   * Each color has a separate URL on Trendyol
+   */
+  async extractColorVariantUrls(url: string): Promise<Array<{name: string, url: string, itemNumber: string}>> {
+    let browser;
+    const colorVariants: Array<{name: string, url: string, itemNumber: string}> = [];
+    
+    try {
+      console.log('🎨 Extracting color variant URLs...');
+      
+      let executablePath;
+      try {
+        executablePath = execSync('which chromium-browser || which chromium || which google-chrome', { encoding: 'utf8' }).trim();
+      } catch (error) {
+        console.log('⚠️ Chromium not found, using Puppeteer default');
+      }
+      
+      browser = await puppeteer.launch({
+        headless: true,
+        executablePath: executablePath || undefined,
+        args: [
+          '--no-sandbox',
+          '--disable-setuid-sandbox',
+          '--disable-dev-shm-usage',
+          '--disable-accelerated-2d-canvas',
+          '--no-first-run',
+          '--no-zygote',
+          '--disable-gpu'
+        ]
+      });
+
+      const page = await browser.newPage();
+      await page.setViewport({ width: 1920, height: 1080 });
+      await page.setUserAgent(
+        'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36'
+      );
+
+      console.log(`🌐 Navigating to: ${url}`);
+      await page.goto(url, { 
+        waitUntil: 'networkidle2',
+        timeout: this.TIMEOUT 
+      });
+
+      // Wait for color elements to load
+      await page.waitForTimeout(2000);
+
+      // Extract color URLs from the page
+      const colors = await page.evaluate(() => {
+        const results: Array<{name: string, url: string, itemNumber: string}> = [];
+        
+        // Strategy 1: Find color links with href
+        const colorLinks = document.querySelectorAll('a.slicing-attributes__item, a[class*="color"], a[class*="renk"]');
+        colorLinks.forEach((link: any) => {
+          const href = link.getAttribute('href');
+          const title = link.getAttribute('title') || link.textContent?.trim() || '';
+          const img = link.querySelector('img');
+          const alt = img?.getAttribute('alt') || '';
+          
+          if (href && (title || alt)) {
+            const colorName = title || alt;
+            const fullUrl = href.startsWith('http') ? href : `https://www.trendyol.com${href}`;
+            
+            // Extract item number from URL (e.g., p-867324852)
+            const itemMatch = href.match(/p-(\d+)/);
+            const itemNumber = itemMatch ? itemMatch[1] : '';
+            
+            if (itemNumber && colorName !== 'null') {
+              results.push({
+                name: colorName,
+                url: fullUrl,
+                itemNumber: itemNumber
+              });
+            }
+          }
+        });
+
+        // Strategy 2: Find color buttons that might trigger URL changes
+        if (results.length === 0) {
+          const colorButtons = document.querySelectorAll('.slicing-attributes button, .attribute-media.renk button, button[data-color]');
+          colorButtons.forEach((button: any) => {
+            const title = button.getAttribute('title') || button.textContent?.trim() || '';
+            const dataValue = button.getAttribute('data-value') || button.getAttribute('data-id') || '';
+            
+            if (title && title !== 'null' && dataValue) {
+              // Try to construct URL from current page URL pattern
+              const currentUrl = window.location.href;
+              const urlBase = currentUrl.split('/p-')[0];
+              
+              results.push({
+                name: title,
+                url: `${urlBase}/p-${dataValue}`,
+                itemNumber: dataValue
+              });
+            }
+          });
+        }
+
+        // Strategy 3: Check for color data in scripts
+        if (results.length === 0) {
+          const scripts = document.querySelectorAll('script[type="application/ld+json"]');
+          scripts.forEach((script: any) => {
+            try {
+              const data = JSON.parse(script.textContent);
+              if (data.color || data.variesBy) {
+                // Extract color info if available
+                console.log('Found color data in JSON-LD:', data);
+              }
+            } catch (e) {
+              // Continue
+            }
+          });
+        }
+
+        return results;
+      });
+
+      console.log(`🎨 Found ${colors.length} color variants`);
+      colorVariants.push(...colors);
+
+      await browser.close();
+      
+    } catch (error) {
+      console.error(`❌ Error extracting color URLs: ${error.message}`);
+      if (browser) {
+        await browser.close();
+      }
+    }
+
+    return colorVariants;
+  }
+
+  /**
    * Parse variants from HTML (for Google Cache)
    */
   private parseVariantsFromHTML($: cheerio.CheerioAPI, html: string): VariantInfo[] {
