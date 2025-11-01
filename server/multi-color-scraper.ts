@@ -66,19 +66,26 @@ export class MultiColorScraper {
         console.log('⚠️ No color variants found, treating as single-color product');
         // Scrape the single URL
         const singleResult = await scenarioBasedScrape(url);
+        
+        // Try to extract color name from URL or product title
+        const urlColorMatch = url.match(/-([a-z-]+)-p-\d+/i);
+        const extractedColor = urlColorMatch ? urlColorMatch[1].split('-').pop() : 'Default';
+        
+        const colorResults = [{
+          colorName: extractedColor || 'Default',
+          url: url,
+          itemNumber: this.extractItemNumber(url),
+          success: true,
+          data: singleResult
+        }];
+        
         return {
           success: true,
           totalColors: 1,
           successfulColors: 1,
           failedColors: 0,
-          colorResults: [{
-            colorName: 'Default',
-            url: url,
-            itemNumber: this.extractItemNumber(url),
-            success: true,
-            data: singleResult
-          }],
-          combinedData: this.createCombinedData([singleResult])
+          colorResults,
+          combinedData: this.createCombinedData(colorResults)
         };
       }
 
@@ -178,7 +185,7 @@ export class MultiColorScraper {
         successfulColors,
         failedColors,
         colorResults,
-        combinedData: successfulData.length > 0 ? this.createCombinedData(successfulData) : undefined
+        combinedData: colorResults.length > 0 ? this.createCombinedData(colorResults) : undefined
       };
 
     } catch (error) {
@@ -196,18 +203,27 @@ export class MultiColorScraper {
   /**
    * Combine data from multiple color variants
    */
-  private createCombinedData(results: ScenarioBasedResult[]): MultiColorResult['combinedData'] {
-    if (results.length === 0) return undefined;
+  private createCombinedData(colorResults: MultiColorResult['colorResults']): MultiColorResult['combinedData'] {
+    const successfulResults = colorResults.filter(r => r.success && r.data);
+    if (successfulResults.length === 0) return undefined;
 
-    const firstResult = results[0];
+    const firstResult = successfulResults[0].data!;
     const allImages: string[] = [];
     const allVariants: any[] = [];
     const allTags = new Set<string>();
 
-    // Combine data from all colors
-    results.forEach(result => {
-      // Collect all images
+    console.log(`🔗 Combining data from ${successfulResults.length} color variants...`);
+
+    // Combine data from all colors - preserving color information
+    successfulResults.forEach(colorResult => {
+      const result = colorResult.data!;
+      const colorName = colorResult.colorName;
+      
+      console.log(`🎨 Processing color: ${colorName}`);
+
+      // Collect all images with color association
       if (result.images) {
+        console.log(`  📸 Adding ${result.images.length} images for ${colorName}`);
         allImages.push(...result.images);
       }
 
@@ -216,27 +232,36 @@ export class MultiColorScraper {
         result.tags.forEach(tag => allTags.add(tag));
       }
 
-      // Collect all variants
+      // Collect all variants - PRESERVING COLOR INFO
       if (result.variants) {
+        let variants: any[] = [];
+        
         if (Array.isArray(result.variants)) {
           // If variants is already an array
-          result.variants.forEach(variant => {
-            allVariants.push({
-              ...variant,
-              images: result.images || []
-            });
-          });
+          variants = result.variants;
         } else if (result.variants.allVariants) {
           // If variants is an object with allVariants
-          result.variants.allVariants.forEach(variant => {
-            allVariants.push({
-              ...variant,
-              images: result.images || []
-            });
-          });
+          variants = result.variants.allVariants;
         }
+
+        console.log(`  🔧 Processing ${variants.length} variants for ${colorName}`);
+        
+        variants.forEach(variant => {
+          // ✅ CRITICAL FIX: Use colorName from the scraped result
+          // This ensures we get the actual color name (e.g., "Siyah", "Beyaz")
+          // instead of a placeholder
+          allVariants.push({
+            color: colorName, // ✅ Use the actual color name from URL extraction
+            colorCode: variant.colorCode || this.getColorCode(colorName),
+            size: variant.size,
+            inStock: variant.inStock,
+            images: result.images || [] // ✅ Assign all images from this color to this variant
+          });
+        });
       }
     });
+
+    console.log(`✅ Combined: ${allImages.length} images, ${allVariants.length} variants`);
 
     return {
       title: firstResult.title,
@@ -249,6 +274,31 @@ export class MultiColorScraper {
       features: firstResult.features || [],
       tags: Array.from(allTags)
     };
+  }
+
+  /**
+   * Get color code from Turkish color name
+   */
+  private getColorCode(colorName: string): string {
+    const colorMap: { [key: string]: string } = {
+      'siyah': '#000000',
+      'beyaz': '#FFFFFF',
+      'kırmızı': '#FF0000',
+      'mavi': '#0000FF',
+      'yeşil': '#008000',
+      'sarı': '#FFFF00',
+      'turuncu': '#FFA500',
+      'mor': '#800080',
+      'pembe': '#FFC0CB',
+      'gri': '#808080',
+      'kahverengi': '#A52A2A',
+      'lacivert': '#000080',
+      'bordo': '#800020',
+      'haki': '#806B2A'
+    };
+
+    const normalized = colorName.toLowerCase().trim();
+    return colorMap[normalized] || '#999999'; // Default gray if unknown
   }
 
   /**
