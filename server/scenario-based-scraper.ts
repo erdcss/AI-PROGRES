@@ -2092,6 +2092,12 @@ function validateAndSanitizeVariants(rawVariants: Array<{color: string, size: st
     return true;
   });
   
+  // ✅ SMART VALIDATION: Check if all variants are "Tek Beden" (single-size product)
+  const allSingleSize = rawVariants.length > 0 && rawVariants.every(v => v.size === 'Tek Beden');
+  const isSingleVariantProduct = rawVariants.length === 1;
+  
+  console.log(`📊 Variant Analysis: Total=${rawVariants.length}, AllSingleSize=${allSingleSize}, IsSingleVariant=${isSingleVariantProduct}`);
+  
   // Filter authentic variants - only if they have authentic colors and sizes
   const authenticVariants = rawVariants.filter(variant => {
     console.log(`🔍 VARIANT CHECK: Color: "${variant.color}", Size: "${variant.size}", InStock: ${variant.inStock}`);
@@ -2115,9 +2121,21 @@ function validateAndSanitizeVariants(rawVariants: Array<{color: string, size: st
       return false;
     }
     
-    // Only reject obviously fake/placeholder sizes
-    const fakeSizes = ['Default', 'Varsayılan', 'Placeholder', 'N/A', 'null', 'undefined', 'Tek Beden'];
-    if (fakeSizes.includes(variant.size)) {
+    // ✅ SMART "Tek Beden" HANDLING:
+    // - Allow if it's a genuine single-size product (all variants are "Tek Beden")
+    // - Allow if it's the only variant (single-variant product)
+    // - Reject if mixed with other sizes (indicates fake variants)
+    const fakeSizes = ['Default', 'Varsayılan', 'Placeholder', 'N/A', 'null', 'undefined'];
+    
+    if (variant.size === 'Tek Beden') {
+      if (allSingleSize || isSingleVariantProduct) {
+        console.log(`✅ "Tek Beden" accepted - genuine single-size product`);
+        // Continue to accept
+      } else {
+        console.log(`❌ Variant rejected - "Tek Beden" mixed with other sizes (fake variant)`);
+        return false;
+      }
+    } else if (fakeSizes.includes(variant.size)) {
       console.log(`❌ Variant rejected - fake size: "${variant.size}"`);
       return false;
     }

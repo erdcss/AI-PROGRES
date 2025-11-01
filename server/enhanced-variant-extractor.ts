@@ -36,7 +36,7 @@ interface VariantExtractionResult {
 }
 
 export class EnhancedVariantExtractor {
-  private readonly TIMEOUT = 30000; // 30 seconds
+  private readonly TIMEOUT = 60000; // 60 seconds - extended for multi-color extraction and slow pages
   private readonly WAIT_SELECTORS = [
     '.sp-itm', // Size buttons
     '[class*="size"]',

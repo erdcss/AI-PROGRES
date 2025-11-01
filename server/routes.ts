@@ -1706,51 +1706,108 @@ export function registerRoutes(app: Express): Server {
       if (url.includes('trendyol.com')) {
         console.log("🎯 SCENARIO-BASED EXTRACTION başlıyor...");
         
-        // Add timeout for faster response - EXTENDED FOR PUPPETEER
-        const timeoutDuration = 20000; // 20 seconds max - enough time for Puppeteer
-        const timeoutPromise = new Promise((_, reject) => {
-          setTimeout(() => reject(new Error('TIMEOUT: Request taking too long')), timeoutDuration);
+        // ✅ TIMEOUT HELPER: Create fresh timeout promise for each attempt
+        const createTimeout = (ms: number) => new Promise((_, reject) => {
+          setTimeout(() => reject(new Error('TIMEOUT: Request taking too long')), ms);
         });
         
-        console.log('🚀 ROUTES: Using scenario-based extraction for accurate variant detection...');
+        const timeoutDuration = 60000; // 60 seconds for multi-color extraction
         
-        // OPTIMIZATION: Use scenario-based scraper directly for more accurate variant detection
-        // Fast path is bypassed to ensure all variants are captured from JavaScript state
+        console.log('🚀 ROUTES: Checking for multi-color variants...');
+        
+        // ✅ MULTI-COLOR AUTOMATIC EXTRACTION
+        // Try multi-color scraper first to get ALL color variants automatically
         let result: any = null;
         
         if (!result) {
-          console.log('🔄 ROUTES: Fast path failed, falling back to standard method...');
+          console.log('🌈 ROUTES: Attempting multi-color extraction...');
           try {
-            result = await Promise.race([
-              scenarioBasedScrape(url),
-              timeoutPromise
-            ]) as any;
-          } catch (timeoutError) {
-            console.log('⏰ TIMEOUT: Standard method timed out after 8 seconds - trying emergency extraction');
+            const { MultiColorScraper } = await import('./multi-color-scraper');
+            const multiColorScraper = new MultiColorScraper();
             
-            // Try alternative sources instead of generic fallback
-            try {
-              const { tryAlternativeSources } = await import('./alternative-data-sources');
-              const emergencyResult = await tryAlternativeSources(url);
+            // Multi-color scraper automatically handles both single and multi-color products
+            const multiColorResult = await Promise.race([
+              multiColorScraper.scrapeAllColors(url),
+              createTimeout(timeoutDuration)  // Fresh timeout for multi-color
+            ]) as any;
+            
+            if (multiColorResult && multiColorResult.success) {
+              console.log(`✅ Multi-color extraction successful: ${multiColorResult.totalColors} colors found`);
               
-              if (emergencyResult && emergencyResult.success) {
-                console.log('✅ Alternative sources extraction succeeded:', emergencyResult.title);
-                result = emergencyResult;
+              if (multiColorResult.totalColors > 1) {
+                console.log(`🎨 Multi-color product detected! Extracting all ${multiColorResult.totalColors} colors...`);
               } else {
-                throw new Error('Alternative sources extraction failed');
+                console.log('📦 Single-color product confirmed');
               }
-            } catch (emergencyError) {
-              console.log('❌ Alternative sources also failed, using fallback with real URL data');
-              result = {
-                success: false,
-                error: 'Extraction timeout - site may be slow or blocking requests',
-                title: 'Ürün Yüklenemedi',
-                brand: 'Bilinmiyor'
-              };
+              
+              // Convert multi-color result to expected format
+              if (multiColorResult.combinedData) {
+                result = {
+                  success: true,
+                  title: multiColorResult.combinedData.title,
+                  brand: multiColorResult.combinedData.brand,
+                  category: multiColorResult.combinedData.category,
+                  description: multiColorResult.combinedData.description,
+                  price: multiColorResult.combinedData.price,
+                  images: multiColorResult.combinedData.allImages,
+                  variants: {
+                    colors: [...new Set(multiColorResult.combinedData.allVariants.map(v => v.color))],
+                    sizes: [...new Set(multiColorResult.combinedData.allVariants.map(v => v.size))],
+                    allVariants: multiColorResult.combinedData.allVariants,
+                    stockMap: multiColorResult.combinedData.allVariants.reduce((map, v) => {
+                      map[`${v.color}-${v.size}`] = v.inStock;
+                      return map;
+                    }, {} as Record<string, boolean>)
+                  },
+                  features: multiColorResult.combinedData.features || [],
+                  tags: multiColorResult.combinedData.tags || [],
+                  extractionMethod: 'multi-color-scraper',
+                  scenario: multiColorResult.totalColors > 1 ? 'multi-color' : 'single-variant',
+                  confidence: 100
+                };
+              } else {
+                console.log('⚠️ Multi-color result missing combinedData, falling back...');
+                throw new Error('Invalid multi-color result format');
+              }
+            } else {
+              console.log('⚠️ Multi-color extraction failed, falling back to single scrape...');
+              throw new Error('Multi-color extraction unsuccessful');
+            }
+          } catch (multiColorError: any) {
+            console.log('🔄 Multi-color extraction error, falling back to standard method...');
+            console.log('Error:', multiColorError.message);
+            
+            // Fallback to standard single-URL scraping with fresh timeout
+            try {
+              result = await Promise.race([
+                scenarioBasedScrape(url),
+                createTimeout(20000)  // Fresh 20s timeout for single scrape
+              ]) as any;
+            } catch (timeoutError) {
+              console.log('⏰ TIMEOUT: Standard method timed out - trying emergency extraction');
+            
+              // Try alternative sources instead of generic fallback
+              try {
+                const { tryAlternativeSources } = await import('./alternative-data-sources');
+                const emergencyResult = await tryAlternativeSources(url);
+                
+                if (emergencyResult && emergencyResult.success) {
+                  console.log('✅ Alternative sources extraction succeeded:', emergencyResult.title);
+                  result = emergencyResult;
+                } else {
+                  throw new Error('Alternative sources extraction failed');
+                }
+              } catch (emergencyError) {
+                console.log('❌ Alternative sources also failed, using fallback with real URL data');
+                result = {
+                  success: false,
+                  error: 'Extraction timeout - site may be slow or blocking requests',
+                  title: 'Ürün Yüklenemedi',
+                  brand: 'Bilinmiyor'
+                };
+              }
             }
           }
-        } else {
-          console.log('⚡ ROUTES: Fast path SUCCESS!');
         }
         
         // 🚨 EMERGENCY: Manual price fix if price is null or missing
