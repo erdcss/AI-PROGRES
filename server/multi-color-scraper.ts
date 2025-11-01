@@ -87,55 +87,81 @@ export class MultiColorScraper {
         console.log(`  ${idx + 1}. ${cv.name} - ${cv.itemNumber}`);
       });
 
-      // Step 2: Scrape each color variant
-      console.log('🔄 Step 2: Scraping each color variant...');
+      // Step 2: Scrape each color variant (PARALLEL for SPEED)
+      console.log('🔄 Step 2: Scraping each color variant in parallel...');
+      console.log('⚡ SPEED MODE: Processing up to 5 colors simultaneously');
+      
       const colorResults: MultiColorResult['colorResults'] = [];
       const successfulData: ScenarioBasedResult[] = [];
       
-      for (let i = 0; i < colorVariants.length; i++) {
-        const variant = colorVariants[i];
-        console.log(`\n📦 Scraping ${i + 1}/${colorVariants.length}: ${variant.name}...`);
+      // Process in batches of 5 for optimal speed without overwhelming the server
+      const BATCH_SIZE = 5;
+      const batches: typeof colorVariants[] = [];
+      
+      for (let i = 0; i < colorVariants.length; i += BATCH_SIZE) {
+        batches.push(colorVariants.slice(i, i + BATCH_SIZE));
+      }
+      
+      for (let batchIndex = 0; batchIndex < batches.length; batchIndex++) {
+        const batch = batches[batchIndex];
+        console.log(`\n📦 Processing batch ${batchIndex + 1}/${batches.length} (${batch.length} colors)...`);
         
-        try {
-          // Add delay to avoid rate limiting
-          if (i > 0) {
-            const delay = 500 + Math.random() * 500; // 500-1000ms delay
-            console.log(`⏳ Waiting ${Math.round(delay)}ms...`);
-            await new Promise(resolve => setTimeout(resolve, delay));
-          }
-
-          const result = await scenarioBasedScrape(variant.url);
-          
-          if (result.success) {
-            console.log(`✅ Successfully scraped ${variant.name}`);
-            colorResults.push({
-              colorName: variant.name,
-              url: variant.url,
-              itemNumber: variant.itemNumber,
-              success: true,
-              data: result
-            });
-            successfulData.push(result);
-          } else {
-            console.log(`⚠️ Failed to scrape ${variant.name}`);
-            colorResults.push({
+        // Add delay between batches (but not before first batch)
+        if (batchIndex > 0) {
+          const delay = 300; // Reduced from 500ms to 300ms
+          console.log(`⏳ Waiting ${delay}ms between batches...`);
+          await new Promise(resolve => setTimeout(resolve, delay));
+        }
+        
+        // Process batch in parallel
+        const batchPromises = batch.map(async (variant) => {
+          try {
+            console.log(`🚀 Starting: ${variant.name}...`);
+            const result = await scenarioBasedScrape(variant.url);
+            
+            if (result.success) {
+              console.log(`✅ Completed: ${variant.name}`);
+              return {
+                colorName: variant.name,
+                url: variant.url,
+                itemNumber: variant.itemNumber,
+                success: true,
+                data: result
+              };
+            } else {
+              console.log(`⚠️ Failed: ${variant.name}`);
+              return {
+                colorName: variant.name,
+                url: variant.url,
+                itemNumber: variant.itemNumber,
+                success: false,
+                error: 'Extraction failed'
+              };
+            }
+          } catch (error) {
+            console.error(`❌ Error scraping ${variant.name}: ${error.message}`);
+            return {
               colorName: variant.name,
               url: variant.url,
               itemNumber: variant.itemNumber,
               success: false,
-              error: 'Extraction failed'
-            });
+              error: error.message
+            };
           }
-        } catch (error) {
-          console.error(`❌ Error scraping ${variant.name}: ${error.message}`);
-          colorResults.push({
-            colorName: variant.name,
-            url: variant.url,
-            itemNumber: variant.itemNumber,
-            success: false,
-            error: error.message
-          });
-        }
+        });
+        
+        // Wait for all promises in this batch to complete
+        const batchResults = await Promise.all(batchPromises);
+        
+        // Add results to our collections
+        batchResults.forEach(result => {
+          colorResults.push(result);
+          if (result.success && result.data) {
+            successfulData.push(result.data);
+          }
+        });
+        
+        console.log(`✅ Batch ${batchIndex + 1} completed: ${batchResults.filter(r => r.success).length}/${batchResults.length} successful`);
       }
 
       // Step 3: Combine results
