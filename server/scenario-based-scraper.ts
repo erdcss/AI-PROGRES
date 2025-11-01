@@ -1961,6 +1961,36 @@ export async function scenarioBasedScrape(url: string): Promise<ScenarioBasedRes
     console.log('🔧 VALIDATED VARIANTS:', JSON.stringify(validatedVariants, null, 2));
     console.log('🔧 VALIDATED allVariants length:', validatedVariants.allVariants?.length || 0);
     
+    // ✅ SINGLE-VARIANT FALLBACK: If no variants but we have title/URL, create one variant
+    if (validatedVariants.allVariants.length === 0) {
+      console.log('🎯 SINGLE-VARIANT FALLBACK: No variants found, creating fallback variant...');
+      
+      // Try to extract color from URL or title
+      const { extractColorFromUrl, extractColorFromTitle, getColorCode } = await import('./color-recognition');
+      
+      let detectedColor = extractColorFromUrl(url);
+      if (!detectedColor && title) {
+        detectedColor = extractColorFromTitle(title);
+      }
+      
+      const fallbackColor = detectedColor || 'Standart';
+      const fallbackSize = 'Tek Beden';
+      
+      console.log(`✅ Creating fallback variant: Color="${fallbackColor}", Size="${fallbackSize}"`);
+      
+      validatedVariants.allVariants = [{
+        color: fallbackColor,
+        colorCode: getColorCode(fallbackColor),
+        size: fallbackSize,
+        inStock: true
+      }];
+      validatedVariants.colors = [fallbackColor];
+      validatedVariants.sizes = [fallbackSize];
+      validatedVariants.stockMap = { [`${fallbackColor}-${fallbackSize}`]: true };
+      
+      console.log('✅ Fallback variant created successfully');
+    }
+    
     // Save successful result to cache
     const result = {
       success: true,
