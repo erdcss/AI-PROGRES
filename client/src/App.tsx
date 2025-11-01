@@ -39,6 +39,7 @@ import TrackingDashboard from "@/pages/tracking-dashboard";
 import ProductPreview from "@/pages/product-preview";
 import TelegramNotifications from "@/pages/TelegramNotifications";
 import ProductTrackingPage from "@/pages/ProductTrackingPage";
+import TelegramManagementPage from "@/pages/TelegramManagementPage";
 import { TBotAssistant } from "@/components/TBotAssistant";
 import { MobileNavigation } from "@/components/MobileNavigation";
 
@@ -373,6 +374,11 @@ function Router() {
       <Route path="/product-tracking">
         <PageTransition>
           <ProductTrackingPage />
+        </PageTransition>
+      </Route>
+      <Route path="/telegram-management">
+        <PageTransition>
+          <TelegramManagementPage />
         </PageTransition>
       </Route>
       </Switch>
