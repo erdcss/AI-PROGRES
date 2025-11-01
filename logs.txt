@@ -15608,3 +15608,31 @@ Details:
   - Variants Removed: 0
   - Product Archived: false
 ---
+
+[2025-11-01T09:18:42.743Z] SYNC AUDIT
+Product ID: 99
+Product: dokuru İncir Kuru Meyve Cipsi - Dondurularak Kurutulmuş Freeze Dried Çıtır İncir
+Success: true
+Changes: 0
+Errors: 0
+Details:
+  - Price Updates: 0
+  - Stock Updates: 0
+  - Variants Added: 0
+  - Variants Removed: 0
+  - Product Archived: false
+---
+
+[2025-11-01T09:19:14.788Z] SYNC AUDIT
+Product ID: 103
+Product: KidHug Aslan Peluş Çocuk Sırt Çantası – 27 Cm - Yumuşacık - Unisex Erkek-kız Anaokul & Kreş & Okul Öncesi
+Success: true
+Changes: 0
+Errors: 0
+Details:
+  - Price Updates: 0
+  - Stock Updates: 0
+  - Variants Added: 0
+  - Variants Removed: 0
+  - Product Archived: false
+---
