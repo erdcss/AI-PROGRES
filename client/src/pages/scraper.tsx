@@ -752,15 +752,37 @@ ${data.title.toLowerCase().replace(/[^a-z0-9]/g, '-')},${data.title},${data.bran
         if (csvResponse.ok) {
           const csvData = await csvResponse.json();
           
-          // Add to CSV previews
+          // Extract unique colors and sizes from combined variants
+          const allColors = new Set<string>();
+          const allSizes = new Set<string>();
+          const allImages: string[] = [];
+          
+          bulkResult.combinedVariants.forEach((variant: any) => {
+            if (variant.color) allColors.add(variant.color);
+            if (variant.size) allSizes.add(variant.size);
+            if (variant.images && Array.isArray(variant.images)) {
+              variant.images.forEach((img: any) => {
+                const imgUrl = typeof img === 'string' ? img : img?.url;
+                if (imgUrl && !allImages.includes(imgUrl)) {
+                  allImages.push(imgUrl);
+                }
+              });
+            }
+          });
+          
+          // Add to CSV previews with detailed variant information
           const newPreview = {
             id: `bulk-${Date.now()}`,
-            title: `Toplu Ürün (${bulkResult.successfulUrls} adet)`,
-            url: 'Birden Fazla URL',
+            productTitle: `Toplu Ürün (${bulkResult.successfulUrls} adet)`,
             csvContent: csvData.csvContent,
-            variantCount: bulkResult.combinedVariants.length,
-            colorCount: extractAllColors ? '(Tüm renkler)' : '',
-            timestamp: new Date().toISOString()
+            variants: {
+              colors: Array.from(allColors),
+              sizes: Array.from(allSizes),
+              allVariants: bulkResult.combinedVariants
+            },
+            images: allImages,
+            price: bulkResult.combinedVariants[0]?.price || null,
+            createdAt: new Date().toISOString()
           };
           
           setCsvPreviews(prev => [...prev, newPreview]);
