@@ -1957,6 +1957,10 @@ export async function scenarioBasedScrape(url: string): Promise<ScenarioBasedRes
     // ✅ ENHANCED: Validate and sanitize variants before saving (keep ALL colors)
     const validatedVariants = validateAndSanitizeVariants(variants, colors);
     
+    // 🔧 DEBUG: Log validated variants
+    console.log('🔧 VALIDATED VARIANTS:', JSON.stringify(validatedVariants, null, 2));
+    console.log('🔧 VALIDATED allVariants length:', validatedVariants.allVariants?.length || 0);
+    
     // Save successful result to cache
     const result = {
       success: true,
@@ -1983,6 +1987,10 @@ export async function scenarioBasedScrape(url: string): Promise<ScenarioBasedRes
         strategy: detection.suggestedStrategy
       }
     };
+    
+    // 🔧 DEBUG: Log result variants before return
+    console.log('🔧 RESULT.VARIANTS before return:', JSON.stringify(result.variants, null, 2));
+    console.log('🔧 RESULT.VARIANTS.allVariants length:', result.variants.allVariants?.length || 0);
     
     // Cache the successful result
     extractionCache.set(url, { data: result, timestamp: Date.now() });
