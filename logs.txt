@@ -22496,3 +22496,87 @@ Details:
   - Variants Removed: 0
   - Product Archived: false
 ---
+
+[2025-11-01T17:47:13.708Z] SYNC AUDIT
+Product ID: 108
+Product: kitchen trend 3 Lü (51, 37, 30 CM) Ahşap Kulplu Metal Tepsi Çay Tepsisi Kahve Tepsisi Sunum Tepsi Seti
+Success: true
+Changes: 0
+Errors: 0
+Details:
+  - Price Updates: 0
+  - Stock Updates: 0
+  - Variants Added: 0
+  - Variants Removed: 0
+  - Product Archived: false
+---
+
+[2025-11-01T17:47:50.119Z] SYNC AUDIT
+Product ID: 100
+Product: ETHIQUET Barry Kadın Regular Fit Normal Kalıp Pamuklu Dantel Detalı Ince Askılı Oyuk Yaka Siyah Atlet
+Success: true
+Changes: 0
+Errors: 0
+Details:
+  - Price Updates: 0
+  - Stock Updates: 0
+  - Variants Added: 0
+  - Variants Removed: 0
+  - Product Archived: false
+---
+
+[2025-11-01T17:49:05.253Z] SYNC AUDIT
+Product ID: 105
+Product: GRIMELANGE Lagertha Kadın %100 Organik Pamuklu Kalın Dokulu Oversize Fit Yuvarlak Yakalı Beyaz T-shirt
+Success: true
+Changes: 0
+Errors: 0
+Details:
+  - Price Updates: 0
+  - Stock Updates: 0
+  - Variants Added: 0
+  - Variants Removed: 0
+  - Product Archived: false
+---
+
+[2025-11-01T17:49:47.755Z] SYNC AUDIT
+Product ID: 108
+Product: kitchen trend 3 Lü (51, 37, 30 CM) Ahşap Kulplu Metal Tepsi Çay Tepsisi Kahve Tepsisi Sunum Tepsi Seti
+Success: true
+Changes: 0
+Errors: 0
+Details:
+  - Price Updates: 0
+  - Stock Updates: 0
+  - Variants Added: 0
+  - Variants Removed: 0
+  - Product Archived: false
+---
+
+[2025-11-01T17:51:13.331Z] SYNC AUDIT
+Product ID: 108
+Product: kitchen trend 3 Lü (51, 37, 30 CM) Ahşap Kulplu Metal Tepsi Çay Tepsisi Kahve Tepsisi Sunum Tepsi Seti
+Success: true
+Changes: 0
+Errors: 0
+Details:
+  - Price Updates: 0
+  - Stock Updates: 0
+  - Variants Added: 0
+  - Variants Removed: 0
+  - Product Archived: false
+---
+
+[2025-11-01T17:52:48.382Z] SYNC AUDIT
+Product ID: 100
+Product: ETHIQUET Barry Kadın Regular Fit Normal Kalıp Pamuklu Dantel Detalı Ince Askılı Oyuk Yaka Siyah Atlet
+Success: true
+Changes: 0
+Errors: 0
+Details:
+  - Price Updates: 0
+  - Stock Updates: 0
+  - Variants Added: 0
+  - Variants Removed: 0
+  - Product Archived: false
+---

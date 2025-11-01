@@ -5848,6 +5848,201 @@ ${(result.title || 'product').toLowerCase().replace(/[^a-z0-9]/g, '-')},${result
     }
   });
   
+  // 🔴 LIVE FEED - En son gönderilen bildirimler (status='sent')
+  app.get('/api/telegram/live', async (req, res) => {
+    try {
+      const { telegramNotificationHistory } = await import('@shared/schema');
+      const { limit = '50' } = req.query;
+      
+      const liveNotifications = await db
+        .select()
+        .from(telegramNotificationHistory)
+        .where(eq(telegramNotificationHistory.status, 'sent'))
+        .orderBy(desc(telegramNotificationHistory.sentAt))
+        .limit(parseInt(limit as string));
+      
+      res.json({ success: true, notifications: liveNotifications, count: liveNotifications.length });
+    } catch (error) {
+      console.error('❌ Live feed hatası:', error);
+      res.status(500).json({ 
+        success: false, 
+        error: (error as Error).message 
+      });
+    }
+  });
+  
+  // 🟡 PENDING QUEUE - Bekleyen bildirimler
+  app.get('/api/telegram/pending', async (req, res) => {
+    try {
+      const { telegramNotificationHistory } = await import('@shared/schema');
+      const { limit = '100' } = req.query;
+      
+      const pendingNotifications = await db
+        .select()
+        .from(telegramNotificationHistory)
+        .where(eq(telegramNotificationHistory.status, 'pending'))
+        .orderBy(desc(telegramNotificationHistory.createdAt))
+        .limit(parseInt(limit as string));
+      
+      res.json({ success: true, notifications: pendingNotifications, count: pendingNotifications.length });
+    } catch (error) {
+      console.error('❌ Pending queue hatası:', error);
+      res.status(500).json({ 
+        success: false, 
+        error: (error as Error).message 
+      });
+    }
+  });
+  
+  // 🔴 FAILED LOG - Başarısız bildirimler
+  app.get('/api/telegram/failed', async (req, res) => {
+    try {
+      const { telegramNotificationHistory } = await import('@shared/schema');
+      const { limit = '100' } = req.query;
+      
+      const failedNotifications = await db
+        .select()
+        .from(telegramNotificationHistory)
+        .where(eq(telegramNotificationHistory.status, 'failed'))
+        .orderBy(desc(telegramNotificationHistory.failedAt))
+        .limit(parseInt(limit as string));
+      
+      res.json({ success: true, notifications: failedNotifications, count: failedNotifications.length });
+    } catch (error) {
+      console.error('❌ Failed log hatası:', error);
+      res.status(500).json({ 
+        success: false, 
+        error: (error as Error).message 
+      });
+    }
+  });
+  
+  // 📊 STATISTICS - Bildirim istatistikleri
+  app.get('/api/telegram/stats', async (req, res) => {
+    try {
+      const { telegramNotificationHistory } = await import('@shared/schema');
+      const { sql, count } = await import('drizzle-orm');
+      
+      // Toplam bildirim sayısı
+      const totalResult = await db
+        .select({ value: count() })
+        .from(telegramNotificationHistory);
+      const total = totalResult[0]?.value || 0;
+      
+      // Status'a göre sayılar
+      const sentResult = await db
+        .select({ value: count() })
+        .from(telegramNotificationHistory)
+        .where(eq(telegramNotificationHistory.status, 'sent'));
+      const sent = sentResult[0]?.value || 0;
+      
+      const pendingResult = await db
+        .select({ value: count() })
+        .from(telegramNotificationHistory)
+        .where(eq(telegramNotificationHistory.status, 'pending'));
+      const pending = pendingResult[0]?.value || 0;
+      
+      const failedResult = await db
+        .select({ value: count() })
+        .from(telegramNotificationHistory)
+        .where(eq(telegramNotificationHistory.status, 'failed'));
+      const failed = failedResult[0]?.value || 0;
+      
+      // Başarı oranı
+      const successRate = total > 0 ? ((sent / total) * 100).toFixed(2) : '0';
+      
+      res.json({ 
+        success: true, 
+        stats: {
+          total,
+          sent,
+          pending,
+          failed,
+          successRate: `${successRate}%`
+        }
+      });
+    } catch (error) {
+      console.error('❌ İstatistik hatası:', error);
+      res.status(500).json({ 
+        success: false, 
+        error: (error as Error).message 
+      });
+    }
+  });
+  
+  // 🔄 MANUAL SEND - Pending/Failed bildirimi manuel gönder
+  app.post('/api/telegram/manual-send/:id', async (req, res) => {
+    try {
+      const { id } = req.params;
+      const { telegramNotificationHistory } = await import('@shared/schema');
+      
+      // Bildirimi getir
+      const notifications = await db
+        .select()
+        .from(telegramNotificationHistory)
+        .where(eq(telegramNotificationHistory.id, parseInt(id)));
+      
+      const notification = notifications[0];
+      
+      if (!notification) {
+        return res.status(404).json({ 
+          success: false, 
+          error: 'Bildirim bulunamadı' 
+        });
+      }
+      
+      if (notification.status === 'sent') {
+        return res.status(400).json({ 
+          success: false, 
+          error: 'Bu bildirim zaten gönderilmiş' 
+        });
+      }
+      
+      // Gateway kullanmadan direkt Telegram'a gönder (deduplication bypass)
+      try {
+        await filteredNotifier.sendNotification(notification.message);
+        
+        // Database'de status güncelle
+        await db.update(telegramNotificationHistory)
+          .set({ 
+            status: 'sent',
+            sentAt: new Date(),
+            retryCount: (notification.retryCount || 0) + 1,
+            lastRetryAt: new Date()
+          } as any)
+          .where(eq(telegramNotificationHistory.id, parseInt(id)));
+        
+        res.json({ 
+          success: true, 
+          message: 'Bildirim başarıyla gönderildi',
+          notification: {
+            ...notification,
+            status: 'sent'
+          }
+        });
+      } catch (telegramError) {
+        // Gönderim başarısız, failed olarak işaretle
+        await db.update(telegramNotificationHistory)
+          .set({ 
+            status: 'failed',
+            failedAt: new Date(),
+            errorMessage: telegramError instanceof Error ? telegramError.message : String(telegramError),
+            retryCount: (notification.retryCount || 0) + 1,
+            lastRetryAt: new Date()
+          } as any)
+          .where(eq(telegramNotificationHistory.id, parseInt(id)));
+        
+        throw telegramError;
+      }
+    } catch (error) {
+      console.error('❌ Manuel gönderim hatası:', error);
+      res.status(500).json({ 
+        success: false, 
+        error: (error as Error).message 
+      });
+    }
+  });
+  
   console.log('📱 Telegram notification API endpoints registered');
 
   // 🌈 Multi-Color Scraping API

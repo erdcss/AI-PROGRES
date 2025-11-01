@@ -1,5 +1,8 @@
 // Telegram Notification Gateway - Deduplication & Smart Filtering
 import { filteredNotifier } from './filtered-telegram-notifier';
+import { db } from './db';
+import { telegramNotificationHistory } from '@shared/schema';
+import { eq } from 'drizzle-orm';
 
 interface NotificationCache {
   hash: string;
@@ -53,7 +56,9 @@ export class TelegramNotificationGateway {
     message: string, 
     type: string,
     productId?: number,
-    metadata?: any
+    metadata?: any,
+    variantId?: number,
+    productTitle?: string
   ): Promise<boolean> {
     // 1. Check if notification type is blocked
     if (this.BLOCKED_TYPES.includes(type)) {
@@ -88,20 +93,79 @@ export class TelegramNotificationGateway {
       return false;
     }
 
-    // 7. Send notification
+    // 🔥 NEW: INTERCEPTION SYSTEM - Save to database before sending
+    let notificationId: number | null = null;
+    
+    try {
+      // Save notification to database with 'pending' status
+      const result = await db.insert(telegramNotificationHistory).values({
+        userId: 'default',
+        notificationType: type,
+        message,
+        productId: productId || null,
+        variantId: variantId || null,
+        productTitle: productTitle || null,
+        status: 'pending',
+        metadata: metadata || {},
+      }).returning({ id: telegramNotificationHistory.id });
+      
+      notificationId = result[0]?.id || null;
+      console.log(`💾 Notification saved to database (ID: ${notificationId}) with status: pending`);
+    } catch (dbError) {
+      console.error(`❌ Failed to save notification to database:`, dbError);
+      // Continue anyway - don't block telegram sending if database fails
+    }
+
+    // 7. Send notification to Telegram
     try {
       await filteredNotifier.sendNotification(message);
       
       // Record message timestamp for rate limiting
       this.recordMessageSent();
       
-      // 7. Cache this notification
+      // Cache this notification
       this.cacheNotification(hash, type, productId);
       
-      console.log(`✅ Notification sent: ${type} ${productId ? `(Product ${productId})` : ''}`);
+      // Update database status to 'sent'
+      if (notificationId) {
+        try {
+          await db.update(telegramNotificationHistory)
+            .set({ 
+              status: 'sent',
+              sentAt: new Date()
+            } as any)
+            .where(eq(telegramNotificationHistory.id, notificationId));
+          
+          console.log(`✅ Notification sent & database updated (ID: ${notificationId}): ${type} ${productId ? `(Product ${productId})` : ''}`);
+        } catch (updateError) {
+          console.error(`⚠️ Failed to update notification status in database:`, updateError);
+        }
+      } else {
+        console.log(`✅ Notification sent: ${type} ${productId ? `(Product ${productId})` : ''}`);
+      }
+      
       return true;
     } catch (error) {
-      console.error(`❌ Failed to send notification:`, error);
+      console.error(`❌ Failed to send notification to Telegram:`, error);
+      
+      // Update database status to 'failed'
+      if (notificationId) {
+        try {
+          await db.update(telegramNotificationHistory)
+            .set({ 
+              status: 'failed',
+              failedAt: new Date(),
+              errorMessage: error instanceof Error ? error.message : String(error),
+              retryCount: 0
+            } as any)
+            .where(eq(telegramNotificationHistory.id, notificationId));
+          
+          console.log(`❌ Notification failed & database updated (ID: ${notificationId})`);
+        } catch (updateError) {
+          console.error(`⚠️ Failed to update notification failure in database:`, updateError);
+        }
+      }
+      
       return false;
     }
   }
