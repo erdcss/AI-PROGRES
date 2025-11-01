@@ -54,6 +54,7 @@ export class BulkCSVGenerator {
       'Variant SKU',
       'Variant Grams',
       'Variant Inventory Tracker',
+      'Variant Inventory Qty',
       'Variant Inventory Policy',
       'Variant Fulfillment Service',
       'Variant Price',
@@ -147,7 +148,8 @@ export class BulkCSVGenerator {
             `${handle}-${variant.colorCode}-${variant.size}`, // Variant SKU
             '0', // Variant Grams
             'shopify', // Variant Inventory Tracker
-            variant.inStock ? 'deny' : 'deny', // Variant Inventory Policy
+            variant.inStock ? '100' : '0', // Variant Inventory Qty (100 if in stock, 0 if out of stock)
+            variant.inStock ? 'continue' : 'deny', // Variant Inventory Policy (continue if in stock, deny if out)
             'manual', // Variant Fulfillment Service
             variantPrice.toFixed(2), // Variant Price
             originalPrice.toFixed(2), // Variant Compare At Price

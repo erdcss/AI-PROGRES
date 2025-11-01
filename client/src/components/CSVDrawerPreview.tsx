@@ -499,15 +499,24 @@ export function CSVDrawerPreview({ csvPreviews, onDownload, onShopifyUpload, ind
                       <div className="flex items-center gap-1.5">
                         <span className="text-slate-400 text-xs flex-shrink-0">Renkler:</span>
                         <div className="flex flex-wrap gap-1">
-                          {uniqueColors.map((color, idx) => (
-                            <Badge 
-                              key={idx}
-                              variant="outline" 
-                              className="border-cyan-600/40 text-cyan-300 text-xs px-1.5 py-0 h-4"
-                            >
-                              {color}
-                            </Badge>
-                          ))}
+                          {uniqueColors.map((color, idx) => {
+                            // Check if this color has any stock
+                            const colorVariants = allVariants.filter(v => v.color === color);
+                            const hasStock = colorVariants.some(v => v.inStock);
+                            
+                            return (
+                              <Badge 
+                                key={idx}
+                                variant="outline" 
+                                className={hasStock 
+                                  ? "border-cyan-600/40 text-cyan-300 text-xs px-1.5 py-0 h-4" 
+                                  : "border-gray-600/40 text-gray-500 text-xs px-1.5 py-0 h-4 line-through"
+                                }
+                              >
+                                {color}
+                              </Badge>
+                            );
+                          })}
                         </div>
                       </div>
                     );
@@ -515,13 +524,71 @@ export function CSVDrawerPreview({ csvPreviews, onDownload, onShopifyUpload, ind
                   return null;
                 })()}
                 
-                {/* Varyant Sayısı */}
+                {/* Beden Seçenekleri - Stokta Olan ve Olmayan Ayrımı */}
+                {(() => {
+                  const allVariants = preview.variants?.allVariants || [];
+                  
+                  if (allVariants.length > 0) {
+                    // Group sizes by stock status
+                    const inStockSizes = new Set<string>();
+                    const outOfStockSizes = new Set<string>();
+                    
+                    allVariants.forEach(v => {
+                      if (v.size) {
+                        if (v.inStock) {
+                          inStockSizes.add(v.size);
+                        } else {
+                          // Only add to out of stock if it's not already in stock
+                          if (!inStockSizes.has(v.size)) {
+                            outOfStockSizes.add(v.size);
+                          }
+                        }
+                      }
+                    });
+                    
+                    const inStockArray = Array.from(inStockSizes);
+                    const outOfStockArray = Array.from(outOfStockSizes);
+                    
+                    if (inStockArray.length > 0 || outOfStockArray.length > 0) {
+                      return (
+                        <div className="flex items-start gap-1.5">
+                          <span className="text-slate-400 text-xs flex-shrink-0 mt-0.5">Bedenler:</span>
+                          <div className="flex flex-wrap gap-1">
+                            {/* Stokta olan bedenler - yeşil */}
+                            {inStockArray.map((size, idx) => (
+                              <Badge 
+                                key={`in-${idx}`}
+                                className="bg-green-900/40 border-green-600/40 text-green-300 text-xs px-1.5 py-0 h-4"
+                              >
+                                {size}
+                              </Badge>
+                            ))}
+                            {/* Stokta olmayan bedenler - gri */}
+                            {outOfStockArray.map((size, idx) => (
+                              <Badge 
+                                key={`out-${idx}`}
+                                variant="outline"
+                                className="border-gray-600/40 text-gray-500 text-xs px-1.5 py-0 h-4 opacity-60"
+                              >
+                                {size}
+                              </Badge>
+                            ))}
+                          </div>
+                        </div>
+                      );
+                    }
+                  }
+                  return null;
+                })()}
+                
+                {/* Varyant Sayısı Özeti */}
                 <div className="flex gap-1">
                   {(() => {
                     const allVariants = preview.variants?.allVariants || [];
                     const colors = preview.variants?.colors || [];
                     const uniqueColors = colors.length > 0 ? colors : [...new Set(allVariants.map(v => v.color).filter(Boolean))];
-                    const uniqueSizes = [...new Set(allVariants.map(v => v.size).filter(Boolean))];
+                    const inStockCount = allVariants.filter(v => v.inStock).length;
+                    const totalCount = allVariants.length;
                     
                     if (allVariants.length === 0 && uniqueColors.length === 0) {
                       return <Badge variant="outline" className="border-slate-600/40 text-slate-400 text-xs px-1.5 py-0 h-4">Tek ürün</Badge>;
@@ -530,7 +597,11 @@ export function CSVDrawerPreview({ csvPreviews, onDownload, onShopifyUpload, ind
                     return (
                       <>
                         {uniqueColors.length > 0 && <Badge variant="outline" className="border-cyan-600/40 text-cyan-300 text-xs px-1.5 py-0 h-4">{uniqueColors.length} renk</Badge>}
-                        {uniqueSizes.length > 0 && <Badge variant="outline" className="border-purple-600/40 text-purple-300 text-xs px-1.5 py-0 h-4">{uniqueSizes.length} beden</Badge>}
+                        {totalCount > 0 && (
+                          <Badge variant="outline" className="border-purple-600/40 text-purple-300 text-xs px-1.5 py-0 h-4">
+                            {inStockCount}/{totalCount} stokta
+                          </Badge>
+                        )}
                       </>
                     );
                   })()}
