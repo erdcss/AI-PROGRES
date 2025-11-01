@@ -394,14 +394,19 @@ export const telegramNotificationSettings = pgTable('telegram_notification_setti
 export const telegramNotificationHistory = pgTable('telegram_notification_history', {
   id: serial('id').primaryKey(),
   userId: text('user_id').notNull().default('default'),
-  notificationType: text('notification_type').notNull(), // 'new_product', 'variant_change', 'price_change', 'stock_update', 'shopify_upload', 'test'
+  notificationType: text('notification_type').notNull(), // 'new_product', 'variant_change', 'price_change', 'stock_update', 'shopify_upload', 'test', 'variant_added', 'variant_removed', 'variant_oos', 'variant_back_in_stock'
   message: text('message').notNull(),
   productId: integer('product_id').references(() => products.id, { onDelete: 'set null' }),
+  variantId: integer('variant_id').references(() => productVariants.id, { onDelete: 'set null' }), // Variant-specific notifications
   productTitle: text('product_title'), // Ürün silinirse bile görünsün
-  status: text('status').notNull().default('sent'), // 'sent', 'failed', 'pending'
+  status: text('status').notNull().default('pending'), // 'pending', 'sent', 'failed'
   errorMessage: text('error_message'),
   telegramMessageId: text('telegram_message_id'),
-  sentAt: timestamp('sent_at').notNull().defaultNow(),
+  retryCount: integer('retry_count').notNull().default(0), // Kaç kez yeniden denendiği
+  sentAt: timestamp('sent_at'),
+  failedAt: timestamp('failed_at'), // Başarısız olduğu zaman
+  lastRetryAt: timestamp('last_retry_at'), // Son deneme zamanı
+  createdAt: timestamp('created_at').notNull().defaultNow(), // İlk oluşturulma zamanı
   metadata: jsonb('metadata').default({}) // Ek bilgiler (variant detayları, fiyat değişimi vb.)
 });
 
