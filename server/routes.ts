@@ -6150,6 +6150,302 @@ ${(result.title || 'product').toLowerCase().replace(/[^a-z0-9]/g, '-')},${result
 
   console.log('🌈 Multi-color and bulk scraping API endpoints registered');
 
+  // 📊 CENTRALIZED PRODUCT TRACKING SYSTEM API
+  
+  /**
+   * GET /api/tracking/all - Tüm takip edilen ürünleri getir
+   */
+  app.get('/api/tracking/all', async (req, res) => {
+    try {
+      // Get all products with their tracking status
+      const allProducts = await db
+        .select({
+          id: products.id,
+          title: products.title,
+          brand: products.brand,
+          currentPrice: products.currentPrice,
+          category: products.category,
+          trendyolUrl: products.trendyolUrl,
+          shopifyProductId: products.shopifyProductId,
+          lastChecked: products.lastChecked,
+          isActive: products.isActive,
+          stockStatus: products.stockStatus,
+          createdAt: products.createdAt
+        })
+        .from(products)
+        .orderBy(desc(products.lastChecked));
+      
+      // Get variant counts for each product
+      const productIds = allProducts.map(p => p.id);
+      
+      let variantCounts: any[] = [];
+      if (productIds.length > 0) {
+        variantCounts = await db
+          .select({
+            productId: productVariants.productId,
+            totalVariants: sql<number>`count(*)`.as('total_variants'),
+            variantsInStock: sql<number>`sum(case when ${productVariants.inStock} then 1 else 0 end)`.as('variants_in_stock')
+          })
+          .from(productVariants)
+          .where(inArray(productVariants.productId, productIds))
+          .groupBy(productVariants.productId);
+      }
+      
+      // Merge variant data with products
+      const productsWithVariants = allProducts.map(product => {
+        const variantData = variantCounts.find(v => v.productId === product.id);
+        return {
+          ...product,
+          totalVariants: variantData?.totalVariants || 0,
+          variantsInStock: variantData?.variantsInStock || 0
+        };
+      });
+      
+      res.json({
+        success: true,
+        products: productsWithVariants,
+        total: allProducts.length
+      });
+    } catch (error) {
+      console.error('❌ Tracking all products error:', error);
+      res.status(500).json({ 
+        success: false, 
+        error: (error as Error).message 
+      });
+    }
+  });
+
+  /**
+   * GET /api/tracking/stats - Genel istatistikler
+   */
+  app.get('/api/tracking/stats', async (req, res) => {
+    try {
+      // Total products
+      const [totalProductsResult] = await db
+        .select({ count: sql<number>`count(*)` })
+        .from(products);
+      
+      // Active vs paused tracking
+      const [activeResult] = await db
+        .select({ count: sql<number>`count(*)` })
+        .from(products)
+        .where(eq(products.isActive, true));
+      
+      const [pausedResult] = await db
+        .select({ count: sql<number>`count(*)` })
+        .from(products)
+        .where(eq(products.isActive, false));
+      
+      // Total variants and in-stock variants
+      const [variantStatsResult] = await db
+        .select({
+          totalVariants: sql<number>`count(*)`,
+          variantsInStock: sql<number>`sum(case when ${productVariants.inStock} then 1 else 0 end)`
+        })
+        .from(productVariants);
+      
+      // Price changes in last 24h
+      const last24h = new Date(Date.now() - 24 * 60 * 60 * 1000);
+      const [priceChanges24h] = await db
+        .select({ count: sql<number>`count(*)` })
+        .from(priceHistory)
+        .where(gte(priceHistory.createdAt, last24h));
+      
+      // Stock changes in last 24h
+      const [stockChanges24h] = await db
+        .select({ count: sql<number>`count(*)` })
+        .from(stockHistory)
+        .where(gte(stockHistory.createdAt, last24h));
+      
+      res.json({
+        success: true,
+        stats: {
+          totalProducts: totalProductsResult?.count || 0,
+          activeTracking: activeResult?.count || 0,
+          pausedTracking: pausedResult?.count || 0,
+          totalVariants: variantStatsResult?.totalVariants || 0,
+          variantsInStock: variantStatsResult?.variantsInStock || 0,
+          priceChangesLast24h: priceChanges24h?.count || 0,
+          stockChangesLast24h: stockChanges24h?.count || 0
+        }
+      });
+    } catch (error) {
+      console.error('❌ Tracking stats error:', error);
+      res.status(500).json({ 
+        success: false, 
+        error: (error as Error).message 
+      });
+    }
+  });
+
+  /**
+   * GET /api/tracking/:id - Belirli bir ürünün detaylarını getir
+   */
+  app.get('/api/tracking/:id', async (req, res) => {
+    try {
+      const productId = parseInt(req.params.id);
+      
+      // Get product details
+      const [product] = await db
+        .select()
+        .from(products)
+        .where(eq(products.id, productId));
+      
+      if (!product) {
+        return res.status(404).json({ 
+          success: false, 
+          error: 'Product not found' 
+        });
+      }
+      
+      // Get variants
+      const variants = await db
+        .select()
+        .from(productVariants)
+        .where(eq(productVariants.productId, productId))
+        .orderBy(productVariants.color, productVariants.size);
+      
+      // Get price history for all variants (last 30 days)
+      const last30Days = new Date(Date.now() - 30 * 24 * 60 * 60 * 1000);
+      const variantIds = variants.map(v => v.id);
+      
+      let priceHistoryData: any[] = [];
+      if (variantIds.length > 0) {
+        priceHistoryData = await db
+          .select({
+            id: priceHistory.id,
+            variantId: priceHistory.variantId,
+            oldPrice: priceHistory.oldPrice,
+            newPrice: priceHistory.newPrice,
+            changeType: priceHistory.changeType,
+            changeAmount: priceHistory.changeAmount,
+            changePercentage: priceHistory.changePercentage,
+            createdAt: priceHistory.createdAt,
+            color: productVariants.color,
+            size: productVariants.size
+          })
+          .from(priceHistory)
+          .innerJoin(productVariants, eq(priceHistory.variantId, productVariants.id))
+          .where(
+            and(
+              inArray(priceHistory.variantId, variantIds),
+              gte(priceHistory.createdAt, last30Days)
+            )
+          )
+          .orderBy(desc(priceHistory.createdAt));
+      }
+      
+      res.json({
+        success: true,
+        product,
+        variants,
+        priceHistory: priceHistoryData
+      });
+    } catch (error) {
+      console.error('❌ Tracking product detail error:', error);
+      res.status(500).json({ 
+        success: false, 
+        error: (error as Error).message 
+      });
+    }
+  });
+
+  /**
+   * POST /api/tracking/:id/pause - Tek ürünü pause/resume et
+   */
+  app.post('/api/tracking/:id/pause', async (req, res) => {
+    try {
+      const productId = parseInt(req.params.id);
+      const { pause } = req.body; // true = pause, false = resume
+      
+      await db
+        .update(products)
+        .set({ 
+          isActive: !pause,
+          updatedAt: new Date()
+        })
+        .where(eq(products.id, productId));
+      
+      res.json({
+        success: true,
+        message: pause ? 'Tracking paused' : 'Tracking resumed',
+        productId,
+        isActive: !pause
+      });
+    } catch (error) {
+      console.error('❌ Tracking pause/resume error:', error);
+      res.status(500).json({ 
+        success: false, 
+        error: (error as Error).message 
+      });
+    }
+  });
+
+  /**
+   * POST /api/tracking/bulk-pause - Toplu pause/resume
+   */
+  app.post('/api/tracking/bulk-pause', async (req, res) => {
+    try {
+      const { productIds, pause } = req.body;
+      
+      if (!Array.isArray(productIds) || productIds.length === 0) {
+        return res.status(400).json({ 
+          success: false, 
+          error: 'Product IDs array is required' 
+        });
+      }
+      
+      await db
+        .update(products)
+        .set({ 
+          isActive: !pause,
+          updatedAt: new Date()
+        })
+        .where(inArray(products.id, productIds));
+      
+      res.json({
+        success: true,
+        message: `${productIds.length} products ${pause ? 'paused' : 'resumed'}`,
+        count: productIds.length,
+        isActive: !pause
+      });
+    } catch (error) {
+      console.error('❌ Bulk pause/resume error:', error);
+      res.status(500).json({ 
+        success: false, 
+        error: (error as Error).message 
+      });
+    }
+  });
+
+  /**
+   * DELETE /api/tracking/:id - Takibi durdur ve ürünü sil
+   */
+  app.delete('/api/tracking/:id', async (req, res) => {
+    try {
+      const productId = parseInt(req.params.id);
+      
+      // Delete will cascade to variants, price history, etc.
+      await db
+        .delete(products)
+        .where(eq(products.id, productId));
+      
+      res.json({
+        success: true,
+        message: 'Product tracking stopped and deleted',
+        productId
+      });
+    } catch (error) {
+      console.error('❌ Tracking delete error:', error);
+      res.status(500).json({ 
+        success: false, 
+        error: (error as Error).message 
+      });
+    }
+  });
+
+  console.log('📊 Centralized tracking system API endpoints registered');
+
   // Clear existing product memory cache on startup
   console.log('🗑️ Clearing existing product memory cache...');
   memoryManager.purgeAll();
