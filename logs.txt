@@ -26696,3 +26696,45 @@ Details:
   - Variants Removed: 0
   - Product Archived: false
 ---
+
+[2025-11-01T20:45:08.395Z] SYNC AUDIT
+Product ID: 111
+Product: Tudors Unisex Relax Fit Rahat Kesim Pamuklu Içi Polarlı Yarım Fermuarlı Bordo Dik Yaka Sweatshirt
+Success: true
+Changes: 0
+Errors: 0
+Details:
+  - Price Updates: 0
+  - Stock Updates: 0
+  - Variants Added: 0
+  - Variants Removed: 0
+  - Product Archived: false
+---
+
+[2025-11-01T20:45:22.836Z] SYNC AUDIT
+Product ID: 96
+Product: CLIPMAN Erkek Slim Fit Basic T-shirt 5'li
+Success: true
+Changes: 0
+Errors: 0
+Details:
+  - Price Updates: 0
+  - Stock Updates: 0
+  - Variants Added: 0
+  - Variants Removed: 0
+  - Product Archived: false
+---
+
+[2025-11-01T20:45:53.152Z] SYNC AUDIT
+Product ID: 108
+Product: kitchen trend 3 Lü (51, 37, 30 CM) Ahşap Kulplu Metal Tepsi Çay Tepsisi Kahve Tepsisi Sunum Tepsi Seti
+Success: true
+Changes: 0
+Errors: 0
+Details:
+  - Price Updates: 0
+  - Stock Updates: 0
+  - Variants Added: 0
+  - Variants Removed: 0
+  - Product Archived: false
+---
