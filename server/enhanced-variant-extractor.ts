@@ -12,6 +12,7 @@ import puppeteer from 'puppeteer';
 import axios from 'axios';
 import * as cheerio from 'cheerio';
 import { execSync } from 'child_process';
+import { extractColorFromUrl, extractColorFromTitle, cleanColorName } from './color-recognition';
 
 interface VariantInfo {
   color: string;
@@ -914,7 +915,7 @@ export class EnhancedVariantExtractor {
       // Wait for color elements to load
       await page.waitForTimeout(2000);
 
-      // Extract color URLs from the page
+      // ✅ IMPROVED: Extract color URLs with better attribute handling
       const colors = await page.evaluate(() => {
         const results: Array<{name: string, url: string, itemNumber: string}> = [];
         
@@ -922,19 +923,29 @@ export class EnhancedVariantExtractor {
         const colorLinks = document.querySelectorAll('a.slicing-attributes__item, a[class*="color"], a[class*="renk"]');
         colorLinks.forEach((link: any) => {
           const href = link.getAttribute('href');
-          const title = link.getAttribute('title') || link.textContent?.trim() || '';
-          const img = link.querySelector('img');
-          const alt = img?.getAttribute('alt') || '';
           
-          if (href && (title || alt)) {
-            const colorName = title || alt;
+          // ✅ Try multiple attributes for color name
+          let colorName = link.getAttribute('title') 
+                       || link.getAttribute('aria-label')
+                       || link.textContent?.trim() 
+                       || '';
+          
+          // Also check img element
+          const img = link.querySelector('img');
+          if (img && !colorName) {
+            colorName = img.getAttribute('alt') 
+                     || img.getAttribute('title') 
+                     || '';
+          }
+          
+          if (href && colorName && colorName !== 'null' && colorName !== 'undefined') {
             const fullUrl = href.startsWith('http') ? href : `https://www.trendyol.com${href}`;
             
             // Extract item number from URL (e.g., p-867324852)
             const itemMatch = href.match(/p-(\d+)/);
             const itemNumber = itemMatch ? itemMatch[1] : '';
             
-            if (itemNumber && colorName !== 'null') {
+            if (itemNumber) {
               results.push({
                 name: colorName,
                 url: fullUrl,
@@ -948,16 +959,25 @@ export class EnhancedVariantExtractor {
         if (results.length === 0) {
           const colorButtons = document.querySelectorAll('.slicing-attributes button, .attribute-media.renk button, button[data-color]');
           colorButtons.forEach((button: any) => {
-            const title = button.getAttribute('title') || button.textContent?.trim() || '';
-            const dataValue = button.getAttribute('data-value') || button.getAttribute('data-id') || '';
+            // ✅ Try multiple attributes for color name
+            let colorName = button.getAttribute('title') 
+                         || button.getAttribute('aria-label')
+                         || button.getAttribute('data-title')
+                         || button.textContent?.trim() 
+                         || '';
             
-            if (title && title !== 'null' && dataValue) {
+            const dataValue = button.getAttribute('data-value') 
+                           || button.getAttribute('data-id') 
+                           || button.getAttribute('data-product-id')
+                           || '';
+            
+            if (colorName && colorName !== 'null' && colorName !== 'undefined' && dataValue) {
               // Try to construct URL from current page URL pattern
               const currentUrl = window.location.href;
               const urlBase = currentUrl.split('/p-')[0];
               
               results.push({
-                name: title,
+                name: colorName,
                 url: `${urlBase}/p-${dataValue}`,
                 itemNumber: dataValue
               });
@@ -965,27 +985,32 @@ export class EnhancedVariantExtractor {
           });
         }
 
-        // Strategy 3: Check for color data in scripts
-        if (results.length === 0) {
-          const scripts = document.querySelectorAll('script[type="application/ld+json"]');
-          scripts.forEach((script: any) => {
-            try {
-              const data = JSON.parse(script.textContent);
-              if (data.color || data.variesBy) {
-                // Extract color info if available
-                console.log('Found color data in JSON-LD:', data);
-              }
-            } catch (e) {
-              // Continue
-            }
-          });
-        }
-
         return results;
       });
 
-      console.log(`🎨 Found ${colors.length} color variants`);
-      colorVariants.push(...colors);
+      console.log(`🎨 Found ${colors.length} raw color variants`);
+      
+      // ✅ Clean and validate color names using color recognition system
+      const cleanedColors = colors
+        .map(color => ({
+          ...color,
+          name: cleanColorName(color.name) || color.name
+        }))
+        .filter(color => {
+          // Filter out invalid color names
+          if (!color.name || color.name === 'null' || color.name === 'undefined') {
+            console.log(`❌ Filtered out invalid color: "${color.name}"`);
+            return false;
+          }
+          return true;
+        });
+      
+      console.log(`✅ Cleaned colors: ${cleanedColors.length} valid variants`);
+      cleanedColors.forEach((color, idx) => {
+        console.log(`   ${idx + 1}. "${color.name}" - ${color.itemNumber}`);
+      });
+      
+      colorVariants.push(...cleanedColors);
 
       await browser.close();
       

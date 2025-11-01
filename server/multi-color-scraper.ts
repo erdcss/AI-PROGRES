@@ -10,6 +10,7 @@
 
 import { enhancedVariantExtractor } from './enhanced-variant-extractor';
 import { scenarioBasedScrape, ScenarioBasedResult } from './scenario-based-scraper';
+import { extractColorFromUrl, extractColorFromTitle, getColorCode } from './color-recognition';
 
 export interface MultiColorResult {
   success: boolean;
@@ -67,12 +68,27 @@ export class MultiColorScraper {
         // Scrape the single URL
         const singleResult = await scenarioBasedScrape(url);
         
-        // Try to extract color name from URL or product title
-        const urlColorMatch = url.match(/-([a-z-]+)-p-\d+/i);
-        const extractedColor = urlColorMatch ? urlColorMatch[1].split('-').pop() : 'Default';
+        // ✅ SMART COLOR EXTRACTION using new color recognition system
+        let colorName = 'Default';
+        
+        // Try URL first
+        const urlColor = extractColorFromUrl(url);
+        if (urlColor) {
+          colorName = urlColor;
+          console.log(`✅ Color from URL: "${colorName}"`);
+        } else if (singleResult && singleResult.title) {
+          // Fallback to title
+          const titleColor = extractColorFromTitle(singleResult.title);
+          if (titleColor) {
+            colorName = titleColor;
+            console.log(`✅ Color from title: "${colorName}"`);
+          } else {
+            console.log('⚠️ No color detected, using "Default"');
+          }
+        }
         
         const colorResults = [{
-          colorName: extractedColor || 'Default',
+          colorName: colorName,
           url: url,
           itemNumber: this.extractItemNumber(url),
           success: true,
@@ -252,7 +268,7 @@ export class MultiColorScraper {
           // instead of a placeholder
           allVariants.push({
             color: colorName, // ✅ Use the actual color name from URL extraction
-            colorCode: variant.colorCode || this.getColorCode(colorName),
+            colorCode: variant.colorCode || getColorCode(colorName),
             size: variant.size,
             inStock: variant.inStock,
             images: result.images || [] // ✅ Assign all images from this color to this variant
@@ -276,30 +292,6 @@ export class MultiColorScraper {
     };
   }
 
-  /**
-   * Get color code from Turkish color name
-   */
-  private getColorCode(colorName: string): string {
-    const colorMap: { [key: string]: string } = {
-      'siyah': '#000000',
-      'beyaz': '#FFFFFF',
-      'kırmızı': '#FF0000',
-      'mavi': '#0000FF',
-      'yeşil': '#008000',
-      'sarı': '#FFFF00',
-      'turuncu': '#FFA500',
-      'mor': '#800080',
-      'pembe': '#FFC0CB',
-      'gri': '#808080',
-      'kahverengi': '#A52A2A',
-      'lacivert': '#000080',
-      'bordo': '#800020',
-      'haki': '#806B2A'
-    };
-
-    const normalized = colorName.toLowerCase().trim();
-    return colorMap[normalized] || '#999999'; // Default gray if unknown
-  }
 
   /**
    * Extract item number from URL
