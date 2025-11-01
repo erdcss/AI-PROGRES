@@ -4,13 +4,14 @@ import { zodResolver } from "@hookform/resolvers/zod";
 import { z } from "zod";
 import { useMutation, useQuery } from "@tanstack/react-query";
 import { motion } from "framer-motion";
-import { Loader2, ShoppingCart, Link, Copy, X, Home, Plus, Trash2, Package, Palette, Eye, Image, FileText, Shirt, Bell } from "lucide-react";
+import { Loader2, ShoppingCart, Link, Copy, X, Home, Plus, Trash2, Package, Palette, Eye, Image, FileText, Shirt, Bell, ChevronDown, ChevronUp } from "lucide-react";
 
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { CSVPreview } from "@/components/CSVPreview";
 import { CSVDrawerPreview } from "@/components/CSVDrawerPreview";
+import * as Collapsible from "@radix-ui/react-collapsible";
 
 import { toast } from "@/hooks/use-toast";
 import { useLocation } from "wouter";
@@ -81,6 +82,7 @@ function ScraperPage() {
   const [csvPreviews, setCsvPreviews] = useState<any[]>([]);
   const [individualTags, setIndividualTags] = useState<{[key: string]: string[]}>({});
   const [extractAllColors, setExtractAllColors] = useState(false);
+  const [isVariantsOpen, setIsVariantsOpen] = useState(false);
   const isMobile = useIsMobile();
   
   const singleForm = useForm<ScrapeFormData>({
@@ -1455,6 +1457,125 @@ ${data.title.toLowerCase().replace(/[^a-z0-9]/g, '-')},${data.title},${data.bran
                               })}
                             </div>
                           </div>
+                        )}
+
+                        {/* Varyant Seçenekleri - Collapsible Drawer */}
+                        {product.variants && (product.variants.colors?.length > 0 || product.variants.sizes?.length > 0) && (
+                          <Collapsible.Root 
+                            open={isVariantsOpen} 
+                            onOpenChange={setIsVariantsOpen}
+                            className="space-y-2 mt-4"
+                          >
+                            <Collapsible.Trigger asChild>
+                              <button
+                                className="w-full flex items-center justify-between p-3 bg-gradient-to-r from-purple-900/30 to-indigo-900/30 hover:from-purple-800/40 hover:to-indigo-800/40 border border-purple-500/30 hover:border-purple-500/50 rounded-lg transition-all group"
+                                data-testid="button-toggle-variants"
+                              >
+                                <div className="flex items-center gap-2">
+                                  <Palette className="w-4 h-4 text-purple-400" />
+                                  <span className="text-purple-200 text-sm font-medium">
+                                    Varyant Seçenekleri
+                                  </span>
+                                  {product.variants.allVariants && (
+                                    <span className="bg-purple-500/20 text-purple-300 px-2 py-0.5 rounded text-xs">
+                                      {product.variants.allVariants.length}
+                                    </span>
+                                  )}
+                                </div>
+                                {isVariantsOpen ? (
+                                  <ChevronUp className="w-4 h-4 text-purple-400 group-hover:text-purple-300 transition-colors" />
+                                ) : (
+                                  <ChevronDown className="w-4 h-4 text-purple-400 group-hover:text-purple-300 transition-colors" />
+                                )}
+                              </button>
+                            </Collapsible.Trigger>
+
+                            <Collapsible.Content className="overflow-hidden data-[state=open]:animate-in data-[state=closed]:animate-out data-[state=closed]:fade-out-0 data-[state=open]:fade-in-0 data-[state=closed]:slide-out-to-top-2 data-[state=open]:slide-in-from-top-2">
+                              <div className="bg-gradient-to-br from-purple-900/20 to-indigo-900/20 border border-purple-500/20 rounded-lg p-4 space-y-4">
+                                
+                                {/* Renk Bazlı Beden Detayları */}
+                                {product.variants.colors && product.variants.colors.length > 0 && product.variants.allVariants && (
+                                  <div className="space-y-2">
+                                    {product.variants.colors.map((color, colorIndex) => {
+                                      const colorVariants = product.variants.allVariants?.filter(v => v.color === color) || [];
+                                      const inStockSizes = colorVariants.filter(v => v.inStock).map(v => v.size);
+                                      const outOfStockSizes = colorVariants.filter(v => !v.inStock).map(v => v.size);
+                                      const hasAnyStock = inStockSizes.length > 0;
+                                      
+                                      return (
+                                        <div 
+                                          key={colorIndex}
+                                          className={`
+                                            rounded-lg border p-2 transition-all
+                                            ${hasAnyStock 
+                                              ? 'bg-purple-800/10 border-purple-500/30' 
+                                              : 'bg-slate-700/10 border-slate-600/20 opacity-60'
+                                            }
+                                          `}
+                                          data-testid={`drawer-color-${colorIndex}`}
+                                        >
+                                          {/* Renk Başlığı */}
+                                          <div className="flex items-center gap-2 mb-1.5">
+                                            <div className={`w-3 h-3 rounded-full ${
+                                              hasAnyStock 
+                                                ? 'bg-gradient-to-br from-purple-400 to-pink-400' 
+                                                : 'bg-slate-500'
+                                            }`}></div>
+                                            <span className={`font-medium text-xs ${
+                                              hasAnyStock ? 'text-purple-200' : 'text-slate-400'
+                                            }`}>
+                                              {color}
+                                            </span>
+                                            <span className="text-xs text-slate-400">
+                                              ({inStockSizes.length}/{colorVariants.length})
+                                            </span>
+                                          </div>
+                                          
+                                          {/* Bedenler */}
+                                          <div className="flex flex-wrap gap-1 ml-5">
+                                            {inStockSizes.map((size, idx) => (
+                                              <span
+                                                key={`in-${idx}`}
+                                                className="bg-green-900/40 border border-green-600/50 text-green-200 px-1.5 py-0.5 rounded text-xs flex items-center gap-0.5"
+                                                data-testid={`drawer-size-in-${colorIndex}-${idx}`}
+                                              >
+                                                <span className="text-green-400 text-xs">✓</span>
+                                                {size}
+                                              </span>
+                                            ))}
+                                            {outOfStockSizes.map((size, idx) => (
+                                              <span
+                                                key={`out-${idx}`}
+                                                className="bg-slate-700/40 border border-slate-600/50 text-slate-400 px-1.5 py-0.5 rounded text-xs flex items-center gap-0.5 opacity-50"
+                                                data-testid={`drawer-size-out-${colorIndex}-${idx}`}
+                                              >
+                                                <span className="text-slate-500 text-xs">✗</span>
+                                                {size}
+                                              </span>
+                                            ))}
+                                          </div>
+                                        </div>
+                                      );
+                                    })}
+                                  </div>
+                                )}
+
+                                {/* Özet */}
+                                {product.stockAnalysis && (
+                                  <div className="flex items-center justify-between pt-2 border-t border-purple-500/20 text-xs">
+                                    <div className="flex items-center gap-2">
+                                      <span className="text-green-300">✓ {product.stockAnalysis.inStockVariants} Stokta</span>
+                                      <span className="text-slate-400">•</span>
+                                      <span className="text-red-300">✗ {product.stockAnalysis.outOfStockVariants} Tükendi</span>
+                                    </div>
+                                    <span className="text-slate-400">
+                                      Toplam: {product.stockAnalysis.totalVariants}
+                                    </span>
+                                  </div>
+                                )}
+                              </div>
+                            </Collapsible.Content>
+                          </Collapsible.Root>
                         )}
                       </>
                     )}

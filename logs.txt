@@ -15720,3 +15720,619 @@ Details:
   - Variants Removed: 0
   - Product Archived: false
 ---
+
+[2025-11-01T09:24:20.925Z] SYNC AUDIT
+Product ID: 100
+Product: ETHIQUET Barry Kadın Regular Fit Normal Kalıp Pamuklu Dantel Detalı Ince Askılı Oyuk Yaka Siyah Atlet
+Success: true
+Changes: 0
+Errors: 0
+Details:
+  - Price Updates: 0
+  - Stock Updates: 0
+  - Variants Added: 0
+  - Variants Removed: 0
+  - Product Archived: false
+---
+
+[2025-11-01T09:25:04.208Z] SYNC AUDIT
+Product ID: 111
+Product: Tudors Unisex Relax Fit Rahat Kesim Pamuklu Içi Polarlı Yarım Fermuarlı Bordo Dik Yaka Sweatshirt
+Success: true
+Changes: 0
+Errors: 0
+Details:
+  - Price Updates: 0
+  - Stock Updates: 0
+  - Variants Added: 0
+  - Variants Removed: 0
+  - Product Archived: false
+---
+
+[2025-11-01T09:25:46.220Z] SYNC AUDIT
+Product ID: 105
+Product: GRIMELANGE Lagertha Kadın %100 Organik Pamuklu Kalın Dokulu Oversize Fit Yuvarlak Yakalı Beyaz T-shirt
+Success: true
+Changes: 0
+Errors: 0
+Details:
+  - Price Updates: 0
+  - Stock Updates: 0
+  - Variants Added: 0
+  - Variants Removed: 0
+  - Product Archived: false
+---
+
+[2025-11-01T09:26:52.288Z] SYNC AUDIT
+Product ID: 99
+Product: dokuru İncir Kuru Meyve Cipsi - Dondurularak Kurutulmuş Freeze Dried Çıtır İncir
+Success: true
+Changes: 0
+Errors: 0
+Details:
+  - Price Updates: 0
+  - Stock Updates: 0
+  - Variants Added: 0
+  - Variants Removed: 0
+  - Product Archived: false
+---
+
+[2025-11-01T09:27:24.563Z] SYNC AUDIT
+Product ID: 108
+Product: kitchen trend 3 Lü (51, 37, 30 CM) Ahşap Kulplu Metal Tepsi Çay Tepsisi Kahve Tepsisi Sunum Tepsi Seti
+Success: true
+Changes: 0
+Errors: 0
+Details:
+  - Price Updates: 0
+  - Stock Updates: 0
+  - Variants Added: 0
+  - Variants Removed: 0
+  - Product Archived: false
+---
+
+[2025-11-01T09:27:46.476Z] SYNC AUDIT
+Product ID: 102
+Product: GRIMELANGE Lagertha Kadın %100 Organik Pamuklu Kalın Dokulu Oversize Fit Yuvarlak Yakalı Beyaz T-shirt
+Success: true
+Changes: 0
+Errors: 0
+Details:
+  - Price Updates: 0
+  - Stock Updates: 0
+  - Variants Added: 0
+  - Variants Removed: 0
+  - Product Archived: false
+---
+
+[2025-11-01T09:27:59.508Z] SYNC AUDIT
+Product ID: 103
+Product: KidHug Aslan Peluş Çocuk Sırt Çantası – 27 Cm - Yumuşacık - Unisex Erkek-kız Anaokul & Kreş & Okul Öncesi
+Success: true
+Changes: 0
+Errors: 0
+Details:
+  - Price Updates: 0
+  - Stock Updates: 0
+  - Variants Added: 0
+  - Variants Removed: 0
+  - Product Archived: false
+---
+
+[2025-11-01T09:28:16.695Z] SYNC AUDIT
+Product ID: 107
+Product: kitchen trend 3 Lü (51, 37, 30 CM) Ahşap Kulplu Metal Tepsi Çay Tepsisi Kahve Tepsisi Sunum Tepsi Seti
+Success: true
+Changes: 0
+Errors: 0
+Details:
+  - Price Updates: 0
+  - Stock Updates: 0
+  - Variants Added: 0
+  - Variants Removed: 0
+  - Product Archived: false
+---
+
+[2025-11-01T09:28:31.994Z] SYNC AUDIT
+Product ID: 104
+Product: KidHug Aslan Peluş Çocuk Sırt Çantası – 27 Cm - Yumuşacık - Unisex Erkek-kız Anaokul & Kreş & Okul Öncesi
+Success: true
+Changes: 0
+Errors: 0
+Details:
+  - Price Updates: 0
+  - Stock Updates: 0
+  - Variants Added: 0
+  - Variants Removed: 0
+  - Product Archived: false
+---
+
+[2025-11-01T09:29:13.389Z] SYNC AUDIT
+Product ID: 100
+Product: ETHIQUET Barry Kadın Regular Fit Normal Kalıp Pamuklu Dantel Detalı Ince Askılı Oyuk Yaka Siyah Atlet
+Success: true
+Changes: 0
+Errors: 0
+Details:
+  - Price Updates: 0
+  - Stock Updates: 0
+  - Variants Added: 0
+  - Variants Removed: 0
+  - Product Archived: false
+---
+
+[2025-11-01T09:29:55.211Z] SYNC AUDIT
+Product ID: 111
+Product: Tudors Unisex Relax Fit Rahat Kesim Pamuklu Içi Polarlı Yarım Fermuarlı Bordo Dik Yaka Sweatshirt
+Success: true
+Changes: 0
+Errors: 0
+Details:
+  - Price Updates: 0
+  - Stock Updates: 0
+  - Variants Added: 0
+  - Variants Removed: 0
+  - Product Archived: false
+---
+
+[2025-11-01T09:30:38.107Z] SYNC AUDIT
+Product ID: 105
+Product: GRIMELANGE Lagertha Kadın %100 Organik Pamuklu Kalın Dokulu Oversize Fit Yuvarlak Yakalı Beyaz T-shirt
+Success: true
+Changes: 0
+Errors: 0
+Details:
+  - Price Updates: 0
+  - Stock Updates: 0
+  - Variants Added: 0
+  - Variants Removed: 0
+  - Product Archived: false
+---
+
+[2025-11-01T09:31:35.493Z] SYNC AUDIT
+Product ID: 99
+Product: dokuru İncir Kuru Meyve Cipsi - Dondurularak Kurutulmuş Freeze Dried Çıtır İncir
+Success: true
+Changes: 0
+Errors: 0
+Details:
+  - Price Updates: 0
+  - Stock Updates: 0
+  - Variants Added: 0
+  - Variants Removed: 0
+  - Product Archived: false
+---
+
+[2025-11-01T09:32:31.010Z] SYNC AUDIT
+Product ID: 102
+Product: GRIMELANGE Lagertha Kadın %100 Organik Pamuklu Kalın Dokulu Oversize Fit Yuvarlak Yakalı Beyaz T-shirt
+Success: true
+Changes: 0
+Errors: 0
+Details:
+  - Price Updates: 0
+  - Stock Updates: 0
+  - Variants Added: 0
+  - Variants Removed: 0
+  - Product Archived: false
+---
+
+[2025-11-01T09:32:56.854Z] SYNC AUDIT
+Product ID: 108
+Product: kitchen trend 3 Lü (51, 37, 30 CM) Ahşap Kulplu Metal Tepsi Çay Tepsisi Kahve Tepsisi Sunum Tepsi Seti
+Success: true
+Changes: 0
+Errors: 0
+Details:
+  - Price Updates: 0
+  - Stock Updates: 0
+  - Variants Added: 0
+  - Variants Removed: 0
+  - Product Archived: false
+---
+
+[2025-11-01T09:33:02.472Z] SYNC AUDIT
+Product ID: 107
+Product: kitchen trend 3 Lü (51, 37, 30 CM) Ahşap Kulplu Metal Tepsi Çay Tepsisi Kahve Tepsisi Sunum Tepsi Seti
+Success: true
+Changes: 0
+Errors: 0
+Details:
+  - Price Updates: 0
+  - Stock Updates: 0
+  - Variants Added: 0
+  - Variants Removed: 0
+  - Product Archived: false
+---
+
+[2025-11-01T09:33:29.948Z] SYNC AUDIT
+Product ID: 104
+Product: KidHug Aslan Peluş Çocuk Sırt Çantası – 27 Cm - Yumuşacık - Unisex Erkek-kız Anaokul & Kreş & Okul Öncesi
+Success: true
+Changes: 0
+Errors: 0
+Details:
+  - Price Updates: 0
+  - Stock Updates: 0
+  - Variants Added: 0
+  - Variants Removed: 0
+  - Product Archived: false
+---
+
+[2025-11-01T09:34:02.602Z] SYNC AUDIT
+Product ID: 103
+Product: KidHug Aslan Peluş Çocuk Sırt Çantası – 27 Cm - Yumuşacık - Unisex Erkek-kız Anaokul & Kreş & Okul Öncesi
+Success: true
+Changes: 0
+Errors: 0
+Details:
+  - Price Updates: 0
+  - Stock Updates: 0
+  - Variants Added: 0
+  - Variants Removed: 0
+  - Product Archived: false
+---
+
+[2025-11-01T09:34:43.381Z] SYNC AUDIT
+Product ID: 100
+Product: ETHIQUET Barry Kadın Regular Fit Normal Kalıp Pamuklu Dantel Detalı Ince Askılı Oyuk Yaka Siyah Atlet
+Success: true
+Changes: 0
+Errors: 0
+Details:
+  - Price Updates: 0
+  - Stock Updates: 0
+  - Variants Added: 0
+  - Variants Removed: 0
+  - Product Archived: false
+---
+
+[2025-11-01T09:35:23.889Z] SYNC AUDIT
+Product ID: 111
+Product: Tudors Unisex Relax Fit Rahat Kesim Pamuklu Içi Polarlı Yarım Fermuarlı Bordo Dik Yaka Sweatshirt
+Success: true
+Changes: 0
+Errors: 0
+Details:
+  - Price Updates: 0
+  - Stock Updates: 0
+  - Variants Added: 0
+  - Variants Removed: 0
+  - Product Archived: false
+---
+
+[2025-11-01T09:36:03.652Z] SYNC AUDIT
+Product ID: 105
+Product: GRIMELANGE Lagertha Kadın %100 Organik Pamuklu Kalın Dokulu Oversize Fit Yuvarlak Yakalı Beyaz T-shirt
+Success: true
+Changes: 0
+Errors: 0
+Details:
+  - Price Updates: 0
+  - Stock Updates: 0
+  - Variants Added: 0
+  - Variants Removed: 0
+  - Product Archived: false
+---
+
+[2025-11-01T09:37:06.421Z] SYNC AUDIT
+Product ID: 99
+Product: dokuru İncir Kuru Meyve Cipsi - Dondurularak Kurutulmuş Freeze Dried Çıtır İncir
+Success: true
+Changes: 0
+Errors: 0
+Details:
+  - Price Updates: 0
+  - Stock Updates: 0
+  - Variants Added: 0
+  - Variants Removed: 0
+  - Product Archived: false
+---
+
+[2025-11-01T09:37:26.050Z] SYNC AUDIT
+Product ID: 108
+Product: kitchen trend 3 Lü (51, 37, 30 CM) Ahşap Kulplu Metal Tepsi Çay Tepsisi Kahve Tepsisi Sunum Tepsi Seti
+Success: true
+Changes: 0
+Errors: 0
+Details:
+  - Price Updates: 0
+  - Stock Updates: 0
+  - Variants Added: 0
+  - Variants Removed: 0
+  - Product Archived: false
+---
+
+[2025-11-01T11:00:37.999Z] SYNC AUDIT
+Product ID: 108
+Product: kitchen trend 3 Lü (51, 37, 30 CM) Ahşap Kulplu Metal Tepsi Çay Tepsisi Kahve Tepsisi Sunum Tepsi Seti
+Success: true
+Changes: 0
+Errors: 0
+Details:
+  - Price Updates: 0
+  - Stock Updates: 0
+  - Variants Added: 0
+  - Variants Removed: 0
+  - Product Archived: false
+---
+
+[2025-11-01T11:01:34.682Z] SYNC AUDIT
+Product ID: 99
+Product: dokuru İncir Kuru Meyve Cipsi - Dondurularak Kurutulmuş Freeze Dried Çıtır İncir
+Success: true
+Changes: 0
+Errors: 0
+Details:
+  - Price Updates: 0
+  - Stock Updates: 0
+  - Variants Added: 0
+  - Variants Removed: 0
+  - Product Archived: false
+---
+
+[2025-11-01T11:02:07.390Z] SYNC AUDIT
+Product ID: 103
+Product: KidHug Aslan Peluş Çocuk Sırt Çantası – 27 Cm - Yumuşacık - Unisex Erkek-kız Anaokul & Kreş & Okul Öncesi
+Success: true
+Changes: 0
+Errors: 0
+Details:
+  - Price Updates: 0
+  - Stock Updates: 0
+  - Variants Added: 0
+  - Variants Removed: 0
+  - Product Archived: false
+---
+
+[2025-11-01T11:02:37.739Z] SYNC AUDIT
+Product ID: 104
+Product: KidHug Aslan Peluş Çocuk Sırt Çantası – 27 Cm - Yumuşacık - Unisex Erkek-kız Anaokul & Kreş & Okul Öncesi
+Success: true
+Changes: 0
+Errors: 0
+Details:
+  - Price Updates: 0
+  - Stock Updates: 0
+  - Variants Added: 0
+  - Variants Removed: 0
+  - Product Archived: false
+---
+
+[2025-11-01T11:03:18.165Z] SYNC AUDIT
+Product ID: 100
+Product: ETHIQUET Barry Kadın Regular Fit Normal Kalıp Pamuklu Dantel Detalı Ince Askılı Oyuk Yaka Siyah Atlet
+Success: true
+Changes: 0
+Errors: 0
+Details:
+  - Price Updates: 0
+  - Stock Updates: 0
+  - Variants Added: 0
+  - Variants Removed: 0
+  - Product Archived: false
+---
+
+[2025-11-01T11:03:58.300Z] SYNC AUDIT
+Product ID: 111
+Product: Tudors Unisex Relax Fit Rahat Kesim Pamuklu Içi Polarlı Yarım Fermuarlı Bordo Dik Yaka Sweatshirt
+Success: true
+Changes: 0
+Errors: 0
+Details:
+  - Price Updates: 0
+  - Stock Updates: 0
+  - Variants Added: 0
+  - Variants Removed: 0
+  - Product Archived: false
+---
+
+[2025-11-01T11:04:36.935Z] SYNC AUDIT
+Product ID: 105
+Product: GRIMELANGE Lagertha Kadın %100 Organik Pamuklu Kalın Dokulu Oversize Fit Yuvarlak Yakalı Beyaz T-shirt
+Success: true
+Changes: 0
+Errors: 0
+Details:
+  - Price Updates: 0
+  - Stock Updates: 0
+  - Variants Added: 0
+  - Variants Removed: 0
+  - Product Archived: false
+---
+
+[2025-11-01T11:05:14.879Z] SYNC AUDIT
+Product ID: 102
+Product: GRIMELANGE Lagertha Kadın %100 Organik Pamuklu Kalın Dokulu Oversize Fit Yuvarlak Yakalı Beyaz T-shirt
+Success: true
+Changes: 0
+Errors: 0
+Details:
+  - Price Updates: 0
+  - Stock Updates: 0
+  - Variants Added: 0
+  - Variants Removed: 0
+  - Product Archived: false
+---
+
+[2025-11-01T11:05:49.988Z] SYNC AUDIT
+Product ID: 107
+Product: kitchen trend 3 Lü (51, 37, 30 CM) Ahşap Kulplu Metal Tepsi Çay Tepsisi Kahve Tepsisi Sunum Tepsi Seti
+Success: true
+Changes: 0
+Errors: 0
+Details:
+  - Price Updates: 0
+  - Stock Updates: 0
+  - Variants Added: 0
+  - Variants Removed: 0
+  - Product Archived: false
+---
+
+[2025-11-01T11:05:58.373Z] SYNC AUDIT
+Product ID: 108
+Product: kitchen trend 3 Lü (51, 37, 30 CM) Ahşap Kulplu Metal Tepsi Çay Tepsisi Kahve Tepsisi Sunum Tepsi Seti
+Success: true
+Changes: 0
+Errors: 0
+Details:
+  - Price Updates: 0
+  - Stock Updates: 0
+  - Variants Added: 0
+  - Variants Removed: 0
+  - Product Archived: false
+---
+
+[2025-11-01T11:06:58.221Z] SYNC AUDIT
+Product ID: 103
+Product: KidHug Aslan Peluş Çocuk Sırt Çantası – 27 Cm - Yumuşacık - Unisex Erkek-kız Anaokul & Kreş & Okul Öncesi
+Success: true
+Changes: 0
+Errors: 0
+Details:
+  - Price Updates: 0
+  - Stock Updates: 0
+  - Variants Added: 0
+  - Variants Removed: 0
+  - Product Archived: false
+---
+
+[2025-11-01T11:07:34.592Z] SYNC AUDIT
+Product ID: 99
+Product: dokuru İncir Kuru Meyve Cipsi - Dondurularak Kurutulmuş Freeze Dried Çıtır İncir
+Success: true
+Changes: 0
+Errors: 0
+Details:
+  - Price Updates: 0
+  - Stock Updates: 0
+  - Variants Added: 0
+  - Variants Removed: 0
+  - Product Archived: false
+---
+
+[2025-11-01T11:08:07.718Z] SYNC AUDIT
+Product ID: 104
+Product: KidHug Aslan Peluş Çocuk Sırt Çantası – 27 Cm - Yumuşacık - Unisex Erkek-kız Anaokul & Kreş & Okul Öncesi
+Success: true
+Changes: 0
+Errors: 0
+Details:
+  - Price Updates: 0
+  - Stock Updates: 0
+  - Variants Added: 0
+  - Variants Removed: 0
+  - Product Archived: false
+---
+
+[2025-11-01T11:09:15.518Z] SYNC AUDIT
+Product ID: 108
+Product: kitchen trend 3 Lü (51, 37, 30 CM) Ahşap Kulplu Metal Tepsi Çay Tepsisi Kahve Tepsisi Sunum Tepsi Seti
+Success: true
+Changes: 0
+Errors: 0
+Details:
+  - Price Updates: 0
+  - Stock Updates: 0
+  - Variants Added: 0
+  - Variants Removed: 0
+  - Product Archived: false
+---
+
+[2025-11-01T11:09:46.580Z] SYNC AUDIT
+Product ID: 104
+Product: KidHug Aslan Peluş Çocuk Sırt Çantası – 27 Cm - Yumuşacık - Unisex Erkek-kız Anaokul & Kreş & Okul Öncesi
+Success: true
+Changes: 0
+Errors: 0
+Details:
+  - Price Updates: 0
+  - Stock Updates: 0
+  - Variants Added: 0
+  - Variants Removed: 0
+  - Product Archived: false
+---
+
+[2025-11-01T11:10:21.760Z] SYNC AUDIT
+Product ID: 103
+Product: KidHug Aslan Peluş Çocuk Sırt Çantası – 27 Cm - Yumuşacık - Unisex Erkek-kız Anaokul & Kreş & Okul Öncesi
+Success: true
+Changes: 0
+Errors: 0
+Details:
+  - Price Updates: 0
+  - Stock Updates: 0
+  - Variants Added: 0
+  - Variants Removed: 0
+  - Product Archived: false
+---
+
+[2025-11-01T11:10:56.438Z] SYNC AUDIT
+Product ID: 99
+Product: dokuru İncir Kuru Meyve Cipsi - Dondurularak Kurutulmuş Freeze Dried Çıtır İncir
+Success: true
+Changes: 0
+Errors: 0
+Details:
+  - Price Updates: 0
+  - Stock Updates: 0
+  - Variants Added: 0
+  - Variants Removed: 0
+  - Product Archived: false
+---
+
+[2025-11-01T11:11:43.169Z] SYNC AUDIT
+Product ID: 100
+Product: ETHIQUET Barry Kadın Regular Fit Normal Kalıp Pamuklu Dantel Detalı Ince Askılı Oyuk Yaka Siyah Atlet
+Success: true
+Changes: 0
+Errors: 0
+Details:
+  - Price Updates: 0
+  - Stock Updates: 0
+  - Variants Added: 0
+  - Variants Removed: 0
+  - Product Archived: false
+---
+
+[2025-11-01T11:12:26.481Z] SYNC AUDIT
+Product ID: 105
+Product: GRIMELANGE Lagertha Kadın %100 Organik Pamuklu Kalın Dokulu Oversize Fit Yuvarlak Yakalı Beyaz T-shirt
+Success: true
+Changes: 0
+Errors: 0
+Details:
+  - Price Updates: 0
+  - Stock Updates: 0
+  - Variants Added: 0
+  - Variants Removed: 0
+  - Product Archived: false
+---
+
+[2025-11-01T11:13:10.447Z] SYNC AUDIT
+Product ID: 111
+Product: Tudors Unisex Relax Fit Rahat Kesim Pamuklu Içi Polarlı Yarım Fermuarlı Bordo Dik Yaka Sweatshirt
+Success: true
+Changes: 0
+Errors: 0
+Details:
+  - Price Updates: 0
+  - Stock Updates: 0
+  - Variants Added: 0
+  - Variants Removed: 0
+  - Product Archived: false
+---
+
+[2025-11-01T11:14:25.453Z] SYNC AUDIT
+Product ID: 108
+Product: kitchen trend 3 Lü (51, 37, 30 CM) Ahşap Kulplu Metal Tepsi Çay Tepsisi Kahve Tepsisi Sunum Tepsi Seti
+Success: true
+Changes: 0
+Errors: 0
+Details:
+  - Price Updates: 0
+  - Stock Updates: 0
+  - Variants Added: 0
+  - Variants Removed: 0
+  - Product Archived: false
+---
