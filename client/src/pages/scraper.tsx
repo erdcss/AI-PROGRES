@@ -81,7 +81,7 @@ function ScraperPage() {
   const [isDragOver, setIsDragOver] = useState(false);
   const [csvPreviews, setCsvPreviews] = useState<any[]>([]);
   const [individualTags, setIndividualTags] = useState<{[key: string]: string[]}>({});
-  const [extractAllColors, setExtractAllColors] = useState(false);
+  const extractAllColors = true; // Always extract all colors automatically
   const [isVariantsOpen, setIsVariantsOpen] = useState(false);
   const isMobile = useIsMobile();
   
@@ -1272,31 +1272,6 @@ ${data.title.toLowerCase().replace(/[^a-z0-9]/g, '-')},${data.title},${data.bran
                         </div>
                       </div>
                     )}
-                    
-                    {/* Tüm Renkleri Çek Checkbox */}
-                    <div className="flex items-start gap-3 bg-slate-800/30 rounded-lg p-4 border border-slate-700/50">
-                      <input
-                        type="checkbox"
-                        id="extractAllColors"
-                        checked={extractAllColors}
-                        onChange={(e) => setExtractAllColors(e.target.checked)}
-                        className="mt-1 w-4 h-4 rounded border-slate-600 text-cyan-500 focus:ring-cyan-500 focus:ring-offset-0"
-                        data-testid="checkbox-extract-all-colors"
-                      />
-                      <div className="flex-1">
-                        <label 
-                          htmlFor="extractAllColors" 
-                          className="text-white font-medium text-sm cursor-pointer flex items-center gap-2"
-                        >
-                          <Palette className="w-4 h-4 text-cyan-400" />
-                          Tüm Renkleri Otomatik Çek
-                        </label>
-                        <p className="text-slate-400 text-xs mt-1">
-                          Ürünün tüm renk varyantlarını otomatik olarak bulur ve hepsini çeker. 
-                          Her renk için ayrı URL'ler taranır ve tek CSV'de birleştirilir.
-                        </p>
-                      </div>
-                    </div>
                     
                     <div className="space-y-3">
                       {draggedUrls.length > 0 ? (
