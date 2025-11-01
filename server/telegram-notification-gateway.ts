@@ -72,6 +72,18 @@ export class TelegramNotificationGateway {
       return false;
     }
 
+    // 🔥 NEW: TRIPLE-LAYER FAKE VARIANT PROTECTION
+    // Extract color/size from metadata and block fake variants BEFORE database insertion
+    if (metadata && (metadata.color || metadata.size)) {
+      const color = metadata.color || 'Unknown';
+      const size = metadata.size || 'Unknown';
+      
+      if (this.isFakeVariant(color, size)) {
+        console.log(`🚫 ULTIMATE BLOCK: Fake variant notification blocked BEFORE database - ${color} / ${size} (${type})`);
+        return false;
+      }
+    }
+
     // 3. Create unique hash for this notification
     const hash = this.createNotificationHash(message, type, productId);
 
