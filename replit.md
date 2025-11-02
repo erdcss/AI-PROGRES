@@ -31,6 +31,7 @@ The frontend features a responsive design, clear product display layouts, intera
 -   **Automated Monitoring & Tracking:** Real-time URL tracking with 5-minute price monitoring intervals, storing changes in PostgreSQL and sending deduplicated Telegram notifications for all price changes. Supports full Shopify product lifecycle tracking, including transfers and monitoring changes (price, stock, status, content, variant).
 -   **Product Features Extraction:** Improved feature extraction with additional selectors for Turkish e-commerce patterns, category detection from breadcrumbs, brand information, and product code/SKU identification.
 -   **Shopify Integration:** Ensures successful product uploads to Shopify with correct pricing, images, and variants. Metafields are added separately after initial product creation. Includes enhanced tag generation.
+-   **Telegram Image Bot:** Automatically sends all product images to a separate Telegram bot (TELEGRAM_IMAGE_BOT_TOKEN) when products are uploaded to Shopify via CSV. Images are downloaded and sent as PNG files with metadata (position, color). Supports batch processing with rate limiting and proper error handling to avoid blocking the upload flow.
 
 **System Design Choices:**
 -   **Multi-Layer Blocking:** SKU-level detection and enhanced variant extraction skip single-variant products.

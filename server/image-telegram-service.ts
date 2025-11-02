@@ -1,7 +1,7 @@
 import TelegramBot from 'node-telegram-bot-api';
 import axios from 'axios';
-import { db } from '../db';
-import { shopifySyncLogs } from '../shared/schema';
+import { db } from './db';
+import { shopifySyncLogs } from '@shared/schema';
 import { eq } from 'drizzle-orm';
 
 const TELEGRAM_IMAGE_BOT_TOKEN = process.env.TELEGRAM_IMAGE_BOT_TOKEN;
@@ -107,71 +107,4 @@ export class ImageTelegramService {
     }
   }
 
-  static async sendShopifySyncImages(
-    syncLogId: number,
-    userId: number
-  ): Promise<void> {
-    try {
-      // Get sync log details
-      const syncLog = await db.query.shopifySyncLogs.findFirst({
-        where: eq(shopifySyncLogs.id, syncLogId)
-      });
-
-      if (!syncLog) {
-        console.error('❌ Sync log not found:', syncLogId);
-        return;
-      }
-
-      if (syncLog.status !== 'success') {
-        console.log('⚠️ Sync not successful, skipping image send');
-        return;
-      }
-
-      // Parse product data from sync log
-      const productData = syncLog.productData as any;
-      if (!productData) {
-        console.log('⚠️ No product data in sync log');
-        return;
-      }
-
-      // Extract images from product data
-      const images: ProductImage[] = [];
-      
-      if (productData.images && Array.isArray(productData.images)) {
-        productData.images.forEach((img: any, index: number) => {
-          images.push({
-            url: img.src || img.url || img,
-            position: index + 1
-          });
-        });
-      }
-
-      // Also check variants for images
-      if (productData.variants && Array.isArray(productData.variants)) {
-        productData.variants.forEach((variant: any) => {
-          if (variant.image_src || variant.image) {
-            const imageUrl = variant.image_src || variant.image?.src || variant.image;
-            if (imageUrl && !images.find(img => img.url === imageUrl)) {
-              images.push({
-                url: imageUrl,
-                color: variant.option1 || variant.color
-              });
-            }
-          }
-        });
-      }
-
-      await this.sendProductImages(
-        productData.title || 'Unknown Product',
-        productData.originalUrl || '',
-        images,
-        userId,
-        syncLog.shopifyProductId?.toString()
-      );
-
-    } catch (error) {
-      console.error('❌ Error in sendShopifySyncImages:', error);
-      throw error;
-    }
-  }
 }
