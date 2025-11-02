@@ -3202,13 +3202,12 @@ ${(result.title || 'product').toLowerCase().replace(/[^a-z0-9]/g, '-')},${result
           // Send product images to Telegram
           try {
             const chatId = process.env.TELEGRAM_CHAT_ID;
-            if (chatId && req.body.productData) {
-              const productData = req.body.productData;
+            if (chatId) {
               const images = [];
               
-              // Extract images from product data
-              if (productData.images && Array.isArray(productData.images)) {
-                productData.images.forEach((img: any, index: number) => {
+              // Extract images from productData if available
+              if (req.body.productData && req.body.productData.images && Array.isArray(req.body.productData.images)) {
+                req.body.productData.images.forEach((img: any, index: number) => {
                   const imageUrl = typeof img === 'string' ? img : (img.src || img.url);
                   if (imageUrl) {
                     images.push({
@@ -3217,6 +3216,30 @@ ${(result.title || 'product').toLowerCase().replace(/[^a-z0-9]/g, '-')},${result
                     });
                   }
                 });
+              } 
+              // Fallback: Extract images from CSV content
+              else if (csvContent) {
+                const lines = csvContent.split('\n');
+                const headers = lines[0].split(',');
+                const imageColIndex = headers.findIndex(h => h.includes('Image Src'));
+                
+                if (imageColIndex !== -1) {
+                  const uniqueImages = new Set<string>();
+                  for (let i = 1; i < lines.length; i++) {
+                    const columns = lines[i].split(',');
+                    const imageUrl = columns[imageColIndex]?.trim();
+                    if (imageUrl && imageUrl.startsWith('http')) {
+                      uniqueImages.add(imageUrl);
+                    }
+                  }
+                  
+                  Array.from(uniqueImages).forEach((url, index) => {
+                    images.push({
+                      url,
+                      position: index + 1
+                    });
+                  });
+                }
               }
               
               if (images.length > 0) {
@@ -3403,36 +3426,63 @@ ${(result.title || 'product').toLowerCase().replace(/[^a-z0-9]/g, '-')},${result
         // Send product images to Telegram
         try {
           const chatId = process.env.TELEGRAM_CHAT_ID;
-          if (chatId && req.body.productData) {
-            const productData = req.body.productData;
+          if (chatId) {
             const images = [];
             
-            // Extract images from product data
-            if (productData.images && Array.isArray(productData.images)) {
-              productData.images.forEach((img: any, index: number) => {
-                const imageUrl = typeof img === 'string' ? img : (img.src || img.url);
-                if (imageUrl) {
-                  images.push({
-                    url: imageUrl,
-                    position: index + 1
-                  });
-                }
-              });
-            }
-            
-            // Also check variants for color-specific images
-            if (productData.variants?.allVariants && Array.isArray(productData.variants.allVariants)) {
-              productData.variants.allVariants.forEach((variant: any) => {
-                if (variant.image) {
-                  const imageUrl = typeof variant.image === 'string' ? variant.image : variant.image.src;
-                  if (imageUrl && !images.find(img => img.url === imageUrl)) {
+            // Extract images from productData if available
+            if (req.body.productData) {
+              const productData = req.body.productData;
+              
+              if (productData.images && Array.isArray(productData.images)) {
+                productData.images.forEach((img: any, index: number) => {
+                  const imageUrl = typeof img === 'string' ? img : (img.src || img.url);
+                  if (imageUrl) {
                     images.push({
                       url: imageUrl,
-                      color: variant.color || variant.option1
+                      position: index + 1
                     });
                   }
+                });
+              }
+              
+              // Also check variants for color-specific images
+              if (productData.variants?.allVariants && Array.isArray(productData.variants.allVariants)) {
+                productData.variants.allVariants.forEach((variant: any) => {
+                  if (variant.image) {
+                    const imageUrl = typeof variant.image === 'string' ? variant.image : variant.image.src;
+                    if (imageUrl && !images.find(img => img.url === imageUrl)) {
+                      images.push({
+                        url: imageUrl,
+                        color: variant.color || variant.option1
+                      });
+                    }
+                  }
+                });
+              }
+            } 
+            // Fallback: Extract images from CSV content
+            else if (csvContent) {
+              const lines = csvContent.split('\n');
+              const headers = lines[0].split(',');
+              const imageColIndex = headers.findIndex(h => h.includes('Image Src'));
+              
+              if (imageColIndex !== -1) {
+                const uniqueImages = new Set<string>();
+                for (let i = 1; i < lines.length; i++) {
+                  const columns = lines[i].split(',');
+                  const imageUrl = columns[imageColIndex]?.trim();
+                  if (imageUrl && imageUrl.startsWith('http')) {
+                    uniqueImages.add(imageUrl);
+                  }
                 }
-              });
+                
+                Array.from(uniqueImages).forEach((url, index) => {
+                  images.push({
+                    url,
+                    position: index + 1
+                  });
+                });
+              }
             }
             
             if (images.length > 0) {
