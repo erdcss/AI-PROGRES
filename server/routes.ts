@@ -68,6 +68,7 @@ import { memoryManager } from './memory-manager';
 import { notificationGateway } from './notification-gateway';
 import { setupAdminMemoryRoutes } from './admin-memory-routes';
 import { setupTrackingDashboardAPI } from './tracking-dashboard-api';
+import { ImageTelegramService } from './image-telegram-service';
 
 // Helper function to register product for automated tracking
 async function registerProductForTracking(
@@ -3198,6 +3199,41 @@ ${(result.title || 'product').toLowerCase().replace(/[^a-z0-9]/g, '-')},${result
             console.warn('⚠️ Tracking registration failed (non-critical):', trackingError);
           }
           
+          // Send product images to Telegram
+          try {
+            const chatId = process.env.TELEGRAM_CHAT_ID;
+            if (chatId && req.body.productData) {
+              const productData = req.body.productData;
+              const images = [];
+              
+              // Extract images from product data
+              if (productData.images && Array.isArray(productData.images)) {
+                productData.images.forEach((img: any, index: number) => {
+                  const imageUrl = typeof img === 'string' ? img : (img.src || img.url);
+                  if (imageUrl) {
+                    images.push({
+                      url: imageUrl,
+                      position: index + 1
+                    });
+                  }
+                });
+              }
+              
+              if (images.length > 0) {
+                console.log(`📸 Sending ${images.length} images to Telegram for ${productTitle}`);
+                await ImageTelegramService.sendProductImages(
+                  productTitle,
+                  req.body.sourceUrl || req.body.trendyolUrl || '',
+                  images,
+                  parseInt(chatId),
+                  uploadResult.productId
+                );
+              }
+            }
+          } catch (imageError) {
+            console.warn('⚠️ Image sending failed (non-critical):', imageError);
+          }
+          
           return res.json({
             success: true,
             productId: uploadResult.productId,
@@ -3238,6 +3274,55 @@ ${(result.title || 'product').toLowerCase().replace(/[^a-z0-9]/g, '-')},${result
             }
           } catch (trackingError) {
             console.warn('⚠️ Multi-URL Tracking registration failed (non-critical):', trackingError);
+          }
+          
+          // Send product images to Telegram
+          try {
+            const chatId = process.env.TELEGRAM_CHAT_ID;
+            if (chatId && productData) {
+              const images = [];
+              
+              // Extract images from product data
+              if (productData.images && Array.isArray(productData.images)) {
+                productData.images.forEach((img: any, index: number) => {
+                  const imageUrl = typeof img === 'string' ? img : (img.src || img.url);
+                  if (imageUrl) {
+                    images.push({
+                      url: imageUrl,
+                      position: index + 1
+                    });
+                  }
+                });
+              }
+              
+              // Also check variants for color-specific images
+              if (productData.variants?.allVariants && Array.isArray(productData.variants.allVariants)) {
+                productData.variants.allVariants.forEach((variant: any) => {
+                  if (variant.image) {
+                    const imageUrl = typeof variant.image === 'string' ? variant.image : variant.image.src;
+                    if (imageUrl && !images.find(img => img.url === imageUrl)) {
+                      images.push({
+                        url: imageUrl,
+                        color: variant.color || variant.option1
+                      });
+                    }
+                  }
+                });
+              }
+              
+              if (images.length > 0) {
+                console.log(`📸 Multi-URL: Sending ${images.length} images to Telegram for ${productData.title || productTitle}`);
+                await ImageTelegramService.sendProductImages(
+                  productData.title || productTitle || 'Unknown Product',
+                  productData.sourceUrl || productData.trendyolUrl || '',
+                  images,
+                  parseInt(chatId),
+                  uploadResult.productId
+                );
+              }
+            }
+          } catch (imageError) {
+            console.warn('⚠️ Multi-URL Image sending failed (non-critical):', imageError);
           }
           
           return res.json({
@@ -3313,6 +3398,56 @@ ${(result.title || 'product').toLowerCase().replace(/[^a-z0-9]/g, '-')},${result
           }
         } catch (trackingError) {
           console.warn('⚠️ CSV Tracking registration failed (non-critical):', trackingError);
+        }
+        
+        // Send product images to Telegram
+        try {
+          const chatId = process.env.TELEGRAM_CHAT_ID;
+          if (chatId && req.body.productData) {
+            const productData = req.body.productData;
+            const images = [];
+            
+            // Extract images from product data
+            if (productData.images && Array.isArray(productData.images)) {
+              productData.images.forEach((img: any, index: number) => {
+                const imageUrl = typeof img === 'string' ? img : (img.src || img.url);
+                if (imageUrl) {
+                  images.push({
+                    url: imageUrl,
+                    position: index + 1
+                  });
+                }
+              });
+            }
+            
+            // Also check variants for color-specific images
+            if (productData.variants?.allVariants && Array.isArray(productData.variants.allVariants)) {
+              productData.variants.allVariants.forEach((variant: any) => {
+                if (variant.image) {
+                  const imageUrl = typeof variant.image === 'string' ? variant.image : variant.image.src;
+                  if (imageUrl && !images.find(img => img.url === imageUrl)) {
+                    images.push({
+                      url: imageUrl,
+                      color: variant.color || variant.option1
+                    });
+                  }
+                }
+              });
+            }
+            
+            if (images.length > 0) {
+              console.log(`📸 CSV Upload: Sending ${images.length} images to Telegram for ${productTitle}`);
+              await ImageTelegramService.sendProductImages(
+                productTitle,
+                req.body.sourceUrl || req.body.trendyolUrl || '',
+                images,
+                parseInt(chatId),
+                uploadResult.productId
+              );
+            }
+          }
+        } catch (imageError) {
+          console.warn('⚠️ CSV Image sending failed (non-critical):', imageError);
         }
         
         return res.json({
