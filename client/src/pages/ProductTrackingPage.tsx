@@ -13,11 +13,17 @@ import {
   Play,
   Trash2,
   RefreshCw,
-  BarChart3,
   Activity,
   ShoppingCart,
   CheckCircle,
-  XCircle
+  XCircle,
+  ExternalLink,
+  AlertCircle,
+  Radio,
+  Image as ImageIcon,
+  History,
+  ArrowUpCircle,
+  ArrowDownCircle
 } from 'lucide-react';
 import { queryClient, apiRequest } from '@/lib/queryClient';
 import { useToast } from '@/hooks/use-toast';
@@ -29,33 +35,65 @@ import {
   TableHeader,
   TableRow,
 } from "@/components/ui/table";
-import { Line } from 'recharts';
-import { LineChart, XAxis, YAxis, Tooltip, ResponsiveContainer } from 'recharts';
+import { ScrollArea } from '@/components/ui/scroll-area';
+
+interface SyncStatusBadge {
+  status: string;
+  label: string;
+  color: string;
+}
+
+interface UrlTracking {
+  isTracking: boolean;
+  trackingInterval: number;
+  lastChecked: string;
+  checkCount: number;
+  status: string;
+}
+
+interface LatestActivity {
+  type: string;
+  createdAt: string;
+  details: {
+    color: string;
+    size: string;
+  };
+}
 
 interface TrackedProduct {
   id: number;
   title: string;
   brand: string;
-  currentPrice: string;
-  category: string;
+  shopifyProductId: string | null;
+  shopifyUrl: string | null;
+  shopifyStoreUrl: string | null;
   trendyolUrl: string;
-  shopifyProductId: string;
-  lastChecked: string;
-  isActive: boolean;
+  currentPrice: string;
+  originalPrice: string;
   stockStatus: string;
+  status: string;
+  isActive: boolean;
+  syncStatus: SyncStatusBadge;
+  lastSyncAt: string | null;
   createdAt: string;
-  totalVariants: number;
-  variantsInStock: number;
+  updatedAt: string;
+  variantCount: number;
+  priceChangeCount: number;
+  stockChangeCount: number;
+  urlTracking: UrlTracking | null;
+  latestActivity: LatestActivity | null;
+  images: string[];
 }
 
-interface TrackingStats {
+interface TrackingSummary {
   totalProducts: number;
-  activeTracking: number;
-  pausedTracking: number;
+  activeProducts: number;
+  pausedProducts: number;
+  outOfStockProducts: number;
+  syncedToShopify: number;
   totalVariants: number;
-  variantsInStock: number;
-  priceChangesLast24h: number;
-  stockChangesLast24h: number;
+  totalPriceChanges: number;
+  totalStockChanges: number;
 }
 
 interface ProductVariant {
@@ -101,18 +139,13 @@ interface ProductDetail {
 }
 
 export default function ProductTrackingPage() {
-  const [filter, setFilter] = useState<'all' | 'active' | 'paused'>('all');
+  const [filter, setFilter] = useState<'all' | 'active' | 'paused' | 'shopify' | 'out_of_stock'>('all');
   const [selectedProduct, setSelectedProduct] = useState<number | null>(null);
   const { toast } = useToast();
 
-  const { data: productsData, isLoading: productsLoading, refetch: refetchProducts } = useQuery({
-    queryKey: ['/api/tracking/all'],
+  const { data: trackingData, isLoading: trackingLoading, refetch: refetchTracking } = useQuery({
+    queryKey: ['/api/tracking'],
     refetchInterval: 30000
-  });
-
-  const { data: statsData, refetch: refetchStats } = useQuery({
-    queryKey: ['/api/tracking/stats'],
-    refetchInterval: 60000
   });
 
   const { data: detailData, isLoading: detailLoading } = useQuery({
@@ -121,15 +154,16 @@ export default function ProductTrackingPage() {
     refetchInterval: 15000
   });
 
-  const products: TrackedProduct[] = (productsData as any)?.products || [];
-  const stats: TrackingStats = (statsData as any)?.stats || {
+  const products: TrackedProduct[] = (trackingData as any)?.products || [];
+  const summary: TrackingSummary = (trackingData as any)?.summary || {
     totalProducts: 0,
-    activeTracking: 0,
-    pausedTracking: 0,
+    activeProducts: 0,
+    pausedProducts: 0,
+    outOfStockProducts: 0,
+    syncedToShopify: 0,
     totalVariants: 0,
-    variantsInStock: 0,
-    priceChangesLast24h: 0,
-    stockChangesLast24h: 0
+    totalPriceChanges: 0,
+    totalStockChanges: 0
   };
 
   const productDetail: ProductDetail | undefined = (detailData as any)?.product;
@@ -141,8 +175,7 @@ export default function ProductTrackingPage() {
       return await apiRequest('POST', `/api/tracking/${productId}/pause`, { pause });
     },
     onSuccess: (_, variables) => {
-      queryClient.invalidateQueries({ queryKey: ['/api/tracking/all'] });
-      queryClient.invalidateQueries({ queryKey: ['/api/tracking/stats'] });
+      queryClient.invalidateQueries({ queryKey: ['/api/tracking'] });
       if (selectedProduct === variables.productId) {
         queryClient.invalidateQueries({ queryKey: [`/api/tracking/${variables.productId}`] });
       }
@@ -158,8 +191,7 @@ export default function ProductTrackingPage() {
       return await apiRequest('DELETE', `/api/tracking/${productId}`);
     },
     onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: ['/api/tracking/all'] });
-      queryClient.invalidateQueries({ queryKey: ['/api/tracking/stats'] });
+      queryClient.invalidateQueries({ queryKey: ['/api/tracking'] });
       setSelectedProduct(null);
       toast({
         title: 'Başarılı',
@@ -169,8 +201,10 @@ export default function ProductTrackingPage() {
   });
 
   const filteredProducts = products.filter(p => {
-    if (filter === 'active') return p.isActive;
-    if (filter === 'paused') return !p.isActive;
+    if (filter === 'active') return p.status === 'active';
+    if (filter === 'paused') return p.status === 'paused';
+    if (filter === 'shopify') return p.shopifyProductId !== null;
+    if (filter === 'out_of_stock') return p.status === 'out_of_stock';
     return true;
   });
 
@@ -185,8 +219,11 @@ export default function ProductTrackingPage() {
   };
 
   const handleRefreshAll = () => {
-    refetchProducts();
-    refetchStats();
+    refetchTracking();
+    toast({
+      title: 'Yenileniyor',
+      description: 'Veriler güncelleniyor...'
+    });
   };
 
   const formatDate = (dateStr: string) => {
@@ -206,11 +243,30 @@ export default function ProductTrackingPage() {
     return `${parseFloat(price).toFixed(2)} TL`;
   };
 
-  const priceChartData = priceHistory.map(entry => ({
-    date: new Date(entry.createdAt).toLocaleDateString('tr-TR', { day: '2-digit', month: '2-digit' }),
-    price: parseFloat(entry.newPrice),
-    variant: `${entry.color} / ${entry.size}`
-  }));
+  const getSyncStatusBadge = (syncStatus: SyncStatusBadge) => {
+    const colorMap: Record<string, string> = {
+      green: 'bg-green-500 hover:bg-green-600',
+      red: 'bg-red-500 hover:bg-red-600',
+      yellow: 'bg-yellow-500 hover:bg-yellow-600'
+    };
+    
+    return (
+      <Badge className={colorMap[syncStatus.color] || 'bg-gray-500'}>
+        {syncStatus.label}
+      </Badge>
+    );
+  };
+
+  const getActivityIcon = (activityType: string) => {
+    switch (activityType) {
+      case 'variant_added': return <CheckCircle className="w-4 h-4 text-green-500" />;
+      case 'price_increase': return <ArrowUpCircle className="w-4 h-4 text-red-500" />;
+      case 'price_decrease': return <ArrowDownCircle className="w-4 h-4 text-green-500" />;
+      case 'variant_out_of_stock': return <XCircle className="w-4 h-4 text-orange-500" />;
+      case 'variant_back_in_stock': return <CheckCircle className="w-4 h-4 text-green-500" />;
+      default: return <Activity className="w-4 h-4 text-muted-foreground" />;
+    }
+  };
 
   return (
     <div className="min-h-screen bg-background p-6" data-testid="page-product-tracking">
@@ -237,45 +293,45 @@ export default function ProductTrackingPage() {
               <Package className="h-4 w-4 text-muted-foreground" />
             </CardHeader>
             <CardContent>
-              <div className="text-2xl font-bold" data-testid="text-total-products">{stats.totalProducts}</div>
+              <div className="text-2xl font-bold" data-testid="text-total-products">{summary.totalProducts}</div>
               <p className="text-xs text-muted-foreground">
-                {stats.activeTracking} aktif, {stats.pausedTracking} duraklatılmış
+                {summary.activeProducts} aktif, {summary.pausedProducts} duraklatılmış
               </p>
             </CardContent>
           </Card>
 
           <Card>
             <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-              <CardTitle className="text-sm font-medium">Toplam Varyant</CardTitle>
+              <CardTitle className="text-sm font-medium">Shopify'a Aktarılan</CardTitle>
               <ShoppingCart className="h-4 w-4 text-muted-foreground" />
             </CardHeader>
             <CardContent>
-              <div className="text-2xl font-bold" data-testid="text-total-variants">{stats.totalVariants}</div>
+              <div className="text-2xl font-bold text-green-600" data-testid="text-synced-shopify">{summary.syncedToShopify}</div>
               <p className="text-xs text-muted-foreground">
-                {stats.variantsInStock} stokta
+                {summary.totalVariants} toplam varyant
               </p>
             </CardContent>
           </Card>
 
           <Card>
             <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-              <CardTitle className="text-sm font-medium">Fiyat Değişimi (24s)</CardTitle>
+              <CardTitle className="text-sm font-medium">Fiyat Değişimi (30 gün)</CardTitle>
               <TrendingUp className="h-4 w-4 text-muted-foreground" />
             </CardHeader>
             <CardContent>
-              <div className="text-2xl font-bold" data-testid="text-price-changes-24h">{stats.priceChangesLast24h}</div>
-              <p className="text-xs text-muted-foreground">Son 24 saat</p>
+              <div className="text-2xl font-bold" data-testid="text-price-changes">{summary.totalPriceChanges}</div>
+              <p className="text-xs text-muted-foreground">Son 30 gün</p>
             </CardContent>
           </Card>
 
           <Card>
             <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-              <CardTitle className="text-sm font-medium">Stok Değişimi (24s)</CardTitle>
+              <CardTitle className="text-sm font-medium">Stok Değişimi (30 gün)</CardTitle>
               <Activity className="h-4 w-4 text-muted-foreground" />
             </CardHeader>
             <CardContent>
-              <div className="text-2xl font-bold" data-testid="text-stock-changes-24h">{stats.stockChangesLast24h}</div>
-              <p className="text-xs text-muted-foreground">Son 24 saat</p>
+              <div className="text-2xl font-bold" data-testid="text-stock-changes">{summary.totalStockChanges}</div>
+              <p className="text-xs text-muted-foreground">Son 30 gün</p>
             </CardContent>
           </Card>
         </div>
@@ -285,97 +341,195 @@ export default function ProductTrackingPage() {
             <div className="flex justify-between items-center">
               <CardTitle>Takip Edilen Ürünler</CardTitle>
               <Tabs value={filter} onValueChange={(v) => setFilter(v as any)}>
-                <TabsList>
-                  <TabsTrigger value="all" data-testid="filter-all">Tümü ({products.length})</TabsTrigger>
-                  <TabsTrigger value="active" data-testid="filter-active">Aktif ({products.filter(p => p.isActive).length})</TabsTrigger>
-                  <TabsTrigger value="paused" data-testid="filter-paused">Duraklatılmış ({products.filter(p => !p.isActive).length})</TabsTrigger>
+                <TabsList className="grid grid-cols-5 w-full max-w-2xl">
+                  <TabsTrigger value="all" data-testid="filter-all">
+                    Tümü ({products.length})
+                  </TabsTrigger>
+                  <TabsTrigger value="active" data-testid="filter-active">
+                    Aktif ({products.filter(p => p.status === 'active').length})
+                  </TabsTrigger>
+                  <TabsTrigger value="shopify" data-testid="filter-shopify">
+                    Shopify ({products.filter(p => p.shopifyProductId !== null).length})
+                  </TabsTrigger>
+                  <TabsTrigger value="out_of_stock" data-testid="filter-out-of-stock">
+                    Stok Yok ({products.filter(p => p.status === 'out_of_stock').length})
+                  </TabsTrigger>
+                  <TabsTrigger value="paused" data-testid="filter-paused">
+                    Durduruldu ({products.filter(p => p.status === 'paused').length})
+                  </TabsTrigger>
                 </TabsList>
               </Tabs>
             </div>
           </CardHeader>
           <CardContent>
-            {productsLoading ? (
+            {trackingLoading ? (
               <div className="text-center py-8">Yükleniyor...</div>
             ) : filteredProducts.length === 0 ? (
               <div className="text-center py-8 text-muted-foreground">
-                Henüz takip edilen ürün yok
+                {filter === 'all' ? 'Henüz takip edilen ürün yok' : 'Bu filtre için ürün bulunamadı'}
               </div>
             ) : (
-              <Table>
-                <TableHeader>
-                  <TableRow>
-                    <TableHead>Ürün</TableHead>
-                    <TableHead>Fiyat</TableHead>
-                    <TableHead>Varyantlar</TableHead>
-                    <TableHead>Son Kontrol</TableHead>
-                    <TableHead>Durum</TableHead>
-                    <TableHead className="text-right">İşlemler</TableHead>
-                  </TableRow>
-                </TableHeader>
-                <TableBody>
-                  {filteredProducts.map((product) => (
-                    <TableRow 
-                      key={product.id} 
-                      className="cursor-pointer hover:bg-muted/50"
-                      onClick={() => setSelectedProduct(product.id)}
-                      data-testid={`row-product-${product.id}`}
-                    >
-                      <TableCell>
-                        <div>
-                          <div className="font-medium">{product.title}</div>
-                          <div className="text-sm text-muted-foreground">{product.brand}</div>
-                        </div>
-                      </TableCell>
-                      <TableCell>{formatPrice(product.currentPrice)}</TableCell>
-                      <TableCell>
-                        <div className="text-sm">
-                          <div>{product.totalVariants} toplam</div>
-                          <div className="text-muted-foreground">{product.variantsInStock} stokta</div>
-                        </div>
-                      </TableCell>
-                      <TableCell>
-                        <div className="flex items-center gap-2">
-                          <Clock className="w-4 h-4 text-muted-foreground" />
-                          {formatDate(product.lastChecked)}
-                        </div>
-                      </TableCell>
-                      <TableCell>
-                        {product.isActive ? (
-                          <Badge className="bg-green-500" data-testid={`badge-active-${product.id}`}>
-                            <CheckCircle className="w-3 h-3 mr-1" />
-                            Aktif
-                          </Badge>
-                        ) : (
-                          <Badge variant="secondary" data-testid={`badge-paused-${product.id}`}>
-                            <Pause className="w-3 h-3 mr-1" />
-                            Duraklatılmış
-                          </Badge>
-                        )}
-                      </TableCell>
-                      <TableCell className="text-right" onClick={(e) => e.stopPropagation()}>
-                        <div className="flex justify-end gap-2">
-                          <Button
-                            size="sm"
-                            variant="outline"
-                            onClick={() => handlePauseToggle(product.id, product.isActive)}
-                            data-testid={`button-pause-${product.id}`}
-                          >
-                            {product.isActive ? <Pause className="w-4 h-4" /> : <Play className="w-4 h-4" />}
-                          </Button>
-                          <Button
-                            size="sm"
-                            variant="destructive"
-                            onClick={() => handleDelete(product.id)}
-                            data-testid={`button-delete-${product.id}`}
-                          >
-                            <Trash2 className="w-4 h-4" />
-                          </Button>
-                        </div>
-                      </TableCell>
+              <ScrollArea className="h-[600px]">
+                <Table>
+                  <TableHeader>
+                    <TableRow>
+                      <TableHead className="w-12">Görsel</TableHead>
+                      <TableHead>Ürün Bilgisi</TableHead>
+                      <TableHead>Fiyat</TableHead>
+                      <TableHead>Varyantlar</TableHead>
+                      <TableHead>Shopify</TableHead>
+                      <TableHead>URL Takip</TableHead>
+                      <TableHead>Son Aktivite</TableHead>
+                      <TableHead className="text-right">İşlemler</TableHead>
                     </TableRow>
-                  ))}
-                </TableBody>
-              </Table>
+                  </TableHeader>
+                  <TableBody>
+                    {filteredProducts.map((product) => (
+                      <TableRow 
+                        key={product.id} 
+                        className="cursor-pointer hover:bg-muted/50"
+                        onClick={() => setSelectedProduct(product.id)}
+                        data-testid={`row-product-${product.id}`}
+                      >
+                        <TableCell>
+                          {product.images.length > 0 ? (
+                            <img 
+                              src={product.images[0]} 
+                              alt={product.title}
+                              className="w-12 h-12 object-cover rounded"
+                            />
+                          ) : (
+                            <div className="w-12 h-12 bg-muted rounded flex items-center justify-center">
+                              <ImageIcon className="w-6 h-6 text-muted-foreground" />
+                            </div>
+                          )}
+                        </TableCell>
+                        <TableCell>
+                          <div>
+                            <div className="font-medium max-w-md truncate">{product.title}</div>
+                            <div className="text-sm text-muted-foreground">{product.brand}</div>
+                            <div className="flex gap-1 mt-1">
+                              {product.status === 'active' && (
+                                <Badge variant="outline" className="text-xs">
+                                  <CheckCircle className="w-3 h-3 mr-1" />
+                                  Aktif
+                                </Badge>
+                              )}
+                              {product.status === 'paused' && (
+                                <Badge variant="secondary" className="text-xs">
+                                  <Pause className="w-3 h-3 mr-1" />
+                                  Durduruldu
+                                </Badge>
+                              )}
+                              {product.status === 'out_of_stock' && (
+                                <Badge variant="destructive" className="text-xs">
+                                  <AlertCircle className="w-3 h-3 mr-1" />
+                                  Stokta Yok
+                                </Badge>
+                              )}
+                            </div>
+                          </div>
+                        </TableCell>
+                        <TableCell>
+                          <div>
+                            <div className="font-semibold">{formatPrice(product.currentPrice)}</div>
+                            {product.priceChangeCount > 0 && (
+                              <div className="text-xs text-muted-foreground mt-1">
+                                {product.priceChangeCount} değişim (30g)
+                              </div>
+                            )}
+                          </div>
+                        </TableCell>
+                        <TableCell>
+                          <div className="text-sm">
+                            <div className="font-medium">{product.variantCount} varyant</div>
+                            {product.stockChangeCount > 0 && (
+                              <div className="text-xs text-muted-foreground">
+                                {product.stockChangeCount} stok değişimi
+                              </div>
+                            )}
+                          </div>
+                        </TableCell>
+                        <TableCell>
+                          <div className="flex flex-col gap-1">
+                            {getSyncStatusBadge(product.syncStatus)}
+                            {product.shopifyProductId && (
+                              <a 
+                                href={`https://admin.shopify.com/store/${product.shopifyProductId}`}
+                                target="_blank"
+                                rel="noopener noreferrer"
+                                className="text-xs text-blue-600 hover:underline flex items-center gap-1"
+                                onClick={(e) => e.stopPropagation()}
+                              >
+                                <ExternalLink className="w-3 h-3" />
+                                Shopify'da Aç
+                              </a>
+                            )}
+                          </div>
+                        </TableCell>
+                        <TableCell>
+                          {product.urlTracking ? (
+                            <div className="text-xs">
+                              <div className="flex items-center gap-1">
+                                <Radio className="w-3 h-3 text-green-500" />
+                                <span className="font-medium">Aktif</span>
+                              </div>
+                              <div className="text-muted-foreground mt-1">
+                                {product.urlTracking.checkCount} kontrol
+                              </div>
+                              <div className="text-muted-foreground">
+                                Son: {formatDate(product.urlTracking.lastChecked)}
+                              </div>
+                            </div>
+                          ) : (
+                            <Badge variant="outline" className="text-xs">
+                              Takip Yok
+                            </Badge>
+                          )}
+                        </TableCell>
+                        <TableCell>
+                          {product.latestActivity ? (
+                            <div className="flex items-center gap-2 text-xs">
+                              {getActivityIcon(product.latestActivity.type)}
+                              <div>
+                                <div className="font-medium">{product.latestActivity.type.replace(/_/g, ' ')}</div>
+                                <div className="text-muted-foreground">
+                                  {product.latestActivity.details.color} / {product.latestActivity.details.size}
+                                </div>
+                                <div className="text-muted-foreground">
+                                  {formatDate(product.latestActivity.createdAt)}
+                                </div>
+                              </div>
+                            </div>
+                          ) : (
+                            <span className="text-xs text-muted-foreground">-</span>
+                          )}
+                        </TableCell>
+                        <TableCell className="text-right" onClick={(e) => e.stopPropagation()}>
+                          <div className="flex justify-end gap-2">
+                            <Button
+                              size="sm"
+                              variant="outline"
+                              onClick={() => handlePauseToggle(product.id, product.isActive)}
+                              data-testid={`button-pause-${product.id}`}
+                            >
+                              {product.isActive ? <Pause className="w-4 h-4" /> : <Play className="w-4 h-4" />}
+                            </Button>
+                            <Button
+                              size="sm"
+                              variant="destructive"
+                              onClick={() => handleDelete(product.id)}
+                              data-testid={`button-delete-${product.id}`}
+                            >
+                              <Trash2 className="w-4 h-4" />
+                            </Button>
+                          </div>
+                        </TableCell>
+                      </TableRow>
+                    ))}
+                  </TableBody>
+                </Table>
+              </ScrollArea>
             )}
           </CardContent>
         </Card>
@@ -456,18 +610,11 @@ export default function ProductTrackingPage() {
 
               {priceHistory.length > 0 && (
                 <div>
-                  <h3 className="font-semibold mb-3">Fiyat Geçmişi (Son 30 Gün)</h3>
-                  <div className="h-64">
-                    <ResponsiveContainer width="100%" height="100%">
-                      <LineChart data={priceChartData}>
-                        <XAxis dataKey="date" />
-                        <YAxis />
-                        <Tooltip />
-                        <Line type="monotone" dataKey="price" stroke="#8884d8" />
-                      </LineChart>
-                    </ResponsiveContainer>
-                  </div>
-                  <div className="mt-4 max-h-48 overflow-y-auto">
+                  <h3 className="font-semibold mb-3 flex items-center gap-2">
+                    <History className="w-5 h-5" />
+                    Fiyat Geçmişi (Son 30 Gün)
+                  </h3>
+                  <div className="max-h-64 overflow-y-auto">
                     <Table>
                       <TableHeader>
                         <TableRow>
@@ -479,16 +626,24 @@ export default function ProductTrackingPage() {
                         </TableRow>
                       </TableHeader>
                       <TableBody>
-                        {priceHistory.slice(0, 10).map((entry) => (
+                        {priceHistory.slice(0, 20).map((entry) => (
                           <TableRow key={entry.id}>
-                            <TableCell>{formatDate(entry.createdAt)}</TableCell>
-                            <TableCell>{entry.color} / {entry.size}</TableCell>
-                            <TableCell>{formatPrice(entry.oldPrice)}</TableCell>
-                            <TableCell>{formatPrice(entry.newPrice)}</TableCell>
+                            <TableCell className="text-xs">{formatDate(entry.createdAt)}</TableCell>
+                            <TableCell className="text-sm">{entry.color} / {entry.size}</TableCell>
+                            <TableCell className="text-sm">{formatPrice(entry.oldPrice)}</TableCell>
+                            <TableCell className="text-sm font-semibold">{formatPrice(entry.newPrice)}</TableCell>
                             <TableCell>
-                              <Badge variant={entry.changeType === 'increase' ? 'destructive' : 'default'}>
-                                {entry.changePercentage}%
-                              </Badge>
+                              {entry.changeType === 'increase' ? (
+                                <Badge variant="destructive" className="flex items-center gap-1 w-fit">
+                                  <ArrowUpCircle className="w-3 h-3" />
+                                  +{entry.changePercentage}%
+                                </Badge>
+                              ) : (
+                                <Badge className="bg-green-500 flex items-center gap-1 w-fit">
+                                  <ArrowDownCircle className="w-3 h-3" />
+                                  {entry.changePercentage}%
+                                </Badge>
+                              )}
                             </TableCell>
                           </TableRow>
                         ))}
