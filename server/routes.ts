@@ -12,7 +12,7 @@ import { instantCSVGenerator } from "./instant-csv-generator-working";
 import { getCategoryConfig } from "./category-mapping";
 import { cleanTrendyolAttributes } from "./clean-attributes";
 import { parseJsonLdProductData, generateTagsFromJsonLd } from "./json-ld-parser";
-import { products, productVariants, type InsertProduct, type InsertProductVariant, urlTracking, priceHistory, stockHistory, monitoringSchedules, shopifyTransferredProducts, shopifyMemoryProducts } from "@shared/schema";
+import { products, productVariants, type InsertProduct, type InsertProductVariant, urlTracking, priceHistory, stockHistory, monitoringSchedules, shopifyTransferredProducts, shopifyMemoryProducts, variantChanges } from "@shared/schema";
 // import { getFinalImages } from "./final-image-solution";
 import { extractVariantStockInfo } from "./advanced-size-extractor";
 import { extractFocusedData } from './focused-extractor';
@@ -5042,6 +5042,161 @@ ${(result.title || 'product').toLowerCase().replace(/[^a-z0-9]/g, '-')},${result
       res.status(500).json({
         success: false,
         error: error.message
+      });
+    }
+  });
+
+  /**
+   * GET /api/tracking - Comprehensive tracking overview with Shopify integration
+   * Returns all tracked products with Shopify status, stock info, price changes, and recent activity
+   */
+  app.get("/api/tracking", async (req, res) => {
+    try {
+      console.log('📊 Fetching comprehensive tracking data...');
+      
+      // Get all products with their variants
+      const allProducts = await db
+        .select({
+          product: products,
+          variantCount: count(productVariants.id),
+        })
+        .from(products)
+        .leftJoin(productVariants, eq(products.id, productVariants.productId))
+        .groupBy(products.id)
+        .orderBy(desc(products.createdAt));
+      
+      // Enrich each product with additional data
+      const enrichedProducts = await Promise.all(
+        allProducts.map(async ({ product, variantCount }) => {
+          // Get price change count (last 30 days)
+          const thirtyDaysAgo = new Date();
+          thirtyDaysAgo.setDate(thirtyDaysAgo.getDate() - 30);
+          
+          const priceChanges = await db
+            .select({ count: count() })
+            .from(priceHistory)
+            .innerJoin(productVariants, eq(priceHistory.variantId, productVariants.id))
+            .where(
+              and(
+                eq(productVariants.productId, product.id),
+                gte(priceHistory.createdAt, thirtyDaysAgo)
+              )
+            );
+          
+          // Get stock changes count (last 30 days)
+          const stockChanges = await db
+            .select({ count: count() })
+            .from(stockHistory)
+            .innerJoin(productVariants, eq(stockHistory.variantId, productVariants.id))
+            .where(
+              and(
+                eq(productVariants.productId, product.id),
+                gte(stockHistory.createdAt, thirtyDaysAgo)
+              )
+            );
+          
+          // Get URL tracking info
+          const urlTrackingInfo = await db
+            .select()
+            .from(urlTracking)
+            .where(eq(urlTracking.productId, product.id))
+            .limit(1);
+          
+          // Get latest variant change
+          const latestChange = await db
+            .select()
+            .from(variantChanges)
+            .where(eq(variantChanges.productId, product.id))
+            .orderBy(desc(variantChanges.createdAt))
+            .limit(1);
+          
+          // Determine overall status
+          let status = 'active';
+          if (!product.isActive) status = 'paused';
+          else if (product.stockStatus === 'out_of_stock') status = 'out_of_stock';
+          else if (product.syncStatus === 'error') status = 'error';
+          
+          // Shopify sync status badge
+          let syncStatusBadge = {
+            status: product.syncStatus || 'pending',
+            label: product.syncStatus === 'synced' ? 'Synced' : 
+                   product.syncStatus === 'error' ? 'Error' : 'Pending',
+            color: product.syncStatus === 'synced' ? 'green' : 
+                   product.syncStatus === 'error' ? 'red' : 'yellow'
+          };
+          
+          return {
+            id: product.id,
+            title: product.title,
+            brand: product.brand,
+            shopifyProductId: product.shopifyProductId,
+            shopifyUrl: product.shopifyUrl,
+            shopifyStoreUrl: product.shopifyStoreUrl,
+            trendyolUrl: product.trendyolUrl,
+            currentPrice: product.currentPrice,
+            originalPrice: product.originalPrice,
+            stockStatus: product.stockStatus,
+            status,
+            isActive: product.isActive,
+            syncStatus: syncStatusBadge,
+            lastSyncAt: product.lastSyncAt,
+            createdAt: product.createdAt,
+            updatedAt: product.updatedAt,
+            
+            // Stats
+            variantCount,
+            priceChangeCount: priceChanges[0]?.count || 0,
+            stockChangeCount: stockChanges[0]?.count || 0,
+            
+            // URL Tracking
+            urlTracking: urlTrackingInfo[0] ? {
+              isTracking: urlTrackingInfo[0].isTracking,
+              trackingInterval: urlTrackingInfo[0].trackingInterval,
+              lastChecked: urlTrackingInfo[0].lastChecked,
+              checkCount: urlTrackingInfo[0].checkCount,
+              status: urlTrackingInfo[0].status
+            } : null,
+            
+            // Latest Activity
+            latestActivity: latestChange[0] ? {
+              type: latestChange[0].changeType,
+              createdAt: latestChange[0].createdAt,
+              details: {
+                color: latestChange[0].color,
+                size: latestChange[0].size
+              }
+            } : null,
+            
+            // Images preview
+            images: product.images?.slice(0, 3) || []
+          };
+        })
+      );
+      
+      // Summary statistics
+      const summary = {
+        totalProducts: enrichedProducts.length,
+        activeProducts: enrichedProducts.filter(p => p.status === 'active').length,
+        pausedProducts: enrichedProducts.filter(p => p.status === 'paused').length,
+        outOfStockProducts: enrichedProducts.filter(p => p.status === 'out_of_stock').length,
+        syncedToShopify: enrichedProducts.filter(p => p.shopifyProductId).length,
+        totalVariants: enrichedProducts.reduce((sum, p) => sum + Number(p.variantCount), 0),
+        totalPriceChanges: enrichedProducts.reduce((sum, p) => sum + Number(p.priceChangeCount), 0),
+        totalStockChanges: enrichedProducts.reduce((sum, p) => sum + Number(p.stockChangeCount), 0)
+      };
+      
+      console.log('✅ Comprehensive tracking data fetched successfully');
+      
+      res.json({
+        success: true,
+        summary,
+        products: enrichedProducts
+      });
+    } catch (error) {
+      console.error("❌ Comprehensive tracking error:", error);
+      res.status(500).json({
+        success: false,
+        error: (error as Error).message
       });
     }
   });
