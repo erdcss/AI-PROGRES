@@ -12,7 +12,7 @@ import { instantCSVGenerator } from "./instant-csv-generator-working";
 import { getCategoryConfig } from "./category-mapping";
 import { cleanTrendyolAttributes } from "./clean-attributes";
 import { parseJsonLdProductData, generateTagsFromJsonLd } from "./json-ld-parser";
-import { products, productVariants, type InsertProduct, type InsertProductVariant, urlTracking, priceHistory, stockHistory, monitoringSchedules } from "@shared/schema";
+import { products, productVariants, type InsertProduct, type InsertProductVariant, urlTracking, priceHistory, stockHistory, monitoringSchedules, shopifyTransferredProducts, shopifyMemoryProducts } from "@shared/schema";
 // import { getFinalImages } from "./final-image-solution";
 import { extractVariantStockInfo } from "./advanced-size-extractor";
 import { extractFocusedData } from './focused-extractor';
@@ -6630,6 +6630,121 @@ ${(result.title || 'product').toLowerCase().replace(/[^a-z0-9]/g, '-')},${result
   });
 
   console.log('📊 Centralized tracking system API endpoints registered');
+
+  /**
+   * POST /api/admin/cleanup-database - Veritabanı temizleme (tek ürün dışında tümünü sil)
+   */
+  app.post('/api/admin/cleanup-database', async (req, res) => {
+    try {
+      const { keepProductTitle, adminSecret } = req.body;
+      
+      // Admin authentication
+      const expectedSecret = process.env.ADMIN_SECRET || 'repli_t_admin_2024';
+      if (adminSecret !== expectedSecret) {
+        return res.status(403).json({
+          success: false,
+          error: 'Unauthorized - Invalid admin secret'
+        });
+      }
+      
+      if (!keepProductTitle) {
+        return res.status(400).json({
+          success: false,
+          error: 'Product title is required'
+        });
+      }
+      
+      console.log('🗑️ Starting database cleanup - keeping only:', keepProductTitle);
+      
+      // Find the product to keep
+      const keepProduct = await db
+        .select()
+        .from(products)
+        .where(eq(products.title, keepProductTitle))
+        .limit(1);
+      
+      if (keepProduct.length === 0) {
+        return res.status(404).json({
+          success: false,
+          error: `Product "${keepProductTitle}" not found`
+        });
+      }
+      
+      const keepProductId = keepProduct[0].id;
+      console.log(`✅ Found product to keep: ID ${keepProductId} - "${keepProductTitle}"`);
+      
+      // Delete all products EXCEPT the one we want to keep
+      // CASCADE will handle deletion in child tables (product_variants, price_history, etc.)
+      const deletedProducts = await db
+        .delete(products)
+        .where(ne(products.id, keepProductId))
+        .returning();
+      
+      console.log(`🗑️ Deleted ${deletedProducts.length} products from products table`);
+      
+      // Also clean up other independent tables
+      // url_tracking - keep only records linked to our product
+      const deletedUrlTracking = await db
+        .delete(urlTracking)
+        .where(and(
+          ne(urlTracking.productId, keepProductId),
+          isNotNull(urlTracking.productId)
+        ))
+        .returning();
+      
+      console.log(`🗑️ Deleted ${deletedUrlTracking.length} records from url_tracking table`);
+      
+      // shopify_transferred_products - clean up
+      const deletedTransferred = await db
+        .delete(shopifyTransferredProducts)
+        .returning();
+      
+      console.log(`🗑️ Deleted ${deletedTransferred.length} records from shopify_transferred_products table`);
+      
+      // shopify_memory_products - clean up
+      const deletedMemory = await db
+        .delete(shopifyMemoryProducts)
+        .returning();
+      
+      console.log(`🗑️ Deleted ${deletedMemory.length} records from shopify_memory_products table`);
+      
+      // Verify remaining data
+      const remainingProducts = await db
+        .select({ count: count() })
+        .from(products);
+      
+      const remainingVariants = await db
+        .select({ count: count() })
+        .from(productVariants)
+        .where(eq(productVariants.productId, keepProductId));
+      
+      console.log('✅ Database cleanup completed');
+      console.log(`📊 Remaining: ${remainingProducts[0].count} product(s), ${remainingVariants[0].count} variant(s)`);
+      
+      res.json({
+        success: true,
+        message: `Database cleaned successfully. Kept only: "${keepProductTitle}"`,
+        stats: {
+          deletedProducts: deletedProducts.length,
+          deletedUrlTracking: deletedUrlTracking.length,
+          deletedTransferred: deletedTransferred.length,
+          deletedMemory: deletedMemory.length,
+          remainingProducts: remainingProducts[0].count,
+          remainingVariants: remainingVariants[0].count,
+          keptProduct: {
+            id: keepProductId,
+            title: keepProductTitle
+          }
+        }
+      });
+    } catch (error) {
+      console.error('❌ Database cleanup error:', error);
+      res.status(500).json({
+        success: false,
+        error: (error as Error).message
+      });
+    }
+  });
 
   // Clear existing product memory cache on startup
   console.log('🗑️ Clearing existing product memory cache...');
