@@ -1,4 +1,4 @@
-import { useState, useEffect } from 'react';
+import { useState } from 'react';
 import { useQuery } from '@tanstack/react-query';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
@@ -7,19 +7,13 @@ import { Badge } from '@/components/ui/badge';
 import { 
   Activity,
   Database,
-  TrendingUp,
   Package,
   Search,
   ExternalLink,
   ShoppingCart,
-  Bell,
-  CheckCircle,
-  Clock,
-  AlertCircle,
-  Shield,
-  Zap,
-  BarChart3,
-  RefreshCw
+  RefreshCw,
+  ChevronLeft,
+  ChevronRight
 } from 'lucide-react';
 import {
   Select,
@@ -59,22 +53,23 @@ interface ShopifyProduct {
 export default function MemoryTrackingPage() {
   const [searchQuery, setSearchQuery] = useState('');
   const [selectedCategory, setSelectedCategory] = useState('all');
-  const [autoRefresh, setAutoRefresh] = useState(false);
+  const [currentPage, setCurrentPage] = useState(1);
+  const itemsPerPage = 50;
   const { toast } = useToast();
 
   // Shopify ürünleri
-  const { data: shopifyData, refetch: refetchShopify } = useQuery({
-    queryKey: ['/api/memory/shopify-products', selectedCategory, searchQuery],
+  const { data: shopifyData, refetch: refetchShopify, isLoading } = useQuery({
+    queryKey: ['/api/memory/shopify-products', selectedCategory, searchQuery, currentPage],
     queryFn: async () => {
       const params = new URLSearchParams({
-        limit: '100',
+        limit: itemsPerPage.toString(),
+        offset: ((currentPage - 1) * itemsPerPage).toString(),
         category: selectedCategory,
         search: searchQuery
       });
       const res = await fetch(`/api/memory/shopify-products?${params}`);
       return res.json();
-    },
-    refetchInterval: autoRefresh ? 30000 : false
+    }
   });
 
   // Kategoriler
@@ -96,17 +91,9 @@ export default function MemoryTrackingPage() {
     refetchInterval: 30000
   });
 
-  // Sync status
-  const { data: syncStatusData } = useQuery({
-    queryKey: ['/api/memory/sync-status'],
-    queryFn: async () => {
-      const res = await fetch('/api/memory/sync-status');
-      return res.json();
-    },
-    refetchInterval: 30000
-  });
-
   const shopifyProducts: ShopifyProduct[] = shopifyData?.products || [];
+  const totalProducts = shopifyData?.pagination?.total || 0;
+  const totalPages = Math.ceil(totalProducts / itemsPerPage);
   const categories: string[] = categoriesData?.categories || [];
   const changedStats = changedData?.stats || { totalChanged: 0, priceChanged: 0, stockChanged: 0 };
 
@@ -119,18 +106,107 @@ export default function MemoryTrackingPage() {
     });
   };
 
+  // Sayfa değiştirme
+  const handlePageChange = (page: number) => {
+    if (page >= 1 && page <= totalPages) {
+      setCurrentPage(page);
+      window.scrollTo({ top: 0, behavior: 'smooth' });
+    }
+  };
+
+  // Pagination butonları
+  const renderPagination = () => {
+    const pages = [];
+    const maxVisible = 5;
+    let startPage = Math.max(1, currentPage - Math.floor(maxVisible / 2));
+    let endPage = Math.min(totalPages, startPage + maxVisible - 1);
+    
+    if (endPage - startPage + 1 < maxVisible) {
+      startPage = Math.max(1, endPage - maxVisible + 1);
+    }
+
+    for (let i = startPage; i <= endPage; i++) {
+      pages.push(i);
+    }
+
+    return (
+      <div className="flex items-center justify-center gap-2 mt-6">
+        <Button
+          variant="outline"
+          size="sm"
+          onClick={() => handlePageChange(currentPage - 1)}
+          disabled={currentPage === 1}
+          className="bg-white"
+        >
+          <ChevronLeft className="h-4 w-4" />
+        </Button>
+        
+        {startPage > 1 && (
+          <>
+            <Button
+              variant="outline"
+              size="sm"
+              onClick={() => handlePageChange(1)}
+              className="bg-white"
+            >
+              1
+            </Button>
+            {startPage > 2 && <span className="text-gray-500">...</span>}
+          </>
+        )}
+        
+        {pages.map((page) => (
+          <Button
+            key={page}
+            variant={currentPage === page ? "default" : "outline"}
+            size="sm"
+            onClick={() => handlePageChange(page)}
+            className={currentPage === page ? "bg-indigo-600 hover:bg-indigo-700 text-white" : "bg-white"}
+          >
+            {page}
+          </Button>
+        ))}
+        
+        {endPage < totalPages && (
+          <>
+            {endPage < totalPages - 1 && <span className="text-gray-500">...</span>}
+            <Button
+              variant="outline"
+              size="sm"
+              onClick={() => handlePageChange(totalPages)}
+              className="bg-white"
+            >
+              {totalPages}
+            </Button>
+          </>
+        )}
+        
+        <Button
+          variant="outline"
+          size="sm"
+          onClick={() => handlePageChange(currentPage + 1)}
+          disabled={currentPage === totalPages}
+          className="bg-white"
+        >
+          <ChevronRight className="h-4 w-4" />
+        </Button>
+      </div>
+    );
+  };
+
   return (
-    <div className="min-h-screen bg-gradient-to-br from-blue-900 via-blue-800 to-blue-900 p-6">
+    <div className="min-h-screen bg-gradient-to-br from-slate-50 to-slate-100 p-6">
       <div className="max-w-7xl mx-auto space-y-6">
         {/* Header */}
         <div className="flex justify-between items-center">
-          <div className="text-white">
-            <h1 className="text-3xl font-bold mb-2">Otomatik Takip Sistemi</h1>
-            <p className="text-blue-200">Shopify ürünlerinin analizi, takibi ve yönetimi</p>
+          <div>
+            <h1 className="text-3xl font-bold text-slate-900 mb-2">Otomatik Takip Sistemi</h1>
+            <p className="text-slate-600">Shopify ürünlerinin analizi, takibi ve yönetimi</p>
           </div>
           <Button 
             onClick={handleRefresh}
-            variant="secondary"
+            variant="outline"
+            className="bg-white hover:bg-slate-50"
             data-testid="button-refresh"
           >
             <RefreshCw className="h-4 w-4 mr-2" />
@@ -138,134 +214,79 @@ export default function MemoryTrackingPage() {
           </Button>
         </div>
 
-        {/* Ana Grid - 2 Kolon */}
-        <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
-          {/* Sol Panel - Sistem Analiz Alanı */}
-          <div className="lg:col-span-2 space-y-4">
-            {/* Otomatik Takip Sistemi Card */}
-            <Card className="bg-white/95 backdrop-blur">
-              <CardHeader>
-                <div className="flex items-center justify-between">
-                  <div className="flex items-center gap-3">
-                    <div className="p-2 bg-green-100 rounded-lg">
-                      <Activity className="h-6 w-6 text-green-600" />
-                    </div>
-                    <div>
-                      <CardTitle className="text-lg">Otomatik Takip Sistemi</CardTitle>
-                      <p className="text-sm text-muted-foreground">Ürün fiyat izleme ve Shopify senkronizasyonu</p>
-                    </div>
-                  </div>
-                  <Badge variant="default" className="bg-green-500">
-                    AKTİF
-                  </Badge>
-                </div>
-              </CardHeader>
-              <CardContent>
-                <div className="grid grid-cols-3 gap-4">
-                  <div className="text-center p-3 bg-blue-50 rounded-lg">
-                    <div className="text-2xl font-bold text-blue-600">{shopifyProducts.length}</div>
-                    <div className="text-xs text-muted-foreground">Shopify Ürünleri</div>
-                  </div>
-                  <div className="text-center p-3 bg-orange-50 rounded-lg">
-                    <div className="text-2xl font-bold text-orange-600">{changedStats.priceChanged}</div>
-                    <div className="text-xs text-muted-foreground">Fiyat Değişimi</div>
-                  </div>
-                  <div className="text-center p-3 bg-purple-50 rounded-lg">
-                    <div className="text-2xl font-bold text-purple-600">{changedStats.stockChanged}</div>
-                    <div className="text-xs text-muted-foreground">Stok Değişimi</div>
-                  </div>
-                </div>
-              </CardContent>
-            </Card>
+        {/* Stats Grid */}
+        <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+          <Card className="bg-white shadow-sm border-slate-200">
+            <CardHeader className="pb-3">
+              <div className="flex items-center justify-between">
+                <CardTitle className="text-sm font-medium text-slate-600">Shopify Ürünleri</CardTitle>
+                <Package className="h-5 w-5 text-indigo-600" />
+              </div>
+            </CardHeader>
+            <CardContent>
+              <div className="text-3xl font-bold text-slate-900">{totalProducts}</div>
+              <p className="text-xs text-slate-500 mt-1">Toplam takip edilen</p>
+            </CardContent>
+          </Card>
 
-            {/* Sistem Durumu Card */}
-            <Card className="bg-white/95 backdrop-blur">
-              <CardHeader>
-                <div className="flex items-center gap-3">
-                  <div className="p-2 bg-blue-100 rounded-lg">
-                    <Database className="h-6 w-6 text-blue-600" />
-                  </div>
-                  <div>
-                    <CardTitle className="text-lg">Sistem Durumu</CardTitle>
-                    <p className="text-sm text-muted-foreground">Anlık sistem ve veritabanı durumu</p>
-                  </div>
-                </div>
-              </CardHeader>
-              <CardContent className="space-y-3">
-                <div className="flex justify-between items-center p-3 bg-gray-50 rounded-lg">
-                  <span className="text-sm font-medium">Veritabanı Bağlantısı</span>
-                  <Badge variant="default" className="bg-green-500">Aktif</Badge>
-                </div>
-                <div className="flex justify-between items-center p-3 bg-gray-50 rounded-lg">
-                  <span className="text-sm font-medium">Shopify Senkronizasyon</span>
-                  <Badge variant="default" className="bg-green-500">Çalışıyor</Badge>
-                </div>
-                <div className="flex justify-between items-center p-3 bg-gray-50 rounded-lg">
-                  <span className="text-sm font-medium">Telegram Bildirimleri</span>
-                  <Badge variant="default" className="bg-green-500">Aktif</Badge>
-                </div>
-              </CardContent>
-            </Card>
-          </div>
+          <Card className="bg-white shadow-sm border-slate-200">
+            <CardHeader className="pb-3">
+              <div className="flex items-center justify-between">
+                <CardTitle className="text-sm font-medium text-slate-600">Fiyat Değişimi</CardTitle>
+                <Activity className="h-5 w-5 text-amber-600" />
+              </div>
+            </CardHeader>
+            <CardContent>
+              <div className="text-3xl font-bold text-slate-900">{changedStats.priceChanged}</div>
+              <p className="text-xs text-slate-500 mt-1">Son 24 saat</p>
+            </CardContent>
+          </Card>
 
-          {/* Sağ Panel - Hızlı Erişim Alanı */}
-          <div className="space-y-4">
-            <Card className="bg-white/95 backdrop-blur">
-              <CardHeader>
-                <CardTitle className="text-base">Hızlı Erişim Alanı</CardTitle>
-                <p className="text-xs text-muted-foreground">Sık kullanılan sistem araçları</p>
-              </CardHeader>
-              <CardContent className="space-y-2">
-                <Button variant="outline" className="w-full justify-start" size="sm">
-                  <Shield className="h-4 w-4 mr-2" />
-                  Replit Agent
-                </Button>
-                <Button variant="outline" className="w-full justify-start" size="sm">
-                  <AlertCircle className="h-4 w-4 mr-2" />
-                  S.O.S Kontrol
-                </Button>
-                <Button variant="outline" className="w-full justify-start" size="sm">
-                  <Clock className="h-4 w-4 mr-2" />
-                  Zamanlı Görevler
-                </Button>
-                <Button variant="outline" className="w-full justify-start" size="sm">
-                  <ShoppingCart className="h-4 w-4 mr-2" />
-                  Shopify Ürünleri
-                </Button>
-                <Button variant="outline" className="w-full justify-start" size="sm">
-                  <Bell className="h-4 w-4 mr-2" />
-                  Telegram Bildirimleri
-                </Button>
-              </CardContent>
-            </Card>
-          </div>
+          <Card className="bg-white shadow-sm border-slate-200">
+            <CardHeader className="pb-3">
+              <div className="flex items-center justify-between">
+                <CardTitle className="text-sm font-medium text-slate-600">Stok Değişimi</CardTitle>
+                <Database className="h-5 w-5 text-emerald-600" />
+              </div>
+            </CardHeader>
+            <CardContent>
+              <div className="text-3xl font-bold text-slate-900">{changedStats.stockChanged}</div>
+              <p className="text-xs text-slate-500 mt-1">Son 24 saat</p>
+            </CardContent>
+          </Card>
         </div>
 
         {/* Ürün Listesi */}
-        <Card className="bg-white/95 backdrop-blur">
+        <Card className="bg-white shadow-sm border-slate-200">
           <CardHeader>
             <div className="flex flex-col md:flex-row gap-4 items-start md:items-center justify-between">
               <div>
-                <CardTitle>Shopify Ürünleri</CardTitle>
-                <p className="text-sm text-muted-foreground">
-                  Toplam {shopifyProducts.length} ürün takip ediliyor
+                <CardTitle className="text-slate-900">Shopify Ürünleri</CardTitle>
+                <p className="text-sm text-slate-600 mt-1">
+                  Toplam {totalProducts} ürün • Sayfa {currentPage} / {totalPages}
                 </p>
               </div>
               
               <div className="flex flex-col md:flex-row gap-3 w-full md:w-auto">
                 <div className="relative flex-1 md:w-64">
-                  <Search className="absolute left-3 top-3 h-4 w-4 text-muted-foreground" />
+                  <Search className="absolute left-3 top-3 h-4 w-4 text-slate-400" />
                   <Input
                     placeholder="Ürün veya marka ara..."
                     value={searchQuery}
-                    onChange={(e) => setSearchQuery(e.target.value)}
-                    className="pl-10"
+                    onChange={(e) => {
+                      setSearchQuery(e.target.value);
+                      setCurrentPage(1);
+                    }}
+                    className="pl-10 bg-white border-slate-200"
                     data-testid="input-search"
                   />
                 </div>
                 
-                <Select value={selectedCategory} onValueChange={setSelectedCategory}>
-                  <SelectTrigger className="w-full md:w-[200px]" data-testid="select-category">
+                <Select value={selectedCategory} onValueChange={(val) => {
+                  setSelectedCategory(val);
+                  setCurrentPage(1);
+                }}>
+                  <SelectTrigger className="w-full md:w-[200px] bg-white border-slate-200" data-testid="select-category">
                     <SelectValue placeholder="Kategori Seç" />
                   </SelectTrigger>
                   <SelectContent>
@@ -281,106 +302,122 @@ export default function MemoryTrackingPage() {
             </div>
           </CardHeader>
           <CardContent>
-            {shopifyProducts.length === 0 ? (
-              <div className="flex flex-col items-center justify-center py-12 text-muted-foreground">
+            {isLoading ? (
+              <div className="flex items-center justify-center py-12">
+                <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-indigo-600"></div>
+              </div>
+            ) : shopifyProducts.length === 0 ? (
+              <div className="flex flex-col items-center justify-center py-12 text-slate-500">
                 <Package className="h-16 w-16 mb-4 opacity-50" />
                 <p className="text-lg">Henüz Shopify'da ürün yok</p>
                 <p className="text-sm">Trendyol'dan ürün ekleyerek başlayın</p>
               </div>
             ) : (
-              <div className="overflow-x-auto">
-                <Table>
-                  <TableHeader>
-                    <TableRow>
-                      <TableHead>Ürün</TableHead>
-                      <TableHead>Kategori</TableHead>
-                      <TableHead>Fiyat</TableHead>
-                      <TableHead>Varyantlar</TableHead>
-                      <TableHead>Durum</TableHead>
-                      <TableHead>Sync</TableHead>
-                      <TableHead className="text-right">İşlemler</TableHead>
-                    </TableRow>
-                  </TableHeader>
-                  <TableBody>
-                    {shopifyProducts.map((product) => (
-                      <TableRow key={product.id} data-testid={`row-product-${product.id}`}>
-                        <TableCell>
-                          <div className="flex items-center gap-3">
-                            {product.images[0] && (
-                              <img 
-                                src={product.images[0]} 
-                                alt={product.title}
-                                className="w-12 h-12 object-cover rounded"
-                              />
-                            )}
-                            <div>
-                              <div className="font-medium max-w-xs truncate">{product.title}</div>
-                              <div className="text-sm text-muted-foreground">{product.brand}</div>
+              <>
+                <div className="overflow-x-auto">
+                  <Table>
+                    <TableHeader>
+                      <TableRow className="bg-slate-50">
+                        <TableHead className="font-semibold text-slate-700">Ürün</TableHead>
+                        <TableHead className="font-semibold text-slate-700">Kategori</TableHead>
+                        <TableHead className="font-semibold text-slate-700">Fiyat</TableHead>
+                        <TableHead className="font-semibold text-slate-700">Varyantlar</TableHead>
+                        <TableHead className="font-semibold text-slate-700">Durum</TableHead>
+                        <TableHead className="font-semibold text-slate-700">Sync</TableHead>
+                        <TableHead className="text-right font-semibold text-slate-700">İşlemler</TableHead>
+                      </TableRow>
+                    </TableHeader>
+                    <TableBody>
+                      {shopifyProducts.map((product) => (
+                        <TableRow key={product.id} className="hover:bg-slate-50" data-testid={`row-product-${product.id}`}>
+                          <TableCell>
+                            <div className="flex items-center gap-3">
+                              {product.images[0] && (
+                                <img 
+                                  src={product.images[0]} 
+                                  alt={product.title}
+                                  className="w-12 h-12 object-cover rounded border border-slate-200"
+                                />
+                              )}
+                              <div>
+                                <div className="font-medium text-slate-900 max-w-xs truncate">{product.title}</div>
+                                <div className="text-sm text-slate-500">{product.brand}</div>
+                              </div>
                             </div>
-                          </div>
-                        </TableCell>
-                        <TableCell>
-                          {product.category ? (
-                            <Badge variant="outline">{product.category}</Badge>
-                          ) : (
-                            <span className="text-muted-foreground text-sm">-</span>
-                          )}
-                        </TableCell>
-                        <TableCell className="font-semibold">
-                          {parseFloat(product.currentPrice).toFixed(2)} TL
-                        </TableCell>
-                        <TableCell>
-                          <div className="flex gap-1">
-                            <Badge variant="secondary" className="text-xs">
-                              {product.colorOptions.length} Renk
+                          </TableCell>
+                          <TableCell>
+                            {product.category ? (
+                              <Badge variant="outline" className="bg-slate-50 text-slate-700 border-slate-300">
+                                {product.category}
+                              </Badge>
+                            ) : (
+                              <span className="text-slate-400 text-sm">-</span>
+                            )}
+                          </TableCell>
+                          <TableCell className="font-semibold text-slate-900">
+                            {parseFloat(product.currentPrice).toFixed(2)} TL
+                          </TableCell>
+                          <TableCell>
+                            <div className="flex gap-1">
+                              <Badge variant="secondary" className="text-xs bg-indigo-50 text-indigo-700">
+                                {product.colorOptions.length} Renk
+                              </Badge>
+                              <Badge variant="secondary" className="text-xs bg-emerald-50 text-emerald-700">
+                                {product.sizeOptions.length} Beden
+                              </Badge>
+                            </div>
+                          </TableCell>
+                          <TableCell>
+                            <Badge 
+                              variant={product.stockStatus === 'in_stock' ? 'default' : 'destructive'}
+                              className={product.stockStatus === 'in_stock' ? 'bg-emerald-500 hover:bg-emerald-600' : ''}
+                            >
+                              {product.stockStatus === 'in_stock' ? 'Stokta' : 'Yok'}
                             </Badge>
-                            <Badge variant="secondary" className="text-xs">
-                              {product.sizeOptions.length} Beden
+                          </TableCell>
+                          <TableCell>
+                            <Badge 
+                              variant={product.syncStatus === 'synced' ? 'default' : 'secondary'}
+                              className={product.syncStatus === 'synced' ? 'bg-indigo-500 hover:bg-indigo-600' : 'bg-slate-200 text-slate-700'}
+                            >
+                              {product.syncStatus}
                             </Badge>
-                          </div>
-                        </TableCell>
-                        <TableCell>
-                          <Badge 
-                            variant={product.stockStatus === 'in_stock' ? 'default' : 'destructive'}
-                          >
-                            {product.stockStatus === 'in_stock' ? 'Stokta' : 'Yok'}
-                          </Badge>
-                        </TableCell>
-                        <TableCell>
-                          <Badge 
-                            variant={product.syncStatus === 'synced' ? 'default' : 'secondary'}
-                            className={product.syncStatus === 'synced' ? 'bg-green-500' : ''}
-                          >
-                            {product.syncStatus}
-                          </Badge>
-                        </TableCell>
-                        <TableCell className="text-right">
-                          <div className="flex gap-2 justify-end">
-                            {product.shopifyUrl && (
+                          </TableCell>
+                          <TableCell className="text-right">
+                            <div className="flex gap-2 justify-end">
                               <Button
                                 variant="ghost"
                                 size="sm"
-                                onClick={() => window.open(product.shopifyUrl!, '_blank')}
-                                data-testid={`button-shopify-${product.id}`}
+                                onClick={() => window.open(product.trendyolUrl, '_blank')}
+                                className="hover:bg-amber-50 hover:text-amber-700"
+                                data-testid={`button-trendyol-${product.id}`}
+                                title="Trendyol'da Görüntüle"
                               >
-                                <ShoppingCart className="h-4 w-4" />
+                                <ExternalLink className="h-4 w-4" />
                               </Button>
-                            )}
-                            <Button
-                              variant="ghost"
-                              size="sm"
-                              onClick={() => window.open(product.trendyolUrl, '_blank')}
-                              data-testid={`button-trendyol-${product.id}`}
-                            >
-                              <ExternalLink className="h-4 w-4" />
-                            </Button>
-                          </div>
-                        </TableCell>
-                      </TableRow>
-                    ))}
-                  </TableBody>
-                </Table>
-              </div>
+                              {product.shopifyUrl && (
+                                <Button
+                                  variant="ghost"
+                                  size="sm"
+                                  onClick={() => window.open(product.shopifyUrl!, '_blank')}
+                                  className="hover:bg-emerald-50 hover:text-emerald-700"
+                                  data-testid={`button-shopify-${product.id}`}
+                                  title="Shopify'da Görüntüle"
+                                >
+                                  <ShoppingCart className="h-4 w-4" />
+                                </Button>
+                              )}
+                            </div>
+                          </TableCell>
+                        </TableRow>
+                      ))}
+                    </TableBody>
+                  </Table>
+                </div>
+                
+                {/* Pagination */}
+                {totalPages > 1 && renderPagination()}
+              </>
             )}
           </CardContent>
         </Card>
