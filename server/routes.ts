@@ -70,6 +70,7 @@ import { setupAdminMemoryRoutes } from './admin-memory-routes';
 import { setupTrackingDashboardAPI } from './tracking-dashboard-api';
 import { ImageTelegramService } from './image-telegram-service';
 import { productStatisticsService } from './product-statistics-service';
+import { aiProductStatisticsService } from './ai-product-statistics';
 
 // Helper function to register product for automated tracking
 async function registerProductForTracking(
@@ -6908,7 +6909,7 @@ ${(result.title || 'product').toLowerCase().replace(/[^a-z0-9]/g, '-')},${result
     }
   });
 
-  // Product Statistics API
+  // AI Product Statistics API - Trendyol'dan canlı veri + AI analizi
   app.get("/api/products/:id/statistics", async (req, res) => {
     try {
       const productId = parseInt(req.params.id);
@@ -6920,18 +6921,19 @@ ${(result.title || 'product').toLowerCase().replace(/[^a-z0-9]/g, '-')},${result
         });
       }
 
-      const statistics = await productStatisticsService.getProductStatistics(productId);
+      console.log(`📊 AI Product Statistics requested for ID: ${productId}`);
+      const statistics = await aiProductStatisticsService.getProductStatistics(productId);
 
       if (!statistics) {
         return res.status(404).json({
           success: false,
-          error: 'Product not found'
+          error: 'Product not found or data unavailable'
         });
       }
 
       res.json(statistics);
     } catch (error) {
-      console.error('❌ Product statistics error:', error);
+      console.error('❌ AI Product statistics error:', error);
       res.status(500).json({
         success: false,
         error: (error as Error).message

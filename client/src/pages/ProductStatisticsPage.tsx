@@ -1,4 +1,3 @@
-import { useState } from 'react';
 import { useQuery } from '@tanstack/react-query';
 import { useParams, useLocation } from 'wouter';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
@@ -10,21 +9,16 @@ import {
   TrendingDown, 
   Package, 
   BarChart3,
-  Activity,
   Sparkles,
-  Calendar,
-  DollarSign
+  DollarSign,
+  ShoppingBag,
+  Target,
+  Zap,
+  CheckCircle,
+  AlertTriangle,
+  Lightbulb,
+  Star
 } from 'lucide-react';
-import {
-  LineChart,
-  Line,
-  XAxis,
-  YAxis,
-  CartesianGrid,
-  Tooltip,
-  Legend,
-  ResponsiveContainer
-} from 'recharts';
 import {
   Table,
   TableBody,
@@ -34,67 +28,101 @@ import {
   TableRow,
 } from "@/components/ui/table";
 
-interface PriceHistory {
-  date: string;
-  price: number;
-  change: number;
-}
-
-interface VariantChange {
-  variantId: number;
+interface VariantInfo {
   color: string;
   size: string;
-  changeType: string;
-  oldValue: string;
-  newValue: string;
-  changedAt: string;
+  price: number;
+  stock: string;
+  sku: string;
 }
 
-interface AIInsights {
-  salesEstimate: string;
-  popularVariants: string[];
-  priceStrategy: string;
-  competitiveAnalysis: string;
-  recommendations: string[];
+interface AIAnalysis {
+  salesEstimate: {
+    daily: string;
+    monthly: string;
+    trend: string;
+  };
+  priceAnalysis: {
+    currentPrice: number;
+    marketPosition: string;
+    priceStrategy: string;
+    competitiveAdvantage: string;
+  };
+  variantAnalysis: {
+    totalVariants: number;
+    popularColors: string[];
+    popularSizes: string[];
+    stockStatus: string;
+    variantDiversity: string;
+  };
+  competitiveInsights: {
+    strengths: string[];
+    weaknesses: string[];
+    opportunities: string[];
+    threats: string[];
+  };
+  recommendations: {
+    pricing: string[];
+    inventory: string[];
+    marketing: string[];
+    general: string[];
+  };
 }
 
-interface ProductStatistics {
-  productId: number;
-  title: string;
-  brand: string;
-  category: string;
-  currentPrice: string;
-  priceHistory: PriceHistory[];
-  variantChanges: VariantChange[];
-  aiInsights: AIInsights | null;
+interface StatisticsResponse {
+  success: boolean;
+  productInfo: {
+    title: string;
+    brand: string;
+    category: string;
+    trendyolUrl: string;
+    currentPrice: number;
+    images: string[];
+  };
+  variants: VariantInfo[];
+  aiAnalysis: AIAnalysis | null;
 }
 
 export default function ProductStatisticsPage() {
   const { id } = useParams<{ id: string }>();
   const [, setLocation] = useLocation();
-  const [selectedPeriod, setSelectedPeriod] = useState<'7d' | '30d' | 'all'>('30d');
 
-  const { data: statistics, isLoading } = useQuery<ProductStatistics>({
+  const { data: statistics, isLoading, error } = useQuery<StatisticsResponse>({
     queryKey: ['/api/products', id, 'statistics'],
-    enabled: !!id
+    enabled: !!id,
+    retry: 1,
+    staleTime: 5 * 60 * 1000 // 5 dakika
   });
 
   if (isLoading) {
     return (
       <div className="min-h-screen business-bg p-6 flex items-center justify-center">
-        <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-indigo-400"></div>
+        <div className="text-center">
+          <div className="animate-spin rounded-full h-16 w-16 border-b-2 border-indigo-400 mx-auto mb-4"></div>
+          <p className="text-white/80 text-lg">Trendyol'dan veri çekiliyor ve AI analizi yapılıyor...</p>
+          <p className="text-white/60 text-sm mt-2">Bu işlem 10-15 saniye sürebilir</p>
+        </div>
       </div>
     );
   }
 
-  if (!statistics) {
+  if (error || !statistics || !statistics.success) {
     return (
       <div className="min-h-screen business-bg p-6">
         <div className="max-w-7xl mx-auto">
+          <Button
+            onClick={() => setLocation('/memory-tracking')}
+            className="business-button mb-6"
+            data-testid="button-back"
+          >
+            <ArrowLeft className="h-4 w-4 mr-2" />
+            Geri Dön
+          </Button>
           <Card className="business-card">
             <CardContent className="py-12 text-center">
-              <Package className="h-16 w-16 mx-auto mb-4 text-white/40" />
-              <p className="text-white/80 text-lg">Ürün bulunamadı</p>
+              <Package className="h-16 w-16 mx-auto mb-4 text-red-400" />
+              <p className="text-white/80 text-lg">Ürün verisi alınamadı</p>
+              <p className="text-white/60 text-sm mt-2">Trendyol bağlantısı kontrol ediliyor...</p>
             </CardContent>
           </Card>
         </div>
@@ -102,17 +130,7 @@ export default function ProductStatisticsPage() {
     );
   }
 
-  const filteredPriceHistory = statistics.priceHistory.filter((item) => {
-    if (selectedPeriod === 'all') return true;
-    const days = selectedPeriod === '7d' ? 7 : 30;
-    const cutoffDate = new Date();
-    cutoffDate.setDate(cutoffDate.getDate() - days);
-    return new Date(item.date) >= cutoffDate;
-  });
-
-  const priceChange = statistics.priceHistory.length > 0 
-    ? statistics.priceHistory[statistics.priceHistory.length - 1].change 
-    : 0;
+  const { productInfo, variants, aiAnalysis } = statistics;
 
   return (
     <div className="min-h-screen business-bg p-6">
@@ -129,13 +147,13 @@ export default function ProductStatisticsPage() {
               Geri
             </Button>
             <div>
-              <h1 className="text-3xl font-bold text-white">{statistics.title}</h1>
-              <p className="text-white/70 mt-1">{statistics.brand} • {statistics.category}</p>
+              <h1 className="text-3xl font-bold text-white">{productInfo.title}</h1>
+              <p className="text-white/70 mt-1">{productInfo.brand} • {productInfo.category}</p>
             </div>
           </div>
         </div>
 
-        {/* Stats Overview */}
+        {/* Ana Bilgiler */}
         <div className="grid grid-cols-1 md:grid-cols-4 gap-4">
           <Card className="business-card">
             <CardHeader className="pb-3">
@@ -145,241 +163,342 @@ export default function ProductStatisticsPage() {
               </div>
             </CardHeader>
             <CardContent>
-              <div className="text-3xl font-bold text-white">{parseFloat(statistics.currentPrice).toFixed(2)} TL</div>
+              <div className="text-3xl font-bold text-white">{productInfo.currentPrice.toFixed(2)} TL</div>
+              {aiAnalysis && (
+                <p className="text-xs text-white/60 mt-1">{aiAnalysis.priceAnalysis.marketPosition}</p>
+              )}
             </CardContent>
           </Card>
 
           <Card className="business-card">
             <CardHeader className="pb-3">
               <div className="flex items-center justify-between">
-                <CardTitle className="text-sm font-medium text-white/80">Fiyat Değişimi</CardTitle>
-                {priceChange > 0 ? (
-                  <TrendingUp className="h-5 w-5 text-emerald-400" />
-                ) : priceChange < 0 ? (
-                  <TrendingDown className="h-5 w-5 text-red-400" />
-                ) : (
-                  <Activity className="h-5 w-5 text-white/40" />
-                )}
+                <CardTitle className="text-sm font-medium text-white/80">Varyantlar</CardTitle>
+                <Package className="h-5 w-5 text-indigo-400" />
               </div>
             </CardHeader>
             <CardContent>
-              <div className={`text-3xl font-bold ${priceChange > 0 ? 'text-emerald-400' : priceChange < 0 ? 'text-red-400' : 'text-white/60'}`}>
-                {priceChange > 0 ? '+' : ''}{priceChange.toFixed(2)}%
-              </div>
-              <p className="text-xs text-white/60 mt-1">Son 30 gün</p>
+              <div className="text-3xl font-bold text-white">{variants.length}</div>
+              <p className="text-xs text-white/60 mt-1">Renk × Beden</p>
             </CardContent>
           </Card>
 
           <Card className="business-card">
             <CardHeader className="pb-3">
               <div className="flex items-center justify-between">
-                <CardTitle className="text-sm font-medium text-white/80">Fiyat Güncellemeleri</CardTitle>
-                <BarChart3 className="h-5 w-5 text-indigo-400" />
+                <CardTitle className="text-sm font-medium text-white/80">Günlük Satış</CardTitle>
+                <TrendingUp className="h-5 w-5 text-amber-400" />
               </div>
             </CardHeader>
             <CardContent>
-              <div className="text-3xl font-bold text-white">{statistics.priceHistory.length}</div>
-              <p className="text-xs text-white/60 mt-1">Toplam değişiklik</p>
+              <div className="text-2xl font-bold text-white">
+                {aiAnalysis?.salesEstimate.daily || 'N/A'}
+              </div>
+              <p className="text-xs text-white/60 mt-1">Tahmini</p>
             </CardContent>
           </Card>
 
           <Card className="business-card">
             <CardHeader className="pb-3">
               <div className="flex items-center justify-between">
-                <CardTitle className="text-sm font-medium text-white/80">Varyant Değişimi</CardTitle>
-                <Activity className="h-5 w-5 text-amber-400" />
+                <CardTitle className="text-sm font-medium text-white/80">Aylık Satış</CardTitle>
+                <BarChart3 className="h-5 w-5 text-purple-400" />
               </div>
             </CardHeader>
             <CardContent>
-              <div className="text-3xl font-bold text-white">{statistics.variantChanges.length}</div>
-              <p className="text-xs text-white/60 mt-1">Son 30 gün</p>
+              <div className="text-2xl font-bold text-white">
+                {aiAnalysis?.salesEstimate.monthly || 'N/A'}
+              </div>
+              <p className="text-xs text-white/60 mt-1">Tahmini</p>
             </CardContent>
           </Card>
         </div>
 
-        {/* Price History Chart */}
-        <Card className="business-card">
-          <CardHeader>
-            <div className="flex items-center justify-between">
-              <div>
-                <CardTitle className="text-white">Fiyat Geçmişi</CardTitle>
-                <p className="text-sm text-white/70 mt-1">Ürünün zaman içindeki fiyat değişimleri</p>
-              </div>
-              <div className="flex gap-2">
-                <Button
-                  variant={selectedPeriod === '7d' ? 'default' : 'outline'}
-                  size="sm"
-                  onClick={() => setSelectedPeriod('7d')}
-                  className={selectedPeriod === '7d' ? 'bg-indigo-600 hover:bg-indigo-700' : 'business-button'}
-                  data-testid="button-period-7d"
-                >
-                  7 Gün
-                </Button>
-                <Button
-                  variant={selectedPeriod === '30d' ? 'default' : 'outline'}
-                  size="sm"
-                  onClick={() => setSelectedPeriod('30d')}
-                  className={selectedPeriod === '30d' ? 'bg-indigo-600 hover:bg-indigo-700' : 'business-button'}
-                  data-testid="button-period-30d"
-                >
-                  30 Gün
-                </Button>
-                <Button
-                  variant={selectedPeriod === 'all' ? 'default' : 'outline'}
-                  size="sm"
-                  onClick={() => setSelectedPeriod('all')}
-                  className={selectedPeriod === 'all' ? 'bg-indigo-600 hover:bg-indigo-700' : 'business-button'}
-                  data-testid="button-period-all"
-                >
-                  Tümü
-                </Button>
-              </div>
-            </div>
-          </CardHeader>
-          <CardContent>
-            {filteredPriceHistory.length > 0 ? (
-              <ResponsiveContainer width="100%" height={300}>
-                <LineChart data={filteredPriceHistory}>
-                  <CartesianGrid strokeDasharray="3 3" stroke="rgba(255,255,255,0.1)" />
-                  <XAxis 
-                    dataKey="date" 
-                    stroke="rgba(255,255,255,0.6)"
-                    tick={{ fill: 'rgba(255,255,255,0.6)' }}
-                  />
-                  <YAxis 
-                    stroke="rgba(255,255,255,0.6)"
-                    tick={{ fill: 'rgba(255,255,255,0.6)' }}
-                  />
-                  <Tooltip 
-                    contentStyle={{ 
-                      backgroundColor: 'rgba(30, 41, 59, 0.95)', 
-                      border: '1px solid rgba(255,255,255,0.2)',
-                      borderRadius: '8px',
-                      color: '#fff'
-                    }}
-                  />
-                  <Legend wrapperStyle={{ color: 'rgba(255,255,255,0.8)' }} />
-                  <Line 
-                    type="monotone" 
-                    dataKey="price" 
-                    stroke="#6366f1" 
-                    strokeWidth={2}
-                    dot={{ fill: '#6366f1', r: 4 }}
-                    activeDot={{ r: 6 }}
-                    name="Fiyat (TL)"
-                  />
-                </LineChart>
-              </ResponsiveContainer>
-            ) : (
-              <div className="flex items-center justify-center py-12 text-white/60">
-                <p>Seçilen dönem için veri yok</p>
-              </div>
-            )}
-          </CardContent>
-        </Card>
-
-        {/* AI Insights */}
-        {statistics.aiInsights && (
+        {/* Ürün Görselleri */}
+        {productInfo.images.length > 0 && (
           <Card className="business-card">
             <CardHeader>
-              <div className="flex items-center gap-2">
-                <Sparkles className="h-6 w-6 text-purple-400" />
-                <CardTitle className="text-white">AI Analiz ve Öneriler</CardTitle>
-              </div>
-              <p className="text-sm text-white/70 mt-1">OpenAI tarafından oluşturulan satış analizi ve stratejik öneriler</p>
+              <CardTitle className="text-white">Ürün Görselleri</CardTitle>
             </CardHeader>
-            <CardContent className="space-y-6">
-              <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                <div className="bg-blue-900/20 p-4 rounded-lg border border-white/10">
-                  <h4 className="font-semibold text-white mb-2">Satış Tahmini</h4>
-                  <p className="text-white/80 text-sm">{statistics.aiInsights.salesEstimate}</p>
-                </div>
-                <div className="bg-blue-900/20 p-4 rounded-lg border border-white/10">
-                  <h4 className="font-semibold text-white mb-2">Fiyat Stratejisi</h4>
-                  <p className="text-white/80 text-sm">{statistics.aiInsights.priceStrategy}</p>
-                </div>
-              </div>
-
-              <div className="bg-blue-900/20 p-4 rounded-lg border border-white/10">
-                <h4 className="font-semibold text-white mb-2">Popüler Varyantlar</h4>
-                <div className="flex flex-wrap gap-2 mt-2">
-                  {statistics.aiInsights.popularVariants.map((variant, idx) => (
-                    <Badge key={idx} className="bg-purple-600/80 text-white">
-                      {variant}
-                    </Badge>
-                  ))}
-                </div>
-              </div>
-
-              <div className="bg-blue-900/20 p-4 rounded-lg border border-white/10">
-                <h4 className="font-semibold text-white mb-2">Rekabet Analizi</h4>
-                <p className="text-white/80 text-sm">{statistics.aiInsights.competitiveAnalysis}</p>
-              </div>
-
-              <div className="bg-blue-900/20 p-4 rounded-lg border border-white/10">
-                <h4 className="font-semibold text-white mb-3">AI Önerileri</h4>
-                <ul className="space-y-2">
-                  {statistics.aiInsights.recommendations.map((rec, idx) => (
-                    <li key={idx} className="flex items-start gap-2 text-white/80 text-sm">
-                      <span className="text-emerald-400 mt-1">•</span>
-                      <span>{rec}</span>
-                    </li>
-                  ))}
-                </ul>
+            <CardContent>
+              <div className="grid grid-cols-2 md:grid-cols-4 lg:grid-cols-6 gap-4">
+                {productInfo.images.slice(0, 12).map((img, idx) => (
+                  <img
+                    key={idx}
+                    src={img}
+                    alt={`${productInfo.title} - ${idx + 1}`}
+                    className="w-full h-32 object-cover rounded-lg border border-white/20 hover:scale-105 transition-transform cursor-pointer"
+                  />
+                ))}
               </div>
             </CardContent>
           </Card>
         )}
 
-        {/* Variant Changes */}
+        {/* Varyant Listesi */}
         <Card className="business-card">
           <CardHeader>
-            <CardTitle className="text-white">Varyant Değişiklikleri</CardTitle>
-            <p className="text-sm text-white/70 mt-1">Ürün varyantlarında yapılan güncellemeler</p>
+            <CardTitle className="text-white">Ürün Varyantları</CardTitle>
+            <p className="text-sm text-white/70 mt-1">Tüm renk ve beden kombinasyonları</p>
           </CardHeader>
           <CardContent>
-            {statistics.variantChanges.length > 0 ? (
-              <div className="overflow-x-auto">
-                <Table>
-                  <TableHeader>
-                    <TableRow className="bg-blue-900/30 border-white/10">
-                      <TableHead className="font-semibold text-white/90">Varyant</TableHead>
-                      <TableHead className="font-semibold text-white/90">Değişiklik Türü</TableHead>
-                      <TableHead className="font-semibold text-white/90">Eski Değer</TableHead>
-                      <TableHead className="font-semibold text-white/90">Yeni Değer</TableHead>
-                      <TableHead className="font-semibold text-white/90">Tarih</TableHead>
+            <div className="overflow-x-auto">
+              <Table>
+                <TableHeader>
+                  <TableRow className="bg-blue-900/30 border-white/10">
+                    <TableHead className="font-semibold text-white/90">Renk</TableHead>
+                    <TableHead className="font-semibold text-white/90">Beden</TableHead>
+                    <TableHead className="font-semibold text-white/90">Fiyat</TableHead>
+                    <TableHead className="font-semibold text-white/90">Stok</TableHead>
+                    <TableHead className="font-semibold text-white/90">SKU</TableHead>
+                  </TableRow>
+                </TableHeader>
+                <TableBody>
+                  {variants.map((variant, idx) => (
+                    <TableRow key={idx} className="hover:bg-blue-900/20 border-white/10">
+                      <TableCell className="text-white">{variant.color}</TableCell>
+                      <TableCell className="text-white">{variant.size}</TableCell>
+                      <TableCell className="text-white font-semibold">{variant.price.toFixed(2)} TL</TableCell>
+                      <TableCell>
+                        <Badge className={variant.stock === 'in_stock' ? 'bg-emerald-600' : 'bg-red-600'}>
+                          {variant.stock === 'in_stock' ? 'Stokta' : 'Yok'}
+                        </Badge>
+                      </TableCell>
+                      <TableCell className="text-white/70 text-sm">{variant.sku}</TableCell>
                     </TableRow>
-                  </TableHeader>
-                  <TableBody>
-                    {statistics.variantChanges.map((change, idx) => (
-                      <TableRow key={idx} className="hover:bg-blue-900/20 border-white/10">
-                        <TableCell className="text-white">
-                          <div className="font-medium">{change.color}</div>
-                          <div className="text-sm text-white/60">{change.size}</div>
-                        </TableCell>
-                        <TableCell>
-                          <Badge className="bg-indigo-900/40 text-indigo-200 border-indigo-400/30">
-                            {change.changeType}
-                          </Badge>
-                        </TableCell>
-                        <TableCell className="text-white/80">{change.oldValue}</TableCell>
-                        <TableCell className="text-white/80">{change.newValue}</TableCell>
-                        <TableCell className="text-white/70">
-                          {new Date(change.changedAt).toLocaleDateString('tr-TR')}
-                        </TableCell>
-                      </TableRow>
-                    ))}
-                  </TableBody>
-                </Table>
-              </div>
-            ) : (
-              <div className="flex flex-col items-center justify-center py-12 text-white/60">
-                <Calendar className="h-16 w-16 mb-4 opacity-50" />
-                <p className="text-lg">Henüz varyant değişikliği yok</p>
-              </div>
-            )}
+                  ))}
+                </TableBody>
+              </Table>
+            </div>
           </CardContent>
         </Card>
+
+        {/* AI Analizi */}
+        {aiAnalysis && (
+          <>
+            {/* Fiyat Analizi */}
+            <Card className="business-card">
+              <CardHeader>
+                <div className="flex items-center gap-2">
+                  <Sparkles className="h-6 w-6 text-purple-400" />
+                  <CardTitle className="text-white">AI Fiyat Analizi</CardTitle>
+                </div>
+              </CardHeader>
+              <CardContent>
+                <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                  <div className="bg-blue-900/20 p-4 rounded-lg border border-white/10">
+                    <h4 className="font-semibold text-white mb-2 flex items-center gap-2">
+                      <Target className="h-4 w-4" />
+                      Pazar Konumu
+                    </h4>
+                    <p className="text-white/80">{aiAnalysis.priceAnalysis.marketPosition}</p>
+                  </div>
+                  <div className="bg-blue-900/20 p-4 rounded-lg border border-white/10">
+                    <h4 className="font-semibold text-white mb-2 flex items-center gap-2">
+                      <Zap className="h-4 w-4" />
+                      Fiyat Stratejisi
+                    </h4>
+                    <p className="text-white/80">{aiAnalysis.priceAnalysis.priceStrategy}</p>
+                  </div>
+                  <div className="bg-blue-900/20 p-4 rounded-lg border border-white/10 md:col-span-2">
+                    <h4 className="font-semibold text-white mb-2 flex items-center gap-2">
+                      <Star className="h-4 w-4" />
+                      Rekabetçi Avantaj
+                    </h4>
+                    <p className="text-white/80">{aiAnalysis.priceAnalysis.competitiveAdvantage}</p>
+                  </div>
+                </div>
+              </CardContent>
+            </Card>
+
+            {/* Varyant Analizi */}
+            <Card className="business-card">
+              <CardHeader>
+                <CardTitle className="text-white">Varyant Analizi</CardTitle>
+              </CardHeader>
+              <CardContent className="space-y-4">
+                <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                  <div className="bg-blue-900/20 p-4 rounded-lg border border-white/10">
+                    <h4 className="font-semibold text-white mb-3">Popüler Renkler (Tahmini)</h4>
+                    <div className="flex flex-wrap gap-2">
+                      {aiAnalysis.variantAnalysis.popularColors.map((color, idx) => (
+                        <Badge key={idx} className="bg-purple-600/80 text-white">
+                          {color}
+                        </Badge>
+                      ))}
+                    </div>
+                  </div>
+                  <div className="bg-blue-900/20 p-4 rounded-lg border border-white/10">
+                    <h4 className="font-semibold text-white mb-3">Popüler Bedenler (Tahmini)</h4>
+                    <div className="flex flex-wrap gap-2">
+                      {aiAnalysis.variantAnalysis.popularSizes.map((size, idx) => (
+                        <Badge key={idx} className="bg-indigo-600/80 text-white">
+                          {size}
+                        </Badge>
+                      ))}
+                    </div>
+                  </div>
+                </div>
+                <div className="bg-blue-900/20 p-4 rounded-lg border border-white/10">
+                  <h4 className="font-semibold text-white mb-2">Çeşitlilik Analizi</h4>
+                  <p className="text-white/80">{aiAnalysis.variantAnalysis.variantDiversity}</p>
+                </div>
+              </CardContent>
+            </Card>
+
+            {/* SWOT Analizi */}
+            <Card className="business-card">
+              <CardHeader>
+                <CardTitle className="text-white">SWOT Analizi</CardTitle>
+                <p className="text-sm text-white/70 mt-1">Güçlü yönler, zayıf yönler, fırsatlar ve tehditler</p>
+              </CardHeader>
+              <CardContent>
+                <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                  {/* Strengths */}
+                  <div className="bg-emerald-900/20 p-4 rounded-lg border border-emerald-500/30">
+                    <h4 className="font-semibold text-white mb-3 flex items-center gap-2">
+                      <CheckCircle className="h-5 w-5 text-emerald-400" />
+                      Güçlü Yönler
+                    </h4>
+                    <ul className="space-y-2">
+                      {aiAnalysis.competitiveInsights.strengths.map((item, idx) => (
+                        <li key={idx} className="flex items-start gap-2 text-white/80 text-sm">
+                          <span className="text-emerald-400 mt-1">•</span>
+                          <span>{item}</span>
+                        </li>
+                      ))}
+                    </ul>
+                  </div>
+
+                  {/* Weaknesses */}
+                  <div className="bg-red-900/20 p-4 rounded-lg border border-red-500/30">
+                    <h4 className="font-semibold text-white mb-3 flex items-center gap-2">
+                      <AlertTriangle className="h-5 w-5 text-red-400" />
+                      Zayıf Yönler
+                    </h4>
+                    <ul className="space-y-2">
+                      {aiAnalysis.competitiveInsights.weaknesses.map((item, idx) => (
+                        <li key={idx} className="flex items-start gap-2 text-white/80 text-sm">
+                          <span className="text-red-400 mt-1">•</span>
+                          <span>{item}</span>
+                        </li>
+                      ))}
+                    </ul>
+                  </div>
+
+                  {/* Opportunities */}
+                  <div className="bg-blue-900/20 p-4 rounded-lg border border-blue-500/30">
+                    <h4 className="font-semibold text-white mb-3 flex items-center gap-2">
+                      <TrendingUp className="h-5 w-5 text-blue-400" />
+                      Fırsatlar
+                    </h4>
+                    <ul className="space-y-2">
+                      {aiAnalysis.competitiveInsights.opportunities.map((item, idx) => (
+                        <li key={idx} className="flex items-start gap-2 text-white/80 text-sm">
+                          <span className="text-blue-400 mt-1">•</span>
+                          <span>{item}</span>
+                        </li>
+                      ))}
+                    </ul>
+                  </div>
+
+                  {/* Threats */}
+                  <div className="bg-amber-900/20 p-4 rounded-lg border border-amber-500/30">
+                    <h4 className="font-semibold text-white mb-3 flex items-center gap-2">
+                      <TrendingDown className="h-5 w-5 text-amber-400" />
+                      Tehditler
+                    </h4>
+                    <ul className="space-y-2">
+                      {aiAnalysis.competitiveInsights.threats.map((item, idx) => (
+                        <li key={idx} className="flex items-start gap-2 text-white/80 text-sm">
+                          <span className="text-amber-400 mt-1">•</span>
+                          <span>{item}</span>
+                        </li>
+                      ))}
+                    </ul>
+                  </div>
+                </div>
+              </CardContent>
+            </Card>
+
+            {/* Öneriler */}
+            <Card className="business-card">
+              <CardHeader>
+                <div className="flex items-center gap-2">
+                  <Lightbulb className="h-6 w-6 text-yellow-400" />
+                  <CardTitle className="text-white">AI Önerileri ve Stratejiler</CardTitle>
+                </div>
+              </CardHeader>
+              <CardContent>
+                <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                  {/* Fiyatlandırma */}
+                  <div className="bg-blue-900/20 p-4 rounded-lg border border-white/10">
+                    <h4 className="font-semibold text-white mb-3 flex items-center gap-2">
+                      <DollarSign className="h-4 w-4" />
+                      Fiyatlandırma Önerileri
+                    </h4>
+                    <ul className="space-y-2">
+                      {aiAnalysis.recommendations.pricing.map((rec, idx) => (
+                        <li key={idx} className="flex items-start gap-2 text-white/80 text-sm">
+                          <span className="text-emerald-400 mt-1">✓</span>
+                          <span>{rec}</span>
+                        </li>
+                      ))}
+                    </ul>
+                  </div>
+
+                  {/* Envanter */}
+                  <div className="bg-blue-900/20 p-4 rounded-lg border border-white/10">
+                    <h4 className="font-semibold text-white mb-3 flex items-center gap-2">
+                      <Package className="h-4 w-4" />
+                      Envanter Yönetimi
+                    </h4>
+                    <ul className="space-y-2">
+                      {aiAnalysis.recommendations.inventory.map((rec, idx) => (
+                        <li key={idx} className="flex items-start gap-2 text-white/80 text-sm">
+                          <span className="text-emerald-400 mt-1">✓</span>
+                          <span>{rec}</span>
+                        </li>
+                      ))}
+                    </ul>
+                  </div>
+
+                  {/* Pazarlama */}
+                  <div className="bg-blue-900/20 p-4 rounded-lg border border-white/10">
+                    <h4 className="font-semibold text-white mb-3 flex items-center gap-2">
+                      <ShoppingBag className="h-4 w-4" />
+                      Pazarlama Stratejileri
+                    </h4>
+                    <ul className="space-y-2">
+                      {aiAnalysis.recommendations.marketing.map((rec, idx) => (
+                        <li key={idx} className="flex items-start gap-2 text-white/80 text-sm">
+                          <span className="text-emerald-400 mt-1">✓</span>
+                          <span>{rec}</span>
+                        </li>
+                      ))}
+                    </ul>
+                  </div>
+
+                  {/* Genel */}
+                  <div className="bg-blue-900/20 p-4 rounded-lg border border-white/10">
+                    <h4 className="font-semibold text-white mb-3 flex items-center gap-2">
+                      <Star className="h-4 w-4" />
+                      Genel Stratejik Öneriler
+                    </h4>
+                    <ul className="space-y-2">
+                      {aiAnalysis.recommendations.general.map((rec, idx) => (
+                        <li key={idx} className="flex items-start gap-2 text-white/80 text-sm">
+                          <span className="text-emerald-400 mt-1">✓</span>
+                          <span>{rec}</span>
+                        </li>
+                      ))}
+                    </ul>
+                  </div>
+                </div>
+              </CardContent>
+            </Card>
+          </>
+        )}
       </div>
     </div>
   );

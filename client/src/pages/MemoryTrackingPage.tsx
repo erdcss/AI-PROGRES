@@ -14,7 +14,8 @@ import {
   RefreshCw,
   ChevronLeft,
   ChevronRight,
-  BarChart3
+  BarChart3,
+  ArrowLeft
 } from 'lucide-react';
 import { useLocation } from 'wouter';
 import {
@@ -202,9 +203,19 @@ export default function MemoryTrackingPage() {
       <div className="max-w-7xl mx-auto space-y-6">
         {/* Header */}
         <div className="flex justify-between items-center">
-          <div>
-            <h1 className="text-3xl font-bold text-white mb-2">Otomatik Takip Sistemi</h1>
-            <p className="text-white/80">Shopify ürünlerinin analizi, takibi ve yönetimi</p>
+          <div className="flex items-center gap-4">
+            <Button 
+              onClick={() => setLocation('/')}
+              className="business-button"
+              data-testid="button-back"
+            >
+              <ArrowLeft className="h-4 w-4 mr-2" />
+              Ana Sayfa
+            </Button>
+            <div>
+              <h1 className="text-3xl font-bold text-white mb-2">Otomatik Takip Sistemi</h1>
+              <p className="text-white/80">Shopify ürünlerinin analizi, takibi ve yönetimi</p>
+            </div>
           </div>
           <Button 
             onClick={handleRefresh}
