@@ -846,4 +846,173 @@ router.get('/changed-products', async (req, res) => {
   }
 });
 
+// Shopify'daki ürünleri listele (kategori, arama, pagination)
+router.get('/shopify-products', async (req, res) => {
+  try {
+    const { 
+      category, 
+      search, 
+      limit = '50', 
+      offset = '0',
+      sortBy = 'lastSyncAt',
+      sortOrder = 'desc'
+    } = req.query;
+    
+    const limitNum = parseInt(limit as string);
+    const offsetNum = parseInt(offset as string);
+    
+    // Query builder
+    let query = db
+      .select({
+        id: products.id,
+        title: products.title,
+        brand: products.brand,
+        category: products.category,
+        shopifyProductId: products.shopifyProductId,
+        shopifyUrl: products.shopifyUrl,
+        shopifyStoreUrl: products.shopifyStoreUrl,
+        trendyolUrl: products.trendyolUrl,
+        currentPrice: products.currentPrice,
+        stockStatus: products.stockStatus,
+        syncStatus: products.syncStatus,
+        lastSyncAt: products.lastSyncAt,
+        lastChecked: products.lastChecked,
+        images: products.images,
+        colorOptions: products.colorOptions,
+        sizeOptions: products.sizeOptions,
+        createdAt: products.createdAt
+      })
+      .from(products)
+      .where(
+        and(
+          eq(products.isActive, true),
+          isNotNull(products.shopifyProductId)
+        )
+      )
+      .$dynamic();
+    
+    // Kategori filtresi
+    if (category && category !== 'all') {
+      query = query.where(eq(products.category, category as string));
+    }
+    
+    // Arama
+    if (search) {
+      const searchTerm = `%${search}%`;
+      query = query.where(
+        or(
+          sql`${products.title} ILIKE ${searchTerm}`,
+          sql`${products.brand} ILIKE ${searchTerm}`
+        )
+      );
+    }
+    
+    // Sıralama
+    if (sortBy === 'title') {
+      query = query.orderBy(sortOrder === 'asc' ? products.title : desc(products.title));
+    } else if (sortBy === 'price') {
+      query = query.orderBy(sortOrder === 'asc' ? products.currentPrice : desc(products.currentPrice));
+    } else {
+      query = query.orderBy(sortOrder === 'asc' ? products.lastSyncAt : desc(products.lastSyncAt));
+    }
+    
+    const shopifyProducts = await query.limit(limitNum).offset(offsetNum);
+    
+    // Toplam sayı
+    const totalQuery = db
+      .select({ count: sql<number>`count(*)` })
+      .from(products)
+      .where(
+        and(
+          eq(products.isActive, true),
+          isNotNull(products.shopifyProductId)
+        )
+      );
+    
+    const totalCount = await totalQuery;
+    
+    res.json({
+      success: true,
+      products: shopifyProducts,
+      pagination: {
+        total: Number(totalCount[0]?.count || 0),
+        limit: limitNum,
+        offset: offsetNum,
+        hasMore: offsetNum + limitNum < Number(totalCount[0]?.count || 0)
+      }
+    });
+  } catch (error) {
+    console.error('Shopify products error:', error);
+    res.status(500).json({ 
+      success: false, 
+      error: 'Shopify ürünleri alınamadı' 
+    });
+  }
+});
+
+// Tüm kategorileri listele
+router.get('/categories', async (req, res) => {
+  try {
+    const categories = await db
+      .selectDistinct({ category: products.category })
+      .from(products)
+      .where(
+        and(
+          eq(products.isActive, true),
+          isNotNull(products.category)
+        )
+      );
+    
+    res.json({
+      success: true,
+      categories: categories.map(c => c.category).filter(Boolean)
+    });
+  } catch (error) {
+    console.error('Categories error:', error);
+    res.status(500).json({ 
+      success: false, 
+      error: 'Kategoriler alınamadı' 
+    });
+  }
+});
+
+// Shopify'a otomatik senkronizasyon durumu
+router.get('/sync-status', async (req, res) => {
+  try {
+    // Son 24 saatteki senkronizasyon istatistikleri
+    const since = new Date();
+    since.setHours(since.getHours() - 24);
+    
+    const stats = await db
+      .select({
+        syncStatus: products.syncStatus,
+        count: sql<number>`count(*)`
+      })
+      .from(products)
+      .where(
+        and(
+          eq(products.isActive, true),
+          isNotNull(products.shopifyProductId),
+          sql`${products.lastSyncAt} >= ${since}`
+        )
+      )
+      .groupBy(products.syncStatus);
+    
+    res.json({
+      success: true,
+      stats: stats.map(s => ({
+        status: s.syncStatus,
+        count: Number(s.count)
+      })),
+      lastSync: new Date().toISOString()
+    });
+  } catch (error) {
+    console.error('Sync status error:', error);
+    res.status(500).json({ 
+      success: false, 
+      error: 'Senkronizasyon durumu alınamadı' 
+    });
+  }
+});
+
 export default router;
