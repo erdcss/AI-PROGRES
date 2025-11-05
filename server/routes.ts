@@ -376,16 +376,21 @@ function convertProductToShopifyCSV(productData: any): string {
   
   let csvContent = headers.join(',') + '\n';
   
-  const colors = productData.variants?.colors || ['Standart'];
-  const sizes = productData.variants?.sizes || ['Tek Beden'];
+  const colors = productData.variants?.colors || [];
+  const sizes = productData.variants?.sizes || [];
   const images = productData.images || [];
   const price = productData.price?.withProfit || productData.price?.original || 100;
   const comparePrice = productData.price?.original || price;
   
+  // ✅ FIX: Tek varyantlı ürünler için varyant bilgisi gösterme
+  const isSingleVariant = (colors.length === 0 || colors.length === 1) && (sizes.length === 0 || sizes.length === 1);
+  const actualColors = colors.length > 0 ? colors : [''];
+  const actualSizes = sizes.length > 0 ? sizes : [''];
+  
   let variantIndex = 0;
   
-  colors.forEach((color) => {
-    sizes.forEach((size) => {
+  actualColors.forEach((color) => {
+    actualSizes.forEach((size) => {
       const isFirstVariant = variantIndex === 0;
       const imageIndex = variantIndex % Math.max(images.length, 1);
       const imageUrl = images[imageIndex] || '';
@@ -398,10 +403,10 @@ function convertProductToShopifyCSV(productData: any): string {
         isFirstVariant ? 'Apparel & Accessories > Clothing' : '', // Product Type
         isFirstVariant ? 'trendyol, auto-generated' : '', // Tags
         isFirstVariant ? 'TRUE' : '', // Published
-        isFirstVariant ? 'Renk' : '', // Option1 Name
-        color, // Option1 Value
-        isFirstVariant ? 'Beden' : '', // Option2 Name
-        size, // Option2 Value
+        isFirstVariant && !isSingleVariant ? 'Renk' : '', // Option1 Name - boş if single variant
+        !isSingleVariant ? color : '', // Option1 Value - boş if single variant
+        isFirstVariant && !isSingleVariant ? 'Beden' : '', // Option2 Name - boş if single variant
+        !isSingleVariant ? size : '', // Option2 Value - boş if single variant
         `${handle}-${color}-${size}`.toLowerCase().replace(/[^a-z0-9-]/g, ''), // Variant SKU
         '0', // Variant Grams
         'shopify', // Variant Inventory Tracker
@@ -466,8 +471,9 @@ function convertMultiUrlProductToCSV(productData: any): string {
   // ❌ SAHTE VARYANT DÖNGÜSÜ ENGELLENDİ - Tek ürün işlemi
   if (extractedColors.length === 0) extractedColors.push('Standart');
   
+  // ✅ FIX: Tek varyantlı ürünler için varyant başlıklarını kaldır
   extractedColors.slice(0, 1).forEach((color, colorIndex) => { // Sadece 1 renk
-    const fakeSizes = ['Tek Beden']; // Sahte beden yerine tek beden
+    const fakeSizes = ['']; // Varyant olmayan ürün için boş
     fakeSizes.forEach((size, sizeIndex) => {
       const handle = productData.title?.toLowerCase().replace(/[^a-z0-9]/g, '-').replace(/-+/g, '-') || 'product';
       const isFirstVariant = variantIndex === 0;
@@ -483,10 +489,10 @@ function convertMultiUrlProductToCSV(productData: any): string {
         isFirstVariant ? 'Apparel & Accessories > Clothing' : '', // Product Type
         isFirstVariant ? 'multi-url, auto-generated' : '', // Tags
         isFirstVariant ? 'TRUE' : '', // Published
-        isFirstVariant ? 'Renk' : '', // Option1 Name
-        color, // Option1 Value
-        isFirstVariant ? 'Beden' : '', // Option2 Name
-        size, // Option2 Value
+        '', // Option1 Name - boş (varyant yok)
+        '', // Option1 Value - boş (varyant yok)
+        '', // Option2 Name - boş (varyant yok)
+        '', // Option2 Value - boş (varyant yok)
         `${handle}-${color}-${size}`.toLowerCase(), // Variant SKU
         '0', // Variant Grams
         'shopify', // Variant Inventory Tracker
