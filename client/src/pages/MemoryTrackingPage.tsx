@@ -1,516 +1,367 @@
-import { useState, useEffect, useRef } from 'react';
+import { useState, useEffect } from 'react';
 import { useQuery } from '@tanstack/react-query';
-import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
+import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
-import { Input } from '@/components/ui/input';
+import { Switch } from '@/components/ui/switch';
+import { Label } from '@/components/ui/label';
+import { 
+  Database, 
+  TrendingUp, 
+  DollarSign, 
+  Package, 
+  Trash2, 
+  RefreshCw,
+  Clock,
+  ExternalLink
+} from 'lucide-react';
 import { useToast } from '@/hooks/use-toast';
-import { Play, Square, RotateCcw, Eye, Download, Upload, Search, ExternalLink, Package, ShoppingBag, TrendingUp } from 'lucide-react';
-import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
-import { ScrollArea } from '@/components/ui/scroll-area';
+import { apiRequest, queryClient } from '@/lib/queryClient';
+import {
+  Table,
+  TableBody,
+  TableCell,
+  TableHead,
+  TableHeader,
+  TableRow,
+} from "@/components/ui/table";
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from "@/components/ui/select";
+import {
+  AlertDialog,
+  AlertDialogAction,
+  AlertDialogCancel,
+  AlertDialogContent,
+  AlertDialogDescription,
+  AlertDialogFooter,
+  AlertDialogHeader,
+  AlertDialogTitle,
+  AlertDialogTrigger,
+} from "@/components/ui/alert-dialog";
 
-interface TrackingStatus {
-  isRunning: boolean;
-  intervalMinutes: number;
-  lastCheck: string;
-}
-
-interface MemoryProduct {
+interface Product {
   id: number;
   title: string;
   brand: string;
   trendyolUrl: string;
-  sourcePlatform: string;
   shopifyProductId: string | null;
-  shopifyUrl: string | null;
   currentPrice: string;
-  originalPrice: string;
   stockStatus: string;
-  isActive: boolean;
-  createdAt: string;
   lastChecked: string;
-  images: string[];
+}
+
+interface Stats {
+  totalChanged: number;
+  priceChanged: number;
+  stockChanged: number;
 }
 
 export default function MemoryTrackingPage() {
-  const [status, setStatus] = useState<TrackingStatus | null>(null);
-  const [loading, setLoading] = useState(false);
-  const [searchQuery, setSearchQuery] = useState('');
-  const [currentPage, setCurrentPage] = useState(0);
-  const fileInputRef = useRef<HTMLInputElement>(null);
+  const [showOnlyChanged, setShowOnlyChanged] = useState(false);
+  const [autoRefresh, setAutoRefresh] = useState(false);
+  const [refreshInterval, setRefreshInterval] = useState('30');
+  const [currentTime, setCurrentTime] = useState(new Date());
   const { toast } = useToast();
 
-  const limit = 20;
-
-  const { data: productsData, refetch: refetchProducts } = useQuery({
-    queryKey: ['/api/memory/all-products', currentPage, limit],
-    queryFn: async () => {
-      const offset = currentPage * limit;
-      const response = await fetch(`/api/memory/all-products?limit=${limit}&offset=${offset}&sortBy=createdAt&sortOrder=desc`);
-      if (!response.ok) throw new Error('Failed to fetch products');
-      return response.json();
-    },
-    enabled: true
-  });
-
-  const fetchStatus = async () => {
-    try {
-      const response = await fetch('/api/memory-tracking/status');
-      const data = await response.json();
-      
-      if (data.success) {
-        setStatus(data.data);
-      }
-    } catch (error) {
-      console.error('Status alma hatası:', error);
-    }
-  };
-
+  // Saat güncelleme
   useEffect(() => {
-    fetchStatus();
-    const interval = setInterval(fetchStatus, 10000);
-    return () => clearInterval(interval);
+    const timer = setInterval(() => {
+      setCurrentTime(new Date());
+    }, 1000);
+    return () => clearInterval(timer);
   }, []);
 
-  const handleStart = async () => {
-    setLoading(true);
-    try {
-      const response = await fetch('/api/memory-tracking/start', {
-        method: 'POST'
-      });
-      const data = await response.json();
-      
-      if (data.success) {
-        toast({
-          title: "Sistem Başlatıldı",
-          description: "Hafıza takip sistemi çalışmaya başladı"
-        });
-        await fetchStatus();
-      } else {
-        throw new Error(data.error);
-      }
-    } catch (error) {
-      toast({
-        title: "Hata",
-        description: error.message,
-        variant: "destructive"
-      });
-    } finally {
-      setLoading(false);
-    }
-  };
+  // Toplam ürünleri al
+  const { data: totalData, refetch: refetchTotal } = useQuery({
+    queryKey: ['/api/memory/all-products'],
+    queryFn: async () => {
+      const res = await fetch('/api/memory/all-products?limit=1000');
+      return res.json();
+    },
+    refetchInterval: autoRefresh && !showOnlyChanged ? parseInt(refreshInterval) * 1000 : false
+  });
 
-  const handleStop = async () => {
-    setLoading(true);
-    try {
-      const response = await fetch('/api/memory-tracking/stop', {
-        method: 'POST'
-      });
-      const data = await response.json();
-      
-      if (data.success) {
-        toast({
-          title: "Sistem Durduruldu",
-          description: "Hafıza takip sistemi durduruldu"
-        });
-        await fetchStatus();
-      } else {
-        throw new Error(data.error);
-      }
-    } catch (error) {
-      toast({
-        title: "Hata",
-        description: error.message,
-        variant: "destructive"
-      });
-    } finally {
-      setLoading(false);
-    }
-  };
+  // Değişen ürünleri al (stats için her zaman güncelle)
+  const { data: changedData, refetch: refetchChanged } = useQuery({
+    queryKey: ['/api/memory/changed-products'],
+    queryFn: async () => {
+      const res = await fetch('/api/memory/changed-products?hours=24');
+      return res.json();
+    },
+    refetchInterval: autoRefresh ? parseInt(refreshInterval) * 1000 : false
+  });
 
-  const handleManualCheck = async () => {
-    setLoading(true);
-    try {
-      const response = await fetch('/api/memory-tracking/manual-check', {
-        method: 'POST'
-      });
-      const data = await response.json();
-      
-      if (data.success) {
-        toast({
-          title: "Manuel Kontrol",
-          description: "Hafıza kontrolü başlatıldı, sonuçlar Telegram'dan bildirilecek"
-        });
-      } else {
-        throw new Error(data.error);
-      }
-    } catch (error) {
-      toast({
-        title: "Hata",
-        description: error.message,
-        variant: "destructive"
-      });
-    } finally {
-      setLoading(false);
-    }
-  };
+  const totalProducts = totalData?.pagination?.total || 0;
+  const products: Product[] = showOnlyChanged 
+    ? (changedData?.products || [])
+    : (totalData?.products || []);
+  const stats: Stats = changedData?.stats || { totalChanged: 0, priceChanged: 0, stockChanged: 0 };
 
-  const handleExport = async () => {
+  // Hafızayı temizle
+  const handleClearMemory = async () => {
     try {
-      const response = await fetch('/api/memory/export-products');
-      const blob = await response.blob();
-      const url = window.URL.createObjectURL(blob);
-      const a = document.createElement('a');
-      a.href = url;
-      a.download = `products-export-${Date.now()}.json`;
-      document.body.appendChild(a);
-      a.click();
-      window.URL.revokeObjectURL(url);
-      document.body.removeChild(a);
+      // Double confirmation - "DELETE_ALL_DATA" gönder
+      const response = await fetch('/api/memory/clear', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json'
+        },
+        body: JSON.stringify({ confirmation: 'DELETE_ALL_DATA' })
+      });
+      
+      if (!response.ok) {
+        const error = await response.json();
+        throw new Error(error.error || 'Clear failed');
+      }
       
       toast({
         title: "Başarılı",
-        description: "Ürün verileri dışa aktarıldı"
+        description: "Hafıza başarıyla temizlendi",
       });
+      
+      queryClient.invalidateQueries({ queryKey: ['/api/memory/all-products'] });
+      queryClient.invalidateQueries({ queryKey: ['/api/memory/changed-products'] });
     } catch (error) {
       toast({
         title: "Hata",
-        description: "Dışa aktarma başarısız",
+        description: "Hafıza temizlenirken hata oluştu",
         variant: "destructive"
       });
     }
   };
 
-  const handleImport = async (event: React.ChangeEvent<HTMLInputElement>) => {
-    const file = event.target.files?.[0];
-    if (!file) return;
-
-    try {
-      const text = await file.text();
-      const data = JSON.parse(text);
-      
-      const response = await fetch('/api/memory/import-products', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify(data)
-      });
-      
-      const result = await response.json();
-      
-      if (result.success) {
-        toast({
-          title: "Başarılı",
-          description: `${result.summary.importedProducts} ürün ve ${result.summary.importedVariants} varyant içe aktarıldı`
-        });
-        refetchProducts();
-      } else {
-        throw new Error(result.error);
-      }
-    } catch (error) {
-      toast({
-        title: "Hata",
-        description: error.message,
-        variant: "destructive"
-      });
-    }
-    
-    if (fileInputRef.current) {
-      fileInputRef.current.value = '';
-    }
+  // Manuel yenileme
+  const handleManualRefresh = () => {
+    refetchTotal();
+    refetchChanged();
+    toast({
+      title: "Yenilendi",
+      description: "Veriler güncellendi",
+    });
   };
 
-  const filteredProducts = productsData?.products?.filter((product: MemoryProduct) => {
-    if (!searchQuery) return true;
-    const query = searchQuery.toLowerCase();
-    return (
-      product.title.toLowerCase().includes(query) ||
-      product.brand.toLowerCase().includes(query)
-    );
-  }) || [];
-
-  const totalProducts = productsData?.pagination?.total || 0;
-  const hasMore = productsData?.pagination?.hasMore || false;
+  // Otomatik yenileme değiştiğinde
+  useEffect(() => {
+    if (autoRefresh) {
+      toast({
+        title: "Otomatik Yenileme Açık",
+        description: `Her ${refreshInterval} saniyede bir yenilenecek`,
+      });
+    }
+  }, [autoRefresh, refreshInterval]);
 
   return (
-    <div className="container mx-auto p-6 max-w-7xl space-y-6">
-      <div className="flex items-center justify-between">
+    <div className="container mx-auto p-6 space-y-6">
+      {/* Header */}
+      <div className="flex justify-between items-center">
         <div>
           <h1 className="text-3xl font-bold">Otomatik Takip Sistemi</h1>
-          <p className="text-muted-foreground mt-2">
-            Shopify'a aktarılan ürünlerin analizi, takibi ve yönetimi
-          </p>
+          <p className="text-muted-foreground">Hafızadaki ürünler ve değişim takibi</p>
         </div>
-        
-        <div className="flex gap-2">
-          <Button
-            onClick={handleExport}
+        <div className="flex items-center gap-2">
+          <AlertDialog>
+            <AlertDialogTrigger asChild>
+              <Button 
+                variant="destructive" 
+                data-testid="button-clear-memory"
+              >
+                <Trash2 className="h-4 w-4 mr-2" />
+                Hafıza Temizle
+              </Button>
+            </AlertDialogTrigger>
+            <AlertDialogContent>
+              <AlertDialogHeader>
+                <AlertDialogTitle>Hafızayı Temizle</AlertDialogTitle>
+                <AlertDialogDescription>
+                  Tüm ürünler ve varyantlar silinecek. Bu işlem geri alınamaz!
+                </AlertDialogDescription>
+              </AlertDialogHeader>
+              <AlertDialogFooter>
+                <AlertDialogCancel>İptal</AlertDialogCancel>
+                <AlertDialogAction onClick={handleClearMemory}>
+                  Temizle
+                </AlertDialogAction>
+              </AlertDialogFooter>
+            </AlertDialogContent>
+          </AlertDialog>
+
+          <Button 
             variant="outline"
-            className="flex items-center gap-2"
-            data-testid="button-export-products"
+            onClick={handleManualRefresh}
+            data-testid="button-refresh"
           >
-            <Download className="h-4 w-4" />
-            Dışa Aktar
+            <RefreshCw className="h-4 w-4 mr-2" />
+            Yenile
           </Button>
-          <Button
-            onClick={() => fileInputRef.current?.click()}
-            variant="outline"
-            className="flex items-center gap-2"
-            data-testid="button-import-products"
-          >
-            <Upload className="h-4 w-4" />
-            İçe Aktar
-          </Button>
-          <input
-            ref={fileInputRef}
-            type="file"
-            accept=".json"
-            onChange={handleImport}
-            className="hidden"
-          />
+
+          <div className="flex items-center gap-2 px-4 py-2 bg-secondary rounded-md">
+            <Clock className="h-4 w-4" />
+            <span className="text-sm font-medium">
+              {currentTime.toLocaleTimeString('tr-TR')}
+            </span>
+          </div>
         </div>
       </div>
 
       {/* Stats Cards */}
       <div className="grid grid-cols-1 md:grid-cols-4 gap-4">
-        <Card>
-          <CardContent className="p-4">
-            <div className="flex items-center gap-3">
-              <div className="p-2 bg-blue-100 dark:bg-blue-900 rounded-lg">
-                <Package className="h-5 w-5 text-blue-600 dark:text-blue-400" />
-              </div>
-              <div>
-                <div className="text-2xl font-bold">{totalProducts}</div>
-                <div className="text-sm text-muted-foreground">Toplam Ürün</div>
-              </div>
-            </div>
+        <Card data-testid="card-total-products">
+          <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
+            <CardTitle className="text-sm font-medium">Toplam Ürün</CardTitle>
+            <Database className="h-4 w-4 text-muted-foreground" />
+          </CardHeader>
+          <CardContent>
+            <div className="text-2xl font-bold">{totalProducts}</div>
           </CardContent>
         </Card>
-        
-        <Card>
-          <CardContent className="p-4">
-            <div className="flex items-center gap-3">
-              <div className="p-2 bg-green-100 dark:bg-green-900 rounded-lg">
-                <ShoppingBag className="h-5 w-5 text-green-600 dark:text-green-400" />
-              </div>
-              <div>
-                <div className="text-2xl font-bold">
-                  {filteredProducts.filter((p: MemoryProduct) => p.shopifyProductId).length}
-                </div>
-                <div className="text-sm text-muted-foreground">Shopify'da</div>
-              </div>
-            </div>
+
+        <Card data-testid="card-changed-products">
+          <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
+            <CardTitle className="text-sm font-medium">Değişen Ürün</CardTitle>
+            <TrendingUp className="h-4 w-4 text-muted-foreground" />
+          </CardHeader>
+          <CardContent>
+            <div className="text-2xl font-bold">{stats.totalChanged}</div>
+            <p className="text-xs text-muted-foreground">Son 24 saat</p>
           </CardContent>
         </Card>
-        
-        <Card>
-          <CardContent className="p-4">
-            <div className="flex items-center gap-3">
-              <div className="p-2 bg-orange-100 dark:bg-orange-900 rounded-lg">
-                <TrendingUp className="h-5 w-5 text-orange-600 dark:text-orange-400" />
-              </div>
-              <div>
-                <div className="text-2xl font-bold">
-                  {status?.isRunning ? 'Aktif' : 'Pasif'}
-                </div>
-                <div className="text-sm text-muted-foreground">Takip Durumu</div>
-              </div>
-            </div>
+
+        <Card data-testid="card-price-changes">
+          <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
+            <CardTitle className="text-sm font-medium">Fiyat Değişimi</CardTitle>
+            <DollarSign className="h-4 w-4 text-muted-foreground" />
+          </CardHeader>
+          <CardContent>
+            <div className="text-2xl font-bold">{stats.priceChanged}</div>
+            <p className="text-xs text-muted-foreground">Son 24 saat</p>
           </CardContent>
         </Card>
-        
-        <Card>
-          <CardContent className="p-4">
-            <div className="flex items-center gap-3">
-              <div className="p-2 bg-purple-100 dark:bg-purple-900 rounded-lg">
-                <Eye className="h-5 w-5 text-purple-600 dark:text-purple-400" />
-              </div>
-              <div>
-                <div className="text-sm font-medium">
-                  {status && status.lastCheck 
-                    ? new Date(status.lastCheck).toLocaleTimeString('tr-TR')
-                    : "—"
-                  }
-                </div>
-                <div className="text-xs text-muted-foreground">Son Kontrol</div>
-              </div>
-            </div>
+
+        <Card data-testid="card-variant-changes">
+          <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
+            <CardTitle className="text-sm font-medium">Varyant Değişimi</CardTitle>
+            <Package className="h-4 w-4 text-muted-foreground" />
+          </CardHeader>
+          <CardContent>
+            <div className="text-2xl font-bold">{stats.stockChanged}</div>
+            <p className="text-xs text-muted-foreground">Son 24 saat</p>
           </CardContent>
         </Card>
       </div>
 
-      {/* Sistem Kontrolleri */}
-      <Card>
-        <CardHeader>
-          <CardTitle className="flex items-center gap-2">
-            <Eye className="h-5 w-5" />
-            Sistem Kontrolleri
-          </CardTitle>
-          <CardDescription>
-            Otomatik takip sistemini başlatın, durdurun veya manuel kontrol yapın
-          </CardDescription>
-        </CardHeader>
-        <CardContent>
-          <div className="flex flex-wrap gap-3">
-            <Button 
-              onClick={handleStart}
-              disabled={loading || status?.isRunning}
-              className="flex items-center gap-2"
-              data-testid="button-start-tracking"
-            >
-              <Play className="h-4 w-4" />
-              Sistemi Başlat
-            </Button>
+      {/* Controls */}
+      <div className="flex justify-between items-center">
+        <div className="flex items-center gap-2">
+          <Switch 
+            id="show-changed" 
+            checked={showOnlyChanged}
+            onCheckedChange={setShowOnlyChanged}
+            data-testid="switch-show-only-changed"
+          />
+          <Label htmlFor="show-changed" className="cursor-pointer">
+            Sadece Değişenleri Göster
+          </Label>
+        </div>
 
-            <Button 
-              onClick={handleStop}
-              disabled={loading || !status?.isRunning}
-              variant="outline"
-              className="flex items-center gap-2"
-              data-testid="button-stop-tracking"
-            >
-              <Square className="h-4 w-4" />
-              Sistemi Durdur
-            </Button>
-
-            <Button 
-              onClick={handleManualCheck}
-              disabled={loading}
-              variant="secondary"
-              className="flex items-center gap-2"
-              data-testid="button-manual-check"
-            >
-              <RotateCcw className="h-4 w-4" />
-              Manuel Kontrol
-            </Button>
-            
-            {status && (
-              <Badge variant={status.isRunning ? "default" : "secondary"} className="ml-auto">
-                {status.isRunning ? "Çalışıyor" : "Durduruldu"}
-              </Badge>
-            )}
+        <div className="flex items-center gap-4">
+          <div className="flex items-center gap-2">
+            <Switch 
+              id="auto-refresh" 
+              checked={autoRefresh}
+              onCheckedChange={setAutoRefresh}
+              data-testid="switch-auto-refresh"
+            />
+            <Label htmlFor="auto-refresh" className="cursor-pointer">
+              Otomatik Yenileme
+            </Label>
           </div>
-        </CardContent>
-      </Card>
 
-      {/* Ürün Listesi */}
+          {autoRefresh && (
+            <Select value={refreshInterval} onValueChange={setRefreshInterval}>
+              <SelectTrigger className="w-[130px]" data-testid="select-refresh-interval">
+                <SelectValue />
+              </SelectTrigger>
+              <SelectContent>
+                <SelectItem value="30">30 saniye</SelectItem>
+                <SelectItem value="60">60 saniye</SelectItem>
+                <SelectItem value="300">5 dakika</SelectItem>
+              </SelectContent>
+            </Select>
+          )}
+        </div>
+      </div>
+
+      {/* Products Table */}
       <Card>
-        <CardHeader>
-          <div className="flex items-center justify-between">
-            <CardTitle>Sistem Hafızasındaki Ürünler</CardTitle>
-            <div className="relative w-64">
-              <Search className="absolute left-3 top-3 h-4 w-4 text-muted-foreground" />
-              <Input
-                placeholder="Ürün ara..."
-                value={searchQuery}
-                onChange={(e) => setSearchQuery(e.target.value)}
-                className="pl-10"
-                data-testid="input-search-products"
-              />
+        <CardContent className="pt-6">
+          {products.length === 0 ? (
+            <div className="flex flex-col items-center justify-center py-12 text-muted-foreground">
+              <Database className="h-16 w-16 mb-4 opacity-50" />
+              <p className="text-lg">
+                {showOnlyChanged 
+                  ? "Son 24 saatte değişiklik yok" 
+                  : "Henüz takip edilen ürün yok"}
+              </p>
             </div>
-          </div>
-        </CardHeader>
-        <CardContent>
-          <ScrollArea className="h-[500px]">
+          ) : (
             <Table>
               <TableHeader>
                 <TableRow>
                   <TableHead>Ürün</TableHead>
                   <TableHead>Marka</TableHead>
                   <TableHead>Fiyat</TableHead>
-                  <TableHead>Stok</TableHead>
-                  <TableHead>Platform</TableHead>
+                  <TableHead>Stok Durumu</TableHead>
                   <TableHead>Shopify</TableHead>
+                  <TableHead>Son Kontrol</TableHead>
                   <TableHead className="text-right">İşlemler</TableHead>
                 </TableRow>
               </TableHeader>
               <TableBody>
-                {filteredProducts.length === 0 ? (
-                  <TableRow>
-                    <TableCell colSpan={7} className="text-center py-8 text-muted-foreground">
-                      {searchQuery ? 'Arama sonucu bulunamadı' : 'Henüz ürün yok'}
+                {products.map((product) => (
+                  <TableRow key={product.id} data-testid={`row-product-${product.id}`}>
+                    <TableCell className="font-medium max-w-xs truncate">
+                      {product.title}
+                    </TableCell>
+                    <TableCell>{product.brand}</TableCell>
+                    <TableCell className="font-semibold">
+                      {parseFloat(product.currentPrice).toFixed(2)} TL
+                    </TableCell>
+                    <TableCell>
+                      <Badge 
+                        variant={product.stockStatus === 'in_stock' ? 'default' : 'destructive'}
+                      >
+                        {product.stockStatus === 'in_stock' ? 'Stokta' : 'Stok Yok'}
+                      </Badge>
+                    </TableCell>
+                    <TableCell>
+                      {product.shopifyProductId ? (
+                        <Badge variant="outline">Aktarıldı</Badge>
+                      ) : (
+                        <Badge variant="secondary">Beklemede</Badge>
+                      )}
+                    </TableCell>
+                    <TableCell className="text-sm text-muted-foreground">
+                      {new Date(product.lastChecked).toLocaleString('tr-TR')}
+                    </TableCell>
+                    <TableCell className="text-right">
+                      <Button
+                        variant="ghost"
+                        size="sm"
+                        onClick={() => window.open(product.trendyolUrl, '_blank')}
+                        data-testid={`button-open-${product.id}`}
+                      >
+                        <ExternalLink className="h-4 w-4" />
+                      </Button>
                     </TableCell>
                   </TableRow>
-                ) : (
-                  filteredProducts.map((product: MemoryProduct) => (
-                    <TableRow key={product.id} data-testid={`row-product-${product.id}`}>
-                      <TableCell className="font-medium max-w-xs truncate">
-                        {product.title}
-                      </TableCell>
-                      <TableCell>{product.brand}</TableCell>
-                      <TableCell className="font-semibold text-green-600">
-                        {parseFloat(product.currentPrice).toFixed(2)} TL
-                      </TableCell>
-                      <TableCell>
-                        <Badge variant={product.stockStatus === 'in_stock' ? 'default' : 'secondary'}>
-                          {product.stockStatus === 'in_stock' ? 'Stokta' : 'Tükendi'}
-                        </Badge>
-                      </TableCell>
-                      <TableCell className="capitalize">{product.sourcePlatform}</TableCell>
-                      <TableCell>
-                        {product.shopifyProductId ? (
-                          <Badge variant="default" className="bg-green-600">Aktarıldı</Badge>
-                        ) : (
-                          <Badge variant="outline">Bekliyor</Badge>
-                        )}
-                      </TableCell>
-                      <TableCell className="text-right">
-                        <div className="flex items-center justify-end gap-2">
-                          {product.trendyolUrl && (
-                            <Button
-                              size="sm"
-                              variant="ghost"
-                              onClick={() => window.open(product.trendyolUrl, '_blank')}
-                              data-testid={`link-source-${product.id}`}
-                            >
-                              <ExternalLink className="h-4 w-4" />
-                            </Button>
-                          )}
-                          {product.shopifyUrl && (
-                            <Button
-                              size="sm"
-                              variant="ghost"
-                              onClick={() => window.open(product.shopifyUrl, '_blank')}
-                              data-testid={`link-shopify-${product.id}`}
-                            >
-                              <ShoppingBag className="h-4 w-4" />
-                            </Button>
-                          )}
-                        </div>
-                      </TableCell>
-                    </TableRow>
-                  ))
-                )}
+                ))}
               </TableBody>
             </Table>
-          </ScrollArea>
-          
-          {/* Pagination */}
-          {filteredProducts.length > 0 && (
-            <div className="flex items-center justify-between mt-4">
-              <div className="text-sm text-muted-foreground">
-                Gösterilen: {filteredProducts.length} / {totalProducts}
-              </div>
-              <div className="flex gap-2">
-                <Button
-                  size="sm"
-                  variant="outline"
-                  onClick={() => setCurrentPage(p => Math.max(0, p - 1))}
-                  disabled={currentPage === 0}
-                  data-testid="button-prev-page"
-                >
-                  Önceki
-                </Button>
-                <Button
-                  size="sm"
-                  variant="outline"
-                  onClick={() => setCurrentPage(p => p + 1)}
-                  disabled={!hasMore}
-                  data-testid="button-next-page"
-                >
-                  Sonraki
-                </Button>
-              </div>
-            </div>
           )}
         </CardContent>
       </Card>

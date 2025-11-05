@@ -690,4 +690,160 @@ router.post('/import-products', async (req, res) => {
   }
 });
 
+// Hafızayı temizle (SADECE LOCALHOST + DEVELOPMENT)
+router.post('/clear', async (req, res) => {
+  try {
+    // GÜVENLİK 1: Sadece development ortamında çalışır
+    if (process.env.NODE_ENV === 'production') {
+      console.warn('⚠️ Memory clear blocked: production environment');
+      return res.status(403).json({
+        success: false,
+        error: 'Bu işlem production ortamında yapılamaz'
+      });
+    }
+    
+    // GÜVENLİK 2: Sadece localhost'tan izin ver
+    const clientIp = req.ip || req.socket.remoteAddress || '';
+    const isLocalhost = clientIp === '127.0.0.1' || 
+                        clientIp === '::1' || 
+                        clientIp === 'localhost' ||
+                        clientIp.includes('127.0.0.1') ||
+                        clientIp.includes('::1');
+    
+    if (!isLocalhost) {
+      console.warn(`⚠️ Memory clear blocked: non-localhost IP ${clientIp}`);
+      return res.status(403).json({
+        success: false,
+        error: 'Bu işlem sadece localhost\'tan yapılabilir'
+      });
+    }
+    
+    // GÜVENLİK 3: Double-confirmation kontrolü
+    const { confirmation } = req.body;
+    if (confirmation !== 'DELETE_ALL_DATA') {
+      return res.status(400).json({
+        success: false,
+        error: 'Onay gerekli'
+      });
+    }
+    
+    console.log(`✅ Memory clear authorized (localhost: ${clientIp})`);
+    
+    // Önce varyantları sil
+    await db.delete(productVariants);
+    
+    // Sonra ürünleri sil
+    await db.delete(products);
+    
+    // İstatistik geçmişlerini de sil
+    await db.delete(priceHistory);
+    await db.delete(stockHistory);
+    
+    console.log('✅ Hafıza tamamen temizlendi');
+    
+    res.json({
+      success: true,
+      message: 'Hafıza başarıyla temizlendi'
+    });
+  } catch (error) {
+    console.error('Memory clear error:', error);
+    res.status(500).json({ 
+      success: false, 
+      error: 'Hafıza temizleme hatası' 
+    });
+  }
+});
+
+// Değişiklik kategorilerine göre ürünleri listele
+router.get('/changed-products', async (req, res) => {
+  try {
+    const { changeType = 'all', hours = '24' } = req.query;
+    const hoursNum = parseInt(hours as string);
+    
+    // Son X saatteki değişiklikleri al
+    const since = new Date();
+    since.setHours(since.getHours() - hoursNum);
+    
+    // Fiyat değişikliği olan varyantlar ve ürünler
+    const priceChangedVariants = await db
+      .select({
+        productId: productVariants.productId
+      })
+      .from(priceHistory)
+      .innerJoin(productVariants, eq(priceHistory.variantId, productVariants.id))
+      .where(sql`${priceHistory.createdAt} >= ${since}`)
+      .groupBy(productVariants.productId);
+    
+    // Stok değişikliği olan varyantlar ve ürünler
+    const stockChangedVariants = await db
+      .select({
+        productId: productVariants.productId
+      })
+      .from(stockHistory)
+      .innerJoin(productVariants, eq(stockHistory.variantId, productVariants.id))
+      .where(sql`${stockHistory.createdAt} >= ${since}`)
+      .groupBy(productVariants.productId);
+    
+    // Tüm değişen ürün ID'leri
+    const allChangedIds = new Set([
+      ...priceChangedVariants.map(p => p.productId),
+      ...stockChangedVariants.map(p => p.productId)
+    ]);
+    
+    // Kategoriye göre filtrele
+    let productIds: number[] = [];
+    if (changeType === 'price') {
+      productIds = priceChangedVariants.map(p => p.productId);
+    } else if (changeType === 'stock') {
+      productIds = stockChangedVariants.map(p => p.productId);
+    } else {
+      productIds = Array.from(allChangedIds);
+    }
+    
+    if (productIds.length === 0) {
+      return res.json({
+        success: true,
+        products: [],
+        stats: {
+          totalChanged: 0,
+          priceChanged: 0,
+          stockChanged: 0
+        }
+      });
+    }
+    
+    // Ürün detaylarını al
+    const changedProducts = await db
+      .select({
+        id: products.id,
+        title: products.title,
+        brand: products.brand,
+        trendyolUrl: products.trendyolUrl,
+        shopifyProductId: products.shopifyProductId,
+        currentPrice: products.currentPrice,
+        stockStatus: products.stockStatus,
+        lastChecked: products.lastChecked
+      })
+      .from(products)
+      .where(sql`${products.id} = ANY(${productIds}::int[])`)
+      .orderBy(desc(products.lastChecked));
+    
+    res.json({
+      success: true,
+      products: changedProducts,
+      stats: {
+        totalChanged: allChangedIds.size,
+        priceChanged: priceChangedVariants.length,
+        stockChanged: stockChangedVariants.length
+      }
+    });
+  } catch (error) {
+    console.error('Changed products error:', error);
+    res.status(500).json({ 
+      success: false, 
+      error: 'Değişen ürünler alınamadı' 
+    });
+  }
+});
+
 export default router;
