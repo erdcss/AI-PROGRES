@@ -40,6 +40,7 @@ import ProductPreview from "@/pages/product-preview";
 import TelegramNotifications from "@/pages/TelegramNotifications";
 import ProductTrackingPage from "@/pages/ProductTrackingPage";
 import TelegramManagementPage from "@/pages/TelegramManagementPage";
+import ProductStatisticsPage from "@/pages/ProductStatisticsPage";
 import { TBotAssistant } from "@/components/TBotAssistant";
 import { MobileNavigation } from "@/components/MobileNavigation";
 
@@ -380,6 +381,13 @@ function Router() {
         <PageTransition>
           <TelegramManagementPage />
         </PageTransition>
+      </Route>
+      <Route path="/product-statistics/:id">
+        {(params) => (
+          <PageTransition>
+            <ProductStatisticsPage />
+          </PageTransition>
+        )}
       </Route>
       </Switch>
     </AnimatePresence>

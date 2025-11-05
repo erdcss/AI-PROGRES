@@ -69,6 +69,7 @@ import { notificationGateway } from './notification-gateway';
 import { setupAdminMemoryRoutes } from './admin-memory-routes';
 import { setupTrackingDashboardAPI } from './tracking-dashboard-api';
 import { ImageTelegramService } from './image-telegram-service';
+import { productStatisticsService } from './product-statistics-service';
 
 // Helper function to register product for automated tracking
 async function registerProductForTracking(
@@ -6900,6 +6901,37 @@ ${(result.title || 'product').toLowerCase().replace(/[^a-z0-9]/g, '-')},${result
       });
     } catch (error) {
       console.error('❌ Database cleanup error:', error);
+      res.status(500).json({
+        success: false,
+        error: (error as Error).message
+      });
+    }
+  });
+
+  // Product Statistics API
+  app.get("/api/products/:id/statistics", async (req, res) => {
+    try {
+      const productId = parseInt(req.params.id);
+      
+      if (isNaN(productId)) {
+        return res.status(400).json({
+          success: false,
+          error: 'Invalid product ID'
+        });
+      }
+
+      const statistics = await productStatisticsService.getProductStatistics(productId);
+
+      if (!statistics) {
+        return res.status(404).json({
+          success: false,
+          error: 'Product not found'
+        });
+      }
+
+      res.json(statistics);
+    } catch (error) {
+      console.error('❌ Product statistics error:', error);
       res.status(500).json({
         success: false,
         error: (error as Error).message
