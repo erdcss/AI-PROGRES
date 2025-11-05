@@ -755,7 +755,7 @@ router.post('/clear', async (req, res) => {
 });
 
 // Değişiklik kategorilerine göre ürünleri listele
-router.get('/changed-products', async (req, res) => {
+router.get('/memory/changed-products', async (req, res) => {
   try {
     const { changeType = 'all', hours = '24' } = req.query;
     const hoursNum = parseInt(hours as string);
@@ -847,7 +847,7 @@ router.get('/changed-products', async (req, res) => {
 });
 
 // Shopify'daki ürünleri listele (kategori, arama, pagination)
-router.get('/shopify-products', async (req, res) => {
+router.get('/memory/shopify-products', async (req, res) => {
   try {
     const { 
       category, 
@@ -951,7 +951,7 @@ router.get('/shopify-products', async (req, res) => {
 });
 
 // Tüm kategorileri listele
-router.get('/categories', async (req, res) => {
+router.get('/memory/categories', async (req, res) => {
   try {
     const categories = await db
       .selectDistinct({ category: products.category })
@@ -977,7 +977,7 @@ router.get('/categories', async (req, res) => {
 });
 
 // Shopify'a otomatik senkronizasyon durumu
-router.get('/sync-status', async (req, res) => {
+router.get('/memory/sync-status', async (req, res) => {
   try {
     // Son 24 saatteki senkronizasyon istatistikleri
     const since = new Date();
