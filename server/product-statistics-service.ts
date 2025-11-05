@@ -116,8 +116,8 @@ export class ProductStatisticsService {
           color: variant.color,
           size: variant.size,
           changeType: 'Stok',
-          oldValue: history.oldStatus || '-',
-          newValue: history.newStatus,
+          oldValue: `${history.oldStock} adet`,
+          newValue: `${history.newStock} adet`,
           changedAt: history.createdAt.toISOString()
         });
       });
