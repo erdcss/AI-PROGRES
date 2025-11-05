@@ -51,7 +51,7 @@ const MarketplaceSelection = () => {
       description: "Ürün fiyat izleme ve Shopify senkronizasyonu",
       icon: <Activity className="w-8 h-8 text-white" />,
       available: true,
-      path: "/tracking-dashboard"
+      path: "/memory-tracking"
     },
     {
       name: "Sistem Durumu",
