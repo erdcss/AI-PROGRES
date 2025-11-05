@@ -531,4 +531,163 @@ router.get('/shopify/store-stats', async (req, res) => {
   }
 });
 
+// Tüm hafızadaki ürünleri listele
+router.get('/all-products', async (req, res) => {
+  try {
+    const { limit = '50', offset = '0', sortBy = 'createdAt', sortOrder = 'desc' } = req.query;
+    
+    const limitNum = parseInt(limit as string);
+    const offsetNum = parseInt(offset as string);
+    
+    const allProducts = await db
+      .select({
+        id: products.id,
+        title: products.title,
+        brand: products.brand,
+        trendyolUrl: products.trendyolUrl,
+        sourcePlatform: products.sourcePlatform,
+        shopifyProductId: products.shopifyProductId,
+        shopifyUrl: products.shopifyUrl,
+        currentPrice: products.currentPrice,
+        originalPrice: products.originalPrice,
+        stockStatus: products.stockStatus,
+        isActive: products.isActive,
+        createdAt: products.createdAt,
+        lastChecked: products.lastChecked,
+        images: products.images
+      })
+      .from(products)
+      .where(eq(products.isActive, true))
+      .orderBy(sortOrder === 'asc' ? products.createdAt : desc(products.createdAt))
+      .limit(limitNum)
+      .offset(offsetNum);
+    
+    const totalCount = await db
+      .select({ count: sql<number>`count(*)` })
+      .from(products)
+      .where(eq(products.isActive, true));
+    
+    res.json({
+      success: true,
+      products: allProducts,
+      pagination: {
+        total: Number(totalCount[0]?.count || 0),
+        limit: limitNum,
+        offset: offsetNum,
+        hasMore: offsetNum + limitNum < Number(totalCount[0]?.count || 0)
+      }
+    });
+  } catch (error) {
+    console.error('All products error:', error);
+    res.status(500).json({ 
+      success: false, 
+      error: 'Ürünler alınamadı' 
+    });
+  }
+});
+
+// Ürünleri JSON olarak dışa aktar
+router.get('/export-products', async (req, res) => {
+  try {
+    const allProducts = await db
+      .select()
+      .from(products)
+      .where(eq(products.isActive, true));
+    
+    const allVariants = await db
+      .select()
+      .from(productVariants);
+    
+    const exportData = {
+      version: '1.0',
+      exportDate: new Date().toISOString(),
+      products: allProducts,
+      variants: allVariants,
+      totalProducts: allProducts.length,
+      totalVariants: allVariants.length
+    };
+    
+    res.setHeader('Content-Type', 'application/json');
+    res.setHeader('Content-Disposition', `attachment; filename="products-export-${Date.now()}.json"`);
+    res.json(exportData);
+  } catch (error) {
+    console.error('Export products error:', error);
+    res.status(500).json({ 
+      success: false, 
+      error: 'Ürünler dışa aktarılamadı' 
+    });
+  }
+});
+
+// Ürünleri JSON'dan içe aktar
+router.post('/import-products', async (req, res) => {
+  try {
+    const { products: importProducts, variants: importVariants } = req.body;
+    
+    if (!importProducts || !Array.isArray(importProducts)) {
+      return res.status(400).json({
+        success: false,
+        error: 'Geçersiz veri formatı'
+      });
+    }
+    
+    let importedProducts = 0;
+    let importedVariants = 0;
+    const errors = [];
+    
+    for (const product of importProducts) {
+      try {
+        // ID'yi çıkar ve yeni ürün olarak ekle
+        const { id, ...productData } = product;
+        
+        const inserted = await db.insert(products).values({
+          ...productData,
+          createdAt: new Date(),
+          updatedAt: new Date()
+        }).returning();
+        
+        importedProducts++;
+        
+        // Varyantları ekle
+        if (importVariants && Array.isArray(importVariants)) {
+          const productVariantsToImport = importVariants.filter(v => v.productId === id);
+          
+          for (const variant of productVariantsToImport) {
+            try {
+              const { id: variantId, productId, ...variantData } = variant;
+              await db.insert(productVariants).values({
+                ...variantData,
+                productId: inserted[0].id,
+                createdAt: new Date(),
+                updatedAt: new Date()
+              });
+              importedVariants++;
+            } catch (error) {
+              errors.push(`Varyant içe aktarma hatası: ${error.message}`);
+            }
+          }
+        }
+      } catch (error) {
+        errors.push(`Ürün içe aktarma hatası: ${error.message}`);
+      }
+    }
+    
+    res.json({
+      success: true,
+      summary: {
+        importedProducts,
+        importedVariants,
+        errors: errors.length,
+        errorDetails: errors
+      }
+    });
+  } catch (error) {
+    console.error('Import products error:', error);
+    res.status(500).json({ 
+      success: false, 
+      error: 'Ürünler içe aktarılamadı' 
+    });
+  }
+});
+
 export default router;

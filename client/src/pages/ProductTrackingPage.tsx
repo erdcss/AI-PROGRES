@@ -3,6 +3,7 @@ import { useQuery, useMutation } from '@tanstack/react-query';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
+import { Input } from '@/components/ui/input';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from '@/components/ui/dialog';
 import { 
@@ -23,7 +24,9 @@ import {
   Image as ImageIcon,
   History,
   ArrowUpCircle,
-  ArrowDownCircle
+  ArrowDownCircle,
+  Search,
+  ArrowUpDown
 } from 'lucide-react';
 import { queryClient, apiRequest } from '@/lib/queryClient';
 import { useToast } from '@/hooks/use-toast';
@@ -36,6 +39,13 @@ import {
   TableRow,
 } from "@/components/ui/table";
 import { ScrollArea } from '@/components/ui/scroll-area';
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from "@/components/ui/select";
 
 interface SyncStatusBadge {
   status: string;
@@ -141,6 +151,9 @@ interface ProductDetail {
 export default function ProductTrackingPage() {
   const [filter, setFilter] = useState<'all' | 'active' | 'paused' | 'shopify' | 'out_of_stock'>('all');
   const [selectedProduct, setSelectedProduct] = useState<number | null>(null);
+  const [searchQuery, setSearchQuery] = useState('');
+  const [sortBy, setSortBy] = useState<'title' | 'price' | 'date'>('date');
+  const [sortOrder, setSortOrder] = useState<'asc' | 'desc'>('desc');
   const { toast } = useToast();
 
   const { data: trackingData, isLoading: trackingLoading, refetch: refetchTracking } = useQuery({
@@ -200,13 +213,38 @@ export default function ProductTrackingPage() {
     }
   });
 
-  const filteredProducts = products.filter(p => {
-    if (filter === 'active') return p.status === 'active';
-    if (filter === 'paused') return p.status === 'paused';
-    if (filter === 'shopify') return p.shopifyProductId !== null;
-    if (filter === 'out_of_stock') return p.status === 'out_of_stock';
-    return true;
-  });
+  const filteredProducts = products
+    .filter(p => {
+      if (filter === 'active') return p.status === 'active';
+      if (filter === 'paused') return p.status === 'paused';
+      if (filter === 'shopify') return p.shopifyProductId !== null;
+      if (filter === 'out_of_stock') return p.status === 'out_of_stock';
+      return true;
+    })
+    .filter(p => {
+      if (!searchQuery) return true;
+      const query = searchQuery.toLowerCase();
+      return (
+        p.title.toLowerCase().includes(query) ||
+        p.brand.toLowerCase().includes(query)
+      );
+    })
+    .sort((a, b) => {
+      if (sortBy === 'title') {
+        return sortOrder === 'asc' 
+          ? a.title.localeCompare(b.title)
+          : b.title.localeCompare(a.title);
+      }
+      if (sortBy === 'price') {
+        const priceA = parseFloat(a.currentPrice);
+        const priceB = parseFloat(b.currentPrice);
+        return sortOrder === 'asc' ? priceA - priceB : priceB - priceA;
+      }
+      // Sort by date (createdAt)
+      const dateA = new Date(a.createdAt).getTime();
+      const dateB = new Date(b.createdAt).getTime();
+      return sortOrder === 'asc' ? dateA - dateB : dateB - dateA;
+    });
 
   const handlePauseToggle = (productId: number, currentStatus: boolean) => {
     pauseMutation.mutate({ productId, pause: currentStatus });
@@ -338,10 +376,48 @@ export default function ProductTrackingPage() {
 
         <Card>
           <CardHeader>
-            <div className="flex justify-between items-center">
-              <CardTitle>Takip Edilen Ürünler</CardTitle>
+            <div className="space-y-4">
+              <div className="flex justify-between items-center">
+                <CardTitle>Takip Edilen Ürünler</CardTitle>
+              </div>
+              
+              <div className="flex flex-col md:flex-row gap-4">
+                <div className="flex-1 relative">
+                  <Search className="absolute left-3 top-3 h-4 w-4 text-muted-foreground" />
+                  <Input
+                    placeholder="Ürün adı veya marka ile ara..."
+                    value={searchQuery}
+                    onChange={(e) => setSearchQuery(e.target.value)}
+                    className="pl-10"
+                    data-testid="input-search"
+                  />
+                </div>
+                
+                <div className="flex gap-2">
+                  <Select value={sortBy} onValueChange={(v: any) => setSortBy(v)}>
+                    <SelectTrigger className="w-[180px]" data-testid="select-sort-by">
+                      <SelectValue placeholder="Sıralama" />
+                    </SelectTrigger>
+                    <SelectContent>
+                      <SelectItem value="date">Tarih</SelectItem>
+                      <SelectItem value="title">Başlık</SelectItem>
+                      <SelectItem value="price">Fiyat</SelectItem>
+                    </SelectContent>
+                  </Select>
+                  
+                  <Button
+                    variant="outline"
+                    size="icon"
+                    onClick={() => setSortOrder(sortOrder === 'asc' ? 'desc' : 'asc')}
+                    data-testid="button-toggle-sort-order"
+                  >
+                    <ArrowUpDown className="h-4 w-4" />
+                  </Button>
+                </div>
+              </div>
+              
               <Tabs value={filter} onValueChange={(v) => setFilter(v as any)}>
-                <TabsList className="grid grid-cols-5 w-full max-w-2xl">
+                <TabsList className="grid grid-cols-5 w-full">
                   <TabsTrigger value="all" data-testid="filter-all">
                     Tümü ({products.length})
                   </TabsTrigger>
