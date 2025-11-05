@@ -71,6 +71,7 @@ import { setupTrackingDashboardAPI } from './tracking-dashboard-api';
 import { ImageTelegramService } from './image-telegram-service';
 import { productStatisticsService } from './product-statistics-service';
 import { aiProductStatisticsService } from './ai-product-statistics';
+import { shopifyProductsSync } from './shopify-products-sync';
 
 // Helper function to register product for automated tracking
 async function registerProductForTracking(
@@ -6940,6 +6941,87 @@ ${(result.title || 'product').toLowerCase().replace(/[^a-z0-9]/g, '-')},${result
       });
     }
   });
+
+  // Shopify Products Management API
+  app.post("/api/shopify/sync-products", async (req, res) => {
+    try {
+      console.log('🔄 Manual Shopify products sync triggered');
+      const result = await shopifyProductsSync.syncAllShopifyProducts();
+      res.json(result);
+    } catch (error) {
+      console.error('❌ Shopify sync error:', error);
+      res.status(500).json({
+        success: false,
+        error: (error as Error).message
+      });
+    }
+  });
+
+  app.get("/api/shopify/products", async (req, res) => {
+    try {
+      const limit = parseInt(req.query.limit as string) || 50;
+      const offset = parseInt(req.query.offset as string) || 0;
+      const category = req.query.category as string;
+      const searchQuery = req.query.search as string;
+
+      console.log(`📊 Shopify products requested: limit=${limit}, offset=${offset}, category=${category || 'all'}`);
+
+      const result = await shopifyProductsSync.getAllShopifyProducts({
+        limit,
+        offset,
+        category,
+        searchQuery
+      });
+
+      res.json(result);
+    } catch (error) {
+      console.error('❌ Get Shopify products error:', error);
+      res.status(500).json({
+        success: false,
+        error: (error as Error).message
+      });
+    }
+  });
+
+  app.get("/api/shopify/categories", async (req, res) => {
+    try {
+      const result = await shopifyProductsSync.getCategories();
+      res.json(result);
+    } catch (error) {
+      console.error('❌ Get categories error:', error);
+      res.status(500).json({
+        success: false,
+        error: (error as Error).message
+      });
+    }
+  });
+
+  app.get("/api/shopify/statistics", async (req, res) => {
+    try {
+      const result = await shopifyProductsSync.getStatistics();
+      res.json(result);
+    } catch (error) {
+      console.error('❌ Get statistics error:', error);
+      res.status(500).json({
+        success: false,
+        error: (error as Error).message
+      });
+    }
+  });
+
+  // Shopify auto-sync on startup
+  console.log('🔄 Starting initial Shopify products sync...');
+  shopifyProductsSync.syncAllShopifyProducts()
+    .then(result => {
+      if (result.success) {
+        console.log(`✅ Initial Shopify sync completed: ${result.totalProducts} products, ${result.categories.length} categories`);
+      } else {
+        console.error('❌ Initial Shopify sync failed:', result.error);
+      }
+    })
+    .catch(err => {
+      console.error('❌ Initial Shopify sync error:', err);
+    });
 
   // Clear existing product memory cache on startup
   console.log('🗑️ Clearing existing product memory cache...');
