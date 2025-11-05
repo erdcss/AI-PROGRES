@@ -2204,7 +2204,19 @@ function validateAndSanitizeVariants(rawVariants: Array<{color: string, size: st
     'krem': '#F5F5DC', 'bej': '#F5E6D3', 'bordo': '#800020'
   };
   
-  const allVariants = authenticVariants.map(variant => ({
+  // 🔧 FIX: Remove duplicate variants (same color + size combination)
+  const variantMap = new Map<string, any>();
+  authenticVariants.forEach(variant => {
+    const key = `${variant.color}-${variant.size}`;
+    if (!variantMap.has(key)) {
+      variantMap.set(key, variant);
+    }
+  });
+  
+  const uniqueAuthenticVariants = Array.from(variantMap.values());
+  console.log(`🔧 DUPLICATE REMOVAL: ${authenticVariants.length} variants → ${uniqueAuthenticVariants.length} unique variants`);
+  
+  const allVariants = uniqueAuthenticVariants.map(variant => ({
     color: variant.color,
     colorCode: colorCodes[variant.color.toLowerCase()] || '#999999',
     size: variant.size,
