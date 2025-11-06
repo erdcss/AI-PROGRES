@@ -144,6 +144,26 @@ export default function MemoryTrackingPage() {
     }
   });
 
+  // Failover istatistiklerini çek
+  const { data: failoverStats } = useQuery<{
+    success: boolean;
+    statistics: {
+      total: number;
+      healthy: number;
+      degraded: number;
+      unhealthy: number;
+      failover: number;
+    };
+  }>({
+    queryKey: ['/api/failover/statistics'],
+    queryFn: async () => {
+      const res = await fetch('/api/failover/statistics');
+      if (!res.ok) throw new Error('Failed to fetch failover stats');
+      return res.json();
+    },
+    refetchInterval: 30000
+  });
+
   // Shopify senkronizasyon mutation
   const syncMutation = useMutation({
     mutationFn: async () => {
@@ -254,12 +274,37 @@ export default function MemoryTrackingPage() {
       queryClient.invalidateQueries({ queryKey: ['/api/shopify/statistics'] });
     });
 
+    // Subscribe to failover activated
+    subscribe('shopify:failover-activated', (eventData) => {
+      toast({
+        title: "🔄 Yedek Sistem Devrede",
+        description: `Ana sistem sorun yaşadı - ${eventData.newStrategy} stratejisine geçildi`,
+        duration: 8000,
+        variant: "default"
+      });
+      
+      queryClient.invalidateQueries({ queryKey: ['/api/failover/statistics'] });
+    });
+
+    // Subscribe to failover recovered
+    subscribe('shopify:failover-recovered', (eventData) => {
+      toast({
+        title: "✅ Ana Sistem Geri Döndü",
+        description: "Sistem normal moda döndü, artık ana veri kaynağı kullanılıyor",
+        duration: 6000
+      });
+      
+      queryClient.invalidateQueries({ queryKey: ['/api/failover/statistics'] });
+    });
+
     return () => {
       unsubscribe('shopify:new-product');
       unsubscribe('shopify:price-change');
       unsubscribe('shopify:stock-change');
       unsubscribe('shopify:status-change');
       unsubscribe('shopify:sync-complete');
+      unsubscribe('shopify:failover-activated');
+      unsubscribe('shopify:failover-recovered');
     };
   }, [subscribe, unsubscribe, toast]);
 
@@ -512,6 +557,95 @@ export default function MemoryTrackingPage() {
                 </p>
               </CardContent>
             </Card>
+          </div>
+        )}
+
+        {/* Failover System Status */}
+        {failoverStats?.statistics && (
+          <div className="space-y-2">
+            <h2 className="text-xl font-semibold text-white flex items-center gap-2">
+              <Activity className="h-5 w-5 text-blue-400" />
+              Yedek İzleme Sistemi Durumu
+            </h2>
+            <div className="grid grid-cols-1 md:grid-cols-4 gap-4">
+              <Card className="business-card border-green-500/30">
+                <CardHeader className="pb-3">
+                  <div className="flex items-center justify-between">
+                    <CardTitle className="text-sm font-medium text-white/80">Sağlıklı</CardTitle>
+                    <Wifi className="h-5 w-5 text-green-400" />
+                  </div>
+                </CardHeader>
+                <CardContent>
+                  <div className="text-3xl font-bold text-green-400" data-testid="text-healthy-count">
+                    {failoverStats.statistics.healthy}
+                  </div>
+                  <p className="text-xs text-white/60 mt-1">
+                    Ana sistem aktif
+                  </p>
+                </CardContent>
+              </Card>
+
+              <Card className="business-card border-yellow-500/30">
+                <CardHeader className="pb-3">
+                  <div className="flex items-center justify-between">
+                    <CardTitle className="text-sm font-medium text-white/80">Yavaş</CardTitle>
+                    <Activity className="h-5 w-5 text-yellow-400" />
+                  </div>
+                </CardHeader>
+                <CardContent>
+                  <div className="text-3xl font-bold text-yellow-400" data-testid="text-degraded-count">
+                    {failoverStats.statistics.degraded}
+                  </div>
+                  <p className="text-xs text-white/60 mt-1">
+                    Performans düşük
+                  </p>
+                </CardContent>
+              </Card>
+
+              <Card className="business-card border-orange-500/30">
+                <CardHeader className="pb-3">
+                  <div className="flex items-center justify-between">
+                    <CardTitle className="text-sm font-medium text-white/80">Sorunlu</CardTitle>
+                    <WifiOff className="h-5 w-5 text-orange-400" />
+                  </div>
+                </CardHeader>
+                <CardContent>
+                  <div className="text-3xl font-bold text-orange-400" data-testid="text-unhealthy-count">
+                    {failoverStats.statistics.unhealthy}
+                  </div>
+                  <p className="text-xs text-white/60 mt-1">
+                    Hata alıyor
+                  </p>
+                </CardContent>
+              </Card>
+
+              <Card className="business-card border-blue-500/30">
+                <CardHeader className="pb-3">
+                  <div className="flex items-center justify-between">
+                    <CardTitle className="text-sm font-medium text-white/80">Yedek Mod</CardTitle>
+                    <RefreshCw className="h-5 w-5 text-blue-400" />
+                  </div>
+                </CardHeader>
+                <CardContent>
+                  <div className="text-3xl font-bold text-blue-400" data-testid="text-failover-count">
+                    {failoverStats.statistics.failover}
+                  </div>
+                  <p className="text-xs text-white/60 mt-1">
+                    Alternatif strateji kullanıyor
+                  </p>
+                </CardContent>
+              </Card>
+            </div>
+            
+            {failoverStats.statistics.failover > 0 && (
+              <div className="bg-blue-500/10 border border-blue-500/30 rounded-lg p-4">
+                <p className="text-sm text-blue-300 flex items-center gap-2">
+                  <RefreshCw className="h-4 w-4" />
+                  <strong>{failoverStats.statistics.failover}</strong> ürün yedek veri çekme sistemini kullanıyor. 
+                  Ana sistem sorun yaşayınca otomatik olarak alternative stratejilere geçildi.
+                </p>
+              </div>
+            )}
           </div>
         )}
 

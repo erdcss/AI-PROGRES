@@ -3,7 +3,7 @@ import { failoverExtractionService } from './failover-extraction-service';
 import { db } from './db';
 import { urlTracking } from '@shared/schema';
 import { eq } from 'drizzle-orm';
-import { broadcastToClients } from './websocket-server';
+import { webSocketService } from './websocket-service';
 
 /**
  * Failover Manager
@@ -85,7 +85,7 @@ export class FailoverManager {
           console.log(`🚨 FAILOVER TRIGGERED: Switching to ${failoverDecision.nextStrategy}`);
           
           // WebSocket bildirimi gönder
-          broadcastToClients('shopify:failover-activated', {
+          webSocketService.broadcast('shopify:failover-activated', {
             url,
             oldStrategy: 'puppeteer',
             newStrategy: failoverDecision.nextStrategy,
@@ -192,7 +192,7 @@ export class FailoverManager {
       .limit(1);
     
     if (tracking) {
-      broadcastToClients('shopify:failover-activated', {
+      webSocketService.broadcast('shopify:failover-activated', {
         url,
         oldStrategy: 'puppeteer',
         newStrategy: tracking.extractionStrategy || 'mobile-api',
@@ -209,7 +209,7 @@ export class FailoverManager {
     await healthCheckManager.triggerManualRecovery(url);
     
     // WebSocket bildirimi
-    broadcastToClients('shopify:failover-recovered', {
+    webSocketService.broadcast('shopify:failover-recovered', {
       url,
       strategy: 'puppeteer',
       message: 'Manuel recovery: Primary moda döndü',
