@@ -1,4 +1,4 @@
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
 import { useQuery, useMutation } from '@tanstack/react-query';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
@@ -18,7 +18,9 @@ import {
   ArrowLeft,
   TrendingUp,
   DollarSign,
-  Layers
+  Layers,
+  Wifi,
+  WifiOff
 } from 'lucide-react';
 import { useLocation } from 'wouter';
 import {
@@ -38,6 +40,7 @@ import {
 } from "@/components/ui/table";
 import { useToast } from '@/hooks/use-toast';
 import { queryClient } from '@/lib/queryClient';
+import { useWebSocket } from '@/hooks/useWebSocket';
 
 interface ShopifyMemoryProduct {
   id: number;
@@ -81,6 +84,11 @@ export default function MemoryTrackingPage() {
   const itemsPerPage = 50;
   const { toast } = useToast();
   const [, setLocation] = useLocation();
+
+  // WebSocket for real-time updates
+  const { isConnected, subscribe, unsubscribe } = useWebSocket({
+    autoConnect: true
+  });
 
   // Shopify ürünlerini çek
   const { data: productsData, refetch: refetchProducts, isLoading } = useQuery<{
@@ -169,6 +177,91 @@ export default function MemoryTrackingPage() {
   const pagination = productsData?.pagination || { total: 0, totalPages: 0, currentPage: 1 };
   const categories = categoriesData?.categories || [];
   const statistics = statisticsData?.statistics;
+
+  // WebSocket event handlers
+  useEffect(() => {
+    // Subscribe to new products
+    subscribe('shopify:new-product', (eventData) => {
+      if (eventData.product) {
+        toast({
+          title: "🆕 Yeni Ürün Eklendi",
+          description: `${eventData.product.title} - ${eventData.product.price} TL`,
+          duration: 5000
+        });
+        
+        // Invalidate queries to fetch new product
+        queryClient.invalidateQueries({ queryKey: ['/api/shopify/products'] });
+        queryClient.invalidateQueries({ queryKey: ['/api/shopify/statistics'] });
+      }
+    });
+
+    // Subscribe to price changes
+    subscribe('shopify:price-change', (eventData) => {
+      if (eventData.title && eventData.change !== undefined) {
+        const emoji = eventData.change > 0 ? '📈' : '📉';
+        const changePercent = eventData.changePercent || 0;
+        toast({
+          title: `${emoji} Fiyat Değişimi`,
+          description: `${eventData.title}: ${eventData.oldPrice} → ${eventData.newPrice} TL (${changePercent > 0 ? '+' : ''}${changePercent}%)`,
+          duration: 7000
+        });
+        
+        queryClient.invalidateQueries({ queryKey: ['/api/shopify/products'] });
+      }
+    });
+
+    // Subscribe to stock changes
+    subscribe('shopify:stock-change', (eventData) => {
+      if (eventData.title && eventData.change !== undefined) {
+        const emoji = eventData.newStock === 0 ? '🚫' : '📦';
+        toast({
+          title: `${emoji} Stok Değişimi`,
+          description: `${eventData.title}: ${eventData.oldStock} → ${eventData.newStock} (${eventData.change > 0 ? '+' : ''}${eventData.change})`,
+          duration: 6000
+        });
+        
+        queryClient.invalidateQueries({ queryKey: ['/api/shopify/products'] });
+      }
+    });
+
+    // Subscribe to status changes
+    subscribe('shopify:status-change', (eventData) => {
+      if (eventData.title && eventData.oldStatus && eventData.newStatus) {
+        toast({
+          title: "🔄 Durum Değişimi",
+          description: `${eventData.title}: ${eventData.oldStatus} → ${eventData.newStatus}`,
+          duration: 6000
+        });
+        
+        queryClient.invalidateQueries({ queryKey: ['/api/shopify/products'] });
+      }
+    });
+
+    // Subscribe to sync completion
+    subscribe('shopify:sync-complete', (eventData) => {
+      const hasChanges = eventData.newProducts > 0 || eventData.changes > 0;
+      
+      toast({
+        title: hasChanges ? "✅ Senkronizasyon Tamamlandı" : "✅ Senkronizasyon Tamamlandı",
+        description: hasChanges 
+          ? `${eventData.newProducts} yeni, ${eventData.changes} değişiklik tespit edildi`
+          : "Tüm ürünler güncel, değişiklik yok",
+        duration: 5000
+      });
+      
+      queryClient.invalidateQueries({ queryKey: ['/api/shopify/products'] });
+      queryClient.invalidateQueries({ queryKey: ['/api/shopify/categories'] });
+      queryClient.invalidateQueries({ queryKey: ['/api/shopify/statistics'] });
+    });
+
+    return () => {
+      unsubscribe('shopify:new-product');
+      unsubscribe('shopify:price-change');
+      unsubscribe('shopify:stock-change');
+      unsubscribe('shopify:status-change');
+      unsubscribe('shopify:sync-complete');
+    };
+  }, [subscribe, unsubscribe, toast]);
 
   // Manuel yenileme
   const handleRefresh = () => {
@@ -308,7 +401,22 @@ export default function MemoryTrackingPage() {
               <p className="text-white/80">Shopify mağazanızdaki tüm ürünler ve istatistikler</p>
             </div>
           </div>
-          <div className="flex gap-2">
+          <div className="flex items-center gap-3">
+            {/* WebSocket Status Indicator */}
+            <div className="flex items-center gap-2 px-3 py-2 rounded-lg bg-slate-800/50 border border-slate-700">
+              {isConnected ? (
+                <>
+                  <Wifi className="h-4 w-4 text-green-400" />
+                  <span className="text-sm text-green-400 font-medium">Canlı</span>
+                </>
+              ) : (
+                <>
+                  <WifiOff className="h-4 w-4 text-red-400" />
+                  <span className="text-sm text-red-400 font-medium">Bağlantı Yok</span>
+                </>
+              )}
+            </div>
+
             <Button 
               onClick={handleShopifySync}
               disabled={syncMutation.isPending}

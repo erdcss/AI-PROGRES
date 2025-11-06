@@ -2,6 +2,8 @@ import { ShopifyApiService } from './shopify-api-service';
 import { db } from './db';
 import { products, productVariants, shopifyMemoryProducts } from '@shared/schema';
 import { eq, sql, and, isNotNull, desc } from 'drizzle-orm';
+import { webSocketService } from './websocket-service';
+import { shopifyChangeTracker } from './shopify-change-tracker';
 
 export interface ShopifyProductSyncResult {
   success: boolean;
@@ -34,14 +36,51 @@ export class ShopifyProductsSync {
         .orderBy(desc(shopifyMemoryProducts.createdAt));
 
       const categories = new Set<string>();
+      let newProductsCount = 0;
+      let totalChanges = 0;
       
       for (const memProduct of allMemoryProducts) {
         const category = memProduct.productType || 'Kategorisiz';
         categories.add(category);
+
+        // Track changes for this product
+        try {
+          // Check if this is a new product BEFORE tracking
+          const cached = shopifyChangeTracker.getCachedProduct(memProduct.shopifyProductId);
+          const isNewProduct = !cached;
+          
+          if (isNewProduct) {
+            newProductsCount++;
+          }
+
+          // Track changes (this will add to cache if new)
+          const changes = await shopifyChangeTracker.trackProduct(memProduct.shopifyProductId, {
+            price: memProduct.price,
+            inventoryQuantity: memProduct.inventoryQuantity,
+            status: memProduct.status,
+            title: memProduct.title
+          });
+
+          if (changes.length > 0) {
+            totalChanges += changes.length;
+          }
+        } catch (err) {
+          console.error(`❌ Change tracking error for ${memProduct.title}:`, err);
+        }
       }
 
       console.log(`✅ Shopify sync completed: ${syncResult.totalProducts} total, ${allMemoryProducts.length} in memory`);
       console.log(`📁 Categories found: ${Array.from(categories).join(', ')}`);
+      console.log(`🆕 New products: ${newProductsCount}, 📊 Total changes detected: ${totalChanges}`);
+
+      // Broadcast sync completion
+      webSocketService.broadcast('shopify:sync-complete', {
+        totalProducts: syncResult.totalProducts,
+        syncedProducts: allMemoryProducts.length,
+        newProducts: newProductsCount,
+        changes: totalChanges,
+        categories: Array.from(categories).sort()
+      });
 
       return {
         success: true,

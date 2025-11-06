@@ -620,6 +620,19 @@ app.use('/api/sos', sosRoutes);
     }
   });
 
+  // Initialize WebSocket service
+  import('./websocket-service').then(({ webSocketService }) => {
+    webSocketService.initialize(server);
+  }).catch(console.error);
+
+  // Initialize Shopify change tracker
+  setTimeout(() => {
+    import('./shopify-change-tracker').then(({ shopifyChangeTracker }) => {
+      shopifyChangeTracker.initializeCache();
+      console.log('✅ Shopify change tracker initialized');
+    }).catch(console.error);
+  }, 5000);
+
   server.listen(port, "0.0.0.0", () => {
     log(`serving on port ${port}`);
     console.log(`Server is running at http://0.0.0.0:${port}`);
