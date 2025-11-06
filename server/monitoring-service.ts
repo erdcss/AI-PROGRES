@@ -7,6 +7,7 @@ import { scenarioBasedScrape } from './scenario-based-scraper';
 import { ShopifyApiService } from './shopify-api-service';
 import { VariantTrackingService } from './variant-tracking-service';
 import { shopifySyncManager } from './shopify-sync-manager';
+import { failoverManager } from './failover-manager';
 import type { VariantInfo } from './variant-tracking-service';
 
 export class MonitoringService {
@@ -364,7 +365,18 @@ export class MonitoringService {
   // Trendyol'dan ürün verilerini çek
   private async scrapeProductData(url: string): Promise<any> {
     try {
-      return await scenarioBasedScrape(url);
+      // ✅ FAILOVER INTEGRATION: Use failover manager
+      const result = await failoverManager.executeWithFailover(url, async () => {
+        return await scenarioBasedScrape(url);
+      });
+      
+      if (result.success) {
+        console.log(`✅ Data extracted with ${result.strategy} strategy ${result.failoverActivated ? '(FAILOVER)' : '(PRIMARY)'}`);
+        return result.data;
+      } else {
+        console.error(`❌ All extraction strategies failed: ${result.error}`);
+        return null;
+      }
     } catch (error) {
       console.error('Scraping hatası:', error);
       return null;
