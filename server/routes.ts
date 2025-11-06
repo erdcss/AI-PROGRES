@@ -7069,6 +7069,132 @@ ${(result.title || 'product').toLowerCase().replace(/[^a-z0-9]/g, '-')},${result
       console.error('❌ Initial Shopify sync error:', err);
     });
 
+  // ========================================
+  // FAILOVER SYSTEM ENDPOINTS
+  // ========================================
+  
+  // Get all health statuses
+  app.get("/api/failover/health", async (req, res) => {
+    try {
+      const { healthCheckManager } = await import('./health-check-manager');
+      const healthStatuses = await healthCheckManager.getAllHealthStatuses();
+      
+      res.json({
+        success: true,
+        healthStatuses,
+        count: healthStatuses.length
+      });
+    } catch (error) {
+      console.error('❌ Get health statuses error:', error);
+      res.status(500).json({
+        success: false,
+        error: (error as Error).message
+      });
+    }
+  });
+  
+  // Get health status for a specific URL
+  app.get("/api/failover/health/:url", async (req, res) => {
+    try {
+      const url = decodeURIComponent(req.params.url);
+      const { healthCheckManager } = await import('./health-check-manager');
+      const health = await healthCheckManager.getHealthStatus(url);
+      
+      if (!health) {
+        return res.status(404).json({
+          success: false,
+          error: 'Health status not found for this URL'
+        });
+      }
+      
+      res.json({
+        success: true,
+        health
+      });
+    } catch (error) {
+      console.error('❌ Get health status error:', error);
+      res.status(500).json({
+        success: false,
+        error: (error as Error).message
+      });
+    }
+  });
+  
+  // Get failover statistics
+  app.get("/api/failover/statistics", async (req, res) => {
+    try {
+      const { failoverManager } = await import('./failover-manager');
+      const stats = await failoverManager.checkAllHealth();
+      
+      res.json({
+        success: true,
+        statistics: stats
+      });
+    } catch (error) {
+      console.error('❌ Get failover statistics error:', error);
+      res.status(500).json({
+        success: false,
+        error: (error as Error).message
+      });
+    }
+  });
+  
+  // Manual failover trigger
+  app.post("/api/failover/trigger", async (req, res) => {
+    try {
+      const { url, reason } = req.body;
+      
+      if (!url) {
+        return res.status(400).json({
+          success: false,
+          error: 'URL is required'
+        });
+      }
+      
+      const { failoverManager } = await import('./failover-manager');
+      await failoverManager.triggerManualFailover(url, reason || 'Manual trigger');
+      
+      res.json({
+        success: true,
+        message: 'Failover triggered successfully'
+      });
+    } catch (error) {
+      console.error('❌ Trigger failover error:', error);
+      res.status(500).json({
+        success: false,
+        error: (error as Error).message
+      });
+    }
+  });
+  
+  // Manual recovery trigger
+  app.post("/api/failover/recover", async (req, res) => {
+    try {
+      const { url } = req.body;
+      
+      if (!url) {
+        return res.status(400).json({
+          success: false,
+          error: 'URL is required'
+        });
+      }
+      
+      const { failoverManager } = await import('./failover-manager');
+      await failoverManager.triggerManualRecovery(url);
+      
+      res.json({
+        success: true,
+        message: 'Recovery triggered successfully - switched to primary mode'
+      });
+    } catch (error) {
+      console.error('❌ Trigger recovery error:', error);
+      res.status(500).json({
+        success: false,
+        error: (error as Error).message
+      });
+    }
+  });
+
   // Clear existing product memory cache on startup
   console.log('🗑️ Clearing existing product memory cache...');
   memoryManager.purgeAll();
