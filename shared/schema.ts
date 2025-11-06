@@ -188,6 +188,14 @@ export const urlTracking = pgTable('url_tracking', {
   syncStatus: text('sync_status').default('pending'), // pending, synced, failed, retry
   transferredAt: timestamp('transferred_at'),
   syncErrors: text('sync_errors'),
+  // Failover system fields
+  failoverEnabled: boolean('failover_enabled').default(true), // Yedek sistem aktif mi
+  failoverMode: text('failover_mode').default('primary'), // primary, failover - Hangi modda çalışıyor
+  consecutiveFailures: integer('consecutive_failures').default(0), // Ardışık hata sayısı
+  lastFailureAt: timestamp('last_failure_at'), // Son hata zamanı
+  failoverActivatedAt: timestamp('failover_activated_at'), // Failover devreye girme zamanı
+  failoverCount: integer('failover_count').default(0), // Toplam failover sayısı
+  extractionStrategy: text('extraction_strategy').default('puppeteer'), // puppeteer, mobile-api, cheerio, cached
   createdAt: timestamp('created_at').notNull().defaultNow(),
   updatedAt: timestamp('updated_at').notNull().defaultNow()
 });
@@ -203,6 +211,32 @@ export const urlPriceHistory = pgTable('url_price_history', {
   recordedAt: timestamp('recorded_at').notNull().defaultNow(),
   productTitle: text('product_title'),
   currency: text('currency').default('TL')
+});
+
+// Monitoring Health table - İzleme sistemi sağlık durumu ve failover yönetimi
+export const monitoringHealth = pgTable('monitoring_health', {
+  id: serial('id').primaryKey(),
+  url: text('url').notNull().unique().references(() => urlTracking.url, { onDelete: 'cascade' }),
+  healthStatus: text('health_status').notNull().default('healthy'), // healthy, degraded, unhealthy, failover
+  lastSuccessfulCheck: timestamp('last_successful_check'),
+  lastFailedCheck: timestamp('last_failed_check'),
+  consecutiveSuccesses: integer('consecutive_successes').default(0),
+  consecutiveFailures: integer('consecutive_failures').default(0),
+  totalChecks: integer('total_checks').default(0),
+  totalSuccesses: integer('total_successes').default(0),
+  totalFailures: integer('total_failures').default(0),
+  successRate: decimal('success_rate', { precision: 5, scale: 2 }).default('100.00'), // Başarı oranı %
+  currentStrategy: text('current_strategy').default('puppeteer'), // puppeteer, mobile-api, cheerio, cached
+  availableStrategies: text('available_strategies').array().default(['puppeteer', 'mobile-api', 'cheerio']),
+  lastError: text('last_error'),
+  lastErrorDetails: jsonb('last_error_details'),
+  isFailoverActive: boolean('is_failover_active').default(false),
+  failoverReason: text('failover_reason'),
+  autoRecoveryEnabled: boolean('auto_recovery_enabled').default(true),
+  recoveryAttempts: integer('recovery_attempts').default(0),
+  lastRecoveryAttempt: timestamp('last_recovery_attempt'),
+  createdAt: timestamp('created_at').notNull().defaultNow(),
+  updatedAt: timestamp('updated_at').notNull().defaultNow()
 });
 
 // Relations
