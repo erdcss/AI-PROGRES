@@ -223,7 +223,7 @@ function Router() {
       <Route path="/coming-soon/:platform?">
         {(params) => (
           <PageTransition>
-            <ComingSoon platform={params?.platform} />
+            <ComingSoon platform={params && params.platform} />
           </PageTransition>
         )}
       </Route>

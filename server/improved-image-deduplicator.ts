@@ -297,8 +297,15 @@ export function extractEnhancedVariants($: cheerio.CheerioAPI, htmlContent: stri
     if (stockDataMatch) {
       try {
         const variantsJson = `[${stockDataMatch[1]}]`;
-        // Try to parse, but don't let parsing errors block other methods
-        const stockVariants = JSON.parse(variantsJson);
+        // Clean up the JSON string by removing trailing commas and fixing common issues
+        const cleanedJson = variantsJson
+          .replace(/,\s*]/g, ']')
+          .replace(/,\s*}/g, '}')
+          .replace(/(\w+):/g, '"$1":')
+          .replace(/:\s*'([^']*)'/g, ':"$1"');
+        
+        // Try to parse, but silently fail if JSON is malformed
+        const stockVariants = JSON.parse(cleanedJson);
         
         console.log(`🔍 Found ${stockVariants.length} variants with stock data`);
         
@@ -377,7 +384,7 @@ export function extractEnhancedVariants($: cheerio.CheerioAPI, htmlContent: stri
           return; // Skip other methods if we found direct stock data
         }
       } catch (error) {
-        console.log('❌ Error parsing direct stock variants:', error);
+        // Silently continue to next method if JSON parsing fails
       }
     }
     
