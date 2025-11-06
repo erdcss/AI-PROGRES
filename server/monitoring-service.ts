@@ -294,7 +294,8 @@ export class MonitoringService {
             sku: v.sku || undefined,
             trendyolPrice: v.trendyolPrice ?? newPrice,
             shopifyPrice: v.shopifyPrice ?? Math.round(newPrice * 1.10 * 100) / 100,
-            stockCount: v.stockCount ?? 0,
+            // inStock true ise en az 1 adet var demektir (Trendyol stockCount bilgisi her zaman doğru olmayabilir)
+            stockCount: v.stockCount ?? (v.inStock ? 1 : 0),
             inStock: v.inStock ?? true
           }));
 

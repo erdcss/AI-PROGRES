@@ -71,7 +71,8 @@ export class VariantTrackingService {
   
   /**
    * Varyantın sahte olup olmadığını kontrol et
-   * ÖNEMLİ: Beden VEYA renk sahte ise filtrelenir (OR mantığı)
+   * ÖNEMLİ: HEM beden HEM renk sahte ise filtrelenir (AND mantığı)
+   * Gerçek ürünler: "Mavi / Tek Beden", "Standart / M" gibi tek tarafı gerçek olanlar
    */
   private isFakeVariant(color: string, size: string): boolean {
     const normalizedSize = size?.trim() || '';
@@ -87,11 +88,12 @@ export class VariantTrackingService {
       normalizedColor.toLowerCase() === fake.toLowerCase()
     );
     
-    // ⚡ KRİTİK: Beden VEYA renk sahte ise -> SAHTEdir (OR mantığı)
-    // Örnek: "Tek Beden + Normal Renk" = SAHTE
-    // Örnek: "XS + Standart" = SAHTE
-    if (isFakeSize || isFakeColor) {
-      console.log(`🚫 FAKE VARIANT DETECTED: ${color} / ${size} - SKIPPING notification (isFakeSize: ${isFakeSize}, isFakeColor: ${isFakeColor})`);
+    // ⚡ KRİTİK: Sadece HEM beden HEM renk sahte ise -> SAHTEdir (AND mantığı)
+    // Örnek: "Standart / Tek Beden" = SAHTE (her ikisi de placeholder)
+    // Örnek: "Mavi / Tek Beden" = GERÇEK (renk gerçek)
+    // Örnek: "Standart / M" = GERÇEK (beden gerçek)
+    if (isFakeSize && isFakeColor) {
+      console.log(`🚫 FAKE VARIANT DETECTED: ${color} / ${size} - SKIPPING notification (both placeholder)`);
       return true;
     }
     
@@ -310,13 +312,15 @@ export class VariantTrackingService {
 
   /**
    * Stokta olmayan varyantları filtrele (Shopify'a gönderilmemeli)
+   * NOT: Sadece inStock bayrağına güveniyoruz, stockCount her zaman doğru olmayabilir
    */
   filterInStockVariants(variants: VariantInfo[]): {
     available: VariantInfo[];
     outOfStock: VariantInfo[];
   } {
-    const available = variants.filter(v => v.inStock && v.stockCount > 0);
-    const outOfStock = variants.filter(v => !v.inStock || v.stockCount === 0);
+    // Sadece inStock bayrağını kontrol et (Trendyol'dan gelen güvenilir bilgi)
+    const available = variants.filter(v => v.inStock === true);
+    const outOfStock = variants.filter(v => v.inStock !== true);
 
     console.log(`✅ FILTER: ${available.length} available variants, ${outOfStock.length} out-of-stock (excluded)`);
 

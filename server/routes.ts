@@ -78,10 +78,12 @@ async function registerProductForTracking(
   shopifyProductId: string,
   sourceUrl: string,
   productData: any,
-  variants: any[] = []
+  variants: any[] = [],
+  shopifyVariants: any[] = []
 ) {
   try {
     console.log('🎯 TRACKING REGISTRATION - Starting for:', shopifyProductId);
+    console.log(`📦 Received ${shopifyVariants.length} Shopify variant IDs to sync`);
     
     // 1. Generate unique tracking ID
     const uniqueTrackingId = uuidv4();
@@ -114,35 +116,43 @@ async function registerProductForTracking(
     const productId = insertedProduct[0].id;
     console.log('✅ Product registered in DB:', productId);
     
-    // 3. Insert variants
+    // 3. Insert variants with Shopify variant IDs
     if (variants.length > 0) {
       for (const variant of variants) {
+        // Find matching Shopify variant by color/size
+        const shopifyVariant = shopifyVariants.find(sv => 
+          sv.color === variant.color && sv.size === variant.size
+        );
+        
         await db.insert(productVariants).values({
           productId,
+          shopifyVariantId: shopifyVariant?.shopifyVariantId || null,
           color: variant.color || 'Varsayılan',
           size: variant.size || 'Tek Beden',
-          sku: variant.sku || '',
+          sku: variant.sku || shopifyVariant?.sku || '',
           trendyolPrice: variant.price || '0',
           shopifyPrice: variant.shopifyPrice || variant.price || '0',
           stockCount: variant.stockCount || 0,
           inStock: variant.inStock !== false
         });
         
-        console.log(`✅ Variant registered: ${variant.color} - ${variant.size}`);
+        console.log(`✅ Variant registered: ${variant.color} - ${variant.size}${shopifyVariant ? ' (Shopify ID: ' + shopifyVariant.shopifyVariantId + ')' : ''}`);
       }
     } else {
       // Default variant if no variants provided
+      const defaultShopifyVariant = shopifyVariants[0];
       await db.insert(productVariants).values({
         productId,
+        shopifyVariantId: defaultShopifyVariant?.shopifyVariantId || null,
         color: 'Varsayılan',
         size: 'Tek Beden',
-        sku: '',
+        sku: defaultShopifyVariant?.sku || '',
         trendyolPrice: productData?.currentPrice || '0',
         shopifyPrice: productData?.currentPrice || '0',
         stockCount: 100,
         inStock: true
       });
-      console.log('✅ Default variant registered');
+      console.log('✅ Default variant registered' + (defaultShopifyVariant ? ' (Shopify ID: ' + defaultShopifyVariant.shopifyVariantId + ')' : ''));
     }
     
     // 4. Create monitoring schedule
@@ -165,21 +175,24 @@ async function registerProductForTracking(
     
     console.log('✅ Monitoring schedule created - next check in 5 minutes');
     
-    // 5. Add to URL tracking service
+    // 5. Add to URL tracking service (WITHOUT starting tracking yet)
+    // Tracking will be started AFTER Shopify upload succeeds
     try {
-      await urlTrackingService.addUrlToTracking(sourceUrl, 300, 'shopify-upload-auto');
-      console.log('✅ URL added to tracking service');
+      await urlTrackingService.addUrlToTracking(sourceUrl, 300, 'shopify-upload-auto', false);
+      console.log('✅ URL added to tracking service (tracking not started yet - waiting for Shopify upload)');
     } catch (urlError) {
       console.warn('⚠️ URL tracking service error (non-critical):', urlError);
     }
     
     console.log('🎯 TRACKING REGISTRATION COMPLETED for:', uniqueTrackingId);
+    console.log('⏸️ Tracking is NOT started yet - will start after Shopify upload success');
     
     return {
       success: true,
       trackingId: uniqueTrackingId,
       productId,
-      message: 'Product successfully registered for automated tracking'
+      sourceUrl, // Return source URL so caller can start tracking after upload
+      message: 'Product successfully registered for automated tracking (tracking will start after Shopify upload)'
     };
     
   } catch (error) {
@@ -3200,9 +3213,20 @@ ${(result.title || 'product').toLowerCase().replace(/[^a-z0-9]/g, '-')},${result
                 uploadResult.productId,
                 sourceUrl,
                 req.body.productData || { title: productTitle },
-                req.body.variants || []
+                req.body.variants || [],
+                uploadResult.variants || []
               );
               console.log('🎯 Tracking registration result:', trackingResult.success ? 'SUCCESS' : 'FAILED');
+              
+              // ✅ START TRACKING after successful registration
+              if (trackingResult.success && trackingResult.sourceUrl) {
+                try {
+                  const enableResult = await urlTrackingService.enableTracking(trackingResult.sourceUrl);
+                  console.log('🎯 Tracking enabled:', enableResult.success ? 'SUCCESS' : 'FAILED');
+                } catch (enableError) {
+                  console.warn('⚠️ Failed to enable tracking (non-critical):', enableError);
+                }
+              }
             }
           } catch (trackingError) {
             console.warn('⚠️ Tracking registration failed (non-critical):', trackingError);
@@ -3300,9 +3324,20 @@ ${(result.title || 'product').toLowerCase().replace(/[^a-z0-9]/g, '-')},${result
                 uploadResult.productId,
                 sourceUrl,
                 productData,
-                productData.variants?.allVariants || []
+                productData.variants?.allVariants || [],
+                uploadResult.variants || []
               );
               console.log('🎯 Multi-URL Tracking registration result:', trackingResult.success ? 'SUCCESS' : 'FAILED');
+              
+              // ✅ START TRACKING after successful registration
+              if (trackingResult.success && trackingResult.sourceUrl) {
+                try {
+                  const enableResult = await urlTrackingService.enableTracking(trackingResult.sourceUrl);
+                  console.log('🎯 Tracking enabled:', enableResult.success ? 'SUCCESS' : 'FAILED');
+                } catch (enableError) {
+                  console.warn('⚠️ Failed to enable tracking (non-critical):', enableError);
+                }
+              }
             }
           } catch (trackingError) {
             console.warn('⚠️ Multi-URL Tracking registration failed (non-critical):', trackingError);
@@ -3424,9 +3459,20 @@ ${(result.title || 'product').toLowerCase().replace(/[^a-z0-9]/g, '-')},${result
               uploadResult.productId,
               sourceUrl,
               req.body.productData || { title: productTitle },
-              req.body.variants || []
+              req.body.variants || [],
+              uploadResult.variants || []
             );
             console.log('🎯 CSV Tracking registration result:', trackingResult.success ? 'SUCCESS' : 'FAILED');
+            
+            // ✅ START TRACKING after successful registration
+            if (trackingResult.success && trackingResult.sourceUrl) {
+              try {
+                const enableResult = await urlTrackingService.enableTracking(trackingResult.sourceUrl);
+                console.log('🎯 Tracking enabled:', enableResult.success ? 'SUCCESS' : 'FAILED');
+              } catch (enableError) {
+                console.warn('⚠️ Failed to enable tracking (non-critical):', enableError);
+              }
+            }
           }
         } catch (trackingError) {
           console.warn('⚠️ CSV Tracking registration failed (non-critical):', trackingError);

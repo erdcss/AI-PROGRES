@@ -39,9 +39,9 @@ export class UrlTrackingService {
     console.log('✅ URL Tracking Service başlatıldı');
   }
 
-  async addUrlToTracking(url: string, trackingInterval: number = 300, source: string = 'manual'): Promise<any> {
+  async addUrlToTracking(url: string, trackingInterval: number = 300, source: string = 'manual', startTracking: boolean = true): Promise<any> {
     try {
-      console.log(`🎯 URL tracking'e ekleniyor: ${url} (source: ${source})`);
+      console.log(`🎯 URL tracking'e ekleniyor: ${url} (source: ${source}, startTracking: ${startTracking})`);
       
       // İlk extraction yap
       const extractionResult = await scenarioBasedScrape(url);
@@ -63,7 +63,7 @@ export class UrlTrackingService {
           lastChecked: new Date(),
           lastSuccessfulCheck: new Date(),
           checkCount: 1,
-          isTracking: true,
+          isTracking: startTracking,
           trackingInterval,
           extractedData: extractionResult
         })
@@ -77,7 +77,7 @@ export class UrlTrackingService {
             lastSuccessfulCheck: new Date(),
             extractedData: extractionResult,
             status: 'active',
-            isTracking: true,
+            isTracking: startTracking,
             updatedAt: new Date()
           }
         });
@@ -85,10 +85,13 @@ export class UrlTrackingService {
       // 🔗 Sync products table with url_tracking
       await this.syncProductFromUrlTracking(trackedUrl.id);
 
-      // Real-time tracking başlat
-      this.startTracking(url, trackingInterval);
-      
-      console.log(`✅ URL tracking eklendi: ${extractionResult.title} - ${extractionResult.price.original} TL`);
+      // Real-time tracking başlat (sadece startTracking true ise)
+      if (startTracking) {
+        this.startTracking(url, trackingInterval);
+        console.log(`✅ URL tracking eklendi VE başlatıldı: ${extractionResult.title} - ${extractionResult.price.original} TL`);
+      } else {
+        console.log(`✅ URL tracking eklendi (başlatılmadı): ${extractionResult.title} - ${extractionResult.price.original} TL`);
+      }
       
       // ℹ️ Tracking started notifications are now blocked by gateway to reduce spam
       
@@ -102,6 +105,49 @@ export class UrlTrackingService {
       return {
         success: false,
         error: error instanceof Error ? error.message : String(error)
+      };
+    }
+  }
+
+  /**
+   * Enable tracking for a URL (sets isTracking=true and starts monitoring)
+   * Called after Shopify upload succeeds to begin price/stock monitoring
+   */
+  async enableTracking(url: string): Promise<{ success: boolean; message: string }> {
+    try {
+      console.log(`🎯 Enabling tracking for: ${url}`);
+      
+      // Update isTracking to true in database
+      const [updated] = await db
+        .update(urlTracking)
+        .set({ 
+          isTracking: true,
+          updatedAt: new Date()
+        })
+        .where(eq(urlTracking.url, url))
+        .returning();
+      
+      if (!updated) {
+        return {
+          success: false,
+          message: `URL not found in tracking system: ${url}`
+        };
+      }
+      
+      // Start real-time tracking
+      this.startTracking(url, updated.trackingInterval || 300);
+      
+      console.log(`✅ Tracking enabled and started for: ${url}`);
+      
+      return {
+        success: true,
+        message: 'Tracking enabled and started successfully'
+      };
+    } catch (error) {
+      console.error(`❌ Error enabling tracking:`, error);
+      return {
+        success: false,
+        message: error instanceof Error ? error.message : 'Unknown error'
       };
     }
   }

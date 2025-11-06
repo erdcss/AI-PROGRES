@@ -52,7 +52,18 @@ interface ShopifyProductData {
   }>;
 }
 
-export async function uploadProductToShopify(csvContent: string, productTitle: string): Promise<{ success: boolean; productId?: string; message: string }> {
+export async function uploadProductToShopify(csvContent: string, productTitle: string): Promise<{ 
+  success: boolean; 
+  productId?: string; 
+  variants?: Array<{
+    shopifyVariantId: string;
+    color: string;
+    size: string;
+    sku: string;
+    price: string;
+  }>;
+  message: string;
+}> {
   try {
     console.log('🛒 Shopify upload başlatılıyor...');
     console.log('CSV Content Length:', csvContent.length);
@@ -366,9 +377,24 @@ export async function uploadProductToShopify(csvContent: string, productTitle: s
     // Record upload to prevent duplicates
     recordUpload(productTitle, result.product.id.toString());
     
+    // Extract variant IDs with their color/size mapping
+    const variantMappings = createdVariants.map((shopifyVar: any, index: number) => {
+      const originalVar = productData.variants[index];
+      return {
+        shopifyVariantId: shopifyVar.id.toString(),
+        color: originalVar?.option1 || 'Standart',
+        size: originalVar?.option2 || 'Tek Beden',
+        sku: shopifyVar.sku || originalVar?.sku || '',
+        price: shopifyVar.price || originalVar?.price || '0'
+      };
+    });
+    
+    console.log(`📦 Returning ${variantMappings.length} variant IDs to caller for database sync`);
+    
     return { 
       success: true, 
       productId: result.product.id.toString(),
+      variants: variantMappings,
       message: `Ürün başarıyla Shopify'a eklendi. ID: ${result.product.id}` 
     };
 
