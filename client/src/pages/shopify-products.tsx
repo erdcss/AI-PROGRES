@@ -258,7 +258,9 @@ export default function ShopifyProductsPage() {
                       </Badge>
                     </div>
                     <CardDescription className="text-xs">
-                      {product.vendor} • {product.product_type}
+                      {product.vendor}
+                      {product.product_type && ` • ${product.product_type}`}
+                      {!product.product_type && product.tags && ` • ${product.tags.split(',')[0].trim()}`}
                     </CardDescription>
                   </CardHeader>
                   
@@ -272,23 +274,30 @@ export default function ShopifyProductsPage() {
                     )}
                     
                     <div className="space-y-2">
+                      {product.product_type && (
+                        <div className="flex justify-between text-sm">
+                          <span className="text-muted-foreground">Kategori:</span>
+                          <span className="font-medium text-xs">{product.product_type}</span>
+                        </div>
+                      )}
+                      
                       <div className="flex justify-between text-sm">
                         <span className="text-muted-foreground">Varyant:</span>
                         <span>{product.variants?.length || 0} adet</span>
                       </div>
                       
-                      {product.variants?.[0] && (
-                        <div className="flex justify-between text-sm">
-                          <span className="text-muted-foreground">Fiyat:</span>
-                          <span className="font-medium">
-                            {formatPrice(product.variants[0].price)}
-                          </span>
-                        </div>
-                      )}
+                      <div className="flex justify-between text-sm">
+                        <span className="text-muted-foreground">Fiyat:</span>
+                        <span className="font-medium text-green-600">
+                          {product.variants?.[0]?.price 
+                            ? formatPrice(product.variants[0].price)
+                            : 'Fiyat yok'}
+                        </span>
+                      </div>
                       
                       <div className="flex justify-between text-sm">
                         <span className="text-muted-foreground">Güncelleme:</span>
-                        <span>{formatDate(product.updated_at)}</span>
+                        <span className="text-xs">{formatDate(product.updated_at)}</span>
                       </div>
                     </div>
                     
