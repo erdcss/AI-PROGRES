@@ -3097,22 +3097,7 @@ ${(result.title || 'product').toLowerCase().replace(/[^a-z0-9]/g, '-')},${result
     }
   });
 
-  // Fetch all Shopify products
-  app.get('/api/shopify/products', async (req, res) => {
-    try {
-      const products = await shopifyProductsManager.fetchAllShopifyProducts();
-      res.json({
-        success: true,
-        count: products.length,
-        products
-      });
-    } catch (error: any) {
-      res.status(500).json({
-        success: false,
-        message: error.message
-      });
-    }
-  });
+  // Note: Shopify products endpoint moved to line ~7006 with pagination and filtering support
 
   // Sync database with Shopify products
   app.post('/api/shopify/sync-database', async (req, res) => {

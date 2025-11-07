@@ -119,13 +119,11 @@ export class ShopifyProductsSync {
           handle: shopifyMemoryProducts.handle,
           vendor: shopifyMemoryProducts.vendor,
           productType: shopifyMemoryProducts.productType,
-          category: shopifyMemoryProducts.productType,
           tags: shopifyMemoryProducts.tags,
           status: shopifyMemoryProducts.status,
-          totalVariants: sql<number>`COALESCE(jsonb_array_length(${shopifyMemoryProducts.variants}), 1)`,
-          totalImages: sql<number>`COALESCE(jsonb_array_length(${shopifyMemoryProducts.images}), 0)`,
-          minPrice: shopifyMemoryProducts.price,
-          maxPrice: shopifyMemoryProducts.price,
+          price: shopifyMemoryProducts.price,
+          variants: shopifyMemoryProducts.variants,
+          images: shopifyMemoryProducts.images,
           createdAt: shopifyMemoryProducts.createdAt,
           updatedAt: shopifyMemoryProducts.updatedAt
         })
@@ -162,11 +160,48 @@ export class ShopifyProductsSync {
 
       const totalCount = Number(totalCountResult[0]?.count || 0);
 
+      const enrichedProducts = productsData.map(product => {
+        const variants = product.variants as any[] || [];
+        const prices = variants
+          .map(v => parseFloat(v.price || '0'))
+          .filter(p => !isNaN(p) && p > 0);
+        
+        const minPrice = prices.length > 0 
+          ? Math.min(...prices).toFixed(2) 
+          : parseFloat(product.price || '0').toFixed(2);
+        
+        const maxPrice = prices.length > 0 
+          ? Math.max(...prices).toFixed(2) 
+          : parseFloat(product.price || '0').toFixed(2);
+        
+        const totalVariants = variants.length || 1;
+        const totalImages = (product.images as any[] || []).length;
+        const category = product.productType || 'Kategorisiz';
+
+        return {
+          id: product.id,
+          shopifyId: product.shopifyId,
+          title: product.title,
+          handle: product.handle,
+          vendor: product.vendor,
+          productType: product.productType,
+          category,
+          tags: product.tags,
+          status: product.status,
+          minPrice,
+          maxPrice,
+          totalVariants,
+          totalImages,
+          createdAt: product.createdAt,
+          updatedAt: product.updatedAt
+        };
+      });
+
       console.log(`✅ Retrieved ${productsData.length} products (total: ${totalCount})`);
 
       return {
         success: true,
-        products: productsData,
+        products: enrichedProducts,
         pagination: {
           total: totalCount,
           limit,

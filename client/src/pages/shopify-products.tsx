@@ -68,15 +68,7 @@ export default function ShopifyProductsPage() {
   // Fetch Shopify products
   const { data: shopifyData, isLoading: productsLoading, refetch: refetchProducts } = useQuery({
     queryKey: ['shopify', 'products'],
-    queryFn: async () => {
-      const response = await fetch('/api/shopify/products');
-      const data = await response.json();
-      console.log('📦 Shopify API Response:', data);
-      return data;
-    },
-    enabled: connectionStatus?.success,
-    staleTime: 0,
-    gcTime: 0
+    enabled: connectionStatus?.success
   });
 
   // Sync mutation
