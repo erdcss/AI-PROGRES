@@ -1,6 +1,7 @@
 import express, { type Request, Response, NextFunction } from "express";
 import { registerRoutes } from "./routes";
 import { setupVite, serveStatic, log } from "./vite";
+import { setupViteForReplit } from "./replit-vite-wrapper";
 import apiRoutes from "./api-routes";
 import importRoutes from "./import-route";
 import dataAnalysisRoutes from './data-analysis-routes';
@@ -583,7 +584,12 @@ app.use('/api/sos', sosRoutes);
   // setting up all the other routes so the catch-all route
   // doesn't interfere with the other routes
   if (process.env.NODE_ENV !== "production") {
-    await setupVite(app, server);
+    // Use Replit-optimized Vite setup if running on Replit
+    if (process.env.REPL_SLUG && process.env.REPL_OWNER) {
+      await setupViteForReplit(app, server);
+    } else {
+      await setupVite(app, server);
+    }
   } else {
     serveStatic(app);
   }
