@@ -88,7 +88,7 @@ export default function ShopifyProductsPage() {
         title: "Eşleştirme Tamamlandı",
         description: `${data.matched} eşleşme, ${data.unmatched} eşleşmeyen, ${data.orphaned} yalnız ürün bulundu`
       });
-      queryClient.invalidateQueries({ queryKey: ['shopify', 'sync'] });
+      queryClient.invalidateQueries({ queryKey: ['shopify', 'products'] });
     },
     onError: (error: any) => {
       toast({
@@ -122,17 +122,8 @@ export default function ShopifyProductsPage() {
     }
   });
 
-  // Fetch sync results
-  const { data: syncData, isLoading: syncLoading } = useQuery({
-    queryKey: ['shopify', 'sync'],
-    queryFn: async () => {
-      const response = await fetch('/api/shopify/sync-database', {
-        method: 'POST'
-      });
-      return response.json();
-    },
-    enabled: false
-  });
+  // Sync results are now managed by mutation state directly
+  // No need for a separate disabled query that never refetches
 
   const formatPrice = (price: string) => {
     return parseFloat(price).toFixed(2) + ' TL';
@@ -305,7 +296,10 @@ export default function ShopifyProductsPage() {
                       variant="outline" 
                       size="sm" 
                       className="w-full"
-                      onClick={() => window.open(`https://${process.env.SHOPIFY_SHOP_DOMAIN}/admin/products/${product.id}`, '_blank')}
+                      onClick={() => {
+                        const shopDomain = import.meta.env.VITE_SHOPIFY_SHOP_DOMAIN || 'your-shop.myshopify.com';
+                        window.open(`https://${shopDomain}/admin/products/${product.id}`, '_blank');
+                      }}
                     >
                       <ExternalLink className="w-3 h-3 mr-2" />
                       Shopify'da Aç

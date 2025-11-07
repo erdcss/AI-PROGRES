@@ -14,8 +14,9 @@ interface WebSocketHookOptions {
 }
 
 export function useWebSocket(options: WebSocketHookOptions = {}) {
+  const protocol = window.location.protocol === 'https:' ? 'wss:' : 'ws:';
   const {
-    url = `ws://${window.location.host}/ws`,
+    url = `${protocol}//${window.location.host}/ws`,
     autoConnect = true,
     reconnectInterval = 3000,
     maxReconnectAttempts = 5

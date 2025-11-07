@@ -35,7 +35,7 @@ export async function setupViteForReplit(app: Express, server: Server) {
       protocol: 'wss' as const,
       clientPort: 443,
     } : { server },
-    allowedHosts: ['.replit.dev', '.repl.co'],
+    allowedHosts: true as const,
   };
 
   console.log(`🔧 Vite HMR Config: ${replitHost ? `Replit mode (${replitHost})` : 'Local mode'}`);
