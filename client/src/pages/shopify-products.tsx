@@ -125,8 +125,15 @@ export default function ShopifyProductsPage() {
   // Sync results are now managed by mutation state directly
   // No need for a separate disabled query that never refetches
 
-  const formatPrice = (price: string) => {
-    return parseFloat(price).toFixed(2) + ' TL';
+  const formatPrice = (price: string | undefined | null) => {
+    if (!price || price === 'undefined' || price === 'null') {
+      return 'Fiyat yok';
+    }
+    const numPrice = parseFloat(price);
+    if (isNaN(numPrice)) {
+      return 'Fiyat yok';
+    }
+    return numPrice.toFixed(2) + ' TL';
   };
 
   const formatDate = (dateString: string) => {
@@ -258,9 +265,9 @@ export default function ShopifyProductsPage() {
                       </Badge>
                     </div>
                     <CardDescription className="text-xs">
-                      {product.vendor}
-                      {product.product_type && ` • ${product.product_type}`}
-                      {!product.product_type && product.tags && ` • ${product.tags.split(',')[0].trim()}`}
+                      {product.vendor || 'Vendor yok'}
+                      {product.product_type && product.product_type !== '' && ` • ${product.product_type}`}
+                      {(!product.product_type || product.product_type === '') && product.tags && product.tags !== '' && ` • ${product.tags.split(',')[0]?.trim() || ''}`}
                     </CardDescription>
                   </CardHeader>
                   
@@ -274,7 +281,7 @@ export default function ShopifyProductsPage() {
                     )}
                     
                     <div className="space-y-2">
-                      {product.product_type && (
+                      {product.product_type && product.product_type !== '' && (
                         <div className="flex justify-between text-sm">
                           <span className="text-muted-foreground">Kategori:</span>
                           <span className="font-medium text-xs">{product.product_type}</span>
@@ -289,9 +296,7 @@ export default function ShopifyProductsPage() {
                       <div className="flex justify-between text-sm">
                         <span className="text-muted-foreground">Fiyat:</span>
                         <span className="font-medium text-green-600">
-                          {product.variants?.[0]?.price 
-                            ? formatPrice(product.variants[0].price)
-                            : 'Fiyat yok'}
+                          {formatPrice(product.variants?.[0]?.price)}
                         </span>
                       </div>
                       
