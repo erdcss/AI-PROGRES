@@ -637,8 +637,8 @@ export class EnhancedVariantExtractor {
       if (uniqueColors.length === 0 && data.domSizes.length > 0) {
         console.log('⚠️ No valid colors found but sizes exist - trying to extract from URL');
         
-        // Try to extract color from URL
-        const urlColor = this.extractColorFromUrl(data.url || '');
+        // Try to extract color from URL using the imported function
+        const urlColor = extractColorFromUrl(data.url || '');
         if (urlColor) {
           uniqueColors = [{ name: urlColor, code: null }];
           console.log(`✅ Extracted color from URL: "${urlColor}"`);
@@ -648,8 +648,8 @@ export class EnhancedVariantExtractor {
           console.log('⚠️ Could not extract color from URL, using "Standart"');
         }
       } else if (uniqueColors.length === 0) {
-        // Try URL extraction even when no sizes
-        const urlColor = this.extractColorFromUrl(data.url || '');
+        // Try URL extraction even when no sizes using the imported function
+        const urlColor = extractColorFromUrl(data.url || '');
         if (urlColor) {
           uniqueColors = [{ name: urlColor, code: null }];
         } else {
@@ -803,69 +803,6 @@ export class EnhancedVariantExtractor {
 
     console.log(`🎨 DEDUPLICATION OUTPUT: ${result.length} colors`);
     return result;
-  }
-
-  /**
-   * Extract color name from Trendyol URL
-   * URL format: https://www.trendyol.com/brand/bebe-mavisi-product-name-p-12345
-   */
-  private extractColorFromUrl(url: string): string | null {
-    try {
-      // Extract the product slug part before -p-
-      const match = url.match(/\/([^\/]+)-p-\d+/);
-      if (!match) return null;
-      
-      const slug = match[1];
-      const parts = slug.split('-');
-      
-      // Common Turkish color names that might appear in URLs
-      const colorKeywords = [
-        'siyah', 'beyaz', 'kırmızı', 'mavi', 'yeşil', 'sarı', 'turuncu', 'mor', 'pembe', 
-        'kahverengi', 'gri', 'lacivert', 'bordo', 'turkuaz', 'fuşya', 'haki', 'bej',
-        'ekru', 'krem', 'camel', 'vizon', 'hardal', 'pudra', 'mint', 'lila', 'indigo',
-        'bebe', 'acik', 'koyu', 'pastel', 'neon', 'metalik', 'antrasit', 'bronz'
-      ];
-      
-      // Check if any part contains color keywords
-      let colorParts: string[] = [];
-      let foundColor = false;
-      
-      for (let i = 0; i < parts.length; i++) {
-        const part = parts[i].toLowerCase();
-        
-        // Check if this part is a color keyword
-        if (colorKeywords.includes(part)) {
-          foundColor = true;
-          colorParts.push(parts[i]);
-          
-          // Check next parts for compound colors (e.g., "bebe-mavisi", "acik-mavi")
-          if (i + 1 < parts.length) {
-            const nextPart = parts[i + 1].toLowerCase();
-            if (colorKeywords.includes(nextPart) || nextPart.endsWith('si') || nextPart.endsWith('i')) {
-              colorParts.push(parts[i + 1]);
-              i++; // Skip next iteration
-            }
-          }
-          
-          break; // Found color, stop looking
-        }
-      }
-      
-      if (foundColor && colorParts.length > 0) {
-        // Capitalize first letter of each part and join
-        const colorName = colorParts
-          .map(p => p.charAt(0).toUpperCase() + p.slice(1))
-          .join(' ');
-        
-        console.log(`🎨 Extracted color from URL: "${colorName}"`);
-        return colorName;
-      }
-      
-      return null;
-    } catch (error) {
-      console.log(`⚠️ Failed to extract color from URL: ${error.message}`);
-      return null;
-    }
   }
 
   /**
