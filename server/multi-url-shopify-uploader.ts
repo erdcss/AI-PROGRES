@@ -16,7 +16,9 @@ interface MultiUrlProductData {
   }>;
   variants: {
     colors: string[];
+    sizes?: string[];
     allVariants?: any[];
+    stockMap?: Record<string, boolean>;
   };
 }
 
@@ -94,37 +96,53 @@ export async function uploadMultiUrlProductToShopify(
       };
     }
 
-    // Extract colors from product names
+    // Extract real variant data
+    const allVariants = productData.variants?.allVariants || [];
     const colors = productData.variants?.colors || [];
-    const extractedColors = colors
-      .map(colorText => extractColorFromProductName(colorText))
-      .filter((color, index, arr) => arr.indexOf(color) === index && color !== 'Çok Renkli');
+    const sizes = productData.variants?.sizes || [];
     
-    if (extractedColors.length === 0) {
-      extractedColors.push('Çok Renkli');
+    console.log('🎨 Real variant data:', { 
+      totalVariants: allVariants.length, 
+      colors: colors.length, 
+      sizes: sizes.length 
+    });
+
+    // Create Shopify variants from real data
+    let variants = [];
+    
+    if (allVariants.length > 0) {
+      // Use real variants with actual color and size combinations
+      variants = allVariants.map((v: any) => ({
+        option1: v.color || 'Default',
+        option2: v.size || 'Tek Beden',
+        price: productData.price.withProfit.toFixed(2),
+        compare_at_price: productData.price.original.toFixed(2),
+        inventory_quantity: 0,
+        inventory_management: null,
+        inventory_policy: 'continue',
+        requires_shipping: true,
+        taxable: true,
+        fulfillment_service: 'manual'
+      }));
+      console.log(`✅ Created ${variants.length} real variants from extracted data`);
+    } else {
+      // Fallback: single variant with Default values
+      variants = [{
+        option1: 'Default',
+        option2: 'Tek Beden',
+        price: productData.price.withProfit.toFixed(2),
+        compare_at_price: productData.price.original.toFixed(2),
+        inventory_quantity: 0,
+        inventory_management: null,
+        inventory_policy: 'continue',
+        requires_shipping: true,
+        taxable: true,
+        fulfillment_service: 'manual'
+      }];
+      console.log('⚠️ No variants found - created single default variant');
     }
-    
-    // ❌ SAHTE BEDEN VERİSİ ENGELLENDI - Sadece gerçek varyantlar 
-    const sizes: string[] = []; // No fake sizes
-    
-    console.log('🎨 Extracted colors:', extractedColors);
-    console.log('📏 Using sizes:', sizes);
 
-    // ✅ ENVANTER TAKİBİ DEVRE DIŞI - Sınırsız stok
-    const variants = [{
-      price: productData.price.withProfit.toFixed(2),
-      compare_at_price: productData.price.original.toFixed(2),
-      inventory_quantity: 0, // 0 = Sınırsız stok
-      inventory_management: null, // Envanter takibi YOK
-      inventory_policy: 'continue', // Stok biterse de satmaya devam et
-      requires_shipping: true,
-      taxable: true,
-      fulfillment_service: 'manual'
-    }];
-    
-    console.log('⚠️ FAKE VARIANT CREATION DISABLED - Processing as single product');
-
-    console.log(`📊 Created ${variants.length} variants`);
+    console.log(`📊 Total variants: ${variants.length}`);
 
     // Prepare images - Support both string[] and object[] formats
     let imageUrls: string[] = [];
@@ -157,8 +175,11 @@ export async function uploadMultiUrlProductToShopify(
       console.log('📸 First image URL:', images[0].src);
     }
 
-    // Create Shopify product - options kaldırıldı (tek ürün için gerekli değil)
-    const productPayload = {
+    // Create Shopify product with proper options for variants
+    const hasMultipleVariants = variants.length > 1 || 
+                                (variants[0].option1 !== 'Default' || variants[0].option2 !== 'Tek Beden');
+    
+    const productPayload: any = {
       product: {
         title: productTitle,
         body_html: `<p>${productTitle}</p>`,
@@ -172,6 +193,15 @@ export async function uploadMultiUrlProductToShopify(
         images: images
       }
     };
+
+    // Add options if we have real variant data
+    if (hasMultipleVariants) {
+      productPayload.product.options = [
+        { name: 'Renk', values: colors.length > 0 ? colors : ['Default'] },
+        { name: 'Beden', values: sizes.length > 0 ? sizes : ['Tek Beden'] }
+      ];
+      console.log('✅ Added options to product payload:', productPayload.product.options);
+    }
 
     console.log('📤 Shopify API request payload hazırlandı');
     console.log('🔍 First variant:', JSON.stringify(variants[0], null, 2));

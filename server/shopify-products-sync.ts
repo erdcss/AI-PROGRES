@@ -178,6 +178,18 @@ export class ShopifyProductsSync {
         const totalImages = (product.images as any[] || []).length;
         const category = product.productType || 'Kategorisiz';
 
+        // Extract unique colors and sizes from variants
+        const colors = new Set<string>();
+        const sizes = new Set<string>();
+        
+        variants.forEach(v => {
+          if (v.option1 && v.option1 !== 'Default') colors.add(v.option1);
+          if (v.option2 && v.option2 !== 'Tek Beden') sizes.add(v.option2);
+        });
+
+        const variantColors = Array.from(colors);
+        const variantSizes = Array.from(sizes);
+
         return {
           id: product.id,
           shopifyId: product.shopifyId,
@@ -192,6 +204,8 @@ export class ShopifyProductsSync {
           maxPrice,
           totalVariants,
           totalImages,
+          colors: variantColors,
+          sizes: variantSizes,
           createdAt: product.createdAt,
           updatedAt: product.updatedAt
         };
