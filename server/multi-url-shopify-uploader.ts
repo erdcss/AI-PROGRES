@@ -61,7 +61,8 @@ function recordUpload(title: string, productId: string, brand?: string): void {
 
 export async function uploadMultiUrlProductToShopify(
   productData: MultiUrlProductData, 
-  productTitle: string
+  productTitle: string,
+  customTags: string[] = []
 ): Promise<{ 
   success: boolean; 
   productId?: string; 
@@ -72,6 +73,7 @@ export async function uploadMultiUrlProductToShopify(
   try {
     console.log('🚀 MULTI-URL UPLOADER BAŞLATILIYOR');
     console.log('📦 Product Title:', productTitle);
+    console.log('🏷️ Custom Tags:', customTags);
     console.log('🎨 Colors data:', productData.variants?.colors);
     
     // Duplicate check
@@ -179,13 +181,20 @@ export async function uploadMultiUrlProductToShopify(
     const hasMultipleVariants = variants.length > 1 || 
                                 (variants[0].option1 !== 'Default' || variants[0].option2 !== 'Tek Beden');
     
+    // Combine automatic and custom tags
+    const automaticTags = ['multi-url', 'auto-generated'];
+    const allTags = [...automaticTags, ...customTags].filter(tag => tag && tag.trim().length > 0);
+    const tagsString = allTags.join(', ');
+    
+    console.log('🏷️ Final tags for Shopify:', tagsString);
+    
     const productPayload: any = {
       product: {
         title: productTitle,
         body_html: `<p>${productTitle}</p>`,
         vendor: brand,
         product_type: 'Apparel & Accessories > Clothing',
-        tags: 'multi-url, auto-generated',
+        tags: tagsString,
         handle: productTitle.toLowerCase().replace(/[^a-z0-9]/g, '-').replace(/-+/g, '-'),
         status: 'active',
         published: true,

@@ -20,7 +20,10 @@ import {
   DollarSign,
   Layers,
   Wifi,
-  WifiOff
+  WifiOff,
+  Edit,
+  Save,
+  X
 } from 'lucide-react';
 import { useLocation } from 'wouter';
 import {
@@ -84,6 +87,8 @@ export default function MemoryTrackingPage() {
   const itemsPerPage = 50;
   const { toast } = useToast();
   const [, setLocation] = useLocation();
+  const [editingPrice, setEditingPrice] = useState<{[key: number]: string}>({});
+  const [tempPrices, setTempPrices] = useState<{[key: number]: string}>({});
 
   // WebSocket for real-time updates
   const { isConnected, subscribe, unsubscribe } = useWebSocket({
@@ -187,6 +192,35 @@ export default function MemoryTrackingPage() {
     onError: (error: any) => {
       toast({
         title: "Senkronizasyon Hatası",
+        description: error.message,
+        variant: "destructive"
+      });
+    }
+  });
+
+  // Fiyat güncelleme mutation
+  const updatePriceMutation = useMutation({
+    mutationFn: async ({ shopifyProductId, newPrice }: { shopifyProductId: string; newPrice: string }) => {
+      const res = await fetch('/api/shopify/update-price', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ shopifyProductId, newPrice })
+      });
+      if (!res.ok) throw new Error('Price update failed');
+      return res.json();
+    },
+    onSuccess: (data) => {
+      queryClient.invalidateQueries({ queryKey: ['/api/shopify/products'] });
+      toast({
+        title: "Fiyat Güncellendi",
+        description: data.message,
+      });
+      setEditingPrice({});
+      setTempPrices({});
+    },
+    onError: (error: any) => {
+      toast({
+        title: "Güncelleme Hatası",
         description: error.message,
         variant: "destructive"
       });
@@ -718,7 +752,7 @@ export default function MemoryTrackingPage() {
                         <TableHead className="font-semibold text-white/90">Ürün</TableHead>
                         <TableHead className="font-semibold text-white/90">Marka</TableHead>
                         <TableHead className="font-semibold text-white/90">Kategori</TableHead>
-                        <TableHead className="font-semibold text-white/90">Fiyat</TableHead>
+                        <TableHead className="font-semibold text-white/90">Fiyat (TL)</TableHead>
                         <TableHead className="font-semibold text-white/90">Varyant</TableHead>
                         <TableHead className="font-semibold text-white/90">Durum</TableHead>
                         <TableHead className="font-semibold text-white/90 text-right">İşlemler</TableHead>
@@ -737,10 +771,70 @@ export default function MemoryTrackingPage() {
                             </Badge>
                           </TableCell>
                           <TableCell className="text-white font-semibold">
-                            {product.minPrice === product.maxPrice 
-                              ? `${product.minPrice} TL`
-                              : `${product.minPrice} - ${product.maxPrice} TL`
-                            }
+                            {editingPrice[product.id] ? (
+                              <div className="flex items-center gap-2">
+                                <Input
+                                  type="number"
+                                  step="0.01"
+                                  value={tempPrices[product.id] || product.minPrice}
+                                  onChange={(e) => setTempPrices(prev => ({...prev, [product.id]: e.target.value}))}
+                                  className="w-24 h-8 bg-slate-800 border-slate-600 text-white"
+                                />
+                                <Button
+                                  size="sm"
+                                  variant="ghost"
+                                  onClick={() => {
+                                    updatePriceMutation.mutate({
+                                      shopifyProductId: product.shopifyId,
+                                      newPrice: tempPrices[product.id] || product.minPrice
+                                    });
+                                  }}
+                                  className="h-8 px-2 text-green-400 hover:text-green-300"
+                                  disabled={updatePriceMutation.isPending}
+                                >
+                                  <Save className="h-4 w-4" />
+                                </Button>
+                                <Button
+                                  size="sm"
+                                  variant="ghost"
+                                  onClick={() => {
+                                    setEditingPrice(prev => {
+                                      const newState = {...prev};
+                                      delete newState[product.id];
+                                      return newState;
+                                    });
+                                    setTempPrices(prev => {
+                                      const newState = {...prev};
+                                      delete newState[product.id];
+                                      return newState;
+                                    });
+                                  }}
+                                  className="h-8 px-2 text-red-400 hover:text-red-300"
+                                >
+                                  <X className="h-4 w-4" />
+                                </Button>
+                              </div>
+                            ) : (
+                              <div className="flex items-center gap-2">
+                                <span>
+                                  {product.minPrice === product.maxPrice 
+                                    ? product.minPrice
+                                    : `${product.minPrice} - ${product.maxPrice}`
+                                  }
+                                </span>
+                                <Button
+                                  size="sm"
+                                  variant="ghost"
+                                  onClick={() => {
+                                    setEditingPrice(prev => ({...prev, [product.id]: 'editing'}));
+                                    setTempPrices(prev => ({...prev, [product.id]: product.minPrice}));
+                                  }}
+                                  className="h-6 px-1 text-blue-400 hover:text-blue-300"
+                                >
+                                  <Edit className="h-3 w-3" />
+                                </Button>
+                              </div>
+                            )}
                           </TableCell>
                           <TableCell className="text-white/70">{product.totalVariants} adet</TableCell>
                           <TableCell>
@@ -759,6 +853,27 @@ export default function MemoryTrackingPage() {
                               >
                                 <ExternalLink className="h-4 w-4 mr-1" />
                                 Shopify
+                              </Button>
+                              <Button
+                                size="sm"
+                                variant="ghost"
+                                onClick={() => {
+                                  const trendyolUrl = (product as any).sourceUrl || (product as any).trendyolUrl;
+                                  if (trendyolUrl) {
+                                    window.open(trendyolUrl, '_blank');
+                                  } else {
+                                    toast({
+                                      title: "URL Bulunamadı",
+                                      description: "Bu ürün için Trendyol URL'si bulunamadı",
+                                      variant: "destructive"
+                                    });
+                                  }
+                                }}
+                                className="text-orange-400 hover:text-orange-300 hover:bg-orange-900/30"
+                                data-testid={`button-trendyol-${product.id}`}
+                              >
+                                <ShoppingCart className="h-4 w-4 mr-1" />
+                                Trendyol
                               </Button>
                             </div>
                           </TableCell>

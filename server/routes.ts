@@ -3164,10 +3164,89 @@ ${(result.title || 'product').toLowerCase().replace(/[^a-z0-9]/g, '-')},${result
     }
   });
 
+  // Update Shopify product price
+  app.post('/api/shopify/update-price', async (req, res) => {
+    try {
+      const { shopifyProductId, newPrice } = req.body;
+      
+      if (!shopifyProductId || !newPrice) {
+        return res.status(400).json({
+          success: false,
+          message: 'shopifyProductId ve newPrice gerekli'
+        });
+      }
+
+      const shopifyStore = process.env.SHOPIFY_STORE_DOMAIN;
+      const accessToken = process.env.SHOPIFY_ACCESS_TOKEN;
+      
+      if (!shopifyStore || !accessToken) {
+        return res.status(500).json({
+          success: false,
+          message: 'Shopify credentials bulunamadı'
+        });
+      }
+
+      // Fetch product variants to update prices
+      const productResponse = await fetch(`https://${shopifyStore}/admin/api/2023-10/products/${shopifyProductId}.json`, {
+        headers: {
+          'X-Shopify-Access-Token': accessToken,
+          'Content-Type': 'application/json'
+        }
+      });
+
+      if (!productResponse.ok) {
+        throw new Error(`Shopify product fetch failed: ${productResponse.statusText}`);
+      }
+
+      const productData = await productResponse.json();
+      const variants = productData.product.variants;
+
+      // Update all variant prices
+      for (const variant of variants) {
+        const updateResponse = await fetch(`https://${shopifyStore}/admin/api/2023-10/variants/${variant.id}.json`, {
+          method: 'PUT',
+          headers: {
+            'X-Shopify-Access-Token': accessToken,
+            'Content-Type': 'application/json'
+          },
+          body: JSON.stringify({
+            variant: {
+              id: variant.id,
+              price: newPrice.toString()
+            }
+          })
+        });
+
+        if (!updateResponse.ok) {
+          throw new Error(`Variant update failed: ${updateResponse.statusText}`);
+        }
+      }
+
+      // Update database
+      await db.update(shopifyMemoryProducts)
+        .set({ 
+          price: newPrice.toString(),
+          updatedAt: new Date()
+        })
+        .where(eq(shopifyMemoryProducts.shopifyProductId, shopifyProductId));
+
+      res.json({
+        success: true,
+        message: `Fiyat güncellendi: ${newPrice} TL`,
+        updatedVariants: variants.length
+      });
+    } catch (error: any) {
+      res.status(500).json({
+        success: false,
+        message: error.message
+      });
+    }
+  });
+
   // Shopify upload endpoint
   app.post('/api/shopify-upload', async (req, res) => {
     try {
-      const { csvContent, productTitle, productData } = req.body;
+      const { csvContent, productTitle, productData, customTags } = req.body;
       
       console.log('📥 Shopify upload request received');
       console.log('Request body keys:', Object.keys(req.body));
@@ -3175,6 +3254,7 @@ ${(result.title || 'product').toLowerCase().replace(/[^a-z0-9]/g, '-')},${result
       console.log('CSV Content preview:', csvContent ? csvContent.substring(0, 200) + '...' : 'null');
       console.log('Product Data exists:', !!productData);
       console.log('Product Title:', productTitle);
+      console.log('🏷️ Custom Tags:', customTags);
       
       // Multi-URL product data yükleme - daha basit condition
       console.log('🧪 Route condition check:');
@@ -3296,8 +3376,12 @@ ${(result.title || 'product').toLowerCase().replace(/[^a-z0-9]/g, '-')},${result
         console.log('🎨 ROUTE DEBUG - Colors in productData:', productData.variants?.colors);
         console.log('📋 ROUTE DEBUG - AllVariants:', productData.variants?.allVariants);
         
-        // Direkt multi-URL uploader kullan
-        const uploadResult = await uploadMultiUrlProductToShopify(productData, productTitle || productData.title);
+        // Direkt multi-URL uploader kullan (manuel tag'lerle birlikte)
+        const uploadResult = await uploadMultiUrlProductToShopify(
+          productData, 
+          productTitle || productData.title,
+          customTags || []
+        );
         
         // Register product for automated tracking if upload successful
         if (uploadResult.success && uploadResult.productId) {

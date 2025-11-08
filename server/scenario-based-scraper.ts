@@ -21,6 +21,7 @@ import { ultraStealthSystem } from './ultra-stealth-system';
 import { intelligentRateLimiter } from './intelligent-rate-limiter';
 import { extractFromTrendyolJavaScriptState } from './trendyol-js-extractor';
 import { detectRealStockStatus } from './real-stock-detector';
+import { extractColorFromUrl, extractColorFromTitle, getColorCode, cleanColorName } from './color-recognition';
 
 // Enhanced caching system with normal duration
 export const extractionCache = new Map<string, {data: any, timestamp: number}>();
@@ -1965,9 +1966,7 @@ export async function scenarioBasedScrape(url: string): Promise<ScenarioBasedRes
     if (validatedVariants.allVariants.length === 0) {
       console.log('🎯 SINGLE-VARIANT FALLBACK: No variants found, creating fallback variant...');
       
-      // Try to extract color from URL or title
-      const { extractColorFromUrl, extractColorFromTitle, getColorCode } = await import('./color-recognition');
-      
+      // Try to extract color from URL or title using imported functions
       let detectedColor = extractColorFromUrl(url);
       if (!detectedColor && title) {
         detectedColor = extractColorFromTitle(title);
