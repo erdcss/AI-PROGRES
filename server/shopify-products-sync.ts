@@ -1,6 +1,6 @@
 import { ShopifyApiService } from './shopify-api-service';
 import { db } from './db';
-import { products, productVariants, shopifyMemoryProducts } from '@shared/schema';
+import { products, productVariants, shopifyMemoryProducts, shopifyTransferredProducts } from '@shared/schema';
 import { eq, sql, and, isNotNull, desc } from 'drizzle-orm';
 import { webSocketService } from './websocket-service';
 import { shopifyChangeTracker } from './shopify-change-tracker';
@@ -125,9 +125,14 @@ export class ShopifyProductsSync {
           variants: shopifyMemoryProducts.variants,
           images: shopifyMemoryProducts.images,
           createdAt: shopifyMemoryProducts.createdAt,
-          updatedAt: shopifyMemoryProducts.updatedAt
+          updatedAt: shopifyMemoryProducts.updatedAt,
+          sourceUrl: shopifyTransferredProducts.sourceUrl
         })
-        .from(shopifyMemoryProducts);
+        .from(shopifyMemoryProducts)
+        .leftJoin(
+          shopifyTransferredProducts,
+          eq(shopifyMemoryProducts.shopifyProductId, shopifyTransferredProducts.shopifyProductId)
+        );
 
       const conditions = [];
 
@@ -206,6 +211,7 @@ export class ShopifyProductsSync {
           totalImages,
           colors: variantColors,
           sizes: variantSizes,
+          sourceUrl: product.sourceUrl,
           createdAt: product.createdAt,
           updatedAt: product.updatedAt
         };
