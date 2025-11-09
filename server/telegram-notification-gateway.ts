@@ -3,6 +3,7 @@ import { filteredNotifier } from './filtered-telegram-notifier';
 import { db } from './db';
 import { telegramNotificationHistory } from '@shared/schema';
 import { eq, and } from 'drizzle-orm';
+import { createHash } from 'crypto';
 
 interface NotificationCache {
   hash: string;
@@ -101,8 +102,14 @@ export class TelegramNotificationGateway {
       }
     }
 
-    // 3. Create unique hash for this notification
-    const hash = this.createNotificationHash(message, type, productId);
+    // 3. Create unique hash for this notification (TYPE-AWARE)
+    const hash = this.createNotificationHash({
+      message,
+      type,
+      productId,
+      variantId,
+      metadata
+    });
 
     // 4. Check deduplication cache
     if (this.isDuplicate(hash)) {
@@ -474,11 +481,89 @@ export class TelegramNotificationGateway {
   }
 
   /**
-   * Create unique hash for notification
+   * 🎯 Build type-aware deduplication signature
+   * Creates unique identifier based on notification type and relevant data
    */
-  private createNotificationHash(message: string, type: string, productId?: number): string {
-    const key = `${type}:${productId || 'global'}:${message.substring(0, 100)}`;
-    return Buffer.from(key).toString('base64');
+  private buildDedupSignature(params: {
+    type: string;
+    message: string;
+    productId?: number;
+    variantId?: number;
+    metadata?: Record<string, unknown>;
+  }): string {
+    const { type, productId, variantId, metadata, message } = params;
+    
+    // Base signature components
+    const parts: string[] = [type, productId?.toString() || 'global'];
+    
+    // 🎨 VARIANT NOTIFICATIONS: Use variantId or normalized color+size
+    if (type.includes('variant')) {
+      if (variantId) {
+        parts.push(`variant:${variantId}`);
+      } else if (metadata?.color || metadata?.size) {
+        // Normalize color and size for consistent hashing
+        const color = (metadata?.color || 'unknown').toString().trim().toLowerCase();
+        const size = (metadata?.size || 'unknown').toString().trim().toLowerCase();
+        parts.push(`color:${color}`, `size:${size}`);
+      }
+    }
+    
+    // 💰 PRICE NOTIFICATIONS: Include price values for precise deduplication
+    else if (type.includes('price')) {
+      if (metadata?.oldPrice !== undefined && metadata?.newPrice !== undefined) {
+        parts.push(`price:${metadata.oldPrice}->${metadata.newPrice}`);
+      } else if (metadata?.price !== undefined) {
+        parts.push(`price:${metadata.price}`);
+      }
+      // Include diff if available
+      if (metadata?.priceDiff !== undefined) {
+        parts.push(`diff:${metadata.priceDiff}`);
+      }
+    }
+    
+    // 📦 STOCK NOTIFICATIONS: Include stock status and variant info
+    else if (type.includes('stock')) {
+      if (metadata?.inStock !== undefined) {
+        parts.push(`stock:${metadata.inStock}`);
+      }
+      if (metadata?.oldStock !== undefined && metadata?.newStock !== undefined) {
+        parts.push(`stock:${metadata.oldStock}->${metadata.newStock}`);
+      }
+      // Include variant info for stock changes
+      if (metadata?.color || metadata?.size) {
+        const color = (metadata?.color || 'unknown').toString().trim().toLowerCase();
+        const size = (metadata?.size || 'unknown').toString().trim().toLowerCase();
+        parts.push(`color:${color}`, `size:${size}`);
+      }
+    }
+    
+    // 🔥 FALLBACK: Use first 100 chars of message for other types
+    else {
+      parts.push(message.substring(0, 100));
+    }
+    
+    // Create stable signature by joining parts
+    return parts.join('::');
+  }
+
+  /**
+   * Create unique hash for notification (type-aware deduplication)
+   */
+  private createNotificationHash(params: {
+    message: string;
+    type: string;
+    productId?: number;
+    variantId?: number;
+    metadata?: Record<string, unknown>;
+  }): string {
+    // Build type-aware signature
+    const signature = this.buildDedupSignature(params);
+    
+    // Hash the signature using SHA-256 for cache efficiency
+    return createHash('sha256')
+      .update(signature)
+      .digest('base64url')
+      .substring(0, 32); // Truncate for cache efficiency
   }
 
   /**
