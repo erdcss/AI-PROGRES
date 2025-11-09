@@ -116,6 +116,36 @@ async function registerProductForTracking(
     const productId = insertedProduct[0].id;
     console.log('✅ Product registered in DB:', productId);
     
+    // 2.5. Insert into shopifyTransferredProducts for tracking
+    try {
+      await db.insert(shopifyTransferredProducts).values({
+        sourceUrl,
+        shopifyProductId,
+        shopifyHandle: productData?.handle || '',
+        title: productData?.title || 'Shopify Product',
+        brand: productData?.brand || '',
+        originalPrice: productData?.originalPrice || '0',
+        shopifyPrice: productData?.currentPrice || '0',
+        profitMargin: '10.00',
+        variantCount: variants.length || 1,
+        imageCount: (productData?.images || []).length,
+        trackingEnabled: true,
+        currentStatus: 'active'
+      }).onConflictDoUpdate({
+        target: shopifyTransferredProducts.sourceUrl,
+        set: {
+          shopifyProductId,
+          title: productData?.title || 'Shopify Product',
+          variantCount: variants.length || 1,
+          imageCount: (productData?.images || []).length,
+          updatedAt: new Date()
+        }
+      });
+      console.log('✅ Product registered in shopifyTransferredProducts:', sourceUrl);
+    } catch (error) {
+      console.error('❌ Failed to register in shopifyTransferredProducts:', error);
+    }
+    
     // 3. Insert variants with Shopify variant IDs
     if (variants.length > 0) {
       for (const variant of variants) {
