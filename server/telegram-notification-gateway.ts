@@ -110,6 +110,11 @@ export class TelegramNotificationGateway {
       variantId,
       metadata
     });
+    
+    // 🔍 DEBUG: Log hash details for variant notifications
+    if (type.includes('variant')) {
+      console.log(`🔍 DEDUP DEBUG: type=${type}, productId=${productId}, variantId=${variantId}, color=${metadata?.color}, size=${metadata?.size}, hash=${hash.substring(0, 16)}...`);
+    }
 
     // 4. Check deduplication cache
     if (this.isDuplicate(hash)) {
@@ -146,8 +151,11 @@ export class TelegramNotificationGateway {
     }
 
     // 5. Check product-specific throttling (AFTER batching check, SKIP if batch exists)
-    // Skip throttle for first 2 changes to allow "first 2 immediate" rule
-    if (productId && !currentBatch && this.isProductThrottled(productId, type)) {
+    // Skip throttle for:
+    //   - First 2 changes (currentBatch exists)
+    //   - Variant notifications (each variant is independent)
+    const isVariantNotification = type.includes('variant');
+    if (productId && !currentBatch && !isVariantNotification && this.isProductThrottled(productId, type)) {
       console.log(`⏱️ Product throttled: ${productId} for ${type}`);
       return false;
     }
