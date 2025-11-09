@@ -2,13 +2,25 @@
 import { filteredNotifier } from './filtered-telegram-notifier';
 import { db } from './db';
 import { telegramNotificationHistory } from '@shared/schema';
-import { eq } from 'drizzle-orm';
+import { eq, and } from 'drizzle-orm';
 
 interface NotificationCache {
   hash: string;
   timestamp: number;
   productId?: number;
   type: string;
+}
+
+interface ProductChangeBatch {
+  productId: number;
+  productTitle: string;
+  changes: Array<{
+    type: string;
+    timestamp: number;
+    data: any;
+  }>;
+  firstChange: number;
+  lastChange: number;
 }
 
 export class TelegramNotificationGateway {
@@ -20,6 +32,11 @@ export class TelegramNotificationGateway {
   private messageTimestamps: number[] = [];
   private readonly TELEGRAM_RATE_LIMIT = 20; // Max 20 messages per minute (safe limit)
   private readonly TELEGRAM_WINDOW_MS = 60 * 1000; // 1 minute window
+  
+  // 🎯 SMART BATCHING - Group multiple changes for same product
+  private productBatches: Map<number, ProductChangeBatch> = new Map();
+  private readonly BATCH_WINDOW_MS = 2 * 60 * 1000; // 2 minutes batch window
+  private batchProcessor: NodeJS.Timeout | null = null;
   
   // ✅ BLOCKED NOTIFICATION TYPES - Ne notification göndermeyeceğiz
   private readonly BLOCKED_TYPES = [
@@ -93,13 +110,42 @@ export class TelegramNotificationGateway {
       return false;
     }
 
-    // 5. Check product-specific throttling
-    if (productId && this.isProductThrottled(productId, type)) {
+    // 🎯 SMART BATCHING - Track all product changes (BEFORE throttle & rate limit)
+    let currentBatch: ProductChangeBatch | undefined;
+    if (productId && productTitle) {
+      this.addToProductBatch(productId, productTitle, type, metadata);
+      currentBatch = this.productBatches.get(productId);
+      
+      // Check if we should batch this notification
+      if (currentBatch && currentBatch.changes.length >= 3) {
+        // 3+ changes: batch and delay sending
+        try {
+          await db.insert(telegramNotificationHistory).values({
+            notificationType: type,
+            message,
+            productId: productId,
+            variantId: variantId || null,
+            productTitle: productTitle,
+            status: 'batched', // Will be sent as grouped message
+            metadata: metadata || {},
+          });
+          console.log(`🎯 Change batched for later: Product ${productId} - ${type} (${currentBatch.changes.length} total)`);
+        } catch (dbError) {
+          console.error(`❌ Failed to log batched notification:`, dbError);
+        }
+        return true; // Don't send individually - will be batched
+      }
+      // 1-2 changes: continue to immediate send (fall through, skip throttle)
+    }
+
+    // 5. Check product-specific throttling (AFTER batching check, SKIP if batch exists)
+    // Skip throttle for first 2 changes to allow "first 2 immediate" rule
+    if (productId && !currentBatch && this.isProductThrottled(productId, type)) {
       console.log(`⏱️ Product throttled: ${productId} for ${type}`);
       return false;
     }
 
-    // 6. Check Telegram API rate limit
+    // 6. Check Telegram API rate limit (AFTER batching)
     if (!await this.checkTelegramRateLimit()) {
       console.log(`🚨 Telegram API rate limit reached - message queued or dropped`);
       return false;
@@ -111,7 +157,6 @@ export class TelegramNotificationGateway {
     try {
       // Save notification to database with 'pending' status
       const result = await db.insert(telegramNotificationHistory).values({
-        userId: 'default',
         notificationType: type,
         message,
         productId: productId || null,
@@ -183,7 +228,7 @@ export class TelegramNotificationGateway {
   }
 
   /**
-   * Send price change notification (auto-formatted)
+   * Send price change notification (auto-formatted) - ENHANCED PRO VERSION
    */
   async sendPriceChange(
     productTitle: string,
@@ -193,18 +238,33 @@ export class TelegramNotificationGateway {
     shopifyUpdated: boolean = false
   ): Promise<boolean> {
     const priceChange = ((newPrice - oldPrice) / oldPrice * 100).toFixed(2);
+    const priceDiff = (newPrice - oldPrice).toFixed(2);
     const changeType = newPrice > oldPrice ? 'price_increase' : 'price_decrease';
     const emoji = newPrice > oldPrice ? '📈' : '📉';
+    const trendEmoji = newPrice > oldPrice ? '🔺' : '🔻';
+    
+    // Determine urgency level
+    const changePercent = Math.abs(parseFloat(priceChange));
+    const urgencyEmoji = changePercent > 20 ? '🚨' : changePercent > 10 ? '⚠️' : 'ℹ️';
 
     const message = 
-      `${emoji} <b>FİYAT DEĞİŞİKLİĞİ</b>\n\n` +
-      `📦 <b>Ürün:</b> ${productTitle}\n` +
-      `💰 <b>Eski Fiyat:</b> ${oldPrice.toFixed(2)} TL\n` +
-      `💵 <b>Yeni Fiyat:</b> ${newPrice.toFixed(2)} TL\n` +
-      `📊 <b>Değişim:</b> ${priceChange}%\n` +
-      (shopifyUpdated ? `\n✅ Shopify otomatik güncellendi (10% kar marjı)` : '');
+      `${emoji} ${urgencyEmoji} <b>FİYAT DEĞİŞİKLİĞİ</b>\n` +
+      `━━━━━━━━━━━━━━━━━━━━\n\n` +
+      `📦 <b>Ürün:</b> ${productTitle}\n\n` +
+      `💰 <b>Eski Fiyat:</b> <code>${oldPrice.toFixed(2)} TL</code>\n` +
+      `💵 <b>Yeni Fiyat:</b> <code>${newPrice.toFixed(2)} TL</code>\n\n` +
+      `${trendEmoji} <b>Değişim:</b> <code>${priceDiff} TL</code> <b>(${priceChange}%)</b>\n` +
+      (changePercent > 20 ? `\n🔥 <b>BÜYÜK DEĞİŞİM!</b> Acil kontrol gerekli\n` : '') +
+      `\n━━━━━━━━━━━━━━━━━━━━\n` +
+      (shopifyUpdated ? `✅ Shopify otomatik güncellendi (%10 kar marjı)\n` : `⏳ Shopify güncellemesi bekleniyor\n`) +
+      `\n<i>⏰ ${new Date().toLocaleString('tr-TR', { timeZone: 'Europe/Istanbul' })}</i>`;
 
-    return await this.sendNotification(message, changeType, productId);
+    return await this.sendNotification(message, changeType, productId, { 
+      oldPrice, 
+      newPrice, 
+      priceChange: parseFloat(priceChange),
+      urgency: changePercent > 20 ? 'high' : changePercent > 10 ? 'medium' : 'low'
+    });
   }
 
   /**
@@ -225,7 +285,7 @@ export class TelegramNotificationGateway {
   }
 
   /**
-   * Send variant change notification
+   * Send variant change notification - ENHANCED PRO VERSION
    * ÇİFT GÜVENLİK: Hem servis hem gateway seviyesinde sahte varyant kontrolü
    */
   async sendVariantChange(
@@ -244,38 +304,52 @@ export class TelegramNotificationGateway {
     
     let emoji = '';
     let title = '';
+    let bgEmoji = '';
+    let statusText = '';
 
     switch (changeType) {
       case 'variant_added':
         emoji = '➕';
-        title = 'YENİ VARYANT';
+        bgEmoji = '🆕';
+        title = 'YENİ VARYANT EKLEND İ';
+        statusText = 'Yeni varyant Trendyol\'da tespit edildi';
         break;
       case 'variant_removed':
         emoji = '➖';
+        bgEmoji = '🗑️';
         title = 'VARYANT KALDIRILDI';
+        statusText = 'Varyant Trendyol\'dan kaldırıldı';
         break;
       case 'variant_oos':
         emoji = '🚫';
+        bgEmoji = '❌';
         title = 'STOK TÜKENDİ';
+        statusText = 'Varyant stoktan düştü';
         break;
       case 'variant_back_in_stock':
         emoji = '✅';
-        title = 'STOK GELDİ';
+        bgEmoji = '🎉';
+        title = 'STOK YENİDEN MEVCUT';
+        statusText = 'Varyant tekrar stoka girdi';
         break;
     }
 
     const message = 
-      `${emoji} <b>${title}</b>\n\n` +
-      `📦 <b>Ürün:</b> ${productTitle}\n` +
-      `🎨 <b>Renk:</b> ${color}\n` +
-      `📏 <b>Beden:</b> ${size}\n` +
-      (metadata?.shopifyUpdated ? `\n✅ Shopify otomatik güncellendi` : '');
+      `${emoji} ${bgEmoji} <b>${title}</b>\n` +
+      `━━━━━━━━━━━━━━━━━━━━\n\n` +
+      `📦 <b>Ürün:</b> ${productTitle}\n\n` +
+      `🎨 <b>Renk:</b> <code>${color}</code>\n` +
+      `📏 <b>Beden:</b> <code>${size}</code>\n\n` +
+      `📍 <b>Durum:</b> ${statusText}\n` +
+      `\n━━━━━━━━━━━━━━━━━━━━\n` +
+      (metadata?.shopifyUpdated ? `✅ Shopify otomatik güncellendi\n` : `⏳ Shopify güncellemesi bekleniyor\n`) +
+      `\n<i>⏰ ${new Date().toLocaleString('tr-TR', { timeZone: 'Europe/Istanbul' })}</i>`;
 
-    return await this.sendNotification(message, changeType, productId, metadata);
+    return await this.sendNotification(message, changeType, productId, { ...metadata, color, size });
   }
 
   /**
-   * Send stock change notification
+   * Send stock change notification - ENHANCED PRO VERSION
    */
   async sendStockChange(
     productTitle: string,
@@ -285,22 +359,44 @@ export class TelegramNotificationGateway {
     color?: string,
     size?: string
   ): Promise<boolean> {
+    const stockDiff = newStock - oldStock;
     const emoji = newStock > oldStock ? '📈' : '📉';
+    const statusEmoji = newStock === 0 ? '🚨' : newStock < 10 ? '⚠️' : '✅';
+    const trendEmoji = stockDiff > 0 ? '🔺' : '🔻';
     
-    const message = 
-      `${emoji} <b>STOK DEĞİŞİKLİĞİ</b>\n\n` +
-      `📦 <b>Ürün:</b> ${productTitle}\n` +
-      (color ? `🎨 <b>Renk:</b> ${color}\n` : '') +
-      (size ? `📏 <b>Beden:</b> ${size}\n` : '') +
-      `📊 <b>Eski Stok:</b> ${oldStock}\n` +
-      `📊 <b>Yeni Stok:</b> ${newStock}\n` +
-      `\n✅ Shopify otomatik güncellendi`;
+    let statusText = '';
+    if (newStock === 0) {
+      statusText = '❌ Stokta yok (TÜKENDİ)';
+    } else if (newStock < 10) {
+      statusText = '⚠️ Düşük stok (Acil takip)';
+    } else {
+      statusText = '✅ Stok durumu iyi';
+    }
 
-    return await this.sendNotification(message, 'stock_change', productId);
+    const message = 
+      `${emoji} ${statusEmoji} <b>STOK DEĞİŞİKLİĞİ</b>\n` +
+      `━━━━━━━━━━━━━━━━━━━━\n\n` +
+      `📦 <b>Ürün:</b> ${productTitle}\n` +
+      (color ? `🎨 <b>Renk:</b> <code>${color}</code>\n` : '') +
+      (size ? `📏 <b>Beden:</b> <code>${size}</code>\n` : '') +
+      `\n📊 <b>Eski Stok:</b> <code>${oldStock}</code>\n` +
+      `📊 <b>Yeni Stok:</b> <code>${newStock}</code>\n` +
+      `${trendEmoji} <b>Değişim:</b> <code>${stockDiff > 0 ? '+' : ''}${stockDiff}</code>\n\n` +
+      `📍 <b>Durum:</b> ${statusText}\n` +
+      `\n━━━━━━━━━━━━━━━━━━━━\n` +
+      `✅ Shopify otomatik güncellendi\n` +
+      `\n<i>⏰ ${new Date().toLocaleString('tr-TR', { timeZone: 'Europe/Istanbul' })}</i>`;
+
+    return await this.sendNotification(message, 'stock_change', productId, { 
+      oldStock, 
+      newStock, 
+      stockDiff,
+      urgency: newStock === 0 ? 'high' : newStock < 10 ? 'medium' : 'low'
+    });
   }
 
   /**
-   * Send Shopify sync error notification
+   * Send Shopify sync error notification - ENHANCED PRO VERSION
    */
   async sendShopifySyncError(
     productTitle: string,
@@ -309,13 +405,72 @@ export class TelegramNotificationGateway {
     error: string
   ): Promise<boolean> {
     const message = 
-      `❌ <b>SHOPIFY SYNC HATASI</b>\n\n` +
+      `❌ 🚨 <b>SHOPIFY SYNC HATASI</b>\n` +
+      `━━━━━━━━━━━━━━━━━━━━\n\n` +
       `📦 <b>Ürün:</b> ${productTitle}\n` +
-      `⚙️ <b>İşlem:</b> ${operation}\n` +
-      `❌ <b>Hata:</b> ${error}\n` +
-      `\n🔄 Retry mekanizması devreye girdi`;
+      `⚙️ <b>İşlem:</b> <code>${operation}</code>\n\n` +
+      `❌ <b>Hata Detayı:</b>\n<pre>${error.substring(0, 200)}</pre>\n\n` +
+      `━━━━━━━━━━━━━━━━━━━━\n` +
+      `🔄 Retry mekanizması otomatik devreye girdi\n` +
+      `📝 Hata logları kaydedildi\n\n` +
+      `<i>⏰ ${new Date().toLocaleString('tr-TR', { timeZone: 'Europe/Istanbul' })}</i>`;
 
-    return await this.sendNotification(message, 'shopify_sync_error', productId);
+    return await this.sendNotification(message, 'shopify_sync_error', productId, { 
+      operation, 
+      error,
+      urgency: 'high' 
+    });
+  }
+
+  /**
+   * Send daily summary report - PROFESSIONAL VERSION
+   */
+  async sendDailySummary(summary: {
+    date: Date;
+    totalProducts: number;
+    activeTracking: number;
+    priceChanges: number;
+    variantChanges: number;
+    stockChanges: number;
+    shopifyUpdates: number;
+    errors: number;
+  }): Promise<boolean> {
+    const date = summary.date.toLocaleDateString('tr-TR', { 
+      weekday: 'long', 
+      year: 'numeric', 
+      month: 'long', 
+      day: 'numeric' 
+    });
+    
+    // Calculate health score
+    const healthScore = summary.errors === 0 ? 100 : 
+                        summary.errors < 3 ? 90 :
+                        summary.errors < 10 ? 70 : 50;
+    const healthEmoji = healthScore >= 90 ? '🟢' : healthScore >= 70 ? '🟡' : '🔴';
+
+    const message = 
+      `📊 💎 <b>GÜNLÜK ÖZET RAPORU</b>\n` +
+      `━━━━━━━━━━━━━━━━━━━━\n\n` +
+      `📅 <b>Tarih:</b> ${date}\n` +
+      `${healthEmoji} <b>Sistem Sağlığı:</b> %${healthScore}\n\n` +
+      `━━━━━━━━━━━━━━━━━━━━\n\n` +
+      `📦 <b>ÜRÜN İSTATİSTİKLERİ</b>\n` +
+      `   • Toplam Ürün: <code>${summary.totalProducts}</code>\n` +
+      `   • Aktif İzleme: <code>${summary.activeTracking}</code>\n\n` +
+      `📈 <b>DEĞİŞİKLİKLER</b>\n` +
+      `   💰 Fiyat: <code>${summary.priceChanges}</code> değişiklik\n` +
+      `   🎨 Varyant: <code>${summary.variantChanges}</code> değişiklik\n` +
+      `   📦 Stok: <code>${summary.stockChanges}</code> değişiklik\n\n` +
+      `🔄 <b>SHOPIFY SENKRON</b>\n` +
+      `   ✅ Başarılı: <code>${summary.shopifyUpdates}</code>\n` +
+      `   ❌ Hata: <code>${summary.errors}</code>\n\n` +
+      `━━━━━━━━━━━━━━━━━━━━\n\n` +
+      (summary.errors === 0 ? 
+        `✨ <b>Mükemmel!</b> Bugün hiç hata yok\n` : 
+        `⚠️ <b>Dikkat:</b> ${summary.errors} hata tespit edildi\n`) +
+      `\n<i>⏰ ${new Date().toLocaleString('tr-TR', { timeZone: 'Europe/Istanbul' })}</i>`;
+
+    return await this.sendNotification(message, 'daily_report', undefined, summary);
   }
 
   /**
@@ -429,11 +584,176 @@ export class TelegramNotificationGateway {
   }
 
   /**
+   * 🎯 Check if product should be batched (has recent changes)
+   */
+  private shouldBatchProduct(productId: number): boolean {
+    const batch = this.productBatches.get(productId);
+    
+    // If batch exists and has 2+ changes already, batch this one too
+    if (batch && batch.changes.length >= 2) {
+      return true;
+    }
+    
+    return false;
+  }
+
+  /**
+   * 🎯 SMART BATCHING - Add change to product batch
+   */
+  private addToProductBatch(productId: number, productTitle: string, type: string, data: any): void {
+    const now = Date.now();
+    
+    let batch = this.productBatches.get(productId);
+    
+    if (!batch) {
+      batch = {
+        productId,
+        productTitle,
+        changes: [],
+        firstChange: now,
+        lastChange: now
+      };
+      this.productBatches.set(productId, batch);
+      
+      // Start batch processor if not running
+      if (!this.batchProcessor) {
+        this.startBatchProcessor();
+      }
+    }
+    
+    batch.changes.push({ type, timestamp: now, data });
+    batch.lastChange = now;
+    
+    console.log(`🎯 Added to batch: Product ${productId} - ${type} (${batch.changes.length} changes)`);
+  }
+
+  /**
+   * 🎯 Start batch processor
+   */
+  private startBatchProcessor(): void {
+    this.batchProcessor = setInterval(() => {
+      this.processBatches();
+    }, 30 * 1000); // Check every 30 seconds
+    
+    console.log('🎯 Batch processor started');
+  }
+
+  /**
+   * 🎯 Process batches - Send grouped notifications
+   * Only sends batches with 3+ changes (first 2 are sent immediately)
+   */
+  private async processBatches(): Promise<void> {
+    const now = Date.now();
+
+    for (const [productId, batch] of this.productBatches.entries()) {
+      const age = now - batch.lastChange;
+      
+      // ONLY send batch if it has 3+ changes AND is old enough
+      // (First 2 changes are sent immediately, not batched)
+      if (batch.changes.length >= 3 && age > this.BATCH_WINDOW_MS) {
+        const sent = await this.sendBatchedNotificationWithCleanup(batch);
+        
+        // Only delete batch if successfully sent
+        if (sent) {
+          this.productBatches.delete(productId);
+        }
+      }
+      // If batch has <3 changes, clean up old batches to free memory
+      else if (age > this.BATCH_WINDOW_MS * 5) {
+        console.log(`🧹 Cleaning up old batch with <3 changes: Product ${productId}`);
+        this.productBatches.delete(productId);
+      }
+    }
+  }
+
+  /**
+   * 🎯 Send batch and return success status
+   */
+  private async sendBatchedNotificationWithCleanup(batch: ProductChangeBatch): Promise<boolean> {
+    // Check rate limit before sending batch
+    if (!await this.checkTelegramRateLimit()) {
+      console.log(`🚨 Telegram rate limit - batch delayed: Product ${batch.productId}`);
+      // Keep batch in queue - will be sent in next cycle
+      return false;
+    }
+
+    await this.sendBatchedNotification(batch);
+    return true;
+  }
+
+  /**
+   * 🎯 Send batched notification - Multiple changes in one message
+   * Note: Rate limit already checked in sendBatchedNotificationWithCleanup()
+   */
+  private async sendBatchedNotification(batch: ProductChangeBatch): Promise<void> {
+    const changeCount = batch.changes.length;
+    const duration = Math.ceil((batch.lastChange - batch.firstChange) / 1000 / 60);
+    
+    let changesSummary = '';
+    let priceChanges = 0;
+    let variantChanges = 0;
+    let stockChanges = 0;
+    
+    // Group changes by type
+    for (const change of batch.changes) {
+      if (change.type.includes('price')) priceChanges++;
+      else if (change.type.includes('variant')) variantChanges++;
+      else if (change.type.includes('stock')) stockChanges++;
+    }
+
+    if (priceChanges > 0) changesSummary += `💰 ${priceChanges} fiyat değişikliği\n`;
+    if (variantChanges > 0) changesSummary += `🎨 ${variantChanges} varyant değişikliği\n`;
+    if (stockChanges > 0) changesSummary += `📦 ${stockChanges} stok değişikliği\n`;
+
+    const message = 
+      `📦 🔄 <b>TOPLU DEĞİŞİKLİK</b>\n` +
+      `━━━━━━━━━━━━━━━━━━━━\n\n` +
+      `📦 <b>Ürün:</b> ${batch.productTitle}\n` +
+      `📊 <b>Toplam Değişiklik:</b> <code>${changeCount}</code>\n` +
+      `⏱️ <b>Süre:</b> ${duration} dakika\n\n` +
+      `━━━━━━━━━━━━━━━━━━━━\n\n` +
+      `<b>DEĞİŞİKLİK ÖZETİ:</b>\n${changesSummary}\n` +
+      `━━━━━━━━━━━━━━━━━━━━\n` +
+      `✅ Tüm değişiklikler Shopify'da senkronize edildi\n\n` +
+      `<i>💡 Birden fazla değişiklik tespit edildiği için toplu bildirim gönderildi</i>\n\n` +
+      `<i>⏰ ${new Date().toLocaleString('tr-TR', { timeZone: 'Europe/Istanbul' })}</i>`;
+
+    try {
+      await filteredNotifier.sendNotification(message);
+      this.recordMessageSent(); // Track for rate limiting
+      
+      // Update database status from "batched" to "sent"
+      try {
+        const result = await db.update(telegramNotificationHistory)
+          .set({ status: 'sent' })
+          .where(
+            and(
+              eq(telegramNotificationHistory.productId, batch.productId),
+              eq(telegramNotificationHistory.status, 'batched')
+            )
+          );
+        console.log(`💾 Updated batched notifications to "sent" status for product ${batch.productId}`);
+      } catch (dbError) {
+        console.error(`❌ Failed to update batched notification status:`, dbError);
+      }
+      
+      console.log(`🎯 Batched notification sent: Product ${batch.productId} - ${changeCount} changes`);
+    } catch (error) {
+      console.error(`❌ Failed to send batched notification:`, error);
+    }
+  }
+
+  /**
    * Clear cache (for testing/debugging)
    */
   clearCache(): void {
     this.notificationCache.clear();
-    console.log('🗑️ Notification cache cleared');
+    this.productBatches.clear();
+    if (this.batchProcessor) {
+      clearInterval(this.batchProcessor);
+      this.batchProcessor = null;
+    }
+    console.log('🗑️ Notification cache & batches cleared');
   }
 }
 
