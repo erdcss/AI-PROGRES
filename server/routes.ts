@@ -3194,6 +3194,116 @@ ${(result.title || 'product').toLowerCase().replace(/[^a-z0-9]/g, '-')},${result
     }
   });
 
+  // Update Shopify product source URL
+  app.post('/api/shopify/update-source-url', async (req, res) => {
+    try {
+      const { shopifyProductId, sourceUrl } = req.body;
+      
+      if (!shopifyProductId) {
+        return res.status(400).json({
+          success: false,
+          message: 'shopifyProductId gerekli'
+        });
+      }
+
+      // Validate sourceUrl: must be a valid URL and Trendyol domain
+      if (!sourceUrl || sourceUrl.trim() === '') {
+        return res.status(400).json({
+          success: false,
+          message: 'Geçerli bir Trendyol URL\'si gerekli'
+        });
+      }
+
+      const trimmedUrl = sourceUrl.trim();
+      
+      // URL format validation
+      try {
+        const urlObj = new URL(trimmedUrl);
+        if (!urlObj.hostname.includes('trendyol.com')) {
+          return res.status(400).json({
+            success: false,
+            message: 'URL Trendyol domain\'inden olmalı (trendyol.com)'
+          });
+        }
+      } catch (e) {
+        return res.status(400).json({
+          success: false,
+          message: 'Geçerli bir URL formatı değil'
+        });
+      }
+
+      // Check if product exists in transferred products table
+      const existing = await db
+        .select()
+        .from(shopifyTransferredProducts)
+        .where(eq(shopifyTransferredProducts.shopifyProductId, shopifyProductId))
+        .limit(1);
+
+      if (existing.length > 0) {
+        // Update existing record
+        await db
+          .update(shopifyTransferredProducts)
+          .set({ 
+            sourceUrl: trimmedUrl,
+            updatedAt: new Date()
+          })
+          .where(eq(shopifyTransferredProducts.shopifyProductId, shopifyProductId));
+      } else {
+        // Insert new record with minimal data
+        const productInfo = await db
+          .select()
+          .from(shopifyMemoryProducts)
+          .where(eq(shopifyMemoryProducts.shopifyProductId, shopifyProductId))
+          .limit(1);
+
+        if (productInfo.length === 0) {
+          return res.status(404).json({
+            success: false,
+            message: 'Ürün bulunamadı'
+          });
+        }
+
+        const product = productInfo[0];
+        
+        await db.insert(shopifyTransferredProducts).values({
+          sourceUrl: trimmedUrl,
+          shopifyProductId: shopifyProductId,
+          shopifyHandle: product.handle || '',
+          title: product.title || 'Ürün',
+          brand: product.vendor || '',
+          originalPrice: parseFloat(product.price || '0'),
+          shopifyPrice: parseFloat(product.price || '0'),
+          profitMargin: 10,
+          variantCount: 1,
+          imageCount: 0,
+          currentStatus: 'active',
+          trackingEnabled: true,
+          notificationSettings: {
+            priceChanges: true,
+            stockChanges: true,
+            statusChanges: true,
+            detailedReports: true
+          },
+          sourceData: {},
+          shopifyData: {},
+          createdAt: new Date(),
+          updatedAt: new Date()
+        });
+      }
+
+      res.json({
+        success: true,
+        message: sourceUrl ? 'Trendyol URL güncellendi' : 'Trendyol URL kaldırıldı'
+      });
+    } catch (error: any) {
+      console.error('❌ Update source URL error:', error);
+      res.status(500).json({
+        success: false,
+        message: error.message
+      });
+    }
+  });
+
   // Update Shopify product price
   app.post('/api/shopify/update-price', async (req, res) => {
     try {

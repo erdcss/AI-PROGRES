@@ -42,7 +42,7 @@ import {
   TableRow,
 } from "@/components/ui/table";
 import { useToast } from '@/hooks/use-toast';
-import { queryClient } from '@/lib/queryClient';
+import { queryClient, handleApiResponse, APIRequestError } from '@/lib/queryClient';
 import { useWebSocket } from '@/hooks/useWebSocket';
 
 interface ShopifyMemoryProduct {
@@ -90,6 +90,8 @@ export default function MemoryTrackingPage() {
   const [, setLocation] = useLocation();
   const [editingPrice, setEditingPrice] = useState<{[key: number]: string}>({});
   const [tempPrices, setTempPrices] = useState<{[key: number]: string}>({});
+  const [editingUrl, setEditingUrl] = useState<{[key: number]: boolean}>({});
+  const [tempUrls, setTempUrls] = useState<{[key: number]: string}>({});
 
   // WebSocket for real-time updates
   const { isConnected, subscribe, unsubscribe } = useWebSocket({
@@ -224,6 +226,50 @@ export default function MemoryTrackingPage() {
       toast({
         title: "Güncelleme Hatası",
         description: error.message,
+        variant: "destructive"
+      });
+    }
+  });
+
+  // URL güncelleme mutation
+  const updateUrlMutation = useMutation({
+    mutationFn: async ({ shopifyProductId, sourceUrl }: { shopifyProductId: string; sourceUrl: string }) => {
+      try {
+        const res = await fetch('/api/shopify/update-source-url', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ 
+            shopifyProductId, 
+            sourceUrl: sourceUrl.trim() 
+          })
+        });
+        return await handleApiResponse(res);
+      } catch (error) {
+        if (error instanceof APIRequestError) {
+          throw error;
+        }
+        // Network error
+        throw new APIRequestError('Bağlantı hatası. Lütfen internet bağlantınızı kontrol edin.', undefined, 'network');
+      }
+    },
+    onSuccess: (data) => {
+      queryClient.invalidateQueries({ queryKey: ['/api/shopify/products'] });
+      queryClient.invalidateQueries({ queryKey: ['/api/shopify/statistics'] });
+      toast({
+        title: "Trendyol URL Güncellendi",
+        description: data.message || "URL başarıyla güncellendi",
+      });
+      setEditingUrl({});
+      setTempUrls({});
+    },
+    onError: (error: any) => {
+      const errorMessage = error instanceof APIRequestError 
+        ? error.message 
+        : 'Beklenmeyen bir hata oluştu';
+      
+      toast({
+        title: "Güncelleme Hatası",
+        description: errorMessage,
         variant: "destructive"
       });
     }
@@ -757,6 +803,7 @@ export default function MemoryTrackingPage() {
                         <TableHead className="font-semibold text-white/90">Fiyat (TL)</TableHead>
                         <TableHead className="font-semibold text-white/90">Varyant</TableHead>
                         <TableHead className="font-semibold text-white/90">Durum</TableHead>
+                        <TableHead className="font-semibold text-white/90">Trendyol URL</TableHead>
                         <TableHead className="font-semibold text-white/90 text-right">İşlemler</TableHead>
                       </TableRow>
                     </TableHeader>
@@ -843,6 +890,93 @@ export default function MemoryTrackingPage() {
                             <Badge className={product.status === 'active' ? 'bg-emerald-600' : 'bg-gray-600'}>
                               {product.status === 'active' ? 'Aktif' : product.status}
                             </Badge>
+                          </TableCell>
+                          <TableCell className="text-white">
+                            {editingUrl[product.id] ? (
+                              <div className="flex items-center gap-2">
+                                <Input
+                                  type="text"
+                                  placeholder="https://www.trendyol.com/..."
+                                  value={tempUrls[product.id] ?? product.sourceUrl ?? ''}
+                                  onChange={(e) => setTempUrls(prev => ({...prev, [product.id]: e.target.value}))}
+                                  className="w-64 h-8 bg-slate-800 border-slate-600 text-white text-sm"
+                                />
+                                <Button
+                                  size="sm"
+                                  variant="ghost"
+                                  onClick={() => {
+                                    const urlToSave = tempUrls[product.id] ?? product.sourceUrl ?? '';
+                                    if (!urlToSave.trim()) {
+                                      toast({
+                                        title: "Hata",
+                                        description: "Lütfen geçerli bir Trendyol URL'si girin",
+                                        variant: "destructive"
+                                      });
+                                      return;
+                                    }
+                                    updateUrlMutation.mutate({
+                                      shopifyProductId: product.shopifyId,
+                                      sourceUrl: urlToSave
+                                    });
+                                  }}
+                                  className="h-8 px-2 text-green-400 hover:text-green-300"
+                                  disabled={updateUrlMutation.isPending}
+                                  data-testid={`button-save-url-${product.id}`}
+                                >
+                                  <Save className="h-4 w-4" />
+                                </Button>
+                                <Button
+                                  size="sm"
+                                  variant="ghost"
+                                  onClick={() => {
+                                    setEditingUrl(prev => {
+                                      const newState = {...prev};
+                                      delete newState[product.id];
+                                      return newState;
+                                    });
+                                    setTempUrls(prev => {
+                                      const newState = {...prev};
+                                      delete newState[product.id];
+                                      return newState;
+                                    });
+                                  }}
+                                  className="h-8 px-2 text-red-400 hover:text-red-300"
+                                >
+                                  <X className="h-4 w-4" />
+                                </Button>
+                              </div>
+                            ) : (
+                              <div className="flex items-center gap-2">
+                                <span className="text-sm text-white/70 truncate max-w-xs">
+                                  {product.sourceUrl ? (
+                                    <a 
+                                      href={product.sourceUrl} 
+                                      target="_blank" 
+                                      rel="noopener noreferrer"
+                                      className="text-orange-400 hover:text-orange-300 hover:underline"
+                                    >
+                                      {product.sourceUrl.length > 30 
+                                        ? product.sourceUrl.substring(0, 30) + '...' 
+                                        : product.sourceUrl}
+                                    </a>
+                                  ) : (
+                                    <span className="text-white/40 italic">URL yok</span>
+                                  )}
+                                </span>
+                                <Button
+                                  size="sm"
+                                  variant="ghost"
+                                  onClick={() => {
+                                    setEditingUrl(prev => ({...prev, [product.id]: true}));
+                                    setTempUrls(prev => ({...prev, [product.id]: product.sourceUrl || ''}));
+                                  }}
+                                  className="h-6 px-1 text-blue-400 hover:text-blue-300"
+                                  data-testid={`button-edit-url-${product.id}`}
+                                >
+                                  <Edit className="h-3 w-3" />
+                                </Button>
+                              </div>
+                            )}
                           </TableCell>
                           <TableCell className="text-right">
                             <div className="flex items-center justify-end gap-2">
