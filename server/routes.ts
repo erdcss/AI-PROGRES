@@ -3549,6 +3549,42 @@ ${(result.title || 'product').toLowerCase().replace(/[^a-z0-9]/g, '-')},${result
       const uploadResult = await uploadProductToShopify(csvContent, productTitle);
       
       if (uploadResult.success) {
+        // ✅ Register product in shopifyTransferredProducts table for MemoryTrackingPage
+        try {
+          const sourceUrl = req.body.sourceUrl || req.body.trendyolUrl || '';
+          if (sourceUrl && uploadResult.productId) {
+            const { shopifyTransferTracker } = await import('./shopify-transfer-tracker');
+            
+            // Parse CSV to get price info
+            const lines = csvContent.split('\n').filter(l => l.trim());
+            const priceIndex = lines[0].split(',').findIndex(h => h.toLowerCase().includes('price'));
+            let originalPrice = 100; // Default
+            if (priceIndex !== -1 && lines.length > 1) {
+              const firstDataLine = lines[1].split(',');
+              const priceStr = firstDataLine[priceIndex]?.replace(/['"]/g, '').trim();
+              originalPrice = parseFloat(priceStr) || 100;
+            }
+            
+            await shopifyTransferTracker.registerTransferredProduct({
+              sourceUrl: sourceUrl,
+              shopifyProductId: uploadResult.productId,
+              shopifyHandle: uploadResult.handle || '',
+              title: productTitle,
+              brand: req.body.brand || '',
+              originalPrice: originalPrice,
+              shopifyPrice: originalPrice,
+              profitMargin: 10,
+              variantCount: uploadResult.variants?.length || 1,
+              imageCount: req.body.productData?.images?.length || 0,
+              sourceData: req.body.productData || { title: productTitle },
+              shopifyData: uploadResult
+            });
+            console.log('✅ Shopify transfer kaydı oluşturuldu (shopifyTransferredProducts)');
+          }
+        } catch (transferError) {
+          console.warn('⚠️ Shopify transfer tracking hatası (non-critical):', transferError);
+        }
+        
         // Register product for automated tracking
         let trackingResult = null;
         try {

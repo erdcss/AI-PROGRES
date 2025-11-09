@@ -264,6 +264,7 @@ ${data.title.toLowerCase().replace(/[^a-z0-9]/g, '-')},${data.title},${data.bran
           id: uniqueId,
           productTitle: data.title || 'Ürün',
           csvContent: data.csvContent,
+          sourceUrl: data.url,
           variants: {
             colors: data.variants?.colors || ['Standart'],
             sizes: data.variants?.sizes || ['Tek Beden']
@@ -394,6 +395,7 @@ ${data.title.toLowerCase().replace(/[^a-z0-9]/g, '-')},${data.title},${data.bran
             body: JSON.stringify({ 
               csvContent: csvToUpload, // ✅ Tag'ler eklenmiş CSV gönder
               productTitle: preview.productTitle,
+              sourceUrl: preview.sourceUrl,
               individualTags: allTags // Tüm etiketleri gönder
             }),
           });
@@ -495,6 +497,7 @@ ${data.title.toLowerCase().replace(/[^a-z0-9]/g, '-')},${data.title},${data.bran
           id: uniqueId,
           productTitle: data.title || 'Multi-Variant Product',
           csvContent: data.csvContent,
+          sourceUrl: data.url || data.urls?.[0],
           variants: {
             colors: data.variants?.colors || [],
             sizes: data.variants?.sizes || [],
@@ -1045,6 +1048,7 @@ ${data.title.toLowerCase().replace(/[^a-z0-9]/g, '-')},${data.title},${data.bran
           body: JSON.stringify({ 
             csvContent: csvToUpload,
             productTitle: preview.productTitle,
+            sourceUrl: preview.sourceUrl,
             individualTags: individualTags || []
           }),
         });

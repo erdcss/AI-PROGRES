@@ -12,6 +12,7 @@ interface CSVPreviewData {
   id: string;
   productTitle: string;
   csvContent: string;
+  sourceUrl?: string;
   variants: {
     colors: string[];
     sizes: string[];

@@ -59,6 +59,7 @@ interface ShopifyMemoryProduct {
   totalImages: number;
   minPrice: string;
   maxPrice: string;
+  sourceUrl: string | null;
   createdAt: string;
   updatedAt: string;
 }
@@ -211,6 +212,7 @@ export default function MemoryTrackingPage() {
     },
     onSuccess: (data) => {
       queryClient.invalidateQueries({ queryKey: ['/api/shopify/products'] });
+      queryClient.invalidateQueries({ queryKey: ['/api/shopify/statistics'] });
       toast({
         title: "Fiyat Güncellendi",
         description: data.message,
@@ -546,13 +548,13 @@ export default function MemoryTrackingPage() {
             <Card className="business-card">
               <CardHeader className="pb-3">
                 <div className="flex items-center justify-between">
-                  <CardTitle className="text-sm font-medium text-white/80">Ortalama Fiyat</CardTitle>
+                  <CardTitle className="text-sm font-medium text-white/80">Toplam Envanter</CardTitle>
                   <DollarSign className="h-5 w-5 text-emerald-400" />
                 </div>
               </CardHeader>
               <CardContent>
-                <div className="text-2xl font-bold text-white" data-testid="text-avg-price">
-                  {statistics.averagePrice} TL
+                <div className="text-2xl font-bold text-white" data-testid="text-total-inventory">
+                  {products.reduce((sum, p) => sum + p.totalVariants, 0)}
                 </div>
                 <p className="text-xs text-white/60 mt-1">{statistics.minPrice} - {statistics.maxPrice} TL arası</p>
               </CardContent>
