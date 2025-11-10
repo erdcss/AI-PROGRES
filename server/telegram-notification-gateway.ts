@@ -1,7 +1,7 @@
 // Telegram Notification Gateway - Deduplication & Smart Filtering (V6 - Typed + URLs)
 import { filteredNotifier } from "./filtered-telegram-notifier";
 import { db } from "./db";
-import { telegramNotificationHistory, shopifyTransferredProducts, TelegramNotificationMetadata } from "@shared/schema";
+import { telegramNotificationHistory, shopifyTransferredProducts, products, TelegramNotificationMetadata, InsertTelegramNotificationHistory, TelegramNotificationHistory } from "@shared/schema";
 import { eq, and } from "drizzle-orm";
 import { createHash } from "crypto";
 
@@ -140,15 +140,17 @@ export class TelegramNotificationGateway {
       if (currentBatch && currentBatch.changes.length >= 3) {
         // 3+ changes: batch and delay sending
         try {
-          await db.insert(telegramNotificationHistory).values({
+          const notificationRecord = {
             notificationType: type,
             message,
             productId: productId,
             variantId: variantId || null,
             productTitle: productTitle,
-            status: "batched", // Will be sent as grouped message
+            status: "batched" as const,
             metadata: metadata || {},
-          });
+          } satisfies InsertTelegramNotificationHistory;
+          
+          await db.insert(telegramNotificationHistory).values(notificationRecord);
           console.log(
             `🎯 Change batched for later: Product ${productId} - ${type} (${currentBatch.changes.length} total)`,
           );
@@ -188,17 +190,19 @@ export class TelegramNotificationGateway {
 
     try {
       // Save notification to database with 'pending' status
+      const notificationRecord = {
+        notificationType: type,
+        message,
+        productId: productId || null,
+        variantId: variantId || null,
+        productTitle: productTitle || null,
+        status: "pending" as const,
+        metadata: metadata || {},
+      } satisfies InsertTelegramNotificationHistory;
+      
       const result = await db
         .insert(telegramNotificationHistory)
-        .values({
-          notificationType: type,
-          message,
-          productId: productId || null,
-          variantId: variantId || null,
-          productTitle: productTitle || null,
-          status: "pending",
-          metadata: metadata || {},
-        })
+        .values(notificationRecord)
         .returning({ id: telegramNotificationHistory.id });
 
       notificationId = result[0]?.id || null;
@@ -223,12 +227,14 @@ export class TelegramNotificationGateway {
       // Update database status to 'sent'
       if (notificationId) {
         try {
+          const updateData = {
+            status: "sent" as const,
+            sentAt: new Date(),
+          } satisfies Partial<TelegramNotificationHistory>;
+          
           await db
             .update(telegramNotificationHistory)
-            .set({
-              status: "sent",
-              sentAt: new Date(),
-            })
+            .set(updateData)
             .where(eq(telegramNotificationHistory.id, notificationId));
 
           console.log(
@@ -253,15 +259,17 @@ export class TelegramNotificationGateway {
       // Update database status to 'failed'
       if (notificationId) {
         try {
+          const updateData = {
+            status: "failed" as const,
+            failedAt: new Date(),
+            errorMessage:
+              error instanceof Error ? error.message : String(error),
+            retryCount: 0,
+          } satisfies Partial<TelegramNotificationHistory>;
+          
           await db
             .update(telegramNotificationHistory)
-            .set({
-              status: "failed",
-              failedAt: new Date(),
-              errorMessage:
-                error instanceof Error ? error.message : String(error),
-              retryCount: 0,
-            })
+            .set(updateData)
             .where(eq(telegramNotificationHistory.id, notificationId));
 
           console.log(
@@ -280,7 +288,7 @@ export class TelegramNotificationGateway {
   }
 
   /**
-   * Send price change notification (auto-formatted) - ENHANCED PRO VERSION
+   * Send price change notification (auto-formatted) - ENHANCED PRO VERSION with Trendyol URL
    */
   async sendPriceChange(
     productTitle: string,
@@ -301,6 +309,9 @@ export class TelegramNotificationGateway {
     const urgencyEmoji =
       changePercent > 20 ? "🚨" : changePercent > 10 ? "⚠️" : "ℹ️";
 
+    // Resolve Trendyol URL
+    const { trendyolUrl } = await this.resolveProductLinks(productId);
+
     const message =
       `${emoji} ${urgencyEmoji} <b>FİYAT DEĞİŞİKLİĞİ</b>\n` +
       `━━━━━━━━━━━━━━━━━━━━\n\n` +
@@ -315,6 +326,7 @@ export class TelegramNotificationGateway {
       (shopifyUpdated
         ? `✅ Shopify otomatik güncellendi (%10 kar marjı)\n`
         : `⏳ Shopify güncellemesi bekleniyor\n`) +
+      (trendyolUrl ? `\n🔗 <a href="${trendyolUrl}">Trendyol Sayfası</a>\n` : '') +
       `\n<i>⏰ ${new Date().toLocaleString("tr-TR", { timeZone: "Europe/Istanbul" })}</i>`;
 
     return await this.sendNotification(message, changeType, productId, {
@@ -323,6 +335,7 @@ export class TelegramNotificationGateway {
       priceChange: parseFloat(priceChange),
       urgency:
         changePercent > 20 ? "high" : changePercent > 10 ? "medium" : "low",
+      trendyolUrl: trendyolUrl || undefined,
     });
   }
 
@@ -357,7 +370,7 @@ export class TelegramNotificationGateway {
   }
 
   /**
-   * Send variant change notification - ENHANCED PRO VERSION
+   * Send variant change notification - ENHANCED PRO VERSION with Trendyol URL
    * ÇİFT GÜVENLİK: Hem servis hem gateway seviyesinde sahte varyant kontrolü
    */
   async sendVariantChange(
@@ -412,6 +425,9 @@ export class TelegramNotificationGateway {
         break;
     }
 
+    // Resolve Trendyol URL
+    const { trendyolUrl } = await this.resolveProductLinks(productId);
+
     const message =
       `${emoji} ${bgEmoji} <b>${title}</b>\n` +
       `━━━━━━━━━━━━━━━━━━━━\n\n` +
@@ -423,17 +439,19 @@ export class TelegramNotificationGateway {
       (metadata?.shopifyUpdated
         ? `✅ Shopify otomatik güncellendi\n`
         : `⏳ Shopify güncellemesi bekleniyor\n`) +
+      (trendyolUrl ? `\n🔗 <a href="${trendyolUrl}">Trendyol Sayfası</a>\n` : '') +
       `\n<i>⏰ ${new Date().toLocaleString("tr-TR", { timeZone: "Europe/Istanbul" })}</i>`;
 
     return await this.sendNotification(message, changeType, productId, {
       ...metadata,
       color,
       size,
+      trendyolUrl: trendyolUrl || undefined,
     });
   }
 
   /**
-   * Send stock change notification - ENHANCED PRO VERSION
+   * Send stock change notification - ENHANCED PRO VERSION with Trendyol URL
    */
   async sendStockChange(
     productTitle: string,
@@ -457,6 +475,9 @@ export class TelegramNotificationGateway {
       statusText = "✅ Stok durumu iyi";
     }
 
+    // Resolve Trendyol URL
+    const { trendyolUrl } = await this.resolveProductLinks(productId);
+
     const message =
       `${emoji} ${statusEmoji} <b>STOK DEĞİŞİKLİĞİ</b>\n` +
       `━━━━━━━━━━━━━━━━━━━━\n\n` +
@@ -469,6 +490,7 @@ export class TelegramNotificationGateway {
       `📍 <b>Durum:</b> ${statusText}\n` +
       `\n━━━━━━━━━━━━━━━━━━━━\n` +
       `✅ Shopify otomatik güncellendi\n` +
+      (trendyolUrl ? `\n🔗 <a href="${trendyolUrl}">Trendyol Sayfası</a>\n` : '') +
       `\n<i>⏰ ${new Date().toLocaleString("tr-TR", { timeZone: "Europe/Istanbul" })}</i>`;
 
     return await this.sendNotification(message, "stock_change", productId, {
@@ -476,6 +498,7 @@ export class TelegramNotificationGateway {
       newStock,
       stockDiff,
       urgency: newStock === 0 ? "high" : newStock < 10 ? "medium" : "low",
+      trendyolUrl: trendyolUrl || undefined,
     });
   }
 
@@ -948,9 +971,11 @@ export class TelegramNotificationGateway {
 
       // Update database status from "batched" to "sent"
       try {
+        const updateData = { status: "sent" as const } satisfies Partial<TelegramNotificationHistory>;
+        
         const result = await db
           .update(telegramNotificationHistory)
-          .set({ status: "sent" })
+          .set(updateData)
           .where(
             and(
               eq(telegramNotificationHistory.productId, batch.productId),
@@ -972,6 +997,41 @@ export class TelegramNotificationGateway {
       );
     } catch (error) {
       console.error(`❌ Failed to send batched notification:`, error);
+    }
+  }
+
+  /**
+   * Resolve Trendyol URL from productId
+   * First tries shopifyTransferredProducts.sourceUrl, then falls back to products.trendyolUrl
+   */
+  private async resolveProductLinks(productId: number): Promise<{ trendyolUrl: string | null }> {
+    try {
+      // Try shopifyTransferredProducts first (sourceUrl is the canonical Trendyol URL)
+      const transferred = await db
+        .select({ sourceUrl: shopifyTransferredProducts.sourceUrl })
+        .from(shopifyTransferredProducts)
+        .where(eq(shopifyTransferredProducts.id, productId))
+        .limit(1);
+
+      if (transferred[0]?.sourceUrl) {
+        return { trendyolUrl: transferred[0].sourceUrl };
+      }
+
+      // Fallback: Try products table
+      const product = await db
+        .select({ trendyolUrl: products.trendyolUrl })
+        .from(products)
+        .where(eq(products.id, productId))
+        .limit(1);
+
+      if (product[0]?.trendyolUrl) {
+        return { trendyolUrl: product[0].trendyolUrl };
+      }
+
+      return { trendyolUrl: null };
+    } catch (error) {
+      console.error(`⚠️ Failed to resolve product links for productId ${productId}:`, error);
+      return { trendyolUrl: null };
     }
   }
 

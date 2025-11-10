@@ -471,10 +471,10 @@ export type ShopifyTransferredProduct = typeof shopifyTransferredProducts.$infer
 export type InsertShopifyTransferredProduct = typeof shopifyTransferredProducts.$inferInsert;
 export type ShopifyProductChange = typeof shopifyProductChanges.$inferSelect;
 export type InsertShopifyProductChange = typeof shopifyProductChanges.$inferInsert;
-export type TelegramNotificationSetting = typeof telegramNotificationSettings.$inferSelect;
-export type InsertTelegramNotificationSetting = typeof telegramNotificationSettings.$inferInsert;
 export type TelegramNotificationHistory = typeof telegramNotificationHistory.$inferSelect;
 export type InsertTelegramNotificationHistory = typeof telegramNotificationHistory.$inferInsert;
+export type TelegramNotificationSetting = typeof telegramNotificationSettings.$inferSelect;
+export type InsertTelegramNotificationSetting = typeof telegramNotificationSettings.$inferInsert;
 
 // Insert schemas for Telegram tables
 export const insertTelegramNotificationSettingSchema = createInsertSchema(telegramNotificationSettings);
