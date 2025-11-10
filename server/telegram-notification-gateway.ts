@@ -1,7 +1,7 @@
-// Telegram Notification Gateway - Deduplication & Smart Filtering
+// Telegram Notification Gateway - Deduplication & Smart Filtering (V6 - Typed + URLs)
 import { filteredNotifier } from "./filtered-telegram-notifier";
 import { db } from "./db";
-import { telegramNotificationHistory } from "@shared/schema";
+import { telegramNotificationHistory, shopifyTransferredProducts, TelegramNotificationMetadata } from "@shared/schema";
 import { eq, and } from "drizzle-orm";
 import { createHash } from "crypto";
 
@@ -74,7 +74,7 @@ export class TelegramNotificationGateway {
     message: string,
     type: string,
     productId?: number,
-    metadata?: any,
+    metadata?: TelegramNotificationMetadata,
     variantId?: number,
     productTitle?: string,
   ): Promise<boolean> {
@@ -228,7 +228,7 @@ export class TelegramNotificationGateway {
             .set({
               status: "sent",
               sentAt: new Date(),
-            } as any)
+            })
             .where(eq(telegramNotificationHistory.id, notificationId));
 
           console.log(
@@ -261,7 +261,7 @@ export class TelegramNotificationGateway {
               errorMessage:
                 error instanceof Error ? error.message : String(error),
               retryCount: 0,
-            } as any)
+            })
             .where(eq(telegramNotificationHistory.id, notificationId));
 
           console.log(

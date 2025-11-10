@@ -413,6 +413,26 @@ export const shopifyProductChanges = pgTable('shopify_product_changes', {
   createdAt: timestamp('created_at').notNull().defaultNow()
 });
 
+// Telegram notification metadata schema
+export const telegramNotificationMetadataSchema = z.object({
+  color: z.string().optional(),
+  size: z.string().optional(),
+  oldPrice: z.number().optional(),
+  newPrice: z.number().optional(),
+  priceChange: z.number().optional(),
+  changePercent: z.number().optional(),
+  oldStock: z.number().optional(),
+  newStock: z.number().optional(),
+  stockDiff: z.number().optional(),
+  shopifyUpdated: z.boolean().optional(),
+  operation: z.string().optional(),
+  error: z.string().optional(),
+  urgency: z.enum(['low', 'medium', 'high']).optional(),
+  trendyolUrl: z.string().optional(),
+}).passthrough();
+
+export type TelegramNotificationMetadata = z.infer<typeof telegramNotificationMetadataSchema>;
+
 // Telegram notification settings - Bildirim ayarları
 export const telegramNotificationSettings = pgTable('telegram_notification_settings', {
   id: serial('id').primaryKey(),
