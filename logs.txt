@@ -78944,3 +78944,787 @@ Details:
   - Variants Removed: 0
   - Product Archived: false
 ---
+
+[2025-11-10T14:46:42.174Z] SYNC AUDIT
+Product ID: 109
+Product: Mavi Logo Baskılı Siyah Tişört Loose Fit / Bol Rahat Kesim 0611711-900
+Success: true
+Changes: 0
+Errors: 0
+Details:
+  - Price Updates: 0
+  - Stock Updates: 0
+  - Variants Added: 0
+  - Variants Removed: 0
+  - Product Archived: false
+---
+
+[2025-11-10T14:47:06.330Z] SYNC AUDIT
+Product ID: 101
+Product: GRIMELANGE HOPEWELL Kadın Yuvarlak Yaka Örme Slim Fit Beyaz T-Shirt
+Success: true
+Changes: 0
+Errors: 0
+Details:
+  - Price Updates: 0
+  - Stock Updates: 0
+  - Variants Added: 0
+  - Variants Removed: 0
+  - Product Archived: false
+---
+
+[2025-11-10T14:47:29.086Z] SYNC AUDIT
+Product ID: 96
+Product: CLIPMAN Erkek Slim Fit Basic T-shirt 5'li
+Success: true
+Changes: 0
+Errors: 0
+Details:
+  - Price Updates: 0
+  - Stock Updates: 0
+  - Variants Added: 0
+  - Variants Removed: 0
+  - Product Archived: false
+---
+
+[2025-11-10T14:48:25.706Z] SYNC AUDIT
+Product ID: 102
+Product: GRIMELANGE Lagertha Kadın %100 Organik Pamuklu Kalın Dokulu Oversize Fit Yuvarlak Yakalı Beyaz T-shirt
+Success: true
+Changes: 0
+Errors: 0
+Details:
+  - Price Updates: 0
+  - Stock Updates: 0
+  - Variants Added: 0
+  - Variants Removed: 0
+  - Product Archived: false
+---
+
+[2025-11-10T14:49:01.988Z] SYNC AUDIT
+Product ID: 100
+Product: ETHIQUET Barry Kadın Regular Fit Normal Kalıp Pamuklu Dantel Detalı Ince Askılı Oyuk Yaka Siyah Atlet
+Success: true
+Changes: 0
+Errors: 0
+Details:
+  - Price Updates: 0
+  - Stock Updates: 0
+  - Variants Added: 0
+  - Variants Removed: 0
+  - Product Archived: false
+---
+
+[2025-11-10T14:50:11.185Z] SYNC AUDIT
+Product ID: 99
+Product: dokuru İncir Kuru Meyve Cipsi - Dondurularak Kurutulmuş Freeze Dried Çıtır İncir
+Success: true
+Changes: 0
+Errors: 0
+Details:
+  - Price Updates: 0
+  - Stock Updates: 0
+  - Variants Added: 0
+  - Variants Removed: 0
+  - Product Archived: false
+---
+
+[2025-11-10T14:50:29.811Z] SYNC AUDIT
+Product ID: 108
+Product: kitchen trend 3 Lü (51, 37, 30 CM) Ahşap Kulplu Metal Tepsi Çay Tepsisi Kahve Tepsisi Sunum Tepsi Seti
+Success: true
+Changes: 0
+Errors: 0
+Details:
+  - Price Updates: 0
+  - Stock Updates: 0
+  - Variants Added: 0
+  - Variants Removed: 0
+  - Product Archived: false
+---
+
+[2025-11-10T14:50:51.624Z] SYNC AUDIT
+Product ID: 111
+Product: Tudors Unisex Relax Fit Rahat Kesim Pamuklu Içi Polarlı Yarım Fermuarlı Bordo Dik Yaka Sweatshirt
+Success: true
+Changes: 0
+Errors: 0
+Details:
+  - Price Updates: 0
+  - Stock Updates: 0
+  - Variants Added: 0
+  - Variants Removed: 0
+  - Product Archived: false
+---
+
+[2025-11-10T14:51:25.302Z] SYNC AUDIT
+Product ID: 109
+Product: Mavi Logo Baskılı Siyah Tişört Loose Fit / Bol Rahat Kesim 0611711-900
+Success: true
+Changes: 0
+Errors: 0
+Details:
+  - Price Updates: 0
+  - Stock Updates: 0
+  - Variants Added: 0
+  - Variants Removed: 0
+  - Product Archived: false
+---
+
+[2025-11-10T14:51:48.859Z] SYNC AUDIT
+Product ID: 101
+Product: GRIMELANGE HOPEWELL Kadın Yuvarlak Yaka Örme Slim Fit Beyaz T-Shirt
+Success: true
+Changes: 0
+Errors: 0
+Details:
+  - Price Updates: 0
+  - Stock Updates: 0
+  - Variants Added: 0
+  - Variants Removed: 0
+  - Product Archived: false
+---
+
+[2025-11-10T14:52:13.111Z] SYNC AUDIT
+Product ID: 96
+Product: CLIPMAN Erkek Slim Fit Basic T-shirt 5'li
+Success: true
+Changes: 0
+Errors: 0
+Details:
+  - Price Updates: 0
+  - Stock Updates: 0
+  - Variants Added: 0
+  - Variants Removed: 0
+  - Product Archived: false
+---
+
+[2025-11-10T14:52:49.695Z] SYNC AUDIT
+Product ID: 102
+Product: GRIMELANGE Lagertha Kadın %100 Organik Pamuklu Kalın Dokulu Oversize Fit Yuvarlak Yakalı Beyaz T-shirt
+Success: true
+Changes: 0
+Errors: 0
+Details:
+  - Price Updates: 0
+  - Stock Updates: 0
+  - Variants Added: 0
+  - Variants Removed: 0
+  - Product Archived: false
+---
+
+[2025-11-10T14:53:17.534Z] SYNC AUDIT
+Product ID: 100
+Product: ETHIQUET Barry Kadın Regular Fit Normal Kalıp Pamuklu Dantel Detalı Ince Askılı Oyuk Yaka Siyah Atlet
+Success: true
+Changes: 0
+Errors: 0
+Details:
+  - Price Updates: 0
+  - Stock Updates: 0
+  - Variants Added: 0
+  - Variants Removed: 0
+  - Product Archived: false
+---
+
+[2025-11-10T14:55:46.072Z] SYNC AUDIT
+Product ID: 100
+Product: ETHIQUET Barry Kadın Regular Fit Normal Kalıp Pamuklu Dantel Detalı Ince Askılı Oyuk Yaka Siyah Atlet
+Success: true
+Changes: 0
+Errors: 0
+Details:
+  - Price Updates: 0
+  - Stock Updates: 0
+  - Variants Added: 0
+  - Variants Removed: 0
+  - Product Archived: false
+---
+
+[2025-11-10T14:56:26.332Z] SYNC AUDIT
+Product ID: 99
+Product: dokuru İncir Kuru Meyve Cipsi - Dondurularak Kurutulmuş Freeze Dried Çıtır İncir
+Success: true
+Changes: 0
+Errors: 0
+Details:
+  - Price Updates: 0
+  - Stock Updates: 0
+  - Variants Added: 0
+  - Variants Removed: 0
+  - Product Archived: false
+---
+
+[2025-11-10T14:56:44.698Z] SYNC AUDIT
+Product ID: 108
+Product: kitchen trend 3 Lü (51, 37, 30 CM) Ahşap Kulplu Metal Tepsi Çay Tepsisi Kahve Tepsisi Sunum Tepsi Seti
+Success: true
+Changes: 0
+Errors: 0
+Details:
+  - Price Updates: 0
+  - Stock Updates: 0
+  - Variants Added: 0
+  - Variants Removed: 0
+  - Product Archived: false
+---
+
+[2025-11-10T14:57:14.231Z] SYNC AUDIT
+Product ID: 111
+Product: Tudors Unisex Relax Fit Rahat Kesim Pamuklu Içi Polarlı Yarım Fermuarlı Bordo Dik Yaka Sweatshirt
+Success: true
+Changes: 0
+Errors: 0
+Details:
+  - Price Updates: 0
+  - Stock Updates: 0
+  - Variants Added: 0
+  - Variants Removed: 0
+  - Product Archived: false
+---
+
+[2025-11-10T14:57:53.217Z] SYNC AUDIT
+Product ID: 109
+Product: Mavi Logo Baskılı Siyah Tişört Loose Fit / Bol Rahat Kesim 0611711-900
+Success: true
+Changes: 0
+Errors: 0
+Details:
+  - Price Updates: 0
+  - Stock Updates: 0
+  - Variants Added: 0
+  - Variants Removed: 0
+  - Product Archived: false
+---
+
+[2025-11-10T14:58:22.762Z] SYNC AUDIT
+Product ID: 101
+Product: GRIMELANGE HOPEWELL Kadın Yuvarlak Yaka Örme Slim Fit Beyaz T-Shirt
+Success: true
+Changes: 0
+Errors: 0
+Details:
+  - Price Updates: 0
+  - Stock Updates: 0
+  - Variants Added: 0
+  - Variants Removed: 0
+  - Product Archived: false
+---
+
+[2025-11-10T14:58:43.564Z] SYNC AUDIT
+Product ID: 96
+Product: CLIPMAN Erkek Slim Fit Basic T-shirt 5'li
+Success: true
+Changes: 0
+Errors: 0
+Details:
+  - Price Updates: 0
+  - Stock Updates: 0
+  - Variants Added: 0
+  - Variants Removed: 0
+  - Product Archived: false
+---
+
+[2025-11-10T14:59:08.073Z] SYNC AUDIT
+Product ID: 102
+Product: GRIMELANGE Lagertha Kadın %100 Organik Pamuklu Kalın Dokulu Oversize Fit Yuvarlak Yakalı Beyaz T-shirt
+Success: true
+Changes: 0
+Errors: 0
+Details:
+  - Price Updates: 0
+  - Stock Updates: 0
+  - Variants Added: 0
+  - Variants Removed: 0
+  - Product Archived: false
+---
+
+[2025-11-10T15:00:21.103Z] SYNC AUDIT
+Product ID: 100
+Product: ETHIQUET Barry Kadın Regular Fit Normal Kalıp Pamuklu Dantel Detalı Ince Askılı Oyuk Yaka Siyah Atlet
+Success: true
+Changes: 0
+Errors: 0
+Details:
+  - Price Updates: 0
+  - Stock Updates: 0
+  - Variants Added: 0
+  - Variants Removed: 0
+  - Product Archived: false
+---
+
+[2025-11-10T15:00:57.101Z] SYNC AUDIT
+Product ID: 108
+Product: kitchen trend 3 Lü (51, 37, 30 CM) Ahşap Kulplu Metal Tepsi Çay Tepsisi Kahve Tepsisi Sunum Tepsi Seti
+Success: true
+Changes: 0
+Errors: 0
+Details:
+  - Price Updates: 0
+  - Stock Updates: 0
+  - Variants Added: 0
+  - Variants Removed: 0
+  - Product Archived: false
+---
+
+[2025-11-10T15:01:15.769Z] SYNC AUDIT
+Product ID: 99
+Product: dokuru İncir Kuru Meyve Cipsi - Dondurularak Kurutulmuş Freeze Dried Çıtır İncir
+Success: true
+Changes: 0
+Errors: 0
+Details:
+  - Price Updates: 0
+  - Stock Updates: 0
+  - Variants Added: 0
+  - Variants Removed: 0
+  - Product Archived: false
+---
+
+[2025-11-10T15:01:44.492Z] SYNC AUDIT
+Product ID: 111
+Product: Tudors Unisex Relax Fit Rahat Kesim Pamuklu Içi Polarlı Yarım Fermuarlı Bordo Dik Yaka Sweatshirt
+Success: true
+Changes: 0
+Errors: 0
+Details:
+  - Price Updates: 0
+  - Stock Updates: 0
+  - Variants Added: 0
+  - Variants Removed: 0
+  - Product Archived: false
+---
+
+[2025-11-10T15:02:32.186Z] SYNC AUDIT
+Product ID: 109
+Product: Mavi Logo Baskılı Siyah Tişört Loose Fit / Bol Rahat Kesim 0611711-900
+Success: true
+Changes: 0
+Errors: 0
+Details:
+  - Price Updates: 0
+  - Stock Updates: 0
+  - Variants Added: 0
+  - Variants Removed: 0
+  - Product Archived: false
+---
+
+[2025-11-10T15:02:57.446Z] SYNC AUDIT
+Product ID: 106
+Product: GRIMELANGE BAXTER Erkek Dik Yakalı Fermuarlı Relaxed Lacivert Sweatshirt
+Success: true
+Changes: 0
+Errors: 0
+Details:
+  - Price Updates: 0
+  - Stock Updates: 0
+  - Variants Added: 0
+  - Variants Removed: 0
+  - Product Archived: false
+---
+
+[2025-11-10T15:03:24.332Z] SYNC AUDIT
+Product ID: 101
+Product: GRIMELANGE HOPEWELL Kadın Yuvarlak Yaka Örme Slim Fit Beyaz T-Shirt
+Success: true
+Changes: 0
+Errors: 0
+Details:
+  - Price Updates: 0
+  - Stock Updates: 0
+  - Variants Added: 0
+  - Variants Removed: 0
+  - Product Archived: false
+---
+
+[2025-11-10T15:03:45.126Z] SYNC AUDIT
+Product ID: 96
+Product: CLIPMAN Erkek Slim Fit Basic T-shirt 5'li
+Success: true
+Changes: 0
+Errors: 0
+Details:
+  - Price Updates: 0
+  - Stock Updates: 0
+  - Variants Added: 0
+  - Variants Removed: 0
+  - Product Archived: false
+---
+
+[2025-11-10T15:05:09.366Z] SYNC AUDIT
+Product ID: 108
+Product: kitchen trend 3 Lü (51, 37, 30 CM) Ahşap Kulplu Metal Tepsi Çay Tepsisi Kahve Tepsisi Sunum Tepsi Seti
+Success: true
+Changes: 0
+Errors: 0
+Details:
+  - Price Updates: 0
+  - Stock Updates: 0
+  - Variants Added: 0
+  - Variants Removed: 0
+  - Product Archived: false
+---
+
+[2025-11-10T15:05:40.348Z] SYNC AUDIT
+Product ID: 100
+Product: ETHIQUET Barry Kadın Regular Fit Normal Kalıp Pamuklu Dantel Detalı Ince Askılı Oyuk Yaka Siyah Atlet
+Success: true
+Changes: 0
+Errors: 0
+Details:
+  - Price Updates: 0
+  - Stock Updates: 0
+  - Variants Added: 0
+  - Variants Removed: 0
+  - Product Archived: false
+---
+
+[2025-11-10T15:06:10.760Z] SYNC AUDIT
+Product ID: 111
+Product: Tudors Unisex Relax Fit Rahat Kesim Pamuklu Içi Polarlı Yarım Fermuarlı Bordo Dik Yaka Sweatshirt
+Success: true
+Changes: 0
+Errors: 0
+Details:
+  - Price Updates: 0
+  - Stock Updates: 0
+  - Variants Added: 0
+  - Variants Removed: 0
+  - Product Archived: false
+---
+
+[2025-11-10T15:07:02.735Z] SYNC AUDIT
+Product ID: 109
+Product: Mavi Logo Baskılı Siyah Tişört Loose Fit / Bol Rahat Kesim 0611711-900
+Success: true
+Changes: 0
+Errors: 0
+Details:
+  - Price Updates: 0
+  - Stock Updates: 0
+  - Variants Added: 0
+  - Variants Removed: 0
+  - Product Archived: false
+---
+
+[2025-11-10T15:07:26.338Z] SYNC AUDIT
+Product ID: 106
+Product: GRIMELANGE BAXTER Erkek Dik Yakalı Fermuarlı Relaxed Lacivert Sweatshirt
+Success: true
+Changes: 0
+Errors: 0
+Details:
+  - Price Updates: 0
+  - Stock Updates: 0
+  - Variants Added: 0
+  - Variants Removed: 0
+  - Product Archived: false
+---
+
+[2025-11-10T15:07:48.757Z] SYNC AUDIT
+Product ID: 101
+Product: GRIMELANGE HOPEWELL Kadın Yuvarlak Yaka Örme Slim Fit Beyaz T-Shirt
+Success: true
+Changes: 0
+Errors: 0
+Details:
+  - Price Updates: 0
+  - Stock Updates: 0
+  - Variants Added: 0
+  - Variants Removed: 0
+  - Product Archived: false
+---
+
+[2025-11-10T15:08:23.318Z] SYNC AUDIT
+Product ID: 99
+Product: dokuru İncir Kuru Meyve Cipsi - Dondurularak Kurutulmuş Freeze Dried Çıtır İncir
+Success: true
+Changes: 0
+Errors: 0
+Details:
+  - Price Updates: 0
+  - Stock Updates: 0
+  - Variants Added: 0
+  - Variants Removed: 0
+  - Product Archived: false
+---
+
+[2025-11-10T15:08:48.380Z] SYNC AUDIT
+Product ID: 96
+Product: CLIPMAN Erkek Slim Fit Basic T-shirt 5'li
+Success: true
+Changes: 0
+Errors: 0
+Details:
+  - Price Updates: 0
+  - Stock Updates: 0
+  - Variants Added: 0
+  - Variants Removed: 0
+  - Product Archived: false
+---
+
+[2025-11-10T15:10:10.684Z] SYNC AUDIT
+Product ID: 108
+Product: kitchen trend 3 Lü (51, 37, 30 CM) Ahşap Kulplu Metal Tepsi Çay Tepsisi Kahve Tepsisi Sunum Tepsi Seti
+Success: true
+Changes: 0
+Errors: 0
+Details:
+  - Price Updates: 0
+  - Stock Updates: 0
+  - Variants Added: 0
+  - Variants Removed: 0
+  - Product Archived: false
+---
+
+[2025-11-10T15:10:40.747Z] SYNC AUDIT
+Product ID: 109
+Product: Mavi Logo Baskılı Siyah Tişört Loose Fit / Bol Rahat Kesim 0611711-900
+Success: true
+Changes: 0
+Errors: 0
+Details:
+  - Price Updates: 0
+  - Stock Updates: 0
+  - Variants Added: 0
+  - Variants Removed: 0
+  - Product Archived: false
+---
+
+[2025-11-10T15:11:13.077Z] SYNC AUDIT
+Product ID: 111
+Product: Tudors Unisex Relax Fit Rahat Kesim Pamuklu Içi Polarlı Yarım Fermuarlı Bordo Dik Yaka Sweatshirt
+Success: true
+Changes: 0
+Errors: 0
+Details:
+  - Price Updates: 0
+  - Stock Updates: 0
+  - Variants Added: 0
+  - Variants Removed: 0
+  - Product Archived: false
+---
+
+[2025-11-10T15:11:41.511Z] SYNC AUDIT
+Product ID: 106
+Product: GRIMELANGE BAXTER Erkek Dik Yakalı Fermuarlı Relaxed Lacivert Sweatshirt
+Success: true
+Changes: 0
+Errors: 0
+Details:
+  - Price Updates: 0
+  - Stock Updates: 0
+  - Variants Added: 0
+  - Variants Removed: 0
+  - Product Archived: false
+---
+
+[2025-11-10T15:12:07.652Z] SYNC AUDIT
+Product ID: 101
+Product: GRIMELANGE HOPEWELL Kadın Yuvarlak Yaka Örme Slim Fit Beyaz T-Shirt
+Success: true
+Changes: 0
+Errors: 0
+Details:
+  - Price Updates: 0
+  - Stock Updates: 0
+  - Variants Added: 0
+  - Variants Removed: 0
+  - Product Archived: false
+---
+
+[2025-11-10T15:12:25.521Z] SYNC AUDIT
+Product ID: 99
+Product: dokuru İncir Kuru Meyve Cipsi - Dondurularak Kurutulmuş Freeze Dried Çıtır İncir
+Success: true
+Changes: 0
+Errors: 0
+Details:
+  - Price Updates: 0
+  - Stock Updates: 0
+  - Variants Added: 0
+  - Variants Removed: 0
+  - Product Archived: false
+---
+
+[2025-11-10T15:13:01.314Z] SYNC AUDIT
+Product ID: 96
+Product: CLIPMAN Erkek Slim Fit Basic T-shirt 5'li
+Success: true
+Changes: 0
+Errors: 0
+Details:
+  - Price Updates: 0
+  - Stock Updates: 0
+  - Variants Added: 0
+  - Variants Removed: 0
+  - Product Archived: false
+---
+
+[2025-11-10T15:13:38.160Z] SYNC AUDIT
+Product ID: 100
+Product: ETHIQUET Barry Kadın Regular Fit Normal Kalıp Pamuklu Dantel Detalı Ince Askılı Oyuk Yaka Siyah Atlet
+Success: true
+Changes: 0
+Errors: 0
+Details:
+  - Price Updates: 0
+  - Stock Updates: 0
+  - Variants Added: 0
+  - Variants Removed: 0
+  - Product Archived: false
+---
+
+[2025-11-10T15:15:10.425Z] SYNC AUDIT
+Product ID: 108
+Product: kitchen trend 3 Lü (51, 37, 30 CM) Ahşap Kulplu Metal Tepsi Çay Tepsisi Kahve Tepsisi Sunum Tepsi Seti
+Success: true
+Changes: 0
+Errors: 0
+Details:
+  - Price Updates: 0
+  - Stock Updates: 0
+  - Variants Added: 0
+  - Variants Removed: 0
+  - Product Archived: false
+---
+
+[2025-11-10T15:15:49.246Z] SYNC AUDIT
+Product ID: 109
+Product: Mavi Logo Baskılı Siyah Tişört Loose Fit / Bol Rahat Kesim 0611711-900
+Success: true
+Changes: 0
+Errors: 0
+Details:
+  - Price Updates: 0
+  - Stock Updates: 0
+  - Variants Added: 0
+  - Variants Removed: 0
+  - Product Archived: false
+---
+
+[2025-11-10T15:16:22.053Z] SYNC AUDIT
+Product ID: 111
+Product: Tudors Unisex Relax Fit Rahat Kesim Pamuklu Içi Polarlı Yarım Fermuarlı Bordo Dik Yaka Sweatshirt
+Success: true
+Changes: 0
+Errors: 0
+Details:
+  - Price Updates: 0
+  - Stock Updates: 0
+  - Variants Added: 0
+  - Variants Removed: 0
+  - Product Archived: false
+---
+
+[2025-11-10T15:16:48.311Z] SYNC AUDIT
+Product ID: 106
+Product: GRIMELANGE BAXTER Erkek Dik Yakalı Fermuarlı Relaxed Lacivert Sweatshirt
+Success: true
+Changes: 0
+Errors: 0
+Details:
+  - Price Updates: 0
+  - Stock Updates: 0
+  - Variants Added: 0
+  - Variants Removed: 0
+  - Product Archived: false
+---
+
+[2025-11-10T15:17:15.261Z] SYNC AUDIT
+Product ID: 101
+Product: GRIMELANGE HOPEWELL Kadın Yuvarlak Yaka Örme Slim Fit Beyaz T-Shirt
+Success: true
+Changes: 0
+Errors: 0
+Details:
+  - Price Updates: 0
+  - Stock Updates: 0
+  - Variants Added: 0
+  - Variants Removed: 0
+  - Product Archived: false
+---
+
+[2025-11-10T15:18:36.860Z] SYNC AUDIT
+Product ID: 102
+Product: GRIMELANGE Lagertha Kadın %100 Organik Pamuklu Kalın Dokulu Oversize Fit Yuvarlak Yakalı Beyaz T-shirt
+Success: true
+Changes: 0
+Errors: 0
+Details:
+  - Price Updates: 0
+  - Stock Updates: 0
+  - Variants Added: 0
+  - Variants Removed: 0
+  - Product Archived: false
+---
+
+[2025-11-10T15:20:13.941Z] SYNC AUDIT
+Product ID: 99
+Product: dokuru İncir Kuru Meyve Cipsi - Dondurularak Kurutulmuş Freeze Dried Çıtır İncir
+Success: true
+Changes: 0
+Errors: 0
+Details:
+  - Price Updates: 0
+  - Stock Updates: 0
+  - Variants Added: 0
+  - Variants Removed: 0
+  - Product Archived: false
+---
+
+[2025-11-10T15:20:31.876Z] SYNC AUDIT
+Product ID: 108
+Product: kitchen trend 3 Lü (51, 37, 30 CM) Ahşap Kulplu Metal Tepsi Çay Tepsisi Kahve Tepsisi Sunum Tepsi Seti
+Success: true
+Changes: 0
+Errors: 0
+Details:
+  - Price Updates: 0
+  - Stock Updates: 0
+  - Variants Added: 0
+  - Variants Removed: 0
+  - Product Archived: false
+---
+
+[2025-11-10T15:21:10.494Z] SYNC AUDIT
+Product ID: 109
+Product: Mavi Logo Baskılı Siyah Tişört Loose Fit / Bol Rahat Kesim 0611711-900
+Success: true
+Changes: 0
+Errors: 0
+Details:
+  - Price Updates: 0
+  - Stock Updates: 0
+  - Variants Added: 0
+  - Variants Removed: 0
+  - Product Archived: false
+---
+
+[2025-11-10T15:21:37.774Z] SYNC AUDIT
+Product ID: 111
+Product: Tudors Unisex Relax Fit Rahat Kesim Pamuklu Içi Polarlı Yarım Fermuarlı Bordo Dik Yaka Sweatshirt
+Success: true
+Changes: 0
+Errors: 0
+Details:
+  - Price Updates: 0
+  - Stock Updates: 0
+  - Variants Added: 0
+  - Variants Removed: 0
+  - Product Archived: false
+---
+
+[2025-11-10T15:22:05.843Z] SYNC AUDIT
+Product ID: 106
+Product: GRIMELANGE BAXTER Erkek Dik Yakalı Fermuarlı Relaxed Lacivert Sweatshirt
+Success: true
+Changes: 0
+Errors: 0
+Details:
+  - Price Updates: 0
+  - Stock Updates: 0
+  - Variants Added: 0
+  - Variants Removed: 0
+  - Product Archived: false
+---
