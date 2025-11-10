@@ -66,8 +66,8 @@ export function generateComprehensiveShopifyCSV(product: ComprehensiveProductDat
     return '';
   };
 
-  // Extract categorized features
-  const productCategory = getFeatureValue(['kategori', 'category', 'product type', 'ürün tipi']);
+  // Extract categorized features - prefer explicit product.category
+  const productCategory = product.category || getFeatureValue(['kategori', 'category', 'product type', 'ürün tipi']);
   const productMaterial = getFeatureValue(['malzeme', 'material', 'fabric', 'kumaş']);
   const productColor = getFeatureValue(['renk', 'color', 'colour']);
   const productSize = getFeatureValue(['beden', 'size', 'boyut']);

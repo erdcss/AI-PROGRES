@@ -14,6 +14,7 @@ interface ShopifyProduct {
   title: string;
   vendor: string;
   product_type: string;
+  category?: string;
   handle: string;
   status: string;
   created_at: string;
@@ -277,10 +278,10 @@ export default function ShopifyProductsPage() {
                     )}
                     
                     <div className="space-y-2">
-                      {product.product_type && product.product_type !== '' && (
+                      {(product.category || product.product_type) && (
                         <div className="flex justify-between text-sm">
                           <span className="text-muted-foreground">Kategori:</span>
-                          <span className="font-medium text-xs">{product.product_type}</span>
+                          <span className="font-medium text-xs">{product.category || product.product_type}</span>
                         </div>
                       )}
                       
