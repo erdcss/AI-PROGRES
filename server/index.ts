@@ -10,10 +10,13 @@ import shopifyTrendyolMatcher from './shopify-trendyol-matcher';
 import replitAgentRoutes from './replit-agent-routes';
 import sosRoutes from './sos-routes';
 import * as pathModule from "path";
-import { fileURLToPath } from 'url';
+import { fileURLToPath} from 'url';
 import * as fs from 'fs';
 import { enhancedErrorDetection } from './enhanced-error-detection';
 
+console.error("=========================================");
+console.error("🚀 SERVER INDEX.TS BAŞLADI 🚀");
+console.error("=========================================");
 console.log("Uygulama başlatılıyor...");
 
 const app = express();
@@ -583,16 +586,50 @@ app.use('/api/sos', sosRoutes);
   // importantly only setup vite in development and after
   // setting up all the other routes so the catch-all route
   // doesn't interfere with the other routes
+  process.stderr.write("========================================\n");
+  process.stderr.write("📍 CHECKPOINT 1: About to setup Vite\n");
+  process.stderr.write(`NODE_ENV: ${process.env.NODE_ENV}\n`);
+  process.stderr.write(`REPL_SLUG: ${process.env.REPL_SLUG}\n`);
+  process.stderr.write(`REPL_OWNER: ${process.env.REPL_OWNER}\n`);
+  process.stderr.write("========================================\n");
+  
   if (process.env.NODE_ENV !== "production") {
     // Use Replit-optimized Vite setup if running on Replit
     if (process.env.REPL_SLUG && process.env.REPL_OWNER) {
-      await setupViteForReplit(app, server);
+      try {
+        process.stderr.write("🔧 Using setupViteForReplit...\n");
+        await setupViteForReplit(app, server);
+        process.stderr.write("✅ setupViteForReplit completed successfully!\n");
+      } catch (error) {
+        process.stderr.write("========================================\n");
+        process.stderr.write("❌❌❌ VITE SETUP FAILED ❌❌❌\n");
+        process.stderr.write("========================================\n");
+        process.stderr.write(`Error: ${error instanceof Error ? error.message : String(error)}\n`);
+        process.stderr.write(`Stack: ${error instanceof Error ? error.stack : 'No stack trace'}\n`);
+        process.stderr.write("========================================\n");
+        throw error; // Re-throw to stop server startup
+      }
     } else {
-      await setupVite(app, server);
+      try {
+        process.stderr.write("🔧 Using setupVite...\n");
+        await setupVite(app, server);
+        process.stderr.write("✅ setupVite completed successfully!\n");
+      } catch (error) {
+        process.stderr.write("========================================\n");
+        process.stderr.write("❌❌❌ VITE SETUP FAILED ❌❌❌\n");
+        process.stderr.write("========================================\n");
+        process.stderr.write(`Error: ${error instanceof Error ? error.message : String(error)}\n`);
+        process.stderr.write(`Stack: ${error instanceof Error ? error.stack : 'No stack trace'}\n`);
+        process.stderr.write("========================================\n");
+        throw error; // Re-throw to stop server startup
+      }
     }
   } else {
+    process.stderr.write("🔧 Production mode - using serveStatic...\n");
     serveStatic(app);
   }
+  
+  process.stderr.write("📍 CHECKPOINT 2: Vite setup completed, about to call server.listen()\n");
 
   // Serving the app on port 5000 for Replit workflow compatibility
   // this serves both the API and the client.
@@ -640,9 +677,12 @@ app.use('/api/sos', sosRoutes);
   }, 5000);
 
   server.listen(port, "0.0.0.0", () => {
+    console.log("========================================");
+    console.log("🚀🚀🚀 SERVER.LISTEN() CALLBACK EXECUTED 🚀🚀🚀");
+    console.log("========================================");
     log(`serving on port ${port}`);
-    console.log(`Server is running at http://0.0.0.0:${port}`);
-    console.log(`Please visit the application at http://0.0.0.0:${port}`);
+    console.log(`✅ Server is running at http://0.0.0.0:${port}`);
+    console.log(`✅ Please visit the application at http://0.0.0.0:${port}`);
     
     // Initialize error detection system
     enhancedErrorDetection.startMonitoring();
@@ -657,7 +697,8 @@ app.use('/api/sos', sosRoutes);
     // Initialize scheduler system
     // Monitoring service başlat (Trendyol fiyat takibi)
     setTimeout(() => {
-      import('./monitoring-service').then(({ monitoringService }) => {
+      import('./monitoring-service').then(({ MonitoringService }) => {
+        const monitoringService = new MonitoringService(300000); // 5 dakika interval
         monitoringService.start();
         console.log('🎯 Monitoring service başlatıldı');
       }).catch(error => {
@@ -683,4 +724,13 @@ app.use('/api/sos', sosRoutes);
       });
     }, 3000);
   });
-})();
+})().catch((error) => {
+  console.log('========================================');
+  console.log('❌❌❌ FATAL ERROR IN ASYNC IIFE ❌❌❌');
+  console.log('========================================');
+  console.log('Error details:', error);
+  console.log('Error message:', error.message);
+  console.log('Error stack:', error.stack);
+  console.log('========================================');
+  process.exit(1); // Exit to make error visible
+});

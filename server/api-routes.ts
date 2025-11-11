@@ -1,8 +1,10 @@
 import { Router } from 'express';
 import { shopifyIntegration } from './shopify-integration';
-import { monitoringService } from './monitoring-service';
+import { getMonitoringService } from './monitoring-service';
 import { storage } from './storage-fixed';
 import { telegramIntegration } from './telegram-integration';
+
+const monitoringService = getMonitoringService();
 import { cleanScrape } from './clean-scraper';
 import { db } from './db';
 import { products, productVariants } from '@shared/schema';

@@ -552,4 +552,12 @@ export class MonitoringService {
   }
 }
 
-export const monitoringService = new MonitoringService(300000); // 5 dakika
+// Singleton instance for API endpoints
+let _instance: MonitoringService | null = null;
+
+export function getMonitoringService(): MonitoringService {
+  if (!_instance) {
+    _instance = new MonitoringService(300000); // 5 dakika interval
+  }
+  return _instance;
+}

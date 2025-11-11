@@ -40,8 +40,10 @@ import { scenarioBasedScrape, extractionCache } from './scenario-based-scraper';
 import { fastProductExtraction } from './fast-extraction-optimizer';
 import { detectRealStockStatus, convertToLegacyFormat } from './real-stock-detector';
 import { ProductManagementSystem } from './product-management-system';
-import { monitoringService } from './monitoring-service';
+import { getMonitoringService } from './monitoring-service';
 import { telegramIntegration } from './telegram-integration';
+
+const monitoringService = getMonitoringService();
 import { generateComprehensiveShopifyCSV, generateFeatureSummary, type ComprehensiveProductData } from './comprehensive-csv-generator';
 import shopifyTrendyolMatcher from './shopify-trendyol-matcher';
 import { scrapeMultipleUrls } from './multi-url-scraper';
