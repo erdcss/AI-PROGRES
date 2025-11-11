@@ -718,10 +718,26 @@ export class EnhancedVariantExtractor {
         continue;
       }
       
-      // Skip invalid color values
-      const invalidValues = ['undefined', 'null', 'none', 'n/a'];
-      if (invalidValues.includes(lowerCleaned)) {
-        console.log(`🚫 Skipping invalid value: "${cleaned}"`);
+      // Skip invalid color values (using exact matches to avoid false positives)
+      const invalidExactMatches = [
+        'undefined', 'null', 'none', 'n/a',
+        'standart', 'tıklayın', 'seç'
+      ];
+      
+      // Compound garbage phrases that should be substring-matched
+      const garbagePhrases = [
+        'slicing attribute product',
+        'kullanıcıların çoğu',
+        'öneriyor'
+      ];
+      
+      if (invalidExactMatches.includes(lowerCleaned)) {
+        console.log(`🚫 Skipping invalid/garbage value: "${cleaned}"`);
+        continue;
+      }
+      
+      if (garbagePhrases.some(phrase => lowerCleaned.includes(phrase))) {
+        console.log(`🚫 Skipping garbage phrase: "${cleaned}"`);
         continue;
       }
       
