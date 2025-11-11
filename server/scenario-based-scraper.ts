@@ -1893,6 +1893,7 @@ export async function scenarioBasedScrape(url: string): Promise<ScenarioBasedRes
             confidence: 85,
             title: emergencyResult.title,
             brand: emergencyResult.brand || 'Bilinmiyor',
+            category: emergencyResult.category || category || 'Genel',
             price: {
               original: emergencyResult.price.original,
               currency: 'TL',

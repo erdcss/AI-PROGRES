@@ -655,8 +655,14 @@ export async function uploadMultiUrlProductToShopify(productData: any, productTi
       console.log('⚠️ NO IMAGES TO SEND TO SHOPIFY API!');
     }
 
-    // Category'yi düzelt
-    const productType = determineProductCategory(productData.title, productData.brand);
+    // Category'yi önce productData'dan al, yoksa title'dan çıkar
+    let productType = productData.category || null;
+    if (!productType || productType.trim() === '') {
+      productType = determineProductCategory(productData.title, productData.brand);
+      console.log(`⚠️ Category fallback used: "${productType}" (no category in productData)`);
+    } else {
+      console.log(`✅ Using extracted category: "${productType}"`);
+    }
     
     // allColors için fallback
     const allColors: string[] = Array.from(uniqueColors) as string[];

@@ -32,6 +32,7 @@ interface SyncResult {
   details: {
     priceUpdates: number;
     stockUpdates: number;
+    categoryUpdates: number;
     variantsAdded: number;
     variantsRemoved: number;
     productArchived: boolean;
@@ -67,6 +68,7 @@ export class ShopifySyncManager {
   async processChanges(urlTrackingId: number, changes: {
     variantChanges?: VariantChange[];
     priceChange?: PriceChange;
+    categoryChange?: { oldCategory: string; newCategory: string };
     productDeleted?: boolean;
   }): Promise<SyncResult> {
     const result: SyncResult = {
@@ -77,6 +79,7 @@ export class ShopifySyncManager {
       details: {
         priceUpdates: 0,
         stockUpdates: 0,
+        categoryUpdates: 0,
         variantsAdded: 0,
         variantsRemoved: 0,
         productArchived: false
@@ -128,7 +131,12 @@ export class ShopifySyncManager {
         await this.handlePriceChange(product, productsTableId, changes.priceChange, result);
       }
 
-      // 🧩 Case 3: Variant changes → Create/Remove/Update variants
+      // 🏷️ Case 3: Category changed → Update Shopify product_type
+      if (changes.categoryChange) {
+        await this.handleCategoryChange(product, productsTableId, changes.categoryChange, result);
+      }
+
+      // 🧩 Case 4: Variant changes → Create/Remove/Update variants
       if (changes.variantChanges && changes.variantChanges.length > 0) {
         for (const variantChange of changes.variantChanges) {
           await this.handleVariantChange(product, productsTableId, variantChange, result);
@@ -266,6 +274,48 @@ export class ShopifySyncManager {
       result.errors++;
       if (productsTableId) {
         await this.logSyncError(productsTableId, null, 'update_price', error as Error);
+      }
+    }
+  }
+
+  /**
+   * 🏷️ Handle category change - Update Shopify product_type
+   */
+  private async handleCategoryChange(product: any, productsTableId: number | null, categoryChange: { oldCategory: string; newCategory: string }, result: SyncResult): Promise<void> {
+    console.log(`🏷️ DECISION: Category changed from "${categoryChange.oldCategory}" to "${categoryChange.newCategory}" → Update Shopify`);
+    
+    if (!product.shopifyProductId) {
+      console.log('⚠️ No Shopify product ID, skipping category update');
+      return;
+    }
+
+    try {
+      // Update Shopify product_type
+      await this.retryWithBackoff(async () => {
+        console.log(`📂 Updating Shopify product ${product.shopifyProductId} category: ${categoryChange.oldCategory} → ${categoryChange.newCategory}`);
+        
+        await shopifyApiService.updateProductCategory(
+          product.shopifyProductId,
+          categoryChange.newCategory
+        );
+      });
+
+      result.details.categoryUpdates++;
+      result.changes++;
+
+      if (productsTableId) {
+        await this.logSyncSuccess(productsTableId, null, 'update_category', {
+          oldCategory: categoryChange.oldCategory,
+          newCategory: categoryChange.newCategory,
+          shopifyProductId: product.shopifyProductId
+        });
+      }
+
+    } catch (error) {
+      console.error('❌ Failed to update category:', error);
+      result.errors++;
+      if (productsTableId) {
+        await this.logSyncError(productsTableId, null, 'update_category', error as Error);
       }
     }
   }

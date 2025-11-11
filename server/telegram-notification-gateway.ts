@@ -57,6 +57,7 @@ export class TelegramNotificationGateway {
     "price_increase",
     "price_decrease",
     "stock_change",
+    "category_change",
     "variant_added",
     "variant_removed",
     "variant_oos",
@@ -335,6 +336,50 @@ export class TelegramNotificationGateway {
       priceChange: parseFloat(priceChange),
       urgency:
         changePercent > 20 ? "high" : changePercent > 10 ? "medium" : "low",
+      trendyolUrl: trendyolUrl || undefined,
+    });
+  }
+
+  /**
+   * Send category change notification - ENHANCED PRO VERSION with tri-state Shopify status
+   */
+  async sendCategoryChange(
+    productTitle: string,
+    productId: number,
+    oldCategory: string,
+    newCategory: string,
+    shopifyStatus: 'synced' | 'pending' | 'not_linked' = 'pending',
+  ): Promise<boolean> {
+    const emoji = "🏷️";
+    const changeEmoji = "🔄";
+
+    // Resolve Trendyol URL
+    const { trendyolUrl } = await this.resolveProductLinks(productId);
+
+    // Shopify status message based on tri-state
+    let shopifyStatusLine = '';
+    if (shopifyStatus === 'synced') {
+      shopifyStatusLine = `✅ Shopify otomatik güncellendi\n`;
+    } else if (shopifyStatus === 'pending') {
+      shopifyStatusLine = `⏳ Shopify güncellemesi bekleniyor\n`;
+    }
+    // For 'not_linked', don't show Shopify status at all
+
+    const message =
+      `${emoji} ${changeEmoji} <b>KATEGORİ DEĞİŞİKLİĞİ</b>\n` +
+      `━━━━━━━━━━━━━━━━━━━━\n\n` +
+      `📦 <b>Ürün:</b> ${productTitle}\n\n` +
+      `📂 <b>Eski Kategori:</b> <code>${oldCategory}</code>\n` +
+      `📁 <b>Yeni Kategori:</b> <code>${newCategory}</code>\n\n` +
+      `\n━━━━━━━━━━━━━━━━━━━━\n` +
+      shopifyStatusLine +
+      (trendyolUrl ? `\n🔗 <a href="${trendyolUrl}">Trendyol Sayfası</a>\n` : '') +
+      `\n<i>⏰ ${new Date().toLocaleString("tr-TR", { timeZone: "Europe/Istanbul" })}</i>`;
+
+    return await this.sendNotification(message, "category_change", productId, {
+      oldCategory,
+      newCategory,
+      shopifyStatus,
       trendyolUrl: trendyolUrl || undefined,
     });
   }

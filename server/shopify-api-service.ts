@@ -824,6 +824,31 @@ export class ShopifyApiService {
   }
 
   /**
+   * 🏷️ Update product category (product_type)
+   * Used by ShopifySyncManager when category changes
+   */
+  async updateProductCategory(productId: string, category: string) {
+    try {
+      console.log(`🏷️ Updating Shopify product ${productId} category to "${category}"`);
+      
+      const updateData = {
+        product: {
+          id: parseInt(productId),
+          product_type: category
+        }
+      };
+
+      const result = await this.makeRequest(`products/${productId}.json`, 'PUT', updateData);
+      
+      console.log(`✅ Product category updated successfully`);
+      return { success: true, data: result };
+    } catch (error: any) {
+      console.error(`❌ Failed to update product category:`, error.message);
+      throw error;
+    }
+  }
+
+  /**
    * 🔍 Get variant by ID
    * Helper method to fetch variant details including inventory_item_id
    */

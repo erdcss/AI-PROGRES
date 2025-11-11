@@ -266,6 +266,130 @@ export class MonitoringService {
         console.log(`✅ URL kontrol edildi (fiyat değişmedi): ${trackedProduct.productTitle}`);
       }
 
+      // 🏷️ CATEGORY CHANGE TRACKING - Kategori değişikliklerini tespit et
+      const oldExtractedData = (trackedProduct.extractedData as any) || {};
+      const oldCategory = oldExtractedData.category || null;
+      const newCategory = freshData.category || null;
+      
+      if (oldCategory && newCategory && oldCategory !== newCategory) {
+        console.log(`🏷️ Kategori değişikliği tespit edildi: ${trackedProduct.productTitle}`);
+        console.log(`   Eski: ${oldCategory} → Yeni: ${newCategory}`);
+        
+        // Update extractedData with new category
+        const updatedExtractedData = {
+          ...oldExtractedData,
+          category: newCategory,
+          title: freshData.title || trackedProduct.productTitle,
+          brand: freshData.brand || oldExtractedData.brand,
+          images: freshData.images || oldExtractedData.images,
+          lastUpdated: new Date().toISOString()
+        };
+        
+        await db.update(urlTracking)
+          .set({
+            extractedData: updatedExtractedData,
+            lastChecked: new Date()
+          } as any)
+          .where(eq(urlTracking.id, trackedProduct.id));
+        
+        // 🔗 SYNC: Update products table with new category
+        try {
+          const { urlTrackingService } = await import('./url-tracking-service');
+          await urlTrackingService.syncProductFromUrlTracking(trackedProduct.id);
+          console.log(`🔗 Products table category synced`);
+        } catch (syncError) {
+          console.error('⚠️ Category sync failed (non-critical):', syncError);
+        }
+        
+        // 🤖 AUTONOMOUS SYNC: Category change detected, trigger Shopify update
+        let shopifyUpdateSuccess = false;
+        if (trackedProduct.shopifyProductId) {
+          try {
+            console.log('\n🤖 AUTONOMOUS SYNC: Category change detected, triggering Shopify update...');
+            
+            const syncResult = await shopifySyncManager.processChanges(trackedProduct.id, {
+              categoryChange: {
+                oldCategory,
+                newCategory
+              }
+            });
+            
+            if (syncResult.success) {
+              console.log(`✅ Shopify category sync completed: ${syncResult.changes} changes applied`);
+              shopifyUpdateSuccess = true;
+              
+              await db.update(urlTracking)
+                .set({
+                  lastShopifySyncAt: new Date(),
+                  syncStatus: 'synced'
+                } as any)
+                .where(eq(urlTracking.id, trackedProduct.id));
+            } else {
+              console.error(`❌ Shopify category sync failed with ${syncResult.errors} errors`);
+              
+              await db.update(urlTracking)
+                .set({
+                  syncStatus: 'failed',
+                  syncErrors: `Category sync failed with ${syncResult.errors} errors`
+                } as any)
+                .where(eq(urlTracking.id, trackedProduct.id));
+              
+              // Send Telegram error notification
+              await telegramGateway.sendShopifySyncError(
+                trackedProduct.productTitle || 'Unknown',
+                trackedProduct.id,
+                'category_update',
+                `Category sync failed with ${syncResult.errors} errors`
+              );
+            }
+          } catch (syncError) {
+            console.error('❌ Shopify category sync error:', syncError);
+            
+            await telegramGateway.sendShopifySyncError(
+              trackedProduct.productTitle || 'Unknown',
+              trackedProduct.id,
+              'category_update',
+              (syncError as Error).message
+            );
+          }
+        }
+        
+        // Send category change notification via gateway (with deduplication)
+        // Always send for non-Shopify products, only send for Shopify products if sync was successful
+        const isShopifyLinked = !!trackedProduct.shopifyProductId;
+        if (!isShopifyLinked || shopifyUpdateSuccess) {
+          // Determine tri-state Shopify status
+          const shopifyStatus: 'synced' | 'not_linked' = 
+            isShopifyLinked ? 'synced' : 'not_linked';
+          
+          await telegramGateway.sendCategoryChange(
+            trackedProduct.productTitle || 'Unknown',
+            trackedProduct.id,
+            oldCategory,
+            newCategory,
+            shopifyStatus
+          );
+        }
+      } else if (!oldCategory && newCategory) {
+        // First time category detected, store it
+        console.log(`🏷️ İlk kategori tespit edildi: ${newCategory}`);
+        const updatedExtractedData = {
+          ...oldExtractedData,
+          category: newCategory,
+          title: freshData.title || trackedProduct.productTitle,
+          brand: freshData.brand || oldExtractedData.brand,
+          images: freshData.images || oldExtractedData.images,
+          lastUpdated: new Date().toISOString()
+        };
+        
+        await db.update(urlTracking)
+          .set({
+            extractedData: updatedExtractedData,
+            lastChecked: new Date()
+          } as any)
+          .where(eq(urlTracking.id, trackedProduct.id));
+      }
+
       // 🧩 VARIANT TRACKING - Varyant değişikliklerini tespit et
       if (freshData.variants?.allVariants && Array.isArray(freshData.variants.allVariants)) {
         const allVariants = freshData.variants.allVariants;
