@@ -95,18 +95,38 @@ export class EnhancedVariantExtractor {
     try {
       console.log('🚀 Launching Puppeteer with enhanced configuration...');
       
-      // Dynamically find chromium executable
+      // Use Puppeteer's installed Chrome from cache
+      const fs = require('fs');
+      const path = require('path');
       let executablePath;
+      
+      // Check for Puppeteer cache first
+      const puppeteerCachePath = path.join(process.env.HOME || '/home/runner', '.cache/puppeteer/chrome');
       try {
-        executablePath = execSync('which chromium-browser || which chromium || which google-chrome', { encoding: 'utf8' }).trim();
-        console.log(`✅ Found chromium at: ${executablePath}`);
+        if (fs.existsSync(puppeteerCachePath)) {
+          const versions = fs.readdirSync(puppeteerCachePath);
+          if (versions.length > 0) {
+            const latestVersion = versions.sort().reverse()[0];
+            executablePath = path.join(puppeteerCachePath, latestVersion, 'chrome-linux64/chrome');
+            if (fs.existsSync(executablePath)) {
+              console.log(`✅ Using Puppeteer Chrome: ${executablePath}`);
+            } else {
+              executablePath = undefined;
+            }
+          }
+        }
       } catch (error) {
-        console.log('⚠️ Chromium not found, using Puppeteer default');
+        console.log('⚠️ Could not find Puppeteer Chrome, trying system chromium');
+        try {
+          executablePath = execSync('which chromium-browser || which chromium || which google-chrome', { encoding: 'utf8' }).trim();
+        } catch {
+          console.log('⚠️ No chromium found, using Puppeteer default');
+        }
       }
       
       browser = await puppeteer.launch({
         headless: true,
-        executablePath: executablePath || undefined,
+        executablePath,
         args: [
           '--no-sandbox',
           '--disable-setuid-sandbox',
