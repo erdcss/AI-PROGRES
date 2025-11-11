@@ -459,10 +459,13 @@ function convertProductToShopifyCSV(productData: any): string {
   const price = productData.price?.withProfit || productData.price?.original || 100;
   const comparePrice = productData.price?.original || price;
   
-  // ✅ FIX: Tek varyantlı ürünler için varyant bilgisi gösterme
-  const isSingleVariant = (colors.length === 0 || colors.length === 1) && (sizes.length === 0 || sizes.length === 1);
-  const actualColors = colors.length > 0 ? colors : [''];
-  const actualSizes = sizes.length > 0 ? sizes : [''];
+  // ✅ Sanitize and filter variant data to prevent empty strings
+  const cleanedColors = colors.filter(c => c && c.trim()).map(c => c.trim());
+  const cleanedSizes = sizes.filter(s => s && s.trim()).map(s => s.trim());
+  
+  // ✅ Always include color/size options with proper defaults
+  const actualColors = cleanedColors.length > 0 ? cleanedColors : ['Standart'];
+  const actualSizes = cleanedSizes.length > 0 ? cleanedSizes : ['Tek Beden'];
   
   let variantIndex = 0;
   
@@ -480,10 +483,10 @@ function convertProductToShopifyCSV(productData: any): string {
         isFirstVariant ? 'Apparel & Accessories > Clothing' : '', // Product Type
         isFirstVariant ? 'trendyol, auto-generated' : '', // Tags
         isFirstVariant ? 'TRUE' : '', // Published
-        isFirstVariant && !isSingleVariant ? 'Renk' : '', // Option1 Name - boş if single variant
-        !isSingleVariant ? color : '', // Option1 Value - boş if single variant
-        isFirstVariant && !isSingleVariant ? 'Beden' : '', // Option2 Name - boş if single variant
-        !isSingleVariant ? size : '', // Option2 Value - boş if single variant
+        isFirstVariant ? 'Renk' : '', // Option1 Name - Always show color option
+        color, // Option1 Value - Guaranteed non-empty after sanitization
+        isFirstVariant ? 'Beden' : '', // Option2 Name - Always show size option
+        size, // Option2 Value - Guaranteed non-empty after sanitization
         `${handle}-${color}-${size}`.toLowerCase().replace(/[^a-z0-9-]/g, ''), // Variant SKU
         '0', // Variant Grams
         'shopify', // Variant Inventory Tracker

@@ -406,11 +406,37 @@ export class ShopifyProductsSync {
       }
 
       if (sourceUrl) {
+        // ✅ UPSERT: Insert or update based on sourceUrl (UNIQUE constraint)
+        const transferData = {
+          sourceUrl,
+          shopifyProductId,
+          title: product.title,
+          brand: product.vendor || undefined,
+          originalPrice: price ? price.toString() : undefined,
+          shopifyPrice: price ? price.toString() : undefined,
+          shopifyHandle: product.handle || undefined,
+          variantCount: product.variants?.length || 1,
+          currentStatus: product.status || 'active',
+          lastChecked: new Date(),
+          updatedAt: new Date()
+        };
+        
         await db
-          .update(shopifyTransferredProducts)
-          .set({ sourceUrl })
-          .where(eq(shopifyTransferredProducts.shopifyProductId, shopifyProductId));
-        console.log(`✅ Source URL updated: ${sourceUrl}`);
+          .insert(shopifyTransferredProducts)
+          .values(transferData as any) // Type assertion to bypass TypeScript cache issue
+          .onConflictDoUpdate({
+            target: shopifyTransferredProducts.sourceUrl,
+            set: {
+              shopifyProductId,
+              title: product.title,
+              brand: product.vendor || undefined,
+              shopifyHandle: product.handle || undefined,
+              currentStatus: product.status || 'active',
+              lastChecked: new Date(),
+              updatedAt: new Date()
+            } as any
+          });
+        console.log(`✅ Source URL upserted to shopifyTransferredProducts: ${sourceUrl}`);
       }
 
       webSocketService.broadcast('shopify:product-synced', {
