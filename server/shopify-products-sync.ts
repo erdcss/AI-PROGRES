@@ -340,6 +340,94 @@ export class ShopifyProductsSync {
       };
     }
   }
+
+  async syncSingleProduct(shopifyProductId: string, sourceUrl?: string): Promise<{ success: boolean; error?: string }> {
+    try {
+      console.log(`🔄 Syncing single product to memory: ${shopifyProductId}`);
+      
+      const productResponse = await this.shopifyService.getDirectProductData(shopifyProductId);
+      
+      if (!productResponse.success || !productResponse.product) {
+        console.warn(`⚠️ Product ${shopifyProductId} not found in Shopify - will sync on next bulk sync`);
+        return {
+          success: false,
+          error: 'Product not found in Shopify yet - may still be processing'
+        };
+      }
+
+      const product = productResponse.product;
+      const mainVariant = product.variants[0];
+      const price = mainVariant ? parseFloat(mainVariant.price) : 0;
+      const compareAtPrice = mainVariant?.compare_at_price ? parseFloat(mainVariant.compare_at_price) : null;
+
+      const [existing] = await db
+        .select()
+        .from(shopifyMemoryProducts)
+        .where(eq(shopifyMemoryProducts.shopifyProductId, shopifyProductId));
+
+      const productData = {
+        uniqueTrackingId: existing?.uniqueTrackingId || `shopify_${product.id}_${Date.now()}`,
+        shopifyProductId: product.id.toString(),
+        shopifyVariantId: mainVariant?.id.toString() || null,
+        title: product.title,
+        handle: product.handle,
+        vendor: product.vendor || null,
+        productType: product.product_type || null,
+        tags: product.tags ? product.tags.split(',').map(tag => tag.trim()) : [],
+        status: product.status,
+        price: price,
+        compareAtPrice: compareAtPrice,
+        inventoryQuantity: mainVariant?.inventory_quantity || 0,
+        inventoryPolicy: mainVariant?.inventory_policy || 'deny',
+        sku: mainVariant?.sku || null,
+        barcode: mainVariant?.barcode || null,
+        weight: mainVariant?.weight || null,
+        weightUnit: mainVariant?.weight_unit || 'kg',
+        images: product.images || [],
+        options: product.options || [],
+        variants: product.variants || [],
+        shopifyCreatedAt: new Date(product.created_at),
+        shopifyUpdatedAt: new Date(product.updated_at),
+        lastSyncAt: new Date(),
+        updatedAt: new Date()
+      };
+
+      if (existing) {
+        await db
+          .update(shopifyMemoryProducts)
+          .set(productData)
+          .where(eq(shopifyMemoryProducts.shopifyProductId, shopifyProductId));
+        console.log(`✅ Product updated in memory: ${product.title}`);
+      } else {
+        await db
+          .insert(shopifyMemoryProducts)
+          .values(productData);
+        console.log(`✅ Product added to memory: ${product.title}`);
+      }
+
+      if (sourceUrl) {
+        await db
+          .update(shopifyTransferredProducts)
+          .set({ sourceUrl })
+          .where(eq(shopifyTransferredProducts.shopifyProductId, shopifyProductId));
+        console.log(`✅ Source URL updated: ${sourceUrl}`);
+      }
+
+      webSocketService.broadcast('shopify:product-synced', {
+        shopifyProductId,
+        title: product.title,
+        category: product.product_type
+      });
+
+      return { success: true };
+    } catch (error) {
+      console.error(`❌ Single product sync error (${shopifyProductId}):`, error);
+      return {
+        success: false,
+        error: (error as Error).message
+      };
+    }
+  }
 }
 
 export const shopifyProductsSync = new ShopifyProductsSync();

@@ -247,6 +247,35 @@ function extractProductIdFromUrl(url: string): string {
   }
 }
 
+// Helper function to sync product to memory with retry logic
+async function syncProductToMemoryWithRetry(
+  shopifyProductId: string,
+  sourceUrl: string,
+  maxRetries: number = 3,
+  initialDelayMs: number = 2000
+): Promise<{ success: boolean; error?: string }> {
+  for (let attempt = 1; attempt <= maxRetries; attempt++) {
+    const delayMs = initialDelayMs * attempt;
+    console.log(`⏳ Waiting ${delayMs}ms before sync attempt ${attempt}/${maxRetries}...`);
+    await new Promise(resolve => setTimeout(resolve, delayMs));
+    
+    const result = await shopifyProductsSync.syncSingleProduct(shopifyProductId, sourceUrl);
+    
+    if (result.success) {
+      console.log(`✅ Memory sync succeeded on attempt ${attempt}/${maxRetries}`);
+      return { success: true };
+    }
+    
+    console.warn(`⚠️ Memory sync attempt ${attempt}/${maxRetries} failed:`, result.error);
+  }
+  
+  console.error(`❌ Memory sync failed after ${maxRetries} retries - product will sync on next bulk sync`);
+  return { 
+    success: false, 
+    error: `Failed after ${maxRetries} retries - Shopify may still be processing` 
+  };
+}
+
 // Import emergency parser function for cloudflare bypass
 function parseProductFromHTML(html: string, source: string): any {
   const cheerio = require('cheerio');
@@ -3433,6 +3462,15 @@ ${(result.title || 'product').toLowerCase().replace(/[^a-z0-9]/g, '-')},${result
                 } catch (enableError) {
                   console.warn('⚠️ Failed to enable tracking (non-critical):', enableError);
                 }
+                
+                // ✅ SYNC TO MEMORY with retry - Runs regardless of tracking enable result
+                setTimeout(async () => {
+                  try {
+                    await syncProductToMemoryWithRetry(uploadResult.productId, sourceUrl);
+                  } catch (syncError) {
+                    console.error('⚠️ Memory sync retry failed:', syncError);
+                  }
+                }, 0);
               }
             }
           } catch (trackingError) {
@@ -3548,6 +3586,15 @@ ${(result.title || 'product').toLowerCase().replace(/[^a-z0-9]/g, '-')},${result
                 } catch (enableError) {
                   console.warn('⚠️ Failed to enable tracking (non-critical):', enableError);
                 }
+                
+                // ✅ SYNC TO MEMORY with retry - Runs regardless of tracking enable result
+                setTimeout(async () => {
+                  try {
+                    await syncProductToMemoryWithRetry(uploadResult.productId, sourceUrl);
+                  } catch (syncError) {
+                    console.error('⚠️ Multi-URL: Memory sync retry failed:', syncError);
+                  }
+                }, 0);
               }
             }
           } catch (trackingError) {
