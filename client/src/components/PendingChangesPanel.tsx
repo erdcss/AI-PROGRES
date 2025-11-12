@@ -1,4 +1,4 @@
-import { useState } from 'react';
+import { useState, useMemo } from 'react';
 import { useQuery, useMutation } from '@tanstack/react-query';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
@@ -21,7 +21,9 @@ import {
   PackagePlus,
   AlertTriangle,
   RefreshCw,
-  CheckCheck
+  CheckCheck,
+  ChevronDown,
+  ChevronRight
 } from 'lucide-react';
 import { useToast } from '@/hooks/use-toast';
 import { queryClient, apiRequest } from '@/lib/queryClient';
@@ -31,6 +33,11 @@ import {
   TabsList,
   TabsTrigger,
 } from "@/components/ui/tabs";
+import {
+  Collapsible,
+  CollapsibleContent,
+  CollapsibleTrigger,
+} from "@/components/ui/collapsible";
 
 interface PendingChange {
   id: number;
@@ -69,6 +76,7 @@ export function PendingChangesPanel() {
   const { toast } = useToast();
   const [selectedTab, setSelectedTab] = useState('pending');
   const [selectedChanges, setSelectedChanges] = useState<number[]>([]);
+  const [expandedProducts, setExpandedProducts] = useState<Set<string>>(new Set());
 
   // Fetch pending changes
   const { data: changesData, isLoading, refetch } = useQuery<{
@@ -246,6 +254,50 @@ export function PendingChangesPanel() {
     bulkApproveMutation.mutate(selectedChanges);
   };
 
+  const toggleProductExpansion = (productTitle: string) => {
+    setExpandedProducts(prev => {
+      const next = new Set(prev);
+      if (next.has(productTitle)) {
+        next.delete(productTitle);
+      } else {
+        next.add(productTitle);
+      }
+      return next;
+    });
+  };
+
+  // Group variant changes by product
+  const groupedChanges = useMemo(() => {
+    if (!changesData?.changes) return { grouped: [], individual: [] };
+
+    const variantChangesByProduct = new Map<string, PendingChange[]>();
+    const nonVariantChanges: PendingChange[] = [];
+
+    changesData.changes.forEach(change => {
+      const isVariantChange = change.changeType === 'variant_added' || change.changeType === 'variant_removed';
+      
+      if (isVariantChange) {
+        const existing = variantChangesByProduct.get(change.productTitle) || [];
+        existing.push(change);
+        variantChangesByProduct.set(change.productTitle, existing);
+      } else {
+        nonVariantChanges.push(change);
+      }
+    });
+
+    // Convert grouped variants to array
+    const groupedVariants = Array.from(variantChangesByProduct.entries()).map(([productTitle, changes]) => ({
+      productTitle,
+      changes,
+      isGroup: true
+    }));
+
+    return {
+      grouped: groupedVariants,
+      individual: nonVariantChanges
+    };
+  }, [changesData]);
+
   return (
     <Card className="mt-6">
       <CardHeader>
@@ -346,12 +398,12 @@ export function PendingChangesPanel() {
                     : 'Reddedilmiş değişiklik yok'}
               </div>
             ) : (
-              <div className="rounded-md border">
+              <div className="rounded-md border bg-white dark:bg-slate-900">
                 <Table>
-                  <TableHeader>
-                    <TableRow>
+                  <TableHeader className="bg-slate-50 dark:bg-slate-800">
+                    <TableRow className="border-b border-slate-200 dark:border-slate-700">
                       {selectedTab === 'pending' && (
-                        <TableHead className="w-12 text-sm font-medium text-slate-700 dark:text-slate-200">
+                        <TableHead className="w-12 text-sm font-medium text-slate-900 dark:text-white">
                           <input
                             type="checkbox"
                             checked={selectedChanges.length === changesData?.changes.length}
@@ -366,17 +418,18 @@ export function PendingChangesPanel() {
                           />
                         </TableHead>
                       )}
-                      <TableHead className="text-sm font-medium text-slate-700 dark:text-slate-200">Tip</TableHead>
-                      <TableHead className="text-sm font-medium text-slate-700 dark:text-slate-200">Ürün</TableHead>
-                      <TableHead className="text-sm font-medium text-slate-700 dark:text-slate-200">Varyant</TableHead>
-                      <TableHead className="text-sm font-medium text-slate-700 dark:text-slate-200">Değişiklik</TableHead>
-                      <TableHead className="text-sm font-medium text-slate-700 dark:text-slate-200">Tarih</TableHead>
-                      {selectedTab === 'pending' && <TableHead className="text-right text-sm font-medium text-slate-700 dark:text-slate-200">İşlem</TableHead>}
+                      <TableHead className="text-sm font-medium text-slate-900 dark:text-white">Tip</TableHead>
+                      <TableHead className="text-sm font-medium text-slate-900 dark:text-white">Ürün</TableHead>
+                      <TableHead className="text-sm font-medium text-slate-900 dark:text-white">Varyant</TableHead>
+                      <TableHead className="text-sm font-medium text-slate-900 dark:text-white">Değişiklik</TableHead>
+                      <TableHead className="text-sm font-medium text-slate-900 dark:text-white">Tarih</TableHead>
+                      {selectedTab === 'pending' && <TableHead className="text-right text-sm font-medium text-slate-900 dark:text-white">İşlem</TableHead>}
                     </TableRow>
                   </TableHeader>
-                  <TableBody>
-                    {changesData?.changes.map((change) => (
-                      <TableRow key={change.id} data-testid={`row-change-${change.id}`}>
+                  <TableBody className="bg-white dark:bg-slate-900">
+                    {/* Render individual (non-variant) changes */}
+                    {groupedChanges.individual.map((change) => (
+                      <TableRow key={change.id} data-testid={`row-change-${change.id}`} className="border-b border-slate-200 dark:border-slate-700">
                         {selectedTab === 'pending' && (
                           <TableCell>
                             <input
@@ -387,27 +440,27 @@ export function PendingChangesPanel() {
                             />
                           </TableCell>
                         )}
-                        <TableCell className="text-sm text-slate-900 dark:text-slate-100">
+                        <TableCell className="text-sm text-slate-900 dark:text-white">
                           <div className="flex items-center gap-2">
                             {getChangeIcon(change.changeType)}
                             {getChangeBadge(change.changeType)}
                           </div>
                         </TableCell>
-                        <TableCell className="font-medium text-sm max-w-xs truncate text-slate-900 dark:text-slate-100">
+                        <TableCell className="font-medium text-sm max-w-xs truncate text-slate-900 dark:text-white">
                           {change.productTitle}
                         </TableCell>
-                        <TableCell className="text-sm text-slate-900 dark:text-slate-100">
+                        <TableCell className="text-sm text-slate-900 dark:text-white">
                           {change.color || change.size ? (
                             <div className="space-y-0.5">
-                              {change.color && <div className="font-medium text-sm text-slate-900 dark:text-slate-100">{change.color}</div>}
-                              {change.size && <div className="text-xs text-slate-600 dark:text-slate-400">{change.size}</div>}
+                              {change.color && <div className="font-medium text-sm text-slate-900 dark:text-white">{change.color}</div>}
+                              {change.size && <div className="text-xs text-slate-400 dark:text-slate-400">{change.size}</div>}
                             </div>
                           ) : (
                             <span className="text-slate-500 dark:text-slate-400 text-sm">-</span>
                           )}
                         </TableCell>
-                        <TableCell className="text-sm text-slate-900 dark:text-slate-100">{getChangeDetails(change)}</TableCell>
-                        <TableCell className="text-xs text-slate-600 dark:text-slate-400 whitespace-nowrap">
+                        <TableCell className="text-sm text-slate-900 dark:text-white">{getChangeDetails(change)}</TableCell>
+                        <TableCell className="text-xs text-slate-400 dark:text-slate-400 whitespace-nowrap">
                           {new Date(change.createdAt).toLocaleString('tr-TR')}
                         </TableCell>
                         {selectedTab === 'pending' && (
@@ -435,6 +488,124 @@ export function PendingChangesPanel() {
                           </TableCell>
                         )}
                       </TableRow>
+                    ))}
+
+                    {/* Render grouped variant changes */}
+                    {groupedChanges.grouped.map((group) => (
+                      <Collapsible
+                        key={group.productTitle}
+                        open={expandedProducts.has(group.productTitle)}
+                        onOpenChange={() => toggleProductExpansion(group.productTitle)}
+                      >
+                        {/* Main product row with expand/collapse trigger */}
+                        <CollapsibleTrigger asChild>
+                          <TableRow 
+                            className="border-b border-slate-200 dark:border-slate-700 hover:bg-slate-50 dark:hover:bg-slate-800 cursor-pointer"
+                            data-testid={`row-variant-group-${group.productTitle}`}
+                          >
+                            {selectedTab === 'pending' && (
+                              <TableCell>
+                                <input
+                                  type="checkbox"
+                                  checked={group.changes.every(c => selectedChanges.includes(c.id))}
+                                  onChange={(e) => {
+                                    e.stopPropagation();
+                                    if (e.target.checked) {
+                                      setSelectedChanges(prev => [...prev, ...group.changes.map(c => c.id).filter(id => !prev.includes(id))]);
+                                    } else {
+                                      setSelectedChanges(prev => prev.filter(id => !group.changes.some(c => c.id === id)));
+                                    }
+                                  }}
+                                  className="rounded"
+                                />
+                              </TableCell>
+                            )}
+                            <TableCell className="text-sm text-slate-900 dark:text-white" colSpan={selectedTab === 'pending' ? 1 : 2}>
+                              <div className="flex items-center gap-2">
+                                {expandedProducts.has(group.productTitle) ? (
+                                  <ChevronDown className="h-4 w-4 text-slate-500 dark:text-slate-400" />
+                                ) : (
+                                  <ChevronRight className="h-4 w-4 text-slate-500 dark:text-slate-400" />
+                                )}
+                                <Package className="h-4 w-4 text-slate-500 dark:text-slate-400" />
+                                <Badge variant="secondary" className="bg-slate-200 text-slate-900 dark:bg-slate-700 dark:text-white">
+                                  {group.changes.length} Varyant
+                                </Badge>
+                              </div>
+                            </TableCell>
+                            <TableCell className="font-medium text-sm max-w-xs truncate text-slate-900 dark:text-white" colSpan={selectedTab === 'pending' ? 5 : 4}>
+                              {group.productTitle}
+                            </TableCell>
+                          </TableRow>
+                        </CollapsibleTrigger>
+
+                        {/* Expanded variant rows */}
+                        <CollapsibleContent asChild>
+                          <>
+                            {group.changes.map((change) => (
+                              <TableRow key={change.id} data-testid={`row-change-${change.id}`} className="border-b border-slate-200 dark:border-slate-700 bg-slate-50 dark:bg-slate-800/50">
+                                {selectedTab === 'pending' && (
+                                  <TableCell className="pl-8">
+                                    <input
+                                      type="checkbox"
+                                      checked={selectedChanges.includes(change.id)}
+                                      onChange={() => handleToggleChange(change.id)}
+                                      className="rounded"
+                                    />
+                                  </TableCell>
+                                )}
+                                <TableCell className="text-sm text-slate-900 dark:text-white pl-8">
+                                  <div className="flex items-center gap-2">
+                                    {getChangeIcon(change.changeType)}
+                                    {getChangeBadge(change.changeType)}
+                                  </div>
+                                </TableCell>
+                                <TableCell className="text-xs text-slate-600 dark:text-slate-300">
+                                  {change.productTitle}
+                                </TableCell>
+                                <TableCell className="text-sm text-slate-900 dark:text-white">
+                                  {change.color || change.size ? (
+                                    <div className="space-y-0.5">
+                                      {change.color && <div className="font-medium text-sm text-slate-900 dark:text-white">{change.color}</div>}
+                                      {change.size && <div className="text-xs text-slate-400 dark:text-slate-400">{change.size}</div>}
+                                    </div>
+                                  ) : (
+                                    <span className="text-slate-500 dark:text-slate-400 text-sm">-</span>
+                                  )}
+                                </TableCell>
+                                <TableCell className="text-sm text-slate-900 dark:text-white">{getChangeDetails(change)}</TableCell>
+                                <TableCell className="text-xs text-slate-400 dark:text-slate-400 whitespace-nowrap">
+                                  {new Date(change.createdAt).toLocaleString('tr-TR')}
+                                </TableCell>
+                                {selectedTab === 'pending' && (
+                                  <TableCell className="text-right">
+                                    <div className="flex items-center justify-end gap-2">
+                                      <Button
+                                        size="sm"
+                                        variant="default"
+                                        onClick={() => approveMutation.mutate(change.id)}
+                                        disabled={approveMutation.isPending}
+                                        data-testid={`button-approve-${change.id}`}
+                                      >
+                                        <Check className="h-4 w-4" />
+                                      </Button>
+                                      <Button
+                                        size="sm"
+                                        variant="destructive"
+                                        onClick={() => rejectMutation.mutate(change.id)}
+                                        disabled={rejectMutation.isPending}
+                                        data-testid={`button-reject-${change.id}`}
+                                      >
+                                        <X className="h-4 w-4" />
+                                      </Button>
+                                    </div>
+                                  </TableCell>
+                                )}
+                              </TableRow>
+                            ))}
+                          </>
+                        </CollapsibleContent>
+                      </Collapsible>
                     ))}
                   </TableBody>
                 </Table>
