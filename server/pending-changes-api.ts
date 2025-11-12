@@ -1,8 +1,8 @@
 import { Router } from 'express';
 import { db } from './db';
-import { pendingChanges, products, productVariants, priceHistory, stockHistory, variantChanges, shopifySyncLogs } from '../shared/schema';
+import { pendingChanges, productVariants, priceHistory, stockHistory, variantChanges } from '../shared/schema';
 import { eq, and, desc, inArray } from 'drizzle-orm';
-import { sendTelegramNotification } from './telegram-notification-gateway';
+import { pendingChangeProcessor } from './pending-change-processor';
 
 const router = Router();
 
@@ -73,7 +73,7 @@ router.get('/api/pending-changes/summary', async (req, res) => {
 // Approve a single change
 router.post('/api/pending-changes/:id/approve', async (req, res) => {
   try {
-    const { id } = req.params;
+    const { id} = req.params;
     const { approvedBy = 'admin' } = req.body;
     
     const [change] = await db
@@ -89,41 +89,57 @@ router.post('/api/pending-changes/:id/approve', async (req, res) => {
       return res.status(400).json({ error: 'Change is not pending' });
     }
     
-    // Update status to processing
+    // First, mark as processing to prevent double approval
     await db
       .update(pendingChanges)
-      .set({ status: 'processing' })
+      .set({
+        status: 'processing',
+        updatedAt: new Date()
+      })
       .where(eq(pendingChanges.id, parseInt(id)));
     
-    try {
-      // Apply change based on type
-      await applyChange(change);
-      
-      // Update status to approved
+    // Process the change (Shopify sync + Telegram notification)
+    const processResult = await pendingChangeProcessor.processPendingChange(parseInt(id), approvedBy);
+    
+    if (!processResult.success) {
+      // Rollback to pending on failure
       await db
         .update(pendingChanges)
         .set({
-          status: 'approved',
-          approvedAt: new Date(),
-          approvedBy,
+          status: 'pending',
           updatedAt: new Date()
         })
         .where(eq(pendingChanges.id, parseInt(id)));
       
-      // Send Telegram notification
-      await sendApprovalNotification(change);
-      
-      res.json({ success: true, message: 'Change approved and applied successfully' });
-    } catch (error) {
-      // Rollback to pending if error
-      await db
-        .update(pendingChanges)
-        .set({ status: 'pending' })
-        .where(eq(pendingChanges.id, parseInt(id)));
-      throw error;
+      console.error('⚠️ Failed to process change:', processResult.errors);
+      return res.status(500).json({ 
+        error: 'Processing failed, change reverted to pending', 
+        details: processResult.errors 
+      });
     }
+    
+    // Success - mark as approved (processor already did this)
+    res.json({ 
+      success: true, 
+      message: 'Change approved and processed successfully',
+      shopifyUpdated: processResult.shopifyUpdated
+    });
   } catch (error) {
     console.error('❌ Error approving change:', error);
+    
+    // Rollback to pending on error
+    try {
+      await db
+        .update(pendingChanges)
+        .set({
+          status: 'pending',
+          updatedAt: new Date()
+        })
+        .where(eq(pendingChanges.id, parseInt(req.params.id)));
+    } catch (rollbackError) {
+      console.error('❌ Rollback failed:', rollbackError);
+    }
+    
     res.status(500).json({ error: 'Failed to approve change' });
   }
 });
@@ -153,37 +169,55 @@ router.post('/api/pending-changes/bulk-approve', async (req, res) => {
     
     for (const change of changes) {
       try {
-        await db
-          .update(pendingChanges)
-          .set({ status: 'processing' })
-          .where(eq(pendingChanges.id, change.id));
-        
-        await applyChange(change);
-        
+        // Mark as processing
         await db
           .update(pendingChanges)
           .set({
-            status: 'approved',
-            approvedAt: new Date(),
-            approvedBy,
+            status: 'processing',
             updatedAt: new Date()
           })
           .where(eq(pendingChanges.id, change.id));
         
-        await sendApprovalNotification(change);
+        // Process the change (Shopify sync + Telegram notification)
+        const processResult = await pendingChangeProcessor.processPendingChange(change.id, approvedBy);
         
-        results.success++;
+        if (!processResult.success) {
+          // Rollback to pending on failure
+          await db
+            .update(pendingChanges)
+            .set({
+              status: 'pending',
+              updatedAt: new Date()
+            })
+            .where(eq(pendingChanges.id, change.id));
+          
+          results.failed++;
+          results.errors.push({
+            id: change.id,
+            error: processResult.errors?.join(', ') || 'Processing failed'
+          });
+        } else {
+          results.success++;
+        }
       } catch (error) {
+        // Rollback to pending on error
+        try {
+          await db
+            .update(pendingChanges)
+            .set({
+              status: 'pending',
+              updatedAt: new Date()
+            })
+            .where(eq(pendingChanges.id, change.id));
+        } catch (rollbackError) {
+          console.error('❌ Rollback failed:', rollbackError);
+        }
+        
         results.failed++;
         results.errors.push({
           id: change.id,
           error: error instanceof Error ? error.message : 'Unknown error'
         });
-        
-        await db
-          .update(pendingChanges)
-          .set({ status: 'pending' })
-          .where(eq(pendingChanges.id, change.id));
       }
     }
     
@@ -221,202 +255,6 @@ router.post('/api/pending-changes/:id/reject', async (req, res) => {
   }
 });
 
-// Apply change to Shopify and database
-async function applyChange(change: any) {
-  console.log(`📝 Applying change ${change.id}: ${change.changeType}`);
-  
-  switch (change.changeType) {
-    case 'price_increase':
-    case 'price_decrease':
-    case 'variant_price_change':
-      await applyPriceChange(change);
-      break;
-    case 'stock_out':
-    case 'stock_in':
-      await applyStockChange(change);
-      break;
-    case 'variant_added':
-      await applyVariantAdded(change);
-      break;
-    case 'variant_removed':
-      await applyVariantRemoved(change);
-      break;
-    default:
-      console.log(`⚠️ Unknown change type: ${change.changeType}`);
-  }
-}
-
-async function applyPriceChange(change: any) {
-  if (!change.variantId) return;
-  
-  // Update variant price in database
-  await db
-    .update(productVariants)
-    .set({
-      trendyolPrice: change.newPrice,
-      shopifyPrice: change.newPrice,
-      updatedAt: new Date()
-    })
-    .where(eq(productVariants.id, change.variantId));
-  
-  // Record price history
-  const [historyRecord] = await db
-    .insert(priceHistory)
-    .values({
-      variantId: change.variantId,
-      oldPrice: change.oldPrice,
-      newPrice: change.newPrice,
-      changeType: change.changeType.includes('increase') ? 'increase' : 'decrease',
-      changeAmount: change.priceChange,
-      changePercentage: change.priceChangePercent
-    })
-    .returning();
-  
-  // Link history record to pending change
-  await db
-    .update(pendingChanges)
-    .set({ priceHistoryId: historyRecord.id })
-    .where(eq(pendingChanges.id, change.id));
-  
-  console.log(`✅ Price change applied: ${change.oldPrice} → ${change.newPrice}`);
-}
-
-async function applyStockChange(change: any) {
-  if (!change.variantId) return;
-  
-  // Update variant stock in database
-  await db
-    .update(productVariants)
-    .set({
-      inStock: change.newStock > 0,
-      stockCount: change.newStock,
-      updatedAt: new Date()
-    })
-    .where(eq(productVariants.id, change.variantId));
-  
-  // Record stock history
-  const [historyRecord] = await db
-    .insert(stockHistory)
-    .values({
-      variantId: change.variantId,
-      oldStock: change.oldStock,
-      newStock: change.newStock,
-      changeType: change.changeType,
-      changeAmount: change.stockChange
-    })
-    .returning();
-  
-  // Link history record to pending change
-  await db
-    .update(pendingChanges)
-    .set({ stockHistoryId: historyRecord.id })
-    .where(eq(pendingChanges.id, change.id));
-  
-  console.log(`✅ Stock change applied: ${change.oldStock} → ${change.newStock}`);
-}
-
-async function applyVariantAdded(change: any) {
-  if (!change.productId) return;
-  
-  // Record variant change
-  const [variantChangeRecord] = await db
-    .insert(variantChanges)
-    .values({
-      productId: change.productId,
-      variantId: change.variantId,
-      changeType: 'variant_added',
-      color: change.color,
-      size: change.size,
-      newInStock: true,
-      shopifySynced: false
-    })
-    .returning();
-  
-  // Link to pending change
-  await db
-    .update(pendingChanges)
-    .set({ variantChangeId: variantChangeRecord.id })
-    .where(eq(pendingChanges.id, change.id));
-  
-  console.log(`✅ Variant added: ${change.color} - ${change.size}`);
-}
-
-async function applyVariantRemoved(change: any) {
-  if (!change.productId) return;
-  
-  // Record variant change
-  const [variantChangeRecord] = await db
-    .insert(variantChanges)
-    .values({
-      productId: change.productId,
-      variantId: change.variantId,
-      changeType: 'variant_removed',
-      color: change.color,
-      size: change.size,
-      oldInStock: true,
-      newInStock: false,
-      shopifySynced: false
-    })
-    .returning();
-  
-  // Link to pending change
-  await db
-    .update(pendingChanges)
-    .set({ variantChangeId: variantChangeRecord.id })
-    .where(eq(pendingChanges.id, change.id));
-  
-  console.log(`✅ Variant removed: ${change.color} - ${change.size}`);
-}
-
-async function sendApprovalNotification(change: any) {
-  try {
-    let message = `✅ <b>DEĞİŞİKLİK ONAYLANDI</b>\n\n`;
-    message += `📦 Ürün: ${change.productTitle}\n`;
-    
-    if (change.color || change.size) {
-      message += `🎨 Varyant: ${change.color || ''} - ${change.size || ''}\n`;
-    }
-    
-    switch (change.changeType) {
-      case 'price_increase':
-        message += `💰 Fiyat artışı: ${change.oldPrice} TL → ${change.newPrice} TL (+${change.priceChange} TL)\n`;
-        break;
-      case 'price_decrease':
-        message += `💸 Fiyat düşüşü: ${change.oldPrice} TL → ${change.newPrice} TL (${change.priceChange} TL)\n`;
-        break;
-      case 'stock_out':
-        message += `❌ Stok tükendi\n`;
-        break;
-      case 'stock_in':
-        message += `✅ Stoka girdi (${change.newStock} adet)\n`;
-        break;
-      case 'variant_added':
-        message += `➕ Yeni varyant eklendi\n`;
-        break;
-      case 'variant_removed':
-        message += `➖ Varyant kaldırıldı\n`;
-        break;
-    }
-    
-    message += `\n🔗 Değişiklik onaylandı ve uygulandı`;
-    
-    await sendTelegramNotification({
-      productTitle: change.productTitle,
-      changeType: 'change_approved',
-      message
-    });
-    
-    // Mark as notified
-    await db
-      .update(pendingChanges)
-      .set({
-        telegramNotified: true,
-        telegramNotifiedAt: new Date()
-      })
-      .where(eq(pendingChanges.id, change.id));
-  } catch (error) {
-    console.error('⚠️ Failed to send approval notification:', error);
-  }
-}
+// Removed: sendApprovalNotification - now handled by PendingChangeProcessor
 
 export default router;

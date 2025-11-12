@@ -367,11 +367,7 @@ export const insertMonitoringScheduleSchema = createInsertSchema(monitoringSched
 
 export const insertUrlTrackingSchema = createInsertSchema(urlTracking);
 
-export const insertPendingChangeSchema = createInsertSchema(pendingChanges).omit({
-  id: true,
-  createdAt: true,
-  updatedAt: true
-});
+export const insertPendingChangeSchema = createInsertSchema(pendingChanges);
 
 // Export the table schemas for use in other files
 export const variants = productVariants;

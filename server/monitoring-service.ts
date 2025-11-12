@@ -8,6 +8,7 @@ import { ShopifyApiService } from './shopify-api-service';
 import { VariantTrackingService } from './variant-tracking-service';
 import { shopifySyncManager } from './shopify-sync-manager';
 import { failoverManager } from './failover-manager';
+import { pendingChangeBuilder } from './pending-change-builder';
 import type { VariantInfo } from './variant-tracking-service';
 
 export class MonitoringService {
@@ -15,6 +16,11 @@ export class MonitoringService {
   private intervalId: NodeJS.Timeout | null = null;
   private shopifyService: ShopifyApiService | null = null;
   private variantTracker: VariantTrackingService;
+  private features = {
+    priceAutoSyncEnabled: false,      // Price changes require manual approval
+    variantAutoSyncEnabled: false,    // Variant changes require manual approval
+    categoryAutoSyncEnabled: false    // Category changes require manual approval
+  };
 
   constructor(private checkInterval: number = 300000) {
     // Initialize Shopify service
@@ -182,8 +188,24 @@ export class MonitoringService {
           recordedAt: new Date()
         } as any);
 
-        // 🤖 AUTONOMOUS SYNC: Price change detected, trigger Shopify sync
-        if (trackedProduct.shopifyProductId) {
+        // 📝 PENDING CHANGES: Create pending change record for manual approval
+        if (productsTableId) {
+          try {
+            await pendingChangeBuilder.createPriceChange({
+              productId: productsTableId,
+              productTitle: trackedProduct.productTitle || 'Unknown',
+              oldPrice,
+              newPrice,
+              shopifyProductId: trackedProduct.shopifyProductId || undefined
+            });
+            console.log('✅ Pending price change created for approval');
+          } catch (error) {
+            console.error('⚠️ Failed to create pending change:', error);
+          }
+        }
+
+        // 🤖 AUTONOMOUS SYNC: Feature-flagged for manual approval
+        if (this.features.priceAutoSyncEnabled && trackedProduct.shopifyProductId) {
           try {
             console.log('\n🤖 AUTONOMOUS SYNC: Price change detected, triggering Shopify sync...');
             
@@ -237,15 +259,15 @@ export class MonitoringService {
           }
         }
 
-        // Send price change notification via gateway (with deduplication & filtering)
-        const shopifyUpdated = trackedProduct.shopifyProductId ? true : false;
-        await telegramGateway.sendPriceChange(
-          trackedProduct.productTitle || 'Unknown',
-          trackedProduct.id,
-          oldPrice,
-          newPrice,
-          shopifyUpdated
-        );
+        // ⏸️ TELEGRAM NOTIFICATION: DISABLED - Notifications sent only after manual approval
+        // const shopifyUpdated = trackedProduct.shopifyProductId ? true : false;
+        // await telegramGateway.sendPriceChange(
+        //   trackedProduct.productTitle || 'Unknown',
+        //   trackedProduct.id,
+        //   oldPrice,
+        //   newPrice,
+        //   shopifyUpdated
+        // );
       } else {
         // Fiyat değişmedi, sadece lastChecked güncelle
         await db.update(urlTracking)
@@ -436,8 +458,63 @@ export class MonitoringService {
         const { available, outOfStock } = this.variantTracker.filterInStockVariants(currentVariants);
         console.log(`📊 Variant Summary: ${available.length} available, ${outOfStock.length} out-of-stock (excluded from Shopify)`);
 
-        // 🤖 AUTONOMOUS SYNC: Apply changes to Shopify if any changes detected
+        // 📝 PENDING CHANGES: Create pending change records for variant updates
         if (comparisonResult && (comparisonResult.addedVariants.length > 0 || comparisonResult.removedVariants.length > 0 || comparisonResult.stockChanges.length > 0)) {
+          console.log('\n📝 PENDING CHANGES: Variant changes detected, creating pending records...');
+          
+          // Create pending changes for added variants
+          for (const variant of comparisonResult.addedVariants || []) {
+            try {
+              await pendingChangeBuilder.createVariantChange({
+                productId: productsTableId!,
+                productTitle: trackedProduct.productTitle || 'Unknown',
+                changeType: 'variant_added',
+                color: variant.color || 'Standart',
+                size: variant.size || 'Tek Beden',
+                inStock: variant.inStock,
+                shopifyProductId: trackedProduct.shopifyProductId || undefined
+              });
+            } catch (error) {
+              console.error('⚠️ Failed to create pending variant_added change:', error);
+            }
+          }
+          
+          // Create pending changes for removed variants
+          for (const variant of comparisonResult.removedVariants || []) {
+            try {
+              await pendingChangeBuilder.createVariantChange({
+                productId: productsTableId!,
+                productTitle: trackedProduct.productTitle || 'Unknown',
+                changeType: 'variant_removed',
+                color: variant.color || 'Standart',
+                size: variant.size || 'Tek Beden',
+                shopifyProductId: trackedProduct.shopifyProductId || undefined
+              });
+            } catch (error) {
+              console.error('⚠️ Failed to create pending variant_removed change:', error);
+            }
+          }
+          
+          // Create pending changes for stock changes
+          for (const stockChange of comparisonResult.stockChanges || []) {
+            try {
+              await pendingChangeBuilder.createStockChange({
+                productId: productsTableId!,
+                productTitle: trackedProduct.productTitle || 'Unknown',
+                inStock: stockChange.newStock > 0,
+                stockQuantity: stockChange.newStock,
+                color: stockChange.color || 'Standart',
+                size: stockChange.size || 'Tek Beden',
+                shopifyVariantId: undefined
+              });
+            } catch (error) {
+              console.error('⚠️ Failed to create pending stock_change:', error);
+            }
+          }
+        }
+        
+        // 🤖 AUTONOMOUS SYNC: Feature-flagged - disabled by default
+        if (this.features.variantAutoSyncEnabled && comparisonResult && (comparisonResult.addedVariants.length > 0 || comparisonResult.removedVariants.length > 0 || comparisonResult.stockChanges.length > 0)) {
           console.log('\n🤖 AUTONOMOUS SYNC: Changes detected, triggering Shopify sync...');
           try {
             // Convert comparison result to variant changes for sync manager
