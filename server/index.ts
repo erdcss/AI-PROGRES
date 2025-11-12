@@ -9,6 +9,7 @@ import memoryStatusRoutes from './memory-status-api';
 import shopifyTrendyolMatcher from './shopify-trendyol-matcher';
 import replitAgentRoutes from './replit-agent-routes';
 import sosRoutes from './sos-routes';
+import pendingChangesRoutes from './pending-changes-api';
 import * as pathModule from "path";
 import { fileURLToPath} from 'url';
 import * as fs from 'fs';
@@ -287,6 +288,7 @@ app.use((req, res, next) => {
   // Add Replit Agent routes
   app.use('/api/agent', replitAgentRoutes);
 app.use('/api/sos', sosRoutes);
+app.use(pendingChangesRoutes);
   
   // Add import routes
   app.use(importRoutes);

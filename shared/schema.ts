@@ -239,6 +239,57 @@ export const monitoringHealth = pgTable('monitoring_health', {
   updatedAt: timestamp('updated_at').notNull().defaultNow()
 });
 
+// Pending Changes table - Onay bekleyen değişiklikler
+export const pendingChanges = pgTable('pending_changes', {
+  id: serial('id').primaryKey(),
+  productId: integer('product_id').references(() => products.id, { onDelete: 'cascade' }),
+  variantId: integer('variant_id').references(() => productVariants.id, { onDelete: 'set null' }),
+  url: text('url').references(() => urlTracking.url, { onDelete: 'cascade' }),
+  changeType: text('change_type').notNull(), // price_increase, price_decrease, stock_out, stock_in, variant_added, variant_removed, variant_price_change
+  status: text('status').notNull().default('pending'), // pending, approved, rejected, cancelled, processing
+  productTitle: text('product_title').notNull(),
+  variantKey: text('variant_key'), // "color-size" for unique variant identification
+  color: text('color'),
+  size: text('size'),
+  oldData: jsonb('old_data'), // Tam eski veri (JSONB snapshot)
+  newData: jsonb('new_data'), // Tam yeni veri (JSONB snapshot)
+  oldPrice: decimal('old_price', { precision: 10, scale: 2 }),
+  newPrice: decimal('new_price', { precision: 10, scale: 2 }),
+  priceChange: decimal('price_change', { precision: 10, scale: 2 }),
+  priceChangePercent: decimal('price_change_percent', { precision: 5, scale: 2 }),
+  oldStock: integer('old_stock'),
+  newStock: integer('new_stock'),
+  stockChange: integer('stock_change'),
+  approvedAt: timestamp('approved_at'),
+  approvedBy: text('approved_by'),
+  rejectedAt: timestamp('rejected_at'),
+  rejectedBy: text('rejected_by'),
+  rejectionReason: text('rejection_reason'),
+  cancelledAt: timestamp('cancelled_at'),
+  cancelReason: text('cancel_reason'),
+  priceHistoryId: integer('price_history_id').references(() => priceHistory.id, { onDelete: 'set null' }),
+  stockHistoryId: integer('stock_history_id').references(() => stockHistory.id, { onDelete: 'set null' }),
+  variantChangeId: integer('variant_change_id').references(() => variantChanges.id, { onDelete: 'set null' }),
+  shopifySynced: boolean('shopify_synced').notNull().default(false),
+  shopifySyncedAt: timestamp('shopify_synced_at'),
+  shopifySyncError: text('shopify_sync_error'),
+  shopifySyncLogId: integer('shopify_sync_log_id').references(() => shopifySyncLogs.id, { onDelete: 'set null' }),
+  telegramNotified: boolean('telegram_notified').notNull().default(false),
+  telegramNotifiedAt: timestamp('telegram_notified_at'),
+  telegramMessageId: text('telegram_message_id'),
+  autoApprovalRule: text('auto_approval_rule'), // Otomatik onay kuralı (varsa)
+  priority: integer('priority').default(5), // 1-10 (1=yüksek, 10=düşük)
+  archivedAt: timestamp('archived_at'),
+  metadata: jsonb('metadata').default({}),
+  createdAt: timestamp('created_at').notNull().defaultNow(),
+  updatedAt: timestamp('updated_at').notNull().defaultNow()
+}, (table) => ({
+  productStatusIdx: { columns: [table.productId, table.status] },
+  urlStatusIdx: { columns: [table.url, table.status] },
+  statusCreatedIdx: { columns: [table.status, table.createdAt] },
+  variantKeyIdx: { columns: [table.variantKey] }
+}));
+
 // Relations
 export const productsRelations = relations(products, ({ many }) => ({
   variants: many(productVariants),
@@ -316,6 +367,12 @@ export const insertMonitoringScheduleSchema = createInsertSchema(monitoringSched
 
 export const insertUrlTrackingSchema = createInsertSchema(urlTracking);
 
+export const insertPendingChangeSchema = createInsertSchema(pendingChanges).omit({
+  id: true,
+  createdAt: true,
+  updatedAt: true
+});
+
 // Export the table schemas for use in other files
 export const variants = productVariants;
 
@@ -336,6 +393,8 @@ export type MonitoringSchedule = typeof monitoringSchedules.$inferSelect;
 export type InsertMonitoringSchedule = z.infer<typeof insertMonitoringScheduleSchema>;
 export type UrlTracking = typeof urlTracking.$inferSelect;
 export type InsertUrlTracking = z.infer<typeof insertUrlTrackingSchema>;
+export type PendingChange = typeof pendingChanges.$inferSelect;
+export type InsertPendingChange = z.infer<typeof insertPendingChangeSchema>;
 
 // Legacy schemas for backward compatibility
 export const urlSchema = z.object({

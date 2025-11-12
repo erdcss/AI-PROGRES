@@ -44,6 +44,7 @@ import {
 import { useToast } from '@/hooks/use-toast';
 import { queryClient, handleApiResponse, APIRequestError } from '@/lib/queryClient';
 import { useWebSocket } from '@/hooks/useWebSocket';
+import { PendingChangesPanel } from '@/components/PendingChangesPanel';
 
 interface ShopifyMemoryProduct {
   id: number;
@@ -1081,6 +1082,9 @@ export default function MemoryTrackingPage() {
             </Card>
           </div>
         )}
+
+        {/* Pending Changes Panel */}
+        <PendingChangesPanel />
       </div>
     </div>
   );
