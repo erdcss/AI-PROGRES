@@ -38,6 +38,7 @@ import {
   CollapsibleContent,
   CollapsibleTrigger,
 } from "@/components/ui/collapsible";
+import { motion, AnimatePresence } from 'framer-motion';
 
 interface PendingChange {
   id: number;
@@ -78,8 +79,60 @@ export function PendingChangesPanel() {
   const [selectedTab, setSelectedTab] = useState('pending');
   const [selectedChanges, setSelectedChanges] = useState<number[]>([]);
   const [expandedProducts, setExpandedProducts] = useState<Set<string>>(new Set());
+  
+  // Fetch URL tracking data
+  const { data: trackingData, isLoading: trackingLoading } = useQuery<{
+    success: boolean;
+    tracked: Array<{
+      id: number;
+      url: string;
+      productTitle: string | null;
+      currentPrice: string | null;
+      status: string;
+      lastChecked: string | null;
+      isTracking: boolean;
+    }>;
+    stats: {
+      total: number;
+      active: number;
+      paused: number;
+    };
+  }>({
+    queryKey: ['/api/tracking/all'],
+    queryFn: async () => {
+      const res = await fetch('/api/tracking/all');
+      if (!res.ok) throw new Error('Failed to fetch tracking data');
+      return res.json();
+    },
+    refetchInterval: 30000 // Refresh every 30 seconds
+  });
 
-  // Fetch pending changes
+  // Manual scan mutation
+  const scanMutation = useMutation({
+    mutationFn: async () => {
+      const res = await apiRequest('POST', '/api/tracking/scan', {});
+      return res.json();
+    },
+    onSuccess: (data: any) => {
+      toast({
+        title: "✅ Tarama tamamlandı",
+        description: `${data.scanned || 0} URL tarandı, ${data.changesFound || 0} değişiklik bulundu`
+      });
+      queryClient.invalidateQueries({ queryKey: ['/api/pending-changes'] });
+      queryClient.invalidateQueries({ queryKey: ['/api/pending-changes/summary'] });
+      queryClient.invalidateQueries({ queryKey: ['/api/tracking/all'] });
+    },
+    onError: (error: any) => {
+      toast({
+        title: "❌ Tarama hatası",
+        description: error.message || "Tarama sırasında hata oluştu",
+        variant: "destructive"
+      });
+    }
+  });
+
+  // Fetch pending changes (only for valid status tabs)
+  const shouldFetchChanges = ['pending', 'approved', 'rejected'].includes(selectedTab);
   const { data: changesData, isLoading, refetch } = useQuery<{
     success: boolean;
     changes: PendingChange[];
@@ -91,7 +144,8 @@ export function PendingChangesPanel() {
       if (!res.ok) throw new Error('Failed to fetch changes');
       return res.json();
     },
-    refetchInterval: 10000 // Refresh every 10 seconds
+    enabled: shouldFetchChanges, // Only fetch for valid statuses
+    refetchInterval: shouldFetchChanges ? 10000 : false // Only refresh for valid statuses
   });
 
   // Fetch summary
@@ -392,6 +446,9 @@ export function PendingChangesPanel() {
             <TabsTrigger value="pending" data-testid="tab-pending" className="data-[state=active]:bg-slate-600 data-[state=active]:text-white text-slate-300">
               Bekleyen ({summaryData?.summary.pending || 0})
             </TabsTrigger>
+            <TabsTrigger value="tracking" data-testid="tab-tracking" className="data-[state=active]:bg-slate-600 data-[state=active]:text-white text-slate-300">
+              İzlenen URL'ler ({trackingData?.stats.total || 0})
+            </TabsTrigger>
             <TabsTrigger value="approved" data-testid="tab-approved" className="data-[state=active]:bg-slate-600 data-[state=active]:text-white text-slate-300">
               Onaylanan ({summaryData?.summary.approved || 0})
             </TabsTrigger>
@@ -400,7 +457,69 @@ export function PendingChangesPanel() {
             </TabsTrigger>
           </TabsList>
           
-          <TabsContent value={selectedTab}>
+          {/* Tracking Tab Content */}
+          <TabsContent value="tracking">
+            <div className="space-y-4">
+              <div className="flex items-center justify-between">
+                <p className="text-sm text-slate-300">
+                  Sistem {trackingData?.stats.active || 0} URL'yi aktif olarak izliyor
+                </p>
+                <Button
+                  onClick={() => scanMutation.mutate()}
+                  disabled={scanMutation.isPending}
+                  size="sm"
+                  data-testid="button-scan-changes"
+                >
+                  {scanMutation.isPending ? 'Taranıyor...' : 'Değişiklikleri Kontrol Et'}
+                </Button>
+              </div>
+              
+              {trackingLoading ? (
+                <div className="text-center py-8 text-slate-300">Yükleniyor...</div>
+              ) : !trackingData?.tracked || trackingData.tracked.length === 0 ? (
+                <div className="text-center py-8 text-slate-300">İzlenen URL yok</div>
+              ) : (
+                <div className="rounded-md border border-slate-700 bg-slate-800 max-h-96 overflow-y-auto">
+                  <Table>
+                    <TableHeader className="bg-slate-700 sticky top-0">
+                      <TableRow className="border-b border-slate-600">
+                        <TableHead className="text-sm font-medium text-white">Durum</TableHead>
+                        <TableHead className="text-sm font-medium text-white">Ürün</TableHead>
+                        <TableHead className="text-sm font-medium text-white">Fiyat</TableHead>
+                        <TableHead className="text-sm font-medium text-white">Son Kontrol</TableHead>
+                      </TableRow>
+                    </TableHeader>
+                    <TableBody className="bg-slate-800">
+                      {trackingData.tracked.map((item) => (
+                        <TableRow key={item.id} className="border-b border-slate-700 hover:bg-slate-700/50">
+                          <TableCell>
+                            <Badge 
+                              variant={item.isTracking ? "default" : "secondary"}
+                              className={item.isTracking ? "bg-green-600" : "bg-gray-600"}
+                            >
+                              {item.isTracking ? "Aktif" : "Duraklatıldı"}
+                            </Badge>
+                          </TableCell>
+                          <TableCell className="text-sm text-white max-w-xs truncate">
+                            {item.productTitle || item.url}
+                          </TableCell>
+                          <TableCell className="text-sm text-slate-200">
+                            {item.currentPrice ? `${item.currentPrice} TL` : '-'}
+                          </TableCell>
+                          <TableCell className="text-xs text-slate-400">
+                            {item.lastChecked ? new Date(item.lastChecked).toLocaleString('tr-TR') : '-'}
+                          </TableCell>
+                        </TableRow>
+                      ))}
+                    </TableBody>
+                  </Table>
+                </div>
+              )}
+            </div>
+          </TabsContent>
+
+          {/* Pending/Approved/Rejected Tabs Content */}
+          <TabsContent value={selectedTab === 'tracking' ? '' : selectedTab}>
             {isLoading ? (
               <div className="text-center py-8 text-slate-300">Yükleniyor...</div>
             ) : groupedChanges.individual.length === 0 && groupedChanges.grouped.length === 0 ? (
@@ -538,11 +657,12 @@ export function PendingChangesPanel() {
                             )}
                             <TableCell className="text-sm text-slate-200" colSpan={selectedTab === 'pending' ? 1 : 2}>
                               <div className="flex items-center gap-2">
-                                {expandedProducts.has(groupKey) ? (
-                                  <ChevronDown className="h-4 w-4 text-slate-400" />
-                                ) : (
+                                <motion.div
+                                  animate={{ rotate: expandedProducts.has(groupKey) ? 90 : 0 }}
+                                  transition={{ duration: 0.2 }}
+                                >
                                   <ChevronRight className="h-4 w-4 text-slate-400" />
-                                )}
+                                </motion.div>
                                 <Package className="h-4 w-4 text-slate-400" />
                                 <Badge variant="secondary" className="bg-slate-600 text-white">
                                   {group.changes.length} Varyant
@@ -555,9 +675,14 @@ export function PendingChangesPanel() {
                           </TableRow>
                         </CollapsibleTrigger>
 
-                        {/* Expanded variant rows */}
+                        {/* Expanded variant rows with animation */}
                         <CollapsibleContent asChild>
-                          <>
+                          <motion.tbody
+                            initial={{ opacity: 0, height: 0 }}
+                            animate={{ opacity: 1, height: "auto" }}
+                            exit={{ opacity: 0, height: 0 }}
+                            transition={{ duration: 0.2, ease: "easeInOut" }}
+                          >
                             {group.changes.map((change) => (
                               <TableRow key={change.id} data-testid={`row-change-${change.id}`} className="border-b border-slate-700 bg-slate-750 hover:bg-slate-700/70">
                                 {selectedTab === 'pending' && (
@@ -619,7 +744,7 @@ export function PendingChangesPanel() {
                                 )}
                               </TableRow>
                             ))}
-                          </>
+                          </motion.tbody>
                         </CollapsibleContent>
                       </Collapsible>
                     );

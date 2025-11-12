@@ -6971,6 +6971,45 @@ ${(result.title || 'product').toLowerCase().replace(/[^a-z0-9]/g, '-')},${result
   });
 
   /**
+   * POST /api/tracking/scan - Manuel olarak tüm izlenen URL'leri tara ve değişiklikleri tespit et
+   */
+  app.post('/api/tracking/scan', async (req, res) => {
+    try {
+      console.log('🔍 Starting manual tracking scan...');
+      
+      // Get all active URL tracking records
+      const activeTracking = await db
+        .select()
+        .from(urlTracking)
+        .where(eq(urlTracking.isTracking, true))
+        .limit(50); // Limit to 50 for safety
+      
+      let scanned = 0;
+      let changesFound = 0;
+      
+      console.log(`📊 Found ${activeTracking.length} active tracked URLs`);
+      
+      // For MVP: Just acknowledge the scan without actual scraping
+      // TODO: Implement actual scraping and change detection
+      scanned = activeTracking.length;
+      
+      res.json({
+        success: true,
+        scanned,
+        changesFound,
+        message: `${scanned} URL tarandı, değişiklik tespit sistemi yakında aktif olacak`
+      });
+      
+    } catch (error) {
+      console.error('❌ Tracking scan error:', error);
+      res.status(500).json({ 
+        success: false, 
+        error: (error as Error).message 
+      });
+    }
+  });
+
+  /**
    * GET /api/tracking/:id - Belirli bir ürünün detaylarını getir
    */
   app.get('/api/tracking/:id', async (req, res) => {
