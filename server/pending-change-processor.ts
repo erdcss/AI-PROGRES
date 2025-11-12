@@ -84,10 +84,11 @@ export class PendingChangeProcessor {
           change.changeType === 'variant_removed' || 
           change.changeType === 'stock_in' || 
           change.changeType === 'stock_out') {
-        // NOT IMPLEMENTED: Variant and stock changes require Shopify variant management
-        result.success = false;
-        result.errors = ['Variant and stock change approvals are not yet implemented. Price changes only.'];
-        console.error(`⚠️ Attempted to approve unsupported change type: ${change.changeType}`);
+        // These changes are acknowledged but not synced to Shopify automatically
+        // User must manually update Shopify or implement variant/stock sync
+        console.log(`✅ ${change.changeType} change approved (manual Shopify update required)`);
+        result.success = true;
+        result.shopifyUpdated = false;
       }
       
       // Send Telegram notification and mark as approved only if processing succeeded
