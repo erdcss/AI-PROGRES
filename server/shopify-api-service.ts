@@ -99,12 +99,12 @@ export class ShopifyApiService {
   }
 
   // Tüm ürünleri çek ve hafızaya kaydet
-  async syncAllProducts(): Promise<{ success: boolean; totalProducts: number; newProducts: number; updatedProducts: number }> {
+  async syncAllProducts(): Promise<{ success: boolean; totalProducts: number; newProducts: number; updatedProducts: number; deletedProducts?: number }> {
     try {
       console.log('🔄 Shopify ürün senkronizasyonu başlatılıyor...');
       
-      // Basit tek istek ile ürünleri çek (maksimum 50 ürün)
-      const limit = 50;
+      // Shopify maximum limit kullan
+      const limit = 250;
       console.log(`📄 Shopify'dan ${limit} ürün çekiliyor...`);
       
       const response = await this.makeRequest(`products.json?limit=${limit}&fields=id,title,handle,vendor,product_type,tags,status,created_at,updated_at,variants,images,options`);
@@ -121,6 +121,11 @@ export class ShopifyApiService {
 
       let newProducts = 0;
       let updatedProducts = 0;
+      let deletedProducts = 0;
+
+      // Shopify'dan çekilen ürün ID'lerini topla
+      const shopifyProductIds = new Set(allProducts.map(p => p.id.toString()));
+      console.log(`📋 Shopify ürün ID'leri: ${shopifyProductIds.size} adet`);
 
       // Her ürünü hafızaya kaydet
       for (const product of allProducts) {
@@ -186,13 +191,30 @@ export class ShopifyApiService {
         }
       }
 
-      console.log(`✅ Senkronizasyon tamamlandı: ${newProducts} yeni, ${updatedProducts} güncellenen ürün`);
+      // Shopify'da olmayan ürünleri database'den sil
+      console.log('🗑️ Shopify\'da olmayan ürünleri kontrol ediliyor...');
+      const memoryProducts = await db
+        .select({ shopifyProductId: shopifyMemoryProducts.shopifyProductId, title: shopifyMemoryProducts.title })
+        .from(shopifyMemoryProducts);
+      
+      for (const memProduct of memoryProducts) {
+        if (!shopifyProductIds.has(memProduct.shopifyProductId)) {
+          console.log(`🗑️ Silinen ürün tespit edildi: ${memProduct.title} (ID: ${memProduct.shopifyProductId})`);
+          await db
+            .delete(shopifyMemoryProducts)
+            .where(eq(shopifyMemoryProducts.shopifyProductId, memProduct.shopifyProductId));
+          deletedProducts++;
+        }
+      }
+
+      console.log(`✅ Senkronizasyon tamamlandı: ${newProducts} yeni, ${updatedProducts} güncellenen, ${deletedProducts} silinen ürün`);
 
       return {
         success: true,
         totalProducts: allProducts.length,
         newProducts,
-        updatedProducts
+        updatedProducts,
+        deletedProducts
       };
 
     } catch (error) {
@@ -201,7 +223,8 @@ export class ShopifyApiService {
         success: false,
         totalProducts: 0,
         newProducts: 0,
-        updatedProducts: 0
+        updatedProducts: 0,
+        deletedProducts: 0
       };
     }
   }
