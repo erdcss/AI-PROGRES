@@ -34,7 +34,6 @@ import ProductReviews from "@/pages/product-reviews";
 import MemoryTrackingPage from "@/pages/MemoryTrackingPage";
 import SavedUrlsPage from "@/pages/SavedUrlsPage";
 import ShopifyTrackingPage from "@/pages/ShopifyTrackingPage";
-import ShopifyProductsPage from './pages/shopify-products';
 import TrackingDashboard from "@/pages/tracking-dashboard";
 import ProductPreview from "@/pages/product-preview";
 import TelegramNotifications from "@/pages/TelegramNotifications";
@@ -355,11 +354,6 @@ function Router() {
       <Route path="/shopify-tracking">
         <PageTransition>
           <ShopifyTrackingPage />
-        </PageTransition>
-      </Route>
-      <Route path="/shopify-products">
-        <PageTransition>
-          <ShopifyProductsPage />
         </PageTransition>
       </Route>
       <Route path="/product-preview">

@@ -46,7 +46,6 @@ const navigationItems: NavigationItem[] = [
   { name: 'Takip Dashboard', path: '/tracking-dashboard', icon: Activity, description: 'Otomatik takip', category: 'tools' },
   { name: 'Fiyat Karşılaştırma', path: '/price-comparison', icon: BarChart3, description: 'Fiyat analizi', category: 'tools' },
   { name: 'Veri Analizi', path: '/data-analysis', icon: Database, description: 'Ürün analizi', category: 'tools' },
-  { name: 'Shopify Ürünleri', path: '/shopify-products', icon: Package, description: 'Shopify yönetimi', category: 'tools' },
   
   // Sistem ve Ayarlar
   { name: 'Sistem Durumu', path: '/system-status', icon: Shield, description: 'Sistem kontrolü', category: 'system' },
