@@ -45,25 +45,30 @@ export class PendingChangeProcessor {
           try {
             console.log(`🔄 Syncing price change to Shopify: ${change.productTitle}`);
             
-            // Calculate safe price change percentage
-            const oldPrice = change.oldPrice || 0;
-            const trendyolNewPrice = change.newPrice || 0;
+            // ⚡ FIXED: Prevent double profit margin application
+            // change.oldPrice and change.newPrice are TRENDYOL prices
+            const trendyolOldPrice = parseFloat(change.oldPrice?.toString() || '0');
+            const trendyolNewPrice = parseFloat(change.newPrice?.toString() || '0');
             
-            // ⚡ AUTO PROFIT MARGIN: Apply 10% profit margin to Shopify price
+            // Apply 10% profit margin to BOTH old and new Trendyol prices
             const profitMargin = 10; // Default 10% profit margin
+            const shopifyOldPrice = parseFloat((trendyolOldPrice * (1 + profitMargin / 100)).toFixed(2));
             const shopifyNewPrice = parseFloat((trendyolNewPrice * (1 + profitMargin / 100)).toFixed(2));
             
-            console.log(`💰 Profit margin applied: Trendyol ${trendyolNewPrice} TL → Shopify ${shopifyNewPrice} TL (+${profitMargin}%)`);
+            console.log(`💰 Profit margin applied to BOTH prices:`);
+            console.log(`   Trendyol: ${trendyolOldPrice} TL → ${trendyolNewPrice} TL`);
+            console.log(`   Shopify:  ${shopifyOldPrice} TL → ${shopifyNewPrice} TL (+${profitMargin}%)`);
             
-            const changePercentage = oldPrice > 0 
-              ? ((shopifyNewPrice - oldPrice) / oldPrice) * 100 
+            // Calculate change percentage using Shopify prices
+            const changePercentage = shopifyOldPrice > 0 
+              ? ((shopifyNewPrice - shopifyOldPrice) / shopifyOldPrice) * 100 
               : 0;
             
             // Use productId from change record (FK to products table)
             const syncResult = await shopifySyncManager.processChanges(change.productId, {
               priceChange: {
-                oldPrice,
-                newPrice: shopifyNewPrice, // Apply profit margin
+                oldPrice: shopifyOldPrice,   // Shopify old price (with margin)
+                newPrice: shopifyNewPrice,   // Shopify new price (with margin)
                 changeType: change.changeType === 'price_increase' ? 'increase' : 'decrease',
                 changePercentage
               }
