@@ -123,7 +123,8 @@ function ScraperPage() {
           const errorData = await response.json().catch(() => ({}));
           throw new Error(errorData.message || `HTTP ${response.status}`);
         }
-        return response.json();
+        const result = await response.json();
+        return { ...result, originalUrl: data.url };
       }
       
       // Normal Trendyol/Arçelik URL'leri için scenario-scrape
@@ -143,7 +144,8 @@ function ScraperPage() {
         const errorData = await response.json().catch(() => ({}));
         throw new Error(errorData.message || `HTTP ${response.status}`);
       }
-      return response.json();
+      const result = await response.json();
+      return { ...result, originalUrl: data.url };
     },
     onSuccess: (data) => {
       console.log('🎯 Single scrape mutation onSuccess received:', data);
@@ -264,7 +266,7 @@ ${data.title.toLowerCase().replace(/[^a-z0-9]/g, '-')},${data.title},${data.bran
           id: uniqueId,
           productTitle: data.title || 'Ürün',
           csvContent: data.csvContent,
-          sourceUrl: data.url,
+          sourceUrl: data.sourceUrl || data.originalUrl || data.url || '',
           variants: {
             colors: data.variants?.colors || ['Standart'],
             sizes: data.variants?.sizes || ['Tek Beden']
@@ -483,7 +485,8 @@ ${data.title.toLowerCase().replace(/[^a-z0-9]/g, '-')},${data.title},${data.bran
         const errorData = await response.json().catch(() => ({}));
         throw new Error(errorData.message || `HTTP ${response.status}`);
       }
-      return response.json();
+      const result = await response.json();
+      return { ...result, originalUrl: data.urls?.[0]?.url || '' };
     },
     onSuccess: (data) => {
       setProduct(data);
@@ -497,7 +500,7 @@ ${data.title.toLowerCase().replace(/[^a-z0-9]/g, '-')},${data.title},${data.bran
           id: uniqueId,
           productTitle: data.title || 'Multi-Variant Product',
           csvContent: data.csvContent,
-          sourceUrl: data.url || data.urls?.[0],
+          sourceUrl: data.sourceUrl || data.originalUrl || data.url || data.urls?.[0] || '',
           variants: {
             colors: data.variants?.colors || [],
             sizes: data.variants?.sizes || [],
