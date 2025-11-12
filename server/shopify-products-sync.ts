@@ -111,6 +111,16 @@ export class ShopifyProductsSync {
 
       console.log('📊 Fetching Shopify products from memory...', { limit, offset, category, searchQuery });
 
+      // Subquery to get the latest sourceUrl per shopifyProductId
+      const latestTransfers = db
+        .select({
+          shopifyProductId: shopifyTransferredProducts.shopifyProductId,
+          sourceUrl: shopifyTransferredProducts.sourceUrl,
+          rn: sql<number>`row_number() over (partition by ${shopifyTransferredProducts.shopifyProductId} order by ${shopifyTransferredProducts.transferredAt} desc)`.as('rn')
+        })
+        .from(shopifyTransferredProducts)
+        .as('latest_transfers');
+
       let query = db
         .select({
           id: shopifyMemoryProducts.id,
@@ -126,12 +136,15 @@ export class ShopifyProductsSync {
           images: shopifyMemoryProducts.images,
           createdAt: shopifyMemoryProducts.createdAt,
           updatedAt: shopifyMemoryProducts.updatedAt,
-          sourceUrl: sql<string | null>`${shopifyTransferredProducts.sourceUrl}`.as('sourceUrl')
+          sourceUrl: sql<string | null>`${latestTransfers.sourceUrl}`.as('sourceUrl')
         })
         .from(shopifyMemoryProducts)
         .leftJoin(
-          shopifyTransferredProducts,
-          eq(shopifyMemoryProducts.shopifyProductId, shopifyTransferredProducts.shopifyProductId)
+          latestTransfers,
+          and(
+            eq(shopifyMemoryProducts.shopifyProductId, latestTransfers.shopifyProductId),
+            eq(latestTransfers.rn, 1)
+          )
         );
 
       const conditions = [];

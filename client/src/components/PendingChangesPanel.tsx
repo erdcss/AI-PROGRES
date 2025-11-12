@@ -41,6 +41,7 @@ import {
 
 interface PendingChange {
   id: number;
+  productId: number | null;
   productTitle: string;
   changeType: string;
   status: string;
@@ -254,40 +255,42 @@ export function PendingChangesPanel() {
     bulkApproveMutation.mutate(selectedChanges);
   };
 
-  const toggleProductExpansion = (productTitle: string) => {
+  const toggleProductExpansion = (productId: number) => {
     setExpandedProducts(prev => {
       const next = new Set(prev);
-      if (next.has(productTitle)) {
-        next.delete(productTitle);
+      const key = `product-${productId}`;
+      if (next.has(key)) {
+        next.delete(key);
       } else {
-        next.add(productTitle);
+        next.add(key);
       }
       return next;
     });
   };
 
-  // Group variant changes by product
+  // Group variant changes by productId (stable identifier)
   const groupedChanges = useMemo(() => {
     if (!changesData?.changes) return { grouped: [], individual: [] };
 
-    const variantChangesByProduct = new Map<string, PendingChange[]>();
+    const variantChangesByProductId = new Map<number, PendingChange[]>();
     const nonVariantChanges: PendingChange[] = [];
 
     changesData.changes.forEach(change => {
       const isVariantChange = change.changeType === 'variant_added' || change.changeType === 'variant_removed';
       
-      if (isVariantChange) {
-        const existing = variantChangesByProduct.get(change.productTitle) || [];
+      if (isVariantChange && change.productId) {
+        const existing = variantChangesByProductId.get(change.productId) || [];
         existing.push(change);
-        variantChangesByProduct.set(change.productTitle, existing);
+        variantChangesByProductId.set(change.productId, existing);
       } else {
         nonVariantChanges.push(change);
       }
     });
 
     // Convert grouped variants to array
-    const groupedVariants = Array.from(variantChangesByProduct.entries()).map(([productTitle, changes]) => ({
-      productTitle,
+    const groupedVariants = Array.from(variantChangesByProductId.entries()).map(([productId, changes]) => ({
+      productId,
+      productTitle: changes[0].productTitle,
       changes,
       isGroup: true
     }));
@@ -491,17 +494,19 @@ export function PendingChangesPanel() {
                     ))}
 
                     {/* Render grouped variant changes */}
-                    {groupedChanges.grouped.map((group) => (
+                    {groupedChanges.grouped.map((group) => {
+                      const groupKey = `product-${group.productId}`;
+                      return (
                       <Collapsible
-                        key={group.productTitle}
-                        open={expandedProducts.has(group.productTitle)}
-                        onOpenChange={() => toggleProductExpansion(group.productTitle)}
+                        key={groupKey}
+                        open={expandedProducts.has(groupKey)}
+                        onOpenChange={() => toggleProductExpansion(group.productId)}
                       >
                         {/* Main product row with expand/collapse trigger */}
                         <CollapsibleTrigger asChild>
                           <TableRow 
                             className="border-b border-slate-200 dark:border-slate-700 hover:bg-slate-50 dark:hover:bg-slate-800 cursor-pointer"
-                            data-testid={`row-variant-group-${group.productTitle}`}
+                            data-testid={`row-variant-group-${group.productId}`}
                           >
                             {selectedTab === 'pending' && (
                               <TableCell>
@@ -522,7 +527,7 @@ export function PendingChangesPanel() {
                             )}
                             <TableCell className="text-sm text-slate-900 dark:text-white" colSpan={selectedTab === 'pending' ? 1 : 2}>
                               <div className="flex items-center gap-2">
-                                {expandedProducts.has(group.productTitle) ? (
+                                {expandedProducts.has(groupKey) ? (
                                   <ChevronDown className="h-4 w-4 text-slate-500 dark:text-slate-400" />
                                 ) : (
                                   <ChevronRight className="h-4 w-4 text-slate-500 dark:text-slate-400" />
@@ -606,7 +611,8 @@ export function PendingChangesPanel() {
                           </>
                         </CollapsibleContent>
                       </Collapsible>
-                    ))}
+                    );
+                    })}
                   </TableBody>
                 </Table>
               </div>
