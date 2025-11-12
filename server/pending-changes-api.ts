@@ -325,4 +325,142 @@ router.post('/api/pending-changes/cleanup-orphaned', async (req, res) => {
   }
 });
 
+// Comprehensive cleanup: Delete all products NOT in Shopify
+router.post('/api/pending-changes/comprehensive-cleanup', async (req, res) => {
+  try {
+    console.log('🗑️ Starting comprehensive cleanup (delete products not in Shopify)...');
+    
+    const result = await db.transaction(async (tx) => {
+      // 1. Get all uniqueTrackingIds from Shopify
+      const shopifyTrackingIds = await tx
+        .select({ uniqueTrackingId: shopifyMemoryProducts.uniqueTrackingId })
+        .from(shopifyMemoryProducts)
+        .where(isNotNull(shopifyMemoryProducts.uniqueTrackingId));
+      
+      console.log(`📊 Found ${shopifyTrackingIds.length} products in Shopify memory`);
+      
+      if (shopifyTrackingIds.length === 0) {
+        console.log('⚠️ No products in Shopify memory, aborting cleanup to prevent data loss');
+        return {
+          deletedProducts: 0,
+          deletedVariants: 0,
+          deletedPendingChanges: 0,
+          deletedPriceHistory: 0,
+          deletedStockHistory: 0,
+          error: 'No products found in Shopify memory'
+        };
+      }
+      
+      const shopifyTrackingIdSet = new Set(
+        shopifyTrackingIds
+          .map(row => row.uniqueTrackingId)
+          .filter(id => id !== null && id !== undefined)
+      );
+      
+      // 2. Find products NOT in Shopify (orphaned products)
+      const orphanedProducts = await tx
+        .select({ 
+          id: products.id,
+          uniqueTrackingId: products.uniqueTrackingId,
+          title: products.title
+        })
+        .from(products)
+        .where(
+          and(
+            isNotNull(products.uniqueTrackingId),
+            sql`${products.uniqueTrackingId} NOT IN (
+              SELECT unique_tracking_id 
+              FROM ${shopifyMemoryProducts} 
+              WHERE unique_tracking_id IS NOT NULL
+            )`
+          )
+        );
+      
+      console.log(`📊 Found ${orphanedProducts.length} orphaned products to delete`);
+      
+      if (orphanedProducts.length === 0) {
+        return {
+          deletedProducts: 0,
+          deletedVariants: 0,
+          deletedPendingChanges: 0,
+          deletedPriceHistory: 0,
+          deletedStockHistory: 0
+        };
+      }
+      
+      // 3. Count related records before deletion (for statistics)
+      const orphanedProductIds = orphanedProducts.map(p => p.id);
+      
+      const variantsCount = await tx
+        .select({ count: sql<number>`count(*)` })
+        .from(productVariants)
+        .where(inArray(productVariants.productId, orphanedProductIds));
+      
+      const pendingChangesCount = await tx
+        .select({ count: sql<number>`count(*)` })
+        .from(pendingChanges)
+        .where(
+          and(
+            inArray(pendingChanges.productId, orphanedProductIds),
+            eq(pendingChanges.status, 'pending')
+          )
+        );
+      
+      // Get variant IDs for price/stock history count
+      const variantIds = await tx
+        .select({ id: productVariants.id })
+        .from(productVariants)
+        .where(inArray(productVariants.productId, orphanedProductIds));
+      
+      const variantIdList = variantIds.map(v => v.id);
+      
+      let priceHistoryCount = 0;
+      let stockHistoryCount = 0;
+      
+      if (variantIdList.length > 0) {
+        const priceHistoryRecords = await tx
+          .select({ count: sql<number>`count(*)` })
+          .from(priceHistory)
+          .where(inArray(priceHistory.variantId, variantIdList));
+        
+        const stockHistoryRecords = await tx
+          .select({ count: sql<number>`count(*)` })
+          .from(stockHistory)
+          .where(inArray(stockHistory.variantId, variantIdList));
+        
+        priceHistoryCount = Number(priceHistoryRecords[0]?.count || 0);
+        stockHistoryCount = Number(stockHistoryRecords[0]?.count || 0);
+      }
+      
+      // 4. Delete orphaned products (CASCADE will delete all related records)
+      await tx
+        .delete(products)
+        .where(inArray(products.id, orphanedProductIds));
+      
+      console.log(`✅ Deleted ${orphanedProducts.length} products and all related records`);
+      
+      return {
+        deletedProducts: orphanedProducts.length,
+        deletedVariants: Number(variantsCount[0]?.count || 0),
+        deletedPendingChanges: Number(pendingChangesCount[0]?.count || 0),
+        deletedPriceHistory: priceHistoryCount,
+        deletedStockHistory: stockHistoryCount,
+        deletedProductTitles: orphanedProducts.slice(0, 10).map(p => p.title) // First 10 for reference
+      };
+    });
+    
+    res.json({
+      success: true,
+      message: `Comprehensive cleanup completed`,
+      stats: result
+    });
+  } catch (error) {
+    console.error('❌ Error in comprehensive cleanup:', error);
+    res.status(500).json({ 
+      error: 'Failed to perform comprehensive cleanup',
+      details: error instanceof Error ? error.message : 'Unknown error'
+    });
+  }
+});
+
 export default router;

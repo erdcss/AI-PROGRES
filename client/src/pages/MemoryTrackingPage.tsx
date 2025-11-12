@@ -23,7 +23,8 @@ import {
   WifiOff,
   Edit,
   Save,
-  X
+  X,
+  Trash2
 } from 'lucide-react';
 import { useLocation } from 'wouter';
 import {
@@ -42,9 +43,20 @@ import {
   TableRow,
 } from "@/components/ui/table";
 import { useToast } from '@/hooks/use-toast';
-import { queryClient, handleApiResponse, APIRequestError } from '@/lib/queryClient';
+import { queryClient, handleApiResponse, APIRequestError, apiRequest } from '@/lib/queryClient';
 import { useWebSocket } from '@/hooks/useWebSocket';
 import { PendingChangesPanel } from '@/components/PendingChangesPanel';
+import {
+  AlertDialog,
+  AlertDialogAction,
+  AlertDialogCancel,
+  AlertDialogContent,
+  AlertDialogDescription,
+  AlertDialogFooter,
+  AlertDialogHeader,
+  AlertDialogTitle,
+  AlertDialogTrigger,
+} from "@/components/ui/alert-dialog";
 
 interface ShopifyMemoryProduct {
   id: number;
@@ -204,6 +216,50 @@ export default function MemoryTrackingPage() {
       toast({
         title: "Senkronizasyon Hatası",
         description: error.message,
+        variant: "destructive"
+      });
+    }
+  });
+
+  // Comprehensive cleanup mutation
+  const comprehensiveCleanupMutation = useMutation({
+    mutationFn: async () => {
+      return await apiRequest('POST', '/api/pending-changes/comprehensive-cleanup', {});
+    },
+    onSuccess: (data: any) => {
+      const stats = data.stats;
+      
+      if (stats.error) {
+        toast({
+          title: "⚠️ Temizlik İptal Edildi",
+          description: stats.error,
+          variant: "destructive"
+        });
+        return;
+      }
+      
+      const message = [
+        `${stats.deletedProducts} ürün`,
+        `${stats.deletedVariants} varyant`,
+        `${stats.deletedPendingChanges} değişiklik`,
+        `${stats.deletedPriceHistory + stats.deletedStockHistory} geçmiş kaydı silindi`
+      ].join(', ');
+      
+      toast({
+        title: "✅ Kapsamlı Temizlik Tamamlandı",
+        description: message,
+      });
+      
+      queryClient.invalidateQueries({ queryKey: ['/api/shopify/products'] });
+      queryClient.invalidateQueries({ queryKey: ['/api/shopify/statistics'] });
+      queryClient.invalidateQueries({ queryKey: ['/api/shopify/categories'] });
+      queryClient.invalidateQueries({ queryKey: ['/api/pending-changes'] });
+      queryClient.invalidateQueries({ queryKey: ['/api/pending-changes/summary'] });
+    },
+    onError: (error: any) => {
+      toast({
+        title: "❌ Temizlik Hatası",
+        description: error.message || "Temizlik sırasında hata oluştu",
         variant: "destructive"
       });
     }
@@ -570,6 +626,38 @@ export default function MemoryTrackingPage() {
                 </>
               )}
             </Button>
+            <AlertDialog>
+              <AlertDialogTrigger asChild>
+                <Button
+                  disabled={comprehensiveCleanupMutation.isPending}
+                  className="business-button bg-red-600 hover:bg-red-700"
+                  data-testid="button-comprehensive-cleanup"
+                >
+                  <Trash2 className="h-4 w-4 mr-2" />
+                  Temizle
+                </Button>
+              </AlertDialogTrigger>
+              <AlertDialogContent className="bg-slate-800 border-slate-700">
+                <AlertDialogHeader>
+                  <AlertDialogTitle className="text-white">Kapsamlı Temizlik</AlertDialogTitle>
+                  <AlertDialogDescription className="text-slate-300">
+                    Bu işlem Shopify'da OLMAYAN tüm ürünleri veritabanından tamamen silecek. 
+                    Silinen ürünlere ait tüm varyantlar, fiyat geçmişi, stok geçmişi ve değişiklikler de silinecek.
+                    <br/><br/>
+                    <span className="font-semibold text-red-400">Bu işlem geri alınamaz!</span>
+                  </AlertDialogDescription>
+                </AlertDialogHeader>
+                <AlertDialogFooter>
+                  <AlertDialogCancel className="bg-slate-700 text-white hover:bg-slate-600">İptal</AlertDialogCancel>
+                  <AlertDialogAction 
+                    onClick={() => comprehensiveCleanupMutation.mutate()}
+                    className="bg-red-600 hover:bg-red-700"
+                  >
+                    Temizle
+                  </AlertDialogAction>
+                </AlertDialogFooter>
+              </AlertDialogContent>
+            </AlertDialog>
             <Button 
               onClick={handleRefresh}
               className="business-button"
