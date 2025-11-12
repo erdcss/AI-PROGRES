@@ -22,6 +22,7 @@ interface ShopifyProduct {
   tags: string;
   variants: ShopifyVariant[];
   images: ShopifyImage[];
+  sourceUrl?: string;
 }
 
 interface ShopifyVariant {
@@ -287,19 +288,40 @@ export default function ShopifyProductsPage() {
                       
                       <div className="flex justify-between text-sm">
                         <span className="text-muted-foreground">Varyant:</span>
-                        <span>{product.variants?.length || 0} adet</span>
+                        <span className="font-medium text-sm">{product.variants?.length || 0} adet</span>
                       </div>
                       
                       <div className="flex justify-between text-sm">
-                        <span className="text-muted-foreground">Fiyat:</span>
+                        <span className="text-muted-foreground">Fiyat (TL):</span>
                         <span className="font-medium text-green-600">
                           {formatPrice(product.variants?.[0]?.price)}
                         </span>
                       </div>
                       
+                      {product.sourceUrl && (
+                        <div className="flex justify-between text-sm items-center">
+                          <span className="text-muted-foreground">Trendyol URL:</span>
+                          <a
+                            href={product.sourceUrl}
+                            target="_blank"
+                            rel="noopener noreferrer"
+                            className="text-xs text-blue-600 hover:underline flex items-center gap-1"
+                            data-testid={`link-trendyol-${product.id}`}
+                          >
+                            <ExternalLink className="w-3 h-3" />
+                            Aktif
+                          </a>
+                        </div>
+                      )}
+                      
                       <div className="flex justify-between text-sm">
-                        <span className="text-muted-foreground">Güncelleme:</span>
-                        <span className="text-xs">{formatDate(product.updated_at)}</span>
+                        <span className="text-muted-foreground">Durum:</span>
+                        <Badge 
+                          variant="secondary" 
+                          className={`text-xs ${getStatusColor(product.status)}`}
+                        >
+                          {product.status}
+                        </Badge>
                       </div>
                     </div>
                     

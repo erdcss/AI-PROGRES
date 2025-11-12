@@ -1,6 +1,6 @@
 import { ShopifyApiService } from './shopify-api-service';
 import { db } from './db';
-import { products, productVariants, shopifyMemoryProducts, shopifyTransferredProducts } from '@shared/schema';
+import { products, productVariants, shopifyMemoryProducts, shopifyTransferredProducts, urlTracking } from '@shared/schema';
 import { eq, sql, and, isNotNull, desc } from 'drizzle-orm';
 import { webSocketService } from './websocket-service';
 import { shopifyChangeTracker } from './shopify-change-tracker';
@@ -126,12 +126,17 @@ export class ShopifyProductsSync {
           images: shopifyMemoryProducts.images,
           createdAt: shopifyMemoryProducts.createdAt,
           updatedAt: shopifyMemoryProducts.updatedAt,
-          sourceUrl: shopifyTransferredProducts.sourceUrl
+          sourceUrl: sql<string>`COALESCE(${urlTracking.url}, ${shopifyTransferredProducts.sourceUrl})`.as('sourceUrl'),
+          productsTableId: shopifyTransferredProducts.productsTableId
         })
         .from(shopifyMemoryProducts)
         .leftJoin(
           shopifyTransferredProducts,
           eq(shopifyMemoryProducts.shopifyProductId, shopifyTransferredProducts.shopifyProductId)
+        )
+        .leftJoin(
+          urlTracking,
+          eq(shopifyTransferredProducts.productsTableId, urlTracking.productId)
         );
 
       const conditions = [];
