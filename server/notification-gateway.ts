@@ -1,5 +1,9 @@
 import crypto from 'crypto';
 import { memoryManager } from './memory-manager';
+import { productEligibilityService } from './product-eligibility-service';
+import { db } from './db';
+import { urlTracking } from '@shared/schema';
+import { eq } from 'drizzle-orm';
 
 interface NotificationOptions {
   type: 'price_change' | 'product_upload' | 'error' | 'system';
@@ -36,6 +40,16 @@ class NotificationGateway {
     if (this.mode === 'off') {
       console.log('📱 Notifications disabled (mode: off)');
       return false;
+    }
+
+    // ✅ SHOPIFY ELIGIBILITY CHECK: Block notifications for products not in Shopify
+    // Only check for product-related notifications, allow system/error notifications
+    if ((options.type === 'price_change' || options.type === 'product_upload') && options.url) {
+      const isEligible = await this.isProductShopifyEligible(options.url);
+      if (!isEligible) {
+        console.log(`📱 Notification blocked: Product not in Shopify - ${options.url}`);
+        return false;
+      }
     }
 
     // Generate event key for idempotency
@@ -75,6 +89,23 @@ class NotificationGateway {
 
     // Send immediately for full mode or high priority
     return await this.sendTelegram(options);
+  }
+
+  private async isProductShopifyEligible(url: string): Promise<boolean> {
+    try {
+      const [tracker] = await db.select().from(urlTracking).where(eq(urlTracking.url, url));
+      
+      if (!tracker || !tracker.shopifyProductId) {
+        console.log(`📱 No tracker or Shopify ID found for URL: ${url}`);
+        return false;
+      }
+
+      return await productEligibilityService.isShopifyActive(tracker.shopifyProductId);
+    } catch (error) {
+      console.error('❌ Error checking Shopify eligibility:', error);
+      // FAIL-CLOSED: Block notifications on error to prevent ineligible alerts
+      return false;
+    }
   }
 
   private generateEventKey(options: NotificationOptions): string {

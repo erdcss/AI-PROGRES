@@ -6,6 +6,7 @@ import { ultimatePriceExtract } from './ultimate-price-extractor';
 import { enhancedPriceMovementTracker } from './enhanced-price-movement-tracker';
 import { notificationGateway } from './notification-gateway';
 import { shopifyApiService } from './shopify-api-service';
+import { productEligibilityService } from './product-eligibility-service';
 import axios from 'axios';
 import * as cheerio from 'cheerio';
 
@@ -22,21 +23,21 @@ export class UrlTrackingService {
     
     console.log('🎯 URL Tracking Service başlatılıyor...');
     
-    // Mevcut aktif tracking'leri yükle
-    const activeTracking = await db
-      .select()
-      .from(urlTracking)
-      .where(eq(urlTracking.isTracking, true));
+    // ✅ SHOPIFY ELIGIBILITY CHECK: Sadece Shopify'da olan ürünleri al
+    const eligibleTracking = await productEligibilityService.listEligibleTrackers();
     
-    console.log(`📊 ${activeTracking.length} aktif URL takip sistemi yükleniyor...`);
+    console.log(`📊 ${eligibleTracking.length} Shopify-eligible URL takip sistemi yükleniyor...`);
     
-    // Her aktif URL için tracking başlat
-    for (const track of activeTracking) {
+    // Her eligible URL için tracking başlat
+    for (const track of eligibleTracking) {
       this.startTracking(track.url, track.trackingInterval || 300);
     }
     
+    // Ineligible tracker'ları disable et
+    await productEligibilityService.disableIneligibleTrackers();
+    
     this.isInitialized = true;
-    console.log('✅ URL Tracking Service başlatıldı');
+    console.log('✅ URL Tracking Service başlatıldı (Shopify-filtered)');
   }
 
   async addUrlToTracking(url: string, trackingInterval: number = 300, source: string = 'manual', startTracking: boolean = true): Promise<any> {
@@ -239,9 +240,32 @@ export class UrlTrackingService {
     }
   }
 
-  startTracking(url: string, intervalSeconds: number = 300) {
+  async startTracking(url: string, intervalSeconds: number = 300) {
     // Mevcut tracking'i durdur
     this.stopTracking(url);
+    
+    // ✅ SHOPIFY ELIGIBILITY CHECK before starting
+    const [tracker] = await db.select().from(urlTracking).where(eq(urlTracking.url, url));
+    
+    if (!tracker) {
+      console.log(`⏸️ Tracking skipped for ${url} - Tracker not found`);
+      return;
+    }
+    
+    if (!tracker.shopifyProductId) {
+      console.log(`⏸️ Tracking skipped for ${url} - No Shopify product linked`);
+      return;
+    }
+    
+    const isEligible = await productEligibilityService.isShopifyActive(tracker.shopifyProductId);
+    if (!isEligible) {
+      console.log(`⏸️ Tracking skipped for ${url} - Not in Shopify memory`);
+      // Auto-disable tracking for ineligible products
+      await db.update(urlTracking)
+        .set({ isTracking: false, status: 'paused', updatedAt: new Date() })
+        .where(eq(urlTracking.url, url));
+      return;
+    }
     
     console.log(`🔄 Tracking başlatılıyor: ${url} (${intervalSeconds}s interval)`);
     

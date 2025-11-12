@@ -3,6 +3,7 @@ import { db } from './db';
 import { pendingChanges, productVariants, priceHistory, stockHistory, variantChanges, products, shopifyMemoryProducts } from '../shared/schema';
 import { eq, and, desc, inArray, isNotNull, sql } from 'drizzle-orm';
 import { pendingChangeProcessor } from './pending-change-processor';
+import { productEligibilityService } from './product-eligibility-service';
 
 const router = Router();
 
@@ -449,10 +450,27 @@ router.post('/api/pending-changes/comprehensive-cleanup', async (req, res) => {
       };
     });
     
+    // 🔄 Disable orphaned tracking after cleanup
+    console.log('🔄 Disabling ineligible URL trackers...');
+    const trackingResult = await productEligibilityService.disableIneligibleTrackers();
+    console.log(`⏸️ Disabled ${trackingResult.disabled} orphaned trackers`);
+    
+    // 🔄 Re-enable trackers that are now back in Shopify
+    console.log('🔄 Reconciling trackers with current Shopify state...');
+    const reconcileResult = await productEligibilityService.reconcileTrackers();
+    console.log(`▶️ Re-enabled ${reconcileResult.reEnabled} trackers`);
+    
+    // Invalidate cache after cleanup
+    productEligibilityService.invalidateCache();
+    
     res.json({
       success: true,
       message: `Comprehensive cleanup completed`,
-      stats: result
+      stats: {
+        ...result,
+        disabledTrackers: trackingResult.disabled,
+        reEnabledTrackers: reconcileResult.reEnabled
+      }
     });
   } catch (error) {
     console.error('❌ Error in comprehensive cleanup:', error);

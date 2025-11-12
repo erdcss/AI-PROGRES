@@ -238,16 +238,23 @@ export default function MemoryTrackingPage() {
         return;
       }
       
-      const message = [
+      const messageParts = [
         `${stats.deletedProducts} ürün`,
         `${stats.deletedVariants} varyant`,
-        `${stats.deletedPendingChanges} değişiklik`,
-        `${stats.deletedPriceHistory + stats.deletedStockHistory} geçmiş kaydı silindi`
-      ].join(', ');
+        `${stats.deletedPendingChanges} değişiklik silindi`,
+      ];
+      
+      if (stats.disabledTrackers > 0) {
+        messageParts.push(`${stats.disabledTrackers} takip durduruldu`);
+      }
+      
+      if (stats.reEnabledTrackers > 0) {
+        messageParts.push(`${stats.reEnabledTrackers} takip yeniden başlatıldı`);
+      }
       
       toast({
         title: "✅ Kapsamlı Temizlik Tamamlandı",
-        description: message,
+        description: messageParts.join(', '),
       });
       
       queryClient.invalidateQueries({ queryKey: ['/api/shopify/products'] });

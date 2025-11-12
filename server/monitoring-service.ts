@@ -9,6 +9,7 @@ import { VariantTrackingService } from './variant-tracking-service';
 import { shopifySyncManager } from './shopify-sync-manager';
 import { failoverManager } from './failover-manager';
 import { pendingChangeBuilder } from './pending-change-builder';
+import { productEligibilityService } from './product-eligibility-service';
 import type { VariantInfo } from './variant-tracking-service';
 
 export class MonitoringService {
@@ -71,29 +72,20 @@ export class MonitoringService {
     try {
       console.log('🔍 Product schedules kontrol ediliyor...');
       
-      // URL tracking tablosundan tracking aktif ürünleri al
-      const trackedProducts = await db
-        .select()
-        .from(urlTracking)
-        .where(and(
-          eq(urlTracking.isTracking, true),
-          isNotNull(urlTracking.url)
-        ))
-        .limit(10);
-
-      console.log(`🔎 DEBUG: Query returned ${trackedProducts.length} products`);
-      if (trackedProducts.length > 0) {
-        console.log(`🔎 DEBUG: First product - ID: ${trackedProducts[0].id}, Title: ${trackedProducts[0].productTitle}`);
-      }
+      // 🔄 CACHE REFRESH: Invalidate cache before each cycle to get fresh Shopify data
+      productEligibilityService.invalidateCache();
+      
+      // ✅ SHOPIFY ELIGIBILITY CHECK: Sadece Shopify'da olan ürünleri al
+      const trackedProducts = await productEligibilityService.listEligibleTrackers();
 
       if (trackedProducts.length === 0) {
-        console.log('📊 No products scheduled for monitoring at this time');
+        console.log('📊 No Shopify-active products scheduled for monitoring');
         return;
       }
 
-      console.log(`🔍 ${trackedProducts.length} ürün kontrol ediliyor...`);
+      console.log(`🔍 ${trackedProducts.length} Shopify-eligible ürün kontrol ediliyor...`);
 
-      for (const product of trackedProducts) {
+      for (const product of trackedProducts.slice(0, 10)) { // Limit to 10 per cycle
         await this.checkSingleProduct(product);
         
         // 🚨 RATE LIMITING: 5-10 second delay between products to prevent blocking
