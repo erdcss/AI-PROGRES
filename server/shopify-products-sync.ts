@@ -163,11 +163,15 @@ export class ShopifyProductsSync {
         .limit(limit)
         .offset(offset);
 
-      const totalCountResult = await db
+      let totalCountQuery = db
         .select({ count: sql<number>`count(*)` })
-        .from(shopifyMemoryProducts)
-        .where(conditions.length > 0 ? and(...conditions) : undefined);
+        .from(shopifyMemoryProducts);
 
+      if (conditions.length > 0) {
+        totalCountQuery = totalCountQuery.where(and(...conditions)) as any;
+      }
+
+      const totalCountResult = await totalCountQuery;
       const totalCount = Number(totalCountResult[0]?.count || 0);
 
       const enrichedProducts = productsData.map(product => {
