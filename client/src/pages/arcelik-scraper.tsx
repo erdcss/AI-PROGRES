@@ -86,7 +86,8 @@ function ArcelikScraper() {
         const errorData = await response.json().catch(() => ({}));
         throw new Error(errorData.message || `HTTP ${response.status}`);
       }
-      return response.json();
+      const result = await response.json();
+      return { ...result, originalUrl: data.url };
     },
     onSuccess: (data) => {
       if (data.success) {
@@ -102,7 +103,7 @@ function ArcelikScraper() {
           productImages: Array.isArray(data.images) ? data.images.length : 0,
           productVariants: data.variants?.allVariants?.length || 0,
           csvContent: data.csvContent || "",
-          sourceUrl: data.sourceUrl || "",
+          sourceUrl: data.sourceUrl || data.originalUrl || "",
           productData: data
         };
         
