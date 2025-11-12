@@ -569,227 +569,257 @@ export function PendingChangesPanel() {
                     : 'Reddedilmiş kritik değişiklik yok'}
               </div>
             ) : (
-              <div className="rounded-md border border-slate-700 bg-slate-800">
-                <Table>
-                  <TableHeader className="bg-slate-700">
-                    <TableRow className="border-b border-slate-600">
-                      {selectedTab === 'pending' && (
-                        <TableHead className="w-12 text-sm font-medium text-white">
+              <>
+                {/* Global Select All - only in pending tab */}
+                {selectedTab === 'pending' && (criticalChanges.length > 0) && (
+                  <div className="flex items-center gap-2 mb-3 px-2 py-2 bg-slate-800 rounded border border-slate-700">
+                    <input
+                      type="checkbox"
+                      checked={criticalChanges.length > 0 && selectedChanges.length === criticalChanges.length}
+                      onChange={(e) => {
+                        if (e.target.checked) {
+                          setSelectedChanges(criticalChanges.map(c => c.id));
+                        } else {
+                          setSelectedChanges([]);
+                        }
+                      }}
+                      className="rounded"
+                      data-testid="checkbox-select-all"
+                    />
+                    <span className="text-sm text-slate-300">
+                      {selectedChanges.length === criticalChanges.length ? 'Tümünü Kaldır' : 'Tümünü Seç'} ({criticalChanges.length} değişiklik)
+                    </span>
+                  </div>
+                )}
+                <div className="space-y-3">
+                  {/* Individual changes as compact cards */}
+                  {groupedChanges.individual.map((change) => (
+                  <motion.div
+                    key={change.id}
+                    initial={{ opacity: 0, y: 10 }}
+                    animate={{ opacity: 1, y: 0 }}
+                    className="bg-slate-700/90 border border-slate-600 rounded-lg p-4 hover:border-slate-500 transition-all"
+                    data-testid={`row-change-${change.id}`}
+                  >
+                    <div className="flex items-start justify-between gap-4">
+                      {/* Left: Checkbox + Icon + Info */}
+                      <div className="flex items-start gap-3 flex-1 min-w-0">
+                        {selectedTab === 'pending' && (
                           <input
                             type="checkbox"
-                            checked={criticalChanges.length > 0 && selectedChanges.length === criticalChanges.length}
-                            onChange={(e) => {
-                              if (e.target.checked) {
-                                setSelectedChanges(criticalChanges.map(c => c.id));
-                              } else {
-                                setSelectedChanges([]);
-                              }
-                            }}
-                            className="rounded"
+                            checked={selectedChanges.includes(change.id)}
+                            onChange={() => handleToggleChange(change.id)}
+                            className="mt-1 rounded"
                           />
-                        </TableHead>
-                      )}
-                      <TableHead className="text-sm font-medium text-white">Tip</TableHead>
-                      <TableHead className="text-sm font-medium text-white">Ürün</TableHead>
-                      <TableHead className="text-sm font-medium text-white">Varyant</TableHead>
-                      <TableHead className="text-sm font-medium text-white">Değişiklik</TableHead>
-                      <TableHead className="text-sm font-medium text-white">Tarih</TableHead>
-                      {selectedTab === 'pending' && <TableHead className="text-right text-sm font-medium text-white">İşlem</TableHead>}
-                    </TableRow>
-                  </TableHeader>
-                  <TableBody className="bg-slate-800">
-                    {/* Render individual (non-variant) changes */}
-                    {groupedChanges.individual.map((change) => (
-                      <TableRow key={change.id} data-testid={`row-change-${change.id}`} className="border-b border-slate-700 hover:bg-slate-700/50">
-                        {selectedTab === 'pending' && (
-                          <TableCell>
-                            <input
-                              type="checkbox"
-                              checked={selectedChanges.includes(change.id)}
-                              onChange={() => handleToggleChange(change.id)}
-                              className="rounded"
-                            />
-                          </TableCell>
                         )}
-                        <TableCell className="text-sm text-slate-200">
-                          <div className="flex items-center gap-2">
+                        <div className="flex-1 min-w-0">
+                          {/* Title + Badge */}
+                          <div className="flex items-center gap-2 mb-2 flex-wrap">
                             {getChangeIcon(change.changeType)}
                             {getChangeBadge(change.changeType)}
-                          </div>
-                        </TableCell>
-                        <TableCell className="font-medium text-sm max-w-xs truncate text-white">
-                          {change.productTitle}
-                        </TableCell>
-                        <TableCell className="text-sm text-slate-200">
-                          {change.color || change.size ? (
-                            <div className="space-y-0.5">
-                              {change.color && <div className="font-medium text-sm text-white">{change.color}</div>}
-                              {change.size && <div className="text-xs text-slate-400">{change.size}</div>}
-                            </div>
-                          ) : (
-                            <span className="text-slate-400 text-sm">-</span>
-                          )}
-                        </TableCell>
-                        <TableCell className="text-sm text-slate-200">{getChangeDetails(change)}</TableCell>
-                        <TableCell className="text-xs text-slate-400 whitespace-nowrap">
-                          {new Date(change.createdAt).toLocaleString('tr-TR')}
-                        </TableCell>
-                        {selectedTab === 'pending' && (
-                          <TableCell className="text-right">
-                            <div className="flex items-center justify-end gap-2">
-                              <Button
-                                size="sm"
-                                variant="default"
-                                onClick={() => approveMutation.mutate(change.id)}
-                                disabled={approveMutation.isPending}
-                                data-testid={`button-approve-${change.id}`}
-                              >
-                                <Check className="h-4 w-4" />
-                              </Button>
-                              <Button
-                                size="sm"
-                                variant="destructive"
-                                onClick={() => rejectMutation.mutate(change.id)}
-                                disabled={rejectMutation.isPending}
-                                data-testid={`button-reject-${change.id}`}
-                              >
-                                <X className="h-4 w-4" />
-                              </Button>
-                            </div>
-                          </TableCell>
-                        )}
-                      </TableRow>
-                    ))}
-
-                    {/* Render grouped variant changes */}
-                    {groupedChanges.grouped.map((group) => {
-                      const groupKey = `product-${group.productId}`;
-                      return (
-                      <Collapsible
-                        key={groupKey}
-                        open={expandedProducts.has(groupKey)}
-                        onOpenChange={() => toggleProductExpansion(group.productId)}
-                      >
-                        {/* Main product row with expand/collapse trigger */}
-                        <CollapsibleTrigger asChild>
-                          <TableRow 
-                            className="border-b border-slate-700 hover:bg-slate-700/50 cursor-pointer"
-                            data-testid={`row-variant-group-${group.productId}`}
-                          >
-                            {selectedTab === 'pending' && (
-                              <TableCell>
-                                <input
-                                  type="checkbox"
-                                  checked={group.changes.every(c => selectedChanges.includes(c.id))}
-                                  onChange={(e) => {
-                                    e.stopPropagation();
-                                    if (e.target.checked) {
-                                      setSelectedChanges(prev => [...prev, ...group.changes.map(c => c.id).filter(id => !prev.includes(id))]);
-                                    } else {
-                                      setSelectedChanges(prev => prev.filter(id => !group.changes.some(c => c.id === id)));
-                                    }
-                                  }}
-                                  className="rounded"
-                                />
-                              </TableCell>
+                            {change.color && (
+                              <Badge variant="outline" className="bg-purple-900/30 text-purple-300 border-purple-700">
+                                {change.color}
+                              </Badge>
                             )}
-                            <TableCell className="text-sm text-slate-200" colSpan={selectedTab === 'pending' ? 1 : 2}>
-                              <div className="flex items-center gap-2">
-                                <motion.div
-                                  animate={{ rotate: expandedProducts.has(groupKey) ? 90 : 0 }}
-                                  transition={{ duration: 0.2 }}
-                                >
-                                  <ChevronRight className="h-4 w-4 text-slate-400" />
-                                </motion.div>
-                                <Package className="h-4 w-4 text-slate-400" />
-                                <Badge variant="secondary" className="bg-slate-600 text-white">
-                                  {group.changes.length} Varyant
-                                </Badge>
-                              </div>
-                            </TableCell>
-                            <TableCell className="font-medium text-sm max-w-xs truncate text-white" colSpan={selectedTab === 'pending' ? 5 : 4}>
-                              {group.productTitle}
-                            </TableCell>
-                          </TableRow>
-                        </CollapsibleTrigger>
-
-                        {/* Expanded variant rows with animation */}
-                        <CollapsibleContent asChild>
-                          <motion.tbody
-                            initial={{ opacity: 0, height: 0 }}
-                            animate={{ opacity: 1, height: "auto" }}
-                            exit={{ opacity: 0, height: 0 }}
-                            transition={{ duration: 0.2, ease: "easeInOut" }}
+                            {change.size && (
+                              <Badge variant="outline" className="bg-blue-900/30 text-blue-300 border-blue-700">
+                                {change.size}
+                              </Badge>
+                            )}
+                          </div>
+                          
+                          {/* Product Title */}
+                          <h4 className="font-medium text-white text-sm mb-2 truncate">
+                            {change.productTitle}
+                          </h4>
+                          
+                          {/* Change Details */}
+                          <div className="mb-2">
+                            {getChangeDetails(change)}
+                          </div>
+                          
+                          {/* Shopify Info + Timestamp */}
+                          <div className="flex items-center gap-3 text-xs text-slate-400">
+                            {change.uniqueTrackingId && (
+                              <span className="font-mono bg-slate-800 px-2 py-0.5 rounded">
+                                {change.uniqueTrackingId}
+                              </span>
+                            )}
+                            <span>{new Date(change.createdAt).toLocaleString('tr-TR')}</span>
+                          </div>
+                        </div>
+                      </div>
+                      
+                      {/* Right: Action Buttons */}
+                      {selectedTab === 'pending' && (
+                        <div className="flex gap-2 flex-shrink-0">
+                          <Button
+                            size="sm"
+                            variant="default"
+                            onClick={() => approveMutation.mutate(change.id)}
+                            disabled={approveMutation.isPending}
+                            className="bg-green-600 hover:bg-green-700"
+                            data-testid={`button-approve-${change.id}`}
                           >
-                            {group.changes.map((change) => (
-                              <TableRow key={change.id} data-testid={`row-change-${change.id}`} className="border-b border-slate-700 bg-slate-750 hover:bg-slate-700/70">
-                                {selectedTab === 'pending' && (
-                                  <TableCell className="pl-8">
-                                    <input
-                                      type="checkbox"
-                                      checked={selectedChanges.includes(change.id)}
-                                      onChange={() => handleToggleChange(change.id)}
-                                      className="rounded"
-                                    />
-                                  </TableCell>
-                                )}
-                                <TableCell className="text-sm text-slate-200 pl-8">
-                                  <div className="flex items-center gap-2">
-                                    {getChangeIcon(change.changeType)}
-                                    {getChangeBadge(change.changeType)}
+                            <Check className="h-4 w-4" />
+                          </Button>
+                          <Button
+                            size="sm"
+                            variant="destructive"
+                            onClick={() => rejectMutation.mutate(change.id)}
+                            disabled={rejectMutation.isPending}
+                            data-testid={`button-reject-${change.id}`}
+                          >
+                            <X className="h-4 w-4" />
+                          </Button>
+                        </div>
+                      )}
+                    </div>
+                  </motion.div>
+                ))}
+
+                {/* Grouped variant changes */}
+                {groupedChanges.grouped.map((group) => {
+                  const groupKey = `product-${group.productId}`;
+                  const isExpanded = expandedProducts.has(groupKey);
+                  return (
+                    <motion.div
+                      key={groupKey}
+                      initial={{ opacity: 0, y: 10 }}
+                      animate={{ opacity: 1, y: 0 }}
+                      className="bg-slate-700/90 border border-slate-600 rounded-lg overflow-hidden"
+                      data-testid={`row-variant-group-${group.productId}`}
+                    >
+                      {/* Group Header - Clickable */}
+                      <div
+                        onClick={() => toggleProductExpansion(group.productId)}
+                        className="p-4 cursor-pointer hover:bg-slate-700/50 transition-colors"
+                      >
+                        <div className="flex items-center justify-between">
+                          <div className="flex items-center gap-3 flex-1">
+                            {selectedTab === 'pending' && (
+                              <input
+                                type="checkbox"
+                                checked={group.changes.every(c => selectedChanges.includes(c.id))}
+                                onChange={(e) => {
+                                  e.stopPropagation();
+                                  if (e.target.checked) {
+                                    setSelectedChanges(prev => [...prev, ...group.changes.map(c => c.id).filter(id => !prev.includes(id))]);
+                                  } else {
+                                    setSelectedChanges(prev => prev.filter(id => !group.changes.some(c => c.id === id)));
+                                  }
+                                }}
+                                className="rounded"
+                              />
+                            )}
+                            <motion.div
+                              animate={{ rotate: isExpanded ? 90 : 0 }}
+                              transition={{ duration: 0.2 }}
+                            >
+                              <ChevronRight className="h-4 w-4 text-slate-400" />
+                            </motion.div>
+                            <Package className="h-4 w-4 text-slate-400" />
+                            <Badge variant="secondary" className="bg-slate-600 text-white">
+                              {group.changes.length} Varyant
+                            </Badge>
+                            <span className="font-medium text-white text-sm truncate">
+                              {group.productTitle}
+                            </span>
+                          </div>
+                        </div>
+                      </div>
+
+                      {/* Expanded Variants */}
+                      <AnimatePresence>
+                        {isExpanded && (
+                          <motion.div
+                            initial={{ height: 0, opacity: 0 }}
+                            animate={{ height: "auto", opacity: 1 }}
+                            exit={{ height: 0, opacity: 0 }}
+                            transition={{ duration: 0.2 }}
+                            className="border-t border-slate-600"
+                          >
+                            <div className="p-4 space-y-3 bg-slate-800/50">
+                              {group.changes.map((change) => (
+                                <div
+                                  key={change.id}
+                                  className="bg-slate-800 border border-slate-600 rounded p-3"
+                                  data-testid={`row-change-${change.id}`}
+                                >
+                                  <div className="flex items-start justify-between gap-3">
+                                    <div className="flex items-start gap-3 flex-1">
+                                      {selectedTab === 'pending' && (
+                                        <input
+                                          type="checkbox"
+                                          checked={selectedChanges.includes(change.id)}
+                                          onChange={() => handleToggleChange(change.id)}
+                                          className="mt-1 rounded"
+                                        />
+                                      )}
+                                      <div className="flex-1">
+                                        {/* Variant Badge */}
+                                        <div className="flex items-center gap-2 mb-2">
+                                          {getChangeIcon(change.changeType)}
+                                          {getChangeBadge(change.changeType)}
+                                          {change.color && (
+                                            <Badge variant="outline" className="bg-purple-900/30 text-purple-300 border-purple-700">
+                                              {change.color}
+                                            </Badge>
+                                          )}
+                                          {change.size && (
+                                            <Badge variant="outline" className="bg-blue-900/30 text-blue-300 border-blue-700">
+                                              {change.size}
+                                            </Badge>
+                                          )}
+                                        </div>
+                                        
+                                        {/* Details */}
+                                        <div className="mb-2">{getChangeDetails(change)}</div>
+                                        
+                                        {/* Timestamp */}
+                                        <div className="text-xs text-slate-400">
+                                          {new Date(change.createdAt).toLocaleString('tr-TR')}
+                                        </div>
+                                      </div>
+                                    </div>
+                                    
+                                    {/* Actions */}
+                                    {selectedTab === 'pending' && (
+                                      <div className="flex gap-2">
+                                        <Button
+                                          size="sm"
+                                          variant="default"
+                                          onClick={() => approveMutation.mutate(change.id)}
+                                          disabled={approveMutation.isPending}
+                                          className="bg-green-600 hover:bg-green-700"
+                                          data-testid={`button-approve-${change.id}`}
+                                        >
+                                          <Check className="h-4 w-4" />
+                                        </Button>
+                                        <Button
+                                          size="sm"
+                                          variant="destructive"
+                                          onClick={() => rejectMutation.mutate(change.id)}
+                                          disabled={rejectMutation.isPending}
+                                          data-testid={`button-reject-${change.id}`}
+                                        >
+                                          <X className="h-4 w-4" />
+                                        </Button>
+                                      </div>
+                                    )}
                                   </div>
-                                </TableCell>
-                                <TableCell className="text-xs text-slate-300">
-                                  {change.productTitle}
-                                </TableCell>
-                                <TableCell className="text-sm text-slate-200">
-                                  {change.color || change.size ? (
-                                    <div className="space-y-0.5">
-                                      {change.color && <div className="font-medium text-sm text-white">{change.color}</div>}
-                                      {change.size && <div className="text-xs text-slate-400">{change.size}</div>}
-                                    </div>
-                                  ) : (
-                                    <span className="text-slate-400 text-sm">-</span>
-                                  )}
-                                </TableCell>
-                                <TableCell className="text-sm text-slate-200">{getChangeDetails(change)}</TableCell>
-                                <TableCell className="text-xs text-slate-400 whitespace-nowrap">
-                                  {new Date(change.createdAt).toLocaleString('tr-TR')}
-                                </TableCell>
-                                {selectedTab === 'pending' && (
-                                  <TableCell className="text-right">
-                                    <div className="flex items-center justify-end gap-2">
-                                      <Button
-                                        size="sm"
-                                        variant="default"
-                                        onClick={() => approveMutation.mutate(change.id)}
-                                        disabled={approveMutation.isPending}
-                                        data-testid={`button-approve-${change.id}`}
-                                      >
-                                        <Check className="h-4 w-4" />
-                                      </Button>
-                                      <Button
-                                        size="sm"
-                                        variant="destructive"
-                                        onClick={() => rejectMutation.mutate(change.id)}
-                                        disabled={rejectMutation.isPending}
-                                        data-testid={`button-reject-${change.id}`}
-                                      >
-                                        <X className="h-4 w-4" />
-                                      </Button>
-                                    </div>
-                                  </TableCell>
-                                )}
-                              </TableRow>
-                            ))}
-                          </motion.tbody>
-                        </CollapsibleContent>
-                      </Collapsible>
-                    );
-                    })}
-                  </TableBody>
-                </Table>
-              </div>
+                                </div>
+                              ))}
+                            </div>
+                          </motion.div>
+                        )}
+                      </AnimatePresence>
+                    </motion.div>
+                  );
+                })}
+                </div>
+              </>
             )}
           </TabsContent>
         </Tabs>
