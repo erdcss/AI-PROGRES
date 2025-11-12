@@ -148,6 +148,7 @@ export const shopifyMemoryProducts = pgTable('shopify_memory_products', {
   options: jsonb('options').default([]), // Color, Size vs
   variants: jsonb('variants').default([]), // Tüm varyantlar
   metafields: jsonb('metafields').default({}),
+  sourceUrl: text('source_url'), // Trendyol/Arçelik kaynak URL
   shopifyCreatedAt: timestamp('shopify_created_at'),
   shopifyUpdatedAt: timestamp('shopify_updated_at'),
   lastSyncAt: timestamp('last_sync_at').defaultNow(),

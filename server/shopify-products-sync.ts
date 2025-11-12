@@ -403,6 +403,7 @@ export class ShopifyProductsSync {
         images: product.images || [],
         options: product.options || [],
         variants: product.variants || [],
+        sourceUrl: sourceUrl || existing?.sourceUrl || null,
         shopifyCreatedAt: new Date(product.created_at),
         shopifyUpdatedAt: new Date(product.updated_at),
         lastSyncAt: new Date(),
