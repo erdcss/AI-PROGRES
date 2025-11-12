@@ -294,9 +294,16 @@ export function PendingChangesPanel() {
     switch (change.changeType) {
       case 'price_increase':
       case 'price_decrease':
+        const profitMargin = 10; // Default 10% profit margin
+        const newPrice = parseFloat(change.newPrice || '0');
+        const suggestedPrice = (newPrice * (1 + profitMargin / 100)).toFixed(2);
+        
         return (
-          <div className="space-y-1">
+          <div className="space-y-2">
             <div className="text-sm">
+              <div className="mb-1 text-xs font-medium text-slate-600 dark:text-slate-400">
+                Trendyol Fiyat Değişimi:
+              </div>
               <span className="text-slate-500 dark:text-slate-400 line-through">{change.oldPrice} TL</span>
               {' → '}
               <span className="font-medium text-slate-900 dark:text-slate-100">{change.newPrice} TL</span>
@@ -307,6 +314,17 @@ export function PendingChangesPanel() {
                 {change.priceChangePercent && ` (${change.priceChangePercent}%)`}
               </div>
             )}
+            <div className="text-sm bg-blue-50 dark:bg-blue-900/20 px-2 py-1.5 rounded border border-blue-200 dark:border-blue-800">
+              <div className="text-xs font-medium text-blue-700 dark:text-blue-300 mb-0.5">
+                💰 Önerilen Shopify Fiyatı:
+              </div>
+              <div className="font-bold text-blue-900 dark:text-blue-100">
+                {suggestedPrice} TL
+                <span className="text-xs font-normal text-blue-600 dark:text-blue-400 ml-1">
+                  (+{profitMargin}% kar marjı)
+                </span>
+              </div>
+            </div>
           </div>
         );
       case 'stock_out':

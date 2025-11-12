@@ -47,16 +47,23 @@ export class PendingChangeProcessor {
             
             // Calculate safe price change percentage
             const oldPrice = change.oldPrice || 0;
-            const newPrice = change.newPrice || 0;
+            const trendyolNewPrice = change.newPrice || 0;
+            
+            // ⚡ AUTO PROFIT MARGIN: Apply 10% profit margin to Shopify price
+            const profitMargin = 10; // Default 10% profit margin
+            const shopifyNewPrice = parseFloat((trendyolNewPrice * (1 + profitMargin / 100)).toFixed(2));
+            
+            console.log(`💰 Profit margin applied: Trendyol ${trendyolNewPrice} TL → Shopify ${shopifyNewPrice} TL (+${profitMargin}%)`);
+            
             const changePercentage = oldPrice > 0 
-              ? ((newPrice - oldPrice) / oldPrice) * 100 
+              ? ((shopifyNewPrice - oldPrice) / oldPrice) * 100 
               : 0;
             
             // Use productId from change record (FK to products table)
             const syncResult = await shopifySyncManager.processChanges(change.productId, {
               priceChange: {
                 oldPrice,
-                newPrice,
+                newPrice: shopifyNewPrice, // Apply profit margin
                 changeType: change.changeType === 'price_increase' ? 'increase' : 'decrease',
                 changePercentage
               }

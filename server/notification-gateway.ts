@@ -203,14 +203,26 @@ class NotificationGateway {
     const emoji = changePercent > 0 ? '📈' : '📉';
     const priority = Math.abs(changePercent) > 20 ? 'YÜKSEK ÖNCELİK' : 'NORMAL';
     
+    // Calculate suggested Shopify price with profit margin (default 10%)
+    const profitMargin = payload.profitMargin || 10;
+    const newPrice = parseFloat(payload.newPrice) || 0;
+    const suggestedPrice = (newPrice * (1 + profitMargin / 100)).toFixed(2);
+    
     return `
 ${emoji} <b>FİYAT DEĞİŞİKLİĞİ - ${priority}</b>
 
 📦 <b>Ürün:</b> ${payload.title}
-💰 <b>Eski Fiyat:</b> ${payload.oldPrice} TL
-💵 <b>Yeni Fiyat:</b> ${payload.newPrice} TL
-📊 <b>Değişim:</b> %${changePercent.toFixed(2)}
-🔗 <b>URL:</b> ${payload.url}
+
+💰 <b>Trendyol Fiyat Değişimi:</b>
+   ${payload.oldPrice} TL → ${payload.newPrice} TL
+   
+💵 <b>Önerilen Shopify Fiyatı:</b>
+   <b>${suggestedPrice} TL</b> (+${profitMargin}% kar marjı)
+
+📊 <b>Değişim Oranı:</b> ${changePercent > 0 ? '+' : ''}${changePercent.toFixed(2)}%
+
+🔗 <b>Değişiklik Onay Paneli:</b>
+   Onaylamak için web arayüzüne gidin
 
 ⏰ <i>${new Date().toLocaleString('tr-TR')}</i>
     `.trim();
