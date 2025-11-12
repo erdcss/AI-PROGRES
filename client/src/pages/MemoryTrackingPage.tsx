@@ -188,9 +188,16 @@ export default function MemoryTrackingPage() {
       queryClient.invalidateQueries({ queryKey: ['/api/shopify/categories'] });
       queryClient.invalidateQueries({ queryKey: ['/api/shopify/statistics'] });
       
+      const details = [];
+      if (data.newProducts > 0) details.push(`${data.newProducts} yeni`);
+      if (data.updatedProducts > 0) details.push(`${data.updatedProducts} güncellenen`);
+      if (data.deletedProducts > 0) details.push(`${data.deletedProducts} silinen`);
+      
       toast({
-        title: "Shopify Senkronizasyonu Tamamlandı",
-        description: `${data.totalProducts} ürün senkronize edildi`,
+        title: "✅ Shopify Senkronizasyonu Tamamlandı",
+        description: details.length > 0 
+          ? details.join(', ') + ' ürün' 
+          : `${data.totalProducts} ürün senkronize edildi`,
       });
     },
     onError: (error: any) => {
@@ -559,7 +566,7 @@ export default function MemoryTrackingPage() {
               ) : (
                 <>
                   <Database className="h-4 w-4 mr-2" />
-                  Shopify'dan Çek
+                  Senkronize Et
                 </>
               )}
             </Button>
