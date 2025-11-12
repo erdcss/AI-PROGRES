@@ -126,17 +126,12 @@ export class ShopifyProductsSync {
           images: shopifyMemoryProducts.images,
           createdAt: shopifyMemoryProducts.createdAt,
           updatedAt: shopifyMemoryProducts.updatedAt,
-          sourceUrl: sql<string>`COALESCE(${urlTracking.url}, ${shopifyTransferredProducts.sourceUrl})`.as('sourceUrl'),
-          productsTableId: shopifyTransferredProducts.productsTableId
+          sourceUrl: shopifyTransferredProducts.sourceUrl
         })
         .from(shopifyMemoryProducts)
         .leftJoin(
           shopifyTransferredProducts,
           eq(shopifyMemoryProducts.shopifyProductId, shopifyTransferredProducts.shopifyProductId)
-        )
-        .leftJoin(
-          urlTracking,
-          eq(shopifyTransferredProducts.productsTableId, urlTracking.productId)
         );
 
       const conditions = [];
