@@ -199,12 +199,12 @@ export function PendingChangesPanel() {
         return (
           <div className="space-y-1">
             <div className="text-sm">
-              <span className="text-muted-foreground line-through">{change.oldPrice} TL</span>
+              <span className="text-slate-500 dark:text-slate-400 line-through">{change.oldPrice} TL</span>
               {' → '}
-              <span className="font-medium">{change.newPrice} TL</span>
+              <span className="font-medium text-slate-900 dark:text-slate-100">{change.newPrice} TL</span>
             </div>
             {change.priceChange && (
-              <div className={`text-xs font-medium ${change.changeType === 'price_increase' ? 'text-red-600' : 'text-green-600'}`}>
+              <div className={`text-xs font-medium ${change.changeType === 'price_increase' ? 'text-red-600 dark:text-red-400' : 'text-green-600 dark:text-green-400'}`}>
                 {change.changeType === 'price_increase' ? '+' : ''}{change.priceChange} TL 
                 {change.priceChangePercent && ` (${change.priceChangePercent}%)`}
               </div>
@@ -217,19 +217,19 @@ export function PendingChangesPanel() {
           <div className="text-sm">
             {change.oldStock !== null && change.newStock !== null ? (
               <>
-                <span className="text-muted-foreground">{change.oldStock} adet</span>
+                <span className="text-slate-500 dark:text-slate-400">{change.oldStock} adet</span>
                 {' → '}
-                <span className="font-medium">{change.newStock} adet</span>
+                <span className="font-medium text-slate-900 dark:text-slate-100">{change.newStock} adet</span>
               </>
             ) : (
-              <span className="font-medium">{change.changeType === 'stock_out' ? 'Stokta yok' : 'Stokta var'}</span>
+              <span className="font-medium text-slate-900 dark:text-slate-100">{change.changeType === 'stock_out' ? 'Stokta yok' : 'Stokta var'}</span>
             )}
           </div>
         );
       case 'variant_added':
-        return <div className="text-sm font-medium text-green-600">Yeni varyant eklendi</div>;
+        return <div className="text-sm font-medium text-green-600 dark:text-green-400">Yeni varyant eklendi</div>;
       case 'variant_removed':
-        return <div className="text-sm font-medium text-red-600">Varyant kaldırıldı</div>;
+        return <div className="text-sm font-medium text-red-600 dark:text-red-400">Varyant kaldırıldı</div>;
       default:
         return null;
     }
@@ -281,37 +281,37 @@ export function PendingChangesPanel() {
         {summaryData?.summary && (
           <div className="grid grid-cols-2 md:grid-cols-6 gap-2 mt-4">
             <div className="bg-blue-50 dark:bg-blue-950 rounded-lg p-2 text-center">
-              <div className="text-xs text-muted-foreground">Bekleyen</div>
+              <div className="text-xs text-slate-600 dark:text-slate-300">Bekleyen</div>
               <div className="text-lg font-bold text-blue-600 dark:text-blue-400">
                 {summaryData.summary.pending}
               </div>
             </div>
             <div className="bg-green-50 dark:bg-green-950 rounded-lg p-2 text-center">
-              <div className="text-xs text-muted-foreground">Onaylanan</div>
+              <div className="text-xs text-slate-600 dark:text-slate-300">Onaylanan</div>
               <div className="text-lg font-bold text-green-600 dark:text-green-400">
                 {summaryData.summary.approved}
               </div>
             </div>
             <div className="bg-red-50 dark:bg-red-950 rounded-lg p-2 text-center">
-              <div className="text-xs text-muted-foreground">Fiyat ↑</div>
+              <div className="text-xs text-slate-600 dark:text-slate-300">Fiyat ↑</div>
               <div className="text-lg font-bold text-red-600 dark:text-red-400">
                 {summaryData.summary.byType.price_increase}
               </div>
             </div>
             <div className="bg-green-50 dark:bg-green-950 rounded-lg p-2 text-center">
-              <div className="text-xs text-muted-foreground">Fiyat ↓</div>
+              <div className="text-xs text-slate-600 dark:text-slate-300">Fiyat ↓</div>
               <div className="text-lg font-bold text-green-600 dark:text-green-400">
                 {summaryData.summary.byType.price_decrease}
               </div>
             </div>
             <div className="bg-orange-50 dark:bg-orange-950 rounded-lg p-2 text-center">
-              <div className="text-xs text-muted-foreground">Stok Bitti</div>
+              <div className="text-xs text-slate-600 dark:text-slate-300">Stok Bitti</div>
               <div className="text-lg font-bold text-orange-600 dark:text-orange-400">
                 {summaryData.summary.byType.stock_out}
               </div>
             </div>
             <div className="bg-blue-50 dark:bg-blue-950 rounded-lg p-2 text-center">
-              <div className="text-xs text-muted-foreground">Toplam</div>
+              <div className="text-xs text-slate-600 dark:text-slate-300">Toplam</div>
               <div className="text-lg font-bold text-blue-600 dark:text-blue-400">
                 {summaryData.summary.total}
               </div>
@@ -351,7 +351,7 @@ export function PendingChangesPanel() {
                   <TableHeader>
                     <TableRow>
                       {selectedTab === 'pending' && (
-                        <TableHead className="w-12 text-sm font-medium">
+                        <TableHead className="w-12 text-sm font-medium text-slate-700 dark:text-slate-200">
                           <input
                             type="checkbox"
                             checked={selectedChanges.length === changesData?.changes.length}
@@ -366,12 +366,12 @@ export function PendingChangesPanel() {
                           />
                         </TableHead>
                       )}
-                      <TableHead className="text-sm font-medium">Tip</TableHead>
-                      <TableHead className="text-sm font-medium">Ürün</TableHead>
-                      <TableHead className="text-sm font-medium">Varyant</TableHead>
-                      <TableHead className="text-sm font-medium">Değişiklik</TableHead>
-                      <TableHead className="text-sm font-medium">Tarih</TableHead>
-                      {selectedTab === 'pending' && <TableHead className="text-right text-sm font-medium">İşlem</TableHead>}
+                      <TableHead className="text-sm font-medium text-slate-700 dark:text-slate-200">Tip</TableHead>
+                      <TableHead className="text-sm font-medium text-slate-700 dark:text-slate-200">Ürün</TableHead>
+                      <TableHead className="text-sm font-medium text-slate-700 dark:text-slate-200">Varyant</TableHead>
+                      <TableHead className="text-sm font-medium text-slate-700 dark:text-slate-200">Değişiklik</TableHead>
+                      <TableHead className="text-sm font-medium text-slate-700 dark:text-slate-200">Tarih</TableHead>
+                      {selectedTab === 'pending' && <TableHead className="text-right text-sm font-medium text-slate-700 dark:text-slate-200">İşlem</TableHead>}
                     </TableRow>
                   </TableHeader>
                   <TableBody>
@@ -387,27 +387,27 @@ export function PendingChangesPanel() {
                             />
                           </TableCell>
                         )}
-                        <TableCell className="text-sm">
+                        <TableCell className="text-sm text-slate-900 dark:text-slate-100">
                           <div className="flex items-center gap-2">
                             {getChangeIcon(change.changeType)}
                             {getChangeBadge(change.changeType)}
                           </div>
                         </TableCell>
-                        <TableCell className="font-medium text-sm max-w-xs truncate">
+                        <TableCell className="font-medium text-sm max-w-xs truncate text-slate-900 dark:text-slate-100">
                           {change.productTitle}
                         </TableCell>
-                        <TableCell className="text-sm">
+                        <TableCell className="text-sm text-slate-900 dark:text-slate-100">
                           {change.color || change.size ? (
                             <div className="space-y-0.5">
-                              {change.color && <div className="font-medium text-sm">{change.color}</div>}
-                              {change.size && <div className="text-xs text-muted-foreground">{change.size}</div>}
+                              {change.color && <div className="font-medium text-sm text-slate-900 dark:text-slate-100">{change.color}</div>}
+                              {change.size && <div className="text-xs text-slate-600 dark:text-slate-400">{change.size}</div>}
                             </div>
                           ) : (
-                            <span className="text-muted-foreground text-sm">-</span>
+                            <span className="text-slate-500 dark:text-slate-400 text-sm">-</span>
                           )}
                         </TableCell>
-                        <TableCell className="text-sm">{getChangeDetails(change)}</TableCell>
-                        <TableCell className="text-xs text-muted-foreground whitespace-nowrap">
+                        <TableCell className="text-sm text-slate-900 dark:text-slate-100">{getChangeDetails(change)}</TableCell>
+                        <TableCell className="text-xs text-slate-600 dark:text-slate-400 whitespace-nowrap">
                           {new Date(change.createdAt).toLocaleString('tr-TR')}
                         </TableCell>
                         {selectedTab === 'pending' && (
