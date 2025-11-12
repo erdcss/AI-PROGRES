@@ -102,10 +102,8 @@ export function PendingChangesPanel() {
   // Approve mutation
   const approveMutation = useMutation({
     mutationFn: async (id: number) => {
-      return apiRequest(`/api/pending-changes/${id}/approve`, {
-        method: 'POST',
-        body: JSON.stringify({ approvedBy: 'admin' })
-      });
+      const res = await apiRequest('POST', `/api/pending-changes/${id}/approve`, { approvedBy: 'admin' });
+      return res.json();
     },
     onSuccess: () => {
       toast({
@@ -127,10 +125,8 @@ export function PendingChangesPanel() {
   // Bulk approve mutation
   const bulkApproveMutation = useMutation({
     mutationFn: async (ids: number[]) => {
-      return apiRequest('/api/pending-changes/bulk-approve', {
-        method: 'POST',
-        body: JSON.stringify({ ids, approvedBy: 'admin' })
-      });
+      const res = await apiRequest('POST', '/api/pending-changes/bulk-approve', { ids, approvedBy: 'admin' });
+      return res.json();
     },
     onSuccess: (data: any) => {
       toast({
@@ -155,13 +151,11 @@ export function PendingChangesPanel() {
   // Reject mutation
   const rejectMutation = useMutation({
     mutationFn: async (id: number) => {
-      return apiRequest(`/api/pending-changes/${id}/reject`, {
-        method: 'POST',
-        body: JSON.stringify({ 
-          rejectedBy: 'admin',
-          rejectionReason: 'Manuel red'
-        })
+      const res = await apiRequest('POST', `/api/pending-changes/${id}/reject`, { 
+        rejectedBy: 'admin',
+        rejectionReason: 'Manuel red'
       });
+      return res.json();
     },
     onSuccess: () => {
       toast({
@@ -357,7 +351,7 @@ export function PendingChangesPanel() {
                   <TableHeader>
                     <TableRow>
                       {selectedTab === 'pending' && (
-                        <TableHead className="w-12">
+                        <TableHead className="w-12 text-sm font-medium">
                           <input
                             type="checkbox"
                             checked={selectedChanges.length === changesData?.changes.length}
@@ -372,12 +366,12 @@ export function PendingChangesPanel() {
                           />
                         </TableHead>
                       )}
-                      <TableHead>Tip</TableHead>
-                      <TableHead>Ürün</TableHead>
-                      <TableHead>Varyant</TableHead>
-                      <TableHead>Değişiklik</TableHead>
-                      <TableHead>Tarih</TableHead>
-                      {selectedTab === 'pending' && <TableHead className="text-right">İşlem</TableHead>}
+                      <TableHead className="text-sm font-medium">Tip</TableHead>
+                      <TableHead className="text-sm font-medium">Ürün</TableHead>
+                      <TableHead className="text-sm font-medium">Varyant</TableHead>
+                      <TableHead className="text-sm font-medium">Değişiklik</TableHead>
+                      <TableHead className="text-sm font-medium">Tarih</TableHead>
+                      {selectedTab === 'pending' && <TableHead className="text-right text-sm font-medium">İşlem</TableHead>}
                     </TableRow>
                   </TableHeader>
                   <TableBody>
@@ -393,27 +387,27 @@ export function PendingChangesPanel() {
                             />
                           </TableCell>
                         )}
-                        <TableCell>
+                        <TableCell className="text-sm">
                           <div className="flex items-center gap-2">
                             {getChangeIcon(change.changeType)}
                             {getChangeBadge(change.changeType)}
                           </div>
                         </TableCell>
-                        <TableCell className="font-medium max-w-xs truncate">
+                        <TableCell className="font-medium text-sm max-w-xs truncate">
                           {change.productTitle}
                         </TableCell>
-                        <TableCell>
+                        <TableCell className="text-sm">
                           {change.color || change.size ? (
-                            <div className="text-sm">
-                              {change.color && <div className="font-medium">{change.color}</div>}
-                              {change.size && <div className="text-muted-foreground">{change.size}</div>}
+                            <div className="space-y-0.5">
+                              {change.color && <div className="font-medium text-sm">{change.color}</div>}
+                              {change.size && <div className="text-xs text-muted-foreground">{change.size}</div>}
                             </div>
                           ) : (
                             <span className="text-muted-foreground text-sm">-</span>
                           )}
                         </TableCell>
-                        <TableCell>{getChangeDetails(change)}</TableCell>
-                        <TableCell className="text-xs text-muted-foreground">
+                        <TableCell className="text-sm">{getChangeDetails(change)}</TableCell>
+                        <TableCell className="text-xs text-muted-foreground whitespace-nowrap">
                           {new Date(change.createdAt).toLocaleString('tr-TR')}
                         </TableCell>
                         {selectedTab === 'pending' && (
