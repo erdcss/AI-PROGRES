@@ -22,10 +22,18 @@ import { intelligentRateLimiter } from './intelligent-rate-limiter';
 import { extractFromTrendyolJavaScriptState } from './trendyol-js-extractor';
 import { detectRealStockStatus } from './real-stock-detector';
 import { extractColorFromUrl, extractColorFromTitle, getColorCode, cleanColorName } from './color-recognition';
+import { getPerformanceConfig, getTimeout, shouldRetryWithSlowTimeout } from './performance-config';
 
-// Enhanced caching system with normal duration
+// ⚡ ULTRA-FAST CACHING SYSTEM with configurable duration
 export const extractionCache = new Map<string, {data: any, timestamp: number}>();
-const CACHE_DURATION = 10 * 60 * 1000; // 10 minutes cache for better performance
+
+function getCacheDuration(): number {
+  return getPerformanceConfig().cache.duration;
+}
+
+function shouldBypassCache(): boolean {
+  return getPerformanceConfig().cache.forceRefresh;
+}
 
 // User-agent rotation - updated with latest versions to avoid detection
 const userAgents = [
@@ -658,17 +666,17 @@ async function tryPuppeteerColorExtraction(url: string): Promise<{success: boole
     const page = await browser.newPage();
     await page.setUserAgent('Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/131.0.0.0 Safari/537.36');
     
-    // Navigate to the page
+    // Navigate to the page - MAXIMUM SPEED
     await page.goto(url, { 
       waitUntil: 'domcontentloaded',
-      timeout: 8000
+      timeout: 3000 // ⚡ ULTRA-FAST: Reduced from 8000ms
     });
     
     // Extract colors from JavaScript State and DOM
     let extractedColors: string[] = [];
     try {
       // Wait for color buttons to render
-      await page.waitForSelector('.color-variants, [class*="color"], [class*="renk"], .slctn-item', { timeout: 3000 }).catch(() => {
+      await page.waitForSelector('.color-variants, [class*="color"], [class*="renk"], .slctn-item', { timeout: 1000 }).catch(() => {
         console.log('⚠️ Color buttons not found in DOM');
       });
       
@@ -797,8 +805,8 @@ export async function scenarioBasedScrape(url: string): Promise<ScenarioBasedRes
             'Upgrade-Insecure-Requests': '1',
             'Referer': 'https://www.google.com/'
           },
-          timeout: 5000, // Increased timeout
-          maxRedirects: 5,
+          timeout: 2500, // ⚡ ULTRA-FAST: Reduced from 5000ms
+          maxRedirects: 3, // Reduced for speed
           validateStatus: function (status) {
             return status < 500; // Accept 4xx errors but not 5xx
           }
@@ -863,9 +871,9 @@ export async function scenarioBasedScrape(url: string): Promise<ScenarioBasedRes
         // ENHANCED FALLBACK STRATEGY - Multiple methods
         console.log('🚀 Using ENHANCED ANTI-BLOCKING STRATEGY...');
         
-        // Method 1: Try with different headers and delays
-        console.log('📡 Method 1: Enhanced headers with delay...');
-        await new Promise(resolve => setTimeout(resolve, 2000 + Math.random() * 3000)); // Random delay 2-5s
+        // Method 1: Try with different headers and minimal delays
+        console.log('📡 Method 1: Enhanced headers with minimal delay...');
+        await new Promise(resolve => setTimeout(resolve, 300 + Math.random() * 200)); // ⚡ ULTRA-FAST: Random delay 300-500ms
         
         try {
           const enhancedResult = await axios.get(url, {
@@ -881,8 +889,8 @@ export async function scenarioBasedScrape(url: string): Promise<ScenarioBasedRes
               'Sec-Fetch-Mode': 'navigate',
               'Sec-Fetch-Site': 'none'
             },
-            timeout: 8000,
-            maxRedirects: 3
+            timeout: 3000, // ⚡ ULTRA-FAST: Reduced from 8000ms
+            maxRedirects: 2 // Reduced for speed
           });
           
           htmlContent = enhancedResult.data;
@@ -1072,7 +1080,7 @@ export async function scenarioBasedScrape(url: string): Promise<ScenarioBasedRes
                 'User-Agent': 'Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36',
                 'Accept': 'text/html,application/xhtml+xml,application/xml;q=0.9,*/*;q=0.8'
               },
-              timeout: 5000
+              timeout: 2500 // ⚡ ULTRA-FAST: Reduced from 5000ms
             });
             
             htmlContent = finalResult.data;
@@ -1213,17 +1221,17 @@ export async function scenarioBasedScrape(url: string): Promise<ScenarioBasedRes
       const page = await browser.newPage();
       await page.setUserAgent('Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36');
       
-      // Navigate to the page - OPTIMIZED FOR SPEED
+      // Navigate to the page - MAXIMUM PERFORMANCE
       await page.goto(url, { 
         waitUntil: 'domcontentloaded', // Much faster than 'networkidle2' 
-        timeout: 5000 // Reduced from 30000 for speed
+        timeout: 3000 // ⚡ ULTRA-FAST: Reduced from 5000ms for MAXIMUM SPEED
       });
       
       // 🎨 EXTRACT COLOR VARIANTS from JavaScript State and DOM
       let extractedColors: string[] = [];
       try {
         // Wait for color buttons to render (max 2 seconds)
-        await page.waitForSelector('.color-variants, [class*="color"], [class*="renk"]', { timeout: 2000 }).catch(() => {
+        await page.waitForSelector('.color-variants, [class*="color"], [class*="renk"]', { timeout: 1000 }).catch(() => {
           console.log('⚠️ Color buttons not found in DOM');
         });
         
@@ -1320,8 +1328,8 @@ export async function scenarioBasedScrape(url: string): Promise<ScenarioBasedRes
           'Connection': 'keep-alive',
           'Referer': 'https://www.google.com/'
         },
-        timeout: 3000, // Reduced from 30000 for MAXIMUM SPEED
-        maxRedirects: 3, // Reduced for speed
+        timeout: 2000, // ⚡ ULTRA-FAST: Reduced from 3000ms for MAXIMUM SPEED
+        maxRedirects: 2, // Reduced for speed
         validateStatus: function (status) {
           return status >= 200 && status < 500; // Accept more statuses to avoid retries
         }
