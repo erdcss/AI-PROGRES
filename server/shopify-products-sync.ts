@@ -126,7 +126,7 @@ export class ShopifyProductsSync {
           images: shopifyMemoryProducts.images,
           createdAt: shopifyMemoryProducts.createdAt,
           updatedAt: shopifyMemoryProducts.updatedAt,
-          sourceUrl: shopifyTransferredProducts.sourceUrl
+          sourceUrl: sql<string | null>`${shopifyTransferredProducts.sourceUrl}`.as('sourceUrl')
         })
         .from(shopifyMemoryProducts)
         .leftJoin(
