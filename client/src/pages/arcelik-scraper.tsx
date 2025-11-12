@@ -102,6 +102,7 @@ function ArcelikScraper() {
           productImages: Array.isArray(data.images) ? data.images.length : 0,
           productVariants: data.variants?.allVariants?.length || 0,
           csvContent: data.csvContent || "",
+          sourceUrl: data.sourceUrl || "",
           productData: data
         };
         
@@ -206,7 +207,9 @@ function ArcelikScraper() {
           },
           body: JSON.stringify({ 
             csvContent: preview.csvContent,
-            productTitle: preview.productTitle 
+            productTitle: preview.productTitle,
+            sourceUrl: preview.sourceUrl || "",
+            productData: preview.productData
           }),
         });
         
