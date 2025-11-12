@@ -268,15 +268,23 @@ export function PendingChangesPanel() {
     });
   };
 
-  // Group variant changes by productId (stable identifier)
+  // Smart filtering: Only show critical changes
+  const CRITICAL_CHANGE_TYPES = ['price_increase', 'price_decrease', 'stock_out', 'variant_removed'];
+  
+  // Group variant changes by productId (stable identifier) with smart filtering
   const groupedChanges = useMemo(() => {
     if (!changesData?.changes) return { grouped: [], individual: [] };
+
+    // Filter to only critical changes
+    const criticalChanges = changesData.changes.filter(change => 
+      CRITICAL_CHANGE_TYPES.includes(change.changeType)
+    );
 
     const variantChangesByProductId = new Map<number, PendingChange[]>();
     const nonVariantChanges: PendingChange[] = [];
 
-    changesData.changes.forEach(change => {
-      const isVariantChange = change.changeType === 'variant_added' || change.changeType === 'variant_removed';
+    criticalChanges.forEach(change => {
+      const isVariantChange = change.changeType === 'variant_removed';
       
       if (isVariantChange && change.productId) {
         const existing = variantChangesByProductId.get(change.productId) || [];
@@ -302,11 +310,11 @@ export function PendingChangesPanel() {
   }, [changesData]);
 
   return (
-    <Card className="mt-6">
-      <CardHeader>
+    <Card className="mt-6 bg-slate-800 dark:bg-slate-900 border-slate-700">
+      <CardHeader className="bg-slate-800 dark:bg-slate-900">
         <div className="flex items-center justify-between">
-          <CardTitle className="flex items-center gap-2">
-            <AlertTriangle className="h-5 w-5 text-yellow-500" />
+          <CardTitle className="flex items-center gap-2 text-white">
+            <AlertTriangle className="h-5 w-5 text-yellow-400" />
             Değişiklik Onay Paneli
           </CardTitle>
           <div className="flex items-center gap-2">
@@ -335,39 +343,39 @@ export function PendingChangesPanel() {
         
         {summaryData?.summary && (
           <div className="grid grid-cols-2 md:grid-cols-6 gap-2 mt-4">
-            <div className="bg-blue-50 dark:bg-blue-950 rounded-lg p-2 text-center">
-              <div className="text-xs text-slate-600 dark:text-slate-300">Bekleyen</div>
-              <div className="text-lg font-bold text-blue-600 dark:text-blue-400">
+            <div className="bg-slate-700 rounded-lg p-2 text-center border border-slate-600">
+              <div className="text-xs text-slate-300">Bekleyen</div>
+              <div className="text-2xl font-bold text-blue-400">
                 {summaryData.summary.pending}
               </div>
             </div>
-            <div className="bg-green-50 dark:bg-green-950 rounded-lg p-2 text-center">
-              <div className="text-xs text-slate-600 dark:text-slate-300">Onaylanan</div>
-              <div className="text-lg font-bold text-green-600 dark:text-green-400">
-                {summaryData.summary.approved}
+            <div className="bg-slate-700 rounded-lg p-2 text-center border border-slate-600">
+              <div className="text-xs text-slate-300">Onaylanan</div>
+              <div className="text-2xl font-bold text-green-400">
+                {summaryData.summary.approved || 0}
               </div>
             </div>
-            <div className="bg-red-50 dark:bg-red-950 rounded-lg p-2 text-center">
-              <div className="text-xs text-slate-600 dark:text-slate-300">Fiyat ↑</div>
-              <div className="text-lg font-bold text-red-600 dark:text-red-400">
-                {summaryData.summary.byType.price_increase}
+            <div className="bg-slate-700 rounded-lg p-2 text-center border border-slate-600">
+              <div className="text-xs text-slate-300">Fiyat ↑</div>
+              <div className="text-2xl font-bold text-red-400">
+                {summaryData.summary.byType.price_increase || 0}
               </div>
             </div>
-            <div className="bg-green-50 dark:bg-green-950 rounded-lg p-2 text-center">
-              <div className="text-xs text-slate-600 dark:text-slate-300">Fiyat ↓</div>
-              <div className="text-lg font-bold text-green-600 dark:text-green-400">
-                {summaryData.summary.byType.price_decrease}
+            <div className="bg-slate-700 rounded-lg p-2 text-center border border-slate-600">
+              <div className="text-xs text-slate-300">Fiyat ↓</div>
+              <div className="text-2xl font-bold text-green-400">
+                {summaryData.summary.byType.price_decrease || 0}
               </div>
             </div>
-            <div className="bg-orange-50 dark:bg-orange-950 rounded-lg p-2 text-center">
-              <div className="text-xs text-slate-600 dark:text-slate-300">Stok Bitti</div>
-              <div className="text-lg font-bold text-orange-600 dark:text-orange-400">
-                {summaryData.summary.byType.stock_out}
+            <div className="bg-slate-700 rounded-lg p-2 text-center border border-slate-600">
+              <div className="text-xs text-slate-300">Stok Bitti</div>
+              <div className="text-2xl font-bold text-orange-400">
+                {summaryData.summary.byType.stock_out || 0}
               </div>
             </div>
-            <div className="bg-blue-50 dark:bg-blue-950 rounded-lg p-2 text-center">
-              <div className="text-xs text-slate-600 dark:text-slate-300">Toplam</div>
-              <div className="text-lg font-bold text-blue-600 dark:text-blue-400">
+            <div className="bg-slate-700 rounded-lg p-2 text-center border border-slate-600">
+              <div className="text-xs text-slate-300">Toplam</div>
+              <div className="text-2xl font-bold text-slate-200">
                 {summaryData.summary.total}
               </div>
             </div>
@@ -375,38 +383,38 @@ export function PendingChangesPanel() {
         )}
       </CardHeader>
       
-      <CardContent>
+      <CardContent className="bg-slate-800 dark:bg-slate-900">
         <Tabs value={selectedTab} onValueChange={setSelectedTab}>
-          <TabsList className="mb-4">
-            <TabsTrigger value="pending" data-testid="tab-pending">
+          <TabsList className="mb-4 bg-slate-700 border border-slate-600">
+            <TabsTrigger value="pending" data-testid="tab-pending" className="data-[state=active]:bg-slate-600 data-[state=active]:text-white text-slate-300">
               Bekleyen ({summaryData?.summary.pending || 0})
             </TabsTrigger>
-            <TabsTrigger value="approved" data-testid="tab-approved">
+            <TabsTrigger value="approved" data-testid="tab-approved" className="data-[state=active]:bg-slate-600 data-[state=active]:text-white text-slate-300">
               Onaylanan ({summaryData?.summary.approved || 0})
             </TabsTrigger>
-            <TabsTrigger value="rejected" data-testid="tab-rejected">
+            <TabsTrigger value="rejected" data-testid="tab-rejected" className="data-[state=active]:bg-slate-600 data-[state=active]:text-white text-slate-300">
               Reddedilen ({summaryData?.summary.rejected || 0})
             </TabsTrigger>
           </TabsList>
           
           <TabsContent value={selectedTab}>
             {isLoading ? (
-              <div className="text-center py-8 text-muted-foreground">Yükleniyor...</div>
-            ) : (changesData?.changes.length || 0) === 0 ? (
-              <div className="text-center py-8 text-muted-foreground">
+              <div className="text-center py-8 text-slate-300">Yükleniyor...</div>
+            ) : groupedChanges.individual.length === 0 && groupedChanges.grouped.length === 0 ? (
+              <div className="text-center py-8 text-slate-300">
                 {selectedTab === 'pending' 
-                  ? 'Bekleyen değişiklik yok' 
+                  ? 'Kritik bekleyen değişiklik yok (sadece fiyat değişiklikleri, stok biten ve kaldırılan ürünler gösteriliyor)' 
                   : selectedTab === 'approved' 
-                    ? 'Onaylanmış değişiklik yok' 
-                    : 'Reddedilmiş değişiklik yok'}
+                    ? 'Onaylanmış kritik değişiklik yok' 
+                    : 'Reddedilmiş kritik değişiklik yok'}
               </div>
             ) : (
-              <div className="rounded-md border bg-white dark:bg-slate-900">
+              <div className="rounded-md border border-slate-700 bg-slate-800">
                 <Table>
-                  <TableHeader className="bg-slate-50 dark:bg-slate-800">
-                    <TableRow className="border-b border-slate-200 dark:border-slate-700">
+                  <TableHeader className="bg-slate-700">
+                    <TableRow className="border-b border-slate-600">
                       {selectedTab === 'pending' && (
-                        <TableHead className="w-12 text-sm font-medium text-slate-900 dark:text-white">
+                        <TableHead className="w-12 text-sm font-medium text-white">
                           <input
                             type="checkbox"
                             checked={selectedChanges.length === changesData?.changes.length}
@@ -421,18 +429,18 @@ export function PendingChangesPanel() {
                           />
                         </TableHead>
                       )}
-                      <TableHead className="text-sm font-medium text-slate-900 dark:text-white">Tip</TableHead>
-                      <TableHead className="text-sm font-medium text-slate-900 dark:text-white">Ürün</TableHead>
-                      <TableHead className="text-sm font-medium text-slate-900 dark:text-white">Varyant</TableHead>
-                      <TableHead className="text-sm font-medium text-slate-900 dark:text-white">Değişiklik</TableHead>
-                      <TableHead className="text-sm font-medium text-slate-900 dark:text-white">Tarih</TableHead>
-                      {selectedTab === 'pending' && <TableHead className="text-right text-sm font-medium text-slate-900 dark:text-white">İşlem</TableHead>}
+                      <TableHead className="text-sm font-medium text-white">Tip</TableHead>
+                      <TableHead className="text-sm font-medium text-white">Ürün</TableHead>
+                      <TableHead className="text-sm font-medium text-white">Varyant</TableHead>
+                      <TableHead className="text-sm font-medium text-white">Değişiklik</TableHead>
+                      <TableHead className="text-sm font-medium text-white">Tarih</TableHead>
+                      {selectedTab === 'pending' && <TableHead className="text-right text-sm font-medium text-white">İşlem</TableHead>}
                     </TableRow>
                   </TableHeader>
-                  <TableBody className="bg-white dark:bg-slate-900">
+                  <TableBody className="bg-slate-800">
                     {/* Render individual (non-variant) changes */}
                     {groupedChanges.individual.map((change) => (
-                      <TableRow key={change.id} data-testid={`row-change-${change.id}`} className="border-b border-slate-200 dark:border-slate-700">
+                      <TableRow key={change.id} data-testid={`row-change-${change.id}`} className="border-b border-slate-700 hover:bg-slate-700/50">
                         {selectedTab === 'pending' && (
                           <TableCell>
                             <input
@@ -443,27 +451,27 @@ export function PendingChangesPanel() {
                             />
                           </TableCell>
                         )}
-                        <TableCell className="text-sm text-slate-900 dark:text-white">
+                        <TableCell className="text-sm text-slate-200">
                           <div className="flex items-center gap-2">
                             {getChangeIcon(change.changeType)}
                             {getChangeBadge(change.changeType)}
                           </div>
                         </TableCell>
-                        <TableCell className="font-medium text-sm max-w-xs truncate text-slate-900 dark:text-white">
+                        <TableCell className="font-medium text-sm max-w-xs truncate text-white">
                           {change.productTitle}
                         </TableCell>
-                        <TableCell className="text-sm text-slate-900 dark:text-white">
+                        <TableCell className="text-sm text-slate-200">
                           {change.color || change.size ? (
                             <div className="space-y-0.5">
-                              {change.color && <div className="font-medium text-sm text-slate-900 dark:text-white">{change.color}</div>}
-                              {change.size && <div className="text-xs text-slate-400 dark:text-slate-400">{change.size}</div>}
+                              {change.color && <div className="font-medium text-sm text-white">{change.color}</div>}
+                              {change.size && <div className="text-xs text-slate-400">{change.size}</div>}
                             </div>
                           ) : (
-                            <span className="text-slate-500 dark:text-slate-400 text-sm">-</span>
+                            <span className="text-slate-400 text-sm">-</span>
                           )}
                         </TableCell>
-                        <TableCell className="text-sm text-slate-900 dark:text-white">{getChangeDetails(change)}</TableCell>
-                        <TableCell className="text-xs text-slate-400 dark:text-slate-400 whitespace-nowrap">
+                        <TableCell className="text-sm text-slate-200">{getChangeDetails(change)}</TableCell>
+                        <TableCell className="text-xs text-slate-400 whitespace-nowrap">
                           {new Date(change.createdAt).toLocaleString('tr-TR')}
                         </TableCell>
                         {selectedTab === 'pending' && (
@@ -505,7 +513,7 @@ export function PendingChangesPanel() {
                         {/* Main product row with expand/collapse trigger */}
                         <CollapsibleTrigger asChild>
                           <TableRow 
-                            className="border-b border-slate-200 dark:border-slate-700 hover:bg-slate-50 dark:hover:bg-slate-800 cursor-pointer"
+                            className="border-b border-slate-700 hover:bg-slate-700/50 cursor-pointer"
                             data-testid={`row-variant-group-${group.productId}`}
                           >
                             {selectedTab === 'pending' && (
@@ -525,20 +533,20 @@ export function PendingChangesPanel() {
                                 />
                               </TableCell>
                             )}
-                            <TableCell className="text-sm text-slate-900 dark:text-white" colSpan={selectedTab === 'pending' ? 1 : 2}>
+                            <TableCell className="text-sm text-slate-200" colSpan={selectedTab === 'pending' ? 1 : 2}>
                               <div className="flex items-center gap-2">
                                 {expandedProducts.has(groupKey) ? (
-                                  <ChevronDown className="h-4 w-4 text-slate-500 dark:text-slate-400" />
+                                  <ChevronDown className="h-4 w-4 text-slate-400" />
                                 ) : (
-                                  <ChevronRight className="h-4 w-4 text-slate-500 dark:text-slate-400" />
+                                  <ChevronRight className="h-4 w-4 text-slate-400" />
                                 )}
-                                <Package className="h-4 w-4 text-slate-500 dark:text-slate-400" />
-                                <Badge variant="secondary" className="bg-slate-200 text-slate-900 dark:bg-slate-700 dark:text-white">
+                                <Package className="h-4 w-4 text-slate-400" />
+                                <Badge variant="secondary" className="bg-slate-600 text-white">
                                   {group.changes.length} Varyant
                                 </Badge>
                               </div>
                             </TableCell>
-                            <TableCell className="font-medium text-sm max-w-xs truncate text-slate-900 dark:text-white" colSpan={selectedTab === 'pending' ? 5 : 4}>
+                            <TableCell className="font-medium text-sm max-w-xs truncate text-white" colSpan={selectedTab === 'pending' ? 5 : 4}>
                               {group.productTitle}
                             </TableCell>
                           </TableRow>
@@ -548,7 +556,7 @@ export function PendingChangesPanel() {
                         <CollapsibleContent asChild>
                           <>
                             {group.changes.map((change) => (
-                              <TableRow key={change.id} data-testid={`row-change-${change.id}`} className="border-b border-slate-200 dark:border-slate-700 bg-slate-50 dark:bg-slate-800/50">
+                              <TableRow key={change.id} data-testid={`row-change-${change.id}`} className="border-b border-slate-700 bg-slate-750 hover:bg-slate-700/70">
                                 {selectedTab === 'pending' && (
                                   <TableCell className="pl-8">
                                     <input
@@ -559,27 +567,27 @@ export function PendingChangesPanel() {
                                     />
                                   </TableCell>
                                 )}
-                                <TableCell className="text-sm text-slate-900 dark:text-white pl-8">
+                                <TableCell className="text-sm text-slate-200 pl-8">
                                   <div className="flex items-center gap-2">
                                     {getChangeIcon(change.changeType)}
                                     {getChangeBadge(change.changeType)}
                                   </div>
                                 </TableCell>
-                                <TableCell className="text-xs text-slate-600 dark:text-slate-300">
+                                <TableCell className="text-xs text-slate-300">
                                   {change.productTitle}
                                 </TableCell>
-                                <TableCell className="text-sm text-slate-900 dark:text-white">
+                                <TableCell className="text-sm text-slate-200">
                                   {change.color || change.size ? (
                                     <div className="space-y-0.5">
-                                      {change.color && <div className="font-medium text-sm text-slate-900 dark:text-white">{change.color}</div>}
-                                      {change.size && <div className="text-xs text-slate-400 dark:text-slate-400">{change.size}</div>}
+                                      {change.color && <div className="font-medium text-sm text-white">{change.color}</div>}
+                                      {change.size && <div className="text-xs text-slate-400">{change.size}</div>}
                                     </div>
                                   ) : (
-                                    <span className="text-slate-500 dark:text-slate-400 text-sm">-</span>
+                                    <span className="text-slate-400 text-sm">-</span>
                                   )}
                                 </TableCell>
-                                <TableCell className="text-sm text-slate-900 dark:text-white">{getChangeDetails(change)}</TableCell>
-                                <TableCell className="text-xs text-slate-400 dark:text-slate-400 whitespace-nowrap">
+                                <TableCell className="text-sm text-slate-200">{getChangeDetails(change)}</TableCell>
+                                <TableCell className="text-xs text-slate-400 whitespace-nowrap">
                                   {new Date(change.createdAt).toLocaleString('tr-TR')}
                                 </TableCell>
                                 {selectedTab === 'pending' && (
