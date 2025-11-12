@@ -7,33 +7,61 @@ import { productEligibilityService } from './product-eligibility-service';
 
 const router = Router();
 
-// Get all pending changes
+// Get all pending changes - ONLY for products in Shopify memory
 router.get('/api/pending-changes', async (req, res) => {
   try {
     const { status = 'pending', productId, limit = '50', offset = '0' } = req.query;
+    
+    // ⚡ NEW: Join with products and shopifyMemoryProducts to filter Shopify-only changes
+    const query = db
+      .select({
+        id: pendingChanges.id,
+        productId: pendingChanges.productId,
+        productTitle: pendingChanges.productTitle,
+        changeType: pendingChanges.changeType,
+        status: pendingChanges.status,
+        color: pendingChanges.color,
+        size: pendingChanges.size,
+        oldPrice: pendingChanges.oldPrice,
+        newPrice: pendingChanges.newPrice,
+        priceChange: pendingChanges.priceChange,
+        priceChangePercent: pendingChanges.priceChangePercent,
+        oldStock: pendingChanges.oldStock,
+        newStock: pendingChanges.newStock,
+        stockChange: pendingChanges.stockChange,
+        createdAt: pendingChanges.createdAt,
+        url: pendingChanges.url,
+        // Enrich with Shopify data
+        shopifyProductId: shopifyMemoryProducts.shopifyProductId,
+        shopifyVariantId: shopifyMemoryProducts.shopifyVariantId,
+        uniqueTrackingId: products.uniqueTrackingId
+      })
+      .from(pendingChanges)
+      .innerJoin(products, eq(pendingChanges.productId, products.id))
+      .innerJoin(shopifyMemoryProducts, eq(products.uniqueTrackingId, shopifyMemoryProducts.uniqueTrackingId));
     
     const conditions = [];
     if (status) conditions.push(eq(pendingChanges.status, status as string));
     if (productId) conditions.push(eq(pendingChanges.productId, parseInt(productId as string)));
     
-    const changes = await db
-      .select()
-      .from(pendingChanges)
+    const changes = await query
       .where(conditions.length > 0 ? and(...conditions) : undefined)
       .orderBy(desc(pendingChanges.createdAt))
       .limit(parseInt(limit as string))
       .offset(parseInt(offset as string));
     
-    const total = await db
-      .select()
+    const totalCount = await db
+      .select({ count: sql<number>`count(*)` })
       .from(pendingChanges)
+      .innerJoin(products, eq(pendingChanges.productId, products.id))
+      .innerJoin(shopifyMemoryProducts, eq(products.uniqueTrackingId, shopifyMemoryProducts.uniqueTrackingId))
       .where(conditions.length > 0 ? and(...conditions) : undefined);
     
     res.json({
       success: true,
       changes,
       pagination: {
-        total: total.length,
+        total: totalCount[0]?.count || 0,
         limit: parseInt(limit as string),
         offset: parseInt(offset as string)
       }
@@ -44,23 +72,32 @@ router.get('/api/pending-changes', async (req, res) => {
   }
 });
 
-// Get pending changes summary
+// Get pending changes summary - ONLY for Shopify products
 router.get('/api/pending-changes/summary', async (req, res) => {
   try {
-    const allChanges = await db.select().from(pendingChanges);
+    // Only count changes for products in Shopify memory
+    const shopifyChanges = await db
+      .select({
+        id: pendingChanges.id,
+        status: pendingChanges.status,
+        changeType: pendingChanges.changeType
+      })
+      .from(pendingChanges)
+      .innerJoin(products, eq(pendingChanges.productId, products.id))
+      .innerJoin(shopifyMemoryProducts, eq(products.uniqueTrackingId, shopifyMemoryProducts.uniqueTrackingId));
     
     const summary = {
-      total: allChanges.length,
-      pending: allChanges.filter(c => c.status === 'pending').length,
-      approved: allChanges.filter(c => c.status === 'approved').length,
-      rejected: allChanges.filter(c => c.status === 'rejected').length,
+      total: shopifyChanges.length,
+      pending: shopifyChanges.filter(c => c.status === 'pending').length,
+      approved: shopifyChanges.filter(c => c.status === 'approved').length,
+      rejected: shopifyChanges.filter(c => c.status === 'rejected').length,
       byType: {
-        price_increase: allChanges.filter(c => c.changeType === 'price_increase').length,
-        price_decrease: allChanges.filter(c => c.changeType === 'price_decrease').length,
-        stock_out: allChanges.filter(c => c.changeType === 'stock_out').length,
-        stock_in: allChanges.filter(c => c.changeType === 'stock_in').length,
-        variant_added: allChanges.filter(c => c.changeType === 'variant_added').length,
-        variant_removed: allChanges.filter(c => c.changeType === 'variant_removed').length
+        price_increase: shopifyChanges.filter(c => c.changeType === 'price_increase').length,
+        price_decrease: shopifyChanges.filter(c => c.changeType === 'price_decrease').length,
+        stock_out: shopifyChanges.filter(c => c.changeType === 'stock_out').length,
+        stock_in: shopifyChanges.filter(c => c.changeType === 'stock_in').length,
+        variant_added: shopifyChanges.filter(c => c.changeType === 'variant_added').length,
+        variant_removed: shopifyChanges.filter(c => c.changeType === 'variant_removed').length
       }
     };
     
@@ -68,6 +105,62 @@ router.get('/api/pending-changes/summary', async (req, res) => {
   } catch (error) {
     console.error('❌ Error fetching pending changes summary:', error);
     res.status(500).json({ error: 'Failed to fetch summary' });
+  }
+});
+
+// Clean up old pending changes not in Shopify memory (ADMIN ONLY)
+router.post('/api/pending-changes/cleanup', async (req, res) => {
+  try {
+    // ⚠️ ADMIN AUTHENTICATION REQUIRED
+    const { adminSecret, dryRun = true } = req.body;
+    
+    if (adminSecret !== process.env.ADMIN_SECRET) {
+      return res.status(403).json({ error: 'Unauthorized: Admin access required' });
+    }
+    
+    console.log(`🧹 Starting cleanup of old pending changes (dryRun: ${dryRun})...`);
+    
+    // SAFE: Only delete PENDING status changes with no Shopify product
+    const orphanedChanges = await db
+      .select({ 
+        id: pendingChanges.id,
+        productTitle: pendingChanges.productTitle,
+        changeType: pendingChanges.changeType,
+        status: pendingChanges.status,
+        createdAt: pendingChanges.createdAt
+      })
+      .from(pendingChanges)
+      .leftJoin(products, eq(pendingChanges.productId, products.id))
+      .leftJoin(shopifyMemoryProducts, eq(products.uniqueTrackingId, shopifyMemoryProducts.uniqueTrackingId))
+      .where(and(
+        eq(pendingChanges.status, 'pending'), // ONLY pending status
+        sql`${shopifyMemoryProducts.shopifyProductId} IS NULL` // No Shopify product
+      ));
+    
+    console.log(`Found ${orphanedChanges.length} orphaned PENDING changes`);
+    
+    if (!dryRun && orphanedChanges.length > 0) {
+      const orphanedIds = orphanedChanges.map(c => c.id);
+      
+      // ✅ SAFE DELETE: Only pending status, no Shopify product
+      await db.delete(pendingChanges).where(inArray(pendingChanges.id, orphanedIds));
+      
+      console.log(`✅ Deleted ${orphanedChanges.length} orphaned pending changes`);
+    }
+    
+    res.json({
+      success: true,
+      dryRun,
+      found: orphanedChanges.length,
+      deleted: dryRun ? 0 : orphanedChanges.length,
+      sample: orphanedChanges.slice(0, 10), // Show first 10 for verification
+      message: dryRun 
+        ? `DRY RUN: Would delete ${orphanedChanges.length} orphaned pending changes`
+        : `Deleted ${orphanedChanges.length} orphaned pending changes`
+    });
+  } catch (error) {
+    console.error('❌ Cleanup error:', error);
+    res.status(500).json({ error: 'Cleanup failed' });
   }
 });
 
@@ -256,229 +349,8 @@ router.post('/api/pending-changes/:id/reject', async (req, res) => {
   }
 });
 
-// Removed: sendApprovalNotification - now handled by PendingChangeProcessor
+// ⚠️ REMOVED UNSAFE ENDPOINTS: cleanup-orphaned and comprehensive-cleanup
+// Use the secure /api/pending-changes/cleanup endpoint with admin authentication instead
 
-// Clean up orphaned pending changes (not in Shopify)
-router.post('/api/pending-changes/cleanup-orphaned', async (req, res) => {
-  try {
-    console.log('🗑️ Starting orphaned pending changes cleanup...');
-    
-    // Transaction kullanarak güvenli silme
-    const result = await db.transaction(async (tx) => {
-      // 1. Önce silinecek kayıtları say
-      const orphanedChanges = await tx
-        .select({ id: pendingChanges.id })
-        .from(pendingChanges)
-        .where(
-          and(
-            eq(pendingChanges.status, 'pending'),
-            isNotNull(pendingChanges.productId),
-            sql`NOT EXISTS (
-              SELECT 1 
-              FROM ${products} p
-              INNER JOIN ${shopifyMemoryProducts} smp 
-                ON p.unique_tracking_id = smp.unique_tracking_id
-              WHERE p.id = ${pendingChanges.productId}
-                AND p.unique_tracking_id IS NOT NULL
-                AND smp.unique_tracking_id IS NOT NULL
-            )`
-          )
-        );
-      
-      const orphanedCount = orphanedChanges.length;
-      console.log(`📊 Found ${orphanedCount} orphaned pending changes`);
-      
-      if (orphanedCount === 0) {
-        return { deletedCount: 0 };
-      }
-      
-      // 2. Şimdi sil (sadece pending olanları)
-      await tx
-        .delete(pendingChanges)
-        .where(
-          and(
-            eq(pendingChanges.status, 'pending'),
-            isNotNull(pendingChanges.productId),
-            sql`NOT EXISTS (
-              SELECT 1 
-              FROM ${products} p
-              INNER JOIN ${shopifyMemoryProducts} smp 
-                ON p.unique_tracking_id = smp.unique_tracking_id
-              WHERE p.id = ${pendingChanges.productId}
-                AND p.unique_tracking_id IS NOT NULL
-                AND smp.unique_tracking_id IS NOT NULL
-            )`
-          )
-        );
-      
-      console.log(`✅ Deleted ${orphanedCount} orphaned pending changes`);
-      return { deletedCount: orphanedCount };
-    });
-    
-    res.json({
-      success: true,
-      message: `Successfully cleaned up ${result.deletedCount} orphaned pending changes`,
-      deletedCount: result.deletedCount
-    });
-  } catch (error) {
-    console.error('❌ Error cleaning up orphaned changes:', error);
-    res.status(500).json({ error: 'Failed to cleanup orphaned changes' });
-  }
-});
-
-// Comprehensive cleanup: Delete all products NOT in Shopify
-router.post('/api/pending-changes/comprehensive-cleanup', async (req, res) => {
-  try {
-    console.log('🗑️ Starting comprehensive cleanup (delete products not in Shopify)...');
-    
-    const result = await db.transaction(async (tx) => {
-      // 1. Get all uniqueTrackingIds from Shopify
-      const shopifyTrackingIds = await tx
-        .select({ uniqueTrackingId: shopifyMemoryProducts.uniqueTrackingId })
-        .from(shopifyMemoryProducts)
-        .where(isNotNull(shopifyMemoryProducts.uniqueTrackingId));
-      
-      console.log(`📊 Found ${shopifyTrackingIds.length} products in Shopify memory`);
-      
-      if (shopifyTrackingIds.length === 0) {
-        console.log('⚠️ No products in Shopify memory, aborting cleanup to prevent data loss');
-        return {
-          deletedProducts: 0,
-          deletedVariants: 0,
-          deletedPendingChanges: 0,
-          deletedPriceHistory: 0,
-          deletedStockHistory: 0,
-          error: 'No products found in Shopify memory'
-        };
-      }
-      
-      const shopifyTrackingIdSet = new Set(
-        shopifyTrackingIds
-          .map(row => row.uniqueTrackingId)
-          .filter(id => id !== null && id !== undefined)
-      );
-      
-      // 2. Find products NOT in Shopify (orphaned products)
-      const orphanedProducts = await tx
-        .select({ 
-          id: products.id,
-          uniqueTrackingId: products.uniqueTrackingId,
-          title: products.title
-        })
-        .from(products)
-        .where(
-          and(
-            isNotNull(products.uniqueTrackingId),
-            sql`${products.uniqueTrackingId} NOT IN (
-              SELECT unique_tracking_id 
-              FROM ${shopifyMemoryProducts} 
-              WHERE unique_tracking_id IS NOT NULL
-            )`
-          )
-        );
-      
-      console.log(`📊 Found ${orphanedProducts.length} orphaned products to delete`);
-      
-      if (orphanedProducts.length === 0) {
-        return {
-          deletedProducts: 0,
-          deletedVariants: 0,
-          deletedPendingChanges: 0,
-          deletedPriceHistory: 0,
-          deletedStockHistory: 0
-        };
-      }
-      
-      // 3. Count related records before deletion (for statistics)
-      const orphanedProductIds = orphanedProducts.map(p => p.id);
-      
-      const variantsCount = await tx
-        .select({ count: sql<number>`count(*)` })
-        .from(productVariants)
-        .where(inArray(productVariants.productId, orphanedProductIds));
-      
-      const pendingChangesCount = await tx
-        .select({ count: sql<number>`count(*)` })
-        .from(pendingChanges)
-        .where(
-          and(
-            inArray(pendingChanges.productId, orphanedProductIds),
-            eq(pendingChanges.status, 'pending')
-          )
-        );
-      
-      // Get variant IDs for price/stock history count
-      const variantIds = await tx
-        .select({ id: productVariants.id })
-        .from(productVariants)
-        .where(inArray(productVariants.productId, orphanedProductIds));
-      
-      const variantIdList = variantIds.map(v => v.id);
-      
-      let priceHistoryCount = 0;
-      let stockHistoryCount = 0;
-      
-      if (variantIdList.length > 0) {
-        const priceHistoryRecords = await tx
-          .select({ count: sql<number>`count(*)` })
-          .from(priceHistory)
-          .where(inArray(priceHistory.variantId, variantIdList));
-        
-        const stockHistoryRecords = await tx
-          .select({ count: sql<number>`count(*)` })
-          .from(stockHistory)
-          .where(inArray(stockHistory.variantId, variantIdList));
-        
-        priceHistoryCount = Number(priceHistoryRecords[0]?.count || 0);
-        stockHistoryCount = Number(stockHistoryRecords[0]?.count || 0);
-      }
-      
-      // 4. Delete orphaned products (CASCADE will delete all related records)
-      await tx
-        .delete(products)
-        .where(inArray(products.id, orphanedProductIds));
-      
-      console.log(`✅ Deleted ${orphanedProducts.length} products and all related records`);
-      
-      return {
-        deletedProducts: orphanedProducts.length,
-        deletedVariants: Number(variantsCount[0]?.count || 0),
-        deletedPendingChanges: Number(pendingChangesCount[0]?.count || 0),
-        deletedPriceHistory: priceHistoryCount,
-        deletedStockHistory: stockHistoryCount,
-        deletedProductTitles: orphanedProducts.slice(0, 10).map(p => p.title) // First 10 for reference
-      };
-    });
-    
-    // 🔄 Disable orphaned tracking after cleanup
-    console.log('🔄 Disabling ineligible URL trackers...');
-    const trackingResult = await productEligibilityService.disableIneligibleTrackers();
-    console.log(`⏸️ Disabled ${trackingResult.disabled} orphaned trackers`);
-    
-    // 🔄 Re-enable trackers that are now back in Shopify
-    console.log('🔄 Reconciling trackers with current Shopify state...');
-    const reconcileResult = await productEligibilityService.reconcileTrackers();
-    console.log(`▶️ Re-enabled ${reconcileResult.reEnabled} trackers`);
-    
-    // Invalidate cache after cleanup
-    productEligibilityService.invalidateCache();
-    
-    res.json({
-      success: true,
-      message: `Comprehensive cleanup completed`,
-      stats: {
-        ...result,
-        disabledTrackers: trackingResult.disabled,
-        reEnabledTrackers: reconcileResult.reEnabled
-      }
-    });
-  } catch (error) {
-    console.error('❌ Error in comprehensive cleanup:', error);
-    res.status(500).json({ 
-      error: 'Failed to perform comprehensive cleanup',
-      details: error instanceof Error ? error.message : 'Unknown error'
-    });
-  }
-});
 
 export default router;
