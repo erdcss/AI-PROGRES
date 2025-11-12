@@ -271,14 +271,17 @@ export function PendingChangesPanel() {
   // Smart filtering: Only show critical changes
   const CRITICAL_CHANGE_TYPES = ['price_increase', 'price_decrease', 'stock_out', 'variant_removed'];
   
-  // Group variant changes by productId (stable identifier) with smart filtering
-  const groupedChanges = useMemo(() => {
-    if (!changesData?.changes) return { grouped: [], individual: [] };
-
-    // Filter to only critical changes
-    const criticalChanges = changesData.changes.filter(change => 
+  // Get filtered critical changes (use separate useMemo for select-all checkbox)
+  const criticalChanges = useMemo(() => {
+    if (!changesData?.changes) return [];
+    return changesData.changes.filter(change => 
       CRITICAL_CHANGE_TYPES.includes(change.changeType)
     );
+  }, [changesData]);
+
+  // Group variant changes by productId (stable identifier) with smart filtering
+  const groupedChanges = useMemo(() => {
+    if (criticalChanges.length === 0) return { grouped: [], individual: [] };
 
     const variantChangesByProductId = new Map<number, PendingChange[]>();
     const nonVariantChanges: PendingChange[] = [];
@@ -307,7 +310,7 @@ export function PendingChangesPanel() {
       grouped: groupedVariants,
       individual: nonVariantChanges
     };
-  }, [changesData]);
+  }, [criticalChanges]);
 
   return (
     <Card className="mt-6 bg-slate-800 dark:bg-slate-900 border-slate-700">
@@ -417,10 +420,10 @@ export function PendingChangesPanel() {
                         <TableHead className="w-12 text-sm font-medium text-white">
                           <input
                             type="checkbox"
-                            checked={selectedChanges.length === changesData?.changes.length}
+                            checked={criticalChanges.length > 0 && selectedChanges.length === criticalChanges.length}
                             onChange={(e) => {
                               if (e.target.checked) {
-                                setSelectedChanges(changesData?.changes.map(c => c.id) || []);
+                                setSelectedChanges(criticalChanges.map(c => c.id));
                               } else {
                                 setSelectedChanges([]);
                               }
