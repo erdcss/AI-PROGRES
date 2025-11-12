@@ -270,6 +270,7 @@ router.post('/api/pending-changes/cleanup-orphaned', async (req, res) => {
         .from(pendingChanges)
         .where(
           and(
+            eq(pendingChanges.status, 'pending'),
             isNotNull(pendingChanges.productId),
             sql`NOT EXISTS (
               SELECT 1 
@@ -290,11 +291,12 @@ router.post('/api/pending-changes/cleanup-orphaned', async (req, res) => {
         return { deletedCount: 0 };
       }
       
-      // 2. Şimdi sil
+      // 2. Şimdi sil (sadece pending olanları)
       await tx
         .delete(pendingChanges)
         .where(
           and(
+            eq(pendingChanges.status, 'pending'),
             isNotNull(pendingChanges.productId),
             sql`NOT EXISTS (
               SELECT 1 

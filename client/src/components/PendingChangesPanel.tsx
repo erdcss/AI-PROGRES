@@ -23,7 +23,8 @@ import {
   RefreshCw,
   CheckCheck,
   ChevronDown,
-  ChevronRight
+  ChevronRight,
+  Trash2
 } from 'lucide-react';
 import { useToast } from '@/hooks/use-toast';
 import { queryClient, apiRequest } from '@/lib/queryClient';
@@ -38,6 +39,17 @@ import {
   CollapsibleContent,
   CollapsibleTrigger,
 } from "@/components/ui/collapsible";
+import {
+  AlertDialog,
+  AlertDialogAction,
+  AlertDialogCancel,
+  AlertDialogContent,
+  AlertDialogDescription,
+  AlertDialogFooter,
+  AlertDialogHeader,
+  AlertDialogTitle,
+  AlertDialogTrigger,
+} from "@/components/ui/alert-dialog";
 import { motion, AnimatePresence } from 'framer-motion';
 
 interface PendingChange {
@@ -230,6 +242,29 @@ export function PendingChangesPanel() {
     }
   });
 
+  // Cleanup orphaned changes mutation
+  const cleanupMutation = useMutation({
+    mutationFn: async () => {
+      const res = await apiRequest('POST', '/api/pending-changes/cleanup-orphaned', {});
+      return res.json();
+    },
+    onSuccess: (data: any) => {
+      toast({
+        title: "✅ Temizlik tamamlandı",
+        description: `${data.deletedCount || 0} Shopify'da olmayan ürüne ait değişiklik silindi`
+      });
+      queryClient.invalidateQueries({ queryKey: ['/api/pending-changes'] });
+      queryClient.invalidateQueries({ queryKey: ['/api/pending-changes/summary'] });
+    },
+    onError: (error: any) => {
+      toast({
+        title: "❌ Temizlik hatası",
+        description: error.message || "Temizlik sırasında hata oluştu",
+        variant: "destructive"
+      });
+    }
+  });
+
   const getChangeIcon = (changeType: string) => {
     switch (changeType) {
       case 'price_increase': return <TrendingUp className="h-4 w-4 text-red-500" />;
@@ -386,6 +421,37 @@ export function PendingChangesPanel() {
                 {selectedChanges.length} Değişikliği Onayla
               </Button>
             )}
+            <AlertDialog>
+              <AlertDialogTrigger asChild>
+                <Button
+                  size="sm"
+                  variant="destructive"
+                  disabled={cleanupMutation.isPending}
+                  data-testid="button-cleanup-orphaned"
+                >
+                  <Trash2 className="h-4 w-4 mr-2" />
+                  Temizle
+                </Button>
+              </AlertDialogTrigger>
+              <AlertDialogContent className="bg-slate-800 border-slate-700">
+                <AlertDialogHeader>
+                  <AlertDialogTitle className="text-white">Shopify'da Olmayan Değişiklikleri Sil</AlertDialogTitle>
+                  <AlertDialogDescription className="text-slate-300">
+                    Bu işlem, Shopify'da artık bulunmayan ürünlere ait tüm bekleyen değişiklikleri silecek. 
+                    Bu işlem geri alınamaz.
+                  </AlertDialogDescription>
+                </AlertDialogHeader>
+                <AlertDialogFooter>
+                  <AlertDialogCancel className="bg-slate-700 text-white hover:bg-slate-600">İptal</AlertDialogCancel>
+                  <AlertDialogAction 
+                    onClick={() => cleanupMutation.mutate()}
+                    className="bg-red-600 hover:bg-red-700"
+                  >
+                    Temizle
+                  </AlertDialogAction>
+                </AlertDialogFooter>
+              </AlertDialogContent>
+            </AlertDialog>
             <Button
               size="sm"
               variant="outline"
