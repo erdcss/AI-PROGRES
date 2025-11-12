@@ -1,7 +1,7 @@
 import { Router } from 'express';
 import { db } from './db';
-import { pendingChanges, productVariants, priceHistory, stockHistory, variantChanges } from '../shared/schema';
-import { eq, and, desc, inArray } from 'drizzle-orm';
+import { pendingChanges, productVariants, priceHistory, stockHistory, variantChanges, products, shopifyMemoryProducts } from '../shared/schema';
+import { eq, and, desc, inArray, isNotNull, sql } from 'drizzle-orm';
 import { pendingChangeProcessor } from './pending-change-processor';
 
 const router = Router();
@@ -256,5 +256,71 @@ router.post('/api/pending-changes/:id/reject', async (req, res) => {
 });
 
 // Removed: sendApprovalNotification - now handled by PendingChangeProcessor
+
+// Clean up orphaned pending changes (not in Shopify)
+router.post('/api/pending-changes/cleanup-orphaned', async (req, res) => {
+  try {
+    console.log('🗑️ Starting orphaned pending changes cleanup...');
+    
+    // Transaction kullanarak güvenli silme
+    const result = await db.transaction(async (tx) => {
+      // 1. Önce silinecek kayıtları say
+      const orphanedChanges = await tx
+        .select({ id: pendingChanges.id })
+        .from(pendingChanges)
+        .where(
+          and(
+            isNotNull(pendingChanges.productId),
+            sql`NOT EXISTS (
+              SELECT 1 
+              FROM ${products} p
+              INNER JOIN ${shopifyMemoryProducts} smp 
+                ON p.unique_tracking_id = smp.unique_tracking_id
+              WHERE p.id = ${pendingChanges.productId}
+                AND p.unique_tracking_id IS NOT NULL
+                AND smp.unique_tracking_id IS NOT NULL
+            )`
+          )
+        );
+      
+      const orphanedCount = orphanedChanges.length;
+      console.log(`📊 Found ${orphanedCount} orphaned pending changes`);
+      
+      if (orphanedCount === 0) {
+        return { deletedCount: 0 };
+      }
+      
+      // 2. Şimdi sil
+      await tx
+        .delete(pendingChanges)
+        .where(
+          and(
+            isNotNull(pendingChanges.productId),
+            sql`NOT EXISTS (
+              SELECT 1 
+              FROM ${products} p
+              INNER JOIN ${shopifyMemoryProducts} smp 
+                ON p.unique_tracking_id = smp.unique_tracking_id
+              WHERE p.id = ${pendingChanges.productId}
+                AND p.unique_tracking_id IS NOT NULL
+                AND smp.unique_tracking_id IS NOT NULL
+            )`
+          )
+        );
+      
+      console.log(`✅ Deleted ${orphanedCount} orphaned pending changes`);
+      return { deletedCount: orphanedCount };
+    });
+    
+    res.json({
+      success: true,
+      message: `Successfully cleaned up ${result.deletedCount} orphaned pending changes`,
+      deletedCount: result.deletedCount
+    });
+  } catch (error) {
+    console.error('❌ Error cleaning up orphaned changes:', error);
+    res.status(500).json({ error: 'Failed to cleanup orphaned changes' });
+  }
+});
 
 export default router;
