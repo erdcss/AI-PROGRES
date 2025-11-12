@@ -276,6 +276,27 @@ export class UrlTrackingService {
     this.trackingIntervals.set(url, interval);
   }
 
+  async restartTrackerById(trackerId: number) {
+    try {
+      const [tracker] = await db.select().from(urlTracking).where(eq(urlTracking.id, trackerId));
+      
+      if (!tracker) {
+        console.log(`⚠️ Tracker not found: ID ${trackerId}`);
+        return;
+      }
+      
+      if (!tracker.isTracking) {
+        console.log(`⚠️ Tracker ${trackerId} is not set to track (isTracking=false)`);
+        return;
+      }
+      
+      console.log(`🔄 Restarting tracker ${trackerId}: ${tracker.url}`);
+      await this.startTracking(tracker.url, tracker.trackingInterval || 300);
+    } catch (error) {
+      console.error(`❌ Error restarting tracker ${trackerId}:`, error);
+    }
+  }
+
   stopTracking(url: string) {
     const interval = this.trackingIntervals.get(url);
     if (interval) {

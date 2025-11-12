@@ -75,6 +75,17 @@ export class MonitoringService {
       // 🔄 CACHE REFRESH: Invalidate cache before each cycle to get fresh Shopify data
       productEligibilityService.invalidateCache();
       
+      // 🔄 RECONCILIATION: Re-enable paused trackers that are now back in Shopify
+      const reconcileResult = await productEligibilityService.reconcileTrackers();
+      if (reconcileResult.reEnabled > 0) {
+        console.log(`▶️ Reconciled: ${reconcileResult.reEnabled} trackers re-enabled`);
+        // Restart tracking for re-enabled trackers
+        const { urlTrackingService } = await import('./url-tracking-service');
+        for (const trackerId of reconcileResult.trackerIds) {
+          await urlTrackingService.restartTrackerById(trackerId);
+        }
+      }
+      
       // ✅ SHOPIFY ELIGIBILITY CHECK: Sadece Shopify'da olan ürünleri al
       const trackedProducts = await productEligibilityService.listEligibleTrackers();
 
