@@ -5858,6 +5858,59 @@ ${(result.title || 'product').toLowerCase().replace(/[^a-z0-9]/g, '-')},${result
     }
   });
 
+  // Shopify senkronizasyon - silinen ürünleri temizle
+  app.post('/api/shopify/sync-deleted-products', async (req, res) => {
+    try {
+      console.log('🔄 Shopify sync başlatılıyor...');
+      
+      // Get all products from database
+      const allProducts = await db
+        .select()
+        .from(shopifyTransferredProducts);
+      
+      console.log(`📊 Database'de ${allProducts.length} ürün bulundu`);
+      
+      // Manual cleanup: Mark products as inactive if needed
+      // TODO: Implement Shopify Admin API integration to check actual product status
+      // For now, this is a placeholder for manual cleanup
+      
+      res.json({
+        success: true,
+        message: 'Shopify Admin API entegrasyonu gerekiyor. Manuel temizleme için ürünleri tek tek silebilirsiniz.',
+        totalProducts: allProducts.length,
+        note: 'Shopify Admin API credentials eklendiğinde otomatik senkronizasyon aktif olacak'
+      });
+    } catch (error) {
+      console.error('❌ Shopify sync hatası:', error);
+      res.status(500).json({
+        success: false,
+        error: 'Senkronizasyon hatası'
+      });
+    }
+  });
+  
+  // Ürün silme endpoint'i
+  app.delete('/api/shopify/transferred-products/:id', async (req, res) => {
+    try {
+      const id = parseInt(req.params.id);
+      
+      await db
+        .delete(shopifyTransferredProducts)
+        .where(eq(shopifyTransferredProducts.id, id));
+      
+      res.json({
+        success: true,
+        message: 'Ürün başarıyla silindi'
+      });
+    } catch (error) {
+      console.error('❌ Ürün silme hatası:', error);
+      res.status(500).json({
+        success: false,
+        error: 'Ürün silinemedi'
+      });
+    }
+  });
+
   console.log('📦 Shopify transfer tracking API endpoints registered');
 
   // AI-Powered Routes Integration

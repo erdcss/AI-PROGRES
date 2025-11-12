@@ -1,5 +1,7 @@
 import React, { useState, useEffect } from 'react';
-import { useQuery } from '@tanstack/react-query';
+import { useQuery, useMutation } from '@tanstack/react-query';
+import { useToast } from '@/hooks/use-toast';
+import { queryClient } from '@/lib/queryClient';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
@@ -12,7 +14,9 @@ import {
   CheckCircle,
   RefreshCw,
   BarChart3,
-  Activity
+  Activity,
+  Trash2,
+  ArrowRightLeft
 } from 'lucide-react';
 
 interface ShopifyProduct {
@@ -61,6 +65,7 @@ interface ProductChange {
 
 export default function ShopifyTrackingPage() {
   const [activeTab, setActiveTab] = useState('overview');
+  const { toast } = useToast();
 
   // Shopify transfer listesi
   const { data: productsData, refetch: refetchProducts, isLoading: productsLoading } = useQuery({
@@ -96,6 +101,56 @@ export default function ShopifyTrackingPage() {
     refetchStats();
     refetchChanges();
   };
+  
+  // Delete product mutation
+  const deleteMutation = useMutation({
+    mutationFn: async (productId: number) => {
+      const res = await fetch(`/api/shopify/transferred-products/${productId}`, {
+        method: 'DELETE'
+      });
+      if (!res.ok) throw new Error('Failed to delete product');
+      return res.json();
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ['/api/shopify/transferred-products'] });
+      queryClient.invalidateQueries({ queryKey: ['/api/shopify/transfer-stats'] });
+      toast({
+        title: 'Başarılı',
+        description: 'Ürün silindi'
+      });
+    },
+    onError: () => {
+      toast({
+        title: 'Hata',
+        description: 'Ürün silinemedi',
+        variant: 'destructive'
+      });
+    }
+  });
+  
+  // Sync mutation
+  const syncMutation = useMutation({
+    mutationFn: async () => {
+      const res = await fetch('/api/shopify/sync-deleted-products', {
+        method: 'POST'
+      });
+      if (!res.ok) throw new Error('Sync failed');
+      return res.json();
+    },
+    onSuccess: (data) => {
+      toast({
+        title: 'Bilgi',
+        description: data.message || 'Senkronizasyon tamamlandı'
+      });
+    },
+    onError: () => {
+      toast({
+        title: 'Hata',
+        description: 'Senkronizasyon başarısız',
+        variant: 'destructive'
+      });
+    }
+  });
 
   const getStatusColor = (status: string) => {
     switch (status) {
@@ -144,10 +199,21 @@ export default function ShopifyTrackingPage() {
             Shopify'a aktarılan ürünlerin anlık takibi ve değişiklik izleme
           </p>
         </div>
-        <Button onClick={handleRefreshAll} className="flex items-center gap-2">
-          <RefreshCw className="h-4 w-4" />
-          Yenile
-        </Button>
+        <div className="flex gap-2">
+          <Button 
+            onClick={() => syncMutation.mutate()} 
+            disabled={syncMutation.isPending}
+            variant="outline" 
+            className="flex items-center gap-2"
+          >
+            <ArrowRightLeft className="h-4 w-4" />
+            {syncMutation.isPending ? 'Senkronize ediliyor...' : 'Shopify ile Senkronize Et'}
+          </Button>
+          <Button onClick={handleRefreshAll} className="flex items-center gap-2">
+            <RefreshCw className="h-4 w-4" />
+            Yenile
+          </Button>
+        </div>
       </div>
 
       {/* İstatistik Kartları */}
@@ -350,6 +416,16 @@ export default function ShopifyTrackingPage() {
                               Takip Aktif
                             </Badge>
                           )}
+                          <Button
+                            variant="destructive"
+                            size="sm"
+                            onClick={() => deleteMutation.mutate(product.id)}
+                            disabled={deleteMutation.isPending}
+                            className="ml-2"
+                            data-testid={`button-delete-product-${product.id}`}
+                          >
+                            <Trash2 className="h-4 w-4" />
+                          </Button>
                         </div>
                       </div>
                     </div>
