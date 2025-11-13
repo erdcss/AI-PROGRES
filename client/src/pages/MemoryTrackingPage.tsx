@@ -105,6 +105,7 @@ export default function MemoryTrackingPage() {
   const [tempPrices, setTempPrices] = useState<{[key: number]: string}>({});
   const [editingUrl, setEditingUrl] = useState<{[key: number]: boolean}>({});
   const [tempUrls, setTempUrls] = useState<{[key: number]: string}>({});
+  const [selectedProducts, setSelectedProducts] = useState<number[]>([]);
 
   // WebSocket for real-time updates
   const { isConnected, subscribe, unsubscribe } = useWebSocket({
@@ -346,10 +347,67 @@ export default function MemoryTrackingPage() {
     }
   });
 
+  // Bulk tracking mutation
+  const bulkTrackingMutation = useMutation({
+    mutationFn: async (productIds: number[]) => {
+      const res = await fetch('/api/tracking/bulk-add-shopify', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ productIds })
+      });
+      if (!res.ok) throw new Error('Bulk tracking failed');
+      return res.json();
+    },
+    onSuccess: (data) => {
+      toast({
+        title: "✅ İzleme Başlatıldı",
+        description: `${data.successCount} ürün izlemeye eklendi`,
+      });
+      setSelectedProducts([]);
+      queryClient.invalidateQueries({ queryKey: ['/api/shopify/products'] });
+    },
+    onError: (error: any) => {
+      toast({
+        title: "İzleme Hatası",
+        description: error.message || "İzleme eklenirken hata oluştu",
+        variant: "destructive"
+      });
+    }
+  });
+
   const products = productsData?.products || [];
   const pagination = productsData?.pagination || { total: 0, totalPages: 0, currentPage: 1 };
   const categories = categoriesData?.categories || [];
   const statistics = statisticsData?.statistics;
+
+  // Selection handlers
+  const toggleProductSelection = (productId: number) => {
+    setSelectedProducts(prev =>
+      prev.includes(productId)
+        ? prev.filter(id => id !== productId)
+        : [...prev, productId]
+    );
+  };
+
+  const toggleSelectAll = () => {
+    if (selectedProducts.length === products.length) {
+      setSelectedProducts([]);
+    } else {
+      setSelectedProducts(products.map(p => p.id));
+    }
+  };
+
+  const handleBulkTracking = () => {
+    if (selectedProducts.length === 0) {
+      toast({
+        title: "Uyarı",
+        description: "Lütfen izlenecek ürünleri seçin",
+        variant: "destructive"
+      });
+      return;
+    }
+    bulkTrackingMutation.mutate(selectedProducts);
+  };
 
   // WebSocket event handlers
   useEffect(() => {
@@ -600,6 +658,21 @@ export default function MemoryTrackingPage() {
             </div>
           </div>
           <div className="flex items-center gap-3">
+            {/* Bulk Tracking Button */}
+            {selectedProducts.length > 0 && (
+              <Button
+                onClick={handleBulkTracking}
+                disabled={bulkTrackingMutation.isPending}
+                className="bg-green-600 hover:bg-green-700"
+                data-testid="button-bulk-tracking"
+              >
+                <Activity className="h-4 w-4 mr-2" />
+                {bulkTrackingMutation.isPending 
+                  ? 'İzlemeye Ekleniyor...' 
+                  : `İzlemeye Ekle (${selectedProducts.length})`}
+              </Button>
+            )}
+            
             {/* WebSocket Status Indicator */}
             <div className="flex items-center gap-2 px-3 py-2 rounded-lg bg-slate-800/50 border border-slate-700">
               {isConnected ? (
@@ -903,6 +976,15 @@ export default function MemoryTrackingPage() {
                   <Table>
                     <TableHeader>
                       <TableRow className="bg-blue-900/30 border-white/10 hover:bg-blue-900/30">
+                        <TableHead className="font-semibold text-white/90 w-12">
+                          <input
+                            type="checkbox"
+                            checked={products.length > 0 && selectedProducts.length === products.length}
+                            onChange={toggleSelectAll}
+                            className="rounded"
+                            data-testid="checkbox-select-all-products"
+                          />
+                        </TableHead>
                         <TableHead className="font-semibold text-white/90">Ürün</TableHead>
                         <TableHead className="font-semibold text-white/90">Marka</TableHead>
                         <TableHead className="font-semibold text-white/90">Kategori</TableHead>
@@ -916,6 +998,15 @@ export default function MemoryTrackingPage() {
                     <TableBody>
                       {products.map((product) => (
                         <TableRow key={product.id} className="hover:bg-blue-900/20 border-white/10">
+                          <TableCell className="w-12">
+                            <input
+                              type="checkbox"
+                              checked={selectedProducts.includes(product.id)}
+                              onChange={() => toggleProductSelection(product.id)}
+                              className="rounded"
+                              data-testid={`checkbox-product-${product.id}`}
+                            />
+                          </TableCell>
                           <TableCell className="font-medium text-white max-w-xs truncate" data-testid={`text-product-${product.id}`}>
                             {product.title}
                           </TableCell>

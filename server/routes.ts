@@ -7063,6 +7063,137 @@ ${(result.title || 'product').toLowerCase().replace(/[^a-z0-9]/g, '-')},${result
   });
 
   /**
+   * POST /api/tracking/bulk-add-shopify - Shopify ürünlerini toplu izlemeye ekle
+   */
+  app.post('/api/tracking/bulk-add-shopify', async (req, res) => {
+    try {
+      const { productIds } = req.body;
+      
+      if (!Array.isArray(productIds) || productIds.length === 0) {
+        return res.status(400).json({
+          success: false,
+          error: 'productIds dizisi gerekli'
+        });
+      }
+      
+      console.log(`🎯 Bulk tracking başlatılıyor: ${productIds.length} ürün`);
+      
+      // Get Shopify products by IDs
+      const shopifyProducts = await db
+        .select()
+        .from(shopifyMemoryProducts)
+        .where(inArray(shopifyMemoryProducts.id, productIds));
+      
+      let successCount = 0;
+      let errorCount = 0;
+      const errors: string[] = [];
+      
+      for (const product of shopifyProducts) {
+        try {
+          if (!product.sourceUrl) {
+            console.log(`⚠️ ${product.title}: Trendyol URL yok, atlanıyor`);
+            errorCount++;
+            errors.push(`${product.title}: Trendyol URL eksik`);
+            continue;
+          }
+          
+          // CRITICAL: Verify shopifyId exists for eligibility (schema uses shopifyId, not shopifyProductId)
+          if (!product.shopifyId) {
+            console.log(`⚠️ ${product.title}: shopifyId eksik, izleme başlamaz`);
+            errorCount++;
+            errors.push(`${product.title}: shopifyId eksik`);
+            continue;
+          }
+          
+          // Lightweight add to URL tracking (skip expensive scraping, use cached Shopify data)
+          // Step 1: Upsert to create or update record
+          await db
+            .insert(urlTracking)
+            .values({
+              url: product.sourceUrl,
+              productTitle: product.title,
+              currentPrice: product.minPrice,
+              originalPrice: product.minPrice,
+              currency: 'TL',
+              status: 'active',
+              lastChecked: new Date(),
+              lastSuccessfulCheck: new Date(),
+              checkCount: 1,
+              isTracking: true,
+              trackingInterval: 300,
+              shopifyProductId: product.shopifyId,
+              shopifyHandle: product.handle,
+              extractedData: null
+            })
+            .onConflictDoUpdate({
+              target: urlTracking.url,
+              set: {
+                productTitle: product.title,
+                currentPrice: product.minPrice,
+                lastChecked: new Date(),
+                shopifyProductId: product.shopifyId, // CRITICAL: Force linkage on conflict
+                shopifyHandle: product.handle,
+                isTracking: true,
+                status: 'active',
+                updatedAt: new Date()
+              }
+            });
+          
+          // Step 2: Verify linkage persisted correctly
+          const [trackedUrl] = await db
+            .select()
+            .from(urlTracking)
+            .where(eq(urlTracking.url, product.sourceUrl));
+          
+          if (!trackedUrl) {
+            throw new Error(`URL tracking record not found for ${product.title}`);
+          }
+          
+          // Step 3: Ensure shopifyProductId matches (handle stale linkage)
+          if (trackedUrl.shopifyProductId !== product.shopifyId) {
+            console.log(`🔧 Correcting stale linkage for ${product.title}: ${trackedUrl.shopifyProductId} → ${product.shopifyId}`);
+            await db
+              .update(urlTracking)
+              .set({ 
+                shopifyProductId: product.shopifyId,
+                shopifyHandle: product.handle,
+                updatedAt: new Date()
+              })
+              .where(eq(urlTracking.url, product.sourceUrl));
+          }
+          
+          // Step 4: Start/restart tracking (force restart even if already tracking)
+          await urlTrackingService.enableTracking(product.sourceUrl);
+          
+          successCount++;
+          console.log(`✅ ${product.title}: İzlemeye eklendi (shopifyId: ${product.shopifyId})`);
+        } catch (error) {
+          errorCount++;
+          const errorMsg = error instanceof Error ? error.message : String(error);
+          errors.push(`${product.title}: ${errorMsg}`);
+          console.error(`❌ ${product.title} hata:`, error);
+        }
+      }
+      
+      res.json({
+        success: true,
+        successCount,
+        errorCount,
+        totalRequested: productIds.length,
+        errors: errors.length > 0 ? errors : undefined,
+        message: `${successCount} ürün başarıyla izlemeye eklendi${errorCount > 0 ? `, ${errorCount} hata` : ''}`
+      });
+      
+    } catch (error) {
+      console.error('❌ Bulk tracking error:', error);
+      res.status(500).json({
+        success: false,
+        error: error instanceof Error ? error.message : String(error)
+      });
+    }
+  });
+
+  /**
    * GET /api/tracking/:id - Belirli bir ürünün detaylarını getir
    */
   app.get('/api/tracking/:id', async (req, res) => {
