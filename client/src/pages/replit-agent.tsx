@@ -175,6 +175,11 @@ Ne yapmak istiyorsunuz?`,
               return;
             }
 
+            // Skip ping/pong messages
+            if (event.data === 'ping' || event.data === 'pong') {
+              return;
+            }
+
             const data = JSON.parse(event.data);
 
             if (!data || typeof data !== 'object') {
@@ -192,6 +197,7 @@ Ne yapmak istiyorsunuz?`,
                 fileChanges: data.fileChanges || []
               };
               setMessages(prev => [...prev, agentMessage]);
+              setIsTyping(false);
 
               // If there are file changes, reload file system
               if (data.fileChanges && data.fileChanges.length > 0) {
@@ -203,6 +209,7 @@ Ne yapmak istiyorsunuz?`,
             }
           } catch (error) {
             console.error('❌ WebSocket message parse error:', error instanceof Error ? error.message : 'Unknown error');
+            setIsTyping(false);
           }
         };
 

@@ -342,6 +342,10 @@ Ben gelişmiş AI kod asistanınızım. Size nasıl yardımcı olabilirim?
     setNewMessage('');
     setIsLoading(true);
 
+    // Timeout controller for long-running requests
+    const controller = new AbortController();
+    const timeoutId = setTimeout(() => controller.abort(), 60000); // 60 second timeout
+
     try {
       const response = await fetch('/api/agent/chat', {
         method: 'POST',
@@ -357,9 +361,12 @@ Ben gelişmiş AI kod asistanınızım. Size nasıl yardımcı olabilirim?
               systemStatus: memoryContext?.systemStatus || 'Unknown'
             }
           },
-          conversationHistory: messages.slice(-10) // Send last 10 messages for context
+          conversationHistory: messages.slice(-5) // Send last 5 messages for context
         }),
+        signal: controller.signal
       });
+
+      clearTimeout(timeoutId);
 
       if (response.ok) {
         const data = await response.json();
@@ -373,14 +380,22 @@ Ben gelişmiş AI kod asistanınızım. Size nasıl yardımcı olabilirim?
         };
         setMessages(prev => [...prev, agentMessage]);
       } else {
-        throw new Error('Agent response failed');
+        throw new Error(`Agent response failed: ${response.status}`);
       }
     } catch (error) {
+      clearTimeout(timeoutId);
       console.error('Chat error:', error);
+      
+      let errorContent = '🤖 Özür dilerim, şu anda bir teknik sorun yaşıyorum. Lütfen birkaç saniye sonra tekrar deneyin.';
+      
+      if (error instanceof Error && error.name === 'AbortError') {
+        errorContent = '⏱️ İstek zaman aşımına uğradı. Lütfen daha kısa bir soru deneyin veya birkaç saniye bekleyin.';
+      }
+      
       const errorMessage: ChatMessage = {
         id: (Date.now() + 1).toString(),
         type: 'agent',
-        content: '🤖 Özür dilerim, şu anda bir teknik sorun yaşıyorum. Lütfen birkaç saniye sonra tekrar deneyin. Eğer sorun devam ederse, farklı bir şekilde sorunuzu ifade etmeyi deneyebilirsiniz.',
+        content: errorContent,
         timestamp: new Date().toISOString()
       };
       setMessages(prev => [...prev, errorMessage]);
