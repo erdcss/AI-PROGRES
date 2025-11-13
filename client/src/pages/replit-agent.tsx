@@ -114,6 +114,8 @@ Ne yapmak istiyorsunuz?`,
   const [activeTab, setActiveTab] = useState<'files' | 'knowledge' | 'memory'>('files');
   const { toast } = useToast();
   const messagesEndRef = useRef<HTMLDivElement>(null);
+  const [ws, setWs] = useState<WebSocket | null>(null);
+  const [reconnectAttempts, setReconnectAttempts] = useState(0);
 
   // Update current date and time every second
   useEffect(() => {
@@ -135,6 +137,112 @@ Ne yapmak istiyorsunuz?`,
     messagesEndRef.current?.scrollIntoView({ behavior: "smooth" });
   }, [messages]);
 
+  // WebSocket connection and message handling
+  useEffect(() => {
+    const MAX_RECONNECT_ATTEMPTS = 5;
+    const RECONNECT_INTERVAL = 5000; // 5 seconds
+
+    const connectWebSocket = () => {
+      try {
+        // Production-ready WebSocket connection
+        const protocol = window.location.protocol === 'https:' ? 'wss:' : 'ws:';
+        const host = window.location.host;
+        const wsUrl = `${protocol}//${host}/ws`;
+
+        console.log('🔌 Connecting to WebSocket:', wsUrl);
+        const socket = new WebSocket(wsUrl);
+
+        // Connection timeout
+        const connectionTimeout = setTimeout(() => {
+          if (socket.readyState !== WebSocket.OPEN) {
+            console.warn('⏱️ WebSocket connection timeout');
+            socket.close();
+          }
+        }, 10000);
+
+        socket.onopen = () => {
+          clearTimeout(connectionTimeout);
+          console.log('✅ WebSocket connected');
+          setReconnectAttempts(0); // Reset reconnect attempts on successful connection
+          setWs(socket);
+        };
+
+        socket.onmessage = (event) => {
+          try {
+            // Safe JSON parsing with validation
+            if (!event.data || typeof event.data !== 'string') {
+              console.warn('⚠️ Invalid WebSocket data format');
+              return;
+            }
+
+            const data = JSON.parse(event.data);
+
+            if (!data || typeof data !== 'object') {
+              console.warn('⚠️ Invalid WebSocket message structure');
+              return;
+            }
+
+            if (data.type === 'agent_response') {
+              const agentMessage: ChatMessage = {
+                id: (Date.now() + 1).toString(),
+                type: 'agent',
+                content: data.response,
+                timestamp: new Date().toLocaleTimeString('tr-TR'),
+                codeBlocks: data.codeBlocks || [],
+                fileChanges: data.fileChanges || []
+              };
+              setMessages(prev => [...prev, agentMessage]);
+
+              // If there are file changes, reload file system
+              if (data.fileChanges && data.fileChanges.length > 0) {
+                setTimeout(() => loadFileSystem(), 1000);
+              }
+            } else if (data.type === 'agent_status') {
+              // Handle agent status updates if any
+              console.log('Agent status:', data.status);
+            }
+          } catch (error) {
+            console.error('❌ WebSocket message parse error:', error instanceof Error ? error.message : 'Unknown error');
+          }
+        };
+
+        socket.onclose = (event) => {
+          clearTimeout(connectionTimeout);
+          console.warn('❌ WebSocket disconnected:', event.code, event.reason);
+          setWs(null);
+          // Attempt to reconnect if not intentionally closed and within limits
+          if (event.code !== 1000 && reconnectAttempts < MAX_RECONNECT_ATTEMPTS) {
+            const nextReconnectAttempt = reconnectAttempts + 1;
+            console.log(`Attempting to reconnect... Attempt ${nextReconnectAttempt}/${MAX_RECONNECT_ATTEMPTS}`);
+            setReconnectAttempts(nextReconnectAttempt);
+            setTimeout(connectWebSocket, RECONNECT_INTERVAL * Math.pow(2, nextReconnectAttempt - 1)); // Exponential backoff
+          } else if (reconnectAttempts >= MAX_RECONNECT_ATTEMPTS) {
+            console.error('Max reconnect attempts reached. Manual reconnection required.');
+          }
+        };
+
+        socket.onerror = (error) => {
+          clearTimeout(connectionTimeout);
+          console.error('WebSocket error:', error);
+          socket.close(); // Ensure close is called on error
+        };
+      } catch (error) {
+        console.error('Failed to initialize WebSocket:', error);
+        setWs(null);
+      }
+    };
+
+    connectWebSocket();
+
+    // Cleanup function to close WebSocket connection on component unmount
+    return () => {
+      if (ws) {
+        console.log('Closing WebSocket connection');
+        ws.close(1000, "Component unmounting");
+      }
+    };
+  }, [reconnectAttempts]); // Re-run effect when reconnectAttempts changes
+
   // Load file system structure
   const loadFileSystem = async () => {
     setIsLoadingFiles(true);
@@ -143,6 +251,8 @@ Ne yapmak istiyorsunuz?`,
       if (response.ok) {
         const data = await response.json();
         setFileSystem(data.files || []);
+      } else {
+        console.error('Failed to load file system:', response.statusText);
       }
     } catch (error) {
       console.error('Failed to load file system:', error);
@@ -161,6 +271,8 @@ Ne yapmak istiyorsunuz?`,
         setEditedContent(data.content || '');
         setSelectedFile(filePath);
         setIsEditMode(false);
+      } else {
+        console.error('Failed to load file content:', response.statusText);
       }
     } catch (error) {
       console.error('Failed to load file content:', error);
@@ -170,7 +282,7 @@ Ne yapmak istiyorsunuz?`,
   // Save file content
   const saveFileContent = async () => {
     if (!selectedFile) return;
-    
+
     setIsSaving(true);
     try {
       const response = await fetch('/api/agent/apply-changes', {
@@ -196,12 +308,13 @@ Ne yapmak istiyorsunuz?`,
           description: "Dosya kaydedildi",
         });
       } else {
-        throw new Error('Save failed');
+        const errorData = await response.json().catch(() => ({}));
+        throw new Error(errorData.message || 'Save failed');
       }
     } catch (error) {
       toast({
         title: "Hata!",
-        description: "Dosya kaydedilemedi",
+        description: `Dosya kaydedilemedi: ${error instanceof Error ? error.message : 'Bilinmeyen hata'}`,
         variant: "destructive"
       });
     } finally {
@@ -216,6 +329,8 @@ Ne yapmak istiyorsunuz?`,
       if (response.ok) {
         const data = await response.json();
         setKnowledge(data.knowledge || []);
+      } else {
+        console.error('Failed to load knowledge:', response.statusText);
       }
     } catch (error) {
       console.error('Failed to load knowledge:', error);
@@ -231,19 +346,29 @@ Ne yapmak istiyorsunuz?`,
         setMemoryContext({
           totalProducts: data.totalProducts || 0,
           totalVariants: data.totalVariants || 0,
-          recentChanges: 0,
-          systemStatus: 'Aktif',
+          recentChanges: 0, // Assuming this is not provided by the API
+          systemStatus: data.systemStatus || 'Aktif', // Use API data if available
           lastSync: data.lastUpdate || new Date().toISOString()
         });
+      } else {
+        console.error('Failed to load memory context:', response.statusText);
       }
     } catch (error) {
       console.error('Failed to load memory context:', error);
     }
   };
 
-  // Send message to agent
+  // Send message to agent via WebSocket
   const sendMessage = async () => {
     if (!newMessage.trim()) return;
+    if (!ws) {
+      toast({
+        title: "Bağlantı Yok",
+        description: "WebSocket sunucusuna bağlı değil. Lütfen daha sonra tekrar deneyin.",
+        variant: "destructive"
+      });
+      return;
+    }
 
     const userMessage: ChatMessage = {
       id: Date.now().toString(),
@@ -257,51 +382,25 @@ Ne yapmak istiyorsunuz?`,
     setIsTyping(true);
 
     try {
-      const response = await fetch('/api/agent/chat', {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-        },
-        body: JSON.stringify({
-          message: newMessage,
-          context: {
-            selectedFile,
-            fileContent: selectedFile ? fileContent : null,
-            fileSystem: fileSystem.slice(0, 10) // Send limited context
-          }
-        }),
-      });
-
-      if (response.ok) {
-        const data = await response.json();
-        
-        const agentMessage: ChatMessage = {
-          id: (Date.now() + 1).toString(),
-          type: 'agent',
-          content: data.response,
-          timestamp: new Date().toLocaleTimeString('tr-TR'),
-          codeBlocks: data.codeBlocks || [],
-          fileChanges: data.fileChanges || []
-        };
-
-        setMessages(prev => [...prev, agentMessage]);
-
-        // If there are file changes, reload file system
-        if (data.fileChanges && data.fileChanges.length > 0) {
-          setTimeout(() => loadFileSystem(), 1000);
+      const messagePayload = {
+        message: newMessage,
+        context: {
+          selectedFile,
+          fileContent: selectedFile ? fileContent : null,
+          fileSystem: fileSystem.slice(0, 10) // Send limited context
         }
-      } else {
-        throw new Error('Agent response failed');
-      }
+      };
+      ws.send(JSON.stringify({ type: 'user_message', payload: messagePayload }));
+
     } catch (error) {
+      console.error('Failed to send message via WebSocket:', error);
       const errorMessage: ChatMessage = {
         id: (Date.now() + 1).toString(),
         type: 'agent',
-        content: '❌ Üzgünüm, bir hata oluştu. Lütfen tekrar deneyin.',
+        content: '❌ Mesaj gönderilemedi. Lütfen tekrar deneyin.',
         timestamp: new Date().toLocaleTimeString('tr-TR')
       };
       setMessages(prev => [...prev, errorMessage]);
-    } finally {
       setIsTyping(false);
     }
   };
@@ -323,25 +422,26 @@ Ne yapmak istiyorsunuz?`,
 
   // Apply file changes
   const applyFileChanges = async (fileChanges: FileChange[]) => {
-    try {
-      const response = await fetch('/api/agent/apply-changes', {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-        },
-        body: JSON.stringify({ changes: fileChanges }),
+    if (!ws) {
+      toast({
+        title: "Bağlantı Yok",
+        description: "WebSocket sunucusuna bağlı değil. Değişiklikler uygulanamadı.",
+        variant: "destructive"
       });
+      return;
+    }
+    try {
+      const payload = { changes: fileChanges };
+      ws.send(JSON.stringify({ type: 'apply_file_changes', payload }));
 
-      if (response.ok) {
-        toast({
-          title: "Değişiklikler Uygulandı!",
-          description: `${fileChanges.length} dosya değişikliği başarıyla uygulandı`,
-        });
-        loadFileSystem();
-      } else {
-        throw new Error('Failed to apply changes');
-      }
+      toast({
+        title: "İstek Gönderildi!",
+        description: `${fileChanges.length} dosya değişikliği uygulama isteği gönderildi.`,
+      });
+      // Assuming the agent will confirm via WebSocket message
+      loadFileSystem(); // Optimistically reload file system
     } catch (error) {
+      console.error('Failed to send apply file changes request:', error);
       toast({
         title: "Hata!",
         description: "Değişiklikler uygulanırken hata oluştu",
@@ -363,7 +463,7 @@ Ne yapmak istiyorsunuz?`,
       <div className="absolute inset-0 bg-[url('data:image/svg+xml,%3Csvg width=%2260%22 height=%2260%22 viewBox=%220 0 60 60%22 xmlns=%22http://www.w3.org/2000/svg%22%3E%3Cg fill=%22none%22 fill-rule=%22evenodd%22%3E%3Cg fill=%22%239C92AC%22 fill-opacity=%220.1%22%3E%3Ccircle cx=%2230%22 cy=%2230%22 r=%221%22/%3E%3C/g%3E%3C/g%3E%3C/svg%3E')] opacity-20"></div>
       <div className="absolute top-0 left-1/4 w-96 h-96 bg-purple-500/10 rounded-full blur-3xl"></div>
       <div className="absolute bottom-0 right-1/4 w-96 h-96 bg-blue-500/10 rounded-full blur-3xl"></div>
-      
+
       <div className="relative z-10 min-h-screen">
       {/* Header */}
       <div className="bg-black/20 backdrop-blur-sm border-b border-white/10 p-4">
@@ -386,12 +486,12 @@ Ne yapmak istiyorsunuz?`,
               </div>
             </div>
           </div>
-          
+
           <div className="flex items-center space-x-6">
             <RealTimeClock />
             <div className="flex items-center space-x-2 text-sm text-white/60">
-              <div className="w-2 h-2 bg-green-500 rounded-full animate-pulse"></div>
-              <span>Aktif</span>
+              <div className={`w-2 h-2 rounded-full ${ws ? 'bg-green-500 animate-pulse' : 'bg-red-500'}`}></div>
+              <span>{ws ? 'Bağlı' : 'Bağlantı Yok'}</span>
             </div>
           </div>
         </div>
@@ -451,7 +551,7 @@ Ne yapmak istiyorsunuz?`,
                     <RefreshCw className={`w-4 h-4 ${isLoadingFiles ? 'animate-spin' : ''}`} />
                   </button>
                 </div>
-                
+
                 <div className="space-y-2">
                   {fileSystem.map((item, index) => (
                     <div key={index} className="group">
@@ -495,32 +595,18 @@ Ne yapmak istiyorsunuz?`,
                     <RefreshCw className="w-4 h-4" />
                   </button>
                 </div>
-                
+
                 <div className="space-y-3">
-                  <div className="bg-gray-800/50 rounded-lg p-3">
-                    <h4 className="text-sm font-medium text-orange-300 mb-2">🚀 E-ticaret Otomasyon</h4>
-                    <p className="text-xs text-white/70">Trendyol'dan Shopify'a ürün aktarımı, fiyat ve stok takibi, Telegram bildirimleri</p>
-                  </div>
-                  
-                  <div className="bg-gray-800/50 rounded-lg p-3">
-                    <h4 className="text-sm font-medium text-orange-300 mb-2">🗄️ Database Yapısı</h4>
-                    <p className="text-xs text-white/70">PostgreSQL, Drizzle ORM, ürün tabloları, varyant yönetimi, hafıza sistemi</p>
-                  </div>
-                  
-                  <div className="bg-gray-800/50 rounded-lg p-3">
-                    <h4 className="text-sm font-medium text-orange-300 mb-2">🤖 AI Entegrasyonu</h4>
-                    <p className="text-xs text-white/70">Anthropic Claude API, ürün kategorilendirme, akıllı etiketleme, feature extraction</p>
-                  </div>
-                  
-                  <div className="bg-gray-800/50 rounded-lg p-3">
-                    <h4 className="text-sm font-medium text-orange-300 mb-2">📊 API Endpoints</h4>
-                    <p className="text-xs text-white/70">Express.js routes, TypeScript, error handling, validation, real-time responses</p>
-                  </div>
-                  
-                  <div className="bg-gray-800/50 rounded-lg p-3">
-                    <h4 className="text-sm font-medium text-orange-300 mb-2">⚛️ Frontend Stack</h4>
-                    <p className="text-xs text-white/70">React, TypeScript, Tailwind CSS, Framer Motion, shadcn/ui, wouter routing</p>
-                  </div>
+                  {knowledge.length > 0 ? (
+                    knowledge.map((item, index) => (
+                      <div key={index} className="bg-gray-800/50 rounded-lg p-3">
+                        <h4 className="text-sm font-medium text-orange-300 mb-2">{item.title}</h4>
+                        <p className="text-xs text-white/70">{item.content}</p>
+                      </div>
+                    ))
+                  ) : (
+                    <p className="text-sm text-white/60">Bilgi bankası yükleniyor veya boş.</p>
+                  )}
                 </div>
               </div>
             )}
@@ -537,8 +623,8 @@ Ne yapmak istiyorsunuz?`,
                     <RefreshCw className="w-4 h-4" />
                   </button>
                 </div>
-                
-                {memoryContext && (
+
+                {memoryContext ? (
                   <div className="space-y-3">
                     <div className="bg-blue-600/20 rounded-lg p-3">
                       <div className="flex items-center justify-between">
@@ -546,28 +632,28 @@ Ne yapmak istiyorsunuz?`,
                         <span className="text-lg font-bold text-blue-300">{memoryContext.totalProducts}</span>
                       </div>
                     </div>
-                    
+
                     <div className="bg-purple-600/20 rounded-lg p-3">
                       <div className="flex items-center justify-between">
                         <span className="text-sm text-white/70">Toplam Varyant</span>
                         <span className="text-lg font-bold text-purple-300">{memoryContext.totalVariants}</span>
                       </div>
                     </div>
-                    
+
                     <div className="bg-green-600/20 rounded-lg p-3">
                       <div className="flex items-center justify-between">
                         <span className="text-sm text-white/70">Sistem Durumu</span>
                         <span className="text-sm font-medium text-green-300">{memoryContext.systemStatus}</span>
                       </div>
                     </div>
-                    
+
                     <div className="bg-gray-800/50 rounded-lg p-3">
                       <div className="text-sm text-white/70 mb-1">Son Güncelleme</div>
                       <div className="text-xs text-white/50">
                         {new Date(memoryContext.lastSync).toLocaleString('tr-TR')}
                       </div>
                     </div>
-                    
+
                     <div className="bg-yellow-600/20 rounded-lg p-3">
                       <div className="text-sm font-medium text-yellow-300 mb-2">🔄 Aktif Süreçler</div>
                       <div className="text-xs text-white/70">
@@ -578,6 +664,8 @@ Ne yapmak istiyorsunuz?`,
                       </div>
                     </div>
                   </div>
+                ) : (
+                  <p className="text-sm text-white/60">Hafıza bağlamı yükleniyor...</p>
                 )}
               </div>
             )}
@@ -631,7 +719,7 @@ Ne yapmak istiyorsunuz?`,
                   )}
                 </div>
               </div>
-              
+
               <div className="bg-gray-900 rounded-lg overflow-hidden">
                 {isEditMode ? (
                   <textarea
@@ -670,7 +758,7 @@ Ne yapmak istiyorsunuz?`,
                         </span>
                         <span className="text-xs text-white/60">{message.timestamp}</span>
                       </div>
-                      
+
                       <div className="text-white/90 whitespace-pre-wrap">
                         {message.content}
                       </div>
@@ -770,13 +858,13 @@ Ne yapmak istiyorsunuz?`,
               />
               <button
                 onClick={sendMessage}
-                disabled={!newMessage.trim() || isTyping}
+                disabled={!newMessage.trim() || isTyping || !ws}
                 className="bg-orange-600 hover:bg-orange-700 disabled:bg-gray-600 disabled:cursor-not-allowed text-white p-3 rounded-xl transition-colors"
               >
                 <Send className="w-5 h-5" />
               </button>
             </div>
-            
+
             <div className="mt-3 flex flex-wrap gap-2">
               {[
                 "Yeni bir React bileşeni oluştur",

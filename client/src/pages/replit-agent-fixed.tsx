@@ -202,7 +202,7 @@ Ben gelişmiş AI kod asistanınızım. Size nasıl yardımcı olabilirim?
   // Save file content
   const saveFileContent = async () => {
     if (!selectedFile) return;
-    
+
     setIsSaving(true);
     try {
       const response = await fetch('/api/agent/apply-changes', {
@@ -414,7 +414,7 @@ Ben gelişmiş AI kod asistanınızım. Size nasıl yardımcı olabilirim?
       <div className="absolute inset-0 opacity-20"></div>
       <div className="absolute top-0 left-1/4 w-96 h-96 bg-purple-500/10 rounded-full blur-3xl"></div>
       <div className="absolute bottom-0 right-1/4 w-96 h-96 bg-blue-500/10 rounded-full blur-3xl"></div>
-      
+
       <div className="relative z-10 min-h-screen">
         {/* Header */}
         <div className="bg-black/20 backdrop-blur-sm border-b border-white/10 p-4">
@@ -437,10 +437,10 @@ Ben gelişmiş AI kod asistanınızım. Size nasıl yardımcı olabilirim?
                 </div>
               </div>
             </div>
-            
+
             <div className="flex items-center space-x-6">
               <RealTimeClock />
-              
+
               {/* API Status & Configuration */}
               <div className="flex items-center space-x-2">
                 {apiKeyStatus?.hasValidKey ? (
@@ -458,7 +458,7 @@ Ben gelişmiş AI kod asistanınızım. Size nasıl yardımcı olabilirim?
                   </button>
                 )}
               </div>
-              
+
               <div className="flex items-center space-x-2 text-sm text-white/60">
                 <div className="w-2 h-2 bg-green-500 rounded-full animate-pulse"></div>
                 <span>Aktif</span>
@@ -484,7 +484,7 @@ Ben gelişmiş AI kod asistanınızım. Size nasıl yardımcı olabilirim?
                   <X className="w-5 h-5" />
                 </button>
               </div>
-              
+
               <div className="space-y-4">
                 <div>
                   <label className="block text-sm font-medium text-white/80 mb-2">
@@ -501,7 +501,7 @@ Ben gelişmiş AI kod asistanınızım. Size nasıl yardımcı olabilirim?
                     console.anthropic.com adresinden API anahtarı alabilirsiniz
                   </p>
                 </div>
-                
+
                 <div className="flex space-x-3">
                   <button
                     onClick={() => setShowApiConfig(false)}
@@ -575,7 +575,7 @@ Ben gelişmiş AI kod asistanınızım. Size nasıl yardımcı olabilirim?
                       <RefreshCw className={`w-4 h-4 ${isLoadingFiles ? 'animate-spin' : ''}`} />
                     </button>
                   </div>
-                  
+
                   <div className="space-y-2">
                     {fileSystem.map((item, index) => (
                       <div key={index} className="group">
@@ -619,28 +619,28 @@ Ben gelişmiş AI kod asistanınızım. Size nasıl yardımcı olabilirim?
                       <RefreshCw className="w-4 h-4" />
                     </button>
                   </div>
-                  
+
                   <div className="space-y-3">
                     <div className="bg-gray-800/50 rounded-lg p-3">
                       <h4 className="text-sm font-medium text-orange-300 mb-2">🚀 E-ticaret Otomasyon</h4>
                       <p className="text-xs text-white/70">Trendyol'dan Shopify'a ürün aktarımı, fiyat ve stok takibi, Telegram bildirimleri</p>
                     </div>
-                    
+
                     <div className="bg-gray-800/50 rounded-lg p-3">
                       <h4 className="text-sm font-medium text-orange-300 mb-2">🗄️ Database Yapısı</h4>
                       <p className="text-xs text-white/70">PostgreSQL, Drizzle ORM, ürün tabloları, varyant yönetimi, hafıza sistemi</p>
                     </div>
-                    
+
                     <div className="bg-gray-800/50 rounded-lg p-3">
                       <h4 className="text-sm font-medium text-orange-300 mb-2">🤖 AI Entegrasyonu</h4>
                       <p className="text-xs text-white/70">Anthropic Claude API, ürün kategorilendirme, akıllı etiketleme, feature extraction</p>
                     </div>
-                    
+
                     <div className="bg-gray-800/50 rounded-lg p-3">
                       <h4 className="text-sm font-medium text-orange-300 mb-2">📊 API Endpoints</h4>
                       <p className="text-xs text-white/70">Express.js routes, TypeScript, error handling, validation, real-time responses</p>
                     </div>
-                    
+
                     <div className="bg-gray-800/50 rounded-lg p-3">
                       <h4 className="text-sm font-medium text-orange-300 mb-2">⚛️ Frontend Stack</h4>
                       <p className="text-xs text-white/70">React, TypeScript, Tailwind CSS, Framer Motion, shadcn/ui, wouter routing</p>
@@ -661,7 +661,7 @@ Ben gelişmiş AI kod asistanınızım. Size nasıl yardımcı olabilirim?
                       <RefreshCw className="w-4 h-4" />
                     </button>
                   </div>
-                  
+
                   {memoryContext && (
                     <div className="space-y-3">
                       <div className="bg-blue-600/20 rounded-lg p-3">
@@ -670,28 +670,28 @@ Ben gelişmiş AI kod asistanınızım. Size nasıl yardımcı olabilirim?
                           <span className="text-lg font-bold text-blue-300">{memoryContext.totalProducts}</span>
                         </div>
                       </div>
-                      
+
                       <div className="bg-purple-600/20 rounded-lg p-3">
                         <div className="flex items-center justify-between">
                           <span className="text-sm text-white/70">Toplam Varyant</span>
                           <span className="text-lg font-bold text-purple-300">{memoryContext.totalVariants}</span>
                         </div>
                       </div>
-                      
+
                       <div className="bg-green-600/20 rounded-lg p-3">
                         <div className="flex items-center justify-between">
                           <span className="text-sm text-white/70">Sistem Durumu</span>
                           <span className="text-sm font-medium text-green-300">{memoryContext.systemStatus}</span>
                         </div>
                       </div>
-                      
+
                       <div className="bg-gray-800/50 rounded-lg p-3">
                         <div className="text-sm text-white/70 mb-1">Son Güncelleme</div>
                         <div className="text-xs text-white/50">
                           {new Date(memoryContext.lastSync).toLocaleString('tr-TR')}
                         </div>
                       </div>
-                      
+
                       <div className="bg-yellow-600/20 rounded-lg p-3">
                         <div className="text-sm font-medium text-yellow-300 mb-2">🔄 Aktif Süreçler</div>
                         <div className="text-xs text-white/70">
@@ -755,7 +755,7 @@ Ben gelişmiş AI kod asistanınızım. Size nasıl yardımcı olabilirim?
                     )}
                   </div>
                 </div>
-                
+
                 <div className="bg-gray-900 rounded-lg overflow-hidden">
                   {isEditMode ? (
                     <textarea
@@ -790,7 +790,7 @@ Ben gelişmiş AI kod asistanınızım. Size nasıl yardımcı olabilirim?
                     <div className="flex items-start justify-between">
                       <div className="flex-1">
                         <p className="text-sm leading-relaxed whitespace-pre-wrap">{message.content}</p>
-                        
+
                         {/* Enhanced Code blocks */}
                         {message.codeBlocks && message.codeBlocks.map((block, index) => (
                           <div key={index} className="mt-3 bg-gradient-to-br from-gray-900 to-gray-800 rounded-lg border border-gray-700/50 overflow-hidden">
@@ -830,7 +830,7 @@ Ben gelişmiş AI kod asistanınızım. Size nasıl yardımcı olabilirim?
                           </div>
                         ))}
                       </div>
-                      
+
                       <button
                         onClick={() => copyToClipboard(message.content, message.id)}
                         className="ml-2 text-gray-400 hover:text-white transition-colors"
@@ -842,14 +842,14 @@ Ben gelişmiş AI kod asistanınızım. Size nasıl yardımcı olabilirim?
                         )}
                       </button>
                     </div>
-                    
+
                     <div className="mt-2 text-xs opacity-60">
                       {new Date(message.timestamp).toLocaleTimeString('tr-TR')}
                     </div>
                   </div>
                 </motion.div>
               ))}
-              
+
               {isLoading && (
                 <motion.div
                   initial={{ opacity: 0 }}
@@ -866,10 +866,10 @@ Ben gelişmiş AI kod asistanınızım. Size nasıl yardımcı olabilirim?
                   </div>
                 </motion.div>
               )}
-              
+
               <div ref={messagesEndRef} />
             </div>
-            
+
             {/* Message Input */}
             <div className="border-t border-white/10 p-4">
               <div className="flex items-end space-x-3">
@@ -896,7 +896,7 @@ Ben gelişmiş AI kod asistanınızım. Size nasıl yardımcı olabilirim?
                   <Send className="w-5 h-5" />
                 </button>
               </div>
-              
+
               {/* Enhanced Quick Actions */}
               <div className="mt-3 space-y-2">
                 <div className="text-xs text-white/60 mb-2">💡 Hızlı İşlemler:</div>
@@ -919,7 +919,7 @@ Ben gelişmiş AI kod asistanınızım. Size nasıl yardımcı olabilirim?
                     </button>
                   ))}
                 </div>
-                
+
                 {/* Context-aware suggestions */}
                 {selectedFile && (
                   <div className="mt-2">
@@ -942,7 +942,7 @@ Ben gelişmiş AI kod asistanınızım. Size nasıl yardımcı olabilirim?
                     </div>
                   </div>
                 )}
-                
+
                 {/* Memory context suggestions */}
                 {memoryContext && memoryContext.totalProducts > 0 && (
                   <div className="mt-2">
