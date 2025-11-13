@@ -169,25 +169,35 @@ Ne yapmak istiyorsunuz?`,
 
         socket.onmessage = (event) => {
           try {
-            // Safe JSON parsing with validation
-            if (!event.data || typeof event.data !== 'string') {
-              console.warn('⚠️ Invalid WebSocket data format');
+            // Validate and sanitize data
+            if (!event.data || typeof event.data !== 'string' || event.data.trim() === '') {
+              return; // Silently skip empty data
+            }
+
+            const trimmedData = event.data.trim();
+            
+            // Handle ping/pong
+            if (trimmedData === 'ping' || trimmedData === 'pong') {
+              socket.send('pong');
               return;
             }
 
-            // Skip ping/pong messages
-            if (event.data === 'ping' || event.data === 'pong') {
+            // Parse JSON safely
+            let data;
+            try {
+              data = JSON.parse(trimmedData);
+            } catch (parseError) {
+              // Skip non-JSON messages silently (keepalive packets)
               return;
             }
 
-            const data = JSON.parse(event.data);
-
-            if (!data || typeof data !== 'object') {
-              console.warn('⚠️ Invalid WebSocket message structure');
+            // Validate parsed data structure
+            if (!data || typeof data !== 'object' || !data.type) {
               return;
             }
 
-            if (data.type === 'agent_response') {
+            // Process agent response
+            if (data.type === 'agent_response' && data.response) {
               const agentMessage: ChatMessage = {
                 id: (Date.now() + 1).toString(),
                 type: 'agent',
@@ -199,16 +209,13 @@ Ne yapmak istiyorsunuz?`,
               setMessages(prev => [...prev, agentMessage]);
               setIsTyping(false);
 
-              // If there are file changes, reload file system
+              // Reload file system if changes exist
               if (data.fileChanges && data.fileChanges.length > 0) {
                 setTimeout(() => loadFileSystem(), 1000);
               }
-            } else if (data.type === 'agent_status') {
-              // Handle agent status updates if any
-              console.log('Agent status:', data.status);
             }
           } catch (error) {
-            console.error('❌ WebSocket message parse error:', error instanceof Error ? error.message : 'Unknown error');
+            // Silent error handling - don't spam console or break connection
             setIsTyping(false);
           }
         };

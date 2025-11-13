@@ -342,9 +342,9 @@ Ben gelişmiş AI kod asistanınızım. Size nasıl yardımcı olabilirim?
     setNewMessage('');
     setIsLoading(true);
 
-    // Timeout controller for long-running requests
+    // Extended timeout for complex agent tasks
     const controller = new AbortController();
-    const timeoutId = setTimeout(() => controller.abort(), 60000); // 60 second timeout
+    const timeoutId = setTimeout(() => controller.abort(), 180000); // 3 minutes timeout
 
     try {
       const response = await fetch('/api/agent/chat', {
@@ -388,8 +388,16 @@ Ben gelişmiş AI kod asistanınızım. Size nasıl yardımcı olabilirim?
       
       let errorContent = '🤖 Özür dilerim, şu anda bir teknik sorun yaşıyorum. Lütfen birkaç saniye sonra tekrar deneyin.';
       
-      if (error instanceof Error && error.name === 'AbortError') {
-        errorContent = '⏱️ İstek zaman aşımına uğradı. Lütfen daha kısa bir soru deneyin veya birkaç saniye bekleyin.';
+      if (error instanceof Error) {
+        if (error.name === 'AbortError') {
+          errorContent = '⏱️ **İstek Zaman Aşımı (3 dakika)**\n\nAgent işlemi çok uzun sürdü. Lütfen:\n• Daha spesifik ve kısa bir görev verin\n• 30-60 saniye bekleyip tekrar deneyin\n• Sorun devam ederse sayfayı yenileyin';
+        } else if (error.message.includes('Failed to fetch')) {
+          errorContent = '🔌 **Bağlantı Hatası**\n\nSunucuya erişilemiyor. Muhtemel nedenler:\n• İnternet bağlantınız kesildi\n• Sunucu yeniden başlatılıyor\n• Deploy işlemi devam ediyor\n\n**Çözüm:** 1-2 dakika bekleyin ve tekrar deneyin';
+        } else if (error.message.includes('NetworkError')) {
+          errorContent = '🌐 **Ağ Hatası**\n\nBağlantı problemi var. Lütfen:\n• İnternet bağlantınızı kontrol edin\n• Sayfayı yenileyin (F5)\n• VPN kullanıyorsanız kapatmayı deneyin';
+        } else if (error.message.includes('503') || error.message.includes('502')) {
+          errorContent = '⚠️ **Sunucu Meşgul**\n\nAgent servisi geçici olarak kullanılamıyor.\n\n• 1-2 dakika bekleyin\n• Sayfayı yenileyin\n• Daha sonra tekrar deneyin';
+        }
       }
       
       const errorMessage: ChatMessage = {
