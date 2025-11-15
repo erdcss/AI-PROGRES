@@ -7105,17 +7105,16 @@ ${(result.title || 'product').toLowerCase().replace(/[^a-z0-9]/g, '-')},${result
             continue;
           }
           
-          // Lightweight add to URL tracking (skip expensive scraping, use cached Shopify data)
-          // Step 1: Upsert to create or update record
-          await db
-            .insert(urlTracking)
-            .values({
+          // Transaction-based upsert ensures shopifyProductId persists before tracking starts
+          const trackedUrl = await db.transaction(async (trx) => {
+            // Upsert with shopifyProductId in both insert and conflict paths
+            const upsertPayload = {
               url: product.sourceUrl,
               productTitle: product.title,
               currentPrice: product.minPrice,
               originalPrice: product.minPrice,
               currency: 'TL',
-              status: 'active',
+              status: 'active' as const,
               lastChecked: new Date(),
               lastSuccessfulCheck: new Date(),
               checkCount: 1,
@@ -7124,45 +7123,35 @@ ${(result.title || 'product').toLowerCase().replace(/[^a-z0-9]/g, '-')},${result
               shopifyProductId: product.shopifyId,
               shopifyHandle: product.handle,
               extractedData: null
-            })
-            .onConflictDoUpdate({
-              target: urlTracking.url,
-              set: {
-                productTitle: product.title,
-                currentPrice: product.minPrice,
-                lastChecked: new Date(),
-                shopifyProductId: product.shopifyId, // CRITICAL: Force linkage on conflict
-                shopifyHandle: product.handle,
-                isTracking: true,
-                status: 'active',
-                updatedAt: new Date()
-              }
-            });
-          
-          // Step 2: Verify linkage persisted correctly
-          const [trackedUrl] = await db
-            .select()
-            .from(urlTracking)
-            .where(eq(urlTracking.url, product.sourceUrl));
-          
-          if (!trackedUrl) {
-            throw new Error(`URL tracking record not found for ${product.title}`);
-          }
-          
-          // Step 3: Ensure shopifyProductId matches (handle stale linkage)
-          if (trackedUrl.shopifyProductId !== product.shopifyId) {
-            console.log(`🔧 Correcting stale linkage for ${product.title}: ${trackedUrl.shopifyProductId} → ${product.shopifyId}`);
-            await db
-              .update(urlTracking)
-              .set({ 
-                shopifyProductId: product.shopifyId,
-                shopifyHandle: product.handle,
-                updatedAt: new Date()
+            };
+
+            const [upsertedRow] = await trx
+              .insert(urlTracking)
+              .values(upsertPayload)
+              .onConflictDoUpdate({
+                target: urlTracking.url,
+                set: {
+                  productTitle: upsertPayload.productTitle,
+                  currentPrice: upsertPayload.currentPrice,
+                  lastChecked: upsertPayload.lastChecked,
+                  shopifyProductId: upsertPayload.shopifyProductId, // CRITICAL: Persist on conflict
+                  shopifyHandle: upsertPayload.shopifyHandle,
+                  isTracking: true,
+                  status: 'active',
+                  updatedAt: new Date()
+                }
               })
-              .where(eq(urlTracking.url, product.sourceUrl));
-          }
-          
-          // Step 4: Start/restart tracking (force restart even if already tracking)
+              .returning();
+
+            // Defensive check: verify shopifyProductId was persisted
+            if (!upsertedRow || !upsertedRow.shopifyProductId) {
+              throw new Error(`shopifyProductId not persisted for ${product.title}`);
+            }
+
+            return upsertedRow;
+          });
+
+          // Only after transaction commits, start tracking
           await urlTrackingService.enableTracking(product.sourceUrl);
           
           successCount++;

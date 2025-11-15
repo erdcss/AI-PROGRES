@@ -73,6 +73,50 @@ export function generateVariantCSV(productData: any): { csvContent: string; file
   const rows: VariantCSVRow[] = [];
   let isFirstRow = true;
 
+  // Compute real variant axes from BOTH allVariants AND stockMatrix
+  // Check ALL field aliases: color/colorName, size/sizeName
+  const uniqueColors = new Set<string>();
+  const uniqueSizes = new Set<string>();
+  
+  const fakeValues = ['Default', 'Standart', 'Tek Beden', ''];
+  
+  // Helper to extract real value from aliases
+  const getRealValue = (obj: any, fields: string[]): string | null => {
+    for (const field of fields) {
+      const val = obj[field];
+      if (val && typeof val === 'string' && !fakeValues.includes(val.trim())) {
+        return val.trim();
+      }
+    }
+    return null;
+  };
+  
+  // Check allVariants
+  if (productData.variants?.allVariants) {
+    productData.variants.allVariants.forEach((v: any) => {
+      const color = getRealValue(v, ['color', 'colorName']);
+      if (color) uniqueColors.add(color);
+      
+      const size = getRealValue(v, ['size', 'sizeName']);
+      if (size) uniqueSizes.add(size);
+    });
+  }
+  
+  // Also check stockMatrix for real variants
+  if (productData.variants?.stockMatrix) {
+    Object.values(productData.variants.stockMatrix).forEach((variant: any) => {
+      const color = getRealValue(variant, ['color', 'colorName']);
+      if (color) uniqueColors.add(color);
+      
+      const size = getRealValue(variant, ['size', 'sizeName']);
+      if (size) uniqueSizes.add(size);
+    });
+  }
+  
+  const hasRealColors = uniqueColors.size > 0;
+  const hasRealSizes = uniqueSizes.size > 0;
+  const isSingleVariant = !hasRealColors && !hasRealSizes;
+
   // Stock matrix'ten varyantları işle
   if (productData.variants?.stockMatrix) {
     const stockMatrix = productData.variants.stockMatrix;
@@ -90,19 +134,23 @@ export function generateVariantCSV(productData: any): { csvContent: string; file
       const comparePrice = Math.round(basePrice * 1.25); // %25 yüksek karşılaştırma fiyatı
       const costPrice = Math.round(basePrice * 0.80); // %20 düşük maliyet fiyatı
       
+      // Extract real values from all field aliases, filter out fake tokens
+      const colorValue = getRealValue(variant, ['color', 'colorName']) || '';
+      const sizeValue = getRealValue(variant, ['size', 'sizeName']) || '';
+      
       const row: VariantCSVRow = {
         ...baseProduct,
-        'Option1 Name': 'Renk',
-        'Option1 Value': variant.color || variant.colorName || 'Standart',
-        'Option2 Name': 'Beden',
-        'Option2 Value': variant.size || variant.sizeName || 'Standart',
+        'Option1 Name': hasRealColors ? 'Renk' : (hasRealSizes ? 'Beden' : ''),
+        'Option1 Value': hasRealColors ? colorValue : (hasRealSizes ? sizeValue : ''),
+        'Option2 Name': (hasRealColors && hasRealSizes) ? 'Beden' : '',
+        'Option2 Value': (hasRealColors && hasRealSizes) ? sizeValue : '',
         'Variant SKU': variant.sku || `${handle}-${combination}`,
         'Variant Inventory Qty': variant.stockCount?.toString() || '1',
         'Variant Price': finalPrice.toString(),
         'Variant Compare At Price': comparePrice.toString(),
         'Image Src': variantImage,
         'Image Position': (index + 1).toString(),
-        'Image Alt Text': `${productData.title} - ${variant.color || variant.colorName}`,
+        'Image Alt Text': productData.title,
         'Variant Image': index === 0 ? variantImage : '',
         'Cost per item': costPrice.toString(),
         'Google Shopping / Custom Label 0': `Orijinal: ${originalPrice}₺`,
@@ -127,10 +175,38 @@ export function generateVariantCSV(productData: any): { csvContent: string; file
     });
   }
 
-  // Fallback: Eğer stock matrix yoksa temel varyantlar oluştur
+  // Single-variant fallback: create one row with no option columns
   if (rows.length === 0) {
-    const colors = productData.variants?.colors || [{ name: 'Standart' }];
-    const sizes = ['S', 'M', 'L', 'XL'];
+    const basePrice = parseFloat(productData.price.toString().replace(/[^\d.]/g, ''));
+    const finalPrice = Math.round(basePrice * 1.10);
+    const comparePrice = Math.round(basePrice * 1.25);
+    const costPrice = Math.round(basePrice * 0.80);
+    
+    rows.push({
+      ...baseProduct,
+      'Option1 Name': '', // No fake options for single-variant products
+      'Option1 Value': '',
+      'Option2 Name': '',
+      'Option2 Value': '',
+      'Variant SKU': handle,
+      'Variant Inventory Qty': '10',
+      'Variant Price': finalPrice.toString(),
+      'Variant Compare At Price': comparePrice.toString(),
+      'Image Src': productData.images?.[0] || '',
+      'Image Position': '1',
+      'Image Alt Text': productData.title,
+      'Variant Image': productData.images?.[0] || '',
+      'Cost per item': costPrice.toString(),
+      'Google Shopping / Custom Label 0': `Orijinal: ${basePrice}₺`,
+      'Google Shopping / Custom Label 1': `Kar: %10`,
+      'Google Shopping / Custom Label 2': `Stok: 10`
+    });
+  }
+
+  // Removed the old fake variant generation code
+  if (false) {
+    const colors: string[] = []; // Placeholder to keep structure
+    const sizes: string[] = [];
     
     colors.forEach((color: any) => {
       sizes.forEach((size: string, index: number) => {
