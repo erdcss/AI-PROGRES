@@ -168,36 +168,15 @@ Ne yapmak istiyorsunuz?`,
         };
 
         socket.onmessage = (event) => {
+          if (!event.data || typeof event.data !== 'string') return;
+          
+          const trimmedData = event.data.trim();
+          if (!trimmedData || trimmedData === 'ping' || trimmedData === 'pong') return;
+
           try {
-            // Validate and sanitize data
-            if (!event.data || typeof event.data !== 'string' || event.data.trim() === '') {
-              return; // Silently skip empty data
-            }
-
-            const trimmedData = event.data.trim();
+            const data = JSON.parse(trimmedData);
             
-            // Handle ping/pong
-            if (trimmedData === 'ping' || trimmedData === 'pong') {
-              socket.send('pong');
-              return;
-            }
-
-            // Parse JSON safely
-            let data;
-            try {
-              data = JSON.parse(trimmedData);
-            } catch (parseError) {
-              // Skip non-JSON messages silently (keepalive packets)
-              return;
-            }
-
-            // Validate parsed data structure
-            if (!data || typeof data !== 'object' || !data.type) {
-              return;
-            }
-
-            // Process agent response
-            if (data.type === 'agent_response' && data.response) {
+            if (data?.type === 'agent_response' && data.response) {
               const agentMessage: ChatMessage = {
                 id: (Date.now() + 1).toString(),
                 type: 'agent',
@@ -209,14 +188,12 @@ Ne yapmak istiyorsunuz?`,
               setMessages(prev => [...prev, agentMessage]);
               setIsTyping(false);
 
-              // Reload file system if changes exist
-              if (data.fileChanges && data.fileChanges.length > 0) {
-                setTimeout(() => loadFileSystem(), 1000);
+              if (data.fileChanges?.length > 0) {
+                setTimeout(loadFileSystem, 1000);
               }
             }
-          } catch (error) {
-            // Silent error handling - don't spam console or break connection
-            setIsTyping(false);
+          } catch {
+            // Invalid JSON, ignore
           }
         };
 

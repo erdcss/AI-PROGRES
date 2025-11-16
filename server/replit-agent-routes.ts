@@ -13,8 +13,8 @@ const getAnthropicClient = () => {
   });
 };
 
-// The newest Anthropic model is "claude-sonnet-4-20250514", not "claude-3-7-sonnet-20250219"
-const DEFAULT_MODEL_STR = "claude-sonnet-4-20250514";
+// Use the fastest Claude model for quick responses
+const DEFAULT_MODEL_STR = "claude-3-5-sonnet-20241022";
 
 const readFile = promisify(fs.readFile);
 const writeFile = promisify(fs.writeFile);
@@ -123,9 +123,10 @@ ${context?.systemInfo ? `- Toplam ürün: ${context.systemInfo.totalProducts}` :
     // Prepare conversation history for context (without system message)
     let messages: any[] = [];
 
-    // Add conversation history if provided (filter out system messages)
+    // Add limited conversation history for speed (last 3 messages only)
     if (conversationHistory && Array.isArray(conversationHistory)) {
-      conversationHistory.forEach((msg: any) => {
+      const recentHistory = conversationHistory.slice(-6); // Last 3 exchanges (6 messages)
+      recentHistory.forEach((msg: any) => {
         if (msg.type === 'user' && msg.role !== 'system') {
           messages.push({ role: 'user', content: msg.content });
         } else if (msg.type === 'agent' && msg.role !== 'system') {
@@ -144,7 +145,7 @@ ${context?.systemInfo ? `- Toplam ürün: ${context.systemInfo.totalProducts}` :
     const anthropicClient = getAnthropicClient();
     const response = await anthropicClient.messages.create({
       model: DEFAULT_MODEL_STR,
-      max_tokens: 4000,
+      max_tokens: 2000,
       system: systemPrompt,
       messages: messages
     });

@@ -342,9 +342,9 @@ Ben gelişmiş AI kod asistanınızım. Size nasıl yardımcı olabilirim?
     setNewMessage('');
     setIsLoading(true);
 
-    // Extended timeout for complex agent tasks
+    // Optimized timeout for faster response
     const controller = new AbortController();
-    const timeoutId = setTimeout(() => controller.abort(), 180000); // 3 minutes timeout
+    const timeoutId = setTimeout(() => controller.abort(), 30000); // 30 seconds timeout
 
     try {
       const response = await fetch('/api/agent/chat', {
