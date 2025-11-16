@@ -6902,57 +6902,51 @@ ${(result.title || 'product').toLowerCase().replace(/[^a-z0-9]/g, '-')},${result
    */
   app.get('/api/tracking/all', async (req, res) => {
     try {
-      // Get all products with their tracking status
-      const allProducts = await db
+      // Get all tracked URLs from urlTracking table (especially Shopify-linked ones)
+      const trackedUrls = await db
         .select({
-          id: products.id,
-          title: products.title,
-          brand: products.brand,
-          currentPrice: products.currentPrice,
-          category: products.category,
-          trendyolUrl: products.trendyolUrl,
-          shopifyProductId: products.shopifyProductId,
-          lastChecked: products.lastChecked,
-          isActive: products.isActive,
-          stockStatus: products.stockStatus,
-          createdAt: products.createdAt
+          id: urlTracking.id,
+          url: urlTracking.url,
+          productTitle: urlTracking.productTitle,
+          currentPrice: urlTracking.currentPrice,
+          status: urlTracking.status,
+          lastChecked: urlTracking.lastChecked,
+          isTracking: urlTracking.isTracking,
+          shopifyProductId: urlTracking.shopifyProductId,
+          shopifyHandle: urlTracking.shopifyHandle,
+          createdAt: urlTracking.createdAt
         })
-        .from(products)
-        .orderBy(desc(products.lastChecked));
+        .from(urlTracking)
+        .orderBy(desc(urlTracking.lastChecked));
       
-      // Get variant counts for each product
-      const productIds = allProducts.map(p => p.id);
+      // Calculate stats
+      const total = trackedUrls.length;
+      const active = trackedUrls.filter(u => u.isTracking && u.status === 'active').length;
+      const paused = trackedUrls.filter(u => !u.isTracking || u.status === 'paused').length;
       
-      let variantCounts: any[] = [];
-      if (productIds.length > 0) {
-        variantCounts = await db
-          .select({
-            productId: productVariants.productId,
-            totalVariants: sql<number>`count(*)`.as('total_variants'),
-            variantsInStock: sql<number>`sum(case when ${productVariants.inStock} then 1 else 0 end)`.as('variants_in_stock')
-          })
-          .from(productVariants)
-          .where(inArray(productVariants.productId, productIds))
-          .groupBy(productVariants.productId);
-      }
-      
-      // Merge variant data with products
-      const productsWithVariants = allProducts.map(product => {
-        const variantData = variantCounts.find(v => v.productId === product.id);
-        return {
-          ...product,
-          totalVariants: variantData?.totalVariants || 0,
-          variantsInStock: variantData?.variantsInStock || 0
-        };
-      });
+      console.log(`📊 Tracking All: ${total} total, ${active} active, ${paused} paused`);
       
       res.json({
         success: true,
-        products: productsWithVariants,
-        total: allProducts.length
+        tracked: trackedUrls.map(url => ({
+          id: url.id,
+          url: url.url,
+          productTitle: url.productTitle,
+          currentPrice: url.currentPrice,
+          status: url.status,
+          lastChecked: url.lastChecked,
+          isTracking: url.isTracking,
+          shopifyProductId: url.shopifyProductId,
+          shopifyHandle: url.shopifyHandle
+        })),
+        stats: {
+          total,
+          active,
+          paused
+        }
       });
     } catch (error) {
-      console.error('❌ Tracking all products error:', error);
+      console.error('❌ Tracking all URLs error:', error);
       res.status(500).json({ 
         success: false, 
         error: (error as Error).message 
@@ -7064,104 +7058,142 @@ ${(result.title || 'product').toLowerCase().replace(/[^a-z0-9]/g, '-')},${result
 
   /**
    * POST /api/tracking/bulk-add-shopify - Shopify ürünlerini toplu izlemeye ekle
+   * Supports: { productIds: number[] } or { scope: 'all', filters?: {...} }
    */
   app.post('/api/tracking/bulk-add-shopify', async (req, res) => {
     try {
-      const { productIds } = req.body;
+      const { productIds, scope, filters } = req.body;
       
-      if (!Array.isArray(productIds) || productIds.length === 0) {
+      // Validate input: either productIds array or scope:'all'
+      if (scope === 'all') {
+        console.log(`🎯 Bulk tracking başlatılıyor: TÜM Shopify ürünleri`);
+      } else if (!Array.isArray(productIds) || productIds.length === 0) {
         return res.status(400).json({
           success: false,
-          error: 'productIds dizisi gerekli'
+          error: 'productIds dizisi veya scope:"all" gerekli'
         });
+      } else {
+        console.log(`🎯 Bulk tracking başlatılıyor: ${productIds.length} ürün`);
       }
       
-      console.log(`🎯 Bulk tracking başlatılıyor: ${productIds.length} ürün`);
+      // Get Shopify products based on scope
+      let shopifyProducts;
       
-      // Get Shopify products by IDs
-      const shopifyProducts = await db
-        .select()
-        .from(shopifyMemoryProducts)
-        .where(inArray(shopifyMemoryProducts.id, productIds));
+      if (scope === 'all') {
+        // Fetch all products with optional filters
+        let query = db.select().from(shopifyMemoryProducts);
+        
+        if (filters?.category && filters.category !== 'all') {
+          query = query.where(eq(shopifyMemoryProducts.category, filters.category));
+        }
+        
+        if (filters?.search) {
+          query = query.where(
+            or(
+              like(shopifyMemoryProducts.title, `%${filters.search}%`),
+              like(shopifyMemoryProducts.vendor, `%${filters.search}%`)
+            )
+          );
+        }
+        
+        shopifyProducts = await query;
+        console.log(`📊 Toplam ${shopifyProducts.length} ürün bulundu`);
+      } else {
+        // Get specific products by IDs
+        shopifyProducts = await db
+          .select()
+          .from(shopifyMemoryProducts)
+          .where(inArray(shopifyMemoryProducts.id, productIds));
+      }
       
       let successCount = 0;
       let errorCount = 0;
       const errors: string[] = [];
       
-      for (const product of shopifyProducts) {
+      // Filter products with valid URLs and shopifyId
+      const validProducts = shopifyProducts.filter(p => p.sourceUrl && p.shopifyId);
+      const skippedCount = shopifyProducts.length - validProducts.length;
+      
+      if (skippedCount > 0) {
+        console.log(`⚠️ ${skippedCount} ürün atlandı (URL veya shopifyId eksik)`);
+      }
+      
+      // Process in chunks for better performance
+      const CHUNK_SIZE = 500;
+      const totalChunks = Math.ceil(validProducts.length / CHUNK_SIZE);
+      
+      for (let i = 0; i < totalChunks; i++) {
+        const chunk = validProducts.slice(i * CHUNK_SIZE, (i + 1) * CHUNK_SIZE);
+        console.log(`📦 Chunk ${i + 1}/${totalChunks}: ${chunk.length} ürün işleniyor...`);
+        
+        // Process chunk in a single transaction for speed
         try {
-          if (!product.sourceUrl) {
-            console.log(`⚠️ ${product.title}: Trendyol URL yok, atlanıyor`);
-            errorCount++;
-            errors.push(`${product.title}: Trendyol URL eksik`);
-            continue;
-          }
-          
-          // CRITICAL: Verify shopifyId exists for eligibility (schema uses shopifyId, not shopifyProductId)
-          if (!product.shopifyId) {
-            console.log(`⚠️ ${product.title}: shopifyId eksik, izleme başlamaz`);
-            errorCount++;
-            errors.push(`${product.title}: shopifyId eksik`);
-            continue;
-          }
-          
-          // Transaction-based upsert ensures shopifyProductId persists before tracking starts
-          const trackedUrl = await db.transaction(async (trx) => {
-            // Upsert with shopifyProductId in both insert and conflict paths
-            const upsertPayload = {
-              url: product.sourceUrl,
-              productTitle: product.title,
-              currentPrice: product.minPrice,
-              originalPrice: product.minPrice,
-              currency: 'TL',
-              status: 'active' as const,
-              lastChecked: new Date(),
-              lastSuccessfulCheck: new Date(),
-              checkCount: 1,
-              isTracking: true,
-              trackingInterval: 300,
-              shopifyProductId: product.shopifyId,
-              shopifyHandle: product.handle,
-              extractedData: null
-            };
-
-            const [upsertedRow] = await trx
-              .insert(urlTracking)
-              .values(upsertPayload)
-              .onConflictDoUpdate({
-                target: urlTracking.url,
-                set: {
-                  productTitle: upsertPayload.productTitle,
-                  currentPrice: upsertPayload.currentPrice,
-                  lastChecked: upsertPayload.lastChecked,
-                  shopifyProductId: upsertPayload.shopifyProductId, // CRITICAL: Persist on conflict
-                  shopifyHandle: upsertPayload.shopifyHandle,
+          await db.transaction(async (trx) => {
+            for (const product of chunk) {
+              try {
+                const upsertPayload = {
+                  url: product.sourceUrl!,
+                  productTitle: product.title,
+                  currentPrice: product.minPrice,
+                  originalPrice: product.minPrice,
+                  currency: 'TL',
+                  status: 'active' as const,
+                  lastChecked: new Date(),
+                  lastSuccessfulCheck: new Date(),
+                  checkCount: 1,
                   isTracking: true,
-                  status: 'active',
-                  updatedAt: new Date()
-                }
-              })
-              .returning();
+                  trackingInterval: 300,
+                  shopifyProductId: product.shopifyId!,
+                  shopifyHandle: product.handle,
+                  extractedData: null
+                };
 
-            // Defensive check: verify shopifyProductId was persisted
-            if (!upsertedRow || !upsertedRow.shopifyProductId) {
-              throw new Error(`shopifyProductId not persisted for ${product.title}`);
+                await trx
+                  .insert(urlTracking)
+                  .values(upsertPayload)
+                  .onConflictDoUpdate({
+                    target: urlTracking.url,
+                    set: {
+                      productTitle: upsertPayload.productTitle,
+                      currentPrice: upsertPayload.currentPrice,
+                      lastChecked: upsertPayload.lastChecked,
+                      shopifyProductId: upsertPayload.shopifyProductId,
+                      shopifyHandle: upsertPayload.shopifyHandle,
+                      isTracking: true,
+                      status: 'active',
+                      updatedAt: new Date()
+                    }
+                  });
+                
+                successCount++;
+              } catch (productError) {
+                errorCount++;
+                const errorMsg = productError instanceof Error ? productError.message : String(productError);
+                errors.push(`${product.title}: ${errorMsg}`);
+              }
             }
-
-            return upsertedRow;
           });
-
-          // Only after transaction commits, start tracking
-          await urlTrackingService.enableTracking(product.sourceUrl);
           
-          successCount++;
-          console.log(`✅ ${product.title}: İzlemeye eklendi (shopifyId: ${product.shopifyId})`);
-        } catch (error) {
-          errorCount++;
-          const errorMsg = error instanceof Error ? error.message : String(error);
-          errors.push(`${product.title}: ${errorMsg}`);
-          console.error(`❌ ${product.title} hata:`, error);
+          console.log(`✅ Chunk ${i + 1}/${totalChunks} tamamlandı: ${chunk.length} ürün eklendi`);
+        } catch (chunkError) {
+          console.error(`❌ Chunk ${i + 1}/${totalChunks} hatası:`, chunkError);
+          errorCount += chunk.length;
         }
+      }
+      
+      // Start tracking for all added URLs (async, don't wait)
+      if (successCount > 0) {
+        console.log(`🚀 ${successCount} URL için izleme servisi başlatılıyor...`);
+        // Enable tracking in background (don't block response)
+        setImmediate(async () => {
+          for (const product of validProducts) {
+            try {
+              await urlTrackingService.enableTracking(product.sourceUrl!);
+            } catch (err) {
+              console.error(`⚠️ Tracking başlatma hatası: ${product.title}`, err);
+            }
+          }
+        });
       }
       
       res.json({

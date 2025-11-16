@@ -347,7 +347,7 @@ export default function MemoryTrackingPage() {
     }
   });
 
-  // Bulk tracking mutation
+  // Bulk tracking mutation - selected products
   const bulkTrackingMutation = useMutation({
     mutationFn: async (productIds: number[]) => {
       const res = await fetch('/api/tracking/bulk-add-shopify', {
@@ -365,11 +365,48 @@ export default function MemoryTrackingPage() {
       });
       setSelectedProducts([]);
       queryClient.invalidateQueries({ queryKey: ['/api/shopify/products'] });
+      queryClient.invalidateQueries({ queryKey: ['/api/tracking/all'] });
     },
     onError: (error: any) => {
       toast({
         title: "İzleme Hatası",
         description: error.message || "İzleme eklenirken hata oluştu",
+        variant: "destructive"
+      });
+    }
+  });
+
+  // Bulk tracking mutation - ALL products
+  const bulkTrackingAllMutation = useMutation({
+    mutationFn: async () => {
+      const res = await fetch('/api/tracking/bulk-add-shopify', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ 
+          scope: 'all',
+          filters: {
+            category: selectedCategory !== 'all' ? selectedCategory : undefined,
+            search: searchQuery.trim() || undefined
+          }
+        })
+      });
+      if (!res.ok) throw new Error('Bulk tracking all failed');
+      return res.json();
+    },
+    onSuccess: (data) => {
+      toast({
+        title: "✅ Toplu İzleme Başlatıldı",
+        description: `${data.successCount} ürün izlemeye eklendi${data.errorCount > 0 ? ` (${data.errorCount} hata)` : ''}`,
+        duration: 8000
+      });
+      setSelectedProducts([]);
+      queryClient.invalidateQueries({ queryKey: ['/api/shopify/products'] });
+      queryClient.invalidateQueries({ queryKey: ['/api/tracking/all'] });
+    },
+    onError: (error: any) => {
+      toast({
+        title: "İzleme Hatası",
+        description: error.message || "Toplu izleme başlatılırken hata oluştu",
         variant: "destructive"
       });
     }
@@ -407,6 +444,21 @@ export default function MemoryTrackingPage() {
       return;
     }
     bulkTrackingMutation.mutate(selectedProducts);
+  };
+
+  const handleBulkTrackingAll = () => {
+    // Confirmation before adding all
+    const totalCount = pagination?.total || 0;
+    if (totalCount === 0) {
+      toast({
+        title: "Uyarı",
+        description: "İzlenecek ürün bulunamadı",
+        variant: "destructive"
+      });
+      return;
+    }
+    
+    bulkTrackingAllMutation.mutate();
   };
 
   // WebSocket event handlers
@@ -672,6 +724,56 @@ export default function MemoryTrackingPage() {
                   : `İzlemeye Ekle (${selectedProducts.length})`}
               </Button>
             )}
+            
+            {/* Add All to Tracking Button */}
+            <AlertDialog>
+              <AlertDialogTrigger asChild>
+                <Button
+                  disabled={bulkTrackingAllMutation.isPending || (pagination?.total || 0) === 0}
+                  className="bg-blue-600 hover:bg-blue-700"
+                  data-testid="button-bulk-tracking-all"
+                >
+                  <Layers className="h-4 w-4 mr-2" />
+                  {bulkTrackingAllMutation.isPending 
+                    ? 'Tümü Ekleniyor...' 
+                    : 'Tümünü İzlemeye Ekle'}
+                </Button>
+              </AlertDialogTrigger>
+              <AlertDialogContent className="bg-slate-800 border-slate-700">
+                <AlertDialogHeader>
+                  <AlertDialogTitle className="text-white">
+                    Tüm Ürünleri İzlemeye Ekle
+                  </AlertDialogTitle>
+                  <AlertDialogDescription className="text-slate-300">
+                    <span className="font-semibold text-blue-400">{pagination?.total || 0} ürün</span> izlemeye eklenecek.
+                    {selectedCategory !== 'all' && (
+                      <span className="block mt-2 text-sm">
+                        📁 Kategori: <span className="font-medium">{selectedCategory}</span>
+                      </span>
+                    )}
+                    {searchQuery && (
+                      <span className="block mt-1 text-sm">
+                        🔍 Arama: <span className="font-medium">{searchQuery}</span>
+                      </span>
+                    )}
+                    <span className="block mt-3 text-sm text-amber-400">
+                      ⚡ Bu işlem birkaç dakika sürebilir. İzleme arka planda başlatılacak.
+                    </span>
+                  </AlertDialogDescription>
+                </AlertDialogHeader>
+                <AlertDialogFooter>
+                  <AlertDialogCancel className="bg-slate-700 text-white hover:bg-slate-600">
+                    İptal
+                  </AlertDialogCancel>
+                  <AlertDialogAction
+                    onClick={handleBulkTrackingAll}
+                    className="bg-blue-600 hover:bg-blue-700"
+                  >
+                    Onayla ve Başlat
+                  </AlertDialogAction>
+                </AlertDialogFooter>
+              </AlertDialogContent>
+            </AlertDialog>
             
             {/* WebSocket Status Indicator */}
             <div className="flex items-center gap-2 px-3 py-2 rounded-lg bg-slate-800/50 border border-slate-700">
