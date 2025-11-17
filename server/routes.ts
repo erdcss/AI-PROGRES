@@ -7121,6 +7121,7 @@ ${(result.title || 'product').toLowerCase().replace(/[^a-z0-9]/g, '-')},${result
       // Process in chunks for better performance
       const CHUNK_SIZE = 500;
       const totalChunks = Math.ceil(validProducts.length / CHUNK_SIZE);
+      const addedTrackers: Array<{ url: string; shopifyId: string }> = [];
       
       for (let i = 0; i < totalChunks; i++) {
         const chunk = validProducts.slice(i * CHUNK_SIZE, (i + 1) * CHUNK_SIZE);
@@ -7148,7 +7149,7 @@ ${(result.title || 'product').toLowerCase().replace(/[^a-z0-9]/g, '-')},${result
                   extractedData: null
                 };
 
-                await trx
+                const [insertedTracker] = await trx
                   .insert(urlTracking)
                   .values(upsertPayload)
                   .onConflictDoUpdate({
@@ -7163,7 +7164,16 @@ ${(result.title || 'product').toLowerCase().replace(/[^a-z0-9]/g, '-')},${result
                       status: 'active',
                       updatedAt: new Date()
                     }
+                  })
+                  .returning();
+                
+                // Store canonical URL from DB for enableTracking
+                if (insertedTracker) {
+                  addedTrackers.push({
+                    url: insertedTracker.url,
+                    shopifyId: product.shopifyId!
                   });
+                }
                 
                 successCount++;
               } catch (productError) {
@@ -7181,16 +7191,24 @@ ${(result.title || 'product').toLowerCase().replace(/[^a-z0-9]/g, '-')},${result
         }
       }
       
-      // Start tracking for all added URLs (async, don't wait)
+      // Invalidate eligibility cache so new Shopify products are included
       if (successCount > 0) {
-        console.log(`🚀 ${successCount} URL için izleme servisi başlatılıyor...`);
+        productEligibilityService.invalidateCache();
+        console.log(`🔄 Eligibility cache invalidated for ${successCount} new trackers`);
+      }
+      
+      // Start tracking for all added URLs (async, don't wait)
+      if (addedTrackers.length > 0) {
+        console.log(`🚀 ${addedTrackers.length} URL için izleme servisi başlatılıyor...`);
         // Enable tracking in background (don't block response)
         setImmediate(async () => {
-          for (const product of validProducts) {
+          for (const tracker of addedTrackers) {
             try {
-              await urlTrackingService.enableTracking(product.sourceUrl!);
+              // Use canonical URL from database to avoid encoding mismatch
+              await urlTrackingService.enableTracking(tracker.url);
+              console.log(`✅ Tracking enabled: ${tracker.shopifyId}`);
             } catch (err) {
-              console.error(`⚠️ Tracking başlatma hatası: ${product.title}`, err);
+              console.error(`⚠️ Tracking başlatma hatası: ${tracker.shopifyId}`, err);
             }
           }
         });
