@@ -80,6 +80,7 @@ export class UrlTrackingService {
             status: 'active',
             isTracking: startTracking,
             updatedAt: new Date()
+            // ⚠️ CRITICAL: NOT updating shopifyProductId to preserve Shopify linkage from bulk-add
           }
         });
 
