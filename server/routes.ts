@@ -6914,7 +6914,6 @@ ${(result.title || 'product').toLowerCase().replace(/[^a-z0-9]/g, '-')},${result
           lastChecked: urlTracking.lastChecked,
           isTracking: urlTracking.isTracking,
           shopifyProductId: urlTracking.shopifyProductId,
-          shopifyHandle: urlTracking.shopifyHandle,
           createdAt: urlTracking.createdAt
         })
         .from(urlTracking)
@@ -6937,8 +6936,7 @@ ${(result.title || 'product').toLowerCase().replace(/[^a-z0-9]/g, '-')},${result
           status: url.status,
           lastChecked: url.lastChecked,
           isTracking: url.isTracking,
-          shopifyProductId: url.shopifyProductId,
-          shopifyHandle: url.shopifyHandle
+          shopifyProductId: url.shopifyProductId
         })),
         stats: {
           total,
@@ -7146,7 +7144,6 @@ ${(result.title || 'product').toLowerCase().replace(/[^a-z0-9]/g, '-')},${result
                   isTracking: true,
                   trackingInterval: 300,
                   shopifyProductId: product.shopifyId!,
-                  shopifyHandle: product.handle,
                   extractedData: null
                 };
 
@@ -7160,7 +7157,6 @@ ${(result.title || 'product').toLowerCase().replace(/[^a-z0-9]/g, '-')},${result
                       currentPrice: upsertPayload.currentPrice,
                       lastChecked: upsertPayload.lastChecked,
                       shopifyProductId: upsertPayload.shopifyProductId,
-                      shopifyHandle: upsertPayload.shopifyHandle,
                       isTracking: true,
                       status: 'active',
                       updatedAt: new Date()
