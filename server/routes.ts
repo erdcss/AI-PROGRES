@@ -52,6 +52,7 @@ import { uploadProductToShopify, testShopifyConnection } from './shopify-api-upl
 import { uploadMultiUrlProductToShopify } from './multi-url-shopify-uploader';
 import { v4 as uuidv4 } from 'uuid';
 import { eq, desc, or, and, isNotNull, inArray, count, gte, ne } from 'drizzle-orm';
+import { productEligibilityService } from './product-eligibility-service';
 import axios from 'axios';
 import { urlTrackingService } from './url-tracking-service';
 import { savedUrlsManager } from './saved-urls-manager';
