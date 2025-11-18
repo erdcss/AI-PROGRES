@@ -45,11 +45,11 @@ export class ShopifyProductsManager {
   private apiVersion: string = '2024-01';
 
   constructor() {
-    this.shopDomain = process.env.SHOPIFY_SHOP_DOMAIN || '';
+    this.shopDomain = process.env.SHOPIFY_STORE_URL?.replace(/^https?:\/\//, '') || '';
     this.accessToken = process.env.SHOPIFY_ACCESS_TOKEN || '';
     
     if (!this.shopDomain || !this.accessToken) {
-      throw new Error('Shopify API bilgileri eksik: SHOPIFY_SHOP_DOMAIN ve SHOPIFY_ACCESS_TOKEN gerekli');
+      throw new Error('Shopify API bilgileri eksik: SHOPIFY_STORE_URL ve SHOPIFY_ACCESS_TOKEN gerekli');
     }
   }
 

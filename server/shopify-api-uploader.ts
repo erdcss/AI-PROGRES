@@ -134,7 +134,7 @@ export async function uploadProductToShopify(csvContent: string, productTitle: s
     }
     
     // Shopify API endpoint
-    const shopifyStore = process.env.SHOPIFY_SHOP_DOMAIN;
+    const shopifyStore = process.env.SHOPIFY_STORE_URL?.replace(/^https?:\/\//, '');
     const accessToken = process.env.SHOPIFY_ACCESS_TOKEN;
     
     if (!shopifyStore || !accessToken) {
@@ -518,7 +518,7 @@ export async function uploadMultiUrlProductToShopify(productData: any, productTi
     }
     
     // Shopify API endpoint
-    const shopifyStore = process.env.SHOPIFY_SHOP_DOMAIN;
+    const shopifyStore = process.env.SHOPIFY_STORE_URL?.replace(/^https?:\/\//, '');
     const accessToken = process.env.SHOPIFY_ACCESS_TOKEN;
     
     if (!shopifyStore || !accessToken) {
@@ -915,13 +915,13 @@ async function sendTelegramNotification(data: any) {
 // Test connection to Shopify
 export async function testShopifyConnection(): Promise<{ success: boolean; message: string; store?: string }> {
   try {
-    const shopifyStore = process.env.SHOPIFY_SHOP_DOMAIN;
+    const shopifyStore = process.env.SHOPIFY_STORE_URL?.replace(/^https?:\/\//, '');
     const accessToken = process.env.SHOPIFY_ACCESS_TOKEN;
     
     if (!shopifyStore || !accessToken) {
       return { 
         success: false, 
-        message: 'SHOPIFY_SHOP_DOMAIN veya SHOPIFY_ACCESS_TOKEN environment variable\'ları bulunamadı' 
+        message: 'SHOPIFY_STORE_URL veya SHOPIFY_ACCESS_TOKEN environment variable\'ları bulunamadı' 
       };
     }
 
