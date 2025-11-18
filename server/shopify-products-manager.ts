@@ -189,7 +189,7 @@ export class ShopifyProductsManager {
         // Fuzzy match: Title benzerliği ile
         if (!matched) {
           const shopifyProduct = shopifyProducts.find(sp => {
-            const dbTitle = dbProduct.productTitle?.toLowerCase() || '';
+            const dbTitle = dbProduct.title?.toLowerCase() || '';
             const shopifyTitle = sp.title.toLowerCase();
             
             // Basit benzerlik kontrolü - kelimelerin %70'i eşleşiyorsa match
@@ -321,7 +321,9 @@ export class ShopifyProductsManager {
         }
 
         const oldPrice = parseFloat(dbProduct.originalPrice || '0');
-        const newPrice = extractionResult.price.original;
+        const newPrice = typeof extractionResult.price === 'number' 
+          ? extractionResult.price 
+          : (extractionResult.price as any)?.original || 0;
         const priceChange = oldPrice > 0 ? ((newPrice - oldPrice) / oldPrice) * 100 : 0;
 
         // Stok durumu kontrolü
