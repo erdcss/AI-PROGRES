@@ -33,29 +33,29 @@ export interface PerformanceConfig {
 
 export const defaultPerformanceConfig: PerformanceConfig = {
   cache: {
-    duration: 2 * 60 * 1000,  // 2 minutes for hot URLs
+    duration: 5 * 60 * 1000,  // 🚀 5 minutes for hot URLs (balanced)
     forceRefresh: false
   },
   timeouts: {
     fast: {
-      axios: 3000,          // Fast: 3s for quick responses
-      puppeteerGoto: 3000,
-      puppeteerSelector: 1000
+      axios: 4000,          // 🚀 Fast: 4s (balanced - prevents false failures)
+      puppeteerGoto: 4000,
+      puppeteerSelector: 1500
     },
     slow: {
-      axios: 8000,          // Slow fallback: 8s for reliability
-      puppeteerGoto: 8000,
-      puppeteerSelector: 3000
+      axios: 10000,         // Slow fallback: 10s for reliability
+      puppeteerGoto: 10000,
+      puppeteerSelector: 4000
     }
   },
   rateLimiting: {
-    minDelay: 300,
-    maxDelay: 500,
-    useAdaptive: true  // Tie to intelligentRateLimiter for anti-blocking
+    minDelay: 200,          // 🚀 Balanced: 200ms min delay (safer)
+    maxDelay: 400,          // 🚀 400ms max delay
+    useAdaptive: true      // ✅ Keep adaptive for anti-blocking
   },
   parallel: {
-    maxConcurrent: 5,
-    poolSize: 5
+    maxConcurrent: 8,      // 🚀 Moderate increase (safer than 15)
+    poolSize: 8
   }
 };
 

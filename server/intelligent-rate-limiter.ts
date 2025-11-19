@@ -25,11 +25,11 @@ export class IntelligentRateLimiter {
   private currentSession: string = '';
   
   private config: RateLimitConfig = {
-    minDelay: 300,       // 🚀 ULTRA SPEED: 0.3 seconds minimum
-    maxDelay: 1000,      // 🚀 ULTRA SPEED: 1 second maximum  
-    burstLimit: 15,      // 🚀 ULTRA SPEED: Max 15 requests in burst
-    cooldownPeriod: 5000, // 🚀 ULTRA SPEED: 5 seconds cooldown
-    adaptiveMode: false  // 🚀 DISABLE adaptive mode completely
+    minDelay: 200,       // 🚀 Balanced: 0.2 seconds minimum (safer)
+    maxDelay: 600,       // 🚀 Balanced: 0.6 second maximum
+    burstLimit: 20,      // 🚀 Balanced: Max 20 requests in burst
+    cooldownPeriod: 4000, // 🚀 Balanced: 4 seconds cooldown
+    adaptiveMode: true   // ✅ KEEP adaptive mode for anti-blocking
   };
 
   constructor(customConfig?: Partial<RateLimitConfig>) {
