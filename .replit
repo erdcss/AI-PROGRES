@@ -1,15 +1,19 @@
-modules = ["nodejs-20", "bash", "web", "postgresql-16", "python-3.11"]
 run = "npm run dev"
-hidden = [".config", ".git", "generated-icon.png", "node_modules", "dist"]
 
 [nix]
 channel = "stable-24_05"
-packages = ["glibcLocales", "glib", "nss", "nspr", "atk", "cups", "dbus", "libdrm", "xorg.libxcb", "xorg.libX11", "xorg.libXcomposite", "xorg.libXdamage", "xorg.libXext", "xorg.libXfixes", "xorg.libXrandr", "mesa", "expat", "alsa-lib", "pango", "libxkbcommon"]
+packages = [
+  "nodejs_20",
+  "python3_11",
+  "python3Packages.pip",
+  "chromium",
+  "glibcLocales",
+]
 
 [deployment]
 deploymentTarget = "autoscale"
-run = ["npm", "run", "start"]
-build = ["npm", "run", "build"]
+build = "npm run build"
+run = "npm start"
 
 [[ports]]
 localPort = 3000
@@ -20,11 +24,7 @@ localPort = 5000
 externalPort = 5000
 
 [[ports]]
-localPort = 35479
-externalPort = 9000
-
-[[ports]]
-localPort = 35481
+localPort = 39545
 externalPort = 8000
 
 [[ports]]
@@ -34,11 +34,6 @@ externalPort = 8080
 [[ports]]
 localPort = 40577
 externalPort = 6800
-
-[[ports]]
-localPort = 41333
-externalPort = 3001
-exposeLocalhost = true
 
 [[ports]]
 localPort = 41749
@@ -51,10 +46,6 @@ externalPort = 6000
 [[ports]]
 localPort = 43143
 externalPort = 4200
-
-[[ports]]
-localPort = 44593
-externalPort = 8081
 
 [[ports]]
 localPort = 44665
@@ -75,36 +66,3 @@ externalPort = 3000
 [[ports]]
 localPort = 45999
 externalPort = 5173
-
-[workflows]
-runButton = "Start application"
-
-[[workflows.workflow]]
-name = "Project"
-mode = "parallel"
-author = "agent"
-
-[[workflows.workflow.tasks]]
-task = "workflow.run"
-args = "Start application"
-
-[[workflows.workflow]]
-name = "Start application"
-author = "agent"
-
-[workflows.workflow.metadata]
-agentRequireRestartOnSave = false
-
-[[workflows.workflow.tasks]]
-task = "packager.installForAll"
-
-[[workflows.workflow.tasks]]
-task = "shell.exec"
-args = "npm run dev"
-waitForPort = 5000
-
-[objectStorage]
-defaultBucketID = "replit-objstore-afc93c49-c00d-41d7-b7ab-feec38bd85a8"
-
-[agent]
-integrations = ["javascript_websocket==1.0.0", "javascript_anthropic==1.0.0", "javascript_sendgrid==1.0.0", "javascript_openai==1.0.0"]
