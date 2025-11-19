@@ -3533,9 +3533,9 @@ async function extractVariantsDirect($: cheerio.CheerioAPI, htmlContent: string,
       const sizeName = $el.text().trim() || $el.attr('title') || $el.attr('data-size') || 
                       $el.attr('aria-label');
       
-      if (sizeName && typeof sizeName === 'string' && sizeName.length > 0 && sizeName.length < 10) {
-        // Enhanced size pattern for Turkish and international sizes
-        const sizePattern = /^(XXS|XS|S|M|L|XL|XXL|XXXL|2XL|3XL|\d+(\.\d+)?|Tek\s*Beden|One\s*Size)$/i;
+      if (sizeName && typeof sizeName === 'string' && sizeName.length > 0 && sizeName.length < 20) {
+        // Enhanced size pattern for Turkish and international sizes + dimension-based sizes
+        const sizePattern = /^(XXS|XS|S|M|L|XL|XXL|XXXL|2XL|3XL|\d+(\.\d+)?|Tek\s*Beden|One\s*Size|\d+\s*[xX×]\s*\d+(\s*(cm|CM))?)$/i;
         const cleanSizeName = sizeName.trim();
         
         if (sizePattern.test(cleanSizeName)) {
@@ -3559,9 +3559,9 @@ async function extractVariantsDirect($: cheerio.CheerioAPI, htmlContent: string,
       // ÖNEMLİ: Disabled kontrol etme, sadece mevcut bedenleri topla
       // Stok kontrolü ayrı yapılacak
       
-      if (sizeName && typeof sizeName === 'string' && sizeName.length > 0 && sizeName.length < 10) {
-        // Enhanced size pattern for Turkish and international sizes
-        const sizePattern = /^(XXS|XS|S|M|L|XL|XXL|XXXL|2XL|3XL|\d+(\.\d+)?|Tek\s*Beden|One\s*Size)$/i;
+      if (sizeName && typeof sizeName === 'string' && sizeName.length > 0 && sizeName.length < 20) {
+        // Enhanced size pattern for Turkish and international sizes + dimension-based sizes
+        const sizePattern = /^(XXS|XS|S|M|L|XL|XXL|XXXL|2XL|3XL|\d+(\.\d+)?|Tek\s*Beden|One\s*Size|\d+\s*[xX×]\s*\d+(\s*(cm|CM))?)$/i;
         const cleanSizeName = sizeName.trim();
         
         if (sizePattern.test(cleanSizeName)) {
@@ -4715,8 +4715,8 @@ function extractSizesFromJS($: any, htmlContent: string): string[] {
       const matches = scriptContent.match(pattern);
       if (matches) {
         matches.forEach(match => {
-          // Extract size values from the match - exclude invalid sizes like "1"
-          const sizeMatch = match.match(/["'](XXS|XS|S|M|L|XL|XXL|XXXL|2XL|3XL|4XL|5XL|Tek\s*Beden|One\s*Size|(?:2[4-9]|[3-5][0-9])(?:\.\d+)?|(?:3[6-9]|4[0-9]|5[0-2]))["']/gi);
+          // Extract size values from the match - exclude invalid sizes like "1" + dimension-based sizes
+          const sizeMatch = match.match(/["'](XXS|XS|S|M|L|XL|XXL|XXXL|2XL|3XL|4XL|5XL|Tek\s*Beden|One\s*Size|(?:2[4-9]|[3-5][0-9])(?:\.\d+)?|(?:3[6-9]|4[0-9]|5[0-2])|\d+\s*[xX×]\s*\d+(\s*(cm|CM))?)["']/gi);
           if (sizeMatch) {
             sizeMatch.forEach(size => {
               const cleanSize = size.replace(/["']/g, '').trim();
@@ -4806,9 +4806,9 @@ function extractSizesFromJS($: any, htmlContent: string): string[] {
     let match;
     while ((match = pattern.exec(htmlContent)) !== null) {
       const sizeName = match[1].trim();
-      // Filter for valid size names
-      if (sizeName && sizeName.length > 0 && sizeName.length < 10) {
-        const sizePattern = /^(XXS|XS|S|M|L|XL|XXL|XXXL|\d+(\.\d+)?|Tek\s*Beden|One\s*Size)$/i;
+      // Filter for valid size names (extended length for dimension sizes)
+      if (sizeName && sizeName.length > 0 && sizeName.length < 20) {
+        const sizePattern = /^(XXS|XS|S|M|L|XL|XXL|XXXL|\d+(\.\d+)?|Tek\s*Beden|One\s*Size|\d+\s*[xX×]\s*\d+(\s*(cm|CM))?)$/i;
         if (sizePattern.test(sizeName)) {
           sizes.push(sizeName);
           console.log(`👕 Found size in HTML pattern: ${sizeName}`);
