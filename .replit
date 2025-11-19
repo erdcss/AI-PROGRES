@@ -1,86 +1,29 @@
-modules = ["nodejs-20", "bash", "web", "postgresql-16", "python-3.11"]
 run = "npm run dev"
-hidden = [".config", ".git", "generated-icon.png", "node_modules", "dist"]
 
 [nix]
 channel = "stable-24_05"
-packages = ["glibcLocales", "glib", "nss", "nspr", "atk", "cups", "dbus", "libdrm", "xorg.libxcb", "xorg.libX11", "xorg.libXcomposite", "xorg.libXdamage", "xorg.libXext", "xorg.libXfixes", "xorg.libXrandr", "mesa", "expat", "alsa-lib", "pango", "libxkbcommon", "chromium"]
+packages = [
+  "nodejs_20",
+  "python311",
+  "pip",
+  "glibcLocales",
+  "chromium"
+]
 
 [deployment]
 deploymentTarget = "autoscale"
-run = ["sh", "-c", "npm start"]
-build = ["npm", "run", "build"]
-
-[[ports]]
-localPort = 3000
-externalPort = 80
+build = "npm run build"
+run = "npm start"
 
 [[ports]]
 localPort = 5000
-externalPort = 5000
-
-[[ports]]
-localPort = 39545
-externalPort = 8000
-
-[[ports]]
-localPort = 40151
-externalPort = 8080
-
-[[ports]]
-localPort = 40577
-externalPort = 6800
-
-[[ports]]
-localPort = 41749
-externalPort = 8099
-
-[[ports]]
-localPort = 43091
-externalPort = 6000
-
-[[ports]]
-localPort = 43143
-externalPort = 4200
-
-[[ports]]
-localPort = 44665
-externalPort = 8008
-
-[[ports]]
-localPort = 45075
-externalPort = 3002
-
-[[ports]]
-localPort = 45473
-externalPort = 3003
-
-[[ports]]
-localPort = 45825
-externalPort = 3000
-
-[[ports]]
-localPort = 45999
-externalPort = 5173
+externalPort = 80
 
 [workflows]
 runButton = "Start application"
 
 [[workflows.workflow]]
-name = "Project"
-mode = "parallel"
-author = "agent"
-
-[[workflows.workflow.tasks]]
-task = "workflow.run"
-args = "Start application"
-
-[[workflows.workflow]]
 name = "Start application"
-author = "agent"
-
-[workflows.workflow.metadata]
-agentRequireRestartOnSave = false
 
 [[workflows.workflow.tasks]]
 task = "packager.installForAll"
@@ -90,8 +33,3 @@ task = "shell.exec"
 args = "npm run dev"
 waitForPort = 5000
 
-[objectStorage]
-defaultBucketID = "replit-objstore-afc93c49-c00d-41d7-b7ab-feec38bd85a8"
-
-[agent]
-integrations = ["javascript_websocket==1.0.0", "javascript_anthropic==1.0.0", "javascript_sendgrid==1.0.0", "javascript_openai==1.0.0"]
