@@ -13,7 +13,6 @@ packages = [
 [deployment]
 deploymentTarget = "autoscale"
 build = "npm run build"
-run = "npm start"
 
 [[ports]]
 localPort = 3000
