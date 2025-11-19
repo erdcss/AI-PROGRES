@@ -105,23 +105,23 @@ export default function ProductPreview() {
   });
 
   const uploadToShopifyMutation = useMutation({
-    mutationFn: async () => {
+    mutationFn: async (urlToUpload: string) => {
       const response = await apiRequest("/api/shopify/upload", {
         method: "POST",
-        body: JSON.stringify({ url: currentUrl }),
+        body: JSON.stringify({ url: urlToUpload }),
         headers: { "Content-Type": "application/json" },
       });
       return response;
     },
     onSuccess: () => {
       toast({
-        title: "Başarılı!",
+        title: "✅ Başarılı!",
         description: "Ürün Shopify'a yüklendi",
       });
     },
     onError: (error: Error) => {
       toast({
-        title: "Hata",
+        title: "❌ Hata",
         description: error.message,
         variant: "destructive",
       });
@@ -362,21 +362,33 @@ export default function ProductPreview() {
               <div className="flex gap-4">
                 <Button
                   data-testid="button-upload-shopify"
-                  onClick={() => uploadToShopifyMutation.mutate()}
-                  disabled={uploadToShopifyMutation.isPending}
+                  onClick={() => {
+                    if (!currentUrl) {
+                      toast({
+                        title: "⚠️ Uyarı",
+                        description: "Önce bir ürün çekin",
+                        variant: "destructive",
+                      });
+                      return;
+                    }
+                    
+                    const urlToUpload = currentUrl;
+                    
+                    toast({
+                      title: "🚀 Ürün Yükleniyor",
+                      description: "Ürün arka planda Shopify'a ekleniyor...",
+                    });
+                    
+                    setCurrentUrl('');
+                    setUrl('');
+                    
+                    uploadToShopifyMutation.mutate(urlToUpload);
+                  }}
+                  disabled={uploadToShopifyMutation.isPending || !currentUrl}
                   className="flex-1"
                 >
-                  {uploadToShopifyMutation.isPending ? (
-                    <>
-                      <Loader2 className="w-4 h-4 mr-2 animate-spin" />
-                      Yükleniyor...
-                    </>
-                  ) : (
-                    <>
-                      <Upload className="w-4 h-4 mr-2" />
-                      Shopify'a Ekle
-                    </>
-                  )}
+                  <Upload className="w-4 h-4 mr-2" />
+                  Shopify'a Ekle
                 </Button>
                 <Button
                   data-testid="button-download-csv"
