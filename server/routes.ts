@@ -7080,14 +7080,14 @@ ${(result.title || 'product').toLowerCase().replace(/[^a-z0-9]/g, '-')},${result
       
       if (scope === 'all') {
         // Fetch all products with optional filters
-        let query = db.select().from(shopifyMemoryProducts);
+        const conditions = [];
         
         if (filters?.category && filters.category !== 'all') {
-          query = query.where(eq(shopifyMemoryProducts.category, filters.category));
+          conditions.push(eq(shopifyMemoryProducts.category, filters.category));
         }
         
         if (filters?.search) {
-          query = query.where(
+          conditions.push(
             or(
               like(shopifyMemoryProducts.title, `%${filters.search}%`),
               like(shopifyMemoryProducts.vendor, `%${filters.search}%`)
@@ -7095,7 +7095,16 @@ ${(result.title || 'product').toLowerCase().replace(/[^a-z0-9]/g, '-')},${result
           );
         }
         
-        shopifyProducts = await query;
+        if (conditions.length > 0) {
+          shopifyProducts = await db
+            .select()
+            .from(shopifyMemoryProducts)
+            .where(and(...conditions));
+        } else {
+          shopifyProducts = await db
+            .select()
+            .from(shopifyMemoryProducts);
+        }
         console.log(`📊 Toplam ${shopifyProducts.length} ürün bulundu`);
       } else {
         // Get specific products by IDs
@@ -7215,7 +7224,7 @@ ${(result.title || 'product').toLowerCase().replace(/[^a-z0-9]/g, '-')},${result
         success: true,
         successCount,
         errorCount,
-        totalRequested: productIds.length,
+        totalRequested: scope === 'all' ? shopifyProducts.length : productIds.length,
         errors: errors.length > 0 ? errors : undefined,
         message: `${successCount} ürün başarıyla izlemeye eklendi${errorCount > 0 ? `, ${errorCount} hata` : ''}`
       });
