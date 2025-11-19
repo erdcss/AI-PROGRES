@@ -117,8 +117,8 @@ export class MultiColorScraper {
       const colorResults: MultiColorResult['colorResults'] = [];
       const successfulData: ScenarioBasedResult[] = [];
       
-      // 🚀 Process in batches of 8 for balanced speed/safety
-      const BATCH_SIZE = 8;
+      // Process in batches of 5 for balanced speed and safety
+      const BATCH_SIZE = 5;
       const batches: typeof colorVariants[] = [];
       
       for (let i = 0; i < colorVariants.length; i += BATCH_SIZE) {
@@ -129,9 +129,9 @@ export class MultiColorScraper {
         const batch = batches[batchIndex];
         console.log(`\n📦 Processing batch ${batchIndex + 1}/${batches.length} (${batch.length} colors)...`);
         
-        // 🚀 Balanced delay between batches
+        // Add delay between batches for anti-blocking
         if (batchIndex > 0) {
-          const delay = 200; // 🚀 200ms balanced (still 1.5x faster)
+          const delay = 500; // Safe 500ms delay (original setting)
           console.log(`⏳ Waiting ${delay}ms between batches...`);
           await new Promise(resolve => setTimeout(resolve, delay));
         }

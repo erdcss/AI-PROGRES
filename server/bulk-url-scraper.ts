@@ -60,7 +60,7 @@ export class BulkUrlScraper {
   }
 
   /**
-   * Process multiple URLs in bulk with parallel processing
+   * Process multiple URLs in bulk
    * @param urls Array of URLs to scrape
    * @param extractAllColors Whether to extract all color variants for each URL
    */
@@ -68,67 +68,58 @@ export class BulkUrlScraper {
     urls: string[],
     extractAllColors: boolean = false
   ): Promise<BulkScrapeResult> {
-    console.log('📦 BULK URL SCRAPER: Starting parallel batch processing...');
+    console.log('📦 BULK URL SCRAPER: Starting batch processing...');
     console.log(`📌 Total URLs: ${urls.length}`);
     console.log(`🎨 Extract all colors: ${extractAllColors ? 'YES' : 'NO'}`);
 
     const results: BulkScrapeResult['results'] = [];
     const combinedVariants: BulkScrapeResult['combinedVariants'] = [];
 
-    // 🚀 PARALLEL PROCESSING: Process in batches of 5 concurrent requests (balanced)
-    const BATCH_SIZE = 5;
-    const totalBatches = Math.ceil(urls.length / BATCH_SIZE);
+    for (let i = 0; i < urls.length; i++) {
+      const url = urls[i].trim();
+      
+      if (!url) {
+        console.log(`⚠️ Skipping empty URL at index ${i + 1}`);
+        continue;
+      }
 
-    for (let batchIndex = 0; batchIndex < totalBatches; batchIndex++) {
-      const batchStart = batchIndex * BATCH_SIZE;
-      const batchEnd = Math.min(batchStart + BATCH_SIZE, urls.length);
-      const batchUrls = urls.slice(batchStart, batchEnd);
+      console.log(`\n${'='.repeat(60)}`);
+      console.log(`📦 Processing ${i + 1}/${urls.length}: ${url}`);
+      console.log(`${'='.repeat(60)}\n`);
 
-      console.log(`\n${'='.repeat(80)}`);
-      console.log(`🚀 BATCH ${batchIndex + 1}/${totalBatches}: Processing ${batchUrls.length} URLs in parallel`);
-      console.log(`${'='.repeat(80)}\n`);
+      // Notify progress
+      this.notifyProgress({
+        currentIndex: i,
+        totalUrls: urls.length,
+        currentUrl: url,
+        status: 'processing',
+        message: `Processing URL ${i + 1}/${urls.length}...`
+      });
 
-      // Process batch in parallel
-      const batchPromises = batchUrls.map(async (url, batchOffset) => {
-        const i = batchStart + batchOffset;
-        const trimmedUrl = url.trim();
-        
-        if (!trimmedUrl) {
-          console.log(`⚠️ Skipping empty URL at index ${i + 1}`);
-          return null;
+      try {
+        // Add delay between requests to avoid rate limiting
+        if (i > 0) {
+          const delay = 1000 + Math.random() * 1000; // 1-2 seconds
+          console.log(`⏳ Rate limiting: waiting ${Math.round(delay)}ms...`);
+          await new Promise(resolve => setTimeout(resolve, delay));
         }
 
-        console.log(`📦 [${i + 1}/${urls.length}] Starting: ${trimmedUrl}`);
+        let scrapeResult: MultiColorResult | ScenarioBasedResult;
+        let colorCount = 0;
+        let variantCount = 0;
 
-        // Notify progress
-        this.notifyProgress({
-          currentIndex: i,
-          totalUrls: urls.length,
-          currentUrl: trimmedUrl,
-          status: 'processing',
-          message: `Processing URL ${i + 1}/${urls.length}...`
-        });
-
-        try {
-          // 🚀 Balanced delay for rate limiting (safer than 50ms)
-          const delay = 200 + Math.random() * 200; // 200-400ms (safer)
-          await new Promise(resolve => setTimeout(resolve, delay));
-
-          let scrapeResult: MultiColorResult | ScenarioBasedResult;
-          let colorCount = 0;
-          let variantCount = 0;
-
-          if (extractAllColors) {
-            // Extract all color variants
-            scrapeResult = await multiColorScraper.scrapeAllColors(trimmedUrl);
+        if (extractAllColors) {
+          // Extract all color variants
+          scrapeResult = await multiColorScraper.scrapeAllColors(url);
           colorCount = (scrapeResult as MultiColorResult).totalColors || 0;
           
           // Extract combined variants
           if ((scrapeResult as MultiColorResult).combinedData) {
             const combined = (scrapeResult as MultiColorResult).combinedData!;
-            const localVariants = combined.allVariants.map(variant => ({
-              productUrl: trimmedUrl,
-              productTitle: combined.title,
+            combined.allVariants.forEach(variant => {
+              combinedVariants.push({
+                productUrl: url,
+                productTitle: combined.title,
                 color: variant.color,
                 colorCode: variant.colorCode,
                 size: variant.size,
@@ -138,13 +129,13 @@ export class BulkUrlScraper {
                 brand: combined.brand,
                 category: combined.category,
                 features: combined.features
-              }));
-            variantCount = localVariants.length;
-            return { localVariants, scrapeResult, i, trimmedUrl, colorCount, variantCount };
+              });
+            });
+            variantCount = combined.allVariants.length;
           }
         } else {
           // Extract single URL (current color only)
-          scrapeResult = await scenarioBasedScrape(trimmedUrl);
+          scrapeResult = await scenarioBasedScrape(url);
           colorCount = 1;
           
           // Extract variants from single result
@@ -154,9 +145,10 @@ export class BulkUrlScraper {
               ? singleResult.variants
               : singleResult.variants.allVariants || [];
             
-            const localVariants = variants.map((variant: any) => ({
-              productUrl: trimmedUrl,
-              productTitle: singleResult.title,
+            variants.forEach((variant: any) => {
+              combinedVariants.push({
+                productUrl: url,
+                productTitle: singleResult.title,
                 color: variant.color,
                 colorCode: variant.colorCode,
                 size: variant.size,
@@ -166,74 +158,20 @@ export class BulkUrlScraper {
                 brand: singleResult.brand,
                 category: singleResult.category,
                 features: singleResult.features
-              }));
-            variantCount = localVariants.length;
-            return { localVariants, scrapeResult, i, trimmedUrl, colorCount, variantCount };
+              });
+            });
+            variantCount = variants.length;
           }
         }
 
-          const isSuccess = extractAllColors
-            ? (scrapeResult as MultiColorResult).success
-            : (scrapeResult as ScenarioBasedResult).success;
+        const isSuccess = extractAllColors
+          ? (scrapeResult as MultiColorResult).success
+          : (scrapeResult as ScenarioBasedResult).success;
 
-          if (isSuccess) {
-            console.log(`✅ [${i + 1}/${urls.length}] Success: ${colorCount} colors, ${variantCount} variants`);
-            return {
-              localVariants: [],
-              scrapeResult,
-              i,
-              trimmedUrl,
-              colorCount,
-              variantCount,
-              success: true
-            };
-          } else {
-            console.log(`⚠️ [${i + 1}/${urls.length}] Extraction failed`);
-            return {
-              localVariants: [],
-              scrapeResult: null,
-              i,
-              trimmedUrl,
-              colorCount: 0,
-              variantCount: 0,
-              success: false,
-              error: 'Extraction failed'
-            };
-          }
-
-        } catch (error) {
-          console.error(`❌ [${i + 1}/${urls.length}] Error: ${error.message}`);
-          return {
-            localVariants: [],
-            scrapeResult: null,
-            i,
-            trimmedUrl,
-            colorCount: 0,
-            variantCount: 0,
-            success: false,
-            error: error.message
-          };
-        }
-      });
-
-      // 🚀 Wait for all URLs in batch to complete
-      const batchResults = await Promise.all(batchPromises);
-
-      // Process batch results
-      for (const result of batchResults) {
-        if (!result) continue;
-
-        const { localVariants, scrapeResult, i, trimmedUrl, colorCount, variantCount, success, error } = result;
-
-        // Add variants to combined list
-        if (localVariants && localVariants.length > 0) {
-          combinedVariants.push(...localVariants);
-        }
-
-        // Add to results
-        if (success) {
+        if (isSuccess) {
+          console.log(`✅ Successfully processed URL ${i + 1}: ${colorCount} colors, ${variantCount} variants`);
           results.push({
-            url: trimmedUrl,
+            url,
             index: i,
             success: true,
             colorCount,
@@ -244,33 +182,44 @@ export class BulkUrlScraper {
           this.notifyProgress({
             currentIndex: i,
             totalUrls: urls.length,
-            currentUrl: trimmedUrl,
+            currentUrl: url,
             status: 'success',
             message: `Extracted ${colorCount} colors, ${variantCount} variants`
           });
         } else {
+          console.log(`⚠️ Failed to extract data from URL ${i + 1}`);
           results.push({
-            url: trimmedUrl,
+            url,
             index: i,
             success: false,
-            error: error || 'Unknown error'
+            error: 'Extraction failed'
           });
 
           this.notifyProgress({
             currentIndex: i,
             totalUrls: urls.length,
-            currentUrl: trimmedUrl,
+            currentUrl: url,
             status: 'error',
-            message: error || 'Extraction failed'
+            message: 'Extraction failed'
           });
         }
-      }
 
-      // Balanced delay between batches for anti-blocking
-      if (batchIndex < totalBatches - 1) {
-        const batchDelay = 800 + Math.random() * 400; // 800-1200ms (safer)
-        console.log(`⏸️ Batch cooldown: ${Math.round(batchDelay)}ms\n`);
-        await new Promise(resolve => setTimeout(resolve, batchDelay));
+      } catch (error) {
+        console.error(`❌ Error processing URL ${i + 1}: ${error.message}`);
+        results.push({
+          url,
+          index: i,
+          success: false,
+          error: error.message
+        });
+
+        this.notifyProgress({
+          currentIndex: i,
+          totalUrls: urls.length,
+          currentUrl: url,
+          status: 'error',
+          message: error.message
+        });
       }
     }
 

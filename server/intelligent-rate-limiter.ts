@@ -25,11 +25,11 @@ export class IntelligentRateLimiter {
   private currentSession: string = '';
   
   private config: RateLimitConfig = {
-    minDelay: 200,       // 🚀 Balanced: 0.2 seconds minimum (safer)
-    maxDelay: 600,       // 🚀 Balanced: 0.6 second maximum
-    burstLimit: 20,      // 🚀 Balanced: Max 20 requests in burst
-    cooldownPeriod: 4000, // 🚀 Balanced: 4 seconds cooldown
-    adaptiveMode: true   // ✅ KEEP adaptive mode for anti-blocking
+    minDelay: 800,       // Safe: 0.8 seconds minimum (human-like)
+    maxDelay: 2000,      // Safe: 2 seconds maximum (conservative)
+    burstLimit: 10,      // Safe: Max 10 requests in burst (anti-blocking)
+    cooldownPeriod: 10000, // Safe: 10 seconds cooldown (prevents bans)
+    adaptiveMode: true   // ✅ ENABLE adaptive mode for anti-blocking
   };
 
   constructor(customConfig?: Partial<RateLimitConfig>) {
@@ -55,25 +55,23 @@ export class IntelligentRateLimiter {
     // Base delay calculation
     let delay = this.config.minDelay;
 
-    // 🚀 ULTRA SPEED: Remove failure penalty to maintain speed
-    // Factor 1: Recent failure patterns - DISABLED FOR SPEED
-    // if (this.consecutiveFailures > 0) {
-    //   const failureMultiplier = Math.min(this.consecutiveFailures * 1.5, 5);
-    //   delay *= failureMultiplier;
-    //   console.log(`⚠️ Failure penalty: ${failureMultiplier}x delay (${this.consecutiveFailures} failures)`);
-    // }
+    // Factor 1: Recent failure patterns - ENABLED FOR SAFETY
+    if (this.consecutiveFailures > 0 && this.config.adaptiveMode) {
+      const failureMultiplier = Math.min(this.consecutiveFailures * 1.5, 5);
+      delay *= failureMultiplier;
+      console.log(`⚠️ Failure penalty: ${failureMultiplier}x delay (${this.consecutiveFailures} failures)`);
+    }
 
-    // 🚀 ULTRA SPEED: Remove time penalty to maintain speed
-    // Factor 2: Time since last success - DISABLED FOR SPEED
-    // const timeSinceSuccess = now - this.lastSuccessTime;
-    // if (timeSinceSuccess > 5 * 60 * 1000 && this.lastSuccessTime > 0) {
-    //   delay *= 1.8; // Increase delay if no recent success
-    //   console.log('⚠️ No recent success penalty: 1.8x delay');
-    // }
+    // Factor 2: Time since last success - ENABLED FOR SAFETY
+    const timeSinceSuccess = now - this.lastSuccessTime;
+    if (timeSinceSuccess > 5 * 60 * 1000 && this.lastSuccessTime > 0 && this.config.adaptiveMode) {
+      delay *= 1.8; // Increase delay if no recent success
+      console.log('⚠️ No recent success penalty: 1.8x delay');
+    }
 
-    // 🚀 ULTRA SPEED: Simplified frequency control
+    // Factor 3: Request frequency control
     const recentRequests = this.requestHistory.filter(
-      req => now - req.timestamp < 30000 // Last 30 seconds only
+      req => now - req.timestamp < 60000 // Last 60 seconds
     );
 
     if (recentRequests.length >= this.config.burstLimit) {
@@ -85,14 +83,15 @@ export class IntelligentRateLimiter {
     const humanVariation = 0.5 + Math.random(); // 0.5x to 1.5x variation
     delay *= humanVariation;
 
-    // 🚀 ULTRA SPEED: Remove time-of-day penalties
-    // Factor 5: Time-of-day patterns - DISABLED FOR SPEED
-    // const hour = new Date().getHours();
-    // if (hour >= 2 && hour <= 7) {
-    //   delay *= 1.5; // Slower during night hours
-    // } else if (hour >= 9 && hour <= 17) {
-    //   delay *= 0.9; // Faster during business hours
-    // }
+    // Factor 5: Time-of-day patterns - ENABLED FOR NATURAL BEHAVIOR
+    if (this.config.adaptiveMode) {
+      const hour = new Date().getHours();
+      if (hour >= 2 && hour <= 7) {
+        delay *= 1.5; // Slower during night hours
+      } else if (hour >= 9 && hour <= 17) {
+        delay *= 0.9; // Faster during business hours
+      }
+    }
 
     // Ensure within bounds
     delay = Math.max(this.config.minDelay, Math.min(delay, this.config.maxDelay));
@@ -148,20 +147,20 @@ export class IntelligentRateLimiter {
     }
   }
 
-  // Adapt configuration based on success patterns
+  // Adapt configuration based on success patterns (bounded to safe limits)
   private adaptConfiguration(): void {
     const recentRequests = this.requestHistory.slice(-10); // Last 10 requests
     const successRate = recentRequests.filter(req => req.success).length / recentRequests.length;
 
     if (successRate < 0.3 && this.consecutiveFailures >= 3) {
-      // Very low success rate - be more conservative
-      this.config.minDelay = Math.min(this.config.minDelay * 1.5, 20000);
-      this.config.maxDelay = Math.min(this.config.maxDelay * 1.5, 45000);
+      // Very low success rate - be more conservative (but stay within safe bounds)
+      this.config.minDelay = Math.min(this.config.minDelay * 1.5, 4000);  // Max 4s
+      this.config.maxDelay = Math.min(this.config.maxDelay * 1.5, 8000);  // Max 8s
       console.log(`🔧 Adaptive: Increased delays due to low success rate (${Math.round(successRate * 100)}%)`);
     } else if (successRate > 0.8 && this.consecutiveFailures === 0) {
-      // High success rate - can be more aggressive
-      this.config.minDelay = Math.max(this.config.minDelay * 0.9, 3000);
-      this.config.maxDelay = Math.max(this.config.maxDelay * 0.9, 12000);
+      // High success rate - can be slightly faster (but stay within safe bounds)
+      this.config.minDelay = Math.max(this.config.minDelay * 0.9, 600);   // Min 600ms
+      this.config.maxDelay = Math.max(this.config.maxDelay * 0.9, 1500);  // Min 1.5s
       console.log(`🔧 Adaptive: Decreased delays due to high success rate (${Math.round(successRate * 100)}%)`);
     }
   }
@@ -206,12 +205,12 @@ export class IntelligentRateLimiter {
     this.lastSuccessTime = 0;
     this.currentSession = this.generateSessionId();
     
-    // Reset to default config
+    // Reset to OPTIMIZED safe defaults
     this.config = {
-      minDelay: 5000,
-      maxDelay: 15000,
-      burstLimit: 3,
-      cooldownPeriod: 60000,
+      minDelay: 800,         // 🚀 OPTIMIZED: 0.8s minimum
+      maxDelay: 2000,        // 🚀 OPTIMIZED: 2s maximum
+      burstLimit: 10,        // 🚀 OPTIMIZED: 10 requests in burst
+      cooldownPeriod: 10000, // 🚀 OPTIMIZED: 10s cooldown
       adaptiveMode: true
     };
 
@@ -220,9 +219,9 @@ export class IntelligentRateLimiter {
 }
 
 export const intelligentRateLimiter = new IntelligentRateLimiter({
-  minDelay: 4000,        // 4 seconds minimum for Trendyol
-  maxDelay: 18000,       // 18 seconds maximum 
-  burstLimit: 2,         // Only 2 requests in burst for safety
-  cooldownPeriod: 90000, // 1.5 minutes cooldown
-  adaptiveMode: true
+  minDelay: 800,         // 🚀 OPTIMIZED: 0.8s minimum (balanced speed/safety)
+  maxDelay: 2000,        // 🚀 OPTIMIZED: 2s maximum (faster than 18s)
+  burstLimit: 10,        // 🚀 OPTIMIZED: 10 requests in burst (balanced)
+  cooldownPeriod: 10000, // 🚀 OPTIMIZED: 10s cooldown (faster than 90s)
+  adaptiveMode: true     // ✅ Keep adaptive for anti-blocking
 });
