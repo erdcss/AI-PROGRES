@@ -25,11 +25,11 @@ export class IntelligentRateLimiter {
   private currentSession: string = '';
   
   private config: RateLimitConfig = {
-    minDelay: 800,       // Safe: 0.8 seconds minimum (human-like)
-    maxDelay: 2000,      // Safe: 2 seconds maximum (conservative)
-    burstLimit: 10,      // Safe: Max 10 requests in burst (anti-blocking)
-    cooldownPeriod: 10000, // Safe: 10 seconds cooldown (prevents bans)
-    adaptiveMode: true   // ✅ ENABLE adaptive mode for anti-blocking
+    minDelay: 1000,      // 🚀 SIMPLE: Fixed 1 second (predictable & safe)
+    maxDelay: 1000,      // 🚀 SIMPLE: Fixed 1 second (no variation)
+    burstLimit: 10,      // Safe: Max 10 requests in burst
+    cooldownPeriod: 10000, // Safe: 10 seconds cooldown
+    adaptiveMode: false  // 🚀 SIMPLE: Disabled (fixed delays only)
   };
 
   constructor(customConfig?: Partial<RateLimitConfig>) {
@@ -205,13 +205,13 @@ export class IntelligentRateLimiter {
     this.lastSuccessTime = 0;
     this.currentSession = this.generateSessionId();
     
-    // Reset to OPTIMIZED safe defaults
+    // Reset to SIMPLE safe defaults
     this.config = {
-      minDelay: 800,         // 🚀 OPTIMIZED: 0.8s minimum
-      maxDelay: 2000,        // 🚀 OPTIMIZED: 2s maximum
-      burstLimit: 10,        // 🚀 OPTIMIZED: 10 requests in burst
-      cooldownPeriod: 10000, // 🚀 OPTIMIZED: 10s cooldown
-      adaptiveMode: true
+      minDelay: 1000,        // 🚀 SIMPLE: Fixed 1 second
+      maxDelay: 1000,        // 🚀 SIMPLE: Fixed 1 second
+      burstLimit: 10,        // Safe: 10 requests in burst
+      cooldownPeriod: 10000, // Safe: 10 seconds cooldown
+      adaptiveMode: false    // 🚀 SIMPLE: No adaptive complexity
     };
 
     console.log(`🔄 Session reset: ${this.currentSession}`);
@@ -219,9 +219,9 @@ export class IntelligentRateLimiter {
 }
 
 export const intelligentRateLimiter = new IntelligentRateLimiter({
-  minDelay: 800,         // 🚀 OPTIMIZED: 0.8s minimum (balanced speed/safety)
-  maxDelay: 2000,        // 🚀 OPTIMIZED: 2s maximum (faster than 18s)
-  burstLimit: 10,        // 🚀 OPTIMIZED: 10 requests in burst (balanced)
-  cooldownPeriod: 10000, // 🚀 OPTIMIZED: 10s cooldown (faster than 90s)
-  adaptiveMode: true     // ✅ Keep adaptive for anti-blocking
+  minDelay: 1000,        // 🚀 SIMPLE: Fixed 1 second (predictable & safe)
+  maxDelay: 1000,        // 🚀 SIMPLE: Fixed 1 second (no variation)
+  burstLimit: 10,        // Safe: 10 requests in burst
+  cooldownPeriod: 10000, // Safe: 10 seconds cooldown
+  adaptiveMode: false    // 🚀 SIMPLE: Fixed delays (no complexity)
 });
