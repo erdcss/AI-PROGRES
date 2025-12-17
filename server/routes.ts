@@ -7118,8 +7118,8 @@ ${(result.title || 'product').toLowerCase().replace(/[^a-z0-9]/g, '-')},${result
       let errorCount = 0;
       const errors: string[] = [];
       
-      // Filter products with valid URLs and shopifyId
-      const validProducts = shopifyProducts.filter(p => p.sourceUrl && p.shopifyId);
+      // Filter products with valid URLs and shopifyProductId
+      const validProducts = shopifyProducts.filter(p => p.sourceUrl && p.shopifyProductId);
       const skippedCount = shopifyProducts.length - validProducts.length;
       
       if (skippedCount > 0) {
@@ -7129,7 +7129,7 @@ ${(result.title || 'product').toLowerCase().replace(/[^a-z0-9]/g, '-')},${result
       // Process in chunks for better performance
       const CHUNK_SIZE = 500;
       const totalChunks = Math.ceil(validProducts.length / CHUNK_SIZE);
-      const addedTrackers: Array<{ url: string; shopifyId: string }> = [];
+      const addedTrackers: Array<{ url: string; shopifyProductId: string }> = [];
       
       for (let i = 0; i < totalChunks; i++) {
         const chunk = validProducts.slice(i * CHUNK_SIZE, (i + 1) * CHUNK_SIZE);
@@ -7152,7 +7152,7 @@ ${(result.title || 'product').toLowerCase().replace(/[^a-z0-9]/g, '-')},${result
                   checkCount: 1,
                   isTracking: true,
                   trackingInterval: 300,
-                  shopifyProductId: product.shopifyId!,
+                  shopifyProductId: product.shopifyProductId!,
                   extractedData: null
                 };
 
@@ -7177,7 +7177,7 @@ ${(result.title || 'product').toLowerCase().replace(/[^a-z0-9]/g, '-')},${result
                 if (insertedTracker) {
                   addedTrackers.push({
                     url: insertedTracker.url,
-                    shopifyId: product.shopifyId!
+                    shopifyProductId: product.shopifyProductId!
                   });
                 }
                 
