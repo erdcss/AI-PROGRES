@@ -5,7 +5,7 @@ import { useToast } from '@/hooks/use-toast';
 import { 
   Trash2, RefreshCw, Clock, TrendingUp, TrendingDown, 
   Package, AlertCircle, CheckCircle, ChevronDown, ChevronUp,
-  Play, Pause, Filter, Database, ArrowUpDown, Minus
+  Play, Pause, Filter, Database, ArrowUpDown, Minus, Bell, Wifi, WifiOff
 } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
@@ -105,6 +105,31 @@ const TrackingDashboard = () => {
   }>({
     queryKey: ['/api/tracking/change-summary'],
     refetchInterval: autoRefresh ? refreshInterval : false
+  });
+
+  // Tracking stats - monitoring status
+  const { data: trackingStats } = useQuery<{
+    success: boolean;
+    stats: {
+      totalUrls: number;
+      activeTracking: number;
+      errors: number;
+      lastHourChecks: number;
+    };
+  }>({
+    queryKey: ['/api/tracking/stats'],
+    refetchInterval: autoRefresh ? 60000 : false
+  });
+
+  // Telegram status check
+  const { data: telegramStatus } = useQuery<{
+    success: boolean;
+    connected: boolean;
+    chatId: string | null;
+    botConfigured: boolean;
+  }>({
+    queryKey: ['/api/telegram/status'],
+    refetchInterval: 60000
   });
 
   // Clear memory mutation
@@ -268,6 +293,77 @@ const TrackingDashboard = () => {
             </CardContent>
           </Card>
         </div>
+
+        {/* Tracking Status Panel */}
+        <Card className="bg-gradient-to-r from-slate-800/70 to-slate-900/70 border-slate-700 mb-6" data-testid="panel-tracking-status">
+          <CardHeader className="pb-3">
+            <CardTitle className="text-lg font-semibold text-white flex items-center gap-2">
+              <Wifi className="w-5 h-5 text-blue-400" />
+              Sistem Durumu
+            </CardTitle>
+          </CardHeader>
+          <CardContent>
+            <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+              {/* Monitoring Status */}
+              <div className="bg-slate-700/30 rounded-lg p-4">
+                <div className="flex items-center gap-2 mb-2">
+                  <div className={`w-3 h-3 rounded-full ${trackingStats?.stats?.activeTracking ? 'bg-green-500 animate-pulse' : 'bg-red-500'}`} />
+                  <span className="text-sm font-medium text-slate-300">Monitoring</span>
+                </div>
+                <div className="text-2xl font-bold text-white">
+                  {trackingStats?.stats?.activeTracking ?? 0} / {trackingStats?.stats?.totalUrls ?? 0}
+                </div>
+                <p className="text-xs text-slate-400 mt-1">Aktif / Toplam URL</p>
+                <p className="text-xs text-slate-500 mt-2">
+                  Son 1 saat: {trackingStats?.stats?.lastHourChecks ?? 0} kontrol
+                </p>
+              </div>
+
+              {/* Telegram Status */}
+              <div className="bg-slate-700/30 rounded-lg p-4">
+                <div className="flex items-center gap-2 mb-2">
+                  <Bell className={`w-4 h-4 ${telegramStatus?.connected ? 'text-green-400' : 'text-red-400'}`} />
+                  <span className="text-sm font-medium text-slate-300">Telegram</span>
+                </div>
+                <div className="flex items-center gap-2">
+                  {telegramStatus?.connected ? (
+                    <>
+                      <CheckCircle className="w-5 h-5 text-green-500" />
+                      <span className="text-lg font-semibold text-green-400">Bağlı</span>
+                    </>
+                  ) : (
+                    <>
+                      <WifiOff className="w-5 h-5 text-red-500" />
+                      <span className="text-lg font-semibold text-red-400">Bağlı Değil</span>
+                    </>
+                  )}
+                </div>
+                {telegramStatus?.chatId && (
+                  <p className="text-xs text-slate-500 mt-2">
+                    Chat ID: {telegramStatus.chatId.slice(0, 6)}...
+                  </p>
+                )}
+              </div>
+
+              {/* Check Interval & Errors */}
+              <div className="bg-slate-700/30 rounded-lg p-4">
+                <div className="flex items-center gap-2 mb-2">
+                  <Clock className="w-4 h-4 text-blue-400" />
+                  <span className="text-sm font-medium text-slate-300">Kontrol Aralığı</span>
+                </div>
+                <div className="text-2xl font-bold text-white">
+                  5 dk
+                </div>
+                <p className="text-xs text-slate-400 mt-1">Her URL için</p>
+                {(trackingStats?.stats?.errors ?? 0) > 0 && (
+                  <p className="text-xs text-red-400 mt-2">
+                    ⚠️ {trackingStats?.stats?.errors} hatalı URL
+                  </p>
+                )}
+              </div>
+            </div>
+          </CardContent>
+        </Card>
 
         {/* Controls */}
         <Card className="bg-slate-800/50 border-slate-700 mb-6">

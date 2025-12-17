@@ -11,12 +11,11 @@ export class TelegramIntegration {
   }
 
   private initializeBot() {
-    // 🔕 DEVELOPMENT MODE: Telegram bildirimler kapalı
-    const appEnv = process.env.APP_ENV || 'development';
-    const telegramMode = process.env.TELEGRAM_MODE || 'off';
+    // Telegram notifications - enabled when token exists
+    const telegramMode = process.env.TELEGRAM_MODE || 'on';
     
-    if (appEnv === 'development' || telegramMode === 'off') {
-      console.log('🔕 DEVELOPMENT MODE: Telegram notifications disabled');
+    if (telegramMode === 'off') {
+      console.log('🔕 Telegram notifications disabled (TELEGRAM_MODE=off)');
       this.isConnected = false;
       return;
     }
@@ -45,9 +44,10 @@ export class TelegramIntegration {
       });
       this.setupEventHandlers();
       
-      // Telegram bot'u direkt başlat
+      // Start polling to receive commands like /start
+      this.bot.startPolling();
       this.isConnected = true;
-      console.log('Telegram bot initialized with user token');
+      console.log('✅ Telegram bot initialized and polling started');
       
     } catch (error) {
       console.error('Failed to initialize Telegram bot:', error);
@@ -144,12 +144,10 @@ export class TelegramIntegration {
 
   // Send stock out notification
   async sendStockOutNotification(productName: string, variant: string) {
-    // 🔕 DEVELOPMENT MODE: Bildirim engelleme
-    const appEnv = process.env.APP_ENV || 'development';
-    const telegramMode = process.env.TELEGRAM_MODE || 'off';
+    const telegramMode = process.env.TELEGRAM_MODE || 'on';
     
-    if (appEnv === 'development' || telegramMode === 'off') {
-      console.log('🔕 Development mode: Stock notification blocked');
+    if (telegramMode === 'off') {
+      console.log('🔕 Telegram notifications disabled');
       return;
     }
     
@@ -176,12 +174,10 @@ export class TelegramIntegration {
 
   // Send stock restore notification
   async sendStockRestoreNotification(productName: string, variant: string) {
-    // 🔕 DEVELOPMENT MODE: Bildirim engelleme
-    const appEnv = process.env.APP_ENV || 'development';
-    const telegramMode = process.env.TELEGRAM_MODE || 'off';
+    const telegramMode = process.env.TELEGRAM_MODE || 'on';
     
-    if (appEnv === 'development' || telegramMode === 'off') {
-      console.log('🔕 Development mode: Stock restore notification blocked');
+    if (telegramMode === 'off') {
+      console.log('🔕 Telegram notifications disabled');
       return;
     }
     
@@ -208,12 +204,10 @@ export class TelegramIntegration {
 
   // Send price change notification
   async sendPriceChangeNotification(productName: string, oldPrice: number, newPrice: number) {
-    // 🔕 DEVELOPMENT MODE: Bildirim engelleme
-    const appEnv = process.env.APP_ENV || 'development';
-    const telegramMode = process.env.TELEGRAM_MODE || 'off';
+    const telegramMode = process.env.TELEGRAM_MODE || 'on';
     
-    if (appEnv === 'development' || telegramMode === 'off') {
-      console.log('🔕 Development mode: Price change notification blocked');
+    if (telegramMode === 'off') {
+      console.log('🔕 Telegram notifications disabled');
       return;
     }
     
@@ -413,14 +407,11 @@ export class TelegramIntegration {
   async sendNotification(message: string, notificationType: string = 'test', productId?: number, productTitle?: string, metadata?: any) {
     console.log('📱 Telegram notification attempt - bot:', !!this.bot, 'chatId:', !!this.chatId);
     
-    // 🔕 DEVELOPMENT MODE: Bildirim engelleme
-    const appEnv = process.env.APP_ENV || 'development';
-    const telegramMode = process.env.TELEGRAM_MODE || 'off';
+    const telegramMode = process.env.TELEGRAM_MODE || 'on';
     
-    if (appEnv === 'development' || telegramMode === 'off') {
-      console.log('🔕 Development mode: Telegram notification blocked');
-      // History'ye yine de kaydet (test için)
-      await this.saveToHistory(message, notificationType, productId, productTitle, 'sent', null, metadata);
+    if (telegramMode === 'off') {
+      console.log('🔕 Telegram notifications disabled');
+      await this.saveToHistory(message, notificationType, productId, productTitle, 'blocked', 'Telegram disabled', metadata);
       return;
     }
     
