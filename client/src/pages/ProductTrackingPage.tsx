@@ -26,7 +26,9 @@ import {
   ArrowUpCircle,
   ArrowDownCircle,
   Search,
-  ArrowUpDown
+  ArrowUpDown,
+  Bell,
+  Radar
 } from 'lucide-react';
 import { queryClient, apiRequest } from '@/lib/queryClient';
 import { useToast } from '@/hooks/use-toast';
@@ -213,6 +215,27 @@ export default function ProductTrackingPage() {
     }
   });
 
+  const bulkTrackMutation = useMutation({
+    mutationFn: async () => {
+      return await apiRequest('POST', '/api/tracking/bulk-add-shopify', { scope: 'all' });
+    },
+    onSuccess: (data: any) => {
+      queryClient.invalidateQueries({ queryKey: ['/api/tracking'] });
+      queryClient.invalidateQueries({ queryKey: ['/api/tracking/stats'] });
+      toast({
+        title: 'Tümü İzlemeye Eklendi',
+        description: `${data?.added || 0} ürün izlemeye alındı. Fiyat/stok değişikliklerinde Telegram bildirimi alacaksınız.`
+      });
+    },
+    onError: () => {
+      toast({
+        title: 'Hata',
+        description: 'İzleme eklenirken bir hata oluştu',
+        variant: 'destructive'
+      });
+    }
+  });
+
   const filteredProducts = products
     .filter(p => {
       if (filter === 'active') return p.status === 'active';
@@ -314,14 +337,25 @@ export default function ProductTrackingPage() {
             <h1 className="text-3xl font-bold" data-testid="text-page-title">Merkezi Ürün Takip Sistemi</h1>
             <p className="text-muted-foreground mt-1">Tüm takip edilen ürünleri yönetin</p>
           </div>
-          <Button 
-            onClick={handleRefreshAll} 
-            variant="outline"
-            data-testid="button-refresh-all"
-          >
-            <RefreshCw className="w-4 h-4 mr-2" />
-            Yenile
-          </Button>
+          <div className="flex gap-2">
+            <Button 
+              onClick={() => bulkTrackMutation.mutate()}
+              disabled={bulkTrackMutation.isPending}
+              className="bg-gradient-to-r from-blue-600 to-purple-600 hover:from-blue-700 hover:to-purple-700"
+              data-testid="button-bulk-track"
+            >
+              <Radar className="w-4 h-4 mr-2" />
+              {bulkTrackMutation.isPending ? 'Ekleniyor...' : 'Tümünü İzlemeye Ekle'}
+            </Button>
+            <Button 
+              onClick={handleRefreshAll} 
+              variant="outline"
+              data-testid="button-refresh-all"
+            >
+              <RefreshCw className="w-4 h-4 mr-2" />
+              Yenile
+            </Button>
+          </div>
         </div>
 
         <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4">

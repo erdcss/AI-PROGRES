@@ -262,15 +262,15 @@ export class MonitoringService {
           }
         }
 
-        // ⏸️ TELEGRAM NOTIFICATION: DISABLED - Notifications sent only after manual approval
-        // const shopifyUpdated = trackedProduct.shopifyProductId ? true : false;
-        // await telegramGateway.sendPriceChange(
-        //   trackedProduct.productTitle || 'Unknown',
-        //   trackedProduct.id,
-        //   oldPrice,
-        //   newPrice,
-        //   shopifyUpdated
-        // );
+        // 📱 TELEGRAM NOTIFICATION: Send price change alert
+        const shopifyUpdated = trackedProduct.shopifyProductId ? true : false;
+        await telegramGateway.sendPriceChange(
+          trackedProduct.productTitle || 'Unknown',
+          trackedProduct.id,
+          oldPrice,
+          newPrice,
+          shopifyUpdated
+        );
       } else {
         // Fiyat değişmedi, sadece lastChecked güncelle
         await db.update(urlTracking)
@@ -498,7 +498,7 @@ export class MonitoringService {
             }
           }
           
-          // Create pending changes for stock changes
+          // Create pending changes for stock changes + send Telegram notifications
           for (const stockChange of comparisonResult.stockChanges || []) {
             try {
               await pendingChangeBuilder.createStockChange({
@@ -510,6 +510,16 @@ export class MonitoringService {
                 size: stockChange.size || 'Tek Beden',
                 shopifyVariantId: undefined
               });
+              
+              // 📱 TELEGRAM NOTIFICATION: Send stock change alert (uses tracker ID for consistency)
+              await telegramGateway.sendStockChange(
+                trackedProduct.productTitle || 'Unknown',
+                trackedProduct.id,
+                stockChange.oldStock || 0,
+                stockChange.newStock || 0,
+                stockChange.color || 'Standart',
+                stockChange.size || 'Tek Beden'
+              );
             } catch (error) {
               console.error('⚠️ Failed to create pending stock_change:', error);
             }
