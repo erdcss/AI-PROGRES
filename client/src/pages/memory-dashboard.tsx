@@ -28,7 +28,6 @@ import {
   X
 } from 'lucide-react';
 import { Progress } from '@/components/ui/progress';
-import { AIEnhancedProductPreview } from '@/components/AIEnhancedProductPreview';
 
 export default function MemoryDashboard() {
   const [newProductUrl, setNewProductUrl] = useState('');
@@ -554,21 +553,41 @@ export default function MemoryDashboard() {
                   </div>
                 </div>
 
-                {/* AI Enhancement Component - Safe Render */}
-                {selectedProduct.title && (
-                  <div className="border-t border-slate-700 pt-4">
-                    <AIEnhancedProductPreview 
-                      productData={{
-                        title: selectedProduct.title || 'Ürün',
-                        brand: selectedProduct.brand || 'Marka Bilinmiyor',
-                        price: selectedProduct.price || 0,
-                        images: Array.isArray(selectedProduct.images) ? selectedProduct.images : [],
-                        features: Array.isArray(selectedProduct.features) ? selectedProduct.features : []
-                      }}
-                      sourceUrl={selectedProduct.trendyolUrl || ''}
-                    />
+                {/* Ürün Detayları */}
+                <div className="border-t border-slate-700 pt-4 space-y-4">
+                  <div>
+                    <h3 className="text-sm text-slate-400 mb-2">Fiyat</h3>
+                    <p className="text-lg text-green-400 font-semibold">
+                      {selectedProduct.price ? `₺${selectedProduct.price}` : 'Belirtilmedi'}
+                    </p>
                   </div>
-                )}
+                  
+                  {selectedProduct.description && (
+                    <div>
+                      <h3 className="text-sm text-slate-400 mb-2">Açıklama</h3>
+                      <p className="text-sm text-slate-300 line-clamp-3">{selectedProduct.description}</p>
+                    </div>
+                  )}
+
+                  {Array.isArray(selectedProduct.images) && selectedProduct.images.length > 0 && (
+                    <div>
+                      <h3 className="text-sm text-slate-400 mb-2">Resimler ({selectedProduct.images.length})</h3>
+                      <div className="flex gap-2 overflow-x-auto">
+                        {selectedProduct.images.slice(0, 5).map((img: string, idx: number) => (
+                          <img 
+                            key={idx}
+                            src={img} 
+                            alt={`Product ${idx}`}
+                            className="w-16 h-16 rounded object-cover flex-shrink-0"
+                            onError={(e) => {
+                              (e.target as HTMLImageElement).src = 'data:image/svg+xml,%3Csvg xmlns="http://www.w3.org/2000/svg" width="64" height="64"%3E%3Crect fill="%23333" width="64" height="64"/%3E%3C/svg%3E';
+                            }}
+                          />
+                        ))}
+                      </div>
+                    </div>
+                  )}
+                </div>
               </div>
             </motion.div>
           </div>
