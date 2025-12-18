@@ -77,18 +77,11 @@ export class FilteredTelegramNotifier {
     await this.sendMessage(message);
   }
 
-  // Sistem Hata Raporları
+  // Sistem Hata Raporları - Artık sadece loglama yapıyor, Telegram'a göndermiyor
   async sendSystemError(error: Error, context: string) {
-    if (!this.shouldNotify() || !this.bot) return;
-
-    const message = 
-      `🚨 **SİSTEM HATASI**\n\n` +
-      `📍 **Konum:** ${context}\n` +
-      `🕐 **Zaman:** ${new Date().toLocaleString('tr-TR')}\n` +
-      `❌ **Hata:** ${error.message}\n\n` +
-      `🔧 **Otomatik düzeltme deneniyor...**`;
-
-    await this.sendMessage(message);
+    // Sistem hataları artık Telegram'a gönderilmiyor - sadece console'a loglama
+    console.log(`⚠️ System error logged (not sent to Telegram): ${context} - ${error.message}`);
+    return;
   }
 
   // Sistem Analiz Raporları

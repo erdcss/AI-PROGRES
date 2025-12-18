@@ -49,6 +49,8 @@ export class TelegramNotificationGateway {
     "system_init",
     "monitoring_started",
     "test_notification",
+    "system_error", // Teknik sistem hataları kullanıcıyı rahatsız etmesin
+    "shopify_sync_error", // Sync hataları da bloklanıyor
   ];
 
   // ✅ ALLOWED NOTIFICATION TYPES - Sadece bunlar için bildirim
@@ -63,8 +65,6 @@ export class TelegramNotificationGateway {
     "variant_oos",
     "variant_back_in_stock",
     "product_deleted",
-    "shopify_sync_error",
-    "system_error",
     "daily_report",
   ];
 
@@ -141,17 +141,15 @@ export class TelegramNotificationGateway {
       if (currentBatch && currentBatch.changes.length >= 3) {
         // 3+ changes: batch and delay sending
         try {
-          const notificationRecord = {
+          await db.insert(telegramNotificationHistory).values({
             notificationType: type,
             message,
             productId: productId,
             variantId: variantId || null,
             productTitle: productTitle,
-            status: "batched" as const,
+            status: "batched",
             metadata: metadata || {},
-          } satisfies InsertTelegramNotificationHistory;
-          
-          await db.insert(telegramNotificationHistory).values(notificationRecord);
+          });
           console.log(
             `🎯 Change batched for later: Product ${productId} - ${type} (${currentBatch.changes.length} total)`,
           );
@@ -191,19 +189,17 @@ export class TelegramNotificationGateway {
 
     try {
       // Save notification to database with 'pending' status
-      const notificationRecord = {
-        notificationType: type,
-        message,
-        productId: productId || null,
-        variantId: variantId || null,
-        productTitle: productTitle || null,
-        status: "pending" as const,
-        metadata: metadata || {},
-      } satisfies InsertTelegramNotificationHistory;
-      
       const result = await db
         .insert(telegramNotificationHistory)
-        .values(notificationRecord)
+        .values({
+          notificationType: type,
+          message,
+          productId: productId || null,
+          variantId: variantId || null,
+          productTitle: productTitle || null,
+          status: "pending",
+          metadata: metadata || {},
+        })
         .returning({ id: telegramNotificationHistory.id });
 
       notificationId = result[0]?.id || null;
@@ -228,14 +224,12 @@ export class TelegramNotificationGateway {
       // Update database status to 'sent'
       if (notificationId) {
         try {
-          const updateData = {
-            status: "sent" as const,
-            sentAt: new Date(),
-          } satisfies Partial<TelegramNotificationHistory>;
-          
           await db
             .update(telegramNotificationHistory)
-            .set(updateData)
+            .set({
+              status: "sent",
+              sentAt: new Date(),
+            })
             .where(eq(telegramNotificationHistory.id, notificationId));
 
           console.log(
@@ -260,17 +254,14 @@ export class TelegramNotificationGateway {
       // Update database status to 'failed'
       if (notificationId) {
         try {
-          const updateData = {
-            status: "failed" as const,
-            failedAt: new Date(),
-            errorMessage:
-              error instanceof Error ? error.message : String(error),
-            retryCount: 0,
-          } satisfies Partial<TelegramNotificationHistory>;
-          
           await db
             .update(telegramNotificationHistory)
-            .set(updateData)
+            .set({
+              status: "failed",
+              failedAt: new Date(),
+              errorMessage: error instanceof Error ? error.message : String(error),
+              retryCount: 0,
+            })
             .where(eq(telegramNotificationHistory.id, notificationId));
 
           console.log(
@@ -1016,11 +1007,9 @@ export class TelegramNotificationGateway {
 
       // Update database status from "batched" to "sent"
       try {
-        const updateData = { status: "sent" as const } satisfies Partial<TelegramNotificationHistory>;
-        
-        const result = await db
+        await db
           .update(telegramNotificationHistory)
-          .set(updateData)
+          .set({ status: "sent" })
           .where(
             and(
               eq(telegramNotificationHistory.productId, batch.productId),
