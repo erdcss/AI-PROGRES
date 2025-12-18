@@ -102072,3 +102072,17 @@ Details:
   - Variants Removed: 0
   - Product Archived: false
 ---
+
+[2025-12-18T15:26:33.659Z] SYNC AUDIT
+Product ID: 6071
+Product: NIVEA Luminous630 Leke Karşıtı Cilt Serumu 30ml, Hyaluronik Asit, Ton Eşitleyici, Thiamidol, Nemlendirici
+Success: true
+Changes: 0
+Errors: 0
+Details:
+  - Price Updates: 0
+  - Stock Updates: 0
+  - Variants Added: 0
+  - Variants Removed: 0
+  - Product Archived: false
+---

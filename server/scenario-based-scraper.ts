@@ -21,7 +21,7 @@ import { ultraStealthSystem } from './ultra-stealth-system';
 import { intelligentRateLimiter } from './intelligent-rate-limiter';
 import { extractFromTrendyolJavaScriptState } from './trendyol-js-extractor';
 import { detectRealStockStatus } from './real-stock-detector';
-import { extractColorFromUrl, extractColorFromTitle, getColorCode, cleanColorName } from './color-recognition';
+import { extractColorFromUrl, extractColorFromTitle, getColorCode, cleanColorName, normalizeSize, parseVariantString } from './color-recognition';
 import { getPerformanceConfig, getTimeout, shouldRetryWithSlowTimeout } from './performance-config';
 
 // ⚡ ULTRA-FAST CACHING SYSTEM with configurable duration
@@ -708,9 +708,31 @@ async function tryPuppeteerColorExtraction(url: string): Promise<{success: boole
         return [...new Set(colors)];
       });
       
-      extractedColors = colorData.filter((c: string) => c && c.length > 0);
+      // Normalize extracted colors - only keep actual colors, not sizes
+      extractedColors = colorData
+        .filter((c: string) => c && c.length > 0)
+        .map((c: string) => {
+          // Skip if it looks like a size (S, M, L, XL, numbers, etc.)
+          const sizePattern = /^(XXS|XS|S|M|L|XL|XXL|XXXL|2XL|3XL|4XL|\d{2,3})$/i;
+          if (sizePattern.test(c.trim())) {
+            return null; // This is a size, not a color
+          }
+          
+          // Try parseVariantString for complex strings
+          const parsed = parseVariantString(c);
+          if (parsed.color) return parsed.color;
+          
+          // Try cleanColorName as fallback
+          const cleaned = cleanColorName(c);
+          return cleaned;
+        })
+        .filter((c: string | null): c is string => c !== null && c.length > 0);
+      
+      // Remove duplicates
+      extractedColors = [...new Set(extractedColors)];
+      
       if (extractedColors.length > 0) {
-        console.log(`🎨 Puppeteer extracted ${extractedColors.length} colors:`, extractedColors.join(', '));
+        console.log(`🎨 Puppeteer extracted ${extractedColors.length} normalized colors:`, extractedColors.join(', '));
       } else {
         console.log('⚠️ No colors found by Puppeteer');
       }
@@ -3536,18 +3558,30 @@ async function extractVariantsDirect($: cheerio.CheerioAPI, htmlContent: string,
       const sizeName = $el.text().trim() || $el.attr('title') || $el.attr('data-size') || 
                       $el.attr('aria-label');
       
-      if (sizeName && typeof sizeName === 'string' && sizeName.length > 0 && sizeName.length < 20) {
-        // Enhanced size pattern for Turkish and international sizes + dimension-based sizes
-        const sizePattern = /^(XXS|XS|S|M|L|XL|XXL|XXXL|2XL|3XL|\d+(\.\d+)?|Tek\s*Beden|One\s*Size|\d+\s*[xX×]\s*\d+(\s*(cm|CM))?)$/i;
-        const cleanSizeName = sizeName.trim();
+      if (sizeName && typeof sizeName === 'string' && sizeName.length > 0 && sizeName.length < 50) {
+        // Try to parse variant string first (handles "S Beden / Beyaz" formats)
+        const parsed = parseVariantString(sizeName);
+        let finalSize: string | null = null;
         
-        if (sizePattern.test(cleanSizeName)) {
-          sizes.push(cleanSizeName);
+        if (parsed.size) {
+          finalSize = parsed.size;
+        } else {
+          // Enhanced size pattern for Turkish and international sizes + dimension-based sizes
+          const sizePattern = /^(XXS|XS|S|M|L|XL|XXL|XXXL|2XL|3XL|\d+(\.\d+)?|Tek\s*Beden|One\s*Size|\d+\s*[xX×]\s*\d+(\s*(cm|CM))?)$/i;
+          const cleanSizeName = sizeName.trim();
+          
+          if (sizePattern.test(cleanSizeName)) {
+            finalSize = normalizeSize(cleanSizeName);
+          }
+        }
+        
+        if (finalSize && !sizes.includes(finalSize)) {
+          sizes.push(finalSize);
           const stockStatus = $el.is('[disabled]') || $el.hasClass('disabled') || 
                             $el.hasClass('out-of-stock') || $el.hasClass('sold-out') ? '(STOKTA YOK)' : '(STOKTA VAR)';
-          console.log(`👕 FOUND SIZE: "${cleanSizeName}" ${stockStatus} [via: ${selector}]`);
-        } else {
-          console.log(`❌ Size rejected: "${cleanSizeName}" (doesn't match pattern) [via: ${selector}]`);
+          console.log(`👕 FOUND SIZE: "${finalSize}" ${stockStatus} [via: ${selector}]`);
+        } else if (!finalSize) {
+          console.log(`❌ Size rejected: "${sizeName}" (doesn't match pattern) [via: ${selector}]`);
         }
       }
     });

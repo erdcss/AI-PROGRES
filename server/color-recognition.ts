@@ -272,6 +272,165 @@ export function cleanColorName(rawName: string): string | null {
 }
 
 /**
+ * Normalize size name - converts various formats to standard sizes
+ * Preserves dimensional formats, age-based sizes, and numeric sizes
+ * Examples:
+ * - "S Beden" → "S"
+ * - "40×60 cm" → "40×60 cm"
+ * - "1-3 Yaş" → "1-3 Yaş"
+ * - "36 Numara" → "36"
+ * - "Tek Beden" → "Tek Beden"
+ */
+export function normalizeSize(rawSize: string): string {
+  if (!rawSize || typeof rawSize !== 'string') {
+    return 'Tek Beden';
+  }
+  
+  let cleaned = rawSize.trim();
+  
+  // Remove stock indicators like "(1)" or "1 adet" at the end
+  cleaned = cleaned.replace(/\s*\(\d+\)\s*$/g, '');
+  cleaned = cleaned.replace(/\s*\d+\s*adet$/gi, '');
+  
+  // Preserve dimensional sizes (40×60 cm, 100x200 cm)
+  if (/^\d+\s*[xX×]\s*\d+(\s*(cm|CM|mm|MM))?$/.test(cleaned)) {
+    return cleaned;
+  }
+  
+  // Preserve age-based sizes (1-3 Yaş, 6-8 yaş, 12 Yaş)
+  if (/^\d{1,2}(-\d{1,2})?\s*(ya[şs]|YA[ŞS]|age|years?|yrs?)$/i.test(cleaned)) {
+    return cleaned;
+  }
+  
+  // Preserve month-based sizes (6-9 ay, 12-18 ay)
+  if (/^\d{1,2}(-\d{1,2})?\s*(ay|ayl[ıi]k|months?|mo)$/i.test(cleaned)) {
+    return cleaned;
+  }
+  
+  // Handle "Numara" suffix for shoe sizes
+  const numaraMatch = cleaned.match(/^(\d{2,3})\s*Numara$/i);
+  if (numaraMatch) {
+    return numaraMatch[1];
+  }
+  
+  // Remove "Beden" suffix only for letter sizes
+  const bedenMatch = cleaned.match(/^(XXS|XS|S|M|L|XL|XXL|XXXL|2XL|3XL|4XL)\s*Beden$/i);
+  if (bedenMatch) {
+    return bedenMatch[1].toUpperCase();
+  }
+  
+  // Standardize common sizes
+  const upperCleaned = cleaned.toUpperCase().trim();
+  const sizeMap: Record<string, string> = {
+    'TEK BEDEN': 'Tek Beden',
+    'ONE SIZE': 'Tek Beden',
+    'FREE SIZE': 'Tek Beden',
+    'STANDART': 'Tek Beden',
+    'XXS': 'XXS',
+    'XS': 'XS',
+    'S': 'S',
+    'M': 'M',
+    'L': 'L',
+    'XL': 'XL',
+    'XXL': 'XXL',
+    'XXXL': 'XXXL',
+    '2XL': '2XL',
+    '3XL': '3XL',
+    '4XL': '4XL'
+  };
+  
+  if (sizeMap[upperCleaned]) {
+    return sizeMap[upperCleaned];
+  }
+  
+  // Return numeric sizes as-is (shoe sizes: 36, 42, etc.)
+  if (/^\d{2,3}$/.test(cleaned)) {
+    return cleaned;
+  }
+  
+  // Return cleaned version if it looks valid
+  return cleaned.length > 0 && cleaned.length < 30 ? cleaned : 'Tek Beden';
+}
+
+/**
+ * Parse Trendyol variant string into color and size
+ * Handles complex formats including dimensional and age-based sizes
+ * Examples:
+ * - "S Beden / Beyaz 1" → { color: "Beyaz", size: "S" }
+ * - "XL / Siyah" → { color: "Siyah", size: "XL" }
+ * - "40×60 cm" → { color: null, size: "40×60 cm" }
+ * - "1-3 Yaş / Mavi" → { color: "Mavi", size: "1-3 Yaş" }
+ * - "36 Numara / Gri" → { color: "Gri", size: "36" }
+ */
+export function parseVariantString(variantStr: string): { color: string | null, size: string | null } {
+  if (!variantStr || typeof variantStr !== 'string') {
+    return { color: null, size: null };
+  }
+  
+  let color: string | null = null;
+  let size: string | null = null;
+  
+  // Clean up the string
+  let cleaned = variantStr.trim();
+  
+  // Remove stock count indicators like " 1", " (5)", " 2 adet" at the END only
+  cleaned = cleaned.replace(/\s+\d+\s*$/g, '');
+  cleaned = cleaned.replace(/\s*\(\d+\)\s*$/g, '');
+  cleaned = cleaned.replace(/\s*\d+\s*adet$/gi, '');
+  
+  // Split by common separators
+  const separators = [' / ', '/', ' - ', ' – '];
+  let parts: string[] = [cleaned];
+  
+  for (const sep of separators) {
+    if (cleaned.includes(sep)) {
+      parts = cleaned.split(sep).map(p => p.trim()).filter(p => p.length > 0);
+      break;
+    }
+  }
+  
+  // Extended size patterns including dimensional, age-based, and month-based sizes
+  const sizePatterns = [
+    /^(XXS|XS|S|M|L|XL|XXL|XXXL|2XL|3XL|4XL)(\s*Beden)?$/i,  // Letter sizes
+    /^\d{2,3}(\s*Numara)?$/i,                                   // Numeric/shoe sizes
+    /^\d+\s*[xX×]\s*\d+(\s*(cm|CM|mm|MM))?$/,                  // Dimensional sizes
+    /^\d{1,2}(-\d{1,2})?\s*(ya[şs]|YA[ŞS]|age|years?|yrs?)$/i, // Age-based sizes
+    /^\d{1,2}(-\d{1,2})?\s*(ay|ayl[ıi]k|months?|mo)$/i,        // Month-based sizes
+    /^(Tek\s*Beden|One\s*Size|Free\s*Size|Standart)$/i         // Standard sizes
+  ];
+  
+  // Function to check if a string matches any size pattern
+  const isSize = (str: string): boolean => {
+    const trimmed = str.trim();
+    return sizePatterns.some(pattern => pattern.test(trimmed));
+  };
+  
+  // Analyze each part to determine if it's color or size
+  for (const part of parts) {
+    const cleanPart = part.trim();
+    
+    // Check if it's a size
+    if (isSize(cleanPart)) {
+      size = normalizeSize(cleanPart);
+    } else {
+      // Check if it contains a color
+      const extractedColor = extractColorFromTitle(cleanPart);
+      if (extractedColor) {
+        color = extractedColor;
+      } else {
+        // Might be a color name without being in our dictionary
+        const words = cleanPart.toLowerCase().split(/\s+/);
+        if (words.some(w => isColor(w))) {
+          color = cleanPart;
+        }
+      }
+    }
+  }
+  
+  return { color, size };
+}
+
+/**
  * Get hex color code from Turkish color name
  */
 export function getColorCode(colorName: string): string {
