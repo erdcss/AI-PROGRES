@@ -4793,14 +4793,60 @@ ${(result.title || 'product').toLowerCase().replace(/[^a-z0-9]/g, '-')},${result
       console.log('🔄 Shopify ürün senkronizasyonu başlatılıyor...');
       const result = await shopifyApiService.syncAllProducts();
       
+      // 🎯 AUTO-TRACKING: Sync sonrası tüm ürünleri otomatik izlemeye ekle
+      let trackingAdded = 0;
+      if (result.success && result.newProducts > 0) {
+        console.log('🔄 Yeni ürünler izlemeye ekleniyor...');
+        try {
+          // Trigger bulk tracking for new products with source URLs
+          const validProducts = await db
+            .select()
+            .from(shopifyMemoryProducts)
+            .where(and(
+              isNotNull(shopifyMemoryProducts.sourceUrl),
+              isNotNull(shopifyMemoryProducts.shopifyProductId)
+            ));
+          
+          for (const product of validProducts) {
+            try {
+              await db
+                .insert(urlTracking)
+                .values({
+                  url: product.sourceUrl!,
+                  productTitle: product.title,
+                  currentPrice: product.price,
+                  originalPrice: product.price,
+                  currency: 'TL',
+                  status: 'active',
+                  lastChecked: new Date(),
+                  lastSuccessfulCheck: new Date(),
+                  checkCount: 1,
+                  isTracking: true,
+                  trackingInterval: 300,
+                  shopifyProductId: product.shopifyProductId!,
+                  extractedData: null
+                })
+                .onConflictDoNothing();
+              trackingAdded++;
+            } catch (e) {
+              // Skip duplicates
+            }
+          }
+          console.log(`✅ ${trackingAdded} ürün izlemeye eklendi`);
+        } catch (trackingError) {
+          console.error('⚠️ Auto-tracking error:', trackingError);
+        }
+      }
+      
       res.json({
         success: result.success,
         message: result.success 
-          ? `${result.totalProducts} ürün senkronize edildi (${result.newProducts} yeni, ${result.updatedProducts} güncellendi)`
+          ? `${result.totalProducts} ürün senkronize edildi (${result.newProducts} yeni, ${result.updatedProducts} güncellendi, ${trackingAdded} izlemeye eklendi)`
           : 'Senkronizasyon başarısız',
         totalProducts: result.totalProducts,
         newProducts: result.newProducts,
-        updatedProducts: result.updatedProducts
+        updatedProducts: result.updatedProducts,
+        trackingAdded
       });
     } catch (error) {
       console.error('❌ Shopify sync hatası:', error);

@@ -19,8 +19,14 @@ import {
   Plus,
   Trash2,
   Sync,
-  ShoppingCart
+  ShoppingCart,
+  Bell,
+  Zap,
+  AlertTriangle,
+  CheckCircle2,
+  RefreshCw
 } from 'lucide-react';
+import { Progress } from '@/components/ui/progress';
 
 export default function MemoryDashboard() {
   const [newProductUrl, setNewProductUrl] = useState('');
@@ -42,6 +48,32 @@ export default function MemoryDashboard() {
   const { data: shopifyTest } = useQuery({
     queryKey: ['/api/shopify/test'],
     refetchInterval: 30000 // 30 saniyede bir test et
+  });
+
+  // Tracking status (real-time monitoring overview)
+  const { data: trackingStatus, isLoading: trackingLoading } = useQuery({
+    queryKey: ['/api/monitoring/status'],
+    refetchInterval: 3000 // Her 3 saniyede güncelle
+  });
+
+  // Telegram status
+  const { data: telegramStatus } = useQuery({
+    queryKey: ['/api/telegram/status'],
+    refetchInterval: 30000
+  });
+
+  // Pending changes count
+  const { data: pendingChanges } = useQuery({
+    queryKey: ['/api/pending-changes/count'],
+    refetchInterval: 5000
+  });
+
+  // Bulk add all to tracking
+  const bulkAddTracking = useMutation({
+    mutationFn: () => apiRequest('POST', '/api/tracking/bulk-add-shopify', { scope: 'all' }),
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ['/api/monitoring/status'] });
+    }
   });
 
   // Monitoring başlat/durdur
@@ -115,6 +147,117 @@ export default function MemoryDashboard() {
           <p className="text-slate-300 text-lg">
             Gerçek zamanlı ürün takibi ve Shopify senkronizasyonu
           </p>
+        </motion.div>
+
+        {/* 🎯 REAL-TIME TRACKING STATUS PANEL */}
+        <motion.div
+          initial={{ opacity: 0, y: 10 }}
+          animate={{ opacity: 1, y: 0 }}
+          transition={{ delay: 0.1 }}
+        >
+          <Card className="bg-gradient-to-r from-emerald-900/50 to-blue-900/50 border-emerald-700/50">
+            <CardHeader className="pb-3">
+              <div className="flex items-center justify-between">
+                <div className="flex items-center gap-3">
+                  <div className={`p-2 rounded-full ${trackingStatus?.isRunning ? 'bg-emerald-500/20 animate-pulse' : 'bg-red-500/20'}`}>
+                    <Zap className={`h-5 w-5 ${trackingStatus?.isRunning ? 'text-emerald-400' : 'text-red-400'}`} />
+                  </div>
+                  <div>
+                    <CardTitle className="text-white text-lg">Canlı İzleme Durumu</CardTitle>
+                    <CardDescription className="text-slate-300">
+                      Fiyat ve stok değişiklikleri anlık takip ediliyor
+                    </CardDescription>
+                  </div>
+                </div>
+                <div className="flex items-center gap-2">
+                  {trackingStatus?.isRunning ? (
+                    <Badge className="bg-emerald-500/20 text-emerald-300 border-emerald-500/30">
+                      <CheckCircle2 className="h-3 w-3 mr-1" />
+                      Aktif
+                    </Badge>
+                  ) : (
+                    <Badge className="bg-red-500/20 text-red-300 border-red-500/30">
+                      <AlertTriangle className="h-3 w-3 mr-1" />
+                      Durduruldu
+                    </Badge>
+                  )}
+                </div>
+              </div>
+            </CardHeader>
+            <CardContent>
+              <div className="grid grid-cols-2 md:grid-cols-5 gap-4">
+                {/* İzlenen Ürünler */}
+                <div className="bg-slate-800/50 rounded-lg p-3 text-center" data-testid="tracking-monitored-count">
+                  <div className="text-2xl font-bold text-white">{trackingStatus?.monitoredProducts || 0}</div>
+                  <div className="text-xs text-slate-400">İzlenen Ürün</div>
+                </div>
+                
+                {/* Toplam Ürün */}
+                <div className="bg-slate-800/50 rounded-lg p-3 text-center" data-testid="tracking-total-count">
+                  <div className="text-2xl font-bold text-white">{trackingStatus?.totalProducts || 0}</div>
+                  <div className="text-xs text-slate-400">Toplam Ürün</div>
+                </div>
+                
+                {/* Son Fiyat Değişikliği */}
+                <div className="bg-slate-800/50 rounded-lg p-3 text-center" data-testid="tracking-price-changes">
+                  <div className="text-2xl font-bold text-amber-400">{trackingStatus?.recentPriceChanges || 0}</div>
+                  <div className="text-xs text-slate-400">Fiyat Değişikliği</div>
+                </div>
+                
+                {/* Telegram Durumu */}
+                <div className="bg-slate-800/50 rounded-lg p-3 text-center" data-testid="tracking-telegram-status">
+                  <div className="text-2xl font-bold">
+                    {telegramStatus?.status?.connected ? (
+                      <Bell className="h-6 w-6 text-emerald-400 mx-auto" />
+                    ) : (
+                      <Bell className="h-6 w-6 text-red-400 mx-auto" />
+                    )}
+                  </div>
+                  <div className="text-xs text-slate-400">Telegram</div>
+                </div>
+                
+                {/* Bekleyen Değişiklikler */}
+                <div className="bg-slate-800/50 rounded-lg p-3 text-center" data-testid="tracking-pending-changes">
+                  <div className="text-2xl font-bold text-blue-400">{pendingChanges?.count || 0}</div>
+                  <div className="text-xs text-slate-400">Bekleyen</div>
+                </div>
+              </div>
+              
+              {/* Progress Bar - Son Kontrol */}
+              <div className="mt-4 space-y-2">
+                <div className="flex items-center justify-between text-xs text-slate-400">
+                  <span>Son kontrol: {trackingStatus?.lastCheck ? new Date(trackingStatus.lastCheck).toLocaleTimeString('tr-TR') : 'Henüz yok'}</span>
+                  <span>Kontrol aralığı: {trackingStatus?.checkInterval ? `${Math.floor(trackingStatus.checkInterval / 60000)} dakika` : '5 dakika'}</span>
+                </div>
+                <Progress value={trackingStatus?.isRunning ? 100 : 0} className="h-1" />
+              </div>
+              
+              {/* Hızlı Eylemler */}
+              <div className="mt-4 flex flex-wrap gap-2">
+                <Button
+                  size="sm"
+                  onClick={() => bulkAddTracking.mutate()}
+                  disabled={bulkAddTracking.isPending}
+                  className="bg-emerald-600 hover:bg-emerald-700"
+                  data-testid="btn-bulk-add-tracking"
+                >
+                  <Plus className="h-4 w-4 mr-1" />
+                  {bulkAddTracking.isPending ? 'Ekleniyor...' : 'Tümünü İzlemeye Ekle'}
+                </Button>
+                
+                <Button
+                  size="sm"
+                  variant="outline"
+                  onClick={() => queryClient.invalidateQueries({ queryKey: ['/api/monitoring/status'] })}
+                  className="border-slate-600 text-slate-300 hover:bg-slate-700"
+                  data-testid="btn-refresh-tracking"
+                >
+                  <RefreshCw className="h-4 w-4 mr-1" />
+                  Yenile
+                </Button>
+              </div>
+            </CardContent>
+          </Card>
         </motion.div>
 
         {/* İstatistik Kartları */}
