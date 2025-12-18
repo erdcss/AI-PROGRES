@@ -24,12 +24,15 @@ import {
   Zap,
   AlertTriangle,
   CheckCircle2,
-  RefreshCw
+  RefreshCw,
+  X
 } from 'lucide-react';
 import { Progress } from '@/components/ui/progress';
+import { AIEnhancedProductPreview } from '@/components/AIEnhancedProductPreview';
 
 export default function MemoryDashboard() {
   const [newProductUrl, setNewProductUrl] = useState('');
+  const [selectedProduct, setSelectedProduct] = useState<any>(null);
   const queryClient = useQueryClient();
 
   // Hafıza istatistikleri
@@ -406,7 +409,11 @@ export default function MemoryDashboard() {
                     animate={{ opacity: 1, scale: 1 }}
                     transition={{ duration: 0.2 }}
                   >
-                    <Card className="bg-slate-800/50 border-slate-700 hover:bg-slate-800/70 transition-colors">
+                    <Card 
+                      className="bg-slate-800/50 border-slate-700 hover:bg-slate-800/70 transition-colors cursor-pointer"
+                      onClick={() => setSelectedProduct(product)}
+                      data-testid={`product-card-${product.id}`}
+                    >
                       <CardHeader>
                         <div className="flex justify-between items-start">
                           <div className="flex-1">
@@ -491,6 +498,67 @@ export default function MemoryDashboard() {
             </Card>
           </TabsContent>
         </Tabs>
+
+        {/* 🎯 PRODUCT PREVIEW MODAL */}
+        {selectedProduct && (
+          <div 
+            className="fixed inset-0 bg-black/50 backdrop-blur-sm z-50 flex items-center justify-center p-4 overflow-y-auto"
+            onClick={() => setSelectedProduct(null)}
+            data-testid="product-preview-modal"
+          >
+            <motion.div
+              initial={{ opacity: 0, scale: 0.9 }}
+              animate={{ opacity: 1, scale: 1 }}
+              onClick={(e) => e.stopPropagation()}
+              className="bg-slate-900 rounded-lg max-w-2xl w-full my-8"
+            >
+              <div className="flex items-center justify-between p-6 border-b border-slate-700">
+                <h2 className="text-xl font-bold text-white truncate pr-4">{selectedProduct.title}</h2>
+                <button
+                  onClick={() => setSelectedProduct(null)}
+                  className="p-1 hover:bg-slate-800 rounded-lg transition-colors"
+                  data-testid="close-preview-modal"
+                >
+                  <X className="h-6 w-6 text-slate-400" />
+                </button>
+              </div>
+              
+              <div className="p-6 max-h-96 overflow-y-auto space-y-4">
+                <div className="grid grid-cols-2 gap-4 text-sm">
+                  <div>
+                    <span className="text-slate-400">Marka:</span>
+                    <p className="text-white font-medium">{selectedProduct.brand}</p>
+                  </div>
+                  <div>
+                    <span className="text-slate-400">Kategori:</span>
+                    <p className="text-white font-medium">{selectedProduct.category || 'Genel'}</p>
+                  </div>
+                  <div>
+                    <span className="text-slate-400">Shopify ID:</span>
+                    <p className="text-white font-medium">{selectedProduct.shopifyProductId || 'Bekliyor'}</p>
+                  </div>
+                  <div>
+                    <span className="text-slate-400">Durum:</span>
+                    <p className={`font-medium ${selectedProduct.isActive ? 'text-green-400' : 'text-red-400'}`}>
+                      {selectedProduct.isActive ? 'Aktif' : 'Pasif'}
+                    </p>
+                  </div>
+                </div>
+
+                <AIEnhancedProductPreview 
+                  productData={{
+                    title: selectedProduct.title,
+                    brand: selectedProduct.brand,
+                    price: selectedProduct.price || 0,
+                    images: selectedProduct.images || [],
+                    features: selectedProduct.features || []
+                  }}
+                  sourceUrl={selectedProduct.trendyolUrl}
+                />
+              </div>
+            </motion.div>
+          </div>
+        )}
       </div>
     </div>
   );
