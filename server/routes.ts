@@ -4809,9 +4809,15 @@ ${(result.title || 'product').toLowerCase().replace(/[^a-z0-9]/g, '-')},${result
           
           for (const product of validProducts) {
             try {
-              await db
-                .insert(urlTracking)
-                .values({
+              // Check if already tracked
+              const existing = await db
+                .select({ id: urlTracking.id })
+                .from(urlTracking)
+                .where(eq(urlTracking.url, product.sourceUrl!))
+                .limit(1);
+              
+              if (existing.length === 0) {
+                await db.insert(urlTracking).values({
                   url: product.sourceUrl!,
                   productTitle: product.title,
                   currentPrice: product.price,
@@ -4825,11 +4831,11 @@ ${(result.title || 'product').toLowerCase().replace(/[^a-z0-9]/g, '-')},${result
                   trackingInterval: 300,
                   shopifyProductId: product.shopifyProductId!,
                   extractedData: null
-                })
-                .onConflictDoNothing();
-              trackingAdded++;
+                });
+                trackingAdded++;
+              }
             } catch (e) {
-              // Skip duplicates
+              // Skip errors
             }
           }
           console.log(`✅ ${trackingAdded} ürün izlemeye eklendi`);

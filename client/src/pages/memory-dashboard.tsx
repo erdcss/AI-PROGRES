@@ -73,19 +73,20 @@ export default function MemoryDashboard() {
     mutationFn: () => apiRequest('POST', '/api/tracking/bulk-add-shopify', { scope: 'all' }),
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ['/api/monitoring/status'] });
+      queryClient.invalidateQueries({ queryKey: ['/api/memory/stats'] });
     }
   });
 
   // Monitoring başlat/durdur
   const startMonitoring = useMutation({
-    mutationFn: () => apiRequest('/api/monitoring/start', { method: 'POST' }),
+    mutationFn: () => apiRequest('POST', '/api/monitoring/start'),
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ['/api/memory/stats'] });
     }
   });
 
   const stopMonitoring = useMutation({
-    mutationFn: () => apiRequest('/api/monitoring/stop', { method: 'POST' }),
+    mutationFn: () => apiRequest('POST', '/api/monitoring/stop'),
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ['/api/memory/stats'] });
     }
@@ -93,11 +94,7 @@ export default function MemoryDashboard() {
 
   // Ürün izlemeye ekle
   const addToMonitoring = useMutation({
-    mutationFn: (url: string) => apiRequest('/api/monitoring/add', { 
-      method: 'POST',
-      body: JSON.stringify({ url }),
-      headers: { 'Content-Type': 'application/json' }
-    }),
+    mutationFn: (url: string) => apiRequest('POST', '/api/monitoring/add', { url }),
     onSuccess: () => {
       setNewProductUrl('');
       queryClient.invalidateQueries({ queryKey: ['/api/memory/products'] });
@@ -106,7 +103,7 @@ export default function MemoryDashboard() {
 
   // Shopify senkronizasyon
   const syncToShopify = useMutation({
-    mutationFn: (productId: number) => apiRequest(`/api/shopify/sync/${productId}`, { method: 'POST' }),
+    mutationFn: (productId: number) => apiRequest('POST', `/api/shopify/sync/${productId}`),
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ['/api/memory/products'] });
     }
@@ -114,7 +111,7 @@ export default function MemoryDashboard() {
 
   // Tüm ürünleri senkronize et
   const syncAllToShopify = useMutation({
-    mutationFn: () => apiRequest('/api/shopify/sync-all', { method: 'POST' }),
+    mutationFn: () => apiRequest('POST', '/api/shopify/sync-all'),
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ['/api/memory/products'] });
     }
