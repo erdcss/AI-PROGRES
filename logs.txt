@@ -101960,3 +101960,87 @@ Details:
   - Variants Removed: 0
   - Product Archived: false
 ---
+
+[2025-12-18T15:16:16.629Z] SYNC AUDIT
+Product ID: 6071
+Product: NIVEA Luminous630 Leke Karşıtı Cilt Serumu 30ml, Hyaluronik Asit, Ton Eşitleyici, Thiamidol, Nemlendirici
+Success: true
+Changes: 0
+Errors: 0
+Details:
+  - Price Updates: 0
+  - Stock Updates: 0
+  - Variants Added: 0
+  - Variants Removed: 0
+  - Product Archived: false
+---
+
+[2025-12-18T15:17:01.010Z] SYNC AUDIT
+Product ID: 5722
+Product: U.S. Polo Assn. Suri Beyaz Kadın Sneaker
+Success: true
+Changes: 6
+Errors: 0
+Details:
+  - Price Updates: 0
+  - Stock Updates: 0
+  - Variants Added: 6
+  - Variants Removed: 0
+  - Product Archived: false
+---
+
+[2025-12-18T15:17:49.713Z] SYNC AUDIT
+Product ID: 5746
+Product: Lumberjack Dublin Beyaz Deri Erkek Sneaker
+Success: true
+Changes: 6
+Errors: 0
+Details:
+  - Price Updates: 0
+  - Stock Updates: 0
+  - Variants Added: 6
+  - Variants Removed: 0
+  - Product Archived: false
+---
+
+[2025-12-18T15:18:19.320Z] SYNC AUDIT
+Product ID: 6676
+Product: Kiwi KC-8217 Mini Gıda Doğrayıcı | 350 ml Kapasiteli & Paslanmaz Çelik Bıçaklı
+Success: true
+Changes: 0
+Errors: 0
+Details:
+  - Price Updates: 0
+  - Stock Updates: 0
+  - Variants Added: 0
+  - Variants Removed: 0
+  - Product Archived: false
+---
+
+[2025-12-18T15:18:47.404Z] SYNC AUDIT
+Product ID: 495
+Product: ESSENSE Halı Yumuşak Pamuk Dokulu Gemici Deniz Fenerli Peluş Çocuk Odası Bebek Halısı
+Success: true
+Changes: 0
+Errors: 0
+Details:
+  - Price Updates: 0
+  - Stock Updates: 0
+  - Variants Added: 0
+  - Variants Removed: 0
+  - Product Archived: false
+---
+
+[2025-12-18T15:19:19.477Z] SYNC AUDIT
+Product ID: 10612
+Product: Tutku Erkek Çocuk Termal Alt- Üst Set Takım Siyah
+Success: true
+Changes: 0
+Errors: 0
+Details:
+  - Price Updates: 0
+  - Stock Updates: 0
+  - Variants Added: 0
+  - Variants Removed: 0
+  - Product Archived: false
+---

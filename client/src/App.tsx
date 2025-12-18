@@ -373,9 +373,7 @@ function Router() {
         </PageTransition>
       </Route>
       <Route path="/memory-dashboard">
-        <PageTransition>
-          <MemoryDashboard />
-        </PageTransition>
+        <MemoryDashboard />
       </Route>
       <Route path="/telegram-management">
         <PageTransition>
