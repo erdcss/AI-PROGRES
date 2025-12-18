@@ -42,6 +42,7 @@ import TelegramManagementPage from "@/pages/TelegramManagementPage";
 import ProductStatisticsPage from "@/pages/ProductStatisticsPage";
 import { TBotAssistant } from "@/components/TBotAssistant";
 import { MobileNavigation } from "@/components/MobileNavigation";
+import MemoryDashboard from "@/pages/memory-dashboard";
 
 // Login component with password protection
 function LoginScreen({ onLogin }: { onLogin: () => void }) {
@@ -369,6 +370,11 @@ function Router() {
       <Route path="/product-tracking">
         <PageTransition>
           <ProductTrackingPage />
+        </PageTransition>
+      </Route>
+      <Route path="/memory-dashboard">
+        <PageTransition>
+          <MemoryDashboard />
         </PageTransition>
       </Route>
       <Route path="/telegram-management">

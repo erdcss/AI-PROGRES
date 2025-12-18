@@ -43,6 +43,7 @@ const navigationItems: NavigationItem[] = [
   { name: 'Kayıtlı URL\'ler', path: '/saved-urls', icon: Bookmark, description: 'URL arama', category: 'scraper' },
   
   // Analiz ve Takip
+  { name: 'Hafıza Dashboard', path: '/memory-dashboard', icon: Database, description: 'Gerçek zamanlı takip', category: 'tools' },
   { name: 'Takip Dashboard', path: '/tracking-dashboard', icon: Activity, description: 'Otomatik takip', category: 'tools' },
   { name: 'Fiyat Karşılaştırma', path: '/price-comparison', icon: BarChart3, description: 'Fiyat analizi', category: 'tools' },
   { name: 'Veri Analizi', path: '/data-analysis', icon: Database, description: 'Ürün analizi', category: 'tools' },
