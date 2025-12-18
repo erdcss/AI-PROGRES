@@ -332,12 +332,12 @@ export function extractEnhancedVariants($: cheerio.CheerioAPI, htmlContent: stri
             
             if (isValidSize) {
               // ✅ Extract real color from product data instead of defaulting to 'Krem'
-              let colorName = 'Varsayılan'; // Better default than hard-coded color
+              let colorName = 'Tek Renk'; // Better default than placeholder values
               
               // Try multiple color sources
-              if (variant.color && variant.color !== 'undefined') {
+              if (variant.color && variant.color !== 'undefined' && variant.color !== 'Default' && variant.color !== 'Varsayılan') {
                 colorName = variant.color;
-              } else if (variant.colorName) {
+              } else if (variant.colorName && variant.colorName !== 'Default' && variant.colorName !== 'Varsayılan') {
                 colorName = variant.colorName;
               }
               
@@ -420,7 +420,7 @@ export function extractEnhancedVariants($: cheerio.CheerioAPI, htmlContent: stri
               
               if (isValidSize) {
                 // ✅ Extract real color from product or use better default
-                const defaultColor = 'Varsayılan'; // Better than hard-coded 'Black'
+                const defaultColor = 'Tek Renk'; // Better than placeholder values
                 if (!colorMap[defaultColor]) colorMap[defaultColor] = [];
                 if (!colorMap[defaultColor].includes(sizeName)) {
                   colorMap[defaultColor].push(sizeName);
@@ -525,7 +525,7 @@ export function extractEnhancedVariants($: cheerio.CheerioAPI, htmlContent: stri
           
           if (isValidSize) {
             variants.push({
-              color: 'Varsayılan', // Better than hard-coded 'Black'
+              color: 'Tek Renk', // Better than placeholder values
               colorCode: '#808080', // Gray instead of black
               size: sizeName,
               inStock: size.inStock !== false
@@ -879,7 +879,7 @@ export function extractEnhancedVariants($: cheerio.CheerioAPI, htmlContent: stri
     sizes.add('STANDART');
   }
   if (colors.size === 0) {
-    colors.add('Varsayılan');
+    colors.add('Tek Renk');
   }
 
   // Create variant combinations

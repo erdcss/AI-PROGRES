@@ -69,7 +69,7 @@ export class MultiColorScraper {
         const singleResult = await scenarioBasedScrape(url);
         
         // ✅ SMART COLOR EXTRACTION using new color recognition system
-        let colorName = 'Default';
+        let colorName = '';
         
         // Try URL first
         const urlColor = extractColorFromUrl(url);
@@ -82,9 +82,13 @@ export class MultiColorScraper {
           if (titleColor) {
             colorName = titleColor;
             console.log(`✅ Color from title: "${colorName}"`);
-          } else {
-            console.log('⚠️ No color detected, using "Default"');
           }
+        }
+        
+        // Final fallback - use "Tek Renk" instead of generic "Default"
+        if (!colorName) {
+          colorName = 'Tek Renk';
+          console.log('⚠️ No color detected, using "Tek Renk"');
         }
         
         const colorResults = [{
