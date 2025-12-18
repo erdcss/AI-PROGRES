@@ -1989,6 +1989,45 @@ export async function scenarioBasedScrape(url: string): Promise<ScenarioBasedRes
     console.log(`🎨 Colors found: ${colors.join(', ')}`);
     console.log(`🎨 Total variants: ${variants.length}`);
     
+    // 🎨 PRE-VALIDATION FIX: Replace fake colors with URL/title extracted colors
+    const fakeColorValues = ['Default', 'Varsayılan', 'Standart', 'Standard', 'none', 'null', 'undefined', ''];
+    
+    // Check if colors array has only fake/placeholder values (must have at least one element to check)
+    const hasOnlyFakeColors = colors.length > 0 && colors.every(c => !c || fakeColorValues.includes(c));
+    
+    // Also check variants - if all variants have fake colors
+    const variantColorsAreFake = variants.length > 0 && 
+      variants.every(v => !v.color || fakeColorValues.includes(v.color));
+    
+    // Only replace if EITHER colors array is all fake OR all variant colors are fake
+    const shouldReplaceFakeColors = (hasOnlyFakeColors || (colors.length === 0 && variantColorsAreFake)) && variants.length > 0;
+    
+    if (shouldReplaceFakeColors) {
+      console.log('🎨 All colors are fake/placeholder, attempting URL/title extraction...');
+      
+      // Try to extract real color from URL or title
+      let realColor = extractColorFromUrl(url);
+      if (!realColor && title) {
+        realColor = extractColorFromTitle(title);
+      }
+      
+      if (realColor) {
+        console.log(`🎨 Real color found: "${realColor}" - replacing fake colors`);
+        
+        // Replace fake colors in variants
+        variants = variants.map(v => ({
+          ...v,
+          color: realColor,
+          colorCode: getColorCode(realColor)
+        }));
+        
+        // Update colors array
+        colors = [realColor];
+      } else {
+        console.log('🎨 No real color found in URL/title, keeping original values');
+      }
+    }
+    
     // ✅ ENHANCED: Validate and sanitize variants before saving (keep ALL colors)
     const validatedVariants = validateAndSanitizeVariants(variants, colors);
     

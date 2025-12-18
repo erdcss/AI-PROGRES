@@ -2048,10 +2048,31 @@ ${fallbackTitle.toLowerCase().replace(/[^a-z0-9]/g, '-')},${fallbackTitle},Trend
                 result.csvContent = csvResult.csvContent;
                 console.log('✅ CSV content generated successfully for preview');
               } else {
-                // Create comprehensive CSV as fallback
+                // Create comprehensive CSV as fallback - try URL/title color extraction
                 console.log('⚠️ Creating comprehensive CSV for preview...');
+                const { extractColorFromUrl, extractColorFromTitle } = await import('./color-recognition');
+                let fallbackColor = result.variants?.colors?.[0];
+                
+                // Skip fake colors
+                const fakeColors = ['Default', 'Varsayılan', 'Standart', '', null, undefined];
+                if (!fallbackColor || fakeColors.includes(fallbackColor)) {
+                  // Try to extract from URL
+                  fallbackColor = extractColorFromUrl(url);
+                  
+                  // Try from title if URL failed
+                  if (!fallbackColor && result.title) {
+                    fallbackColor = extractColorFromTitle(result.title);
+                  }
+                  
+                  // Final fallback to product type, not generic "Default"
+                  if (!fallbackColor) {
+                    fallbackColor = 'Tek Renk';
+                  }
+                  console.log(`🎨 Fallback color extracted: ${fallbackColor}`);
+                }
+                
                 result.csvContent = `Handle,Title,Body (HTML),Vendor,Tags,Published,Option1 Name,Option1 Value,Variant Price,Image Src,Status
-${(result.title || 'product').toLowerCase().replace(/[^a-z0-9]/g, '-')},${result.title || 'Product'},${result.description || ''},${result.brand || ''},${(result.tags || []).join(' ')},TRUE,Color,${result.variants?.colors?.[0] || 'Default'},${result.price?.original || 100},${result.images?.[0]?.url || result.images?.[0] || ''},active`;
+${(result.title || 'product').toLowerCase().replace(/[^a-z0-9]/g, '-')},${result.title || 'Product'},${result.description || ''},${result.brand || ''},${(result.tags || []).join(' ')},TRUE,Renk,${fallbackColor},${result.price?.original || 100},${result.images?.[0]?.url || result.images?.[0] || ''},active`;
               }
             }
           } catch (csvError) {
