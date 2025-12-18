@@ -102744,3 +102744,325 @@ Details:
   - Variants Removed: 0
   - Product Archived: false
 ---
+
+[2025-12-18T16:07:49.261Z] SYNC AUDIT
+Product ID: 5692
+Product: trendyol.com
+Success: true
+Changes: 0
+Errors: 0
+Details:
+  - Price Updates: 0
+  - Stock Updates: 0
+  - Variants Added: 0
+  - Variants Removed: 0
+  - Product Archived: false
+---
+
+[2025-12-18T16:08:23.100Z] SYNC AUDIT
+Product ID: 6676
+Product: Kiwi KC-8217 Mini Gıda Doğrayıcı | 350 ml Kapasiteli & Paslanmaz Çelik Bıçaklı
+Success: true
+Changes: 1
+Errors: 0
+Details:
+  - Price Updates: 0
+  - Stock Updates: 0
+  - Variants Added: 0
+  - Variants Removed: 0
+  - Product Archived: false
+---
+
+[2025-12-18T16:08:34.396Z] SYNC AUDIT
+Product ID: 6676
+Product: Kiwi KC-8217 Mini Gıda Doğrayıcı | 350 ml Kapasiteli & Paslanmaz Çelik Bıçaklı
+Success: true
+Changes: 0
+Errors: 0
+Details:
+  - Price Updates: 0
+  - Stock Updates: 0
+  - Variants Added: 0
+  - Variants Removed: 0
+  - Product Archived: false
+---
+
+[2025-12-18T16:09:14.033Z] SYNC AUDIT
+Product ID: 11620
+Product: Omo Express Leke Çıkarıcı Beyazlar 1000 ml x1
+Success: true
+Changes: 0
+Errors: 0
+Details:
+  - Price Updates: 0
+  - Stock Updates: 0
+  - Variants Added: 0
+  - Variants Removed: 0
+  - Product Archived: false
+---
+
+[2025-12-18T16:10:03.522Z] SYNC AUDIT
+Product ID: 603
+Product: trendyol.com
+Success: true
+Changes: 0
+Errors: 1
+Details:
+  - Price Updates: 0
+  - Stock Updates: 0
+  - Variants Added: 0
+  - Variants Removed: 0
+  - Product Archived: false
+---
+
+[2025-12-18T16:10:34.724Z] SYNC AUDIT
+Product ID: 5060
+Product: Shaka Siyah Shk108 Çıtçıtlı Suni Deri Cüzdanlı Makyaj Çantalı Kadın El Ve Omuz Çantası
+Success: true
+Changes: 1
+Errors: 0
+Details:
+  - Price Updates: 0
+  - Stock Updates: 0
+  - Variants Added: 0
+  - Variants Removed: 0
+  - Product Archived: false
+---
+
+[2025-12-18T16:11:10.958Z] SYNC AUDIT
+Product ID: 495
+Product: ESSENSE Halı Yumuşak Pamuk Dokulu Gemici Deniz Fenerli Peluş Çocuk Odası Bebek Halısı
+Success: true
+Changes: 0
+Errors: 0
+Details:
+  - Price Updates: 0
+  - Stock Updates: 0
+  - Variants Added: 0
+  - Variants Removed: 0
+  - Product Archived: false
+---
+
+[2025-12-18T16:11:12.967Z] SYNC AUDIT
+Product ID: 5060
+Product: Shaka Siyah Shk108 Çıtçıtlı Suni Deri Cüzdanlı Makyaj Çantalı Kadın El Ve Omuz Çantası
+Success: true
+Changes: 0
+Errors: 0
+Details:
+  - Price Updates: 0
+  - Stock Updates: 0
+  - Variants Added: 0
+  - Variants Removed: 0
+  - Product Archived: false
+---
+
+[2025-12-18T16:11:36.652Z] SYNC AUDIT
+Product ID: 5921
+Product: Reebok PRIME SET Erkek Sneaker Ayakkabı 100230435
+Success: true
+Changes: 1
+Errors: 0
+Details:
+  - Price Updates: 0
+  - Stock Updates: 0
+  - Variants Added: 0
+  - Variants Removed: 0
+  - Product Archived: false
+---
+
+[2025-12-18T16:11:40.450Z] SYNC AUDIT
+Product ID: 5921
+Product: Reebok PRIME SET Erkek Sneaker Ayakkabı 100230435
+Success: true
+Changes: 0
+Errors: 0
+Details:
+  - Price Updates: 0
+  - Stock Updates: 0
+  - Variants Added: 0
+  - Variants Removed: 0
+  - Product Archived: false
+---
+
+[2025-12-18T16:11:46.829Z] SYNC AUDIT
+Product ID: 538
+Product: Braun Silk-épil 1 1-000 Epilatör
+Success: true
+Changes: 0
+Errors: 0
+Details:
+  - Price Updates: 0
+  - Stock Updates: 0
+  - Variants Added: 0
+  - Variants Removed: 0
+  - Product Archived: false
+---
+
+[2025-12-18T16:12:53.149Z] SYNC AUDIT
+Product ID: 640
+Product: NYX Professional Makeup Bare With Me Kapatıcı Serum 02 Light Concealer
+Success: true
+Changes: 0
+Errors: 0
+Details:
+  - Price Updates: 0
+  - Stock Updates: 0
+  - Variants Added: 0
+  - Variants Removed: 0
+  - Product Archived: false
+---
+
+[2025-12-18T16:13:16.565Z] SYNC AUDIT
+Product ID: 5692
+Product: trendyol.com
+Success: true
+Changes: 0
+Errors: 0
+Details:
+  - Price Updates: 0
+  - Stock Updates: 0
+  - Variants Added: 0
+  - Variants Removed: 0
+  - Product Archived: false
+---
+
+[2025-12-18T16:14:11.995Z] SYNC AUDIT
+Product ID: 500
+Product: trendyol.com
+Success: true
+Changes: 1
+Errors: 0
+Details:
+  - Price Updates: 0
+  - Stock Updates: 0
+  - Variants Added: 0
+  - Variants Removed: 0
+  - Product Archived: false
+---
+
+[2025-12-18T16:14:24.136Z] SYNC AUDIT
+Product ID: 500
+Product: trendyol.com
+Success: true
+Changes: 0
+Errors: 0
+Details:
+  - Price Updates: 0
+  - Stock Updates: 0
+  - Variants Added: 0
+  - Variants Removed: 0
+  - Product Archived: false
+---
+
+[2025-12-18T16:14:36.033Z] SYNC AUDIT
+Product ID: 6676
+Product: Kiwi KC-8217 Mini Gıda Doğrayıcı | 350 ml Kapasiteli & Paslanmaz Çelik Bıçaklı
+Success: true
+Changes: 1
+Errors: 0
+Details:
+  - Price Updates: 0
+  - Stock Updates: 0
+  - Variants Added: 0
+  - Variants Removed: 0
+  - Product Archived: false
+---
+
+[2025-12-18T16:14:52.981Z] SYNC AUDIT
+Product ID: 6676
+Product: Kiwi KC-8217 Mini Gıda Doğrayıcı | 350 ml Kapasiteli & Paslanmaz Çelik Bıçaklı
+Success: true
+Changes: 0
+Errors: 0
+Details:
+  - Price Updates: 0
+  - Stock Updates: 0
+  - Variants Added: 0
+  - Variants Removed: 0
+  - Product Archived: false
+---
+
+[2025-12-18T16:16:39.444Z] SYNC AUDIT
+Product ID: 5663
+Product: trendyol.com
+Success: true
+Changes: 1
+Errors: 0
+Details:
+  - Price Updates: 0
+  - Stock Updates: 0
+  - Variants Added: 1
+  - Variants Removed: 0
+  - Product Archived: false
+---
+
+[2025-12-18T16:17:27.529Z] SYNC AUDIT
+Product ID: 8200
+Product: MactivePro Watch HK11 Pro Max Amoled Akıllı Saat Tüm Akıllı Telefonlara Uyumlu Kordon Hediyeli Amoled Ekran
+Success: true
+Changes: 1
+Errors: 0
+Details:
+  - Price Updates: 0
+  - Stock Updates: 0
+  - Variants Added: 0
+  - Variants Removed: 0
+  - Product Archived: false
+---
+
+[2025-12-18T16:18:26.707Z] SYNC AUDIT
+Product ID: 8200
+Product: MactivePro Watch HK11 Pro Max Amoled Akıllı Saat Tüm Akıllı Telefonlara Uyumlu Kordon Hediyeli Amoled Ekran
+Success: true
+Changes: 0
+Errors: 1
+Details:
+  - Price Updates: 0
+  - Stock Updates: 0
+  - Variants Added: 0
+  - Variants Removed: 0
+  - Product Archived: false
+---
+
+[2025-12-18T16:18:46.429Z] SYNC AUDIT
+Product ID: 495
+Product: ESSENSE Halı Yumuşak Pamuk Dokulu Gemici Deniz Fenerli Peluş Çocuk Odası Bebek Halısı
+Success: true
+Changes: 1
+Errors: 0
+Details:
+  - Price Updates: 0
+  - Stock Updates: 0
+  - Variants Added: 0
+  - Variants Removed: 0
+  - Product Archived: false
+---
+
+[2025-12-18T16:18:50.606Z] SYNC AUDIT
+Product ID: 495
+Product: ESSENSE Halı Yumuşak Pamuk Dokulu Gemici Deniz Fenerli Peluş Çocuk Odası Bebek Halısı
+Success: true
+Changes: 0
+Errors: 0
+Details:
+  - Price Updates: 0
+  - Stock Updates: 0
+  - Variants Added: 0
+  - Variants Removed: 0
+  - Product Archived: false
+---
+
+[2025-12-18T16:20:11.182Z] SYNC AUDIT
+Product ID: 11620
+Product: Omo Express Leke Çıkarıcı Beyazlar 1000 ml x1
+Success: true
+Changes: 0
+Errors: 0
+Details:
+  - Price Updates: 0
+  - Stock Updates: 0
+  - Variants Added: 0
+  - Variants Removed: 0
+  - Product Archived: false
+---

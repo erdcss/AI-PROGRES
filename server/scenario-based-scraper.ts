@@ -1870,7 +1870,7 @@ export async function scenarioBasedScrape(url: string): Promise<ScenarioBasedRes
     
     // Create proper variants structure for frontend - Fix Set iteration
     const uniqueColors = variants.map(v => v.color).filter(c => c && c.trim() !== '');
-    const colors = Array.from(new Set(uniqueColors));
+    let colors = Array.from(new Set(uniqueColors));
     const uniqueSizes = variants.map(v => v.size).filter(s => s && s.trim() !== '' && !['1', 'Standart', 'Varsayılan'].includes(s));
     const sizes = Array.from(new Set(uniqueSizes));
     
