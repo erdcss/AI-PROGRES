@@ -18,8 +18,8 @@ export class MonitoringService {
   private shopifyService: ShopifyApiService | null = null;
   private variantTracker: VariantTrackingService;
   private features = {
-    priceAutoSyncEnabled: false,      // Price changes require manual approval
-    variantAutoSyncEnabled: false,    // Variant changes require manual approval
+    priceAutoSyncEnabled: true,       // Auto-sync price changes to Shopify
+    variantAutoSyncEnabled: true,     // Auto-sync variant changes to Shopify
     categoryAutoSyncEnabled: false    // Category changes require manual approval
   };
 
