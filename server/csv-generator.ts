@@ -69,9 +69,9 @@ export function generateProfessionalCSV(productData: any): string {
         'Image Alt Text': `${productData.title} ${color.name} görsel ${imageIndex + 1}`,
         'Variant Image': imageIndex === 0 ? image : '',
         'Option1 Name': 'Renk',
-        'Option1 Value': color.name,
-        'Option2 Name': 'Beden',
-        'Option2 Value': 'Standart',
+        'Option1 Value': color.name || '',
+        'Option2 Name': color.sizes && color.sizes.length > 0 ? 'Beden' : '',
+        'Option2 Value': color.sizes && color.sizes.length > 0 ? color.sizes[0] : '',
         ...(isMainImage ? baseProduct : {
           Handle: '',
           Title: '',

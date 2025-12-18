@@ -94400,3 +94400,7563 @@ Details:
   - Variants Removed: 0
   - Product Archived: false
 ---
+
+[2025-12-18T07:30:58.066Z] SYNC AUDIT
+Product ID: 603
+Product: L'Oreal Paris L'Oréal Paris Telescopic Gold Maskara + Sürpriz Kutu Hediye
+Success: true
+Changes: 0
+Errors: 0
+Details:
+  - Price Updates: 0
+  - Stock Updates: 0
+  - Variants Added: 0
+  - Variants Removed: 0
+  - Product Archived: false
+---
+
+[2025-12-18T07:31:39.269Z] SYNC AUDIT
+Product ID: 10633
+Product: Genel Markalar 5 Li Beyaz Hobistan Bebek Atlet Body Ribana Beyaz Modaicon
+Success: true
+Changes: 0
+Errors: 1
+Details:
+  - Price Updates: 0
+  - Stock Updates: 0
+  - Variants Added: 0
+  - Variants Removed: 0
+  - Product Archived: false
+---
+
+[2025-12-18T07:32:45.269Z] SYNC AUDIT
+Product ID: 543
+Product: Braun Hepsi Bir Arada Series 7, 11’i 1 arada Tıraş Kiti, ProBlade, AutoSense, AIO7540
+Success: true
+Changes: 0
+Errors: 3
+Details:
+  - Price Updates: 0
+  - Stock Updates: 0
+  - Variants Added: 0
+  - Variants Removed: 0
+  - Product Archived: false
+---
+
+[2025-12-18T07:33:33.081Z] SYNC AUDIT
+Product ID: 5692
+Product: Mavi Logo Baskılı Mor Sweatshirt 1S10419-70679
+Success: true
+Changes: 1
+Errors: 0
+Details:
+  - Price Updates: 0
+  - Stock Updates: 0
+  - Variants Added: 1
+  - Variants Removed: 0
+  - Product Archived: false
+---
+
+[2025-12-18T07:33:56.628Z] SYNC AUDIT
+Product ID: 495
+Product: ESSENSE Halı Yumuşak Pamuk Dokulu Gemici Deniz Fenerli Peluş Çocuk Odası Bebek Halısı
+Success: true
+Changes: 0
+Errors: 1
+Details:
+  - Price Updates: 0
+  - Stock Updates: 0
+  - Variants Added: 0
+  - Variants Removed: 0
+  - Product Archived: false
+---
+
+[2025-12-18T07:34:22.717Z] SYNC AUDIT
+Product ID: 5874
+Product: Polaris PARK.B5PR Lacivert Erkek Çocuk Sneaker
+Success: true
+Changes: 1
+Errors: 0
+Details:
+  - Price Updates: 0
+  - Stock Updates: 0
+  - Variants Added: 1
+  - Variants Removed: 0
+  - Product Archived: false
+---
+
+[2025-12-18T07:35:10.990Z] SYNC AUDIT
+Product ID: 8844
+Product: Samsung Galaxy A17 5G 8/256 GB Gri Cep Telefonu
+Success: true
+Changes: 0
+Errors: 3
+Details:
+  - Price Updates: 0
+  - Stock Updates: 0
+  - Variants Added: 0
+  - Variants Removed: 0
+  - Product Archived: false
+---
+
+[2025-12-18T07:35:55.730Z] SYNC AUDIT
+Product ID: 603
+Product: L'Oreal Paris L'Oréal Paris Telescopic Gold Maskara + Sürpriz Kutu Hediye
+Success: true
+Changes: 0
+Errors: 0
+Details:
+  - Price Updates: 0
+  - Stock Updates: 0
+  - Variants Added: 0
+  - Variants Removed: 0
+  - Product Archived: false
+---
+
+[2025-12-18T07:36:01.499Z] SYNC AUDIT
+Product ID: 5396
+Product: Stanley Unisex Pembe The Aerolight Transit Mug 0.60l / 20oz Rose Quartz Termos 10-10789-157-Ackpmb
+Success: true
+Changes: 0
+Errors: 3
+Details:
+  - Price Updates: 0
+  - Stock Updates: 0
+  - Variants Added: 0
+  - Variants Removed: 0
+  - Product Archived: false
+---
+
+[2025-12-18T07:36:16.197Z] SYNC AUDIT
+Product ID: 5060
+Product: Shaka Siyah Shk108 Çıtçıtlı Suni Deri Cüzdanlı Makyaj Çantalı Kadın El Ve Omuz Çantası
+Success: true
+Changes: 1
+Errors: 0
+Details:
+  - Price Updates: 0
+  - Stock Updates: 0
+  - Variants Added: 0
+  - Variants Removed: 0
+  - Product Archived: false
+---
+
+[2025-12-18T07:36:19.092Z] SYNC AUDIT
+Product ID: 5060
+Product: Shaka Siyah Shk108 Çıtçıtlı Suni Deri Cüzdanlı Makyaj Çantalı Kadın El Ve Omuz Çantası
+Success: true
+Changes: 0
+Errors: 0
+Details:
+  - Price Updates: 0
+  - Stock Updates: 0
+  - Variants Added: 0
+  - Variants Removed: 0
+  - Product Archived: false
+---
+
+[2025-12-18T07:36:28.010Z] SYNC AUDIT
+Product ID: 10633
+Product: Genel Markalar 5 Li Beyaz Hobistan Bebek Atlet Body Ribana Beyaz Modaicon
+Success: true
+Changes: 1
+Errors: 0
+Details:
+  - Price Updates: 0
+  - Stock Updates: 0
+  - Variants Added: 0
+  - Variants Removed: 0
+  - Product Archived: false
+---
+
+[2025-12-18T07:36:30.899Z] SYNC AUDIT
+Product ID: 10633
+Product: Genel Markalar 5 Li Beyaz Hobistan Bebek Atlet Body Ribana Beyaz Modaicon
+Success: true
+Changes: 0
+Errors: 0
+Details:
+  - Price Updates: 0
+  - Stock Updates: 0
+  - Variants Added: 0
+  - Variants Removed: 0
+  - Product Archived: false
+---
+
+[2025-12-18T07:36:45.838Z] SYNC AUDIT
+Product ID: 16941
+Product: GLANZEND Yılbaşı Temalı 3D Silikon Anahtarlık
+Success: true
+Changes: 0
+Errors: 1
+Details:
+  - Price Updates: 0
+  - Stock Updates: 0
+  - Variants Added: 0
+  - Variants Removed: 0
+  - Product Archived: false
+---
+
+[2025-12-18T07:37:02.362Z] SYNC AUDIT
+Product ID: 543
+Product: trendyol.com
+Success: true
+Changes: 0
+Errors: 1
+Details:
+  - Price Updates: 0
+  - Stock Updates: 0
+  - Variants Added: 0
+  - Variants Removed: 0
+  - Product Archived: false
+---
+
+[2025-12-18T07:37:22.842Z] SYNC AUDIT
+Product ID: 5692
+Product: Mavi Logo Baskılı Mor Sweatshirt 1S10419-70679
+Success: true
+Changes: 0
+Errors: 0
+Details:
+  - Price Updates: 0
+  - Stock Updates: 0
+  - Variants Added: 0
+  - Variants Removed: 0
+  - Product Archived: false
+---
+
+[2025-12-18T07:37:37.505Z] SYNC AUDIT
+Product ID: 495
+Product: trendyol.com
+Success: true
+Changes: 1
+Errors: 0
+Details:
+  - Price Updates: 0
+  - Stock Updates: 0
+  - Variants Added: 0
+  - Variants Removed: 0
+  - Product Archived: false
+---
+
+[2025-12-18T07:37:40.339Z] SYNC AUDIT
+Product ID: 495
+Product: trendyol.com
+Success: true
+Changes: 0
+Errors: 0
+Details:
+  - Price Updates: 0
+  - Stock Updates: 0
+  - Variants Added: 0
+  - Variants Removed: 0
+  - Product Archived: false
+---
+
+[2025-12-18T07:38:13.096Z] SYNC AUDIT
+Product ID: 5874
+Product: Polaris PARK.B5PR Lacivert Erkek Çocuk Sneaker
+Success: true
+Changes: 1
+Errors: 0
+Details:
+  - Price Updates: 0
+  - Stock Updates: 0
+  - Variants Added: 0
+  - Variants Removed: 0
+  - Product Archived: false
+---
+
+[2025-12-18T07:38:22.872Z] SYNC AUDIT
+Product ID: 5874
+Product: Polaris PARK.B5PR Lacivert Erkek Çocuk Sneaker
+Success: true
+Changes: 0
+Errors: 0
+Details:
+  - Price Updates: 0
+  - Stock Updates: 0
+  - Variants Added: 0
+  - Variants Removed: 0
+  - Product Archived: false
+---
+
+[2025-12-18T07:38:52.523Z] SYNC AUDIT
+Product ID: 8844
+Product: Samsung Galaxy A17 5G 8/256 GB Gri Cep Telefonu
+Success: true
+Changes: 0
+Errors: 1
+Details:
+  - Price Updates: 0
+  - Stock Updates: 0
+  - Variants Added: 0
+  - Variants Removed: 0
+  - Product Archived: false
+---
+
+[2025-12-18T07:39:24.275Z] SYNC AUDIT
+Product ID: 5396
+Product: trendyol.com
+Success: true
+Changes: 0
+Errors: 1
+Details:
+  - Price Updates: 0
+  - Stock Updates: 0
+  - Variants Added: 0
+  - Variants Removed: 0
+  - Product Archived: false
+---
+
+[2025-12-18T07:39:39.935Z] SYNC AUDIT
+Product ID: 5060
+Product: trendyol.com
+Success: true
+Changes: 1
+Errors: 0
+Details:
+  - Price Updates: 0
+  - Stock Updates: 0
+  - Variants Added: 0
+  - Variants Removed: 0
+  - Product Archived: false
+---
+
+[2025-12-18T07:39:42.234Z] SYNC AUDIT
+Product ID: 5060
+Product: trendyol.com
+Success: true
+Changes: 0
+Errors: 0
+Details:
+  - Price Updates: 0
+  - Stock Updates: 0
+  - Variants Added: 0
+  - Variants Removed: 0
+  - Product Archived: false
+---
+
+[2025-12-18T07:40:15.482Z] SYNC AUDIT
+Product ID: 16941
+Product: GLANZEND Yılbaşı Temalı 3D Silikon Anahtarlık
+Success: true
+Changes: 0
+Errors: 0
+Details:
+  - Price Updates: 0
+  - Stock Updates: 0
+  - Variants Added: 0
+  - Variants Removed: 0
+  - Product Archived: false
+---
+
+[2025-12-18T07:40:57.249Z] SYNC AUDIT
+Product ID: 913
+Product: trendyol.com
+Success: true
+Changes: 0
+Errors: 1
+Details:
+  - Price Updates: 0
+  - Stock Updates: 0
+  - Variants Added: 0
+  - Variants Removed: 0
+  - Product Archived: false
+---
+
+[2025-12-18T07:41:12.382Z] SYNC AUDIT
+Product ID: 603
+Product: L'Oreal Paris L'Oréal Paris Telescopic Gold Maskara + Sürpriz Kutu Hediye
+Success: true
+Changes: 0
+Errors: 0
+Details:
+  - Price Updates: 0
+  - Stock Updates: 0
+  - Variants Added: 0
+  - Variants Removed: 0
+  - Product Archived: false
+---
+
+[2025-12-18T07:41:35.448Z] SYNC AUDIT
+Product ID: 5396
+Product: trendyol.com
+Success: true
+Changes: 0
+Errors: 0
+Details:
+  - Price Updates: 0
+  - Stock Updates: 0
+  - Variants Added: 0
+  - Variants Removed: 0
+  - Product Archived: false
+---
+
+[2025-12-18T07:42:01.834Z] SYNC AUDIT
+Product ID: 5692
+Product: Mavi Logo Baskılı Mor Sweatshirt 1S10419-70679
+Success: true
+Changes: 0
+Errors: 0
+Details:
+  - Price Updates: 0
+  - Stock Updates: 0
+  - Variants Added: 0
+  - Variants Removed: 0
+  - Product Archived: false
+---
+
+[2025-12-18T07:42:26.946Z] SYNC AUDIT
+Product ID: 8844
+Product: Samsung Galaxy A17 5G 8/256 GB Gri Cep Telefonu
+Success: true
+Changes: 0
+Errors: 0
+Details:
+  - Price Updates: 0
+  - Stock Updates: 0
+  - Variants Added: 0
+  - Variants Removed: 0
+  - Product Archived: false
+---
+
+[2025-12-18T07:42:41.179Z] SYNC AUDIT
+Product ID: 5874
+Product: Polaris PARK.B5PR Lacivert Erkek Çocuk Sneaker
+Success: true
+Changes: 1
+Errors: 0
+Details:
+  - Price Updates: 0
+  - Stock Updates: 0
+  - Variants Added: 0
+  - Variants Removed: 0
+  - Product Archived: false
+---
+
+[2025-12-18T07:42:53.000Z] SYNC AUDIT
+Product ID: 5874
+Product: Polaris PARK.B5PR Lacivert Erkek Çocuk Sneaker
+Success: true
+Changes: 0
+Errors: 0
+Details:
+  - Price Updates: 0
+  - Stock Updates: 0
+  - Variants Added: 0
+  - Variants Removed: 0
+  - Product Archived: false
+---
+
+[2025-12-18T07:43:57.995Z] SYNC AUDIT
+Product ID: 532
+Product: Braun Face 810 Yüz Epilatörü ve Temizleme Fırçası
+Success: true
+Changes: 0
+Errors: 3
+Details:
+  - Price Updates: 0
+  - Stock Updates: 0
+  - Variants Added: 0
+  - Variants Removed: 0
+  - Product Archived: false
+---
+
+[2025-12-18T07:44:14.141Z] SYNC AUDIT
+Product ID: 5379
+Product: trendyol.com
+Success: true
+Changes: 1
+Errors: 0
+Details:
+  - Price Updates: 0
+  - Stock Updates: 0
+  - Variants Added: 0
+  - Variants Removed: 0
+  - Product Archived: false
+---
+
+[2025-12-18T07:44:49.850Z] SYNC AUDIT
+Product ID: 5379
+Product: trendyol.com
+Success: true
+Changes: 0
+Errors: 3
+Details:
+  - Price Updates: 0
+  - Stock Updates: 0
+  - Variants Added: 0
+  - Variants Removed: 0
+  - Product Archived: false
+---
+
+[2025-12-18T07:45:41.798Z] SYNC AUDIT
+Product ID: 16941
+Product: GLANZEND Yılbaşı Temalı 3D Silikon Anahtarlık
+Success: true
+Changes: 0
+Errors: 3
+Details:
+  - Price Updates: 0
+  - Stock Updates: 0
+  - Variants Added: 0
+  - Variants Removed: 0
+  - Product Archived: false
+---
+
+[2025-12-18T07:45:55.686Z] SYNC AUDIT
+Product ID: 5060
+Product: trendyol.com
+Success: true
+Changes: 1
+Errors: 0
+Details:
+  - Price Updates: 0
+  - Stock Updates: 0
+  - Variants Added: 0
+  - Variants Removed: 0
+  - Product Archived: false
+---
+
+[2025-12-18T07:46:21.176Z] SYNC AUDIT
+Product ID: 9623
+Product: Holographic Sm - B310 Tuşlu Cep Telefonu Radyo Mp3 Asker Telefonu Yaşlı Telefonu
+Success: true
+Changes: 0
+Errors: 3
+Details:
+  - Price Updates: 0
+  - Stock Updates: 0
+  - Variants Added: 0
+  - Variants Removed: 0
+  - Product Archived: false
+---
+
+[2025-12-18T07:46:34.662Z] SYNC AUDIT
+Product ID: 5060
+Product: trendyol.com
+Success: true
+Changes: 0
+Errors: 3
+Details:
+  - Price Updates: 0
+  - Stock Updates: 0
+  - Variants Added: 0
+  - Variants Removed: 0
+  - Product Archived: false
+---
+
+[2025-12-18T07:47:06.784Z] SYNC AUDIT
+Product ID: 913
+Product: trendyol.com
+Success: true
+Changes: 0
+Errors: 3
+Details:
+  - Price Updates: 0
+  - Stock Updates: 0
+  - Variants Added: 0
+  - Variants Removed: 0
+  - Product Archived: false
+---
+
+[2025-12-18T07:47:44.773Z] SYNC AUDIT
+Product ID: 5874
+Product: Polaris PARK.B5PR Lacivert Erkek Çocuk Sneaker
+Success: true
+Changes: 0
+Errors: 0
+Details:
+  - Price Updates: 0
+  - Stock Updates: 0
+  - Variants Added: 0
+  - Variants Removed: 0
+  - Product Archived: false
+---
+
+[2025-12-18T07:48:14.370Z] SYNC AUDIT
+Product ID: 5692
+Product: Mavi Logo Baskılı Mor Sweatshirt 1S10419-70679
+Success: true
+Changes: 0
+Errors: 0
+Details:
+  - Price Updates: 0
+  - Stock Updates: 0
+  - Variants Added: 0
+  - Variants Removed: 0
+  - Product Archived: false
+---
+
+[2025-12-18T07:48:34.193Z] SYNC AUDIT
+Product ID: 5396
+Product: trendyol.com
+Success: true
+Changes: 0
+Errors: 0
+Details:
+  - Price Updates: 0
+  - Stock Updates: 0
+  - Variants Added: 0
+  - Variants Removed: 0
+  - Product Archived: false
+---
+
+[2025-12-18T07:48:53.284Z] SYNC AUDIT
+Product ID: 8844
+Product: Samsung Galaxy A17 5G 8/256 GB Gri Cep Telefonu
+Success: true
+Changes: 0
+Errors: 0
+Details:
+  - Price Updates: 0
+  - Stock Updates: 0
+  - Variants Added: 0
+  - Variants Removed: 0
+  - Product Archived: false
+---
+
+[2025-12-18T07:49:42.934Z] SYNC AUDIT
+Product ID: 5371
+Product: trendyol.com
+Success: true
+Changes: 0
+Errors: 3
+Details:
+  - Price Updates: 0
+  - Stock Updates: 0
+  - Variants Added: 0
+  - Variants Removed: 0
+  - Product Archived: false
+---
+
+[2025-12-18T07:50:40.690Z] SYNC AUDIT
+Product ID: 8844
+Product: Samsung Galaxy A17 5G 8/256 GB Gri Cep Telefonu
+Success: true
+Changes: 0
+Errors: 0
+Details:
+  - Price Updates: 0
+  - Stock Updates: 0
+  - Variants Added: 0
+  - Variants Removed: 0
+  - Product Archived: false
+---
+
+[2025-12-18T07:50:46.014Z] SYNC AUDIT
+Product ID: 6015
+Product: Ürün Bilgisi Alınamadı
+Success: true
+Changes: 0
+Errors: 3
+Details:
+  - Price Updates: 0
+  - Stock Updates: 0
+  - Variants Added: 0
+  - Variants Removed: 0
+  - Product Archived: false
+---
+
+[2025-12-18T07:51:15.042Z] SYNC AUDIT
+Product ID: 913
+Product: trendyol.com
+Success: true
+Changes: 0
+Errors: 0
+Details:
+  - Price Updates: 0
+  - Stock Updates: 0
+  - Variants Added: 0
+  - Variants Removed: 0
+  - Product Archived: false
+---
+
+[2025-12-18T07:51:31.431Z] SYNC AUDIT
+Product ID: 5396
+Product: trendyol.com
+Success: true
+Changes: 0
+Errors: 0
+Details:
+  - Price Updates: 0
+  - Stock Updates: 0
+  - Variants Added: 0
+  - Variants Removed: 0
+  - Product Archived: false
+---
+
+[2025-12-18T07:51:36.966Z] SYNC AUDIT
+Product ID: 6671
+Product: kochler Çok Amaçlı Elektrikli Tencere | 600W | 1.6L | Buharlı ve Yağda Pişirme Özellikli - Pilav Pişirme
+Success: true
+Changes: 0
+Errors: 3
+Details:
+  - Price Updates: 0
+  - Stock Updates: 0
+  - Variants Added: 0
+  - Variants Removed: 0
+  - Product Archived: false
+---
+
+[2025-12-18T07:51:53.347Z] SYNC AUDIT
+Product ID: 532
+Product: Braun Face 810 Yüz Epilatörü ve Temizleme Fırçası
+Success: true
+Changes: 0
+Errors: 0
+Details:
+  - Price Updates: 0
+  - Stock Updates: 0
+  - Variants Added: 0
+  - Variants Removed: 0
+  - Product Archived: false
+---
+
+[2025-12-18T07:51:57.958Z] SYNC AUDIT
+Product ID: 5692
+Product: Mavi Logo Baskılı Mor Sweatshirt 1S10419-70679
+Success: true
+Changes: 0
+Errors: 0
+Details:
+  - Price Updates: 0
+  - Stock Updates: 0
+  - Variants Added: 0
+  - Variants Removed: 0
+  - Product Archived: false
+---
+
+[2025-12-18T07:52:45.322Z] SYNC AUDIT
+Product ID: 6071
+Product: NIVEA Luminous630 Leke Karşıtı Cilt Serumu 30ml, Hyaluronik Asit, Ton Eşitleyici, Thiamidol, Nemlendirici
+Success: true
+Changes: 0
+Errors: 3
+Details:
+  - Price Updates: 0
+  - Stock Updates: 0
+  - Variants Added: 0
+  - Variants Removed: 0
+  - Product Archived: false
+---
+
+[2025-12-18T07:53:02.105Z] SYNC AUDIT
+Product ID: 5371
+Product: trendyol.com
+Success: true
+Changes: 0
+Errors: 0
+Details:
+  - Price Updates: 0
+  - Stock Updates: 0
+  - Variants Added: 0
+  - Variants Removed: 0
+  - Product Archived: false
+---
+
+[2025-12-18T07:53:29.817Z] SYNC AUDIT
+Product ID: 10710
+Product: MTL MUTLU BEBBEE KIZ COCUK FİYONK DETAYLI ESORTMAN TAKIMI 3-14 YAŞ
+Success: true
+Changes: 0
+Errors: 1
+Details:
+  - Price Updates: 0
+  - Stock Updates: 0
+  - Variants Added: 0
+  - Variants Removed: 0
+  - Product Archived: false
+---
+
+[2025-12-18T07:53:44.949Z] SYNC AUDIT
+Product ID: 6015
+Product: Ürün Bilgisi Alınamadı
+Success: true
+Changes: 0
+Errors: 0
+Details:
+  - Price Updates: 0
+  - Stock Updates: 0
+  - Variants Added: 0
+  - Variants Removed: 0
+  - Product Archived: false
+---
+
+[2025-12-18T07:54:29.289Z] SYNC AUDIT
+Product ID: 8213
+Product: Spovan Insomnia Uyku Apnesi Şeker Tansiyon Sesli Görüşme Akıllı Saat
+Success: true
+Changes: 0
+Errors: 3
+Details:
+  - Price Updates: 0
+  - Stock Updates: 0
+  - Variants Added: 0
+  - Variants Removed: 0
+  - Product Archived: false
+---
+
+[2025-12-18T07:54:47.036Z] SYNC AUDIT
+Product ID: 5702
+Product: Mavi Logo Baskılı Pembe Sweatshirt 1611656-70943
+Success: true
+Changes: 1
+Errors: 0
+Details:
+  - Price Updates: 0
+  - Stock Updates: 0
+  - Variants Added: 1
+  - Variants Removed: 0
+  - Product Archived: false
+---
+
+[2025-12-18T07:55:39.220Z] SYNC AUDIT
+Product ID: 913
+Product: trendyol.com
+Success: true
+Changes: 0
+Errors: 0
+Details:
+  - Price Updates: 0
+  - Stock Updates: 0
+  - Variants Added: 0
+  - Variants Removed: 0
+  - Product Archived: false
+---
+
+[2025-12-18T07:56:26.907Z] SYNC AUDIT
+Product ID: 5692
+Product: Mavi Logo Baskılı Mor Sweatshirt 1S10419-70679
+Success: true
+Changes: 0
+Errors: 0
+Details:
+  - Price Updates: 0
+  - Stock Updates: 0
+  - Variants Added: 0
+  - Variants Removed: 0
+  - Product Archived: false
+---
+
+[2025-12-18T07:56:43.432Z] SYNC AUDIT
+Product ID: 5371
+Product: trendyol.com
+Success: true
+Changes: 0
+Errors: 0
+Details:
+  - Price Updates: 0
+  - Stock Updates: 0
+  - Variants Added: 0
+  - Variants Removed: 0
+  - Product Archived: false
+---
+
+[2025-12-18T07:57:00.149Z] SYNC AUDIT
+Product ID: 10710
+Product: MTL MUTLU BEBBEE KIZ COCUK FİYONK DETAYLI ESORTMAN TAKIMI 3-14 YAŞ
+Success: true
+Changes: 0
+Errors: 0
+Details:
+  - Price Updates: 0
+  - Stock Updates: 0
+  - Variants Added: 0
+  - Variants Removed: 0
+  - Product Archived: false
+---
+
+[2025-12-18T07:57:15.632Z] SYNC AUDIT
+Product ID: 532
+Product: Braun Face 810 Yüz Epilatörü ve Temizleme Fırçası
+Success: true
+Changes: 0
+Errors: 0
+Details:
+  - Price Updates: 0
+  - Stock Updates: 0
+  - Variants Added: 0
+  - Variants Removed: 0
+  - Product Archived: false
+---
+
+[2025-12-18T07:57:33.589Z] SYNC AUDIT
+Product ID: 8844
+Product: Samsung Galaxy A17 5G 8/256 GB Gri Cep Telefonu
+Success: true
+Changes: 0
+Errors: 0
+Details:
+  - Price Updates: 0
+  - Stock Updates: 0
+  - Variants Added: 0
+  - Variants Removed: 0
+  - Product Archived: false
+---
+
+[2025-12-18T07:58:20.170Z] SYNC AUDIT
+Product ID: 6676
+Product: Kiwi KC-8217 Mini Gıda Doğrayıcı | 350 ml Kapasiteli & Paslanmaz Çelik Bıçaklı
+Success: true
+Changes: 0
+Errors: 3
+Details:
+  - Price Updates: 0
+  - Stock Updates: 0
+  - Variants Added: 0
+  - Variants Removed: 0
+  - Product Archived: false
+---
+
+[2025-12-18T07:58:33.774Z] SYNC AUDIT
+Product ID: 5379
+Product: trendyol.com
+Success: true
+Changes: 0
+Errors: 0
+Details:
+  - Price Updates: 0
+  - Stock Updates: 0
+  - Variants Added: 0
+  - Variants Removed: 0
+  - Product Archived: false
+---
+
+[2025-12-18T07:59:22.495Z] SYNC AUDIT
+Product ID: 6652
+Product: KUMTEL 2in1 Çok Amaçlı Cam Ve Çelik Hazneli Doğrayıcı Hch-21
+Success: true
+Changes: 0
+Errors: 3
+Details:
+  - Price Updates: 0
+  - Stock Updates: 0
+  - Variants Added: 0
+  - Variants Removed: 0
+  - Product Archived: false
+---
+
+[2025-12-18T07:59:38.024Z] SYNC AUDIT
+Product ID: 5060
+Product: trendyol.com
+Success: true
+Changes: 0
+Errors: 0
+Details:
+  - Price Updates: 0
+  - Stock Updates: 0
+  - Variants Added: 0
+  - Variants Removed: 0
+  - Product Archived: false
+---
+
+[2025-12-18T08:00:49.029Z] SYNC AUDIT
+Product ID: 543
+Product: Braun Hepsi Bir Arada Series 7, 11’i 1 arada Tıraş Kiti, ProBlade, AutoSense, AIO7540
+Success: true
+Changes: 0
+Errors: 0
+Details:
+  - Price Updates: 0
+  - Stock Updates: 0
+  - Variants Added: 0
+  - Variants Removed: 0
+  - Product Archived: false
+---
+
+[2025-12-18T08:01:48.020Z] SYNC AUDIT
+Product ID: 500
+Product: ARVALE Dönerli 6 Gözlü Ev Mutfak Banyo Ofis Askısı Askı Renkli - 1 Adet
+Success: true
+Changes: 0
+Errors: 3
+Details:
+  - Price Updates: 0
+  - Stock Updates: 0
+  - Variants Added: 0
+  - Variants Removed: 0
+  - Product Archived: false
+---
+
+[2025-12-18T08:02:41.885Z] SYNC AUDIT
+Product ID: 10822
+Product: Minilee [İSTEDİĞİNİZ İSMİ NAKIŞLA YAZIYORUZ] - Teddy-Peluş Bej 0-8 Yaş - Kreş, Anaokulu Çocuk Sırt Çantası
+Success: true
+Changes: 0
+Errors: 3
+Details:
+  - Price Updates: 0
+  - Stock Updates: 0
+  - Variants Added: 0
+  - Variants Removed: 0
+  - Product Archived: false
+---
+
+[2025-12-18T08:03:01.432Z] SYNC AUDIT
+Product ID: 10710
+Product: MTL MUTLU BEBBEE KIZ COCUK FİYONK DETAYLI ESORTMAN TAKIMI 3-14 YAŞ
+Success: true
+Changes: 0
+Errors: 0
+Details:
+  - Price Updates: 0
+  - Stock Updates: 0
+  - Variants Added: 0
+  - Variants Removed: 0
+  - Product Archived: false
+---
+
+[2025-12-18T08:03:19.181Z] SYNC AUDIT
+Product ID: 495
+Product: ESSENSE Halı Yumuşak Pamuk Dokulu Gemici Deniz Fenerli Peluş Çocuk Odası Bebek Halısı
+Success: true
+Changes: 0
+Errors: 0
+Details:
+  - Price Updates: 0
+  - Stock Updates: 0
+  - Variants Added: 0
+  - Variants Removed: 0
+  - Product Archived: false
+---
+
+[2025-12-18T08:03:36.230Z] SYNC AUDIT
+Product ID: 532
+Product: Braun Face 810 Yüz Epilatörü ve Temizleme Fırçası
+Success: true
+Changes: 0
+Errors: 0
+Details:
+  - Price Updates: 0
+  - Stock Updates: 0
+  - Variants Added: 0
+  - Variants Removed: 0
+  - Product Archived: false
+---
+
+[2025-12-18T08:04:28.216Z] SYNC AUDIT
+Product ID: 117
+Product: MUSCENT N439 50 Ml.
+Success: true
+Changes: 0
+Errors: 3
+Details:
+  - Price Updates: 0
+  - Stock Updates: 0
+  - Variants Added: 0
+  - Variants Removed: 0
+  - Product Archived: false
+---
+
+[2025-12-18T08:04:48.175Z] SYNC AUDIT
+Product ID: 8844
+Product: Samsung Galaxy A17 5G 8/256 GB Gri Cep Telefonu
+Success: true
+Changes: 0
+Errors: 0
+Details:
+  - Price Updates: 0
+  - Stock Updates: 0
+  - Variants Added: 0
+  - Variants Removed: 0
+  - Product Archived: false
+---
+
+[2025-12-18T08:05:04.363Z] SYNC AUDIT
+Product ID: 5379
+Product: Fiori 4'lü Gold Tokalı İnce Kemer, Pantolon Kemeri, Gömlek Kemeri, Ceket Kemeri
+Success: true
+Changes: 0
+Errors: 0
+Details:
+  - Price Updates: 0
+  - Stock Updates: 0
+  - Variants Added: 0
+  - Variants Removed: 0
+  - Product Archived: false
+---
+
+[2025-12-18T08:05:57.574Z] SYNC AUDIT
+Product ID: 9324
+Product: Samsung Galaxy A16 4 Gb Ram 128 Gb Gri
+Success: true
+Changes: 0
+Errors: 3
+Details:
+  - Price Updates: 0
+  - Stock Updates: 0
+  - Variants Added: 0
+  - Variants Removed: 0
+  - Product Archived: false
+---
+
+[2025-12-18T08:06:20.502Z] SYNC AUDIT
+Product ID: 6674
+Product: Philips 5000 Serisi Hr2695/01 1200 W Blender Seti
+Success: true
+Changes: 0
+Errors: 3
+Details:
+  - Price Updates: 0
+  - Stock Updates: 0
+  - Variants Added: 0
+  - Variants Removed: 0
+  - Product Archived: false
+---
+
+[2025-12-18T08:06:37.842Z] SYNC AUDIT
+Product ID: 543
+Product: Braun Hepsi Bir Arada Series 7, 11’i 1 arada Tıraş Kiti, ProBlade, AutoSense, AIO7540
+Success: true
+Changes: 0
+Errors: 0
+Details:
+  - Price Updates: 0
+  - Stock Updates: 0
+  - Variants Added: 0
+  - Variants Removed: 0
+  - Product Archived: false
+---
+
+[2025-12-18T08:06:53.405Z] SYNC AUDIT
+Product ID: 500
+Product: ARVALE Dönerli 6 Gözlü Ev Mutfak Banyo Ofis Askısı Askı Renkli - 1 Adet
+Success: true
+Changes: 0
+Errors: 0
+Details:
+  - Price Updates: 0
+  - Stock Updates: 0
+  - Variants Added: 0
+  - Variants Removed: 0
+  - Product Archived: false
+---
+
+[2025-12-18T08:07:07.127Z] SYNC AUDIT
+Product ID: 9324
+Product: Samsung Galaxy A16 4 Gb Ram 128 Gb Gri
+Success: true
+Changes: 0
+Errors: 0
+Details:
+  - Price Updates: 0
+  - Stock Updates: 0
+  - Variants Added: 0
+  - Variants Removed: 0
+  - Product Archived: false
+---
+
+[2025-12-18T08:07:59.888Z] SYNC AUDIT
+Product ID: 9187
+Product: Xiaomi Redmi Note 14 8+256 Siyah(Xiaomi Türkiye Garantili)
+Success: true
+Changes: 0
+Errors: 3
+Details:
+  - Price Updates: 0
+  - Stock Updates: 0
+  - Variants Added: 0
+  - Variants Removed: 0
+  - Product Archived: false
+---
+
+[2025-12-18T08:08:16.439Z] SYNC AUDIT
+Product ID: 5761
+Product: Kinetix POLYMER F 5FX Siyah Erkek Çocuk Spor Ayakkabı
+Success: true
+Changes: 1
+Errors: 0
+Details:
+  - Price Updates: 0
+  - Stock Updates: 0
+  - Variants Added: 1
+  - Variants Removed: 0
+  - Product Archived: false
+---
+
+[2025-12-18T08:09:05.808Z] SYNC AUDIT
+Product ID: 875
+Product: Elseve Growth Booster Dökülme Karşıtı Saç Derisi Serumu 102ml & 7 adet Deneme Boy Bright Reveal Güneş Kremi
+Success: true
+Changes: 0
+Errors: 3
+Details:
+  - Price Updates: 0
+  - Stock Updates: 0
+  - Variants Added: 0
+  - Variants Removed: 0
+  - Product Archived: false
+---
+
+[2025-12-18T08:09:20.761Z] SYNC AUDIT
+Product ID: 5845
+Product: Lumberjack HERMOSO 5PR Gri Erkek Çocuk Spor Ayakkabı
+Success: true
+Changes: 1
+Errors: 0
+Details:
+  - Price Updates: 0
+  - Stock Updates: 0
+  - Variants Added: 1
+  - Variants Removed: 0
+  - Product Archived: false
+---
+
+[2025-12-18T08:10:11.835Z] SYNC AUDIT
+Product ID: 5962
+Product: NIVEA Q10 Sıkılaştırıcı Vücut Losyonu 250ml, 7 Günde Sıkılaştırıcı, C Vitamini, Nemlendirici, X2 Adet
+Success: true
+Changes: 0
+Errors: 3
+Details:
+  - Price Updates: 0
+  - Stock Updates: 0
+  - Variants Added: 0
+  - Variants Removed: 0
+  - Product Archived: false
+---
+
+[2025-12-18T08:10:40.810Z] SYNC AUDIT
+Product ID: 5651
+Product: Mavi Logo Baskılı Antrasit Sweatshirt 1611656-82185
+Success: true
+Changes: 1
+Errors: 0
+Details:
+  - Price Updates: 0
+  - Stock Updates: 0
+  - Variants Added: 1
+  - Variants Removed: 0
+  - Product Archived: false
+---
+
+[2025-12-18T08:11:00.815Z] SYNC AUDIT
+Product ID: 6071
+Product: NIVEA Luminous630 Leke Karşıtı Cilt Serumu 30ml, Hyaluronik Asit, Ton Eşitleyici, Thiamidol, Nemlendirici
+Success: true
+Changes: 0
+Errors: 0
+Details:
+  - Price Updates: 0
+  - Stock Updates: 0
+  - Variants Added: 0
+  - Variants Removed: 0
+  - Product Archived: false
+---
+
+[2025-12-18T08:11:09.807Z] SYNC AUDIT
+Product ID: 10726
+Product: Genel Markalar Genel Markalar Elektronik Sesli Pilli Zıplayan Havuçlu Peluş Tavşan 18x17 Cm
+Success: true
+Changes: 0
+Errors: 3
+Details:
+  - Price Updates: 0
+  - Stock Updates: 0
+  - Variants Added: 0
+  - Variants Removed: 0
+  - Product Archived: false
+---
+
+[2025-12-18T08:11:19.173Z] SYNC AUDIT
+Product ID: 9324
+Product: Samsung Galaxy A16 4 Gb Ram 128 Gb Gri
+Success: true
+Changes: 0
+Errors: 0
+Details:
+  - Price Updates: 0
+  - Stock Updates: 0
+  - Variants Added: 0
+  - Variants Removed: 0
+  - Product Archived: false
+---
+
+[2025-12-18T08:12:09.501Z] SYNC AUDIT
+Product ID: 16958
+Product: Talia&Talia Nazar Boncuklu Anahtarlık - Kırmızı
+Success: true
+Changes: 0
+Errors: 3
+Details:
+  - Price Updates: 0
+  - Stock Updates: 0
+  - Variants Added: 0
+  - Variants Removed: 0
+  - Product Archived: false
+---
+
+[2025-12-18T08:12:28.142Z] SYNC AUDIT
+Product ID: 543
+Product: Braun Hepsi Bir Arada Series 7, 11’i 1 arada Tıraş Kiti, ProBlade, AutoSense, AIO7540
+Success: true
+Changes: 0
+Errors: 0
+Details:
+  - Price Updates: 0
+  - Stock Updates: 0
+  - Variants Added: 0
+  - Variants Removed: 0
+  - Product Archived: false
+---
+
+[2025-12-18T08:12:41.064Z] SYNC AUDIT
+Product ID: 5761
+Product: Kinetix POLYMER F 5FX Siyah Erkek Çocuk Spor Ayakkabı
+Success: true
+Changes: 0
+Errors: 0
+Details:
+  - Price Updates: 0
+  - Stock Updates: 0
+  - Variants Added: 0
+  - Variants Removed: 0
+  - Product Archived: false
+---
+
+[2025-12-18T08:13:02.870Z] SYNC AUDIT
+Product ID: 11610
+Product: Madmext Mad Girls Siyah Deri Pantolon Mg1316
+Success: true
+Changes: 1
+Errors: 0
+Details:
+  - Price Updates: 0
+  - Stock Updates: 0
+  - Variants Added: 1
+  - Variants Removed: 0
+  - Product Archived: false
+---
+
+[2025-12-18T08:13:22.544Z] SYNC AUDIT
+Product ID: 9187
+Product: Xiaomi Redmi Note 14 8+256 Siyah(Xiaomi Türkiye Garantili)
+Success: true
+Changes: 0
+Errors: 0
+Details:
+  - Price Updates: 0
+  - Stock Updates: 0
+  - Variants Added: 0
+  - Variants Removed: 0
+  - Product Archived: false
+---
+
+[2025-12-18T08:13:44.215Z] SYNC AUDIT
+Product ID: 5396
+Product: Stanley Unisex Pembe The Aerolight Transit Mug 0.60l / 20oz Rose Quartz Termos 10-10789-157-Ackpmb
+Success: true
+Changes: 0
+Errors: 0
+Details:
+  - Price Updates: 0
+  - Stock Updates: 0
+  - Variants Added: 0
+  - Variants Removed: 0
+  - Product Archived: false
+---
+
+[2025-12-18T08:13:57.788Z] SYNC AUDIT
+Product ID: 875
+Product: Elseve Growth Booster Dökülme Karşıtı Saç Derisi Serumu 102ml & 7 adet Deneme Boy Bright Reveal Güneş Kremi
+Success: true
+Changes: 0
+Errors: 0
+Details:
+  - Price Updates: 0
+  - Stock Updates: 0
+  - Variants Added: 0
+  - Variants Removed: 0
+  - Product Archived: false
+---
+
+[2025-12-18T08:15:40.709Z] SYNC AUDIT
+Product ID: 5651
+Product: Mavi Logo Baskılı Antrasit Sweatshirt 1611656-82185
+Success: true
+Changes: 0
+Errors: 0
+Details:
+  - Price Updates: 0
+  - Stock Updates: 0
+  - Variants Added: 0
+  - Variants Removed: 0
+  - Product Archived: false
+---
+
+[2025-12-18T08:16:34.340Z] SYNC AUDIT
+Product ID: 525
+Product: Braun IPL Silk·expert Pro 5, Evde Tüy Alma, Çanta, Venus Tıraş Makinesi, 2 Başlık ile, PL5146
+Success: true
+Changes: 0
+Errors: 3
+Details:
+  - Price Updates: 0
+  - Stock Updates: 0
+  - Variants Added: 0
+  - Variants Removed: 0
+  - Product Archived: false
+---
+
+[2025-12-18T08:16:53.350Z] SYNC AUDIT
+Product ID: 543
+Product: Braun Hepsi Bir Arada Series 7, 11’i 1 arada Tıraş Kiti, ProBlade, AutoSense, AIO7540
+Success: true
+Changes: 0
+Errors: 0
+Details:
+  - Price Updates: 0
+  - Stock Updates: 0
+  - Variants Added: 0
+  - Variants Removed: 0
+  - Product Archived: false
+---
+
+[2025-12-18T08:17:07.646Z] SYNC AUDIT
+Product ID: 16958
+Product: Talia&Talia Nazar Boncuklu Anahtarlık - Kırmızı
+Success: true
+Changes: 0
+Errors: 0
+Details:
+  - Price Updates: 0
+  - Stock Updates: 0
+  - Variants Added: 0
+  - Variants Removed: 0
+  - Product Archived: false
+---
+
+[2025-12-18T08:17:23.989Z] SYNC AUDIT
+Product ID: 9324
+Product: Samsung Galaxy A16 4 Gb Ram 128 Gb Gri
+Success: true
+Changes: 0
+Errors: 0
+Details:
+  - Price Updates: 0
+  - Stock Updates: 0
+  - Variants Added: 0
+  - Variants Removed: 0
+  - Product Archived: false
+---
+
+[2025-12-18T08:17:40.861Z] SYNC AUDIT
+Product ID: 5761
+Product: Kinetix POLYMER F 5FX Siyah Erkek Çocuk Spor Ayakkabı
+Success: true
+Changes: 0
+Errors: 0
+Details:
+  - Price Updates: 0
+  - Stock Updates: 0
+  - Variants Added: 0
+  - Variants Removed: 0
+  - Product Archived: false
+---
+
+[2025-12-18T08:17:56.121Z] SYNC AUDIT
+Product ID: 9187
+Product: Xiaomi Redmi Note 14 8+256 Siyah(Xiaomi Türkiye Garantili)
+Success: true
+Changes: 0
+Errors: 0
+Details:
+  - Price Updates: 0
+  - Stock Updates: 0
+  - Variants Added: 0
+  - Variants Removed: 0
+  - Product Archived: false
+---
+
+[2025-12-18T08:18:10.733Z] SYNC AUDIT
+Product ID: 11610
+Product: Madmext Mad Girls Siyah Deri Pantolon Mg1316
+Success: true
+Changes: 0
+Errors: 0
+Details:
+  - Price Updates: 0
+  - Stock Updates: 0
+  - Variants Added: 0
+  - Variants Removed: 0
+  - Product Archived: false
+---
+
+[2025-12-18T08:18:24.230Z] SYNC AUDIT
+Product ID: 6676
+Product: Kiwi KC-8217 Mini Gıda Doğrayıcı | 350 ml Kapasiteli & Paslanmaz Çelik Bıçaklı
+Success: true
+Changes: 0
+Errors: 0
+Details:
+  - Price Updates: 0
+  - Stock Updates: 0
+  - Variants Added: 0
+  - Variants Removed: 0
+  - Product Archived: false
+---
+
+[2025-12-18T08:18:39.520Z] SYNC AUDIT
+Product ID: 6671
+Product: kochler Çok Amaçlı Elektrikli Tencere | 600W | 1.6L | Buharlı ve Yağda Pişirme Özellikli - Pilav Pişirme
+Success: true
+Changes: 0
+Errors: 0
+Details:
+  - Price Updates: 0
+  - Stock Updates: 0
+  - Variants Added: 0
+  - Variants Removed: 0
+  - Product Archived: false
+---
+
+[2025-12-18T08:21:00.985Z] SYNC AUDIT
+Product ID: 10612
+Product: Tutku Erkek Çocuk Termal Alt- Üst Set Takım Siyah
+Success: true
+Changes: 0
+Errors: 1
+Details:
+  - Price Updates: 0
+  - Stock Updates: 0
+  - Variants Added: 0
+  - Variants Removed: 0
+  - Product Archived: false
+---
+
+[2025-12-18T08:21:21.232Z] SYNC AUDIT
+Product ID: 5734
+Product: İnci Sorbe 5Pr Siyah Erkek Bot & Bootie A102039571
+Success: true
+Changes: 1
+Errors: 0
+Details:
+  - Price Updates: 0
+  - Stock Updates: 0
+  - Variants Added: 1
+  - Variants Removed: 0
+  - Product Archived: false
+---
+
+[2025-12-18T08:21:40.655Z] SYNC AUDIT
+Product ID: 543
+Product: Braun Hepsi Bir Arada Series 7, 11’i 1 arada Tıraş Kiti, ProBlade, AutoSense, AIO7540
+Success: true
+Changes: 0
+Errors: 0
+Details:
+  - Price Updates: 0
+  - Stock Updates: 0
+  - Variants Added: 0
+  - Variants Removed: 0
+  - Product Archived: false
+---
+
+[2025-12-18T08:21:59.353Z] SYNC AUDIT
+Product ID: 9324
+Product: Samsung Galaxy A16 4 Gb Ram 128 Gb Gri
+Success: true
+Changes: 0
+Errors: 0
+Details:
+  - Price Updates: 0
+  - Stock Updates: 0
+  - Variants Added: 0
+  - Variants Removed: 0
+  - Product Archived: false
+---
+
+[2025-12-18T08:22:15.911Z] SYNC AUDIT
+Product ID: 5697
+Product: Mavi Siyah Basic Eşofman Altı 1600903-900
+Success: true
+Changes: 1
+Errors: 0
+Details:
+  - Price Updates: 0
+  - Stock Updates: 0
+  - Variants Added: 1
+  - Variants Removed: 0
+  - Product Archived: false
+---
+
+[2025-12-18T08:22:30.090Z] SYNC AUDIT
+Product ID: 11610
+Product: Madmext Mad Girls Siyah Deri Pantolon Mg1316
+Success: true
+Changes: 0
+Errors: 0
+Details:
+  - Price Updates: 0
+  - Stock Updates: 0
+  - Variants Added: 0
+  - Variants Removed: 0
+  - Product Archived: false
+---
+
+[2025-12-18T08:22:44.131Z] SYNC AUDIT
+Product ID: 5761
+Product: Kinetix POLYMER F 5FX Siyah Erkek Çocuk Spor Ayakkabı
+Success: true
+Changes: 0
+Errors: 0
+Details:
+  - Price Updates: 0
+  - Stock Updates: 0
+  - Variants Added: 0
+  - Variants Removed: 0
+  - Product Archived: false
+---
+
+[2025-12-18T08:23:02.091Z] SYNC AUDIT
+Product ID: 6676
+Product: Kiwi KC-8217 Mini Gıda Doğrayıcı | 350 ml Kapasiteli & Paslanmaz Çelik Bıçaklı
+Success: true
+Changes: 0
+Errors: 0
+Details:
+  - Price Updates: 0
+  - Stock Updates: 0
+  - Variants Added: 0
+  - Variants Removed: 0
+  - Product Archived: false
+---
+
+[2025-12-18T08:23:18.558Z] SYNC AUDIT
+Product ID: 9187
+Product: Xiaomi Redmi Note 14 8+256 Siyah(Xiaomi Türkiye Garantili)
+Success: true
+Changes: 0
+Errors: 0
+Details:
+  - Price Updates: 0
+  - Stock Updates: 0
+  - Variants Added: 0
+  - Variants Removed: 0
+  - Product Archived: false
+---
+
+[2025-12-18T08:24:06.806Z] SYNC AUDIT
+Product ID: 5402
+Product: Stanley Quencher Pipetli Termos 1,18 L Krem
+Success: true
+Changes: 0
+Errors: 3
+Details:
+  - Price Updates: 0
+  - Stock Updates: 0
+  - Variants Added: 0
+  - Variants Removed: 0
+  - Product Archived: false
+---
+
+[2025-12-18T08:26:15.714Z] SYNC AUDIT
+Product ID: 7280
+Product: Samsung Galaxy Watch Ultra 47 mm Bluetooth Gümüş Titanyum (Samsung Türkiye Garantili)
+Success: true
+Changes: 0
+Errors: 3
+Details:
+  - Price Updates: 0
+  - Stock Updates: 0
+  - Variants Added: 0
+  - Variants Removed: 0
+  - Product Archived: false
+---
+
+[2025-12-18T08:26:32.032Z] SYNC AUDIT
+Product ID: 16958
+Product: Talia&Talia Nazar Boncuklu Anahtarlık - Kırmızı
+Success: true
+Changes: 0
+Errors: 0
+Details:
+  - Price Updates: 0
+  - Stock Updates: 0
+  - Variants Added: 0
+  - Variants Removed: 0
+  - Product Archived: false
+---
+
+[2025-12-18T08:26:48.469Z] SYNC AUDIT
+Product ID: 9324
+Product: Samsung Galaxy A16 4 Gb Ram 128 Gb Gri
+Success: true
+Changes: 0
+Errors: 0
+Details:
+  - Price Updates: 0
+  - Stock Updates: 0
+  - Variants Added: 0
+  - Variants Removed: 0
+  - Product Archived: false
+---
+
+[2025-12-18T08:27:06.000Z] SYNC AUDIT
+Product ID: 543
+Product: Braun Hepsi Bir Arada Series 7, 11’i 1 arada Tıraş Kiti, ProBlade, AutoSense, AIO7540
+Success: true
+Changes: 0
+Errors: 0
+Details:
+  - Price Updates: 0
+  - Stock Updates: 0
+  - Variants Added: 0
+  - Variants Removed: 0
+  - Product Archived: false
+---
+
+[2025-12-18T08:27:20.828Z] SYNC AUDIT
+Product ID: 5697
+Product: Mavi Siyah Basic Eşofman Altı 1600903-900
+Success: true
+Changes: 0
+Errors: 0
+Details:
+  - Price Updates: 0
+  - Stock Updates: 0
+  - Variants Added: 0
+  - Variants Removed: 0
+  - Product Archived: false
+---
+
+[2025-12-18T08:27:34.280Z] SYNC AUDIT
+Product ID: 5761
+Product: Kinetix POLYMER F 5FX Siyah Erkek Çocuk Spor Ayakkabı
+Success: true
+Changes: 0
+Errors: 0
+Details:
+  - Price Updates: 0
+  - Stock Updates: 0
+  - Variants Added: 0
+  - Variants Removed: 0
+  - Product Archived: false
+---
+
+[2025-12-18T08:27:49.371Z] SYNC AUDIT
+Product ID: 11610
+Product: Madmext Mad Girls Siyah Deri Pantolon Mg1316
+Success: true
+Changes: 0
+Errors: 0
+Details:
+  - Price Updates: 0
+  - Stock Updates: 0
+  - Variants Added: 0
+  - Variants Removed: 0
+  - Product Archived: false
+---
+
+[2025-12-18T08:28:03.618Z] SYNC AUDIT
+Product ID: 5402
+Product: Stanley Quencher Pipetli Termos 1,18 L Krem
+Success: true
+Changes: 0
+Errors: 0
+Details:
+  - Price Updates: 0
+  - Stock Updates: 0
+  - Variants Added: 0
+  - Variants Removed: 0
+  - Product Archived: false
+---
+
+[2025-12-18T08:28:20.277Z] SYNC AUDIT
+Product ID: 5773
+Product: Lumberjack POL WMN PU 5PR Beyaz Kadın Sneaker
+Success: true
+Changes: 1
+Errors: 0
+Details:
+  - Price Updates: 0
+  - Stock Updates: 0
+  - Variants Added: 1
+  - Variants Removed: 0
+  - Product Archived: false
+---
+
+[2025-12-18T08:28:36.285Z] SYNC AUDIT
+Product ID: 6652
+Product: KUMTEL 2in1 Çok Amaçlı Cam Ve Çelik Hazneli Doğrayıcı Hch-21
+Success: true
+Changes: 0
+Errors: 0
+Details:
+  - Price Updates: 0
+  - Stock Updates: 0
+  - Variants Added: 0
+  - Variants Removed: 0
+  - Product Archived: false
+---
+
+[2025-12-18T08:30:41.304Z] SYNC AUDIT
+Product ID: 10612
+Product: Tutku Erkek Çocuk Termal Alt- Üst Set Takım Siyah
+Success: true
+Changes: 0
+Errors: 0
+Details:
+  - Price Updates: 0
+  - Stock Updates: 0
+  - Variants Added: 0
+  - Variants Removed: 0
+  - Product Archived: false
+---
+
+[2025-12-18T08:30:59.057Z] SYNC AUDIT
+Product ID: 7280
+Product: Samsung Galaxy Watch Ultra 47 mm Bluetooth Gümüş Titanyum (Samsung Türkiye Garantili)
+Success: true
+Changes: 0
+Errors: 0
+Details:
+  - Price Updates: 0
+  - Stock Updates: 0
+  - Variants Added: 0
+  - Variants Removed: 0
+  - Product Archived: false
+---
+
+[2025-12-18T08:31:17.807Z] SYNC AUDIT
+Product ID: 9324
+Product: Samsung Galaxy A16 4 Gb Ram 128 Gb Gri
+Success: true
+Changes: 0
+Errors: 0
+Details:
+  - Price Updates: 0
+  - Stock Updates: 0
+  - Variants Added: 0
+  - Variants Removed: 0
+  - Product Archived: false
+---
+
+[2025-12-18T08:31:30.505Z] SYNC AUDIT
+Product ID: 16958
+Product: Talia&Talia Nazar Boncuklu Anahtarlık - Kırmızı
+Success: true
+Changes: 0
+Errors: 0
+Details:
+  - Price Updates: 0
+  - Stock Updates: 0
+  - Variants Added: 0
+  - Variants Removed: 0
+  - Product Archived: false
+---
+
+[2025-12-18T08:31:45.028Z] SYNC AUDIT
+Product ID: 5697
+Product: Mavi Siyah Basic Eşofman Altı 1600903-900
+Success: true
+Changes: 0
+Errors: 0
+Details:
+  - Price Updates: 0
+  - Stock Updates: 0
+  - Variants Added: 0
+  - Variants Removed: 0
+  - Product Archived: false
+---
+
+[2025-12-18T08:32:03.465Z] SYNC AUDIT
+Product ID: 10710
+Product: MTL MUTLU BEBBEE KIZ COCUK FİYONK DETAYLI ESORTMAN TAKIMI 3-14 YAŞ
+Success: true
+Changes: 0
+Errors: 0
+Details:
+  - Price Updates: 0
+  - Stock Updates: 0
+  - Variants Added: 0
+  - Variants Removed: 0
+  - Product Archived: false
+---
+
+[2025-12-18T08:32:17.115Z] SYNC AUDIT
+Product ID: 5761
+Product: Kinetix POLYMER F 5FX Siyah Erkek Çocuk Spor Ayakkabı
+Success: true
+Changes: 0
+Errors: 0
+Details:
+  - Price Updates: 0
+  - Stock Updates: 0
+  - Variants Added: 0
+  - Variants Removed: 0
+  - Product Archived: false
+---
+
+[2025-12-18T08:32:33.719Z] SYNC AUDIT
+Product ID: 11610
+Product: Madmext Mad Girls Siyah Deri Pantolon Mg1316
+Success: true
+Changes: 0
+Errors: 0
+Details:
+  - Price Updates: 0
+  - Stock Updates: 0
+  - Variants Added: 0
+  - Variants Removed: 0
+  - Product Archived: false
+---
+
+[2025-12-18T08:33:21.219Z] SYNC AUDIT
+Product ID: 9167
+Product: Samsung Galaxy A17 5G 8/256 GB Mavi Cep Telefonu
+Success: true
+Changes: 0
+Errors: 3
+Details:
+  - Price Updates: 0
+  - Stock Updates: 0
+  - Variants Added: 0
+  - Variants Removed: 0
+  - Product Archived: false
+---
+
+[2025-12-18T08:33:34.355Z] SYNC AUDIT
+Product ID: 5402
+Product: Stanley Quencher Pipetli Termos 1,18 L Krem
+Success: true
+Changes: 0
+Errors: 0
+Details:
+  - Price Updates: 0
+  - Stock Updates: 0
+  - Variants Added: 0
+  - Variants Removed: 0
+  - Product Archived: false
+---
+
+[2025-12-18T08:35:43.195Z] SYNC AUDIT
+Product ID: 6674
+Product: Philips 5000 Serisi Hr2695/01 1200 W Blender Seti
+Success: true
+Changes: 0
+Errors: 0
+Details:
+  - Price Updates: 0
+  - Stock Updates: 0
+  - Variants Added: 0
+  - Variants Removed: 0
+  - Product Archived: false
+---
+
+[2025-12-18T08:36:00.754Z] SYNC AUDIT
+Product ID: 9324
+Product: Samsung Galaxy A16 4 Gb Ram 128 Gb Gri
+Success: true
+Changes: 0
+Errors: 0
+Details:
+  - Price Updates: 0
+  - Stock Updates: 0
+  - Variants Added: 0
+  - Variants Removed: 0
+  - Product Archived: false
+---
+
+[2025-12-18T08:36:12.380Z] SYNC AUDIT
+Product ID: 16958
+Product: Talia&Talia Nazar Boncuklu Anahtarlık - Kırmızı
+Success: true
+Changes: 0
+Errors: 0
+Details:
+  - Price Updates: 0
+  - Stock Updates: 0
+  - Variants Added: 0
+  - Variants Removed: 0
+  - Product Archived: false
+---
+
+[2025-12-18T08:36:28.243Z] SYNC AUDIT
+Product ID: 6676
+Product: Kiwi KC-8217 Mini Gıda Doğrayıcı | 350 ml Kapasiteli & Paslanmaz Çelik Bıçaklı
+Success: true
+Changes: 0
+Errors: 0
+Details:
+  - Price Updates: 0
+  - Stock Updates: 0
+  - Variants Added: 0
+  - Variants Removed: 0
+  - Product Archived: false
+---
+
+[2025-12-18T08:36:42.160Z] SYNC AUDIT
+Product ID: 5761
+Product: Kinetix POLYMER F 5FX Siyah Erkek Çocuk Spor Ayakkabı
+Success: true
+Changes: 0
+Errors: 0
+Details:
+  - Price Updates: 0
+  - Stock Updates: 0
+  - Variants Added: 0
+  - Variants Removed: 0
+  - Product Archived: false
+---
+
+[2025-12-18T08:36:57.576Z] SYNC AUDIT
+Product ID: 7280
+Product: Samsung Galaxy Watch Ultra 47 mm Bluetooth Gümüş Titanyum (Samsung Türkiye Garantili)
+Success: true
+Changes: 0
+Errors: 0
+Details:
+  - Price Updates: 0
+  - Stock Updates: 0
+  - Variants Added: 0
+  - Variants Removed: 0
+  - Product Archived: false
+---
+
+[2025-12-18T08:37:12.850Z] SYNC AUDIT
+Product ID: 5697
+Product: Mavi Siyah Basic Eşofman Altı 1600903-900
+Success: true
+Changes: 0
+Errors: 0
+Details:
+  - Price Updates: 0
+  - Stock Updates: 0
+  - Variants Added: 0
+  - Variants Removed: 0
+  - Product Archived: false
+---
+
+[2025-12-18T08:37:30.630Z] SYNC AUDIT
+Product ID: 9167
+Product: Samsung Galaxy A17 5G 8/256 GB Mavi Cep Telefonu
+Success: true
+Changes: 0
+Errors: 0
+Details:
+  - Price Updates: 0
+  - Stock Updates: 0
+  - Variants Added: 0
+  - Variants Removed: 0
+  - Product Archived: false
+---
+
+[2025-12-18T08:37:44.576Z] SYNC AUDIT
+Product ID: 5402
+Product: Stanley Quencher Pipetli Termos 1,18 L Krem
+Success: true
+Changes: 0
+Errors: 0
+Details:
+  - Price Updates: 0
+  - Stock Updates: 0
+  - Variants Added: 0
+  - Variants Removed: 0
+  - Product Archived: false
+---
+
+[2025-12-18T08:38:34.153Z] SYNC AUDIT
+Product ID: 593
+Product: Lancome Hypnose Drama Anında Dolgunluk ve Hacim Etkili Maskara 01
+Success: true
+Changes: 0
+Errors: 3
+Details:
+  - Price Updates: 0
+  - Stock Updates: 0
+  - Variants Added: 0
+  - Variants Removed: 0
+  - Product Archived: false
+---
+
+[2025-12-18T08:40:42.437Z] SYNC AUDIT
+Product ID: 543
+Product: Braun Hepsi Bir Arada Series 7, 11’i 1 arada Tıraş Kiti, ProBlade, AutoSense, AIO7540
+Success: true
+Changes: 0
+Errors: 0
+Details:
+  - Price Updates: 0
+  - Stock Updates: 0
+  - Variants Added: 0
+  - Variants Removed: 0
+  - Product Archived: false
+---
+
+[2025-12-18T08:41:01.415Z] SYNC AUDIT
+Product ID: 6674
+Product: Philips 5000 Serisi Hr2695/01 1200 W Blender Seti
+Success: true
+Changes: 0
+Errors: 0
+Details:
+  - Price Updates: 0
+  - Stock Updates: 0
+  - Variants Added: 0
+  - Variants Removed: 0
+  - Product Archived: false
+---
+
+[2025-12-18T08:41:14.165Z] SYNC AUDIT
+Product ID: 500
+Product: ARVALE Dönerli 6 Gözlü Ev Mutfak Banyo Ofis Askısı Askı Renkli - 1 Adet
+Success: true
+Changes: 0
+Errors: 0
+Details:
+  - Price Updates: 0
+  - Stock Updates: 0
+  - Variants Added: 0
+  - Variants Removed: 0
+  - Product Archived: false
+---
+
+[2025-12-18T08:41:32.334Z] SYNC AUDIT
+Product ID: 16958
+Product: Talia&Talia Nazar Boncuklu Anahtarlık - Kırmızı
+Success: true
+Changes: 0
+Errors: 0
+Details:
+  - Price Updates: 0
+  - Stock Updates: 0
+  - Variants Added: 0
+  - Variants Removed: 0
+  - Product Archived: false
+---
+
+[2025-12-18T08:41:47.644Z] SYNC AUDIT
+Product ID: 5761
+Product: Kinetix POLYMER F 5FX Siyah Erkek Çocuk Spor Ayakkabı
+Success: true
+Changes: 0
+Errors: 0
+Details:
+  - Price Updates: 0
+  - Stock Updates: 0
+  - Variants Added: 0
+  - Variants Removed: 0
+  - Product Archived: false
+---
+
+[2025-12-18T08:41:59.896Z] SYNC AUDIT
+Product ID: 5697
+Product: Mavi Siyah Basic Eşofman Altı 1600903-900
+Success: true
+Changes: 0
+Errors: 0
+Details:
+  - Price Updates: 0
+  - Stock Updates: 0
+  - Variants Added: 0
+  - Variants Removed: 0
+  - Product Archived: false
+---
+
+[2025-12-18T08:42:14.036Z] SYNC AUDIT
+Product ID: 7280
+Product: Samsung Galaxy Watch Ultra 47 mm Bluetooth Gümüş Titanyum (Samsung Türkiye Garantili)
+Success: true
+Changes: 0
+Errors: 0
+Details:
+  - Price Updates: 0
+  - Stock Updates: 0
+  - Variants Added: 0
+  - Variants Removed: 0
+  - Product Archived: false
+---
+
+[2025-12-18T08:42:29.884Z] SYNC AUDIT
+Product ID: 9324
+Product: Samsung Galaxy A16 4 Gb Ram 128 Gb Gri
+Success: true
+Changes: 0
+Errors: 0
+Details:
+  - Price Updates: 0
+  - Stock Updates: 0
+  - Variants Added: 0
+  - Variants Removed: 0
+  - Product Archived: false
+---
+
+[2025-12-18T08:42:44.252Z] SYNC AUDIT
+Product ID: 6676
+Product: Kiwi KC-8217 Mini Gıda Doğrayıcı | 350 ml Kapasiteli & Paslanmaz Çelik Bıçaklı
+Success: true
+Changes: 0
+Errors: 0
+Details:
+  - Price Updates: 0
+  - Stock Updates: 0
+  - Variants Added: 0
+  - Variants Removed: 0
+  - Product Archived: false
+---
+
+[2025-12-18T08:43:08.721Z] SYNC AUDIT
+Product ID: 419
+Product: Yataş Mini Bambu Sıvı Geçirmez Çocuk Alez
+Success: true
+Changes: 0
+Errors: 1
+Details:
+  - Price Updates: 0
+  - Stock Updates: 0
+  - Variants Added: 0
+  - Variants Removed: 0
+  - Product Archived: false
+---
+
+[2025-12-18T08:45:57.715Z] SYNC AUDIT
+Product ID: 5935
+Product: U.S. Polo Assn. U.S. Polo Assn. Chain 5Pr Siyah Erkek Sneaker A102020948
+Success: true
+Changes: 1
+Errors: 0
+Details:
+  - Price Updates: 0
+  - Stock Updates: 0
+  - Variants Added: 1
+  - Variants Removed: 0
+  - Product Archived: false
+---
+
+[2025-12-18T08:46:11.790Z] SYNC AUDIT
+Product ID: 16958
+Product: Talia&Talia Nazar Boncuklu Anahtarlık - Kırmızı
+Success: true
+Changes: 0
+Errors: 0
+Details:
+  - Price Updates: 0
+  - Stock Updates: 0
+  - Variants Added: 0
+  - Variants Removed: 0
+  - Product Archived: false
+---
+
+[2025-12-18T08:46:26.799Z] SYNC AUDIT
+Product ID: 500
+Product: ARVALE Dönerli 6 Gözlü Ev Mutfak Banyo Ofis Askısı Askı Renkli - 1 Adet
+Success: true
+Changes: 0
+Errors: 0
+Details:
+  - Price Updates: 0
+  - Stock Updates: 0
+  - Variants Added: 0
+  - Variants Removed: 0
+  - Product Archived: false
+---
+
+[2025-12-18T08:46:40.827Z] SYNC AUDIT
+Product ID: 5761
+Product: Kinetix POLYMER F 5FX Siyah Erkek Çocuk Spor Ayakkabı
+Success: true
+Changes: 0
+Errors: 0
+Details:
+  - Price Updates: 0
+  - Stock Updates: 0
+  - Variants Added: 0
+  - Variants Removed: 0
+  - Product Archived: false
+---
+
+[2025-12-18T08:46:56.687Z] SYNC AUDIT
+Product ID: 5697
+Product: Mavi Siyah Basic Eşofman Altı 1600903-900
+Success: true
+Changes: 0
+Errors: 0
+Details:
+  - Price Updates: 0
+  - Stock Updates: 0
+  - Variants Added: 0
+  - Variants Removed: 0
+  - Product Archived: false
+---
+
+[2025-12-18T08:47:11.713Z] SYNC AUDIT
+Product ID: 6676
+Product: Kiwi KC-8217 Mini Gıda Doğrayıcı | 350 ml Kapasiteli & Paslanmaz Çelik Bıçaklı
+Success: true
+Changes: 0
+Errors: 0
+Details:
+  - Price Updates: 0
+  - Stock Updates: 0
+  - Variants Added: 0
+  - Variants Removed: 0
+  - Product Archived: false
+---
+
+[2025-12-18T08:47:28.466Z] SYNC AUDIT
+Product ID: 5683
+Product: Mavi Hav Baskılı Siyah Tişört Regular Fit / Normal Kesim 1613288-900
+Success: true
+Changes: 1
+Errors: 0
+Details:
+  - Price Updates: 0
+  - Stock Updates: 0
+  - Variants Added: 1
+  - Variants Removed: 0
+  - Product Archived: false
+---
+
+[2025-12-18T08:47:44.011Z] SYNC AUDIT
+Product ID: 5402
+Product: Stanley Quencher Pipetli Termos 1,18 L Krem
+Success: true
+Changes: 0
+Errors: 0
+Details:
+  - Price Updates: 0
+  - Stock Updates: 0
+  - Variants Added: 0
+  - Variants Removed: 0
+  - Product Archived: false
+---
+
+[2025-12-18T08:48:00.721Z] SYNC AUDIT
+Product ID: 593
+Product: Lancome Hypnose Drama Anında Dolgunluk ve Hacim Etkili Maskara 01
+Success: true
+Changes: 0
+Errors: 0
+Details:
+  - Price Updates: 0
+  - Stock Updates: 0
+  - Variants Added: 0
+  - Variants Removed: 0
+  - Product Archived: false
+---
+
+[2025-12-18T08:48:16.383Z] SYNC AUDIT
+Product ID: 5379
+Product: Fiori 4'lü Gold Tokalı İnce Kemer, Pantolon Kemeri, Gömlek Kemeri, Ceket Kemeri
+Success: true
+Changes: 0
+Errors: 0
+Details:
+  - Price Updates: 0
+  - Stock Updates: 0
+  - Variants Added: 0
+  - Variants Removed: 0
+  - Product Archived: false
+---
+
+[2025-12-18T08:50:47.487Z] SYNC AUDIT
+Product ID: 5712
+Product: Lumberjack KAI PU 5PR Siyah Erkek Sneaker
+Success: true
+Changes: 3
+Errors: 0
+Details:
+  - Price Updates: 0
+  - Stock Updates: 0
+  - Variants Added: 3
+  - Variants Removed: 0
+  - Product Archived: false
+---
+
+[2025-12-18T08:51:35.929Z] SYNC AUDIT
+Product ID: 10653
+Product: Genel Markalar Labubu Süpriz Paket Oyuncak 16 Cm ticaretjet Kutulu Labubu Figür (HEDİYELİ) ŞEFFAF KUTULU
+Success: true
+Changes: 0
+Errors: 3
+Details:
+  - Price Updates: 0
+  - Stock Updates: 0
+  - Variants Added: 0
+  - Variants Removed: 0
+  - Product Archived: false
+---
+
+[2025-12-18T08:51:51.449Z] SYNC AUDIT
+Product ID: 16958
+Product: Talia&Talia Nazar Boncuklu Anahtarlık - Kırmızı
+Success: true
+Changes: 0
+Errors: 0
+Details:
+  - Price Updates: 0
+  - Stock Updates: 0
+  - Variants Added: 0
+  - Variants Removed: 0
+  - Product Archived: false
+---
+
+[2025-12-18T08:52:05.290Z] SYNC AUDIT
+Product ID: 6676
+Product: Kiwi KC-8217 Mini Gıda Doğrayıcı | 350 ml Kapasiteli & Paslanmaz Çelik Bıçaklı
+Success: true
+Changes: 0
+Errors: 0
+Details:
+  - Price Updates: 0
+  - Stock Updates: 0
+  - Variants Added: 0
+  - Variants Removed: 0
+  - Product Archived: false
+---
+
+[2025-12-18T08:52:18.826Z] SYNC AUDIT
+Product ID: 5761
+Product: Kinetix POLYMER F 5FX Siyah Erkek Çocuk Spor Ayakkabı
+Success: true
+Changes: 0
+Errors: 0
+Details:
+  - Price Updates: 0
+  - Stock Updates: 0
+  - Variants Added: 0
+  - Variants Removed: 0
+  - Product Archived: false
+---
+
+[2025-12-18T08:52:33.577Z] SYNC AUDIT
+Product ID: 5697
+Product: Mavi Siyah Basic Eşofman Altı 1600903-900
+Success: true
+Changes: 0
+Errors: 0
+Details:
+  - Price Updates: 0
+  - Stock Updates: 0
+  - Variants Added: 0
+  - Variants Removed: 0
+  - Product Archived: false
+---
+
+[2025-12-18T08:52:47.232Z] SYNC AUDIT
+Product ID: 5402
+Product: Stanley Quencher Pipetli Termos 1,18 L Krem
+Success: true
+Changes: 0
+Errors: 0
+Details:
+  - Price Updates: 0
+  - Stock Updates: 0
+  - Variants Added: 0
+  - Variants Removed: 0
+  - Product Archived: false
+---
+
+[2025-12-18T08:53:03.278Z] SYNC AUDIT
+Product ID: 6015
+Product: Ürün Bilgisi Alınamadı
+Success: true
+Changes: 0
+Errors: 0
+Details:
+  - Price Updates: 0
+  - Stock Updates: 0
+  - Variants Added: 0
+  - Variants Removed: 0
+  - Product Archived: false
+---
+
+[2025-12-18T08:53:16.300Z] SYNC AUDIT
+Product ID: 593
+Product: Lancome Hypnose Drama Anında Dolgunluk ve Hacim Etkili Maskara 01
+Success: true
+Changes: 0
+Errors: 0
+Details:
+  - Price Updates: 0
+  - Stock Updates: 0
+  - Variants Added: 0
+  - Variants Removed: 0
+  - Product Archived: false
+---
+
+[2025-12-18T08:53:31.992Z] SYNC AUDIT
+Product ID: 5379
+Product: Fiori 4'lü Gold Tokalı İnce Kemer, Pantolon Kemeri, Gömlek Kemeri, Ceket Kemeri
+Success: true
+Changes: 0
+Errors: 0
+Details:
+  - Price Updates: 0
+  - Stock Updates: 0
+  - Variants Added: 0
+  - Variants Removed: 0
+  - Product Archived: false
+---
+
+[2025-12-18T08:55:39.323Z] SYNC AUDIT
+Product ID: 5712
+Product: Lumberjack KAI PU 5PR Siyah Erkek Sneaker
+Success: true
+Changes: 0
+Errors: 0
+Details:
+  - Price Updates: 0
+  - Stock Updates: 0
+  - Variants Added: 0
+  - Variants Removed: 0
+  - Product Archived: false
+---
+
+[2025-12-18T08:56:04.629Z] SYNC AUDIT
+Product ID: 10742
+Product: Katia & Bony Çocuk Pamuklu Tayt Mavi Melanj
+Success: true
+Changes: 0
+Errors: 1
+Details:
+  - Price Updates: 0
+  - Stock Updates: 0
+  - Variants Added: 0
+  - Variants Removed: 0
+  - Product Archived: false
+---
+
+[2025-12-18T08:56:17.904Z] SYNC AUDIT
+Product ID: 16958
+Product: Talia&Talia Nazar Boncuklu Anahtarlık - Kırmızı
+Success: true
+Changes: 0
+Errors: 0
+Details:
+  - Price Updates: 0
+  - Stock Updates: 0
+  - Variants Added: 0
+  - Variants Removed: 0
+  - Product Archived: false
+---
+
+[2025-12-18T08:56:36.911Z] SYNC AUDIT
+Product ID: 10653
+Product: Genel Markalar Labubu Süpriz Paket Oyuncak 16 Cm ticaretjet Kutulu Labubu Figür (HEDİYELİ) ŞEFFAF KUTULU
+Success: true
+Changes: 0
+Errors: 0
+Details:
+  - Price Updates: 0
+  - Stock Updates: 0
+  - Variants Added: 0
+  - Variants Removed: 0
+  - Product Archived: false
+---
+
+[2025-12-18T08:56:56.507Z] SYNC AUDIT
+Product ID: 543
+Product: Braun Hepsi Bir Arada Series 7, 11’i 1 arada Tıraş Kiti, ProBlade, AutoSense, AIO7540
+Success: true
+Changes: 0
+Errors: 0
+Details:
+  - Price Updates: 0
+  - Stock Updates: 0
+  - Variants Added: 0
+  - Variants Removed: 0
+  - Product Archived: false
+---
+
+[2025-12-18T08:57:13.410Z] SYNC AUDIT
+Product ID: 6676
+Product: Kiwi KC-8217 Mini Gıda Doğrayıcı | 350 ml Kapasiteli & Paslanmaz Çelik Bıçaklı
+Success: true
+Changes: 0
+Errors: 0
+Details:
+  - Price Updates: 0
+  - Stock Updates: 0
+  - Variants Added: 0
+  - Variants Removed: 0
+  - Product Archived: false
+---
+
+[2025-12-18T08:57:28.338Z] SYNC AUDIT
+Product ID: 5697
+Product: Mavi Siyah Basic Eşofman Altı 1600903-900
+Success: true
+Changes: 0
+Errors: 0
+Details:
+  - Price Updates: 0
+  - Stock Updates: 0
+  - Variants Added: 0
+  - Variants Removed: 0
+  - Product Archived: false
+---
+
+[2025-12-18T08:57:45.445Z] SYNC AUDIT
+Product ID: 5761
+Product: Kinetix POLYMER F 5FX Siyah Erkek Çocuk Spor Ayakkabı
+Success: true
+Changes: 0
+Errors: 0
+Details:
+  - Price Updates: 0
+  - Stock Updates: 0
+  - Variants Added: 0
+  - Variants Removed: 0
+  - Product Archived: false
+---
+
+[2025-12-18T08:57:59.844Z] SYNC AUDIT
+Product ID: 5402
+Product: Stanley Quencher Pipetli Termos 1,18 L Krem
+Success: true
+Changes: 0
+Errors: 0
+Details:
+  - Price Updates: 0
+  - Stock Updates: 0
+  - Variants Added: 0
+  - Variants Removed: 0
+  - Product Archived: false
+---
+
+[2025-12-18T08:58:32.518Z] SYNC AUDIT
+Product ID: 5692
+Product: Mavi Logo Baskılı Mor Sweatshirt 1S10419-70679
+Success: true
+Changes: 0
+Errors: 0
+Details:
+  - Price Updates: 0
+  - Stock Updates: 0
+  - Variants Added: 0
+  - Variants Removed: 0
+  - Product Archived: false
+---
+
+[2025-12-18T09:00:41.199Z] SYNC AUDIT
+Product ID: 543
+Product: Braun Hepsi Bir Arada Series 7, 11’i 1 arada Tıraş Kiti, ProBlade, AutoSense, AIO7540
+Success: true
+Changes: 0
+Errors: 0
+Details:
+  - Price Updates: 0
+  - Stock Updates: 0
+  - Variants Added: 0
+  - Variants Removed: 0
+  - Product Archived: false
+---
+
+[2025-12-18T09:00:55.041Z] SYNC AUDIT
+Product ID: 5734
+Product: İnci Sorbe 5Pr Siyah Erkek Bot & Bootie A102039571
+Success: true
+Changes: 0
+Errors: 0
+Details:
+  - Price Updates: 0
+  - Stock Updates: 0
+  - Variants Added: 0
+  - Variants Removed: 0
+  - Product Archived: false
+---
+
+[2025-12-18T09:01:11.454Z] SYNC AUDIT
+Product ID: 10653
+Product: Genel Markalar Labubu Süpriz Paket Oyuncak 16 Cm ticaretjet Kutulu Labubu Figür (HEDİYELİ) ŞEFFAF KUTULU
+Success: true
+Changes: 0
+Errors: 0
+Details:
+  - Price Updates: 0
+  - Stock Updates: 0
+  - Variants Added: 0
+  - Variants Removed: 0
+  - Product Archived: false
+---
+
+[2025-12-18T09:01:28.298Z] SYNC AUDIT
+Product ID: 10742
+Product: Katia & Bony Çocuk Pamuklu Tayt Mavi Melanj
+Success: true
+Changes: 0
+Errors: 0
+Details:
+  - Price Updates: 0
+  - Stock Updates: 0
+  - Variants Added: 0
+  - Variants Removed: 0
+  - Product Archived: false
+---
+
+[2025-12-18T09:01:43.097Z] SYNC AUDIT
+Product ID: 16958
+Product: Talia&Talia Nazar Boncuklu Anahtarlık - Kırmızı
+Success: true
+Changes: 0
+Errors: 0
+Details:
+  - Price Updates: 0
+  - Stock Updates: 0
+  - Variants Added: 0
+  - Variants Removed: 0
+  - Product Archived: false
+---
+
+[2025-12-18T09:01:59.691Z] SYNC AUDIT
+Product ID: 6676
+Product: Kiwi KC-8217 Mini Gıda Doğrayıcı | 350 ml Kapasiteli & Paslanmaz Çelik Bıçaklı
+Success: true
+Changes: 0
+Errors: 0
+Details:
+  - Price Updates: 0
+  - Stock Updates: 0
+  - Variants Added: 0
+  - Variants Removed: 0
+  - Product Archived: false
+---
+
+[2025-12-18T09:02:16.515Z] SYNC AUDIT
+Product ID: 5697
+Product: Mavi Siyah Basic Eşofman Altı 1600903-900
+Success: true
+Changes: 0
+Errors: 0
+Details:
+  - Price Updates: 0
+  - Stock Updates: 0
+  - Variants Added: 0
+  - Variants Removed: 0
+  - Product Archived: false
+---
+
+[2025-12-18T09:02:32.295Z] SYNC AUDIT
+Product ID: 5761
+Product: Kinetix POLYMER F 5FX Siyah Erkek Çocuk Spor Ayakkabı
+Success: true
+Changes: 0
+Errors: 0
+Details:
+  - Price Updates: 0
+  - Stock Updates: 0
+  - Variants Added: 0
+  - Variants Removed: 0
+  - Product Archived: false
+---
+
+[2025-12-18T09:02:45.750Z] SYNC AUDIT
+Product ID: 5402
+Product: Stanley Quencher Pipetli Termos 1,18 L Krem
+Success: true
+Changes: 0
+Errors: 0
+Details:
+  - Price Updates: 0
+  - Stock Updates: 0
+  - Variants Added: 0
+  - Variants Removed: 0
+  - Product Archived: false
+---
+
+[2025-12-18T09:03:13.495Z] SYNC AUDIT
+Product ID: 5692
+Product: Mavi Logo Baskılı Mor Sweatshirt 1S10419-70679
+Success: true
+Changes: 0
+Errors: 0
+Details:
+  - Price Updates: 0
+  - Stock Updates: 0
+  - Variants Added: 0
+  - Variants Removed: 0
+  - Product Archived: false
+---
+
+[2025-12-18T09:05:39.669Z] SYNC AUDIT
+Product ID: 10742
+Product: Katia & Bony Çocuk Pamuklu Tayt Mavi Melanj
+Success: true
+Changes: 0
+Errors: 0
+Details:
+  - Price Updates: 0
+  - Stock Updates: 0
+  - Variants Added: 0
+  - Variants Removed: 0
+  - Product Archived: false
+---
+
+[2025-12-18T09:05:53.941Z] SYNC AUDIT
+Product ID: 5761
+Product: Kinetix POLYMER F 5FX Siyah Erkek Çocuk Spor Ayakkabı
+Success: true
+Changes: 0
+Errors: 0
+Details:
+  - Price Updates: 0
+  - Stock Updates: 0
+  - Variants Added: 0
+  - Variants Removed: 0
+  - Product Archived: false
+---
+
+[2025-12-18T09:06:06.647Z] SYNC AUDIT
+Product ID: 6676
+Product: Kiwi KC-8217 Mini Gıda Doğrayıcı | 350 ml Kapasiteli & Paslanmaz Çelik Bıçaklı
+Success: true
+Changes: 0
+Errors: 0
+Details:
+  - Price Updates: 0
+  - Stock Updates: 0
+  - Variants Added: 0
+  - Variants Removed: 0
+  - Product Archived: false
+---
+
+[2025-12-18T09:06:20.187Z] SYNC AUDIT
+Product ID: 5697
+Product: Mavi Siyah Basic Eşofman Altı 1600903-900
+Success: true
+Changes: 0
+Errors: 0
+Details:
+  - Price Updates: 0
+  - Stock Updates: 0
+  - Variants Added: 0
+  - Variants Removed: 0
+  - Product Archived: false
+---
+
+[2025-12-18T09:06:36.566Z] SYNC AUDIT
+Product ID: 6671
+Product: kochler Çok Amaçlı Elektrikli Tencere | 600W | 1.6L | Buharlı ve Yağda Pişirme Özellikli - Pilav Pişirme
+Success: true
+Changes: 0
+Errors: 0
+Details:
+  - Price Updates: 0
+  - Stock Updates: 0
+  - Variants Added: 0
+  - Variants Removed: 0
+  - Product Archived: false
+---
+
+[2025-12-18T09:06:50.229Z] SYNC AUDIT
+Product ID: 5402
+Product: Stanley Quencher Pipetli Termos 1,18 L Krem
+Success: true
+Changes: 0
+Errors: 0
+Details:
+  - Price Updates: 0
+  - Stock Updates: 0
+  - Variants Added: 0
+  - Variants Removed: 0
+  - Product Archived: false
+---
+
+[2025-12-18T09:07:21.072Z] SYNC AUDIT
+Product ID: 5692
+Product: Mavi Logo Baskılı Mor Sweatshirt 1S10419-70679
+Success: true
+Changes: 0
+Errors: 0
+Details:
+  - Price Updates: 0
+  - Stock Updates: 0
+  - Variants Added: 0
+  - Variants Removed: 0
+  - Product Archived: false
+---
+
+[2025-12-18T09:07:39.184Z] SYNC AUDIT
+Product ID: 593
+Product: Lancome Hypnose Drama Anında Dolgunluk ve Hacim Etkili Maskara 01
+Success: true
+Changes: 0
+Errors: 0
+Details:
+  - Price Updates: 0
+  - Stock Updates: 0
+  - Variants Added: 0
+  - Variants Removed: 0
+  - Product Archived: false
+---
+
+[2025-12-18T09:07:52.959Z] SYNC AUDIT
+Product ID: 5379
+Product: Fiori 4'lü Gold Tokalı İnce Kemer, Pantolon Kemeri, Gömlek Kemeri, Ceket Kemeri
+Success: true
+Changes: 0
+Errors: 0
+Details:
+  - Price Updates: 0
+  - Stock Updates: 0
+  - Variants Added: 0
+  - Variants Removed: 0
+  - Product Archived: false
+---
+
+[2025-12-18T09:08:07.680Z] SYNC AUDIT
+Product ID: 6015
+Product: Ürün Bilgisi Alınamadı
+Success: true
+Changes: 0
+Errors: 0
+Details:
+  - Price Updates: 0
+  - Stock Updates: 0
+  - Variants Added: 0
+  - Variants Removed: 0
+  - Product Archived: false
+---
+
+[2025-12-18T09:10:40.324Z] SYNC AUDIT
+Product ID: 543
+Product: Braun Hepsi Bir Arada Series 7, 11’i 1 arada Tıraş Kiti, ProBlade, AutoSense, AIO7540
+Success: true
+Changes: 0
+Errors: 0
+Details:
+  - Price Updates: 0
+  - Stock Updates: 0
+  - Variants Added: 0
+  - Variants Removed: 0
+  - Product Archived: false
+---
+
+[2025-12-18T09:11:33.273Z] SYNC AUDIT
+Product ID: 9296
+Product: Xiaomi Redmi 13 8 GB RAM 256 GB Siyah Cep Telefonu (Xiaomi Türkiye Garantili)
+Success: true
+Changes: 0
+Errors: 3
+Details:
+  - Price Updates: 0
+  - Stock Updates: 0
+  - Variants Added: 0
+  - Variants Removed: 0
+  - Product Archived: false
+---
+
+[2025-12-18T09:11:53.131Z] SYNC AUDIT
+Product ID: 5683
+Product: Mavi Hav Baskılı Siyah Tişört Regular Fit / Normal Kesim 1613288-900
+Success: true
+Changes: 0
+Errors: 0
+Details:
+  - Price Updates: 0
+  - Stock Updates: 0
+  - Variants Added: 0
+  - Variants Removed: 0
+  - Product Archived: false
+---
+
+[2025-12-18T09:12:07.687Z] SYNC AUDIT
+Product ID: 5761
+Product: Kinetix POLYMER F 5FX Siyah Erkek Çocuk Spor Ayakkabı
+Success: true
+Changes: 0
+Errors: 0
+Details:
+  - Price Updates: 0
+  - Stock Updates: 0
+  - Variants Added: 0
+  - Variants Removed: 0
+  - Product Archived: false
+---
+
+[2025-12-18T09:12:56.681Z] SYNC AUDIT
+Product ID: 6684
+Product: Arzum Shake’N Take One Kişisel Smoothie Blender Buz Kırma 300W 570ml Şişe Siyah - AR1120
+Success: true
+Changes: 0
+Errors: 3
+Details:
+  - Price Updates: 0
+  - Stock Updates: 0
+  - Variants Added: 0
+  - Variants Removed: 0
+  - Product Archived: false
+---
+
+[2025-12-18T09:13:10.371Z] SYNC AUDIT
+Product ID: 5697
+Product: Mavi Siyah Basic Eşofman Altı 1600903-900
+Success: true
+Changes: 0
+Errors: 0
+Details:
+  - Price Updates: 0
+  - Stock Updates: 0
+  - Variants Added: 0
+  - Variants Removed: 0
+  - Product Archived: false
+---
+
+[2025-12-18T09:13:36.037Z] SYNC AUDIT
+Product ID: 5692
+Product: Mavi Logo Baskılı Mor Sweatshirt 1S10419-70679
+Success: true
+Changes: 0
+Errors: 0
+Details:
+  - Price Updates: 0
+  - Stock Updates: 0
+  - Variants Added: 0
+  - Variants Removed: 0
+  - Product Archived: false
+---
+
+[2025-12-18T09:13:54.435Z] SYNC AUDIT
+Product ID: 9324
+Product: Samsung Galaxy A16 4 Gb Ram 128 Gb Gri
+Success: true
+Changes: 0
+Errors: 0
+Details:
+  - Price Updates: 0
+  - Stock Updates: 0
+  - Variants Added: 0
+  - Variants Removed: 0
+  - Product Archived: false
+---
+
+[2025-12-18T09:14:06.116Z] SYNC AUDIT
+Product ID: 6676
+Product: Kiwi KC-8217 Mini Gıda Doğrayıcı | 350 ml Kapasiteli & Paslanmaz Çelik Bıçaklı
+Success: true
+Changes: 1
+Errors: 0
+Details:
+  - Price Updates: 0
+  - Stock Updates: 0
+  - Variants Added: 0
+  - Variants Removed: 0
+  - Product Archived: false
+---
+
+[2025-12-18T09:14:27.051Z] SYNC AUDIT
+Product ID: 6676
+Product: Kiwi KC-8217 Mini Gıda Doğrayıcı | 350 ml Kapasiteli & Paslanmaz Çelik Bıçaklı
+Success: true
+Changes: 0
+Errors: 1
+Details:
+  - Price Updates: 0
+  - Stock Updates: 0
+  - Variants Added: 0
+  - Variants Removed: 0
+  - Product Archived: false
+---
+
+[2025-12-18T09:14:43.737Z] SYNC AUDIT
+Product ID: 593
+Product: Lancome Hypnose Drama Anında Dolgunluk ve Hacim Etkili Maskara 01
+Success: true
+Changes: 0
+Errors: 0
+Details:
+  - Price Updates: 0
+  - Stock Updates: 0
+  - Variants Added: 0
+  - Variants Removed: 0
+  - Product Archived: false
+---
+
+[2025-12-18T09:15:41.790Z] SYNC AUDIT
+Product ID: 5921
+Product: Reebok PRIME SET Erkek Sneaker Ayakkabı 100230435
+Success: true
+Changes: 1
+Errors: 0
+Details:
+  - Price Updates: 0
+  - Stock Updates: 0
+  - Variants Added: 1
+  - Variants Removed: 0
+  - Product Archived: false
+---
+
+[2025-12-18T09:15:56.151Z] SYNC AUDIT
+Product ID: 5734
+Product: İnci Sorbe 5Pr Siyah Erkek Bot & Bootie A102039571
+Success: true
+Changes: 0
+Errors: 0
+Details:
+  - Price Updates: 0
+  - Stock Updates: 0
+  - Variants Added: 0
+  - Variants Removed: 0
+  - Product Archived: false
+---
+
+[2025-12-18T09:16:09.572Z] SYNC AUDIT
+Product ID: 5761
+Product: Kinetix POLYMER F 5FX Siyah Erkek Çocuk Spor Ayakkabı
+Success: true
+Changes: 0
+Errors: 0
+Details:
+  - Price Updates: 0
+  - Stock Updates: 0
+  - Variants Added: 0
+  - Variants Removed: 0
+  - Product Archived: false
+---
+
+[2025-12-18T09:16:59.471Z] SYNC AUDIT
+Product ID: 8865
+Product: Samsung Galaxy A26 5G 256 GB 8 GB Ram Beyaz Cep Telefonu (Samsung Türkiye Garantili)
+Success: true
+Changes: 0
+Errors: 3
+Details:
+  - Price Updates: 0
+  - Stock Updates: 0
+  - Variants Added: 0
+  - Variants Removed: 0
+  - Product Archived: false
+---
+
+[2025-12-18T09:17:15.023Z] SYNC AUDIT
+Product ID: 5683
+Product: Mavi Hav Baskılı Siyah Tişört Regular Fit / Normal Kesim 1613288-900
+Success: true
+Changes: 0
+Errors: 0
+Details:
+  - Price Updates: 0
+  - Stock Updates: 0
+  - Variants Added: 0
+  - Variants Removed: 0
+  - Product Archived: false
+---
+
+[2025-12-18T09:17:25.993Z] SYNC AUDIT
+Product ID: 5697
+Product: Mavi Siyah Basic Eşofman Altı 1600903-900
+Success: true
+Changes: 0
+Errors: 0
+Details:
+  - Price Updates: 0
+  - Stock Updates: 0
+  - Variants Added: 0
+  - Variants Removed: 0
+  - Product Archived: false
+---
+
+[2025-12-18T09:17:51.603Z] SYNC AUDIT
+Product ID: 5692
+Product: Mavi Logo Baskılı Mor Sweatshirt 1S10419-70679
+Success: true
+Changes: 0
+Errors: 0
+Details:
+  - Price Updates: 0
+  - Stock Updates: 0
+  - Variants Added: 0
+  - Variants Removed: 0
+  - Product Archived: false
+---
+
+[2025-12-18T09:18:07.848Z] SYNC AUDIT
+Product ID: 9324
+Product: Samsung Galaxy A16 4 Gb Ram 128 Gb Gri
+Success: true
+Changes: 0
+Errors: 0
+Details:
+  - Price Updates: 0
+  - Stock Updates: 0
+  - Variants Added: 0
+  - Variants Removed: 0
+  - Product Archived: false
+---
+
+[2025-12-18T09:18:23.855Z] SYNC AUDIT
+Product ID: 5712
+Product: Lumberjack KAI PU 5PR Siyah Erkek Sneaker
+Success: true
+Changes: 0
+Errors: 0
+Details:
+  - Price Updates: 0
+  - Stock Updates: 0
+  - Variants Added: 0
+  - Variants Removed: 0
+  - Product Archived: false
+---
+
+[2025-12-18T09:18:49.971Z] SYNC AUDIT
+Product ID: 11382
+Product: Çorap Çekmecesi 6'lı Kısa Çorap Single Modeli
+Success: true
+Changes: 0
+Errors: 1
+Details:
+  - Price Updates: 0
+  - Stock Updates: 0
+  - Variants Added: 0
+  - Variants Removed: 0
+  - Product Archived: false
+---
+
+[2025-12-18T09:20:41.710Z] SYNC AUDIT
+Product ID: 543
+Product: Braun Hepsi Bir Arada Series 7, 11’i 1 arada Tıraş Kiti, ProBlade, AutoSense, AIO7540
+Success: true
+Changes: 0
+Errors: 0
+Details:
+  - Price Updates: 0
+  - Stock Updates: 0
+  - Variants Added: 0
+  - Variants Removed: 0
+  - Product Archived: false
+---
+
+[2025-12-18T09:20:56.829Z] SYNC AUDIT
+Product ID: 500
+Product: ARVALE Dönerli 6 Gözlü Ev Mutfak Banyo Ofis Askısı Askı Renkli - 1 Adet
+Success: true
+Changes: 0
+Errors: 0
+Details:
+  - Price Updates: 0
+  - Stock Updates: 0
+  - Variants Added: 0
+  - Variants Removed: 0
+  - Product Archived: false
+---
+
+[2025-12-18T09:21:10.501Z] SYNC AUDIT
+Product ID: 5761
+Product: Kinetix POLYMER F 5FX Siyah Erkek Çocuk Spor Ayakkabı
+Success: true
+Changes: 0
+Errors: 0
+Details:
+  - Price Updates: 0
+  - Stock Updates: 0
+  - Variants Added: 0
+  - Variants Removed: 0
+  - Product Archived: false
+---
+
+[2025-12-18T09:21:24.480Z] SYNC AUDIT
+Product ID: 5683
+Product: Mavi Hav Baskılı Siyah Tişört Regular Fit / Normal Kesim 1613288-900
+Success: true
+Changes: 0
+Errors: 0
+Details:
+  - Price Updates: 0
+  - Stock Updates: 0
+  - Variants Added: 0
+  - Variants Removed: 0
+  - Product Archived: false
+---
+
+[2025-12-18T09:21:38.964Z] SYNC AUDIT
+Product ID: 5697
+Product: Mavi Siyah Basic Eşofman Altı 1600903-900
+Success: true
+Changes: 0
+Errors: 0
+Details:
+  - Price Updates: 0
+  - Stock Updates: 0
+  - Variants Added: 0
+  - Variants Removed: 0
+  - Product Archived: false
+---
+
+[2025-12-18T09:22:14.722Z] SYNC AUDIT
+Product ID: 5692
+Product: Mavi Logo Baskılı Mor Sweatshirt 1S10419-70679
+Success: true
+Changes: 0
+Errors: 0
+Details:
+  - Price Updates: 0
+  - Stock Updates: 0
+  - Variants Added: 0
+  - Variants Removed: 0
+  - Product Archived: false
+---
+
+[2025-12-18T09:22:30.050Z] SYNC AUDIT
+Product ID: 9324
+Product: Samsung Galaxy A16 4 Gb Ram 128 Gb Gri
+Success: true
+Changes: 0
+Errors: 0
+Details:
+  - Price Updates: 0
+  - Stock Updates: 0
+  - Variants Added: 0
+  - Variants Removed: 0
+  - Product Archived: false
+---
+
+[2025-12-18T09:22:44.919Z] SYNC AUDIT
+Product ID: 10742
+Product: Katia & Bony Çocuk Pamuklu Tayt Mavi Melanj
+Success: true
+Changes: 0
+Errors: 0
+Details:
+  - Price Updates: 0
+  - Stock Updates: 0
+  - Variants Added: 0
+  - Variants Removed: 0
+  - Product Archived: false
+---
+
+[2025-12-18T09:23:00.233Z] SYNC AUDIT
+Product ID: 5060
+Product: Ürün Bilgisi Alınamadı
+Success: true
+Changes: 1
+Errors: 0
+Details:
+  - Price Updates: 0
+  - Stock Updates: 0
+  - Variants Added: 0
+  - Variants Removed: 0
+  - Product Archived: false
+---
+
+[2025-12-18T09:23:04.743Z] SYNC AUDIT
+Product ID: 5060
+Product: Ürün Bilgisi Alınamadı
+Success: true
+Changes: 0
+Errors: 0
+Details:
+  - Price Updates: 0
+  - Stock Updates: 0
+  - Variants Added: 0
+  - Variants Removed: 0
+  - Product Archived: false
+---
+
+[2025-12-18T09:23:21.903Z] SYNC AUDIT
+Product ID: 5702
+Product: Mavi Logo Baskılı Pembe Sweatshirt 1611656-70943
+Success: true
+Changes: 0
+Errors: 0
+Details:
+  - Price Updates: 0
+  - Stock Updates: 0
+  - Variants Added: 0
+  - Variants Removed: 0
+  - Product Archived: false
+---
+
+[2025-12-18T09:25:41.945Z] SYNC AUDIT
+Product ID: 543
+Product: Braun Hepsi Bir Arada Series 7, 11’i 1 arada Tıraş Kiti, ProBlade, AutoSense, AIO7540
+Success: true
+Changes: 0
+Errors: 0
+Details:
+  - Price Updates: 0
+  - Stock Updates: 0
+  - Variants Added: 0
+  - Variants Removed: 0
+  - Product Archived: false
+---
+
+[2025-12-18T09:25:57.042Z] SYNC AUDIT
+Product ID: 5761
+Product: Kinetix POLYMER F 5FX Siyah Erkek Çocuk Spor Ayakkabı
+Success: true
+Changes: 0
+Errors: 0
+Details:
+  - Price Updates: 0
+  - Stock Updates: 0
+  - Variants Added: 0
+  - Variants Removed: 0
+  - Product Archived: false
+---
+
+[2025-12-18T09:26:22.846Z] SYNC AUDIT
+Product ID: 5874
+Product: Polaris PARK.B5PR Lacivert Erkek Çocuk Sneaker
+Success: true
+Changes: 0
+Errors: 0
+Details:
+  - Price Updates: 0
+  - Stock Updates: 0
+  - Variants Added: 0
+  - Variants Removed: 0
+  - Product Archived: false
+---
+
+[2025-12-18T09:26:35.767Z] SYNC AUDIT
+Product ID: 5683
+Product: Mavi Hav Baskılı Siyah Tişört Regular Fit / Normal Kesim 1613288-900
+Success: true
+Changes: 0
+Errors: 0
+Details:
+  - Price Updates: 0
+  - Stock Updates: 0
+  - Variants Added: 0
+  - Variants Removed: 0
+  - Product Archived: false
+---
+
+[2025-12-18T09:27:17.055Z] SYNC AUDIT
+Product ID: 5692
+Product: Mavi Logo Baskılı Mor Sweatshirt 1S10419-70679
+Success: true
+Changes: 0
+Errors: 0
+Details:
+  - Price Updates: 0
+  - Stock Updates: 0
+  - Variants Added: 0
+  - Variants Removed: 0
+  - Product Archived: false
+---
+
+[2025-12-18T09:27:34.705Z] SYNC AUDIT
+Product ID: 9324
+Product: Samsung Galaxy A16 4 Gb Ram 128 Gb Gri
+Success: true
+Changes: 0
+Errors: 0
+Details:
+  - Price Updates: 0
+  - Stock Updates: 0
+  - Variants Added: 0
+  - Variants Removed: 0
+  - Product Archived: false
+---
+
+[2025-12-18T09:27:51.373Z] SYNC AUDIT
+Product ID: 5697
+Product: Mavi Siyah Basic Eşofman Altı 1600903-900
+Success: true
+Changes: 0
+Errors: 0
+Details:
+  - Price Updates: 0
+  - Stock Updates: 0
+  - Variants Added: 0
+  - Variants Removed: 0
+  - Product Archived: false
+---
+
+[2025-12-18T09:28:04.814Z] SYNC AUDIT
+Product ID: 9296
+Product: Xiaomi Redmi 13 8 GB RAM 256 GB Siyah Cep Telefonu (Xiaomi Türkiye Garantili)
+Success: true
+Changes: 0
+Errors: 0
+Details:
+  - Price Updates: 0
+  - Stock Updates: 0
+  - Variants Added: 0
+  - Variants Removed: 0
+  - Product Archived: false
+---
+
+[2025-12-18T09:28:21.165Z] SYNC AUDIT
+Product ID: 10742
+Product: Katia & Bony Çocuk Pamuklu Tayt Mavi Melanj
+Success: true
+Changes: 0
+Errors: 0
+Details:
+  - Price Updates: 0
+  - Stock Updates: 0
+  - Variants Added: 0
+  - Variants Removed: 0
+  - Product Archived: false
+---
+
+[2025-12-18T09:28:37.536Z] SYNC AUDIT
+Product ID: 5060
+Product: Shaka Siyah Shk108 Çıtçıtlı Suni Deri Cüzdanlı Makyaj Çantalı Kadın El Ve Omuz Çantası
+Success: true
+Changes: 0
+Errors: 0
+Details:
+  - Price Updates: 0
+  - Stock Updates: 0
+  - Variants Added: 0
+  - Variants Removed: 0
+  - Product Archived: false
+---
+
+[2025-12-18T09:30:36.583Z] SYNC AUDIT
+Product ID: 500
+Product: ARVALE Dönerli 6 Gözlü Ev Mutfak Banyo Ofis Askısı Askı Renkli - 1 Adet
+Success: true
+Changes: 0
+Errors: 0
+Details:
+  - Price Updates: 0
+  - Stock Updates: 0
+  - Variants Added: 0
+  - Variants Removed: 0
+  - Product Archived: false
+---
+
+[2025-12-18T09:30:51.511Z] SYNC AUDIT
+Product ID: 5683
+Product: Mavi Hav Baskılı Siyah Tişört Regular Fit / Normal Kesim 1613288-900
+Success: true
+Changes: 0
+Errors: 0
+Details:
+  - Price Updates: 0
+  - Stock Updates: 0
+  - Variants Added: 0
+  - Variants Removed: 0
+  - Product Archived: false
+---
+
+[2025-12-18T09:31:16.445Z] SYNC AUDIT
+Product ID: 5874
+Product: Polaris PARK.B5PR Lacivert Erkek Çocuk Sneaker
+Success: true
+Changes: 0
+Errors: 0
+Details:
+  - Price Updates: 0
+  - Stock Updates: 0
+  - Variants Added: 0
+  - Variants Removed: 0
+  - Product Archived: false
+---
+
+[2025-12-18T09:31:32.345Z] SYNC AUDIT
+Product ID: 5761
+Product: Kinetix POLYMER F 5FX Siyah Erkek Çocuk Spor Ayakkabı
+Success: true
+Changes: 0
+Errors: 0
+Details:
+  - Price Updates: 0
+  - Stock Updates: 0
+  - Variants Added: 0
+  - Variants Removed: 0
+  - Product Archived: false
+---
+
+[2025-12-18T09:31:52.729Z] SYNC AUDIT
+Product ID: 9324
+Product: Samsung Galaxy A16 4 Gb Ram 128 Gb Gri
+Success: true
+Changes: 0
+Errors: 0
+Details:
+  - Price Updates: 0
+  - Stock Updates: 0
+  - Variants Added: 0
+  - Variants Removed: 0
+  - Product Archived: false
+---
+
+[2025-12-18T09:32:23.943Z] SYNC AUDIT
+Product ID: 5692
+Product: Mavi Logo Baskılı Mor Sweatshirt 1S10419-70679
+Success: true
+Changes: 0
+Errors: 0
+Details:
+  - Price Updates: 0
+  - Stock Updates: 0
+  - Variants Added: 0
+  - Variants Removed: 0
+  - Product Archived: false
+---
+
+[2025-12-18T09:32:40.263Z] SYNC AUDIT
+Product ID: 9296
+Product: Xiaomi Redmi 13 8 GB RAM 256 GB Siyah Cep Telefonu (Xiaomi Türkiye Garantili)
+Success: true
+Changes: 0
+Errors: 0
+Details:
+  - Price Updates: 0
+  - Stock Updates: 0
+  - Variants Added: 0
+  - Variants Removed: 0
+  - Product Archived: false
+---
+
+[2025-12-18T09:32:57.495Z] SYNC AUDIT
+Product ID: 5060
+Product: Shaka Siyah Shk108 Çıtçıtlı Suni Deri Cüzdanlı Makyaj Çantalı Kadın El Ve Omuz Çantası
+Success: true
+Changes: 0
+Errors: 0
+Details:
+  - Price Updates: 0
+  - Stock Updates: 0
+  - Variants Added: 0
+  - Variants Removed: 0
+  - Product Archived: false
+---
+
+[2025-12-18T09:33:13.075Z] SYNC AUDIT
+Product ID: 10742
+Product: Katia & Bony Çocuk Pamuklu Tayt Mavi Melanj
+Success: true
+Changes: 0
+Errors: 0
+Details:
+  - Price Updates: 0
+  - Stock Updates: 0
+  - Variants Added: 0
+  - Variants Removed: 0
+  - Product Archived: false
+---
+
+[2025-12-18T09:34:07.130Z] SYNC AUDIT
+Product ID: 538
+Product: Braun Silk-épil 1 1-000 Epilatör
+Success: true
+Changes: 0
+Errors: 3
+Details:
+  - Price Updates: 0
+  - Stock Updates: 0
+  - Variants Added: 0
+  - Variants Removed: 0
+  - Product Archived: false
+---
+
+[2025-12-18T09:35:40.611Z] SYNC AUDIT
+Product ID: 8213
+Product: Spovan Insomnia Uyku Apnesi Şeker Tansiyon Sesli Görüşme Akıllı Saat
+Success: true
+Changes: 0
+Errors: 0
+Details:
+  - Price Updates: 0
+  - Stock Updates: 0
+  - Variants Added: 0
+  - Variants Removed: 0
+  - Product Archived: false
+---
+
+[2025-12-18T09:35:54.148Z] SYNC AUDIT
+Product ID: 5683
+Product: Mavi Hav Baskılı Siyah Tişört Regular Fit / Normal Kesim 1613288-900
+Success: true
+Changes: 0
+Errors: 0
+Details:
+  - Price Updates: 0
+  - Stock Updates: 0
+  - Variants Added: 0
+  - Variants Removed: 0
+  - Product Archived: false
+---
+
+[2025-12-18T09:36:20.436Z] SYNC AUDIT
+Product ID: 5874
+Product: Polaris PARK.B5PR Lacivert Erkek Çocuk Sneaker
+Success: true
+Changes: 0
+Errors: 0
+Details:
+  - Price Updates: 0
+  - Stock Updates: 0
+  - Variants Added: 0
+  - Variants Removed: 0
+  - Product Archived: false
+---
+
+[2025-12-18T09:36:33.552Z] SYNC AUDIT
+Product ID: 5761
+Product: Kinetix POLYMER F 5FX Siyah Erkek Çocuk Spor Ayakkabı
+Success: true
+Changes: 0
+Errors: 0
+Details:
+  - Price Updates: 0
+  - Stock Updates: 0
+  - Variants Added: 0
+  - Variants Removed: 0
+  - Product Archived: false
+---
+
+[2025-12-18T09:36:53.914Z] SYNC AUDIT
+Product ID: 9324
+Product: Samsung Galaxy A16 4 Gb Ram 128 Gb Gri
+Success: true
+Changes: 0
+Errors: 0
+Details:
+  - Price Updates: 0
+  - Stock Updates: 0
+  - Variants Added: 0
+  - Variants Removed: 0
+  - Product Archived: false
+---
+
+[2025-12-18T09:37:18.364Z] SYNC AUDIT
+Product ID: 5692
+Product: Mavi Logo Baskılı Mor Sweatshirt 1S10419-70679
+Success: true
+Changes: 0
+Errors: 0
+Details:
+  - Price Updates: 0
+  - Stock Updates: 0
+  - Variants Added: 0
+  - Variants Removed: 0
+  - Product Archived: false
+---
+
+[2025-12-18T09:37:32.637Z] SYNC AUDIT
+Product ID: 9296
+Product: Xiaomi Redmi 13 8 GB RAM 256 GB Siyah Cep Telefonu (Xiaomi Türkiye Garantili)
+Success: true
+Changes: 0
+Errors: 0
+Details:
+  - Price Updates: 0
+  - Stock Updates: 0
+  - Variants Added: 0
+  - Variants Removed: 0
+  - Product Archived: false
+---
+
+[2025-12-18T09:37:49.933Z] SYNC AUDIT
+Product ID: 10653
+Product: Genel Markalar Labubu Süpriz Paket Oyuncak 16 Cm ticaretjet Kutulu Labubu Figür (HEDİYELİ) ŞEFFAF KUTULU
+Success: true
+Changes: 0
+Errors: 0
+Details:
+  - Price Updates: 0
+  - Stock Updates: 0
+  - Variants Added: 0
+  - Variants Removed: 0
+  - Product Archived: false
+---
+
+[2025-12-18T09:38:07.869Z] SYNC AUDIT
+Product ID: 538
+Product: Braun Silk-épil 1 1-000 Epilatör
+Success: true
+Changes: 0
+Errors: 0
+Details:
+  - Price Updates: 0
+  - Stock Updates: 0
+  - Variants Added: 0
+  - Variants Removed: 0
+  - Product Archived: false
+---
+
+[2025-12-18T09:38:20.683Z] SYNC AUDIT
+Product ID: 5060
+Product: Shaka Siyah Shk108 Çıtçıtlı Suni Deri Cüzdanlı Makyaj Çantalı Kadın El Ve Omuz Çantası
+Success: true
+Changes: 0
+Errors: 0
+Details:
+  - Price Updates: 0
+  - Stock Updates: 0
+  - Variants Added: 0
+  - Variants Removed: 0
+  - Product Archived: false
+---
+
+[2025-12-18T09:40:51.971Z] SYNC AUDIT
+Product ID: 9324
+Product: Samsung Galaxy A16 4 Gb Ram 128 Gb Gri
+Success: true
+Changes: 0
+Errors: 0
+Details:
+  - Price Updates: 0
+  - Stock Updates: 0
+  - Variants Added: 0
+  - Variants Removed: 0
+  - Product Archived: false
+---
+
+[2025-12-18T09:41:09.335Z] SYNC AUDIT
+Product ID: 5761
+Product: Kinetix POLYMER F 5FX Siyah Erkek Çocuk Spor Ayakkabı
+Success: true
+Changes: 0
+Errors: 0
+Details:
+  - Price Updates: 0
+  - Stock Updates: 0
+  - Variants Added: 0
+  - Variants Removed: 0
+  - Product Archived: false
+---
+
+[2025-12-18T09:41:36.800Z] SYNC AUDIT
+Product ID: 5874
+Product: Polaris PARK.B5PR Lacivert Erkek Çocuk Sneaker
+Success: true
+Changes: 0
+Errors: 0
+Details:
+  - Price Updates: 0
+  - Stock Updates: 0
+  - Variants Added: 0
+  - Variants Removed: 0
+  - Product Archived: false
+---
+
+[2025-12-18T09:41:51.360Z] SYNC AUDIT
+Product ID: 5683
+Product: Mavi Hav Baskılı Siyah Tişört Regular Fit / Normal Kesim 1613288-900
+Success: true
+Changes: 0
+Errors: 0
+Details:
+  - Price Updates: 0
+  - Stock Updates: 0
+  - Variants Added: 0
+  - Variants Removed: 0
+  - Product Archived: false
+---
+
+[2025-12-18T09:42:04.293Z] SYNC AUDIT
+Product ID: 9296
+Product: Xiaomi Redmi 13 8 GB RAM 256 GB Siyah Cep Telefonu (Xiaomi Türkiye Garantili)
+Success: true
+Changes: 0
+Errors: 0
+Details:
+  - Price Updates: 0
+  - Stock Updates: 0
+  - Variants Added: 0
+  - Variants Removed: 0
+  - Product Archived: false
+---
+
+[2025-12-18T09:42:21.114Z] SYNC AUDIT
+Product ID: 538
+Product: Braun Silk-épil 1 1-000 Epilatör
+Success: true
+Changes: 0
+Errors: 0
+Details:
+  - Price Updates: 0
+  - Stock Updates: 0
+  - Variants Added: 0
+  - Variants Removed: 0
+  - Product Archived: false
+---
+
+[2025-12-18T09:42:35.279Z] SYNC AUDIT
+Product ID: 10742
+Product: Katia & Bony Çocuk Pamuklu Tayt Mavi Melanj
+Success: true
+Changes: 0
+Errors: 0
+Details:
+  - Price Updates: 0
+  - Stock Updates: 0
+  - Variants Added: 0
+  - Variants Removed: 0
+  - Product Archived: false
+---
+
+[2025-12-18T09:42:48.887Z] SYNC AUDIT
+Product ID: 8213
+Product: Spovan Insomnia Uyku Apnesi Şeker Tansiyon Sesli Görüşme Akıllı Saat
+Success: true
+Changes: 0
+Errors: 0
+Details:
+  - Price Updates: 0
+  - Stock Updates: 0
+  - Variants Added: 0
+  - Variants Removed: 0
+  - Product Archived: false
+---
+
+[2025-12-18T09:43:07.109Z] SYNC AUDIT
+Product ID: 5060
+Product: Shaka Siyah Shk108 Çıtçıtlı Suni Deri Cüzdanlı Makyaj Çantalı Kadın El Ve Omuz Çantası
+Success: true
+Changes: 0
+Errors: 0
+Details:
+  - Price Updates: 0
+  - Stock Updates: 0
+  - Variants Added: 0
+  - Variants Removed: 0
+  - Product Archived: false
+---
+
+[2025-12-18T09:43:26.473Z] SYNC AUDIT
+Product ID: 913
+Product: NYX Professional Makeup Jumbo Aydınlatıcı Kalem - 604 Milk
+Success: true
+Changes: 0
+Errors: 0
+Details:
+  - Price Updates: 0
+  - Stock Updates: 0
+  - Variants Added: 0
+  - Variants Removed: 0
+  - Product Archived: false
+---
+
+[2025-12-18T09:45:39.411Z] SYNC AUDIT
+Product ID: 9167
+Product: Samsung Galaxy A17 5G 8/256 GB Mavi Cep Telefonu
+Success: true
+Changes: 0
+Errors: 0
+Details:
+  - Price Updates: 0
+  - Stock Updates: 0
+  - Variants Added: 0
+  - Variants Removed: 0
+  - Product Archived: false
+---
+
+[2025-12-18T09:45:53.649Z] SYNC AUDIT
+Product ID: 5683
+Product: Mavi Hav Baskılı Siyah Tişört Regular Fit / Normal Kesim 1613288-900
+Success: true
+Changes: 0
+Errors: 0
+Details:
+  - Price Updates: 0
+  - Stock Updates: 0
+  - Variants Added: 0
+  - Variants Removed: 0
+  - Product Archived: false
+---
+
+[2025-12-18T09:46:19.359Z] SYNC AUDIT
+Product ID: 5874
+Product: Polaris PARK.B5PR Lacivert Erkek Çocuk Sneaker
+Success: true
+Changes: 0
+Errors: 0
+Details:
+  - Price Updates: 0
+  - Stock Updates: 0
+  - Variants Added: 0
+  - Variants Removed: 0
+  - Product Archived: false
+---
+
+[2025-12-18T09:46:32.225Z] SYNC AUDIT
+Product ID: 5761
+Product: Kinetix POLYMER F 5FX Siyah Erkek Çocuk Spor Ayakkabı
+Success: true
+Changes: 0
+Errors: 0
+Details:
+  - Price Updates: 0
+  - Stock Updates: 0
+  - Variants Added: 0
+  - Variants Removed: 0
+  - Product Archived: false
+---
+
+[2025-12-18T09:46:57.051Z] SYNC AUDIT
+Product ID: 5852
+Product: Lumberjack LIPONIS WMN 6FX Siyah Kadın Comfort Ayakkabı
+Success: true
+Changes: 3
+Errors: 0
+Details:
+  - Price Updates: 0
+  - Stock Updates: 0
+  - Variants Added: 3
+  - Variants Removed: 0
+  - Product Archived: false
+---
+
+[2025-12-18T09:47:23.641Z] SYNC AUDIT
+Product ID: 9296
+Product: Xiaomi Redmi 13 8 GB RAM 256 GB Siyah Cep Telefonu (Xiaomi Türkiye Garantili)
+Success: true
+Changes: 0
+Errors: 0
+Details:
+  - Price Updates: 0
+  - Stock Updates: 0
+  - Variants Added: 0
+  - Variants Removed: 0
+  - Product Archived: false
+---
+
+[2025-12-18T09:47:37.849Z] SYNC AUDIT
+Product ID: 10742
+Product: Katia & Bony Çocuk Pamuklu Tayt Mavi Melanj
+Success: true
+Changes: 0
+Errors: 0
+Details:
+  - Price Updates: 0
+  - Stock Updates: 0
+  - Variants Added: 0
+  - Variants Removed: 0
+  - Product Archived: false
+---
+
+[2025-12-18T09:47:55.339Z] SYNC AUDIT
+Product ID: 5773
+Product: Lumberjack POL WMN PU 5PR Beyaz Kadın Sneaker
+Success: true
+Changes: 0
+Errors: 0
+Details:
+  - Price Updates: 0
+  - Stock Updates: 0
+  - Variants Added: 0
+  - Variants Removed: 0
+  - Product Archived: false
+---
+
+[2025-12-18T09:48:07.326Z] SYNC AUDIT
+Product ID: 8213
+Product: Spovan Insomnia Uyku Apnesi Şeker Tansiyon Sesli Görüşme Akıllı Saat
+Success: true
+Changes: 0
+Errors: 0
+Details:
+  - Price Updates: 0
+  - Stock Updates: 0
+  - Variants Added: 0
+  - Variants Removed: 0
+  - Product Archived: false
+---
+
+[2025-12-18T09:48:22.734Z] SYNC AUDIT
+Product ID: 5060
+Product: Shaka Siyah Shk108 Çıtçıtlı Suni Deri Cüzdanlı Makyaj Çantalı Kadın El Ve Omuz Çantası
+Success: true
+Changes: 0
+Errors: 0
+Details:
+  - Price Updates: 0
+  - Stock Updates: 0
+  - Variants Added: 0
+  - Variants Removed: 0
+  - Product Archived: false
+---
+
+[2025-12-18T09:50:43.817Z] SYNC AUDIT
+Product ID: 5396
+Product: Stanley Unisex Pembe The Aerolight Transit Mug 0.60l / 20oz Rose Quartz Termos 10-10789-157-Ackpmb
+Success: true
+Changes: 0
+Errors: 0
+Details:
+  - Price Updates: 0
+  - Stock Updates: 0
+  - Variants Added: 0
+  - Variants Removed: 0
+  - Product Archived: false
+---
+
+[2025-12-18T09:51:01.383Z] SYNC AUDIT
+Product ID: 9167
+Product: Samsung Galaxy A17 5G 8/256 GB Mavi Cep Telefonu
+Success: true
+Changes: 0
+Errors: 0
+Details:
+  - Price Updates: 0
+  - Stock Updates: 0
+  - Variants Added: 0
+  - Variants Removed: 0
+  - Product Archived: false
+---
+
+[2025-12-18T09:51:18.816Z] SYNC AUDIT
+Product ID: 5683
+Product: Mavi Hav Baskılı Siyah Tişört Regular Fit / Normal Kesim 1613288-900
+Success: true
+Changes: 0
+Errors: 0
+Details:
+  - Price Updates: 0
+  - Stock Updates: 0
+  - Variants Added: 0
+  - Variants Removed: 0
+  - Product Archived: false
+---
+
+[2025-12-18T09:51:37.466Z] SYNC AUDIT
+Product ID: 5761
+Product: Kinetix POLYMER F 5FX Siyah Erkek Çocuk Spor Ayakkabı
+Success: true
+Changes: 0
+Errors: 0
+Details:
+  - Price Updates: 0
+  - Stock Updates: 0
+  - Variants Added: 0
+  - Variants Removed: 0
+  - Product Archived: false
+---
+
+[2025-12-18T09:52:06.174Z] SYNC AUDIT
+Product ID: 5874
+Product: Polaris PARK.B5PR Lacivert Erkek Çocuk Sneaker
+Success: true
+Changes: 0
+Errors: 0
+Details:
+  - Price Updates: 0
+  - Stock Updates: 0
+  - Variants Added: 0
+  - Variants Removed: 0
+  - Product Archived: false
+---
+
+[2025-12-18T09:52:55.800Z] SYNC AUDIT
+Product ID: 5398
+Product: Stanley The Legendary Classic Bottle 1.9L / 2.0QT
+Success: true
+Changes: 0
+Errors: 3
+Details:
+  - Price Updates: 0
+  - Stock Updates: 0
+  - Variants Added: 0
+  - Variants Removed: 0
+  - Product Archived: false
+---
+
+[2025-12-18T09:53:10.475Z] SYNC AUDIT
+Product ID: 5402
+Product: Stanley Quencher Pipetli Termos 1,18 L Krem
+Success: true
+Changes: 0
+Errors: 0
+Details:
+  - Price Updates: 0
+  - Stock Updates: 0
+  - Variants Added: 0
+  - Variants Removed: 0
+  - Product Archived: false
+---
+
+[2025-12-18T09:53:29.168Z] SYNC AUDIT
+Product ID: 5060
+Product: Shaka Siyah Shk108 Çıtçıtlı Suni Deri Cüzdanlı Makyaj Çantalı Kadın El Ve Omuz Çantası
+Success: true
+Changes: 0
+Errors: 0
+Details:
+  - Price Updates: 0
+  - Stock Updates: 0
+  - Variants Added: 0
+  - Variants Removed: 0
+  - Product Archived: false
+---
+
+[2025-12-18T09:53:40.871Z] SYNC AUDIT
+Product ID: 9296
+Product: Xiaomi Redmi 13 8 GB RAM 256 GB Siyah Cep Telefonu (Xiaomi Türkiye Garantili)
+Success: true
+Changes: 0
+Errors: 0
+Details:
+  - Price Updates: 0
+  - Stock Updates: 0
+  - Variants Added: 0
+  - Variants Removed: 0
+  - Product Archived: false
+---
+
+[2025-12-18T09:53:57.498Z] SYNC AUDIT
+Product ID: 8213
+Product: Spovan Insomnia Uyku Apnesi Şeker Tansiyon Sesli Görüşme Akıllı Saat
+Success: true
+Changes: 0
+Errors: 0
+Details:
+  - Price Updates: 0
+  - Stock Updates: 0
+  - Variants Added: 0
+  - Variants Removed: 0
+  - Product Archived: false
+---
+
+[2025-12-18T09:55:41.277Z] SYNC AUDIT
+Product ID: 5761
+Product: Kinetix POLYMER F 5FX Siyah Erkek Çocuk Spor Ayakkabı
+Success: true
+Changes: 0
+Errors: 0
+Details:
+  - Price Updates: 0
+  - Stock Updates: 0
+  - Variants Added: 0
+  - Variants Removed: 0
+  - Product Archived: false
+---
+
+[2025-12-18T09:55:56.789Z] SYNC AUDIT
+Product ID: 5683
+Product: Mavi Hav Baskılı Siyah Tişört Regular Fit / Normal Kesim 1613288-900
+Success: true
+Changes: 0
+Errors: 0
+Details:
+  - Price Updates: 0
+  - Stock Updates: 0
+  - Variants Added: 0
+  - Variants Removed: 0
+  - Product Archived: false
+---
+
+[2025-12-18T09:56:22.260Z] SYNC AUDIT
+Product ID: 5874
+Product: Polaris PARK.B5PR Lacivert Erkek Çocuk Sneaker
+Success: true
+Changes: 0
+Errors: 0
+Details:
+  - Price Updates: 0
+  - Stock Updates: 0
+  - Variants Added: 0
+  - Variants Removed: 0
+  - Product Archived: false
+---
+
+[2025-12-18T09:56:39.038Z] SYNC AUDIT
+Product ID: 9167
+Product: Samsung Galaxy A17 5G 8/256 GB Mavi Cep Telefonu
+Success: true
+Changes: 0
+Errors: 0
+Details:
+  - Price Updates: 0
+  - Stock Updates: 0
+  - Variants Added: 0
+  - Variants Removed: 0
+  - Product Archived: false
+---
+
+[2025-12-18T09:56:55.245Z] SYNC AUDIT
+Product ID: 6071
+Product: NIVEA Luminous630 Leke Karşıtı Cilt Serumu 30ml, Hyaluronik Asit, Ton Eşitleyici, Thiamidol, Nemlendirici
+Success: true
+Changes: 0
+Errors: 0
+Details:
+  - Price Updates: 0
+  - Stock Updates: 0
+  - Variants Added: 0
+  - Variants Removed: 0
+  - Product Archived: false
+---
+
+[2025-12-18T09:57:08.440Z] SYNC AUDIT
+Product ID: 9324
+Product: Samsung Galaxy A16 4 Gb Ram 128 Gb Gri
+Success: true
+Changes: 0
+Errors: 0
+Details:
+  - Price Updates: 0
+  - Stock Updates: 0
+  - Variants Added: 0
+  - Variants Removed: 0
+  - Product Archived: false
+---
+
+[2025-12-18T09:57:23.749Z] SYNC AUDIT
+Product ID: 8865
+Product: Samsung Galaxy A26 5G 256 GB 8 GB Ram Beyaz Cep Telefonu (Samsung Türkiye Garantili)
+Success: true
+Changes: 0
+Errors: 0
+Details:
+  - Price Updates: 0
+  - Stock Updates: 0
+  - Variants Added: 0
+  - Variants Removed: 0
+  - Product Archived: false
+---
+
+[2025-12-18T09:57:44.646Z] SYNC AUDIT
+Product ID: 5060
+Product: Shaka Siyah Shk108 Çıtçıtlı Suni Deri Cüzdanlı Makyaj Çantalı Kadın El Ve Omuz Çantası
+Success: true
+Changes: 0
+Errors: 0
+Details:
+  - Price Updates: 0
+  - Stock Updates: 0
+  - Variants Added: 0
+  - Variants Removed: 0
+  - Product Archived: false
+---
+
+[2025-12-18T09:57:56.326Z] SYNC AUDIT
+Product ID: 5379
+Product: Fiori 4'lü Gold Tokalı İnce Kemer, Pantolon Kemeri, Gömlek Kemeri, Ceket Kemeri
+Success: true
+Changes: 0
+Errors: 0
+Details:
+  - Price Updates: 0
+  - Stock Updates: 0
+  - Variants Added: 0
+  - Variants Removed: 0
+  - Product Archived: false
+---
+
+[2025-12-18T09:58:07.925Z] SYNC AUDIT
+Product ID: 9187
+Product: Xiaomi Redmi Note 14 8+256 Siyah(Xiaomi Türkiye Garantili)
+Success: true
+Changes: 0
+Errors: 0
+Details:
+  - Price Updates: 0
+  - Stock Updates: 0
+  - Variants Added: 0
+  - Variants Removed: 0
+  - Product Archived: false
+---
+
+[2025-12-18T10:00:43.034Z] SYNC AUDIT
+Product ID: 5398
+Product: Stanley The Legendary Classic Bottle 1.9L / 2.0QT
+Success: true
+Changes: 0
+Errors: 0
+Details:
+  - Price Updates: 0
+  - Stock Updates: 0
+  - Variants Added: 0
+  - Variants Removed: 0
+  - Product Archived: false
+---
+
+[2025-12-18T10:01:08.871Z] SYNC AUDIT
+Product ID: 5874
+Product: Polaris PARK.B5PR Lacivert Erkek Çocuk Sneaker
+Success: true
+Changes: 0
+Errors: 0
+Details:
+  - Price Updates: 0
+  - Stock Updates: 0
+  - Variants Added: 0
+  - Variants Removed: 0
+  - Product Archived: false
+---
+
+[2025-12-18T10:01:25.781Z] SYNC AUDIT
+Product ID: 5761
+Product: Kinetix POLYMER F 5FX Siyah Erkek Çocuk Spor Ayakkabı
+Success: true
+Changes: 0
+Errors: 0
+Details:
+  - Price Updates: 0
+  - Stock Updates: 0
+  - Variants Added: 0
+  - Variants Removed: 0
+  - Product Archived: false
+---
+
+[2025-12-18T10:01:39.562Z] SYNC AUDIT
+Product ID: 9324
+Product: Samsung Galaxy A16 4 Gb Ram 128 Gb Gri
+Success: true
+Changes: 0
+Errors: 0
+Details:
+  - Price Updates: 0
+  - Stock Updates: 0
+  - Variants Added: 0
+  - Variants Removed: 0
+  - Product Archived: false
+---
+
+[2025-12-18T10:01:55.939Z] SYNC AUDIT
+Product ID: 9167
+Product: Samsung Galaxy A17 5G 8/256 GB Mavi Cep Telefonu
+Success: true
+Changes: 0
+Errors: 0
+Details:
+  - Price Updates: 0
+  - Stock Updates: 0
+  - Variants Added: 0
+  - Variants Removed: 0
+  - Product Archived: false
+---
+
+[2025-12-18T10:02:09.075Z] SYNC AUDIT
+Product ID: 5683
+Product: Mavi Hav Baskılı Siyah Tişört Regular Fit / Normal Kesim 1613288-900
+Success: true
+Changes: 0
+Errors: 0
+Details:
+  - Price Updates: 0
+  - Stock Updates: 0
+  - Variants Added: 0
+  - Variants Removed: 0
+  - Product Archived: false
+---
+
+[2025-12-18T10:02:26.309Z] SYNC AUDIT
+Product ID: 6071
+Product: NIVEA Luminous630 Leke Karşıtı Cilt Serumu 30ml, Hyaluronik Asit, Ton Eşitleyici, Thiamidol, Nemlendirici
+Success: true
+Changes: 0
+Errors: 0
+Details:
+  - Price Updates: 0
+  - Stock Updates: 0
+  - Variants Added: 0
+  - Variants Removed: 0
+  - Product Archived: false
+---
+
+[2025-12-18T10:02:45.060Z] SYNC AUDIT
+Product ID: 495
+Product: ESSENSE Halı Yumuşak Pamuk Dokulu Gemici Deniz Fenerli Peluş Çocuk Odası Bebek Halısı
+Success: true
+Changes: 0
+Errors: 0
+Details:
+  - Price Updates: 0
+  - Stock Updates: 0
+  - Variants Added: 0
+  - Variants Removed: 0
+  - Product Archived: false
+---
+
+[2025-12-18T10:03:04.631Z] SYNC AUDIT
+Product ID: 5060
+Product: Shaka Siyah Shk108 Çıtçıtlı Suni Deri Cüzdanlı Makyaj Çantalı Kadın El Ve Omuz Çantası
+Success: true
+Changes: 0
+Errors: 0
+Details:
+  - Price Updates: 0
+  - Stock Updates: 0
+  - Variants Added: 0
+  - Variants Removed: 0
+  - Product Archived: false
+---
+
+[2025-12-18T10:03:20.018Z] SYNC AUDIT
+Product ID: 8865
+Product: Samsung Galaxy A26 5G 256 GB 8 GB Ram Beyaz Cep Telefonu (Samsung Türkiye Garantili)
+Success: true
+Changes: 0
+Errors: 0
+Details:
+  - Price Updates: 0
+  - Stock Updates: 0
+  - Variants Added: 0
+  - Variants Removed: 0
+  - Product Archived: false
+---
+
+[2025-12-18T10:05:42.766Z] SYNC AUDIT
+Product ID: 5398
+Product: Stanley The Legendary Classic Bottle 1.9L / 2.0QT
+Success: true
+Changes: 0
+Errors: 0
+Details:
+  - Price Updates: 0
+  - Stock Updates: 0
+  - Variants Added: 0
+  - Variants Removed: 0
+  - Product Archived: false
+---
+
+[2025-12-18T10:05:59.576Z] SYNC AUDIT
+Product ID: 6071
+Product: NIVEA Luminous630 Leke Karşıtı Cilt Serumu 30ml, Hyaluronik Asit, Ton Eşitleyici, Thiamidol, Nemlendirici
+Success: true
+Changes: 0
+Errors: 0
+Details:
+  - Price Updates: 0
+  - Stock Updates: 0
+  - Variants Added: 0
+  - Variants Removed: 0
+  - Product Archived: false
+---
+
+[2025-12-18T10:06:14.288Z] SYNC AUDIT
+Product ID: 5761
+Product: Kinetix POLYMER F 5FX Siyah Erkek Çocuk Spor Ayakkabı
+Success: true
+Changes: 0
+Errors: 0
+Details:
+  - Price Updates: 0
+  - Stock Updates: 0
+  - Variants Added: 0
+  - Variants Removed: 0
+  - Product Archived: false
+---
+
+[2025-12-18T10:06:32.123Z] SYNC AUDIT
+Product ID: 9167
+Product: Samsung Galaxy A17 5G 8/256 GB Mavi Cep Telefonu
+Success: true
+Changes: 0
+Errors: 0
+Details:
+  - Price Updates: 0
+  - Stock Updates: 0
+  - Variants Added: 0
+  - Variants Removed: 0
+  - Product Archived: false
+---
+
+[2025-12-18T10:06:49.633Z] SYNC AUDIT
+Product ID: 5683
+Product: Mavi Hav Baskılı Siyah Tişört Regular Fit / Normal Kesim 1613288-900
+Success: true
+Changes: 0
+Errors: 0
+Details:
+  - Price Updates: 0
+  - Stock Updates: 0
+  - Variants Added: 0
+  - Variants Removed: 0
+  - Product Archived: false
+---
+
+[2025-12-18T10:07:03.800Z] SYNC AUDIT
+Product ID: 495
+Product: ESSENSE Halı Yumuşak Pamuk Dokulu Gemici Deniz Fenerli Peluş Çocuk Odası Bebek Halısı
+Success: true
+Changes: 0
+Errors: 0
+Details:
+  - Price Updates: 0
+  - Stock Updates: 0
+  - Variants Added: 0
+  - Variants Removed: 0
+  - Product Archived: false
+---
+
+[2025-12-18T10:07:52.400Z] SYNC AUDIT
+Product ID: 6090
+Product: NIVEA Luminous630 Skin Glow Anında Aydınlatıcı Serum 30ml, Eşit Cilt Tonu, Thiamidol, Niasinamid, AloeVera
+Success: true
+Changes: 0
+Errors: 3
+Details:
+  - Price Updates: 0
+  - Stock Updates: 0
+  - Variants Added: 0
+  - Variants Removed: 0
+  - Product Archived: false
+---
+
+[2025-12-18T10:08:06.063Z] SYNC AUDIT
+Product ID: 8213
+Product: Spovan Insomnia Uyku Apnesi Şeker Tansiyon Sesli Görüşme Akıllı Saat
+Success: true
+Changes: 0
+Errors: 0
+Details:
+  - Price Updates: 0
+  - Stock Updates: 0
+  - Variants Added: 0
+  - Variants Removed: 0
+  - Product Archived: false
+---
+
+[2025-12-18T10:08:22.738Z] SYNC AUDIT
+Product ID: 5060
+Product: Shaka Siyah Shk108 Çıtçıtlı Suni Deri Cüzdanlı Makyaj Çantalı Kadın El Ve Omuz Çantası
+Success: true
+Changes: 0
+Errors: 0
+Details:
+  - Price Updates: 0
+  - Stock Updates: 0
+  - Variants Added: 0
+  - Variants Removed: 0
+  - Product Archived: false
+---
+
+[2025-12-18T10:08:36.308Z] SYNC AUDIT
+Product ID: 5379
+Product: Fiori 4'lü Gold Tokalı İnce Kemer, Pantolon Kemeri, Gömlek Kemeri, Ceket Kemeri
+Success: true
+Changes: 0
+Errors: 0
+Details:
+  - Price Updates: 0
+  - Stock Updates: 0
+  - Variants Added: 0
+  - Variants Removed: 0
+  - Product Archived: false
+---
+
+[2025-12-18T10:10:39.095Z] SYNC AUDIT
+Product ID: 5398
+Product: Stanley The Legendary Classic Bottle 1.9L / 2.0QT
+Success: true
+Changes: 0
+Errors: 0
+Details:
+  - Price Updates: 0
+  - Stock Updates: 0
+  - Variants Added: 0
+  - Variants Removed: 0
+  - Product Archived: false
+---
+
+[2025-12-18T10:10:54.995Z] SYNC AUDIT
+Product ID: 5683
+Product: Mavi Hav Baskılı Siyah Tişört Regular Fit / Normal Kesim 1613288-900
+Success: true
+Changes: 0
+Errors: 0
+Details:
+  - Price Updates: 0
+  - Stock Updates: 0
+  - Variants Added: 0
+  - Variants Removed: 0
+  - Product Archived: false
+---
+
+[2025-12-18T10:11:10.621Z] SYNC AUDIT
+Product ID: 495
+Product: ESSENSE Halı Yumuşak Pamuk Dokulu Gemici Deniz Fenerli Peluş Çocuk Odası Bebek Halısı
+Success: true
+Changes: 0
+Errors: 0
+Details:
+  - Price Updates: 0
+  - Stock Updates: 0
+  - Variants Added: 0
+  - Variants Removed: 0
+  - Product Archived: false
+---
+
+[2025-12-18T10:11:23.695Z] SYNC AUDIT
+Product ID: 5761
+Product: Kinetix POLYMER F 5FX Siyah Erkek Çocuk Spor Ayakkabı
+Success: true
+Changes: 0
+Errors: 0
+Details:
+  - Price Updates: 0
+  - Stock Updates: 0
+  - Variants Added: 0
+  - Variants Removed: 0
+  - Product Archived: false
+---
+
+[2025-12-18T10:11:42.142Z] SYNC AUDIT
+Product ID: 8865
+Product: Samsung Galaxy A26 5G 256 GB 8 GB Ram Beyaz Cep Telefonu (Samsung Türkiye Garantili)
+Success: true
+Changes: 0
+Errors: 0
+Details:
+  - Price Updates: 0
+  - Stock Updates: 0
+  - Variants Added: 0
+  - Variants Removed: 0
+  - Product Archived: false
+---
+
+[2025-12-18T10:11:58.526Z] SYNC AUDIT
+Product ID: 532
+Product: Braun Face 810 Yüz Epilatörü ve Temizleme Fırçası
+Success: true
+Changes: 0
+Errors: 0
+Details:
+  - Price Updates: 0
+  - Stock Updates: 0
+  - Variants Added: 0
+  - Variants Removed: 0
+  - Product Archived: false
+---
+
+[2025-12-18T10:12:11.718Z] SYNC AUDIT
+Product ID: 9187
+Product: Xiaomi Redmi Note 14 8+256 Siyah(Xiaomi Türkiye Garantili)
+Success: true
+Changes: 0
+Errors: 0
+Details:
+  - Price Updates: 0
+  - Stock Updates: 0
+  - Variants Added: 0
+  - Variants Removed: 0
+  - Product Archived: false
+---
+
+[2025-12-18T10:12:26.168Z] SYNC AUDIT
+Product ID: 8213
+Product: Spovan Insomnia Uyku Apnesi Şeker Tansiyon Sesli Görüşme Akıllı Saat
+Success: true
+Changes: 0
+Errors: 0
+Details:
+  - Price Updates: 0
+  - Stock Updates: 0
+  - Variants Added: 0
+  - Variants Removed: 0
+  - Product Archived: false
+---
+
+[2025-12-18T10:12:40.560Z] SYNC AUDIT
+Product ID: 538
+Product: Braun Silk-épil 1 1-000 Epilatör
+Success: true
+Changes: 0
+Errors: 0
+Details:
+  - Price Updates: 0
+  - Stock Updates: 0
+  - Variants Added: 0
+  - Variants Removed: 0
+  - Product Archived: false
+---
+
+[2025-12-18T10:12:53.794Z] SYNC AUDIT
+Product ID: 5060
+Product: Shaka Siyah Shk108 Çıtçıtlı Suni Deri Cüzdanlı Makyaj Çantalı Kadın El Ve Omuz Çantası
+Success: true
+Changes: 0
+Errors: 0
+Details:
+  - Price Updates: 0
+  - Stock Updates: 0
+  - Variants Added: 0
+  - Variants Removed: 0
+  - Product Archived: false
+---
+
+[2025-12-18T10:16:15.796Z] SYNC AUDIT
+Product ID: 8200
+Product: MactivePro Watch HK11 Pro Max Amoled Akıllı Saat Tüm Akıllı Telefonlara Uyumlu Kordon Hediyeli Amoled Ekran
+Success: true
+Changes: 0
+Errors: 3
+Details:
+  - Price Updates: 0
+  - Stock Updates: 0
+  - Variants Added: 0
+  - Variants Removed: 0
+  - Product Archived: false
+---
+
+[2025-12-18T10:16:32.702Z] SYNC AUDIT
+Product ID: 9296
+Product: Xiaomi Redmi 13 8 GB RAM 256 GB Siyah Cep Telefonu (Xiaomi Türkiye Garantili)
+Success: true
+Changes: 0
+Errors: 0
+Details:
+  - Price Updates: 0
+  - Stock Updates: 0
+  - Variants Added: 0
+  - Variants Removed: 0
+  - Product Archived: false
+---
+
+[2025-12-18T10:16:48.460Z] SYNC AUDIT
+Product ID: 495
+Product: ESSENSE Halı Yumuşak Pamuk Dokulu Gemici Deniz Fenerli Peluş Çocuk Odası Bebek Halısı
+Success: true
+Changes: 0
+Errors: 0
+Details:
+  - Price Updates: 0
+  - Stock Updates: 0
+  - Variants Added: 0
+  - Variants Removed: 0
+  - Product Archived: false
+---
+
+[2025-12-18T10:17:03.649Z] SYNC AUDIT
+Product ID: 5761
+Product: Kinetix POLYMER F 5FX Siyah Erkek Çocuk Spor Ayakkabı
+Success: true
+Changes: 0
+Errors: 0
+Details:
+  - Price Updates: 0
+  - Stock Updates: 0
+  - Variants Added: 0
+  - Variants Removed: 0
+  - Product Archived: false
+---
+
+[2025-12-18T10:17:21.677Z] SYNC AUDIT
+Product ID: 5683
+Product: Mavi Hav Baskılı Siyah Tişört Regular Fit / Normal Kesim 1613288-900
+Success: true
+Changes: 0
+Errors: 0
+Details:
+  - Price Updates: 0
+  - Stock Updates: 0
+  - Variants Added: 0
+  - Variants Removed: 0
+  - Product Archived: false
+---
+
+[2025-12-18T10:17:54.058Z] SYNC AUDIT
+Product ID: 8865
+Product: Samsung Galaxy A26 5G 256 GB 8 GB Ram Beyaz Cep Telefonu (Samsung Türkiye Garantili)
+Success: true
+Changes: 0
+Errors: 0
+Details:
+  - Price Updates: 0
+  - Stock Updates: 0
+  - Variants Added: 0
+  - Variants Removed: 0
+  - Product Archived: false
+---
+
+[2025-12-18T10:18:09.150Z] SYNC AUDIT
+Product ID: 9187
+Product: Xiaomi Redmi Note 14 8+256 Siyah(Xiaomi Türkiye Garantili)
+Success: true
+Changes: 0
+Errors: 0
+Details:
+  - Price Updates: 0
+  - Stock Updates: 0
+  - Variants Added: 0
+  - Variants Removed: 0
+  - Product Archived: false
+---
+
+[2025-12-18T10:18:21.836Z] SYNC AUDIT
+Product ID: 8213
+Product: Spovan Insomnia Uyku Apnesi Şeker Tansiyon Sesli Görüşme Akıllı Saat
+Success: true
+Changes: 0
+Errors: 0
+Details:
+  - Price Updates: 0
+  - Stock Updates: 0
+  - Variants Added: 0
+  - Variants Removed: 0
+  - Product Archived: false
+---
+
+[2025-12-18T10:18:39.186Z] SYNC AUDIT
+Product ID: 5060
+Product: Shaka Siyah Shk108 Çıtçıtlı Suni Deri Cüzdanlı Makyaj Çantalı Kadın El Ve Omuz Çantası
+Success: true
+Changes: 0
+Errors: 0
+Details:
+  - Price Updates: 0
+  - Stock Updates: 0
+  - Variants Added: 0
+  - Variants Removed: 0
+  - Product Archived: false
+---
+
+[2025-12-18T10:18:52.445Z] SYNC AUDIT
+Product ID: 6090
+Product: NIVEA Luminous630 Skin Glow Anında Aydınlatıcı Serum 30ml, Eşit Cilt Tonu, Thiamidol, Niasinamid, AloeVera
+Success: true
+Changes: 0
+Errors: 0
+Details:
+  - Price Updates: 0
+  - Stock Updates: 0
+  - Variants Added: 0
+  - Variants Removed: 0
+  - Product Archived: false
+---
+
+[2025-12-18T10:21:11.694Z] SYNC AUDIT
+Product ID: 11620
+Product: Omo Express Leke Çıkarıcı Beyazlar 1000 ml x1
+Success: true
+Changes: 0
+Errors: 3
+Details:
+  - Price Updates: 0
+  - Stock Updates: 0
+  - Variants Added: 0
+  - Variants Removed: 0
+  - Product Archived: false
+---
+
+[2025-12-18T10:21:28.949Z] SYNC AUDIT
+Product ID: 5396
+Product: Stanley Unisex Pembe The Aerolight Transit Mug 0.60l / 20oz Rose Quartz Termos 10-10789-157-Ackpmb
+Success: true
+Changes: 0
+Errors: 0
+Details:
+  - Price Updates: 0
+  - Stock Updates: 0
+  - Variants Added: 0
+  - Variants Removed: 0
+  - Product Archived: false
+---
+
+[2025-12-18T10:21:47.671Z] SYNC AUDIT
+Product ID: 8200
+Product: MactivePro Watch HK11 Pro Max Amoled Akıllı Saat Tüm Akıllı Telefonlara Uyumlu Kordon Hediyeli Amoled Ekran
+Success: true
+Changes: 0
+Errors: 0
+Details:
+  - Price Updates: 0
+  - Stock Updates: 0
+  - Variants Added: 0
+  - Variants Removed: 0
+  - Product Archived: false
+---
+
+[2025-12-18T10:22:00.711Z] SYNC AUDIT
+Product ID: 9296
+Product: Xiaomi Redmi 13 8 GB RAM 256 GB Siyah Cep Telefonu (Xiaomi Türkiye Garantili)
+Success: true
+Changes: 0
+Errors: 0
+Details:
+  - Price Updates: 0
+  - Stock Updates: 0
+  - Variants Added: 0
+  - Variants Removed: 0
+  - Product Archived: false
+---
+
+[2025-12-18T10:22:16.584Z] SYNC AUDIT
+Product ID: 495
+Product: ESSENSE Halı Yumuşak Pamuk Dokulu Gemici Deniz Fenerli Peluş Çocuk Odası Bebek Halısı
+Success: true
+Changes: 0
+Errors: 0
+Details:
+  - Price Updates: 0
+  - Stock Updates: 0
+  - Variants Added: 0
+  - Variants Removed: 0
+  - Product Archived: false
+---
+
+[2025-12-18T10:22:36.731Z] SYNC AUDIT
+Product ID: 8865
+Product: Samsung Galaxy A26 5G 256 GB 8 GB Ram Beyaz Cep Telefonu (Samsung Türkiye Garantili)
+Success: true
+Changes: 0
+Errors: 0
+Details:
+  - Price Updates: 0
+  - Stock Updates: 0
+  - Variants Added: 0
+  - Variants Removed: 0
+  - Product Archived: false
+---
+
+[2025-12-18T10:22:53.055Z] SYNC AUDIT
+Product ID: 5683
+Product: Mavi Hav Baskılı Siyah Tişört Regular Fit / Normal Kesim 1613288-900
+Success: true
+Changes: 0
+Errors: 0
+Details:
+  - Price Updates: 0
+  - Stock Updates: 0
+  - Variants Added: 0
+  - Variants Removed: 0
+  - Product Archived: false
+---
+
+[2025-12-18T10:23:07.485Z] SYNC AUDIT
+Product ID: 5761
+Product: Kinetix POLYMER F 5FX Siyah Erkek Çocuk Spor Ayakkabı
+Success: true
+Changes: 0
+Errors: 0
+Details:
+  - Price Updates: 0
+  - Stock Updates: 0
+  - Variants Added: 0
+  - Variants Removed: 0
+  - Product Archived: false
+---
+
+[2025-12-18T10:23:24.703Z] SYNC AUDIT
+Product ID: 5402
+Product: Stanley Quencher Pipetli Termos 1,18 L Krem
+Success: true
+Changes: 0
+Errors: 0
+Details:
+  - Price Updates: 0
+  - Stock Updates: 0
+  - Variants Added: 0
+  - Variants Removed: 0
+  - Product Archived: false
+---
+
+[2025-12-18T10:23:39.964Z] SYNC AUDIT
+Product ID: 5060
+Product: Shaka Siyah Shk108 Çıtçıtlı Suni Deri Cüzdanlı Makyaj Çantalı Kadın El Ve Omuz Çantası
+Success: true
+Changes: 0
+Errors: 0
+Details:
+  - Price Updates: 0
+  - Stock Updates: 0
+  - Variants Added: 0
+  - Variants Removed: 0
+  - Product Archived: false
+---
+
+[2025-12-18T10:26:12.664Z] SYNC AUDIT
+Product ID: 9712
+Product: Farway 360° Ayarlanılabilir 4 Kademeli Alüminyum Telefon Tutucu Tripod Monopod Selfie Çubuğu 210 cm Çantalı
+Success: true
+Changes: 0
+Errors: 3
+Details:
+  - Price Updates: 0
+  - Stock Updates: 0
+  - Variants Added: 0
+  - Variants Removed: 0
+  - Product Archived: false
+---
+
+[2025-12-18T10:26:29.685Z] SYNC AUDIT
+Product ID: 8200
+Product: MactivePro Watch HK11 Pro Max Amoled Akıllı Saat Tüm Akıllı Telefonlara Uyumlu Kordon Hediyeli Amoled Ekran
+Success: true
+Changes: 0
+Errors: 0
+Details:
+  - Price Updates: 0
+  - Stock Updates: 0
+  - Variants Added: 0
+  - Variants Removed: 0
+  - Product Archived: false
+---
+
+[2025-12-18T10:26:53.829Z] SYNC AUDIT
+Product ID: 495
+Product: ESSENSE Halı Yumuşak Pamuk Dokulu Gemici Deniz Fenerli Peluş Çocuk Odası Bebek Halısı
+Success: true
+Changes: 0
+Errors: 0
+Details:
+  - Price Updates: 0
+  - Stock Updates: 0
+  - Variants Added: 0
+  - Variants Removed: 0
+  - Product Archived: false
+---
+
+[2025-12-18T10:27:15.379Z] SYNC AUDIT
+Product ID: 5396
+Product: Stanley Unisex Pembe The Aerolight Transit Mug 0.60l / 20oz Rose Quartz Termos 10-10789-157-Ackpmb
+Success: true
+Changes: 0
+Errors: 0
+Details:
+  - Price Updates: 0
+  - Stock Updates: 0
+  - Variants Added: 0
+  - Variants Removed: 0
+  - Product Archived: false
+---
+
+[2025-12-18T10:27:31.855Z] SYNC AUDIT
+Product ID: 8865
+Product: Samsung Galaxy A26 5G 256 GB 8 GB Ram Beyaz Cep Telefonu (Samsung Türkiye Garantili)
+Success: true
+Changes: 0
+Errors: 0
+Details:
+  - Price Updates: 0
+  - Stock Updates: 0
+  - Variants Added: 0
+  - Variants Removed: 0
+  - Product Archived: false
+---
+
+[2025-12-18T10:27:47.196Z] SYNC AUDIT
+Product ID: 9296
+Product: Xiaomi Redmi 13 8 GB RAM 256 GB Siyah Cep Telefonu (Xiaomi Türkiye Garantili)
+Success: true
+Changes: 0
+Errors: 0
+Details:
+  - Price Updates: 0
+  - Stock Updates: 0
+  - Variants Added: 0
+  - Variants Removed: 0
+  - Product Archived: false
+---
+
+[2025-12-18T10:28:01.095Z] SYNC AUDIT
+Product ID: 5845
+Product: Lumberjack HERMOSO 5PR Gri Erkek Çocuk Spor Ayakkabı
+Success: true
+Changes: 0
+Errors: 0
+Details:
+  - Price Updates: 0
+  - Stock Updates: 0
+  - Variants Added: 0
+  - Variants Removed: 0
+  - Product Archived: false
+---
+
+[2025-12-18T10:28:18.636Z] SYNC AUDIT
+Product ID: 8213
+Product: Spovan Insomnia Uyku Apnesi Şeker Tansiyon Sesli Görüşme Akıllı Saat
+Success: true
+Changes: 0
+Errors: 0
+Details:
+  - Price Updates: 0
+  - Stock Updates: 0
+  - Variants Added: 0
+  - Variants Removed: 0
+  - Product Archived: false
+---
+
+[2025-12-18T10:28:34.101Z] SYNC AUDIT
+Product ID: 5402
+Product: Stanley Quencher Pipetli Termos 1,18 L Krem
+Success: true
+Changes: 0
+Errors: 0
+Details:
+  - Price Updates: 0
+  - Stock Updates: 0
+  - Variants Added: 0
+  - Variants Removed: 0
+  - Product Archived: false
+---
+
+[2025-12-18T10:28:52.462Z] SYNC AUDIT
+Product ID: 5683
+Product: Mavi Hav Baskılı Siyah Tişört Regular Fit / Normal Kesim 1613288-900
+Success: true
+Changes: 0
+Errors: 0
+Details:
+  - Price Updates: 0
+  - Stock Updates: 0
+  - Variants Added: 0
+  - Variants Removed: 0
+  - Product Archived: false
+---
+
+[2025-12-18T10:30:43.057Z] SYNC AUDIT
+Product ID: 10726
+Product: Genel Markalar Genel Markalar Elektronik Sesli Pilli Zıplayan Havuçlu Peluş Tavşan 18x17 Cm
+Success: true
+Changes: 0
+Errors: 0
+Details:
+  - Price Updates: 0
+  - Stock Updates: 0
+  - Variants Added: 0
+  - Variants Removed: 0
+  - Product Archived: false
+---
+
+[2025-12-18T10:31:02.390Z] SYNC AUDIT
+Product ID: 8200
+Product: MactivePro Watch HK11 Pro Max Amoled Akıllı Saat Tüm Akıllı Telefonlara Uyumlu Kordon Hediyeli Amoled Ekran
+Success: true
+Changes: 0
+Errors: 0
+Details:
+  - Price Updates: 0
+  - Stock Updates: 0
+  - Variants Added: 0
+  - Variants Removed: 0
+  - Product Archived: false
+---
+
+[2025-12-18T10:31:23.406Z] SYNC AUDIT
+Product ID: 5396
+Product: Stanley Unisex Pembe The Aerolight Transit Mug 0.60l / 20oz Rose Quartz Termos 10-10789-157-Ackpmb
+Success: true
+Changes: 0
+Errors: 0
+Details:
+  - Price Updates: 0
+  - Stock Updates: 0
+  - Variants Added: 0
+  - Variants Removed: 0
+  - Product Archived: false
+---
+
+[2025-12-18T10:31:40.441Z] SYNC AUDIT
+Product ID: 11620
+Product: Omo Express Leke Çıkarıcı Beyazlar 1000 ml x1
+Success: true
+Changes: 0
+Errors: 0
+Details:
+  - Price Updates: 0
+  - Stock Updates: 0
+  - Variants Added: 0
+  - Variants Removed: 0
+  - Product Archived: false
+---
+
+[2025-12-18T10:31:56.590Z] SYNC AUDIT
+Product ID: 8865
+Product: Samsung Galaxy A26 5G 256 GB 8 GB Ram Beyaz Cep Telefonu (Samsung Türkiye Garantili)
+Success: true
+Changes: 0
+Errors: 0
+Details:
+  - Price Updates: 0
+  - Stock Updates: 0
+  - Variants Added: 0
+  - Variants Removed: 0
+  - Product Archived: false
+---
+
+[2025-12-18T10:32:12.142Z] SYNC AUDIT
+Product ID: 9296
+Product: Xiaomi Redmi 13 8 GB RAM 256 GB Siyah Cep Telefonu (Xiaomi Türkiye Garantili)
+Success: true
+Changes: 0
+Errors: 0
+Details:
+  - Price Updates: 0
+  - Stock Updates: 0
+  - Variants Added: 0
+  - Variants Removed: 0
+  - Product Archived: false
+---
+
+[2025-12-18T10:32:27.927Z] SYNC AUDIT
+Product ID: 9712
+Product: Farway 360° Ayarlanılabilir 4 Kademeli Alüminyum Telefon Tutucu Tripod Monopod Selfie Çubuğu 210 cm Çantalı
+Success: true
+Changes: 0
+Errors: 0
+Details:
+  - Price Updates: 0
+  - Stock Updates: 0
+  - Variants Added: 0
+  - Variants Removed: 0
+  - Product Archived: false
+---
+
+[2025-12-18T10:32:43.780Z] SYNC AUDIT
+Product ID: 5402
+Product: Stanley Quencher Pipetli Termos 1,18 L Krem
+Success: true
+Changes: 0
+Errors: 0
+Details:
+  - Price Updates: 0
+  - Stock Updates: 0
+  - Variants Added: 0
+  - Variants Removed: 0
+  - Product Archived: false
+---
+
+[2025-12-18T10:32:56.930Z] SYNC AUDIT
+Product ID: 5683
+Product: Mavi Hav Baskılı Siyah Tişört Regular Fit / Normal Kesim 1613288-900
+Success: true
+Changes: 0
+Errors: 0
+Details:
+  - Price Updates: 0
+  - Stock Updates: 0
+  - Variants Added: 0
+  - Variants Removed: 0
+  - Product Archived: false
+---
+
+[2025-12-18T10:33:11.204Z] SYNC AUDIT
+Product ID: 8213
+Product: Spovan Insomnia Uyku Apnesi Şeker Tansiyon Sesli Görüşme Akıllı Saat
+Success: true
+Changes: 0
+Errors: 0
+Details:
+  - Price Updates: 0
+  - Stock Updates: 0
+  - Variants Added: 0
+  - Variants Removed: 0
+  - Product Archived: false
+---
+
+[2025-12-18T10:35:39.625Z] SYNC AUDIT
+Product ID: 9712
+Product: Farway 360° Ayarlanılabilir 4 Kademeli Alüminyum Telefon Tutucu Tripod Monopod Selfie Çubuğu 210 cm Çantalı
+Success: true
+Changes: 0
+Errors: 0
+Details:
+  - Price Updates: 0
+  - Stock Updates: 0
+  - Variants Added: 0
+  - Variants Removed: 0
+  - Product Archived: false
+---
+
+[2025-12-18T10:36:28.278Z] SYNC AUDIT
+Product ID: 8933
+Product: Samsung Galaxy A56 5G 256 GB Açık Pembe Cep Telefonu
+Success: true
+Changes: 0
+Errors: 3
+Details:
+  - Price Updates: 0
+  - Stock Updates: 0
+  - Variants Added: 0
+  - Variants Removed: 0
+  - Product Archived: false
+---
+
+[2025-12-18T10:36:45.015Z] SYNC AUDIT
+Product ID: 5396
+Product: Stanley Unisex Pembe The Aerolight Transit Mug 0.60l / 20oz Rose Quartz Termos 10-10789-157-Ackpmb
+Success: true
+Changes: 0
+Errors: 0
+Details:
+  - Price Updates: 0
+  - Stock Updates: 0
+  - Variants Added: 0
+  - Variants Removed: 0
+  - Product Archived: false
+---
+
+[2025-12-18T10:37:01.082Z] SYNC AUDIT
+Product ID: 8200
+Product: MactivePro Watch HK11 Pro Max Amoled Akıllı Saat Tüm Akıllı Telefonlara Uyumlu Kordon Hediyeli Amoled Ekran
+Success: true
+Changes: 0
+Errors: 0
+Details:
+  - Price Updates: 0
+  - Stock Updates: 0
+  - Variants Added: 0
+  - Variants Removed: 0
+  - Product Archived: false
+---
+
+[2025-12-18T10:37:17.146Z] SYNC AUDIT
+Product ID: 8865
+Product: Samsung Galaxy A26 5G 256 GB 8 GB Ram Beyaz Cep Telefonu (Samsung Türkiye Garantili)
+Success: true
+Changes: 0
+Errors: 0
+Details:
+  - Price Updates: 0
+  - Stock Updates: 0
+  - Variants Added: 0
+  - Variants Removed: 0
+  - Product Archived: false
+---
+
+[2025-12-18T10:37:35.939Z] SYNC AUDIT
+Product ID: 5845
+Product: Lumberjack HERMOSO 5PR Gri Erkek Çocuk Spor Ayakkabı
+Success: true
+Changes: 0
+Errors: 0
+Details:
+  - Price Updates: 0
+  - Stock Updates: 0
+  - Variants Added: 0
+  - Variants Removed: 0
+  - Product Archived: false
+---
+
+[2025-12-18T10:37:51.517Z] SYNC AUDIT
+Product ID: 11620
+Product: Omo Express Leke Çıkarıcı Beyazlar 1000 ml x1
+Success: true
+Changes: 0
+Errors: 0
+Details:
+  - Price Updates: 0
+  - Stock Updates: 0
+  - Variants Added: 0
+  - Variants Removed: 0
+  - Product Archived: false
+---
+
+[2025-12-18T10:38:07.695Z] SYNC AUDIT
+Product ID: 9296
+Product: Xiaomi Redmi 13 8 GB RAM 256 GB Siyah Cep Telefonu (Xiaomi Türkiye Garantili)
+Success: true
+Changes: 0
+Errors: 0
+Details:
+  - Price Updates: 0
+  - Stock Updates: 0
+  - Variants Added: 0
+  - Variants Removed: 0
+  - Product Archived: false
+---
+
+[2025-12-18T10:38:25.309Z] SYNC AUDIT
+Product ID: 5060
+Product: Shaka Siyah Shk108 Çıtçıtlı Suni Deri Cüzdanlı Makyaj Çantalı Kadın El Ve Omuz Çantası
+Success: true
+Changes: 0
+Errors: 0
+Details:
+  - Price Updates: 0
+  - Stock Updates: 0
+  - Variants Added: 0
+  - Variants Removed: 0
+  - Product Archived: false
+---
+
+[2025-12-18T10:38:38.699Z] SYNC AUDIT
+Product ID: 5683
+Product: Mavi Hav Baskılı Siyah Tişört Regular Fit / Normal Kesim 1613288-900
+Success: true
+Changes: 0
+Errors: 0
+Details:
+  - Price Updates: 0
+  - Stock Updates: 0
+  - Variants Added: 0
+  - Variants Removed: 0
+  - Product Archived: false
+---
+
+[2025-12-18T10:40:38.080Z] SYNC AUDIT
+Product ID: 9712
+Product: Farway 360° Ayarlanılabilir 4 Kademeli Alüminyum Telefon Tutucu Tripod Monopod Selfie Çubuğu 210 cm Çantalı
+Success: true
+Changes: 0
+Errors: 0
+Details:
+  - Price Updates: 0
+  - Stock Updates: 0
+  - Variants Added: 0
+  - Variants Removed: 0
+  - Product Archived: false
+---
+
+[2025-12-18T10:41:09.207Z] SYNC AUDIT
+Product ID: 5396
+Product: Stanley Unisex Pembe The Aerolight Transit Mug 0.60l / 20oz Rose Quartz Termos 10-10789-157-Ackpmb
+Success: true
+Changes: 0
+Errors: 0
+Details:
+  - Price Updates: 0
+  - Stock Updates: 0
+  - Variants Added: 0
+  - Variants Removed: 0
+  - Product Archived: false
+---
+
+[2025-12-18T10:41:25.209Z] SYNC AUDIT
+Product ID: 8200
+Product: MactivePro Watch HK11 Pro Max Amoled Akıllı Saat Tüm Akıllı Telefonlara Uyumlu Kordon Hediyeli Amoled Ekran
+Success: true
+Changes: 0
+Errors: 0
+Details:
+  - Price Updates: 0
+  - Stock Updates: 0
+  - Variants Added: 0
+  - Variants Removed: 0
+  - Product Archived: false
+---
+
+[2025-12-18T10:41:38.743Z] SYNC AUDIT
+Product ID: 8933
+Product: Samsung Galaxy A56 5G 256 GB Açık Pembe Cep Telefonu
+Success: true
+Changes: 0
+Errors: 0
+Details:
+  - Price Updates: 0
+  - Stock Updates: 0
+  - Variants Added: 0
+  - Variants Removed: 0
+  - Product Archived: false
+---
+
+[2025-12-18T10:41:55.462Z] SYNC AUDIT
+Product ID: 5845
+Product: Lumberjack HERMOSO 5PR Gri Erkek Çocuk Spor Ayakkabı
+Success: true
+Changes: 0
+Errors: 0
+Details:
+  - Price Updates: 0
+  - Stock Updates: 0
+  - Variants Added: 0
+  - Variants Removed: 0
+  - Product Archived: false
+---
+
+[2025-12-18T10:42:13.080Z] SYNC AUDIT
+Product ID: 8865
+Product: Samsung Galaxy A26 5G 256 GB 8 GB Ram Beyaz Cep Telefonu (Samsung Türkiye Garantili)
+Success: true
+Changes: 0
+Errors: 0
+Details:
+  - Price Updates: 0
+  - Stock Updates: 0
+  - Variants Added: 0
+  - Variants Removed: 0
+  - Product Archived: false
+---
+
+[2025-12-18T10:42:28.430Z] SYNC AUDIT
+Product ID: 5722
+Product: U.S. Polo Assn. Suri Beyaz Kadın Sneaker
+Success: true
+Changes: 1
+Errors: 0
+Details:
+  - Price Updates: 0
+  - Stock Updates: 0
+  - Variants Added: 1
+  - Variants Removed: 0
+  - Product Archived: false
+---
+
+[2025-12-18T10:42:46.921Z] SYNC AUDIT
+Product ID: 603
+Product: L'Oreal Paris L'Oréal Paris Telescopic Gold Maskara + Sürpriz Kutu Hediye
+Success: true
+Changes: 0
+Errors: 0
+Details:
+  - Price Updates: 0
+  - Stock Updates: 0
+  - Variants Added: 0
+  - Variants Removed: 0
+  - Product Archived: false
+---
+
+[2025-12-18T10:43:03.034Z] SYNC AUDIT
+Product ID: 9296
+Product: Xiaomi Redmi 13 8 GB RAM 256 GB Siyah Cep Telefonu (Xiaomi Türkiye Garantili)
+Success: true
+Changes: 0
+Errors: 0
+Details:
+  - Price Updates: 0
+  - Stock Updates: 0
+  - Variants Added: 0
+  - Variants Removed: 0
+  - Product Archived: false
+---
+
+[2025-12-18T10:43:19.920Z] SYNC AUDIT
+Product ID: 5060
+Product: Shaka Siyah Shk108 Çıtçıtlı Suni Deri Cüzdanlı Makyaj Çantalı Kadın El Ve Omuz Çantası
+Success: true
+Changes: 0
+Errors: 0
+Details:
+  - Price Updates: 0
+  - Stock Updates: 0
+  - Variants Added: 0
+  - Variants Removed: 0
+  - Product Archived: false
+---
+
+[2025-12-18T10:45:51.350Z] SYNC AUDIT
+Product ID: 5874
+Product: Polaris PARK.B5PR Lacivert Erkek Çocuk Sneaker
+Success: true
+Changes: 0
+Errors: 0
+Details:
+  - Price Updates: 0
+  - Stock Updates: 0
+  - Variants Added: 0
+  - Variants Removed: 0
+  - Product Archived: false
+---
+
+[2025-12-18T10:46:10.026Z] SYNC AUDIT
+Product ID: 5773
+Product: Lumberjack POL WMN PU 5PR Beyaz Kadın Sneaker
+Success: true
+Changes: 0
+Errors: 0
+Details:
+  - Price Updates: 0
+  - Stock Updates: 0
+  - Variants Added: 0
+  - Variants Removed: 0
+  - Product Archived: false
+---
+
+[2025-12-18T10:46:33.518Z] SYNC AUDIT
+Product ID: 5396
+Product: Stanley Unisex Pembe The Aerolight Transit Mug 0.60l / 20oz Rose Quartz Termos 10-10789-157-Ackpmb
+Success: true
+Changes: 0
+Errors: 0
+Details:
+  - Price Updates: 0
+  - Stock Updates: 0
+  - Variants Added: 0
+  - Variants Removed: 0
+  - Product Archived: false
+---
+
+[2025-12-18T10:46:48.262Z] SYNC AUDIT
+Product ID: 8933
+Product: Samsung Galaxy A56 5G 256 GB Açık Pembe Cep Telefonu
+Success: true
+Changes: 0
+Errors: 0
+Details:
+  - Price Updates: 0
+  - Stock Updates: 0
+  - Variants Added: 0
+  - Variants Removed: 0
+  - Product Archived: false
+---
+
+[2025-12-18T10:47:02.010Z] SYNC AUDIT
+Product ID: 8865
+Product: Samsung Galaxy A26 5G 256 GB 8 GB Ram Beyaz Cep Telefonu (Samsung Türkiye Garantili)
+Success: true
+Changes: 0
+Errors: 0
+Details:
+  - Price Updates: 0
+  - Stock Updates: 0
+  - Variants Added: 0
+  - Variants Removed: 0
+  - Product Archived: false
+---
+
+[2025-12-18T10:47:16.774Z] SYNC AUDIT
+Product ID: 495
+Product: ESSENSE Halı Yumuşak Pamuk Dokulu Gemici Deniz Fenerli Peluş Çocuk Odası Bebek Halısı
+Success: true
+Changes: 0
+Errors: 0
+Details:
+  - Price Updates: 0
+  - Stock Updates: 0
+  - Variants Added: 0
+  - Variants Removed: 0
+  - Product Archived: false
+---
+
+[2025-12-18T10:47:32.591Z] SYNC AUDIT
+Product ID: 5722
+Product: U.S. Polo Assn. Suri Beyaz Kadın Sneaker
+Success: true
+Changes: 0
+Errors: 0
+Details:
+  - Price Updates: 0
+  - Stock Updates: 0
+  - Variants Added: 0
+  - Variants Removed: 0
+  - Product Archived: false
+---
+
+[2025-12-18T10:47:45.561Z] SYNC AUDIT
+Product ID: 8200
+Product: MactivePro Watch HK11 Pro Max Amoled Akıllı Saat Tüm Akıllı Telefonlara Uyumlu Kordon Hediyeli Amoled Ekran
+Success: true
+Changes: 0
+Errors: 0
+Details:
+  - Price Updates: 0
+  - Stock Updates: 0
+  - Variants Added: 0
+  - Variants Removed: 0
+  - Product Archived: false
+---
+
+[2025-12-18T10:47:58.276Z] SYNC AUDIT
+Product ID: 5761
+Product: Kinetix POLYMER F 5FX Siyah Erkek Çocuk Spor Ayakkabı
+Success: true
+Changes: 0
+Errors: 0
+Details:
+  - Price Updates: 0
+  - Stock Updates: 0
+  - Variants Added: 0
+  - Variants Removed: 0
+  - Product Archived: false
+---
+
+[2025-12-18T10:48:16.899Z] SYNC AUDIT
+Product ID: 9296
+Product: Xiaomi Redmi 13 8 GB RAM 256 GB Siyah Cep Telefonu (Xiaomi Türkiye Garantili)
+Success: true
+Changes: 0
+Errors: 0
+Details:
+  - Price Updates: 0
+  - Stock Updates: 0
+  - Variants Added: 0
+  - Variants Removed: 0
+  - Product Archived: false
+---
+
+[2025-12-18T10:50:47.015Z] SYNC AUDIT
+Product ID: 5874
+Product: Polaris PARK.B5PR Lacivert Erkek Çocuk Sneaker
+Success: true
+Changes: 0
+Errors: 0
+Details:
+  - Price Updates: 0
+  - Stock Updates: 0
+  - Variants Added: 0
+  - Variants Removed: 0
+  - Product Archived: false
+---
+
+[2025-12-18T10:51:03.533Z] SYNC AUDIT
+Product ID: 5402
+Product: Stanley Quencher Pipetli Termos 1,18 L Krem
+Success: true
+Changes: 0
+Errors: 0
+Details:
+  - Price Updates: 0
+  - Stock Updates: 0
+  - Variants Added: 0
+  - Variants Removed: 0
+  - Product Archived: false
+---
+
+[2025-12-18T10:51:19.482Z] SYNC AUDIT
+Product ID: 5396
+Product: Stanley Unisex Pembe The Aerolight Transit Mug 0.60l / 20oz Rose Quartz Termos 10-10789-157-Ackpmb
+Success: true
+Changes: 0
+Errors: 0
+Details:
+  - Price Updates: 0
+  - Stock Updates: 0
+  - Variants Added: 0
+  - Variants Removed: 0
+  - Product Archived: false
+---
+
+[2025-12-18T10:51:45.134Z] SYNC AUDIT
+Product ID: 5228
+Product: Shift Co Farme Monogram Kahverengi Çapraz Çanta
+Success: true
+Changes: 0
+Errors: 1
+Details:
+  - Price Updates: 0
+  - Stock Updates: 0
+  - Variants Added: 0
+  - Variants Removed: 0
+  - Product Archived: false
+---
+
+[2025-12-18T10:52:00.102Z] SYNC AUDIT
+Product ID: 495
+Product: ESSENSE Halı Yumuşak Pamuk Dokulu Gemici Deniz Fenerli Peluş Çocuk Odası Bebek Halısı
+Success: true
+Changes: 0
+Errors: 0
+Details:
+  - Price Updates: 0
+  - Stock Updates: 0
+  - Variants Added: 0
+  - Variants Removed: 0
+  - Product Archived: false
+---
+
+[2025-12-18T10:52:14.646Z] SYNC AUDIT
+Product ID: 5722
+Product: U.S. Polo Assn. Suri Beyaz Kadın Sneaker
+Success: true
+Changes: 0
+Errors: 0
+Details:
+  - Price Updates: 0
+  - Stock Updates: 0
+  - Variants Added: 0
+  - Variants Removed: 0
+  - Product Archived: false
+---
+
+[2025-12-18T10:52:32.882Z] SYNC AUDIT
+Product ID: 9296
+Product: Xiaomi Redmi 13 8 GB RAM 256 GB Siyah Cep Telefonu (Xiaomi Türkiye Garantili)
+Success: true
+Changes: 0
+Errors: 0
+Details:
+  - Price Updates: 0
+  - Stock Updates: 0
+  - Variants Added: 0
+  - Variants Removed: 0
+  - Product Archived: false
+---
+
+[2025-12-18T10:52:48.240Z] SYNC AUDIT
+Product ID: 8200
+Product: MactivePro Watch HK11 Pro Max Amoled Akıllı Saat Tüm Akıllı Telefonlara Uyumlu Kordon Hediyeli Amoled Ekran
+Success: true
+Changes: 0
+Errors: 0
+Details:
+  - Price Updates: 0
+  - Stock Updates: 0
+  - Variants Added: 0
+  - Variants Removed: 0
+  - Product Archived: false
+---
+
+[2025-12-18T10:53:05.115Z] SYNC AUDIT
+Product ID: 5761
+Product: Kinetix POLYMER F 5FX Siyah Erkek Çocuk Spor Ayakkabı
+Success: true
+Changes: 0
+Errors: 0
+Details:
+  - Price Updates: 0
+  - Stock Updates: 0
+  - Variants Added: 0
+  - Variants Removed: 0
+  - Product Archived: false
+---
+
+[2025-12-18T10:53:21.982Z] SYNC AUDIT
+Product ID: 5060
+Product: Shaka Siyah Shk108 Çıtçıtlı Suni Deri Cüzdanlı Makyaj Çantalı Kadın El Ve Omuz Çantası
+Success: true
+Changes: 0
+Errors: 0
+Details:
+  - Price Updates: 0
+  - Stock Updates: 0
+  - Variants Added: 0
+  - Variants Removed: 0
+  - Product Archived: false
+---
+
+[2025-12-18T10:55:41.163Z] SYNC AUDIT
+Product ID: 10612
+Product: Tutku Erkek Çocuk Termal Alt- Üst Set Takım Siyah
+Success: true
+Changes: 0
+Errors: 0
+Details:
+  - Price Updates: 0
+  - Stock Updates: 0
+  - Variants Added: 0
+  - Variants Removed: 0
+  - Product Archived: false
+---
+
+[2025-12-18T10:55:57.313Z] SYNC AUDIT
+Product ID: 5402
+Product: Stanley Quencher Pipetli Termos 1,18 L Krem
+Success: true
+Changes: 0
+Errors: 0
+Details:
+  - Price Updates: 0
+  - Stock Updates: 0
+  - Variants Added: 0
+  - Variants Removed: 0
+  - Product Archived: false
+---
+
+[2025-12-18T10:56:17.896Z] SYNC AUDIT
+Product ID: 5396
+Product: Stanley Unisex Pembe The Aerolight Transit Mug 0.60l / 20oz Rose Quartz Termos 10-10789-157-Ackpmb
+Success: true
+Changes: 0
+Errors: 0
+Details:
+  - Price Updates: 0
+  - Stock Updates: 0
+  - Variants Added: 0
+  - Variants Removed: 0
+  - Product Archived: false
+---
+
+[2025-12-18T10:56:53.298Z] SYNC AUDIT
+Product ID: 5874
+Product: Polaris PARK.B5PR Lacivert Erkek Çocuk Sneaker
+Success: true
+Changes: 0
+Errors: 0
+Details:
+  - Price Updates: 0
+  - Stock Updates: 0
+  - Variants Added: 0
+  - Variants Removed: 0
+  - Product Archived: false
+---
+
+[2025-12-18T10:57:10.057Z] SYNC AUDIT
+Product ID: 495
+Product: ESSENSE Halı Yumuşak Pamuk Dokulu Gemici Deniz Fenerli Peluş Çocuk Odası Bebek Halısı
+Success: true
+Changes: 0
+Errors: 0
+Details:
+  - Price Updates: 0
+  - Stock Updates: 0
+  - Variants Added: 0
+  - Variants Removed: 0
+  - Product Archived: false
+---
+
+[2025-12-18T10:57:26.489Z] SYNC AUDIT
+Product ID: 5228
+Product: Shift Co Farme Monogram Kahverengi Çapraz Çanta
+Success: true
+Changes: 0
+Errors: 0
+Details:
+  - Price Updates: 0
+  - Stock Updates: 0
+  - Variants Added: 0
+  - Variants Removed: 0
+  - Product Archived: false
+---
+
+[2025-12-18T10:57:44.406Z] SYNC AUDIT
+Product ID: 5722
+Product: U.S. Polo Assn. Suri Beyaz Kadın Sneaker
+Success: true
+Changes: 0
+Errors: 0
+Details:
+  - Price Updates: 0
+  - Stock Updates: 0
+  - Variants Added: 0
+  - Variants Removed: 0
+  - Product Archived: false
+---
+
+[2025-12-18T10:58:01.671Z] SYNC AUDIT
+Product ID: 5773
+Product: Lumberjack POL WMN PU 5PR Beyaz Kadın Sneaker
+Success: true
+Changes: 0
+Errors: 0
+Details:
+  - Price Updates: 0
+  - Stock Updates: 0
+  - Variants Added: 0
+  - Variants Removed: 0
+  - Product Archived: false
+---
+
+[2025-12-18T10:58:16.982Z] SYNC AUDIT
+Product ID: 8200
+Product: MactivePro Watch HK11 Pro Max Amoled Akıllı Saat Tüm Akıllı Telefonlara Uyumlu Kordon Hediyeli Amoled Ekran
+Success: true
+Changes: 0
+Errors: 0
+Details:
+  - Price Updates: 0
+  - Stock Updates: 0
+  - Variants Added: 0
+  - Variants Removed: 0
+  - Product Archived: false
+---
+
+[2025-12-18T10:58:31.136Z] SYNC AUDIT
+Product ID: 5060
+Product: Shaka Siyah Shk108 Çıtçıtlı Suni Deri Cüzdanlı Makyaj Çantalı Kadın El Ve Omuz Çantası
+Success: true
+Changes: 0
+Errors: 0
+Details:
+  - Price Updates: 0
+  - Stock Updates: 0
+  - Variants Added: 0
+  - Variants Removed: 0
+  - Product Archived: false
+---
+
+[2025-12-18T11:00:40.314Z] SYNC AUDIT
+Product ID: 10612
+Product: Tutku Erkek Çocuk Termal Alt- Üst Set Takım Siyah
+Success: true
+Changes: 0
+Errors: 0
+Details:
+  - Price Updates: 0
+  - Stock Updates: 0
+  - Variants Added: 0
+  - Variants Removed: 0
+  - Product Archived: false
+---
+
+[2025-12-18T11:01:00.602Z] SYNC AUDIT
+Product ID: 5874
+Product: Polaris PARK.B5PR Lacivert Erkek Çocuk Sneaker
+Success: true
+Changes: 0
+Errors: 0
+Details:
+  - Price Updates: 0
+  - Stock Updates: 0
+  - Variants Added: 0
+  - Variants Removed: 0
+  - Product Archived: false
+---
+
+[2025-12-18T11:01:15.072Z] SYNC AUDIT
+Product ID: 151
+Product: L'AJOR Voyage Erkek Yumusaçık Kumaşlı Kapüşonlu Oversize Fit Nakışlı Mavi Sweatshirt
+Success: true
+Changes: 1
+Errors: 0
+Details:
+  - Price Updates: 0
+  - Stock Updates: 0
+  - Variants Added: 1
+  - Variants Removed: 0
+  - Product Archived: false
+---
+
+[2025-12-18T11:02:08.167Z] SYNC AUDIT
+Product ID: 5377
+Product: LUPİX Kadın Erkek Unisex Mavi Işık Korumalı Uv 400 Leopar Desenli Siyah 2'Li Avantajlı SET
+Success: true
+Changes: 0
+Errors: 3
+Details:
+  - Price Updates: 0
+  - Stock Updates: 0
+  - Variants Added: 0
+  - Variants Removed: 0
+  - Product Archived: false
+---
+
+[2025-12-18T11:02:21.004Z] SYNC AUDIT
+Product ID: 8200
+Product: MactivePro Watch HK11 Pro Max Amoled Akıllı Saat Tüm Akıllı Telefonlara Uyumlu Kordon Hediyeli Amoled Ekran
+Success: true
+Changes: 0
+Errors: 0
+Details:
+  - Price Updates: 0
+  - Stock Updates: 0
+  - Variants Added: 0
+  - Variants Removed: 0
+  - Product Archived: false
+---
+
+[2025-12-18T11:02:37.880Z] SYNC AUDIT
+Product ID: 5697
+Product: Mavi Siyah Basic Eşofman Altı 1600903-900
+Success: true
+Changes: 0
+Errors: 0
+Details:
+  - Price Updates: 0
+  - Stock Updates: 0
+  - Variants Added: 0
+  - Variants Removed: 0
+  - Product Archived: false
+---
+
+[2025-12-18T11:02:54.373Z] SYNC AUDIT
+Product ID: 5773
+Product: Lumberjack POL WMN PU 5PR Beyaz Kadın Sneaker
+Success: true
+Changes: 0
+Errors: 0
+Details:
+  - Price Updates: 0
+  - Stock Updates: 0
+  - Variants Added: 0
+  - Variants Removed: 0
+  - Product Archived: false
+---
+
+[2025-12-18T11:03:08.918Z] SYNC AUDIT
+Product ID: 5060
+Product: Shaka Siyah Shk108 Çıtçıtlı Suni Deri Cüzdanlı Makyaj Çantalı Kadın El Ve Omuz Çantası
+Success: true
+Changes: 0
+Errors: 0
+Details:
+  - Price Updates: 0
+  - Stock Updates: 0
+  - Variants Added: 0
+  - Variants Removed: 0
+  - Product Archived: false
+---
+
+[2025-12-18T11:03:33.941Z] SYNC AUDIT
+Product ID: 5692
+Product: Mavi Logo Baskılı Mor Sweatshirt 1S10419-70679
+Success: true
+Changes: 0
+Errors: 0
+Details:
+  - Price Updates: 0
+  - Stock Updates: 0
+  - Variants Added: 0
+  - Variants Removed: 0
+  - Product Archived: false
+---
+
+[2025-12-18T11:03:50.006Z] SYNC AUDIT
+Product ID: 5371
+Product: Monalisa Kadın 100'lü Renkli Saç Lastik Toka Seti
+Success: true
+Changes: 0
+Errors: 0
+Details:
+  - Price Updates: 0
+  - Stock Updates: 0
+  - Variants Added: 0
+  - Variants Removed: 0
+  - Product Archived: false
+---
+
+[2025-12-18T11:05:39.337Z] SYNC AUDIT
+Product ID: 117
+Product: MUSCENT N439 50 Ml.
+Success: true
+Changes: 0
+Errors: 0
+Details:
+  - Price Updates: 0
+  - Stock Updates: 0
+  - Variants Added: 0
+  - Variants Removed: 0
+  - Product Archived: false
+---
+
+[2025-12-18T11:05:57.430Z] SYNC AUDIT
+Product ID: 543
+Product: Braun Hepsi Bir Arada Series 7, 11’i 1 arada Tıraş Kiti, ProBlade, AutoSense, AIO7540
+Success: true
+Changes: 0
+Errors: 0
+Details:
+  - Price Updates: 0
+  - Stock Updates: 0
+  - Variants Added: 0
+  - Variants Removed: 0
+  - Product Archived: false
+---
+
+[2025-12-18T11:06:20.673Z] SYNC AUDIT
+Product ID: 10626
+Product: Katia & Bony İçi Havlu Çocuk Tayt Gri
+Success: true
+Changes: 0
+Errors: 1
+Details:
+  - Price Updates: 0
+  - Stock Updates: 0
+  - Variants Added: 0
+  - Variants Removed: 0
+  - Product Archived: false
+---
+
+[2025-12-18T11:06:36.494Z] SYNC AUDIT
+Product ID: 8844
+Product: Samsung Galaxy A17 5G 8/256 GB Gri Cep Telefonu
+Success: true
+Changes: 0
+Errors: 0
+Details:
+  - Price Updates: 0
+  - Stock Updates: 0
+  - Variants Added: 0
+  - Variants Removed: 0
+  - Product Archived: false
+---
+
+[2025-12-18T11:07:01.786Z] SYNC AUDIT
+Product ID: 5874
+Product: Polaris PARK.B5PR Lacivert Erkek Çocuk Sneaker
+Success: true
+Changes: 0
+Errors: 0
+Details:
+  - Price Updates: 0
+  - Stock Updates: 0
+  - Variants Added: 0
+  - Variants Removed: 0
+  - Product Archived: false
+---
+
+[2025-12-18T11:07:14.282Z] SYNC AUDIT
+Product ID: 5845
+Product: Lumberjack HERMOSO 5PR Gri Erkek Çocuk Spor Ayakkabı
+Success: true
+Changes: 0
+Errors: 0
+Details:
+  - Price Updates: 0
+  - Stock Updates: 0
+  - Variants Added: 0
+  - Variants Removed: 0
+  - Product Archived: false
+---
+
+[2025-12-18T11:08:05.357Z] SYNC AUDIT
+Product ID: 7589
+Product: Ttec Kidi Lite GPS 4G Sim Kartlı Akıllı Çocuk Saati Sihirli Lila 2KSW01
+Success: true
+Changes: 0
+Errors: 3
+Details:
+  - Price Updates: 0
+  - Stock Updates: 0
+  - Variants Added: 0
+  - Variants Removed: 0
+  - Product Archived: false
+---
+
+[2025-12-18T11:08:21.500Z] SYNC AUDIT
+Product ID: 8200
+Product: MactivePro Watch HK11 Pro Max Amoled Akıllı Saat Tüm Akıllı Telefonlara Uyumlu Kordon Hediyeli Amoled Ekran
+Success: true
+Changes: 0
+Errors: 0
+Details:
+  - Price Updates: 0
+  - Stock Updates: 0
+  - Variants Added: 0
+  - Variants Removed: 0
+  - Product Archived: false
+---
+
+[2025-12-18T11:08:39.087Z] SYNC AUDIT
+Product ID: 419
+Product: Yataş Mini Bambu Sıvı Geçirmez Çocuk Alez
+Success: true
+Changes: 0
+Errors: 0
+Details:
+  - Price Updates: 0
+  - Stock Updates: 0
+  - Variants Added: 0
+  - Variants Removed: 0
+  - Product Archived: false
+---
+
+[2025-12-18T11:08:55.095Z] SYNC AUDIT
+Product ID: 6652
+Product: KUMTEL 2in1 Çok Amaçlı Cam Ve Çelik Hazneli Doğrayıcı Hch-21
+Success: true
+Changes: 0
+Errors: 0
+Details:
+  - Price Updates: 0
+  - Stock Updates: 0
+  - Variants Added: 0
+  - Variants Removed: 0
+  - Product Archived: false
+---
+
+[2025-12-18T11:10:41.137Z] SYNC AUDIT
+Product ID: 8200
+Product: MactivePro Watch HK11 Pro Max Amoled Akıllı Saat Tüm Akıllı Telefonlara Uyumlu Kordon Hediyeli Amoled Ekran
+Success: true
+Changes: 0
+Errors: 0
+Details:
+  - Price Updates: 0
+  - Stock Updates: 0
+  - Variants Added: 0
+  - Variants Removed: 0
+  - Product Archived: false
+---
+
+[2025-12-18T11:10:58.747Z] SYNC AUDIT
+Product ID: 10626
+Product: Katia & Bony İçi Havlu Çocuk Tayt Gri
+Success: true
+Changes: 0
+Errors: 0
+Details:
+  - Price Updates: 0
+  - Stock Updates: 0
+  - Variants Added: 0
+  - Variants Removed: 0
+  - Product Archived: false
+---
+
+[2025-12-18T11:11:15.421Z] SYNC AUDIT
+Product ID: 9296
+Product: Xiaomi Redmi 13 8 GB RAM 256 GB Siyah Cep Telefonu (Xiaomi Türkiye Garantili)
+Success: true
+Changes: 0
+Errors: 0
+Details:
+  - Price Updates: 0
+  - Stock Updates: 0
+  - Variants Added: 0
+  - Variants Removed: 0
+  - Product Archived: false
+---
+
+[2025-12-18T11:11:32.627Z] SYNC AUDIT
+Product ID: 5228
+Product: Shift Co Farme Monogram Kahverengi Çapraz Çanta
+Success: true
+Changes: 0
+Errors: 0
+Details:
+  - Price Updates: 0
+  - Stock Updates: 0
+  - Variants Added: 0
+  - Variants Removed: 0
+  - Product Archived: false
+---
+
+[2025-12-18T11:11:53.137Z] SYNC AUDIT
+Product ID: 5874
+Product: Polaris PARK.B5PR Lacivert Erkek Çocuk Sneaker
+Success: true
+Changes: 0
+Errors: 0
+Details:
+  - Price Updates: 0
+  - Stock Updates: 0
+  - Variants Added: 0
+  - Variants Removed: 0
+  - Product Archived: false
+---
+
+[2025-12-18T11:12:06.931Z] SYNC AUDIT
+Product ID: 6090
+Product: NIVEA Luminous630 Skin Glow Anında Aydınlatıcı Serum 30ml, Eşit Cilt Tonu, Thiamidol, Niasinamid, AloeVera
+Success: true
+Changes: 0
+Errors: 0
+Details:
+  - Price Updates: 0
+  - Stock Updates: 0
+  - Variants Added: 0
+  - Variants Removed: 0
+  - Product Archived: false
+---
+
+[2025-12-18T11:12:28.126Z] SYNC AUDIT
+Product ID: 8844
+Product: Samsung Galaxy A17 5G 8/256 GB Gri Cep Telefonu
+Success: true
+Changes: 0
+Errors: 0
+Details:
+  - Price Updates: 0
+  - Stock Updates: 0
+  - Variants Added: 0
+  - Variants Removed: 0
+  - Product Archived: false
+---
+
+[2025-12-18T11:12:44.072Z] SYNC AUDIT
+Product ID: 7589
+Product: Ttec Kidi Lite GPS 4G Sim Kartlı Akıllı Çocuk Saati Sihirli Lila 2KSW01
+Success: true
+Changes: 0
+Errors: 0
+Details:
+  - Price Updates: 0
+  - Stock Updates: 0
+  - Variants Added: 0
+  - Variants Removed: 0
+  - Product Archived: false
+---
+
+[2025-12-18T11:13:00.681Z] SYNC AUDIT
+Product ID: 5845
+Product: Lumberjack HERMOSO 5PR Gri Erkek Çocuk Spor Ayakkabı
+Success: true
+Changes: 0
+Errors: 0
+Details:
+  - Price Updates: 0
+  - Stock Updates: 0
+  - Variants Added: 0
+  - Variants Removed: 0
+  - Product Archived: false
+---
+
+[2025-12-18T11:13:14.309Z] SYNC AUDIT
+Product ID: 913
+Product: NYX Professional Makeup Jumbo Aydınlatıcı Kalem - 604 Milk
+Success: true
+Changes: 0
+Errors: 0
+Details:
+  - Price Updates: 0
+  - Stock Updates: 0
+  - Variants Added: 0
+  - Variants Removed: 0
+  - Product Archived: false
+---
+
+[2025-12-18T11:15:39.231Z] SYNC AUDIT
+Product ID: 8200
+Product: MactivePro Watch HK11 Pro Max Amoled Akıllı Saat Tüm Akıllı Telefonlara Uyumlu Kordon Hediyeli Amoled Ekran
+Success: true
+Changes: 0
+Errors: 0
+Details:
+  - Price Updates: 0
+  - Stock Updates: 0
+  - Variants Added: 0
+  - Variants Removed: 0
+  - Product Archived: false
+---
+
+[2025-12-18T11:16:05.263Z] SYNC AUDIT
+Product ID: 5874
+Product: Polaris PARK.B5PR Lacivert Erkek Çocuk Sneaker
+Success: true
+Changes: 0
+Errors: 0
+Details:
+  - Price Updates: 0
+  - Stock Updates: 0
+  - Variants Added: 0
+  - Variants Removed: 0
+  - Product Archived: false
+---
+
+[2025-12-18T11:16:20.348Z] SYNC AUDIT
+Product ID: 9296
+Product: Xiaomi Redmi 13 8 GB RAM 256 GB Siyah Cep Telefonu (Xiaomi Türkiye Garantili)
+Success: true
+Changes: 0
+Errors: 0
+Details:
+  - Price Updates: 0
+  - Stock Updates: 0
+  - Variants Added: 0
+  - Variants Removed: 0
+  - Product Archived: false
+---
+
+[2025-12-18T11:16:38.252Z] SYNC AUDIT
+Product ID: 10626
+Product: Katia & Bony İçi Havlu Çocuk Tayt Gri
+Success: true
+Changes: 0
+Errors: 0
+Details:
+  - Price Updates: 0
+  - Stock Updates: 0
+  - Variants Added: 0
+  - Variants Removed: 0
+  - Product Archived: false
+---
+
+[2025-12-18T11:16:58.740Z] SYNC AUDIT
+Product ID: 8844
+Product: Samsung Galaxy A17 5G 8/256 GB Gri Cep Telefonu
+Success: true
+Changes: 0
+Errors: 0
+Details:
+  - Price Updates: 0
+  - Stock Updates: 0
+  - Variants Added: 0
+  - Variants Removed: 0
+  - Product Archived: false
+---
+
+[2025-12-18T11:17:15.220Z] SYNC AUDIT
+Product ID: 5845
+Product: Lumberjack HERMOSO 5PR Gri Erkek Çocuk Spor Ayakkabı
+Success: true
+Changes: 0
+Errors: 0
+Details:
+  - Price Updates: 0
+  - Stock Updates: 0
+  - Variants Added: 0
+  - Variants Removed: 0
+  - Product Archived: false
+---
+
+[2025-12-18T11:17:34.850Z] SYNC AUDIT
+Product ID: 9623
+Product: Holographic Sm - B310 Tuşlu Cep Telefonu Radyo Mp3 Asker Telefonu Yaşlı Telefonu
+Success: true
+Changes: 0
+Errors: 0
+Details:
+  - Price Updates: 0
+  - Stock Updates: 0
+  - Variants Added: 0
+  - Variants Removed: 0
+  - Product Archived: false
+---
+
+[2025-12-18T11:17:52.273Z] SYNC AUDIT
+Product ID: 5060
+Product: Shaka Siyah Shk108 Çıtçıtlı Suni Deri Cüzdanlı Makyaj Çantalı Kadın El Ve Omuz Çantası
+Success: true
+Changes: 0
+Errors: 0
+Details:
+  - Price Updates: 0
+  - Stock Updates: 0
+  - Variants Added: 0
+  - Variants Removed: 0
+  - Product Archived: false
+---
+
+[2025-12-18T11:18:06.675Z] SYNC AUDIT
+Product ID: 6652
+Product: KUMTEL 2in1 Çok Amaçlı Cam Ve Çelik Hazneli Doğrayıcı Hch-21
+Success: true
+Changes: 0
+Errors: 0
+Details:
+  - Price Updates: 0
+  - Stock Updates: 0
+  - Variants Added: 0
+  - Variants Removed: 0
+  - Product Archived: false
+---
+
+[2025-12-18T11:18:52.989Z] SYNC AUDIT
+Product ID: 9074
+Product: Apple Yenilenmiş iPhone X 64 GB Gümüş Cep Telefonu (12 Ay Garantili) - B Kalite
+Success: true
+Changes: 0
+Errors: 3
+Details:
+  - Price Updates: 0
+  - Stock Updates: 0
+  - Variants Added: 0
+  - Variants Removed: 0
+  - Product Archived: false
+---
+
+[2025-12-18T11:20:52.957Z] SYNC AUDIT
+Product ID: 8200
+Product: MactivePro Watch HK11 Pro Max Amoled Akıllı Saat Tüm Akıllı Telefonlara Uyumlu Kordon Hediyeli Amoled Ekran
+Success: true
+Changes: 0
+Errors: 0
+Details:
+  - Price Updates: 0
+  - Stock Updates: 0
+  - Variants Added: 0
+  - Variants Removed: 0
+  - Product Archived: false
+---
+
+[2025-12-18T11:21:05.433Z] SYNC AUDIT
+Product ID: 10626
+Product: Katia & Bony İçi Havlu Çocuk Tayt Gri
+Success: true
+Changes: 0
+Errors: 0
+Details:
+  - Price Updates: 0
+  - Stock Updates: 0
+  - Variants Added: 0
+  - Variants Removed: 0
+  - Product Archived: false
+---
+
+[2025-12-18T11:21:18.882Z] SYNC AUDIT
+Product ID: 9296
+Product: Xiaomi Redmi 13 8 GB RAM 256 GB Siyah Cep Telefonu (Xiaomi Türkiye Garantili)
+Success: true
+Changes: 0
+Errors: 0
+Details:
+  - Price Updates: 0
+  - Stock Updates: 0
+  - Variants Added: 0
+  - Variants Removed: 0
+  - Product Archived: false
+---
+
+[2025-12-18T11:21:32.947Z] SYNC AUDIT
+Product ID: 5377
+Product: LUPİX Kadın Erkek Unisex Mavi Işık Korumalı Uv 400 Leopar Desenli Siyah 2'Li Avantajlı SET
+Success: true
+Changes: 0
+Errors: 0
+Details:
+  - Price Updates: 0
+  - Stock Updates: 0
+  - Variants Added: 0
+  - Variants Removed: 0
+  - Product Archived: false
+---
+
+[2025-12-18T11:21:48.057Z] SYNC AUDIT
+Product ID: 5845
+Product: Lumberjack HERMOSO 5PR Gri Erkek Çocuk Spor Ayakkabı
+Success: true
+Changes: 0
+Errors: 0
+Details:
+  - Price Updates: 0
+  - Stock Updates: 0
+  - Variants Added: 0
+  - Variants Removed: 0
+  - Product Archived: false
+---
+
+[2025-12-18T11:22:05.091Z] SYNC AUDIT
+Product ID: 5697
+Product: Mavi Siyah Basic Eşofman Altı 1600903-900
+Success: true
+Changes: 0
+Errors: 0
+Details:
+  - Price Updates: 0
+  - Stock Updates: 0
+  - Variants Added: 0
+  - Variants Removed: 0
+  - Product Archived: false
+---
+
+[2025-12-18T11:22:23.687Z] SYNC AUDIT
+Product ID: 8844
+Product: Samsung Galaxy A17 5G 8/256 GB Gri Cep Telefonu
+Success: true
+Changes: 0
+Errors: 0
+Details:
+  - Price Updates: 0
+  - Stock Updates: 0
+  - Variants Added: 0
+  - Variants Removed: 0
+  - Product Archived: false
+---
+
+[2025-12-18T11:22:41.983Z] SYNC AUDIT
+Product ID: 525
+Product: Braun IPL Silk·expert Pro 5, Evde Tüy Alma, Çanta, Venus Tıraş Makinesi, 2 Başlık ile, PL5146
+Success: true
+Changes: 0
+Errors: 0
+Details:
+  - Price Updates: 0
+  - Stock Updates: 0
+  - Variants Added: 0
+  - Variants Removed: 0
+  - Product Archived: false
+---
+
+[2025-12-18T11:22:55.980Z] SYNC AUDIT
+Product ID: 5921
+Product: Reebok PRIME SET Erkek Sneaker Ayakkabı 100230435
+Success: true
+Changes: 0
+Errors: 0
+Details:
+  - Price Updates: 0
+  - Stock Updates: 0
+  - Variants Added: 0
+  - Variants Removed: 0
+  - Product Archived: false
+---
+
+[2025-12-18T11:23:13.919Z] SYNC AUDIT
+Product ID: 5060
+Product: Shaka Siyah Shk108 Çıtçıtlı Suni Deri Cüzdanlı Makyaj Çantalı Kadın El Ve Omuz Çantası
+Success: true
+Changes: 0
+Errors: 0
+Details:
+  - Price Updates: 0
+  - Stock Updates: 0
+  - Variants Added: 0
+  - Variants Removed: 0
+  - Product Archived: false
+---
+
+[2025-12-18T11:25:38.223Z] SYNC AUDIT
+Product ID: 9324
+Product: Samsung Galaxy A16 4 Gb Ram 128 Gb Gri
+Success: true
+Changes: 0
+Errors: 0
+Details:
+  - Price Updates: 0
+  - Stock Updates: 0
+  - Variants Added: 0
+  - Variants Removed: 0
+  - Product Archived: false
+---
+
+[2025-12-18T11:25:52.638Z] SYNC AUDIT
+Product ID: 9296
+Product: Xiaomi Redmi 13 8 GB RAM 256 GB Siyah Cep Telefonu (Xiaomi Türkiye Garantili)
+Success: true
+Changes: 0
+Errors: 0
+Details:
+  - Price Updates: 0
+  - Stock Updates: 0
+  - Variants Added: 0
+  - Variants Removed: 0
+  - Product Archived: false
+---
+
+[2025-12-18T11:26:09.280Z] SYNC AUDIT
+Product ID: 5377
+Product: LUPİX Kadın Erkek Unisex Mavi Işık Korumalı Uv 400 Leopar Desenli Siyah 2'Li Avantajlı SET
+Success: true
+Changes: 0
+Errors: 0
+Details:
+  - Price Updates: 0
+  - Stock Updates: 0
+  - Variants Added: 0
+  - Variants Removed: 0
+  - Product Archived: false
+---
+
+[2025-12-18T11:26:21.999Z] SYNC AUDIT
+Product ID: 10626
+Product: Katia & Bony İçi Havlu Çocuk Tayt Gri
+Success: true
+Changes: 0
+Errors: 0
+Details:
+  - Price Updates: 0
+  - Stock Updates: 0
+  - Variants Added: 0
+  - Variants Removed: 0
+  - Product Archived: false
+---
+
+[2025-12-18T11:26:37.928Z] SYNC AUDIT
+Product ID: 5845
+Product: Lumberjack HERMOSO 5PR Gri Erkek Çocuk Spor Ayakkabı
+Success: true
+Changes: 0
+Errors: 0
+Details:
+  - Price Updates: 0
+  - Stock Updates: 0
+  - Variants Added: 0
+  - Variants Removed: 0
+  - Product Archived: false
+---
+
+[2025-12-18T11:26:56.951Z] SYNC AUDIT
+Product ID: 5761
+Product: Kinetix POLYMER F 5FX Siyah Erkek Çocuk Spor Ayakkabı
+Success: true
+Changes: 0
+Errors: 0
+Details:
+  - Price Updates: 0
+  - Stock Updates: 0
+  - Variants Added: 0
+  - Variants Removed: 0
+  - Product Archived: false
+---
+
+[2025-12-18T11:27:11.741Z] SYNC AUDIT
+Product ID: 5697
+Product: Mavi Siyah Basic Eşofman Altı 1600903-900
+Success: true
+Changes: 0
+Errors: 0
+Details:
+  - Price Updates: 0
+  - Stock Updates: 0
+  - Variants Added: 0
+  - Variants Removed: 0
+  - Product Archived: false
+---
+
+[2025-12-18T11:27:38.232Z] SYNC AUDIT
+Product ID: 5874
+Product: Polaris PARK.B5PR Lacivert Erkek Çocuk Sneaker
+Success: true
+Changes: 0
+Errors: 0
+Details:
+  - Price Updates: 0
+  - Stock Updates: 0
+  - Variants Added: 0
+  - Variants Removed: 0
+  - Product Archived: false
+---
+
+[2025-12-18T11:27:51.520Z] SYNC AUDIT
+Product ID: 5921
+Product: Reebok PRIME SET Erkek Sneaker Ayakkabı 100230435
+Success: true
+Changes: 0
+Errors: 0
+Details:
+  - Price Updates: 0
+  - Stock Updates: 0
+  - Variants Added: 0
+  - Variants Removed: 0
+  - Product Archived: false
+---
+
+[2025-12-18T11:28:07.444Z] SYNC AUDIT
+Product ID: 8213
+Product: Spovan Insomnia Uyku Apnesi Şeker Tansiyon Sesli Görüşme Akıllı Saat
+Success: true
+Changes: 0
+Errors: 0
+Details:
+  - Price Updates: 0
+  - Stock Updates: 0
+  - Variants Added: 0
+  - Variants Removed: 0
+  - Product Archived: false
+---
+
+[2025-12-18T11:30:40.099Z] SYNC AUDIT
+Product ID: 5371
+Product: Monalisa Kadın 100'lü Renkli Saç Lastik Toka Seti
+Success: true
+Changes: 0
+Errors: 0
+Details:
+  - Price Updates: 0
+  - Stock Updates: 0
+  - Variants Added: 0
+  - Variants Removed: 0
+  - Product Archived: false
+---
+
+[2025-12-18T11:30:57.588Z] SYNC AUDIT
+Product ID: 10626
+Product: Katia & Bony İçi Havlu Çocuk Tayt Gri
+Success: true
+Changes: 0
+Errors: 0
+Details:
+  - Price Updates: 0
+  - Stock Updates: 0
+  - Variants Added: 0
+  - Variants Removed: 0
+  - Product Archived: false
+---
+
+[2025-12-18T11:31:12.916Z] SYNC AUDIT
+Product ID: 9296
+Product: Xiaomi Redmi 13 8 GB RAM 256 GB Siyah Cep Telefonu (Xiaomi Türkiye Garantili)
+Success: true
+Changes: 0
+Errors: 0
+Details:
+  - Price Updates: 0
+  - Stock Updates: 0
+  - Variants Added: 0
+  - Variants Removed: 0
+  - Product Archived: false
+---
+
+[2025-12-18T11:31:27.446Z] SYNC AUDIT
+Product ID: 5697
+Product: Mavi Siyah Basic Eşofman Altı 1600903-900
+Success: true
+Changes: 0
+Errors: 0
+Details:
+  - Price Updates: 0
+  - Stock Updates: 0
+  - Variants Added: 0
+  - Variants Removed: 0
+  - Product Archived: false
+---
+
+[2025-12-18T11:31:44.716Z] SYNC AUDIT
+Product ID: 5845
+Product: Lumberjack HERMOSO 5PR Gri Erkek Çocuk Spor Ayakkabı
+Success: true
+Changes: 0
+Errors: 0
+Details:
+  - Price Updates: 0
+  - Stock Updates: 0
+  - Variants Added: 0
+  - Variants Removed: 0
+  - Product Archived: false
+---
+
+[2025-12-18T11:31:59.115Z] SYNC AUDIT
+Product ID: 5761
+Product: Kinetix POLYMER F 5FX Siyah Erkek Çocuk Spor Ayakkabı
+Success: true
+Changes: 0
+Errors: 0
+Details:
+  - Price Updates: 0
+  - Stock Updates: 0
+  - Variants Added: 0
+  - Variants Removed: 0
+  - Product Archived: false
+---
+
+[2025-12-18T11:32:13.349Z] SYNC AUDIT
+Product ID: 5060
+Product: Shaka Siyah Shk108 Çıtçıtlı Suni Deri Cüzdanlı Makyaj Çantalı Kadın El Ve Omuz Çantası
+Success: true
+Changes: 0
+Errors: 0
+Details:
+  - Price Updates: 0
+  - Stock Updates: 0
+  - Variants Added: 0
+  - Variants Removed: 0
+  - Product Archived: false
+---
+
+[2025-12-18T11:32:40.196Z] SYNC AUDIT
+Product ID: 5874
+Product: Polaris PARK.B5PR Lacivert Erkek Çocuk Sneaker
+Success: true
+Changes: 0
+Errors: 0
+Details:
+  - Price Updates: 0
+  - Stock Updates: 0
+  - Variants Added: 0
+  - Variants Removed: 0
+  - Product Archived: false
+---
+
+[2025-12-18T11:32:53.667Z] SYNC AUDIT
+Product ID: 8213
+Product: Spovan Insomnia Uyku Apnesi Şeker Tansiyon Sesli Görüşme Akıllı Saat
+Success: true
+Changes: 0
+Errors: 0
+Details:
+  - Price Updates: 0
+  - Stock Updates: 0
+  - Variants Added: 0
+  - Variants Removed: 0
+  - Product Archived: false
+---
+
+[2025-12-18T11:33:12.411Z] SYNC AUDIT
+Product ID: 525
+Product: Braun IPL Silk·expert Pro 5, Evde Tüy Alma, Çanta, Venus Tıraş Makinesi, 2 Başlık ile, PL5146
+Success: true
+Changes: 0
+Errors: 0
+Details:
+  - Price Updates: 0
+  - Stock Updates: 0
+  - Variants Added: 0
+  - Variants Removed: 0
+  - Product Archived: false
+---
+
+[2025-12-18T11:36:14.385Z] SYNC AUDIT
+Product ID: 10581
+Product: Dreame Peluş Stitch Koala Oyuncak Stich Sürpriz Paket Pelüş Stitch su jewelry collective shine avda
+Success: true
+Changes: 0
+Errors: 3
+Details:
+  - Price Updates: 0
+  - Stock Updates: 0
+  - Variants Added: 0
+  - Variants Removed: 0
+  - Product Archived: false
+---
+
+[2025-12-18T11:36:28.551Z] SYNC AUDIT
+Product ID: 9712
+Product: Farway 360° Ayarlanılabilir 4 Kademeli Alüminyum Telefon Tutucu Tripod Monopod Selfie Çubuğu 210 cm Çantalı
+Success: true
+Changes: 0
+Errors: 0
+Details:
+  - Price Updates: 0
+  - Stock Updates: 0
+  - Variants Added: 0
+  - Variants Removed: 0
+  - Product Archived: false
+---
+
+[2025-12-18T11:36:47.378Z] SYNC AUDIT
+Product ID: 5371
+Product: Monalisa Kadın 100'lü Renkli Saç Lastik Toka Seti
+Success: true
+Changes: 0
+Errors: 0
+Details:
+  - Price Updates: 0
+  - Stock Updates: 0
+  - Variants Added: 0
+  - Variants Removed: 0
+  - Product Archived: false
+---
+
+[2025-12-18T11:37:04.737Z] SYNC AUDIT
+Product ID: 10626
+Product: Katia & Bony İçi Havlu Çocuk Tayt Gri
+Success: true
+Changes: 0
+Errors: 0
+Details:
+  - Price Updates: 0
+  - Stock Updates: 0
+  - Variants Added: 0
+  - Variants Removed: 0
+  - Product Archived: false
+---
+
+[2025-12-18T11:37:19.563Z] SYNC AUDIT
+Product ID: 5845
+Product: Lumberjack HERMOSO 5PR Gri Erkek Çocuk Spor Ayakkabı
+Success: true
+Changes: 0
+Errors: 0
+Details:
+  - Price Updates: 0
+  - Stock Updates: 0
+  - Variants Added: 0
+  - Variants Removed: 0
+  - Product Archived: false
+---
+
+[2025-12-18T11:37:31.724Z] SYNC AUDIT
+Product ID: 5761
+Product: Kinetix POLYMER F 5FX Siyah Erkek Çocuk Spor Ayakkabı
+Success: true
+Changes: 0
+Errors: 0
+Details:
+  - Price Updates: 0
+  - Stock Updates: 0
+  - Variants Added: 0
+  - Variants Removed: 0
+  - Product Archived: false
+---
+
+[2025-12-18T11:37:47.780Z] SYNC AUDIT
+Product ID: 5697
+Product: Mavi Siyah Basic Eşofman Altı 1600903-900
+Success: true
+Changes: 0
+Errors: 0
+Details:
+  - Price Updates: 0
+  - Stock Updates: 0
+  - Variants Added: 0
+  - Variants Removed: 0
+  - Product Archived: false
+---
+
+[2025-12-18T11:38:10.576Z] SYNC AUDIT
+Product ID: 5874
+Product: Polaris PARK.B5PR Lacivert Erkek Çocuk Sneaker
+Success: true
+Changes: 0
+Errors: 0
+Details:
+  - Price Updates: 0
+  - Stock Updates: 0
+  - Variants Added: 0
+  - Variants Removed: 0
+  - Product Archived: false
+---
+
+[2025-12-18T11:38:26.538Z] SYNC AUDIT
+Product ID: 8213
+Product: Spovan Insomnia Uyku Apnesi Şeker Tansiyon Sesli Görüşme Akıllı Saat
+Success: true
+Changes: 0
+Errors: 0
+Details:
+  - Price Updates: 0
+  - Stock Updates: 0
+  - Variants Added: 0
+  - Variants Removed: 0
+  - Product Archived: false
+---
+
+[2025-12-18T11:38:42.452Z] SYNC AUDIT
+Product ID: 525
+Product: Braun IPL Silk·expert Pro 5, Evde Tüy Alma, Çanta, Venus Tıraş Makinesi, 2 Başlık ile, PL5146
+Success: true
+Changes: 0
+Errors: 0
+Details:
+  - Price Updates: 0
+  - Stock Updates: 0
+  - Variants Added: 0
+  - Variants Removed: 0
+  - Product Archived: false
+---
+
+[2025-12-18T11:40:40.175Z] SYNC AUDIT
+Product ID: 151
+Product: L'AJOR Voyage Erkek Yumusaçık Kumaşlı Kapüşonlu Oversize Fit Nakışlı Mavi Sweatshirt
+Success: true
+Changes: 0
+Errors: 0
+Details:
+  - Price Updates: 0
+  - Stock Updates: 0
+  - Variants Added: 0
+  - Variants Removed: 0
+  - Product Archived: false
+---
+
+[2025-12-18T11:40:57.262Z] SYNC AUDIT
+Product ID: 9712
+Product: Farway 360° Ayarlanılabilir 4 Kademeli Alüminyum Telefon Tutucu Tripod Monopod Selfie Çubuğu 210 cm Çantalı
+Success: true
+Changes: 0
+Errors: 0
+Details:
+  - Price Updates: 0
+  - Stock Updates: 0
+  - Variants Added: 0
+  - Variants Removed: 0
+  - Product Archived: false
+---
+
+[2025-12-18T11:41:12.087Z] SYNC AUDIT
+Product ID: 10626
+Product: Katia & Bony İçi Havlu Çocuk Tayt Gri
+Success: true
+Changes: 0
+Errors: 0
+Details:
+  - Price Updates: 0
+  - Stock Updates: 0
+  - Variants Added: 0
+  - Variants Removed: 0
+  - Product Archived: false
+---
+
+[2025-12-18T11:41:28.139Z] SYNC AUDIT
+Product ID: 8865
+Product: Samsung Galaxy A26 5G 256 GB 8 GB Ram Beyaz Cep Telefonu (Samsung Türkiye Garantili)
+Success: true
+Changes: 0
+Errors: 0
+Details:
+  - Price Updates: 0
+  - Stock Updates: 0
+  - Variants Added: 0
+  - Variants Removed: 0
+  - Product Archived: false
+---
+
+[2025-12-18T11:41:49.501Z] SYNC AUDIT
+Product ID: 5697
+Product: Mavi Siyah Basic Eşofman Altı 1600903-900
+Success: true
+Changes: 0
+Errors: 0
+Details:
+  - Price Updates: 0
+  - Stock Updates: 0
+  - Variants Added: 0
+  - Variants Removed: 0
+  - Product Archived: false
+---
+
+[2025-12-18T11:42:04.994Z] SYNC AUDIT
+Product ID: 5845
+Product: Lumberjack HERMOSO 5PR Gri Erkek Çocuk Spor Ayakkabı
+Success: true
+Changes: 0
+Errors: 0
+Details:
+  - Price Updates: 0
+  - Stock Updates: 0
+  - Variants Added: 0
+  - Variants Removed: 0
+  - Product Archived: false
+---
+
+[2025-12-18T11:42:22.649Z] SYNC AUDIT
+Product ID: 5761
+Product: Kinetix POLYMER F 5FX Siyah Erkek Çocuk Spor Ayakkabı
+Success: true
+Changes: 0
+Errors: 0
+Details:
+  - Price Updates: 0
+  - Stock Updates: 0
+  - Variants Added: 0
+  - Variants Removed: 0
+  - Product Archived: false
+---
+
+[2025-12-18T11:42:40.921Z] SYNC AUDIT
+Product ID: 5651
+Product: Mavi Logo Baskılı Antrasit Sweatshirt 1611656-82185
+Success: true
+Changes: 0
+Errors: 0
+Details:
+  - Price Updates: 0
+  - Stock Updates: 0
+  - Variants Added: 0
+  - Variants Removed: 0
+  - Product Archived: false
+---
+
+[2025-12-18T11:42:59.741Z] SYNC AUDIT
+Product ID: 532
+Product: Braun Face 810 Yüz Epilatörü ve Temizleme Fırçası
+Success: true
+Changes: 0
+Errors: 0
+Details:
+  - Price Updates: 0
+  - Stock Updates: 0
+  - Variants Added: 0
+  - Variants Removed: 0
+  - Product Archived: false
+---
+
+[2025-12-18T11:43:16.036Z] SYNC AUDIT
+Product ID: 10581
+Product: Dreame Peluş Stitch Koala Oyuncak Stich Sürpriz Paket Pelüş Stitch su jewelry collective shine avda
+Success: true
+Changes: 0
+Errors: 0
+Details:
+  - Price Updates: 0
+  - Stock Updates: 0
+  - Variants Added: 0
+  - Variants Removed: 0
+  - Product Archived: false
+---
+
+[2025-12-18T11:45:40.334Z] SYNC AUDIT
+Product ID: 6652
+Product: KUMTEL 2in1 Çok Amaçlı Cam Ve Çelik Hazneli Doğrayıcı Hch-21
+Success: true
+Changes: 0
+Errors: 0
+Details:
+  - Price Updates: 0
+  - Stock Updates: 0
+  - Variants Added: 0
+  - Variants Removed: 0
+  - Product Archived: false
+---
+
+[2025-12-18T11:46:08.031Z] SYNC AUDIT
+Product ID: 6676
+Product: Kiwi KC-8217 Mini Gıda Doğrayıcı | 350 ml Kapasiteli & Paslanmaz Çelik Bıçaklı
+Success: true
+Changes: 0
+Errors: 0
+Details:
+  - Price Updates: 0
+  - Stock Updates: 0
+  - Variants Added: 0
+  - Variants Removed: 0
+  - Product Archived: false
+---
+
+[2025-12-18T11:46:27.170Z] SYNC AUDIT
+Product ID: 495
+Product: ESSENSE Halı Yumuşak Pamuk Dokulu Gemici Deniz Fenerli Peluş Çocuk Odası Bebek Halısı
+Success: true
+Changes: 0
+Errors: 0
+Details:
+  - Price Updates: 0
+  - Stock Updates: 0
+  - Variants Added: 0
+  - Variants Removed: 0
+  - Product Archived: false
+---
+
+[2025-12-18T11:46:42.159Z] SYNC AUDIT
+Product ID: 9712
+Product: Farway 360° Ayarlanılabilir 4 Kademeli Alüminyum Telefon Tutucu Tripod Monopod Selfie Çubuğu 210 cm Çantalı
+Success: true
+Changes: 0
+Errors: 0
+Details:
+  - Price Updates: 0
+  - Stock Updates: 0
+  - Variants Added: 0
+  - Variants Removed: 0
+  - Product Archived: false
+---
+
+[2025-12-18T11:46:57.688Z] SYNC AUDIT
+Product ID: 5697
+Product: Mavi Siyah Basic Eşofman Altı 1600903-900
+Success: true
+Changes: 0
+Errors: 0
+Details:
+  - Price Updates: 0
+  - Stock Updates: 0
+  - Variants Added: 0
+  - Variants Removed: 0
+  - Product Archived: false
+---
+
+[2025-12-18T11:47:14.114Z] SYNC AUDIT
+Product ID: 5761
+Product: Kinetix POLYMER F 5FX Siyah Erkek Çocuk Spor Ayakkabı
+Success: true
+Changes: 0
+Errors: 0
+Details:
+  - Price Updates: 0
+  - Stock Updates: 0
+  - Variants Added: 0
+  - Variants Removed: 0
+  - Product Archived: false
+---
+
+[2025-12-18T11:47:29.708Z] SYNC AUDIT
+Product ID: 5845
+Product: Lumberjack HERMOSO 5PR Gri Erkek Çocuk Spor Ayakkabı
+Success: true
+Changes: 0
+Errors: 0
+Details:
+  - Price Updates: 0
+  - Stock Updates: 0
+  - Variants Added: 0
+  - Variants Removed: 0
+  - Product Archived: false
+---
+
+[2025-12-18T11:47:47.188Z] SYNC AUDIT
+Product ID: 9187
+Product: Xiaomi Redmi Note 14 8+256 Siyah(Xiaomi Türkiye Garantili)
+Success: true
+Changes: 0
+Errors: 0
+Details:
+  - Price Updates: 0
+  - Stock Updates: 0
+  - Variants Added: 0
+  - Variants Removed: 0
+  - Product Archived: false
+---
+
+[2025-12-18T11:48:07.581Z] SYNC AUDIT
+Product ID: 6674
+Product: Philips 5000 Serisi Hr2695/01 1200 W Blender Seti
+Success: true
+Changes: 0
+Errors: 0
+Details:
+  - Price Updates: 0
+  - Stock Updates: 0
+  - Variants Added: 0
+  - Variants Removed: 0
+  - Product Archived: false
+---
+
+[2025-12-18T11:48:23.923Z] SYNC AUDIT
+Product ID: 8213
+Product: Spovan Insomnia Uyku Apnesi Şeker Tansiyon Sesli Görüşme Akıllı Saat
+Success: true
+Changes: 0
+Errors: 0
+Details:
+  - Price Updates: 0
+  - Stock Updates: 0
+  - Variants Added: 0
+  - Variants Removed: 0
+  - Product Archived: false
+---
+
+[2025-12-18T11:50:43.161Z] SYNC AUDIT
+Product ID: 6071
+Product: NIVEA Luminous630 Leke Karşıtı Cilt Serumu 30ml, Hyaluronik Asit, Ton Eşitleyici, Thiamidol, Nemlendirici
+Success: true
+Changes: 0
+Errors: 0
+Details:
+  - Price Updates: 0
+  - Stock Updates: 0
+  - Variants Added: 0
+  - Variants Removed: 0
+  - Product Archived: false
+---
+
+[2025-12-18T11:51:02.333Z] SYNC AUDIT
+Product ID: 9712
+Product: Farway 360° Ayarlanılabilir 4 Kademeli Alüminyum Telefon Tutucu Tripod Monopod Selfie Çubuğu 210 cm Çantalı
+Success: true
+Changes: 0
+Errors: 0
+Details:
+  - Price Updates: 0
+  - Stock Updates: 0
+  - Variants Added: 0
+  - Variants Removed: 0
+  - Product Archived: false
+---
+
+[2025-12-18T11:51:18.160Z] SYNC AUDIT
+Product ID: 495
+Product: ESSENSE Halı Yumuşak Pamuk Dokulu Gemici Deniz Fenerli Peluş Çocuk Odası Bebek Halısı
+Success: true
+Changes: 0
+Errors: 0
+Details:
+  - Price Updates: 0
+  - Stock Updates: 0
+  - Variants Added: 0
+  - Variants Removed: 0
+  - Product Archived: false
+---
+
+[2025-12-18T11:51:33.296Z] SYNC AUDIT
+Product ID: 6676
+Product: Kiwi KC-8217 Mini Gıda Doğrayıcı | 350 ml Kapasiteli & Paslanmaz Çelik Bıçaklı
+Success: true
+Changes: 0
+Errors: 0
+Details:
+  - Price Updates: 0
+  - Stock Updates: 0
+  - Variants Added: 0
+  - Variants Removed: 0
+  - Product Archived: false
+---
+
+[2025-12-18T11:51:46.010Z] SYNC AUDIT
+Product ID: 5697
+Product: Mavi Siyah Basic Eşofman Altı 1600903-900
+Success: true
+Changes: 0
+Errors: 0
+Details:
+  - Price Updates: 0
+  - Stock Updates: 0
+  - Variants Added: 0
+  - Variants Removed: 0
+  - Product Archived: false
+---
+
+[2025-12-18T11:52:00.371Z] SYNC AUDIT
+Product ID: 5761
+Product: Kinetix POLYMER F 5FX Siyah Erkek Çocuk Spor Ayakkabı
+Success: true
+Changes: 0
+Errors: 0
+Details:
+  - Price Updates: 0
+  - Stock Updates: 0
+  - Variants Added: 0
+  - Variants Removed: 0
+  - Product Archived: false
+---
+
+[2025-12-18T11:52:19.831Z] SYNC AUDIT
+Product ID: 5060
+Product: Shaka Siyah Shk108 Çıtçıtlı Suni Deri Cüzdanlı Makyaj Çantalı Kadın El Ve Omuz Çantası
+Success: true
+Changes: 0
+Errors: 0
+Details:
+  - Price Updates: 0
+  - Stock Updates: 0
+  - Variants Added: 0
+  - Variants Removed: 0
+  - Product Archived: false
+---
+
+[2025-12-18T11:52:37.009Z] SYNC AUDIT
+Product ID: 525
+Product: Braun IPL Silk·expert Pro 5, Evde Tüy Alma, Çanta, Venus Tıraş Makinesi, 2 Başlık ile, PL5146
+Success: true
+Changes: 0
+Errors: 0
+Details:
+  - Price Updates: 0
+  - Stock Updates: 0
+  - Variants Added: 0
+  - Variants Removed: 0
+  - Product Archived: false
+---
+
+[2025-12-18T11:52:53.352Z] SYNC AUDIT
+Product ID: 8213
+Product: Spovan Insomnia Uyku Apnesi Şeker Tansiyon Sesli Görüşme Akıllı Saat
+Success: true
+Changes: 0
+Errors: 0
+Details:
+  - Price Updates: 0
+  - Stock Updates: 0
+  - Variants Added: 0
+  - Variants Removed: 0
+  - Product Archived: false
+---
+
+[2025-12-18T11:53:15.096Z] SYNC AUDIT
+Product ID: 6674
+Product: Philips 5000 Serisi Hr2695/01 1200 W Blender Seti
+Success: true
+Changes: 0
+Errors: 0
+Details:
+  - Price Updates: 0
+  - Stock Updates: 0
+  - Variants Added: 0
+  - Variants Removed: 0
+  - Product Archived: false
+---

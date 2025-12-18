@@ -1623,9 +1623,10 @@ export async function scenarioBasedScrape(url: string): Promise<ScenarioBasedRes
         console.log(`❌ Enhanced extraction failed: ${err.message}`);
       }
       
-      // Check if we found real colors
-      const realColors = [...new Set(enhancedVariants.map(v => v.color).filter(c => c && c !== 'Varsayılan' && c !== 'Standart' && c !== 'STANDART'))];
-      const realSizes = [...new Set(enhancedVariants.map(v => v.size).filter(s => s && s !== 'STANDART' && s !== 'Tek Beden'))];
+      // Check if we found real colors - reject ALL default placeholder values
+      const defaultValues = ['Varsayılan', 'Standart', 'STANDART', 'Default', 'Tek Beden', 'TEK BEDEN', 'One Size', null, undefined, ''];
+      const realColors = [...new Set(enhancedVariants.map(v => v.color).filter(c => c && !defaultValues.includes(c)))];
+      const realSizes = [...new Set(enhancedVariants.map(v => v.size).filter(s => s && !defaultValues.includes(s)))];
       const hasRealData = realColors.length > 0 || realSizes.length > 0;
       
       console.log(`🎨 Real data check: ${realColors.length} colors, ${realSizes.length} sizes`);
@@ -1664,12 +1665,13 @@ export async function scenarioBasedScrape(url: string): Promise<ScenarioBasedRes
         
         if (jsStateResult && jsStateResult.variants && jsStateResult.variants.length > 0) {
         console.log(`✅ JavaScript State extraction successful: ${jsStateResult.variants.length} variants`);
+        // 🎯 FIX: Default değerler kullanma - gerçek veri yoksa null bırak
         variants = jsStateResult.variants.map((v: any) => ({
-          color: v.color || 'Varsayılan',
-          colorCode: v.colorCode || '#808080',
-          size: v.size || '',
+          color: v.color && !defaultValues.includes(v.color) ? v.color : null,
+          colorCode: v.colorCode || null,
+          size: v.size && !defaultValues.includes(v.size) ? v.size : null,
           inStock: v.inStock !== false
-        }));
+        })).filter((v: any) => v.color || v.size); // En az bir gerçek değer olmalı
         
         // ✅ OVERRIDE SCENARIO: If JS State found variants, update scenario detection
         const uniqueSizes = [...new Set(variants.map(v => v.size).filter(s => s))];
@@ -1697,12 +1699,13 @@ export async function scenarioBasedScrape(url: string): Promise<ScenarioBasedRes
           
           if (hybridResult.success && hybridResult.variants.length > 0) {
             console.log(`✅ Hybrid extraction successful via ${hybridResult.method}: ${hybridResult.variants.length} variants`);
+            // 🎯 FIX: Default değerler kullanma - gerçek veri yoksa null bırak
             variants = hybridResult.variants.map(v => ({
-              color: v.color || 'Varsayılan',
-              colorCode: v.colorCode || '#808080',
-              size: v.size || 'Tek Beden',
+              color: v.color && !defaultValues.includes(v.color) ? v.color : null,
+              colorCode: v.colorCode || null,
+              size: v.size && !defaultValues.includes(v.size) ? v.size : null,
               inStock: v.inStock !== false
-            }));
+            })).filter((v: any) => v.color || v.size);
             
             // Update scenario based on hybrid results
             const uniqueSizes = [...new Set(variants.map(v => v.size).filter(s => s && s !== 'Tek Beden'))];

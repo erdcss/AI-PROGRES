@@ -580,12 +580,18 @@ export class EnhancedVariantExtractor {
         for (const variantData of possiblePaths) {
           if (variantData && Array.isArray(variantData) && variantData.length > 0) {
             variantData.forEach((v: any) => {
-              const sizeValue = v.size || v.value || 'Tek Beden';
+              // 🎯 FIX: Gerçek size değeri yoksa default kullanma
+              const rawSize = v.size || v.value;
+              const sizeValue = rawSize || null;
               
-              // Validate size before adding
-              if (this.isValidSize(sizeValue)) {
+              // 🎯 FIX: Gerçek color değeri yoksa default kullanma
+              const rawColor = v.color || v.attributeValue;
+              const colorValue = rawColor || null;
+              
+              // Validate size before adding - skip if no real data
+              if (sizeValue && this.isValidSize(sizeValue)) {
                 variants.push({
-                  color: v.color || v.attributeValue || 'Standart',
+                  color: colorValue || extractColorFromUrl(data.url || '') || null,
                   colorCode: v.colorCode || v.colorHex,
                   size: this.normalizeSize(sizeValue), // ✅ Use normalized value
                   sku: v.sku || v.barcode,
@@ -615,8 +621,9 @@ export class EnhancedVariantExtractor {
       let uniqueColors = data.domColors.length > 0 ? this.deduplicateColors(data.domColors) : [];
       
       // ✅ FIX: Eğer renk bulunamadıysa, URL'den renk adını çıkarmayı dene
-      if (uniqueColors.length === 0 && data.domSizes.length > 0) {
-        console.log('⚠️ No valid colors found but sizes exist - trying to extract from URL');
+      // 🎯 CRITICAL: "Standart" default değerini ASLA kullanma
+      if (uniqueColors.length === 0) {
+        console.log('⚠️ No valid colors found - trying to extract from URL');
         
         // Try to extract color from URL using the imported function
         const urlColor = extractColorFromUrl(data.url || '');
@@ -624,25 +631,19 @@ export class EnhancedVariantExtractor {
           uniqueColors = [{ name: urlColor, code: null }];
           console.log(`✅ Extracted color from URL: "${urlColor}"`);
         } else {
-          // Last resort fallback
-          uniqueColors = [{ name: 'Standart', code: null }];
-          console.log('⚠️ Could not extract color from URL, using "Standart"');
-        }
-      } else if (uniqueColors.length === 0) {
-        // Try URL extraction even when no sizes using the imported function
-        const urlColor = extractColorFromUrl(data.url || '');
-        if (urlColor) {
-          uniqueColors = [{ name: urlColor, code: null }];
-        } else {
-          uniqueColors = [{ name: 'Standart', code: null }];
+          // 🎯 FIX: "Standart" kullanma - renk null olarak bırak
+          console.log('⚠️ Could not extract color - will use null instead of "Standart"');
+          uniqueColors = [{ name: null as any, code: null }];
         }
       }
       
       console.log(`🎨 Deduplicated colors: ${data.domColors.length} → ${uniqueColors.length}`);
       
       // Filter DOM sizes - only keep valid sizes
+      // 🎯 CRITICAL: "Tek Beden" default değerini ASLA kullanma
       const validSizes = data.domSizes.filter((s: any) => this.isValidSize(s.size));
-      const sizes = validSizes.length > 0 ? validSizes : [{ size: 'Tek Beden', inStock: true }];
+      // Eğer geçerli beden yoksa, null kullan - default oluşturma
+      const sizes = validSizes.length > 0 ? validSizes : [{ size: null, inStock: true }];
 
       console.log(`🔍 Filtered sizes: ${data.domSizes.length} → ${validSizes.length} valid sizes`);
 

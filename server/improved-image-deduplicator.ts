@@ -331,24 +331,27 @@ export function extractEnhancedVariants($: cheerio.CheerioAPI, htmlContent: stri
             );
             
             if (isValidSize) {
-              // ✅ Extract real color from product data instead of defaulting to 'Krem'
-              let colorName = 'Varsayılan'; // Better default than hard-coded color
+              // 🎯 FIX: Default değer kullanma - gerçek renk yoksa null bırak
+              let colorName: string | null = null;
               
-              // Try multiple color sources
-              if (variant.color && variant.color !== 'undefined') {
+              // Try multiple color sources - only use REAL values
+              if (variant.color && variant.color !== 'undefined' && variant.color !== 'Varsayılan' && variant.color !== 'Standart') {
                 colorName = variant.color;
-              } else if (variant.colorName) {
+              } else if (variant.colorName && variant.colorName !== 'Varsayılan' && variant.colorName !== 'Standart') {
                 colorName = variant.colorName;
               }
               
-              // ✅ Better color code mapping
-              let colorCode = '#808080'; // Default gray instead of hard-coded cream
-              if (colorName.toLowerCase().includes('siyah') || colorName.toLowerCase().includes('black')) colorCode = '#000000';
-              else if (colorName.toLowerCase().includes('beyaz') || colorName.toLowerCase().includes('white')) colorCode = '#FFFFFF';
-              else if (colorName.toLowerCase().includes('kırmızı') || colorName.toLowerCase().includes('red')) colorCode = '#FF0000';
-              else if (colorName.toLowerCase().includes('mavi') || colorName.toLowerCase().includes('blue')) colorCode = '#0000FF';
-              else if (colorName.toLowerCase().includes('antrasit')) colorCode = '#2F4F4F';
-              else if (colorName.toLowerCase().includes('gri') || colorName.toLowerCase().includes('gray')) colorCode = '#808080';
+              // ✅ Better color code mapping - only if colorName exists
+              let colorCode: string | null = null;
+              if (colorName) {
+                const lowerColor = colorName.toLowerCase();
+                if (lowerColor.includes('siyah') || lowerColor.includes('black')) colorCode = '#000000';
+                else if (lowerColor.includes('beyaz') || lowerColor.includes('white')) colorCode = '#FFFFFF';
+                else if (lowerColor.includes('kırmızı') || lowerColor.includes('red')) colorCode = '#FF0000';
+                else if (lowerColor.includes('mavi') || lowerColor.includes('blue')) colorCode = '#0000FF';
+                else if (lowerColor.includes('antrasit')) colorCode = '#2F4F4F';
+                else if (lowerColor.includes('gri') || lowerColor.includes('gray')) colorCode = '#808080';
+              }
             
             // Comprehensive stock checking
             let isInStock = true;
@@ -367,14 +370,15 @@ export function extractEnhancedVariants($: cheerio.CheerioAPI, htmlContent: stri
               isInStock = false;
             }
             
+              // 🎯 Only add variant if we have real size data
               variants.push({
-                color: colorName,
-                colorCode: colorCode,
+                color: colorName || '',  // Empty string if null
+                colorCode: colorCode || '',
                 size: sizeName,
                 inStock: isInStock
               });
             
-              console.log(`📦 Enhanced variant: ${colorName} ${sizeName} (stock: ${isInStock})`);
+              console.log(`📦 Enhanced variant: ${colorName || '(no color)'} ${sizeName} (stock: ${isInStock})`);
             }
           }
         });
@@ -419,8 +423,8 @@ export function extractEnhancedVariants($: cheerio.CheerioAPI, htmlContent: stri
               );
               
               if (isValidSize) {
-                // ✅ Extract real color from product or use better default
-                const defaultColor = 'Varsayılan'; // Better than hard-coded 'Black'
+                // 🎯 FIX: Default değer kullanma - gerçek renk yoksa boş string kullan
+                const defaultColor = ''; // No default color - leave empty if not found
                 if (!colorMap[defaultColor]) colorMap[defaultColor] = [];
                 if (!colorMap[defaultColor].includes(sizeName)) {
                   colorMap[defaultColor].push(sizeName);
