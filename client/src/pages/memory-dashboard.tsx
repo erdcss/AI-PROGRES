@@ -502,59 +502,73 @@ export default function MemoryDashboard() {
         {/* 🎯 PRODUCT PREVIEW MODAL */}
         {selectedProduct && (
           <div 
-            className="fixed inset-0 bg-black/50 backdrop-blur-sm z-50 flex items-center justify-center p-4 overflow-y-auto"
+            className="fixed inset-0 bg-black/60 backdrop-blur-sm z-50 flex items-center justify-center p-4"
             onClick={() => setSelectedProduct(null)}
             data-testid="product-preview-modal"
           >
             <motion.div
               initial={{ opacity: 0, scale: 0.9 }}
               animate={{ opacity: 1, scale: 1 }}
+              transition={{ duration: 0.2 }}
               onClick={(e) => e.stopPropagation()}
-              className="bg-slate-900 rounded-lg max-w-2xl w-full my-8"
+              className="bg-slate-900 rounded-lg max-w-2xl w-full max-h-[90vh] overflow-y-auto relative"
             >
-              <div className="flex items-center justify-between p-6 border-b border-slate-700">
-                <h2 className="text-xl font-bold text-white truncate pr-4">{selectedProduct.title}</h2>
-                <button
-                  onClick={() => setSelectedProduct(null)}
-                  className="p-1 hover:bg-slate-800 rounded-lg transition-colors"
-                  data-testid="close-preview-modal"
-                >
-                  <X className="h-6 w-6 text-slate-400" />
-                </button>
-              </div>
-              
-              <div className="p-6 max-h-96 overflow-y-auto space-y-4">
-                <div className="grid grid-cols-2 gap-4 text-sm">
+              {/* Close Button */}
+              <button
+                onClick={() => setSelectedProduct(null)}
+                className="sticky top-0 right-0 p-3 hover:bg-slate-800 rounded-lg transition-colors float-right z-10"
+                data-testid="close-preview-modal"
+              >
+                <X className="h-5 w-5 text-slate-400" />
+              </button>
+
+              {/* Modal Content */}
+              <div className="p-6 space-y-4">
+                {/* Header */}
+                <div>
+                  <h2 className="text-2xl font-bold text-white mb-2">{selectedProduct.title}</h2>
+                  <p className="text-slate-400">{selectedProduct.brand}</p>
+                </div>
+
+                {/* Product Info Grid */}
+                <div className="grid grid-cols-2 gap-4 text-sm bg-slate-800/30 p-4 rounded-lg">
                   <div>
-                    <span className="text-slate-400">Marka:</span>
-                    <p className="text-white font-medium">{selectedProduct.brand}</p>
+                    <span className="text-slate-400 block text-xs mb-1">Kategori:</span>
+                    <p className="text-white">{selectedProduct.category || 'Genel'}</p>
                   </div>
                   <div>
-                    <span className="text-slate-400">Kategori:</span>
-                    <p className="text-white font-medium">{selectedProduct.category || 'Genel'}</p>
-                  </div>
-                  <div>
-                    <span className="text-slate-400">Shopify ID:</span>
-                    <p className="text-white font-medium">{selectedProduct.shopifyProductId || 'Bekliyor'}</p>
-                  </div>
-                  <div>
-                    <span className="text-slate-400">Durum:</span>
-                    <p className={`font-medium ${selectedProduct.isActive ? 'text-green-400' : 'text-red-400'}`}>
+                    <span className="text-slate-400 block text-xs mb-1">Durum:</span>
+                    <p className={selectedProduct.isActive ? 'text-green-400' : 'text-red-400'}>
                       {selectedProduct.isActive ? 'Aktif' : 'Pasif'}
+                    </p>
+                  </div>
+                  <div>
+                    <span className="text-slate-400 block text-xs mb-1">Shopify ID:</span>
+                    <p className="text-white text-xs">{selectedProduct.shopifyProductId || 'Bekliyor'}</p>
+                  </div>
+                  <div>
+                    <span className="text-slate-400 block text-xs mb-1">Son Güncelleme:</span>
+                    <p className="text-white text-xs">
+                      {new Date(selectedProduct.updatedAt).toLocaleDateString('tr-TR')}
                     </p>
                   </div>
                 </div>
 
-                <AIEnhancedProductPreview 
-                  productData={{
-                    title: selectedProduct.title,
-                    brand: selectedProduct.brand,
-                    price: selectedProduct.price || 0,
-                    images: selectedProduct.images || [],
-                    features: selectedProduct.features || []
-                  }}
-                  sourceUrl={selectedProduct.trendyolUrl}
-                />
+                {/* AI Enhancement Component - Safe Render */}
+                {selectedProduct.title && (
+                  <div className="border-t border-slate-700 pt-4">
+                    <AIEnhancedProductPreview 
+                      productData={{
+                        title: selectedProduct.title || 'Ürün',
+                        brand: selectedProduct.brand || 'Marka Bilinmiyor',
+                        price: selectedProduct.price || 0,
+                        images: Array.isArray(selectedProduct.images) ? selectedProduct.images : [],
+                        features: Array.isArray(selectedProduct.features) ? selectedProduct.features : []
+                      }}
+                      sourceUrl={selectedProduct.trendyolUrl || ''}
+                    />
+                  </div>
+                )}
               </div>
             </motion.div>
           </div>
