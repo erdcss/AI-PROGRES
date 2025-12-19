@@ -28,7 +28,10 @@ import {
   Search,
   ArrowUpDown,
   Bell,
-  Radar
+  Radar,
+  Edit,
+  Check,
+  X
 } from 'lucide-react';
 import { queryClient, apiRequest } from '@/lib/queryClient';
 import { useToast } from '@/hooks/use-toast';
@@ -156,6 +159,8 @@ export default function ProductTrackingPage() {
   const [searchQuery, setSearchQuery] = useState('');
   const [sortBy, setSortBy] = useState<'title' | 'price' | 'date'>('date');
   const [sortOrder, setSortOrder] = useState<'asc' | 'desc'>('desc');
+  const [editingPriceId, setEditingPriceId] = useState<number | null>(null);
+  const [newPriceValue, setNewPriceValue] = useState('');
   const { toast } = useToast();
 
   const { data: trackingData, isLoading: trackingLoading, refetch: refetchTracking } = useQuery({
@@ -214,6 +219,51 @@ export default function ProductTrackingPage() {
       });
     }
   });
+
+  const updatePriceMutation = useMutation({
+    mutationFn: async ({ shopifyProductId, newPrice }: { shopifyProductId: string, newPrice: string }) => {
+      return await apiRequest('POST', '/api/shopify/update-price', { shopifyProductId, newPrice });
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ['/api/tracking'] });
+      setEditingPriceId(null);
+      setNewPriceValue('');
+      toast({
+        title: 'Başarılı',
+        description: 'Fiyat güncellendi'
+      });
+    },
+    onError: (error: any) => {
+      toast({
+        title: 'Hata',
+        description: error?.message || 'Fiyat güncellenirken bir hata oluştu',
+        variant: 'destructive'
+      });
+    }
+  });
+
+  const handlePriceUpdate = (product: TrackedProduct) => {
+    if (!product.shopifyProductId) {
+      toast({
+        title: 'Hata',
+        description: 'Bu ürün Shopify\'a aktarılmamış',
+        variant: 'destructive'
+      });
+      return;
+    }
+    if (!newPriceValue || parseFloat(newPriceValue) <= 0) {
+      toast({
+        title: 'Hata',
+        description: 'Geçerli bir fiyat giriniz',
+        variant: 'destructive'
+      });
+      return;
+    }
+    updatePriceMutation.mutate({ 
+      shopifyProductId: product.shopifyProductId, 
+      newPrice: newPriceValue 
+    });
+  };
 
   const bulkTrackMutation = useMutation({
     mutationFn: async () => {
@@ -540,15 +590,67 @@ export default function ProductTrackingPage() {
                             </div>
                           </div>
                         </TableCell>
-                        <TableCell>
-                          <div>
-                            <div className="font-semibold">{formatPrice(product.currentPrice)}</div>
-                            {product.priceChangeCount > 0 && (
-                              <div className="text-xs text-muted-foreground mt-1">
-                                {product.priceChangeCount} değişim (30g)
+                        <TableCell onClick={(e) => e.stopPropagation()}>
+                          {editingPriceId === product.id ? (
+                            <div className="flex items-center gap-2">
+                              <Input
+                                type="number"
+                                step="0.01"
+                                value={newPriceValue}
+                                onChange={(e) => setNewPriceValue(e.target.value)}
+                                className="w-24 h-8 text-sm"
+                                placeholder="Yeni fiyat"
+                                data-testid={`input-price-${product.id}`}
+                              />
+                              <Button
+                                size="sm"
+                                variant="ghost"
+                                className="h-8 w-8 p-0"
+                                onClick={() => handlePriceUpdate(product)}
+                                disabled={updatePriceMutation.isPending}
+                                data-testid={`button-save-price-${product.id}`}
+                              >
+                                <Check className="h-4 w-4 text-green-600" />
+                              </Button>
+                              <Button
+                                size="sm"
+                                variant="ghost"
+                                className="h-8 w-8 p-0"
+                                onClick={() => {
+                                  setEditingPriceId(null);
+                                  setNewPriceValue('');
+                                }}
+                                data-testid={`button-cancel-price-${product.id}`}
+                              >
+                                <X className="h-4 w-4 text-red-600" />
+                              </Button>
+                            </div>
+                          ) : (
+                            <div className="flex items-center gap-2">
+                              <div>
+                                <div className="font-semibold">{formatPrice(product.currentPrice)}</div>
+                                {product.priceChangeCount > 0 && (
+                                  <div className="text-xs text-muted-foreground mt-1">
+                                    {product.priceChangeCount} değişim (30g)
+                                  </div>
+                                )}
                               </div>
-                            )}
-                          </div>
+                              {product.shopifyProductId && (
+                                <Button
+                                  size="sm"
+                                  variant="ghost"
+                                  className="h-6 w-6 p-0"
+                                  onClick={() => {
+                                    setEditingPriceId(product.id);
+                                    setNewPriceValue(product.currentPrice);
+                                  }}
+                                  data-testid={`button-edit-price-${product.id}`}
+                                >
+                                  <Edit className="h-3 w-3 text-muted-foreground" />
+                                </Button>
+                              )}
+                            </div>
+                          )}
                         </TableCell>
                         <TableCell>
                           <div className="text-sm">
