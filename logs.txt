@@ -103066,3 +103066,689 @@ Details:
   - Variants Removed: 0
   - Product Archived: false
 ---
+
+[2025-12-18T16:21:46.551Z] SYNC AUDIT
+Product ID: 5761
+Product: Kinetix POLYMER F 5FX Siyah Erkek Çocuk Spor Ayakkabı
+Success: true
+Changes: 0
+Errors: 0
+Details:
+  - Price Updates: 0
+  - Stock Updates: 0
+  - Variants Added: 0
+  - Variants Removed: 0
+  - Product Archived: false
+---
+
+[2025-12-18T16:22:22.744Z] SYNC AUDIT
+Product ID: 538
+Product: Braun Silk-épil 1 1-000 Epilatör
+Success: true
+Changes: 0
+Errors: 0
+Details:
+  - Price Updates: 0
+  - Stock Updates: 0
+  - Variants Added: 0
+  - Variants Removed: 0
+  - Product Archived: false
+---
+
+[2025-12-18T16:22:27.265Z] SYNC AUDIT
+Product ID: 538
+Product: Braun Silk-épil 1 1-000 Epilatör
+Success: true
+Changes: 0
+Errors: 0
+Details:
+  - Price Updates: 0
+  - Stock Updates: 0
+  - Variants Added: 0
+  - Variants Removed: 0
+  - Product Archived: false
+---
+
+[2025-12-18T16:22:33.734Z] SYNC AUDIT
+Product ID: 5663
+Product: trendyol.com
+Success: true
+Changes: 0
+Errors: 0
+Details:
+  - Price Updates: 0
+  - Stock Updates: 0
+  - Variants Added: 0
+  - Variants Removed: 0
+  - Product Archived: false
+---
+
+[2025-12-18T16:22:58.022Z] SYNC AUDIT
+Product ID: 5692
+Product: trendyol.com
+Success: true
+Changes: 0
+Errors: 0
+Details:
+  - Price Updates: 0
+  - Stock Updates: 0
+  - Variants Added: 0
+  - Variants Removed: 0
+  - Product Archived: false
+---
+
+[2025-12-18T16:23:15.348Z] SYNC AUDIT
+Product ID: 5692
+Product: trendyol.com
+Success: true
+Changes: 0
+Errors: 0
+Details:
+  - Price Updates: 0
+  - Stock Updates: 0
+  - Variants Added: 0
+  - Variants Removed: 0
+  - Product Archived: false
+---
+
+[2025-12-18T16:23:37.104Z] SYNC AUDIT
+Product ID: 500
+Product: trendyol.com
+Success: true
+Changes: 0
+Errors: 0
+Details:
+  - Price Updates: 0
+  - Stock Updates: 0
+  - Variants Added: 0
+  - Variants Removed: 0
+  - Product Archived: false
+---
+
+[2025-12-18T16:23:53.814Z] SYNC AUDIT
+Product ID: 500
+Product: trendyol.com
+Success: true
+Changes: 0
+Errors: 0
+Details:
+  - Price Updates: 0
+  - Stock Updates: 0
+  - Variants Added: 0
+  - Variants Removed: 0
+  - Product Archived: false
+---
+
+[2025-12-18T16:24:29.344Z] SYNC AUDIT
+Product ID: 5697
+Product: trendyol.com
+Success: true
+Changes: 0
+Errors: 0
+Details:
+  - Price Updates: 0
+  - Stock Updates: 0
+  - Variants Added: 0
+  - Variants Removed: 0
+  - Product Archived: false
+---
+
+[2025-12-18T16:24:31.897Z] SYNC AUDIT
+Product ID: 11620
+Product: Omo Express Leke Çıkarıcı Beyazlar 1000 ml x1
+Success: true
+Changes: 0
+Errors: 0
+Details:
+  - Price Updates: 0
+  - Stock Updates: 0
+  - Variants Added: 0
+  - Variants Removed: 0
+  - Product Archived: false
+---
+
+[2025-12-18T16:25:00.744Z] SYNC AUDIT
+Product ID: 5697
+Product: trendyol.com
+Success: true
+Changes: 0
+Errors: 0
+Details:
+  - Price Updates: 0
+  - Stock Updates: 0
+  - Variants Added: 0
+  - Variants Removed: 0
+  - Product Archived: false
+---
+
+[2025-12-18T16:25:06.122Z] SYNC AUDIT
+Product ID: 603
+Product: trendyol.com
+Success: true
+Changes: 0
+Errors: 0
+Details:
+  - Price Updates: 0
+  - Stock Updates: 0
+  - Variants Added: 0
+  - Variants Removed: 0
+  - Product Archived: false
+---
+
+[2025-12-18T16:25:24.533Z] SYNC AUDIT
+Product ID: 5060
+Product: Shaka Siyah Shk108 Çıtçıtlı Suni Deri Cüzdanlı Makyaj Çantalı Kadın El Ve Omuz Çantası
+Success: true
+Changes: 0
+Errors: 0
+Details:
+  - Price Updates: 0
+  - Stock Updates: 0
+  - Variants Added: 0
+  - Variants Removed: 0
+  - Product Archived: false
+---
+
+[2025-12-18T16:25:56.920Z] SYNC AUDIT
+Product ID: 538
+Product: Braun Silk-épil 1 1-000 Epilatör
+Success: true
+Changes: 0
+Errors: 0
+Details:
+  - Price Updates: 0
+  - Stock Updates: 0
+  - Variants Added: 0
+  - Variants Removed: 0
+  - Product Archived: false
+---
+
+[2025-12-18T16:26:16.661Z] SYNC AUDIT
+Product ID: 603
+Product: trendyol.com
+Success: true
+Changes: 0
+Errors: 0
+Details:
+  - Price Updates: 0
+  - Stock Updates: 0
+  - Variants Added: 0
+  - Variants Removed: 0
+  - Product Archived: false
+---
+
+[2025-12-18T16:26:20.763Z] SYNC AUDIT
+Product ID: 5692
+Product: trendyol.com
+Success: true
+Changes: 0
+Errors: 0
+Details:
+  - Price Updates: 0
+  - Stock Updates: 0
+  - Variants Added: 0
+  - Variants Removed: 0
+  - Product Archived: false
+---
+
+[2025-12-18T16:26:32.579Z] SYNC AUDIT
+Product ID: 5060
+Product: Shaka Siyah Shk108 Çıtçıtlı Suni Deri Cüzdanlı Makyaj Çantalı Kadın El Ve Omuz Çantası
+Success: true
+Changes: 0
+Errors: 0
+Details:
+  - Price Updates: 0
+  - Stock Updates: 0
+  - Variants Added: 0
+  - Variants Removed: 0
+  - Product Archived: false
+---
+
+[2025-12-18T16:26:55.563Z] SYNC AUDIT
+Product ID: 11620
+Product: Omo Express Leke Çıkarıcı Beyazlar 1000 ml x1
+Success: true
+Changes: 0
+Errors: 0
+Details:
+  - Price Updates: 0
+  - Stock Updates: 0
+  - Variants Added: 0
+  - Variants Removed: 0
+  - Product Archived: false
+---
+
+[2025-12-18T16:26:56.059Z] SYNC AUDIT
+Product ID: 8902
+Product: Apple iPhone 17 Pro 256GB Kozmik Turuncu
+Success: true
+Changes: 0
+Errors: 1
+Details:
+  - Price Updates: 0
+  - Stock Updates: 0
+  - Variants Added: 0
+  - Variants Removed: 0
+  - Product Archived: false
+---
+
+[2025-12-18T16:27:27.269Z] SYNC AUDIT
+Product ID: 5697
+Product: trendyol.com
+Success: true
+Changes: 0
+Errors: 0
+Details:
+  - Price Updates: 0
+  - Stock Updates: 0
+  - Variants Added: 0
+  - Variants Removed: 0
+  - Product Archived: false
+---
+
+[2025-12-18T16:27:41.659Z] SYNC AUDIT
+Product ID: 500
+Product: trendyol.com
+Success: true
+Changes: 0
+Errors: 0
+Details:
+  - Price Updates: 0
+  - Stock Updates: 0
+  - Variants Added: 0
+  - Variants Removed: 0
+  - Product Archived: false
+---
+
+[2025-12-18T16:27:44.215Z] SYNC AUDIT
+Product ID: 5663
+Product: trendyol.com
+Success: true
+Changes: 0
+Errors: 0
+Details:
+  - Price Updates: 0
+  - Stock Updates: 0
+  - Variants Added: 0
+  - Variants Removed: 0
+  - Product Archived: false
+---
+
+[2025-12-18T16:27:59.223Z] SYNC AUDIT
+Product ID: 5663
+Product: trendyol.com
+Success: true
+Changes: 1
+Errors: 0
+Details:
+  - Price Updates: 0
+  - Stock Updates: 0
+  - Variants Added: 1
+  - Variants Removed: 0
+  - Product Archived: false
+---
+
+[2025-12-18T16:28:08.015Z] SYNC AUDIT
+Product ID: 603
+Product: trendyol.com
+Success: true
+Changes: 0
+Errors: 0
+Details:
+  - Price Updates: 0
+  - Stock Updates: 0
+  - Variants Added: 0
+  - Variants Removed: 0
+  - Product Archived: false
+---
+
+[2025-12-18T16:28:25.024Z] SYNC AUDIT
+Product ID: 5060
+Product: Shaka Siyah Shk108 Çıtçıtlı Suni Deri Cüzdanlı Makyaj Çantalı Kadın El Ve Omuz Çantası
+Success: true
+Changes: 1
+Errors: 0
+Details:
+  - Price Updates: 0
+  - Stock Updates: 0
+  - Variants Added: 0
+  - Variants Removed: 0
+  - Product Archived: false
+---
+
+[2025-12-18T16:28:30.355Z] SYNC AUDIT
+Product ID: 5697
+Product: trendyol.com
+Success: true
+Changes: 0
+Errors: 0
+Details:
+  - Price Updates: 0
+  - Stock Updates: 0
+  - Variants Added: 0
+  - Variants Removed: 0
+  - Product Archived: false
+---
+
+[2025-12-18T16:28:35.459Z] SYNC AUDIT
+Product ID: 5060
+Product: Shaka Siyah Shk108 Çıtçıtlı Suni Deri Cüzdanlı Makyaj Çantalı Kadın El Ve Omuz Çantası
+Success: true
+Changes: 0
+Errors: 0
+Details:
+  - Price Updates: 0
+  - Stock Updates: 0
+  - Variants Added: 0
+  - Variants Removed: 0
+  - Product Archived: false
+---
+
+[2025-12-18T16:28:58.332Z] SYNC AUDIT
+Product ID: 640
+Product: trendyol.com
+Success: true
+Changes: 0
+Errors: 1
+Details:
+  - Price Updates: 0
+  - Stock Updates: 0
+  - Variants Added: 0
+  - Variants Removed: 0
+  - Product Archived: false
+---
+
+[2025-12-18T16:28:58.709Z] SYNC AUDIT
+Product ID: 7589
+Product: Ttec Kidi Lite GPS 4G Sim Kartlı Akıllı Çocuk Saati Sihirli Lila 2KSW01
+Success: true
+Changes: 0
+Errors: 0
+Details:
+  - Price Updates: 0
+  - Stock Updates: 0
+  - Variants Added: 0
+  - Variants Removed: 0
+  - Product Archived: false
+---
+
+[2025-12-18T16:29:34.519Z] SYNC AUDIT
+Product ID: 603
+Product: trendyol.com
+Success: true
+Changes: 0
+Errors: 0
+Details:
+  - Price Updates: 0
+  - Stock Updates: 0
+  - Variants Added: 0
+  - Variants Removed: 0
+  - Product Archived: false
+---
+
+[2025-12-18T16:30:06.659Z] SYNC AUDIT
+Product ID: 5060
+Product: Shaka Siyah Shk108 Çıtçıtlı Suni Deri Cüzdanlı Makyaj Çantalı Kadın El Ve Omuz Çantası
+Success: true
+Changes: 1
+Errors: 0
+Details:
+  - Price Updates: 0
+  - Stock Updates: 0
+  - Variants Added: 0
+  - Variants Removed: 0
+  - Product Archived: false
+---
+
+[2025-12-18T16:30:10.256Z] SYNC AUDIT
+Product ID: 5060
+Product: Shaka Siyah Shk108 Çıtçıtlı Suni Deri Cüzdanlı Makyaj Çantalı Kadın El Ve Omuz Çantası
+Success: true
+Changes: 0
+Errors: 0
+Details:
+  - Price Updates: 0
+  - Stock Updates: 0
+  - Variants Added: 0
+  - Variants Removed: 0
+  - Product Archived: false
+---
+
+[2025-12-18T16:31:14.597Z] SYNC AUDIT
+Product ID: 5377
+Product: LUPİX Kadın Erkek Unisex Mavi Işık Korumalı Uv 400 Leopar Desenli Siyah 2'Li Avantajlı SET
+Success: true
+Changes: 0
+Errors: 0
+Details:
+  - Price Updates: 0
+  - Stock Updates: 0
+  - Variants Added: 0
+  - Variants Removed: 0
+  - Product Archived: false
+---
+
+[2025-12-18T16:31:45.558Z] SYNC AUDIT
+Product ID: 8902
+Product: Apple iPhone 17 Pro 256GB Kozmik Turuncu
+Success: true
+Changes: 0
+Errors: 3
+Details:
+  - Price Updates: 0
+  - Stock Updates: 0
+  - Variants Added: 0
+  - Variants Removed: 0
+  - Product Archived: false
+---
+
+[2025-12-18T16:32:13.397Z] SYNC AUDIT
+Product ID: 640
+Product: trendyol.com
+Success: true
+Changes: 0
+Errors: 0
+Details:
+  - Price Updates: 0
+  - Stock Updates: 0
+  - Variants Added: 0
+  - Variants Removed: 0
+  - Product Archived: false
+---
+
+[2025-12-18T16:32:47.658Z] SYNC AUDIT
+Product ID: 538
+Product: Braun Silk-épil 1 1-000 Epilatör
+Success: true
+Changes: 0
+Errors: 0
+Details:
+  - Price Updates: 0
+  - Stock Updates: 0
+  - Variants Added: 0
+  - Variants Removed: 0
+  - Product Archived: false
+---
+
+[2025-12-18T16:34:08.345Z] SYNC AUDIT
+Product ID: 5852
+Product: Lumberjack LIPONIS WMN 6FX Siyah Kadın Comfort Ayakkabı
+Success: true
+Changes: 1
+Errors: 0
+Details:
+  - Price Updates: 0
+  - Stock Updates: 0
+  - Variants Added: 0
+  - Variants Removed: 0
+  - Product Archived: false
+---
+
+[2025-12-18T16:34:23.632Z] SYNC AUDIT
+Product ID: 5852
+Product: Lumberjack LIPONIS WMN 6FX Siyah Kadın Comfort Ayakkabı
+Success: true
+Changes: 1
+Errors: 0
+Details:
+  - Price Updates: 0
+  - Stock Updates: 0
+  - Variants Added: 1
+  - Variants Removed: 0
+  - Product Archived: false
+---
+
+[2025-12-18T16:35:01.182Z] SYNC AUDIT
+Product ID: 640
+Product: trendyol.com
+Success: true
+Changes: 0
+Errors: 0
+Details:
+  - Price Updates: 0
+  - Stock Updates: 0
+  - Variants Added: 0
+  - Variants Removed: 0
+  - Product Archived: false
+---
+
+[2025-12-18T16:36:25.084Z] SYNC AUDIT
+Product ID: 5692
+Product: trendyol.com
+Success: true
+Changes: 0
+Errors: 0
+Details:
+  - Price Updates: 0
+  - Stock Updates: 0
+  - Variants Added: 0
+  - Variants Removed: 0
+  - Product Archived: false
+---
+
+[2025-12-18T16:36:37.071Z] SYNC AUDIT
+Product ID: 538
+Product: Braun Silk-épil 1 1-000 Epilatör
+Success: true
+Changes: 0
+Errors: 0
+Details:
+  - Price Updates: 0
+  - Stock Updates: 0
+  - Variants Added: 0
+  - Variants Removed: 0
+  - Product Archived: false
+---
+
+[2025-12-18T16:37:18.928Z] SYNC AUDIT
+Product ID: 5377
+Product: LUPİX Kadın Erkek Unisex Mavi Işık Korumalı Uv 400 Leopar Desenli Siyah 2'Li Avantajlı SET
+Success: true
+Changes: 0
+Errors: 0
+Details:
+  - Price Updates: 0
+  - Stock Updates: 0
+  - Variants Added: 0
+  - Variants Removed: 0
+  - Product Archived: false
+---
+
+[2025-12-18T16:37:43.020Z] SYNC AUDIT
+Product ID: 5663
+Product: trendyol.com
+Success: true
+Changes: 0
+Errors: 0
+Details:
+  - Price Updates: 0
+  - Stock Updates: 0
+  - Variants Added: 0
+  - Variants Removed: 0
+  - Product Archived: false
+---
+
+[2025-12-18T16:37:53.913Z] SYNC AUDIT
+Product ID: 500
+Product: trendyol.com
+Success: true
+Changes: 1
+Errors: 0
+Details:
+  - Price Updates: 0
+  - Stock Updates: 0
+  - Variants Added: 0
+  - Variants Removed: 0
+  - Product Archived: false
+---
+
+[2025-12-18T16:38:04.244Z] SYNC AUDIT
+Product ID: 500
+Product: trendyol.com
+Success: true
+Changes: 0
+Errors: 0
+Details:
+  - Price Updates: 0
+  - Stock Updates: 0
+  - Variants Added: 0
+  - Variants Removed: 0
+  - Product Archived: false
+---
+
+[2025-12-18T16:38:15.637Z] SYNC AUDIT
+Product ID: 5692
+Product: trendyol.com
+Success: true
+Changes: 0
+Errors: 0
+Details:
+  - Price Updates: 0
+  - Stock Updates: 0
+  - Variants Added: 0
+  - Variants Removed: 0
+  - Product Archived: false
+---
+
+[2025-12-18T16:39:30.315Z] SYNC AUDIT
+Product ID: 500
+Product: trendyol.com
+Success: true
+Changes: 1
+Errors: 0
+Details:
+  - Price Updates: 0
+  - Stock Updates: 0
+  - Variants Added: 0
+  - Variants Removed: 0
+  - Product Archived: false
+---
+
+[2025-12-18T16:39:34.227Z] SYNC AUDIT
+Product ID: 500
+Product: trendyol.com
+Success: true
+Changes: 0
+Errors: 0
+Details:
+  - Price Updates: 0
+  - Stock Updates: 0
+  - Variants Added: 0
+  - Variants Removed: 0
+  - Product Archived: false
+---
+
+[2025-12-18T16:39:59.092Z] SYNC AUDIT
+Product ID: 5874
+Product: Polaris PARK.B5PR Lacivert Erkek Çocuk Sneaker
+Success: true
+Changes: 0
+Errors: 0
+Details:
+  - Price Updates: 0
+  - Stock Updates: 0
+  - Variants Added: 0
+  - Variants Removed: 0
+  - Product Archived: false
+---
