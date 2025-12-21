@@ -113272,3 +113272,409 @@ Details:
   - Variants Removed: 0
   - Product Archived: false
 ---
+
+[2025-12-21T13:42:59.260Z] SYNC AUDIT
+Product ID: 6015
+Product: Ürün Bilgisi Alınamadı
+Success: true
+Changes: 0
+Errors: 0
+Details:
+  - Price Updates: 0
+  - Stock Updates: 0
+  - Variants Added: 0
+  - Variants Removed: 0
+  - Product Archived: false
+---
+
+[2025-12-21T13:43:29.568Z] SYNC AUDIT
+Product ID: 5402
+Product: Stanley Quencher Pipetli Termos 1,18 L Krem
+Success: true
+Changes: 1
+Errors: 0
+Details:
+  - Price Updates: 0
+  - Stock Updates: 0
+  - Variants Added: 0
+  - Variants Removed: 0
+  - Product Archived: false
+---
+
+[2025-12-21T13:43:37.796Z] SYNC AUDIT
+Product ID: 5402
+Product: Stanley Quencher Pipetli Termos 1,18 L Krem
+Success: true
+Changes: 0
+Errors: 0
+Details:
+  - Price Updates: 0
+  - Stock Updates: 0
+  - Variants Added: 0
+  - Variants Removed: 0
+  - Product Archived: false
+---
+
+[2025-12-21T13:44:07.942Z] SYNC AUDIT
+Product ID: 5094
+Product: Mira İpek Desenli Pamuk Soft Şal İlham Serisi ps33
+Success: true
+Changes: 0
+Errors: 0
+Details:
+  - Price Updates: 0
+  - Stock Updates: 0
+  - Variants Added: 0
+  - Variants Removed: 0
+  - Product Archived: false
+---
+
+[2025-12-21T13:44:34.402Z] SYNC AUDIT
+Product ID: 593
+Product: Lancome Hypnose Drama Anında Dolgunluk ve Hacim Etkili Maskara 01
+Success: true
+Changes: 0
+Errors: 0
+Details:
+  - Price Updates: 0
+  - Stock Updates: 0
+  - Variants Added: 0
+  - Variants Removed: 0
+  - Product Archived: false
+---
+
+[2025-12-21T13:44:56.791Z] SYNC AUDIT
+Product ID: 9324
+Product: trendyol.com
+Success: true
+Changes: 0
+Errors: 0
+Details:
+  - Price Updates: 0
+  - Stock Updates: 0
+  - Variants Added: 0
+  - Variants Removed: 0
+  - Product Archived: false
+---
+
+[2025-12-21T13:45:16.628Z] SYNC AUDIT
+Product ID: 10626
+Product: Katia & Bony İçi Havlu Çocuk Tayt Gri
+Success: true
+Changes: 0
+Errors: 0
+Details:
+  - Price Updates: 0
+  - Stock Updates: 0
+  - Variants Added: 0
+  - Variants Removed: 0
+  - Product Archived: false
+---
+
+[2025-12-21T13:45:46.713Z] SYNC AUDIT
+Product ID: 5692
+Product: Mavi Logo Baskılı Mor Sweatshirt 1S10419-70679
+Success: true
+Changes: 0
+Errors: 0
+Details:
+  - Price Updates: 0
+  - Stock Updates: 0
+  - Variants Added: 0
+  - Variants Removed: 0
+  - Product Archived: false
+---
+
+[2025-12-21T13:46:02.697Z] SYNC AUDIT
+Product ID: 10822
+Product: Minilee [İSTEDİĞİNİZ İSMİ NAKIŞLA YAZIYORUZ] - Teddy-Peluş Bej 0-8 Yaş - Kreş, Anaokulu Çocuk Sırt Çantası
+Success: true
+Changes: 0
+Errors: 0
+Details:
+  - Price Updates: 0
+  - Stock Updates: 0
+  - Variants Added: 0
+  - Variants Removed: 0
+  - Product Archived: false
+---
+
+[2025-12-21T13:46:15.392Z] SYNC AUDIT
+Product ID: 5371
+Product: Monalisa Kadın 100'lü Renkli Saç Lastik Toka Seti
+Success: true
+Changes: 1
+Errors: 0
+Details:
+  - Price Updates: 0
+  - Stock Updates: 0
+  - Variants Added: 0
+  - Variants Removed: 0
+  - Product Archived: false
+---
+
+[2025-12-21T13:46:21.234Z] SYNC AUDIT
+Product ID: 5371
+Product: Monalisa Kadın 100'lü Renkli Saç Lastik Toka Seti
+Success: true
+Changes: 0
+Errors: 0
+Details:
+  - Price Updates: 0
+  - Stock Updates: 0
+  - Variants Added: 0
+  - Variants Removed: 0
+  - Product Archived: false
+---
+
+[2025-12-21T13:46:40.997Z] SYNC AUDIT
+Product ID: 16941
+Product: GLANZEND Yılbaşı Temalı 3D Silikon Anahtarlık
+Success: true
+Changes: 0
+Errors: 0
+Details:
+  - Price Updates: 0
+  - Stock Updates: 0
+  - Variants Added: 0
+  - Variants Removed: 0
+  - Product Archived: false
+---
+
+[2025-12-21T13:48:03.535Z] SYNC AUDIT
+Product ID: 6015
+Product: Ürün Bilgisi Alınamadı
+Success: true
+Changes: 0
+Errors: 0
+Details:
+  - Price Updates: 0
+  - Stock Updates: 0
+  - Variants Added: 0
+  - Variants Removed: 0
+  - Product Archived: false
+---
+
+[2025-12-21T13:48:28.216Z] SYNC AUDIT
+Product ID: 5094
+Product: Mira İpek Desenli Pamuk Soft Şal İlham Serisi ps33
+Success: true
+Changes: 0
+Errors: 0
+Details:
+  - Price Updates: 0
+  - Stock Updates: 0
+  - Variants Added: 0
+  - Variants Removed: 0
+  - Product Archived: false
+---
+
+[2025-12-21T13:48:52.024Z] SYNC AUDIT
+Product ID: 9324
+Product: trendyol.com
+Success: true
+Changes: 0
+Errors: 0
+Details:
+  - Price Updates: 0
+  - Stock Updates: 0
+  - Variants Added: 0
+  - Variants Removed: 0
+  - Product Archived: false
+---
+
+[2025-12-21T13:49:12.121Z] SYNC AUDIT
+Product ID: 10822
+Product: Minilee [İSTEDİĞİNİZ İSMİ NAKIŞLA YAZIYORUZ] - Teddy-Peluş Bej 0-8 Yaş - Kreş, Anaokulu Çocuk Sırt Çantası
+Success: true
+Changes: 0
+Errors: 0
+Details:
+  - Price Updates: 0
+  - Stock Updates: 0
+  - Variants Added: 0
+  - Variants Removed: 0
+  - Product Archived: false
+---
+
+[2025-12-21T13:50:02.923Z] SYNC AUDIT
+Product ID: 5692
+Product: Mavi Logo Baskılı Mor Sweatshirt 1S10419-70679
+Success: true
+Changes: 0
+Errors: 0
+Details:
+  - Price Updates: 0
+  - Stock Updates: 0
+  - Variants Added: 0
+  - Variants Removed: 0
+  - Product Archived: false
+---
+
+[2025-12-21T13:50:17.056Z] SYNC AUDIT
+Product ID: 10626
+Product: Katia & Bony İçi Havlu Çocuk Tayt Gri
+Success: true
+Changes: 1
+Errors: 0
+Details:
+  - Price Updates: 0
+  - Stock Updates: 0
+  - Variants Added: 0
+  - Variants Removed: 0
+  - Product Archived: false
+---
+
+[2025-12-21T13:50:20.983Z] SYNC AUDIT
+Product ID: 10626
+Product: Katia & Bony İçi Havlu Çocuk Tayt Gri
+Success: true
+Changes: 0
+Errors: 0
+Details:
+  - Price Updates: 0
+  - Stock Updates: 0
+  - Variants Added: 0
+  - Variants Removed: 0
+  - Product Archived: false
+---
+
+[2025-12-21T13:50:45.474Z] SYNC AUDIT
+Product ID: 16941
+Product: GLANZEND Yılbaşı Temalı 3D Silikon Anahtarlık
+Success: true
+Changes: 0
+Errors: 0
+Details:
+  - Price Updates: 0
+  - Stock Updates: 0
+  - Variants Added: 0
+  - Variants Removed: 0
+  - Product Archived: false
+---
+
+[2025-12-21T13:51:02.588Z] SYNC AUDIT
+Product ID: 5060
+Product: Shaka Siyah Shk108 Çıtçıtlı Suni Deri Cüzdanlı Makyaj Çantalı Kadın El Ve Omuz Çantası
+Success: true
+Changes: 1
+Errors: 0
+Details:
+  - Price Updates: 0
+  - Stock Updates: 0
+  - Variants Added: 0
+  - Variants Removed: 0
+  - Product Archived: false
+---
+
+[2025-12-21T13:51:13.562Z] SYNC AUDIT
+Product ID: 5060
+Product: Shaka Siyah Shk108 Çıtçıtlı Suni Deri Cüzdanlı Makyaj Çantalı Kadın El Ve Omuz Çantası
+Success: true
+Changes: 0
+Errors: 0
+Details:
+  - Price Updates: 0
+  - Stock Updates: 0
+  - Variants Added: 0
+  - Variants Removed: 0
+  - Product Archived: false
+---
+
+[2025-12-21T13:51:34.464Z] SYNC AUDIT
+Product ID: 913
+Product: trendyol.com
+Success: true
+Changes: 0
+Errors: 0
+Details:
+  - Price Updates: 0
+  - Stock Updates: 0
+  - Variants Added: 0
+  - Variants Removed: 0
+  - Product Archived: false
+---
+
+[2025-12-21T13:52:10.674Z] SYNC AUDIT
+Product ID: 532
+Product: trendyol.com
+Success: true
+Changes: 0
+Errors: 0
+Details:
+  - Price Updates: 0
+  - Stock Updates: 0
+  - Variants Added: 0
+  - Variants Removed: 0
+  - Product Archived: false
+---
+
+[2025-12-21T13:52:58.289Z] SYNC AUDIT
+Product ID: 6015
+Product: Ürün Bilgisi Alınamadı
+Success: true
+Changes: 0
+Errors: 0
+Details:
+  - Price Updates: 0
+  - Stock Updates: 0
+  - Variants Added: 0
+  - Variants Removed: 0
+  - Product Archived: false
+---
+
+[2025-12-21T13:53:30.088Z] SYNC AUDIT
+Product ID: 5695
+Product: trendyol.com
+Success: true
+Changes: 0
+Errors: 0
+Details:
+  - Price Updates: 0
+  - Stock Updates: 0
+  - Variants Added: 0
+  - Variants Removed: 0
+  - Product Archived: false
+---
+
+[2025-12-21T13:53:46.413Z] SYNC AUDIT
+Product ID: 5060
+Product: Shaka Siyah Shk108 Çıtçıtlı Suni Deri Cüzdanlı Makyaj Çantalı Kadın El Ve Omuz Çantası
+Success: true
+Changes: 1
+Errors: 0
+Details:
+  - Price Updates: 0
+  - Stock Updates: 0
+  - Variants Added: 0
+  - Variants Removed: 0
+  - Product Archived: false
+---
+
+[2025-12-21T13:53:55.777Z] SYNC AUDIT
+Product ID: 5060
+Product: Shaka Siyah Shk108 Çıtçıtlı Suni Deri Cüzdanlı Makyaj Çantalı Kadın El Ve Omuz Çantası
+Success: true
+Changes: 0
+Errors: 0
+Details:
+  - Price Updates: 0
+  - Stock Updates: 0
+  - Variants Added: 0
+  - Variants Removed: 0
+  - Product Archived: false
+---
+
+[2025-12-21T13:54:14.314Z] SYNC AUDIT
+Product ID: 5094
+Product: Mira İpek Desenli Pamuk Soft Şal İlham Serisi ps33
+Success: true
+Changes: 0
+Errors: 0
+Details:
+  - Price Updates: 0
+  - Stock Updates: 0
+  - Variants Added: 0
+  - Variants Removed: 0
+  - Product Archived: false
+---

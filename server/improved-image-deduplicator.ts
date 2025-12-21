@@ -853,34 +853,14 @@ export function extractEnhancedVariants($: cheerio.CheerioAPI, htmlContent: stri
     return variants;
   }
 
-  // Method 4: Pattern extraction from HTML content
-  const htmlText = $.text();
-  
-  // Extract size patterns from text
-  const sizeMatches = htmlText.match(/\b(XS|S|M|L|XL|XXL|\d{2}|\d{2}\/\d{2})\b/gi);
-  if (sizeMatches) {
-    sizeMatches.slice(0, 10).forEach(size => {
-      if (size.length <= 5) {
-        sizes.add(size.toUpperCase());
-      }
-    });
-  }
-  
-  // Extract color patterns from text
-  const colorMatches = htmlText.match(/\b(beyaz|siyah|kırmızı|mavi|yeşil|sarı|turuncu|mor|pembe|gri|kahverengi|lacivert|bordo|krem|bej|white|black|red|blue|green|yellow|orange|purple|pink|gray|grey|brown|navy)\b/gi);
-  if (colorMatches) {
-    colorMatches.slice(0, 5).forEach(color => {
-      colors.add(color.charAt(0).toUpperCase() + color.slice(1).toLowerCase());
-    });
-  }
+  // ❌ Method 4 DISABLED - Pattern extraction from HTML content was too aggressive
+  // It extracted single letters like "S", "M" from product descriptions
+  // Only structured variant data (JSON-LD, DOM buttons) should be used
+  console.log('📦 IMPROVED-IMAGE: HTML text pattern extraction disabled - returning only JSON-LD data');
 
-  // If no specific variants found, use defaults
-  if (sizes.size === 0) {
-    sizes.add('STANDART');
-  }
-  if (colors.size === 0) {
-    // colors.add('Tek Renk') - REMOVED fake placeholder;
-  }
+  // ❌ NO DEFAULT VALUES - empty if no real variants found
+  // if (sizes.size === 0) sizes.add('STANDART'); - REMOVED
+  // if (colors.size === 0) - no fake color either
 
   // Create variant combinations
   Array.from(colors).forEach(color => {

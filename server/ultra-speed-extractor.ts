@@ -310,26 +310,12 @@ function extractColors($: any, html: string): string[] {
 }
 
 function extractSizes($: any, html: string): string[] {
-  const sizes = new Set<string>();
-  
-  // Fast pattern matching for sizes
-  const sizePatterns = [
-    /"size":\s*"([^"]+)"/gi,
-    /beden[":]\s*["']([^"']+)/gi,
-    /\b(XS|S|M|L|XL|XXL|XXXL|\d{2})\b/g
-  ];
-  
-  sizePatterns.forEach(pattern => {
-    let match;
-    while ((match = pattern.exec(html)) !== null && sizes.size < 10) {
-      const size = match[1].toUpperCase();
-      if (size.length <= 5) { // Avoid false positives
-        sizes.add(size);
-      }
-    }
-  });
-  
-  return Array.from(sizes).slice(0, 10); // Max 10 sizes
+  // ❌ DISABLED - Regex-based size extraction was too aggressive
+  // It scanned entire HTML and extracted single letters/numbers as sizes
+  // from product descriptions that don't actually have size variants
+  // Only structured DOM elements (variant buttons, dropdowns) should be used
+  console.log('📦 ULTRA-SPEED: Size extraction disabled - returning empty');
+  return []; // Return empty - no fake sizes
 }
 
 function generateVariants(colors: string[], sizes: string[]): any[] {

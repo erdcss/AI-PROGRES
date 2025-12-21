@@ -41,21 +41,31 @@ export async function extractVariantStockInfo($: cheerio.CheerioAPI): Promise<Va
       }
     });
 
-    // 2. Bedenleri çıkar (beden butonlarından)
-    $('.pr-in-sz button').each((_, el) => {
-      const text = $(el).text().trim();
-      // Expanded size pattern to include age-based, month-based, and dimension-based sizes
-      if (text.match(/^(XS|S|M|L|XL|XXL|\d+)$/i) || 
-          text.match(/^\d{1,2}-\d{1,2}\s*(yaş|ya|age|yrs?|years?)$/i) ||
-          text.match(/^\d{1,2}\s*(yaş|ya|age|yrs?|years?)$/i) ||
-          text.match(/^\d{1,2}-\d{1,2}\s*(ay|aylık|months?|mo)$/i) ||
-          text.match(/^\d+\s*[xX×]\s*\d+(\s*(cm|CM)?)?$/)) { // 🆕 Ölçü bedenleri: "75 x 180", "70 x 200 cm"
-        if (!stockInfo.sizes.includes(text)) {
-          stockInfo.sizes.push(text);
-          console.log(`📏 Beden tespit edildi: ${text}`);
+    // 2. Bedenleri çıkar (SADECE beden seçici butonlarından - daha sıkı kontrol)
+    // ❌ CRITICAL: Sadece gerçek beden seçicilerinden çıkar, random butonlardan değil
+    const sizeContainer = $('.pr-in-sz, .variant-size, [data-variant-type="size"]');
+    if (sizeContainer.length > 0) {
+      sizeContainer.find('button, .size-option').each((_, el) => {
+        const text = $(el).text().trim();
+        // SADECE yaş, ay ve ölçü bazlı boyutlar kabul et - tek harfler (S, M, L) sadece
+        // birden fazla beden butonu varsa kabul edilir (gerçek varyant seçici)
+        const isAgeSize = text.match(/^\d{1,2}-\d{1,2}\s*(yaş|ya|age|yrs?|years?)$/i) ||
+                          text.match(/^\d{1,2}\s*(yaş|ya|age|yrs?|years?)$/i);
+        const isMonthSize = text.match(/^\d{1,2}-\d{1,2}\s*(ay|aylık|months?|mo)$/i);
+        const isDimensionSize = text.match(/^\d+\s*[xX×]\s*\d+(\s*(cm|CM)?)?$/);
+        
+        // Tek harfli boyutlar (S, M, L) SADECE çoklu beden butonları varsa kabul edilir
+        const isSingleLetterSize = text.match(/^(XS|S|M|L|XL|XXL)$/i);
+        const hasMultipleSizeButtons = sizeContainer.find('button, .size-option').length > 2;
+        
+        if (isAgeSize || isMonthSize || isDimensionSize || (isSingleLetterSize && hasMultipleSizeButtons)) {
+          if (!stockInfo.sizes.includes(text)) {
+            stockInfo.sizes.push(text);
+            console.log(`📏 Beden tespit edildi: ${text}`);
+          }
         }
-      }
-    });
+      });
+    }
 
     console.log(`📊 Tespit edilen: ${stockInfo.colors.length} renk, ${stockInfo.sizes.length} beden`);
 

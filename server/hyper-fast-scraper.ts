@@ -121,33 +121,11 @@ export async function hyperFastScrape(url: string): Promise<HyperFastProductData
     let sizes: string[] = [];
     let stockMap: Record<string, boolean> = {};
     
-    // Extract real variants from script data
-    const variantScriptMatch = html.match(/variants["\s]*:[^}]+}/gi);
-    if (variantScriptMatch) {
-      try {
-        const variantText = variantScriptMatch[0];
-        const colorMatches = variantText.match(/["']([^"']*(?:siyah|beyaz|mavi|kırmızı|yeşil|gri|sarı|mor|pembe|turuncu)[^"']*)["']/gi);
-        const sizeMatches = variantText.match(/["'](XS|S|M|L|XL|XXL|\d{2,3})["']/gi);
-        
-        if (colorMatches && colorMatches.length > 1) {
-          colors = Array.from(new Set(colorMatches.map((m: string) => m.replace(/['"]/g, '')))).slice(0, 5);
-        }
-        
-        if (sizeMatches && sizeMatches.length > 1) {
-          sizes = Array.from(new Set(sizeMatches.map((m: string) => m.replace(/['"]/g, '')))).slice(0, 8);
-        }
-        
-        // Generate stock map for variants
-        stockMap = {};
-        for (const color of colors) {
-          for (const size of sizes) {
-            stockMap[`${color}-${size}`] = true; // Assume in stock for speed
-          }
-        }
-      } catch (error) {
-        // Keep default values if extraction fails
-      }
-    }
+    // ❌ DISABLED - Regex-based size extraction was too aggressive
+    // It extracted fake sizes from product descriptions
+    // Only structured variant data (allVariants JSON) should be used
+    // colors and sizes remain empty arrays - no fake variants
+    console.log('📦 HYPER-FAST: Size extraction disabled - returning empty variants');
     
     // Enhanced data structure with real extraction
     const result: HyperFastProductData = {
