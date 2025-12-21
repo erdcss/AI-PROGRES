@@ -382,8 +382,8 @@ export async function uploadProductToShopify(csvContent: string, productTitle: s
       const originalVar = productData.variants[index];
       return {
         shopifyVariantId: shopifyVar.id.toString(),
-        color: originalVar?.option1 || 'Standart',
-        size: originalVar?.option2 || 'Tek Beden',
+        color: originalVar?.option1 || '',
+        size: originalVar?.option2 || '',
         sku: shopifyVar.sku || originalVar?.sku || '',
         price: shopifyVar.price || originalVar?.price || '0'
       };
@@ -485,8 +485,18 @@ function parseCSVToShopifyProduct(records: any[]): ShopifyProductData {
     firstImageUrl: images[0]?.src || 'No images'
   });
   
+  // ✅ NO VARIANTS CASE: Create default variant for products without options
   if (variants.length === 0) {
-    throw new Error('No valid variants found in CSV data');
+    console.log('📦 No variants in CSV - creating default variant without options');
+    const price = firstRecord['Variant Price'] || '0';
+    variants.push({
+      option1: '', // Empty - no color option
+      option2: '', // Empty - no size option
+      price: price,
+      sku: firstRecord.Handle || 'default-sku',
+      inventory_quantity: 0,
+      image: images[0]?.src || ''
+    });
   }
   
   return productData;

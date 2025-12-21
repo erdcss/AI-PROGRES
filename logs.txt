@@ -112698,3 +112698,297 @@ Details:
   - Variants Removed: 0
   - Product Archived: false
 ---
+
+[2025-12-21T12:48:01.946Z] SYNC AUDIT
+Product ID: 9074
+Product: trendyol.com
+Success: true
+Changes: 0
+Errors: 0
+Details:
+  - Price Updates: 0
+  - Stock Updates: 0
+  - Variants Added: 0
+  - Variants Removed: 0
+  - Product Archived: false
+---
+
+[2025-12-21T12:48:28.660Z] SYNC AUDIT
+Product ID: 8213
+Product: trendyol.com
+Success: true
+Changes: 0
+Errors: 0
+Details:
+  - Price Updates: 0
+  - Stock Updates: 0
+  - Variants Added: 0
+  - Variants Removed: 0
+  - Product Archived: false
+---
+
+[2025-12-21T12:48:58.612Z] SYNC AUDIT
+Product ID: 5094
+Product: Mira İpek Desenli Pamuk Soft Şal İlham Serisi ps33
+Success: true
+Changes: 0
+Errors: 0
+Details:
+  - Price Updates: 0
+  - Stock Updates: 0
+  - Variants Added: 0
+  - Variants Removed: 0
+  - Product Archived: false
+---
+
+[2025-12-21T12:49:23.520Z] SYNC AUDIT
+Product ID: 593
+Product: Lancome Hypnose Drama Anında Dolgunluk ve Hacim Etkili Maskara 01
+Success: true
+Changes: 0
+Errors: 0
+Details:
+  - Price Updates: 0
+  - Stock Updates: 0
+  - Variants Added: 0
+  - Variants Removed: 0
+  - Product Archived: false
+---
+
+[2025-12-21T12:49:52.142Z] SYNC AUDIT
+Product ID: 5377
+Product: LUPİX Kadın Erkek Unisex Mavi Işık Korumalı Uv 400 Leopar Desenli Siyah 2'Li Avantajlı SET
+Success: true
+Changes: 0
+Errors: 0
+Details:
+  - Price Updates: 0
+  - Stock Updates: 0
+  - Variants Added: 0
+  - Variants Removed: 0
+  - Product Archived: false
+---
+
+[2025-12-21T12:50:21.646Z] SYNC AUDIT
+Product ID: 5692
+Product: Mavi Logo Baskılı Mor Sweatshirt 1S10419-70679
+Success: true
+Changes: 0
+Errors: 0
+Details:
+  - Price Updates: 0
+  - Stock Updates: 0
+  - Variants Added: 0
+  - Variants Removed: 0
+  - Product Archived: false
+---
+
+[2025-12-21T12:50:50.864Z] SYNC AUDIT
+Product ID: 6015
+Product: Ürün Bilgisi Alınamadı
+Success: true
+Changes: 0
+Errors: 0
+Details:
+  - Price Updates: 0
+  - Stock Updates: 0
+  - Variants Added: 0
+  - Variants Removed: 0
+  - Product Archived: false
+---
+
+[2025-12-21T12:51:17.440Z] SYNC AUDIT
+Product ID: 10822
+Product: Minilee [İSTEDİĞİNİZ İSMİ NAKIŞLA YAZIYORUZ] - Teddy-Peluş Bej 0-8 Yaş - Kreş, Anaokulu Çocuk Sırt Çantası
+Success: true
+Changes: 0
+Errors: 0
+Details:
+  - Price Updates: 0
+  - Stock Updates: 0
+  - Variants Added: 0
+  - Variants Removed: 0
+  - Product Archived: false
+---
+
+[2025-12-21T12:51:47.030Z] SYNC AUDIT
+Product ID: 10626
+Product: Katia & Bony İçi Havlu Çocuk Tayt Gri
+Success: true
+Changes: 0
+Errors: 0
+Details:
+  - Price Updates: 0
+  - Stock Updates: 0
+  - Variants Added: 0
+  - Variants Removed: 0
+  - Product Archived: false
+---
+
+[2025-12-21T12:52:15.779Z] SYNC AUDIT
+Product ID: 5712
+Product: Lumberjack KAI PU 5PR Siyah Erkek Sneaker
+Success: true
+Changes: 0
+Errors: 0
+Details:
+  - Price Updates: 0
+  - Stock Updates: 0
+  - Variants Added: 0
+  - Variants Removed: 0
+  - Product Archived: false
+---
+
+[2025-12-21T12:53:27.183Z] SYNC AUDIT
+Product ID: 8213
+Product: trendyol.com
+Success: true
+Changes: 0
+Errors: 0
+Details:
+  - Price Updates: 0
+  - Stock Updates: 0
+  - Variants Added: 0
+  - Variants Removed: 0
+  - Product Archived: false
+---
+
+[2025-12-21T12:53:43.699Z] SYNC AUDIT
+Product ID: 5094
+Product: Mira İpek Desenli Pamuk Soft Şal İlham Serisi ps33
+Success: true
+Changes: 0
+Errors: 0
+Details:
+  - Price Updates: 0
+  - Stock Updates: 0
+  - Variants Added: 0
+  - Variants Removed: 0
+  - Product Archived: false
+---
+
+[2025-12-21T12:54:23.260Z] SYNC AUDIT
+Product ID: 593
+Product: Lancome Hypnose Drama Anında Dolgunluk ve Hacim Etkili Maskara 01
+Success: true
+Changes: 0
+Errors: 0
+Details:
+  - Price Updates: 0
+  - Stock Updates: 0
+  - Variants Added: 0
+  - Variants Removed: 0
+  - Product Archived: false
+---
+
+[2025-12-21T12:54:54.544Z] SYNC AUDIT
+Product ID: 5377
+Product: LUPİX Kadın Erkek Unisex Mavi Işık Korumalı Uv 400 Leopar Desenli Siyah 2'Li Avantajlı SET
+Success: true
+Changes: 1
+Errors: 0
+Details:
+  - Price Updates: 0
+  - Stock Updates: 0
+  - Variants Added: 0
+  - Variants Removed: 0
+  - Product Archived: false
+---
+
+[2025-12-21T12:55:04.537Z] SYNC AUDIT
+Product ID: 5377
+Product: LUPİX Kadın Erkek Unisex Mavi Işık Korumalı Uv 400 Leopar Desenli Siyah 2'Li Avantajlı SET
+Success: true
+Changes: 0
+Errors: 0
+Details:
+  - Price Updates: 0
+  - Stock Updates: 0
+  - Variants Added: 0
+  - Variants Removed: 0
+  - Product Archived: false
+---
+
+[2025-12-21T12:55:50.238Z] SYNC AUDIT
+Product ID: 5692
+Product: Mavi Logo Baskılı Mor Sweatshirt 1S10419-70679
+Success: true
+Changes: 0
+Errors: 0
+Details:
+  - Price Updates: 0
+  - Stock Updates: 0
+  - Variants Added: 0
+  - Variants Removed: 0
+  - Product Archived: false
+---
+
+[2025-12-21T12:56:21.485Z] SYNC AUDIT
+Product ID: 10626
+Product: Katia & Bony İçi Havlu Çocuk Tayt Gri
+Success: true
+Changes: 1
+Errors: 0
+Details:
+  - Price Updates: 0
+  - Stock Updates: 0
+  - Variants Added: 0
+  - Variants Removed: 0
+  - Product Archived: false
+---
+
+[2025-12-21T12:56:25.607Z] SYNC AUDIT
+Product ID: 10626
+Product: Katia & Bony İçi Havlu Çocuk Tayt Gri
+Success: true
+Changes: 0
+Errors: 0
+Details:
+  - Price Updates: 0
+  - Stock Updates: 0
+  - Variants Added: 0
+  - Variants Removed: 0
+  - Product Archived: false
+---
+
+[2025-12-21T12:57:06.025Z] SYNC AUDIT
+Product ID: 6015
+Product: Ürün Bilgisi Alınamadı
+Success: true
+Changes: 0
+Errors: 0
+Details:
+  - Price Updates: 0
+  - Stock Updates: 0
+  - Variants Added: 0
+  - Variants Removed: 0
+  - Product Archived: false
+---
+
+[2025-12-21T12:58:07.520Z] SYNC AUDIT
+Product ID: 5377
+Product: LUPİX Kadın Erkek Unisex Mavi Işık Korumalı Uv 400 Leopar Desenli Siyah 2'Li Avantajlı SET
+Success: true
+Changes: 0
+Errors: 0
+Details:
+  - Price Updates: 0
+  - Stock Updates: 0
+  - Variants Added: 0
+  - Variants Removed: 0
+  - Product Archived: false
+---
+
+[2025-12-21T12:58:12.985Z] SYNC AUDIT
+Product ID: 10822
+Product: Minilee [İSTEDİĞİNİZ İSMİ NAKIŞLA YAZIYORUZ] - Teddy-Peluş Bej 0-8 Yaş - Kreş, Anaokulu Çocuk Sırt Çantası
+Success: true
+Changes: 0
+Errors: 0
+Details:
+  - Price Updates: 0
+  - Stock Updates: 0
+  - Variants Added: 0
+  - Variants Removed: 0
+  - Product Archived: false
+---

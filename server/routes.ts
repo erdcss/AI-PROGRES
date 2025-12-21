@@ -460,62 +460,138 @@ function convertProductToShopifyCSV(productData: any): string {
   const price = productData.price?.withProfit || productData.price?.original || 100;
   const comparePrice = productData.price?.original || price;
   
-  // ✅ Sanitize and filter variant data to prevent empty strings
+  // ✅ Sanitize and filter variant data - NO FAKE DEFAULTS
   const cleanedColors = colors.filter(c => c && c.trim()).map(c => c.trim());
   const cleanedSizes = sizes.filter(s => s && s.trim()).map(s => s.trim());
   
-  // ✅ Always include color/size options with proper defaults
-  const actualColors = cleanedColors.length > 0 ? cleanedColors : ['Standart'];
-  const actualSizes = cleanedSizes.length > 0 ? cleanedSizes : ['Tek Beden'];
+  // ✅ NO FAKE DEFAULTS: Leave empty if no real options
+  const hasColors = cleanedColors.length > 0;
+  const hasSizes = cleanedSizes.length > 0;
   
   let variantIndex = 0;
   
-  actualColors.forEach((color) => {
-    actualSizes.forEach((size) => {
-      const isFirstVariant = variantIndex === 0;
-      const imageIndex = variantIndex % Math.max(images.length, 1);
-      const imageUrl = images[imageIndex] || '';
-      
-      const row = [
-        handle, // Handle
-        isFirstVariant ? productData.title || 'Ürün' : '', // Title
-        isFirstVariant ? createEnhancedDescription(productData) : '', // Body HTML
-        isFirstVariant ? (productData.brand || 'Unknown') : '', // Vendor
-        isFirstVariant ? 'Apparel & Accessories > Clothing' : '', // Product Type
-        isFirstVariant ? 'trendyol, auto-generated' : '', // Tags
-        isFirstVariant ? 'TRUE' : '', // Published
-        isFirstVariant ? 'Renk' : '', // Option1 Name - Always show color option
-        color, // Option1 Value - Guaranteed non-empty after sanitization
-        isFirstVariant ? 'Beden' : '', // Option2 Name - Always show size option
-        size, // Option2 Value - Guaranteed non-empty after sanitization
-        `${handle}-${color}-${size}`.toLowerCase().replace(/[^a-z0-9-]/g, ''), // Variant SKU
-        '0', // Variant Grams
-        'shopify', // Variant Inventory Tracker
-        '10', // Variant Inventory Qty
-        'deny', // Variant Inventory Policy
-        'manual', // Variant Fulfillment Service
-        price.toString(), // Variant Price
-        comparePrice.toString(), // Variant Compare At Price
-        'TRUE', // Variant Requires Shipping
-        'TRUE', // Variant Taxable
-        '', // Variant Barcode
-        imageUrl, // Image Src
-        (imageIndex + 1).toString(), // Image Position
-        `${productData.title} - ${color} ${size}`, // Image Alt Text
-        'FALSE', // Gift Card
-        '', '', '', '', '', '', '', '', '', '', '', '', '', '', '', '', '', // SEO and Google Shopping fields
-        '', // Variant Image
-        'kg', // Variant Weight Unit
-        '0', // Cost per item
-        'TRUE', // Included / United States
-        price.toString(), // Price / United States
-        comparePrice.toString(), // Compare At Price / United States
-        'active' // Status
+  // ✅ CASE: No variants - create single product row without options + image rows
+  if (!hasColors && !hasSizes) {
+    // First row: product with first image
+    const firstRow = [
+      handle, // Handle
+      productData.title || 'Ürün', // Title
+      createEnhancedDescription(productData), // Body HTML
+      productData.brand || 'Unknown', // Vendor
+      'Apparel & Accessories > Clothing', // Product Type
+      'trendyol, auto-generated', // Tags
+      'TRUE', // Published
+      '', // Option1 Name - EMPTY (no option)
+      '', // Option1 Value - EMPTY
+      '', // Option2 Name - EMPTY
+      '', // Option2 Value - EMPTY
+      `${handle}`.toLowerCase().replace(/[^a-z0-9-]/g, ''), // Variant SKU
+      '0', // Variant Grams
+      'shopify', // Variant Inventory Tracker
+      '10', // Variant Inventory Qty
+      'deny', // Variant Inventory Policy
+      'manual', // Variant Fulfillment Service
+      price.toString(), // Variant Price
+      comparePrice.toString(), // Variant Compare At Price
+      'TRUE', // Variant Requires Shipping
+      'TRUE', // Variant Taxable
+      '', // Variant Barcode
+      images[0] || '', // Image Src
+      '1', // Image Position
+      productData.title, // Image Alt Text
+      'FALSE', // Gift Card
+      '', '', '', '', '', '', '', '', '', '', '', '', '', '', '', '', '', // SEO and Google Shopping fields
+      '', // Variant Image
+      'kg', // Variant Weight Unit
+      '0', // Cost per item
+      'TRUE', // Included / United States
+      price.toString(), // Price / United States
+      comparePrice.toString(), // Compare At Price / United States
+      'active' // Status
+    ];
+    csvContent += firstRow.map(field => `"${field}"`).join(',') + '\n';
+    
+    // Additional image rows
+    for (let i = 1; i < images.length; i++) {
+      const imageRow = [
+        handle, '', '', '', '', '', '', '', '', '', '', '', '', '', '', '', '', '', '', '', '', '',
+        images[i], // Image Src
+        (i + 1).toString(), // Image Position
+        `${productData.title} - Image ${i + 1}`, // Image Alt Text
+        '', '', '', '', '', '', '', '', '', '', '', '', '', '', '', '', '', '', '', '', '', ''
       ];
-      
-      csvContent += row.map(field => `"${field}"`).join(',') + '\n';
-      variantIndex++;
-    });
+      csvContent += imageRow.map(field => `"${field}"`).join(',') + '\n';
+    }
+    return csvContent;
+  }
+  
+  // ✅ CASE: Has variants - create proper variant rows
+  // Shopify requires Option1 to always have value if options exist
+  // Color-only: Option1=Renk, no Option2
+  // Size-only: Option1=Beden, no Option2
+  // Both: Option1=Renk, Option2=Beden
+  
+  const actualColors = hasColors ? cleanedColors : null;
+  const actualSizes = hasSizes ? cleanedSizes : null;
+  
+  // Determine option structure
+  const option1Name = hasColors ? 'Renk' : (hasSizes ? 'Beden' : '');
+  const option2Name = hasColors && hasSizes ? 'Beden' : '';
+  
+  // Generate variant combinations
+  const combinations: {opt1: string, opt2: string}[] = [];
+  if (hasColors && hasSizes) {
+    cleanedColors.forEach(c => cleanedSizes.forEach(s => combinations.push({opt1: c, opt2: s})));
+  } else if (hasColors) {
+    cleanedColors.forEach(c => combinations.push({opt1: c, opt2: ''}));
+  } else if (hasSizes) {
+    cleanedSizes.forEach(s => combinations.push({opt1: s, opt2: ''}));
+  }
+  
+  combinations.forEach(({opt1, opt2}) => {
+    const isFirstVariant = variantIndex === 0;
+    const imageIndex = variantIndex % Math.max(images.length, 1);
+    const imageUrl = images[imageIndex] || '';
+    
+    const row = [
+      handle, // Handle
+      isFirstVariant ? productData.title || 'Ürün' : '', // Title
+      isFirstVariant ? createEnhancedDescription(productData) : '', // Body HTML
+      isFirstVariant ? (productData.brand || 'Unknown') : '', // Vendor
+      isFirstVariant ? 'Apparel & Accessories > Clothing' : '', // Product Type
+      isFirstVariant ? 'trendyol, auto-generated' : '', // Tags
+      isFirstVariant ? 'TRUE' : '', // Published
+      isFirstVariant ? option1Name : '', // Option1 Name
+      opt1, // Option1 Value
+      isFirstVariant && option2Name ? option2Name : '', // Option2 Name
+      opt2, // Option2 Value
+      `${handle}-${opt1}-${opt2}`.toLowerCase().replace(/[^a-z0-9-]/g, ''), // Variant SKU
+      '0', // Variant Grams
+      'shopify', // Variant Inventory Tracker
+      '10', // Variant Inventory Qty
+      'deny', // Variant Inventory Policy
+      'manual', // Variant Fulfillment Service
+      price.toString(), // Variant Price
+      comparePrice.toString(), // Variant Compare At Price
+      'TRUE', // Variant Requires Shipping
+      'TRUE', // Variant Taxable
+      '', // Variant Barcode
+      imageUrl, // Image Src
+      (imageIndex + 1).toString(), // Image Position
+      `${productData.title} - ${opt1} ${opt2}`.trim(), // Image Alt Text
+      'FALSE', // Gift Card
+      '', '', '', '', '', '', '', '', '', '', '', '', '', '', '', '', '', // SEO and Google Shopping fields
+      '', // Variant Image
+      'kg', // Variant Weight Unit
+      '0', // Cost per item
+      'TRUE', // Included / United States
+      price.toString(), // Price / United States
+      comparePrice.toString(), // Compare At Price / United States
+      'active' // Status
+    ];
+    
+    csvContent += row.map(field => `"${field}"`).join(',') + '\n';
+    variantIndex++;
   });
   
   return csvContent;
