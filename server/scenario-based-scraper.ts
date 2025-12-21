@@ -3669,42 +3669,10 @@ async function extractVariantsDirect($: cheerio.CheerioAPI, htmlContent: string,
     /aria-label["\s]*[=:]["\s]*[^"]*\b(S|M|L|XL|2XL|3XL)\b/gi,
     /button[^>]*>\s*(S|M|L|XL|2XL|3XL)\s*</gi
   
-  // ✅ AUTHENTIC SIZE SCANNING ENABLED for T-shirt products
-  console.log('✅ Authentic size scanning enabled for T-shirt size detection');
-  
-  // Enable specific size patterns for this Trendyol t-shirt product
-  const authenticSizePatterns = [
-    /\bS\b/gi,
-    /\bM\b/gi, 
-    /\bL\b/gi,
-    /\bXL\b/gi,
-    /\b2XL\b/gi,
-    /\b3XL\b/gi,
-    /\bXXL\b/gi,
-    /\bXXXL\b/gi,
-    /size["\s]*[=:]["\s]*(S|M|L|XL|2XL|3XL|XXL|XXXL)/gi,
-    /title["\s]*[=:]["\s]*(S|M|L|XL|2XL|3XL|XXL|XXXL)/gi,
-    /data-size["\s]*[=:]["\s]*(S|M|L|XL|2XL|3XL|XXL|XXXL)/gi,
-    /aria-label["\s]*[=:]["\s]*[^"]*\b(S|M|L|XL|2XL|3XL)\b/gi,
-    /button[^>]*>\s*(S|M|L|XL|2XL|3XL)\s*</gi
-  ];
-  
-  authenticSizePatterns.forEach((pattern, index) => {
-    const matches = htmlContent.match(pattern);
-    if (matches) {
-      matches.forEach(match => {
-        let extractedSize = match.replace(/[^A-Z0-9]/g, '');
-        if (extractedSize && extractedSize.length > 0 && extractedSize.length <= 4) {
-          // Validate size format
-          const validSizePattern = /^(XXS|XS|S|M|L|XL|XXL|XXXL|2XL|3XL)$/;
-          if (validSizePattern.test(extractedSize) && !sizes.includes(extractedSize)) {
-            sizes.push(extractedSize);
-            console.log(`👕 AUTHENTIC SCAN FOUND: ${extractedSize} via pattern ${index}`);
-          }
-        }
-      });
-    }
-  });
+  // ❌ DISABLED - Authentic size scanning was too aggressive
+  // It extracted S, M, L from any text on the page (including product descriptions)
+  // causing fake size variants for products without real size options
+  console.log('❌ DISABLED: Aggressive size pattern scanning - only DOM/JSON sources allowed');
   
   // METHOD 3: Enable JavaScript and JSON-LD extraction for comprehensive variant detection
   console.log('🔍 Extracting colors and sizes from JavaScript data and JSON-LD...');
@@ -4765,43 +4733,13 @@ function extractColorsFromJS($: any, htmlContent: string): string[] {
 
 /**
  * Extract sizes from JavaScript variables and JSON data
+ * ❌ DISABLED - This function was too aggressive and extracted fake sizes
  */
 function extractSizesFromJS($: any, htmlContent: string): string[] {
-  const sizes: string[] = [];
-  
-  // Method 1: Extract from script tags containing size data
-  $('script').each((_, script) => {
-    const scriptContent = $(script).html() || '';
-    
-    // Look for size arrays in JavaScript
-    const sizePatterns = [
-      /sizes?\s*:\s*\[(.*?)\]/gi,
-      /variants?\s*:\s*\[(.*?)size.*?\]/gi,
-      /"sizes?":\s*\[(.*?)\]/gi,
-      /size.*?:\s*["'](.*?)["']/gi,
-      /beden.*?:\s*["'](.*?)["']/gi
-    ];
-    
-    sizePatterns.forEach(pattern => {
-      const matches = scriptContent.match(pattern);
-      if (matches) {
-        matches.forEach(match => {
-          // Extract size values from the match - exclude invalid sizes like "1" + dimension-based sizes
-          const sizeMatch = match.match(/["'](XXS|XS|S|M|L|XL|XXL|XXXL|2XL|3XL|4XL|5XL|Tek\s*Beden|One\s*Size|(?:2[4-9]|[3-5][0-9])(?:\.\d+)?|(?:3[6-9]|4[0-9]|5[0-2])|\d+\s*[xX×]\s*\d+(\s*(cm|CM))?)["']/gi);
-          if (sizeMatch) {
-            sizeMatch.forEach(size => {
-              const cleanSize = size.replace(/["']/g, '').trim();
-              // Ek güvenlik: "1" gibi geçersiz bedenler engelle
-              if (cleanSize.length > 0 && cleanSize !== '1' && cleanSize !== '0') {
-                sizes.push(cleanSize);
-                console.log(`👕 Found size in JS: ${cleanSize}`);
-              }
-            });
-          }
-        });
-      }
-    });
-  });
+  // ❌ DISABLED - Only structured variant data should be used
+  // Regex-based extraction from script content was too aggressive
+  console.log('❌ extractSizesFromJS DISABLED - returning empty array');
+  return [];
   
   // Method 2: Extract from JSON-LD data
   $('script[type="application/ld+json"]').each((_, script) => {

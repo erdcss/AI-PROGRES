@@ -113678,3 +113678,115 @@ Details:
   - Variants Removed: 0
   - Product Archived: false
 ---
+
+[2025-12-21T13:58:41.460Z] SYNC AUDIT
+Product ID: 6015
+Product: Ürün Bilgisi Alınamadı
+Success: true
+Changes: 0
+Errors: 0
+Details:
+  - Price Updates: 0
+  - Stock Updates: 0
+  - Variants Added: 0
+  - Variants Removed: 0
+  - Product Archived: false
+---
+
+[2025-12-21T13:59:11.747Z] SYNC AUDIT
+Product ID: 5060
+Product: Shaka Siyah Shk108 Çıtçıtlı Suni Deri Cüzdanlı Makyaj Çantalı Kadın El Ve Omuz Çantası
+Success: true
+Changes: 0
+Errors: 0
+Details:
+  - Price Updates: 0
+  - Stock Updates: 0
+  - Variants Added: 0
+  - Variants Removed: 0
+  - Product Archived: false
+---
+
+[2025-12-21T13:59:40.179Z] SYNC AUDIT
+Product ID: 5228
+Product: trendyol.com
+Success: true
+Changes: 0
+Errors: 0
+Details:
+  - Price Updates: 0
+  - Stock Updates: 0
+  - Variants Added: 0
+  - Variants Removed: 0
+  - Product Archived: false
+---
+
+[2025-12-21T14:00:14.705Z] SYNC AUDIT
+Product ID: 913
+Product: trendyol.com
+Success: true
+Changes: 0
+Errors: 0
+Details:
+  - Price Updates: 0
+  - Stock Updates: 0
+  - Variants Added: 0
+  - Variants Removed: 0
+  - Product Archived: false
+---
+
+[2025-12-21T14:00:43.819Z] SYNC AUDIT
+Product ID: 5094
+Product: Mira İpek Desenli Pamuk Soft Şal İlham Serisi ps33
+Success: true
+Changes: 0
+Errors: 0
+Details:
+  - Price Updates: 0
+  - Stock Updates: 0
+  - Variants Added: 0
+  - Variants Removed: 0
+  - Product Archived: false
+---
+
+[2025-12-21T14:01:21.930Z] SYNC AUDIT
+Product ID: 9324
+Product: trendyol.com
+Success: true
+Changes: 0
+Errors: 0
+Details:
+  - Price Updates: 0
+  - Stock Updates: 0
+  - Variants Added: 0
+  - Variants Removed: 0
+  - Product Archived: false
+---
+
+[2025-12-21T14:01:49.848Z] SYNC AUDIT
+Product ID: 640
+Product: NYX Professional Makeup Bare With Me Kapatıcı Serum 02 Light Concealer
+Success: true
+Changes: 0
+Errors: 0
+Details:
+  - Price Updates: 0
+  - Stock Updates: 0
+  - Variants Added: 0
+  - Variants Removed: 0
+  - Product Archived: false
+---
+
+[2025-12-21T14:02:20.118Z] SYNC AUDIT
+Product ID: 9204
+Product: Samsung Galaxy S25 Ultra 512 GB Titanyum Gümüş (Samsung Türkiye Garantili)
+Success: true
+Changes: 0
+Errors: 0
+Details:
+  - Price Updates: 0
+  - Stock Updates: 0
+  - Variants Added: 0
+  - Variants Removed: 0
+  - Product Archived: false
+---
