@@ -260,27 +260,33 @@ async function fastVariantsExtraction($: any): Promise<any[]> {
   try {
     const variants: any[] = [];
     
-    // Fast size detection
+    // Fast size detection - ONLY from structured DOM elements
     const sizeButtons = $('.size-buttons button, .size-options .option, [data-testid*="size"]');
     const colorOptions = $('.color-options .option, .color-buttons button, [data-testid*="color"]');
     
-    // Default sizes if none found
-    const defaultSizes = ['S', 'M', 'L', 'XL'];
+    // ❌ NO DEFAULT SIZES - only use real extracted sizes
     const extractedSizes = sizeButtons.length > 0 ? 
       sizeButtons.map((i: number, el: any) => $(el).text().trim()).get().filter(s => s && s.length <= 4) : 
       [];
-    const sizes = extractedSizes.length > 0 ? extractedSizes : defaultSizes;
+    const sizes = extractedSizes; // NO FALLBACK - empty if none found
     
     // Single color from title (faster than multi-color detection)
     const title = $('h1').first().text().toLowerCase();
     const color = title.includes('lacivert') ? 'Lacivert' :
                  title.includes('mavi') ? 'Mavi' :
                  title.includes('siyah') ? 'Siyah' :
-                 title.includes('beyaz') ? 'Beyaz' : 'Varsayılan';
+                 title.includes('beyaz') ? 'Beyaz' : ''; // ❌ NO FAKE FALLBACK
     
-    // Generate variants
-    for (const size of sizes) {
-      if (size && size.length <= 4) { // Valid size
+    // Only generate variants if real sizes/colors found
+    if (sizes.length === 0 && !color) {
+      // No real variants - return empty array
+      console.log('📦 FAST VARIANTS: No real variants found, returning empty');
+      return [];
+    }
+    
+    // Generate variants only from real data
+    for (const size of sizes.length > 0 ? sizes : ['']) {
+      if (color || size) {
         variants.push({
           color: color,
           size: size,
@@ -296,13 +302,8 @@ async function fastVariantsExtraction($: any): Promise<any[]> {
     return variants;
     
   } catch (error) {
-    console.log('❌ FAST VARIANTS: Error, using defaults');
-    return [
-      { color: 'Varsayılan', size: 'S', inStock: true, inventory: 10 },
-      { color: 'Varsayılan', size: 'M', inStock: true, inventory: 10 },
-      { color: 'Varsayılan', size: 'L', inStock: true, inventory: 10 },
-      { color: 'Varsayılan', size: 'XL', inStock: true, inventory: 10 }
-    ];
+    console.log('❌ FAST VARIANTS: Error, returning empty (no fake defaults)');
+    return []; // ❌ NO FAKE VARIANTS
   }
 }
 

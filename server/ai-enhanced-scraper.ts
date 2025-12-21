@@ -978,9 +978,9 @@ function extractStockVariants(htmlContent: string) {
         productState.product.allVariants.forEach((variant: any, index: number) => {
           const isInStock = variant.inStock !== false && (variant.quantity === undefined || variant.quantity > 0);
           
-          // Renk ve beden bilgilerini çıkar - daha akıllı parsing
-          const colorName = variant.attributeValue1 || variant.color || variant.colorName || extractColorFromTitle(variant.title) || 'Gri';
-          const sizeName = variant.attributeValue2 || variant.attributeValue || variant.size || variant.sizeName || extractSizeFromTitle(variant.title) || 'M';
+          // Renk ve beden bilgilerini çıkar - SAHTE DEĞERLER ENGELLENDİ
+          const colorName = variant.attributeValue1 || variant.color || variant.colorName || '';
+          const sizeName = variant.attributeValue2 || variant.attributeValue || variant.size || variant.sizeName || '';
           
           uniqueColors.add(colorName);
           uniqueSizes.add(sizeName);
@@ -1394,15 +1394,9 @@ function extractColorFromTitle(title: string): string | null {
 }
 
 function extractSizeFromTitle(title: string): string | null {
-  if (!title) return null;
-  const sizes = ['XS', 'S', 'M', 'L', 'XL', 'XXL', 'XXXL', '2XL', '3XL'];
-  const upperTitle = title.toUpperCase();
-  
-  for (const size of sizes) {
-    if (upperTitle.includes(size)) {
-      return size;
-    }
-  }
+  // ❌ DISABLED - This function was too aggressive and extracted fake sizes
+  // from product titles that don't actually have size variants
+  // Only structured DOM elements (dropdowns, buttons) should be used for size detection
   return null;
 }
 

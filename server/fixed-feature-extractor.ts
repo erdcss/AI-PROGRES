@@ -188,15 +188,10 @@ export async function extractProductFeatures(html: string, productTitle?: string
     if (features.length === 0 && productTitle) {
       console.log('🔍 Method 5: Basic features from title...');
       
-      // Extract size information
-      const sizeMatches = productTitle.match(/\b(XS|S|M|L|XL|XXL|\d+|\d+-\d+)\b/gi);
-      if (sizeMatches) {
-        features.push({
-          key: 'Beden',
-          value: sizeMatches.join(', '),
-          category: 'Boyut'
-        });
-      }
+      // ❌ DISABLED - Size extraction from title was too aggressive
+      // It extracted single letters like "S" or "M" as sizes from product titles
+      // that don't actually have size variants (e.g., cosmetic products)
+      // Only structured DOM elements should be used for size detection
       
       // Extract color information
       const colors = ['Siyah', 'Beyaz', 'Gri', 'Mavi', 'Kırmızı', 'Yeşil', 'Sarı', 'Pembe', 'Mor', 'Kahverengi'];
