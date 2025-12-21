@@ -96,7 +96,7 @@ function extractPricesFromScripts(htmlContent: string, variants: VariantPrice[])
         productState.product.variants.forEach((variant: any) => {
           if (variant.price) {
             variants.push({
-              color: variant.color || variant.colorName || 'Tek Renk',
+              color: variant.color || variant.colorName || '',
               size: variant.size,
               price: parseFloat(variant.price) || 0,
               originalPrice: variant.originalPrice ? parseFloat(variant.originalPrice) : undefined,
@@ -116,7 +116,7 @@ function extractPricesFromScripts(htmlContent: string, variants: VariantPrice[])
             const sizeMatch = merchant.url.match(/beden=([^&]+)/);
             
             variants.push({
-              color: colorMatch ? decodeURIComponent(colorMatch[1]) : 'Tek Renk',
+              color: colorMatch ? decodeURIComponent(colorMatch[1]) : '',
               size: sizeMatch ? decodeURIComponent(sizeMatch[1]) : undefined,
               price: parseFloat(merchant.price) || 0,
               currency: 'TL',

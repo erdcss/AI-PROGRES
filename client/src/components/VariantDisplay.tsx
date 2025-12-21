@@ -30,6 +30,13 @@ interface VariantDisplayProps {
   showInventory?: boolean;
 }
 
+// Sahte/placeholder değerleri tespit et (boş string değil - o gerçek veri olabilir)
+const FAKE_VALUES = ['tek beden', 'tek renk', 'standart', 'varsayılan', 'default'];
+const isFakeValue = (value?: string): boolean => {
+  if (!value || !value.trim()) return false; // Boş değerler sahte değil, sadece yok
+  return FAKE_VALUES.includes(value.toLowerCase().trim());
+};
+
 const StockIcon = ({ inStock }: { inStock?: boolean }) => {
   if (inStock === undefined) return <AlertCircle className="w-4 h-4 text-gray-400" />;
   return inStock ? 
@@ -83,9 +90,9 @@ export function VariantDisplay({
   const outOfStockVariants = variants.filter(v => v.inStock === false).length;
   const unknownStockVariants = variants.filter(v => v.inStock === undefined).length;
   
-  // Benzersiz renkler ve bedenler
-  const uniqueColors = [...new Set(variants.map(v => v.color).filter(Boolean))];
-  const uniqueSizes = [...new Set(variants.map(v => v.size).filter(Boolean))];
+  // Benzersiz renkler ve bedenler - falsy ve sahte değerler filtrelenmiş
+  const uniqueColors = [...new Set(variants.map(v => v.color).filter(c => c && c.trim() && !isFakeValue(c)))];
+  const uniqueSizes = [...new Set(variants.map(v => v.size).filter(s => s && s.trim() && !isFakeValue(s)))];
 
   return (
     <Card className="bg-gray-900/50 border-gray-700">

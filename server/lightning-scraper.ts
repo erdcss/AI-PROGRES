@@ -94,7 +94,7 @@ export async function lightningFastScrape(url: string): Promise<LightningProduct
     const colorMatches = html.match(/variants.*?colors.*?\[([^\]]+)\]/);
     const sizeMatches = html.match(/variants.*?sizes.*?\[([^\]]+)\]/);
     
-    let colors = ['Tek Renk'];
+    let colors: string[] = [];
     let sizes = ['Tek Beden'];
     
     if (colorMatches) {

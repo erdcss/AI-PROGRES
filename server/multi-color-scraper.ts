@@ -87,8 +87,8 @@ export class MultiColorScraper {
         
         // Final fallback - use "Tek Renk" instead of generic "Default"
         if (!colorName) {
-          colorName = 'Tek Renk';
-          console.log('⚠️ No color detected, using "Tek Renk"');
+          colorName = '';
+          console.log('⚠️ No color detected, using empty value');
         }
         
         const colorResults = [{

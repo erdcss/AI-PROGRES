@@ -332,7 +332,7 @@ export function extractEnhancedVariants($: cheerio.CheerioAPI, htmlContent: stri
             
             if (isValidSize) {
               // ✅ Extract real color from product data instead of defaulting to 'Krem'
-              let colorName = 'Tek Renk'; // Better default than placeholder values
+              let colorName = ''; // Better default than placeholder values
               
               // Try multiple color sources
               if (variant.color && variant.color !== 'undefined' && variant.color !== 'Default' && variant.color !== 'Varsayılan') {
@@ -420,7 +420,7 @@ export function extractEnhancedVariants($: cheerio.CheerioAPI, htmlContent: stri
               
               if (isValidSize) {
                 // ✅ Extract real color from product or use better default
-                const defaultColor = 'Tek Renk'; // Better than placeholder values
+                const defaultColor = ''; // Better than placeholder values
                 if (!colorMap[defaultColor]) colorMap[defaultColor] = [];
                 if (!colorMap[defaultColor].includes(sizeName)) {
                   colorMap[defaultColor].push(sizeName);
@@ -525,7 +525,7 @@ export function extractEnhancedVariants($: cheerio.CheerioAPI, htmlContent: stri
           
           if (isValidSize) {
             variants.push({
-              color: 'Tek Renk', // Better than placeholder values
+              color: '', // Better than placeholder values
               colorCode: '#808080', // Gray instead of black
               size: sizeName,
               inStock: size.inStock !== false
@@ -879,7 +879,7 @@ export function extractEnhancedVariants($: cheerio.CheerioAPI, htmlContent: stri
     sizes.add('STANDART');
   }
   if (colors.size === 0) {
-    colors.add('Tek Renk');
+    // colors.add('Tek Renk') - REMOVED fake placeholder;
   }
 
   // Create variant combinations

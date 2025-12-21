@@ -9,13 +9,25 @@ interface VariantProps {
   unavailableSizes?: string[]; // Stokta olmayan bedenler
 }
 
+// Sahte/placeholder değerleri filtrele (boş string hariç - boş string gerçek veri olabilir)
+const FAKE_VALUES = ['tek beden', 'tek renk', 'standart', 'varsayılan', 'default'];
+const filterFakeValues = (items?: string[]): string[] => {
+  if (!items) return [];
+  return items.filter(item => {
+    const trimmed = item?.toLowerCase().trim();
+    return trimmed && !FAKE_VALUES.includes(trimmed);
+  });
+};
+
 /**
  * Ürün varyantlarını gösteren bileşen
  * Stokta olan ve olmayan bedenleri farklı görünümde gösterir
  */
 const ProductVariants: React.FC<{ variants: VariantProps }> = ({ variants }) => {
-  const hasVariants = (variants.size && variants.size.length > 0) || 
-                     (variants.color && variants.color.length > 0);
+  const cleanColors = filterFakeValues(variants.color);
+  const cleanSizes = filterFakeValues(variants.size);
+  
+  const hasVariants = cleanColors.length > 0 || cleanSizes.length > 0;
 
   if (!hasVariants) {
     return null;
@@ -59,25 +71,30 @@ const ProductVariants: React.FC<{ variants: VariantProps }> = ({ variants }) => 
 
   return (
     <div className="mt-2 space-y-4">
-      {variants.color && variants.color.length > 0 && (
-        renderVariantButtons(variants.color, 'Ürün')
+      {cleanColors.length > 0 && (
+        renderVariantButtons(cleanColors, 'Renk')
       )}
       
-      {variants.size && variants.size.length > 0 && (
+      {cleanSizes.length > 0 && (
         renderVariantButtons(
-          variants.size, 
+          cleanSizes, 
           'Beden', 
-          variants.availableSizes
+          filterFakeValues(variants.availableSizes)
         )
       )}
       
-      {/* Stok durumu özeti */}
-      {variants.availableSizes && variants.unavailableSizes && (
-        <div className="text-sm text-gray-400 mt-2">
-          <span className="text-green-500 font-medium">{variants.availableSizes.length}</span> beden stokta, {' '}
-          <span className="text-red-500 font-medium">{variants.unavailableSizes.length}</span> beden tükendi
-        </div>
-      )}
+      {/* Stok durumu özeti - temizlenmiş değerlerle */}
+      {cleanSizes.length > 0 && variants.availableSizes && variants.unavailableSizes && (() => {
+        const cleanAvailable = filterFakeValues(variants.availableSizes);
+        const cleanUnavailable = filterFakeValues(variants.unavailableSizes);
+        if (cleanAvailable.length === 0 && cleanUnavailable.length === 0) return null;
+        return (
+          <div className="text-sm text-gray-400 mt-2">
+            <span className="text-green-500 font-medium">{cleanAvailable.length}</span> beden stokta, {' '}
+            <span className="text-red-500 font-medium">{cleanUnavailable.length}</span> beden tükendi
+          </div>
+        );
+      })()}
     </div>
   );
 };

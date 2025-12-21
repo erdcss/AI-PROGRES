@@ -821,10 +821,10 @@ function extractColorFromLongName(colorName: string): string {
   // Hiçbir renk bulunamazsa, kelime sayısını azalt
   const words = colorName.split(' ');
   if (words.length > 1) {
-    return words[words.length - 2] || words[words.length - 1] || 'Varsayılan';
+    return words[words.length - 2] || words[words.length - 1] || '';
   }
   
-  return colorName.slice(0, 20) || 'Varsayılan'; // Max 20 karakter
+  return colorName.slice(0, 20) || ''; // Max 20 karakter, fallback boş string
 }
 
 function extractColorFromProductTitle(title: string): string {

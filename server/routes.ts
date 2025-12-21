@@ -160,8 +160,8 @@ async function registerProductForTracking(
         await db.insert(productVariants).values({
           productId,
           shopifyVariantId: shopifyVariant?.shopifyVariantId || null,
-          color: variant.color || 'Varsayılan',
-          size: variant.size || 'Tek Beden',
+          color: variant.color || '', // Empty string instead of fake placeholder
+          size: variant.size || '', // Empty string instead of fake placeholder
           sku: variant.sku || shopifyVariant?.sku || '',
           trendyolPrice: variant.price || '0',
           shopifyPrice: variant.shopifyPrice || variant.price || '0',
@@ -172,13 +172,13 @@ async function registerProductForTracking(
         console.log(`✅ Variant registered: ${variant.color} - ${variant.size}${shopifyVariant ? ' (Shopify ID: ' + shopifyVariant.shopifyVariantId + ')' : ''}`);
       }
     } else {
-      // Default variant if no variants provided
+      // Default variant if no variants provided - use empty strings
       const defaultShopifyVariant = shopifyVariants[0];
       await db.insert(productVariants).values({
         productId,
         shopifyVariantId: defaultShopifyVariant?.shopifyVariantId || null,
-        color: 'Varsayılan',
-        size: 'Tek Beden',
+        color: '', // No fake placeholders
+        size: '', // No fake placeholders
         sku: defaultShopifyVariant?.sku || '',
         trendyolPrice: productData?.currentPrice || '0',
         shopifyPrice: productData?.currentPrice || '0',
@@ -327,7 +327,7 @@ function parseProductFromHTML(html: string, source: string): any {
     brand,
     price,
     images: images.slice(0, 10),
-    variants: [{ color: 'Standart', size: 'Standart', inStock: true }]
+    variants: [] // No fake variants for simple products
   };
 }
 
@@ -511,15 +511,20 @@ function convertProductToShopifyCSV(productData: any): string {
     ];
     csvContent += firstRow.map(field => `"${field}"`).join(',') + '\n';
     
-    // Additional image rows
+    // Additional image rows - must have exactly 48 columns to match header
     for (let i = 1; i < images.length; i++) {
+      // Column count: 1 (Handle) + 21 (empty) + 1 (Image Src) + 1 (Image Position) + 1 (Image Alt Text) + 23 (empty) = 48
       const imageRow = [
-        handle, '', '', '', '', '', '', '', '', '', '', '', '', '', '', '', '', '', '', '', '', '',
-        images[i], // Image Src
-        (i + 1).toString(), // Image Position
-        `${productData.title} - Image ${i + 1}`, // Image Alt Text
-        '', '', '', '', '', '', '', '', '', '', '', '', '', '', '', '', '', '', '', '', '', ''
+        handle, // 1. Handle
+        '', '', '', '', '', '', '', '', '', '', '', '', '', '', '', '', '', '', '', '', '', // 2-22 (21 empty fields)
+        images[i], // 23. Image Src
+        (i + 1).toString(), // 24. Image Position
+        `${productData.title} - Image ${i + 1}`, // 25. Image Alt Text
+        '', '', '', '', '', '', '', '', '', '', '', '', '', '', '', '', '', '', '', '', '', '', '', '' // 26-49... wait
       ];
+      // Ensure exactly 48 columns
+      while (imageRow.length < 48) imageRow.push('');
+      while (imageRow.length > 48) imageRow.pop();
       csvContent += imageRow.map(field => `"${field}"`).join(',') + '\n';
     }
     return csvContent;
@@ -603,7 +608,7 @@ function convertMultiUrlProductToCSV(productData: any): string {
   // ❌ SAHTE BEDEN VERİSİ ENGELLENDI - Sadece gerçek varyantlar
   const sizes: string[] = []; // No fake size data
   
-  // Renk tespiti için fonksiyon
+  // Renk tespiti için fonksiyon - returns empty string if no real color found
   function extractColor(colorText: string): string {
     const text = colorText.toLowerCase();
     if (text.includes('beyaz')) return 'Beyaz';
@@ -611,22 +616,22 @@ function convertMultiUrlProductToCSV(productData: any): string {
     if (text.includes('siyah')) return 'Siyah';
     if (text.includes('mavi')) return 'Mavi';
     if (text.includes('kirmizi') || text.includes('kırmızı')) return 'Kırmızı';
-    return 'Çok Renkli';
+    return ''; // No fake fallback
   }
   
   // CSV başlıkları
   let csvContent = 'Handle,Title,Body (HTML),Vendor,Product Type,Tags,Published,Option1 Name,Option1 Value,Option2 Name,Option2 Value,Variant SKU,Variant Grams,Variant Inventory Tracker,Variant Inventory Qty,Variant Inventory Policy,Variant Fulfillment Service,Variant Price,Variant Compare At Price,Variant Requires Shipping,Variant Taxable,Variant Barcode,Image Src,Image Position,Image Alt Text,Gift Card,SEO Title,SEO Description,Google Shopping / Google Product Category,Google Shopping / Gender,Google Shopping / Age Group,Google Shopping / MPN,Google Shopping / AdWords Grouping,Google Shopping / AdWords Labels,Google Shopping / Condition,Google Shopping / Custom Product,Google Shopping / Custom Label 0,Google Shopping / Custom Label 1,Google Shopping / Custom Label 2,Google Shopping / Custom Label 3,Google Shopping / Custom Label 4,Variant Image,Variant Weight Unit,Cost per item,Included / United States,Price / United States,Compare At Price / United States,Status\n';
   
-  const extractedColors = colors.map(extractColor).filter((color, index, arr) => arr.indexOf(color) === index && color !== 'Çok Renkli');
-  if (extractedColors.length === 0) extractedColors.push('Çok Renkli');
+  const extractedColors = colors.map(extractColor).filter((color, index, arr) => color && arr.indexOf(color) === index);
+  // Don't push fake color if no real colors found
   
   console.log('🎨 CSV Extracted colors:', extractedColors);
   console.log('📏 CSV Sizes:', sizes);
   
   let variantIndex = 0;
   
-  // ❌ SAHTE VARYANT DÖNGÜSÜ ENGELLENDİ - Tek ürün işlemi
-  if (extractedColors.length === 0) extractedColors.push('Standart');
+  // ❌ SAHTE VARYANT DÖNGÜSÜ ENGELLENDİ - Varyant yoksa boş bırak
+  // Do not push 'Standart' - keep empty if no real colors
   
   // ✅ FIX: Tek varyantlı ürünler için varyant başlıklarını kaldır
   extractedColors.slice(0, 1).forEach((color, colorIndex) => { // Sadece 1 renk
@@ -1063,8 +1068,8 @@ function processVariantsFromFeatures(features: any[], originalVariants: any[] = 
           // Karma bedenler (34/S, 36/M vs.)
           if (/^\d+\/[A-Z]+$/i.test(normalized)) return normalized.toUpperCase();
           
-          // Tek beden kontrolü
-          if (normalized.includes('tek') || normalized.includes('one') || normalized === 'universal') return 'Tek Beden';
+          // Tek beden kontrolü - boş string döndür (fake değer değil)
+          if (normalized.includes('tek') || normalized.includes('one') || normalized === 'universal') return ''; // Skip fake size values
           
           // Diğer durumlarda orijinal değeri büyük harfle döndür
           return size.toUpperCase();
@@ -1119,44 +1124,35 @@ function processVariantsFromFeatures(features: any[], originalVariants: any[] = 
         });
       });
     } else if (uniqueSizes.length > 0) {
-      // Sadece beden var
+      // Sadece beden var - renk boş (fake değer yok)
       console.log("🔧 Sadece beden var, beden varyantları oluşturuluyor...");
       uniqueSizes.forEach(size => {
         variants.push({
-          color: "Standart Renk",
+          color: "", // No fake color
           size: size,
           inStock: true,
           stock: 15,
           price: 0,
-          sku: `standart-${size.replace(/\s+/g, '-')}`.toLowerCase()
+          sku: `${size.replace(/\s+/g, '-')}`.toLowerCase()
         });
       });
     } else if (uniqueColors.length > 0) {
-      // Sadece renk var
+      // Sadece renk var - beden boş (fake değer yok)
       console.log("🔧 Sadece renk var, renk varyantları oluşturuluyor...");
       uniqueColors.forEach(color => {
         variants.push({
           color: color,
-          size: "Tek Beden",
+          size: "", // No fake size
           inStock: true,
           stock: 15,
           price: 0,
-          sku: `${color.replace(/\s+/g, '-')}-tek-beden`.toLowerCase()
+          sku: `${color.replace(/\s+/g, '-')}`.toLowerCase()
         });
       });
     }
-  } else {
-    // Hiç varyant yok - default oluştur
-    console.log("🔧 Hiç varyant bulunamadı, varsayılan varyant oluşturuluyor...");
-    variants.push({
-      color: "Standart",
-      size: "Tek Beden", 
-      inStock: true,
-      stock: 20,
-      price: 0,
-      sku: "standart-tek-beden"
-    });
   }
+  // ❌ NO DEFAULT VARIANT: If no variants found, return empty array
+  // Products without options should have no fake variants
   
   console.log("✅ Toplam", variants.length, "varyant oluşturuldu");
   console.log("📊 İlk 3 varyant:", variants.slice(0, 3));
@@ -2140,11 +2136,8 @@ ${fallbackTitle.toLowerCase().replace(/[^a-z0-9]/g, '-')},${fallbackTitle},Trend
                     fallbackColor = extractColorFromTitle(result.title);
                   }
                   
-                  // Final fallback to product type, not generic "Default"
-                  if (!fallbackColor) {
-                    fallbackColor = 'Tek Renk';
-                  }
-                  console.log(`🎨 Fallback color extracted: ${fallbackColor}`);
+                  // No fake fallback - leave empty if no real color found
+                  console.log(`🎨 Fallback color extracted: ${fallbackColor || 'none (empty)'}`);
                 }
                 
                 result.csvContent = `Handle,Title,Body (HTML),Vendor,Tags,Published,Option1 Name,Option1 Value,Variant Price,Image Src,Status
@@ -5417,9 +5410,9 @@ ${(result.title || 'product').toLowerCase().replace(/[^a-z0-9]/g, '-')},${result
         for (const variant of productData.variants.allVariants) {
           dbVariants.push({
             productId: savedProduct.id,
-            color: variant.color || 'Standart',
-            size: variant.size || 'Standart',
-            sku: variant.sku || `${savedProduct.id}-${variant.color || 'STD'}-${variant.size || 'STD'}`,
+            color: variant.color || '', // Empty string, no fake placeholders
+            size: variant.size || '', // Empty string, no fake placeholders
+            sku: variant.sku || `${savedProduct.id}-${variant.color || 'default'}-${variant.size || 'default'}`,
             trendyolPrice: variant.price?.toString() || '0',
             shopifyPrice: variant.shopifyPrice || variant.price?.toString() || '0',
             stockCount: variant.inStock ? 25 : 0,
@@ -5427,12 +5420,12 @@ ${(result.title || 'product').toLowerCase().replace(/[^a-z0-9]/g, '-')},${result
           });
         }
       } else {
-        // Varyant yoksa default varyant oluştur
+        // No variants - create single entry with empty options
         dbVariants.push({
           productId: savedProduct.id,
-          color: 'Standart',
-          size: 'Standart',
-          sku: `${savedProduct.id}-STD-STD`,
+          color: '', // Empty - no fake placeholders
+          size: '', // Empty - no fake placeholders
+          sku: `${savedProduct.id}-default`,
           trendyolPrice: typeof productData.price === 'number' ? productData.price.toString() : '0',
           shopifyPrice: typeof productData.price === 'number' ? productData.price.toString() : '0',
           stockCount: 25,

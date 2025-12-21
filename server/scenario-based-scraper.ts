@@ -1751,13 +1751,8 @@ export async function scenarioBasedScrape(url: string): Promise<ScenarioBasedRes
         
         const config = scenarioManager?.getScenarioConfig(detection.scenario);
         if (!config) {
-          console.log(`❌ No configuration found for scenario: ${detection.scenario}, using default`);
-          variants = [{
-            color: 'Varsayılan',
-            colorCode: '#C0A888',
-            size: '',
-            inStock: true
-          }];
+          console.log(`❌ No configuration found for scenario: ${detection.scenario}, using empty variants`);
+          variants = []; // No fake default variants
         } else {
           try {
             // PRIORITY 2: Try SKU-level stock detection (SKIP for single-variant)
@@ -1826,24 +1821,14 @@ export async function scenarioBasedScrape(url: string): Promise<ScenarioBasedRes
             }
           } catch (variantExtractionError) {
             console.log(`❌ Variant extraction failed: ${variantExtractionError.message}`);
-            variants = [{
-              color: 'Varsayılan',
-              colorCode: '#C0A888',
-              size: '',
-              inStock: true
-            }];
+            variants = []; // No fake default variants
           }
         }
       }
       }
     } catch (variantError) {
       console.log(`❌ CRITICAL: Variant processing failed: ${variantError.message}`);
-      variants = [{
-        color: 'Varsayılan',
-        colorCode: '#C0A888',
-        size: '',
-        inStock: true
-      }];
+      variants = []; // No fake default variants
     }
     
     // ✅ KATEGORİ ÇIKARMA SİSTEMİ EKLEME
@@ -1879,7 +1864,7 @@ export async function scenarioBasedScrape(url: string): Promise<ScenarioBasedRes
       console.log(`📸 SCENARIO: Processing image ${index + 1}: ${imageUrl}`);
       return {
         url: imageUrl,
-        colorName: colors.length > 0 ? colors[0] : 'Standart', // İlk rengi ata veya Standart
+        colorName: colors.length > 0 ? colors[0] : '', // Empty if no real color
         position: index + 1,
         alt: title || 'Product Image'
       };
