@@ -112572,3 +112572,129 @@ Details:
   - Variants Removed: 0
   - Product Archived: false
 ---
+
+[2025-12-21T12:34:46.639Z] SYNC AUDIT
+Product ID: 9623
+Product: Holographic Sm - B310 Tuşlu Cep Telefonu Radyo Mp3 Asker Telefonu Yaşlı Telefonu
+Success: true
+Changes: 0
+Errors: 0
+Details:
+  - Price Updates: 0
+  - Stock Updates: 0
+  - Variants Added: 0
+  - Variants Removed: 0
+  - Product Archived: false
+---
+
+[2025-12-21T12:35:13.804Z] SYNC AUDIT
+Product ID: 9074
+Product: trendyol.com
+Success: true
+Changes: 0
+Errors: 0
+Details:
+  - Price Updates: 0
+  - Stock Updates: 0
+  - Variants Added: 0
+  - Variants Removed: 0
+  - Product Archived: false
+---
+
+[2025-12-21T12:35:51.059Z] SYNC AUDIT
+Product ID: 5651
+Product: Mavi Logo Baskılı Antrasit Sweatshirt 1611656-82185
+Success: true
+Changes: 0
+Errors: 0
+Details:
+  - Price Updates: 0
+  - Stock Updates: 0
+  - Variants Added: 0
+  - Variants Removed: 0
+  - Product Archived: false
+---
+
+[2025-12-21T12:36:23.054Z] SYNC AUDIT
+Product ID: 8213
+Product: trendyol.com
+Success: true
+Changes: 0
+Errors: 0
+Details:
+  - Price Updates: 0
+  - Stock Updates: 0
+  - Variants Added: 0
+  - Variants Removed: 0
+  - Product Archived: false
+---
+
+[2025-12-21T12:36:50.026Z] SYNC AUDIT
+Product ID: 5094
+Product: Mira İpek Desenli Pamuk Soft Şal İlham Serisi ps33
+Success: true
+Changes: 0
+Errors: 0
+Details:
+  - Price Updates: 0
+  - Stock Updates: 0
+  - Variants Added: 0
+  - Variants Removed: 0
+  - Product Archived: false
+---
+
+[2025-12-21T12:37:21.716Z] SYNC AUDIT
+Product ID: 593
+Product: Lancome Hypnose Drama Anında Dolgunluk ve Hacim Etkili Maskara 01
+Success: true
+Changes: 0
+Errors: 0
+Details:
+  - Price Updates: 0
+  - Stock Updates: 0
+  - Variants Added: 0
+  - Variants Removed: 0
+  - Product Archived: false
+---
+
+[2025-12-21T12:37:48.610Z] SYNC AUDIT
+Product ID: 5377
+Product: LUPİX Kadın Erkek Unisex Mavi Işık Korumalı Uv 400 Leopar Desenli Siyah 2'Li Avantajlı SET
+Success: true
+Changes: 0
+Errors: 0
+Details:
+  - Price Updates: 0
+  - Stock Updates: 0
+  - Variants Added: 0
+  - Variants Removed: 0
+  - Product Archived: false
+---
+
+[2025-12-21T12:38:29.455Z] SYNC AUDIT
+Product ID: 5692
+Product: Mavi Logo Baskılı Mor Sweatshirt 1S10419-70679
+Success: true
+Changes: 0
+Errors: 0
+Details:
+  - Price Updates: 0
+  - Stock Updates: 0
+  - Variants Added: 0
+  - Variants Removed: 0
+  - Product Archived: false
+---
+
+[2025-12-21T12:38:58.790Z] SYNC AUDIT
+Product ID: 9712
+Product: Farway 360° Ayarlanılabilir 4 Kademeli Alüminyum Telefon Tutucu Tripod Monopod Selfie Çubuğu 210 cm Çantalı
+Success: true
+Changes: 0
+Errors: 0
+Details:
+  - Price Updates: 0
+  - Stock Updates: 0
+  - Variants Added: 0
+  - Variants Removed: 0
+  - Product Archived: false
+---

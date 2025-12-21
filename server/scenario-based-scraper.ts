@@ -2166,13 +2166,46 @@ function validateAndSanitizeVariants(rawVariants: Array<{color: string, size: st
   
   console.log(`📊 Variant Analysis: Total=${rawVariants.length}, AllSingleSize=${allSingleSize}, IsSingleVariant=${isSingleVariantProduct}`);
   
+  // ✅ FAKE VALUE DETECTION: Filter out fake placeholder values
+  const fakeColorValues = ['Tek Renk', 'Standart', 'Varsayılan', 'Default', 'none', 'null', 'undefined', 'N/A'];
+  const fakeSizeValues = ['Tek Beden', 'Standart', 'Varsayılan', 'Default', 'none', 'null', 'undefined', 'N/A', 'One Size'];
+  
   // ✅ DETECT: Check if this is a size-only product (multiple sizes, no real colors)
-  const hasSizeData = rawVariants.some(v => v.size && v.size.trim() !== '' && v.size !== 'Tek Beden');
-  const hasColorData = rawVariants.some(v => v.color && v.color.trim() !== '' && v.color !== 'Standart' && v.color !== 'Tek Renk');
-  const isSizeOnlyProduct = hasSizeData && !hasColorData;
-  const isColorOnlyProduct = hasColorData && !hasSizeData;
+  const hasSizeData = rawVariants.some(v => v.size && v.size.trim() !== '' && !fakeSizeValues.includes(v.size));
+  const hasColorData = rawVariants.some(v => v.color && v.color.trim() !== '' && !fakeColorValues.includes(v.color));
+  
+  // ✅ CRITICAL FIX: Distinguish between fake placeholder colors vs. truly absent colors
+  // "Tek Renk" = fake placeholder (indicates single-color product, data is invalid)
+  // Empty/undefined = no color dimension (could be genuine size-only product)
+  const hasFakePlaceholderColors = rawVariants.some(v => 
+    v.color && fakeColorValues.includes(v.color)
+  );
+  const hasNoColorData = rawVariants.every(v => !v.color || v.color.trim() === '');
+  
+  const hasFakePlaceholderSizes = rawVariants.some(v => 
+    v.size && fakeSizeValues.includes(v.size)
+  );
+  const hasNoSizeData = rawVariants.every(v => !v.size || v.size.trim() === '');
+  
+  // Size-only: Has real sizes, no colors at all (not even fake ones)
+  const isSizeOnlyProduct = hasSizeData && hasNoColorData && !hasFakePlaceholderColors;
+  // Color-only: Has real colors, no sizes at all (not even fake ones)
+  const isColorOnlyProduct = hasColorData && hasNoSizeData && !hasFakePlaceholderSizes;
   
   console.log(`📊 Product Type Detection: SizeOnly=${isSizeOnlyProduct}, ColorOnly=${isColorOnlyProduct}, HasSizes=${hasSizeData}, HasColors=${hasColorData}`);
+  console.log(`📊 Fake Placeholder Detection: FakeColors=${hasFakePlaceholderColors}, FakeSizes=${hasFakePlaceholderSizes}`);
+  
+  // ✅ CRITICAL: If fake placeholder colors exist (like "Tek Renk"), discard all variants
+  // This prevents products without real color options from showing fake size data
+  if (hasFakePlaceholderColors && !hasColorData) {
+    console.log(`🚫 FAKE PLACEHOLDER COLORS DETECTED (e.g., "Tek Renk") - discarding all variants`);
+    return {
+      colors: [],
+      sizes: [],
+      stockMap: {},
+      allVariants: []
+    };
+  }
   
   // Filter authentic variants - allow empty color for size-only products
   const authenticVariants = rawVariants.filter(variant => {
@@ -2186,10 +2219,9 @@ function validateAndSanitizeVariants(rawVariants: Array<{color: string, size: st
       return false;
     }
     
-    // ✅ STRICT FAKE COLOR REJECTION: Reject only obviously invalid colors
-    const fakeColors = ['Varsayılan', 'Default', 'none', 'null', 'undefined', 'N/A', 'Yıkama Talimatları media'];
-    if (variant.color && fakeColors.includes(variant.color)) {
-      console.log(`❌ Variant rejected - fake color: "${variant.color}"`);
+    // ✅ STRICT FAKE COLOR REJECTION: Reject placeholder colors
+    if (variant.color && fakeColorValues.includes(variant.color)) {
+      console.log(`❌ Variant rejected - fake/placeholder color: "${variant.color}"`);
       return false;
     }
     
@@ -3809,8 +3841,8 @@ async function extractVariantsDirect($: cheerio.CheerioAPI, htmlContent: string,
         detectedColors = [descriptionColor];
         console.log(`🎯 FINAL: Fallback to description color: ${descriptionColor}`);
       } else {
-        detectedColors = ['Tek Renk'];
-        console.log(`🎯 FINAL: Fallback to generic label: Tek Renk`);
+        detectedColors = []; // NO FAKE "Tek Renk" - leave empty if no real color found
+        console.log(`🚫 FINAL: No real color found - leaving empty (no fake placeholder)`);
       }
     }
   } else {
@@ -3841,8 +3873,8 @@ async function extractVariantsDirect($: cheerio.CheerioAPI, htmlContent: string,
       detectedColors = [categoryColor];
       console.log(`🎯 FINAL: Category-based color: ${categoryColor}`);
     } else {
-      detectedColors = ['Tek Renk'];
-      console.log(`🎯 FINAL: Generic product label: Tek Renk`);
+      detectedColors = []; // NO FAKE "Tek Renk" - leave empty if no real color found
+      console.log(`🚫 FINAL: No real color found - leaving empty (no fake placeholder)`);
     }
   }
   
