@@ -970,6 +970,10 @@ export async function scenarioBasedScrape(url: string): Promise<ScenarioBasedRes
               }
               
               // Convert to expected format and return immediately
+              // ✅ NO FAKE FALLBACK: Pass through actual variant data, don't add fake
+              const hasRealColors = antiBlockingResult.variants?.colors && antiBlockingResult.variants.colors.length > 0 && antiBlockingResult.variants.colors[0] !== 'Standart';
+              const hasRealSizes = antiBlockingResult.variants?.sizes && antiBlockingResult.variants.sizes.length > 0 && antiBlockingResult.variants.sizes[0] !== 'Tek Beden';
+              
               return {
                 success: true,
                 scenario: 'anti-blocking' as ExtractionScenario,
@@ -986,14 +990,14 @@ export async function scenarioBasedScrape(url: string): Promise<ScenarioBasedRes
                 images: antiBlockingResult.images || [],
                 features: [],
                 variants: {
-                  colors: antiBlockingResult.variants?.colors || ['Standart'],
-                  sizes: antiBlockingResult.variants?.sizes || ['Tek Beden'],
-                  allVariants: [{
-                    color: antiBlockingResult.variants?.colors?.[0] || 'Standart',
+                  colors: hasRealColors ? antiBlockingResult.variants.colors : [],
+                  sizes: hasRealSizes ? antiBlockingResult.variants.sizes : [],
+                  allVariants: (hasRealColors || hasRealSizes) ? [{
+                    color: hasRealColors ? antiBlockingResult.variants.colors[0] : '',
                     colorCode: '#C0A888',
-                    size: antiBlockingResult.variants?.sizes?.[0] || 'Tek Beden',
+                    size: hasRealSizes ? antiBlockingResult.variants.sizes[0] : '',
                     inStock: true
-                  }]
+                  }] : []
                 },
                 tags: ['anti-blocking', antiBlockingResult.source],
                 extractionDetails: {
@@ -1013,6 +1017,10 @@ export async function scenarioBasedScrape(url: string): Promise<ScenarioBasedRes
               console.log('🎉 ULTIMATE STEALTH SUCCESS - Trendyol bypassed completely!');
               console.log('🚨 DEBUG: ULTIMATE STEALTH PATH TAKEN 🚨');
               
+              // ✅ NO FAKE FALLBACK: Pass through actual variant data
+              const stealthHasRealColors = ultimateStealthResult.variants?.colors && ultimateStealthResult.variants.colors.length > 0 && ultimateStealthResult.variants.colors[0] !== 'Standart';
+              const stealthHasRealSizes = ultimateStealthResult.variants?.sizes && ultimateStealthResult.variants.sizes.length > 0 && ultimateStealthResult.variants.sizes[0] !== 'Tek Beden';
+              
               return {
                 success: true,
                 scenario: 'ultimate-stealth' as ExtractionScenario,
@@ -1028,12 +1036,12 @@ export async function scenarioBasedScrape(url: string): Promise<ScenarioBasedRes
                 },
                 images: ultimateStealthResult.images || [],
                 features: [],
-                variants: [{
-                  color: ultimateStealthResult.variants?.colors?.[0] || 'Standart',
+                variants: (stealthHasRealColors || stealthHasRealSizes) ? [{
+                  color: stealthHasRealColors ? ultimateStealthResult.variants.colors[0] : '',
                   colorCode: '#C0A888',
-                  size: ultimateStealthResult.variants?.sizes?.[0] || 'Tek Beden',
+                  size: stealthHasRealSizes ? ultimateStealthResult.variants.sizes[0] : '',
                   inStock: true
-                }],
+                }] : [],
                 tags: ['ultimate-stealth', ultimateStealthResult.source],
                 extractionDetails: {
                   scenario: 'ultimate-stealth',
@@ -1052,6 +1060,10 @@ export async function scenarioBasedScrape(url: string): Promise<ScenarioBasedRes
               console.log('✅ ULTRA ADVANCED BYPASS SUCCESS!');
               console.log('🚨 DEBUG: ULTRA BYPASS PATH TAKEN 🚨');
               
+              // ✅ NO FAKE FALLBACK: Pass through actual variant data
+              const ultraHasRealColors = ultraAdvancedResult.variants?.colors && ultraAdvancedResult.variants.colors.length > 0 && ultraAdvancedResult.variants.colors[0] !== 'Standart';
+              const ultraHasRealSizes = ultraAdvancedResult.variants?.sizes && ultraAdvancedResult.variants.sizes.length > 0 && ultraAdvancedResult.variants.sizes[0] !== 'Tek Beden';
+              
               return {
                 success: true,
                 scenario: 'ultra-bypass' as ExtractionScenario,
@@ -1067,12 +1079,12 @@ export async function scenarioBasedScrape(url: string): Promise<ScenarioBasedRes
                 },
                 images: ultraAdvancedResult.images || [],
                 features: [],
-                variants: [{
-                  color: ultraAdvancedResult.variants?.colors?.[0] || 'Standart',
+                variants: (ultraHasRealColors || ultraHasRealSizes) ? [{
+                  color: ultraHasRealColors ? ultraAdvancedResult.variants.colors[0] : '',
                   colorCode: '#C0A888',
-                  size: ultraAdvancedResult.variants?.sizes?.[0] || 'Tek Beden',
+                  size: ultraHasRealSizes ? ultraAdvancedResult.variants.sizes[0] : '',
                   inStock: true
-                }],
+                }] : [],
                 tags: ['ultra-bypass', ultraAdvancedResult.source],
                 extractionDetails: {
                   scenario: 'ultra-bypass',
@@ -2010,32 +2022,11 @@ export async function scenarioBasedScrape(url: string): Promise<ScenarioBasedRes
     console.log('🔧 VALIDATED VARIANTS:', JSON.stringify(validatedVariants, null, 2));
     console.log('🔧 VALIDATED allVariants length:', validatedVariants.allVariants?.length || 0);
     
-    // ✅ SINGLE-VARIANT FALLBACK: If no variants but we have title/URL, create one variant
+    // ✅ NO FAKE FALLBACK: Do not create fake variants when none are found
+    // Real variants should be extracted from HTML/JS - if none found, leave empty
     if (validatedVariants.allVariants.length === 0) {
-      console.log('🎯 SINGLE-VARIANT FALLBACK: No variants found, creating fallback variant...');
-      
-      // Try to extract color from URL or title using imported functions
-      let detectedColor = extractColorFromUrl(url);
-      if (!detectedColor && title) {
-        detectedColor = extractColorFromTitle(title);
-      }
-      
-      const fallbackColor = detectedColor || 'Standart';
-      const fallbackSize = 'Tek Beden';
-      
-      console.log(`✅ Creating fallback variant: Color="${fallbackColor}", Size="${fallbackSize}"`);
-      
-      validatedVariants.allVariants = [{
-        color: fallbackColor,
-        colorCode: getColorCode(fallbackColor),
-        size: fallbackSize,
-        inStock: true
-      }];
-      validatedVariants.colors = [fallbackColor];
-      validatedVariants.sizes = [fallbackSize];
-      validatedVariants.stockMap = { [`${fallbackColor}-${fallbackSize}`]: true };
-      
-      console.log('✅ Fallback variant created successfully');
+      console.log('🚫 NO VARIANTS FOUND: Not creating fake fallback - product has no variant data');
+      // Leave variants empty - don't add fake "Tek Beden" or "Standart"
     }
     
     // Save successful result to cache
@@ -2175,26 +2166,38 @@ function validateAndSanitizeVariants(rawVariants: Array<{color: string, size: st
   
   console.log(`📊 Variant Analysis: Total=${rawVariants.length}, AllSingleSize=${allSingleSize}, IsSingleVariant=${isSingleVariantProduct}`);
   
-  // Filter authentic variants - only if they have authentic colors and sizes
+  // ✅ DETECT: Check if this is a size-only product (multiple sizes, no real colors)
+  const hasSizeData = rawVariants.some(v => v.size && v.size.trim() !== '' && v.size !== 'Tek Beden');
+  const hasColorData = rawVariants.some(v => v.color && v.color.trim() !== '' && v.color !== 'Standart' && v.color !== 'Tek Renk');
+  const isSizeOnlyProduct = hasSizeData && !hasColorData;
+  const isColorOnlyProduct = hasColorData && !hasSizeData;
+  
+  console.log(`📊 Product Type Detection: SizeOnly=${isSizeOnlyProduct}, ColorOnly=${isColorOnlyProduct}, HasSizes=${hasSizeData}, HasColors=${hasColorData}`);
+  
+  // Filter authentic variants - allow empty color for size-only products
   const authenticVariants = rawVariants.filter(variant => {
     console.log(`🔍 VARIANT CHECK: Color: "${variant.color}", Size: "${variant.size}", InStock: ${variant.inStock}`);
     
-    // ✅ RELAXED COLOR VALIDATION: Allow any non-empty color
-    if (!variant.color || variant.color.trim() === '') {
-      console.log(`❌ Variant rejected - empty color: "${variant.color}"`);
+    // ✅ FLEXIBLE COLOR VALIDATION: Allow empty color for size-only products
+    const colorIsEmpty = !variant.color || variant.color.trim() === '';
+    if (colorIsEmpty && !isSizeOnlyProduct) {
+      // Only reject empty colors if this is NOT a size-only product
+      console.log(`❌ Variant rejected - empty color in non-size-only product: "${variant.color}"`);
       return false;
     }
     
     // ✅ STRICT FAKE COLOR REJECTION: Reject only obviously invalid colors
     const fakeColors = ['Varsayılan', 'Default', 'none', 'null', 'undefined', 'N/A', 'Yıkama Talimatları media'];
-    if (fakeColors.includes(variant.color)) {
+    if (variant.color && fakeColors.includes(variant.color)) {
       console.log(`❌ Variant rejected - fake color: "${variant.color}"`);
       return false;
     }
     
-    // ✅ RELAXED SIZE VALIDATION: Allow all authentic sizes including S/M/L
-    if (!variant.size || variant.size.trim() === '') {
-      console.log(`❌ Variant rejected - empty size: "${variant.size}"`);
+    // ✅ FLEXIBLE SIZE VALIDATION: Allow empty size for color-only products
+    const sizeIsEmpty = !variant.size || variant.size.trim() === '';
+    if (sizeIsEmpty && !isColorOnlyProduct) {
+      // Only reject empty sizes if this is NOT a color-only product
+      console.log(`❌ Variant rejected - empty size in non-color-only product: "${variant.size}"`);
       return false;
     }
     
