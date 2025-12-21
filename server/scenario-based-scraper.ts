@@ -284,12 +284,12 @@ function extractCategoryFromProduct($: any, htmlContent: string, title: string, 
 }
 
 // 🧹 COMPREHENSIVE HTML CLEANING FUNCTION
+// ⚠️ CRITICAL: Do NOT remove script tags - they contain window.__NUXT__ product data!
 function cleanHtmlForParsing(htmlContent: string): string {
-  console.log('🧹 Cleaning HTML content for safe parsing...');
+  console.log('🧹 Cleaning HTML content for safe parsing (preserving scripts)...');
   
   let cleaned = htmlContent
-    // Remove or fix problematic script tags that often contain malformed HTML
-    .replace(/<script[^>]*>[-￿]*?<\/script>/gi, '')
+    // ⚠️ DO NOT remove script tags - they contain critical product data
     // Fix unclosed quotes in attributes
     .replace(/(\w+)=([^"'\s>]+)(?=\s|>)/g, '$1="$2"')
     // Fix double quotes in attributes
@@ -306,11 +306,15 @@ function cleanHtmlForParsing(htmlContent: string): string {
     // Remove data attributes that might contain problematic content
     .replace(/data-[a-zA-Z-]*="[^"]*[<>&][^"]*"/gi, '')
     // Remove any remaining unclosed quotes
-    .replace(/="[^"]*$/gm, '')
-    // Clean up whitespace
-    .replace(/\s+/g, ' ');
+    .replace(/="[^"]*$/gm, '');
     
   console.log(`🧹 HTML cleaned: ${htmlContent.length} -> ${cleaned.length} chars`);
+  
+  // Check if we preserved the critical product data
+  const hasNuxt = cleaned.includes('window.__NUXT__') || cleaned.includes('window.__STATE__');
+  const hasJsonLd = cleaned.includes('application/ld+json');
+  console.log(`📋 Preserved data: __NUXT__=${hasNuxt}, JSON-LD=${hasJsonLd}`);
+  
   return cleaned;
 }
 
