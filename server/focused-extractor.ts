@@ -665,17 +665,41 @@ export async function extractFocusedData(url: string): Promise<FocusedProductDat
       organizedVariants.push(variant);
     });
   } else {
-    // Yoksa stok filtreleme sonuçlarından oluştur
-    for (const color of finalColors.length > 0 ? finalColors : ['Varsayılan']) {
-      for (const size of finalSizes.length > 0 ? finalSizes : ['Tek Beden']) {
+    // ✅ SMART VARIANT GENERATION - preserve authentic data, no fake fallbacks
+    if (finalColors.length > 0 && finalSizes.length > 0) {
+      // Both colors AND sizes exist - create full combinations
+      for (const color of finalColors) {
+        for (const size of finalSizes) {
+          organizedVariants.push({
+            color,
+            size,
+            inStock: true,
+            stockCount: 0
+          });
+        }
+      }
+    } else if (finalColors.length > 0) {
+      // Color-only products (no size options) - preserve colors with empty size
+      for (const color of finalColors) {
         organizedVariants.push({
           color,
+          size: '', // Empty string - no fake "Tek Beden"
+          inStock: true,
+          stockCount: 0
+        });
+      }
+    } else if (finalSizes.length > 0) {
+      // Size-only products (no color options) - preserve sizes with empty color
+      for (const size of finalSizes) {
+        organizedVariants.push({
+          color: '', // Empty string - no fake "Standart"
           size,
           inStock: true,
           stockCount: 0
         });
       }
     }
+    // If neither colors nor sizes found, leave variants empty - don't add fake data
   }
   
   // Alternatif varyant kaynakları kontrol et

@@ -892,8 +892,7 @@ export async function fixedAuthenticScrape(url: string): Promise<FixedProductDat
           colors.push('Standart');
         }
       }
-      if (sizes.length === 0) sizes.push('Tek Beden');
-      
+      // ✅ SMART VARIANT GENERATION - no fake fallbacks
       // Limit to reasonable number of variants to avoid overwhelming output
       const maxColors = 10;
       const maxSizes = 15;
@@ -901,14 +900,36 @@ export async function fixedAuthenticScrape(url: string): Promise<FixedProductDat
       const limitedSizes = sizes.slice(0, maxSizes);
       
       // Create variant combinations with authentic stock status
-      for (const color of limitedColors) {
-        for (const size of limitedSizes) {
-          // Get actual stock status from our detection, default to true if not found
-          const stockStatus = sizeStockMap.get(size) !== undefined ? sizeStockMap.get(size)! : true;
-          
+      if (limitedColors.length > 0 && limitedSizes.length > 0) {
+        // Both colors AND sizes exist - create full combinations
+        for (const color of limitedColors) {
+          for (const size of limitedSizes) {
+            const stockStatus = sizeStockMap.get(size) !== undefined ? sizeStockMap.get(size)! : true;
+            variants.push({
+              color: color,
+              colorCode: getColorCode(color),
+              size: size,
+              inStock: stockStatus
+            });
+          }
+        }
+      } else if (limitedColors.length > 0) {
+        // Color-only products - preserve colors with empty size
+        for (const color of limitedColors) {
           variants.push({
             color: color,
             colorCode: getColorCode(color),
+            size: '', // Empty string - no fake "Tek Beden"
+            inStock: true
+          });
+        }
+      } else if (limitedSizes.length > 0) {
+        // Size-only products - preserve sizes with empty color
+        for (const size of limitedSizes) {
+          const stockStatus = sizeStockMap.get(size) !== undefined ? sizeStockMap.get(size)! : true;
+          variants.push({
+            color: '', // Empty string - no fake "Standart"
+            colorCode: '#C0A888',
             size: size,
             inStock: stockStatus
           });

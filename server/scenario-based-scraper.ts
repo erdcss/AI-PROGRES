@@ -1131,12 +1131,7 @@ export async function scenarioBasedScrape(url: string): Promise<ScenarioBasedRes
                   },
                   images: basicData.images,
                   features: [],
-                  variants: [{
-                    color: 'Standart',
-                    colorCode: '#C0A888',
-                    size: 'Tek Beden',
-                    inStock: true
-                  }],
+                  variants: [], // ❌ NO FAKE VARIANTS - empty if no real size data
                   tags: ['fallback'],
                   extractionDetails: {
                     scenario: 'fallback-regex',
@@ -1201,12 +1196,7 @@ export async function scenarioBasedScrape(url: string): Promise<ScenarioBasedRes
                 },
                 images: basicData.images,
                 features: [],
-                variants: [{
-                  color: 'Standart',
-                  colorCode: '#C0A888',
-                  size: 'Tek Beden',
-                  inStock: true
-                }],
+                variants: [], // ❌ NO FAKE VARIANTS - empty if no real size data
                 tags: ['fallback'],
                 extractionDetails: {
                   scenario: 'fallback-regex',
@@ -1393,12 +1383,7 @@ export async function scenarioBasedScrape(url: string): Promise<ScenarioBasedRes
           },
           images: basicData.images,
           features: [],
-          variants: [{
-            color: 'Standart',
-            colorCode: '#C0A888',
-            size: 'Tek Beden',
-            inStock: true
-          }],
+          variants: [], // ❌ NO FAKE VARIANTS - empty if no real size data
           tags: ['regex-extraction'],
           extractionDetails: {
             scenario: 'regex-only',
@@ -1437,12 +1422,7 @@ export async function scenarioBasedScrape(url: string): Promise<ScenarioBasedRes
           },
           images: basicData.images,
           features: [],
-          variants: [{
-            color: 'Standart',
-            colorCode: '#C0A888',
-            size: 'Tek Beden',
-            inStock: true
-          }],
+          variants: [], // ❌ NO FAKE VARIANTS - empty if no real size data
           tags: ['blocked-bypass'],
           extractionDetails: {
             scenario: 'bypass-blocked',
@@ -1936,12 +1916,7 @@ export async function scenarioBasedScrape(url: string): Promise<ScenarioBasedRes
             },
             images: emergencyResult.images || [],
             features: [],
-            variants: [{
-              color: 'Standart',
-              colorCode: '#C0A888',
-              size: 'Tek Beden',
-              inStock: true
-            }],
+            variants: [], // ❌ NO FAKE VARIANTS - empty if no real size data
             tags: ['emergency-bypass'],
             extractionDetails: {
               scenario: 'emergency-bypass',
@@ -3415,11 +3390,11 @@ function buildVariantsArray(variantResult: any, scenario: ExtractionScenario): a
         variants.push({
           color,
           colorCode: getColorCode(color),
-          size: 'Tek Beden',
+          size: '', // ❌ NO FAKE SIZE - leave empty if no real size data
           inStock
         });
       }
-      console.log(`✅ Color-only variants: ${finalColors.length} colors with default size`);
+      console.log(`✅ Color-only variants: ${finalColors.length} colors without size data`);
     } else {
       // No authentic variants found - return empty
       console.log(`🚫 No authentic variants found - returning empty variants`);
