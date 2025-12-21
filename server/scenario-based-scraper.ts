@@ -21,7 +21,7 @@ import { ultraStealthSystem } from './ultra-stealth-system';
 import { intelligentRateLimiter } from './intelligent-rate-limiter';
 import { extractFromTrendyolJavaScriptState } from './trendyol-js-extractor';
 import { detectRealStockStatus } from './real-stock-detector';
-import { extractColorFromUrl, extractColorFromTitle, getColorCode, cleanColorName, normalizeSize, parseVariantString } from './color-recognition';
+import { extractColorFromUrl, cleanColorName, normalizeSize, parseVariantString } from './color-recognition';
 import { getPerformanceConfig, getTimeout, shouldRetryWithSlowTimeout } from './performance-config';
 
 // ⚡ ULTRA-FAST CACHING SYSTEM with configurable duration
@@ -3637,33 +3637,8 @@ async function extractVariantsDirect($: cheerio.CheerioAPI, htmlContent: string,
   const jsonExtractedColors = extractColorsFromJS($, htmlContent);
   const jsonExtractedSizes = extractSizesFromJS($, htmlContent);
   
-  // Method 4: AGGRESSIVE SIZE DETECTION - Scan entire HTML for ALL missing sizes including M and L
-  console.log(`🔍 AGGRESSIVE SIZE SCAN: Looking for S, M, L, XL, 2XL, 3XL patterns...`);
-  const aggressiveSizePatterns = [
-    /\bS\b/gi,
-    /\bM\b/gi, 
-    /\bL\b/gi,
-    /\bXL\b/gi,
-    /\b2XL\b/gi,
-    /\b3XL\b/gi,
-    /\bXXL\b/gi,
-    /\bXXXL\b/gi,
-  */
-    /size["\s]*[=:]["\s]*(S|M|L|XL|2XL|3XL|XXL|XXXL)/gi,
-    /title["\s]*[=:]["\s]*(S|M|L|XL|2XL|3XL|XXL|XXXL)/gi,
-    /data-size["\s]*[=:]["\s]*(S|M|L|XL|2XL|3XL|XXL|XXXL)/gi,
-    /aria-label["\s]*[=:]["\s]*[^"]*\b(S|M|L|XL|2XL|3XL)\b/gi,
-    /button[^>]*>\s*(S|M|L|XL|2XL|3XL)\s*</gi
-  
-  // ❌ DISABLED - Authentic size scanning was too aggressive
-  // It extracted S, M, L from any text on the page (including product descriptions)
-  // causing fake size variants for products without real size options
+  // ❌ DISABLED - Aggressive size pattern scanning
   console.log('❌ DISABLED: Aggressive size pattern scanning - only DOM/JSON sources allowed');
-  
-  // METHOD 3: Enable JavaScript and JSON-LD extraction for comprehensive variant detection
-  console.log('🔍 Extracting colors and sizes from JavaScript data and JSON-LD...');
-  const jsonExtractedColors = extractColorsFromJS($, htmlContent);
-  const jsonExtractedSizes = extractSizesFromJS($, htmlContent);
   
   // NEW: Extract from JSON-LD structured data
   const jsonLdVariants = extractVariantsFromJsonLD($, htmlContent);
@@ -3960,13 +3935,11 @@ function extractVariantsFromJsonLD($: cheerio.CheerioAPI, htmlContent: string): 
           
           // Extract from name if contains size/color info
           if (variant.name && typeof variant.name === 'string') {
-            const nameColors = extractColorFromTitle(variant.name);
-            nameColors.forEach(c => {
-              if (!colors.includes(c)) {
-                colors.push(c);
-                console.log(`🎨 JSON-LD variant ${index}: Color from name: ${c}`);
-              }
-            });
+            const nameColor = extractColorFromTitle(variant.name);
+            if (nameColor && !colors.includes(nameColor)) {
+              colors.push(nameColor);
+              console.log(`🎨 JSON-LD variant ${index}: Color from name: ${nameColor}`);
+            }
           }
         });
       }
@@ -4726,93 +4699,6 @@ function extractSizesFromJS($: any, htmlContent: string): string[] {
   // Regex-based extraction from script content was too aggressive
   console.log('❌ extractSizesFromJS DISABLED - returning empty array');
   return [];
-  
-  // Method 2: Extract from JSON-LD data
-  $('script[type="application/ld+json"]').each((_, script) => {
-    try {
-      const jsonData = JSON.parse($(script).html() || '{}');
-      
-      // Check for size in offers or variants
-      if (jsonData.offers && Array.isArray(jsonData.offers)) {
-        jsonData.offers.forEach((offer: any) => {
-          if (offer.size || offer.Size) {
-            const size = offer.size || offer.Size;
-            sizes.push(size);
-            console.log(`👕 Found size in JSON-LD offer: ${size}`);
-          }
-        });
-      }
-      
-      // Check for hasVariant array
-      if (jsonData.hasVariant && Array.isArray(jsonData.hasVariant)) {
-        jsonData.hasVariant.forEach((variant: any) => {
-          if (variant.size || variant.Size) {
-            const size = variant.size || variant.Size;
-            // Virgülle ayrılmış string kontrolü
-            if (typeof size === 'string' && size.includes(',')) {
-              const splitSizes = size.split(',').map((s: string) => s.trim()).filter((s: string) => s.length > 0 && s !== '1' && s !== '0');
-              splitSizes.forEach((s: string) => {
-                sizes.push(s);
-                console.log(`👕 Found size in JSON-LD variant: ${s}`);
-              });
-            } else if (typeof size === 'string' && size !== '1' && size !== '0') {
-              sizes.push(size);
-              console.log(`👕 Found size in JSON-LD variant: ${size}`);
-            }
-          }
-        });
-      }
-      
-      // Check for product variants in nested structures
-      if (jsonData['@graph'] && Array.isArray(jsonData['@graph'])) {
-        jsonData['@graph'].forEach((item: any) => {
-          if (item.size || item.Size) {
-            const size = item.size || item.Size;
-            sizes.push(size);
-            console.log(`👕 Found size in JSON-LD graph: ${size}`);
-          }
-          if (item.hasVariant && Array.isArray(item.hasVariant)) {
-            item.hasVariant.forEach((variant: any) => {
-              if (variant.size || variant.Size) {
-                const size = variant.size || variant.Size;
-                sizes.push(size);
-                console.log(`👕 Found size in JSON-LD graph variant: ${size}`);
-              }
-            });
-          }
-        });
-      }
-      
-    } catch (e) {
-      // Continue silently
-    }
-  });
-  
-  // Method 3: Extract from HTML content patterns (enhanced for Trendyol)
-  const htmlSizePatterns = [
-    /"size":\s*"([^"]+)"/gi,
-    /"beden":\s*"([^"]+)"/gi,
-    /size['"]\s*:\s*['"]([\w\s\-]+)['"]/gi,
-    /beden['"]\s*:\s*['"]([\w\s\-]+)['"]/gi,
-    /"name":\s*"Beden",\s*"value":\s*"([^"]+)"/gi
-  ];
-  
-  htmlSizePatterns.forEach(pattern => {
-    let match;
-    while ((match = pattern.exec(htmlContent)) !== null) {
-      const sizeName = match[1].trim();
-      // Filter for valid size names (extended length for dimension sizes)
-      if (sizeName && sizeName.length > 0 && sizeName.length < 20) {
-        const sizePattern = /^(XXS|XS|S|M|L|XL|XXL|XXXL|\d+(\.\d+)?|Tek\s*Beden|One\s*Size|\d+\s*[xX×]\s*\d+(\s*(cm|CM))?)$/i;
-        if (sizePattern.test(sizeName)) {
-          sizes.push(sizeName);
-          console.log(`👕 Found size in HTML pattern: ${sizeName}`);
-        }
-      }
-    }
-  });
-  
-  return Array.from(new Set(sizes)); // Remove duplicates
 }
 
 
@@ -5164,3 +5050,4 @@ function extractColorFromCategory($: any): string | null {
   return null;
 }
 
+}

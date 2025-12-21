@@ -113930,3 +113930,549 @@ Details:
   - Variants Removed: 0
   - Product Archived: false
 ---
+
+[2025-12-21T14:08:16.719Z] SYNC AUDIT
+Product ID: 10742
+Product: Katia & Bony Çocuk Pamuklu Tayt Mavi Melanj
+Success: true
+Changes: 0
+Errors: 0
+Details:
+  - Price Updates: 0
+  - Stock Updates: 0
+  - Variants Added: 0
+  - Variants Removed: 0
+  - Product Archived: false
+---
+
+[2025-12-21T14:09:35.641Z] SYNC AUDIT
+Product ID: 5692
+Product: trendyol.com
+Success: true
+Changes: 0
+Errors: 0
+Details:
+  - Price Updates: 0
+  - Stock Updates: 0
+  - Variants Added: 0
+  - Variants Removed: 0
+  - Product Archived: false
+---
+
+[2025-12-21T14:09:44.092Z] SYNC AUDIT
+Product ID: 5060
+Product: Shaka Siyah Shk108 Çıtçıtlı Suni Deri Cüzdanlı Makyaj Çantalı Kadın El Ve Omuz Çantası
+Success: true
+Changes: 0
+Errors: 0
+Details:
+  - Price Updates: 0
+  - Stock Updates: 0
+  - Variants Added: 0
+  - Variants Removed: 0
+  - Product Archived: false
+---
+
+[2025-12-21T14:10:21.628Z] SYNC AUDIT
+Product ID: 6015
+Product: Ürün Bilgisi Alınamadı
+Success: true
+Changes: 0
+Errors: 0
+Details:
+  - Price Updates: 0
+  - Stock Updates: 0
+  - Variants Added: 0
+  - Variants Removed: 0
+  - Product Archived: false
+---
+
+[2025-12-21T14:10:52.631Z] SYNC AUDIT
+Product ID: 5094
+Product: Mira İpek Desenli Pamuk Soft Şal İlham Serisi ps33
+Success: true
+Changes: 0
+Errors: 0
+Details:
+  - Price Updates: 0
+  - Stock Updates: 0
+  - Variants Added: 0
+  - Variants Removed: 0
+  - Product Archived: false
+---
+
+[2025-12-21T14:11:33.933Z] SYNC AUDIT
+Product ID: 9324
+Product: trendyol.com
+Success: true
+Changes: 0
+Errors: 0
+Details:
+  - Price Updates: 0
+  - Stock Updates: 0
+  - Variants Added: 0
+  - Variants Removed: 0
+  - Product Archived: false
+---
+
+[2025-12-21T14:12:11.145Z] SYNC AUDIT
+Product ID: 640
+Product: NYX Professional Makeup Bare With Me Kapatıcı Serum 02 Light Concealer
+Success: true
+Changes: 0
+Errors: 0
+Details:
+  - Price Updates: 0
+  - Stock Updates: 0
+  - Variants Added: 0
+  - Variants Removed: 0
+  - Product Archived: false
+---
+
+[2025-12-21T14:12:47.915Z] SYNC AUDIT
+Product ID: 9204
+Product: Samsung Galaxy S25 Ultra 512 GB Titanyum Gümüş (Samsung Türkiye Garantili)
+Success: true
+Changes: 0
+Errors: 0
+Details:
+  - Price Updates: 0
+  - Stock Updates: 0
+  - Variants Added: 0
+  - Variants Removed: 0
+  - Product Archived: false
+---
+
+[2025-12-21T14:13:18.437Z] SYNC AUDIT
+Product ID: 5402
+Product: Stanley Quencher Pipetli Termos 1,18 L Krem
+Success: true
+Changes: 1
+Errors: 0
+Details:
+  - Price Updates: 0
+  - Stock Updates: 0
+  - Variants Added: 0
+  - Variants Removed: 0
+  - Product Archived: false
+---
+
+[2025-12-21T14:13:28.672Z] SYNC AUDIT
+Product ID: 5402
+Product: Stanley Quencher Pipetli Termos 1,18 L Krem
+Success: true
+Changes: 0
+Errors: 0
+Details:
+  - Price Updates: 0
+  - Stock Updates: 0
+  - Variants Added: 0
+  - Variants Removed: 0
+  - Product Archived: false
+---
+
+[2025-12-21T14:14:40.369Z] SYNC AUDIT
+Product ID: 10604
+Product: Katia & Bony İçi Havlu Çocuk Tayt Siyah
+Success: true
+Changes: 0
+Errors: 0
+Details:
+  - Price Updates: 0
+  - Stock Updates: 0
+  - Variants Added: 0
+  - Variants Removed: 0
+  - Product Archived: false
+---
+
+[2025-12-21T14:14:54.500Z] SYNC AUDIT
+Product ID: 5692
+Product: trendyol.com
+Success: true
+Changes: 0
+Errors: 0
+Details:
+  - Price Updates: 0
+  - Stock Updates: 0
+  - Variants Added: 0
+  - Variants Removed: 0
+  - Product Archived: false
+---
+
+[2025-12-21T14:15:17.946Z] SYNC AUDIT
+Product ID: 5060
+Product: Shaka Siyah Shk108 Çıtçıtlı Suni Deri Cüzdanlı Makyaj Çantalı Kadın El Ve Omuz Çantası
+Success: true
+Changes: 0
+Errors: 0
+Details:
+  - Price Updates: 0
+  - Stock Updates: 0
+  - Variants Added: 0
+  - Variants Removed: 0
+  - Product Archived: false
+---
+
+[2025-12-21T14:15:45.374Z] SYNC AUDIT
+Product ID: 16951
+Product: Plodna House Kişiye özel Plaka Anahtarlıkları 1 Adet
+Success: true
+Changes: 0
+Errors: 0
+Details:
+  - Price Updates: 0
+  - Stock Updates: 0
+  - Variants Added: 0
+  - Variants Removed: 0
+  - Product Archived: false
+---
+
+[2025-12-21T14:16:09.024Z] SYNC AUDIT
+Product ID: 10626
+Product: Katia & Bony İçi Havlu Çocuk Tayt Gri
+Success: true
+Changes: 1
+Errors: 0
+Details:
+  - Price Updates: 0
+  - Stock Updates: 0
+  - Variants Added: 0
+  - Variants Removed: 0
+  - Product Archived: false
+---
+
+[2025-12-21T14:16:14.494Z] SYNC AUDIT
+Product ID: 10626
+Product: Katia & Bony İçi Havlu Çocuk Tayt Gri
+Success: true
+Changes: 0
+Errors: 0
+Details:
+  - Price Updates: 0
+  - Stock Updates: 0
+  - Variants Added: 0
+  - Variants Removed: 0
+  - Product Archived: false
+---
+
+[2025-12-21T14:16:19.839Z] SYNC AUDIT
+Product ID: 6015
+Product: Ürün Bilgisi Alınamadı
+Success: true
+Changes: 0
+Errors: 0
+Details:
+  - Price Updates: 0
+  - Stock Updates: 0
+  - Variants Added: 0
+  - Variants Removed: 0
+  - Product Archived: false
+---
+
+[2025-12-21T14:16:53.841Z] SYNC AUDIT
+Product ID: 913
+Product: NYX Professional Makeup Jumbo Aydınlatıcı Kalem - 604 Milk
+Success: true
+Changes: 0
+Errors: 0
+Details:
+  - Price Updates: 0
+  - Stock Updates: 0
+  - Variants Added: 0
+  - Variants Removed: 0
+  - Product Archived: false
+---
+
+[2025-12-21T14:17:29.321Z] SYNC AUDIT
+Product ID: 5094
+Product: Mira İpek Desenli Pamuk Soft Şal İlham Serisi ps33
+Success: true
+Changes: 0
+Errors: 0
+Details:
+  - Price Updates: 0
+  - Stock Updates: 0
+  - Variants Added: 0
+  - Variants Removed: 0
+  - Product Archived: false
+---
+
+[2025-12-21T14:18:09.458Z] SYNC AUDIT
+Product ID: 9324
+Product: trendyol.com
+Success: true
+Changes: 0
+Errors: 0
+Details:
+  - Price Updates: 0
+  - Stock Updates: 0
+  - Variants Added: 0
+  - Variants Removed: 0
+  - Product Archived: false
+---
+
+[2025-12-21T14:19:06.999Z] SYNC AUDIT
+Product ID: 640
+Product: NYX Professional Makeup Bare With Me Kapatıcı Serum 02 Light Concealer
+Success: true
+Changes: 0
+Errors: 0
+Details:
+  - Price Updates: 0
+  - Stock Updates: 0
+  - Variants Added: 0
+  - Variants Removed: 0
+  - Product Archived: false
+---
+
+[2025-12-21T14:19:59.608Z] SYNC AUDIT
+Product ID: 913
+Product: NYX Professional Makeup Jumbo Aydınlatıcı Kalem - 604 Milk
+Success: true
+Changes: 0
+Errors: 0
+Details:
+  - Price Updates: 0
+  - Stock Updates: 0
+  - Variants Added: 0
+  - Variants Removed: 0
+  - Product Archived: false
+---
+
+[2025-12-21T14:20:26.338Z] SYNC AUDIT
+Product ID: 5060
+Product: Shaka Siyah Shk108 Çıtçıtlı Suni Deri Cüzdanlı Makyaj Çantalı Kadın El Ve Omuz Çantası
+Success: true
+Changes: 1
+Errors: 0
+Details:
+  - Price Updates: 0
+  - Stock Updates: 0
+  - Variants Added: 0
+  - Variants Removed: 0
+  - Product Archived: false
+---
+
+[2025-12-21T14:20:31.680Z] SYNC AUDIT
+Product ID: 5060
+Product: Shaka Siyah Shk108 Çıtçıtlı Suni Deri Cüzdanlı Makyaj Çantalı Kadın El Ve Omuz Çantası
+Success: true
+Changes: 0
+Errors: 0
+Details:
+  - Price Updates: 0
+  - Stock Updates: 0
+  - Variants Added: 0
+  - Variants Removed: 0
+  - Product Archived: false
+---
+
+[2025-12-21T14:20:45.949Z] SYNC AUDIT
+Product ID: 9204
+Product: Samsung Galaxy S25 Ultra 512 GB Titanyum Gümüş (Samsung Türkiye Garantili)
+Success: true
+Changes: 0
+Errors: 0
+Details:
+  - Price Updates: 0
+  - Stock Updates: 0
+  - Variants Added: 0
+  - Variants Removed: 0
+  - Product Archived: false
+---
+
+[2025-12-21T14:20:57.464Z] SYNC AUDIT
+Product ID: 5094
+Product: Mira İpek Desenli Pamuk Soft Şal İlham Serisi ps33
+Success: true
+Changes: 0
+Errors: 0
+Details:
+  - Price Updates: 0
+  - Stock Updates: 0
+  - Variants Added: 0
+  - Variants Removed: 0
+  - Product Archived: false
+---
+
+[2025-12-21T14:21:17.910Z] SYNC AUDIT
+Product ID: 6015
+Product: Ürün Bilgisi Alınamadı
+Success: true
+Changes: 0
+Errors: 0
+Details:
+  - Price Updates: 0
+  - Stock Updates: 0
+  - Variants Added: 0
+  - Variants Removed: 0
+  - Product Archived: false
+---
+
+[2025-12-21T14:21:22.757Z] SYNC AUDIT
+Product ID: 16951
+Product: Plodna House Kişiye özel Plaka Anahtarlıkları 1 Adet
+Success: true
+Changes: 0
+Errors: 0
+Details:
+  - Price Updates: 0
+  - Stock Updates: 0
+  - Variants Added: 0
+  - Variants Removed: 0
+  - Product Archived: false
+---
+
+[2025-12-21T14:21:38.872Z] SYNC AUDIT
+Product ID: 10626
+Product: Katia & Bony İçi Havlu Çocuk Tayt Gri
+Success: true
+Changes: 0
+Errors: 0
+Details:
+  - Price Updates: 0
+  - Stock Updates: 0
+  - Variants Added: 0
+  - Variants Removed: 0
+  - Product Archived: false
+---
+
+[2025-12-21T14:21:56.530Z] SYNC AUDIT
+Product ID: 9324
+Product: trendyol.com
+Success: true
+Changes: 0
+Errors: 0
+Details:
+  - Price Updates: 0
+  - Stock Updates: 0
+  - Variants Added: 0
+  - Variants Removed: 0
+  - Product Archived: false
+---
+
+[2025-12-21T14:22:32.839Z] SYNC AUDIT
+Product ID: 640
+Product: NYX Professional Makeup Bare With Me Kapatıcı Serum 02 Light Concealer
+Success: true
+Changes: 0
+Errors: 0
+Details:
+  - Price Updates: 0
+  - Stock Updates: 0
+  - Variants Added: 0
+  - Variants Removed: 0
+  - Product Archived: false
+---
+
+[2025-12-21T14:23:08.667Z] SYNC AUDIT
+Product ID: 9204
+Product: Samsung Galaxy S25 Ultra 512 GB Titanyum Gümüş (Samsung Türkiye Garantili)
+Success: true
+Changes: 0
+Errors: 0
+Details:
+  - Price Updates: 0
+  - Stock Updates: 0
+  - Variants Added: 0
+  - Variants Removed: 0
+  - Product Archived: false
+---
+
+[2025-12-21T14:23:37.745Z] SYNC AUDIT
+Product ID: 10742
+Product: Katia & Bony Çocuk Pamuklu Tayt Mavi Melanj
+Success: true
+Changes: 0
+Errors: 0
+Details:
+  - Price Updates: 0
+  - Stock Updates: 0
+  - Variants Added: 0
+  - Variants Removed: 0
+  - Product Archived: false
+---
+
+[2025-12-21T14:24:13.765Z] SYNC AUDIT
+Product ID: 10626
+Product: Katia & Bony İçi Havlu Çocuk Tayt Gri
+Success: true
+Changes: 1
+Errors: 0
+Details:
+  - Price Updates: 0
+  - Stock Updates: 0
+  - Variants Added: 0
+  - Variants Removed: 0
+  - Product Archived: false
+---
+
+[2025-12-21T14:24:18.043Z] SYNC AUDIT
+Product ID: 10626
+Product: Katia & Bony İçi Havlu Çocuk Tayt Gri
+Success: true
+Changes: 0
+Errors: 0
+Details:
+  - Price Updates: 0
+  - Stock Updates: 0
+  - Variants Added: 0
+  - Variants Removed: 0
+  - Product Archived: false
+---
+
+[2025-12-21T14:24:23.488Z] SYNC AUDIT
+Product ID: 913
+Product: NYX Professional Makeup Jumbo Aydınlatıcı Kalem - 604 Milk
+Success: true
+Changes: 0
+Errors: 0
+Details:
+  - Price Updates: 0
+  - Stock Updates: 0
+  - Variants Added: 0
+  - Variants Removed: 0
+  - Product Archived: false
+---
+
+[2025-12-21T14:24:38.321Z] SYNC AUDIT
+Product ID: 10742
+Product: Katia & Bony Çocuk Pamuklu Tayt Mavi Melanj
+Success: true
+Changes: 0
+Errors: 0
+Details:
+  - Price Updates: 0
+  - Stock Updates: 0
+  - Variants Added: 0
+  - Variants Removed: 0
+  - Product Archived: false
+---
+
+[2025-12-21T14:25:01.523Z] SYNC AUDIT
+Product ID: 16941
+Product: GLANZEND Yılbaşı Temalı 3D Silikon Anahtarlık
+Success: true
+Changes: 0
+Errors: 0
+Details:
+  - Price Updates: 0
+  - Stock Updates: 0
+  - Variants Added: 0
+  - Variants Removed: 0
+  - Product Archived: false
+---
+
+[2025-12-21T14:25:11.766Z] SYNC AUDIT
+Product ID: 5094
+Product: Mira İpek Desenli Pamuk Soft Şal İlham Serisi ps33
+Success: true
+Changes: 0
+Errors: 0
+Details:
+  - Price Updates: 0
+  - Stock Updates: 0
+  - Variants Added: 0
+  - Variants Removed: 0
+  - Product Archived: false
+---
