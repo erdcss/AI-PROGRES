@@ -3515,9 +3515,8 @@ async function extractVariantsDirect($: cheerio.CheerioAPI, htmlContent: string,
     colors.push(titleColor);
     console.log(`✅ PRIMARY COLOR from title: ${titleColor}`);
   } else {
-    // Fallback: Default color if no color in title
-    colors.push('Varsayılan');
-    console.log(`⚠️ No color in title, using default: Varsayılan`);
+    // ❌ NO FAKE COLOR - Leave empty if no real color found
+    console.log(`⚠️ No color in title, leaving empty (no fake default)`);
   }
   
   // Method 2: Enhanced size extraction with modern Trendyol selectors  
@@ -3563,23 +3562,10 @@ async function extractVariantsDirect($: cheerio.CheerioAPI, htmlContent: string,
     // Enhanced Trendyol-specific selectors for better size detection
     '.slicing-attributes .slicing-attribute-section-value span[data-testid*="size"]',
     '.slicing-attribute-section-value[data-testid*="size"]',
-    '.slicing-attribute-section span[data-testid*="size"]',
-    // Additional comprehensive selectors for t-shirt sizes
-    'button:contains("S")',
-    'button:contains("M")', 
-    'button:contains("L")',
-    'button:contains("XL")',
-    'button:contains("XXL")',
-    'span:contains("S")',
-    'span:contains("M")',
-    'span:contains("L")',
-    'span:contains("XL")',
-    // Title-based detection
-    'button[title="S"]',
-    'button[title="M"]',
-    'button[title="L"]',
-    'button[title="XL"]',
-    'button[title="XXL"]'
+    '.slicing-attribute-section span[data-testid*="size"]'
+    // ❌ REMOVED AGGRESSIVE SELECTORS - These extracted fake sizes from any button/span
+    // containing S, M, L letters (including product descriptions, navigation, etc.)
+    // 'button:contains("S")', 'span:contains("M")', etc. - REMOVED
   ];
   
   sizeSelectors.forEach(selector => {
