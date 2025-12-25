@@ -91,6 +91,38 @@ function getRandomUserAgent(): string {
   return userAgents[Math.floor(Math.random() * userAgents.length)];
 }
 
+// ✅ FILTER IMAGES: Remove CSS URLs, SVG icons, and invalid image sources
+function filterValidImages(images: string[]): string[] {
+  if (!images || !Array.isArray(images)) return [];
+  
+  return images.filter(img => {
+    if (!img || typeof img !== 'string') return false;
+    
+    // Reject CSS and SVG content
+    if (img.includes('mask-image') || img.includes('background-image') || 
+        img.includes('.svg') || img.includes('svg;') ||
+        img.includes('data:') || img.includes('base64')) {
+      console.log(`⛔ Filtered CSS/SVG: ${img.substring(0, 50)}`);
+      return false;
+    }
+    
+    // Only accept real product images from CDN
+    if (!img.startsWith('http') || !img.includes('cdn.dsmcdn.com')) {
+      console.log(`⛔ Filtered non-CDN: ${img.substring(0, 50)}`);
+      return false;
+    }
+    
+    // Accept only image formats
+    const validFormats = /\.(jpg|jpeg|png|webp|gif|bmp)$/i;
+    if (!validFormats.test(img.split('?')[0])) {
+      console.log(`⛔ Filtered non-image format: ${img.substring(0, 50)}`);
+      return false;
+    }
+    
+    return true;
+  });
+}
+
 // ✅ ENHANCED: Extract brand from DOM instead of just URL
 function extractBrandFromDOM($: any, htmlContent: string, title: string, url: string): string {
   console.log('🏷️ BRAND EXTRACTION: Starting comprehensive brand extraction...');
@@ -1975,7 +2007,7 @@ export async function scenarioBasedScrape(url: string): Promise<ScenarioBasedRes
               withProfit: Math.round(emergencyResult.price.original * 1.20),
               profitFormatted: `${Math.round(emergencyResult.price.original * 1.20)} TL`
             },
-            images: emergencyResult.images || [],
+            images: filterValidImages(emergencyResult.images || []),
             features: [],
             variants: [], // ❌ NO FAKE VARIANTS - empty if no real size data
             tags: ['emergency-bypass'],
@@ -2088,7 +2120,7 @@ export async function scenarioBasedScrape(url: string): Promise<ScenarioBasedRes
       category,
       description, // Added description
       price,
-      images: csvCompatibleImages.map(img => img.url), // CSV uyumlu format - strings only
+      images: filterValidImages(csvCompatibleImages.map(img => img.url)), // CSV uyumlu format - strings only
       features,
       variants: {
         colors: validatedVariants.colors,
