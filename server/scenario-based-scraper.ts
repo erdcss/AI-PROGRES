@@ -21,8 +21,47 @@ import { ultraStealthSystem } from './ultra-stealth-system';
 import { intelligentRateLimiter } from './intelligent-rate-limiter';
 import { extractFromTrendyolJavaScriptState } from './trendyol-js-extractor';
 import { detectRealStockStatus } from './real-stock-detector';
-import { extractColorFromUrl, cleanColorName, normalizeSize, parseVariantString } from './color-recognition';
+import { extractColorFromUrl, cleanColorName, normalizeSize, parseVariantString, getColorCode } from './color-recognition';
 import { getPerformanceConfig, getTimeout, shouldRetryWithSlowTimeout } from './performance-config';
+import { generateAdvancedTags } from './tag-generator';
+
+// Helper function to extract description from page
+function extractDescription($: cheerio.CheerioAPI): string {
+  try {
+    const selectors = [
+      'meta[name="description"]',
+      'meta[property="og:description"]',
+      '.product-description',
+      '.description-text',
+      '[class*="description"]'
+    ];
+    
+    for (const selector of selectors) {
+      const element = $(selector).first();
+      if (element.length) {
+        const content = element.attr('content') || element.text();
+        if (content && content.trim().length > 10) {
+          return content.trim().substring(0, 500);
+        }
+      }
+    }
+    return '';
+  } catch (e) {
+    console.log('⚠️ Description extraction failed:', e.message);
+    return '';
+  }
+}
+
+// Helper function to extract color from title
+// ⚠️ DISABLED: This function should NOT be used for variant generation
+// Colors must ONLY come from structured DOM elements (variant buttons, JSON-LD, script state)
+// Title-based color extraction creates fake variant data which violates project requirements
+function extractColorFromTitle(title: string): string {
+  // DISABLED - Return empty string to prevent fake color generation from title
+  // Colors should only come from: DOM variant elements, JSON-LD hasVariant, Trendyol script state
+  console.log('⚠️ extractColorFromTitle DISABLED - colors must come from structured DOM sources only');
+  return '';
+}
 
 // ⚡ ULTRA-FAST CACHING SYSTEM with configurable duration
 export const extractionCache = new Map<string, {data: any, timestamp: number}>();
@@ -839,6 +878,27 @@ export async function scenarioBasedScrape(url: string): Promise<ScenarioBasedRes
         });
         
         htmlContent = directResult.data;
+        
+        // 🛡️ CRITICAL: Check for blocked/empty responses BEFORE parsing
+        const contentLength = typeof htmlContent === 'string' ? htmlContent.length : 0;
+        console.log(`📏 Response content length: ${contentLength} bytes`);
+        
+        if (contentLength < 5000) {
+          console.log(`🚫 BLOCKING DETECTED: Response too short (${contentLength} bytes < 5000). Trendyol is blocking requests.`);
+          throw new Error(`Blocked response detected: ${contentLength} bytes - triggering fallback strategies`);
+        }
+        
+        // Additional check: Must contain product-related content
+        const hasProductIndicators = htmlContent.includes('product') || 
+                                     htmlContent.includes('price') || 
+                                     htmlContent.includes('fiyat') ||
+                                     htmlContent.includes('__PRODUCT_DETAIL') ||
+                                     htmlContent.includes('application/ld+json');
+        
+        if (!hasProductIndicators) {
+          console.log(`🚫 BLOCKING DETECTED: No product indicators found in response. Triggering fallback.`);
+          throw new Error('No product content detected - triggering fallback strategies');
+        }
         
         // 🛡️ SAFE HTML PARSING using centralized cleaning function
         try {
@@ -1844,7 +1904,7 @@ export async function scenarioBasedScrape(url: string): Promise<ScenarioBasedRes
     console.log(`📝 Açıklama çıkarıldı: ${description ? description.substring(0, 80) + '...' : 'Açıklama bulunamadı'}`);
     
     // Step 6: Generate advanced tags based on all extracted data
-    const advancedTags = generateAdvancedTags(title, brand, features, url);
+    const advancedTags = await generateAdvancedTags($, htmlContent);
     
     console.log(`✅ Scenario-based extraction completed: ${variants.length} variants, ${images.length} images, ${features.length} features, ${advancedTags.length} tags`);
     console.log(`🎨 Colors extracted: [${[...new Set(variants.map(v => v.color).filter(c => c && c.trim() !== ''))].join(', ')}]`);
