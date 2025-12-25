@@ -114490,3 +114490,143 @@ Details:
   - Variants Removed: 0
   - Product Archived: false
 ---
+
+[2025-12-25T14:19:15.232Z] SYNC AUDIT
+Product ID: 10742
+Product: Katia & Bony Çocuk Pamuklu Tayt Mavi Melanj
+Success: true
+Changes: 0
+Errors: 0
+Details:
+  - Price Updates: 0
+  - Stock Updates: 0
+  - Variants Added: 0
+  - Variants Removed: 0
+  - Product Archived: false
+---
+
+[2025-12-25T14:19:45.899Z] SYNC AUDIT
+Product ID: 5651
+Product: Mavi Logo Baskılı Antrasit Sweatshirt 1611656-82185
+Success: true
+Changes: 0
+Errors: 0
+Details:
+  - Price Updates: 0
+  - Stock Updates: 0
+  - Variants Added: 0
+  - Variants Removed: 0
+  - Product Archived: false
+---
+
+[2025-12-25T14:20:15.464Z] SYNC AUDIT
+Product ID: 9623
+Product: Holographic Sm - B310 Tuşlu Cep Telefonu Radyo Mp3 Asker Telefonu Yaşlı Telefonu
+Success: true
+Changes: 0
+Errors: 0
+Details:
+  - Price Updates: 0
+  - Stock Updates: 0
+  - Variants Added: 0
+  - Variants Removed: 0
+  - Product Archived: false
+---
+
+[2025-12-25T14:20:46.411Z] SYNC AUDIT
+Product ID: 5094
+Product: Mira İpek Desenli Pamuk Soft Şal İlham Serisi ps33
+Success: true
+Changes: 0
+Errors: 0
+Details:
+  - Price Updates: 0
+  - Stock Updates: 0
+  - Variants Added: 0
+  - Variants Removed: 0
+  - Product Archived: false
+---
+
+[2025-12-25T14:21:12.570Z] SYNC AUDIT
+Product ID: 6652
+Product: KUMTEL 2in1 Çok Amaçlı Cam Ve Çelik Hazneli Doğrayıcı Hch-21
+Success: true
+Changes: 0
+Errors: 0
+Details:
+  - Price Updates: 0
+  - Stock Updates: 0
+  - Variants Added: 0
+  - Variants Removed: 0
+  - Product Archived: false
+---
+
+[2025-12-25T14:21:49.768Z] SYNC AUDIT
+Product ID: 8213
+Product: trendyol.com
+Success: true
+Changes: 0
+Errors: 0
+Details:
+  - Price Updates: 0
+  - Stock Updates: 0
+  - Variants Added: 0
+  - Variants Removed: 0
+  - Product Archived: false
+---
+
+[2025-12-25T14:22:17.756Z] SYNC AUDIT
+Product ID: 8200
+Product: MactivePro Watch HK11 Pro Max Amoled Akıllı Saat Tüm Akıllı Telefonlara Uyumlu Kordon Hediyeli Amoled Ekran
+Success: true
+Changes: 1
+Errors: 0
+Details:
+  - Price Updates: 0
+  - Stock Updates: 0
+  - Variants Added: 0
+  - Variants Removed: 0
+  - Product Archived: false
+---
+
+[2025-12-25T14:22:22.534Z] SYNC AUDIT
+Product ID: 8200
+Product: MactivePro Watch HK11 Pro Max Amoled Akıllı Saat Tüm Akıllı Telefonlara Uyumlu Kordon Hediyeli Amoled Ekran
+Success: true
+Changes: 0
+Errors: 0
+Details:
+  - Price Updates: 0
+  - Stock Updates: 0
+  - Variants Added: 0
+  - Variants Removed: 0
+  - Product Archived: false
+---
+
+[2025-12-25T14:22:57.938Z] SYNC AUDIT
+Product ID: 9204
+Product: Samsung Galaxy S25 Ultra 512 GB Titanyum Gümüş (Samsung Türkiye Garantili)
+Success: true
+Changes: 0
+Errors: 0
+Details:
+  - Price Updates: 0
+  - Stock Updates: 0
+  - Variants Added: 0
+  - Variants Removed: 0
+  - Product Archived: false
+---
+
+[2025-12-25T14:23:31.584Z] SYNC AUDIT
+Product ID: 5697
+Product: Mavi Siyah Basic Eşofman Altı 1600903-900
+Success: true
+Changes: 0
+Errors: 0
+Details:
+  - Price Updates: 0
+  - Stock Updates: 0
+  - Variants Added: 0
+  - Variants Removed: 0
+  - Product Archived: false
+---

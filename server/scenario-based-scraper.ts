@@ -3946,8 +3946,12 @@ async function extractVariantsDirect($: cheerio.CheerioAPI, htmlContent: string,
         inStock: inStock
       });
     });
-  } else if (allSizes.length > 0) {
-    // Size variants only - No fake color information  
+  } else if (allSizes.length >= 3) {
+    // 🚫 FAKE SIZE PREVENTION: Only create size-only variants if there are MULTIPLE authentic sizes
+    // Single size detection is usually a false positive (e.g., misdetected from layout/navigation)
+    // Require minimum 3 different sizes to prevent fake variants on products like toothpaste
+    console.log(`✅ MULTIPLE SIZE DETECTION (${allSizes.length} sizes >= 3 minimum) - Creating size-only variants`);
+    
     allSizes.forEach(size => {
       // Skip fake sizes like "1", "Standart", "Varsayılan"
       if (size && size !== '1' && size !== 'Standart' && size !== 'Varsayılan' && size.trim() !== '') {
@@ -3960,6 +3964,10 @@ async function extractVariantsDirect($: cheerio.CheerioAPI, htmlContent: string,
         });
       }
     });
+  } else if (allSizes.length > 0 && allSizes.length < 3) {
+    // Single or double size detection = likely false positive from misdetected DOM elements
+    console.log(`🚫 FAKE SIZE PREVENTION: Ignoring ${allSizes.length} size(s) - insufficient evidence of real size variants`);
+    console.log(`🚫 Products without multiple size options get NO variants`);
   }
   
   // AUTHENTIC VARIANT POLICY: Show all detected variants regardless of stock
