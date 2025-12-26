@@ -3675,16 +3675,24 @@ async function extractVariantsDirect($: cheerio.CheerioAPI, htmlContent: string,
                       $el.attr('aria-label');
       
       if (sizeName && typeof sizeName === 'string' && sizeName.length > 0 && sizeName.length < 50) {
+        // Decode Unicode escapes and normalize (handles M\u002FL -> M/L)
+        const decodedSizeName = sizeName
+          .replace(/\\u002F/gi, '/')
+          .replace(/\\u002f/gi, '/')
+          .replace(/-/g, '/')  // Normalize M-L to M/L
+          .trim();
+        
         // Try to parse variant string first (handles "S Beden / Beyaz" formats)
-        const parsed = parseVariantString(sizeName);
+        const parsed = parseVariantString(decodedSizeName);
         let finalSize: string | null = null;
         
         if (parsed.size) {
           finalSize = parsed.size;
         } else {
           // Enhanced size pattern for Turkish and international sizes + dimension-based sizes
-          const sizePattern = /^(XXS|XS|S|M|L|XL|XXL|XXXL|2XL|3XL|\d+(\.\d+)?|Tek\s*Beden|One\s*Size|\d+\s*[xX×]\s*\d+(\s*(cm|CM))?)$/i;
-          const cleanSizeName = sizeName.trim();
+          // Added support for combined sizes like S/M, M/L, L/XL
+          const sizePattern = /^(XXS|XS|S|M|L|XL|XXL|XXXL|2XL|3XL|S\/M|M\/L|L\/XL|XS\/S|XL\/XXL|\d+(\.\d+)?|Tek\s*Beden|One\s*Size|\d+\s*[xX×]\s*\d+(\s*(cm|CM))?)$/i;
+          const cleanSizeName = decodedSizeName.toUpperCase().trim();
           
           if (sizePattern.test(cleanSizeName)) {
             finalSize = normalizeSize(cleanSizeName);
@@ -4795,14 +4803,108 @@ function extractColorsFromJS($: any, htmlContent: string): string[] {
 }
 
 /**
+ * Helper function to decode Unicode escapes and normalize size strings
+ */
+function decodeAndNormalizeSize(rawSize: string): string {
+  if (!rawSize) return '';
+  
+  // Decode Unicode escapes like \u002F -> /
+  let decoded = rawSize
+    .replace(/\\u002F/gi, '/')
+    .replace(/\\u002f/gi, '/')
+    .replace(/\u002F/g, '/')
+    .replace(/-/g, '/')  // Normalize hyphens to slashes for combined sizes
+    .toUpperCase()
+    .trim();
+  
+  return decoded;
+}
+
+/**
  * Extract sizes from JavaScript variables and JSON data
- * ❌ DISABLED - This function was too aggressive and extracted fake sizes
+ * ✅ RE-ENABLED with improved pattern matching for combined sizes (S/M, M/L, L/XL)
  */
 function extractSizesFromJS($: any, htmlContent: string): string[] {
-  // ❌ DISABLED - Only structured variant data should be used
-  // Regex-based extraction from script content was too aggressive
-  console.log('❌ extractSizesFromJS DISABLED - returning empty array');
-  return [];
+  const sizes: string[] = [];
+  
+  // Valid size pattern including combined sizes
+  const sizePattern = /^(XXS|XS|S|M|L|XL|XXL|XXXL|2XL|3XL|4XL|XS\/S|S\/M|M\/L|L\/XL|XL\/XXL|\d{2,3})$/i;
+  
+  const addSize = (rawValue: string) => {
+    const normalized = decodeAndNormalizeSize(rawValue);
+    if (normalized && normalized !== 'BEDEN' && sizePattern.test(normalized) && !sizes.includes(normalized)) {
+      sizes.push(normalized);
+      console.log(`👕 SIZE FOUND: ${normalized} (from: ${rawValue})`);
+    }
+  };
+  
+  try {
+    // Method 1: Direct regex extraction for attributeValue patterns
+    // This works even if JSON parsing fails
+    const attrValueMatches = htmlContent.matchAll(/"attributeValue"\s*:\s*"([^"]+)"/g);
+    for (const match of attrValueMatches) {
+      addSize(match[1]);
+    }
+    
+    // Method 2: Extract from attributeBeautifiedValue (handles M\u002FL format)
+    const beautifiedMatches = htmlContent.matchAll(/"attributeBeautifiedValue"\s*:\s*"([^"]+)"/g);
+    for (const match of beautifiedMatches) {
+      addSize(match[1]);
+    }
+    
+    // Method 3: Try to parse __PRODUCT_DETAIL_APP_INITIAL_STATE__ with sanitization
+    const stateMatch = htmlContent.match(/__PRODUCT_DETAIL_APP_INITIAL_STATE__\s*=\s*({[\s\S]*?});/);
+    if (stateMatch) {
+      try {
+        // Sanitize JSON-like content before parsing
+        let jsonStr = stateMatch[1]
+          .replace(/,\s*}/g, '}')  // Remove trailing commas before }
+          .replace(/,\s*]/g, ']')  // Remove trailing commas before ]
+          .replace(/undefined/g, 'null')  // Replace undefined with null
+          .replace(/'/g, '"');  // Replace single quotes with double quotes
+        
+        const stateData = JSON.parse(jsonStr);
+        const product = stateData?.product;
+        
+        if (product) {
+          // Extract from slicedAttributes
+          if (product.slicedAttributes && Array.isArray(product.slicedAttributes)) {
+            product.slicedAttributes.forEach((attr: any) => {
+              if (attr.attributeName === 'Beden' || attr.attributeType === 'Size') {
+                if (attr.attributes && Array.isArray(attr.attributes)) {
+                  attr.attributes.forEach((item: any) => {
+                    const sizeValue = item.value || item.attributeValue || item.attributeBeautifiedValue;
+                    if (sizeValue) addSize(sizeValue);
+                  });
+                }
+              }
+            });
+          }
+          
+          // Extract from variants array
+          if (product.variants && Array.isArray(product.variants)) {
+            product.variants.forEach((variant: any) => {
+              if (variant.attributeValue && variant.attributeName === 'Beden') {
+                addSize(variant.attributeValue);
+              }
+              if (variant.attributeBeautifiedValue) {
+                addSize(variant.attributeBeautifiedValue);
+              }
+            });
+          }
+        }
+      } catch (parseError) {
+        console.log(`⚠️ JS STATE JSON parse failed (using regex fallback): ${parseError}`);
+        // Regex methods above already ran, so we have fallback coverage
+      }
+    }
+    
+  } catch (error) {
+    console.log(`⚠️ extractSizesFromJS error: ${error}`);
+  }
+  
+  console.log(`👕 extractSizesFromJS found ${sizes.length} sizes: [${sizes.join(', ')}]`);
+  return Array.from(new Set(sizes));
 }
 
 

@@ -336,7 +336,12 @@ export function normalizeSize(rawSize: string): string {
     'XXXL': 'XXXL',
     '2XL': '2XL',
     '3XL': '3XL',
-    '4XL': '4XL'
+    '4XL': '4XL',
+    'XS/S': 'XS/S',
+    'S/M': 'S/M',
+    'M/L': 'M/L',
+    'L/XL': 'L/XL',
+    'XL/XXL': 'XL/XXL'
   };
   
   if (sizeMap[upperCleaned]) {
