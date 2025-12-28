@@ -470,8 +470,11 @@ function convertProductToShopifyCSV(productData: any): string {
   
   let variantIndex = 0;
   
+  // 🔥 STRICT RULE: Validate sizes early - remove any empty/invalid sizes
+  const finalSizes_Validated = cleanedSizes.filter(s => s && typeof s === 'string' && s.trim() !== '');
+  
   // ✅ CASE: No variants - create single product row without options + image rows
-  if (!hasColors && !hasSizes) {
+  if (!hasColors && finalSizes_Validated.length === 0) {
     // First row: product with first image
     const firstRow = [
       handle, // Handle
@@ -537,20 +540,20 @@ function convertProductToShopifyCSV(productData: any): string {
   // Both: Option1=Renk, Option2=Beden
   
   const actualColors = hasColors ? cleanedColors : null;
-  const actualSizes = hasSizes ? cleanedSizes : null;
+  const actualSizes = finalSizes_Validated.length > 0 ? finalSizes_Validated : null;
   
-  // Determine option structure
-  const option1Name = hasColors ? 'Renk' : (hasSizes ? 'Beden' : '');
-  const option2Name = hasColors && hasSizes ? 'Beden' : '';
+  // Determine option structure - STRICT: No fake sizes
+  const option1Name = hasColors ? 'Renk' : (finalSizes_Validated.length > 0 ? 'Beden' : '');
+  const option2Name = hasColors && finalSizes_Validated.length > 0 ? 'Beden' : '';
   
-  // Generate variant combinations
+  // Generate variant combinations - STRICT: Use validated final sizes only
   const combinations: {opt1: string, opt2: string}[] = [];
-  if (hasColors && hasSizes) {
-    cleanedColors.forEach(c => cleanedSizes.forEach(s => combinations.push({opt1: c, opt2: s})));
+  if (hasColors && finalSizes_Validated.length > 0) {
+    cleanedColors.forEach(c => finalSizes_Validated.forEach(s => combinations.push({opt1: c, opt2: s})));
   } else if (hasColors) {
     cleanedColors.forEach(c => combinations.push({opt1: c, opt2: ''}));
-  } else if (hasSizes) {
-    cleanedSizes.forEach(s => combinations.push({opt1: s, opt2: ''}));
+  } else if (finalSizes_Validated.length > 0) {
+    finalSizes_Validated.forEach(s => combinations.push({opt1: s, opt2: ''}));
   }
   
   combinations.forEach(({opt1, opt2}) => {

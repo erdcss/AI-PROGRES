@@ -3891,8 +3891,15 @@ async function extractVariantsDirect($: cheerio.CheerioAPI, htmlContent: string,
   // ✅ ENABLE SIZE FILTERING - Combine authentic sizes from DOM, JS and JSON-LD
   // 🚫 Skip size combination for non-clothing products
   const jsonLdSizes = skipSizeExtraction ? [] : jsonLdVariants.sizes;
-  const allSizes = Array.from(new Set([...sizes, ...jsonExtractedSizes, ...jsonLdSizes]));
-  console.log(`🔍 Combined authentic sizes: [${allSizes.join(', ')}]${skipSizeExtraction ? ' (non-clothing - sizes skipped)' : ''}`);
+  let allSizes = Array.from(new Set([...sizes, ...jsonExtractedSizes, ...jsonLdSizes]));
+  
+  // 🔥 STRICT RULE: If product has no real size options, COMPLETELY empty the sizes array
+  if (skipSizeExtraction) {
+    allSizes = [];
+    console.log(`🚫 STRICT RULE APPLIED: Non-clothing product - size array COMPLETELY CLEARED`);
+  }
+  
+  console.log(`🔍 Combined authentic sizes: [${allSizes.join(', ')}]${skipSizeExtraction ? ' (non-clothing - sizes COMPLETELY REMOVED)' : ''}`);
   
   console.log(`🔍 Raw colors detected: ${allRawColors.length} [${allRawColors.join(', ')}]`);
   
