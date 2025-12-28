@@ -3621,6 +3621,27 @@ async function extractVariantsDirect($: cheerio.CheerioAPI, htmlContent: string,
     'bahçe mobilya', 'çim biçme'
   ];
   
+  // FOOD & BEVERAGE PHRASES - Use specific phrases to avoid ambiguous single words
+  // "krem" is removed because it's also a color (krem renk elbise)
+  const foodBeveragePhrases = [
+    // Tea & Coffee (specific phrases)
+    'bitki çayı', 'karışık çay', 'yeşil çay', 'siyah çay', 'form çayı', 'zayıflama çayı',
+    'türk kahvesi', 'filtre kahve', 'granül kahve',
+    // Food supplements
+    'takviye edici', 'vitamin kapsül', 'protein tozu',
+    // Specific food products
+    'bakliyat', 'kuruyemiş', 'kuru meyve', 'baharat karışım',
+    // Cleaning (specific phrases to avoid "temizlik" matching clothing)
+    'deterjan sıvı', 'bulaşık deterjan', 'çamaşır deterjan'
+  ];
+  
+  // Additional single-word food indicators that are VERY unlikely in clothing
+  const strongFoodKeywords = [
+    'çayı', 'kahvesi', 'reçeli', 'pekmezi', 'balı', 'yoğurdu', 'peyniri',
+    'makarnası', 'pirinci', 'bulguru', 'unu', 'şekeri', 'tuzu',
+    'bisküvisi', 'çikolatası', 'pastası'
+  ];
+  
   // Electronic device detection - requires COMBINATION of keywords to avoid false positives
   // "Dijital Baskılı Tişört" should NOT be blocked, but "Dijital Bebek Kamerası" SHOULD
   const electronicDeviceKeywords = ['kamera', 'camera', 'monitör', 'monitor'];
@@ -3660,6 +3681,11 @@ async function extractVariantsDirect($: cheerio.CheerioAPI, htmlContent: string,
   // Strong non-clothing detection - requires phrase match OR electronic device combination
   const hasPhraseMatch = nonClothingPhrases.some(phrase => combinedText.includes(phrase));
   
+  // Food & Beverage detection - these products NEVER have clothing sizes
+  const hasFoodPhrase = foodBeveragePhrases.some(phrase => titleLower.includes(phrase));
+  const hasStrongFoodKeyword = strongFoodKeywords.some(keyword => titleLower.includes(keyword));
+  const isFoodBeverageProduct = hasFoodPhrase || hasStrongFoodKeyword;
+  
   // Electronic device detection: Must have BOTH a device keyword AND a modifier
   // This prevents "dijital baskılı tişört" from being blocked while catching "dijital bebek kamerası"
   const hasElectronicDevice = electronicDeviceKeywords.some(device => titleLower.includes(device));
@@ -3668,7 +3694,11 @@ async function extractVariantsDirect($: cheerio.CheerioAPI, htmlContent: string,
   
   // IMPORTANT: If product has clothing keyword, NEVER skip size extraction (even if it has electronic keywords)
   // "Dijital Kamera Desenli Tişört" → has "tişört" → NOT blocked → size extraction enabled
-  const isStrongNonClothing = !hasClothingKeyword && (hasPhraseMatch || isElectronicProduct);
+  const isStrongNonClothing = !hasClothingKeyword && (hasPhraseMatch || isElectronicProduct || isFoodBeverageProduct);
+  
+  if (isFoodBeverageProduct) {
+    console.log(`🍵 FOOD/BEVERAGE PRODUCT DETECTED: "${title}"`);
+  }
   
   // Check URL category path for clothing categories
   const clothingUrlPatterns = [
