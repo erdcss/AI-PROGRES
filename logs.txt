@@ -116478,3 +116478,199 @@ Details:
   - Variants Removed: 0
   - Product Archived: false
 ---
+
+[2025-12-28T14:06:05.672Z] SYNC AUDIT
+Product ID: 10710
+Product: MTL MUTLU BEBBEE KIZ COCUK FİYONK DETAYLI ESORTMAN TAKIMI 3-14 YAŞ
+Success: true
+Changes: 0
+Errors: 0
+Details:
+  - Price Updates: 0
+  - Stock Updates: 0
+  - Variants Added: 0
+  - Variants Removed: 0
+  - Product Archived: false
+---
+
+[2025-12-28T14:06:35.846Z] SYNC AUDIT
+Product ID: 538
+Product: Braun Silk-épil 1 1-000 Epilatör
+Success: true
+Changes: 0
+Errors: 0
+Details:
+  - Price Updates: 0
+  - Stock Updates: 0
+  - Variants Added: 0
+  - Variants Removed: 0
+  - Product Archived: false
+---
+
+[2025-12-28T14:07:03.555Z] SYNC AUDIT
+Product ID: 9623
+Product: trendyol.com
+Success: true
+Changes: 0
+Errors: 0
+Details:
+  - Price Updates: 0
+  - Stock Updates: 0
+  - Variants Added: 0
+  - Variants Removed: 0
+  - Product Archived: false
+---
+
+[2025-12-28T14:07:32.361Z] SYNC AUDIT
+Product ID: 6015
+Product: Ürün Bilgisi Alınamadı
+Success: true
+Changes: 0
+Errors: 0
+Details:
+  - Price Updates: 0
+  - Stock Updates: 0
+  - Variants Added: 0
+  - Variants Removed: 0
+  - Product Archived: false
+---
+
+[2025-12-28T14:07:58.232Z] SYNC AUDIT
+Product ID: 5651
+Product: trendyol.com
+Success: true
+Changes: 0
+Errors: 0
+Details:
+  - Price Updates: 0
+  - Stock Updates: 0
+  - Variants Added: 0
+  - Variants Removed: 0
+  - Product Archived: false
+---
+
+[2025-12-28T14:08:24.332Z] SYNC AUDIT
+Product ID: 11895
+Product: Omo Express Fresh Sensitive Beyaz ve Renkliler Sıvı Çamaşır Deterjanı 1480ml x1
+Success: true
+Changes: 0
+Errors: 0
+Details:
+  - Price Updates: 0
+  - Stock Updates: 0
+  - Variants Added: 0
+  - Variants Removed: 0
+  - Product Archived: false
+---
+
+[2025-12-28T14:08:54.621Z] SYNC AUDIT
+Product ID: 5076
+Product: trendyol.com
+Success: true
+Changes: 0
+Errors: 0
+Details:
+  - Price Updates: 0
+  - Stock Updates: 0
+  - Variants Added: 0
+  - Variants Removed: 0
+  - Product Archived: false
+---
+
+[2025-12-28T14:09:24.099Z] SYNC AUDIT
+Product ID: 9324
+Product: Samsung Galaxy A16 4 Gb Ram 128 Gb Gri
+Success: true
+Changes: 0
+Errors: 0
+Details:
+  - Price Updates: 0
+  - Stock Updates: 0
+  - Variants Added: 0
+  - Variants Removed: 0
+  - Product Archived: false
+---
+
+[2025-12-28T14:10:21.625Z] SYNC AUDIT
+Product ID: 5761
+Product: trendyol.com
+Success: true
+Changes: 5
+Errors: 0
+Details:
+  - Price Updates: 0
+  - Stock Updates: 0
+  - Variants Added: 5
+  - Variants Removed: 0
+  - Product Archived: false
+---
+
+[2025-12-28T14:11:12.591Z] SYNC AUDIT
+Product ID: 913
+Product: NYX Professional Makeup Jumbo Aydınlatıcı Kalem - 604 Milk
+Success: true
+Changes: 0
+Errors: 0
+Details:
+  - Price Updates: 0
+  - Stock Updates: 0
+  - Variants Added: 0
+  - Variants Removed: 0
+  - Product Archived: false
+---
+
+[2025-12-28T14:11:33.851Z] SYNC AUDIT
+Product ID: 10710
+Product: MTL MUTLU BEBBEE KIZ COCUK FİYONK DETAYLI ESORTMAN TAKIMI 3-14 YAŞ
+Success: true
+Changes: 0
+Errors: 0
+Details:
+  - Price Updates: 0
+  - Stock Updates: 0
+  - Variants Added: 0
+  - Variants Removed: 0
+  - Product Archived: false
+---
+
+[2025-12-28T14:11:59.415Z] SYNC AUDIT
+Product ID: 538
+Product: Braun Silk-épil 1 1-000 Epilatör
+Success: true
+Changes: 0
+Errors: 0
+Details:
+  - Price Updates: 0
+  - Stock Updates: 0
+  - Variants Added: 0
+  - Variants Removed: 0
+  - Product Archived: false
+---
+
+[2025-12-28T14:12:38.122Z] SYNC AUDIT
+Product ID: 9623
+Product: trendyol.com
+Success: true
+Changes: 0
+Errors: 1
+Details:
+  - Price Updates: 0
+  - Stock Updates: 0
+  - Variants Added: 0
+  - Variants Removed: 0
+  - Product Archived: false
+---
+
+[2025-12-28T14:12:50.040Z] SYNC AUDIT
+Product ID: 9623
+Product: trendyol.com
+Success: true
+Changes: 0
+Errors: 0
+Details:
+  - Price Updates: 0
+  - Stock Updates: 0
+  - Variants Added: 0
+  - Variants Removed: 0
+  - Product Archived: false
+---
