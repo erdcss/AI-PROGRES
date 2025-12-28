@@ -628,6 +628,12 @@ ${data.title.toLowerCase().replace(/[^a-z0-9]/g, '-')},${data.title},${data.bran
     mutationFn: async (data: ScrapeFormData) => {
       console.log('🛒 Shopify transfer starting...');
       console.log('CSV previews available:', csvPreviews.length);
+      console.log('Product data:', product ? 'exists' : 'missing');
+      
+      if (!product) {
+        throw new Error('Ürün verisi bulunamadı. Lütfen önce ürünü tarayın.');
+      }
+      
       const response = await fetch("/api/shopify-upload", {
         method: "POST",
         headers: {
@@ -639,11 +645,14 @@ ${data.title.toLowerCase().replace(/[^a-z0-9]/g, '-')},${data.title},${data.bran
         }),
       });
 
+      const responseData = await response.json();
+      
       if (!response.ok) {
-        throw new Error(`HTTP ${response.status}`);
+        console.error('❌ Shopify API error response:', responseData);
+        throw new Error(responseData.message || responseData.error || `HTTP ${response.status}`);
       }
 
-      return response.json();
+      return responseData;
     },
     onSuccess: (data) => {
       console.log('📤 Shopify response:', data);
@@ -660,11 +669,12 @@ ${data.title.toLowerCase().replace(/[^a-z0-9]/g, '-')},${data.title},${data.bran
         });
       }
     },
-    onError: (error) => {
+    onError: (error: any) => {
       console.error('❌ Shopify transfer error:', error);
+      const errorMessage = error?.message || error?.error || 'Bilinmeyen hata';
       toast({
-        title: "Hata",
-        description: `Shopify aktarımı başarısız: ${error.message}`,
+        title: "Shopify Aktarım Hatası",
+        description: errorMessage,
         variant: "destructive",
       });
     },
