@@ -3609,23 +3609,66 @@ async function extractVariantsDirect($: cheerio.CheerioAPI, htmlContent: string,
     'mobilya takım', 'koltuk takım', 'yemek masası',
     // Kitchen appliances
     'tencere set', 'tava set', 'mutfak robotu',
-    // Electronics (specific)
+    // Electronics & Cameras (specific)
     'cep telefon', 'akıllı telefon', 'tablet bilgisayar', 'dizüstü bilgisayar',
+    'bebek kamerası', 'güvenlik kamerası', 'akıllı kamera', 'dijital kamera', 'ip kamera',
+    'baby camera', 'smart camera', 'lcd monitor', 'dijital monitör',
     // Cosmetics (products, not clothing)
     'parfüm şişe', 'cilt bakım', 'saç bakım',
     // Baby equipment (not baby clothing)
-    'bebek arabası', 'mama sandalye', 'bebek karyola',
+    'bebek arabası', 'mama sandalye', 'bebek karyola', 'bebek monitör',
     // Garden
     'bahçe mobilya', 'çim biçme'
   ];
+  
+  // Electronic device detection - requires COMBINATION of keywords to avoid false positives
+  // "Dijital Baskılı Tişört" should NOT be blocked, but "Dijital Bebek Kamerası" SHOULD
+  const electronicDeviceKeywords = ['kamera', 'camera', 'monitör', 'monitor'];
+  const electronicModifiers = ['bebek', 'güvenlik', 'ip', 'wifi', 'akıllı', 'smart', 'dijital', 'digital', 'lcd', 'kablosuz', 'wireless'];
+  
+  // CLOTHING KEYWORDS - If product has these, it's definitely clothing (override non-clothing detection)
+  // Using word boundary matching to avoid false positives (e.g., "bot" matching "robot")
+  const clothingKeywords = [
+    'tişört', 'tisört', 't-shirt', 'tshirt', 'gömlek', 'bluz', 'kazak', 'hırka', 'ceket', 'mont', 'kaban',
+    'pantolon', 'jean', 'kot', 'şort', 'etek', 'elbise', 'tunik', 'tayt', 'eşofman', 'sweatshirt', 'hoodie',
+    'iç giyim', 'külot', 'sütyen', 'boxer', 'pijama', 'gecelik', 'bornoz',
+    'forma', 'atlet', 'mayo', 'bikini', 'yelek',
+    'ayakkabı', 'çizme', 'sneaker', 'terlik', 'sandalet',
+    'çanta', 'şal', 'fular', 'eldiven', 'bere', 'şapka'
+  ];
+  
+  // Short keywords that need word boundary matching to avoid false positives
+  // "bot" should match "deri bot" but NOT "robot süpürge"
+  const shortClothingKeywords = ['bot', 'kemer'];
   
   // Check for non-clothing ONLY with strong evidence (multiple matching words)
   const titleLower = title.toLowerCase();
   const urlLower = url.toLowerCase();
   const combinedText = titleLower + ' ' + urlLower;
   
-  // Strong non-clothing detection - requires phrase match
-  const isStrongNonClothing = nonClothingPhrases.some(phrase => combinedText.includes(phrase));
+  // Word boundary helper function - checks if keyword is a standalone word
+  const hasWordBoundary = (text: string, keyword: string): boolean => {
+    const regex = new RegExp(`(^|\\s|-)${keyword}($|\\s|-)`, 'i');
+    return regex.test(text);
+  };
+  
+  // Check if product has clothing keywords - these ALWAYS get size extraction
+  const hasLongClothingKeyword = clothingKeywords.some(keyword => titleLower.includes(keyword));
+  const hasShortClothingKeyword = shortClothingKeywords.some(keyword => hasWordBoundary(titleLower, keyword));
+  const hasClothingKeyword = hasLongClothingKeyword || hasShortClothingKeyword;
+  
+  // Strong non-clothing detection - requires phrase match OR electronic device combination
+  const hasPhraseMatch = nonClothingPhrases.some(phrase => combinedText.includes(phrase));
+  
+  // Electronic device detection: Must have BOTH a device keyword AND a modifier
+  // This prevents "dijital baskılı tişört" from being blocked while catching "dijital bebek kamerası"
+  const hasElectronicDevice = electronicDeviceKeywords.some(device => titleLower.includes(device));
+  const hasElectronicModifier = electronicModifiers.some(modifier => titleLower.includes(modifier));
+  const isElectronicProduct = hasElectronicDevice && hasElectronicModifier;
+  
+  // IMPORTANT: If product has clothing keyword, NEVER skip size extraction (even if it has electronic keywords)
+  // "Dijital Kamera Desenli Tişört" → has "tişört" → NOT blocked → size extraction enabled
+  const isStrongNonClothing = !hasClothingKeyword && (hasPhraseMatch || isElectronicProduct);
   
   // Check URL category path for clothing categories
   const clothingUrlPatterns = [
