@@ -3686,6 +3686,12 @@ async function extractVariantsDirect($: cheerio.CheerioAPI, htmlContent: string,
   const hasStrongFoodKeyword = strongFoodKeywords.some(keyword => titleLower.includes(keyword));
   const isFoodBeverageProduct = hasFoodPhrase || hasStrongFoodKeyword;
   
+  // 🔥 DEBUG: Log food detection results for debugging
+  console.log(`🔍 FOOD DETECTION DEBUG - Title: "${title}"`);
+  console.log(`🔍 titleLower: "${titleLower}"`);
+  console.log(`🔍 hasFoodPhrase: ${hasFoodPhrase}, hasStrongFoodKeyword: ${hasStrongFoodKeyword}`);
+  console.log(`🔍 isFoodBeverageProduct: ${isFoodBeverageProduct}`);
+  
   // Electronic device detection: Must have BOTH a device keyword AND a modifier
   // This prevents "dijital baskılı tişört" from being blocked while catching "dijital bebek kamerası"
   const hasElectronicDevice = electronicDeviceKeywords.some(device => titleLower.includes(device));
