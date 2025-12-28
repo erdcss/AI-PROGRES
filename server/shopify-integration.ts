@@ -110,43 +110,13 @@ export class ShopifyIntegration {
     
     console.log(`✅ SHOPIFY IMAGES: ${images.length} valid images ready for upload`);
 
-    // Normalize variants: handle both array and object with allVariants
-    let variantsList: Array<{ color: string; colorCode?: string; size: string; inStock: boolean; sku?: string }> = [];
-    
-    if (productData.variants) {
-      if (Array.isArray(productData.variants)) {
-        variantsList = productData.variants;
-      } else if (productData.variants.allVariants && Array.isArray(productData.variants.allVariants)) {
-        variantsList = productData.variants.allVariants;
-      }
-    }
-    
-    // Safe price extraction with fallbacks
-    const getSafePrice = (): string => {
-      if (!productData.price) return '0';
-      const price = productData.price;
-      if (typeof price.original === 'number' && !isNaN(price.original)) {
-        return price.original.toString();
-      }
-      if (typeof price.discounted === 'number' && !isNaN(price.discounted)) {
-        return price.discounted.toString();
-      }
-      if (typeof price.current === 'number' && !isNaN(price.current)) {
-        return (price as any).current.toString();
-      }
-      return '0';
-    };
-    
-    const safePrice = getSafePrice();
-    console.log(`💰 Safe price for Shopify: ${safePrice}`);
-
     // Create variants
     const variants: ShopifyVariant[] = [];
-    const hasColors = variantsList.length > 0 && variantsList.some(v => v.color && v.color !== 'Varsayılan');
-    const hasSizes = variantsList.length > 0 && variantsList.some(v => v.size && v.size !== 'Standart');
+    const hasColors = productData.variants.length > 0 && productData.variants.some(v => v.color && v.color !== 'Varsayılan');
+    const hasSizes = productData.variants.length > 0 && productData.variants.some(v => v.size && v.size !== 'Standart');
 
-    if (variantsList.length > 0) {
-      variantsList.forEach((variant, index) => {
+    if (productData.variants.length > 0) {
+      productData.variants.forEach((variant, index) => {
         variants.push({
           title: hasColors && hasSizes 
             ? `${variant.color} / ${variant.size}`
@@ -155,8 +125,8 @@ export class ShopifyIntegration {
               : hasSizes 
                 ? variant.size
                 : 'Default',
-          price: safePrice,
-          sku: variant.sku || `${handle}-${index + 1}`,
+          price: productData.price.original.toString(),
+          sku: (variant as any).sku || `${handle}-${index + 1}`,
           inventory_quantity: variant.inStock ? 10 : 0,
           inventory_management: 'shopify',
           option1: hasColors ? variant.color : hasSizes ? variant.size : undefined,
@@ -169,7 +139,7 @@ export class ShopifyIntegration {
       // Single variant product
       variants.push({
         title: 'Default Title',
-        price: safePrice,
+        price: productData.price.original.toString(),
         sku: `${handle}-1`,
         inventory_quantity: 10,
         inventory_management: 'shopify',
@@ -181,7 +151,7 @@ export class ShopifyIntegration {
     // Create options
     const options: ShopifyOption[] = [];
     if (hasColors) {
-      const colorOptions = Array.from(new Set(variantsList.map(v => v.color).filter((c): c is string => !!c && c !== 'Varsayılan')));
+      const colorOptions = Array.from(new Set(productData.variants.map(v => v.color).filter(c => c && c !== 'Varsayılan')));
       if (colorOptions.length > 0) {
         options.push({
           name: 'Color',
@@ -191,7 +161,7 @@ export class ShopifyIntegration {
     }
     
     if (hasSizes) {
-      const sizeOptions = Array.from(new Set(variantsList.map(v => v.size).filter((s): s is string => !!s && s !== 'Standart')));
+      const sizeOptions = Array.from(new Set(productData.variants.map(v => v.size).filter(s => s && s !== 'Standart')));
       if (sizeOptions.length > 0) {
         options.push({
           name: 'Size',
