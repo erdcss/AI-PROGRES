@@ -3600,6 +3600,49 @@ async function extractVariantsDirect($: cheerio.CheerioAPI, htmlContent: string,
     console.log('🎯 Title:', title);
   }
   
+  // 🚫 IMPROVED NON-CLOTHING DETECTION - Only block products with STRONG evidence of non-clothing
+  // Use exact product category phrases rather than single keywords to avoid false positives
+  const nonClothingPhrases = [
+    // Home improvement / construction
+    'pimapen pencere', 'pencere kilidi', 'cam balkon', 'kapı kilidi', 'emniyet kilidi',
+    // Furniture (full phrases)
+    'mobilya takım', 'koltuk takım', 'yemek masası',
+    // Kitchen appliances
+    'tencere set', 'tava set', 'mutfak robotu',
+    // Electronics (specific)
+    'cep telefon', 'akıllı telefon', 'tablet bilgisayar', 'dizüstü bilgisayar',
+    // Cosmetics (products, not clothing)
+    'parfüm şişe', 'cilt bakım', 'saç bakım',
+    // Baby equipment (not baby clothing)
+    'bebek arabası', 'mama sandalye', 'bebek karyola',
+    // Garden
+    'bahçe mobilya', 'çim biçme'
+  ];
+  
+  // Check for non-clothing ONLY with strong evidence (multiple matching words)
+  const titleLower = title.toLowerCase();
+  const urlLower = url.toLowerCase();
+  const combinedText = titleLower + ' ' + urlLower;
+  
+  // Strong non-clothing detection - requires phrase match
+  const isStrongNonClothing = nonClothingPhrases.some(phrase => combinedText.includes(phrase));
+  
+  // Check URL category path for clothing categories
+  const clothingUrlPatterns = [
+    '/giyim/', '/kadin-giyim/', '/erkek-giyim/', '/cocuk-giyim/',
+    '/tisort/', '/gomlek/', '/elbise/', '/pantolon/', '/etek/',
+    '/ayakkabi/', '/canta/', '/aksesuar/'
+  ];
+  const hasClothingUrl = clothingUrlPatterns.some(pattern => urlLower.includes(pattern));
+  
+  // Only skip if STRONG non-clothing evidence AND no clothing URL
+  const skipSizeExtraction = isStrongNonClothing && !hasClothingUrl;
+  
+  if (skipSizeExtraction) {
+    console.log(`🚫 NON-CLOTHING PRODUCT DETECTED: "${title}"`);
+    console.log(`🚫 Size extraction DISABLED to prevent fake S/M/L variants`);
+  }
+  
   // SINGLE COLOR POLICY: Extract primary color from title only
   // User requirement: Each product should have exactly ONE color
   console.log('🎨 SINGLE COLOR EXTRACTION - Extracting primary color from title...');
@@ -3618,15 +3661,20 @@ async function extractVariantsDirect($: cheerio.CheerioAPI, htmlContent: string,
   // Method 2: Enhanced size extraction with modern Trendyol selectors  
   const sizes: string[] = [];
   
-  console.log('👕 Starting comprehensive size extraction...');
+  // 🚫 Skip size extraction for non-clothing products
+  if (skipSizeExtraction) {
+    console.log('🚫 Skipping size extraction for non-clothing product');
+  } else {
+    console.log('👕 Starting comprehensive size extraction...');
   
-  // ✅ AUTHENTIC SIZE EXTRACTION ENABLED - Only extract real sizes from DOM
-  console.log('✅ Authentic size extraction enabled - scanning for real size variants');
+    // ✅ AUTHENTIC SIZE EXTRACTION ENABLED - Only extract real sizes from DOM
+    console.log('✅ Authentic size extraction enabled - scanning for real size variants');
   
-  // Size extraction selectors now enabled for authentic detection
+    // Size extraction selectors now enabled for authentic detection
   
-  // ✅ AUTHENTIC SIZE EXTRACTION - Enable DOM-based size detection for multi-variant products
-  console.log('🎨 AUTHENTIC SIZE EXTRACTION - Scanning DOM for genuine size variants...');
+    // ✅ AUTHENTIC SIZE EXTRACTION - Enable DOM-based size detection for multi-variant products
+    console.log('🎨 AUTHENTIC SIZE EXTRACTION - Scanning DOM for genuine size variants...');
+  }
   
   // Modern Trendyol size selectors - ENABLED FOR AUTHENTIC DETECTION
   const sizeSelectors = [
@@ -3664,52 +3712,55 @@ async function extractVariantsDirect($: cheerio.CheerioAPI, htmlContent: string,
     // 'button:contains("S")', 'span:contains("M")', etc. - REMOVED
   ];
   
-  sizeSelectors.forEach(selector => {
-    console.log(`🔍 Checking selector "${selector}" for sizes...`);
-    const found = $(selector);
-    console.log(`🔍 Selector "${selector}" found ${found.length} elements`);
-    
-    $(selector).each((_, el) => {
-      const $el = $(el);
-      const sizeName = $el.text().trim() || $el.attr('title') || $el.attr('data-size') || 
-                      $el.attr('aria-label');
+  // 🚫 Only run size extraction for clothing products
+  if (!skipSizeExtraction) {
+    sizeSelectors.forEach(selector => {
+      console.log(`🔍 Checking selector "${selector}" for sizes...`);
+      const found = $(selector);
+      console.log(`🔍 Selector "${selector}" found ${found.length} elements`);
       
-      if (sizeName && typeof sizeName === 'string' && sizeName.length > 0 && sizeName.length < 50) {
-        // Decode Unicode escapes and normalize (handles M\u002FL -> M/L)
-        const decodedSizeName = sizeName
-          .replace(/\\u002F/gi, '/')
-          .replace(/\\u002f/gi, '/')
-          .replace(/-/g, '/')  // Normalize M-L to M/L
-          .trim();
+      $(selector).each((_, el) => {
+        const $el = $(el);
+        const sizeName = $el.text().trim() || $el.attr('title') || $el.attr('data-size') || 
+                        $el.attr('aria-label');
         
-        // Try to parse variant string first (handles "S Beden / Beyaz" formats)
-        const parsed = parseVariantString(decodedSizeName);
-        let finalSize: string | null = null;
-        
-        if (parsed.size) {
-          finalSize = parsed.size;
-        } else {
-          // Enhanced size pattern for Turkish and international sizes + dimension-based sizes
-          // Added support for combined sizes like S/M, M/L, L/XL
-          const sizePattern = /^(XXS|XS|S|M|L|XL|XXL|XXXL|2XL|3XL|S\/M|M\/L|L\/XL|XS\/S|XL\/XXL|\d+(\.\d+)?|Tek\s*Beden|One\s*Size|\d+\s*[xX×]\s*\d+(\s*(cm|CM))?)$/i;
-          const cleanSizeName = decodedSizeName.toUpperCase().trim();
+        if (sizeName && typeof sizeName === 'string' && sizeName.length > 0 && sizeName.length < 50) {
+          // Decode Unicode escapes and normalize (handles M\u002FL -> M/L)
+          const decodedSizeName = sizeName
+            .replace(/\\u002F/gi, '/')
+            .replace(/\\u002f/gi, '/')
+            .replace(/-/g, '/')  // Normalize M-L to M/L
+            .trim();
           
-          if (sizePattern.test(cleanSizeName)) {
-            finalSize = normalizeSize(cleanSizeName);
+          // Try to parse variant string first (handles "S Beden / Beyaz" formats)
+          const parsed = parseVariantString(decodedSizeName);
+          let finalSize: string | null = null;
+          
+          if (parsed.size) {
+            finalSize = parsed.size;
+          } else {
+            // Enhanced size pattern for Turkish and international sizes + dimension-based sizes
+            // Added support for combined sizes like S/M, M/L, L/XL
+            const sizePattern = /^(XXS|XS|S|M|L|XL|XXL|XXXL|2XL|3XL|S\/M|M\/L|L\/XL|XS\/S|XL\/XXL|\d+(\.\d+)?|Tek\s*Beden|One\s*Size|\d+\s*[xX×]\s*\d+(\s*(cm|CM))?)$/i;
+            const cleanSizeName = decodedSizeName.toUpperCase().trim();
+            
+            if (sizePattern.test(cleanSizeName)) {
+              finalSize = normalizeSize(cleanSizeName);
+            }
+          }
+          
+          if (finalSize && !sizes.includes(finalSize)) {
+            sizes.push(finalSize);
+            const stockStatus = $el.is('[disabled]') || $el.hasClass('disabled') || 
+                              $el.hasClass('out-of-stock') || $el.hasClass('sold-out') ? '(STOKTA YOK)' : '(STOKTA VAR)';
+            console.log(`👕 FOUND SIZE: "${finalSize}" ${stockStatus} [via: ${selector}]`);
+          } else if (!finalSize) {
+            console.log(`❌ Size rejected: "${sizeName}" (doesn't match pattern) [via: ${selector}]`);
           }
         }
-        
-        if (finalSize && !sizes.includes(finalSize)) {
-          sizes.push(finalSize);
-          const stockStatus = $el.is('[disabled]') || $el.hasClass('disabled') || 
-                            $el.hasClass('out-of-stock') || $el.hasClass('sold-out') ? '(STOKTA YOK)' : '(STOKTA VAR)';
-          console.log(`👕 FOUND SIZE: "${finalSize}" ${stockStatus} [via: ${selector}]`);
-        } else if (!finalSize) {
-          console.log(`❌ Size rejected: "${sizeName}" (doesn't match pattern) [via: ${selector}]`);
-        }
-      }
+      });
     });
-  });
+  }
   
   /* PREVIOUSLY DISABLED SIZE EXTRACTION:
   sizeSelectors.forEach(selector => {
@@ -3739,7 +3790,9 @@ async function extractVariantsDirect($: cheerio.CheerioAPI, htmlContent: string,
   
   // Method 3: Extract from JavaScript variables and JSON data
   const jsonExtractedColors = extractColorsFromJS($, htmlContent);
-  const jsonExtractedSizes = extractSizesFromJS($, htmlContent);
+  
+  // 🚫 Only extract sizes for clothing products
+  const jsonExtractedSizes = skipSizeExtraction ? [] : extractSizesFromJS($, htmlContent);
   
   // ❌ DISABLED - Aggressive size pattern scanning
   console.log('❌ DISABLED: Aggressive size pattern scanning - only DOM/JSON sources allowed');
@@ -3756,9 +3809,11 @@ async function extractVariantsDirect($: cheerio.CheerioAPI, htmlContent: string,
   // Combine all authentic colors and sizes from all sources
   const allRawColors = Array.from(new Set([...colors, ...jsonExtractedColors, ...jsonLdVariants.colors]));
   
-  // ✅ ENABLE SIZE FILTERING - Combine authentic sizes from DOM, JS and JSON-LD  
-  const allSizes = Array.from(new Set([...sizes, ...jsonExtractedSizes, ...jsonLdVariants.sizes]));
-  console.log(`🔍 Combined authentic sizes: [${allSizes.join(', ')}]`);
+  // ✅ ENABLE SIZE FILTERING - Combine authentic sizes from DOM, JS and JSON-LD
+  // 🚫 Skip size combination for non-clothing products
+  const jsonLdSizes = skipSizeExtraction ? [] : jsonLdVariants.sizes;
+  const allSizes = Array.from(new Set([...sizes, ...jsonExtractedSizes, ...jsonLdSizes]));
+  console.log(`🔍 Combined authentic sizes: [${allSizes.join(', ')}]${skipSizeExtraction ? ' (non-clothing - sizes skipped)' : ''}`);
   
   console.log(`🔍 Raw colors detected: ${allRawColors.length} [${allRawColors.join(', ')}]`);
   

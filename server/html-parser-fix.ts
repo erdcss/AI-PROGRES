@@ -109,19 +109,52 @@ export function extractBasicDataFromDamagedHtml(htmlContent: string): {
   };
 
   try {
+    // 🚫 JUNK TITLE FILTER - Reject these as invalid titles
+    // Use EXACT phrases to avoid false positives on products like "robot vacuum"
+    const junkTitleExact = [
+      'trendyol.com', 'trendyol', 'hepsiburada.com', 'n11.com', 'amazon.com.tr'
+    ];
+    
+    const junkTitlePhrases = [
+      'access denied', 'access is denied', 'permission denied',
+      '403 forbidden', '404 not found', '500 internal', 'error page',
+      'just a moment', 'please wait', 'checking your browser',
+      'attention required', 'cloudflare to restrict access',
+      'enable javascript', 'please verify you are human',
+      'captcha verification', 'ddos protection'
+    ];
+    
+    const isJunkTitle = (title: string): boolean => {
+      const lowerTitle = title.toLowerCase().trim();
+      // Exact match check
+      if (junkTitleExact.some(junk => lowerTitle === junk)) return true;
+      // Phrase match check for blocking pages
+      if (junkTitlePhrases.some(phrase => lowerTitle.includes(phrase))) return true;
+      // Too short or too long
+      if (lowerTitle.length < 5 || lowerTitle.length > 300) return true;
+      return false;
+    };
+    
     // Extract title using multiple patterns
     const titlePatterns = [
-      /<title[^>]*>([^<]+)<\/title>/i,
-      /"name"\s*:\s*"([^"]+)"/i,
+      /"name"\s*:\s*"([^"]+)"/i, // JSON-LD name first (most reliable)
+      /<h1[^>]*class="[^"]*pr-new-br[^"]*"[^>]*>([^<]+)<\/h1>/i, // Trendyol specific h1
       /<h1[^>]*>([^<]+)<\/h1>/i,
-      /product[_-]?name["\s]*[:=]["\s]*([^"]+)/i
+      /product[_-]?name["\s]*[:=]["\s]*([^"]+)/i,
+      /<title[^>]*>([^<]+)<\/title>/i // Title tag last (often contains site name)
     ];
 
     for (const pattern of titlePatterns) {
       const match = htmlContent.match(pattern);
       if (match && match[1]) {
-        result.title = match[1].trim();
-        break;
+        const candidateTitle = match[1].trim();
+        if (!isJunkTitle(candidateTitle)) {
+          result.title = candidateTitle;
+          console.log(`✅ Valid title found: "${candidateTitle}"`);
+          break;
+        } else {
+          console.log(`🚫 Rejected junk title: "${candidateTitle}"`);
+        }
       }
     }
 
