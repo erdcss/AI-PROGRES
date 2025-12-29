@@ -24,6 +24,7 @@ import { detectRealStockStatus } from './real-stock-detector';
 import { extractColorFromUrl, cleanColorName, normalizeSize, parseVariantString, getColorCode } from './color-recognition';
 import { getPerformanceConfig, getTimeout, shouldRetryWithSlowTimeout } from './performance-config';
 import { generateAdvancedTags } from './tag-generator';
+import { CLOTHING_KEYWORDS, FAKE_CLOTHING_SIZES, isClothingProduct } from './clothing-keywords';
 
 // Helper function to extract description from page
 function extractDescription($: cheerio.CheerioAPI): string {

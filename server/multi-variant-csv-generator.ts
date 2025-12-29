@@ -1,3 +1,5 @@
+import { CLOTHING_KEYWORDS, FAKE_CLOTHING_SIZES, isClothingProduct } from './clothing-keywords';
+
 interface CombinedProduct {
   id: string;
   title: string;
@@ -72,16 +74,8 @@ export async function generateMultiVariantShopifyCSV(product: CombinedProduct): 
   }
   
   // 🚫 CRITICAL: CLOTHING CHECK - Strip all size data for non-clothing products
-  const clothingKeywords = [
-    'tişört', 't-shirt', 'tshirt', 'gömlek', 'pantolon', 'elbise', 'etek', 
-    'kazak', 'mont', 'ceket', 'hırka', 'bluz', 'yelek', 'şort', 'eşofman',
-    'ayakkabı', 'çizme', 'bot', 'sneaker', 'terlik', 'sandalet', 'topuklu',
-    'iç giyim', 'pijama', 'mayo', 'bikini', 'sweatshirt', 'hoodie', 'polar',
-    'trençkot', 'kaban', 'palto', 'tayt', 'jean', 'kot', 'denim'
-  ];
-  
-  const hasClothingKeyword = clothingKeywords.some(kw => titleLower.includes(kw));
-  const isConfirmedClothingProduct = hasClothingKeyword;
+  // Using centralized CLOTHING_KEYWORDS from clothing-keywords.ts
+  const isConfirmedClothingProduct = isClothingProduct(sanitizedProduct.title);
   
   if (!isConfirmedClothingProduct && sanitizedProduct.variants) {
     console.log(`🚫 CSV GATE: Product "${sanitizedProduct.title.substring(0, 40)}..." is NOT clothing`);

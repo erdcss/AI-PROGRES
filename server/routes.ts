@@ -73,6 +73,7 @@ import { setupAdminMemoryRoutes } from './admin-memory-routes';
 import { setupTrackingDashboardAPI } from './tracking-dashboard-api';
 import { ImageTelegramService } from './image-telegram-service';
 import { productStatisticsService } from './product-statistics-service';
+import { CLOTHING_KEYWORDS, FAKE_CLOTHING_SIZES, isClothingProduct } from './clothing-keywords';
 import { aiProductStatisticsService } from './ai-product-statistics';
 import { shopifyProductsSync } from './shopify-products-sync';
 
@@ -1037,29 +1038,20 @@ function processVariantsFromFeatures(features: any[], originalVariants: any[] = 
   console.log("🔧 Varyant işleme başlıyor...", features.length, "özellik");
   
   // 🚫 CRITICAL: Clothing check - ONLY clothing products get sizes
-  const clothingKeywords = [
-    'tişört', 't-shirt', 'tshirt', 'gömlek', 'pantolon', 'elbise', 'etek', 
-    'kazak', 'mont', 'ceket', 'hırka', 'bluz', 'yelek', 'şort', 'eşofman',
-    'ayakkabı', 'çizme', 'bot', 'sneaker', 'terlik', 'sandalet', 'topuklu',
-    'iç giyim', 'pijama', 'mayo', 'bikini', 'sweatshirt', 'hoodie', 'polar',
-    'trençkot', 'kaban', 'palto', 'tayt', 'jean', 'kot', 'denim'
-  ];
-  
-  const titleLower = (title || '').toLowerCase();
-  const isClothing = clothingKeywords.some(kw => titleLower.includes(kw));
+  // Using centralized CLOTHING_KEYWORDS from clothing-keywords.ts
+  const isClothing = isClothingProduct(title);
   
   if (!isClothing) {
     console.log(`🚫 processVariantsFromFeatures: "${title?.substring(0, 40)}..." is NOT clothing`);
     console.log(`🚫 BLOCKING FAKE S/M/L SIZES - but preserving real volume/numeric variants`);
     
-    // Fake clothing size patterns to block
-    const fakeClothingSizes = ['xs', 's', 'm', 'l', 'xl', 'xxl', 'xxxl', '2xl', '3xl'];
+    // Fake clothing size patterns to block - using centralized list
     
     // Return originalVariants with FAKE sizes stripped, but keep real variants (ml, numeric, etc.)
     if (originalVariants && originalVariants.length > 0) {
       return originalVariants.map(v => {
         const sizeValue = (v.size || '').toLowerCase().trim();
-        const isFakeSize = fakeClothingSizes.includes(sizeValue);
+        const isFakeSize = FAKE_CLOTHING_SIZES.includes(sizeValue);
         
         if (isFakeSize) {
           console.log(`🚫 Stripping fake size "${v.size}" from non-clothing product`);
@@ -2348,34 +2340,23 @@ ${(result.title || 'product').toLowerCase().replace(/[^a-z0-9]/g, '-')},${result
           console.log(`📸 ROUTES: Images format:`, JSON.stringify(result.images?.slice(0, 2)));
           
           // 🚫 CRITICAL FINAL GATE: Strip fake sizes from non-clothing products
-          const clothingKeywords = [
-            'tişört', 't-shirt', 'tshirt', 'gömlek', 'pantolon', 'elbise', 'etek', 
-            'kazak', 'mont', 'ceket', 'hırka', 'bluz', 'yelek', 'şort', 'eşofman',
-            'ayakkabı', 'çizme', 'bot', 'sneaker', 'terlik', 'sandalet', 'topuklu',
-            'iç giyim', 'pijama', 'mayo', 'bikini', 'sweatshirt', 'hoodie', 'polar',
-            'trençkot', 'kaban', 'palto', 'tayt', 'jean', 'kot', 'denim'
-          ];
-          
-          const titleForCheck = (result.title || '').toLowerCase();
-          const hasClothingKeyword = clothingKeywords.some(kw => titleForCheck.includes(kw));
+          // Using centralized CLOTHING_KEYWORDS and FAKE_CLOTHING_SIZES from clothing-keywords.ts
+          const hasClothingKeyword = isClothingProduct(result.title);
           
           if (!hasClothingKeyword && normalizedVariants) {
             console.log(`🚫 ROUTES FINAL GATE: "${result.title?.substring(0, 40)}..." is NOT clothing`);
             console.log(`🚫 STRIPPING FAKE S/M/L SIZES - preserving real variants`);
             
-            // Only strip fake clothing sizes, keep real volume/numeric variants
-            const fakeClothingSizesGate = ['xs', 's', 'm', 'l', 'xl', 'xxl', 'xxxl', '2xl', '3xl'];
-            
             if (normalizedVariants.sizes) {
               normalizedVariants.sizes = normalizedVariants.sizes.filter((s: string) => {
                 const sizeLower = (s || '').toLowerCase().trim();
-                return !fakeClothingSizesGate.includes(sizeLower);
+                return !FAKE_CLOTHING_SIZES.includes(sizeLower);
               });
             }
             if (normalizedVariants.allVariants) {
               normalizedVariants.allVariants = normalizedVariants.allVariants.map((v: any) => {
                 const sizeLower = (v.size || '').toLowerCase().trim();
-                if (fakeClothingSizesGate.includes(sizeLower)) {
+                if (FAKE_CLOTHING_SIZES.includes(sizeLower)) {
                   console.log(`🚫 Final Gate: Stripping fake size "${v.size}"`);
                   return { ...v, size: '' };
                 }
