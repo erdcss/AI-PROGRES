@@ -1636,7 +1636,26 @@ export function registerRoutes(app: Express): Server {
           console.log(`🎯 Scenario-Based Scraper SUCCESS - Scenario: ${scenarioResult.scenario}, Confidence: ${scenarioResult.confidence}%`);
           
           // Özelliklerden gerçek varyant verisi oluştur
-          const processedVariants = processVariantsFromFeatures(scenarioResult.features || [], scenarioResult.variants || []);
+          let processedVariants = processVariantsFromFeatures(scenarioResult.features || [], scenarioResult.variants || []);
+          
+          // 🚫 CRITICAL FINAL GATE: Strip fake sizes from non-clothing products
+          const clothingKeywordsFallback = [
+            'tişört', 't-shirt', 'tshirt', 'gömlek', 'pantolon', 'elbise', 'etek', 
+            'kazak', 'mont', 'ceket', 'hırka', 'bluz', 'yelek', 'şort', 'eşofman',
+            'ayakkabı', 'çizme', 'bot', 'sneaker', 'terlik', 'sandalet', 'topuklu',
+            'iç giyim', 'pijama', 'mayo', 'bikini', 'sweatshirt', 'hoodie', 'polar'
+          ];
+          
+          const titleCheck = (scenarioResult.title || '').toLowerCase();
+          const isClothing = clothingKeywordsFallback.some(kw => titleCheck.includes(kw));
+          
+          if (!isClothing && processedVariants) {
+            console.log(`🚫 FALLBACK FINAL GATE: "${scenarioResult.title?.substring(0, 40)}..." is NOT clothing - stripping sizes`);
+            if (processedVariants.sizes) processedVariants.sizes = [];
+            if (processedVariants.allVariants) {
+              processedVariants.allVariants = processedVariants.allVariants.map((v: any) => ({ ...v, size: '' }));
+            }
+          }
           
           return res.json({
             success: true,
@@ -2316,6 +2335,34 @@ ${(result.title || 'product').toLowerCase().replace(/[^a-z0-9]/g, '-')},${result
           // ✅ DEBUG: Log images before sending to frontend
           console.log(`📸 ROUTES: Sending ${result.images?.length || 0} images to frontend`);
           console.log(`📸 ROUTES: Images format:`, JSON.stringify(result.images?.slice(0, 2)));
+          
+          // 🚫 CRITICAL FINAL GATE: Strip fake sizes from non-clothing products
+          const clothingKeywords = [
+            'tişört', 't-shirt', 'tshirt', 'gömlek', 'pantolon', 'elbise', 'etek', 
+            'kazak', 'mont', 'ceket', 'hırka', 'bluz', 'yelek', 'şort', 'eşofman',
+            'ayakkabı', 'çizme', 'bot', 'sneaker', 'terlik', 'sandalet', 'topuklu',
+            'iç giyim', 'pijama', 'mayo', 'bikini', 'sweatshirt', 'hoodie', 'polar',
+            'trençkot', 'kaban', 'palto', 'tayt', 'jean', 'kot', 'denim'
+          ];
+          
+          const titleForCheck = (result.title || '').toLowerCase();
+          const hasClothingKeyword = clothingKeywords.some(kw => titleForCheck.includes(kw));
+          
+          if (!hasClothingKeyword && normalizedVariants) {
+            console.log(`🚫 ROUTES FINAL GATE: "${result.title?.substring(0, 40)}..." is NOT clothing`);
+            console.log(`🚫 STRIPPING ALL SIZE DATA before sending to frontend`);
+            
+            // Clear all size data
+            normalizedVariants.sizes = [];
+            if (normalizedVariants.allVariants) {
+              normalizedVariants.allVariants = normalizedVariants.allVariants.map((v: any) => ({
+                ...v,
+                size: ''
+              }));
+            }
+          } else if (hasClothingKeyword) {
+            console.log(`✅ ROUTES FINAL GATE: Product IS clothing - sizes preserved`);
+          }
           
           return res.json({
             success: true,
