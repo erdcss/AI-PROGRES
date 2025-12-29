@@ -3613,12 +3613,32 @@ async function extractVariantsDirect($: cheerio.CheerioAPI, htmlContent: string,
     'cep telefon', 'akıllı telefon', 'tablet bilgisayar', 'dizüstü bilgisayar',
     'bebek kamerası', 'güvenlik kamerası', 'akıllı kamera', 'dijital kamera', 'ip kamera',
     'baby camera', 'smart camera', 'lcd monitor', 'dijital monitör',
-    // Cosmetics (products, not clothing)
+    // Cosmetics (products, not clothing) - ENHANCED LIST
     'parfüm şişe', 'cilt bakım', 'saç bakım',
+    'tonik', 'serum', 'maske', 'losyon', 'şampuan', 'saç spreyi',
+    'nemlendirici', 'temizleyici', 'peeling', 'fondöten', 'allık',
+    'ruj', 'maskara', 'eyeliner', 'göz farı', 'pudra', 'kapatıcı',
+    'oje', 'tırnak', 'parfüm', 'deodorant', 'kolonya',
+    'güneş kremi', 'bronzlaştırıcı', 'vücut spreyi',
+    'leke karşıtı', 'beyazlatıcı', 'aydınlatıcı', 'anti-aging', 'kırışıklık',
+    'pirinç mayası', 'hyaluronik', 'retinol', 'vitamin c', 'niacinamide',
     // Baby equipment (not baby clothing)
     'bebek arabası', 'mama sandalye', 'bebek karyola', 'bebek monitör',
     // Garden
-    'bahçe mobilya', 'çim biçme'
+    'bahçe mobilya', 'çim biçme',
+    // Jewelry & Accessories (no size variants)
+    'kolye', 'bilezik', 'küpe', 'yüzük', 'broş', 'rozet', 'toka', 'saç tokası',
+    // Home decoration & accessories (no size variants)
+    'vazo', 'tablo', 'çerçeve', 'mumluk', 'biblo', 'saksı', 'süs', 'dekorasyon',
+    'halı', 'kilim', 'perde', 'yastık', 'yorgan', 'nevresim', 'havlu', 'peçete',
+    // Watches & Electronics
+    'saat', 'akıllı saat', 'fitness bileklik', 'kulaklık', 'hoparlör', 'şarj',
+    // Tools & Equipment
+    'alet', 'matkap', 'tornavida', 'çekiç', 'pense', 'testere',
+    // Kitchen & Dining
+    'bardak', 'tabak', 'kase', 'tepsi', 'sürahi', 'çaydanlık', 'kahve makinesi',
+    // Office & Stationery
+    'kalem', 'defter', 'dosya', 'klasör', 'hesap makinesi', 'ofis'
   ];
   
   // FOOD & BEVERAGE PHRASES - Use specific phrases to avoid ambiguous single words
