@@ -1069,6 +1069,10 @@ function processVariantsFromFeatures(features: any[], originalVariants: any[] = 
         return v;
       });
     }
+    
+    // If no originalVariants, DON'T generate new ones from features for non-clothing products
+    // This prevents fake S/M/L generation from features
+    console.log(`🚫 No originalVariants for non-clothing product - returning empty (no fake generation)`);
     return []; // No variants at all
   }
   
@@ -2377,6 +2381,17 @@ ${(result.title || 'product').toLowerCase().replace(/[^a-z0-9]/g, '-')},${result
                 }
                 return v;
               });
+            }
+            
+            // Rebuild stockMap with cleaned keys
+            if (normalizedVariants.allVariants && normalizedVariants.stockMap) {
+              const newStockMap: Record<string, boolean> = {};
+              normalizedVariants.allVariants.forEach((v: any) => {
+                const key = `${v.color || ''}-${v.size || ''}`;
+                newStockMap[key] = v.inStock;
+              });
+              normalizedVariants.stockMap = newStockMap;
+              console.log(`🔄 StockMap rebuilt after sanitization`);
             }
           } else if (hasClothingKeyword) {
             console.log(`✅ ROUTES FINAL GATE: Product IS clothing - sizes preserved`);
