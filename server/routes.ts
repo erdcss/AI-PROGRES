@@ -1033,8 +1033,46 @@ function normalizeImageUrl(url: string): string {
 }
 
 // Varyant işleme fonksiyonu - özelliklerden gerçek varyant verisi oluşturur
-function processVariantsFromFeatures(features: any[], originalVariants: any[] = []): any[] {
+function processVariantsFromFeatures(features: any[], originalVariants: any[] = [], title: string = ''): any[] {
   console.log("🔧 Varyant işleme başlıyor...", features.length, "özellik");
+  
+  // 🚫 CRITICAL: Clothing check - ONLY clothing products get sizes
+  const clothingKeywords = [
+    'tişört', 't-shirt', 'tshirt', 'gömlek', 'pantolon', 'elbise', 'etek', 
+    'kazak', 'mont', 'ceket', 'hırka', 'bluz', 'yelek', 'şort', 'eşofman',
+    'ayakkabı', 'çizme', 'bot', 'sneaker', 'terlik', 'sandalet', 'topuklu',
+    'iç giyim', 'pijama', 'mayo', 'bikini', 'sweatshirt', 'hoodie', 'polar',
+    'trençkot', 'kaban', 'palto', 'tayt', 'jean', 'kot', 'denim'
+  ];
+  
+  const titleLower = (title || '').toLowerCase();
+  const isClothing = clothingKeywords.some(kw => titleLower.includes(kw));
+  
+  if (!isClothing) {
+    console.log(`🚫 processVariantsFromFeatures: "${title?.substring(0, 40)}..." is NOT clothing`);
+    console.log(`🚫 BLOCKING FAKE S/M/L SIZES - but preserving real volume/numeric variants`);
+    
+    // Fake clothing size patterns to block
+    const fakeClothingSizes = ['xs', 's', 'm', 'l', 'xl', 'xxl', 'xxxl', '2xl', '3xl'];
+    
+    // Return originalVariants with FAKE sizes stripped, but keep real variants (ml, numeric, etc.)
+    if (originalVariants && originalVariants.length > 0) {
+      return originalVariants.map(v => {
+        const sizeValue = (v.size || '').toLowerCase().trim();
+        const isFakeSize = fakeClothingSizes.includes(sizeValue);
+        
+        if (isFakeSize) {
+          console.log(`🚫 Stripping fake size "${v.size}" from non-clothing product`);
+          return { ...v, size: '' };
+        }
+        // Keep real sizes like "50 ml", "100ml", numeric values, etc.
+        return v;
+      });
+    }
+    return []; // No variants at all
+  }
+  
+  console.log(`✅ processVariantsFromFeatures: Product IS clothing - proceeding with size extraction`);
   
   // Özelliklerden beden ve renk bilgilerini çıkar
   const sizeFeatures = features.filter(f => f.key?.toLowerCase().includes('beden') || f.key?.toLowerCase().includes('size'));
@@ -1606,8 +1644,8 @@ export function registerRoutes(app: Express): Server {
               price: normalizedPrice
             });
             
-            // Process variants from JS state
-            const processedVariants = processVariantsFromFeatures(sanitizedResult.features || [], sanitizedResult.variants || []);
+            // Process variants from JS state - with clothing check
+            const processedVariants = processVariantsFromFeatures(sanitizedResult.features || [], sanitizedResult.variants || [], sanitizedResult.title || '');
             
             console.log(`🧹 BRAND SANITIZED: ${sanitizedResult.title} by ${sanitizedResult.brand}`);
             
@@ -1635,8 +1673,8 @@ export function registerRoutes(app: Express): Server {
         if (scenarioResult.success) {
           console.log(`🎯 Scenario-Based Scraper SUCCESS - Scenario: ${scenarioResult.scenario}, Confidence: ${scenarioResult.confidence}%`);
           
-          // Özelliklerden gerçek varyant verisi oluştur
-          let processedVariants = processVariantsFromFeatures(scenarioResult.features || [], scenarioResult.variants || []);
+          // Özelliklerden gerçek varyant verisi oluştur - with clothing check
+          let processedVariants = processVariantsFromFeatures(scenarioResult.features || [], scenarioResult.variants || [], scenarioResult.title || '');
           
           // 🚫 CRITICAL FINAL GATE: Strip fake sizes from non-clothing products
           const clothingKeywordsFallback = [
@@ -1680,8 +1718,8 @@ export function registerRoutes(app: Express): Server {
         if (fixedResult.success) {
           console.log("🔧 Fixed Scraper FALLBACK SUCCESS - Price:", fixedResult.price);
           
-          // Özelliklerden gerçek varyant verisi oluştur
-          const processedVariants = processVariantsFromFeatures(fixedResult.features || [], fixedResult.variants || []);
+          // Özelliklerden gerçek varyant verisi oluştur - with clothing check
+          const processedVariants = processVariantsFromFeatures(fixedResult.features || [], fixedResult.variants || [], fixedResult.title || '');
           
           return res.json({
             success: true,
@@ -2262,37 +2300,6 @@ ${(result.title || 'product').toLowerCase().replace(/[^a-z0-9]/g, '-')},${result
           // Tracking sadece Shopify'a aktarım sonrası aktif olacak
           console.log('ℹ️  Ürün verisi çekildi, tracking Shopify transfer sonrası aktif olacak');
           
-          // CSV generation için gerekli veri hazırla
-          const csvProductData = {
-            title: result.title,
-            brand: result.brand,
-            price: result.price,
-            images: result.images,
-            variants: result.variants,
-            features: result.features,
-            tags: result.tags
-          };
-          
-          // CSV içeriğini generate et
-          let csvContent = '';
-          try {
-            csvContent = await generateMultiVariantShopifyCSV({
-              id: `product-${Date.now()}`,
-              title: csvProductData.title,
-              brand: csvProductData.brand,
-              price: csvProductData.price,
-              description: csvProductData.description || '',
-              category: csvProductData.category || 'Kategori',
-              images: csvProductData.images,
-              variants: csvProductData.variants,
-              features: csvProductData.features,
-              tags: csvProductData.tags
-            });
-            console.log(`📋 CSV generated for ${result.title}: ${csvContent.length} characters`);
-          } catch (csvError) {
-            console.warn('⚠️ CSV generation failed, continuing without CSV:', csvError);
-          }
-          
           // ✅ CRITICAL FIX: Normalize variants for frontend
           console.log('🔧 VARIANT DEBUG: result.variants type:', typeof result.variants);
           console.log('🔧 VARIANT DEBUG: result.variants:', JSON.stringify(result.variants, null, 2));
@@ -2350,18 +2357,49 @@ ${(result.title || 'product').toLowerCase().replace(/[^a-z0-9]/g, '-')},${result
           
           if (!hasClothingKeyword && normalizedVariants) {
             console.log(`🚫 ROUTES FINAL GATE: "${result.title?.substring(0, 40)}..." is NOT clothing`);
-            console.log(`🚫 STRIPPING ALL SIZE DATA before sending to frontend`);
+            console.log(`🚫 STRIPPING FAKE S/M/L SIZES - preserving real variants`);
             
-            // Clear all size data
-            normalizedVariants.sizes = [];
+            // Only strip fake clothing sizes, keep real volume/numeric variants
+            const fakeClothingSizesGate = ['xs', 's', 'm', 'l', 'xl', 'xxl', 'xxxl', '2xl', '3xl'];
+            
+            if (normalizedVariants.sizes) {
+              normalizedVariants.sizes = normalizedVariants.sizes.filter((s: string) => {
+                const sizeLower = (s || '').toLowerCase().trim();
+                return !fakeClothingSizesGate.includes(sizeLower);
+              });
+            }
             if (normalizedVariants.allVariants) {
-              normalizedVariants.allVariants = normalizedVariants.allVariants.map((v: any) => ({
-                ...v,
-                size: ''
-              }));
+              normalizedVariants.allVariants = normalizedVariants.allVariants.map((v: any) => {
+                const sizeLower = (v.size || '').toLowerCase().trim();
+                if (fakeClothingSizesGate.includes(sizeLower)) {
+                  console.log(`🚫 Final Gate: Stripping fake size "${v.size}"`);
+                  return { ...v, size: '' };
+                }
+                return v;
+              });
             }
           } else if (hasClothingKeyword) {
             console.log(`✅ ROUTES FINAL GATE: Product IS clothing - sizes preserved`);
+          }
+          
+          // 📋 CSV GENERATION: After Final Gate with sanitized variants
+          let csvContent = '';
+          try {
+            csvContent = await generateMultiVariantShopifyCSV({
+              id: `product-${Date.now()}`,
+              title: result.title,
+              brand: result.brand,
+              price: result.price,
+              description: '',
+              category: 'Kategori',
+              images: result.images,
+              variants: normalizedVariants, // Use sanitized variants
+              features: result.features,
+              tags: result.tags
+            });
+            console.log(`📋 CSV generated AFTER Final Gate for ${result.title}: ${csvContent.length} characters`);
+          } catch (csvError) {
+            console.warn('⚠️ CSV generation failed, continuing without CSV:', csvError);
           }
           
           return res.json({
