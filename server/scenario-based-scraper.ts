@@ -2096,6 +2096,48 @@ export async function scenarioBasedScrape(url: string): Promise<ScenarioBasedRes
       }
     }
     
+    // 🚫 CRITICAL: STRICT SIZE EXTRACTION CONTROL - Apply BEFORE variant validation
+    // This is the FINAL GATE to prevent fake sizes on non-clothing products
+    const clothingKeywords = [
+      'tişört', 't-shirt', 'tshirt', 'gömlek', 'pantolon', 'elbise', 'etek', 
+      'kazak', 'mont', 'ceket', 'hırka', 'bluz', 'yelek', 'şort', 'eşofman',
+      'ayakkabı', 'çizme', 'bot', 'sneaker', 'terlik', 'sandalet', 'topuklu',
+      'iç giyim', 'pijama', 'mayo', 'bikini', 'sweatshirt', 'hoodie', 'polar',
+      'trençkot', 'kaban', 'palto', 'tayt', 'jean', 'kot', 'denim'
+    ];
+    
+    const clothingUrlPatterns = [
+      '/giyim/', '/ayakkabi/', '/tisort/', '/pantolon/', '/elbise/', '/gomlek/',
+      '/ceket/', '/mont/', '/etek/', '/sort/', '/esofman/', '/pijama/',
+      '/ic-giyim/', '/kazak/', '/sweatshirt/', '/hirka/'
+    ];
+    
+    const titleLower = title?.toLowerCase() || '';
+    const urlLower = url.toLowerCase();
+    
+    const hasClothingKeyword = clothingKeywords.some(kw => titleLower.includes(kw));
+    const hasClothingUrlPattern = clothingUrlPatterns.some(pattern => urlLower.includes(pattern));
+    const isConfirmedClothingProduct = hasClothingKeyword || hasClothingUrlPattern;
+    
+    if (!isConfirmedClothingProduct) {
+      // NON-CLOTHING PRODUCT - STRIP ALL SIZE DATA
+      console.log(`🚫 FINAL GATE: Product is NOT confirmed clothing`);
+      console.log(`🚫 Title keywords: ${hasClothingKeyword}, URL pattern: ${hasClothingUrlPattern}`);
+      console.log(`🚫 STRIPPING ALL SIZE DATA from variants and sizes array`);
+      
+      // Clear size from all variants
+      variants = variants.map(v => ({
+        ...v,
+        size: '' // Remove fake size
+      })).filter(v => v.color); // Keep only variants with actual color
+      
+      // Clear sizes array completely
+      // Note: sizes array will be recalculated in validateAndSanitizeVariants, 
+      // but the variants no longer have size data
+    } else {
+      console.log(`✅ FINAL GATE: Product IS confirmed clothing (keyword: ${hasClothingKeyword}, url: ${hasClothingUrlPattern})`);
+    }
+    
     // ✅ ENHANCED: Validate and sanitize variants before saving (keep ALL colors)
     const validatedVariants = validateAndSanitizeVariants(variants, colors);
     
