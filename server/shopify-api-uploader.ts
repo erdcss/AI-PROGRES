@@ -37,6 +37,8 @@ interface ShopifyProductData {
   bodyHtml: string;
   vendor: string;
   tags: string;
+  option1Name: string; // CSV'den gelen Option1 Name (Renk veya Beden)
+  option2Name: string; // CSV'den gelen Option2 Name (genellikle boş veya Beden)
   variants: Array<{
     option1: string;
     option2: string;
@@ -198,17 +200,21 @@ export async function uploadProductToShopify(csvContent: string, productTitle: s
             alt: img.alt || productData.title,
             position: img.position || 1
           })),
-          // FIX: Sadece dolu option'lar varsa options ekle
+          // 🚨 CRITICAL FIX: Use Option Names from CSV (not hardcoded)
+          // CSV'de sadece size varsa, Option1 Name = "Beden" olur, Option2 Name boş olur
           ...((() => {
             const validOption1Values = Array.from(new Set(productData.variants.map(v => v.option1).filter(v => v && v.trim())));
             const validOption2Values = Array.from(new Set(productData.variants.map(v => v.option2).filter(v => v && v.trim())));
             
             const options = [];
-            if (validOption1Values.length > 0) {
-              options.push({ name: 'Renk', values: validOption1Values });
+            // Use option names from CSV instead of hardcoded values
+            if (validOption1Values.length > 0 && productData.option1Name) {
+              options.push({ name: productData.option1Name, values: validOption1Values });
+              console.log(`🏷️ Shopify API: Using Option1 name="${productData.option1Name}" with values:`, validOption1Values);
             }
-            if (validOption2Values.length > 0) {
-              options.push({ name: 'Beden', values: validOption2Values });
+            if (validOption2Values.length > 0 && productData.option2Name) {
+              options.push({ name: productData.option2Name, values: validOption2Values });
+              console.log(`🏷️ Shopify API: Using Option2 name="${productData.option2Name}" with values:`, validOption2Values);
             }
             
             return options.length > 0 ? { options } : {};
@@ -467,12 +473,19 @@ function parseCSVToShopifyProduct(records: any[]): ShopifyProductData {
       return imageData;
     });
   
-  const productData = {
+  // CSV'den Option1 Name ve Option2 Name değerlerini oku
+  const option1Name = firstRecord['Option1 Name'] || '';
+  const option2Name = firstRecord['Option2 Name'] || '';
+  console.log(`🏷️ CSV Option Names: Option1="${option1Name}", Option2="${option2Name}"`);
+  
+  const productData: ShopifyProductData = {
     handle: firstRecord.Handle || 'default-handle',
     title: firstRecord.Title || 'Default Product',
     bodyHtml: firstRecord['Body (HTML)'] || '',
     vendor: firstRecord.Vendor || '',
     tags: firstRecord.Tags || '',
+    option1Name: option1Name, // Renk veya Beden
+    option2Name: option2Name, // Beden veya boş
     variants,
     images
   };
@@ -480,6 +493,8 @@ function parseCSVToShopifyProduct(records: any[]): ShopifyProductData {
   console.log('✅ Parsed product data:', {
     handle: productData.handle,
     title: productData.title,
+    option1Name: productData.option1Name,
+    option2Name: productData.option2Name,
     variantCount: variants.length,
     imageCount: images.length,
     firstImageUrl: images[0]?.src || 'No images'

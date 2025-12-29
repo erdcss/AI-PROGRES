@@ -430,23 +430,42 @@ export async function generateMultiVariantShopifyCSV(product: CombinedProduct): 
     const variantHasColor = variant.color && variant.color.trim() !== '' && variant.color !== 'Tek Renk' && variant.color !== 'Standart';
     const variantHasSize = variant.size && variant.size.trim() !== '' && variant.size !== 'Tek Beden' && variant.size !== 'Standart';
     
-    // Always use Option1 for Color (if exists), Option2 for Size (if exists)
-    if (variantHasColor) {
+    // 🚨 CRITICAL SHOPIFY FIX: Option1 must be defined before Option2 can be used
+    // Shopify requires: Option1 → Option2 (Option2 cannot exist without Option1)
+    // Correct order:
+    //   - Color + Size: Option1=Renk, Option2=Beden
+    //   - Color only: Option1=Renk, Option2=empty
+    //   - Size only: Option1=Beden, Option2=empty (NOT Option1=empty, Option2=Beden!)
+    //   - Neither: Option1=empty, Option2=empty
+    
+    if (variantHasColor && variantHasSize) {
+      // Both color and size exist
       row.push('Renk'); // Option1 Name
-      row.push(variant.color); // Option1 Value - Use actual variant color
-      console.log(`📦 CSV Row ${index + 1}: Color = ${variant.color}`);
+      row.push(variant.color); // Option1 Value
+      row.push('Beden'); // Option2 Name
+      row.push(variant.size); // Option2 Value
+      console.log(`📦 CSV Row ${index + 1}: Color = ${variant.color}, Size = ${variant.size}`);
+    } else if (variantHasColor) {
+      // Only color exists
+      row.push('Renk'); // Option1 Name
+      row.push(variant.color); // Option1 Value
+      row.push(''); // Option2 Name (empty)
+      row.push(''); // Option2 Value (empty)
+      console.log(`📦 CSV Row ${index + 1}: Color = ${variant.color} (no size)`);
+    } else if (variantHasSize) {
+      // Only size exists - MUST use Option1 for size!
+      row.push('Beden'); // Option1 Name (size goes here when no color)
+      row.push(variant.size); // Option1 Value
+      row.push(''); // Option2 Name (empty)
+      row.push(''); // Option2 Value (empty)
+      console.log(`📦 CSV Row ${index + 1}: Size = ${variant.size} (no color, using Option1)`);
     } else {
+      // No variants - single product
       row.push(''); // Option1 Name
       row.push(''); // Option1 Value
-    }
-    
-    if (variantHasSize) {
-      row.push('Beden'); // Option2 Name
-      row.push(variant.size); // Option2 Value - Use actual variant size
-      console.log(`📦 CSV Row ${index + 1}: Size = ${variant.size}`);
-    } else {
       row.push(''); // Option2 Name
       row.push(''); // Option2 Value
+      console.log(`📦 CSV Row ${index + 1}: No variants (single product)`);
     }
     
     // Enhanced Variant SKU - more descriptive
