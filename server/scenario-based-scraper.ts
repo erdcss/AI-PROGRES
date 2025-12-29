@@ -3718,9 +3718,9 @@ async function extractVariantsDirect($: cheerio.CheerioAPI, htmlContent: string,
   const hasElectronicModifier = electronicModifiers.some(modifier => titleLower.includes(modifier));
   const isElectronicProduct = hasElectronicDevice && hasElectronicModifier;
   
-  // IMPORTANT: If product has clothing keyword, NEVER skip size extraction (even if it has electronic keywords)
-  // "Dijital Kamera Desenli Tişört" → has "tişört" → NOT blocked → size extraction enabled
-  const isStrongNonClothing = !hasClothingKeyword && (hasPhraseMatch || isElectronicProduct || isFoodBeverageProduct);
+  // 🔥🔥🔥 STRICT RULE: REVERSE THE DEFAULT LOGIC 🔥🔥🔥
+  // OLD APPROACH: Extract sizes by default, block only known non-clothing → FAILED (too many false positives)
+  // NEW APPROACH: BLOCK sizes by default, allow ONLY confirmed clothing products → STRICT ENFORCEMENT
   
   if (isFoodBeverageProduct) {
     console.log(`🍵 FOOD/BEVERAGE PRODUCT DETECTED: "${title}"`);
@@ -3730,16 +3730,30 @@ async function extractVariantsDirect($: cheerio.CheerioAPI, htmlContent: string,
   const clothingUrlPatterns = [
     '/giyim/', '/kadin-giyim/', '/erkek-giyim/', '/cocuk-giyim/',
     '/tisort/', '/gomlek/', '/elbise/', '/pantolon/', '/etek/',
-    '/ayakkabi/', '/canta/', '/aksesuar/'
+    '/ayakkabi/', '/canta/', '/aksesuar/', '/spor-giyim/',
+    '/ic-giyim/', '/mayo/', '/pijama/', '/mont/', '/ceket/'
   ];
   const hasClothingUrl = clothingUrlPatterns.some(pattern => urlLower.includes(pattern));
   
-  // Only skip if STRONG non-clothing evidence AND no clothing URL
-  const skipSizeExtraction = isStrongNonClothing && !hasClothingUrl;
+  // 🚨 STRICT RULE: Product is ONLY considered clothing if it has EXPLICIT clothing evidence
+  // Evidence required: Clothing keyword in title OR clothing category in URL
+  const isConfirmedClothing = hasClothingKeyword || hasClothingUrl;
+  
+  // 🔥 STRICT DEFAULT: Skip size extraction UNLESS product is CONFIRMED clothing
+  // This prevents fake S/M/L variants from appearing on cosmetics, electronics, home goods, etc.
+  const skipSizeExtraction = !isConfirmedClothing;
+  
+  console.log(`🔍 STRICT SIZE VALIDATION:`);
+  console.log(`   hasClothingKeyword: ${hasClothingKeyword}`);
+  console.log(`   hasClothingUrl: ${hasClothingUrl}`);
+  console.log(`   isConfirmedClothing: ${isConfirmedClothing}`);
+  console.log(`   skipSizeExtraction: ${skipSizeExtraction}`);
   
   if (skipSizeExtraction) {
-    console.log(`🚫 NON-CLOTHING PRODUCT DETECTED: "${title}"`);
-    console.log(`🚫 Size extraction DISABLED to prevent fake S/M/L variants`);
+    console.log(`🚫 STRICT RULE: "${title}" is NOT confirmed clothing`);
+    console.log(`🚫 Size extraction DISABLED - only confirmed clothing products get size variants`);
+  } else {
+    console.log(`✅ CONFIRMED CLOTHING: "${title}" - size extraction ENABLED`);
   }
   
   // SINGLE COLOR POLICY: Extract primary color from title only
