@@ -71,6 +71,36 @@ export async function generateMultiVariantShopifyCSV(product: CombinedProduct): 
     return '';
   }
   
+  // 🚫 CRITICAL: CLOTHING CHECK - Strip all size data for non-clothing products
+  const clothingKeywords = [
+    'tişört', 't-shirt', 'tshirt', 'gömlek', 'pantolon', 'elbise', 'etek', 
+    'kazak', 'mont', 'ceket', 'hırka', 'bluz', 'yelek', 'şort', 'eşofman',
+    'ayakkabı', 'çizme', 'bot', 'sneaker', 'terlik', 'sandalet', 'topuklu',
+    'iç giyim', 'pijama', 'mayo', 'bikini', 'sweatshirt', 'hoodie', 'polar',
+    'trençkot', 'kaban', 'palto', 'tayt', 'jean', 'kot', 'denim'
+  ];
+  
+  const hasClothingKeyword = clothingKeywords.some(kw => titleLower.includes(kw));
+  const isConfirmedClothingProduct = hasClothingKeyword;
+  
+  if (!isConfirmedClothingProduct && sanitizedProduct.variants) {
+    console.log(`🚫 CSV GATE: Product "${sanitizedProduct.title.substring(0, 40)}..." is NOT clothing`);
+    console.log(`🚫 CSV: Stripping ALL size data from variants`);
+    
+    // Clear all size data
+    if (sanitizedProduct.variants.sizes) {
+      sanitizedProduct.variants.sizes = [];
+    }
+    if (sanitizedProduct.variants.allVariants) {
+      sanitizedProduct.variants.allVariants = sanitizedProduct.variants.allVariants.map(v => ({
+        ...v,
+        size: '' // Remove fake size
+      }));
+    }
+  } else if (isConfirmedClothingProduct) {
+    console.log(`✅ CSV GATE: Product IS clothing - size data preserved`);
+  }
+  
   // Use fallback price if none available - DO NOT skip CSV generation
   let productPrice = 100; // Fallback price
   if (product.price) {
