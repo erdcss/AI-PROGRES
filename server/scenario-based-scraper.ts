@@ -2139,7 +2139,8 @@ export async function scenarioBasedScrape(url: string): Promise<ScenarioBasedRes
     }
     
     // ✅ ENHANCED: Validate and sanitize variants before saving (keep ALL colors)
-    const validatedVariants = validateAndSanitizeVariants(variants, colors);
+    // 🚫 CRITICAL: Pass title and url for clothing check
+    const validatedVariants = validateAndSanitizeVariants(variants, colors, title, url);
     
     // 🔧 DEBUG: Log validated variants
     console.log('🔧 VALIDATED VARIANTS:', JSON.stringify(validatedVariants, null, 2));
@@ -2227,14 +2228,89 @@ export async function scenarioBasedScrape(url: string): Promise<ScenarioBasedRes
 
 /**
  * ✅ ENHANCED: Validate and sanitize variants to prevent fake data
+ * 🚫 CRITICAL: Now includes clothing check to prevent fake sizes on non-clothing products
  */
-function validateAndSanitizeVariants(rawVariants: Array<{color: string, size: string, inStock: boolean}>, rawColors: string[]): {
+function validateAndSanitizeVariants(
+  rawVariants: Array<{color: string, size: string, inStock: boolean}>, 
+  rawColors: string[],
+  title?: string,
+  url?: string
+): {
   colors: string[],
   sizes: string[],
   stockMap: Record<string, boolean>,
   allVariants: Array<{color: string, colorCode: string, size: string, inStock: boolean}>
 } {
   console.log(`🔍 VARIANT VALIDATION: Input ${rawVariants.length} variants, ${rawColors.length} colors`);
+  
+  // 🚫 CRITICAL: CLOTHING CHECK - Strip all size data for non-clothing products
+  const clothingKeywords = [
+    'tişört', 't-shirt', 'tshirt', 'gömlek', 'pantolon', 'elbise', 'etek', 
+    'kazak', 'mont', 'ceket', 'hırka', 'bluz', 'yelek', 'şort', 'eşofman',
+    'ayakkabı', 'çizme', 'bot', 'sneaker', 'terlik', 'sandalet', 'topuklu',
+    'iç giyim', 'pijama', 'mayo', 'bikini', 'sweatshirt', 'hoodie', 'polar',
+    'trençkot', 'kaban', 'palto', 'tayt', 'jean', 'kot', 'denim'
+  ];
+  
+  const clothingUrlPatterns = [
+    '/giyim/', '/ayakkabi/', '/tisort/', '/pantolon/', '/elbise/', '/gomlek/',
+    '/ceket/', '/mont/', '/etek/', '/sort/', '/esofman/', '/pijama/',
+    '/ic-giyim/', '/kazak/', '/sweatshirt/', '/hirka/'
+  ];
+  
+  const titleLower = (title || '').toLowerCase();
+  const urlLower = (url || '').toLowerCase();
+  
+  const hasClothingKeyword = clothingKeywords.some(kw => titleLower.includes(kw));
+  const hasClothingUrlPattern = clothingUrlPatterns.some(pattern => urlLower.includes(pattern));
+  const isConfirmedClothingProduct = hasClothingKeyword || hasClothingUrlPattern;
+  
+  if (!isConfirmedClothingProduct) {
+    console.log(`🚫 VALIDATION GATE: Product is NOT clothing (title: "${title?.substring(0, 50)}...")`);
+    console.log(`🚫 Stripping ALL size data - returning color-only or empty variants`);
+    
+    // Strip size from all variants, keep only color data
+    const colorOnlyVariants = rawVariants
+      .filter(v => v.color && v.color.trim() !== '')
+      .map(v => ({ ...v, size: '' }));
+    
+    // If no colors either, return empty
+    if (colorOnlyVariants.length === 0) {
+      console.log(`🚫 No valid color data - returning empty variants for non-clothing product`);
+      return {
+        colors: [],
+        sizes: [],
+        stockMap: {},
+        allVariants: []
+      };
+    }
+    
+    // Return color-only variants
+    const uniqueColors = [...new Set(colorOnlyVariants.map(v => v.color))];
+    const colorCodes: Record<string, string> = {
+      'siyah': '#000000', 'beyaz': '#FFFFFF', 'kırmızı': '#FF0000', 'mavi': '#0000FF',
+      'yeşil': '#008000', 'sarı': '#FFFF00', 'mor': '#800080', 'pembe': '#FFC0CB',
+      'gri': '#808080', 'kahve': '#8B4513', 'turuncu': '#FFA500', 'lacivert': '#000080',
+      'krem': '#F5F5DC', 'bej': '#F5E6D3', 'bordo': '#800020'
+    };
+    
+    const allVariants = colorOnlyVariants.map(v => ({
+      color: v.color,
+      colorCode: colorCodes[v.color.toLowerCase()] || '#999999',
+      size: '',
+      inStock: v.inStock
+    }));
+    
+    console.log(`✅ Returning ${allVariants.length} color-only variants for non-clothing product`);
+    return {
+      colors: uniqueColors,
+      sizes: [], // NO SIZES for non-clothing
+      stockMap: {},
+      allVariants
+    };
+  }
+  
+  console.log(`✅ VALIDATION GATE: Product IS clothing - size extraction allowed`);
   
   // ✅ ENHANCED: Balanced color validation - Exclude materials but allow legitimate colors
   const excludedMaterials = [
