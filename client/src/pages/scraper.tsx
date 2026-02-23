@@ -2086,6 +2086,22 @@ ${data.title.toLowerCase().replace(/[^a-z0-9]/g, '-')},${data.title},${data.bran
                     )}
                   </div>
                 </div>
+
+                {product.csvContent && (
+                  <div className="mt-4 pt-4 border-t border-cyan-800/30">
+                    <Button
+                      onClick={() => {
+                        const filename = `${(product.title || 'urun').slice(0, 40).replace(/[^a-zA-Z0-9ğüşıöçĞÜŞİÖÇ ]/g, '').trim().replace(/\s+/g, '-')}-shopify.csv`;
+                        downloadCSV(product.csvContent, filename);
+                        toast({ title: "CSV İndirildi", description: filename });
+                      }}
+                      className="w-full bg-gradient-to-r from-green-600 to-emerald-600 hover:from-green-700 hover:to-emerald-700 text-white font-medium"
+                    >
+                      <Download className="w-4 h-4 mr-2" />
+                      CSV Olarak Dışa Aktar
+                    </Button>
+                  </div>
+                )}
               </CardContent>
             </Card>
           </div>
