@@ -1873,13 +1873,7 @@ export function registerRoutes(app: Express): Server {
     console.log("🎯 Scenario-based scrape isteği alındı");
     console.log("🔧 CORRECT ENDPOINT: /api/scenario-scrape being used");
     
-    // 🔥 TEMPORARY: Clear cache to test new variant extraction
-    extractionCache.clear();
-    console.log("🗑️ CACHE CLEARED - Testing new variant extraction");
-    
-    // ✅ FORCE DEBUG - Simple logging to confirm execution
-    console.log("🚨 FORCE DEBUG: Endpoint reached");
-    console.log("🚨 URL:", req.body?.url);
+    console.log("🚀 URL:", req.body?.url);
     
     try {
       const validation = urlSchema.safeParse(req.body);
@@ -1896,16 +1890,6 @@ export function registerRoutes(app: Express): Server {
       // URL'i normalize et
       const url = normalizeUrl(rawUrl);
       
-      // ✅ CRITICAL URL DEBUG - Log normalized URL
-      console.log("🚨 Normalized URL:", url);
-      
-      // ✅ Check if this is our target URL
-      const isTargetURL = url.includes('ethiquet/barry-kadin') || url.includes('p-819077297');
-      if (isTargetURL) {
-        console.log("🚨🚨🚨 TARGET URL CONFIRMED IN ROUTES:", url);
-      } else {
-        console.log("🚨 WARNING: Different URL detected:", url);
-      }
       console.log(`🎯 URL normalize edildi: ${rawUrl} -> ${url}`);
       
       // Normalize edilmiş URL'in geçerli olup olmadığını kontrol et
@@ -1920,111 +1904,179 @@ export function registerRoutes(app: Express): Server {
       
       // Scenario-based extraction for Trendyol products
       if (url.includes('trendyol.com')) {
-        console.log("🎯 SCENARIO-BASED EXTRACTION başlıyor...");
+        const scrapeStartTime = Date.now();
+        console.log("⚡ FAST EXTRACTION başlıyor...");
         
-        // ✅ TIMEOUT HELPER: Create fresh timeout promise for each attempt
         const createTimeout = (ms: number) => new Promise((_, reject) => {
-          setTimeout(() => reject(new Error('TIMEOUT: Request taking too long')), ms);
+          setTimeout(() => reject(new Error('TIMEOUT')), ms);
         });
         
-        const timeoutDuration = 60000; // 60 seconds for multi-color extraction
-        
-        console.log('🚀 ROUTES: Checking for multi-color variants...');
-        
-        // ✅ MULTI-COLOR AUTOMATIC EXTRACTION
-        // Try multi-color scraper first to get ALL color variants automatically
         let result: any = null;
         
-        if (!result) {
-          console.log('🌈 ROUTES: Attempting multi-color extraction...');
+        const convertMultiColorResult = (mcr: any) => ({
+            success: true,
+            title: mcr.combinedData.title,
+            brand: mcr.combinedData.brand,
+            category: mcr.combinedData.category,
+            description: mcr.combinedData.description,
+            price: mcr.combinedData.price,
+            images: mcr.combinedData.allImages,
+            variants: {
+              colors: [...new Set(mcr.combinedData.allVariants.map((v: any) => v.color))],
+              sizes: [...new Set(mcr.combinedData.allVariants.map((v: any) => v.size))],
+              allVariants: mcr.combinedData.allVariants,
+              stockMap: mcr.combinedData.allVariants.reduce((map: any, v: any) => {
+                map[`${v.color}-${v.size}`] = v.inStock;
+                return map;
+              }, {} as Record<string, boolean>)
+            },
+            features: mcr.combinedData.features || [],
+            tags: mcr.combinedData.tags || [],
+            extractionMethod: 'multi-color-scraper',
+            scenario: mcr.totalColors > 1 ? 'multi-color' : 'single-variant',
+            confidence: 100
+          });
+
+        // ⚡ FAST PATH: Race Direct API vs scenario scrape in parallel
+        console.log('⚡ FAST PATH: Racing Direct API + scenario scrape...');
+        try {
+          const productIdMatch = url.match(/p-(\d+)/);
+          const productId = productIdMatch ? productIdMatch[1] : null;
+
+          // "First success wins" race pattern (no Promise.any needed)
+          const firstSuccessRace = (promises: Promise<any>[]) => {
+            return new Promise<any>((resolve, reject) => {
+              let pending = promises.length;
+              if (pending === 0) return reject(new Error('No methods'));
+              promises.forEach(p => {
+                p.then(val => {
+                  if (val && (val.success || val.title)) resolve(val);
+                  else if (--pending === 0) reject(new Error('All methods returned null'));
+                }).catch(() => {
+                  if (--pending === 0) reject(new Error('All methods failed'));
+                });
+              });
+            });
+          };
+
+          const racingMethods: Promise<any>[] = [];
+          
+          // Method 1: Direct Trendyol API (fastest, ~1-2s)
+          if (productId) {
+            racingMethods.push(
+              (async () => {
+                const apiUrl = `https://public-mdc.trendyol.com/discovery-web-productdetailgw-service/api/productDetail/${productId}`;
+                const apiResponse = await axios.get(apiUrl, {
+                  timeout: 3000,
+                  headers: {
+                    'User-Agent': 'Mozilla/5.0 (iPhone; CPU iPhone OS 17_0 like Mac OS X) AppleWebKit/605.1.15',
+                    'Accept': 'application/json',
+                    'Accept-Language': 'tr-TR,tr;q=0.9'
+                  }
+                });
+                if (!apiResponse.data?.result) throw new Error('No API data');
+                const r = apiResponse.data.result;
+                const apiVariants = (r.allVariants || []).map((v: any) => ({
+                  color: v.color || '', colorCode: v.colorCode || '', size: v.size || '', inStock: v.inStock !== false
+                }));
+                const colors = [...new Set(apiVariants.map((v: any) => v.color))];
+                const sizes = [...new Set(apiVariants.map((v: any) => v.size))];
+                console.log(`⚡ Direct API SUCCESS in ${Date.now() - scrapeStartTime}ms`);
+                return { 
+                  success: true,
+                  _source: 'direct-api',
+                  title: r.name || r.title,
+                  brand: r.brand?.name || r.brandName || '',
+                  price: r.price?.discountedPrice?.value || r.price?.sellingPrice?.value || r.originalPrice || 0,
+                  images: (r.images || []).map((img: any) => typeof img === 'string' ? `https://cdn.dsmcdn.com${img}` : img.url ? `https://cdn.dsmcdn.com${img.url}` : '').filter(Boolean),
+                  category: r.categoryName || r.category?.name || '',
+                  variants: { colors, sizes, allVariants: apiVariants },
+                  features: (r.attributes || []).map((a: any) => ({ key: a.key?.name || a.name || '', value: a.value?.name || a.value || '' })),
+                  extractionMethod: 'direct-api-fast',
+                  scenario: 'single-variant',
+                  confidence: 90
+                };
+              })()
+            );
+          }
+          
+          // Method 2: Scenario-based scrape (comprehensive, ~2-5s)
+          racingMethods.push(
+            (async () => {
+              const scrapeResult = await scenarioBasedScrape(url);
+              if (scrapeResult && scrapeResult.success !== false) {
+                console.log(`⚡ Scenario scrape SUCCESS in ${Date.now() - scrapeStartTime}ms`);
+                return { ...scrapeResult, _source: 'scenario-scrape' };
+              }
+              throw new Error('Scenario scrape failed');
+            })()
+          );
+          
+          // True race: first successful result wins immediately
+          const fastResult = await Promise.race([
+            firstSuccessRace(racingMethods),
+            createTimeout(15000)
+          ]) as any;
+          
+          if (fastResult) {
+            console.log(`⚡ FAST PATH won via ${fastResult._source} in ${Date.now() - scrapeStartTime}ms`);
+            result = fastResult;
+            
+            // If Direct API won, try quick multi-color enhancement (5s max, non-critical)
+            if (fastResult._source === 'direct-api') {
+              const { MultiColorScraper } = await import('./multi-color-scraper');
+              const multiColorScraper = new MultiColorScraper();
+              Promise.race([
+                multiColorScraper.scrapeAllColors(url),
+                createTimeout(5000)
+              ]).then((mcr: any) => {
+                if (mcr?.success && mcr?.combinedData) {
+                  console.log(`🌈 Multi-color enhancement completed: ${mcr.totalColors} colors`);
+                }
+              }).catch(() => {});
+            }
+          } else {
+            throw new Error('Fast path returned no data');
+          }
+        } catch (fastError: any) {
+          console.log(`⚠️ Fast path failed (${Date.now() - scrapeStartTime}ms): ${fastError.message}`);
+          
+          // FALLBACK: Try multi-color scraper directly
           try {
             const { MultiColorScraper } = await import('./multi-color-scraper');
             const multiColorScraper = new MultiColorScraper();
-            
-            // Multi-color scraper automatically handles both single and multi-color products
             const multiColorResult = await Promise.race([
               multiColorScraper.scrapeAllColors(url),
-              createTimeout(timeoutDuration)  // Fresh timeout for multi-color
+              createTimeout(20000)
             ]) as any;
             
-            if (multiColorResult && multiColorResult.success) {
-              console.log(`✅ Multi-color extraction successful: ${multiColorResult.totalColors} colors found`);
-              
-              if (multiColorResult.totalColors > 1) {
-                console.log(`🎨 Multi-color product detected! Extracting all ${multiColorResult.totalColors} colors...`);
-              } else {
-                console.log('📦 Single-color product confirmed');
-              }
-              
-              // Convert multi-color result to expected format
-              if (multiColorResult.combinedData) {
-                result = {
-                  success: true,
-                  title: multiColorResult.combinedData.title,
-                  brand: multiColorResult.combinedData.brand,
-                  category: multiColorResult.combinedData.category,
-                  description: multiColorResult.combinedData.description,
-                  price: multiColorResult.combinedData.price,
-                  images: multiColorResult.combinedData.allImages,
-                  variants: {
-                    colors: [...new Set(multiColorResult.combinedData.allVariants.map(v => v.color))],
-                    sizes: [...new Set(multiColorResult.combinedData.allVariants.map(v => v.size))],
-                    allVariants: multiColorResult.combinedData.allVariants,
-                    stockMap: multiColorResult.combinedData.allVariants.reduce((map, v) => {
-                      map[`${v.color}-${v.size}`] = v.inStock;
-                      return map;
-                    }, {} as Record<string, boolean>)
-                  },
-                  features: multiColorResult.combinedData.features || [],
-                  tags: multiColorResult.combinedData.tags || [],
-                  extractionMethod: 'multi-color-scraper',
-                  scenario: multiColorResult.totalColors > 1 ? 'multi-color' : 'single-variant',
-                  confidence: 100
-                };
-              } else {
-                console.log('⚠️ Multi-color result missing combinedData, falling back...');
-                throw new Error('Invalid multi-color result format');
-              }
+            if (multiColorResult?.success && multiColorResult?.combinedData) {
+              result = convertMultiColorResult(multiColorResult);
             } else {
-              console.log('⚠️ Multi-color extraction failed, falling back to single scrape...');
-              throw new Error('Multi-color extraction unsuccessful');
+              throw new Error('Multi-color fallback failed');
             }
-          } catch (multiColorError: any) {
-            console.log('🔄 Multi-color extraction error, falling back to standard method...');
-            console.log('Error:', multiColorError.message);
-            
-            // Fallback to standard single-URL scraping with fresh timeout
+          } catch (fallbackError: any) {
+            console.log(`❌ Fallback failed: ${fallbackError.message}`);
             try {
-              result = await Promise.race([
-                scenarioBasedScrape(url),
-                createTimeout(20000)  // Fresh 20s timeout for single scrape
-              ]) as any;
-            } catch (timeoutError) {
-              console.log('⏰ TIMEOUT: Standard method timed out - trying emergency extraction');
-            
-              // Try alternative sources instead of generic fallback
-              try {
-                const { tryAlternativeSources } = await import('./alternative-data-sources');
-                const emergencyResult = await tryAlternativeSources(url);
-                
-                if (emergencyResult && emergencyResult.success) {
-                  console.log('✅ Alternative sources extraction succeeded:', emergencyResult.title);
-                  result = emergencyResult;
-                } else {
-                  throw new Error('Alternative sources extraction failed');
-                }
-              } catch (emergencyError) {
-                console.log('❌ Alternative sources also failed, using fallback with real URL data');
-                result = {
-                  success: false,
-                  error: 'Extraction timeout - site may be slow or blocking requests',
-                  title: 'Ürün Yüklenemedi',
-                  brand: 'Bilinmiyor'
-                };
+              const { tryAlternativeSources } = await import('./alternative-data-sources');
+              const emergencyResult = await tryAlternativeSources(url);
+              if (emergencyResult?.success) {
+                result = emergencyResult;
+              } else {
+                throw new Error('All methods exhausted');
               }
+            } catch {
+              result = {
+                success: false,
+                error: 'Extraction failed',
+                title: 'Ürün Yüklenemedi',
+                brand: 'Bilinmiyor'
+              };
             }
           }
         }
+        
+        console.log(`⚡ Total extraction time: ${Date.now() - scrapeStartTime}ms`);
         
         // 🚨 EMERGENCY: Manual price fix if price is null or missing
         console.log('🔍 EMERGENCY CHECK:', {

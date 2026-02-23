@@ -25,11 +25,11 @@ export class IntelligentRateLimiter {
   private currentSession: string = '';
   
   private config: RateLimitConfig = {
-    minDelay: 1000,      // 🚀 SIMPLE: Fixed 1 second (predictable & safe)
-    maxDelay: 1000,      // 🚀 SIMPLE: Fixed 1 second (no variation)
-    burstLimit: 10,      // Safe: Max 10 requests in burst
-    cooldownPeriod: 10000, // Safe: 10 seconds cooldown
-    adaptiveMode: false  // 🚀 SIMPLE: Disabled (fixed delays only)
+    minDelay: 200,       // ⚡ ULTRA-FAST: 200ms minimum
+    maxDelay: 500,       // ⚡ ULTRA-FAST: 500ms maximum
+    burstLimit: 15,      // Higher burst for parallel requests
+    cooldownPeriod: 5000, // 5 seconds cooldown
+    adaptiveMode: false  // Fixed delays for consistency
   };
 
   constructor(customConfig?: Partial<RateLimitConfig>) {
@@ -103,22 +103,8 @@ export class IntelligentRateLimiter {
   // Execute delay with human-like patterns
   async executeSmartDelay(url: string): Promise<void> {
     const delay = await this.calculateSmartDelay(url);
-    
-    console.log(`⏳ Executing human-like delay: ${Math.round(delay)}ms`);
-    
-    // Split delay into smaller chunks for more human-like behavior
-    const chunks = Math.ceil(delay / 2000); // 2-second chunks
-    const chunkDelay = delay / chunks;
-    
-    for (let i = 0; i < chunks; i++) {
-      await new Promise(resolve => setTimeout(resolve, chunkDelay));
-      
-      // Add small random variations between chunks
-      if (i < chunks - 1) {
-        const microDelay = Math.random() * 500; // 0-500ms micro-delay
-        await new Promise(resolve => setTimeout(resolve, microDelay));
-      }
-    }
+    console.log(`⏳ Rate limit delay: ${Math.round(delay)}ms`);
+    await new Promise(resolve => setTimeout(resolve, delay));
   }
 
   // Record request outcome
@@ -219,9 +205,9 @@ export class IntelligentRateLimiter {
 }
 
 export const intelligentRateLimiter = new IntelligentRateLimiter({
-  minDelay: 1000,        // 🚀 SIMPLE: Fixed 1 second (predictable & safe)
-  maxDelay: 1000,        // 🚀 SIMPLE: Fixed 1 second (no variation)
-  burstLimit: 10,        // Safe: 10 requests in burst
-  cooldownPeriod: 10000, // Safe: 10 seconds cooldown
-  adaptiveMode: false    // 🚀 SIMPLE: Fixed delays (no complexity)
+  minDelay: 200,         // ⚡ ULTRA-FAST: 200ms minimum
+  maxDelay: 500,         // ⚡ ULTRA-FAST: 500ms maximum
+  burstLimit: 15,        // Higher burst for parallel requests
+  cooldownPeriod: 5000,  // 5 seconds cooldown
+  adaptiveMode: false    // Fixed delays for consistency
 });
