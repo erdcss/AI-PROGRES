@@ -4,7 +4,7 @@ import { zodResolver } from "@hookform/resolvers/zod";
 import { z } from "zod";
 import { useMutation, useQuery } from "@tanstack/react-query";
 import { motion } from "framer-motion";
-import { Loader2, ShoppingCart, Link, Copy, X, Home, Plus, Trash2, Package, Palette, Eye, Image, FileText, Shirt, Bell, ChevronDown, ChevronUp, ArrowLeft } from "lucide-react";
+import { Loader2, ShoppingCart, Link, Copy, X, Home, Plus, Trash2, Package, Palette, Eye, Image, FileText, Shirt, Bell, ChevronDown, ChevronUp, ArrowLeft, Download } from "lucide-react";
 
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -901,6 +901,108 @@ ${data.title.toLowerCase().replace(/[^a-z0-9]/g, '-')},${data.title},${data.bran
       document.body.appendChild(link);
       link.click();
       document.body.removeChild(link);
+    }
+  };
+
+  const handleExportAllCSV = () => {
+    if (csvPreviews.length === 0) return;
+
+    const robustParseCSVLine = (line: string): string[] => {
+      const result: string[] = [];
+      let current = '';
+      let inQuotes = false;
+      let i = 0;
+      while (i < line.length) {
+        const char = line[i];
+        if (inQuotes) {
+          if (char === '"') {
+            if (i + 1 < line.length && line[i + 1] === '"') {
+              current += '"';
+              i += 2;
+              continue;
+            } else {
+              inQuotes = false;
+              i++;
+              continue;
+            }
+          } else {
+            current += char;
+            i++;
+          }
+        } else {
+          if (char === '"') {
+            inQuotes = true;
+            i++;
+          } else if (char === ',') {
+            result.push(current);
+            current = '';
+            i++;
+          } else {
+            current += char;
+            i++;
+          }
+        }
+      }
+      result.push(current);
+      return result;
+    };
+
+    const escapeCSVField = (field: string): string => {
+      if (field.includes(',') || field.includes('"') || field.includes('\n')) {
+        return `"${field.replace(/"/g, '""')}"`;
+      }
+      return field;
+    };
+
+    const applyManualTags = (csv: string, tags: string[]): string => {
+      if (tags.length === 0) return csv;
+      const lines = csv.split('\n').filter((l: string) => l.trim());
+      if (lines.length < 2) return csv;
+
+      const headerCells = robustParseCSVLine(lines[0]);
+      const tagsIndex = headerCells.findIndex(h => h.replace(/"/g, '').trim().toLowerCase() === 'tags');
+      if (tagsIndex === -1) return csv;
+
+      const updatedLines = [lines[0]];
+      for (let i = 1; i < lines.length; i++) {
+        const cells = robustParseCSVLine(lines[i]);
+        if (cells[tagsIndex] !== undefined) {
+          const existing = cells[tagsIndex].trim();
+          cells[tagsIndex] = existing
+            ? `${existing}, ${tags.join(', ')}`
+            : tags.join(', ');
+        }
+        updatedLines.push(cells.map(escapeCSVField).join(','));
+      }
+      return updatedLines.join('\n');
+    };
+
+    let combinedCSV = '';
+
+    csvPreviews.forEach((preview, idx) => {
+      const manualTags = individualTags[preview.id] || [];
+      const csv = applyManualTags(preview.csvContent, manualTags);
+      const lines = csv.split('\n').filter((l: string) => l.trim());
+      if (lines.length === 0) return;
+
+      if (idx === 0) {
+        combinedCSV = lines.join('\n');
+      } else {
+        const dataLines = lines.slice(1);
+        if (dataLines.length > 0) {
+          combinedCSV += '\n' + dataLines.join('\n');
+        }
+      }
+    });
+
+    if (combinedCSV) {
+      const now = new Date();
+      const dateStr = `${now.getFullYear()}${String(now.getMonth()+1).padStart(2,'0')}${String(now.getDate()).padStart(2,'0')}_${String(now.getHours()).padStart(2,'0')}${String(now.getMinutes()).padStart(2,'0')}`;
+      downloadCSV(combinedCSV, `shopify-urunler-${dateStr}.csv`);
+      toast({
+        title: "CSV Dışa Aktarıldı",
+        description: `${csvPreviews.length} ürün tek CSV dosyasında birleştirildi`
+      });
     }
   };
 
@@ -2196,8 +2298,17 @@ ${data.title.toLowerCase().replace(/[^a-z0-9]/g, '-')},${data.title},${data.bran
               setIndividualTags={setIndividualTags}
             />
             
-            {/* Toplu Shopify Yükleme Butonu */}
-            <div className="mt-4 flex justify-center">
+            {/* Toplu İşlem Butonları */}
+            <div className="mt-4 flex flex-wrap justify-center gap-3">
+              <Button
+                onClick={handleExportAllCSV}
+                className="bg-gradient-to-r from-green-600 to-emerald-600 hover:from-green-700 hover:to-emerald-700 text-white font-medium px-8 py-3"
+              >
+                <div className="flex items-center gap-2">
+                  <Download className="w-5 h-5" />
+                  CSV OLARAK DIŞA AKTAR ({csvPreviews.length})
+                </div>
+              </Button>
               <Button
                 onClick={uploadAllCSVsToShopify}
                 disabled={bulkUploadMutation.isPending}
