@@ -14,6 +14,7 @@ import * as pathModule from "path";
 import { fileURLToPath} from 'url';
 import * as fs from 'fs';
 import { enhancedErrorDetection } from './enhanced-error-detection';
+import { importerRouter, startTokenRefreshScheduler } from './importer-api';
 
 console.error("=========================================");
 console.error("🚀 SERVER INDEX.TS BAŞLADI 🚀");
@@ -31,6 +32,7 @@ app.use((req, res, next) => {
 
 app.use(express.json({ limit: '50mb' }));
 app.use(express.urlencoded({ extended: false, limit: '50mb' }));
+app.use(express.text({ type: ['text/csv', 'text/plain'], limit: '10mb' }));
 
 // Remove duplicate API registrations - will be handled in async block
 
@@ -292,6 +294,10 @@ app.use(pendingChangesRoutes);
   
   // Add import routes
   app.use(importRoutes);
+
+  // ── Replit Importer API (/api/health, /api/import) ──────────────────────────
+  app.use('/api', importerRouter);
+  startTokenRefreshScheduler();
   
   // Test enhanced extraction endpoint - Direct registration
   app.post('/api/test-enhanced', async (req, res) => {
