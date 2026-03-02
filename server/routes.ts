@@ -1,5 +1,6 @@
 import type { Express } from "express";
 import { createServer, type Server } from "http";
+import { browserNavigate, browserClick, browserScroll, browserBack, browserForward, browserType, browserKeyPress, browserGetScreenshot } from "./browser-session";
 import { z } from "zod";
 import * as cheerio from "cheerio";
 import path from "path";
@@ -4367,6 +4368,86 @@ ${(result.title || 'product').toLowerCase().replace(/[^a-z0-9]/g, '-')},${result
     }
   });
   // ── Mini Tarayıcı Proxy bitiş ──────────────────────────────────────────────
+
+  // ── Puppeteer Tarayıcı API ─────────────────────────────────────────────────
+  app.post('/api/browser/navigate', async (req, res) => {
+    try {
+      const { url } = req.body;
+      if (!url) return res.status(400).json({ error: 'url gerekli' });
+      const state = await browserNavigate(url);
+      res.json(state);
+    } catch (err: any) {
+      res.status(500).json({ error: err.message });
+    }
+  });
+
+  app.post('/api/browser/click', async (req, res) => {
+    try {
+      const { x, y, pageWidth, pageHeight } = req.body;
+      const state = await browserClick(x, y, pageWidth || 1280, pageHeight || 800);
+      res.json(state);
+    } catch (err: any) {
+      res.status(500).json({ error: err.message });
+    }
+  });
+
+  app.post('/api/browser/scroll', async (req, res) => {
+    try {
+      const { deltaY } = req.body;
+      const state = await browserScroll(deltaY || 300);
+      res.json(state);
+    } catch (err: any) {
+      res.status(500).json({ error: err.message });
+    }
+  });
+
+  app.post('/api/browser/back', async (req, res) => {
+    try {
+      const state = await browserBack();
+      res.json(state);
+    } catch (err: any) {
+      res.status(500).json({ error: err.message });
+    }
+  });
+
+  app.post('/api/browser/forward', async (req, res) => {
+    try {
+      const state = await browserForward();
+      res.json(state);
+    } catch (err: any) {
+      res.status(500).json({ error: err.message });
+    }
+  });
+
+  app.post('/api/browser/type', async (req, res) => {
+    try {
+      const { text } = req.body;
+      const state = await browserType(text || '');
+      res.json(state);
+    } catch (err: any) {
+      res.status(500).json({ error: err.message });
+    }
+  });
+
+  app.post('/api/browser/keypress', async (req, res) => {
+    try {
+      const { key } = req.body;
+      const state = await browserKeyPress(key || 'Enter');
+      res.json(state);
+    } catch (err: any) {
+      res.status(500).json({ error: err.message });
+    }
+  });
+
+  app.get('/api/browser/screenshot', async (req, res) => {
+    try {
+      const state = await browserGetScreenshot();
+      res.json(state);
+    } catch (err: any) {
+      res.status(500).json({ error: err.message });
+    }
+  });
+  // ── Puppeteer Tarayıcı API bitiş ───────────────────────────────────────────
 
   // Comprehensive Image System endpoint - TÜM görselleri sistematik çıkarma
   app.post('/api/comprehensive-images', async (req, res) => {
