@@ -1,4 +1,5 @@
 import { parse } from 'csv-parse/sync';
+import { getShopifyConfig } from './shopify-credentials';
 
 // Duplicate prevention için upload history
 const uploadHistory = new Map<string, { productId: string; timestamp: number }>();
@@ -136,15 +137,15 @@ export async function uploadProductToShopify(csvContent: string, productTitle: s
     }
     
     // Shopify API endpoint
-    const shopifyStore = process.env.SHOPIFY_STORE_URL?.replace(/^https?:\/\//, '');
-    const accessToken = process.env.SHOPIFY_ACCESS_TOKEN;
-    
-    if (!shopifyStore || !accessToken) {
+    const shopifyConfig = await getShopifyConfig();
+    if (!shopifyConfig) {
       return { 
         success: false, 
-        message: 'Shopify store domain veya access token bulunamadı. Lütfen .env dosyanızı kontrol edin.' 
+        message: 'Shopify kimlik bilgileri bulunamadı. Lütfen Shopify bağlantı ayarlarını yapın.' 
       };
     }
+    const shopifyStore = shopifyConfig.shopDomain;
+    const accessToken = shopifyConfig.accessToken;
 
     // Shopify product create API call - Updated to 2024-01 for better metafield support
     const shopifyResponse = await fetch(`https://${shopifyStore}/admin/api/2024-01/products.json`, {
@@ -543,15 +544,15 @@ export async function uploadMultiUrlProductToShopify(productData: any, productTi
     }
     
     // Shopify API endpoint
-    const shopifyStore = process.env.SHOPIFY_STORE_URL?.replace(/^https?:\/\//, '');
-    const accessToken = process.env.SHOPIFY_ACCESS_TOKEN;
-    
-    if (!shopifyStore || !accessToken) {
+    const shopifyConfig2 = await getShopifyConfig();
+    if (!shopifyConfig2) {
       return { 
         success: false, 
-        message: 'Shopify store domain veya access token bulunamadı. Lütfen .env dosyanızı kontrol edin.' 
+        message: 'Shopify kimlik bilgileri bulunamadı. Lütfen Shopify bağlantı ayarlarını yapın.' 
       };
     }
+    const shopifyStore = shopifyConfig2.shopDomain;
+    const accessToken = shopifyConfig2.accessToken;
 
     // Multi-URL verilerinden doğru variants ve colors oluştur
     const variants: any[] = [];
@@ -940,15 +941,15 @@ async function sendTelegramNotification(data: any) {
 // Test connection to Shopify
 export async function testShopifyConnection(): Promise<{ success: boolean; message: string; store?: string }> {
   try {
-    const shopifyStore = process.env.SHOPIFY_STORE_URL?.replace(/^https?:\/\//, '');
-    const accessToken = process.env.SHOPIFY_ACCESS_TOKEN;
-    
-    if (!shopifyStore || !accessToken) {
+    const shopifyConfig = await getShopifyConfig();
+    if (!shopifyConfig) {
       return { 
         success: false, 
-        message: 'SHOPIFY_STORE_URL veya SHOPIFY_ACCESS_TOKEN environment variable\'ları bulunamadı' 
+        message: 'Shopify kimlik bilgileri bulunamadı. Lütfen Shopify bağlantı ayarlarını yapın.' 
       };
     }
+    const shopifyStore = shopifyConfig.shopDomain;
+    const accessToken = shopifyConfig.accessToken;
 
     const response = await fetch(`https://${shopifyStore}/admin/api/2023-10/shop.json`, {
       headers: {

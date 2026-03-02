@@ -5,6 +5,7 @@
 
 import axios from 'axios';
 import TelegramBot from 'node-telegram-bot-api';
+import { getShopifyConfig } from './shopify-credentials';
 
 interface ConnectionTestResult {
   service: string;
@@ -64,14 +65,15 @@ export async function testTelegramConnection(): Promise<ConnectionTestResult> {
 }
 
 export async function testShopifyConnection(): Promise<ConnectionTestResult> {
-  const domain = process.env.SHOPIFY_STORE_DOMAIN;
-  const accessToken = process.env.SHOPIFY_ACCESS_TOKEN;
+  const config = await getShopifyConfig();
+  const domain = config?.shopDomain;
+  const accessToken = config?.accessToken;
   
   if (!domain || !accessToken) {
     return {
       service: 'Shopify',
       connected: false,
-      message: 'SHOPIFY_STORE_DOMAIN or SHOPIFY_ACCESS_TOKEN environment variables not found',
+      message: 'Shopify kimlik bilgileri bulunamadı. Lütfen Shopify bağlantı ayarlarını yapın.',
       timestamp: new Date()
     };
   }

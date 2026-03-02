@@ -520,6 +520,23 @@ export const telegramNotificationHistory = pgTable('telegram_notification_histor
   metadata: jsonb('metadata').default({}) // Ek bilgiler (variant detayları, fiyat değişimi vb.)
 });
 
+// Shopify OAuth Credentials - API Key + Secret ile bağlantı
+export const shopifyCredentials = pgTable('shopify_credentials', {
+  id: serial('id').primaryKey(),
+  shopDomain: text('shop_domain').notNull(), // örn: mağaza.myshopify.com
+  apiKey: text('api_key').notNull(),         // İstemci Kimliği
+  apiSecret: text('api_secret').notNull(),   // Gizli Anahtar
+  accessToken: text('access_token'),         // OAuth sonrası alınan token
+  scopes: text('scopes').default('read_products,write_products,read_inventory,write_inventory'),
+  isActive: boolean('is_active').notNull().default(true),
+  createdAt: timestamp('created_at').notNull().defaultNow(),
+  updatedAt: timestamp('updated_at').notNull().defaultNow()
+});
+
+export type ShopifyCredential = typeof shopifyCredentials.$inferSelect;
+export type InsertShopifyCredential = typeof shopifyCredentials.$inferInsert;
+export const insertShopifyCredentialSchema = createInsertSchema(shopifyCredentials).omit({ id: true, createdAt: true, updatedAt: true });
+
 // Type exports for new tables
 export type ShopifyMemoryProduct = typeof shopifyMemoryProducts.$inferSelect;
 export type InsertShopifyMemoryProduct = typeof shopifyMemoryProducts.$inferInsert;

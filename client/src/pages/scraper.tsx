@@ -16,6 +16,7 @@ import * as Collapsible from "@radix-ui/react-collapsible";
 import { toast } from "@/hooks/use-toast";
 import { useLocation } from "wouter";
 import { useIsMobile } from "@/hooks/use-mobile";
+import ShopifySettingsDialog from "@/components/ShopifySettingsDialog";
 
 
 const scrapeSchema = z.object({
@@ -1249,6 +1250,7 @@ ${data.title.toLowerCase().replace(/[^a-z0-9]/g, '-')},${data.title},${data.bran
                 <Bell className="w-4 h-4 mr-2" />
                 Telegram Bildirimleri
               </Button>
+              <ShopifySettingsDialog />
               <Button
                 onClick={clearAllData}
                 variant="outline"

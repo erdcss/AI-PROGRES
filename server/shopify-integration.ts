@@ -5,6 +5,7 @@
 
 import axios, { AxiosRequestConfig } from 'axios';
 import { ScenarioBasedResult } from './scenario-based-scraper';
+import { getShopifyConfig } from './shopify-credentials';
 
 export interface ShopifyProduct {
   id?: number;
@@ -45,23 +46,22 @@ export interface ShopifyOption {
 }
 
 export class ShopifyIntegration {
-  private shopUrl: string;
-  private accessToken: string;
-  private baseUrl: string;
+  constructor() {}
 
-  constructor() {
-    if (!process.env.SHOPIFY_STORE_DOMAIN || !process.env.SHOPIFY_ACCESS_TOKEN) {
-      throw new Error('Shopify credentials not found. Please set SHOPIFY_STORE_DOMAIN and SHOPIFY_ACCESS_TOKEN');
-    }
-    
-    this.shopUrl = process.env.SHOPIFY_STORE_DOMAIN;
-    this.accessToken = process.env.SHOPIFY_ACCESS_TOKEN;
-    this.baseUrl = `https://${this.shopUrl}/admin/api/2024-01/`;
+  private async resolveConfig(): Promise<{ shopUrl: string; accessToken: string; baseUrl: string }> {
+    const config = await getShopifyConfig();
+    if (!config) throw new Error('Shopify kimlik bilgileri bulunamadı. Lütfen Shopify bağlantı ayarlarını yapın.');
+    return {
+      shopUrl: config.shopDomain,
+      accessToken: config.accessToken,
+      baseUrl: `https://${config.shopDomain}/admin/api/2024-01/`
+    };
   }
 
-  private getHeaders(): AxiosRequestConfig['headers'] {
+  private async getHeaders(): Promise<AxiosRequestConfig['headers']> {
+    const { accessToken } = await this.resolveConfig();
     return {
-      'X-Shopify-Access-Token': this.accessToken,
+      'X-Shopify-Access-Token': accessToken,
       'Content-Type': 'application/json',
     };
   }
@@ -212,10 +212,11 @@ export class ShopifyIntegration {
       console.log(`📦 Variants: ${shopifyProduct.variants.length}, Images: ${shopifyProduct.images.length}`);
       console.log(`🔑 Unique Tracking ID: ${uniqueTrackingId}`);
 
+      const { baseUrl } = await this.resolveConfig();
       const response = await axios.post(
-        `${this.baseUrl}products.json`,
+        `${baseUrl}products.json`,
         { product: productWithMetafields },
-        { headers: this.getHeaders() }
+        { headers: await this.getHeaders() }
       );
 
       if (response.status === 201) {
@@ -315,8 +316,9 @@ export class ShopifyIntegration {
    */
   async testConnection(): Promise<{ success: boolean; error?: string }> {
     try {
-      const response = await axios.get(`${this.baseUrl}shop.json`, {
-        headers: this.getHeaders()
+      const { baseUrl } = await this.resolveConfig();
+      const response = await axios.get(`${baseUrl}shop.json`, {
+        headers: await this.getHeaders()
       });
 
       if (response.status === 200) {

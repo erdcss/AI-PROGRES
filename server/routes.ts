@@ -76,6 +76,8 @@ import { productStatisticsService } from './product-statistics-service';
 import { CLOTHING_KEYWORDS, FAKE_CLOTHING_SIZES, isClothingProduct } from './clothing-keywords';
 import { aiProductStatisticsService } from './ai-product-statistics';
 import { shopifyProductsSync } from './shopify-products-sync';
+import { getShopifyConfig, saveShopifyCredentials, saveShopifyAccessToken, deleteShopifyCredentials } from './shopify-credentials';
+import { shopifyCredentials } from '@shared/schema';
 
 // Helper function to register product for automated tracking
 async function registerProductForTracking(
@@ -4161,6 +4163,122 @@ ${(result.title || 'product').toLowerCase().replace(/[^a-z0-9]/g, '-')},${result
       });
     }
   });
+
+  // ── Shopify OAuth & Credentials API ────────────────────────────────────────
+
+  // Mevcut kimlik bilgilerini döndürür (token gizlenir)
+  app.get('/api/shopify/credentials', async (req, res) => {
+    try {
+      const rows = await db.select().from(shopifyCredentials)
+        .where(eq(shopifyCredentials.isActive, true))
+        .orderBy(desc(shopifyCredentials.updatedAt))
+        .limit(1);
+      const cred = rows[0];
+      if (!cred) return res.json({ connected: false });
+      res.json({
+        connected: !!cred.accessToken,
+        shopDomain: cred.shopDomain,
+        apiKey: cred.apiKey,
+        hasToken: !!cred.accessToken,
+        updatedAt: cred.updatedAt
+      });
+    } catch (err) {
+      res.status(500).json({ error: String(err) });
+    }
+  });
+
+  // Kimlik bilgilerini kaydet (API Key + Secret + Domain)
+  app.post('/api/shopify/credentials', async (req, res) => {
+    try {
+      const { shopDomain, apiKey, apiSecret } = req.body;
+      if (!shopDomain || !apiKey || !apiSecret) {
+        return res.status(400).json({ error: 'shopDomain, apiKey ve apiSecret zorunludur.' });
+      }
+      const cleanDomain = shopDomain.replace(/^https?:\/\//, '').replace(/\/$/, '');
+      await saveShopifyCredentials({ shopDomain: cleanDomain, apiKey, apiSecret });
+      res.json({ success: true, shopDomain: cleanDomain });
+    } catch (err) {
+      res.status(500).json({ error: String(err) });
+    }
+  });
+
+  // Shopify OAuth yetkilendirme URL'i üretir
+  app.get('/api/shopify/auth-url', async (req, res) => {
+    try {
+      const rows = await db.select().from(shopifyCredentials)
+        .where(eq(shopifyCredentials.isActive, true))
+        .orderBy(desc(shopifyCredentials.updatedAt))
+        .limit(1);
+      const cred = rows[0];
+      if (!cred) return res.status(400).json({ error: 'Önce kimlik bilgilerini kaydedin.' });
+
+      const scopes = 'read_products,write_products,read_inventory,write_inventory,read_orders';
+      const redirectUri = `${req.protocol}://${req.get('host')}/api/shopify/callback`;
+      const state = Math.random().toString(36).substring(2, 15);
+      const authUrl =
+        `https://${cred.shopDomain}/admin/oauth/authorize` +
+        `?client_id=${cred.apiKey}` +
+        `&scope=${encodeURIComponent(scopes)}` +
+        `&redirect_uri=${encodeURIComponent(redirectUri)}` +
+        `&state=${state}`;
+      res.json({ authUrl, redirectUri });
+    } catch (err) {
+      res.status(500).json({ error: String(err) });
+    }
+  });
+
+  // Shopify OAuth callback - kodu access token ile değiştirir
+  app.get('/api/shopify/callback', async (req, res) => {
+    try {
+      const { code, shop } = req.query as { code: string; shop: string };
+      if (!code || !shop) return res.status(400).send('Geçersiz OAuth parametreleri');
+
+      const rows = await db.select().from(shopifyCredentials)
+        .where(eq(shopifyCredentials.shopDomain, shop))
+        .limit(1);
+      const cred = rows[0];
+      if (!cred) return res.status(400).send('Bu mağaza için kayıtlı kimlik bilgisi bulunamadı.');
+
+      const tokenRes = await fetch(`https://${shop}/admin/oauth/access_token`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ client_id: cred.apiKey, client_secret: cred.apiSecret, code })
+      });
+      const tokenData = await tokenRes.json() as any;
+      if (!tokenData.access_token) {
+        return res.status(400).send(`Token alınamadı: ${JSON.stringify(tokenData)}`);
+      }
+
+      await saveShopifyAccessToken(shop, tokenData.access_token);
+      res.redirect('/?shopify=connected');
+    } catch (err) {
+      res.status(500).send(`OAuth hatası: ${err}`);
+    }
+  });
+
+  // Shopify bağlantısını test eder
+  app.get('/api/shopify/status', async (req, res) => {
+    try {
+      const result = await testShopifyConnection();
+      res.json(result);
+    } catch (err) {
+      res.status(500).json({ success: false, message: String(err) });
+    }
+  });
+
+  // Kimlik bilgilerini siler
+  app.delete('/api/shopify/credentials', async (req, res) => {
+    try {
+      const { shopDomain } = req.body;
+      if (!shopDomain) return res.status(400).json({ error: 'shopDomain zorunludur.' });
+      await deleteShopifyCredentials(shopDomain);
+      res.json({ success: true });
+    } catch (err) {
+      res.status(500).json({ error: String(err) });
+    }
+  });
+
+  // ── Shopify OAuth bitiş ────────────────────────────────────────────────────
 
   // Comprehensive Image System endpoint - TÜM görselleri sistematik çıkarma
   app.post('/api/comprehensive-images', async (req, res) => {

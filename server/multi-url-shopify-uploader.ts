@@ -2,6 +2,7 @@
 // Bu dosya multi-URL product verilerini direkt Shopify API'ye doğru formatta gönderir
 
 import { parse } from 'csv-parse/sync';
+import { getShopifyConfig } from './shopify-credentials';
 
 interface MultiUrlProductData {
   title: string;
@@ -88,15 +89,15 @@ export async function uploadMultiUrlProductToShopify(
     }
 
     // Shopify credentials
-    const shopifyStore = process.env.SHOPIFY_STORE_DOMAIN;
-    const accessToken = process.env.SHOPIFY_ACCESS_TOKEN;
-    
-    if (!shopifyStore || !accessToken) {
+    const shopifyConfigMu = await getShopifyConfig();
+    if (!shopifyConfigMu) {
       return { 
         success: false, 
-        message: 'Shopify store domain veya access token bulunamadı.' 
+        message: 'Shopify kimlik bilgileri bulunamadı. Lütfen Shopify bağlantı ayarlarını yapın.' 
       };
     }
+    const shopifyStore = shopifyConfigMu.shopDomain;
+    const accessToken = shopifyConfigMu.accessToken;
 
     // Extract real variant data
     const allVariants = productData.variants?.allVariants || [];
