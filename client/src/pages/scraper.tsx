@@ -102,6 +102,13 @@ function ScraperPage() {
   });
 
   const singleScrapeMutation = useMutation({
+    onMutate: () => {
+      toast({
+        title: "⚙️ Arka Planda Çalışıyor",
+        description: "Ürün verisi çekiliyor. Bu sayfa açık kaldığı sürece işlem devam eder.",
+        duration: 6000,
+      });
+    },
     mutationFn: async (data: ScrapeFormData & { onlyExtractData?: boolean }) => {
       // Shopify URL'lerini tespit et ve doğru endpoint'e yönlendir
       if (data.url.includes('.myshopify.com') || data.url.includes('shopify.com')) {
@@ -779,6 +786,13 @@ ${data.title.toLowerCase().replace(/[^a-z0-9]/g, '-')},${data.title},${data.bran
       });
       return;
     }
+
+    // Arka planda çalıştığını bildir
+    toast({
+      title: "⚙️ Arka Planda Çalışıyor",
+      description: `${draggedUrls.length} ürün verisi çekiliyor. Bu sayfa açık kaldığı sürece işlem devam eder.`,
+      duration: 6000,
+    });
 
     try {
       console.log(`📦 Starting bulk scraping: ${draggedUrls.length} URLs`);
@@ -1462,47 +1476,79 @@ ${data.title.toLowerCase().replace(/[^a-z0-9]/g, '-')},${data.title},${data.bran
                     <div className="space-y-3">
                       {draggedUrls.length > 0 ? (
                         <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
-                          <Button 
-                            type="button"
-                            onClick={processAllUrls}
-                            disabled={singleScrapeMutation.isPending}
-                            className="bg-gradient-to-r from-green-600 to-emerald-600 hover:from-green-700 hover:to-emerald-700 text-white h-14 text-lg font-medium"
-                          >
-                            {singleScrapeMutation.isPending ? (
-                              <div className="flex items-center gap-2">
-                                <Loader2 className="w-5 h-5 animate-spin" />
-                                Veriler Çekiliyor... ({draggedUrls.length})
-                              </div>
-                            ) : (
-                              <div className="flex items-center gap-2">
-                                <Package className="w-5 h-5" />
-                                ÜRÜN VERİLERİNİ ÇEK ({draggedUrls.length})
-                              </div>
+                          <div className="relative">
+                            {/* Nabız halkası animasyonu */}
+                            {singleScrapeMutation.isPending && (
+                              <>
+                                <span className="absolute inset-0 rounded-md animate-ping bg-green-400 opacity-20 pointer-events-none" />
+                                <span className="absolute inset-0 rounded-md animate-pulse bg-green-300 opacity-10 pointer-events-none" />
+                              </>
                             )}
-                          </Button>
+                            <Button 
+                              type="button"
+                              onClick={processAllUrls}
+                              disabled={singleScrapeMutation.isPending}
+                              className={`relative w-full overflow-hidden bg-gradient-to-r from-green-600 to-emerald-600 hover:from-green-700 hover:to-emerald-700 text-white h-14 text-lg font-medium transition-all duration-300 ${singleScrapeMutation.isPending ? "shadow-lg shadow-green-500/40 scale-[1.01]" : ""}`}
+                            >
+                              {/* Hareketli shimmer şeridi */}
+                              {singleScrapeMutation.isPending && (
+                                <span className="absolute inset-0 -translate-x-full animate-shimmer bg-gradient-to-r from-transparent via-white/20 to-transparent pointer-events-none" />
+                              )}
+                              {singleScrapeMutation.isPending ? (
+                                <div className="flex items-center gap-2">
+                                  <span className="flex gap-1">
+                                    <span className="w-2 h-2 rounded-full bg-white animate-bounce [animation-delay:0ms]" />
+                                    <span className="w-2 h-2 rounded-full bg-white animate-bounce [animation-delay:150ms]" />
+                                    <span className="w-2 h-2 rounded-full bg-white animate-bounce [animation-delay:300ms]" />
+                                  </span>
+                                  <span>Arka Planda Çekiliyor... ({draggedUrls.length})</span>
+                                </div>
+                              ) : (
+                                <div className="flex items-center gap-2">
+                                  <Package className="w-5 h-5" />
+                                  ÜRÜN VERİLERİNİ ÇEK ({draggedUrls.length})
+                                </div>
+                              )}
+                            </Button>
+                          </div>
                           
 
                         </div>
                         
                       ) : (
                         <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
-                          <Button
-                            type="submit"
-                            disabled={singleScrapeMutation.isPending || shopifyTransferMutation.isPending}
-                            className="bg-gradient-to-r from-green-600 to-emerald-600 hover:from-green-700 hover:to-emerald-700 text-white h-14 text-lg font-medium"
-                          >
-                            {singleScrapeMutation.isPending ? (
-                              <div className="flex items-center gap-2">
-                                <Loader2 className="w-5 h-5 animate-spin" />
-                                <span>Ürün Verisi Çekiliyor...</span>
-                              </div>
-                            ) : (
-                              <div className="flex items-center gap-2">
-                                <Package className="w-5 h-5" />
-                                <span>ÜRÜN VERİLERİNİ ÇEK</span>
-                              </div>
+                          <div className="relative">
+                            {singleScrapeMutation.isPending && (
+                              <>
+                                <span className="absolute inset-0 rounded-md animate-ping bg-green-400 opacity-20 pointer-events-none" />
+                                <span className="absolute inset-0 rounded-md animate-pulse bg-green-300 opacity-10 pointer-events-none" />
+                              </>
                             )}
-                          </Button>
+                            <Button
+                              type="submit"
+                              disabled={singleScrapeMutation.isPending || shopifyTransferMutation.isPending}
+                              className={`relative w-full overflow-hidden bg-gradient-to-r from-green-600 to-emerald-600 hover:from-green-700 hover:to-emerald-700 text-white h-14 text-lg font-medium transition-all duration-300 ${singleScrapeMutation.isPending ? "shadow-lg shadow-green-500/40 scale-[1.01]" : ""}`}
+                            >
+                              {singleScrapeMutation.isPending && (
+                                <span className="absolute inset-0 -translate-x-full animate-shimmer bg-gradient-to-r from-transparent via-white/20 to-transparent pointer-events-none" />
+                              )}
+                              {singleScrapeMutation.isPending ? (
+                                <div className="flex items-center gap-2">
+                                  <span className="flex gap-1">
+                                    <span className="w-2 h-2 rounded-full bg-white animate-bounce [animation-delay:0ms]" />
+                                    <span className="w-2 h-2 rounded-full bg-white animate-bounce [animation-delay:150ms]" />
+                                    <span className="w-2 h-2 rounded-full bg-white animate-bounce [animation-delay:300ms]" />
+                                  </span>
+                                  <span>Arka Planda Çekiliyor...</span>
+                                </div>
+                              ) : (
+                                <div className="flex items-center gap-2">
+                                  <Package className="w-5 h-5" />
+                                  <span>ÜRÜN VERİLERİNİ ÇEK</span>
+                                </div>
+                              )}
+                            </Button>
+                          </div>
                           
                           <Button
                             type="button"
