@@ -699,6 +699,13 @@ app.use(pendingChangesRoutes);
     import('./daily-monitor').then(({ dailyMonitor }) => {
       dailyMonitor.start();
     }).catch(console.error);
+
+    // Dahili tarayıcı motorunu önceden başlat (ilk istekte 502 önlemek için)
+    setTimeout(() => {
+      import('./browser-session').then(({ prewarmBrowser }) => {
+        prewarmBrowser();
+      }).catch(() => {});
+    }, 3000);
     
     // Scheduler API endpoints removed - handled in routes.ts to prevent conflicts
 

@@ -166,3 +166,15 @@ export async function closeBrowser() {
     page = null;
   }
 }
+
+// Sunucu başladığında tarayıcıyı önceden ısıt (pre-warm)
+// Böylece ilk kullanıcı isteğinde 502 olmaz
+export async function prewarmBrowser() {
+  try {
+    console.log('🌐 Dahili tarayıcı motoru önceden başlatılıyor...');
+    await ensureBrowser();
+    console.log('✅ Dahili tarayıcı hazır');
+  } catch (err) {
+    console.warn('⚠️ Tarayıcı ön ısıtma başarısız (ilk kullanımda başlatılacak):', (err as Error).message?.slice(0, 80));
+  }
+}
