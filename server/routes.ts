@@ -1,6 +1,6 @@
 import type { Express } from "express";
 import { createServer, type Server } from "http";
-import { browserNavigate, browserClick, browserScroll, browserBack, browserForward, browserType, browserKeyPress, browserGetScreenshot } from "./browser-session";
+import { browserNavigate, browserClick, browserScroll, browserBack, browserForward, browserType, browserKeyPress, browserGetScreenshot, browserDoubleClick, browserRightClick, browserHover, browserDragScroll } from "./browser-session";
 import { z } from "zod";
 import * as cheerio from "cheerio";
 import path from "path";
@@ -4442,6 +4442,46 @@ ${(result.title || 'product').toLowerCase().replace(/[^a-z0-9]/g, '-')},${result
   app.get('/api/browser/screenshot', async (req, res) => {
     try {
       const state = await browserGetScreenshot();
+      res.json(state);
+    } catch (err: any) {
+      res.status(500).json({ error: err.message });
+    }
+  });
+
+  app.post('/api/browser/dblclick', async (req, res) => {
+    try {
+      const { x, y, pageWidth, pageHeight } = req.body;
+      const state = await browserDoubleClick(x, y, pageWidth || 1280, pageHeight || 800);
+      res.json(state);
+    } catch (err: any) {
+      res.status(500).json({ error: err.message });
+    }
+  });
+
+  app.post('/api/browser/rightclick', async (req, res) => {
+    try {
+      const { x, y, pageWidth, pageHeight } = req.body;
+      const state = await browserRightClick(x, y, pageWidth || 1280, pageHeight || 800);
+      res.json(state);
+    } catch (err: any) {
+      res.status(500).json({ error: err.message });
+    }
+  });
+
+  app.post('/api/browser/hover', async (req, res) => {
+    try {
+      const { x, y, pageWidth, pageHeight } = req.body;
+      const state = await browserHover(x, y, pageWidth || 1280, pageHeight || 800);
+      res.json(state);
+    } catch (err: any) {
+      res.status(500).json({ error: err.message });
+    }
+  });
+
+  app.post('/api/browser/dragscroll', async (req, res) => {
+    try {
+      const { startY, endY, pageHeight } = req.body;
+      const state = await browserDragScroll(startY, endY, pageHeight || 800);
       res.json(state);
     } catch (err: any) {
       res.status(500).json({ error: err.message });
