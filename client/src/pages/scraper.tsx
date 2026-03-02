@@ -1495,13 +1495,15 @@ ${data.title.toLowerCase().replace(/[^a-z0-9]/g, '-')},${data.title},${data.bran
                                 <span className="absolute inset-0 -translate-x-full animate-shimmer bg-gradient-to-r from-transparent via-white/20 to-transparent pointer-events-none" />
                               )}
                               {singleScrapeMutation.isPending ? (
-                                <div className="flex items-center gap-2">
-                                  <span className="flex gap-1">
-                                    <span className="w-2 h-2 rounded-full bg-white animate-bounce [animation-delay:0ms]" />
-                                    <span className="w-2 h-2 rounded-full bg-white animate-bounce [animation-delay:150ms]" />
-                                    <span className="w-2 h-2 rounded-full bg-white animate-bounce [animation-delay:300ms]" />
+                                <div className="flex items-center gap-3">
+                                  <div className="relative w-5 h-5 shrink-0">
+                                    <span className="absolute inset-0 rounded-full border-2 border-white/30 border-t-white animate-spin" />
+                                    <span className="absolute inset-1 rounded-full bg-white/20 animate-pulse" />
+                                  </div>
+                                  <span className="flex flex-col items-start leading-tight">
+                                    <span className="text-sm font-semibold">Ürün Verisi Çekiliyor...</span>
+                                    <span className="text-xs font-normal opacity-75">{draggedUrls.length} ürün işleniyor</span>
                                   </span>
-                                  <span>Arka Planda Çekiliyor... ({draggedUrls.length})</span>
                                 </div>
                               ) : (
                                 <div className="flex items-center gap-2">
@@ -1533,13 +1535,15 @@ ${data.title.toLowerCase().replace(/[^a-z0-9]/g, '-')},${data.title},${data.bran
                                 <span className="absolute inset-0 -translate-x-full animate-shimmer bg-gradient-to-r from-transparent via-white/20 to-transparent pointer-events-none" />
                               )}
                               {singleScrapeMutation.isPending ? (
-                                <div className="flex items-center gap-2">
-                                  <span className="flex gap-1">
-                                    <span className="w-2 h-2 rounded-full bg-white animate-bounce [animation-delay:0ms]" />
-                                    <span className="w-2 h-2 rounded-full bg-white animate-bounce [animation-delay:150ms]" />
-                                    <span className="w-2 h-2 rounded-full bg-white animate-bounce [animation-delay:300ms]" />
+                                <div className="flex items-center gap-3">
+                                  <div className="relative w-5 h-5 shrink-0">
+                                    <span className="absolute inset-0 rounded-full border-2 border-white/30 border-t-white animate-spin" />
+                                    <span className="absolute inset-1 rounded-full bg-white/20 animate-pulse" />
+                                  </div>
+                                  <span className="flex flex-col items-start leading-tight">
+                                    <span className="text-sm font-semibold">Ürün Verisi Çekiliyor...</span>
+                                    <span className="text-xs font-normal opacity-75">Lütfen bekleyin</span>
                                   </span>
-                                  <span>Arka Planda Çekiliyor...</span>
                                 </div>
                               ) : (
                                 <div className="flex items-center gap-2">
