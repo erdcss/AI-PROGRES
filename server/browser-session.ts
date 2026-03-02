@@ -83,7 +83,7 @@ async function ensureBrowser(): Promise<Page> {
 
 async function takeScreenshot(): Promise<BrowserState> {
   if (!page) throw new Error('Browser not initialized');
-  const screenshot = await page.screenshot({ encoding: 'base64', type: 'jpeg', quality: 72 });
+  const screenshot = await page.screenshot({ encoding: 'base64', type: 'jpeg', quality: 58 });
   const url = page.url();
   const title = await page.title().catch(() => '');
   const canGoBack = await page.evaluate(() => window.history.length > 1).catch(() => false);
@@ -141,15 +141,14 @@ async function handleCountrySelect(p: Page): Promise<void> {
   }
 }
 
-async function waitForSettle(p: Page, ms = 600): Promise<void> {
-  // Ağ sessizleşmesini bekle (max ms sonra timeout)
+async function waitForSettle(p: Page, ms = 350): Promise<void> {
   try {
     await Promise.race([
-      p.waitForNetworkIdle({ idleTime: 400, timeout: ms }),
+      p.waitForNetworkIdle({ idleTime: 200, timeout: ms }),
       sleep(ms),
     ]);
   } catch {
-    await sleep(200);
+    await sleep(80);
   }
 }
 
@@ -157,7 +156,7 @@ export async function browserNavigate(url: string): Promise<BrowserState> {
   return withLock(async () => {
     const p = await ensureBrowser();
     await p.goto(url, { waitUntil: 'domcontentloaded', timeout: 22000 }).catch(() => {});
-    await waitForSettle(p, 700);
+    await waitForSettle(p, 400);
     await handleCountrySelect(p);
     return takeScreenshot();
   });
@@ -172,13 +171,12 @@ export async function browserClick(x: number, y: number, pageWidth: number, page
     const py = Math.round(y * scaleY);
     const beforeUrl = p.url();
     await p.mouse.click(px, py);
-    await sleep(150);
-    // Navigasyon oldu mu?
+    await sleep(60);
     const afterUrl = p.url();
     if (afterUrl !== beforeUrl) {
-      await waitForSettle(p, 800);
-    } else {
       await waitForSettle(p, 500);
+    } else {
+      await waitForSettle(p, 250);
     }
     await handleCountrySelect(p);
     return takeScreenshot();
@@ -188,9 +186,8 @@ export async function browserClick(x: number, y: number, pageWidth: number, page
 export async function browserScroll(deltaY: number): Promise<BrowserState> {
   return withLock(async () => {
     const p = await ensureBrowser();
-    // Anında scroll (smooth değil = çok daha hızlı)
     await p.evaluate((dy: number) => window.scrollBy({ top: dy, behavior: 'instant' }), deltaY);
-    await sleep(180);
+    await sleep(60);
     return takeScreenshot();
   });
 }
@@ -199,7 +196,7 @@ export async function browserBack(): Promise<BrowserState> {
   return withLock(async () => {
     const p = await ensureBrowser();
     await p.goBack({ waitUntil: 'domcontentloaded', timeout: 10000 }).catch(() => {});
-    await waitForSettle(p, 500);
+    await waitForSettle(p, 300);
     return takeScreenshot();
   });
 }
@@ -208,7 +205,7 @@ export async function browserForward(): Promise<BrowserState> {
   return withLock(async () => {
     const p = await ensureBrowser();
     await p.goForward({ waitUntil: 'domcontentloaded', timeout: 10000 }).catch(() => {});
-    await waitForSettle(p, 500);
+    await waitForSettle(p, 300);
     return takeScreenshot();
   });
 }
@@ -216,8 +213,8 @@ export async function browserForward(): Promise<BrowserState> {
 export async function browserType(text: string): Promise<BrowserState> {
   return withLock(async () => {
     const p = await ensureBrowser();
-    await p.keyboard.type(text, { delay: 25 });
-    await sleep(200);
+    await p.keyboard.type(text, { delay: 15 });
+    await sleep(100);
     return takeScreenshot();
   });
 }
@@ -227,12 +224,12 @@ export async function browserKeyPress(key: string): Promise<BrowserState> {
     const p = await ensureBrowser();
     const beforeUrl = p.url();
     await p.keyboard.press(key as KeyInput);
-    await sleep(100);
+    await sleep(50);
     const afterUrl = p.url();
     if (afterUrl !== beforeUrl || key === 'Enter') {
-      await waitForSettle(p, 800);
+      await waitForSettle(p, 400);
     } else {
-      await sleep(150);
+      await sleep(70);
     }
     await handleCountrySelect(p);
     return takeScreenshot();
@@ -255,7 +252,7 @@ export async function browserDoubleClick(x: number, y: number, pageWidth: number
     const px = Math.round(x * scaleX);
     const py = Math.round(y * scaleY);
     await p.mouse.click(px, py, { clickCount: 2 });
-    await sleep(300);
+    await sleep(150);
     return takeScreenshot();
   });
 }

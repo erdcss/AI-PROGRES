@@ -236,7 +236,7 @@ export default function MiniBrowser({ onExtract }: MiniBrowserProps) {
         pendingScrollRef.current = 0;
         const clampedDelta = Math.max(-1200, Math.min(1200, delta));
         doAction(() => browserApi("scroll", { deltaY: clampedDelta }), keyboardMode, false);
-      }, 80);
+      }, 40);
     };
 
     container.addEventListener("wheel", handleWheel, { passive: false });
@@ -621,7 +621,7 @@ export default function MiniBrowser({ onExtract }: MiniBrowserProps) {
           <div
             ref={containerRef}
             className="relative bg-[#0e0f11] w-full select-none"
-            style={{ paddingTop: `${(VP_H / VP_W) * 100}%` }}>
+            style={{ paddingTop: "44%" }}>
             <div className="absolute inset-0">
 
               {/* İlk yükleme */}
