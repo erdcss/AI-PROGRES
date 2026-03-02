@@ -101,6 +101,7 @@ export class UltraStealthSystem {
       console.log('🕵️ Creating ultra-stealth browser session...');
       
       browser = await puppeteer.launch({
+      executablePath: '/nix/store/zi4f80l169xlmivz8vja8wlphq74qqk0-chromium-125.0.6422.141/bin/chromium-browser',
         headless: 'new',
         args: [
           '--no-sandbox',

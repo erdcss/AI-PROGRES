@@ -3,30 +3,21 @@ import fs from 'fs';
 import path from 'path';
 import type { PuppeteerLaunchOptions } from 'puppeteer';
 
+// NixOS sistem Chromium yolu — tüm sistem kütüphanelerine erişim var, en güvenilir
+const NIXOS_CHROMIUM = '/nix/store/zi4f80l169xlmivz8vja8wlphq74qqk0-chromium-125.0.6422.141/bin/chromium-browser';
+
 /**
  * Get Chromium executable path with intelligent fallback
- * Priority: 1) Puppeteer cache, 2) System Chrome, 3) undefined (Puppeteer default)
+ * Priority: 0) NixOS system Chromium, 1) System PATH, 2) Puppeteer cache
  */
 export function getChromiumPath(): string | undefined {
-  // Priority 1: Puppeteer cache
-  const puppeteerCachePath = path.join(process.env.HOME || '/home/runner', '.cache/puppeteer/chrome');
-  
-  try {
-    if (fs.existsSync(puppeteerCachePath)) {
-      const versions = fs.readdirSync(puppeteerCachePath).sort().reverse();
-      if (versions.length > 0) {
-        const chromePath = path.join(puppeteerCachePath, versions[0], 'chrome-linux64/chrome');
-        if (fs.existsSync(chromePath)) {
-          console.log(`✅ Using Puppeteer Chrome: ${chromePath}`);
-          return chromePath;
-        }
-      }
-    }
-  } catch (error) {
-    console.warn('⚠️ Failed to locate Puppeteer Chrome cache:', (error as Error).message);
+  // Priority 0: NixOS sistem Chromium (libglib ve diğer kütüphaneler tam)
+  if (fs.existsSync(NIXOS_CHROMIUM)) {
+    console.log(`✅ Using NixOS Chromium: ${NIXOS_CHROMIUM}`);
+    return NIXOS_CHROMIUM;
   }
-  
-  // Priority 2: System chromium
+
+  // Priority 1: System chromium via PATH
   try {
     const systemChrome = execSync('which chromium-browser || which chromium || which google-chrome', { 
       encoding: 'utf8',
@@ -38,11 +29,27 @@ export function getChromiumPath(): string | undefined {
       return systemChrome;
     }
   } catch {
-    // Silently continue to fallback
+    // Silently continue
   }
-  
-  // Priority 3: Let Puppeteer decide
-  console.log('ℹ️ No explicit Chrome found, using Puppeteer default');
+
+  // Priority 2: Puppeteer cache (son çare — NixOS'ta libglib eksik olabilir)
+  const puppeteerCachePath = path.join(process.env.HOME || '/home/runner', '.cache/puppeteer/chrome');
+  try {
+    if (fs.existsSync(puppeteerCachePath)) {
+      const versions = fs.readdirSync(puppeteerCachePath).sort().reverse();
+      if (versions.length > 0) {
+        const chromePath = path.join(puppeteerCachePath, versions[0], 'chrome-linux64/chrome');
+        if (fs.existsSync(chromePath)) {
+          console.log(`⚠️ Puppeteer Chrome (NixOS'ta çalışmayabilir): ${chromePath}`);
+          return chromePath;
+        }
+      }
+    }
+  } catch (error) {
+    console.warn('⚠️ Puppeteer Chrome cache bulunamadı:', (error as Error).message);
+  }
+
+  console.log('ℹ️ Chromium bulunamadı, Puppeteer varsayılanını dener');
   return undefined;
 }
 

@@ -63,16 +63,11 @@ async function tryDesktopScraping(url: string): Promise<TrendyolProductData | nu
   try {
     debug('Desktop scraping deneniyor...');
     
-    let executablePath;
-    try {
-      executablePath = execSync('which chromium-browser || which chromium || which google-chrome', { encoding: 'utf8' }).trim();
-    } catch (error) {
-      debug('Chromium bulunamadı');
-    }
+    const executablePath = '/nix/store/zi4f80l169xlmivz8vja8wlphq74qqk0-chromium-125.0.6422.141/bin/chromium-browser';
 
     browser = await puppeteer.launch({
       headless: true,
-      executablePath: executablePath || undefined,
+      executablePath,
       args: [
         '--no-sandbox',
         '--disable-setuid-sandbox',
@@ -144,17 +139,10 @@ async function tryMobileScraping(url: string): Promise<TrendyolProductData | nul
   try {
     debug('Mobile scraping deneniyor...');
     
-    let executablePath;
-    try {
-      executablePath = execSync('which chromium-browser || which chromium || which google-chrome', { encoding: 'utf8' }).trim();
-    } catch (error) {
-      debug('Chromium bulunamadı');
-    }
-
     browser = await puppeteer.launch({
       headless: true,
-      executablePath: executablePath || undefined,
-      args: ['--no-sandbox', '--disable-setuid-sandbox']
+      executablePath: '/nix/store/zi4f80l169xlmivz8vja8wlphq74qqk0-chromium-125.0.6422.141/bin/chromium-browser',
+      args: ['--no-sandbox', '--disable-setuid-sandbox', '--disable-dev-shm-usage']
     });
 
     const page = await browser.newPage();

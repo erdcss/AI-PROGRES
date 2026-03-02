@@ -32,7 +32,11 @@ interface MiniBrowserProps {
 
 const HOME_URL = "https://www.trendyol.com/cep-telefonu-x-c104";
 
-// Özel tuş haritası (tarayıcı tuşu → Puppeteer tuşu)
+// Viewport boyutları (backend ile aynı olmalı)
+const VP_W = 1280;
+const VP_H = 800;
+
+// Özel tuş haritası
 const SPECIAL_KEYS: Record<string, string> = {
   Enter: "Enter",
   Backspace: "Backspace",
@@ -80,6 +84,7 @@ export default function MiniBrowser({ onExtract }: MiniBrowserProps) {
   const [keyboardMode, setKeyboardMode] = useState(false);
   const [pendingText, setPendingText] = useState("");
 
+  const containerRef = useRef<HTMLDivElement>(null);
   const imgRef = useRef<HTMLImageElement>(null);
   const hiddenInputRef = useRef<HTMLInputElement>(null);
   const typeTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
@@ -122,6 +127,23 @@ export default function MiniBrowser({ onExtract }: MiniBrowserProps) {
     }
   }, [keyboardMode]);
 
+  // Sayfa scroll'unu engelleyen non-passive wheel listener
+  useEffect(() => {
+    const container = containerRef.current;
+    if (!container) return;
+
+    const handleWheel = (e: WheelEvent) => {
+      e.preventDefault();
+      e.stopPropagation();
+      if (isLoading) return;
+      const delta = e.deltaY > 0 ? 350 : -350;
+      doAction(() => browserApi("scroll", { deltaY: delta }), keyboardMode);
+    };
+
+    container.addEventListener("wheel", handleWheel, { passive: false });
+    return () => container.removeEventListener("wheel", handleWheel);
+  }, [isLoading, keyboardMode, doAction]);
+
   const navigate = useCallback((url: string) => {
     let u = url.trim();
     if (!u.startsWith("http")) u = "https://" + u;
@@ -137,34 +159,36 @@ export default function MiniBrowser({ onExtract }: MiniBrowserProps) {
     }
   };
 
+  // Tıklama koordinatlarını doğru hesapla (object-fill kullanıyoruz, 1:1 mapping)
   const handleImgClick = (e: React.MouseEvent<HTMLImageElement>) => {
     if (!imgRef.current || !state || isLoading) return;
     const rect = imgRef.current.getBoundingClientRect();
-    const x = e.clientX - rect.left;
-    const y = e.clientY - rect.top;
+    // object-fill kullandığımız için rect boyutları = görünen resim boyutları
+    // Koordinatları doğrudan viewport boyutuna ölçekle
+    const xRatio = (e.clientX - rect.left) / rect.width;
+    const yRatio = (e.clientY - rect.top) / rect.height;
+    const px = Math.round(xRatio * VP_W);
+    const py = Math.round(yRatio * VP_H);
     setKeyboardMode(true);
     setPendingText("");
-    doAction(() => browserApi("click", { x, y, pageWidth: rect.width, pageHeight: rect.height }), true);
+    doAction(() => browserApi("click", {
+      x: px,
+      y: py,
+      pageWidth: VP_W,
+      pageHeight: VP_H,
+    }), true);
   };
 
-  const handleScroll = (e: React.WheelEvent) => {
-    e.preventDefault();
-    if (isLoading) return;
-    doAction(() => browserApi("scroll", { deltaY: e.deltaY > 0 ? 350 : -350 }), keyboardMode);
-  };
-
-  // Klavye girişi — gizli input'tan yakalananlar
+  // Klavye girişi
   const handleHiddenKeyDown = async (e: React.KeyboardEvent<HTMLInputElement>) => {
     e.preventDefault();
     if (isLoading) return;
 
     if (SPECIAL_KEYS[e.key]) {
-      // Özel tuş: hemen gönder
       setPendingText("");
       if (typeTimerRef.current) { clearTimeout(typeTimerRef.current); typeTimerRef.current = null; }
       doAction(() => browserApi("keypress", { key: SPECIAL_KEYS[e.key] }), true);
     } else if (e.key.length === 1 && !e.ctrlKey && !e.metaKey && !e.altKey) {
-      // Normal karakter: biriktir ve debounce ile gönder
       const newText = pendingText + e.key;
       setPendingText(newText);
       if (typeTimerRef.current) clearTimeout(typeTimerRef.current);
@@ -178,14 +202,12 @@ export default function MiniBrowser({ onExtract }: MiniBrowserProps) {
   const isTrendyolProduct = (state?.url || "").includes("trendyol.com/") &&
     ((state?.url || "").includes("-p-") || (state?.url || "").includes("/p/"));
 
-  // Trendyol ürün URL aç kısayolu
   const searchTrendyol = () => {
     const query = prompt("Trendyol ürün URL'si veya arama terimi girin:");
     if (!query) return;
     if (query.startsWith("http")) {
       navigate(query);
     } else {
-      // Ürün adı girilmişse kategori sayfasına yönlendir
       navigate(`https://www.trendyol.com/sr?q=${encodeURIComponent(query)}&lang=tr`);
     }
   };
@@ -212,7 +234,6 @@ export default function MiniBrowser({ onExtract }: MiniBrowserProps) {
 
           {/* Toolbar */}
           <div className="flex items-center gap-1 px-2 py-1.5 bg-slate-900 border-b border-slate-700/50">
-            {/* Nav butonları */}
             <Button type="button" size="sm" variant="ghost"
               className="h-7 w-7 p-0 text-slate-400 hover:text-white hover:bg-slate-700/60 disabled:opacity-25 rounded-md"
               onClick={() => doAction(() => browserApi("back", {}))} disabled={isLoading}>
@@ -234,7 +255,6 @@ export default function MiniBrowser({ onExtract }: MiniBrowserProps) {
               <Home className="w-3.5 h-3.5" />
             </Button>
 
-            {/* Arama kısayolu */}
             <Button type="button" size="sm" variant="ghost"
               className="h-7 w-7 p-0 text-slate-400 hover:text-cyan-400 hover:bg-slate-700/60 rounded-md"
               onClick={searchTrendyol} disabled={isLoading} title="Trendyol'da Ara">
@@ -287,140 +307,143 @@ export default function MiniBrowser({ onExtract }: MiniBrowserProps) {
             </div>
           )}
 
-          {/* Görüntü alanı */}
+          {/* Görüntü alanı — doğru aspect ratio (1280:800 = 8:5) */}
           <div
-            className="relative bg-slate-950 flex items-start justify-center"
-            style={{ height: 520 }}
+            ref={containerRef}
+            className="relative bg-slate-950 w-full"
+            style={{ paddingTop: `${(VP_H / VP_W) * 100}%` }}
           >
-            {/* İlk yükleme */}
-            {!state && isLoading && (
-              <div className="absolute inset-0 flex flex-col items-center justify-center gap-4 bg-slate-950">
-                <div className="w-14 h-14 rounded-2xl bg-gradient-to-br from-cyan-500/20 to-blue-600/20 border border-cyan-500/30 flex items-center justify-center">
-                  <Globe className="w-7 h-7 text-cyan-400 animate-pulse" />
-                </div>
-                <div className="text-center space-y-1.5">
-                  <p className="text-sm text-slate-200 font-medium">
-                    {warmingUp ? "Chromium tarayıcısı başlatılıyor..." : "Sayfa yükleniyor..."}
-                  </p>
-                  <p className="text-xs text-slate-500">
-                    {warmingUp ? "Gerçek tarayıcı motoru hazırlanıyor (10-15 sn)" : "Lütfen bekleyin"}
-                  </p>
-                </div>
-                <div className="flex gap-1.5">
-                  {[0, 1, 2, 3].map((i) => (
-                    <div key={i} className="w-1.5 h-1.5 rounded-full bg-cyan-500/60 animate-bounce"
-                      style={{ animationDelay: `${i * 0.12}s` }} />
-                  ))}
-                </div>
-              </div>
-            )}
+            <div className="absolute inset-0 flex items-start justify-center">
 
-            {/* Hata */}
-            {error && !isLoading && (
-              <div className="absolute inset-0 flex flex-col items-center justify-center gap-3 bg-slate-950 p-6">
-                <div className="w-12 h-12 rounded-full bg-red-500/10 border border-red-500/30 flex items-center justify-center">
-                  <span className="text-2xl">⚠</span>
-                </div>
-                <p className="text-slate-300 text-sm text-center max-w-72">{error}</p>
-                <Button type="button" size="sm" variant="outline"
-                  className="border-cyan-700/50 text-cyan-400 hover:bg-cyan-900/20 text-xs"
-                  onClick={() => navigate(HOME_URL)}>
-                  Yeniden Başlat
-                </Button>
-              </div>
-            )}
-
-            {/* Gizli klavye input — her zaman DOM'da, sadece keyboard mode'da fokuslanır */}
-            <input
-              ref={hiddenInputRef}
-              type="text"
-              className="absolute opacity-0 w-0 h-0 pointer-events-none"
-              onKeyDown={handleHiddenKeyDown}
-              onChange={() => {}}
-              value=""
-              tabIndex={-1}
-              aria-hidden="true"
-              readOnly={false}
-            />
-
-            {/* Screenshot */}
-            {state && (
-              <div className="relative w-full h-full overflow-hidden">
-                <img
-                  ref={imgRef}
-                  src={state.screenshot}
-                  alt="Tarayıcı"
-                  className={`w-full h-full object-cover object-top select-none transition-opacity duration-100 ${
-                    isLoading ? "opacity-40" : "opacity-100"
-                  }`}
-                  style={{
-                    cursor: isLoading ? "wait" : keyboardMode ? "text" : "default",
-                  }}
-                  onClick={handleImgClick}
-                  onWheel={handleScroll}
-                  draggable={false}
-                />
-
-                {/* Klavye modu tıklama işaretçisi */}
-                {keyboardMode && !isLoading && (
-                  <div className="absolute top-2 right-10 pointer-events-none">
-                    <div className="flex items-center gap-1 bg-cyan-900/80 border border-cyan-600/50 rounded-full px-2 py-0.5">
-                      <Keyboard className="w-3 h-3 text-cyan-400" />
-                      <span className="text-xs text-cyan-300">Yazı yazın</span>
-                    </div>
+              {/* İlk yükleme */}
+              {!state && isLoading && (
+                <div className="absolute inset-0 flex flex-col items-center justify-center gap-4 bg-slate-950">
+                  <div className="w-14 h-14 rounded-2xl bg-gradient-to-br from-cyan-500/20 to-blue-600/20 border border-cyan-500/30 flex items-center justify-center">
+                    <Globe className="w-7 h-7 text-cyan-400 animate-pulse" />
                   </div>
-                )}
-
-                {/* Yükleniyor overlay */}
-                {isLoading && (
-                  <div className="absolute inset-0 flex items-center justify-center pointer-events-none">
-                    <div className="flex items-center gap-2 bg-slate-900/95 px-3 py-2 rounded-lg border border-cyan-700/40 shadow-xl">
-                      <Loader2 className="w-3.5 h-3.5 animate-spin text-cyan-400" />
-                      <span className="text-xs text-slate-200">İşleniyor...</span>
-                    </div>
+                  <div className="text-center space-y-1.5">
+                    <p className="text-sm text-slate-200 font-medium">
+                      {warmingUp ? "Chromium tarayıcısı başlatılıyor..." : "Sayfa yükleniyor..."}
+                    </p>
+                    <p className="text-xs text-slate-500">
+                      {warmingUp ? "Gerçek tarayıcı motoru hazırlanıyor (10-15 sn)" : "Lütfen bekleyin"}
+                    </p>
                   </div>
-                )}
+                  <div className="flex gap-1.5">
+                    {[0, 1, 2, 3].map((i) => (
+                      <div key={i} className="w-1.5 h-1.5 rounded-full bg-cyan-500/60 animate-bounce"
+                        style={{ animationDelay: `${i * 0.12}s` }} />
+                    ))}
+                  </div>
+                </div>
+              )}
 
-                {/* Scroll butonları */}
-                <div className="absolute right-2 top-1/2 -translate-y-1/2 flex flex-col gap-1.5 pointer-events-auto">
-                  <Button type="button" size="sm" variant="ghost"
-                    className="h-7 w-7 p-0 bg-slate-800/85 hover:bg-slate-700 text-slate-400 hover:text-white border border-slate-700/50 rounded-md"
-                    onClick={() => doAction(() => browserApi("scroll", { deltaY: -450 }), keyboardMode)} disabled={isLoading}>
-                    <ChevronUp className="w-3.5 h-3.5" />
-                  </Button>
-                  <Button type="button" size="sm" variant="ghost"
-                    className="h-7 w-7 p-0 bg-slate-800/85 hover:bg-slate-700 text-slate-400 hover:text-white border border-slate-700/50 rounded-md"
-                    onClick={() => doAction(() => browserApi("scroll", { deltaY: 450 }), keyboardMode)} disabled={isLoading}>
-                    <ChevronDown className="w-3.5 h-3.5" />
+              {/* Hata */}
+              {error && !isLoading && (
+                <div className="absolute inset-0 flex flex-col items-center justify-center gap-3 bg-slate-950 p-6">
+                  <div className="w-12 h-12 rounded-full bg-red-500/10 border border-red-500/30 flex items-center justify-center">
+                    <span className="text-2xl">⚠</span>
+                  </div>
+                  <p className="text-slate-300 text-sm text-center max-w-72">{error}</p>
+                  <Button type="button" size="sm" variant="outline"
+                    className="border-cyan-700/50 text-cyan-400 hover:bg-cyan-900/20 text-xs"
+                    onClick={() => navigate(HOME_URL)}>
+                    Yeniden Başlat
                   </Button>
                 </div>
-              </div>
-            )}
+              )}
 
-            {/* Hızlı çek butonu */}
-            {state && (
-              <div className="absolute bottom-3 left-0 right-0 flex justify-center pointer-events-none">
-                <div className="pointer-events-auto flex items-center gap-2 bg-slate-900/95 backdrop-blur-sm border border-cyan-600/40 rounded-full px-3 py-1.5 shadow-2xl">
-                  <span className="text-xs text-slate-500 max-w-44 truncate hidden md:block">
-                    {(state.url || "").replace("https://www.trendyol.com", "trendyol.com")}
-                  </span>
-                  <Button
-                    type="button"
-                    size="sm"
-                    onClick={() => onExtract(state.url)}
-                    disabled={isLoading}
-                    className={`h-7 px-3 text-xs font-semibold rounded-full gap-1.5 transition-all ${
-                      isTrendyolProduct
-                        ? "bg-gradient-to-r from-cyan-500 to-blue-600 hover:from-cyan-400 hover:to-blue-500 text-white shadow-lg shadow-cyan-500/25 animate-pulse-slow"
-                        : "bg-slate-700 hover:bg-slate-600 text-slate-200"
+              {/* Gizli klavye input */}
+              <input
+                ref={hiddenInputRef}
+                type="text"
+                className="absolute opacity-0 w-0 h-0 pointer-events-none"
+                onKeyDown={handleHiddenKeyDown}
+                onChange={() => {}}
+                value=""
+                tabIndex={-1}
+                aria-hidden="true"
+                readOnly={false}
+              />
+
+              {/* Screenshot — object-fill ile tam ve doğru koordinat eşlemesi */}
+              {state && (
+                <div className="absolute inset-0">
+                  <img
+                    ref={imgRef}
+                    src={state.screenshot}
+                    alt="Tarayıcı"
+                    className={`w-full h-full select-none transition-opacity duration-100 ${
+                      isLoading ? "opacity-40" : "opacity-100"
                     }`}
-                  >
-                    <Zap className="w-3 h-3" />
-                    {isTrendyolProduct ? "Bu Ürünü Çek!" : "URL'yi Ekle"}
-                  </Button>
+                    style={{
+                      objectFit: "fill",
+                      cursor: isLoading ? "wait" : keyboardMode ? "text" : "crosshair",
+                      display: "block",
+                    }}
+                    onClick={handleImgClick}
+                    draggable={false}
+                  />
+
+                  {/* Klavye modu göstergesi */}
+                  {keyboardMode && !isLoading && (
+                    <div className="absolute top-2 right-12 pointer-events-none">
+                      <div className="flex items-center gap-1 bg-cyan-900/80 border border-cyan-600/50 rounded-full px-2 py-0.5">
+                        <Keyboard className="w-3 h-3 text-cyan-400" />
+                        <span className="text-xs text-cyan-300">Yazı yazın</span>
+                      </div>
+                    </div>
+                  )}
+
+                  {/* Yükleniyor overlay */}
+                  {isLoading && (
+                    <div className="absolute inset-0 flex items-center justify-center pointer-events-none">
+                      <div className="flex items-center gap-2 bg-slate-900/95 px-3 py-2 rounded-lg border border-cyan-700/40 shadow-xl">
+                        <Loader2 className="w-3.5 h-3.5 animate-spin text-cyan-400" />
+                        <span className="text-xs text-slate-200">İşleniyor...</span>
+                      </div>
+                    </div>
+                  )}
+
+                  {/* Scroll butonları */}
+                  <div className="absolute right-2 top-1/2 -translate-y-1/2 flex flex-col gap-1.5 pointer-events-auto">
+                    <Button type="button" size="sm" variant="ghost"
+                      className="h-7 w-7 p-0 bg-slate-800/85 hover:bg-slate-700 text-slate-400 hover:text-white border border-slate-700/50 rounded-md"
+                      onClick={() => doAction(() => browserApi("scroll", { deltaY: -450 }), keyboardMode)} disabled={isLoading}>
+                      <ChevronUp className="w-3.5 h-3.5" />
+                    </Button>
+                    <Button type="button" size="sm" variant="ghost"
+                      className="h-7 w-7 p-0 bg-slate-800/85 hover:bg-slate-700 text-slate-400 hover:text-white border border-slate-700/50 rounded-md"
+                      onClick={() => doAction(() => browserApi("scroll", { deltaY: 450 }), keyboardMode)} disabled={isLoading}>
+                      <ChevronDown className="w-3.5 h-3.5" />
+                    </Button>
+                  </div>
+
+                  {/* Hızlı çek butonu */}
+                  <div className="absolute bottom-3 left-0 right-0 flex justify-center pointer-events-none">
+                    <div className="pointer-events-auto flex items-center gap-2 bg-slate-900/95 backdrop-blur-sm border border-cyan-600/40 rounded-full px-3 py-1.5 shadow-2xl">
+                      <span className="text-xs text-slate-500 max-w-44 truncate hidden md:block">
+                        {(state.url || "").replace("https://www.trendyol.com", "trendyol.com")}
+                      </span>
+                      <Button
+                        type="button"
+                        size="sm"
+                        onClick={() => onExtract(state.url)}
+                        disabled={isLoading}
+                        className={`h-7 px-3 text-xs font-semibold rounded-full gap-1.5 transition-all ${
+                          isTrendyolProduct
+                            ? "bg-gradient-to-r from-cyan-500 to-blue-600 hover:from-cyan-400 hover:to-blue-500 text-white shadow-lg shadow-cyan-500/25 animate-pulse-slow"
+                            : "bg-slate-700 hover:bg-slate-600 text-slate-200"
+                        }`}
+                      >
+                        <Zap className="w-3 h-3" />
+                        {isTrendyolProduct ? "Bu Ürünü Çek!" : "URL'yi Ekle"}
+                      </Button>
+                    </div>
+                  </div>
                 </div>
-              </div>
-            )}
+              )}
+            </div>
           </div>
 
           {/* Alt durum çubuğu */}
