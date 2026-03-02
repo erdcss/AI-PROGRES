@@ -4280,6 +4280,94 @@ ${(result.title || 'product').toLowerCase().replace(/[^a-z0-9]/g, '-')},${result
 
   // ── Shopify OAuth bitiş ────────────────────────────────────────────────────
 
+  // ── Mini Tarayıcı Proxy ────────────────────────────────────────────────────
+  // Trendyol sayfalarını iframe içinde göstermek için X-Frame-Options kaldırır
+  app.get('/api/browser-proxy', async (req, res) => {
+    const targetUrl = req.query.url as string;
+    if (!targetUrl) return res.status(400).send('url parametresi eksik');
+
+    // Sadece izin verilen alan adları
+    const allowedHosts = ['trendyol.com', 'www.trendyol.com', 'arcelik.com', 'www.arcelik.com'];
+    let parsedUrl: URL;
+    try {
+      parsedUrl = new URL(targetUrl);
+    } catch {
+      return res.status(400).send('Geçersiz URL');
+    }
+    if (!allowedHosts.some(h => parsedUrl.hostname === h)) {
+      return res.status(403).send('Sadece Trendyol ve Arçelik URL\'leri desteklenir.');
+    }
+
+    try {
+      const response = await axios.get(targetUrl, {
+        headers: {
+          'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36',
+          'Accept': 'text/html,application/xhtml+xml,application/xml;q=0.9,*/*;q=0.8',
+          'Accept-Language': 'tr-TR,tr;q=0.9,en;q=0.8',
+          'Accept-Encoding': 'gzip, deflate, br',
+          'Cache-Control': 'no-cache',
+        },
+        responseType: 'text',
+        timeout: 15000,
+        maxRedirects: 5,
+      });
+
+      let html: string = response.data;
+      const baseHref = `${parsedUrl.protocol}//${parsedUrl.hostname}`;
+
+      // <head> sonrasına base href + URL izleyici script ekle
+      const injectedScript = `
+<base href="${baseHref}/" target="_self">
+<script>
+(function() {
+  // Mevcut URL'yi parent'a bildir
+  function reportUrl() {
+    try {
+      window.parent.postMessage({ type: 'BROWSER_URL_CHANGE', url: window.location.href }, '*');
+    } catch(e) {}
+  }
+  reportUrl();
+  // Trendyol SPA navigate olduğunda da bildir
+  var _pushState = history.pushState;
+  history.pushState = function() { _pushState.apply(this, arguments); setTimeout(reportUrl, 100); };
+  var _replaceState = history.replaceState;
+  history.replaceState = function() { _replaceState.apply(this, arguments); setTimeout(reportUrl, 100); };
+  window.addEventListener('popstate', function() { setTimeout(reportUrl, 100); });
+  // Periyodik kontrol (SPA için)
+  var lastUrl = '';
+  setInterval(function() {
+    if (window.location.href !== lastUrl) { lastUrl = window.location.href; reportUrl(); }
+  }, 500);
+})();
+</script>`;
+
+      // <head> tagının hemen ardına ekle
+      if (html.includes('<head>')) {
+        html = html.replace('<head>', '<head>' + injectedScript);
+      } else if (html.includes('<html')) {
+        html = html.replace(/(<html[^>]*>)/i, '$1' + injectedScript);
+      } else {
+        html = injectedScript + html;
+      }
+
+      // Güvenlik başlıklarını sıfırla (iframe için)
+      res.removeHeader('X-Frame-Options');
+      res.setHeader('Content-Type', 'text/html; charset=utf-8');
+      res.setHeader('X-Frame-Options', 'SAMEORIGIN');
+      res.setHeader('Content-Security-Policy', '');
+      res.send(html);
+    } catch (err: any) {
+      const status = err.response?.status || 500;
+      res.status(status).send(`
+        <html><body style="background:#0f172a;color:#94a3b8;font-family:sans-serif;padding:20px;">
+          <h3>⚠️ Sayfa yüklenemedi</h3>
+          <p>${err.message}</p>
+          <p>URL: ${targetUrl}</p>
+        </body></html>`);
+    }
+  });
+  // ── Mini Tarayıcı Proxy bitiş ──────────────────────────────────────────────
+
   // Comprehensive Image System endpoint - TÜM görselleri sistematik çıkarma
   app.post('/api/comprehensive-images', async (req, res) => {
     try {

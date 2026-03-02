@@ -17,6 +17,7 @@ import { toast } from "@/hooks/use-toast";
 import { useLocation } from "wouter";
 import { useIsMobile } from "@/hooks/use-mobile";
 import ShopifySettingsDialog from "@/components/ShopifySettingsDialog";
+import MiniBrowser from "@/components/MiniBrowser";
 
 
 const scrapeSchema = z.object({
@@ -1409,6 +1410,19 @@ ${data.title.toLowerCase().replace(/[^a-z0-9]/g, '-')},${data.title},${data.bran
                       </div>
                     </div>
 
+                    {/* Dahili Mini Tarayıcı */}
+                    <MiniBrowser
+                      onExtract={(url) => {
+                        const trimmed = url.trim();
+                        if (!trimmed) return;
+                        if (!draggedUrls.includes(trimmed)) {
+                          setDraggedUrls(prev => [...prev, trimmed]);
+                          toast({ title: "URL Eklendi", description: "Tarayıcıdan URL listeye eklendi" });
+                        } else {
+                          toast({ title: "Zaten Ekli", description: "Bu URL zaten listede mevcut" });
+                        }
+                      }}
+                    />
 
                     {/* URL Listesi */}
                     {draggedUrls.length > 0 && (
