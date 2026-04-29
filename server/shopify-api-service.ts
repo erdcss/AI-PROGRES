@@ -59,17 +59,27 @@ export class ShopifyApiService {
   private baseUrl: string;
 
   constructor() {
-    this.storeUrl = process.env.SHOPIFY_STORE_URL || '';
-    this.accessToken = process.env.SHOPIFY_ADMIN_ACCESS_TOKEN || '';
-    
+    // Domain öncelik sırası: SHOPIFY_SHOP_DOMAIN → SHOPIFY_STORE_URL → SHOPIFY_STORE_DOMAIN
+    const rawDomain =
+      process.env.SHOPIFY_SHOP_DOMAIN ||
+      process.env.SHOPIFY_STORE_URL ||
+      process.env.SHOPIFY_STORE_DOMAIN ||
+      '';
+    // Token öncelik sırası: SHOPIFY_ADMIN_ACCESS_TOKEN → SHOPIFY_ACCESS_TOKEN
+    this.accessToken =
+      process.env.SHOPIFY_ADMIN_ACCESS_TOKEN ||
+      process.env.SHOPIFY_ACCESS_TOKEN ||
+      '';
+    this.storeUrl = rawDomain;
+
     if (!this.storeUrl || !this.accessToken) {
-      throw new Error('Shopify API credentials missing. Please set SHOPIFY_STORE_URL and SHOPIFY_ADMIN_ACCESS_TOKEN');
+      throw new Error('Shopify API credentials missing. Please set SHOPIFY_SHOP_DOMAIN and SHOPIFY_ADMIN_ACCESS_TOKEN');
     }
-    
-    // .myshopify.com uzantısını temizle
+
+    // URL prefix'ini temizle
     const cleanStoreUrl = this.storeUrl.replace(/^https?:\/\//, '').replace(/\/$/, '');
     this.baseUrl = `https://${cleanStoreUrl}/admin/api/2024-10/`;
-    
+
     console.log(`🛍️ Shopify API Service initialized: ${cleanStoreUrl}`);
   }
 

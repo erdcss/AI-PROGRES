@@ -8012,6 +8012,60 @@ ${(result.title || 'product').toLowerCase().replace(/[^a-z0-9]/g, '-')},${result
   console.log('📊 Centralized tracking system API endpoints registered');
 
   /**
+   * POST /api/tracking/:id/check-now - Ürünü anlık olarak şimdi kontrol et
+   */
+  app.post('/api/tracking/:id/check-now', async (req, res) => {
+    try {
+      const productId = parseInt(req.params.id);
+      const [product] = await db
+        .select()
+        .from(products)
+        .where(eq(products.id, productId));
+      if (!product) {
+        return res.status(404).json({ success: false, error: 'Ürün bulunamadı' });
+      }
+      const url = product.trendyolUrl || (product as any).sourceUrl;
+      if (!url) {
+        return res.status(400).json({ success: false, error: 'Ürün URL\'si bulunamadı' });
+      }
+      await urlTrackingService.checkUrl(url);
+      res.json({ success: true, message: 'Anlık kontrol tamamlandı', productId, url });
+    } catch (error) {
+      console.error('❌ Check-now error:', error);
+      res.status(500).json({ success: false, error: (error as Error).message });
+    }
+  });
+
+  /**
+   * POST /api/tracking/:id/set-interval - Takip aralığını güncelle
+   */
+  app.post('/api/tracking/:id/set-interval', async (req, res) => {
+    try {
+      const productId = parseInt(req.params.id);
+      const { intervalSeconds } = req.body;
+      if (!intervalSeconds || intervalSeconds < 60) {
+        return res.status(400).json({ success: false, error: 'Geçersiz aralık (min 60 saniye)' });
+      }
+      const [product] = await db
+        .select()
+        .from(products)
+        .where(eq(products.id, productId));
+      if (!product) {
+        return res.status(404).json({ success: false, error: 'Ürün bulunamadı' });
+      }
+      // URL tracking tablosunu güncelle
+      await db
+        .update(urlTracking)
+        .set({ trackingInterval: intervalSeconds, updatedAt: new Date() })
+        .where(eq(urlTracking.productId, productId));
+      res.json({ success: true, message: 'Takip aralığı güncellendi', intervalSeconds });
+    } catch (error) {
+      console.error('❌ Set-interval error:', error);
+      res.status(500).json({ success: false, error: (error as Error).message });
+    }
+  });
+
+  /**
    * POST /api/admin/cleanup-database - Veritabanı temizleme (tek ürün dışında tümünü sil)
    */
   app.post('/api/admin/cleanup-database', async (req, res) => {

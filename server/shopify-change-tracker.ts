@@ -75,7 +75,7 @@ class ShopifyChangeTracker {
         newPrice: currentData.price,
         change: priceChange,
         changePercent: priceChangePercent,
-        shopifyUrl: `https://${process.env.SHOPIFY_STORE_URL?.replace(/^https?:\/\//, '')}/admin/products/${shopifyProductId}`
+        shopifyUrl: `https://${(process.env.SHOPIFY_SHOP_DOMAIN || process.env.SHOPIFY_STORE_URL || '').replace(/^https?:\/\//, '').replace(/\/$/, '')}/admin/products/${shopifyProductId}`
       });
     }
 
@@ -113,7 +113,7 @@ class ShopifyChangeTracker {
           oldStock: cached.inventoryQuantity,
           newStock: currentData.inventoryQuantity,
           change: stockChange,
-          shopifyUrl: `https://${process.env.SHOPIFY_STORE_URL?.replace(/^https?:\/\//, '')}/admin/products/${shopifyProductId}`
+          shopifyUrl: `https://${(process.env.SHOPIFY_SHOP_DOMAIN || process.env.SHOPIFY_STORE_URL || '').replace(/^https?:\/\//, '').replace(/\/$/, '')}/admin/products/${shopifyProductId}`
         });
       }
     }
@@ -146,7 +146,7 @@ class ShopifyChangeTracker {
         title: currentData.title,
         oldStatus: cached.status,
         newStatus: currentData.status,
-        shopifyUrl: `https://${process.env.SHOPIFY_STORE_URL?.replace(/^https?:\/\//, '')}/admin/products/${shopifyProductId}`
+        shopifyUrl: `https://${(process.env.SHOPIFY_SHOP_DOMAIN || process.env.SHOPIFY_STORE_URL || '').replace(/^https?:\/\//, '').replace(/\/$/, '')}/admin/products/${shopifyProductId}`
       });
     }
 
