@@ -2194,9 +2194,10 @@ export function registerRoutes(app: Express): Server {
             if (result.success === false) {
               console.log('⚠️ Creating emergency CSV for blocked response...');
               const fallbackTitle = result.title && result.title !== "trendyol.com" ? result.title : "Trendyol Ürünü";
-              result.csvContent = `Handle,Title,Vendor,Status
-${fallbackTitle.toLowerCase().replace(/[^a-z0-9]/g, '-')},${fallbackTitle},Trendyol,draft`;
-              result.title = fallbackTitle; // Ensure we have a proper title
+              const fbHandle = fallbackTitle.toLowerCase().replace(/[^a-z0-9]/g, '-');
+              result.csvContent = `Title,URL handle,Description,Vendor,Product category,Type,Tags,Published on online store,Status,SKU,Barcode,Option1 name,Option1 value,Option1 Linked To,Option2 name,Option2 value,Option2 Linked To,Option3 name,Option3 value,Option3 Linked To,Price,Compare-at price,Cost per item,Charge tax,Tax code,Unit price total measure,Unit price total measure unit,Unit price base measure,Unit price base measure unit,Inventory tracker,Inventory quantity,Continue selling when out of stock,Weight value (grams),Weight unit for display,Requires shipping,Fulfillment service,Product image URL,Image position,Image alt text,Variant image URL,Gift card,SEO title,SEO description,Color (product.metafields.shopify.color-pattern),Google Shopping / Google product category,Google Shopping / Gender,Google Shopping / Age group,Google Shopping / Manufacturer part number (MPN),Google Shopping / Ad group name,Google Shopping / Ads labels,Google Shopping / Condition,Google Shopping / Custom product,Google Shopping / Custom label 0,Google Shopping / Custom label 1,Google Shopping / Custom label 2,Google Shopping / Custom label 3,Google Shopping / Custom label 4
+${fallbackTitle},${fbHandle},,,,,,TRUE,draft,,,,,,,,,,,,,,,,,,,,shopify,0,CONTINUE,,g,TRUE,manual,,,,,FALSE,,,,,,,,,,,,,`;
+              result.title = fallbackTitle;
             } else {
               // ✅ FIX IMAGE FORMAT - Ensure images are in correct format for CSV generation
               if (result.images && Array.isArray(result.images)) {
@@ -2251,15 +2252,19 @@ ${fallbackTitle.toLowerCase().replace(/[^a-z0-9]/g, '-')},${fallbackTitle},Trend
                   console.log(`🎨 Fallback color extracted: ${fallbackColor || 'none (empty)'}`);
                 }
                 
-                result.csvContent = `Handle,Title,Body (HTML),Vendor,Tags,Published,Option1 Name,Option1 Value,Variant Price,Image Src,Status
-${(result.title || 'product').toLowerCase().replace(/[^a-z0-9]/g, '-')},${result.title || 'Product'},${result.description || ''},${result.brand || ''},${(result.tags || []).join(' ')},TRUE,Renk,${fallbackColor},${result.price?.original || 100},${result.images?.[0]?.url || result.images?.[0] || ''},active`;
+                const fb2Handle = (result.title || 'product').toLowerCase().replace(/[^a-z0-9]/g, '-');
+                const fb2Price = (result.price?.original || 100).toString();
+                const fb2Img = result.images?.[0]?.url || result.images?.[0] || '';
+                result.csvContent = `Title,URL handle,Description,Vendor,Product category,Type,Tags,Published on online store,Status,SKU,Barcode,Option1 name,Option1 value,Option1 Linked To,Option2 name,Option2 value,Option2 Linked To,Option3 name,Option3 value,Option3 Linked To,Price,Compare-at price,Cost per item,Charge tax,Tax code,Unit price total measure,Unit price total measure unit,Unit price base measure,Unit price base measure unit,Inventory tracker,Inventory quantity,Continue selling when out of stock,Weight value (grams),Weight unit for display,Requires shipping,Fulfillment service,Product image URL,Image position,Image alt text,Variant image URL,Gift card,SEO title,SEO description,Color (product.metafields.shopify.color-pattern),Google Shopping / Google product category,Google Shopping / Gender,Google Shopping / Age group,Google Shopping / Manufacturer part number (MPN),Google Shopping / Ad group name,Google Shopping / Ads labels,Google Shopping / Condition,Google Shopping / Custom product,Google Shopping / Custom label 0,Google Shopping / Custom label 1,Google Shopping / Custom label 2,Google Shopping / Custom label 3,Google Shopping / Custom label 4
+${result.title || 'Product'},${fb2Handle},${result.description || ''},${result.brand || ''},,,${(result.tags || []).join(', ')},TRUE,active,,Renk,${fallbackColor},product.metafields.shopify.color-pattern,,,,,,,${fb2Price},,,,TRUE,,,,,,shopify,0,CONTINUE,,g,TRUE,manual,${fb2Img},1,${result.title || ''},,FALSE,,,,,,,,,,,,,`;
               }
             }
           } catch (csvError) {
             console.error('❌ CSV generation error:', csvError);
             // Ultimate fallback minimal CSV
             const safeTitle = (result.title && result.title !== "trendyol.com") ? result.title : "Trendyol Ürünü";
-            result.csvContent = `Handle,Title,Status\n${safeTitle.toLowerCase().replace(/[^a-z0-9]/g, '-')},${safeTitle},draft`;
+            const stHandle = safeTitle.toLowerCase().replace(/[^a-z0-9]/g, '-');
+            result.csvContent = `Title,URL handle,Description,Vendor,Product category,Type,Tags,Published on online store,Status,SKU,Barcode,Option1 name,Option1 value,Option1 Linked To,Option2 name,Option2 value,Option2 Linked To,Option3 name,Option3 value,Option3 Linked To,Price,Compare-at price,Cost per item,Charge tax,Tax code,Unit price total measure,Unit price total measure unit,Unit price base measure,Unit price base measure unit,Inventory tracker,Inventory quantity,Continue selling when out of stock,Weight value (grams),Weight unit for display,Requires shipping,Fulfillment service,Product image URL,Image position,Image alt text,Variant image URL,Gift card,SEO title,SEO description,Color (product.metafields.shopify.color-pattern),Google Shopping / Google product category,Google Shopping / Gender,Google Shopping / Age group,Google Shopping / Manufacturer part number (MPN),Google Shopping / Ad group name,Google Shopping / Ads labels,Google Shopping / Condition,Google Shopping / Custom product,Google Shopping / Custom label 0,Google Shopping / Custom label 1,Google Shopping / Custom label 2,Google Shopping / Custom label 3,Google Shopping / Custom label 4\n${safeTitle},${stHandle},,,,,,TRUE,draft,,,,,,,,,,,,,,,,,,,,shopify,0,CONTINUE,,g,TRUE,manual,,,,,FALSE,,,,,,,,,,,,,`;
             result.title = safeTitle;
           }
         }
@@ -2267,7 +2272,8 @@ ${(result.title || 'product').toLowerCase().replace(/[^a-z0-9]/g, '-')},${result
         // Ensure result has the proper structure for frontend
         if (result && !result.csvContent) {
           const fallbackTitle = "Trendyol Ürünü";
-          result.csvContent = `Handle,Title,Status\n${fallbackTitle.toLowerCase().replace(/[^a-z0-9]/g, '-')},${fallbackTitle},draft`;
+          const ftHandle = fallbackTitle.toLowerCase().replace(/[^a-z0-9]/g, '-');
+          result.csvContent = `Title,URL handle,Description,Vendor,Product category,Type,Tags,Published on online store,Status,SKU,Barcode,Option1 name,Option1 value,Option1 Linked To,Option2 name,Option2 value,Option2 Linked To,Option3 name,Option3 value,Option3 Linked To,Price,Compare-at price,Cost per item,Charge tax,Tax code,Unit price total measure,Unit price total measure unit,Unit price base measure,Unit price base measure unit,Inventory tracker,Inventory quantity,Continue selling when out of stock,Weight value (grams),Weight unit for display,Requires shipping,Fulfillment service,Product image URL,Image position,Image alt text,Variant image URL,Gift card,SEO title,SEO description,Color (product.metafields.shopify.color-pattern),Google Shopping / Google product category,Google Shopping / Gender,Google Shopping / Age group,Google Shopping / Manufacturer part number (MPN),Google Shopping / Ad group name,Google Shopping / Ads labels,Google Shopping / Condition,Google Shopping / Custom product,Google Shopping / Custom label 0,Google Shopping / Custom label 1,Google Shopping / Custom label 2,Google Shopping / Custom label 3,Google Shopping / Custom label 4\n${fallbackTitle},${ftHandle},,,,,,TRUE,draft,,,,,,,,,,,,,,,,,,,,shopify,0,CONTINUE,,g,TRUE,manual,,,,,FALSE,,,,,,,,,,,,,`;
           if (!result.title) result.title = fallbackTitle;
         }
 
