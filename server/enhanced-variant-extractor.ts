@@ -29,6 +29,7 @@ interface VariantExtractionResult {
   variants: VariantInfo[];
   method: string;
   extractedAt: Date;
+  images?: string[];
   otherColorVariants?: Array<{
     name: string;
     url: string;
@@ -431,6 +432,55 @@ export class EnhancedVariantExtractor {
       // Parse variants from extracted data
       const variants = this.parseVariantsFromData(variantData);
 
+      // 🎯 Extract images from fully rendered Puppeteer page
+      let puppeteerImages: string[] = [];
+      try {
+        puppeteerImages = await page.evaluate(() => {
+          const found = new Set<string>();
+
+          // 1. Find all CDN images in DOM
+          document.querySelectorAll('img').forEach((img: any) => {
+            const src = img.src || img.getAttribute('src') || img.getAttribute('data-src') || '';
+            if (src && src.includes('cdn.dsmcdn.com') && !src.includes('.svg') && 
+                !src.includes('logo') && !src.includes('icon') && !src.includes('badge') &&
+                !src.includes('common') && !src.includes('sprite')) {
+              found.add(src);
+            }
+          });
+
+          // 2. Extract from JS state __PRODUCT_DETAIL_APP_INITIAL_STATE__
+          try {
+            const state = (window as any).__PRODUCT_DETAIL_APP_INITIAL_STATE__;
+            if (state) {
+              const products = state.product?.allVariants || state.allVariants || [];
+              products.forEach((p: any) => {
+                (p.images || []).forEach((img: any) => {
+                  const url = img?.url || img;
+                  if (typeof url === 'string' && url.includes('cdn.dsmcdn.com')) found.add(url);
+                });
+              });
+              // Also check product level images
+              const prodImages = state.product?.images || state.images || [];
+              prodImages.forEach((img: any) => {
+                const url = img?.url || img;
+                if (typeof url === 'string' && url.includes('cdn.dsmcdn.com')) found.add(url);
+              });
+            }
+          } catch(e) {}
+
+          return Array.from(found);
+        });
+        
+        // Optimize URLs to highest resolution
+        puppeteerImages = puppeteerImages.map(src => {
+          return src.replace(/\/mnresize\/\d+\/\d+\//, '/').replace(/_\d+x\d+\./, '_org_zoom.');
+        }).filter((src, i, arr) => arr.indexOf(src) === i); // deduplicate
+        
+        console.log(`📸 PUPPETEER: Extracted ${puppeteerImages.length} images from rendered page`);
+      } catch (imgError) {
+        console.log(`⚠️ PUPPETEER: Image extraction failed: ${imgError.message}`);
+      }
+
       await browser.close();
 
       return {
@@ -438,7 +488,8 @@ export class EnhancedVariantExtractor {
         variants,
         method: 'enhanced_puppeteer',
         extractedAt: new Date(),
-        otherColorVariants: variantData.otherColorVariants || []
+        otherColorVariants: variantData.otherColorVariants || [],
+        images: puppeteerImages
       };
 
     } catch (error) {
@@ -489,7 +540,8 @@ export class EnhancedVariantExtractor {
   /**
    * Normalize size text by removing common prefixes
    */
-  private normalizeSize(sizeText: string): string {
+  private normalizeSize(sizeText: string | null | undefined): string {
+    if (!sizeText) return '';
     let cleaned = sizeText.trim();
     
     // Handle "Beden: XS" format - extract just the size part
@@ -504,10 +556,11 @@ export class EnhancedVariantExtractor {
   /**
    * Validate if a size string is a real size (not a product attribute)
    */
-  private isValidSize(sizeText: string): boolean {
+  private isValidSize(sizeText: string | null | undefined): boolean {
+    if (!sizeText) return false;
     // 🎯 CRITICAL FIX: Reject combined sizes like "373536373839404142"
-    // Only accept sizes with max 4 digits (e.g., "37", "105", "42.5")
-    const sizePattern = /^(XXS|XS|S|M|L|XL|XXL|XXXL|2XL|3XL|4XL|5XL|\d{1,4}(\.\d+)?|Tek\s*Beden|One\s*Size|STD|Standard)$/i;
+    // Accept standard sizes, storage sizes (128 GB, 256 GB, 1 TB), shoe sizes, EU sizes
+    const sizePattern = /^(XXS|XS|S|M|L|XL|XXL|XXXL|2XL|3XL|4XL|5XL|6XL|\d{1,4}(\.\d+)?(\s*(GB|TB|MB|cm|mm|ml|L|lt|kg|g))?|Tek\s*Beden|One\s*Size|STD|Standard|\d+\s*GB|\d+\s*TB|\d+\s*MB|\d+\s*ml|\d+\s*L|\d+\s*kg)$/i;
     
     // Normalize first
     const cleaned = this.normalizeSize(sizeText);

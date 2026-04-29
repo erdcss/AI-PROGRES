@@ -1571,7 +1571,7 @@ export async function scenarioBasedScrape(url: string): Promise<ScenarioBasedRes
       
       // Step 2: Extract basic information with individual error handling
       try {
-        title = extractTitle($);
+        title = extractTitle($, url);
         console.log(`✅ Title extraction successful: "${title}"`);
       } catch (titleError: any) {
         console.log(`❌ Title extraction failed: ${titleError?.message || 'Unknown title error'}`);
@@ -1656,6 +1656,7 @@ export async function scenarioBasedScrape(url: string): Promise<ScenarioBasedRes
     
     // 🎆 ADVANCED DATA EXTRACTION with comprehensive error handling
     let rawImages = [], images = [], features = [], detection, scenarioManager;
+    let puppeteerCapturedImages: string[] = []; // Images captured from Puppeteer rendered page
     
     try {
       console.log('🔍 Step 3: Starting advanced extraction with error handling...');
@@ -1810,6 +1811,13 @@ export async function scenarioBasedScrape(url: string): Promise<ScenarioBasedRes
           
           if (hybridResult.success && hybridResult.variants.length > 0) {
             console.log(`✅ Hybrid extraction successful via ${hybridResult.method}: ${hybridResult.variants.length} variants`);
+            
+            // 🎯 Capture images from Puppeteer rendered page
+            if (hybridResult.images && hybridResult.images.length > 0) {
+              puppeteerCapturedImages = hybridResult.images;
+              console.log(`📸 HYBRID: Captured ${puppeteerCapturedImages.length} images from Puppeteer`);
+            }
+            
             // 🎯 FIX: Default değerler kullanma - gerçek veri yoksa null bırak
             variants = hybridResult.variants.map(v => ({
               color: v.color && !defaultValues.includes(v.color) ? v.color : null,
@@ -1836,6 +1844,11 @@ export async function scenarioBasedScrape(url: string): Promise<ScenarioBasedRes
             console.log(`✅ Using Hybrid Fallback variants (${hybridResult.method})`);
           } else {
             console.log('⚠️ Hybrid extraction returned no variants, trying SKU-level detection...');
+            // Still capture images even if no variants found
+            if (hybridResult.images && hybridResult.images.length > 0) {
+              puppeteerCapturedImages = hybridResult.images;
+              console.log(`📸 HYBRID (no variants): Still captured ${puppeteerCapturedImages.length} images from Puppeteer`);
+            }
           }
         } catch (hybridError) {
           console.log(`⚠️ Hybrid extraction failed: ${hybridError.message}, trying SKU-level detection...`);
@@ -1955,6 +1968,12 @@ export async function scenarioBasedScrape(url: string): Promise<ScenarioBasedRes
       stockMap[key] = variant.inStock;
     });
     
+    // 🎯 Merge Puppeteer images if static extraction found nothing
+    if (images.length === 0 && puppeteerCapturedImages.length > 0) {
+      console.log(`📸 PUPPETEER FALLBACK: Using ${puppeteerCapturedImages.length} Puppeteer images (static HTML had 0)`);
+      images = puppeteerCapturedImages;
+    }
+
     // ✅ GÖRSEL VERİSİ UYUMLULUK DÜZELTME - CSV formatına uygun hale getir
     console.log(`📸 SCENARIO: Converting ${images.length} images to CSV-compatible format`);
     const csvCompatibleImages = images.map((imageUrl, index) => {
@@ -2520,7 +2539,39 @@ function validateAndSanitizeVariants(
 /**
  * Extract product title from page
  */
-function extractTitle($: any): string {
+function titleFromUrlSlug(url: string): string {
+  try {
+    const match = url.match(/trendyol\.com\/([^/?#]+)\/([^/?#]+)-p-(\d+)/i);
+    if (!match) return '';
+    const brandSlug = match[1];
+    const productSlug = match[2];
+    const knownBrands: Record<string, string> = {
+      'apple': 'Apple', 'samsung': 'Samsung', 'xiaomi': 'Xiaomi', 'huawei': 'Huawei',
+      'nike': 'Nike', 'adidas': 'Adidas', 'zara': 'Zara', 'lcwaikiki': 'LC Waikiki',
+      'mavi': 'Mavi', 'bershka': 'Bershka', 'koton': 'Koton', 'defacto': 'DeFacto',
+      'sony': 'Sony', 'lg': 'LG', 'asus': 'ASUS', 'lenovo': 'Lenovo', 'hp': 'HP',
+      'dyson': 'Dyson', 'bosch': 'Bosch', 'siemens': 'Siemens', 'philips': 'Philips',
+    };
+    const brand = knownBrands[brandSlug.toLowerCase()] ||
+      brandSlug.split('-').map(w => w.charAt(0).toUpperCase() + w.slice(1)).join(' ');
+    const productName = productSlug
+      .replace(/-/g, ' ')
+      .split(' ')
+      .map(w => {
+        // Preserve uppercase abbreviations like GB, TB, MB, HD, FHD, RAM, CPU
+        if (/^(gb|tb|mb|hd|fhd|uhd|lcd|led|cpu|ram|rom|nfc|gps|usb|hdmi|mp|fps|hz|cm|mm)$/i.test(w)) {
+          return w.toUpperCase();
+        }
+        return w.charAt(0).toUpperCase() + w.slice(1).toLowerCase();
+      })
+      .join(' ');
+    return `${brand} ${productName}`.trim();
+  } catch {
+    return '';
+  }
+}
+
+function extractTitle($: any, url?: string): string {
   console.log('🔍 TITLE EXTRACTION: Starting with comprehensive error handling...');
   
   try {
@@ -2597,6 +2648,19 @@ function extractTitle($: any): string {
     console.log(`❌ Page title extraction failed: ${pageTitleError.message}`);
   }
   
+  // 🔗 URL-based title extraction as emergency fallback
+  if (url) {
+    try {
+      const urlTitle = titleFromUrlSlug(url);
+      if (urlTitle && urlTitle.length > 3) {
+        console.log(`✅ Title from URL slug: "${urlTitle}"`);
+        return urlTitle;
+      }
+    } catch (urlErr) {
+      console.log(`❌ URL title extraction failed: ${urlErr}`);
+    }
+  }
+
   // 🚨 ALL TITLE EXTRACTION FAILED - likely blocked content
   console.log('❌ All title extraction methods failed - content may be blocked');
   return 'Ürün Bilgisi Alınamadı';
