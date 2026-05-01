@@ -758,71 +758,120 @@ async function tryPuppeteerColorExtraction(url: string): Promise<{success: boole
       
       const colorData = await page.evaluate(() => {
         const colors: string[] = [];
+        let currentColor = '';
+        const sizesWithStock: string[] = [];
         
-        // Method 1: JavaScript State
         const win = window as any;
-        if (win.__PRODUCT_DETAIL_APP_INITIAL_STATE__) {
-          const state = win.__PRODUCT_DETAIL_APP_INITIAL_STATE__;
-          if (state.product?.variants) {
+        const state = win.__PRODUCT_DETAIL_APP_INITIAL_STATE__;
+        
+        // Method 1: Current product color from JS State (most reliable)
+        if (state) {
+          // The current product's color from Trendyol state
+          const productColor = state.product?.color || state.product?.attributes?.find((a: any) => a.key === 'Renk')?.value;
+          if (productColor && typeof productColor === 'string' && productColor.length > 0 && productColor.length < 60) {
+            currentColor = productColor;
+          }
+          
+          // Extract ALL sizes with stock status from allVariants
+          const allVariants = state.product?.allVariants || [];
+          allVariants.forEach((v: any) => {
+            const attrName = (v.attributeName || '').toLowerCase();
+            if (attrName === 'beden' || attrName === 'size') {
+              const sizeVal = v.attributeValue || v.value || v.attributeBeautifiedValue || '';
+              const stockState = v.stockState || v.stock || '';
+              const inStock = stockState !== 'OutOfStock' && stockState !== 'SoldOut';
+              if (sizeVal && sizeVal.length > 0 && sizeVal.length < 20) {
+                sizesWithStock.push(`${sizeVal}:${inStock ? 'in' : 'out'}`);
+              }
+            }
+          });
+          
+          // Fallback: read from slicedAttributes if allVariants is empty
+          if (sizesWithStock.length === 0) {
+            const sliced = state.product?.slicedAttributes || [];
+            sliced.forEach((attr: any) => {
+              const attrName = (attr.attributeName || '').toLowerCase();
+              if (attrName === 'beden' || attrName === 'size') {
+                (attr.attributes || []).forEach((item: any) => {
+                  const sizeVal = item.attributeValue || item.value || item.attributeBeautifiedValue || '';
+                  if (sizeVal && sizeVal.length > 0 && sizeVal.length < 20) {
+                    sizesWithStock.push(`${sizeVal}:in`);
+                  }
+                });
+              }
+            });
+          }
+          
+          // Fallback: read color variants from state.product.variants (renk attribute)
+          if (!currentColor && state.product?.variants) {
             state.product.variants.forEach((v: any) => {
               if (v.attributeName && v.attributeName.toLowerCase().includes('renk')) {
-                colors.push(v.value || v.name);
+                if (!currentColor) currentColor = v.value || v.name || '';
               }
             });
           }
         }
         
-        // Method 2: DOM Color Buttons
+        // Method 2: DOM Color Buttons - get OTHER available colors
         const colorButtons = document.querySelectorAll('[class*="color"], [class*="renk"], .slctn-item');
         colorButtons.forEach((btn) => {
-          const colorName = btn.getAttribute('title') || btn.getAttribute('data-color') || btn.textContent?.trim();
+          const colorName = (btn as any).getAttribute('title') || (btn as any).getAttribute('data-color') || (btn as any).textContent?.trim();
           if (colorName && colorName.length > 0 && colorName.length < 50) {
             colors.push(colorName);
           }
         });
         
-        return [...new Set(colors)];
+        return { colors: [...new Set(colors)], currentColor, sizesWithStock };
       });
       
+      const currentColorFromPuppeteer = colorData.currentColor || '';
+      const sizesWithStockFromPuppeteer = colorData.sizesWithStock || [];
+      
       // Normalize extracted colors - only keep actual colors, not sizes
-      extractedColors = colorData
+      extractedColors = (colorData.colors || [])
         .filter((c: string) => c && c.length > 0)
         .map((c: string) => {
-          // Skip if it looks like a size (S, M, L, XL, numbers, etc.)
           const sizePattern = /^(XXS|XS|S|M|L|XL|XXL|XXXL|2XL|3XL|4XL|\d{2,3})$/i;
-          if (sizePattern.test(c.trim())) {
-            return null; // This is a size, not a color
-          }
-          
-          // Try parseVariantString for complex strings
+          if (sizePattern.test(c.trim())) return null;
           const parsed = parseVariantString(c);
           if (parsed.color) return parsed.color;
-          
-          // Try cleanColorName as fallback
           const cleaned = cleanColorName(c);
           return cleaned;
         })
         .filter((c: string | null): c is string => c !== null && c.length > 0);
       
-      // Remove duplicates
       extractedColors = [...new Set(extractedColors)];
       
+      if (currentColorFromPuppeteer) {
+        console.log(`🎨 Puppeteer CURRENT color: ${currentColorFromPuppeteer}`);
+      }
+      if (sizesWithStockFromPuppeteer.length > 0) {
+        console.log(`👕 Puppeteer extracted ${sizesWithStockFromPuppeteer.length} sizes with stock:`, sizesWithStockFromPuppeteer.join(', '));
+      }
       if (extractedColors.length > 0) {
         console.log(`🎨 Puppeteer extracted ${extractedColors.length} normalized colors:`, extractedColors.join(', '));
-      } else {
-        console.log('⚠️ No colors found by Puppeteer');
       }
     } catch (colorError) {
-      console.log('⚠️ Color extraction failed:', colorError.message);
+      console.log('⚠️ Color extraction failed:', (colorError as any).message);
     }
     
     // Get page content
     const htmlContent = await page.content();
     
-    // Inject extracted colors into HTML
+    // Inject extracted colors and sizes into HTML
     let finalHtml = htmlContent;
+    const metaTags: string[] = [];
     if (extractedColors.length > 0) {
-      finalHtml = htmlContent.replace('</head>', `<meta name="puppeteer-colors" content="${extractedColors.join(',')}" /></head>`);
+      metaTags.push(`<meta name="puppeteer-colors" content="${extractedColors.join(',')}" />`);
+    }
+    if (currentColorFromPuppeteer) {
+      metaTags.push(`<meta name="puppeteer-current-color" content="${currentColorFromPuppeteer}" />`);
+    }
+    if (sizesWithStockFromPuppeteer.length > 0) {
+      metaTags.push(`<meta name="puppeteer-sizes" content="${sizesWithStockFromPuppeteer.join(',')}" />`);
+    }
+    if (metaTags.length > 0) {
+      finalHtml = htmlContent.replace('</head>', `${metaTags.join('')}</head>`);
     }
     
     await browser.close();
@@ -943,11 +992,21 @@ export async function scenarioBasedScrape(url: string): Promise<ScenarioBasedRes
           const initialVariants = extractEnhancedVariants($, htmlContent);
           const hasColors = initialVariants && initialVariants.length > 0 && 
                            initialVariants.some(v => v.color && v.color !== 'Standart' && v.color !== 'Tek Renk');
+
+          // Check if clothing sizes are incomplete (Puppeteer needed to get all sizes from JS state)
+          const initialSizeSet = new Set(
+            (initialVariants || []).filter((v: any) => v.size).map((v: any) => String(v.size).toUpperCase())
+          );
+          const clothingSizeKeywords = ['S','M','L','XL','XXL','2XL','XS','3XL','4XL'];
+          const hasClothingSizes = Array.from(initialSizeSet).some(s => clothingSizeKeywords.includes(s));
+          // If we have clothing sizes but ≤3, there are likely more (XL, 2XL, etc.) only in JS state
+          const incompleteSizes = hasClothingSizes && initialSizeSet.size <= 3;
+          const needsPuppeteer = !hasColors || incompleteSizes;
           
-          console.log(`🎨 Initial variant check: ${initialVariants?.length || 0} variants, hasColors: ${hasColors}`);
+          console.log(`🎨 Initial variant check: ${initialVariants?.length || 0} variants, hasColors: ${hasColors}, sizes: [${Array.from(initialSizeSet).join(',')}], incompleteSizes: ${incompleteSizes}, needsPuppeteer: ${needsPuppeteer}`);
           
-          if (!hasColors) {
-            console.log('🎨 No colors detected in HTML, trying Puppeteer extraction...');
+          if (needsPuppeteer) {
+            console.log(`🎨 Puppeteer needed: hasColors=${hasColors}, incompleteSizes=${incompleteSizes} - launching Puppeteer...`);
             try {
               const puppeteerResult = await tryPuppeteerColorExtraction(url);
               if (puppeteerResult && puppeteerResult.success && puppeteerResult.htmlContent) {
@@ -1359,46 +1418,98 @@ export async function scenarioBasedScrape(url: string): Promise<ScenarioBasedRes
         // Extract colors from JavaScript state and DOM
         const colorData = await page.evaluate(() => {
           const colors: string[] = [];
+          let currentColor = '';
+          const sizesWithStock: string[] = [];
           
-          // Method 1: JavaScript State
           const win = window as any;
-          if (win.__PRODUCT_DETAIL_APP_INITIAL_STATE__) {
-            const state = win.__PRODUCT_DETAIL_APP_INITIAL_STATE__;
-            if (state.product?.variants) {
+          const state = win.__PRODUCT_DETAIL_APP_INITIAL_STATE__;
+          
+          if (state) {
+            const productColor = state.product?.color || state.product?.attributes?.find((a: any) => a.key === 'Renk')?.value;
+            if (productColor && typeof productColor === 'string' && productColor.length > 0 && productColor.length < 60) {
+              currentColor = productColor;
+            }
+            
+            const allVariants = state.product?.allVariants || [];
+            allVariants.forEach((v: any) => {
+              const attrName = (v.attributeName || '').toLowerCase();
+              if (attrName === 'beden' || attrName === 'size') {
+                const sizeVal = v.attributeValue || v.value || v.attributeBeautifiedValue || '';
+                const stockState = v.stockState || v.stock || '';
+                const inStock = stockState !== 'OutOfStock' && stockState !== 'SoldOut';
+                if (sizeVal && sizeVal.length > 0 && sizeVal.length < 20) {
+                  sizesWithStock.push(`${sizeVal}:${inStock ? 'in' : 'out'}`);
+                }
+              }
+            });
+            
+            if (sizesWithStock.length === 0) {
+              const sliced = state.product?.slicedAttributes || [];
+              sliced.forEach((attr: any) => {
+                const attrName = (attr.attributeName || '').toLowerCase();
+                if (attrName === 'beden' || attrName === 'size') {
+                  (attr.attributes || []).forEach((item: any) => {
+                    const sizeVal = item.attributeValue || item.value || item.attributeBeautifiedValue || '';
+                    if (sizeVal && sizeVal.length > 0 && sizeVal.length < 20) {
+                      sizesWithStock.push(`${sizeVal}:in`);
+                    }
+                  });
+                }
+              });
+            }
+            
+            if (!currentColor && state.product?.variants) {
               state.product.variants.forEach((v: any) => {
                 if (v.attributeName && v.attributeName.toLowerCase().includes('renk')) {
-                  colors.push(v.value || v.name);
+                  if (!currentColor) currentColor = v.value || v.name || '';
                 }
               });
             }
           }
           
-          // Method 2: DOM Color Buttons
           const colorButtons = document.querySelectorAll('[class*="color"], [class*="renk"], .slctn-item');
           colorButtons.forEach((btn) => {
-            const colorName = btn.getAttribute('title') || btn.getAttribute('data-color') || btn.textContent?.trim();
+            const colorName = (btn as any).getAttribute('title') || (btn as any).getAttribute('data-color') || (btn as any).textContent?.trim();
             if (colorName && colorName.length > 0 && colorName.length < 50) {
               colors.push(colorName);
             }
           });
           
-          return [...new Set(colors)]; // Remove duplicates
+          return { colors: [...new Set(colors)], currentColor, sizesWithStock };
         });
         
-        extractedColors = colorData.filter((c: string) => c && c.length > 0);
+        const currentColorFromPuppeteer2 = colorData.currentColor || '';
+        const sizesWithStockFromPuppeteer2 = colorData.sizesWithStock || [];
+        extractedColors = (colorData.colors || []).filter((c: string) => c && c.length > 0);
+        if (currentColorFromPuppeteer2) {
+          console.log(`🎨 Puppeteer CURRENT color: ${currentColorFromPuppeteer2}`);
+        }
+        if (sizesWithStockFromPuppeteer2.length > 0) {
+          console.log(`👕 Puppeteer sizes: ${sizesWithStockFromPuppeteer2.join(', ')}`);
+        }
         if (extractedColors.length > 0) {
           console.log(`🎨 Puppeteer extracted ${extractedColors.length} colors:`, extractedColors.join(', '));
         }
       } catch (colorError) {
-        console.log('⚠️ Color extraction failed:', colorError.message);
+        console.log('⚠️ Color extraction failed:', (colorError as any).message);
       }
       
       // Get page content
       htmlContent = await page.content();
       
-      // Inject extracted colors into HTML for downstream processing
+      // Inject extracted colors, current color and sizes into HTML
+      const metaTags2: string[] = [];
       if (extractedColors.length > 0) {
-        htmlContent = htmlContent.replace('</head>', `<meta name="puppeteer-colors" content="${extractedColors.join(',')}" /></head>`);
+        metaTags2.push(`<meta name="puppeteer-colors" content="${extractedColors.join(',')}" />`);
+      }
+      if (typeof currentColorFromPuppeteer2 !== 'undefined' && currentColorFromPuppeteer2) {
+        metaTags2.push(`<meta name="puppeteer-current-color" content="${currentColorFromPuppeteer2}" />`);
+      }
+      if (typeof sizesWithStockFromPuppeteer2 !== 'undefined' && sizesWithStockFromPuppeteer2.length > 0) {
+        metaTags2.push(`<meta name="puppeteer-sizes" content="${sizesWithStockFromPuppeteer2.join(',')}" />`);
+      }
+      if (metaTags2.length > 0) {
+        htmlContent = htmlContent.replace('</head>', `${metaTags2.join('')}</head>`);
       }
       
       // 🛡️ BULLET-PROOF HTML PARSING using new fix
@@ -2091,12 +2202,37 @@ export async function scenarioBasedScrape(url: string): Promise<ScenarioBasedRes
     const shouldReplaceFakeColors = (hasOnlyFakeColors || (colors.length === 0 && variantColorsAreFake)) && variants.length > 0;
     
     if (shouldReplaceFakeColors) {
-      console.log('🎨 All colors are fake/placeholder, attempting URL/title extraction...');
+      console.log('🎨 All colors are fake/placeholder, attempting URL/title/JSON-LD extraction...');
       
       // Try to extract real color from URL or title
       let realColor = extractColorFromUrl(url);
       if (!realColor && title) {
         realColor = extractColorFromTitle(title);
+      }
+      
+      // NEW: Try JSON-LD "color" field (authoritative for main product)
+      if (!realColor && $ && htmlContent) {
+        try {
+          const jsonLdScripts = $('script[type="application/ld+json"]');
+          jsonLdScripts.each((_: any, script: any) => {
+            if (realColor) return;
+            const jsonStr = $(script).html() || '';
+            const jsonData = JSON.parse(jsonStr);
+            if (jsonData && jsonData.color && typeof jsonData.color === 'string' && jsonData.color.length > 0) {
+              realColor = jsonData.color;
+              console.log(`🎨 JSON-LD color found: "${realColor}"`);
+            }
+          });
+        } catch {}
+      }
+      
+      // NEW: Try DsmColor from script tags (Trendyol's main product color field)
+      if (!realColor && htmlContent) {
+        const dsmMatch = htmlContent.match(/"DsmColor"\s*:\s*"([^"]{2,50})"/);
+        if (dsmMatch && dsmMatch[1]) {
+          realColor = dsmMatch[1];
+          console.log(`🎨 DsmColor found: "${realColor}"`);
+        }
       }
       
       if (realColor) {
@@ -2110,9 +2246,9 @@ export async function scenarioBasedScrape(url: string): Promise<ScenarioBasedRes
         }));
         
         // Update colors array
-        colors = [realColor];
+        colors = [realColor!];
       } else {
-        console.log('🎨 No real color found in URL/title, keeping original values');
+        console.log('🎨 No real color found in URL/title/JSON-LD, keeping original values');
       }
     }
     
@@ -2519,7 +2655,7 @@ function validateAndSanitizeVariants(
   
   const allVariants = uniqueAuthenticVariants.map(variant => ({
     color: variant.color,
-    colorCode: colorCodes[variant.color.toLowerCase()] || '#999999',
+    colorCode: variant.color ? (colorCodes[variant.color.toLowerCase()] || '#999999') : '#999999',
     size: variant.size,
     inStock: variant.inStock
   }));
@@ -4109,10 +4245,36 @@ async function extractVariantsDirect($: cheerio.CheerioAPI, htmlContent: string,
   // 🚫 Skip size combination for non-clothing products
   const jsonLdSizes = skipSizeExtraction ? [] : jsonLdVariants.sizes;
   let allSizes = Array.from(new Set([...sizes, ...jsonExtractedSizes, ...jsonLdSizes]));
+
+  // 🎯 HIGHEST PRIORITY: Read puppeteer-injected sizes (from JS state allVariants)
+  // This gives us ALL sizes with real stock status, not just DOM-visible ones
+  let puppeteerSizeStock: Map<string, boolean> = new Map();
+  if (!skipSizeExtraction) {
+    const puppeteerSizesMeta = $('meta[name="puppeteer-sizes"]').attr('content');
+    if (puppeteerSizesMeta && puppeteerSizesMeta.trim()) {
+      const puppeteerSizeEntries = puppeteerSizesMeta.split(',').map((s: string) => s.trim()).filter((s: string) => s.length > 0);
+      const puppeteerSizesOnly: string[] = [];
+      puppeteerSizeEntries.forEach((entry: string) => {
+        const [sizeVal, stock] = entry.split(':');
+        if (sizeVal && sizeVal.trim()) {
+          const normalizedSize = normalizeSize(sizeVal.trim().toUpperCase());
+          if (normalizedSize) {
+            puppeteerSizesOnly.push(normalizedSize);
+            puppeteerSizeStock.set(normalizedSize, stock !== 'out');
+          }
+        }
+      });
+      if (puppeteerSizesOnly.length > 0) {
+        console.log(`🎯 PUPPETEER SIZES OVERRIDE: ${puppeteerSizesOnly.length} sizes from JS state: [${puppeteerSizesOnly.join(', ')}]`);
+        allSizes = puppeteerSizesOnly;
+      }
+    }
+  }
   
   // 🔥 STRICT RULE: If product has no real size options, COMPLETELY empty the sizes array
   if (skipSizeExtraction) {
     allSizes = [];
+    puppeteerSizeStock = new Map();
     console.log(`🚫 STRICT RULE APPLIED: Non-clothing product - size array COMPLETELY CLEARED`);
   }
   
@@ -4160,7 +4322,19 @@ async function extractVariantsDirect($: cheerio.CheerioAPI, htmlContent: string,
     titleColors = [];
   }
   
-  // PRIORITY 1.5: Puppeteer-extracted colors (HIGHEST PRIORITY if available)
+  // PRIORITY 0: puppeteer-current-color = the actual color of the product page being scraped (ABSOLUTE HIGHEST)
+  let puppeteerCurrentColor = '';
+  try {
+    const puppeteerCurrentColorMeta = $('meta[name="puppeteer-current-color"]').attr('content');
+    if (puppeteerCurrentColorMeta && puppeteerCurrentColorMeta.trim()) {
+      puppeteerCurrentColor = puppeteerCurrentColorMeta.trim();
+      console.log(`🎨 PUPPETEER CURRENT COLOR (absolute priority): ${puppeteerCurrentColor}`);
+    }
+  } catch (error) {
+    console.log(`⚠️ Puppeteer current-color extraction error: ${(error as any).message}`);
+  }
+
+  // PRIORITY 1.5: Puppeteer-extracted colors from DOM picker (high priority if available)
   let puppeteerColors: string[] = [];
   try {
     puppeteerColors = extractAllColorsFromMeta($);
@@ -4168,10 +4342,13 @@ async function extractVariantsDirect($: cheerio.CheerioAPI, htmlContent: string,
       console.log(`🎨 PUPPETEER COLORS FOUND: ${puppeteerColors.length} colors - ${puppeteerColors.join(', ')}`);
     }
   } catch (error) {
-    console.log(`⚠️ Puppeteer color extraction error: ${error.message}`);
+    console.log(`⚠️ Puppeteer color extraction error: ${(error as any).message}`);
   }
   
-  if (puppeteerColors.length > 0) {
+  if (puppeteerCurrentColor) {
+    detectedColors = [puppeteerCurrentColor];
+    console.log(`🎯 FINAL: puppeteer-current-color (ABSOLUTE PRIORITY): [${puppeteerCurrentColor}]`);
+  } else if (puppeteerColors.length > 0) {
     detectedColors = puppeteerColors;
     console.log(`🎯 FINAL: Puppeteer-extracted colors (HIGHEST PRIORITY): [${puppeteerColors.join(', ')}]`);
   } else if (titleColors.length > 0) {
@@ -4186,6 +4363,10 @@ async function extractVariantsDirect($: cheerio.CheerioAPI, htmlContent: string,
   } else if (urlColor) {
     detectedColors = [urlColor];
     console.log(`🎯 FINAL: URL color selected: ${urlColor}`);
+  } else if (jsonLdVariants.colors.length === 1 && jsonLdVariants.colors[0]) {
+    // JSON-LD "color" field is authoritative structured data for the MAIN product only
+    detectedColors = jsonLdVariants.colors;
+    console.log(`🎯 FINAL: JSON-LD single authoritative color: ${jsonLdVariants.colors[0]}`);
   } else if (allRawColors.length > 0) {
     // CRITICAL FIX: Use frequency-based selection instead of hardcoded logic
     const colorCounts = new Map<string, number>();
@@ -4277,9 +4458,16 @@ async function extractVariantsDirect($: cheerio.CheerioAPI, htmlContent: string,
       filteredColors.forEach(color => {
         realSizes.forEach(size => {
           if (typeof size === 'string' && size.trim() !== '') {
-            console.log(`🔥 STOK KONTROLÜ BAŞLATIYOR: ${color} - ${size} için gerçek stok tespiti...`);
-            const inStock = checkVariantStock($, htmlContent, color, size, url);
-            console.log(`🔥 STOK SONUCU: ${color} - ${size} = ${inStock ? 'STOKTA VAR' : 'STOKTA YOK'}`);
+            // Use puppeteerSizeStock if available (accurate stock from JS state)
+            let inStock: boolean;
+            if (puppeteerSizeStock.size > 0 && puppeteerSizeStock.has(size)) {
+              inStock = puppeteerSizeStock.get(size) as boolean;
+              console.log(`🎯 STOK (puppeteer): ${color} - ${size} = ${inStock ? 'STOKTA VAR' : 'STOKTA YOK'}`);
+            } else {
+              console.log(`🔥 STOK KONTROLÜ BAŞLATIYOR: ${color} - ${size} için gerçek stok tespiti...`);
+              inStock = checkVariantStock($, htmlContent, color, size, url);
+              console.log(`🔥 STOK SONUCU: ${color} - ${size} = ${inStock ? 'STOKTA VAR' : 'STOKTA YOK'}`);
+            }
             variants.push({
               color: color,
               colorCode: getColorCode(color),
@@ -4321,7 +4509,13 @@ async function extractVariantsDirect($: cheerio.CheerioAPI, htmlContent: string,
     allSizes.forEach(size => {
       // Skip fake sizes like "1", "Standart", "Varsayılan"
       if (size && size !== '1' && size !== 'Standart' && size !== 'Varsayılan' && size.trim() !== '') {
-        const inStock = checkVariantStock($, htmlContent, '', size, url);
+        let inStock: boolean;
+        if (puppeteerSizeStock.size > 0 && puppeteerSizeStock.has(size)) {
+          inStock = puppeteerSizeStock.get(size) as boolean;
+          console.log(`🎯 STOK (puppeteer): ${size} = ${inStock ? 'STOKTA VAR' : 'STOKTA YOK'}`);
+        } else {
+          inStock = checkVariantStock($, htmlContent, '', size, url);
+        }
         variants.push({
           color: '', // No fake color
           colorCode: '',
