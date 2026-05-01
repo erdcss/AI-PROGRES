@@ -2254,14 +2254,6 @@ export async function scenarioBasedScrape(url: string): Promise<ScenarioBasedRes
     
     // 🚫 CRITICAL: STRICT SIZE EXTRACTION CONTROL - Apply BEFORE variant validation
     // This is the FINAL GATE to prevent fake sizes on non-clothing products
-    const clothingKeywords = [
-      'tişört', 't-shirt', 'tshirt', 'gömlek', 'pantolon', 'elbise', 'etek', 
-      'kazak', 'mont', 'ceket', 'hırka', 'bluz', 'yelek', 'şort', 'eşofman',
-      'ayakkabı', 'çizme', 'bot', 'sneaker', 'terlik', 'sandalet', 'topuklu',
-      'iç giyim', 'pijama', 'mayo', 'bikini', 'sweatshirt', 'hoodie', 'polar',
-      'trençkot', 'kaban', 'palto', 'tayt', 'jean', 'kot', 'denim'
-    ];
-    
     const clothingUrlPatterns = [
       '/giyim/', '/ayakkabi/', '/tisort/', '/pantolon/', '/elbise/', '/gomlek/',
       '/ceket/', '/mont/', '/etek/', '/sort/', '/esofman/', '/pijama/',
@@ -2271,8 +2263,11 @@ export async function scenarioBasedScrape(url: string): Promise<ScenarioBasedRes
     const titleLower = title?.toLowerCase() || '';
     const urlLower = url.toLowerCase();
     
-    const hasClothingKeyword = clothingKeywords.some(kw => titleLower.includes(kw));
-    const hasClothingUrlPattern = clothingUrlPatterns.some(pattern => urlLower.includes(pattern));
+    // Use centralized isClothingProduct() which covers all footwear (babet, loafer, etc.)
+    // Also check URL slug for clothing keywords (e.g. "tokali-babet" in URL slug)
+    const hasClothingKeyword = isClothingProduct(title || '');
+    const hasClothingUrlPattern = clothingUrlPatterns.some(pattern => urlLower.includes(pattern))
+      || (titleLower !== urlLower && isClothingProduct(url.replace(/-/g, ' ')));
     const isConfirmedClothingProduct = hasClothingKeyword || hasClothingUrlPattern;
     
     if (!isConfirmedClothingProduct) {
@@ -2400,14 +2395,6 @@ function validateAndSanitizeVariants(
   console.log(`🔍 VARIANT VALIDATION: Input ${rawVariants.length} variants, ${rawColors.length} colors`);
   
   // 🚫 CRITICAL: CLOTHING CHECK - Strip all size data for non-clothing products
-  const clothingKeywords = [
-    'tişört', 't-shirt', 'tshirt', 'gömlek', 'pantolon', 'elbise', 'etek', 
-    'kazak', 'mont', 'ceket', 'hırka', 'bluz', 'yelek', 'şort', 'eşofman',
-    'ayakkabı', 'çizme', 'bot', 'sneaker', 'terlik', 'sandalet', 'topuklu',
-    'iç giyim', 'pijama', 'mayo', 'bikini', 'sweatshirt', 'hoodie', 'polar',
-    'trençkot', 'kaban', 'palto', 'tayt', 'jean', 'kot', 'denim'
-  ];
-  
   const clothingUrlPatterns = [
     '/giyim/', '/ayakkabi/', '/tisort/', '/pantolon/', '/elbise/', '/gomlek/',
     '/ceket/', '/mont/', '/etek/', '/sort/', '/esofman/', '/pijama/',
@@ -2417,8 +2404,10 @@ function validateAndSanitizeVariants(
   const titleLower = (title || '').toLowerCase();
   const urlLower = (url || '').toLowerCase();
   
-  const hasClothingKeyword = clothingKeywords.some(kw => titleLower.includes(kw));
-  const hasClothingUrlPattern = clothingUrlPatterns.some(pattern => urlLower.includes(pattern));
+  // Use centralized isClothingProduct() which covers all footwear (babet, loafer, etc.)
+  const hasClothingKeyword = isClothingProduct(title || '');
+  const hasClothingUrlPattern = clothingUrlPatterns.some(pattern => urlLower.includes(pattern))
+    || (titleLower !== urlLower && isClothingProduct((url || '').replace(/-/g, ' ')));
   const isConfirmedClothingProduct = hasClothingKeyword || hasClothingUrlPattern;
   
   if (!isConfirmedClothingProduct) {
@@ -3987,15 +3976,8 @@ async function extractVariantsDirect($: cheerio.CheerioAPI, htmlContent: string,
   const electronicModifiers = ['bebek', 'güvenlik', 'ip', 'wifi', 'akıllı', 'smart', 'dijital', 'digital', 'lcd', 'kablosuz', 'wireless'];
   
   // CLOTHING KEYWORDS - If product has these, it's definitely clothing (override non-clothing detection)
-  // Using word boundary matching to avoid false positives (e.g., "bot" matching "robot")
-  const clothingKeywords = [
-    'tişört', 'tisört', 't-shirt', 'tshirt', 'gömlek', 'bluz', 'kazak', 'hırka', 'ceket', 'mont', 'kaban',
-    'pantolon', 'jean', 'kot', 'şort', 'etek', 'elbise', 'tunik', 'tayt', 'eşofman', 'sweatshirt', 'hoodie',
-    'iç giyim', 'külot', 'sütyen', 'boxer', 'pijama', 'gecelik', 'bornoz',
-    'forma', 'atlet', 'mayo', 'bikini', 'yelek',
-    'ayakkabı', 'çizme', 'sneaker', 'terlik', 'sandalet',
-    'çanta', 'şal', 'fular', 'eldiven', 'bere', 'şapka'
-  ];
+  // Using centralized CLOTHING_KEYWORDS list which includes all footwear types (babet, loafer, etc.)
+  const clothingKeywords = CLOTHING_KEYWORDS.filter(kw => kw.length > 3);
   
   // Short keywords that need word boundary matching to avoid false positives
   // "bot" should match "deri bot" but NOT "robot süpürge"

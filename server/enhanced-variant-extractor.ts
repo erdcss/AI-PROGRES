@@ -800,6 +800,20 @@ export class EnhancedVariantExtractor {
         continue;
       }
       
+      // Skip if it's a product type name, not a color (e.g. "Bershka Tokalı babet")
+      // Product names containing footwear/clothing type words are NOT colors
+      const productTypeKeywords = [
+        'babet', 'ayakkabı', 'tişört', 'pantolon', 'gömlek', 'ceket',
+        'elbise', 'sneaker', 'çizme', 'terlik', 'sandalet', 'çanta',
+        'kazak', 'mont', 'sweatshirt', 'hoodie', 'tayt', 'şort', 'mayo',
+        'bikini', 'pijama', 'atlet', 'hırka', 'yelek', 'loafer', 'mokasen'
+      ];
+      const isProductTypeName = productTypeKeywords.some(kw => lowerCleaned.includes(kw));
+      if (isProductTypeName) {
+        console.log(`🚫 Skipping product type name as color: "${cleaned}"`);
+        continue;
+      }
+      
       // Skip if it looks like a size (S, M, L, XL, XXL, 2XL, 36, 38, etc.)
       const sizePatterns = [
         /^(XXS|XS|S|M|L|XL|XXL|XXXL)$/i,

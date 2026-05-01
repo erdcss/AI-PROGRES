@@ -1676,15 +1676,8 @@ export function registerRoutes(app: Express): Server {
           let processedVariants = processVariantsFromFeatures(scenarioResult.features || [], scenarioResult.variants || [], scenarioResult.title || '');
           
           // 🚫 CRITICAL FINAL GATE: Strip fake sizes from non-clothing products
-          const clothingKeywordsFallback = [
-            'tişört', 't-shirt', 'tshirt', 'gömlek', 'pantolon', 'elbise', 'etek', 
-            'kazak', 'mont', 'ceket', 'hırka', 'bluz', 'yelek', 'şort', 'eşofman',
-            'ayakkabı', 'çizme', 'bot', 'sneaker', 'terlik', 'sandalet', 'topuklu',
-            'iç giyim', 'pijama', 'mayo', 'bikini', 'sweatshirt', 'hoodie', 'polar'
-          ];
-          
-          const titleCheck = (scenarioResult.title || '').toLowerCase();
-          const isClothing = clothingKeywordsFallback.some(kw => titleCheck.includes(kw));
+          // Use centralized isClothingProduct() which covers all footwear (babet, loafer, etc.)
+          const isClothing = isClothingProduct(scenarioResult.title || '');
           
           if (!isClothing && processedVariants) {
             console.log(`🚫 FALLBACK FINAL GATE: "${scenarioResult.title?.substring(0, 40)}..." is NOT clothing - stripping sizes`);
