@@ -1940,106 +1940,23 @@ export function registerRoutes(app: Express): Server {
             confidence: 100
           });
 
-        // ⚡ FAST PATH: Race Direct API vs scenario scrape in parallel
-        console.log('⚡ FAST PATH: Racing Direct API + scenario scrape...');
+        // ⚡ Scenario-based scrape (authoritative: uses Puppeteer JS-state for correct color/size)
+        console.log('⚡ SCENARIO PATH: Running scenario-based scraper for accurate variant data...');
         try {
-          const productIdMatch = url.match(/p-(\d+)/);
-          const productId = productIdMatch ? productIdMatch[1] : null;
-
-          // "First success wins" race pattern (no Promise.any needed)
-          const firstSuccessRace = (promises: Promise<any>[]) => {
-            return new Promise<any>((resolve, reject) => {
-              let pending = promises.length;
-              if (pending === 0) return reject(new Error('No methods'));
-              promises.forEach(p => {
-                p.then(val => {
-                  if (val && (val.success || val.title)) resolve(val);
-                  else if (--pending === 0) reject(new Error('All methods returned null'));
-                }).catch(() => {
-                  if (--pending === 0) reject(new Error('All methods failed'));
-                });
-              });
-            });
-          };
-
-          const racingMethods: Promise<any>[] = [];
-          
-          // Method 1: Direct Trendyol API (fastest, ~1-2s)
-          if (productId) {
-            racingMethods.push(
-              (async () => {
-                const apiUrl = `https://public-mdc.trendyol.com/discovery-web-productdetailgw-service/api/productDetail/${productId}`;
-                const apiResponse = await axios.get(apiUrl, {
-                  timeout: 3000,
-                  headers: {
-                    'User-Agent': 'Mozilla/5.0 (iPhone; CPU iPhone OS 17_0 like Mac OS X) AppleWebKit/605.1.15',
-                    'Accept': 'application/json',
-                    'Accept-Language': 'tr-TR,tr;q=0.9'
-                  }
-                });
-                if (!apiResponse.data?.result) throw new Error('No API data');
-                const r = apiResponse.data.result;
-                const apiVariants = (r.allVariants || []).map((v: any) => ({
-                  color: v.color || '', colorCode: v.colorCode || '', size: v.size || '', inStock: v.inStock !== false
-                }));
-                const colors = [...new Set(apiVariants.map((v: any) => v.color))];
-                const sizes = [...new Set(apiVariants.map((v: any) => v.size))];
-                console.log(`⚡ Direct API SUCCESS in ${Date.now() - scrapeStartTime}ms`);
-                return { 
-                  success: true,
-                  _source: 'direct-api',
-                  title: r.name || r.title,
-                  brand: r.brand?.name || r.brandName || '',
-                  price: r.price?.discountedPrice?.value || r.price?.sellingPrice?.value || r.originalPrice || 0,
-                  images: (r.images || []).map((img: any) => typeof img === 'string' ? `https://cdn.dsmcdn.com${img}` : img.url ? `https://cdn.dsmcdn.com${img.url}` : '').filter(Boolean),
-                  category: r.categoryName || r.category?.name || '',
-                  variants: { colors, sizes, allVariants: apiVariants },
-                  features: (r.attributes || []).map((a: any) => ({ key: a.key?.name || a.name || '', value: a.value?.name || a.value || '' })),
-                  extractionMethod: 'direct-api-fast',
-                  scenario: 'single-variant',
-                  confidence: 90
-                };
-              })()
-            );
-          }
-          
-          // Method 2: Scenario-based scrape (comprehensive, ~2-5s)
-          racingMethods.push(
-            (async () => {
-              const scrapeResult = await scenarioBasedScrape(url);
-              if (scrapeResult && scrapeResult.success !== false) {
-                console.log(`⚡ Scenario scrape SUCCESS in ${Date.now() - scrapeStartTime}ms`);
-                return { ...scrapeResult, _source: 'scenario-scrape' };
-              }
-              throw new Error('Scenario scrape failed');
-            })()
-          );
-          
-          // True race: first successful result wins immediately
-          const fastResult = await Promise.race([
-            firstSuccessRace(racingMethods),
-            createTimeout(15000)
+          // Always use scenario-based scraper — it's the only method that correctly identifies
+          // the URL-specific color (via Puppeteer JS state) and all available sizes.
+          // Direct Trendyol API returns allVariants for the entire product group (all colors),
+          // not the specific color shown at this URL, causing wrong color extraction.
+          const scrapeResult = await Promise.race([
+            scenarioBasedScrape(url),
+            createTimeout(60000)
           ]) as any;
           
-          if (fastResult) {
-            console.log(`⚡ FAST PATH won via ${fastResult._source} in ${Date.now() - scrapeStartTime}ms`);
-            result = fastResult;
-            
-            // If Direct API won, try quick multi-color enhancement (5s max, non-critical)
-            if (fastResult._source === 'direct-api') {
-              const { MultiColorScraper } = await import('./multi-color-scraper');
-              const multiColorScraper = new MultiColorScraper();
-              Promise.race([
-                multiColorScraper.scrapeAllColors(url),
-                createTimeout(5000)
-              ]).then((mcr: any) => {
-                if (mcr?.success && mcr?.combinedData) {
-                  console.log(`🌈 Multi-color enhancement completed: ${mcr.totalColors} colors`);
-                }
-              }).catch(() => {});
-            }
+          if (scrapeResult && scrapeResult.success !== false) {
+            console.log(`⚡ Scenario scrape SUCCESS in ${Date.now() - scrapeStartTime}ms`);
+            result = { ...scrapeResult, _source: 'scenario-scrape' };
           } else {
-            throw new Error('Fast path returned no data');
+            throw new Error('Scenario scrape failed');
           }
         } catch (fastError: any) {
           console.log(`⚠️ Fast path failed (${Date.now() - scrapeStartTime}ms): ${fastError.message}`);
