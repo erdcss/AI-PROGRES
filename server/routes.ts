@@ -2065,6 +2065,56 @@ export function registerRoutes(app: Express): Server {
               const emergencyResult = await tryAlternativeSources(url);
               if (emergencyResult?.success) {
                 result = emergencyResult;
+                // Normalize: alternative sources may return {html} instead of {htmlContent}
+                if (result.html && !result.htmlContent) {
+                  result.htmlContent = result.html;
+                }
+                // If title/images are missing, extract them from the HTML
+                if (result.htmlContent && (!result.title || !result.images || result.images.length === 0)) {
+                  try {
+                    const cheerioLib = await import('cheerio');
+                    const $alt = cheerioLib.load(result.htmlContent);
+                    // Extract title from JSON-LD or meta tags
+                    if (!result.title) {
+                      $alt('script[type="application/ld+json"]').each((_: number, el: any) => {
+                        try {
+                          const ld = JSON.parse($alt(el).html() || '{}');
+                          if (ld['@type'] === 'Product' && ld.name) result.title = ld.name;
+                        } catch {}
+                      });
+                      if (!result.title) result.title = $alt('h1.pr-new-br, h1[class*="product"], h1').first().text().trim() || 'Trendyol Ürünü';
+                    }
+                    // Extract brand from JSON-LD
+                    if (!result.brand) {
+                      $alt('script[type="application/ld+json"]').each((_: number, el: any) => {
+                        try {
+                          const ld = JSON.parse($alt(el).html() || '{}');
+                          if (ld['@type'] === 'Product' && ld.manufacturer) result.brand = ld.manufacturer;
+                        } catch {}
+                      });
+                    }
+                    // Extract images from JSON-LD
+                    if (!result.images || result.images.length === 0) {
+                      const imgs: string[] = [];
+                      $alt('script[type="application/ld+json"]').each((_: number, el: any) => {
+                        try {
+                          const ld = JSON.parse($alt(el).html() || '{}');
+                          if (ld['@type'] === 'Product' && ld.image) {
+                            const ldImgs = Array.isArray(ld.image) ? ld.image : [ld.image];
+                            ldImgs.forEach((img: string) => { if (img && img.startsWith('http')) imgs.push(img); });
+                          }
+                        } catch {}
+                      });
+                      // Also try CDN image patterns in HTML
+                      const cdnMatches = result.htmlContent.match(/https:\/\/cdn\.dsmcdn\.com\/[^"'\s]+\.jpg/g) || [];
+                      cdnMatches.forEach((img: string) => { if (!imgs.includes(img)) imgs.push(img); });
+                      if (imgs.length > 0) result.images = imgs.slice(0, 20);
+                    }
+                    console.log(`✅ Alt-source HTML processed: title="${result.title}", images=${(result.images||[]).length}`);
+                  } catch (parseErr) {
+                    console.warn('⚠️ Alt-source HTML parse failed:', parseErr);
+                  }
+                }
               } else {
                 throw new Error('All methods exhausted');
               }
