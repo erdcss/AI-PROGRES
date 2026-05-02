@@ -2888,6 +2888,24 @@ function validateAndSanitizeVariants(
   
   // ✅ FAKE VALUE DETECTION: Filter out fake placeholder values
   const fakeColorValues = ['Tek Renk', 'Standart', 'Varsayılan', 'Default', 'none', 'null', 'undefined', 'N/A'];
+
+  // 🚫 TITLE-AS-COLOR DETECTION: Remove variants where color = product title (or very similar)
+  // Real color names are short (e.g. "Siyah", "Kırmızı"). Titles are long sentences.
+  const titleNormalized = (title || '').trim().toLowerCase();
+  rawVariants = rawVariants.map(v => {
+    if (!v.color) return v;
+    const colorNorm = v.color.trim().toLowerCase();
+    // Color is fake if: equals title, contains title, or is suspiciously long (>50 chars)
+    const isTitleUsedAsColor =
+      colorNorm === titleNormalized ||
+      (titleNormalized.length > 10 && colorNorm.includes(titleNormalized.substring(0, 20).toLowerCase())) ||
+      v.color.trim().length > 50;
+    if (isTitleUsedAsColor) {
+      console.log(`🚫 TITLE-AS-COLOR detected, clearing color: "${v.color.substring(0, 60)}..."`);
+      return { ...v, color: '' };
+    }
+    return v;
+  });
   const fakeSizeValues = ['Tek Beden', 'Standart', 'Varsayılan', 'Default', 'none', 'null', 'undefined', 'N/A', 'One Size'];
   
   // ✅ DETECT: Check if this is a size-only product (multiple sizes, no real colors)

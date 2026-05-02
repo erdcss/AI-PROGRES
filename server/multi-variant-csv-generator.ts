@@ -264,10 +264,38 @@ export async function generateMultiVariantShopifyCSV(product: CombinedProduct): 
 
   // Variants
   const inputVariants = Array.isArray(product.variants) ? product.variants : (product.variants?.allVariants || []);
-  const realVariants = inputVariants.filter(v =>
-    (v.color && v.color.trim() !== '' && v.color !== 'Tek Renk') ||
-    (v.size && v.size.trim() !== '')
-  );
+
+  // 🚫 TITLE-AS-COLOR FILTER: Reject colors that are actually the product title
+  // Real color names are short (e.g. "Siyah", "Kırmızı"). Titles are long sentences.
+  const productTitleNorm = sanitizedProduct.title.trim().toLowerCase();
+  const realVariants = inputVariants.filter(v => {
+    const hasRealColor = v.color && v.color.trim() !== '' && v.color !== 'Tek Renk';
+    const hasRealSize = v.size && v.size.trim() !== '';
+    if (!hasRealColor && !hasRealSize) return false;
+
+    // Detect title used as color
+    if (hasRealColor) {
+      const colorNorm = v.color.trim().toLowerCase();
+      const isTitleColor =
+        colorNorm === productTitleNorm ||
+        (productTitleNorm.length > 10 && colorNorm.includes(productTitleNorm.substring(0, 20).toLowerCase())) ||
+        v.color.trim().length > 50;
+      if (isTitleColor) {
+        console.log(`🚫 CSV: Title-as-color rejected: "${v.color.substring(0, 60)}"`);
+        // If there's a real size, keep the variant but without the fake color
+        return hasRealSize;
+      }
+    }
+    return true;
+  }).map(v => {
+    // Strip fake color but keep size if present
+    if (v.color && v.color.trim().length > 50) return { ...v, color: '' };
+    const colorNorm = (v.color || '').trim().toLowerCase();
+    if (productTitleNorm.length > 10 && colorNorm.includes(productTitleNorm.substring(0, 20).toLowerCase())) {
+      return { ...v, color: '' };
+    }
+    return v;
+  });
 
   let actualVariants = realVariants.length > 0 ? realVariants : [{ color: '', colorCode: '', size: '', inStock: true }];
 
