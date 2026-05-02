@@ -6,6 +6,7 @@
 import axios from 'axios';
 import puppeteer from 'puppeteer';
 import * as cheerio from 'cheerio';
+import OpenAI from 'openai';
 import { ScenarioManager, ExtractionScenario } from './scenario-manager';
 import { ScenarioExtractors } from './scenario-extractors';
 import { enhancedVariantExtractor } from './enhanced-variant-extractor';
@@ -26,6 +27,133 @@ import { getPerformanceConfig, getTimeout, shouldRetryWithSlowTimeout } from './
 import { buildLaunchOptions } from './puppeteer-config';
 import { generateAdvancedTags } from './tag-generator';
 import { CLOTHING_KEYWORDS, FAKE_CLOTHING_SIZES, isClothingProduct } from './clothing-keywords';
+
+const openai = new OpenAI({ apiKey: process.env.OPENAI_API_KEY_NEW || process.env.OPENAI_API_KEY });
+
+// ─── COLOR NORMALIZATION ───────────────────────────────────────────────────────
+// Maps slug/ascii color names (from Trendyol JSON-LD) to proper Turkish names
+const SLUG_COLOR_MAP: Record<string, string> = {
+  siyah:'Siyah', beyaz:'Beyaz', mavi:'Mavi', kirmizi:'Kırmızı', yesil:'Yeşil',
+  sari:'Sarı', mor:'Mor', pembe:'Pembe', gri:'Gri', kahverengi:'Kahverengi',
+  turuncu:'Turuncu', lacivert:'Lacivert', krem:'Krem', bej:'Bej', bordo:'Bordo',
+  haki:'Haki', fume:'Füme', füme:'Füme', ekru:'Ekru', pudra:'Pudra',
+  antrasit:'Antrasit', lila:'Lila', turkuaz:'Turkuaz', vizon:'Vizon',
+  hardal:'Hardal', mint:'Mint', somon:'Somon', kiremit:'Kiremit', indigo:'İndigo',
+  taba:'Taba', camel:'Camel', nude:'Nude', gold:'Gold', silver:'Gümüş',
+  khaki:'Haki', navy:'Lacivert', black:'Siyah', white:'Beyaz', blue:'Mavi',
+  red:'Kırmızı', green:'Yeşil', yellow:'Sarı', purple:'Mor', pink:'Pembe',
+  grey:'Gri', gray:'Gri', brown:'Kahverengi', orange:'Turuncu', cream:'Krem',
+  beige:'Bej', burgundy:'Bordo', multicolor:'Çok Renkli',
+};
+
+// Words that look like colors but are NOT real color options
+const NON_COLOR_WORDS_STRICT = new Set([
+  'logo', 'baskı', 'baski', 'desen', 'çizgili', 'cizgili', 'kareli', 'cicekli',
+  'çiçekli', 'puantiyeli', 'leopar', 'kamuflaj', 'animal', 'print',
+  'ekose', 'etnik', 'geometrik', 'plain', 'solid', 'mix', 'multi',
+  'standart', 'varsayilan', 'varsayılan', 'default', 'tekrenk', 'tek renk',
+  'orjinal', 'orijinal', 'original', 'natural', 'naturel',
+]);
+
+/**
+ * Normalize a raw color value from Trendyol JSON-LD / slug format.
+ * Examples:
+ *   "lacivert-70498" → "Lacivert"
+ *   "yesil"          → "Yeşil"
+ *   "Logo"           → null  (rejected)
+ *   "Açık Mavi"      → "Açık Mavi"  (kept as-is)
+ */
+function normalizeColorName(raw: string): string | null {
+  if (!raw || typeof raw !== 'string') return null;
+  const trimmed = raw.trim();
+  if (!trimmed || trimmed.length < 2) return null;
+
+  // Reject if longer than 40 chars (likely a title or description)
+  if (trimmed.length > 40) return null;
+
+  // Strip trailing numeric code suffixes like "-70498", "-BG106", " 01"
+  // Pattern: optional space/dash + digits or uppercase letters+digits at end
+  const withoutCode = trimmed
+    .replace(/[\s-]+[A-Z0-9]{3,}$/i, '')   // e.g. "-70498" or "-BG106"
+    .replace(/\s+\d+$/, '')                 // e.g. " 01"
+    .trim();
+
+  const lower = withoutCode.toLowerCase();
+
+  // Check against non-color strict list
+  if (NON_COLOR_WORDS_STRICT.has(lower)) {
+    console.log(`🚫 Non-color rejected at normalize: "${raw}"`);
+    return null;
+  }
+
+  // If it's in our slug map, use the proper name
+  if (SLUG_COLOR_MAP[lower]) return SLUG_COLOR_MAP[lower];
+
+  // Check if the first word of a compound color matches (e.g. "lacivert-yesil-mix" → "Lacivert")
+  const firstWord = lower.split(/[-\s]+/)[0];
+  if (SLUG_COLOR_MAP[firstWord]) return SLUG_COLOR_MAP[firstWord];
+
+  // Must contain only letters + spaces (no digits, no special chars beyond Turkish)
+  // Turkish letter set: a-z + ğüşöçıİĞÜŞÖÇ
+  const colorPattern = /^[a-zğüşöçıİĞÜŞÖÇA-Z\s\-]+$/;
+  if (!colorPattern.test(withoutCode)) {
+    console.log(`🚫 Invalid color chars rejected: "${raw}" → "${withoutCode}"`);
+    return null;
+  }
+
+  // Must not be purely numeric or contain digits
+  if (/\d/.test(withoutCode)) {
+    console.log(`🚫 Color with digits rejected: "${raw}"`);
+    return null;
+  }
+
+  // Capitalize first letter of each word, preserve rest
+  const normalized = withoutCode
+    .split(/\s+/)
+    .map(w => w.charAt(0).toUpperCase() + w.slice(1).toLowerCase())
+    .join(' ');
+
+  return normalized;
+}
+
+/**
+ * AI-powered color validation using OpenAI GPT-4o.
+ * Sends extracted color names to GPT and gets back only the real ones.
+ * Returns cleaned/corrected color names. Non-blocking — falls back gracefully.
+ */
+async function validateColorsWithAI(colors: string[], productTitle: string): Promise<string[]> {
+  if (colors.length === 0) return [];
+  // No need for AI if only 1 color (handled by single-color strip later)
+  // Still validate to catch bad names
+  try {
+    const prompt = `Aşağıdaki listeden sadece GERÇEK renk adlarını filtrele. Gerçek renk = müşterinin ürünü satın alırken seçebileceği bir renk seçeneği (Siyah, Mavi, Kırmızı, Açık Gri vb.). Renk OLMAYAN şeyleri çıkar: marka adları, model kodları, ürün açıklamaları, desen adları (Logo, Baskı, Çizgili vb.), malzeme adları.
+
+Ürün başlığı: "${productTitle.substring(0, 80)}"
+
+Renk listesi:
+${colors.map((c, i) => `${i + 1}. ${c}`).join('\n')}
+
+Sadece gerçek renkleri düzgün Türkçe isimle döndür (normalize et: yesil→Yeşil, lacivert-70498→Lacivert).
+JSON formatında yanıtla: {"validColors": ["Renk1", "Renk2"]}
+Hiç geçerli renk yoksa: {"validColors": []}`;
+
+    const response = await openai.chat.completions.create({
+      model: 'gpt-4o',
+      max_tokens: 200,
+      temperature: 0,
+      messages: [{ role: 'user', content: prompt }],
+      response_format: { type: 'json_object' },
+    });
+
+    const parsed = JSON.parse(response.choices[0].message.content || '{}');
+    const valid: string[] = Array.isArray(parsed.validColors) ? parsed.validColors : [];
+    console.log(`🤖 AI Color Validation: [${colors.join(', ')}] → [${valid.join(', ')}]`);
+    return valid;
+  } catch (err: any) {
+    console.log(`⚠️ AI color validation failed (using rule-based): ${err.message}`);
+    return colors; // fallback: keep original
+  }
+}
 
 // Helper function to extract description from page
 function extractDescription($: cheerio.CheerioAPI): string {
@@ -930,7 +1058,9 @@ function extractAllVariantsFromProductGroupJsonLd(htmlContent: string): Array<{
       console.log(`🌈 JSON-LD ProductGroup: Found ${productGroup.hasVariant.length} hasVariant entries`);
 
       for (const variant of productGroup.hasVariant) {
-        const color = (typeof variant.color === 'string' ? variant.color : '') || '';
+        const rawColor = (typeof variant.color === 'string' ? variant.color : '') || '';
+        if (!rawColor) continue;
+        const color = normalizeColorName(rawColor) || rawColor; // Clean slug-format colors at source
         if (!color) continue;
 
         // Extract sizes
@@ -2673,6 +2803,38 @@ export async function scenarioBasedScrape(url: string): Promise<ScenarioBasedRes
     console.log('🔧 VALIDATED VARIANTS:', JSON.stringify(validatedVariants, null, 2));
     console.log('🔧 VALIDATED allVariants length:', validatedVariants.allVariants?.length || 0);
 
+    // 🤖 AI COLOR VALIDATION: Ask OpenAI to verify extracted colors are real color names
+    // This catches edge cases that rule-based filtering misses (e.g. "Logo", "Baskı", brand codes)
+    const rawColorList = [...new Set(
+      validatedVariants.allVariants.map(v => v.color).filter(c => c && c.trim() !== '')
+    )];
+    if (rawColorList.length > 0) {
+      const aiValidatedColors = await validateColorsWithAI(rawColorList, title || '');
+      const aiValidatedSet = new Set(aiValidatedColors.map(c => c.toLowerCase().trim()));
+      // Build a map for case-insensitive lookup: validated lowercase → proper AI name
+      const aiColorMap = new Map<string, string>();
+      aiValidatedColors.forEach(c => aiColorMap.set(c.toLowerCase().trim(), c));
+
+      // Filter variants: keep only those with AI-validated colors, using AI's corrected name
+      const beforeCount = validatedVariants.allVariants.length;
+      validatedVariants.allVariants = validatedVariants.allVariants.map(v => {
+        if (!v.color || !v.color.trim()) return v;
+        const lc = v.color.toLowerCase().trim();
+        if (!aiValidatedSet.has(lc)) {
+          console.log(`🤖 AI rejected color "${v.color}" → clearing from variant`);
+          return { ...v, color: '', colorCode: '' };
+        }
+        // Use AI's corrected/normalized name
+        const correctedName = aiColorMap.get(lc) || v.color;
+        return { ...v, color: correctedName, colorCode: getColorCode(correctedName) };
+      });
+      validatedVariants.colors = [...new Set(validatedVariants.allVariants.map(v => v.color).filter(c => c && c.trim() !== ''))];
+      const afterCount = validatedVariants.allVariants.filter(v => v.color && v.color.trim()).length;
+      if (beforeCount !== afterCount) {
+        console.log(`🤖 AI validation: ${beforeCount} → ${afterCount} variants with valid colors`);
+      }
+    }
+
     // 🎨 SINGLE-COLOR STRIP: If there is only ONE unique color across all variants,
     // that color is not a real user-selectable option → strip it so CSV has no Renk option.
     // Exception: keep the color when there are genuinely NO sizes either (pure color-only product)
@@ -2921,6 +3083,21 @@ function validateAndSanitizeVariants(
   
   // ✅ FAKE VALUE DETECTION: Filter out fake placeholder values
   const fakeColorValues = ['Tek Renk', 'Standart', 'Varsayılan', 'Default', 'none', 'null', 'undefined', 'N/A'];
+
+  // 🎨 STEP 0: Normalize all variant color names (clean slug-format, remove codes, fix Turkish chars)
+  rawVariants = rawVariants.map(v => {
+    if (!v.color || !v.color.trim()) return v;
+    const normalized = normalizeColorName(v.color);
+    if (normalized === null) {
+      // normalizeColorName returned null → not a valid color
+      console.log(`🚫 COLOR-NORMALIZE rejected variant color: "${v.color}"`);
+      return { ...v, color: '' };
+    }
+    if (normalized !== v.color) {
+      console.log(`🎨 COLOR-NORMALIZE: "${v.color}" → "${normalized}"`);
+    }
+    return { ...v, color: normalized };
+  });
 
   // 🚫 TITLE-AS-COLOR DETECTION: Remove variants where color = product title (or very similar)
   // Real color names are short (e.g. "Siyah", "Kırmızı"). Titles are long sentences.
