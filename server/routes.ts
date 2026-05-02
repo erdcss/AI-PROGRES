@@ -3682,64 +3682,42 @@ ${result.title || 'Product'},${fb2Handle},${result.description || ''},${result.b
             console.warn('⚠️ Tracking registration failed (non-critical):', trackingError);
           }
           
-          // Send product images to Telegram
-          try {
-            const chatId = process.env.TELEGRAM_CHAT_ID;
-            if (chatId) {
-              const images = [];
-              
-              // Extract images from productData if available
-              if (req.body.productData && req.body.productData.images && Array.isArray(req.body.productData.images)) {
+          // Send product images to Telegram (non-blocking — fire and forget)
+          setImmediate(async () => {
+            try {
+              const chatId = process.env.TELEGRAM_CHAT_ID || '1219880063';
+              let images: any[] = [];
+
+              // Priority 1: productData.images
+              if (req.body.productData?.images && Array.isArray(req.body.productData.images)) {
                 req.body.productData.images.forEach((img: any, index: number) => {
                   const imageUrl = typeof img === 'string' ? img : (img.src || img.url);
-                  if (imageUrl) {
-                    images.push({
-                      url: imageUrl,
-                      position: index + 1
-                    });
-                  }
+                  if (imageUrl) images.push({ url: imageUrl, position: index + 1 });
                 });
-              } 
-              // Fallback: Extract images from CSV content
-              else if (csvContent) {
-                const lines = csvContent.split('\n');
-                const headers = lines[0].split(',');
-                const imageColIndex = headers.findIndex(h => h.includes('Image Src'));
-                
-                if (imageColIndex !== -1) {
-                  const uniqueImages = new Set<string>();
-                  for (let i = 1; i < lines.length; i++) {
-                    const columns = lines[i].split(',');
-                    const imageUrl = columns[imageColIndex]?.trim();
-                    if (imageUrl && imageUrl.startsWith('http')) {
-                      uniqueImages.add(imageUrl);
-                    }
-                  }
-                  
-                  Array.from(uniqueImages).forEach((url, index) => {
-                    images.push({
-                      url,
-                      position: index + 1
-                    });
-                  });
-                }
               }
-              
+
+              // Priority 2: parse CSV properly
+              if (images.length === 0 && csvContent) {
+                images = ImageTelegramService.extractImagesFromCSV(csvContent);
+              }
+
               if (images.length > 0) {
-                console.log(`📸 Sending ${images.length} images to Telegram for ${productTitle}`);
+                console.log(`📸 [CSV Upload] Sending ${images.length} images to Telegram for: ${productTitle}`);
                 await ImageTelegramService.sendProductImages(
                   productTitle,
                   req.body.sourceUrl || req.body.trendyolUrl || '',
                   images,
-                  parseInt(chatId),
+                  chatId,
                   uploadResult.productId
                 );
+              } else {
+                console.log(`📸 [CSV Upload] No images found to send for: ${productTitle}`);
               }
+            } catch (imageError: any) {
+              console.warn('⚠️ Image sending failed (non-critical):', imageError.message);
             }
-          } catch (imageError) {
-            console.warn('⚠️ Image sending failed (non-critical):', imageError);
-          }
-          
+          });
+
           return res.json({
             success: true,
             productId: uploadResult.productId,
@@ -3806,54 +3784,53 @@ ${result.title || 'Product'},${fb2Handle},${result.description || ''},${result.b
             console.warn('⚠️ Multi-URL Tracking registration failed (non-critical):', trackingError);
           }
           
-          // Send product images to Telegram
-          try {
-            const chatId = process.env.TELEGRAM_CHAT_ID;
-            if (chatId && productData) {
-              const images = [];
-              
-              // Extract images from product data
-              if (productData.images && Array.isArray(productData.images)) {
+          // Send product images to Telegram (non-blocking — fire and forget)
+          setImmediate(async () => {
+            try {
+              const chatId = process.env.TELEGRAM_CHAT_ID || '1219880063';
+              const images: any[] = [];
+              const seenUrls = new Set<string>();
+
+              // Extract from productData.images
+              if (productData?.images && Array.isArray(productData.images)) {
                 productData.images.forEach((img: any, index: number) => {
                   const imageUrl = typeof img === 'string' ? img : (img.src || img.url);
-                  if (imageUrl) {
-                    images.push({
-                      url: imageUrl,
-                      position: index + 1
-                    });
+                  if (imageUrl && !seenUrls.has(imageUrl)) {
+                    seenUrls.add(imageUrl);
+                    images.push({ url: imageUrl, position: index + 1 });
                   }
                 });
               }
-              
-              // Also check variants for color-specific images
-              if (productData.variants?.allVariants && Array.isArray(productData.variants.allVariants)) {
+
+              // Also collect variant-specific images with color info
+              if (productData?.variants?.allVariants && Array.isArray(productData.variants.allVariants)) {
                 productData.variants.allVariants.forEach((variant: any) => {
                   if (variant.image) {
                     const imageUrl = typeof variant.image === 'string' ? variant.image : variant.image.src;
-                    if (imageUrl && !images.find(img => img.url === imageUrl)) {
-                      images.push({
-                        url: imageUrl,
-                        color: variant.color || variant.option1
-                      });
+                    if (imageUrl && !seenUrls.has(imageUrl)) {
+                      seenUrls.add(imageUrl);
+                      images.push({ url: imageUrl, color: variant.color || variant.option1 });
                     }
                   }
                 });
               }
-              
+
               if (images.length > 0) {
-                console.log(`📸 Multi-URL: Sending ${images.length} images to Telegram for ${productData.title || productTitle}`);
+                console.log(`📸 [Multi-URL] Sending ${images.length} images to Telegram for: ${productData?.title || productTitle}`);
                 await ImageTelegramService.sendProductImages(
-                  productData.title || productTitle || 'Unknown Product',
-                  productData.sourceUrl || productData.trendyolUrl || '',
+                  productData?.title || productTitle || 'Unknown Product',
+                  productData?.sourceUrl || productData?.trendyolUrl || '',
                   images,
-                  parseInt(chatId),
+                  chatId,
                   uploadResult.productId
                 );
+              } else {
+                console.log(`📸 [Multi-URL] No images found to send for: ${productTitle}`);
               }
+            } catch (imageError: any) {
+              console.warn('⚠️ Multi-URL image sending failed (non-critical):', imageError.message);
             }
-          } catch (imageError) {
-            console.warn('⚠️ Multi-URL Image sending failed (non-critical):', imageError);
-          }
+          });
           
           return res.json({
             ...uploadResult,
@@ -3977,82 +3954,58 @@ ${result.title || 'Product'},${fb2Handle},${result.description || ''},${result.b
           console.warn('⚠️ CSV Tracking registration failed (non-critical):', trackingError);
         }
         
-        // Send product images to Telegram
-        try {
-          const chatId = process.env.TELEGRAM_CHAT_ID;
-          if (chatId) {
-            const images = [];
-            
-            // Extract images from productData if available
-            if (req.body.productData) {
-              const productData = req.body.productData;
-              
-              if (productData.images && Array.isArray(productData.images)) {
-                productData.images.forEach((img: any, index: number) => {
-                  const imageUrl = typeof img === 'string' ? img : (img.src || img.url);
-                  if (imageUrl) {
-                    images.push({
-                      url: imageUrl,
-                      position: index + 1
-                    });
-                  }
-                });
-              }
-              
-              // Also check variants for color-specific images
-              if (productData.variants?.allVariants && Array.isArray(productData.variants.allVariants)) {
-                productData.variants.allVariants.forEach((variant: any) => {
-                  if (variant.image) {
-                    const imageUrl = typeof variant.image === 'string' ? variant.image : variant.image.src;
-                    if (imageUrl && !images.find(img => img.url === imageUrl)) {
-                      images.push({
-                        url: imageUrl,
-                        color: variant.color || variant.option1
-                      });
-                    }
-                  }
-                });
-              }
-            } 
-            // Fallback: Extract images from CSV content
-            else if (csvContent) {
-              const lines = csvContent.split('\n');
-              const headers = lines[0].split(',');
-              const imageColIndex = headers.findIndex(h => h.includes('Image Src'));
-              
-              if (imageColIndex !== -1) {
-                const uniqueImages = new Set<string>();
-                for (let i = 1; i < lines.length; i++) {
-                  const columns = lines[i].split(',');
-                  const imageUrl = columns[imageColIndex]?.trim();
-                  if (imageUrl && imageUrl.startsWith('http')) {
-                    uniqueImages.add(imageUrl);
+        // Send product images to Telegram (non-blocking — fire and forget)
+        setImmediate(async () => {
+          try {
+            const chatId = process.env.TELEGRAM_CHAT_ID || '1219880063';
+            let images: any[] = [];
+            const seenUrls = new Set<string>();
+
+            // Priority 1: productData.images
+            if (req.body.productData?.images && Array.isArray(req.body.productData.images)) {
+              req.body.productData.images.forEach((img: any, index: number) => {
+                const imageUrl = typeof img === 'string' ? img : (img.src || img.url);
+                if (imageUrl && !seenUrls.has(imageUrl)) {
+                  seenUrls.add(imageUrl);
+                  images.push({ url: imageUrl, position: index + 1 });
+                }
+              });
+            }
+
+            // Priority 2: variant images with color info
+            if (req.body.productData?.variants?.allVariants) {
+              req.body.productData.variants.allVariants.forEach((variant: any) => {
+                if (variant.image) {
+                  const imageUrl = typeof variant.image === 'string' ? variant.image : variant.image.src;
+                  if (imageUrl && !seenUrls.has(imageUrl)) {
+                    seenUrls.add(imageUrl);
+                    images.push({ url: imageUrl, color: variant.color || variant.option1 });
                   }
                 }
-                
-                Array.from(uniqueImages).forEach((url, index) => {
-                  images.push({
-                    url,
-                    position: index + 1
-                  });
-                });
-              }
+              });
             }
-            
+
+            // Priority 3: parse CSV properly
+            if (images.length === 0 && csvContent) {
+              images = ImageTelegramService.extractImagesFromCSV(csvContent);
+            }
+
             if (images.length > 0) {
-              console.log(`📸 CSV Upload: Sending ${images.length} images to Telegram for ${productTitle}`);
+              console.log(`📸 [CSV-Specific] Sending ${images.length} images to Telegram for: ${productTitle}`);
               await ImageTelegramService.sendProductImages(
                 productTitle,
                 req.body.sourceUrl || req.body.trendyolUrl || '',
                 images,
-                parseInt(chatId),
+                chatId,
                 uploadResult.productId
               );
+            } else {
+              console.log(`📸 [CSV-Specific] No images found to send for: ${productTitle}`);
             }
+          } catch (imageError: any) {
+            console.warn('⚠️ CSV image sending failed (non-critical):', imageError.message);
           }
-        } catch (imageError) {
-          console.warn('⚠️ CSV Image sending failed (non-critical):', imageError);
-        }
+        });
         
         return res.json({
           success: true,
