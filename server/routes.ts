@@ -4142,7 +4142,29 @@ ${result.title || 'Product'},${fb2Handle},${result.description || ''},${result.b
   // Mevcut kimlik bilgilerini döndürür (token gizlenir)
   app.get('/api/shopify/credentials', async (req, res) => {
     try {
-      // Önce ENV değişkenlerini kontrol et (getShopifyConfig ile aynı öncelik sırası)
+      // getShopifyConfig() ile aynı öncelik sırası: DB önce, ENV fallback
+      // 1. DB'yi önce kontrol et
+      const rows = await db.select().from(shopifyCredentials)
+        .where(eq(shopifyCredentials.isActive, true))
+        .orderBy(desc(shopifyCredentials.updatedAt))
+        .limit(1);
+      const cred = rows[0];
+
+      if (cred && cred.shopDomain && cred.accessToken) {
+        // shpss_ formatı deprecated/geçersiz token
+        const isDeprecatedToken = cred.accessToken.startsWith('shpss_');
+        return res.json({
+          connected: !isDeprecatedToken,
+          shopDomain: cred.shopDomain,
+          apiKey: cred.apiKey,
+          hasToken: true,
+          tokenInvalid: isDeprecatedToken,
+          updatedAt: cred.updatedAt,
+          source: 'db'
+        });
+      }
+
+      // 2. DB'de geçerli token yoksa ENV'e bak
       const envShopDomain =
         process.env.SHOPIFY_SHOP_DOMAIN ||
         process.env.SHOPIFY_STORE_URL?.replace(/^https?:\/\//, '') ||
@@ -4152,29 +4174,18 @@ ${result.title || 'Product'},${fb2Handle},${result.description || ''},${result.b
         process.env.SHOPIFY_ADMIN_ACCESS_TOKEN;
 
       if (envShopDomain && envAccessToken) {
+        const isDeprecatedToken = envAccessToken.startsWith('shpss_');
         return res.json({
-          connected: true,
+          connected: !isDeprecatedToken,
           shopDomain: envShopDomain,
           hasToken: true,
+          tokenInvalid: isDeprecatedToken,
           source: 'env'
         });
       }
 
-      // ENV yoksa DB'ye bak
-      const rows = await db.select().from(shopifyCredentials)
-        .where(eq(shopifyCredentials.isActive, true))
-        .orderBy(desc(shopifyCredentials.updatedAt))
-        .limit(1);
-      const cred = rows[0];
-      if (!cred) return res.json({ connected: false });
-      res.json({
-        connected: !!cred.accessToken,
-        shopDomain: cred.shopDomain,
-        apiKey: cred.apiKey,
-        hasToken: !!cred.accessToken,
-        updatedAt: cred.updatedAt,
-        source: 'db'
-      });
+      // Hiç token yok
+      return res.json({ connected: false, hasToken: false });
     } catch (err) {
       res.status(500).json({ error: String(err) });
     }

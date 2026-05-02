@@ -13,21 +13,30 @@ import { Label } from "@/components/ui/label";
 import { Badge } from "@/components/ui/badge";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { useToast } from "@/hooks/use-toast";
-import { Settings, CheckCircle, XCircle, ExternalLink, Loader2, Key } from "lucide-react";
+import { Settings, CheckCircle, XCircle, ExternalLink, Loader2, Key, AlertTriangle } from "lucide-react";
 
 interface CredentialsStatus {
   connected: boolean;
   shopDomain?: string;
   apiKey?: string;
   hasToken?: boolean;
+  tokenInvalid?: boolean;
   updatedAt?: string;
   source?: string;
+}
+
+interface LiveTestResult {
+  success: boolean;
+  message: string;
+  store?: string;
 }
 
 export default function ShopifySettingsDialog() {
   const { toast } = useToast();
   const queryClient = useQueryClient();
   const [open, setOpen] = useState(false);
+  const [liveTest, setLiveTest] = useState<LiveTestResult | null>(null);
+  const [liveTestLoading, setLiveTestLoading] = useState(false);
 
   // OAuth tab
   const [shopDomain, setShopDomain] = useState("");
@@ -40,8 +49,18 @@ export default function ShopifySettingsDialog() {
 
   const { data: status, isLoading } = useQuery<CredentialsStatus>({
     queryKey: ["/api/shopify/credentials"],
-    refetchInterval: open ? 5000 : false,
+    refetchInterval: open ? 8000 : false,
   });
+
+  // Auto-test connection when dialog opens
+  useEffect(() => {
+    if (open && status?.hasToken) {
+      runLiveTest();
+    }
+    if (!open) {
+      setLiveTest(null);
+    }
+  }, [open]);
 
   useEffect(() => {
     if (status?.shopDomain) {
@@ -50,6 +69,19 @@ export default function ShopifySettingsDialog() {
     }
     if (status?.apiKey) setApiKey(status.apiKey);
   }, [status]);
+
+  async function runLiveTest() {
+    setLiveTestLoading(true);
+    try {
+      const res = await fetch("/api/shopify/status");
+      const data: LiveTestResult = await res.json();
+      setLiveTest(data);
+    } catch {
+      setLiveTest({ success: false, message: "Bağlantı testi yapılamadı" });
+    } finally {
+      setLiveTestLoading(false);
+    }
+  }
 
   const saveMutation = useMutation({
     mutationFn: async () => {
@@ -87,12 +119,14 @@ export default function ShopifySettingsDialog() {
     onSuccess: (data) => {
       queryClient.invalidateQueries({ queryKey: ["/api/shopify/credentials"] });
       setDirectToken("");
+      setLiveTest({ success: true, message: `${data.storeName || data.shopDomain} mağazasına bağlanıldı.`, store: data.storeName });
       toast({
         title: "Bağlantı Başarılı ✅",
         description: `${data.storeName || data.shopDomain} mağazasına bağlanıldı.`
       });
     },
     onError: (err: Error) => {
+      setLiveTest({ success: false, message: err.message });
       toast({ title: "Token Hatası ❌", description: err.message, variant: "destructive" });
     },
   });
@@ -118,20 +152,6 @@ export default function ShopifySettingsDialog() {
     },
   });
 
-  const testMutation = useMutation({
-    mutationFn: async () => {
-      const res = await fetch("/api/shopify/status");
-      return res.json() as Promise<{ success: boolean; message: string; store?: string }>;
-    },
-    onSuccess: (data) => {
-      if (data.success) {
-        toast({ title: "Bağlantı Başarılı ✅", description: data.message });
-      } else {
-        toast({ title: "Bağlantı Hatası ❌", description: data.message, variant: "destructive" });
-      }
-    },
-  });
-
   const deleteMutation = useMutation({
     mutationFn: async () => {
       const res = await fetch("/api/shopify/credentials", {
@@ -145,11 +165,20 @@ export default function ShopifySettingsDialog() {
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ["/api/shopify/credentials"] });
       setShopDomain(""); setApiKey(""); setApiSecret(""); setDirectToken("");
+      setLiveTest(null);
       toast({ title: "Bağlantı kesildi", description: "Shopify kimlik bilgileri silindi." });
     },
   });
 
-  const isConnected = status?.connected && status?.hasToken;
+  // True connection status = live test passed (not just "has token")
+  const isActuallyConnected = liveTest?.success === true;
+  const isActuallyFailed = liveTest?.success === false;
+  const hasCredentials = status?.hasToken;
+
+  // Badge: show live test result if available, otherwise show "has token" status
+  const badgeStatus = liveTest
+    ? (liveTest.success ? "connected" : "failed")
+    : (hasCredentials ? "unknown" : "none");
 
   return (
     <Dialog open={open} onOpenChange={setOpen}>
@@ -159,45 +188,87 @@ export default function ShopifySettingsDialog() {
           Shopify Bağlantısı
           {isLoading ? (
             <Loader2 className="h-3 w-3 animate-spin" />
-          ) : isConnected ? (
+          ) : badgeStatus === "connected" ? (
             <Badge className="bg-green-500 text-white text-xs px-1 py-0">Bağlı</Badge>
+          ) : badgeStatus === "failed" ? (
+            <Badge className="bg-red-500 text-white text-xs px-1 py-0">Hata</Badge>
+          ) : badgeStatus === "unknown" ? (
+            <Badge className="bg-orange-500 text-white text-xs px-1 py-0">Kontrol Et</Badge>
           ) : (
             <Badge variant="destructive" className="text-xs px-1 py-0">Bağlı Değil</Badge>
           )}
         </Button>
       </DialogTrigger>
 
-      <DialogContent className="sm:max-w-md">
+      <DialogContent className="sm:max-w-md" aria-describedby="shopify-dialog-desc">
         <DialogHeader>
           <DialogTitle className="flex items-center gap-2">
             <Settings className="h-5 w-5" />
             Shopify API Bağlantısı
           </DialogTitle>
         </DialogHeader>
+        <p id="shopify-dialog-desc" className="sr-only">Shopify mağaza bağlantı ayarları</p>
 
         <div className="space-y-4">
-          {/* Bağlantı Durumu */}
-          <div className="flex items-center gap-2 p-3 rounded-lg bg-muted">
-            {isConnected ? (
+          {/* Canlı Bağlantı Durumu */}
+          <div className={`flex items-center gap-2 p-3 rounded-lg border ${
+            liveTestLoading ? 'bg-muted border-muted-foreground/20' :
+            isActuallyConnected ? 'bg-green-50 dark:bg-green-950/30 border-green-200 dark:border-green-800' :
+            isActuallyFailed ? 'bg-red-50 dark:bg-red-950/30 border-red-200 dark:border-red-800' :
+            'bg-muted border-muted-foreground/20'
+          }`}>
+            {liveTestLoading ? (
               <>
-                <CheckCircle className="h-5 w-5 text-green-500" />
+                <Loader2 className="h-5 w-5 animate-spin text-muted-foreground shrink-0" />
                 <div>
-                  <p className="text-sm font-medium text-green-700 dark:text-green-400">Shopify'a Bağlı</p>
+                  <p className="text-sm font-medium">Bağlantı test ediliyor...</p>
                   <p className="text-xs text-muted-foreground">{status?.shopDomain}</p>
+                </div>
+              </>
+            ) : isActuallyConnected ? (
+              <>
+                <CheckCircle className="h-5 w-5 text-green-500 shrink-0" />
+                <div>
+                  <p className="text-sm font-medium text-green-700 dark:text-green-400">Shopify'a Bağlı ✅</p>
+                  <p className="text-xs text-muted-foreground">{liveTest?.store || status?.shopDomain}</p>
+                </div>
+              </>
+            ) : isActuallyFailed ? (
+              <>
+                <XCircle className="h-5 w-5 text-red-500 shrink-0" />
+                <div>
+                  <p className="text-sm font-medium text-red-700 dark:text-red-400">Bağlantı Başarısız ❌</p>
+                  <p className="text-xs text-muted-foreground line-clamp-2">{liveTest?.message}</p>
                 </div>
               </>
             ) : (
               <>
-                <XCircle className="h-5 w-5 text-red-500" />
+                <AlertTriangle className="h-5 w-5 text-orange-500 shrink-0" />
                 <div>
-                  <p className="text-sm font-medium text-red-700 dark:text-red-400">Bağlantı Yok</p>
+                  <p className="text-sm font-medium text-orange-700 dark:text-orange-400">
+                    {hasCredentials ? "Token mevcut — bağlantı henüz test edilmedi" : "Token yok"}
+                  </p>
                   <p className="text-xs text-muted-foreground">
-                    Aşağıdan bağlanma yöntemini seçin
+                    {hasCredentials ? status?.shopDomain : "Admin Token sekmesinden token girin"}
                   </p>
                 </div>
               </>
             )}
           </div>
+
+          {/* Token geçersiz uyarısı */}
+          {isActuallyFailed && (
+            <div className="rounded-lg bg-amber-50 dark:bg-amber-950/30 border border-amber-200 dark:border-amber-800 p-3 text-xs text-amber-800 dark:text-amber-200">
+              <p className="font-semibold mb-1">Yeni token nasıl alınır?</p>
+              <ol className="list-decimal list-inside space-y-0.5 text-amber-700 dark:text-amber-300">
+                <li>Shopify Admin'e giriş yapın</li>
+                <li>Uygulamalar → Uygulamaları ve satış kanallarını geliştirin</li>
+                <li>Uygulama oluştur → Özel uygulama</li>
+                <li>Admin API erişimini yapılandır → Kaydet</li>
+                <li>"Admin API erişim token'ı" kopyalayın (<code>shpat_...</code>)</li>
+              </ol>
+            </div>
+          )}
 
           <Tabs defaultValue="direct">
             <TabsList className="w-full">
@@ -214,7 +285,7 @@ export default function ShopifySettingsDialog() {
             {/* Doğrudan Token Sekmesi */}
             <TabsContent value="direct" className="space-y-3 mt-3">
               <p className="text-xs text-muted-foreground">
-                Shopify Admin → Uygulamalar → Özel Uygulamalar'dan oluşturduğunuz Admin API access token'ı girin.
+                Shopify Admin'de özel uygulama oluşturup aldığınız <code className="bg-muted px-1 rounded">shpat_...</code> token'ı buraya yapıştırın.
               </p>
 
               <div className="space-y-1">
@@ -243,7 +314,9 @@ export default function ShopifySettingsDialog() {
                 onClick={() => directTokenMutation.mutate()}
                 disabled={!directDomain || !directToken || directTokenMutation.isPending}
               >
-                {directTokenMutation.isPending ? <Loader2 className="h-4 w-4 animate-spin mr-2" /> : <Key className="h-4 w-4 mr-2" />}
+                {directTokenMutation.isPending
+                  ? <Loader2 className="h-4 w-4 animate-spin mr-2" />
+                  : <Key className="h-4 w-4 mr-2" />}
                 Token'ı Doğrula ve Kaydet
               </Button>
             </TabsContent>
@@ -251,7 +324,7 @@ export default function ShopifySettingsDialog() {
             {/* OAuth Sekmesi */}
             <TabsContent value="oauth" className="space-y-3 mt-3">
               <div className="space-y-3">
-                <p className="text-sm font-semibold text-foreground">Adım 1 — Kimlik bilgilerini girin</p>
+                <p className="text-sm font-semibold">Adım 1 — Kimlik bilgilerini girin</p>
 
                 <div className="space-y-1">
                   <Label htmlFor="shopDomain">Mağaza Adresi</Label>
@@ -295,7 +368,7 @@ export default function ShopifySettingsDialog() {
               </div>
 
               <div className="space-y-2 pt-2 border-t">
-                <p className="text-sm font-semibold text-foreground">Adım 2 — Shopify'da yetkilendir</p>
+                <p className="text-sm font-semibold">Adım 2 — Shopify'da yetkilendir</p>
                 <Button
                   variant="secondary"
                   className="w-full gap-2"
@@ -315,10 +388,10 @@ export default function ShopifySettingsDialog() {
               variant="outline"
               size="sm"
               className="flex-1"
-              onClick={() => testMutation.mutate()}
-              disabled={testMutation.isPending}
+              onClick={runLiveTest}
+              disabled={liveTestLoading}
             >
-              {testMutation.isPending ? <Loader2 className="h-3 w-3 animate-spin mr-1" /> : null}
+              {liveTestLoading ? <Loader2 className="h-3 w-3 animate-spin mr-1" /> : null}
               Bağlantıyı Test Et
             </Button>
             {status?.shopDomain && (
