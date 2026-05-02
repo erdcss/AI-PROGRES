@@ -1948,6 +1948,12 @@ export function registerRoutes(app: Express): Server {
           if (scrapeResult && scrapeResult.success !== false) {
             console.log(`⚡ Scenario scrape SUCCESS in ${Date.now() - scrapeStartTime}ms`);
             result = { ...scrapeResult, _source: 'scenario-scrape' };
+            
+            // 🌈 MULTI-COLOR: Now handled inside scenarioBasedScrape via JSON-LD ProductGroup.hasVariant
+            // (No parallel HTTP scraping needed — all color/size/image data is in the main page JSON-LD)
+            if (scrapeResult.otherColorUrls && scrapeResult.otherColorUrls.length > 0) {
+              console.log(`🌈 MULTI-COLOR: ${scrapeResult.otherColorUrls.length} other color URLs found (handled via JSON-LD inside scraper)`);
+            }
           } else {
             throw new Error('Scenario scrape failed');
           }

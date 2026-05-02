@@ -30,6 +30,7 @@ interface VariantExtractionResult {
   method: string;
   extractedAt: Date;
   images?: string[];
+  colorVariantUrls?: string[];
   otherColorVariants?: Array<{
     name: string;
     url: string;
@@ -406,6 +407,36 @@ export class EnhancedVariantExtractor {
           }
         });
 
+        // 🌈 MULTI-COLOR URL EXTRACTION: Find links to other color variant pages
+        result.colorVariantUrls = [];
+        try {
+          const colorLinkSelectors = [
+            'a.slicing-attributes__item[href*="/p-"]',
+            '.slicing-attributes a[href*="/p-"]',
+            'a[class*="slicing"][href*="/p-"]',
+            '.attribute-media.renk a[href*="/p-"]',
+            '[class*="color"] a[href*="/p-"]',
+            '[class*="renk"] a[href*="/p-"]',
+            'a[href*="/p-"][class*="item"]',
+          ];
+          const allColorLinks = new Set<string>();
+          for (const sel of colorLinkSelectors) {
+            document.querySelectorAll(sel).forEach((a: any) => {
+              const href = a.getAttribute('href');
+              if (href && href.includes('/p-')) {
+                const full = href.startsWith('http') ? href : 'https://www.trendyol.com' + href;
+                allColorLinks.add(full.split('?')[0]);
+              }
+            });
+          }
+          result.colorVariantUrls = Array.from(allColorLinks);
+          if (result.colorVariantUrls.length > 0) {
+            console.log(`🌈 Found ${result.colorVariantUrls.length} color variant links in DOM`);
+          }
+        } catch(e) {
+          console.log('⚠️ Color URL extraction failed:', e.message);
+        }
+
         return result;
       });
 
@@ -483,11 +514,17 @@ export class EnhancedVariantExtractor {
 
       await browser.close();
 
+      const colorVariantUrls: string[] = variantData.colorVariantUrls || [];
+      if (colorVariantUrls.length > 0) {
+        console.log(`🌈 HYBRID PUPPETEER: Found ${colorVariantUrls.length} other color URLs: ${colorVariantUrls.join(', ')}`);
+      }
+
       return {
         success: variants.length > 0,
         variants,
         method: 'enhanced_puppeteer',
         extractedAt: new Date(),
+        colorVariantUrls,
         otherColorVariants: variantData.otherColorVariants || [],
         images: puppeteerImages
       };

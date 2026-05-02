@@ -711,6 +711,7 @@ export interface ScenarioBasedResult {
     inStock: boolean;
   }>;
   tags: string[]; // Added advanced tags array
+  otherColorUrls?: string[]; // URLs of other color variants for multi-color scraping
   extractionDetails: {
     scenario: string;
     confidence: number;
@@ -821,11 +822,30 @@ async function tryPuppeteerColorExtraction(url: string): Promise<{success: boole
           }
         });
         
-        return { colors: [...new Set(colors)], currentColor, sizesWithStock };
+        // Extract color variant URLs (hrefs to other color product pages)
+        const colorVariantUrls: string[] = [];
+        const colorLinkSelectors = [
+          'a.slicing-attributes__item[href*="/p-"]',
+          'a[class*="color"][href*="/p-"]',
+          'a[class*="renk"][href*="/p-"]',
+          '.slicing-attribute-section a[href*="/p-"]'
+        ];
+        for (const sel of colorLinkSelectors) {
+          document.querySelectorAll(sel).forEach((link: any) => {
+            const href = link.getAttribute('href') || '';
+            if (!href.match(/\/p-\d+/)) return;
+            const fullUrl = href.startsWith('http') ? href : `https://www.trendyol.com${href}`;
+            if (!colorVariantUrls.includes(fullUrl)) colorVariantUrls.push(fullUrl);
+          });
+          if (colorVariantUrls.length > 0) break;
+        }
+        
+        return { colors: [...new Set(colors)], currentColor, sizesWithStock, colorVariantUrls };
       });
       
       const currentColorFromPuppeteer = colorData.currentColor || '';
       const sizesWithStockFromPuppeteer = colorData.sizesWithStock || [];
+      const colorVariantUrlsFromPuppeteer = (colorData.colorVariantUrls || []) as string[];
       
       // Normalize extracted colors - only keep actual colors, not sizes
       extractedColors = (colorData.colors || [])
@@ -876,11 +896,15 @@ async function tryPuppeteerColorExtraction(url: string): Promise<{success: boole
     
     await browser.close();
     console.log('✅ Puppeteer extraction successful');
+    if (colorVariantUrlsFromPuppeteer.length > 0) {
+      console.log(`🌈 Found ${colorVariantUrlsFromPuppeteer.length} color variant URLs`);
+    }
     
     return {
       success: true,
       htmlContent: finalHtml,
-      colors: extractedColors
+      colors: extractedColors,
+      colorVariantUrls: colorVariantUrlsFromPuppeteer
     };
   } catch (error) {
     console.log('❌ Puppeteer extraction failed:', error.message);
@@ -889,9 +913,73 @@ async function tryPuppeteerColorExtraction(url: string): Promise<{success: boole
   }
 }
 
+// 🌈 FAST: Extract ALL color+size variants from ProductGroup.hasVariant in JSON-LD
+// No extra HTTP requests — all data is in the main page HTML
+function extractAllVariantsFromProductGroupJsonLd(htmlContent: string): Array<{
+  color: string; size: string; inStock: boolean; image?: string;
+}> {
+  const result: Array<{color: string; size: string; inStock: boolean; image?: string}> = [];
+  const scriptMatches = [...htmlContent.matchAll(/<script[^>]*type=["']application\/ld\+json["'][^>]*>([\s\S]*?)<\/script>/gi)];
+
+  for (const match of scriptMatches) {
+    try {
+      const data = JSON.parse(match[1]);
+      let productGroup: any = null;
+      if (data['@type'] === 'ProductGroup' && data.hasVariant) {
+        productGroup = data;
+      } else if (data['@graph'] && Array.isArray(data['@graph'])) {
+        productGroup = data['@graph'].find((item: any) => item['@type'] === 'ProductGroup' && item.hasVariant);
+      }
+      if (!productGroup || !Array.isArray(productGroup.hasVariant) || productGroup.hasVariant.length < 2) continue;
+
+      console.log(`🌈 JSON-LD ProductGroup: Found ${productGroup.hasVariant.length} hasVariant entries`);
+
+      for (const variant of productGroup.hasVariant) {
+        const color = (typeof variant.color === 'string' ? variant.color : '') || '';
+        if (!color) continue;
+
+        // Extract sizes
+        let sizes: string[] = [];
+        if (Array.isArray(variant.size)) sizes = variant.size.map(String).filter((s: string) => s && s !== 'Standart');
+        else if (typeof variant.size === 'string' && variant.size !== 'Standart') sizes = [variant.size];
+        if (sizes.length === 0) sizes = [''];
+
+        // Extract image
+        let image = '';
+        if (variant.image) {
+          if (typeof variant.image === 'string') image = variant.image;
+          else if (variant.image.url) image = variant.image.url;
+          else if (Array.isArray(variant.image) && variant.image[0]) {
+            image = typeof variant.image[0] === 'string' ? variant.image[0] : variant.image[0].url || '';
+          }
+        }
+
+        // Availability
+        const available = !variant.offers?.availability || !variant.offers.availability.includes('OutOfStock');
+
+        for (const size of sizes) {
+          result.push({ color, size, inStock: available, image });
+        }
+      }
+
+      if (result.length > 0) {
+        const colors = [...new Set(result.map(v => v.color))];
+        console.log(`🌈 JSON-LD extracted ${result.length} variants for ${colors.length} colors: ${colors.join(', ')}`);
+        break;
+      }
+    } catch (e) {
+      // Continue silently
+    }
+  }
+  return result;
+}
+
 export async function scenarioBasedScrape(url: string): Promise<ScenarioBasedResult> {
   const startTime = Date.now();
   console.log(`🚨🚨🚨 FUNCTION ENTRY: scenarioBasedScrape called for ${url}`);
+  
+  // Local store for color variant URLs found during Puppeteer extraction
+  let detectedColorVariantUrls: string[] = [];
   
   try {
     console.log(`🎯 SCENARIO-BASED EXTRACTION for: ${url}`);
@@ -920,6 +1008,10 @@ export async function scenarioBasedScrape(url: string): Promise<ScenarioBasedRes
     let htmlContent = '';
     let $: cheerio.CheerioAPI;
     let rotationResult: any = { success: false }; // Initialize for proxy rotation
+    // Preserved early data (before htmlContent can be overwritten by fallbacks)
+    let savedJsonLdVariants: Array<{color: string; size: string; inStock: boolean; image?: string}> = [];
+    let savedColorVariantUrls: string[] = [];
+    let prebuiltMultiColorVariants: Array<{color: string; colorCode: string; size: string; inStock: boolean}> | null = null;
     
     try {
       // ⚡ SPEED OPTIMIZATION: Try direct scraping FIRST (fastest method)
@@ -986,12 +1078,101 @@ export async function scenarioBasedScrape(url: string): Promise<ScenarioBasedRes
         try {
           $ = safeCheerioLoad(htmlContent);
           console.log('✅ SPEED MODE: Direct scraping successful in <3s!');
-          
+
+          // 🌈 EXTRACT COLOR VARIANT URLS FROM HTML using seller-specific URL matching
+          {
+            console.log(`🌈 HTML COLOR URL EXTRACTION: Starting for seller detection...`);
+            try {
+              // Extract seller from current URL: https://www.trendyol.com/SELLER/slug-p-ID
+              const sellerMatch = url.match(/trendyol\.com\/([^/?]+)\//);
+              const seller = sellerMatch ? sellerMatch[1] : null;
+              console.log(`🌈 Seller detected: "${seller}", HTML length: ${htmlContent.length}`);
+
+              if (seller) {
+                // Find all product URLs from the same seller in the HTML
+                const sellerEscaped = seller.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+                const sellerUrlPattern = new RegExp(
+                  `https?://www\\.trendyol\\.com/${sellerEscaped}/[^\\s"<>]*-p-(\\d+)`,
+                  'g'
+                );
+                const foundUrls = new Map<string, string>(); // productId -> url
+                let m: RegExpExecArray | null;
+                while ((m = sellerUrlPattern.exec(htmlContent)) !== null) {
+                  const productId = m[1];
+                  const fullUrl = m[0].split('?')[0]; // strip query params
+                  if (productId && !foundUrls.has(productId)) {
+                    foundUrls.set(productId, fullUrl);
+                  }
+                }
+                console.log(`🌈 HTML regex found ${foundUrls.size} unique seller URLs`);
+                if (foundUrls.size > 1) {
+                  detectedColorVariantUrls = Array.from(foundUrls.values());
+                  console.log(`🌈 HTML COLOR URLS: Found ${detectedColorVariantUrls.length} seller URLs for "${seller}"`);
+                  detectedColorVariantUrls.forEach(u => console.log(`  🔗 ${u}`));
+                }
+              }
+            } catch (urlExtractError: any) {
+              console.log(`⚠️ Color URL extraction from HTML failed: ${urlExtractError.message}`);
+            }
+          }
+
+          // 🌈 FAST MULTI-COLOR: Extract ALL variants from ProductGroup.hasVariant JSON-LD (no extra HTTP)
+          const jsonLdAllVariants = extractAllVariantsFromProductGroupJsonLd(htmlContent);
+          // Save early so merge block can use them even if htmlContent is later overwritten by fallbacks
+          savedJsonLdVariants = jsonLdAllVariants;
+          savedColorVariantUrls = [...detectedColorVariantUrls];
+          const jsonLdColors = [...new Set(jsonLdAllVariants.map(v => v.color).filter(Boolean))];
+          const jsonLdHasMultipleColors = jsonLdColors.length > 1;
+          if (jsonLdHasMultipleColors) {
+            console.log(`🌈 JSON-LD multi-color found early: ${jsonLdColors.length} colors — ${jsonLdColors.join(', ')}`);
+          }
+
+          // 🌈 PREBUILT MULTI-COLOR: Build color×size matrix RIGHT NOW, before any fallback can overwrite data
+          if (savedColorVariantUrls.length > 1 && jsonLdAllVariants.length > 0) {
+            try {
+              const slugColorMap: Record<string, string> = {
+                bej: 'Bej', lacivert: 'Lacivert', siyah: 'Siyah', taba: 'Taba',
+                beyaz: 'Beyaz', gri: 'Gri', fume: 'Füme', füme: 'Füme',
+                kirmizi: 'Kırmızı', mavi: 'Mavi', yesil: 'Yeşil', sari: 'Sarı',
+                mor: 'Mor', pembe: 'Pembe', turuncu: 'Turuncu', krem: 'Krem',
+                kahverengi: 'Kahverengi', bordo: 'Bordo', ekru: 'Ekru',
+                haki: 'Haki', indigo: 'İndigo', pudra: 'Pudra', mint: 'Mint',
+                lila: 'Lila', antrasit: 'Antrasit', gold: 'Gold', silver: 'Gümüş',
+                kiremit: 'Kiremit', turkuaz: 'Turkuaz', vizon: 'Vizon', somon: 'Somon',
+                nude: 'Nude', camel: 'Camel', khaki: 'Haki',
+              };
+              const slugToColor = (slug: string): string => {
+                const first = slug.split('-')[0].toLowerCase();
+                return slugColorMap[first] || (first.charAt(0).toUpperCase() + first.slice(1));
+              };
+              const prebuiltSizes: string[] = [...new Set(
+                jsonLdAllVariants.map((v: any) => v.size).filter((s: any) => s && String(s).length > 0)
+              )] as string[];
+              const prebuilt: Array<{color: string; colorCode: string; size: string; inStock: boolean}> = [];
+              for (const colorUrl of savedColorVariantUrls) {
+                const slugM = colorUrl.match(/trendyol\.com\/[^/]+\/([^/]+)-p-(\d+)/);
+                if (!slugM) continue;
+                const colorName = slugToColor(slugM[1]);
+                for (const sz of prebuiltSizes) {
+                  prebuilt.push({ color: colorName, colorCode: '', size: sz, inStock: true });
+                }
+              }
+              if (prebuilt.length > 0) {
+                prebuiltMultiColorVariants = prebuilt;
+                const prebuiltColors = [...new Set(prebuilt.map(v => v.color))];
+                console.log(`🌈 PREBUILT: ${prebuilt.length} variants, ${prebuiltColors.length} colors: ${prebuiltColors.join(', ')}, sizes: ${prebuiltSizes.join(',')}`);
+              }
+            } catch (prebuiltErr: any) {
+              console.log(`⚠️ Prebuilt multi-color failed: ${prebuiltErr.message}`);
+            }
+          }
+
           // 🎨 CHECK FOR COLORS - Extract variants and check if we have colors
           console.log('🎨 Checking for color variants in HTML...');
           const initialVariants = extractEnhancedVariants($, htmlContent);
-          const hasColors = initialVariants && initialVariants.length > 0 && 
-                           initialVariants.some(v => v.color && v.color !== 'Standart' && v.color !== 'Tek Renk');
+          const hasColors = (initialVariants && initialVariants.length > 0 && 
+                           initialVariants.some(v => v.color && v.color !== 'Standart' && v.color !== 'Tek Renk'))
+                           || jsonLdHasMultipleColors; // JSON-LD multi-color counts as "has colors"
 
           // Check if clothing sizes are incomplete (Puppeteer needed to get all sizes from JS state)
           const initialSizeSet = new Set(
@@ -1000,7 +1181,9 @@ export async function scenarioBasedScrape(url: string): Promise<ScenarioBasedRes
           const clothingSizeKeywords = ['S','M','L','XL','XXL','2XL','XS','3XL','4XL'];
           const hasClothingSizes = Array.from(initialSizeSet).some(s => clothingSizeKeywords.includes(s));
           // If we have clothing sizes but ≤3, there are likely more (XL, 2XL, etc.) only in JS state
-          const incompleteSizes = hasClothingSizes && initialSizeSet.size <= 3;
+          // BUT: if JSON-LD already gave us complete size data, skip Puppeteer
+          const jsonLdSizesComplete = jsonLdAllVariants.some(v => v.size && v.size.length > 0);
+          const incompleteSizes = hasClothingSizes && initialSizeSet.size <= 3 && !jsonLdSizesComplete;
           const needsPuppeteer = !hasColors || incompleteSizes;
           
           console.log(`🎨 Initial variant check: ${initialVariants?.length || 0} variants, hasColors: ${hasColors}, sizes: [${Array.from(initialSizeSet).join(',')}], incompleteSizes: ${incompleteSizes}, needsPuppeteer: ${needsPuppeteer}`);
@@ -1015,6 +1198,10 @@ export async function scenarioBasedScrape(url: string): Promise<ScenarioBasedRes
                 console.log('✅ Puppeteer colors injected into HTML');
                 if (puppeteerResult.colors && puppeteerResult.colors.length > 0) {
                   console.log(`🎨 Extracted ${puppeteerResult.colors.length} colors:`, puppeteerResult.colors.join(', '));
+                }
+                if ((puppeteerResult as any).colorVariantUrls?.length > 0) {
+                  detectedColorVariantUrls = (puppeteerResult as any).colorVariantUrls;
+                  console.log(`🌈 Captured ${detectedColorVariantUrls.length} color variant URLs from Puppeteer`);
                 }
               }
             } catch (puppeteerError) {
@@ -1089,6 +1276,10 @@ export async function scenarioBasedScrape(url: string): Promise<ScenarioBasedRes
               console.log('✅ Puppeteer color extraction successful!');
               if (puppeteerResult.colors && puppeteerResult.colors.length > 0) {
                 console.log(`🎨 Colors extracted: ${puppeteerResult.colors.join(', ')}`);
+              }
+              if ((puppeteerResult as any).colorVariantUrls?.length > 0) {
+                detectedColorVariantUrls = (puppeteerResult as any).colorVariantUrls;
+                console.log(`🌈 Captured ${detectedColorVariantUrls.length} color variant URLs`);
               }
             } else {
               throw new Error('Puppeteer extraction failed');
@@ -1475,11 +1666,34 @@ export async function scenarioBasedScrape(url: string): Promise<ScenarioBasedRes
             }
           });
           
-          return { colors: [...new Set(colors)], currentColor, sizesWithStock };
+          // Extract color variant URLs (hrefs to other color product pages)
+          const colorVariantUrls2: string[] = [];
+          const colorLinkSelectors2 = [
+            'a.slicing-attributes__item[href*="/p-"]',
+            'a[class*="color"][href*="/p-"]',
+            'a[class*="renk"][href*="/p-"]',
+            '.slicing-attribute-section a[href*="/p-"]'
+          ];
+          for (const sel of colorLinkSelectors2) {
+            document.querySelectorAll(sel).forEach((link: any) => {
+              const href = link.getAttribute('href') || '';
+              if (!href.match(/\/p-\d+/)) return;
+              const fullUrl = href.startsWith('http') ? href : `https://www.trendyol.com${href}`;
+              if (!colorVariantUrls2.includes(fullUrl)) colorVariantUrls2.push(fullUrl);
+            });
+            if (colorVariantUrls2.length > 0) break;
+          }
+          
+          return { colors: [...new Set(colors)], currentColor, sizesWithStock, colorVariantUrls: colorVariantUrls2 };
         });
         
         const currentColorFromPuppeteer2 = colorData.currentColor || '';
         const sizesWithStockFromPuppeteer2 = colorData.sizesWithStock || [];
+        const colorVariantUrlsFromBlock2 = (colorData.colorVariantUrls || []) as string[];
+        if (colorVariantUrlsFromBlock2.length > 0) {
+          console.log(`🌈 Block2 Puppeteer found ${colorVariantUrlsFromBlock2.length} color variant URLs`);
+          detectedColorVariantUrls = colorVariantUrlsFromBlock2;
+        }
         extractedColors = (colorData.colors || []).filter((c: string) => c && c.length > 0);
         if (currentColorFromPuppeteer2) {
           console.log(`🎨 Puppeteer CURRENT color: ${currentColorFromPuppeteer2}`);
@@ -1923,6 +2137,22 @@ export async function scenarioBasedScrape(url: string): Promise<ScenarioBasedRes
           if (hybridResult.success && hybridResult.variants.length > 0) {
             console.log(`✅ Hybrid extraction successful via ${hybridResult.method}: ${hybridResult.variants.length} variants`);
             
+            // 🌈 Capture other color URLs from Puppeteer session
+            if ((hybridResult as any).colorVariantUrls && (hybridResult as any).colorVariantUrls.length > 0) {
+              const rawUrls = (hybridResult as any).colorVariantUrls as string[];
+              // Filter out the current URL (this product itself)
+              const currentId = url.match(/p-(\d+)/)?.[1];
+              const otherUrls = rawUrls.filter(u => {
+                const m = u.match(/p-(\d+)/);
+                return m && m[1] !== currentId;
+              });
+              if (otherUrls.length > 0) {
+                detectedColorVariantUrls = otherUrls;
+                console.log(`🌈 HYBRID: Detected ${otherUrls.length} other color URLs from Puppeteer DOM`);
+                otherUrls.forEach(u => console.log(`  🔗 ${u}`));
+              }
+            }
+
             // 🎯 Capture images from Puppeteer rendered page
             if (hybridResult.images && hybridResult.images.length > 0) {
               puppeteerCapturedImages = hybridResult.images;
@@ -2183,6 +2413,43 @@ export async function scenarioBasedScrape(url: string): Promise<ScenarioBasedRes
       };
     }
 
+    // 🌈 MERGE: Apply prebuilt multi-color variants (computed in speed mode before any fallback)
+    try {
+      if (prebuiltMultiColorVariants && prebuiltMultiColorVariants.length > 0) {
+        const currentColors = [...new Set(variants.map((v: any) => v.color).filter(Boolean))];
+        const prebuiltColors = [...new Set(prebuiltMultiColorVariants.map(v => v.color))];
+        console.log(`🌈 Merge check: current=${currentColors.length} colors (${currentColors.join(',')}), prebuilt=${prebuiltColors.length} colors (${prebuiltColors.join(',')})`);
+        if (prebuiltColors.length > currentColors.length) {
+          console.log(`🌈 PREBUILT MERGE: ${prebuiltColors.length} colors → replacing ${currentColors.length} color(s)`);
+          variants = prebuiltMultiColorVariants;
+          colors = [...prebuiltColors];
+          console.log(`🌈 After prebuilt merge: ${variants.length} variants, ${colors.length} colors`);
+        }
+      } else if (savedJsonLdVariants.length > 0) {
+        // Fallback: plain JSON-LD merge
+        const currentColors = [...new Set(variants.map((v: any) => v.color).filter(Boolean))];
+        const jldColors = [...new Set(savedJsonLdVariants.map(v => v.color).filter(Boolean))];
+        console.log(`🌈 JSON-LD check: current=${currentColors.length} colors, jld=${jldColors.length} colors`);
+        if (jldColors.length > currentColors.length) {
+          console.log(`🌈 JSON-LD MERGE: ${jldColors.length} colors`);
+          const existingKeys = new Set(variants.map((v: any) => `${v.color||''}-${v.size||''}`));
+          for (const jv of savedJsonLdVariants) {
+            const key = `${jv.color||''}-${jv.size||''}`;
+            if (!existingKeys.has(key)) {
+              existingKeys.add(key);
+              variants.push({ color: jv.color, colorCode: '', size: jv.size, inStock: jv.inStock });
+            }
+          }
+          colors = [...new Set(variants.map((v: any) => v.color).filter(Boolean))];
+          console.log(`🌈 After JSON-LD merge: ${variants.length} variants, ${colors.length} colors`);
+        }
+      } else {
+        console.log(`🌈 Merge check: no prebuilt (savedUrls=${savedColorVariantUrls.length}, savedJld=${savedJsonLdVariants.length})`);
+      }
+    } catch (mergeErr: any) {
+      console.log(`⚠️ Merge block error (non-fatal): ${mergeErr.message}`);
+    }
+
     // ✅ MULTI-COLOR SUPPORT - Keep all colors and variants
     console.log(`🎨 MULTI-COLOR EXTRACTION: Processing ${colors.length} colors`);
     console.log(`🎨 Colors found: ${colors.join(', ')}`);
@@ -2304,6 +2571,18 @@ export async function scenarioBasedScrape(url: string): Promise<ScenarioBasedRes
       // Leave variants empty - don't add fake "Tek Beden" or "Standart"
     }
     
+    // Filter other color URLs: remove current URL and deduplicate
+    const currentItemMatch = url.match(/p-(\d+)/);
+    const currentItemNumber = currentItemMatch ? currentItemMatch[1] : '';
+    const otherColorUrls = detectedColorVariantUrls.filter(u => {
+      const itemMatch = u.match(/p-(\d+)/);
+      const itemNum = itemMatch ? itemMatch[1] : '';
+      return itemNum && itemNum !== currentItemNumber;
+    });
+    if (otherColorUrls.length > 0) {
+      console.log(`🌈 Product has ${otherColorUrls.length} other color URL(s) to scrape`);
+    }
+
     // Save successful result to cache
     const result = {
       success: true,
@@ -2323,6 +2602,7 @@ export async function scenarioBasedScrape(url: string): Promise<ScenarioBasedRes
         allVariants: validatedVariants.allVariants
       },
       tags: advancedTags, // Added advanced tags
+      otherColorUrls: otherColorUrls.length > 0 ? otherColorUrls : undefined,
       extractionDetails: {
         scenario: detection.scenario,
         confidence: detection.confidence,
