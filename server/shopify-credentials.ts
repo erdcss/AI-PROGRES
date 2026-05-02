@@ -11,11 +11,21 @@ export interface ShopifyConfig {
 
 /**
  * Aktif Shopify kimlik bilgilerini alır.
- * Öncelik: DB (kullanıcının UI'dan girdiği güncel token) > ENV değişkenleri
- * Bu sayede kullanıcı ayarlar diyaloğundan yeni token girebilir ve hemen geçerli olur.
+ * Öncelik: SHOPIFY_APP_SECRET_NEW > DB > Eski ENV token'ları
  */
 export async function getShopifyConfig(): Promise<ShopifyConfig | null> {
-  // 1. DB'yi önce kontrol et (kullanıcı UI'dan güncel token girmiş olabilir)
+  const newToken = process.env.SHOPIFY_APP_SECRET_NEW;
+  const shopDomainFromEnv =
+    process.env.SHOPIFY_SHOP_DOMAIN ||
+    process.env.SHOPIFY_STORE_URL?.replace(/^https?:\/\//, '').replace(/\/$/, '') ||
+    process.env.SHOPIFY_STORE_DOMAIN;
+
+  // 1. Yeni secret varsa onu kullan (en güncel ve geçerli token)
+  if (newToken && shopDomainFromEnv) {
+    return { shopDomain: shopDomainFromEnv, accessToken: newToken };
+  }
+
+  // 2. DB'yi kontrol et (kullanıcı UI'dan token girmiş olabilir)
   try {
     const rows = await db
       .select()
@@ -37,20 +47,55 @@ export async function getShopifyConfig(): Promise<ShopifyConfig | null> {
     console.error('getShopifyConfig DB error:', err);
   }
 
-  // 2. DB'de yoksa ENV değişkenlerine bak
-  const envShopDomain =
-    process.env.SHOPIFY_SHOP_DOMAIN ||
-    process.env.SHOPIFY_STORE_URL?.replace(/^https?:\/\//, '') ||
-    process.env.SHOPIFY_STORE_DOMAIN;
+  // 3. Eski ENV token'larına bak (shpss_ formatı geçersiz olabilir)
   const envAccessToken =
     process.env.SHOPIFY_ACCESS_TOKEN ||
     process.env.SHOPIFY_ADMIN_ACCESS_TOKEN;
 
-  if (envShopDomain && envAccessToken) {
-    return { shopDomain: envShopDomain, accessToken: envAccessToken };
+  if (shopDomainFromEnv && envAccessToken) {
+    return { shopDomain: shopDomainFromEnv, accessToken: envAccessToken };
   }
 
   return null;
+}
+
+/**
+ * Sunucu başlangıcında SHOPIFY_APP_SECRET_NEW'ı DB'ye otomatik senkronize eder.
+ * Bu sayede sistem yeniden başlatılınca yeni token hemen aktif olur.
+ */
+export async function syncNewTokenToDB(): Promise<void> {
+  const newToken = process.env.SHOPIFY_APP_SECRET_NEW;
+  const shopDomain = (
+    process.env.SHOPIFY_SHOP_DOMAIN ||
+    process.env.SHOPIFY_STORE_URL?.replace(/^https?:\/\//, '').replace(/\/$/, '') ||
+    process.env.SHOPIFY_STORE_DOMAIN
+  );
+
+  if (!newToken || !shopDomain) return;
+
+  try {
+    const rows = await db.select().from(shopifyCredentials)
+      .where(eq(shopifyCredentials.shopDomain, shopDomain))
+      .limit(1);
+
+    if (rows.length > 0) {
+      if (rows[0].accessToken === newToken) return; // Zaten güncel
+      await db.update(shopifyCredentials)
+        .set({ accessToken: newToken, isActive: true, updatedAt: new Date() })
+        .where(eq(shopifyCredentials.shopDomain, shopDomain));
+    } else {
+      await db.insert(shopifyCredentials).values({
+        shopDomain,
+        apiKey: '',
+        apiSecret: '',
+        accessToken: newToken,
+        isActive: true
+      });
+    }
+    console.log(`✅ SHOPIFY_APP_SECRET_NEW DB'ye senkronize edildi: ${shopDomain}`);
+  } catch (err) {
+    console.error('syncNewTokenToDB error:', err);
+  }
 }
 
 /**

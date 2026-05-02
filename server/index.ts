@@ -578,6 +578,14 @@ app.use(pendingChangesRoutes);
   
   const server = await registerRoutes(app);
 
+  // SHOPIFY_APP_SECRET_NEW varsa DB'ye otomatik senkronize et
+  try {
+    const { syncNewTokenToDB } = await import('./shopify-credentials');
+    await syncNewTokenToDB();
+  } catch (e) {
+    console.error('syncNewTokenToDB startup error:', e);
+  }
+
   // Serve static CSV files from temp and exports directories
   app.use('/temp', express.static(pathModule.resolve('./temp')));
   app.use('/exports', express.static(pathModule.resolve('./exports')));
