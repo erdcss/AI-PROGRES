@@ -151,10 +151,15 @@ export async function generateMultiVariantShopifyCSV(product: CombinedProduct): 
   if (originalPrice > 10000) originalPrice = originalPrice / 100;
   if (originalPrice < 1) originalPrice = 10;
 
-  const compareAtPrice = originalPrice > 0 ? originalPrice : 27.18;
+  // salePrice = Trendyol fiyatı + %10 kâr marjı (müşteriye gösterilen fiyat)
+  // compareAtPrice = salePrice'dan yüksek olmalı (Shopify'da üstü çizili "eski fiyat")
   const salePrice = originalPrice > 0
     ? (Math.round(originalPrice * 1.10 * 100) / 100).toString()
     : '29.90';
+  // Compare-at: satış fiyatından %20 daha yüksek → indirim göstergesi
+  const compareAtPrice = originalPrice > 0
+    ? Math.round(originalPrice * 1.10 * 1.20 * 100) / 100
+    : 0;
 
   console.log(`💰 CSV: Price ${originalPrice} TL + 10% = ${salePrice} TL`);
 

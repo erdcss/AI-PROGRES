@@ -431,62 +431,67 @@ function parseCSVToShopifyProduct(records: any[]): ShopifyProductData {
     ImageSrc: firstRecord['Image Src']
   });
   
-  // Variants - SKU'su olan kayıtlar
+  // Yeni Shopify 2024+ sütun adları için yardımcı fonksiyon
+  const col = (record: any, ...names: string[]): string => {
+    for (const n of names) {
+      if (record[n] !== undefined && record[n] !== null && record[n] !== '') return record[n];
+    }
+    return '';
+  };
+
+  // Variants - SKU'su olan kayıtlar (eski ve yeni sütun adı desteği)
   const variants = records
     .filter(record => {
-      // Debug log to see what we're filtering
-      console.log('🔍 Record check:', {
-        hasSKU: !!record['Variant SKU'],
-        sku: record['Variant SKU'],
-        option1: record['Option1 Value'],
-        option2: record['Option2 Value']
-      });
-      return record['Variant SKU'] && record['Variant SKU'].trim();
+      const sku = col(record, 'SKU', 'Variant SKU');
+      const opt1 = col(record, 'Option1 value', 'Option1 Value');
+      console.log('🔍 Record check:', { hasSKU: !!sku, sku, option1: opt1 });
+      return sku && sku.trim();
     })
     .map(record => {
       const variant = {
-        option1: record['Option1 Value'] || '',
-        option2: record['Option2 Value'] || '',
-        price: record['Variant Price'] || '0',
-        sku: record['Variant SKU'] || '',
-        inventory_quantity: 0, // Envanter takibi yok
-        image: record['Variant Image'] || record['Image Src'] || ''
+        option1: col(record, 'Option1 value', 'Option1 Value'),
+        option2: col(record, 'Option2 value', 'Option2 Value'),
+        price: col(record, 'Price', 'Variant Price') || '0',
+        sku: col(record, 'SKU', 'Variant SKU'),
+        inventory_quantity: 0,
+        image: col(record, 'Variant image URL', 'Variant Image', 'Product image URL', 'Image Src')
       };
       console.log('📦 Parsed variant:', variant);
       return variant;
     });
     
-  // Images - URL validation ile
+  // Images - URL validation ile (eski ve yeni sütun adı desteği)
   const images = records
     .filter(record => {
-      const imageSrc = record['Image Src'];
-      const isValid = imageSrc && imageSrc.trim() && imageSrc.startsWith('http');
+      const imageSrc = col(record, 'Product image URL', 'Image Src');
+      const isValid = !!imageSrc && imageSrc.trim().startsWith('http');
       console.log(`📸 Image validation: "${imageSrc}" -> ${isValid ? 'VALID' : 'INVALID'}`);
       return isValid;
     })
     .map((record, index) => {
+      const imageSrc = col(record, 'Product image URL', 'Image Src');
       const imageData = {
-        src: record['Image Src'],
-        alt: record['Image Alt Text'] || firstRecord.Title || 'Product Image',
-        position: parseInt(record['Image Position']) || (index + 1)
+        src: imageSrc,
+        alt: col(record, 'Image alt text', 'Image Alt Text') || firstRecord.Title || 'Product Image',
+        position: parseInt(col(record, 'Image position', 'Image Position')) || (index + 1)
       };
       console.log(`📸 Processed image ${index + 1}:`, imageData);
       return imageData;
     });
   
-  // CSV'den Option1 Name ve Option2 Name değerlerini oku
-  const option1Name = firstRecord['Option1 Name'] || '';
-  const option2Name = firstRecord['Option2 Name'] || '';
+  // CSV'den Option1 Name ve Option2 Name değerlerini oku (eski ve yeni format)
+  const option1Name = col(firstRecord, 'Option1 name', 'Option1 Name');
+  const option2Name = col(firstRecord, 'Option2 name', 'Option2 Name');
   console.log(`🏷️ CSV Option Names: Option1="${option1Name}", Option2="${option2Name}"`);
   
   const productData: ShopifyProductData = {
-    handle: firstRecord.Handle || 'default-handle',
+    handle: col(firstRecord, 'URL handle', 'Handle') || 'default-handle',
     title: firstRecord.Title || 'Default Product',
-    bodyHtml: firstRecord['Body (HTML)'] || '',
+    bodyHtml: col(firstRecord, 'Description', 'Body (HTML)'),
     vendor: firstRecord.Vendor || '',
     tags: firstRecord.Tags || '',
-    option1Name: option1Name, // Renk veya Beden
-    option2Name: option2Name, // Beden veya boş
+    option1Name,
+    option2Name,
     variants,
     images
   };

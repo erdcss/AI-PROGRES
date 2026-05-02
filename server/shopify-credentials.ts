@@ -11,21 +11,15 @@ export interface ShopifyConfig {
 
 /**
  * Aktif Shopify kimlik bilgilerini alır.
- * Öncelik: SHOPIFY_APP_SECRET_NEW > DB > Eski ENV token'ları
+ * Öncelik: DB (UI'dan girilmiş) > SHOPIFY_ACCESS_TOKEN > SHOPIFY_ADMIN_ACCESS_TOKEN > SHOPIFY_APP_SECRET_NEW
  */
 export async function getShopifyConfig(): Promise<ShopifyConfig | null> {
-  const newToken = process.env.SHOPIFY_APP_SECRET_NEW;
   const shopDomainFromEnv =
     process.env.SHOPIFY_SHOP_DOMAIN ||
     process.env.SHOPIFY_STORE_URL?.replace(/^https?:\/\//, '').replace(/\/$/, '') ||
     process.env.SHOPIFY_STORE_DOMAIN;
 
-  // 1. Yeni secret varsa onu kullan (en güncel ve geçerli token)
-  if (newToken && shopDomainFromEnv) {
-    return { shopDomain: shopDomainFromEnv, accessToken: newToken };
-  }
-
-  // 2. DB'yi kontrol et (kullanıcı UI'dan token girmiş olabilir)
+  // 1. DB'yi önce kontrol et (kullanıcı UI'dan token girmiş olabilir)
   try {
     const rows = await db
       .select()
@@ -47,10 +41,11 @@ export async function getShopifyConfig(): Promise<ShopifyConfig | null> {
     console.error('getShopifyConfig DB error:', err);
   }
 
-  // 3. Eski ENV token'larına bak (shpss_ formatı geçersiz olabilir)
+  // 2. ENV token'larını kontrol et — en son güncellenen önce
   const envAccessToken =
     process.env.SHOPIFY_ACCESS_TOKEN ||
-    process.env.SHOPIFY_ADMIN_ACCESS_TOKEN;
+    process.env.SHOPIFY_ADMIN_ACCESS_TOKEN ||
+    process.env.SHOPIFY_APP_SECRET_NEW;
 
   if (shopDomainFromEnv && envAccessToken) {
     return { shopDomain: shopDomainFromEnv, accessToken: envAccessToken };
