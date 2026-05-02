@@ -2566,52 +2566,65 @@ export async function scenarioBasedScrape(url: string): Promise<ScenarioBasedRes
     
     if (shouldReplaceFakeColors) {
       console.log('🎨 All colors are fake/placeholder, attempting URL/title/JSON-LD extraction...');
-      
-      // Try to extract real color from URL or title
-      let realColor = extractColorFromUrl(url);
-      if (!realColor && title) {
-        realColor = extractColorFromTitle(title);
-      }
-      
-      // NEW: Try JSON-LD "color" field (authoritative for main product)
-      if (!realColor && $ && htmlContent) {
-        try {
-          const jsonLdScripts = $('script[type="application/ld+json"]');
-          jsonLdScripts.each((_: any, script: any) => {
-            if (realColor) return;
-            const jsonStr = $(script).html() || '';
-            const jsonData = JSON.parse(jsonStr);
-            if (jsonData && jsonData.color && typeof jsonData.color === 'string' && jsonData.color.length > 0) {
-              realColor = jsonData.color;
-              console.log(`🎨 JSON-LD color found: "${realColor}"`);
-            }
-          });
-        } catch {}
-      }
-      
-      // NEW: Try DsmColor from script tags (Trendyol's main product color field)
-      if (!realColor && htmlContent) {
-        const dsmMatch = htmlContent.match(/"DsmColor"\s*:\s*"([^"]{2,50})"/);
-        if (dsmMatch && dsmMatch[1]) {
-          realColor = dsmMatch[1];
-          console.log(`🎨 DsmColor found: "${realColor}"`);
-        }
-      }
-      
-      if (realColor) {
-        console.log(`🎨 Real color found: "${realColor}" - replacing fake colors`);
-        
-        // Replace fake colors in variants
-        variants = variants.map(v => ({
-          ...v,
-          color: realColor,
-          colorCode: getColorCode(realColor)
-        }));
-        
-        // Update colors array
-        colors = [realColor!];
+
+      // 🚫 KEY GUARD: Check if Puppeteer actually found color selector buttons on the page.
+      // puppeteer-colors = multiple color swatches, puppeteer-current-color = single active color button.
+      // If neither meta is present → the page has NO color selector UI → do NOT invent a color.
+      const puppeteerColorsMeta = $ ? $('meta[name="puppeteer-colors"]').attr('content') : null;
+      const puppeteerCurrentMeta = $ ? $('meta[name="puppeteer-current-color"]').attr('content') : null;
+      const puppeteerFoundColorButtons = !!(
+        (puppeteerColorsMeta && puppeteerColorsMeta.trim().length > 0) ||
+        (puppeteerCurrentMeta && puppeteerCurrentMeta.trim().length > 0)
+      );
+
+      if (!puppeteerFoundColorButtons) {
+        console.log('🚫 COLOR GUARD: Puppeteer found NO color selector buttons on this page — skipping color extraction');
+        console.log('🚫 Product has no real color options → colors and variants cleared');
+        colors = [];
+        variants = [];
       } else {
-        console.log('🎨 No real color found in URL/title/JSON-LD, keeping original values');
+        // Puppeteer confirmed color selectors exist → safely extract real color
+        let realColor = extractColorFromUrl(url);
+        if (!realColor && title) {
+          realColor = extractColorFromTitle(title);
+        }
+
+        // Try JSON-LD "color" field (authoritative for main product)
+        if (!realColor && $ && htmlContent) {
+          try {
+            const jsonLdScripts = $('script[type="application/ld+json"]');
+            jsonLdScripts.each((_: any, script: any) => {
+              if (realColor) return;
+              const jsonStr = $(script).html() || '';
+              const jsonData = JSON.parse(jsonStr);
+              if (jsonData && jsonData.color && typeof jsonData.color === 'string' && jsonData.color.length > 0) {
+                realColor = jsonData.color;
+                console.log(`🎨 JSON-LD color found: "${realColor}"`);
+              }
+            });
+          } catch {}
+        }
+
+        // Try DsmColor from script tags (Trendyol's main product color field)
+        if (!realColor && htmlContent) {
+          const dsmMatch = htmlContent.match(/"DsmColor"\s*:\s*"([^"]{2,50})"/);
+          if (dsmMatch && dsmMatch[1]) {
+            realColor = dsmMatch[1];
+            console.log(`🎨 DsmColor found: "${realColor}"`);
+          }
+        }
+
+        if (realColor) {
+          console.log(`🎨 Real color found: "${realColor}" - replacing fake colors`);
+          variants = variants.map(v => ({
+            ...v,
+            color: realColor,
+            colorCode: getColorCode(realColor)
+          }));
+          colors = [realColor!];
+        } else {
+          console.log('🎨 No real color found in URL/title/JSON-LD, keeping original values');
+        }
       }
     }
     
@@ -2659,7 +2672,27 @@ export async function scenarioBasedScrape(url: string): Promise<ScenarioBasedRes
     // 🔧 DEBUG: Log validated variants
     console.log('🔧 VALIDATED VARIANTS:', JSON.stringify(validatedVariants, null, 2));
     console.log('🔧 VALIDATED allVariants length:', validatedVariants.allVariants?.length || 0);
-    
+
+    // 🎨 SINGLE-COLOR STRIP: If there is only ONE unique color across all variants,
+    // that color is not a real user-selectable option → strip it so CSV has no Renk option.
+    // Exception: keep the color when there are genuinely NO sizes either (pure color-only product)
+    // because in that case we need at least one option value.
+    const uniqueColorSet = new Set(
+      validatedVariants.allVariants.map(v => v.color).filter(c => c && c.trim() !== '')
+    );
+    if (uniqueColorSet.size === 1) {
+      const onlyColor = [...uniqueColorSet][0];
+      const hasSizes = validatedVariants.allVariants.some(v => v.size && v.size.trim() !== '');
+      if (hasSizes) {
+        // Has sizes → color option is redundant (only 1 choice) → remove color
+        console.log(`🚫 SINGLE-COLOR STRIP: Only 1 color "${onlyColor}" with size variants → removing color (Puppeteer may have matched non-selector element)`);
+        validatedVariants.allVariants = validatedVariants.allVariants.map(v => ({ ...v, color: '', colorCode: '' }));
+        validatedVariants.colors = [];
+      } else {
+        console.log(`ℹ️ SINGLE-COLOR kept (no sizes): "${onlyColor}" — color-only product, keeping for variant identity`);
+      }
+    }
+
     // ✅ NO FAKE FALLBACK: Do not create fake variants when none are found
     // Real variants should be extracted from HTML/JS - if none found, leave empty
     if (validatedVariants.allVariants.length === 0) {

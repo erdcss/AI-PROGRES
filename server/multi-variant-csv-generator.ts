@@ -349,6 +349,16 @@ export async function generateMultiVariantShopifyCSV(product: CombinedProduct): 
   let imagePosition = 1;
   const addedImageUrls = new Set<string>();
 
+  // 🎨 MULTI-COLOR GUARD: Only show Renk option when there are 2+ distinct colors.
+  // A product with only 1 color has no real color choice for the customer → skip Renk option.
+  const distinctColorSet = new Set(
+    inStockVariants.map(v => v.color).filter(c => c && c.trim() !== '' && c !== 'Tek Renk' && c !== 'Standart')
+  );
+  const hasMultipleColors = distinctColorSet.size >= 2;
+  if (distinctColorSet.size === 1) {
+    console.log(`🚫 CSV SINGLE-COLOR GUARD: Only 1 color "${[...distinctColorSet][0]}" found → Renk option suppressed (no real choice)`);
+  }
+
   inStockVariants.forEach((variant, index) => {
     const isFirst = index === 0;
     const row: string[] = Array(TOTAL_COLUMNS).fill('');
@@ -375,8 +385,9 @@ export async function generateMultiVariantShopifyCSV(product: CombinedProduct): 
       row[COL.STATUS] = 'active';
     }
 
-    // Options
-    const hasColor = variant.color && variant.color.trim() !== '' && variant.color !== 'Tek Renk' && variant.color !== 'Standart';
+    // Options — color is only an option when there are genuinely multiple colors to choose from
+    const hasColor = hasMultipleColors &&
+      variant.color && variant.color.trim() !== '' && variant.color !== 'Tek Renk' && variant.color !== 'Standart';
     const hasSize = variant.size && variant.size.trim() !== '' && variant.size !== 'Tek Beden' && variant.size !== 'Standart';
 
     if (hasColor && hasSize) {
