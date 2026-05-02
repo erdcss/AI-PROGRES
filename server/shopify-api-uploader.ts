@@ -44,6 +44,7 @@ interface ShopifyProductData {
     option1: string;
     option2: string;
     price: string;
+    compareAtPrice?: string;
     sku: string;
     inventory_quantity: number;
     image?: string;
@@ -169,7 +170,7 @@ export async function uploadProductToShopify(csvContent: string, productTitle: s
             
             if (!hasOption1 && !hasOption2) {
               // Tek varyant ürün - Envanter takibi YOK
-              return {
+              const singleVariant: any = {
                 price: variant.price,
                 sku: variant.sku,
                 inventory_quantity: 0,
@@ -178,6 +179,8 @@ export async function uploadProductToShopify(csvContent: string, productTitle: s
                 requires_shipping: true,
                 taxable: true
               };
+              if (variant.compareAtPrice) singleVariant.compare_at_price = variant.compareAtPrice;
+              return singleVariant;
             } else {
               // Multi-varyant ürün - Envanter takibi YOK
               const variantData: any = {
@@ -190,6 +193,7 @@ export async function uploadProductToShopify(csvContent: string, productTitle: s
                 taxable: true
               };
               
+              if (variant.compareAtPrice) variantData.compare_at_price = variant.compareAtPrice;
               if (hasOption1) variantData.option1 = variant.option1;
               if (hasOption2) variantData.option2 = variant.option2;
               
@@ -424,11 +428,13 @@ function parseCSVToShopifyProduct(records: any[]): ShopifyProductData {
   
   const firstRecord = records[0];
   console.log('📋 First record keys:', Object.keys(firstRecord));
-  console.log('📋 Sample data:', {
-    Handle: firstRecord.Handle,
+  console.log('📋 Sample data (new format):', {
+    URLHandle: firstRecord['URL handle'] || firstRecord.Handle,
     Title: firstRecord.Title,
-    VariantSKU: firstRecord['Variant SKU'],
-    ImageSrc: firstRecord['Image Src']
+    SKU: firstRecord['SKU'] || firstRecord['Variant SKU'],
+    ProductImageURL: firstRecord['Product image URL'] || firstRecord['Image Src'],
+    Option1Name: firstRecord['Option1 name'] || firstRecord['Option1 Name'],
+    Price: firstRecord['Price'] || firstRecord['Variant Price']
   });
   
   // Yeni Shopify 2024+ sütun adları için yardımcı fonksiyon
@@ -448,10 +454,12 @@ function parseCSVToShopifyProduct(records: any[]): ShopifyProductData {
       return sku && sku.trim();
     })
     .map(record => {
+      const compareAtRaw = col(record, 'Compare-at price', 'Variant Compare At Price');
       const variant = {
         option1: col(record, 'Option1 value', 'Option1 Value'),
         option2: col(record, 'Option2 value', 'Option2 Value'),
         price: col(record, 'Price', 'Variant Price') || '0',
+        compareAtPrice: compareAtRaw && parseFloat(compareAtRaw) > 0 ? compareAtRaw : undefined,
         sku: col(record, 'SKU', 'Variant SKU'),
         inventory_quantity: 0,
         image: col(record, 'Variant image URL', 'Variant Image', 'Product image URL', 'Image Src')
@@ -509,15 +517,17 @@ function parseCSVToShopifyProduct(records: any[]): ShopifyProductData {
   // ✅ NO VARIANTS CASE: Create default variant for products without options
   if (variants.length === 0) {
     console.log('📦 No variants in CSV - creating default variant without options');
-    const price = firstRecord['Variant Price'] || '0';
+    const price = col(firstRecord, 'Price', 'Variant Price') || '0';
+    const handle = col(firstRecord, 'URL handle', 'Handle') || 'default-sku';
     variants.push({
       option1: '', // Empty - no color option
       option2: '', // Empty - no size option
       price: price,
-      sku: firstRecord.Handle || 'default-sku',
+      sku: handle,
       inventory_quantity: 0,
       image: images[0]?.src || ''
     });
+    console.log(`📦 Default variant created: price=${price}, sku=${handle}`);
   }
   
   return productData;
