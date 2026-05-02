@@ -10,10 +10,12 @@ export interface ShopifyConfig {
 }
 
 /**
- * Aktif Shopify kimlik bilgilerini veritabanından veya env'den alır.
- * DB öncelikli, accessToken olan ilk kaydı kullanır.
+ * Aktif Shopify kimlik bilgilerini alır.
+ * Öncelik: DB (kullanıcının UI'dan girdiği güncel token) > ENV değişkenleri
+ * Bu sayede kullanıcı ayarlar diyaloğundan yeni token girebilir ve hemen geçerli olur.
  */
 export async function getShopifyConfig(): Promise<ShopifyConfig | null> {
+  // 1. DB'yi önce kontrol et (kullanıcı UI'dan güncel token girmiş olabilir)
   try {
     const rows = await db
       .select()
@@ -35,18 +37,19 @@ export async function getShopifyConfig(): Promise<ShopifyConfig | null> {
     console.error('getShopifyConfig DB error:', err);
   }
 
-  // Env fallback
-  const shopDomain =
+  // 2. DB'de yoksa ENV değişkenlerine bak
+  const envShopDomain =
     process.env.SHOPIFY_SHOP_DOMAIN ||
     process.env.SHOPIFY_STORE_URL?.replace(/^https?:\/\//, '') ||
     process.env.SHOPIFY_STORE_DOMAIN;
-  const accessToken =
+  const envAccessToken =
     process.env.SHOPIFY_ACCESS_TOKEN ||
     process.env.SHOPIFY_ADMIN_ACCESS_TOKEN;
 
-  if (shopDomain && accessToken) {
-    return { shopDomain, accessToken };
+  if (envShopDomain && envAccessToken) {
+    return { shopDomain: envShopDomain, accessToken: envAccessToken };
   }
+
   return null;
 }
 
@@ -81,6 +84,34 @@ export async function saveShopifyCredentials(data: {
       apiKey: data.apiKey,
       apiSecret: data.apiSecret,
       accessToken: data.accessToken || null,
+      isActive: true
+    });
+  }
+}
+
+/**
+ * Doğrudan Admin API access token'ı kaydeder (OAuth olmadan)
+ * UI'dan kullanıcı token'ı paste edebilir.
+ */
+export async function saveDirectAccessToken(shopDomain: string, accessToken: string): Promise<void> {
+  const existing = await db
+    .select()
+    .from(shopifyCredentials)
+    .where(eq(shopifyCredentials.shopDomain, shopDomain))
+    .limit(1);
+
+  if (existing.length > 0) {
+    await db
+      .update(shopifyCredentials)
+      .set({ accessToken, isActive: true, updatedAt: new Date() })
+      .where(eq(shopifyCredentials.shopDomain, shopDomain));
+  } else {
+    // Yeni kayıt oluştur (API key/secret olmadan sadece domain + token)
+    await db.insert(shopifyCredentials).values({
+      shopDomain,
+      apiKey: '',
+      apiSecret: '',
+      accessToken,
       isActive: true
     });
   }

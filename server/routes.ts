@@ -77,7 +77,7 @@ import { productStatisticsService } from './product-statistics-service';
 import { CLOTHING_KEYWORDS, FAKE_CLOTHING_SIZES, isClothingProduct } from './clothing-keywords';
 import { aiProductStatisticsService } from './ai-product-statistics';
 import { shopifyProductsSync } from './shopify-products-sync';
-import { getShopifyConfig, saveShopifyCredentials, saveShopifyAccessToken, deleteShopifyCredentials } from './shopify-credentials';
+import { getShopifyConfig, saveShopifyCredentials, saveShopifyAccessToken, deleteShopifyCredentials, saveDirectAccessToken } from './shopify-credentials';
 import { shopifyCredentials } from '@shared/schema';
 
 // Helper function to register product for automated tracking
@@ -4142,6 +4142,25 @@ ${result.title || 'Product'},${fb2Handle},${result.description || ''},${result.b
   // Mevcut kimlik bilgilerini döndürür (token gizlenir)
   app.get('/api/shopify/credentials', async (req, res) => {
     try {
+      // Önce ENV değişkenlerini kontrol et (getShopifyConfig ile aynı öncelik sırası)
+      const envShopDomain =
+        process.env.SHOPIFY_SHOP_DOMAIN ||
+        process.env.SHOPIFY_STORE_URL?.replace(/^https?:\/\//, '') ||
+        (process.env as any).SHOPIFY_STORE_DOMAIN;
+      const envAccessToken =
+        process.env.SHOPIFY_ACCESS_TOKEN ||
+        process.env.SHOPIFY_ADMIN_ACCESS_TOKEN;
+
+      if (envShopDomain && envAccessToken) {
+        return res.json({
+          connected: true,
+          shopDomain: envShopDomain,
+          hasToken: true,
+          source: 'env'
+        });
+      }
+
+      // ENV yoksa DB'ye bak
       const rows = await db.select().from(shopifyCredentials)
         .where(eq(shopifyCredentials.isActive, true))
         .orderBy(desc(shopifyCredentials.updatedAt))
@@ -4153,7 +4172,8 @@ ${result.title || 'Product'},${fb2Handle},${result.description || ''},${result.b
         shopDomain: cred.shopDomain,
         apiKey: cred.apiKey,
         hasToken: !!cred.accessToken,
-        updatedAt: cred.updatedAt
+        updatedAt: cred.updatedAt,
+        source: 'db'
       });
     } catch (err) {
       res.status(500).json({ error: String(err) });
@@ -4246,6 +4266,35 @@ ${result.title || 'Product'},${fb2Handle},${result.description || ''},${result.b
       if (!shopDomain) return res.status(400).json({ error: 'shopDomain zorunludur.' });
       await deleteShopifyCredentials(shopDomain);
       res.json({ success: true });
+    } catch (err) {
+      res.status(500).json({ error: String(err) });
+    }
+  });
+
+  // Doğrudan Admin API token kaydet (OAuth olmadan)
+  app.post('/api/shopify/direct-token', async (req, res) => {
+    try {
+      const { shopDomain, accessToken } = req.body;
+      if (!shopDomain || !accessToken) {
+        return res.status(400).json({ error: 'shopDomain ve accessToken zorunludur.' });
+      }
+      const cleanDomain = shopDomain.replace(/^https?:\/\//, '').replace(/\/$/, '');
+
+      // Token'ı test et
+      const testRes = await fetch(`https://${cleanDomain}/admin/api/2024-01/shop.json`, {
+        headers: { 'X-Shopify-Access-Token': accessToken, 'Content-Type': 'application/json' }
+      });
+
+      if (!testRes.ok) {
+        const errData = await testRes.json().catch(() => ({})) as any;
+        return res.status(400).json({
+          error: `Token geçersiz (${testRes.status}): ${errData?.errors || 'Shopify bağlantı hatası'}`
+        });
+      }
+
+      await saveDirectAccessToken(cleanDomain, accessToken);
+      const shopData = await testRes.json() as any;
+      res.json({ success: true, shopDomain: cleanDomain, storeName: shopData?.shop?.name || cleanDomain });
     } catch (err) {
       res.status(500).json({ error: String(err) });
     }

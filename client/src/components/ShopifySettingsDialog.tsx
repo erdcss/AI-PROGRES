@@ -11,8 +11,9 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Badge } from "@/components/ui/badge";
+import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { useToast } from "@/hooks/use-toast";
-import { Settings, CheckCircle, XCircle, ExternalLink, Loader2 } from "lucide-react";
+import { Settings, CheckCircle, XCircle, ExternalLink, Loader2, Key } from "lucide-react";
 
 interface CredentialsStatus {
   connected: boolean;
@@ -20,15 +21,22 @@ interface CredentialsStatus {
   apiKey?: string;
   hasToken?: boolean;
   updatedAt?: string;
+  source?: string;
 }
 
 export default function ShopifySettingsDialog() {
   const { toast } = useToast();
   const queryClient = useQueryClient();
   const [open, setOpen] = useState(false);
+
+  // OAuth tab
   const [shopDomain, setShopDomain] = useState("");
   const [apiKey, setApiKey] = useState("");
   const [apiSecret, setApiSecret] = useState("");
+
+  // Direct token tab
+  const [directDomain, setDirectDomain] = useState("");
+  const [directToken, setDirectToken] = useState("");
 
   const { data: status, isLoading } = useQuery<CredentialsStatus>({
     queryKey: ["/api/shopify/credentials"],
@@ -36,7 +44,10 @@ export default function ShopifySettingsDialog() {
   });
 
   useEffect(() => {
-    if (status?.shopDomain) setShopDomain(status.shopDomain);
+    if (status?.shopDomain) {
+      setShopDomain(status.shopDomain);
+      setDirectDomain(status.shopDomain);
+    }
     if (status?.apiKey) setApiKey(status.apiKey);
   }, [status]);
 
@@ -59,6 +70,30 @@ export default function ShopifySettingsDialog() {
     },
     onError: (err: Error) => {
       toast({ title: "Hata", description: err.message, variant: "destructive" });
+    },
+  });
+
+  const directTokenMutation = useMutation({
+    mutationFn: async () => {
+      const res = await fetch("/api/shopify/direct-token", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ shopDomain: directDomain, accessToken: directToken }),
+      });
+      const data = await res.json();
+      if (!res.ok) throw new Error(data.error || "Token kaydedilemedi");
+      return data;
+    },
+    onSuccess: (data) => {
+      queryClient.invalidateQueries({ queryKey: ["/api/shopify/credentials"] });
+      setDirectToken("");
+      toast({
+        title: "Bağlantı Başarılı ✅",
+        description: `${data.storeName || data.shopDomain} mağazasına bağlanıldı.`
+      });
+    },
+    onError: (err: Error) => {
+      toast({ title: "Token Hatası ❌", description: err.message, variant: "destructive" });
     },
   });
 
@@ -109,7 +144,7 @@ export default function ShopifySettingsDialog() {
     },
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ["/api/shopify/credentials"] });
-      setShopDomain(""); setApiKey(""); setApiSecret("");
+      setShopDomain(""); setApiKey(""); setApiSecret(""); setDirectToken("");
       toast({ title: "Bağlantı kesildi", description: "Shopify kimlik bilgileri silindi." });
     },
   });
@@ -141,7 +176,7 @@ export default function ShopifySettingsDialog() {
         </DialogHeader>
 
         <div className="space-y-4">
-          {/* Durum */}
+          {/* Bağlantı Durumu */}
           <div className="flex items-center gap-2 p-3 rounded-lg bg-muted">
             {isConnected ? (
               <>
@@ -157,74 +192,122 @@ export default function ShopifySettingsDialog() {
                 <div>
                   <p className="text-sm font-medium text-red-700 dark:text-red-400">Bağlantı Yok</p>
                   <p className="text-xs text-muted-foreground">
-                    {status?.shopDomain ? "Token alınmamış - adım 2'yi tamamlayın" : "Kimlik bilgisi girilmemiş"}
+                    Aşağıdan bağlanma yöntemini seçin
                   </p>
                 </div>
               </>
             )}
           </div>
 
-          {/* Adım 1 */}
-          <div className="space-y-3">
-            <p className="text-sm font-semibold text-foreground">Adım 1 — Kimlik bilgilerini girin</p>
+          <Tabs defaultValue="direct">
+            <TabsList className="w-full">
+              <TabsTrigger value="direct" className="flex-1">
+                <Key className="h-3 w-3 mr-1" />
+                Admin Token
+              </TabsTrigger>
+              <TabsTrigger value="oauth" className="flex-1">
+                <ExternalLink className="h-3 w-3 mr-1" />
+                OAuth
+              </TabsTrigger>
+            </TabsList>
 
-            <div className="space-y-1">
-              <Label htmlFor="shopDomain">Mağaza Adresi</Label>
-              <Input
-                id="shopDomain"
-                placeholder="mağazanız.myshopify.com"
-                value={shopDomain}
-                onChange={(e) => setShopDomain(e.target.value)}
-              />
-            </div>
+            {/* Doğrudan Token Sekmesi */}
+            <TabsContent value="direct" className="space-y-3 mt-3">
+              <p className="text-xs text-muted-foreground">
+                Shopify Admin → Uygulamalar → Özel Uygulamalar'dan oluşturduğunuz Admin API access token'ı girin.
+              </p>
 
-            <div className="space-y-1">
-              <Label htmlFor="apiKey">İstemci Kimliği (Client ID)</Label>
-              <Input
-                id="apiKey"
-                placeholder="API Key..."
-                value={apiKey}
-                onChange={(e) => setApiKey(e.target.value)}
-              />
-            </div>
+              <div className="space-y-1">
+                <Label htmlFor="directDomain">Mağaza Adresi</Label>
+                <Input
+                  id="directDomain"
+                  placeholder="mağazanız.myshopify.com"
+                  value={directDomain}
+                  onChange={(e) => setDirectDomain(e.target.value)}
+                />
+              </div>
 
-            <div className="space-y-1">
-              <Label htmlFor="apiSecret">Gizli Anahtar (Client Secret)</Label>
-              <Input
-                id="apiSecret"
-                type="password"
-                placeholder="API Secret..."
-                value={apiSecret}
-                onChange={(e) => setApiSecret(e.target.value)}
-              />
-            </div>
+              <div className="space-y-1">
+                <Label htmlFor="directToken">Admin API Access Token</Label>
+                <Input
+                  id="directToken"
+                  type="password"
+                  placeholder="shpat_xxxxxxxxxxxxxxxxxxxx"
+                  value={directToken}
+                  onChange={(e) => setDirectToken(e.target.value)}
+                />
+              </div>
 
-            <Button
-              className="w-full"
-              onClick={() => saveMutation.mutate()}
-              disabled={!shopDomain || !apiKey || !apiSecret || saveMutation.isPending}
-            >
-              {saveMutation.isPending ? <Loader2 className="h-4 w-4 animate-spin mr-2" /> : null}
-              Kaydet
-            </Button>
-          </div>
+              <Button
+                className="w-full"
+                onClick={() => directTokenMutation.mutate()}
+                disabled={!directDomain || !directToken || directTokenMutation.isPending}
+              >
+                {directTokenMutation.isPending ? <Loader2 className="h-4 w-4 animate-spin mr-2" /> : <Key className="h-4 w-4 mr-2" />}
+                Token'ı Doğrula ve Kaydet
+              </Button>
+            </TabsContent>
 
-          {/* Adım 2 */}
-          <div className="space-y-2 pt-2 border-t">
-            <p className="text-sm font-semibold text-foreground">Adım 2 — Shopify'da yetkilendir</p>
-            <p className="text-xs text-muted-foreground">
-              Aşağıdaki butona tıklayarak Shopify'a yönlendirileceksiniz. Onayladıktan sonra otomatik olarak bağlanacaksınız.
-            </p>
-            <Button
-              variant="secondary"
-              className="w-full gap-2"
-              onClick={() => connectMutation.mutate()}
-              disabled={!status?.shopDomain || connectMutation.isPending}
-            >
-              {connectMutation.isPending ? <Loader2 className="h-4 w-4 animate-spin" /> : <ExternalLink className="h-4 w-4" />}
-              Shopify'da Yetkilendir
-            </Button>
-          </div>
+            {/* OAuth Sekmesi */}
+            <TabsContent value="oauth" className="space-y-3 mt-3">
+              <div className="space-y-3">
+                <p className="text-sm font-semibold text-foreground">Adım 1 — Kimlik bilgilerini girin</p>
+
+                <div className="space-y-1">
+                  <Label htmlFor="shopDomain">Mağaza Adresi</Label>
+                  <Input
+                    id="shopDomain"
+                    placeholder="mağazanız.myshopify.com"
+                    value={shopDomain}
+                    onChange={(e) => setShopDomain(e.target.value)}
+                  />
+                </div>
+
+                <div className="space-y-1">
+                  <Label htmlFor="apiKey">İstemci Kimliği (Client ID)</Label>
+                  <Input
+                    id="apiKey"
+                    placeholder="API Key..."
+                    value={apiKey}
+                    onChange={(e) => setApiKey(e.target.value)}
+                  />
+                </div>
+
+                <div className="space-y-1">
+                  <Label htmlFor="apiSecret">Gizli Anahtar (Client Secret)</Label>
+                  <Input
+                    id="apiSecret"
+                    type="password"
+                    placeholder="API Secret..."
+                    value={apiSecret}
+                    onChange={(e) => setApiSecret(e.target.value)}
+                  />
+                </div>
+
+                <Button
+                  className="w-full"
+                  onClick={() => saveMutation.mutate()}
+                  disabled={!shopDomain || !apiKey || !apiSecret || saveMutation.isPending}
+                >
+                  {saveMutation.isPending ? <Loader2 className="h-4 w-4 animate-spin mr-2" /> : null}
+                  Kaydet
+                </Button>
+              </div>
+
+              <div className="space-y-2 pt-2 border-t">
+                <p className="text-sm font-semibold text-foreground">Adım 2 — Shopify'da yetkilendir</p>
+                <Button
+                  variant="secondary"
+                  className="w-full gap-2"
+                  onClick={() => connectMutation.mutate()}
+                  disabled={!status?.shopDomain || connectMutation.isPending}
+                >
+                  {connectMutation.isPending ? <Loader2 className="h-4 w-4 animate-spin" /> : <ExternalLink className="h-4 w-4" />}
+                  Shopify'da Yetkilendir
+                </Button>
+              </div>
+            </TabsContent>
+          </Tabs>
 
           {/* Test & Sil */}
           <div className="flex gap-2 pt-1 border-t">
