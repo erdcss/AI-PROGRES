@@ -1127,40 +1127,25 @@ export async function scenarioBasedScrape(url: string): Promise<ScenarioBasedRes
             console.log(`🌈 JSON-LD multi-color found early: ${jsonLdColors.length} colors — ${jsonLdColors.join(', ')}`);
           }
 
-          // 🌈 PREBUILT MULTI-COLOR: Build color×size matrix RIGHT NOW, before any fallback can overwrite data
-          if (savedColorVariantUrls.length > 1 && jsonLdAllVariants.length > 0) {
+          // 🌈 PREBUILT MULTI-COLOR: Build color×size matrix from JSON-LD (correct colors + real stock status)
+          // FIX: Use JSON-LD directly instead of HTML URLs — HTML regex picks up unrelated seller products
+          // FIX: Use JSON-LD inStock status instead of hardcoded true — shows correct availability
+          const jldUniqueColors = [...new Set(jsonLdAllVariants.map((v: any) => v.color).filter(Boolean))];
+          if (jldUniqueColors.length > 1 && jsonLdAllVariants.length > 0) {
             try {
-              const slugColorMap: Record<string, string> = {
-                bej: 'Bej', lacivert: 'Lacivert', siyah: 'Siyah', taba: 'Taba',
-                beyaz: 'Beyaz', gri: 'Gri', fume: 'Füme', füme: 'Füme',
-                kirmizi: 'Kırmızı', mavi: 'Mavi', yesil: 'Yeşil', sari: 'Sarı',
-                mor: 'Mor', pembe: 'Pembe', turuncu: 'Turuncu', krem: 'Krem',
-                kahverengi: 'Kahverengi', bordo: 'Bordo', ekru: 'Ekru',
-                haki: 'Haki', indigo: 'İndigo', pudra: 'Pudra', mint: 'Mint',
-                lila: 'Lila', antrasit: 'Antrasit', gold: 'Gold', silver: 'Gümüş',
-                kiremit: 'Kiremit', turkuaz: 'Turkuaz', vizon: 'Vizon', somon: 'Somon',
-                nude: 'Nude', camel: 'Camel', khaki: 'Haki',
-              };
-              const slugToColor = (slug: string): string => {
-                const first = slug.split('-')[0].toLowerCase();
-                return slugColorMap[first] || (first.charAt(0).toUpperCase() + first.slice(1));
-              };
-              const prebuiltSizes: string[] = [...new Set(
-                jsonLdAllVariants.map((v: any) => v.size).filter((s: any) => s && String(s).length > 0)
-              )] as string[];
               const prebuilt: Array<{color: string; colorCode: string; size: string; inStock: boolean}> = [];
-              for (const colorUrl of savedColorVariantUrls) {
-                const slugM = colorUrl.match(/trendyol\.com\/[^/]+\/([^/]+)-p-(\d+)/);
-                if (!slugM) continue;
-                const colorName = slugToColor(slugM[1]);
-                for (const sz of prebuiltSizes) {
-                  prebuilt.push({ color: colorName, colorCode: '', size: sz, inStock: true });
-                }
+              for (const jv of jsonLdAllVariants) {
+                if (!jv.color) continue;
+                prebuilt.push({ color: jv.color, colorCode: '', size: jv.size, inStock: jv.inStock });
               }
               if (prebuilt.length > 0) {
                 prebuiltMultiColorVariants = prebuilt;
                 const prebuiltColors = [...new Set(prebuilt.map(v => v.color))];
+                const prebuiltSizes = [...new Set(prebuilt.map(v => v.size).filter(Boolean))];
+                const inStockCount = prebuilt.filter(v => v.inStock).length;
+                const outStockCount = prebuilt.filter(v => !v.inStock).length;
                 console.log(`🌈 PREBUILT: ${prebuilt.length} variants, ${prebuiltColors.length} colors: ${prebuiltColors.join(', ')}, sizes: ${prebuiltSizes.join(',')}`);
+                console.log(`🌈 PREBUILT STOCK: ${inStockCount} in-stock, ${outStockCount} out-of-stock (from JSON-LD)`);
               }
             } catch (prebuiltErr: any) {
               console.log(`⚠️ Prebuilt multi-color failed: ${prebuiltErr.message}`);
