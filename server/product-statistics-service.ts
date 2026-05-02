@@ -3,8 +3,8 @@ import { products, productVariants, priceHistory, stockHistory } from '@shared/s
 import { eq, desc, and, gte } from 'drizzle-orm';
 import OpenAI from 'openai';
 
-const openai = process.env.OPENAI_API_KEY ? new OpenAI({
-  apiKey: process.env.OPENAI_API_KEY
+const openai = (process.env.OPENAI_API_KEY_NEW || process.env.OPENAI_API_KEY) ? new OpenAI({
+  apiKey: process.env.OPENAI_API_KEY_NEW || process.env.OPENAI_API_KEY
 }) : null;
 
 interface PriceHistoryData {

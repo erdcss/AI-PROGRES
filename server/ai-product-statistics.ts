@@ -4,8 +4,8 @@ import { eq } from 'drizzle-orm';
 import OpenAI from 'openai';
 import { scenarioBasedScrape } from './scenario-based-scraper';
 
-const openai = process.env.OPENAI_API_KEY ? new OpenAI({
-  apiKey: process.env.OPENAI_API_KEY
+const openai = (process.env.OPENAI_API_KEY_NEW || process.env.OPENAI_API_KEY) ? new OpenAI({
+  apiKey: process.env.OPENAI_API_KEY_NEW || process.env.OPENAI_API_KEY
 }) : null;
 
 interface VariantInfo {

@@ -72,6 +72,17 @@ const SystemStatusPage = () => {
     refetchInterval: 5000,
   });
 
+  const { data: aiStatus } = useQuery<{
+    openai: { active: boolean; model: string };
+    gemini: { active: boolean; model: string };
+    anthropic: { active: boolean; model: string };
+    dualValidation: boolean;
+    message: string;
+  }>({
+    queryKey: ['/api/ai-status'],
+    refetchInterval: 60000,
+  });
+
   const { data: errorStats } = useQuery({
     queryKey: ['/api/system/errors', refreshKey],
     refetchInterval: 3000,
@@ -233,6 +244,37 @@ const SystemStatusPage = () => {
                   width: systemStatus ? `${(systemStatus.memory.heapUsed / systemStatus.memory.heapTotal) * 100}%` : '0%' 
                 }}
               ></div>
+            </div>
+          </div>
+
+          {/* AI Services Status */}
+          <div className={`bg-gradient-to-br p-6 rounded-xl border ${
+            aiStatus?.dualValidation
+              ? 'from-indigo-800 to-indigo-900 border-indigo-700'
+              : 'from-orange-800/60 to-orange-900/60 border-orange-700/50'
+          }`}>
+            <div className="flex items-center justify-between mb-4">
+              <Bot className="w-8 h-8 text-indigo-400" />
+              <span className={`text-sm font-bold px-2 py-1 rounded-lg ${
+                aiStatus?.dualValidation ? 'bg-green-900/50 text-green-400' : 'bg-orange-900/50 text-orange-400'
+              }`}>
+                {aiStatus?.dualValidation ? '✅ ÇİFT AI' : '⚠️ TEK AI'}
+              </span>
+            </div>
+            <h3 className="text-lg font-semibold mb-3">AI Servisleri</h3>
+            <div className="space-y-2">
+              {[
+                { label: 'GPT-4o', active: aiStatus?.openai?.active, color: 'text-green-400' },
+                { label: 'Gemini 2.0', active: aiStatus?.gemini?.active, color: 'text-blue-400' },
+                { label: 'Claude', active: aiStatus?.anthropic?.active, color: 'text-purple-400' },
+              ].map(ai => (
+                <div key={ai.label} className="flex items-center justify-between">
+                  <span className="text-xs text-gray-300">{ai.label}</span>
+                  <span className={`text-xs font-medium ${ai.active ? ai.color : 'text-red-400'}`}>
+                    {ai.active ? '● Aktif' : '○ Pasif'}
+                  </span>
+                </div>
+              ))}
             </div>
           </div>
 

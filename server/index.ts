@@ -230,6 +230,21 @@ app.get('/api', (req, res) => {
   res.send('Ürün Çekme Uygulaması API Çalışıyor! API rotalarını kullanabilirsiniz.');
 });
 
+app.get('/api/ai-status', (req, res) => {
+  const openaiActive = !!(process.env.OPENAI_API_KEY_NEW || process.env.OPENAI_API_KEY);
+  const geminiActive = !!process.env.GOOGLE_API_KEY;
+  const anthropicActive = !!process.env.ANTHROPIC_API_KEY;
+  res.json({
+    openai: { active: openaiActive, model: 'gpt-4o', keyVar: 'OPENAI_API_KEY_NEW' },
+    gemini: { active: geminiActive, model: 'gemini-2.0-flash', keyVar: 'GOOGLE_API_KEY' },
+    anthropic: { active: anthropicActive, model: 'claude-sonnet', keyVar: 'ANTHROPIC_API_KEY' },
+    dualValidation: openaiActive && geminiActive,
+    message: openaiActive && geminiActive
+      ? '✅ OpenAI + Gemini çift doğrulama aktif — tüm ürün ve fiyat analizleri paralel çalışıyor'
+      : '⚠️ Tek AI modu — iki AI için her iki anahtarın da ayarlı olması gerekiyor'
+  });
+});
+
 // Vite geliştirme ortamında React uygulamasını kullan
 // Rotaları Vite ve setupVite tarafından yönetilecek şekilde bırakalım
 

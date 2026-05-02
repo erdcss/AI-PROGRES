@@ -3,11 +3,12 @@ import { Card, CardContent } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { motion, AnimatePresence } from "framer-motion";
-import { Bot, Download, Sparkles, Brain, Target, TrendingUp, Zap, Cpu } from "lucide-react";
+import { Bot, Download, Sparkles, Brain, Target, TrendingUp, Zap, Cpu, CheckCircle, XCircle } from "lucide-react";
 import { APIRequestError, apiRequest } from "@/lib/queryClient";
 import { SimpleProductPreview } from "@/components/SimpleProductPreview";
 import { AIEnhancedProductPreview } from "@/components/AIEnhancedProductPreview";
 import { useIsMobile } from "@/hooks/use-mobile";
+import { useQuery } from "@tanstack/react-query";
 
 interface AIEnhancedProduct {
   success: boolean;
@@ -41,6 +42,17 @@ export default function AIEnhancedScraper() {
   const [isExtracting, setIsExtracting] = useState(false);
   const [extractionType, setExtractionType] = useState<'normal' | 'ai'>('normal');
   const isMobile = useIsMobile();
+
+  const { data: aiStatus } = useQuery<{
+    openai: { active: boolean; model: string };
+    gemini: { active: boolean; model: string };
+    anthropic: { active: boolean; model: string };
+    dualValidation: boolean;
+    message: string;
+  }>({
+    queryKey: ['/api/ai-status'],
+    refetchInterval: 30000,
+  });
 
   const handleExtraction = async (useAI: boolean = false) => {
     if (!url.trim()) {
@@ -137,9 +149,51 @@ export default function AIEnhancedScraper() {
           <p className={`text-gray-300 mx-auto text-center ${
             isMobile ? 'text-base px-4 max-w-full' : 'text-xl max-w-3xl'
           }`}>
-            OpenAI GPT-4o ile geliştirilmiş akıllı ürün veri çıkarma sistemi. 
-            Ürün bilgilerini analiz eder, SEO optimizasyonu yapar ve kalite skorlaması sağlar.
+            OpenAI GPT-4o + Google Gemini çift doğrulama sistemi ile geliştirilmiş akıllı ürün veri çıkarma.
+            SEO optimizasyonu, fiyat doğrulama ve kalite skorlaması paralel AI ile çalışır.
           </p>
+
+          {/* Dual AI Status Badge */}
+          {aiStatus && (
+            <motion.div
+              initial={{ opacity: 0, scale: 0.9 }}
+              animate={{ opacity: 1, scale: 1 }}
+              className={`inline-flex items-center gap-3 px-4 py-2 rounded-xl border mx-auto ${
+                aiStatus.dualValidation
+                  ? 'bg-green-900/30 border-green-500/40'
+                  : 'bg-yellow-900/20 border-yellow-500/30'
+              }`}
+            >
+              <div className="flex items-center gap-1.5">
+                {aiStatus.openai.active
+                  ? <CheckCircle className="h-4 w-4 text-green-400" />
+                  : <XCircle className="h-4 w-4 text-red-400" />}
+                <span className="text-xs text-gray-300 font-medium">GPT-4o</span>
+              </div>
+              <div className="w-px h-4 bg-gray-600" />
+              <div className="flex items-center gap-1.5">
+                {aiStatus.gemini.active
+                  ? <CheckCircle className="h-4 w-4 text-blue-400" />
+                  : <XCircle className="h-4 w-4 text-red-400" />}
+                <span className="text-xs text-gray-300 font-medium">Gemini 2.0</span>
+              </div>
+              <div className="w-px h-4 bg-gray-600" />
+              <div className="flex items-center gap-1.5">
+                {aiStatus.anthropic.active
+                  ? <CheckCircle className="h-4 w-4 text-purple-400" />
+                  : <XCircle className="h-4 w-4 text-red-400" />}
+                <span className="text-xs text-gray-300 font-medium">Claude</span>
+              </div>
+              {aiStatus.dualValidation && (
+                <>
+                  <div className="w-px h-4 bg-gray-600" />
+                  <span className="text-xs font-bold text-green-400 flex items-center gap-1">
+                    <Zap className="h-3 w-3" /> Çift Doğrulama Aktif
+                  </span>
+                </>
+              )}
+            </motion.div>
+          )}
         </motion.div>
 
         {/* URL Input */}
