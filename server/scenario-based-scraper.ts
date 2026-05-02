@@ -23,6 +23,7 @@ import { extractFromTrendyolJavaScriptState } from './trendyol-js-extractor';
 import { detectRealStockStatus } from './real-stock-detector';
 import { extractColorFromUrl, cleanColorName, normalizeSize, parseVariantString, getColorCode } from './color-recognition';
 import { getPerformanceConfig, getTimeout, shouldRetryWithSlowTimeout } from './performance-config';
+import { buildLaunchOptions } from './puppeteer-config';
 import { generateAdvancedTags } from './tag-generator';
 import { CLOTHING_KEYWORDS, FAKE_CLOTHING_SIZES, isClothingProduct } from './clothing-keywords';
 
@@ -726,19 +727,9 @@ async function tryPuppeteerColorExtraction(url: string): Promise<{success: boole
   try {
     console.log('🎨 Starting Puppeteer color extraction...');
     
-    browser = await puppeteer.launch({
-      headless: true,
-      args: [
-        '--no-sandbox',
-        '--disable-setuid-sandbox',
-        '--disable-dev-shm-usage',
-        '--disable-accelerated-2d-canvas',
-        '--no-first-run',
-        '--no-zygote',
-        '--single-process',
-        '--disable-gpu'
-      ]
-    });
+    browser = await puppeteer.launch(buildLaunchOptions({
+      args: ['--single-process']
+    }));
     
     const page = await browser.newPage();
     await page.setUserAgent('Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/131.0.0.0 Safari/537.36');
@@ -751,6 +742,9 @@ async function tryPuppeteerColorExtraction(url: string): Promise<{success: boole
     
     // Extract colors from JavaScript State and DOM
     let extractedColors: string[] = [];
+    let currentColorFromPuppeteer = '';
+    let sizesWithStockFromPuppeteer: string[] = [];
+    let colorVariantUrlsFromPuppeteer: string[] = [];
     try {
       // Wait for color buttons to render
       await page.waitForSelector('.color-variants, [class*="color"], [class*="renk"], .slctn-item', { timeout: 1000 }).catch(() => {
@@ -843,9 +837,9 @@ async function tryPuppeteerColorExtraction(url: string): Promise<{success: boole
         return { colors: [...new Set(colors)], currentColor, sizesWithStock, colorVariantUrls };
       });
       
-      const currentColorFromPuppeteer = colorData.currentColor || '';
-      const sizesWithStockFromPuppeteer = colorData.sizesWithStock || [];
-      const colorVariantUrlsFromPuppeteer = (colorData.colorVariantUrls || []) as string[];
+      currentColorFromPuppeteer = colorData.currentColor || '';
+      sizesWithStockFromPuppeteer = colorData.sizesWithStock || [];
+      colorVariantUrlsFromPuppeteer = (colorData.colorVariantUrls || []) as string[];
       
       // Normalize extracted colors - only keep actual colors, not sizes
       extractedColors = (colorData.colors || [])
@@ -907,7 +901,8 @@ async function tryPuppeteerColorExtraction(url: string): Promise<{success: boole
       colorVariantUrls: colorVariantUrlsFromPuppeteer
     };
   } catch (error) {
-    console.log('❌ Puppeteer extraction failed:', error.message);
+    console.log('❌ Puppeteer extraction failed:', (error as any).message);
+    console.log('❌ Stack:', (error as any).stack?.split('\n').slice(0,3).join(' | '));
     if (browser) await browser.close();
     return { success: false };
   }
@@ -1012,6 +1007,8 @@ export async function scenarioBasedScrape(url: string): Promise<ScenarioBasedRes
     let savedJsonLdVariants: Array<{color: string; size: string; inStock: boolean; image?: string}> = [];
     let savedColorVariantUrls: string[] = [];
     let prebuiltMultiColorVariants: Array<{color: string; colorCode: string; size: string; inStock: boolean}> | null = null;
+    // Size-level stock from Puppeteer rendering (for current URL's color)
+    let puppeteerSizeStockForCurrentColor: Map<string, boolean> = new Map();
     
     try {
       // ⚡ SPEED OPTIMIZATION: Try direct scraping FIRST (fastest method)
@@ -1127,24 +1124,70 @@ export async function scenarioBasedScrape(url: string): Promise<ScenarioBasedRes
             console.log(`🌈 JSON-LD multi-color found early: ${jsonLdColors.length} colors — ${jsonLdColors.join(', ')}`);
           }
 
-          // 🌈 PREBUILT MULTI-COLOR: Build color×size matrix from JSON-LD (correct colors + real stock status)
-          // FIX: Use JSON-LD directly instead of HTML URLs — HTML regex picks up unrelated seller products
-          // FIX: Use JSON-LD inStock status instead of hardcoded true — shows correct availability
+          // 🌈 PREBUILT MULTI-COLOR: Build color×size matrix from JSON-LD + URL + slug-suffix matching
+          // FIX 1: Use JSON-LD directly instead of HTML URLs — HTML regex picks up unrelated seller products
+          // FIX 2: Add current URL's color if not in JSON-LD (e.g., Füme page shows Bej group in JSON-LD)
+          // FIX 3: Supplement with HTML URL slug-suffix matches (finds color variants not in JSON-LD)
           const jldUniqueColors = [...new Set(jsonLdAllVariants.map((v: any) => v.color).filter(Boolean))];
           if (jldUniqueColors.length > 1 && jsonLdAllVariants.length > 0) {
             try {
+              const prebuiltSlugColorMap: Record<string, string> = {
+                bej: 'Bej', lacivert: 'Lacivert', siyah: 'Siyah', taba: 'Taba',
+                beyaz: 'Beyaz', gri: 'Gri', fume: 'Füme', füme: 'Füme',
+                kirmizi: 'Kırmızı', mavi: 'Mavi', yesil: 'Yeşil', sari: 'Sarı',
+                mor: 'Mor', pembe: 'Pembe', turuncu: 'Turuncu', krem: 'Krem',
+                kahverengi: 'Kahverengi', bordo: 'Bordo', ekru: 'Ekru',
+                haki: 'Haki', indigo: 'İndigo', pudra: 'Pudra', mint: 'Mint',
+                lila: 'Lila', antrasit: 'Antrasit', gold: 'Gold', silver: 'Gümüş',
+                kiremit: 'Kiremit', turkuaz: 'Turkuaz', vizon: 'Vizon', somon: 'Somon',
+                nude: 'Nude', camel: 'Camel', khaki: 'Haki',
+              };
+              const prebuiltSlugToColor = (slug: string): string => {
+                const first = slug.split('-')[0].toLowerCase();
+                return prebuiltSlugColorMap[first] || (first.charAt(0).toUpperCase() + first.slice(1));
+              };
+              const normalizeTr = (s: string) => s.toLowerCase()
+                .replace(/ü/g, 'u').replace(/ğ/g, 'g').replace(/ı/g, 'i')
+                .replace(/ş/g, 's').replace(/ç/g, 'c').replace(/ö/g, 'o');
+
               const prebuilt: Array<{color: string; colorCode: string; size: string; inStock: boolean}> = [];
+              // Step 1: Add JSON-LD variants (correct colors + color-level stock from JSON-LD)
               for (const jv of jsonLdAllVariants) {
                 if (!jv.color) continue;
                 prebuilt.push({ color: jv.color, colorCode: '', size: jv.size, inStock: jv.inStock });
               }
+              const prebuiltSizesSet = [...new Set(prebuilt.map(v => v.size).filter(Boolean))];
+
+              // Step 2: Always include the current URL's color if not already in prebuilt
+              // (Trendyol may show another product's ProductGroup on the current page)
+              const urlSlugMatch = url.match(/trendyol\.com\/[^/]+\/([^/]+)-p-(\d+)/);
+              if (urlSlugMatch && prebuiltSizesSet.length > 0) {
+                const currentUrlColor = prebuiltSlugToColor(urlSlugMatch[1]);
+                const urlSlugNorm = normalizeTr(urlSlugMatch[1]);
+                const colorAlreadyPresent = prebuilt.some(v =>
+                  normalizeTr(v.color) === normalizeTr(currentUrlColor) ||
+                  urlSlugNorm.startsWith(normalizeTr(v.color).split(' ')[0])
+                );
+                if (!colorAlreadyPresent) {
+                  for (const sz of prebuiltSizesSet) {
+                    prebuilt.push({ color: currentUrlColor, colorCode: '', size: sz, inStock: true });
+                  }
+                  console.log(`🌈 PREBUILT: Added current URL color "${currentUrlColor}" (not in JSON-LD ProductGroup)`);
+                }
+              }
+
+              // NOTE: Step 3 (HTML URL slug-suffix matching) was removed because it caused false positives:
+              // multiple different product models from the same seller share the same suffix
+              // (e.g., "kadin-sneaker-gunluk-ayakkabi" matches both the bej group and unrelated Lacivert/Gri models).
+              // The JSON-LD ProductGroup (Step 1) + current URL color (Step 2) give accurate results.
+
               if (prebuilt.length > 0) {
                 prebuiltMultiColorVariants = prebuilt;
                 const prebuiltColors = [...new Set(prebuilt.map(v => v.color))];
-                const prebuiltSizes = [...new Set(prebuilt.map(v => v.size).filter(Boolean))];
+                const allSizes = [...new Set(prebuilt.map(v => v.size).filter(Boolean))];
                 const inStockCount = prebuilt.filter(v => v.inStock).length;
                 const outStockCount = prebuilt.filter(v => !v.inStock).length;
-                console.log(`🌈 PREBUILT: ${prebuilt.length} variants, ${prebuiltColors.length} colors: ${prebuiltColors.join(', ')}, sizes: ${prebuiltSizes.join(',')}`);
+                console.log(`🌈 PREBUILT: ${prebuilt.length} variants, ${prebuiltColors.length} colors: ${prebuiltColors.join(', ')}, sizes: ${allSizes.join(',')}`);
                 console.log(`🌈 PREBUILT STOCK: ${inStockCount} in-stock, ${outStockCount} out-of-stock (from JSON-LD)`);
               }
             } catch (prebuiltErr: any) {
@@ -1169,7 +1212,10 @@ export async function scenarioBasedScrape(url: string): Promise<ScenarioBasedRes
           // BUT: if JSON-LD already gave us complete size data, skip Puppeteer
           const jsonLdSizesComplete = jsonLdAllVariants.some(v => v.size && v.size.length > 0);
           const incompleteSizes = hasClothingSizes && initialSizeSet.size <= 3 && !jsonLdSizesComplete;
-          const needsPuppeteer = !hasColors || incompleteSizes;
+          // FIX: Also run Puppeteer when prebuilt is built from JSON-LD — JSON-LD only has color-level
+          // availability, not size-level. Puppeteer renders actual disabled button states for accurate stock.
+          const needsPuppeteerForStock = prebuiltMultiColorVariants !== null && jldUniqueColors.length > 1;
+          const needsPuppeteer = !hasColors || incompleteSizes || needsPuppeteerForStock;
           
           console.log(`🎨 Initial variant check: ${initialVariants?.length || 0} variants, hasColors: ${hasColors}, sizes: [${Array.from(initialSizeSet).join(',')}], incompleteSizes: ${incompleteSizes}, needsPuppeteer: ${needsPuppeteer}`);
           
@@ -1187,6 +1233,43 @@ export async function scenarioBasedScrape(url: string): Promise<ScenarioBasedRes
                 if ((puppeteerResult as any).colorVariantUrls?.length > 0) {
                   detectedColorVariantUrls = (puppeteerResult as any).colorVariantUrls;
                   console.log(`🌈 Captured ${detectedColorVariantUrls.length} color variant URLs from Puppeteer`);
+                }
+                // FIX: Extract size-level stock from Puppeteer-rendered HTML for the current color
+                // Puppeteer renders disabled button states accurately (unlike JSON-LD which is color-level only)
+                if (needsPuppeteerForStock && prebuiltMultiColorVariants) {
+                  try {
+                    const sizeStockSelectors = [
+                      '[data-size-type]', '.slicing-attribute-btn', 'button[class*="slicing"]',
+                      'div[class*="size-variant"]', 'button[data-size]', '.sp-itm',
+                      '[class*="size-btn"]', '[class*="size-variant"]', 'button[class*="size"]',
+                    ];
+                    const sizePattern = /^(XXS|XS|S|M|L|XL|XXL|XXXL|2XL|3XL|4XL|\d+(\.\d+)?|Tek\s*Beden|One\s*Size)$/i;
+                    let stockFound = false;
+                    for (const sel of sizeStockSelectors) {
+                      $(sel).each((_, el) => {
+                        const $el = $(el);
+                        const sizeName = ($el.text().trim() || $el.attr('data-size') || $el.attr('aria-label') || '').trim();
+                        if (!sizeName || sizeName.length > 15 || !sizePattern.test(sizeName)) return;
+                        const isOutOfStock = $el.is('[disabled]') || $el.hasClass('disabled') ||
+                          $el.hasClass('out-of-stock') || $el.hasClass('sold-out') ||
+                          $el.hasClass('tukendi') || $el.attr('aria-disabled') === 'true';
+                        if (!puppeteerSizeStockForCurrentColor.has(sizeName)) {
+                          puppeteerSizeStockForCurrentColor.set(sizeName, !isOutOfStock);
+                          stockFound = true;
+                        }
+                      });
+                      if (puppeteerSizeStockForCurrentColor.size > 0) break;
+                    }
+                    if (puppeteerSizeStockForCurrentColor.size > 0) {
+                      const inStk = [...puppeteerSizeStockForCurrentColor.values()].filter(Boolean).length;
+                      const outStk = puppeteerSizeStockForCurrentColor.size - inStk;
+                      console.log(`🌈 PUPPETEER SIZE STOCK: ${puppeteerSizeStockForCurrentColor.size} sizes — ${inStk} in-stock, ${outStk} out-of-stock`);
+                    } else {
+                      console.log('🌈 PUPPETEER SIZE STOCK: No size stock data found in Puppeteer HTML');
+                    }
+                  } catch (stockErr: any) {
+                    console.log(`⚠️ Puppeteer size stock extraction failed: ${stockErr.message}`);
+                  }
                 }
               }
             } catch (puppeteerError) {
@@ -2404,10 +2487,38 @@ export async function scenarioBasedScrape(url: string): Promise<ScenarioBasedRes
         const currentColors = [...new Set(variants.map((v: any) => v.color).filter(Boolean))];
         const prebuiltColors = [...new Set(prebuiltMultiColorVariants.map(v => v.color))];
         console.log(`🌈 Merge check: current=${currentColors.length} colors (${currentColors.join(',')}), prebuilt=${prebuiltColors.length} colors (${prebuiltColors.join(',')})`);
-        if (prebuiltColors.length > currentColors.length) {
-          console.log(`🌈 PREBUILT MERGE: ${prebuiltColors.length} colors → replacing ${currentColors.length} color(s)`);
+        // Always apply prebuilt when available — JSON-LD ProductGroup + current URL color is authoritative.
+        // Puppeteer/hybrid may over-count colors from unrelated color swatches on the page.
+        if (true) {
+          console.log(`🌈 PREBUILT MERGE: ${prebuiltColors.length} colors (authoritative) → replacing ${currentColors.length} current color(s)`);
           variants = prebuiltMultiColorVariants;
           colors = [...prebuiltColors];
+
+          // FIX: Apply Puppeteer size-level stock to the current URL's color in prebuilt
+          // JSON-LD only has color-level availability; Puppeteer gives accurate per-size stock
+          if (puppeteerSizeStockForCurrentColor.size > 0) {
+            // Identify current URL's color in the prebuilt (from URL slug)
+            const urlSlugForMerge = url.match(/trendyol\.com\/[^/]+\/([^/]+)-p-(\d+)/);
+            const currentColorSlug = urlSlugForMerge ? urlSlugForMerge[1].split('-')[0].toLowerCase() : '';
+            const normTr = (s: string) => s.toLowerCase()
+              .replace(/ü/g, 'u').replace(/ğ/g, 'g').replace(/ı/g, 'i')
+              .replace(/ş/g, 's').replace(/ç/g, 'c').replace(/ö/g, 'o');
+            let stockUpdated = 0;
+            for (const v of variants) {
+              const colorNorm = normTr(v.color || '');
+              if (colorNorm.startsWith(currentColorSlug) || currentColorSlug.startsWith(colorNorm.split(' ')[0])) {
+                const stockVal = puppeteerSizeStockForCurrentColor.get(v.size);
+                if (stockVal !== undefined) {
+                  (v as any).inStock = stockVal;
+                  stockUpdated++;
+                }
+              }
+            }
+            if (stockUpdated > 0) {
+              console.log(`🌈 PUPPETEER STOCK APPLIED: Updated ${stockUpdated} variants for current color "${currentColorSlug}"`);
+            }
+          }
+
           console.log(`🌈 After prebuilt merge: ${variants.length} variants, ${colors.length} colors`);
         }
       } else if (savedJsonLdVariants.length > 0) {
