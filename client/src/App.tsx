@@ -43,6 +43,7 @@ import ProductStatisticsPage from "@/pages/ProductStatisticsPage";
 import { TBotAssistant } from "@/components/TBotAssistant";
 import { MobileNavigation } from "@/components/MobileNavigation";
 import MemoryDashboard from "@/pages/memory-dashboard";
+import { MatrixBackground } from "@/components/MatrixBackground";
 
 // Login component with password protection
 function LoginScreen({ onLogin }: { onLogin: () => void }) {
@@ -430,10 +431,13 @@ function App() {
   
   return (
     <QueryClientProvider client={queryClient}>
-      <div className="business-bg min-h-screen">
-        <MobileNavigation />
-        <Router />
-        <TBotAssistant />
+      <div className="min-h-screen" style={{ background: "#000000", position: "relative" }}>
+        <MatrixBackground />
+        <div style={{ position: "relative", zIndex: 1 }}>
+          <MobileNavigation />
+          <Router />
+          <TBotAssistant />
+        </div>
       </div>
       <Toaster />
     </QueryClientProvider>
