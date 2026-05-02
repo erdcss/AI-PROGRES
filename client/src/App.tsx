@@ -431,7 +431,7 @@ function App() {
   
   return (
     <QueryClientProvider client={queryClient}>
-      <div className="min-h-screen" style={{ background: "#000000", position: "relative" }}>
+      <div className="min-h-screen" style={{ position: "relative" }}>
         <MatrixBackground />
         <div style={{ position: "relative", zIndex: 1 }}>
           <MobileNavigation />
