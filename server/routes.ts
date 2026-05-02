@@ -58,7 +58,7 @@ import axios from 'axios';
 import { urlTrackingService } from './url-tracking-service';
 import { savedUrlsManager } from './saved-urls-manager';
 import { shopifyProductsManager } from './shopify-products-manager';
-import { shopifyApiService } from './shopify-api-service';
+import { shopifyApiService, invalidateShopifyCredentialCache } from './shopify-api-service';
 import { speedOptimizedScraper } from './speed-optimized-scraper';
 import { simpleFastExtract } from './simple-fast-scraper';
 import { bypassExtraction } from './bypass-system';
@@ -4303,8 +4303,10 @@ ${result.title || 'Product'},${fb2Handle},${result.description || ''},${result.b
         });
       }
 
-      await saveDirectAccessToken(cleanDomain, accessToken);
       const shopData = await testRes.json() as any;
+      await saveDirectAccessToken(cleanDomain, accessToken);
+      // Cache'i temizle — tüm servisler yeni token'ı hemen kullansın
+      invalidateShopifyCredentialCache();
       res.json({ success: true, shopDomain: cleanDomain, storeName: shopData?.shop?.name || cleanDomain });
     } catch (err) {
       res.status(500).json({ error: String(err) });

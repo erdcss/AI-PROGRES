@@ -3,6 +3,24 @@ import { db } from './db';
 import { shopifyMemoryProducts } from '@shared/schema';
 import { eq, desc, count, max } from 'drizzle-orm';
 import { randomUUID } from 'crypto';
+import { getShopifyConfig } from './shopify-credentials';
+
+// Credential cache — 60 saniye TTL, çok fazla DB sorgusu yapmamak için
+let _credCache: { shopDomain: string; accessToken: string; cachedAt: number } | null = null;
+async function getCredentials(): Promise<{ shopDomain: string; accessToken: string }> {
+  const now = Date.now();
+  if (_credCache && now - _credCache.cachedAt < 60_000) {
+    return _credCache;
+  }
+  const config = await getShopifyConfig();
+  if (!config) throw new Error('Shopify API credentials missing. Please set SHOPIFY_SHOP_DOMAIN and SHOPIFY_ADMIN_ACCESS_TOKEN');
+  _credCache = { shopDomain: config.shopDomain, accessToken: config.accessToken, cachedAt: now };
+  return _credCache;
+}
+// Cache'i temizle (token güncellendikten sonra çağrılabilir)
+export function invalidateShopifyCredentialCache() {
+  _credCache = null;
+}
 
 interface ShopifyProduct {
   id: number;
@@ -54,43 +72,29 @@ interface ShopifyOption {
 }
 
 export class ShopifyApiService {
-  private storeUrl: string;
-  private accessToken: string;
-  private baseUrl: string;
-
   constructor() {
-    // Domain öncelik sırası: SHOPIFY_SHOP_DOMAIN → SHOPIFY_STORE_URL → SHOPIFY_STORE_DOMAIN
+    // Credentials are now loaded dynamically via getCredentials() — no ENV reads at startup
     const rawDomain =
       process.env.SHOPIFY_SHOP_DOMAIN ||
       process.env.SHOPIFY_STORE_URL ||
       process.env.SHOPIFY_STORE_DOMAIN ||
-      '';
-    // Token öncelik sırası: SHOPIFY_ADMIN_ACCESS_TOKEN → SHOPIFY_ACCESS_TOKEN
-    this.accessToken =
-      process.env.SHOPIFY_ADMIN_ACCESS_TOKEN ||
-      process.env.SHOPIFY_ACCESS_TOKEN ||
-      '';
-    this.storeUrl = rawDomain;
-
-    if (!this.storeUrl || !this.accessToken) {
-      throw new Error('Shopify API credentials missing. Please set SHOPIFY_SHOP_DOMAIN and SHOPIFY_ADMIN_ACCESS_TOKEN');
-    }
-
-    // URL prefix'ini temizle
-    const cleanStoreUrl = this.storeUrl.replace(/^https?:\/\//, '').replace(/\/$/, '');
-    this.baseUrl = `https://${cleanStoreUrl}/admin/api/2024-10/`;
-
+      'unknown';
+    const cleanStoreUrl = rawDomain.replace(/^https?:\/\//, '').replace(/\/$/, '');
     console.log(`🛍️ Shopify API Service initialized: ${cleanStoreUrl}`);
   }
 
-  // Shopify API request helper
+  // Shopify API request helper — credentials loaded dynamically from DB (with ENV fallback)
   private async makeRequest(endpoint: string, method: 'GET' | 'POST' | 'PUT' | 'DELETE' = 'GET', data?: any) {
     try {
+      const creds = await getCredentials();
+      const cleanDomain = creds.shopDomain.replace(/^https?:\/\//, '').replace(/\/$/, '');
+      const baseUrl = `https://${cleanDomain}/admin/api/2024-10/`;
+
       const config = {
         method,
-        url: `${this.baseUrl}${endpoint}`,
+        url: `${baseUrl}${endpoint}`,
         headers: {
-          'X-Shopify-Access-Token': this.accessToken,
+          'X-Shopify-Access-Token': creds.accessToken,
           'Content-Type': 'application/json',
         },
         data
@@ -101,7 +105,6 @@ export class ShopifyApiService {
     } catch (error) {
       console.error(`❌ Shopify API error for ${endpoint}:`);
       console.error('Status:', error.response?.status);
-      console.error('Headers:', error.response?.headers);
       console.error('Data:', JSON.stringify(error.response?.data, null, 2));
       console.error('Original message:', error.message);
       throw error;

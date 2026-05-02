@@ -94,6 +94,11 @@ export async function saveShopifyCredentials(data: {
  * UI'dan kullanıcı token'ı paste edebilir.
  */
 export async function saveDirectAccessToken(shopDomain: string, accessToken: string): Promise<void> {
+  // Diğer tüm aktif kayıtları devre dışı bırak (tek aktif mağaza olsun)
+  await db
+    .update(shopifyCredentials)
+    .set({ isActive: false, updatedAt: new Date() });
+
   const existing = await db
     .select()
     .from(shopifyCredentials)
@@ -106,7 +111,6 @@ export async function saveDirectAccessToken(shopDomain: string, accessToken: str
       .set({ accessToken, isActive: true, updatedAt: new Date() })
       .where(eq(shopifyCredentials.shopDomain, shopDomain));
   } else {
-    // Yeni kayıt oluştur (API key/secret olmadan sadece domain + token)
     await db.insert(shopifyCredentials).values({
       shopDomain,
       apiKey: '',
@@ -118,13 +122,31 @@ export async function saveDirectAccessToken(shopDomain: string, accessToken: str
 }
 
 /**
- * OAuth access token'ı DB'ye kaydeder
+ * OAuth access token'ı DB'ye kaydeder ve kaydı aktif yapar.
+ * isActive = true yapılmazsa getShopifyConfig() bu kaydı bulamaz!
  */
 export async function saveShopifyAccessToken(shopDomain: string, accessToken: string): Promise<void> {
-  await db
-    .update(shopifyCredentials)
-    .set({ accessToken, updatedAt: new Date() })
-    .where(eq(shopifyCredentials.shopDomain, shopDomain));
+  const existing = await db
+    .select()
+    .from(shopifyCredentials)
+    .where(eq(shopifyCredentials.shopDomain, shopDomain))
+    .limit(1);
+
+  if (existing.length > 0) {
+    await db
+      .update(shopifyCredentials)
+      .set({ accessToken, isActive: true, updatedAt: new Date() })
+      .where(eq(shopifyCredentials.shopDomain, shopDomain));
+  } else {
+    // Kayıt yoksa oluştur (apiKey/apiSecret olmadan)
+    await db.insert(shopifyCredentials).values({
+      shopDomain,
+      apiKey: '',
+      apiSecret: '',
+      accessToken,
+      isActive: true
+    });
+  }
 }
 
 /**
