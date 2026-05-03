@@ -15,59 +15,31 @@ interface CanvaImage {
   position?: number;
 }
 
-interface CanvaUploadResult {
-  assetId: string;
-  name: string;
+function truncateName(name: string, maxLen = 200): string {
+  if (name.length <= maxLen) return name;
+  return name.substring(0, maxLen - 3) + '...';
 }
 
-async function downloadImageBuffer(imageUrl: string): Promise<Buffer> {
-  const response = await axios.get(imageUrl, {
-    responseType: 'arraybuffer',
-    timeout: 15000,
-    headers: {
-      'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36',
-      'Referer': 'https://www.trendyol.com/'
-    }
-  });
-  return Buffer.from(response.data);
-}
-
-async function uploadAssetToCanva(
-  imageBuffer: Buffer,
-  assetName: string,
-  contentType: string = 'image/jpeg'
-): Promise<CanvaUploadResult | null> {
+async function uploadAssetByUrl(imageUrl: string, assetName: string): Promise<string | null> {
   if (!CANVA_API_TOKEN) return null;
 
-  const nameBase64 = Buffer.from(assetName, 'utf-8').toString('base64');
-
   const response = await axios.post(
-    `${CANVA_BASE_URL}/assets/upload`,
-    imageBuffer,
+    `${CANVA_BASE_URL}/url-asset-uploads`,
+    {
+      name: truncateName(assetName),
+      url: imageUrl
+    },
     {
       headers: {
         'Authorization': `Bearer ${CANVA_API_TOKEN}`,
-        'Asset-Upload-Metadata': JSON.stringify({ name_base64: nameBase64 }),
-        'Content-Type': contentType
+        'Content-Type': 'application/json'
       },
-      timeout: 30000,
-      maxBodyLength: Infinity
+      timeout: 20000
     }
   );
 
-  const asset = response.data?.asset;
-  if (asset?.id) {
-    return { assetId: asset.id, name: assetName };
-  }
-  return null;
-}
-
-function detectContentType(imageUrl: string): string {
-  const lower = imageUrl.toLowerCase();
-  if (lower.includes('.png')) return 'image/png';
-  if (lower.includes('.webp')) return 'image/webp';
-  if (lower.includes('.gif')) return 'image/gif';
-  return 'image/jpeg';
+  const jobId = response.data?.job?.id;
+  return jobId || null;
 }
 
 export class CanvaService {
@@ -91,10 +63,19 @@ export class CanvaService {
     }
 
     const uniqueImages = images.filter(
-      (img, idx, arr) => arr.findIndex(i => i.url === img.url) === idx
+      (img, idx, arr) =>
+        img.url &&
+        img.url.startsWith('http') &&
+        !img.url.endsWith('.svg') &&
+        arr.findIndex(i => i.url === img.url) === idx
     );
 
-    console.log(`🎨 [Canva] Starting upload of ${uniqueImages.length} images for: "${productTitle}"`);
+    if (uniqueImages.length === 0) {
+      console.log('[Canva] No valid image URLs for:', productTitle);
+      return;
+    }
+
+    console.log(`🎨 [Canva] Uploading ${uniqueImages.length} images for: "${productTitle}"`);
 
     let successCount = 0;
     let failCount = 0;
@@ -103,31 +84,42 @@ export class CanvaService {
       const img = uniqueImages[i];
       const position = img.position || (i + 1);
       const colorSuffix = img.color && img.color !== 'none' ? ` - ${img.color}` : '';
-      const assetName = `${productTitle}${colorSuffix} #${position}`;
+      const shortTitle = productTitle.substring(0, 40);
+      const assetName = `${shortTitle}${colorSuffix} #${position}`;
 
       try {
-        const buffer = await downloadImageBuffer(img.url);
-        const contentType = detectContentType(img.url);
-        const result = await uploadAssetToCanva(buffer, assetName, contentType);
+        const jobId = await uploadAssetByUrl(img.url, assetName);
 
-        if (result) {
+        if (jobId) {
           successCount++;
-          console.log(`✅ [Canva] Uploaded ${i + 1}/${uniqueImages.length}: "${assetName}" (ID: ${result.assetId})`);
+          console.log(`✅ [Canva] Queued ${i + 1}/${uniqueImages.length}: "${assetName}" (job: ${jobId})`);
         } else {
           failCount++;
-          console.warn(`⚠️ [Canva] Upload returned no asset ID for image ${i + 1}`);
+          console.warn(`⚠️ [Canva] No job ID returned for image ${i + 1}`);
         }
       } catch (err: any) {
         failCount++;
-        console.error(`❌ [Canva] Failed to upload image ${i + 1}: ${err.message}`);
+        const status = err.response?.status || 'no status';
+        const responseData = err.response?.data
+          ? JSON.stringify(err.response.data)
+          : err.message;
+        console.error(`❌ [Canva] Image ${i + 1} failed [HTTP ${status}]: ${responseData}`);
+
+        if (status === 401) {
+          console.error('❌ [Canva] Token geçersiz veya asset:write yetkisi yok. Canva Developer Portal\'dan token\'ı kontrol edin.');
+          break;
+        }
+        if (status === 429) {
+          console.warn('⏳ [Canva] Rate limit - 3 saniye bekleniyor...');
+          await new Promise(r => setTimeout(r, 3000));
+        }
       }
 
-      // Rate limiting: 500ms between uploads
       if (i < uniqueImages.length - 1) {
-        await new Promise(r => setTimeout(r, 500));
+        await new Promise(r => setTimeout(r, 600));
       }
     }
 
-    console.log(`🎨 [Canva] Upload complete for "${productTitle}": ${successCount} success, ${failCount} failed`);
+    console.log(`🎨 [Canva] Tamamlandı: "${productTitle}" → ${successCount} başarılı, ${failCount} hatalı`);
   }
 }

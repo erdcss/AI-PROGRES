@@ -8474,6 +8474,45 @@ ${result.title || 'Product'},${fb2Handle},${result.description || ''},${result.b
     }
   });
 
+  // Canva bağlantı testi
+  app.get('/api/canva-test', async (req, res) => {
+    if (!process.env.CANVA_API_TOKEN) {
+      return res.json({ success: false, error: 'CANVA_API_TOKEN ayarlı değil' });
+    }
+    try {
+      const axios = (await import('axios')).default;
+      const testName = 'Test Gorsel';
+      const testUrl = 'https://cdn.dsmcdn.com/mnresize/620/920/ty1804/prod/QC_ENRICHMENT/20251224/11/63c17af7-ab0e-3418-bf74-ba8a48154541/1_org_zoom.jpg';
+      const response = await axios.post(
+        'https://api.canva.com/rest/v1/url-asset-uploads',
+        { name: testName, url: testUrl },
+        {
+          headers: {
+            'Authorization': `Bearer ${process.env.CANVA_API_TOKEN}`,
+            'Content-Type': 'application/json'
+          },
+          timeout: 15000
+        }
+      );
+      const jobId = response.data?.job?.id;
+      return res.json({
+        success: true,
+        message: 'Canva bağlantısı başarılı! Görsel yükleme işi oluşturuldu.',
+        jobId,
+        response: response.data
+      });
+    } catch (err: any) {
+      const status = err.response?.status;
+      const data = err.response?.data;
+      return res.json({
+        success: false,
+        status,
+        error: err.message,
+        details: data
+      });
+    }
+  });
+
   // Clear existing product memory cache on startup
   console.log('🗑️ Clearing existing product memory cache...');
   memoryManager.purgeAll();
