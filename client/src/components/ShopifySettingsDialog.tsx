@@ -117,7 +117,12 @@ export default function ShopifySettingsDialog() {
       const res = await fetch("/api/canva/auth");
       const data = await res.json();
       if (data.url) {
-        window.location.href = data.url;
+        // Open in new tab — Canva refuses to load inside iframes
+        window.open(data.url, "_blank", "noopener,noreferrer");
+        toast({
+          title: "Canva yetkilendirme açıldı",
+          description: "Yeni sekmede Canva'ya giriş yapıp izin verin. Ardından bu sayfaya dönün.",
+        });
       } else {
         toast({ title: "Hata", description: data.error || "Yetkilendirme URL'si alınamadı", variant: "destructive" });
       }
