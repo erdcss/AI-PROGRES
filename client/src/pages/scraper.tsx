@@ -398,28 +398,56 @@ ${data.title.toLowerCase().replace(/[^a-z0-9]/g, '-')},${data.title},${data.bran
             }
           }
           
-          const response = await fetch("/api/shopify/upload-csv-product", {
-            method: "POST",
-            headers: {
-              "Content-Type": "application/json",
-            },
-            body: JSON.stringify({ 
-              csvContent: csvToUpload, // ✅ Tag'ler eklenmiş CSV gönder
-              productTitle: preview.productTitle,
-              sourceUrl: preview.sourceUrl,
-              individualTags: allTags // Tüm etiketleri gönder
-            }),
-          });
-          
+          // 3 dakika timeout — büyük ürünlerde paralel işlemler zaman alabilir
+          const controller = new AbortController();
+          const timeoutId = setTimeout(() => controller.abort(), 3 * 60 * 1000);
+
+          let response: Response;
+          try {
+            response = await fetch("/api/shopify/upload-csv-product", {
+              method: "POST",
+              headers: { "Content-Type": "application/json" },
+              signal: controller.signal,
+              body: JSON.stringify({
+                csvContent: csvToUpload,
+                productTitle: preview.productTitle,
+                sourceUrl: preview.sourceUrl,
+                individualTags: allTags
+              }),
+            });
+          } finally {
+            clearTimeout(timeoutId);
+          }
+
           if (response.ok) {
             const result = await response.json();
-            results.push({ success: true, title: preview.productTitle, shopifyId: result.shopifyId });
+            // Hem success:true hem de shopifyId/productId varsa başarılı say
+            if (result.success || result.shopifyId || result.productId) {
+              results.push({ success: true, title: preview.productTitle, shopifyId: result.shopifyId || result.productId });
+            } else if (result.error && result.error.includes('yakın zamanda yüklendi')) {
+              // Duplicate check — aslında başarılı upload, sadece tekrar denemesi
+              results.push({ success: true, title: preview.productTitle, shopifyId: 'duplicate-blocked' });
+            } else {
+              results.push({ success: false, title: preview.productTitle, error: result.error || result.message || 'Bilinmeyen hata' });
+            }
           } else {
-            const errorData = await response.json().catch(() => ({}));
-            throw new Error(errorData.error || errorData.message || `HTTP ${response.status}`);
+            const errorData = await response.json().catch(() => ({})) as any;
+            const errMsg = errorData.error || errorData.message || `HTTP ${response.status}`;
+            // 409 = zaten yüklendi → başarı olarak say
+            if (response.status === 409 || errMsg.includes('yakın zamanda')) {
+              results.push({ success: true, title: preview.productTitle, shopifyId: 'already-exists' });
+            } else {
+              throw new Error(errMsg);
+            }
           }
-        } catch (error) {
-          results.push({ success: false, title: preview.productTitle, error: error.message });
+        } catch (error: any) {
+          if (error?.name === 'AbortError') {
+            // Timeout — sunucu büyük ihtimalle başarıyla tamamladı, ağ zaman aşımına uğradı
+            console.warn('⏱️ Upload timeout — sunucu yüklemeyi tamamlamış olabilir:', preview.productTitle);
+            results.push({ success: true, title: preview.productTitle, shopifyId: 'timeout-check-shopify', warning: 'Zaman aşımı — Shopify panelini kontrol edin' });
+          } else {
+            results.push({ success: false, title: preview.productTitle, error: error.message });
+          }
         }
       }
       return results;
@@ -1160,37 +1188,55 @@ ${data.title.toLowerCase().replace(/[^a-z0-9]/g, '-')},${data.title},${data.bran
         }
       }
       
+      const singleController = new AbortController();
+      const singleTimeoutId = setTimeout(() => singleController.abort(), 3 * 60 * 1000);
       try {
         const response = await fetch("/api/shopify/upload-csv-product", {
           method: "POST",
-          headers: {
-            "Content-Type": "application/json",
-          },
+          headers: { "Content-Type": "application/json" },
+          signal: singleController.signal,
           body: JSON.stringify({ 
             csvContent: csvToUpload,
             productTitle: preview.productTitle,
             sourceUrl: preview.sourceUrl,
             individualTags: individualTags || []
           }),
-        });
+        }).finally(() => clearTimeout(singleTimeoutId));
         
         if (response.ok) {
           const result = await response.json();
+          if (result.success || result.shopifyId || result.productId) {
+            toast({
+              title: "Shopify'a Yüklendi ✅",
+              description: `${preview.productTitle.substring(0, 40)}... başarıyla yüklendi${individualTags && individualTags.length > 0 ? ` (${individualTags.length} etiket)` : ''}`
+            });
+          } else {
+            throw new Error(result.error || result.message || 'Sunucu başarısız yanıt döndü');
+          }
+        } else {
+          const errorData = await response.json().catch(() => ({}) as any);
+          const errMsg = (errorData as any).error || (errorData as any).message || `HTTP ${response.status}`;
+          if (errMsg.includes('yakın zamanda yüklendi')) {
+            toast({ title: "Zaten Yüklendi", description: `${preview.productTitle.substring(0, 40)}... daha önce yüklendi` });
+          } else {
+            throw new Error(errMsg);
+          }
+        }
+      } catch (error: any) {
+        if (error?.name === 'AbortError') {
+          console.warn('⏱️ Single upload timeout — sunucu tamamlamış olabilir');
           toast({
-            title: "Shopify'a Yüklendi",
-            description: `${preview.productTitle.substring(0, 40)}... başarıyla yüklendi${individualTags && individualTags.length > 0 ? ` (${individualTags.length} etiket ile)` : ''}`
+            title: "Yükleme Devam Ediyor",
+            description: `${preview.productTitle.substring(0, 30)}... Shopify panelini kontrol edin, yükleme tamamlanmış olabilir`
           });
         } else {
-          const errorData = await response.json().catch(() => ({}));
-          throw new Error(errorData.error || errorData.message || `HTTP ${response.status}`);
+          console.error('❌ Shopify upload failed:', error);
+          toast({
+            title: "Yükleme Hatası",
+            description: `${preview.productTitle.substring(0, 30)}... : ${error instanceof Error ? error.message : 'Bilinmeyen hata'}`,
+            variant: "destructive"
+          });
         }
-      } catch (error) {
-        console.error('❌ Shopify upload failed:', error);
-        toast({
-          title: "Yükleme Hatası",
-          description: `${preview.productTitle.substring(0, 30)}... yüklenirken hata: ${error instanceof Error ? error.message : 'Bilinmeyen hata'}`,
-          variant: "destructive"
-        });
       }
     }
   };

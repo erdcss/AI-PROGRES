@@ -318,43 +318,37 @@ export async function uploadProductToShopify(csvContent: string, productTitle: s
     console.log('📸 Input images:', productData.images.map(img => img.src).slice(0, 3));
     console.log('📸 Created product images count:', result.product.images?.length || 0);
     
-    // Upload remaining images separately if initial upload didn't get all of them
+    // Upload remaining images — PARALLEL batch upload (5 at a time)
     if (productData.images.length > (result.product.images?.length || 0)) {
-      console.log('📸 Uploading remaining images separately...');
+      console.log('📸 Uploading remaining images in parallel batches...');
       const existingImageUrls = new Set((result.product.images || []).map((img: any) => img.src));
-      
-      for (const image of productData.images) {
-        if (!existingImageUrls.has(image.src)) {
+      const pendingImages = productData.images.filter(img => !existingImageUrls.has(img.src));
+      const IMAGE_BATCH_SIZE = 5;
+
+      for (let b = 0; b < pendingImages.length; b += IMAGE_BATCH_SIZE) {
+        const batch = pendingImages.slice(b, b + IMAGE_BATCH_SIZE);
+        await Promise.all(batch.map(async (image) => {
           try {
-            const imageResponse = await fetch(`https://${shopifyStore}/admin/api/2023-10/products/${productId}/images.json`, {
-              method: 'POST',
-              headers: {
-                'X-Shopify-Access-Token': accessToken,
-                'Content-Type': 'application/json'
-              },
-              body: JSON.stringify({
-                image: {
-                  src: image.src,
-                  alt: image.alt,
-                  position: image.position
-                }
-              })
-            });
-            
+            const imageResponse = await fetch(
+              `https://${shopifyStore}/admin/api/2024-01/products/${productId}/images.json`,
+              {
+                method: 'POST',
+                headers: { 'X-Shopify-Access-Token': accessToken, 'Content-Type': 'application/json' },
+                body: JSON.stringify({ image: { src: image.src, alt: image.alt, position: image.position } })
+              }
+            );
             if (imageResponse.ok) {
-              const imageResult = await imageResponse.json();
-              console.log(`✅ Added image ${image.position}: ${image.src.substring(0, 60)}...`);
-              existingImageUrls.add(image.src);
+              console.log(`✅ Image uploaded: ${image.src.substring(0, 60)}...`);
             } else {
-              const error = await imageResponse.json();
-              console.log(`❌ Failed to add image ${image.position}:`, error);
+              const err = await imageResponse.text();
+              console.log(`⚠️ Image upload skipped (${imageResponse.status}): ${err.substring(0, 80)}`);
             }
-          } catch (imgError) {
-            console.log(`❌ Error adding image ${image.position}:`, imgError);
+          } catch (imgError: any) {
+            console.log(`⚠️ Image upload error: ${imgError.message}`);
           }
-        }
+        }));
       }
-      console.log(`📸 Final image count: ${existingImageUrls.size} / ${productData.images.length}`);
+      console.log(`📸 Parallel image upload done: ${pendingImages.length} images processed`);
     }
     
     // Update metafield separately if tracking ID exists
@@ -411,49 +405,33 @@ export async function uploadProductToShopify(csvContent: string, productTitle: s
     );
     
     if (hasAnyOptions) {
-      // Update each variant with correct option values only if they have options
+      // Update variants in PARALLEL — all at once
+      const variantUpdateTasks = [];
       for (let i = 0; i < Math.min(createdVariants.length, productData.variants.length); i++) {
         const shopifyVariant = createdVariants[i];
         const originalVariant = productData.variants[i];
-        
         const hasOption1 = originalVariant.option1 && originalVariant.option1.trim();
         const hasOption2 = originalVariant.option2 && originalVariant.option2.trim();
-        
-        if (!hasOption1 && !hasOption2) {
-          console.log(`Skipping variant ${i} update - no options to set`);
-          continue;
-        }
-        
-        console.log(`Updating variant ${i}: ${originalVariant.option1 || 'none'} / ${originalVariant.option2 || 'none'}`);
-        
-        try {
-          const updateData: any = {
-            id: shopifyVariant.id,
-            price: originalVariant.price
-          };
-          
-          if (hasOption1) updateData.option1 = originalVariant.option1;
-          if (hasOption2) updateData.option2 = originalVariant.option2;
-          
-          const updateResponse = await fetch(`https://${shopifyStore}/admin/api/2023-10/variants/${shopifyVariant.id}.json`, {
+        if (!hasOption1 && !hasOption2) continue;
+
+        const updateData: any = { id: shopifyVariant.id, price: originalVariant.price };
+        if (hasOption1) updateData.option1 = originalVariant.option1;
+        if (hasOption2) updateData.option2 = originalVariant.option2;
+
+        variantUpdateTasks.push(
+          fetch(`https://${shopifyStore}/admin/api/2024-01/variants/${shopifyVariant.id}.json`, {
             method: 'PUT',
-            headers: {
-              'X-Shopify-Access-Token': accessToken,
-              'Content-Type': 'application/json'
-            },
-            body: JSON.stringify({
-              variant: updateData
-            })
-          });
-          
-          if (updateResponse.ok) {
-            console.log(`✅ Variant ${i} updated successfully`);
-          } else {
-            console.log(`❌ Variant ${i} update failed:`, await updateResponse.text());
-          }
-        } catch (updateError) {
-          console.log(`❌ Variant ${i} update error:`, updateError);
-        }
+            headers: { 'X-Shopify-Access-Token': accessToken, 'Content-Type': 'application/json' },
+            body: JSON.stringify({ variant: updateData })
+          }).then(r => {
+            if (r.ok) console.log(`✅ Variant ${i} updated: ${originalVariant.option1 || ''}`);
+            else r.text().then(t => console.log(`⚠️ Variant ${i} update skipped: ${t.substring(0, 80)}`));
+          }).catch(e => console.log(`⚠️ Variant ${i} update error: ${e.message}`))
+        );
+      }
+      if (variantUpdateTasks.length > 0) {
+        await Promise.all(variantUpdateTasks);
+        console.log(`✅ All ${variantUpdateTasks.length} variant updates completed in parallel`);
       }
     } else {
       console.log('🔧 No variant updates needed - product has no options');
