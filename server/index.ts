@@ -656,15 +656,26 @@ app.use(pendingChangesRoutes);
       }
     }
   } else {
-    process.stderr.write("🔧 Production mode - using serveStatic...\n");
-    serveStatic(app);
+    process.stderr.write("🔧 Production mode - serving static files...\n");
+    // serveStatic() looks for dist/public but Vite builds to dist/ — serve directly
+    const distPath = pathModule.resolve('./dist');
+    process.stderr.write(`📁 Static files path: ${distPath}\n`);
+    if (fs.existsSync(pathModule.join(distPath, 'index.html'))) {
+      app.use(express.static(distPath));
+      app.use('*', (_req, res) => {
+        res.sendFile(pathModule.resolve(distPath, 'index.html'));
+      });
+      process.stderr.write("✅ Static serving configured from dist/\n");
+    } else {
+      process.stderr.write("⚠️ dist/index.html not found, falling back to serveStatic\n");
+      serveStatic(app);
+    }
   }
   
   process.stderr.write("📍 CHECKPOINT 2: Vite setup completed, about to call server.listen()\n");
 
-  // Serving the app on port 5000 for Replit workflow compatibility
-  // this serves both the API and the client.
-  const port = Number(process.env.PORT) || 5000;
+  // Dev: port 5000 (Replit workflow), Production: port 3000 (Replit deployment mapping)
+  const port = Number(process.env.PORT) || (process.env.NODE_ENV === 'production' ? 3000 : 5000);
   
   // Graceful shutdown handling
   process.on('SIGTERM', () => {

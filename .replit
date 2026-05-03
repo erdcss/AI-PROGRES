@@ -12,9 +12,9 @@ packages = [
 ]
 
 [deployment]
-deploymentTarget = "autoscale"
-build = "npm run build"
-run = "npm start"
+deploymentTarget = "vm"
+build = ["npm", "run", "build"]
+run = ["npm", "run", "start"]
 
 [[ports]]
 localPort = 3000
