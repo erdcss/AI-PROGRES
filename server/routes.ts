@@ -1227,11 +1227,18 @@ export function registerRoutes(app: Express): Server {
     return `${proto}://${host}`;
   }
 
+  // Helper: clean CANVA_REDIRECT_URI (strips accidental "Value: " prefix from Replit secret)
+  function getCanvaRedirectUri(req: any): string {
+    const raw = process.env.CANVA_REDIRECT_URI || '';
+    const cleaned = raw.replace(/^Value:\s*/i, '').trim();
+    return cleaned || `${getBaseUrl(req)}/api/canva/callback`;
+  }
+
   // GET /api/canva/auth — Start OAuth flow, returns redirect URL
   app.get('/api/canva/auth', (req, res) => {
     try {
       // Prefer the registered CANVA_REDIRECT_URI secret; fall back to computed URL
-      const redirectUri = process.env.CANVA_REDIRECT_URI || `${getBaseUrl(req)}/api/canva/callback`;
+      const redirectUri = getCanvaRedirectUri(req);
       const { url } = generateAuthUrl(redirectUri);
       console.log('🔗 [Canva] OAuth başlatıldı, redirect_uri:', redirectUri);
       res.json({ url, redirectUri });
@@ -1305,7 +1312,7 @@ setTimeout(check, 1000);
 </script></body></html>`);
 
     // Now do the token exchange asynchronously (after response is sent)
-    const redirectUri = process.env.CANVA_REDIRECT_URI || `${getBaseUrl(req)}/api/canva/callback`;
+    const redirectUri = getCanvaRedirectUri(req);
     console.log('🔄 [Canva] Token alınıyor (async), redirect_uri:', redirectUri);
     exchangeCodeForToken(code, state, redirectUri)
       .then(() => console.log('✅ [Canva] Token başarıyla alındı'))
