@@ -1945,7 +1945,11 @@ export function registerRoutes(app: Express): Server {
             createTimeout(60000)
           ]) as any;
           
-          if (scrapeResult && scrapeResult.success !== false) {
+          const INVALID_SCRAPE_TITLES = ['Yüklenemiyor', 'Ürün Bilgisi Alınamadı', 'Ürün Yüklenemedi', 'Ürün Bilgisi', 'trendyol.com', 'Product', 'Trendyol Ürünü'];
+          const scrapeHasValidTitle = scrapeResult?.title && !INVALID_SCRAPE_TITLES.includes(scrapeResult.title) && (scrapeResult.title as string).length > 5;
+          const scrapeHasValidData = scrapeHasValidTitle || (scrapeResult?.price?.original > 0) || (scrapeResult?.images?.length > 0);
+
+          if (scrapeResult && scrapeResult.success !== false && scrapeHasValidData) {
             console.log(`⚡ Scenario scrape SUCCESS in ${Date.now() - scrapeStartTime}ms`);
             result = { ...scrapeResult, _source: 'scenario-scrape' };
             
@@ -1955,6 +1959,8 @@ export function registerRoutes(app: Express): Server {
               console.log(`🌈 MULTI-COLOR: ${scrapeResult.otherColorUrls.length} other color URLs found (handled via JSON-LD inside scraper)`);
             }
           } else {
+            const failReason = !scrapeHasValidData ? `invalid data (title="${scrapeResult?.title}", price=${scrapeResult?.price?.original}, images=${scrapeResult?.images?.length})` : 'success=false';
+            console.log(`⚠️ Scenario scrape rejected: ${failReason}`);
             throw new Error('Scenario scrape failed');
           }
         } catch (fastError: any) {
