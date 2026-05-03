@@ -5,6 +5,8 @@ import path from 'path';
 
 const CANVA_CLIENT_ID = process.env.CANVA_CLIENT_ID;
 const CANVA_CLIENT_SECRET = process.env.CANVA_CLIENT_SECRET;
+// Optional: if set, always use this as redirect URI (for Canva portal registration)
+export const CANVA_REDIRECT_URI = process.env.CANVA_REDIRECT_URI || null;
 const TOKEN_FILE = path.join(process.cwd(), '.canva-token.json');
 
 interface TokenData {

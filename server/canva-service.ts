@@ -14,23 +14,53 @@ function truncateName(name: string, maxLen = 200): string {
   return name.substring(0, maxLen - 3) + '...';
 }
 
-async function uploadAssetByUrl(imageUrl: string, assetName: string, token: string): Promise<string | null> {
-  const response = await axios.post(
-    `${CANVA_BASE_URL}/url-asset-uploads`,
-    {
-      name: truncateName(assetName),
-      url: imageUrl
-    },
+/**
+ * Downloads image from URL and uploads to Canva via binary upload.
+ * Uses POST /rest/v1/asset-uploads with:
+ *   Content-Type: application/octet-stream
+ *   Asset-Upload-Metadata: base64(JSON({name}))
+ */
+async function uploadImageToCanva(imageUrl: string, assetName: string, token: string): Promise<string | null> {
+  // 1. Download image as binary buffer
+  const downloadRes = await axios.get(imageUrl, {
+    responseType: 'arraybuffer',
+    timeout: 20000,
+    headers: {
+      'User-Agent': 'Mozilla/5.0 (compatible; Turmarkt/1.0)',
+      'Referer': 'https://www.trendyol.com/'
+    }
+  });
+
+  const imageBuffer = Buffer.from(downloadRes.data);
+  const name = truncateName(assetName);
+
+  // 2. Build Asset-Upload-Metadata header (base64-encoded JSON with "name_base64" field)
+  const metadataJson = JSON.stringify({ name_base64: Buffer.from(name).toString('base64') });
+  const metadataHeader = Buffer.from(metadataJson).toString('base64');
+
+  // 3. Detect content type from URL or response headers
+  const contentType = (downloadRes.headers['content-type'] as string) || 'image/jpeg';
+  const safeContentType = contentType.startsWith('image/') ? contentType : 'image/jpeg';
+
+  // 4. Upload binary to Canva
+  const uploadRes = await axios.post(
+    `${CANVA_BASE_URL}/asset-uploads`,
+    imageBuffer,
     {
       headers: {
         'Authorization': `Bearer ${token}`,
-        'Content-Type': 'application/json'
+        'Content-Type': 'application/octet-stream',
+        'Asset-Upload-Metadata': metadataHeader
       },
-      timeout: 20000
+      timeout: 30000,
+      maxBodyLength: Infinity,
+      maxContentLength: Infinity
     }
   );
 
-  return response.data?.job?.id || null;
+  // Response: { job: { id, status } } — async job
+  const jobId = uploadRes.data?.job?.id;
+  return jobId || null;
 }
 
 export class CanvaService {
@@ -59,6 +89,7 @@ export class CanvaService {
         img.url &&
         img.url.startsWith('http') &&
         !img.url.endsWith('.svg') &&
+        !img.url.includes('css') &&
         arr.findIndex(i => i.url === img.url) === idx
     );
 
@@ -86,11 +117,11 @@ export class CanvaService {
           break;
         }
 
-        const jobId = await uploadAssetByUrl(img.url, assetName, freshToken);
+        const jobId = await uploadImageToCanva(img.url, assetName, freshToken);
 
         if (jobId) {
           successCount++;
-          console.log(`✅ [Canva] Sıraya alındı ${i + 1}/${uniqueImages.length}: "${assetName}" (job: ${jobId})`);
+          console.log(`✅ [Canva] Yüklendi ${i + 1}/${uniqueImages.length}: "${assetName}" (job: ${jobId})`);
         } else {
           failCount++;
           console.warn(`⚠️ [Canva] Görsel ${i + 1} için job ID dönmedi`);
@@ -108,11 +139,12 @@ export class CanvaService {
           break;
         }
         if (status === 429) {
-          console.warn('⏳ [Canva] Rate limit - 3 saniye bekleniyor...');
-          await new Promise(r => setTimeout(r, 3000));
+          console.warn('⏳ [Canva] Rate limit - 4 saniye bekleniyor...');
+          await new Promise(r => setTimeout(r, 4000));
         }
       }
 
+      // 600ms between uploads to respect rate limits (30 req/min)
       if (i < uniqueImages.length - 1) {
         await new Promise(r => setTimeout(r, 600));
       }
