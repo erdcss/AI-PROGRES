@@ -1060,8 +1060,13 @@ function extractAllVariantsFromProductGroupJsonLd(htmlContent: string): Array<{
       for (const variant of productGroup.hasVariant) {
         const rawColor = (typeof variant.color === 'string' ? variant.color : '') || '';
         if (!rawColor) continue;
-        const color = normalizeColorName(rawColor) || rawColor; // Clean slug-format colors at source
-        if (!color) continue;
+        // normalizeColorName returns null for invalid colors (too long, non-color words, etc.)
+        // Do NOT fall back to rawColor — null means the value should be rejected entirely
+        const color = normalizeColorName(rawColor);
+        if (!color) {
+          console.log(`🚫 JSON-LD color rejected by normalize: "${rawColor.substring(0, 60)}"`);
+          continue;
+        }
 
         // Extract sizes
         let sizes: string[] = [];
@@ -2837,21 +2842,36 @@ export async function scenarioBasedScrape(url: string): Promise<ScenarioBasedRes
 
     // 🎨 SINGLE-COLOR STRIP: If there is only ONE unique color across all variants,
     // that color is not a real user-selectable option → strip it so CSV has no Renk option.
-    // Exception: keep the color when there are genuinely NO sizes either (pure color-only product)
-    // because in that case we need at least one option value.
+    // Exception: keep the color ONLY when Puppeteer confirmed real color selector buttons exist on the page.
     const uniqueColorSet = new Set(
       validatedVariants.allVariants.map(v => v.color).filter(c => c && c.trim() !== '')
     );
     if (uniqueColorSet.size === 1) {
       const onlyColor = [...uniqueColorSet][0];
       const hasSizes = validatedVariants.allVariants.some(v => v.size && v.size.trim() !== '');
+
+      // Check if Puppeteer found real color selector buttons on the page
+      const puppeteerColorsMeta2 = $ ? $('meta[name="puppeteer-colors"]').attr('content') : null;
+      const puppeteerCurrentMeta2 = $ ? $('meta[name="puppeteer-current-color"]').attr('content') : null;
+      const puppeteerFoundColorSelectors = !!(
+        (puppeteerColorsMeta2 && puppeteerColorsMeta2.trim().length > 0) ||
+        (puppeteerCurrentMeta2 && puppeteerCurrentMeta2.trim().length > 0)
+      );
+
       if (hasSizes) {
         // Has sizes → color option is redundant (only 1 choice) → remove color
-        console.log(`🚫 SINGLE-COLOR STRIP: Only 1 color "${onlyColor}" with size variants → removing color (Puppeteer may have matched non-selector element)`);
+        console.log(`🚫 SINGLE-COLOR STRIP: Only 1 color "${onlyColor}" with size variants → removing color`);
+        validatedVariants.allVariants = validatedVariants.allVariants.map(v => ({ ...v, color: '', colorCode: '' }));
+        validatedVariants.colors = [];
+      } else if (!puppeteerFoundColorSelectors) {
+        // No sizes AND no real color selector buttons → true single-variant product
+        // "Siyah" came from the URL/title/JSON-LD, NOT from a real user-selectable color option
+        console.log(`🚫 SINGLE-COLOR STRIP (no selector): "${onlyColor}" has no Puppeteer color buttons → single-variant product, clearing color`);
         validatedVariants.allVariants = validatedVariants.allVariants.map(v => ({ ...v, color: '', colorCode: '' }));
         validatedVariants.colors = [];
       } else {
-        console.log(`ℹ️ SINGLE-COLOR kept (no sizes): "${onlyColor}" — color-only product, keeping for variant identity`);
+        // Puppeteer DID find color selector buttons → this is a genuine color-selectable product
+        console.log(`✅ SINGLE-COLOR kept: "${onlyColor}" — Puppeteer confirmed real color selector on page`);
       }
     }
 
@@ -5153,19 +5173,19 @@ function extractVariantsFromJsonLD($: cheerio.CheerioAPI, htmlContent: string): 
         console.log(`🔍 JSON-LD: Found ${jsonData.hasVariant.length} variants in hasVariant array`);
         
         jsonData.hasVariant.forEach((variant: any, index: number) => {
-          // Extract color from variant
+          // Extract color from variant — apply normalizeColorName to reject invalid values
           if (variant.color) {
-            if (Array.isArray(variant.color)) {
-              variant.color.forEach((c: string) => {
-                if (c && typeof c === 'string') {
-                  colors.push(c);
-                  console.log(`🎨 JSON-LD variant ${index}: Found color: ${c}`);
-                }
-              });
-            } else if (typeof variant.color === 'string') {
-              colors.push(variant.color);
-              console.log(`🎨 JSON-LD variant ${index}: Found color: ${variant.color}`);
-            }
+            const rawColors = Array.isArray(variant.color) ? variant.color : [variant.color];
+            rawColors.forEach((c: any) => {
+              if (!c || typeof c !== 'string') return;
+              const normalized = normalizeColorName(c);
+              if (normalized && !colors.includes(normalized)) {
+                colors.push(normalized);
+                console.log(`🎨 JSON-LD variant ${index}: Found color: ${normalized}`);
+              } else if (!normalized) {
+                console.log(`🚫 JSON-LD variant ${index}: Color rejected by normalize: "${c.substring(0, 60)}"`);
+              }
+            });
           }
           
           // Extract size from variant
@@ -5183,12 +5203,16 @@ function extractVariantsFromJsonLD($: cheerio.CheerioAPI, htmlContent: string): 
             }
           }
           
-          // Extract from name if contains size/color info
-          if (variant.name && typeof variant.name === 'string') {
-            const nameColor = extractColorFromTitle(variant.name);
-            if (nameColor && !colors.includes(nameColor)) {
-              colors.push(nameColor);
-              console.log(`🎨 JSON-LD variant ${index}: Color from name: ${nameColor}`);
+          // Extract from name if contains size/color info — ONLY if variant.color is absent
+          // This prevents extracting color from long product-title-like names
+          if (!variant.color && variant.name && typeof variant.name === 'string') {
+            // Only extract from name if it's short (real color names, not titles)
+            if (variant.name.trim().length <= 40) {
+              const nameColor = extractColorFromTitle(variant.name);
+              if (nameColor && !colors.includes(nameColor)) {
+                colors.push(nameColor);
+                console.log(`🎨 JSON-LD variant ${index}: Color from name: ${nameColor}`);
+              }
             }
           }
         });
