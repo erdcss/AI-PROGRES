@@ -74,6 +74,7 @@ import { setupAdminMemoryRoutes } from './admin-memory-routes';
 import { setupTrackingDashboardAPI } from './tracking-dashboard-api';
 import { ImageTelegramService } from './image-telegram-service';
 import { CanvaService } from './canva-service';
+import { initCanvaOAuth, generateAuthUrl, exchangeCodeForToken, isCanvaConnected, disconnectCanva, getCanvaAccessToken } from './canva-oauth';
 import { productStatisticsService } from './product-statistics-service';
 import { CLOTHING_KEYWORDS, FAKE_CLOTHING_SIZES, isClothingProduct } from './clothing-keywords';
 import { aiProductStatisticsService } from './ai-product-statistics';
@@ -1204,6 +1205,84 @@ function processVariantsFromFeatures(features: any[], originalVariants: any[] = 
 export function registerRoutes(app: Express): Server {
   // Create HTTP server - will be configured by main server
   const httpServer = createServer(app);
+
+  // Initialize Canva OAuth on startup
+  initCanvaOAuth();
+
+  // ── Canva OAuth endpoints ──────────────────────────────────────────────────
+
+  // GET /api/canva/status — Is Canva connected?
+  app.get('/api/canva/status', (req, res) => {
+    res.json({ connected: isCanvaConnected() });
+  });
+
+  // Helper: get the public-facing base URL
+  function getBaseUrl(req: any): string {
+    // Replit sets REPLIT_DOMAINS env var (comma-separated)
+    const replitDomain = process.env.REPLIT_DOMAINS?.split(',')[0]?.trim();
+    if (replitDomain) return `https://${replitDomain}`;
+    // Fallback: use host header
+    const host = req.headers.host || 'localhost:5000';
+    const proto = req.headers['x-forwarded-proto'] || 'http';
+    return `${proto}://${host}`;
+  }
+
+  // GET /api/canva/auth — Start OAuth flow, returns redirect URL
+  app.get('/api/canva/auth', (req, res) => {
+    try {
+      const redirectUri = `${getBaseUrl(req)}/api/canva/callback`;
+      const { url } = generateAuthUrl(redirectUri);
+      res.json({ url, redirectUri });
+    } catch (err: any) {
+      res.status(500).json({ error: err.message });
+    }
+  });
+
+  // GET /api/canva/callback — OAuth callback after user approves
+  app.get('/api/canva/callback', async (req, res) => {
+    const { code, state, error } = req.query as Record<string, string>;
+    if (error) {
+      return res.redirect(`/?canva_error=${encodeURIComponent(error)}`);
+    }
+    if (!code || !state) {
+      return res.redirect('/?canva_error=missing_params');
+    }
+    try {
+      const redirectUri = `${getBaseUrl(req)}/api/canva/callback`;
+      await exchangeCodeForToken(code, state, redirectUri);
+      res.redirect('/?canva_success=1');
+    } catch (err: any) {
+      console.error('❌ [Canva] Callback hatası:', err.message);
+      res.redirect(`/?canva_error=${encodeURIComponent(err.message)}`);
+    }
+  });
+
+  // POST /api/canva/disconnect — Revoke token
+  app.post('/api/canva/disconnect', (req, res) => {
+    disconnectCanva();
+    res.json({ success: true });
+  });
+
+  // GET /api/canva-test — Quick connectivity test
+  app.get('/api/canva-test', async (req, res) => {
+    const token = getCanvaAccessToken();
+    if (!token) {
+      return res.json({ success: false, error: 'Canva bağlı değil - /api/canva/auth ile bağlanın' });
+    }
+    try {
+      const testUrl = 'https://cdn.dsmcdn.com/mnresize/620/920/ty1804/prod/QC_ENRICHMENT/20251224/11/63c17af7-ab0e-3418-bf74-ba8a48154541/1_org_zoom.jpg';
+      const response = await axios.post(
+        'https://api.canva.com/rest/v1/url-asset-uploads',
+        { name: 'Test Gorsel', url: testUrl },
+        { headers: { 'Authorization': `Bearer ${token}`, 'Content-Type': 'application/json' }, timeout: 15000 }
+      );
+      return res.json({ success: true, jobId: response.data?.job?.id, response: response.data });
+    } catch (err: any) {
+      return res.json({ success: false, status: err.response?.status, error: err.message, details: err.response?.data });
+    }
+  });
+
+  // ─────────────────────────────────────────────────────────────────────────
 
   // CSV preview endpoint removed - handled in server/index.ts
 

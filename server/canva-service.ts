@@ -1,13 +1,7 @@
 import axios from 'axios';
+import { getCanvaAccessToken, isCanvaConnected } from './canva-oauth';
 
-const CANVA_API_TOKEN = process.env.CANVA_API_TOKEN;
 const CANVA_BASE_URL = 'https://api.canva.com/rest/v1';
-
-if (!CANVA_API_TOKEN) {
-  console.warn('⚠️ CANVA_API_TOKEN not set - Canva upload disabled');
-} else {
-  console.log('✅ CanvaService: CANVA_API_TOKEN loaded');
-}
 
 interface CanvaImage {
   url: string;
@@ -20,9 +14,7 @@ function truncateName(name: string, maxLen = 200): string {
   return name.substring(0, maxLen - 3) + '...';
 }
 
-async function uploadAssetByUrl(imageUrl: string, assetName: string): Promise<string | null> {
-  if (!CANVA_API_TOKEN) return null;
-
+async function uploadAssetByUrl(imageUrl: string, assetName: string, token: string): Promise<string | null> {
   const response = await axios.post(
     `${CANVA_BASE_URL}/url-asset-uploads`,
     {
@@ -31,34 +23,34 @@ async function uploadAssetByUrl(imageUrl: string, assetName: string): Promise<st
     },
     {
       headers: {
-        'Authorization': `Bearer ${CANVA_API_TOKEN}`,
+        'Authorization': `Bearer ${token}`,
         'Content-Type': 'application/json'
       },
       timeout: 20000
     }
   );
 
-  const jobId = response.data?.job?.id;
-  return jobId || null;
+  return response.data?.job?.id || null;
 }
 
 export class CanvaService {
 
   static isEnabled(): boolean {
-    return !!CANVA_API_TOKEN;
+    return isCanvaConnected();
   }
 
   static async sendProductImages(
     productTitle: string,
     images: CanvaImage[]
   ): Promise<void> {
-    if (!CANVA_API_TOKEN) {
-      console.warn('⚠️ [Canva] CANVA_API_TOKEN not set - skipping');
+    const token = getCanvaAccessToken();
+    if (!token) {
+      console.warn('⚠️ [Canva] Bağlı değil - görsel yükleme atlanıyor (Ayarlar > Canva Bağla)');
       return;
     }
 
     if (!images || images.length === 0) {
-      console.log('[Canva] No images to upload for:', productTitle);
+      console.log('[Canva] Yüklenecek görsel yok:', productTitle);
       return;
     }
 
@@ -71,11 +63,11 @@ export class CanvaService {
     );
 
     if (uniqueImages.length === 0) {
-      console.log('[Canva] No valid image URLs for:', productTitle);
+      console.log('[Canva] Geçerli görsel URL yok:', productTitle);
       return;
     }
 
-    console.log(`🎨 [Canva] Uploading ${uniqueImages.length} images for: "${productTitle}"`);
+    console.log(`🎨 [Canva] ${uniqueImages.length} görsel yükleniyor: "${productTitle}"`);
 
     let successCount = 0;
     let failCount = 0;
@@ -88,14 +80,20 @@ export class CanvaService {
       const assetName = `${shortTitle}${colorSuffix} #${position}`;
 
       try {
-        const jobId = await uploadAssetByUrl(img.url, assetName);
+        const freshToken = getCanvaAccessToken();
+        if (!freshToken) {
+          console.error('❌ [Canva] Token artık geçersiz, yükleme durduruluyor');
+          break;
+        }
+
+        const jobId = await uploadAssetByUrl(img.url, assetName, freshToken);
 
         if (jobId) {
           successCount++;
-          console.log(`✅ [Canva] Queued ${i + 1}/${uniqueImages.length}: "${assetName}" (job: ${jobId})`);
+          console.log(`✅ [Canva] Sıraya alındı ${i + 1}/${uniqueImages.length}: "${assetName}" (job: ${jobId})`);
         } else {
           failCount++;
-          console.warn(`⚠️ [Canva] No job ID returned for image ${i + 1}`);
+          console.warn(`⚠️ [Canva] Görsel ${i + 1} için job ID dönmedi`);
         }
       } catch (err: any) {
         failCount++;
@@ -103,10 +101,10 @@ export class CanvaService {
         const responseData = err.response?.data
           ? JSON.stringify(err.response.data)
           : err.message;
-        console.error(`❌ [Canva] Image ${i + 1} failed [HTTP ${status}]: ${responseData}`);
+        console.error(`❌ [Canva] Görsel ${i + 1} başarısız [HTTP ${status}]: ${responseData}`);
 
         if (status === 401) {
-          console.error('❌ [Canva] Token geçersiz veya asset:write yetkisi yok. Canva Developer Portal\'dan token\'ı kontrol edin.');
+          console.error('❌ [Canva] Token geçersiz. Ayarlar > Canva Bağla ile yeniden bağlanın.');
           break;
         }
         if (status === 429) {
