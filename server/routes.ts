@@ -1230,8 +1230,10 @@ export function registerRoutes(app: Express): Server {
   // GET /api/canva/auth — Start OAuth flow, returns redirect URL
   app.get('/api/canva/auth', (req, res) => {
     try {
-      const redirectUri = `${getBaseUrl(req)}/api/canva/callback`;
+      // Prefer the registered CANVA_REDIRECT_URI secret; fall back to computed URL
+      const redirectUri = process.env.CANVA_REDIRECT_URI || `${getBaseUrl(req)}/api/canva/callback`;
       const { url } = generateAuthUrl(redirectUri);
+      console.log('🔗 [Canva] OAuth başlatıldı, redirect_uri:', redirectUri);
       res.json({ url, redirectUri });
     } catch (err: any) {
       res.status(500).json({ error: err.message });
@@ -1240,16 +1242,21 @@ export function registerRoutes(app: Express): Server {
 
   // GET /api/canva/callback — OAuth callback after user approves
   app.get('/api/canva/callback', async (req, res) => {
+    console.log('📥 [Canva] Callback alındı, query:', JSON.stringify(req.query));
     const { code, state, error } = req.query as Record<string, string>;
     if (error) {
+      console.error('❌ [Canva] OAuth hatası:', error);
       return res.redirect(`/?canva_error=${encodeURIComponent(error)}`);
     }
     if (!code || !state) {
       return res.redirect('/?canva_error=missing_params');
     }
     try {
-      const redirectUri = `${getBaseUrl(req)}/api/canva/callback`;
+      // Must match exactly what was used in generateAuthUrl
+      const redirectUri = process.env.CANVA_REDIRECT_URI || `${getBaseUrl(req)}/api/canva/callback`;
+      console.log('🔄 [Canva] Token alınıyor, redirect_uri:', redirectUri);
       await exchangeCodeForToken(code, state, redirectUri);
+      console.log('✅ [Canva] Token başarıyla alındı, yönlendiriliyor...');
       res.redirect('/?canva_success=1');
     } catch (err: any) {
       console.error('❌ [Canva] Callback hatası:', err.message);
