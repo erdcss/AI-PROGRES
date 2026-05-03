@@ -73,6 +73,7 @@ import { notificationGateway } from './notification-gateway';
 import { setupAdminMemoryRoutes } from './admin-memory-routes';
 import { setupTrackingDashboardAPI } from './tracking-dashboard-api';
 import { ImageTelegramService } from './image-telegram-service';
+import { CanvaService } from './canva-service';
 import { productStatisticsService } from './product-statistics-service';
 import { CLOTHING_KEYWORDS, FAKE_CLOTHING_SIZES, isClothingProduct } from './clothing-keywords';
 import { aiProductStatisticsService } from './ai-product-statistics';
@@ -3716,6 +3717,11 @@ ${result.title || 'Product'},${fb2Handle},${result.description || ''},${result.b
                   chatId,
                   uploadResult.productId
                 );
+                if (CanvaService.isEnabled()) {
+                  CanvaService.sendProductImages(productTitle, images).catch((e: any) =>
+                    console.warn('⚠️ [Canva] CSV Upload send failed (non-critical):', e.message)
+                  );
+                }
               } else {
                 console.log(`📸 [CSV Upload] No images found to send for: ${productTitle}`);
               }
@@ -3830,6 +3836,11 @@ ${result.title || 'Product'},${fb2Handle},${result.description || ''},${result.b
                   chatId,
                   uploadResult.productId
                 );
+                if (CanvaService.isEnabled()) {
+                  CanvaService.sendProductImages(productData?.title || productTitle || 'Unknown Product', images).catch((e: any) =>
+                    console.warn('⚠️ [Canva] Multi-URL send failed (non-critical):', e.message)
+                  );
+                }
               } else {
                 console.log(`📸 [Multi-URL] No images found to send for: ${productTitle}`);
               }
@@ -4005,6 +4016,11 @@ ${result.title || 'Product'},${fb2Handle},${result.description || ''},${result.b
                 chatId,
                 uploadResult.productId
               );
+              if (CanvaService.isEnabled()) {
+                CanvaService.sendProductImages(productTitle, images).catch((e: any) =>
+                  console.warn('⚠️ [Canva] CSV-Specific send failed (non-critical):', e.message)
+                );
+              }
             } else {
               console.log(`📸 [CSV-Specific] No images found to send for: ${productTitle}`);
             }
