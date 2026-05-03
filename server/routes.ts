@@ -4235,6 +4235,52 @@ ${result.title || 'Product'},${fb2Handle},${result.description || ''},${result.b
     }
   });
 
+  // Shopify token otomatik yenileme — manuel tetikleme
+  app.post('/api/shopify/rotate-token', async (req, res) => {
+    try {
+      const { rotateShopifyToken, getTokenStatus } = await import('./shopify-token-rotator');
+      const result = await rotateShopifyToken();
+      if (result.success) {
+        invalidateShopifyCredentialCache();
+        return res.json({
+          success: true,
+          method: result.method,
+          message: `Token başarıyla yenilendi (${result.method})`,
+          status: getTokenStatus()
+        });
+      }
+      return res.status(500).json({
+        success: false,
+        error: result.error,
+        message: 'Token yenileme başarısız. SHOPIFY_API_KEY ve SHOPIFY_APP_SHARED_SECRET env değerlerini kontrol edin.',
+        status: getTokenStatus()
+      });
+    } catch (err: any) {
+      res.status(500).json({ success: false, error: err.message });
+    }
+  });
+
+  // Shopify token durumu
+  app.get('/api/shopify/token-status', async (req, res) => {
+    try {
+      const { getTokenStatus } = await import('./shopify-token-rotator');
+      const config = await getShopifyConfig();
+      res.json({
+        status: getTokenStatus(),
+        hasActiveToken: !!config?.accessToken,
+        shopDomain: config?.shopDomain || null,
+        envVarsConfigured: {
+          SHOPIFY_API_KEY: !!process.env.SHOPIFY_API_KEY,
+          SHOPIFY_APP_SHARED_SECRET: !!process.env.SHOPIFY_APP_SHARED_SECRET,
+          SHOPIFY_ACCESS_TOKEN: !!process.env.SHOPIFY_ACCESS_TOKEN,
+          SHOPIFY_ADMIN_ACCESS_TOKEN: !!process.env.SHOPIFY_ADMIN_ACCESS_TOKEN
+        }
+      });
+    } catch (err: any) {
+      res.status(500).json({ error: err.message });
+    }
+  });
+
   // Doğrudan Admin API token kaydet (OAuth olmadan)
   app.post('/api/shopify/direct-token', async (req, res) => {
     try {

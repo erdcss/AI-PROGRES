@@ -231,6 +231,80 @@ export async function uploadProductToShopify(csvContent: string, productTitle: s
     if (!shopifyResponse.ok) {
       const errorData = await shopifyResponse.json();
       console.error('Shopify API error:', errorData);
+
+      // ── 401: Token süresi dolmuş → otomatik yenile ve tekrar dene ──────────
+      if (shopifyResponse.status === 401) {
+        console.log('🔑 SHOPIFY 401: Token geçersiz — otomatik yenileme deneniyor...');
+        try {
+          const { rotateShopifyToken } = await import('./shopify-token-rotator');
+          const rotResult = await rotateShopifyToken();
+          if (rotResult.success && rotResult.newToken) {
+            console.log(`✅ SHOPIFY TOKEN: Yenilendi (${rotResult.method}), istek tekrarlanıyor...`);
+            const retryRes = await fetch(
+              `https://${shopifyStore}/admin/api/2024-01/products.json`,
+              {
+                method: 'POST',
+                headers: {
+                  'X-Shopify-Access-Token': rotResult.newToken,
+                  'Content-Type': 'application/json'
+                },
+                body: JSON.stringify({
+                  product: {
+                    title: productData.title,
+                    body_html: productData.bodyHtml,
+                    vendor: productData.vendor,
+                    tags: productData.tags,
+                    handle: productData.handle,
+                    variants: productData.variants.map(v => {
+                      const h1 = v.option1 && v.option1.trim() !== '';
+                      const h2 = v.option2 && v.option2.trim() !== '';
+                      const vd: any = {
+                        price: v.price, sku: v.sku, inventory_quantity: 0,
+                        inventory_management: null, inventory_policy: 'continue',
+                        requires_shipping: true, taxable: true
+                      };
+                      if (v.compareAtPrice) vd.compare_at_price = v.compareAtPrice;
+                      if (h1) vd.option1 = v.option1;
+                      if (h2) vd.option2 = v.option2;
+                      return vd;
+                    }),
+                    images: productData.images.filter(i => i.src?.startsWith('http')).map(i => ({
+                      src: i.src, alt: i.alt || productData.title, position: i.position || 1
+                    })),
+                    ...((() => {
+                      const v1 = Array.from(new Set(productData.variants.map(v => v.option1).filter(Boolean)));
+                      const v2 = Array.from(new Set(productData.variants.map(v => v.option2).filter(Boolean)));
+                      const opts: any[] = [];
+                      if (v1.length && productData.option1Name) opts.push({ name: productData.option1Name, values: v1 });
+                      if (v2.length && productData.option2Name) opts.push({ name: productData.option2Name, values: v2 });
+                      return opts.length > 0 ? { options: opts } : {};
+                    })())
+                  }
+                })
+              }
+            );
+            if (retryRes.ok) {
+              const retryData = await retryRes.json();
+              const pid = retryData.product.id;
+              console.log('✅ Shopify ürün oluşturuldu (token yenileme sonrası):', pid);
+              return {
+                success: true,
+                productId: pid.toString(),
+                handle: retryData.product.handle,
+                message: `Ürün yüklendi (token otomatik yenilendi): ${pid}`
+              };
+            }
+          }
+        } catch (retryErr: any) {
+          console.error('❌ Token yenileme sonrası retry hatası:', retryErr.message);
+        }
+        return {
+          success: false,
+          message: 'Shopify 401: Token geçersiz. Sistem otomatik yenilemeyi denedi ancak başarısız oldu. Lütfen yeni bir Shopify access token girin.'
+        };
+      }
+      // ─────────────────────────────────────────────────────────────────────
+
       return { 
         success: false, 
         message: `Shopify API hatası: ${errorData.errors ? JSON.stringify(errorData.errors) : 'Bilinmeyen hata'}` 

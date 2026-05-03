@@ -442,8 +442,11 @@ export function initializeScheduler(): void {
   
   // Schedule product schedule monitoring (every 5 minutes)
   scheduleProductScheduleMonitoring();
+
+  // Schedule Shopify token auto-refresh (every 23 hours)
+  scheduleShopifyTokenRefresh();
   
-  console.log(`✅ ${Object.keys(TASKS).length} zamanlı görev başarıyla kuruldu`);
+  console.log(`✅ ${Object.keys(TASKS).length + 1} zamanlı görev başarıyla kuruldu`);
   console.log('✅ Zamanlı görevler sistemi başlatıldı');
 }
 
@@ -471,6 +474,36 @@ function scheduleHourlyPriceMonitoring(): void {
   }, msUntilNextHour);
   
   activeTimers.set('hourly-price-monitoring', timer);
+}
+
+// Shopify token yenileme görevini zamanla (23 saatte bir)
+function scheduleShopifyTokenRefresh(): void {
+  const INTERVAL_MS = 23 * 60 * 60 * 1000; // 23 saat
+  console.log('🔑 Shopify token yenileme sistemi başlatılıyor...');
+  console.log(`⏰ shopify-token-refresh zamanlandı: her 23 saatte bir`);
+
+  const runRefresh = async () => {
+    try {
+      const { rotateShopifyToken } = await import('./shopify-token-rotator');
+      const result = await rotateShopifyToken();
+      if (result.success) {
+        console.log(`✅ Shopify token otomatik yenilendi (yöntem: ${result.method})`);
+      } else {
+        console.log(`⚠️ Shopify token yenileme başarısız: ${result.error}`);
+      }
+    } catch (err: any) {
+      console.error('❌ Shopify token yenileme görevi hatası:', err.message);
+    }
+  };
+
+  // İlk çalıştırma — sunucu başlangıcından 23 saat sonra
+  const timer = setTimeout(async () => {
+    await runRefresh();
+    const interval = setInterval(runRefresh, INTERVAL_MS);
+    activeTimers.set('shopify-token-refresh-interval', interval as any);
+  }, INTERVAL_MS);
+
+  activeTimers.set('shopify-token-refresh', timer);
 }
 
 // Product schedule monitoring görevini zamanla (5 dakikada bir)
