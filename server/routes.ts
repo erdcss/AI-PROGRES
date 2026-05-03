@@ -1241,27 +1241,75 @@ export function registerRoutes(app: Express): Server {
   });
 
   // GET /api/canva/callback — OAuth callback after user approves
-  app.get('/api/canva/callback', async (req, res) => {
+  app.get('/api/canva/callback', (req, res) => {
     console.log('📥 [Canva] Callback alındı, query:', JSON.stringify(req.query));
     const { code, state, error } = req.query as Record<string, string>;
+
     if (error) {
       console.error('❌ [Canva] OAuth hatası:', error);
-      return res.redirect(`/?canva_error=${encodeURIComponent(error)}`);
+      return res.send(`<!DOCTYPE html><html><head><meta charset="utf-8"><title>Canva Bağlantısı</title>
+<style>body{font-family:sans-serif;display:flex;align-items:center;justify-content:center;min-height:100vh;margin:0;background:#1a1a2e;color:#fff;}
+.box{text-align:center;padding:40px;background:#16213e;border-radius:16px;max-width:400px;}
+.icon{font-size:48px;margin-bottom:16px;}h2{margin:0 0 8px;}p{color:#aaa;margin:0 0 24px;}
+a{display:inline-block;padding:12px 24px;background:#8b5cf6;color:#fff;text-decoration:none;border-radius:8px;}</style></head>
+<body><div class="box"><div class="icon">❌</div><h2>Bağlantı Başarısız</h2><p>${encodeURIComponent(error)}</p>
+<a href="javascript:window.close()">Kapat</a></div></body></html>`);
     }
+
     if (!code || !state) {
-      return res.redirect('/?canva_error=missing_params');
+      return res.send(`<!DOCTYPE html><html><head><meta charset="utf-8"><title>Canva Bağlantısı</title>
+<style>body{font-family:sans-serif;display:flex;align-items:center;justify-content:center;min-height:100vh;margin:0;background:#1a1a2e;color:#fff;}
+.box{text-align:center;padding:40px;background:#16213e;border-radius:16px;max-width:400px;}
+.icon{font-size:48px;margin-bottom:16px;}h2{margin:0 0 8px;}p{color:#aaa;margin:0 0 24px;}
+a{display:inline-block;padding:12px 24px;background:#8b5cf6;color:#fff;text-decoration:none;border-radius:8px;}</style></head>
+<body><div class="box"><div class="icon">❌</div><h2>Eksik Parametreler</h2><p>OAuth parametreleri eksik</p>
+<a href="javascript:window.close()">Kapat</a></div></body></html>`);
     }
-    try {
-      // Must match exactly what was used in generateAuthUrl
-      const redirectUri = process.env.CANVA_REDIRECT_URI || `${getBaseUrl(req)}/api/canva/callback`;
-      console.log('🔄 [Canva] Token alınıyor, redirect_uri:', redirectUri);
-      await exchangeCodeForToken(code, state, redirectUri);
-      console.log('✅ [Canva] Token başarıyla alındı, yönlendiriliyor...');
-      res.redirect('/?canva_success=1');
-    } catch (err: any) {
-      console.error('❌ [Canva] Callback hatası:', err.message);
-      res.redirect(`/?canva_error=${encodeURIComponent(err.message)}`);
+
+    // Respond IMMEDIATELY with a polling page — avoids proxy timeout (502)
+    res.send(`<!DOCTYPE html><html><head><meta charset="utf-8"><title>Canva Bağlanıyor...</title>
+<style>body{font-family:sans-serif;display:flex;align-items:center;justify-content:center;min-height:100vh;margin:0;background:#1a1a2e;color:#fff;}
+.box{text-align:center;padding:40px;background:#16213e;border-radius:16px;max-width:400px;}
+.spinner{width:48px;height:48px;border:4px solid #8b5cf633;border-top:4px solid #8b5cf6;border-radius:50%;animation:spin 1s linear infinite;margin:0 auto 20px;}
+@keyframes spin{to{transform:rotate(360deg)}}
+h2{margin:0 0 8px;}p{color:#aaa;margin:0;} .ok{font-size:48px;margin-bottom:16px;display:none;} .err{font-size:48px;margin-bottom:16px;display:none;}</style></head>
+<body><div class="box">
+<div class="spinner" id="spin"></div>
+<div class="ok" id="ok">✅</div>
+<div class="err" id="err">❌</div>
+<h2 id="title">Canva Bağlanıyor...</h2>
+<p id="msg">Lütfen bekleyin</p>
+</div>
+<script>
+let attempts = 0;
+function check() {
+  attempts++;
+  fetch('/api/canva/status').then(r=>r.json()).then(d=>{
+    if(d.connected){
+      document.getElementById('spin').style.display='none';
+      document.getElementById('ok').style.display='block';
+      document.getElementById('title').textContent='Bağlantı Başarılı!';
+      document.getElementById('msg').textContent='Canva hesabınız bağlandı. Bu sekme kapanıyor...';
+      setTimeout(()=>window.close(), 1500);
+    } else if(attempts < 20) {
+      setTimeout(check, 1500);
+    } else {
+      document.getElementById('spin').style.display='none';
+      document.getElementById('err').style.display='block';
+      document.getElementById('title').textContent='Zaman Aşımı';
+      document.getElementById('msg').textContent='Bağlantı kurulamadı. Lütfen tekrar deneyin.';
     }
+  }).catch(()=>{ if(attempts<20) setTimeout(check,1500); });
+}
+setTimeout(check, 1000);
+</script></body></html>`);
+
+    // Now do the token exchange asynchronously (after response is sent)
+    const redirectUri = process.env.CANVA_REDIRECT_URI || `${getBaseUrl(req)}/api/canva/callback`;
+    console.log('🔄 [Canva] Token alınıyor (async), redirect_uri:', redirectUri);
+    exchangeCodeForToken(code, state, redirectUri)
+      .then(() => console.log('✅ [Canva] Token başarıyla alındı'))
+      .catch((err: any) => console.error('❌ [Canva] Token exchange hatası:', err?.response?.data || err?.message));
   });
 
   // POST /api/canva/disconnect — Revoke token

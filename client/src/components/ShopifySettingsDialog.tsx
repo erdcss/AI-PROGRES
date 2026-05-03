@@ -117,18 +117,38 @@ export default function ShopifySettingsDialog() {
       const res = await fetch("/api/canva/auth");
       const data = await res.json();
       if (data.url) {
-        // Open in new tab — Canva refuses to load inside iframes
-        window.open(data.url, "_blank", "noopener,noreferrer");
+        // Open in a popup window — Canva refuses to load inside iframes
+        window.open(data.url, "canva-auth", "width=620,height=700,left=200,top=100");
         toast({
           title: "Canva yetkilendirme açıldı",
-          description: "Yeni sekmede Canva'ya giriş yapıp izin verin. Ardından bu sayfaya dönün.",
+          description: "Açılan pencerede Canva'ya giriş yapıp izin verin.",
         });
+        // Poll every 2s for up to 3 minutes until connected
+        let attempts = 0;
+        const poll = setInterval(async () => {
+          attempts++;
+          try {
+            const r = await fetch("/api/canva/status");
+            const d = await r.json();
+            if (d.connected) {
+              clearInterval(poll);
+              setCanvaConnecting(false);
+              refetchCanva();
+              toast({ title: "Canva Bağlandı ✅", description: "Ürün görselleri artık Canva'ya otomatik yüklenecek." });
+            } else if (attempts >= 90) {
+              clearInterval(poll);
+              setCanvaConnecting(false);
+            }
+          } catch {
+            if (attempts >= 90) { clearInterval(poll); setCanvaConnecting(false); }
+          }
+        }, 2000);
       } else {
         toast({ title: "Hata", description: data.error || "Yetkilendirme URL'si alınamadı", variant: "destructive" });
+        setCanvaConnecting(false);
       }
     } catch (e) {
       toast({ title: "Hata", description: "Canva bağlantısı başlatılamadı", variant: "destructive" });
-    } finally {
       setCanvaConnecting(false);
     }
   }
