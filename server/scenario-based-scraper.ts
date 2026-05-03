@@ -1304,9 +1304,22 @@ export async function scenarioBasedScrape(url: string): Promise<ScenarioBasedRes
                 kiremit: 'Kiremit', turkuaz: 'Turkuaz', vizon: 'Vizon', somon: 'Somon',
                 nude: 'Nude', camel: 'Camel', khaki: 'Haki',
               };
-              const prebuiltSlugToColor = (slug: string): string => {
-                const first = slug.split('-')[0].toLowerCase();
-                return prebuiltSlugColorMap[first] || (first.charAt(0).toUpperCase() + first.slice(1));
+              // Scan ALL words in slug for known color keywords (not just first word)
+              // e.g. "desenli-pamuk-soft-sal-lacivert-vizon-ps66" → "Lacivert Vizon"
+              const prebuiltSlugToColor = (slug: string): string | null => {
+                const words = slug.split('-').map(w => w.toLowerCase());
+                const colorWords: string[] = [];
+                for (const word of words) {
+                  if (prebuiltSlugColorMap[word]) {
+                    colorWords.push(prebuiltSlugColorMap[word]);
+                  }
+                }
+                if (colorWords.length > 0) {
+                  // Join multiple color keywords (e.g. "Lacivert" + "Vizon" → "Lacivert Vizon")
+                  return colorWords.join(' ');
+                }
+                // Nothing found — return null so we don't add an invalid color
+                return null;
               };
               const normalizeTr = (s: string) => s.toLowerCase()
                 .replace(/ü/g, 'u').replace(/ğ/g, 'g').replace(/ı/g, 'i')
@@ -1325,16 +1338,23 @@ export async function scenarioBasedScrape(url: string): Promise<ScenarioBasedRes
               const urlSlugMatch = url.match(/trendyol\.com\/[^/]+\/([^/]+)-p-(\d+)/);
               if (urlSlugMatch && prebuiltSizesSet.length > 0) {
                 const currentUrlColor = prebuiltSlugToColor(urlSlugMatch[1]);
-                const urlSlugNorm = normalizeTr(urlSlugMatch[1]);
-                const colorAlreadyPresent = prebuilt.some(v =>
-                  normalizeTr(v.color) === normalizeTr(currentUrlColor) ||
-                  urlSlugNorm.startsWith(normalizeTr(v.color).split(' ')[0])
-                );
-                if (!colorAlreadyPresent) {
-                  for (const sz of prebuiltSizesSet) {
-                    prebuilt.push({ color: currentUrlColor, colorCode: '', size: sz, inStock: true });
+                if (currentUrlColor) {
+                  // Only add if we found a valid color in the URL slug
+                  const urlSlugNorm = normalizeTr(urlSlugMatch[1]);
+                  const colorAlreadyPresent = prebuilt.some(v =>
+                    normalizeTr(v.color) === normalizeTr(currentUrlColor) ||
+                    urlSlugNorm.startsWith(normalizeTr(v.color).split(' ')[0])
+                  );
+                  if (!colorAlreadyPresent) {
+                    for (const sz of prebuiltSizesSet) {
+                      prebuilt.push({ color: currentUrlColor, colorCode: '', size: sz, inStock: true });
+                    }
+                    console.log(`🌈 PREBUILT: Added current URL color "${currentUrlColor}" (not in JSON-LD ProductGroup)`);
+                  } else {
+                    console.log(`🌈 PREBUILT: Current URL color "${currentUrlColor}" already in prebuilt`);
                   }
-                  console.log(`🌈 PREBUILT: Added current URL color "${currentUrlColor}" (not in JSON-LD ProductGroup)`);
+                } else {
+                  console.log(`🌈 PREBUILT: No valid color found in URL slug "${urlSlugMatch[1].substring(0, 40)}" — skipping Step 2`);
                 }
               }
 
@@ -2652,9 +2672,24 @@ export async function scenarioBasedScrape(url: string): Promise<ScenarioBasedRes
         // Always apply prebuilt when available — JSON-LD ProductGroup + current URL color is authoritative.
         // Puppeteer/hybrid may over-count colors from unrelated color swatches on the page.
         if (true) {
-          console.log(`🌈 PREBUILT MERGE: ${prebuiltColors.length} colors (authoritative) → replacing ${currentColors.length} current color(s)`);
+          // Apply normalizeColorName to prebuilt variants before merge — rejects invalid colors
+          // that were built before STEP 0 validation ran (e.g. "Desenli", "Asker" from URL slugs)
+          prebuiltMultiColorVariants = prebuiltMultiColorVariants
+            .map(v => {
+              if (!v.color) return v;
+              const nc = normalizeColorName(v.color);
+              if (nc === null) {
+                console.log(`🚫 PREBUILT MERGE: Color "${v.color}" rejected by normalizeColorName`);
+                return null;
+              }
+              return { ...v, color: nc };
+            })
+            .filter((v): v is NonNullable<typeof v> => v !== null && !!v.color);
+          
+          const cleanedPrebuiltColors = [...new Set(prebuiltMultiColorVariants.map(v => v.color))];
+          console.log(`🌈 PREBUILT MERGE: ${cleanedPrebuiltColors.length} colors (authoritative, after cleanup) → replacing ${currentColors.length} current color(s)`);
           variants = prebuiltMultiColorVariants;
-          colors = [...prebuiltColors];
+          colors = [...cleanedPrebuiltColors];
 
           // FIX: Apply Puppeteer size-level stock to the current URL's color in prebuilt
           // JSON-LD only has color-level availability; Puppeteer gives accurate per-size stock
