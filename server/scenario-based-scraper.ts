@@ -62,6 +62,12 @@ const SLUG_COLOR_MAP: Record<string, string> = {
   'bordo-mavi':'Bordo Mavi', 'kirmizi-siyah':'Kırmızı Siyah',
   'ekru-kirmizi':'Ekru Kırmızı', 'somon-pembe':'Somon Pembe',
   'koyu-kiremit':'Koyu Kiremit',
+  // Vizon compound colors
+  'lacivert-vizon':'Lacivert Vizon', 'bej-vizon':'Bej Vizon', 'ekru-vizon':'Ekru Vizon',
+  'siyah-vizon':'Siyah Vizon', 'gri-vizon':'Gri Vizon', 'kahve-vizon':'Kahve Vizon',
+  // Other compound Turkish colors
+  'koyu-bordo':'Koyu Bordo', 'acik-lacivert':'Açık Lacivert', 'acik-turuncu':'Açık Turuncu',
+  'koyu-lacivert':'Koyu Lacivert', 'koyu-mor':'Koyu Mor', 'acik-mor':'Açık Mor',
 };
 
 // Words that look like colors but are NOT real color options
@@ -110,12 +116,21 @@ function normalizeColorName(raw: string): string | null {
     return null;
   }
 
-  // If it's in our slug map, use the proper name
+  // If it's in our slug map, use the proper name (exact match with hyphens)
   if (SLUG_COLOR_MAP[lower]) return SLUG_COLOR_MAP[lower];
 
-  // Check if the first word of a compound color matches (e.g. "lacivert-yesil-mix" → "Lacivert")
+  // Also check with spaces converted to hyphens (e.g. "lacivert vizon" → "lacivert-vizon" → "Lacivert Vizon")
+  // This handles colors returned from prebuiltSlugToColor which joins with spaces
+  const withHyphens = lower.replace(/\s+/g, '-');
+  if (SLUG_COLOR_MAP[withHyphens]) return SLUG_COLOR_MAP[withHyphens];
+
+  // Check if the first word of a compound color matches ONLY when input is a single word
+  // (e.g. "lacivert70498" after code strip → "lacivert" → SLUG_COLOR_MAP["lacivert"])
+  // IMPORTANT: Do NOT use firstWord fallback for multi-word/hyphenated inputs like "Lacivert Vizon"
+  //            or it will truncate to just "Lacivert"
   const firstWord = lower.split(/[-\s]+/)[0];
-  if (SLUG_COLOR_MAP[firstWord]) return SLUG_COLOR_MAP[firstWord];
+  const isMultiWord = lower.includes('-') || lower.includes(' ');
+  if (!isMultiWord && SLUG_COLOR_MAP[firstWord]) return SLUG_COLOR_MAP[firstWord];
 
   // Must contain only letters + spaces (no digits, no special chars beyond Turkish)
   // Turkish letter set: a-z + ğüşöçıİĞÜŞÖÇ
