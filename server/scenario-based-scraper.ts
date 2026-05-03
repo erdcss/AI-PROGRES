@@ -33,6 +33,7 @@ const openai = new OpenAI({ apiKey: process.env.OPENAI_API_KEY_NEW || process.en
 // ─── COLOR NORMALIZATION ───────────────────────────────────────────────────────
 // Maps slug/ascii color names (from Trendyol JSON-LD) to proper Turkish names
 const SLUG_COLOR_MAP: Record<string, string> = {
+  // Single colors
   siyah:'Siyah', beyaz:'Beyaz', mavi:'Mavi', kirmizi:'Kırmızı', yesil:'Yeşil',
   sari:'Sarı', mor:'Mor', pembe:'Pembe', gri:'Gri', kahverengi:'Kahverengi',
   turuncu:'Turuncu', lacivert:'Lacivert', krem:'Krem', bej:'Bej', bordo:'Bordo',
@@ -44,15 +45,38 @@ const SLUG_COLOR_MAP: Record<string, string> = {
   red:'Kırmızı', green:'Yeşil', yellow:'Sarı', purple:'Mor', pink:'Pembe',
   grey:'Gri', gray:'Gri', brown:'Kahverengi', orange:'Turuncu', cream:'Krem',
   beige:'Bej', burgundy:'Bordo', multicolor:'Çok Renkli',
+  nar:'Nar', buz:'Buz Mavisi', deve:'Deve Tüyü', bakir:'Bakır', gumus:'Gümüş',
+  altin:'Altın', bronz:'Bronz', seftali:'Şeftali', limon:'Limon Sarısı',
+  // Compound slug colors (hyphenated → proper Turkish)
+  'acik-mavi':'Açık Mavi', 'koyu-mavi':'Koyu Mavi', 'acik-gri':'Açık Gri',
+  'koyu-gri':'Koyu Gri', 'koyu-kahverengi':'Koyu Kahverengi',
+  'acik-pembe':'Açık Pembe', 'koyu-pembe':'Koyu Pembe',
+  'acik-yesil':'Açık Yeşil', 'koyu-yesil':'Koyu Yeşil',
+  'yag-yesil':'Yağ Yeşili', 'yag-yesili':'Yağ Yeşili',
+  'asker-yesil':'Asker Yeşili', 'haki-yesil':'Haki Yeşil',
+  'gul-kurusu':'Gül Kurusu', 'toprak-rengi':'Toprak Rengi',
+  'sut-beyaz':'Süt Beyazı', 'kirik-beyaz':'Kırık Beyaz',
+  'kum-bej':'Kum Bej', 'acik-bej':'Açık Bej',
+  'lacivert-mavi':'Lacivert Mavi', 'mavi-yesil':'Mavi Yeşil',
+  'siyah-beyaz':'Siyah Beyaz', 'kirmizi-yesil':'Kırmızı Yeşil',
+  'bordo-mavi':'Bordo Mavi', 'kirmizi-siyah':'Kırmızı Siyah',
+  'ekru-kirmizi':'Ekru Kırmızı', 'somon-pembe':'Somon Pembe',
+  'koyu-kiremit':'Koyu Kiremit',
 };
 
 // Words that look like colors but are NOT real color options
 const NON_COLOR_WORDS_STRICT = new Set([
-  'logo', 'baskı', 'baski', 'desen', 'çizgili', 'cizgili', 'kareli', 'cicekli',
+  'logo', 'baskı', 'baski', 'desen', 'desenli', 'çizgili', 'cizgili', 'kareli', 'cicekli',
   'çiçekli', 'puantiyeli', 'leopar', 'kamuflaj', 'animal', 'print',
   'ekose', 'etnik', 'geometrik', 'plain', 'solid', 'mix', 'multi',
   'standart', 'varsayilan', 'varsayılan', 'default', 'tekrenk', 'tek renk',
   'orjinal', 'orijinal', 'original', 'natural', 'naturel',
+  // Fabric/material words mistaken as colors
+  'pamuk', 'ipek', 'kadife', 'deri', 'suni', 'polyester', 'kumas', 'kumaş',
+  // Pattern/style words
+  'düz', 'duz', 'çok renkli olmayan', 'renksiz',
+  // Non-color Turkish words
+  'asker', 'komando', 'pilot', 'klasik', 'modern', 'şık', 'sik',
 ]);
 
 /**
@@ -107,8 +131,11 @@ function normalizeColorName(raw: string): string | null {
     return null;
   }
 
+  // Convert hyphens to spaces for compound slug colors (e.g. "koyu-gri" → "Koyu Gri")
+  const spaced = withoutCode.replace(/-/g, ' ');
+
   // Capitalize first letter of each word, preserve rest
-  const normalized = withoutCode
+  const normalized = spaced
     .split(/\s+/)
     .map(w => w.charAt(0).toUpperCase() + w.slice(1).toLowerCase())
     .join(' ');
