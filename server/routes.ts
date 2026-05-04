@@ -8707,6 +8707,29 @@ ${result.title || 'Product'},${fb2Handle},${result.description || ''},${result.b
     }
   });
 
+  // ── PttAvm Scraper ────────────────────────────────────────────────────────
+  app.post('/api/pttavm-scrape', async (req, res) => {
+    const { url } = req.body || {};
+    if (!url || !url.includes('pttavm.com')) {
+      return res.status(400).json({ success: false, message: 'Geçerli bir PttAvm URL\'si gerekli' });
+    }
+
+    const jobId = `pttavm-${Date.now().toString(36)}-${Math.random().toString(36).slice(2, 7)}`;
+    scrapeJobs.set(jobId, { status: 'processing', createdAt: Date.now() });
+    res.json({ jobId, status: 'processing' });
+
+    (async () => {
+      try {
+        const { scrapePttAvm } = await import('./pttavm-scraper.js');
+        const result = await scrapePttAvm(url);
+        scrapeJobs.set(jobId, { status: 'done', result, createdAt: Date.now() });
+      } catch (err: any) {
+        console.error('[PttAvm] Job failed:', err.message);
+        scrapeJobs.set(jobId, { status: 'error', error: err.message, createdAt: Date.now() });
+      }
+    })();
+  });
+
   // Clear existing product memory cache on startup
   console.log('🗑️ Clearing existing product memory cache...');
   memoryManager.purgeAll();

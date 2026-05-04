@@ -11,6 +11,7 @@ import ComingSoon from "@/pages/coming-soon";
 import { TelegramPage } from "@/pages/telegram";
 import EmailSettings from "@/pages/EmailSettings";
 import ArcelikScraper from "@/pages/arcelik-scraper";
+import PttAvmScraper from "@/pages/pttavm-scraper";
 import AIEnhancedScraper from "@/pages/ai-enhanced-scraper";
 import PriceMovementTest from "@/pages/price-movement-test";
 // Removed auto-csv page import
@@ -341,6 +342,16 @@ function Router() {
       <Route path="/scraper/arcelik">
         <PageTransition>
           <ArcelikScraper />
+        </PageTransition>
+      </Route>
+      <Route path="/pttavm">
+        <PageTransition>
+          <PttAvmScraper />
+        </PageTransition>
+      </Route>
+      <Route path="/scraper/pttavm">
+        <PageTransition>
+          <PttAvmScraper />
         </PageTransition>
       </Route>
       <Route path="/ai-enhanced">

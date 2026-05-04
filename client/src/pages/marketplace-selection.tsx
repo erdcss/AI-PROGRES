@@ -41,6 +41,13 @@ const MarketplaceSelection = () => {
       description: "Ürün çıkarma sistemi",
       available: false,
       path: "/coming-soon/amazon"
+    },
+    {
+      name: "PttAvm",
+      icon: <span className="text-2xl font-black text-white">PT</span>,
+      description: "Ürün çıkarma ve Shopify aktarım",
+      available: true,
+      path: "/pttavm"
     }
   ];
 
