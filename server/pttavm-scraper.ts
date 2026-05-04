@@ -1,10 +1,10 @@
 /**
- * PttAvm Product Scraper — Cloudflare Bypass via puppeteer-extra-plugin-stealth
+ * PttAvm Product Scraper — Cloudflare Bypass
  *
  * Strategy order:
- * 1. Axios with realistic mobile headers (fast, low overhead)
- * 2. puppeteer-extra + StealthPlugin (bypasses Cloudflare JS challenges)
- * 3. Build Shopify-compatible CSV from extracted data
+ * 1. Axios with realistic headers (fast path)
+ * 2. puppeteer-extra + StealthPlugin
+ * 3. playwright-extra + StealthPlugin (stronger CF bypass)
  */
 
 import { createRequire } from 'module';
@@ -19,6 +19,17 @@ const StealthPlugin = require('puppeteer-extra-plugin-stealth');
 
 const puppeteerExtra = puppeteerExtraLib.default || puppeteerExtraLib;
 puppeteerExtra.use(StealthPlugin());
+
+// Playwright-extra setup (separate instance, shares stealth plugin)
+let _playwrightExtra: any = null;
+function getPlaywrightExtra() {
+  if (_playwrightExtra) return _playwrightExtra;
+  const { addExtra } = require('playwright-extra');
+  const { chromium } = require('playwright');
+  _playwrightExtra = addExtra(chromium);
+  _playwrightExtra.use(StealthPlugin());
+  return _playwrightExtra;
+}
 
 export interface PttAvmProduct {
   success: boolean;
@@ -333,7 +344,6 @@ async function tryStealthPuppeteer(url: string): Promise<Partial<PttAvmProduct> 
       '--disable-accelerated-2d-canvas',
       '--no-first-run',
       '--no-zygote',
-      '--single-process',
       '--disable-gpu',
       '--disable-extensions',
       '--disable-blink-features=AutomationControlled',
@@ -423,6 +433,129 @@ async function tryStealthPuppeteer(url: string): Promise<Partial<PttAvmProduct> 
     return null;
   } finally {
     if (page) { try { await page.close(); } catch {} }
+    if (browser) { try { await browser.close(); } catch {} }
+  }
+}
+
+// ── Strategy 3: playwright-extra + StealthPlugin (stronger CF bypass) ──────────
+
+async function tryPlaywrightStealth(url: string): Promise<Partial<PttAvmProduct> | null> {
+  console.log(`🎭 [PttAvm PW] Launching playwright-extra with StealthPlugin...`);
+
+  let browser: any = null;
+  let context: any = null;
+  let page: any = null;
+
+  try {
+    const pw = getPlaywrightExtra();
+    const playwrightChromePath = '/home/runner/workspace/.cache/ms-playwright/chromium-1161/chrome-linux/chrome';
+
+    browser = await pw.launch({
+      headless: true,
+      executablePath: playwrightChromePath,
+      args: [
+        '--no-sandbox',
+        '--disable-setuid-sandbox',
+        '--disable-dev-shm-usage',
+        '--disable-blink-features=AutomationControlled',
+        '--lang=tr-TR,tr,en-US',
+        '--window-size=1440,900',
+        '--disable-features=IsolateOrigins,site-per-process',
+        '--disable-web-security',
+      ],
+    });
+
+    context = await browser.newContext({
+      viewport: { width: 1440, height: 900 },
+      locale: 'tr-TR',
+      timezoneId: 'Europe/Istanbul',
+      userAgent: 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/124.0.6367.207 Safari/537.36',
+      extraHTTPHeaders: {
+        'Accept-Language': 'tr-TR,tr;q=0.9,en-US;q=0.8,en;q=0.7',
+        'Accept': 'text/html,application/xhtml+xml,application/xml;q=0.9,image/avif,image/webp,image/apng,*/*;q=0.8',
+        'sec-ch-ua': '"Chromium";v="124", "Google Chrome";v="124", "Not-A.Brand";v="99"',
+        'sec-ch-ua-mobile': '?0',
+        'sec-ch-ua-platform': '"Windows"',
+        'sec-fetch-dest': 'document',
+        'sec-fetch-mode': 'navigate',
+        'sec-fetch-site': 'none',
+        'sec-fetch-user': '?1',
+        'upgrade-insecure-requests': '1',
+      },
+    });
+
+    // Inject anti-detection scripts BEFORE any page load
+    await context.addInitScript(() => {
+      // Remove webdriver flag
+      Object.defineProperty(navigator, 'webdriver', { get: () => false });
+      // Fake plugins count
+      Object.defineProperty(navigator, 'plugins', { get: () => Array.from({ length: 5 }, (_, i) => ({ name: `Plugin${i}` })) });
+      // Fake languages
+      Object.defineProperty(navigator, 'languages', { get: () => ['tr-TR', 'tr', 'en-US', 'en'] });
+      // Fake chrome object
+      (window as any).chrome = { runtime: {}, loadTimes: () => {}, csi: () => {}, app: {} };
+      // Fake permissions
+      const origQuery = window.navigator.permissions?.query?.bind(navigator.permissions);
+      if (origQuery) {
+        (navigator.permissions as any).query = (params: any) =>
+          params.name === 'notifications' ? Promise.resolve({ state: Notification.permission }) : origQuery(params);
+      }
+    });
+
+    page = await context.newPage();
+
+    console.log(`🌐 [PttAvm PW] Navigating to: ${url}`);
+    await page.goto(url, { waitUntil: 'domcontentloaded', timeout: 60000 });
+
+    // Simulate minimal human interaction to help pass CF
+    try {
+      await page.mouse.move(Math.random() * 800 + 200, Math.random() * 400 + 100);
+      await page.waitForTimeout(500 + Math.random() * 500);
+      await page.mouse.move(Math.random() * 600 + 300, Math.random() * 300 + 200);
+    } catch {}
+
+    // Wait for CF challenge
+    await page.waitForTimeout(7000);
+
+    let html: string = await page.content();
+
+    // If still on CF page, wait longer
+    if (html.includes('cf-wrapper') || html.includes('Just a moment') ||
+        html.includes('DDoS') || html.includes('Enable JavaScript') ||
+        html.includes('cf-browser-verification')) {
+      console.log(`⏳ [PttAvm PW] CF challenge still active, waiting 20s more...`);
+      await page.waitForTimeout(20000);
+      html = await page.content();
+    }
+
+    // Hard block check
+    const lower = html.toLowerCase();
+    if (lower.includes('sorry, you have been blocked') || lower.includes('access denied')) {
+      console.log(`❌ [PttAvm PW] Hard CF block — IP is on Cloudflare blocklist`);
+      return null;
+    }
+
+    if (lower.includes('attention required') || lower.includes('cloudflare')) {
+      console.log(`❌ [PttAvm PW] CF challenge not resolved`);
+      return null;
+    }
+
+    console.log(`✅ [PttAvm PW] Got page (${html.length} chars)`);
+    const parsed = parseHtml(html, url);
+
+    if (!parsed.title || parsed.title.toLowerCase().includes('blocked')) {
+      console.log(`❌ [PttAvm PW] Title invalid: "${parsed.title}"`);
+      return null;
+    }
+
+    return parsed;
+
+  } catch (err: any) {
+    console.error(`❌ [PttAvm PW] Error: ${err.message}`);
+    return null;
+  } finally {
+    if (page) { try { await page.close(); } catch {} }
+    if (context) { try { await context.close(); } catch {} }
     if (browser) { try { await browser.close(); } catch {} }
   }
 }
@@ -637,9 +770,13 @@ export async function scrapePttAvm(url: string): Promise<PttAvmProduct> {
     partial = await tryStealthPuppeteer(cleanUrl);
   }
 
+  // Strategy 3: playwright-extra + StealthPlugin (different browser fingerprint)
+  if (!partial?.title) {
+    partial = await tryPlaywrightStealth(cleanUrl);
+  }
+
   if (!partial?.title) {
     console.error(`❌ [PttAvm] All strategies exhausted`);
-    const hasCookie = !!_cfClearance;
     return {
       success: false,
       title: '',
