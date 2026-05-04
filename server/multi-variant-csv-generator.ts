@@ -148,7 +148,6 @@ export async function generateMultiVariantShopifyCSV(product: CombinedProduct): 
     if (m) originalPrice = parseFloat(m[0].replace(',', '.'));
   }
 
-  if (originalPrice > 10000) originalPrice = originalPrice / 100;
   if (originalPrice < 1) originalPrice = 10;
 
   // salePrice = Trendyol fiyatı + %10 kâr marjı (müşteriye gösterilen fiyat)
