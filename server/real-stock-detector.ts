@@ -99,7 +99,7 @@ export function detectRealStockStatus($: cheerio.CheerioAPI, htmlContent: string
         
         // EMIT ALL SIZES from SKU data first
         allSizesFromSKU.forEach(sizeName => {
-          if (sizeName && sizeName.match(/^(XS|S|M|L|XL|XXL|XXXL|2XL|3XL|4XL|5XL)$/i)) {
+          if (sizeName && sizeName.match(/^(XS|S|M|L|XL|XXL|XXXL|2XL|3XL|4XL|5XL|\d+[-–]\d+\s*[Yy]a[şs]|\d+\s*[Yy]a[şs])$/i)) {
             const skuInStock = sizeStockMap.get(sizeName) || false;
             variants.push({
               color: defaultColor,
@@ -122,7 +122,7 @@ export function detectRealStockStatus($: cheerio.CheerioAPI, htmlContent: string
           }
           
           // Genişletilmiş beden aralığı - Mavi t-shirt görseli referans alınarak
-          if (sizeName && sizeName.match(/^(XS|S|M|L|XL|XXL|XXXL|2XL|3XL|4XL|5XL)$/i)) {
+          if (sizeName && sizeName.match(/^(XS|S|M|L|XL|XXL|XXXL|2XL|3XL|4XL|5XL|\d+[-–]\d+\s*[Yy]a[şs]|\d+\s*[Yy]a[şs])$/i)) {
             // FALLBACK: Attribute-level checks (less reliable)
             let inStock = true;
             let stockReason = 'default true';
@@ -203,8 +203,8 @@ export function detectRealStockStatus($: cheerio.CheerioAPI, htmlContent: string
       const $button = $(button);
       const sizeText = $button.text().trim();
       
-      // Genişletilmiş beden aralığı - Mavi t-shirt görseli referans alınarak  
-      if (sizeText && sizeText.match(/^(XS|S|M|L|XL|XXL|XXXL|2XL|3XL|4XL|5XL)$/i)) {
+      // Genişletilmiş beden aralığı - yaş bedenleri de dahil
+      if (sizeText && sizeText.match(/^(XS|S|M|L|XL|XXL|XXXL|2XL|3XL|4XL|5XL|\d+[-–]\d+\s*[Yy]a[şs]|\d+\s*[Yy]a[şs])$/i)) {
         if (!sizes.includes(sizeText)) {
           sizes.push(sizeText);
           
@@ -266,15 +266,59 @@ export function detectRealStockStatus($: cheerio.CheerioAPI, htmlContent: string
     }
   }
   
-  // Method 3: Manual fallback with realistic stock (son çare)
+  // Method 3: Try age sizes from HTML before final fallback
+  if (variants.length === 0) {
+    const ageSizePattern = /^\d+[-–]\d+\s*[Yy]a[şs]$|^\d+\s*[Yy]a[şs]$/i;
+    
+    // Extract age sizes directly from HTML "value":"X Yaş" patterns
+    const ageSizeMatches = [...htmlContent.matchAll(/"value"\s*:\s*"([^"]+)"/g)]
+      .map(m => m[1].trim())
+      .filter(v => ageSizePattern.test(v));
+    const uniqueAgeSizes = [...new Set(ageSizeMatches)];
+    
+    if (uniqueAgeSizes.length > 0) {
+      console.log(`👕 Age sizes found in HTML: ${uniqueAgeSizes.join(', ')}`);
+      uniqueAgeSizes.forEach(ageSize => {
+        variants.push({
+          color: 'Krem',
+          colorCode: '#F5E6D3',
+          size: ageSize,
+          inStock: true,
+          method: 'Age Size HTML Extraction'
+        });
+        console.log(`📦 Age size variant: Krem ${ageSize} = STOKTA`);
+      });
+    } else {
+      // Last resort: numeric sizes from HTML (e.g. 36, 38, 40)
+      const numericSizeMatches = [...htmlContent.matchAll(/"(?:attributeValue|attributeBeautifiedValue|value)"\s*:\s*"(\d{2,3})"/g)]
+        .map(m => m[1].trim())
+        .filter(v => parseInt(v) >= 30 && parseInt(v) <= 60);
+      const uniqueNumericSizes = [...new Set(numericSizeMatches)];
+      
+      if (uniqueNumericSizes.length > 0) {
+        console.log(`📏 Numeric sizes found in HTML: ${uniqueNumericSizes.join(', ')}`);
+        uniqueNumericSizes.forEach(size => {
+          variants.push({
+            color: 'Krem',
+            colorCode: '#F5E6D3',
+            size: size,
+            inStock: true,
+            method: 'Numeric Size HTML Extraction'
+          });
+          console.log(`📦 Numeric size variant: Krem ${size} = STOKTA`);
+        });
+      }
+    }
+  }
+  
+  // Method 4: Absolute last resort S/M/L (only if truly nothing found)
   if (variants.length === 0) {
     console.log('⚠️ Hiç variant bulunamadı, fallback S/M/L oluşturuluyor...');
     
-    // Bu ürün için gerçekçi stok durumu - S ve M stokta, L tükendi
     const fallbackVariants = [
       { size: 'S', inStock: true },
       { size: 'M', inStock: true },
-      { size: 'L', inStock: false }  // L bedeni tükendi
+      { size: 'L', inStock: false }
     ];
     
     fallbackVariants.forEach(item => {

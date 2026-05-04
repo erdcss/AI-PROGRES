@@ -989,11 +989,11 @@ async function tryPuppeteerColorExtraction(url: string): Promise<{success: boole
           const allVariants = state.product?.allVariants || [];
           allVariants.forEach((v: any) => {
             const attrName = (v.attributeName || '').toLowerCase();
-            if (attrName === 'beden' || attrName === 'size') {
+            if (attrName === 'beden' || attrName === 'size' || attrName.includes('yaş') || attrName.includes('yas')) {
               const sizeVal = v.attributeValue || v.value || v.attributeBeautifiedValue || '';
               const stockState = v.stockState || v.stock || '';
               const inStock = stockState !== 'OutOfStock' && stockState !== 'SoldOut';
-              if (sizeVal && sizeVal.length > 0 && sizeVal.length < 20) {
+              if (sizeVal && sizeVal.length > 0 && sizeVal.length < 30) {
                 sizesWithStock.push(`${sizeVal}:${inStock ? 'in' : 'out'}`);
               }
             }
@@ -1004,10 +1004,10 @@ async function tryPuppeteerColorExtraction(url: string): Promise<{success: boole
             const sliced = state.product?.slicedAttributes || [];
             sliced.forEach((attr: any) => {
               const attrName = (attr.attributeName || '').toLowerCase();
-              if (attrName === 'beden' || attrName === 'size') {
+              if (attrName === 'beden' || attrName === 'size' || attrName.includes('yaş') || attrName.includes('yas')) {
                 (attr.attributes || []).forEach((item: any) => {
                   const sizeVal = item.attributeValue || item.value || item.attributeBeautifiedValue || '';
-                  if (sizeVal && sizeVal.length > 0 && sizeVal.length < 20) {
+                  if (sizeVal && sizeVal.length > 0 && sizeVal.length < 30) {
                     sizesWithStock.push(`${sizeVal}:in`);
                   }
                 });
@@ -1063,7 +1063,7 @@ async function tryPuppeteerColorExtraction(url: string): Promise<{success: boole
       extractedColors = (colorData.colors || [])
         .filter((c: string) => c && c.length > 0)
         .map((c: string) => {
-          const sizePattern = /^(XXS|XS|S|M|L|XL|XXL|XXXL|2XL|3XL|4XL|\d{2,3})$/i;
+          const sizePattern = /^(XXS|XS|S|M|L|XL|XXL|XXXL|2XL|3XL|4XL|\d{2,3}|\d+[-–]\d+\s*[Yy]a[şs]|\d+\s*[Yy]a[şs])$/i;
           if (sizePattern.test(c.trim())) return null;
           const parsed = parseVariantString(c);
           if (parsed.color) return parsed.color;
@@ -1535,13 +1535,13 @@ export async function scenarioBasedScrape(url: string): Promise<ScenarioBasedRes
                       'div[class*="size-variant"]', 'button[data-size]', '.sp-itm',
                       '[class*="size-btn"]', '[class*="size-variant"]', 'button[class*="size"]',
                     ];
-                    const sizePattern = /^(XXS|XS|S|M|L|XL|XXL|XXXL|2XL|3XL|4XL|\d+(\.\d+)?|Tek\s*Beden|One\s*Size)$/i;
+                    const sizePattern = /^(XXS|XS|S|M|L|XL|XXL|XXXL|2XL|3XL|4XL|\d+(\.\d+)?|Tek\s*Beden|One\s*Size|\d+[-–]\d+\s*[Yy]a[şs]|\d+\s*[Yy]a[şs])$/i;
                     let stockFound = false;
                     for (const sel of sizeStockSelectors) {
                       $(sel).each((_, el) => {
                         const $el = $(el);
                         const sizeName = ($el.text().trim() || $el.attr('data-size') || $el.attr('aria-label') || '').trim();
-                        if (!sizeName || sizeName.length > 15 || !sizePattern.test(sizeName)) return;
+                        if (!sizeName || sizeName.length > 25 || !sizePattern.test(sizeName)) return;
                         const isOutOfStock = $el.is('[disabled]') || $el.hasClass('disabled') ||
                           $el.hasClass('out-of-stock') || $el.hasClass('sold-out') ||
                           $el.hasClass('tukendi') || $el.attr('aria-disabled') === 'true';
@@ -2018,11 +2018,11 @@ export async function scenarioBasedScrape(url: string): Promise<ScenarioBasedRes
             const allVariants = state.product?.allVariants || [];
             allVariants.forEach((v: any) => {
               const attrName = (v.attributeName || '').toLowerCase();
-              if (attrName === 'beden' || attrName === 'size') {
+              if (attrName === 'beden' || attrName === 'size' || attrName.includes('yaş') || attrName.includes('yas')) {
                 const sizeVal = v.attributeValue || v.value || v.attributeBeautifiedValue || '';
                 const stockState = v.stockState || v.stock || '';
                 const inStock = stockState !== 'OutOfStock' && stockState !== 'SoldOut';
-                if (sizeVal && sizeVal.length > 0 && sizeVal.length < 20) {
+                if (sizeVal && sizeVal.length > 0 && sizeVal.length < 30) {
                   sizesWithStock.push(`${sizeVal}:${inStock ? 'in' : 'out'}`);
                 }
               }
@@ -2032,10 +2032,10 @@ export async function scenarioBasedScrape(url: string): Promise<ScenarioBasedRes
               const sliced = state.product?.slicedAttributes || [];
               sliced.forEach((attr: any) => {
                 const attrName = (attr.attributeName || '').toLowerCase();
-                if (attrName === 'beden' || attrName === 'size') {
+                if (attrName === 'beden' || attrName === 'size' || attrName.includes('yaş') || attrName.includes('yas')) {
                   (attr.attributes || []).forEach((item: any) => {
                     const sizeVal = item.attributeValue || item.value || item.attributeBeautifiedValue || '';
-                    if (sizeVal && sizeVal.length > 0 && sizeVal.length < 20) {
+                    if (sizeVal && sizeVal.length > 0 && sizeVal.length < 30) {
                       sizesWithStock.push(`${sizeVal}:in`);
                     }
                   });
@@ -4988,9 +4988,9 @@ async function extractVariantsDirect($: cheerio.CheerioAPI, htmlContent: string,
           if (parsed.size) {
             finalSize = parsed.size;
           } else {
-            // Enhanced size pattern for Turkish and international sizes + dimension-based sizes
-            // Added support for combined sizes like S/M, M/L, L/XL
-            const sizePattern = /^(XXS|XS|S|M|L|XL|XXL|XXXL|2XL|3XL|S\/M|M\/L|L\/XL|XS\/S|XL\/XXL|\d+(\.\d+)?|Tek\s*Beden|One\s*Size|\d+\s*[xX×]\s*\d+(\s*(cm|CM))?)$/i;
+            // Enhanced size pattern for Turkish and international sizes + dimension-based sizes + age sizes
+            // Added support for combined sizes like S/M, M/L, L/XL and age sizes like "7-8 Yaş"
+            const sizePattern = /^(XXS|XS|S|M|L|XL|XXL|XXXL|2XL|3XL|S\/M|M\/L|L\/XL|XS\/S|XL\/XXL|\d+(\.\d+)?|Tek\s*Beden|One\s*Size|\d+\s*[xX×]\s*\d+(\s*(cm|CM))?|\d+[-–]\d+\s*[Yy]a[şs]|\d+\s*[Yy]a[şs])$/i;
             const cleanSizeName = decodedSizeName.toUpperCase().trim();
             
             if (sizePattern.test(cleanSizeName)) {
@@ -6200,10 +6200,22 @@ function decodeAndNormalizeSize(rawSize: string): string {
 function extractSizesFromJS($: any, htmlContent: string): string[] {
   const sizes: string[] = [];
   
-  // Valid size pattern including combined sizes
-  const sizePattern = /^(XXS|XS|S|M|L|XL|XXL|XXXL|2XL|3XL|4XL|XS\/S|S\/M|M\/L|L\/XL|XL\/XXL|\d{2,3})$/i;
+  // Valid size pattern including combined sizes and age sizes like "7-8 Yaş"
+  const sizePattern = /^(XXS|XS|S|M|L|XL|XXL|XXXL|2XL|3XL|4XL|XS\/S|S\/M|M\/L|L\/XL|XL\/XXL|\d{2,3}|\d+[-–]\d+\s*[Yy]a[şs]|\d+\s*[Yy]a[şs])$/i;
+  
+  // Age size pattern for direct "value" key extraction
+  const ageSizePattern = /^\d+[-–]\d+\s*[Yy]a[şs]$|^\d+\s*[Yy]a[şs]$/i;
   
   const addSize = (rawValue: string) => {
+    // For age sizes, preserve the original format (don't normalize hyphens to slashes)
+    if (ageSizePattern.test(rawValue.trim())) {
+      const ageSize = rawValue.trim();
+      if (!sizes.includes(ageSize)) {
+        sizes.push(ageSize);
+        console.log(`👕 AGE SIZE FOUND: ${ageSize} (from: ${rawValue})`);
+      }
+      return;
+    }
     const normalized = decodeAndNormalizeSize(rawValue);
     if (normalized && normalized !== 'BEDEN' && sizePattern.test(normalized) && !sizes.includes(normalized)) {
       sizes.push(normalized);
@@ -6223,6 +6235,19 @@ function extractSizesFromJS($: any, htmlContent: string): string[] {
     const beautifiedMatches = htmlContent.matchAll(/"attributeBeautifiedValue"\s*:\s*"([^"]+)"/g);
     for (const match of beautifiedMatches) {
       addSize(match[1]);
+    }
+    
+    // Method 2b: Extract age sizes from "value" key (Mango Kids, Zara Kids etc.)
+    // These products use "value":"7-8 Yaş" format instead of attributeValue
+    const valueMatches = htmlContent.matchAll(/"value"\s*:\s*"([^"]+)"/g);
+    for (const match of valueMatches) {
+      if (ageSizePattern.test(match[1])) {
+        const normalized = match[1].trim();
+        if (!sizes.includes(normalized)) {
+          sizes.push(normalized);
+          console.log(`👕 AGE SIZE FOUND: ${normalized} (from "value" key)`);
+        }
+      }
     }
     
     // Method 3: Try to parse __PRODUCT_DETAIL_APP_INITIAL_STATE__ with sanitization
