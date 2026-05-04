@@ -8707,6 +8707,22 @@ ${result.title || 'Product'},${fb2Handle},${result.description || ''},${result.b
     }
   });
 
+  // ── PttAvm Parse HTML (client-side bypass) ───────────────────────────────
+  app.post('/api/pttavm-parse-html', async (req, res) => {
+    const { html, url } = req.body || {};
+    if (!html || html.length < 500) {
+      return res.status(400).json({ success: false, message: 'HTML içeriği gerekli (en az 500 karakter)' });
+    }
+    try {
+      const { parsePttAvmHtml } = await import('./pttavm-scraper.js');
+      const result = parsePttAvmHtml(html, url || 'https://www.pttavm.com/');
+      res.json(result);
+    } catch (err: any) {
+      console.error('[PttAvm ParseHTML] Error:', err.message);
+      res.status(500).json({ success: false, message: err.message });
+    }
+  });
+
   // ── PttAvm Scraper ────────────────────────────────────────────────────────
   app.post('/api/pttavm-scrape', async (req, res) => {
     const { url } = req.body || {};

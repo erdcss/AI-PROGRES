@@ -85,6 +85,9 @@ function PttAvmScraperPage() {
   const [individualTags, setIndividualTags] = useState<{[key: string]: string[]}>({});
   const extractAllColors = true;
   const [isVariantsOpen, setIsVariantsOpen] = useState(false);
+  const [isPasteOpen, setIsPasteOpen] = useState(false);
+  const [pastedHtml, setPastedHtml] = useState('');
+  const [pasteSourceUrl, setPasteSourceUrl] = useState('');
   const isMobile = useIsMobile();
   
   const singleForm = useForm<ScrapeFormData>({
@@ -335,6 +338,61 @@ function PttAvmScraperPage() {
       const failCount = results.length - successCount;
       toast({ title: "Toplu Yükleme Tamamlandı", description: `${successCount} ürün başarıyla yüklendi${failCount > 0 ? `, ${failCount} ürün başarısız` : ''}` });
     }
+  });
+
+  const parseHtmlMutation = useMutation({
+    mutationFn: async (data: { html: string; url: string }) => {
+      const resp = await fetch('/api/pttavm-parse-html', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(data),
+      });
+      if (!resp.ok) {
+        const err = await resp.json().catch(() => ({})) as any;
+        throw new Error(err.message || `HTTP ${resp.status}`);
+      }
+      return resp.json();
+    },
+    onSuccess: (data) => {
+      if (!data.success || !data.title) {
+        toast({ title: '⚠️ Ayrıştırma Başarısız', description: data.message || 'HTML içeriğinden ürün bilgisi çıkarılamadı.', variant: 'destructive' });
+        return;
+      }
+      const transformedProduct: Product = {
+        id: `product-${Date.now()}`,
+        title: data.title,
+        brand: data.brand,
+        price: data.price,
+        description: data.description,
+        images: data.images,
+        variants: data.variants,
+        features: data.features,
+        tags: data.tags,
+        category: data.category,
+        success: true,
+        extractionMethod: data.extractionMethod,
+        csvContent: data.csvContent,
+      };
+      setProduct(transformedProduct);
+      if (data.csvContent) {
+        const uniqueId = `csv-html-${Date.now()}`;
+        setCsvPreviews(prev => [{
+          id: uniqueId,
+          productTitle: data.title,
+          csvContent: data.csvContent,
+          sourceUrl: data.sourceUrl || pasteSourceUrl,
+          variants: data.variants,
+          images: (data.images || []).map((img: any) => typeof img === 'string' ? img : img.url),
+          createdAt: new Date().toISOString(),
+        }, ...prev]);
+      }
+      setPastedHtml('');
+      setIsPasteOpen(false);
+      toast({ title: '✅ Başarılı', description: `"${data.title}" ürünü HTML'den çıkarıldı` });
+    },
+    onError: (error: any) => {
+      toast({ title: 'Hata', description: error.message, variant: 'destructive' });
+    },
   });
 
   const uploadToShopifyMutation = useMutation({
@@ -941,6 +999,89 @@ function PttAvmScraperPage() {
             </div>
           </div>
 
+        </div>
+
+        {/* Cloudflare Bypass: Paste Page Source */}
+        <div className="mt-6">
+          <Collapsible.Root open={isPasteOpen} onOpenChange={setIsPasteOpen}>
+            <Collapsible.Trigger asChild>
+              <button className="w-full flex items-center justify-between p-4 bg-gradient-to-r from-amber-900/30 to-orange-900/30 hover:from-amber-800/40 hover:to-orange-800/40 border border-amber-500/30 hover:border-amber-500/50 rounded-xl transition-all group">
+                <div className="flex items-center gap-3">
+                  <div className="w-8 h-8 rounded-full bg-amber-500/20 flex items-center justify-center">
+                    <FileText className="w-4 h-4 text-amber-400" />
+                  </div>
+                  <div className="text-left">
+                    <p className="text-amber-200 font-semibold text-sm">Cloudflare engeli aşmak için alternatif yöntem</p>
+                    <p className="text-amber-400/70 text-xs">Sayfa kaynağını yapıştırarak ürün verisini çıkar</p>
+                  </div>
+                </div>
+                {isPasteOpen ? <ChevronUp className="w-4 h-4 text-amber-400" /> : <ChevronDown className="w-4 h-4 text-amber-400" />}
+              </button>
+            </Collapsible.Trigger>
+            <Collapsible.Content className="overflow-hidden data-[state=open]:animate-in data-[state=closed]:animate-out data-[state=closed]:fade-out-0 data-[state=open]:fade-in-0">
+              <div className="bg-gradient-to-br from-amber-900/20 to-orange-900/20 border border-amber-500/20 border-t-0 rounded-b-xl p-5 space-y-4">
+                <div className="bg-slate-800/50 rounded-lg border border-amber-500/20 p-4 space-y-2">
+                  <p className="text-amber-300 font-semibold text-sm">Nasıl yapılır?</p>
+                  <ol className="text-slate-300 text-xs space-y-1 list-decimal list-inside">
+                    <li>PttAvm ürün sayfasını kendi tarayıcınızda açın</li>
+                    <li><span className="text-white font-mono bg-slate-700 px-1 rounded">Ctrl+U</span> (Mac: <span className="text-white font-mono bg-slate-700 px-1 rounded">Cmd+Option+U</span>) ile sayfa kaynağını açın</li>
+                    <li>Tümünü seçin: <span className="text-white font-mono bg-slate-700 px-1 rounded">Ctrl+A</span> → Kopyalayın: <span className="text-white font-mono bg-slate-700 px-1 rounded">Ctrl+C</span></li>
+                    <li>Aşağıya yapıştırın ve butona basın</li>
+                  </ol>
+                </div>
+
+                <div className="space-y-2">
+                  <label className="text-amber-300 text-sm font-medium">Ürün URL'si (opsiyonel)</label>
+                  <Input
+                    placeholder="https://www.pttavm.com/urun-adi-p-123456"
+                    value={pasteSourceUrl}
+                    onChange={e => setPasteSourceUrl(e.target.value)}
+                    className="business-input h-10 text-sm"
+                  />
+                </div>
+
+                <div className="space-y-2">
+                  <label className="text-amber-300 text-sm font-medium">
+                    Sayfa kaynağı HTML <span className="text-slate-400 font-normal">(Ctrl+U ile aldığınız içerik)</span>
+                  </label>
+                  <textarea
+                    className="w-full h-40 bg-slate-800/70 border border-amber-500/30 rounded-lg p-3 text-white text-xs font-mono resize-none focus:outline-none focus:border-amber-400/60 placeholder:text-slate-500"
+                    placeholder="<!DOCTYPE html><html>... (sayfanın tüm HTML kaynağını buraya yapıştırın)"
+                    value={pastedHtml}
+                    onChange={e => setPastedHtml(e.target.value)}
+                  />
+                  <div className="flex items-center justify-between">
+                    <span className="text-slate-500 text-xs">{pastedHtml.length > 0 ? `${pastedHtml.length.toLocaleString()} karakter` : 'HTML yapıştırılmadı'}</span>
+                    <div className="flex gap-2">
+                      {pastedHtml && (
+                        <Button
+                          type="button"
+                          variant="ghost"
+                          className="text-red-400 hover:text-red-300 text-xs h-8 px-3"
+                          onClick={() => setPastedHtml('')}
+                        >
+                          <X className="w-3 h-3 mr-1" />
+                          Temizle
+                        </Button>
+                      )}
+                      <Button
+                        type="button"
+                        disabled={pastedHtml.length < 500 || parseHtmlMutation.isPending}
+                        onClick={() => parseHtmlMutation.mutate({ html: pastedHtml, url: pasteSourceUrl })}
+                        className="bg-amber-600 hover:bg-amber-700 text-white h-8 px-4 text-sm font-medium disabled:opacity-50"
+                      >
+                        {parseHtmlMutation.isPending ? (
+                          <div className="flex items-center gap-2"><Loader2 className="w-3 h-3 animate-spin" />İşleniyor...</div>
+                        ) : (
+                          <div className="flex items-center gap-2"><Package className="w-3 h-3" />Ürün Verisini Çıkar</div>
+                        )}
+                      </Button>
+                    </div>
+                  </div>
+                </div>
+              </div>
+            </Collapsible.Content>
+          </Collapsible.Root>
         </div>
 
         {/* Product Preview Section */}
