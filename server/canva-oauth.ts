@@ -107,7 +107,7 @@ export function generateAuthUrl(redirectUri: string): { url: string; state: stri
     response_type: 'code',
     client_id: CANVA_CLIENT_ID,
     redirect_uri: redirectUri,
-    scope: 'canva:asset:private:read canva:asset:private:write',
+    scope: 'asset:read asset:write',
     code_challenge,
     code_challenge_method: 'S256',
     state
