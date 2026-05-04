@@ -654,9 +654,7 @@ export async function scrapePttAvm(url: string): Promise<PttAvmProduct> {
       csvContent: '',
       sourceUrl: cleanUrl,
       extractionMethod: 'failed',
-      message: hasCookie
-        ? 'Cookie ile denendi ancak Cloudflare engeli devam ediyor. Cookie süresi dolmuş olabilir — yeni cf_clearance değeri yapıştırın.'
-        : 'PttAvm Cloudflare koruması tüm yöntemleri engelledi. cf_clearance Cookie yapıştırın veya Bookmarklet kullanın.',
+      message: 'PttAVM Cloudflare koruması bu sunucuyu engelliyor. Lütfen farklı bir ürün deneyin veya daha sonra tekrar deneyin.',
     };
   }
 
