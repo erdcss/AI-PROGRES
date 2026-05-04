@@ -1227,8 +1227,13 @@ export function registerRoutes(app: Express): Server {
     return `${proto}://${host}`;
   }
 
-  // Helper: clean CANVA_REDIRECT_URI (strips accidental "Value: " prefix from Replit secret)
+  // Helper: compute Canva redirect URI
+  // In production, always derive from request host so the deployed .replit.app domain is used automatically.
+  // In development, prefer the CANVA_REDIRECT_URI secret (stripped of accidental "Value: " prefix).
   function getCanvaRedirectUri(req: any): string {
+    if (process.env.NODE_ENV === 'production') {
+      return `${getBaseUrl(req)}/api/canva/callback`;
+    }
     const raw = process.env.CANVA_REDIRECT_URI || '';
     const cleaned = raw.replace(/^Value:\s*/i, '').trim();
     return cleaned || `${getBaseUrl(req)}/api/canva/callback`;
