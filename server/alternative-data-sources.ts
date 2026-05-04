@@ -23,11 +23,8 @@ function extractProductId(url: string): string | null {
 // Try alternative mobile API approach with multiple endpoints
 export async function tryMobileAPI(url: string): Promise<any> {
   const productId = extractProductId(url);
-  if (!productId) {
-    return null;
-  }
+  if (!productId) return null;
 
-  // Try multiple API endpoints
   const endpoints = [
     TRENDYOL_MOBILE_API.productDetails(productId),
     TRENDYOL_MOBILE_API.searchV2(productId),
@@ -35,12 +32,12 @@ export async function tryMobileAPI(url: string): Promise<any> {
     TRENDYOL_MOBILE_API.priceInfo(productId)
   ];
 
-  for (let i = 0; i < endpoints.length; i++) {
-    try {
-      console.log(`📱 Trying mobile API endpoint ${i+1}/4 for product ID: ${productId}`);
-      
-      const response = await axios.get(endpoints[i], {
-        timeout: 8000,
+  // ⚡ Run all mobile API requests concurrently with fast 3s timeout
+  console.log(`📱 Trying ${endpoints.length} mobile API endpoints in parallel for product ID: ${productId}`);
+  const results = await Promise.allSettled(
+    endpoints.map(endpoint =>
+      axios.get(endpoint, {
+        timeout: 3000,
         headers: {
           'User-Agent': 'TrendyolMobiOS/4.2.1 (iPhone; iOS 17.0; tr_TR)',
           'Accept': 'application/json',
@@ -48,13 +45,17 @@ export async function tryMobileAPI(url: string): Promise<any> {
           'Cache-Control': 'no-cache',
           'X-Requested-With': 'XMLHttpRequest'
         }
-      });
+      })
+    )
+  );
 
-      const data = response.data;
+  for (let i = 0; i < results.length; i++) {
+    const r = results[i];
+    if (r.status === 'fulfilled') {
+      const data = r.value.data;
       if (data && (data.result || data.product || data.products)) {
         console.log(`✅ Mobile API endpoint ${i+1} successful!`);
         const productData = data.result || data.product || data.products?.[0] || data;
-        
         return {
           success: true,
           title: productData.name || productData.title || 'Bilinmiyor',
@@ -69,102 +70,12 @@ export async function tryMobileAPI(url: string): Promise<any> {
           variants: productData.variants || []
         };
       }
-    } catch (error) {
-      console.log(`❌ Mobile API endpoint ${i+1} failed: ${error.message}`);
-      continue; // Try next endpoint
+    } else {
+      console.log(`❌ Mobile API endpoint ${i+1} failed: ${r.reason?.message}`);
     }
   }
 
   console.log('❌ All mobile API endpoints failed');
-  
-  // Try direct product page scraping as last resort
-  try {
-    console.log('🔄 Trying direct page scraping as final fallback...');
-    const response = await axios.get(url.replace(/\?.*/, ''), {
-      timeout: 8000,
-      headers: {
-        'User-Agent': 'Mozilla/5.0 (compatible; Googlebot/2.1; +http://www.google.com/bot.html)',
-        'Accept': 'text/html,application/xhtml+xml',
-        'Accept-Language': 'tr-TR,tr;q=0.9',
-        'Cache-Control': 'no-cache'
-      }
-    });
-    
-    if (response.status === 200) {
-      console.log('✅ Direct scraping successful!');
-      
-      // Enhanced HTML parsing for better data extraction
-      const html = response.data;
-      
-      // Extract title with multiple patterns
-      let title = 'Product';
-      const titlePatterns = [
-        /<h1[^>]*class="[^"]*pr-new-br[^"]*"[^>]*><span[^>]*>([^<]+)/i,
-        /<h1[^>]*>([^<]+)/i,
-        /"name"\s*:\s*"([^"]+)"/i,
-        /<title>([^<]+)/i
-      ];
-      
-      for (const pattern of titlePatterns) {
-        const match = html.match(pattern);
-        if (match && match[1] && match[1].trim().length > 3 && match[1] !== '429') {
-          title = match[1].trim().replace(' - Trendyol', '');
-          break;
-        }
-      }
-      
-      // Extract brand from URL or content
-      let brand = 'Unknown';
-      const brandMatch = url.match(/trendyol\.com\/([^\/]+)/);
-      if (brandMatch && brandMatch[1] !== 'p') {
-        brand = brandMatch[1].replace(/[-_]/g, ' ');
-      }
-      
-      // Extract price with multiple patterns
-      let price = 0;
-      const pricePatterns = [
-        /"price"\s*:\s*"?(\d+\.?\d*)"?/i,
-        /"discountedPrice"\s*:\s*"?(\d+\.?\d*)"?/i,
-        /"originalPrice"\s*:\s*"?(\d+\.?\d*)"?/i,
-        /data-price="(\d+\.?\d*)"/i,
-        /class="[^"]*price[^"]*"[^>]*>[\s\S]*?(\d+\.?\d+)/i
-      ];
-      
-      for (const pattern of pricePatterns) {
-        const match = html.match(pattern);
-        if (match && match[1]) {
-          price = parseFloat(match[1]);
-          if (price > 0) break;
-        }
-      }
-      
-      // Extract images
-      const images = [];
-      const imageMatches = html.match(/https:\/\/cdn\.dsmcdn\.com\/[^"'\s]+\.(jpg|jpeg|png|webp)/gi);
-      if (imageMatches) {
-        images.push(...imageMatches.slice(0, 5).map(url => ({ url, alt: title })));
-      }
-      
-      console.log(`✅ Extracted: title="${title}", brand="${brand}", price=${price}, images=${images.length}`);
-      
-      return {
-        success: true,
-        title,
-        brand,
-        price: {
-          original: price,
-          currency: 'TL'
-        },
-        images,
-        description: '',
-        category: '',
-        variants: []
-      };
-    }
-  } catch (directError) {
-    console.log(`❌ Direct scraping also failed: ${directError.message}`);
-  }
-  
   return null;
 }
 
@@ -279,26 +190,26 @@ export async function tryProxyServices(url: string): Promise<any> {
 // Main fallback orchestrator
 export async function tryAlternativeSources(url: string): Promise<any> {
   console.log('🔄 Starting alternative data source attempts...');
-  
-  // Try mobile API first (fastest and most reliable)
-  const mobileResult = await tryMobileAPI(url);
-  if (mobileResult) {
-    return mobileResult;
+
+  // ⚡ FAST LANE: Try proxy/referer AND mobile APIs concurrently — take whichever wins
+  console.log('⚡ Running proxy + mobile API in parallel...');
+  const fastResult = await Promise.any([
+    tryProxyServices(url),
+    tryMobileAPI(url)
+  ]).catch(() => null);
+
+  if (fastResult) {
+    console.log('✅ Fast-lane succeeded');
+    return fastResult;
   }
 
-  // Try referer-based approach
-  const proxyResult = await tryProxyServices(url);
-  if (proxyResult) {
-    return proxyResult;
-  }
-
-  // Try Google Cache
+  // Fallback: Google Cache
   const cacheResult = await tryGoogleCache(url);
   if (cacheResult) {
     return cacheResult;
   }
 
-  // Try Wayback Machine as last resort
+  // Last resort: Wayback Machine
   const waybackResult = await tryWaybackMachine(url);
   if (waybackResult) {
     return waybackResult;
