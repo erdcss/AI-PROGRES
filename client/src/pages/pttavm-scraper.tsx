@@ -408,6 +408,83 @@ function PttAvmScraperPage() {
     },
   });
 
+  // ── Bookmarklet / JSON import shared handler ──────────────────────────────
+  const applyImportedProduct = (data: any, sourceUrlHint?: string) => {
+    if (!data.success || !data.title) {
+      toast({ title: '⚠️ İçe Aktarma Başarısız', description: data.message || 'Ürün verisi çıkarılamadı.', variant: 'destructive' });
+      return;
+    }
+    const transformedProduct: Product = {
+      id: `product-${Date.now()}`,
+      title: data.title,
+      brand: data.brand,
+      price: data.price,
+      description: data.description,
+      images: data.images,
+      variants: data.variants,
+      features: data.features,
+      tags: data.tags,
+      category: data.category,
+      success: true,
+      extractionMethod: data.extractionMethod,
+      csvContent: data.csvContent,
+    };
+    setProduct(transformedProduct);
+    if (data.csvContent) {
+      const uniqueId = `csv-import-${Date.now()}`;
+      setCsvPreviews(prev => [{
+        id: uniqueId,
+        productTitle: data.title,
+        csvContent: data.csvContent,
+        sourceUrl: data.sourceUrl || sourceUrlHint || '',
+        variants: data.variants,
+        images: (data.images || []).map((img: any) => typeof img === 'string' ? img : img.url),
+        createdAt: new Date().toISOString(),
+      }, ...prev]);
+    }
+    toast({ title: '✅ Başarılı', description: `"${data.title}" — ${data.extractionMethod === 'bookmarklet' ? 'Bookmarklet' : 'HTML'} ile çıkarıldı` });
+  };
+
+  const importJsonMutation = useMutation({
+    mutationFn: async (jsonData: Record<string, any>) => {
+      const resp = await fetch('/api/pttavm-import-json', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(jsonData),
+      });
+      if (!resp.ok) {
+        const err = await resp.json().catch(() => ({})) as any;
+        throw new Error(err.message || `HTTP ${resp.status}`);
+      }
+      return resp.json();
+    },
+    onSuccess: (data, variables) => applyImportedProduct(data, variables.url),
+    onError: (error: any) => {
+      toast({ title: 'Hata', description: error.message, variant: 'destructive' });
+    },
+  });
+
+  // ── URL param: ?imported=<base64-json> from bookmarklet ───────────────────
+  useEffect(() => {
+    const params = new URLSearchParams(window.location.search);
+    const imported = params.get('imported');
+    if (!imported) return;
+    // Remove param from URL without reload
+    const newUrl = window.location.pathname;
+    window.history.replaceState({}, '', newUrl);
+    try {
+      const decoded = JSON.parse(decodeURIComponent(escape(atob(imported))));
+      if (decoded && decoded.title && decoded.url) {
+        toast({ title: '📦 Bookmarklet Verisi Alındı', description: `"${decoded.title}" işleniyor...` });
+        importJsonMutation.mutate(decoded);
+      } else {
+        toast({ title: '⚠️ Geçersiz Veri', description: 'Bookmarklet verisi okunamadı.', variant: 'destructive' });
+      }
+    } catch (e) {
+      toast({ title: '⚠️ Decode Hatası', description: 'Bookmarklet verisi çözümlenemedi.', variant: 'destructive' });
+    }
+  }, []);
+
   const uploadToShopifyMutation = useMutation({
     mutationFn: async () => {
       if (!product) throw new Error("Önce ürün verisi çekilmelidir");
@@ -1014,84 +1091,114 @@ function PttAvmScraperPage() {
 
         </div>
 
-        {/* Cloudflare Bypass: Paste Page Source */}
+        {/* Cloudflare Bypass: Bookmarklet + Paste fallback */}
         <div className="mt-6">
           <Collapsible.Root open={isPasteOpen} onOpenChange={setIsPasteOpen}>
             <Collapsible.Trigger asChild>
-              <button className="w-full flex items-center justify-between p-4 bg-gradient-to-r from-amber-900/30 to-orange-900/30 hover:from-amber-800/40 hover:to-orange-800/40 border border-amber-500/30 hover:border-amber-500/50 rounded-xl transition-all group">
+              <button className="w-full flex items-center justify-between p-4 bg-gradient-to-r from-violet-900/30 to-indigo-900/30 hover:from-violet-800/40 hover:to-indigo-800/40 border border-violet-500/30 hover:border-violet-400/50 rounded-xl transition-all">
                 <div className="flex items-center gap-3">
-                  <div className="w-8 h-8 rounded-full bg-amber-500/20 flex items-center justify-center">
-                    <FileText className="w-4 h-4 text-amber-400" />
+                  <div className="w-8 h-8 rounded-full bg-violet-500/20 flex items-center justify-center">
+                    <Package className="w-4 h-4 text-violet-400" />
                   </div>
                   <div className="text-left">
-                    <p className="text-amber-200 font-semibold text-sm">Cloudflare engeli aşmak için alternatif yöntem</p>
-                    <p className="text-amber-400/70 text-xs">Sayfa kaynağını yapıştırarak ürün verisini çıkar</p>
+                    <p className="text-violet-200 font-semibold text-sm">🔖 Cloudflare Bypass: Bookmarklet Yöntemi</p>
+                    <p className="text-violet-400/70 text-xs">Tarayıcınızda PttAvm sayfasındayken tek tıkla ürün verisini çek</p>
                   </div>
                 </div>
-                {isPasteOpen ? <ChevronUp className="w-4 h-4 text-amber-400" /> : <ChevronDown className="w-4 h-4 text-amber-400" />}
+                {isPasteOpen ? <ChevronUp className="w-4 h-4 text-violet-400" /> : <ChevronDown className="w-4 h-4 text-violet-400" />}
               </button>
             </Collapsible.Trigger>
             <Collapsible.Content className="overflow-hidden data-[state=open]:animate-in data-[state=closed]:animate-out data-[state=closed]:fade-out-0 data-[state=open]:fade-in-0">
-              <div className="bg-gradient-to-br from-amber-900/20 to-orange-900/20 border border-amber-500/20 border-t-0 rounded-b-xl p-5 space-y-4">
-                <div className="bg-slate-800/50 rounded-lg border border-amber-500/20 p-4 space-y-2">
-                  <p className="text-amber-300 font-semibold text-sm">Nasıl yapılır?</p>
-                  <ol className="text-slate-300 text-xs space-y-1 list-decimal list-inside">
-                    <li>PttAvm ürün sayfasını kendi tarayıcınızda açın</li>
-                    <li><span className="text-white font-mono bg-slate-700 px-1 rounded">Ctrl+U</span> (Mac: <span className="text-white font-mono bg-slate-700 px-1 rounded">Cmd+Option+U</span>) ile sayfa kaynağını açın</li>
-                    <li>Tümünü seçin: <span className="text-white font-mono bg-slate-700 px-1 rounded">Ctrl+A</span> → Kopyalayın: <span className="text-white font-mono bg-slate-700 px-1 rounded">Ctrl+C</span></li>
-                    <li>Aşağıya yapıştırın ve butona basın</li>
-                  </ol>
+              <div className="bg-gradient-to-br from-violet-900/20 to-indigo-900/20 border border-violet-500/20 border-t-0 rounded-b-xl p-5 space-y-5">
+
+                {/* Step 1 - Install bookmarklet */}
+                <div className="space-y-3">
+                  <div className="flex items-center gap-2">
+                    <span className="w-6 h-6 rounded-full bg-violet-600 text-white text-xs font-bold flex items-center justify-center">1</span>
+                    <p className="text-violet-200 font-semibold text-sm">Bookmarklet'i yer imlerinize sürükleyin</p>
+                  </div>
+                  <div className="flex items-center gap-4 bg-slate-800/60 rounded-xl p-4 border border-violet-500/20">
+                    <div className="flex-1 text-slate-400 text-xs">
+                      Aşağıdaki butonu <span className="text-white font-semibold">yer imleri çubuğunuza sürükleyin</span> (Bookmarks Bar). Bir kez kurmanız yeterli.
+                    </div>
+                    <a
+                      href={`javascript:(function(){function qs(s){return document.querySelector(s);}function txt(e){return e?e.innerText.trim():'';}var t=qs('h1.product-title')||qs('h1[class*="product"]')||qs('[itemprop="name"]')||qs('h1');var title=txt(t)||document.title.replace(/\\s*[-|].*$/,'').trim();var bEl=qs('[itemprop="brand"] [itemprop="name"]')||qs('[itemprop="brand"]')||qs('[class*="brand"]');var brand=txt(bEl);var pEl=qs('[itemprop="price"]')||qs('.prc-dsc')||qs('.current-price')||qs('[class*="price"]');var pRaw=pEl?(pEl.getAttribute('content')||pEl.innerText):'';var price=parseFloat(pRaw.replace(/[^\\d,.]/g,'').replace(',','.'))||0;if(!price){[].slice.call(document.querySelectorAll('script[type="application/ld+json"]')).forEach(function(s){try{var d=JSON.parse(s.innerHTML);var p=(d.offers&&d.offers.price)||d.price;if(p&&!price)price=parseFloat(String(p));}catch(e){}});}var imgSet={};[].slice.call(document.querySelectorAll('.product-image-gallery img,.swiper-slide img,.fotorama img,.product-img img,.gallery-image img,[class*="product-image"] img,[class*="gallery"] img,.main-image img,[class*="slider"] img,figure img,.pdp-images img')).forEach(function(i){var s=i.getAttribute('data-zoom-image')||i.getAttribute('data-large')||i.getAttribute('data-src')||i.src||'';if(s&&s.startsWith('http')&&s.indexOf('.svg')<0&&s.indexOf('placeholder')<0&&s.indexOf('logo')<0&&s.length>30)imgSet[s.split('?')[0]]=1;});[].slice.call(document.querySelectorAll('script[type="application/ld+json"]')).forEach(function(s){try{var d=JSON.parse(s.innerHTML);var imgs=d.image||d.images||[];if(!Array.isArray(imgs))imgs=[imgs];imgs.forEach(function(i){var u=typeof i==='string'?i:(i.url||i.contentUrl||'');if(u&&u.startsWith('http'))imgSet[u.split('?')[0]]=1;});}catch(e){}});var og=document.querySelector('meta[property="og:image"]');if(og)imgSet[og.content.split('?')[0]]=1;var imgs=Object.keys(imgSet).slice(0,20).map(function(u){return{url:u,colorName:'none'};});var dEl=qs('.product-description')||qs('[itemprop="description"]')||qs('.description-content')||qs('#product-description');var desc=dEl?dEl.innerHTML:'';if(!desc){var mEl=document.querySelector('meta[name="description"]');if(mEl)desc='<p>'+mEl.content+'</p>';}var feats=[];[].slice.call(document.querySelectorAll('.product-attributes tr,.specs-table tr,.technical-specs tr,[class*="specification"] tr,[class*="attribute"] tr')).forEach(function(r){var c=r.querySelectorAll('td,th');if(c.length>=2){var k=c[0].innerText.trim(),v=c[1].innerText.trim();if(k&&v)feats.push({key:k,value:v});}});var crumbs=[].slice.call(document.querySelectorAll('[class*="breadcrumb"] a,[class*="breadcrumb"] span')).map(function(e){return e.innerText.trim();}).filter(function(t){return t&&t!=='Anasayfa'&&t!=='>'&&t!=='/';});var cat=crumbs.length?crumbs[crumbs.length-1]:'Elektronik';var data={url:location.href,title:title,brand:brand,price:price,images:imgs,description:desc,features:feats,category:cat};var enc=btoa(unescape(encodeURIComponent(JSON.stringify(data))));window.open('${window.location.origin}/pttavm?imported='+enc,'_blank');})()`}
+                      className="flex-shrink-0 flex items-center gap-2 px-4 py-2.5 bg-violet-600 hover:bg-violet-500 text-white rounded-lg font-semibold text-sm cursor-move select-none transition-colors border border-violet-400/40 shadow-lg shadow-violet-900/30"
+                      draggable
+                      onClick={(e) => { e.preventDefault(); toast({ title: '⚠️ Sürükleyin!', description: 'Bu butonu tıklamayın — yer imleri çubuğuna sürükleyin.' }); }}
+                    >
+                      🔖 PttAvm Çek
+                    </a>
+                  </div>
+                  <p className="text-slate-500 text-xs">Yer imleri çubuğu görünmüyorsa: Chrome'da <span className="text-slate-300 font-mono">Ctrl+Shift+B</span>, Firefox'ta <span className="text-slate-300 font-mono">Ctrl+Shift+B</span></p>
                 </div>
 
+                {/* Step 2 - Use it */}
                 <div className="space-y-2">
-                  <label className="text-amber-300 text-sm font-medium">Ürün URL'si (opsiyonel)</label>
-                  <Input
-                    placeholder="https://www.pttavm.com/urun-adi-p-123456"
-                    value={pasteSourceUrl}
-                    onChange={e => setPasteSourceUrl(e.target.value)}
-                    className="business-input h-10 text-sm"
-                  />
+                  <div className="flex items-center gap-2">
+                    <span className="w-6 h-6 rounded-full bg-violet-600 text-white text-xs font-bold flex items-center justify-center">2</span>
+                    <p className="text-violet-200 font-semibold text-sm">PttAvm ürün sayfasındayken tıklayın</p>
+                  </div>
+                  <div className="bg-slate-800/50 rounded-lg border border-violet-500/20 p-3">
+                    <ol className="text-slate-300 text-xs space-y-1 list-decimal list-inside">
+                      <li>Kendi tarayıcınızda PttAvm ürün sayfasına gidin <span className="text-slate-500">(Cloudflare sizi engellemez)</span></li>
+                      <li>Yer imleri çubuğundaki <span className="text-violet-300 font-semibold">🔖 PttAvm Çek</span> butonuna tıklayın</li>
+                      <li>Uygulama yeni sekmede açılır ve ürün verisi otomatik işlenir</li>
+                    </ol>
+                  </div>
                 </div>
 
-                <div className="space-y-2">
-                  <label className="text-amber-300 text-sm font-medium">
-                    Sayfa kaynağı HTML <span className="text-slate-400 font-normal">(Ctrl+U ile aldığınız içerik)</span>
-                  </label>
-                  <textarea
-                    className="w-full h-40 bg-slate-800/70 border border-amber-500/30 rounded-lg p-3 text-white text-xs font-mono resize-none focus:outline-none focus:border-amber-400/60 placeholder:text-slate-500"
-                    placeholder="<!DOCTYPE html><html>... (sayfanın tüm HTML kaynağını buraya yapıştırın)"
-                    value={pastedHtml}
-                    onChange={e => setPastedHtml(e.target.value)}
-                  />
-                  <div className="flex items-center justify-between">
-                    <span className="text-slate-500 text-xs">{pastedHtml.length > 0 ? `${pastedHtml.length.toLocaleString()} karakter` : 'HTML yapıştırılmadı'}</span>
-                    <div className="flex gap-2">
-                      {pastedHtml && (
+                {/* Divider */}
+                <div className="flex items-center gap-3">
+                  <div className="flex-1 h-px bg-slate-700" />
+                  <span className="text-slate-500 text-xs">veya manuel yöntem</span>
+                  <div className="flex-1 h-px bg-slate-700" />
+                </div>
+
+                {/* Paste HTML fallback */}
+                <div className="space-y-3">
+                  <div className="flex items-center gap-2">
+                    <span className="w-6 h-6 rounded-full bg-amber-700/60 text-amber-200 text-xs font-bold flex items-center justify-center">3</span>
+                    <p className="text-amber-300 font-semibold text-sm">Sayfa kaynağını yapıştır (yedek yöntem)</p>
+                  </div>
+                  <div className="space-y-2">
+                    <p className="text-slate-400 text-xs">PttAvm sayfasında <span className="text-white font-mono bg-slate-700 px-1 rounded">Ctrl+U</span> → <span className="text-white font-mono bg-slate-700 px-1 rounded">Ctrl+A</span> → <span className="text-white font-mono bg-slate-700 px-1 rounded">Ctrl+C</span> → buraya yapıştır</p>
+                    <Input
+                      placeholder="https://www.pttavm.com/urun-adi-p-123456"
+                      value={pasteSourceUrl}
+                      onChange={e => setPasteSourceUrl(e.target.value)}
+                      className="business-input h-9 text-xs"
+                    />
+                    <textarea
+                      className="w-full h-32 bg-slate-800/70 border border-amber-500/20 rounded-lg p-3 text-white text-xs font-mono resize-none focus:outline-none focus:border-amber-400/60 placeholder:text-slate-500"
+                      placeholder="<!DOCTYPE html><html>..."
+                      value={pastedHtml}
+                      onChange={e => setPastedHtml(e.target.value)}
+                    />
+                    <div className="flex items-center justify-between">
+                      <span className="text-slate-500 text-xs">{pastedHtml.length > 0 ? `${pastedHtml.length.toLocaleString()} karakter` : 'Henüz yapıştırılmadı'}</span>
+                      <div className="flex gap-2">
+                        {pastedHtml && (
+                          <Button type="button" variant="ghost" className="text-red-400 hover:text-red-300 text-xs h-7 px-2" onClick={() => setPastedHtml('')}>
+                            <X className="w-3 h-3 mr-1" />Temizle
+                          </Button>
+                        )}
                         <Button
                           type="button"
-                          variant="ghost"
-                          className="text-red-400 hover:text-red-300 text-xs h-8 px-3"
-                          onClick={() => setPastedHtml('')}
+                          disabled={pastedHtml.length < 500 || parseHtmlMutation.isPending}
+                          onClick={() => parseHtmlMutation.mutate({ html: pastedHtml, url: pasteSourceUrl })}
+                          className="bg-amber-600 hover:bg-amber-700 text-white h-7 px-3 text-xs font-medium disabled:opacity-50"
                         >
-                          <X className="w-3 h-3 mr-1" />
-                          Temizle
+                          {parseHtmlMutation.isPending
+                            ? <div className="flex items-center gap-1"><Loader2 className="w-3 h-3 animate-spin" />İşleniyor...</div>
+                            : <div className="flex items-center gap-1"><Package className="w-3 h-3" />Çıkar</div>
+                          }
                         </Button>
-                      )}
-                      <Button
-                        type="button"
-                        disabled={pastedHtml.length < 500 || parseHtmlMutation.isPending}
-                        onClick={() => parseHtmlMutation.mutate({ html: pastedHtml, url: pasteSourceUrl })}
-                        className="bg-amber-600 hover:bg-amber-700 text-white h-8 px-4 text-sm font-medium disabled:opacity-50"
-                      >
-                        {parseHtmlMutation.isPending ? (
-                          <div className="flex items-center gap-2"><Loader2 className="w-3 h-3 animate-spin" />İşleniyor...</div>
-                        ) : (
-                          <div className="flex items-center gap-2"><Package className="w-3 h-3" />Ürün Verisini Çıkar</div>
-                        )}
-                      </Button>
+                      </div>
                     </div>
                   </div>
                 </div>
+
               </div>
             </Collapsible.Content>
           </Collapsible.Root>

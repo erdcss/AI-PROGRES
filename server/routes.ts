@@ -8708,6 +8708,22 @@ ${result.title || 'Product'},${fb2Handle},${result.description || ''},${result.b
   });
 
   // ── PttAvm Parse HTML (client-side bypass) ───────────────────────────────
+  // ── PttAvm Bookmarklet JSON Import ───────────────────────────────────────
+  app.post('/api/pttavm-import-json', async (req, res) => {
+    const data = req.body || {};
+    if (!data.url || !data.title) {
+      return res.status(400).json({ success: false, message: 'url ve title alanları zorunlu' });
+    }
+    try {
+      const { importJsonProduct } = await import('./pttavm-scraper.js');
+      const result = importJsonProduct(data);
+      res.json(result);
+    } catch (err: any) {
+      console.error('[PttAvm ImportJSON] Error:', err.message);
+      res.status(500).json({ success: false, message: err.message });
+    }
+  });
+
   app.post('/api/pttavm-parse-html', async (req, res) => {
     const { html, url } = req.body || {};
     if (!html || html.length < 500) {

@@ -427,6 +427,62 @@ async function tryStealthPuppeteer(url: string): Promise<Partial<PttAvmProduct> 
   }
 }
 
+// ── Bookmarklet JSON Import Export ───────────────────────────────────────────
+// Accepts pre-extracted JSON from the browser bookmarklet (no Cloudflare issue)
+
+export function importJsonProduct(data: {
+  url: string;
+  title: string;
+  brand?: string;
+  price?: number | string;
+  images?: Array<{ url: string; colorName: string }>;
+  description?: string;
+  features?: Array<{ key: string; value: string }>;
+  category?: string;
+}): PttAvmProduct {
+  const brand = data.brand || '';
+  const priceRaw = typeof data.price === 'number'
+    ? data.price
+    : parseFloat(String(data.price || '0').replace(/[^\d,.]/g, '').replace(',', '.')) || 0;
+  const category = data.category || 'Elektronik';
+  const tags = [brand, category, 'PttAvm'].filter(Boolean);
+
+  if (!data.title || data.title.length < 3) {
+    return {
+      success: false, title: '', brand: '',
+      price: { original: 0, withProfit: 0, formatted: '0 TL', profitFormatted: '0 TL', currency: 'TL' },
+      images: [], description: '', features: [], category: '',
+      variants: { colors: [], sizes: [], allVariants: [] },
+      tags: [], csvContent: '', sourceUrl: data.url,
+      extractionMethod: 'bookmarklet',
+      message: 'Ürün başlığı bulunamadı. Doğru sayfada olduğunuzdan emin olun.',
+    };
+  }
+
+  const product: Omit<PttAvmProduct, 'csvContent'> = {
+    success: true,
+    title: data.title,
+    brand,
+    price: {
+      original: priceRaw,
+      withProfit: Math.round(priceRaw * 1.10),
+      formatted: `${priceRaw.toFixed(2)} TL`,
+      profitFormatted: `${Math.round(priceRaw * 1.10).toFixed(2)} TL`,
+      currency: 'TL',
+    },
+    images: (data.images || []).filter(img => img.url && img.url.startsWith('http')),
+    description: data.description || '',
+    features: data.features || [],
+    category,
+    variants: { colors: [], sizes: [], allVariants: [] },
+    tags,
+    sourceUrl: data.url,
+    extractionMethod: 'bookmarklet',
+  };
+
+  return { ...product, csvContent: buildShopifyCSV(product) };
+}
+
 // ── Public HTML Parser Export ─────────────────────────────────────────────────
 // Used by /api/pttavm-parse-html for client-side bypass flow
 
