@@ -39,14 +39,48 @@ interface VariantExtractionResult {
 }
 
 export class EnhancedVariantExtractor {
-  private readonly TIMEOUT = 60000; // 60 seconds - extended for multi-color extraction and slow pages
+  private readonly TIMEOUT = 60000;
   private readonly WAIT_SELECTORS = [
-    '.sp-itm', // Size buttons
+    '.sp-itm',
     '[class*="size"]',
     '[class*="beden"]',
     '.variant-size',
     '.product-variants'
   ];
+
+  // Persistent browser — launched once and reused across requests
+  private persistentBrowser: any = null;
+  private browserLaunchPromise: Promise<any> | null = null;
+
+  private async getOrCreateBrowser(): Promise<any> {
+    // Return existing healthy browser
+    if (this.persistentBrowser) {
+      try {
+        const pages = await this.persistentBrowser.pages();
+        if (pages) return this.persistentBrowser;
+      } catch {
+        this.persistentBrowser = null;
+      }
+    }
+    // Avoid concurrent launches
+    if (this.browserLaunchPromise) return this.browserLaunchPromise;
+
+    this.browserLaunchPromise = (async () => {
+      const { buildLaunchOptions } = await import('./puppeteer-config.js');
+      console.log('🚀 [BrowserPool] Launching persistent Puppeteer browser...');
+      const browser = await puppeteer.launch(buildLaunchOptions());
+      this.persistentBrowser = browser;
+      browser.on('disconnected', () => {
+        console.log('⚠️ [BrowserPool] Browser disconnected, will relaunch on next request');
+        this.persistentBrowser = null;
+        this.browserLaunchPromise = null;
+      });
+      console.log('✅ [BrowserPool] Persistent browser ready');
+      return browser;
+    })().finally(() => { this.browserLaunchPromise = null; });
+
+    return this.browserLaunchPromise;
+  }
 
   /**
    * Main extraction method with hybrid fallback
@@ -92,16 +126,14 @@ export class EnhancedVariantExtractor {
    * Method 1: Enhanced Puppeteer with wait logic
    */
   private async extractWithPuppeteer(url: string): Promise<VariantExtractionResult> {
-    let browser;
+    let page;
     
     try {
-      console.log('🚀 Launching Puppeteer with enhanced configuration...');
+      console.log('🚀 Using persistent Puppeteer browser...');
       
-      // Use centralized Puppeteer configuration
-      const { buildLaunchOptions } = await import('./puppeteer-config.js');
-      browser = await puppeteer.launch(buildLaunchOptions());
-
-      const page = await browser.newPage();
+      // Reuse persistent browser instead of launching new one each time
+      const browser = await this.getOrCreateBrowser();
+      page = await browser.newPage();
 
       // Set realistic viewport and user agent
       await page.setViewport({ width: 1920, height: 1080 });
@@ -111,11 +143,13 @@ export class EnhancedVariantExtractor {
 
       console.log(`🌐 Navigating to: ${url}`);
       
-      // Navigate and wait for network idle
+      // Use domcontentloaded (much faster than networkidle2) + short extra wait for JS
       await page.goto(url, { 
-        waitUntil: 'networkidle2',
+        waitUntil: 'domcontentloaded',
         timeout: this.TIMEOUT 
       });
+      // Small fixed delay for JS rendering
+      await new Promise(r => setTimeout(r, 2000));
 
       console.log('⏳ Waiting for client-side content to render...');
       
@@ -512,7 +546,8 @@ export class EnhancedVariantExtractor {
         console.log(`⚠️ PUPPETEER: Image extraction failed: ${imgError.message}`);
       }
 
-      await browser.close();
+      // Close only the page, keep the persistent browser alive
+      await page.close();
 
       const colorVariantUrls: string[] = variantData.colorVariantUrls || [];
       if (colorVariantUrls.length > 0) {
@@ -531,7 +566,7 @@ export class EnhancedVariantExtractor {
 
     } catch (error) {
       console.error('❌ Puppeteer extraction failed:', error);
-      if (browser) await browser.close();
+      if (page) { try { await page.close(); } catch {} }
       throw error;
     }
   }
@@ -912,34 +947,15 @@ export class EnhancedVariantExtractor {
    * Each color has a separate URL on Trendyol
    */
   async extractColorVariantUrls(url: string): Promise<Array<{name: string, url: string, itemNumber: string}>> {
-    let browser;
+    let page: any;
     const colorVariants: Array<{name: string, url: string, itemNumber: string}> = [];
     
     try {
       console.log('🎨 Extracting color variant URLs...');
-      
-      let executablePath;
-      try {
-        executablePath = execSync('which chromium-browser || which chromium || which google-chrome', { encoding: 'utf8' }).trim();
-      } catch (error) {
-        console.log('⚠️ Chromium not found, using Puppeteer default');
-      }
-      
-      browser = await puppeteer.launch({
-        headless: true,
-        executablePath: executablePath || undefined,
-        args: [
-          '--no-sandbox',
-          '--disable-setuid-sandbox',
-          '--disable-dev-shm-usage',
-          '--disable-accelerated-2d-canvas',
-          '--no-first-run',
-          '--no-zygote',
-          '--disable-gpu'
-        ]
-      });
 
-      const page = await browser.newPage();
+      // Reuse persistent browser
+      const browser = await this.getOrCreateBrowser();
+      page = await browser.newPage();
       await page.setViewport({ width: 1920, height: 1080 });
       await page.setUserAgent(
         'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36'
@@ -947,12 +963,12 @@ export class EnhancedVariantExtractor {
 
       console.log(`🌐 Navigating to: ${url}`);
       await page.goto(url, { 
-        waitUntil: 'networkidle2',
+        waitUntil: 'domcontentloaded',
         timeout: this.TIMEOUT 
       });
 
       // Wait for color elements to load
-      await page.waitForTimeout(2000);
+      await new Promise(r => setTimeout(r, 2000));
 
       // ✅ IMPROVED: Extract color URLs with better attribute handling
       const colors = await page.evaluate(() => {
@@ -1051,13 +1067,12 @@ export class EnhancedVariantExtractor {
       
       colorVariants.push(...cleanedColors);
 
-      await browser.close();
+      // Close only the page, keep the persistent browser alive
+      await page.close();
       
     } catch (error) {
       console.error(`❌ Error extracting color URLs: ${error.message}`);
-      if (browser) {
-        await browser.close();
-      }
+      if (page) { try { await page.close(); } catch {} }
     }
 
     return colorVariants;

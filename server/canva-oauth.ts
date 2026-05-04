@@ -55,14 +55,20 @@ export function initCanvaOAuth(): void {
 export function getCanvaAccessToken(): string | null {
   if (!cachedToken?.access_token) return null;
 
-  // Check expiry (with 5min buffer)
-  if (cachedToken.expires_at && Date.now() > cachedToken.expires_at - 5 * 60 * 1000) {
-    console.warn('⚠️ [Canva] Token süresi dolmuş');
+  // Token actually expired → return null and refresh async
+  if (cachedToken.expires_at && Date.now() > cachedToken.expires_at) {
+    console.warn('⚠️ [Canva] Token süresi doldu, yenileniyor...');
     if (cachedToken.refresh_token) {
-      // Refresh async - don't block
       refreshAccessToken(cachedToken.refresh_token).catch(() => {});
     }
     return null;
+  }
+
+  // Token close to expiry (within 10 min) → refresh in background but still return it
+  if (cachedToken.expires_at && Date.now() > cachedToken.expires_at - 10 * 60 * 1000) {
+    if (cachedToken.refresh_token) {
+      refreshAccessToken(cachedToken.refresh_token).catch(() => {});
+    }
   }
 
   return cachedToken.access_token;
