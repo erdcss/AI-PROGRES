@@ -60,7 +60,7 @@ export function buildLaunchOptions(overrides: Partial<PuppeteerLaunchOptions> = 
   const defaults: PuppeteerLaunchOptions = {
     headless: true,
     executablePath: getChromiumPath(),
-    protocolTimeout: 120000, // 120s — production deployment için yeterli süre
+    protocolTimeout: 120000,
     timeout: 120000,
     args: [
       '--no-sandbox',
@@ -70,17 +70,21 @@ export function buildLaunchOptions(overrides: Partial<PuppeteerLaunchOptions> = 
       '--no-first-run',
       '--no-zygote',
       '--disable-gpu',
-      '--single-process',
-      '--disable-extensions'
+      '--disable-extensions',
+      // Anti-detection flags
+      '--disable-blink-features=AutomationControlled',
+      '--disable-features=IsolateOrigins,site-per-process',
+      '--lang=tr-TR',
+      '--window-size=1920,1080'
     ]
   };
   
-  // Merge args if provided
-  if (overrides.args) {
-    defaults.args = [...(defaults.args || []), ...overrides.args];
-  }
+  // Merge args if provided, filtering out --single-process (causes crashes)
+  const extraArgs = (overrides.args || []).filter(a => a !== '--single-process');
+  defaults.args = [...(defaults.args || []), ...extraArgs];
   
-  return { ...defaults, ...overrides, args: defaults.args };
+  const { args: _args, ...restOverrides } = overrides;
+  return { ...defaults, ...restOverrides, args: defaults.args };
 }
 
 /**

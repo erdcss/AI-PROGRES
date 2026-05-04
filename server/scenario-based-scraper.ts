@@ -4,8 +4,13 @@
  */
 
 import axios from 'axios';
-import puppeteer from 'puppeteer';
+import puppeteerExtra from 'puppeteer-extra';
+import StealthPlugin from 'puppeteer-extra-plugin-stealth';
+import type { PuppeteerLaunchOptions } from 'puppeteer';
 import * as cheerio from 'cheerio';
+
+// Apply stealth plugin globally — hides headless fingerprints from Trendyol's bot detection
+puppeteerExtra.use(StealthPlugin());
 import OpenAI from 'openai';
 import { ScenarioManager, ExtractionScenario } from './scenario-manager';
 import { ScenarioExtractors } from './scenario-extractors';
@@ -27,6 +32,7 @@ import { getPerformanceConfig, getTimeout, shouldRetryWithSlowTimeout } from './
 import { buildLaunchOptions } from './puppeteer-config';
 import { generateAdvancedTags } from './tag-generator';
 import { CLOTHING_KEYWORDS, FAKE_CLOTHING_SIZES, isClothingProduct } from './clothing-keywords';
+import { execSync } from 'child_process';
 
 const openai = new OpenAI({ apiKey: process.env.OPENAI_API_KEY_NEW || process.env.OPENAI_API_KEY });
 
@@ -897,18 +903,60 @@ async function tryPuppeteerColorExtraction(url: string): Promise<{success: boole
   try {
     console.log('🎨 Starting Puppeteer color extraction...');
     
-    browser = await puppeteer.launch(buildLaunchOptions({
-      args: ['--single-process']
-    }));
+    browser = await puppeteerExtra.launch(buildLaunchOptions({}));
     
     const page = await browser.newPage();
     await page.setUserAgent('Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/131.0.0.0 Safari/537.36');
+    await page.setExtraHTTPHeaders({
+      'Accept-Language': 'tr-TR,tr;q=0.9,en-US;q=0.8,en;q=0.7',
+      'Accept': 'text/html,application/xhtml+xml,application/xml;q=0.9,image/avif,image/webp,*/*;q=0.8'
+    });
     
-    // Navigate to the page - MAXIMUM SPEED
+    // Stealth: hide navigator.webdriver and other bot fingerprints before navigation
+    await page.evaluateOnNewDocument(() => {
+      Object.defineProperty(navigator, 'webdriver', { get: () => undefined });
+      Object.defineProperty(navigator, 'languages', { get: () => ['tr-TR', 'tr', 'en-US', 'en'] });
+      Object.defineProperty(navigator, 'plugins', { get: () => [1, 2, 3, 4, 5] });
+      // @ts-ignore
+      window.chrome = { runtime: {} };
+      const originalQuery = window.navigator.permissions?.query;
+      if (originalQuery) {
+        window.navigator.permissions.query = (parameters: any) =>
+          parameters.name === 'notifications'
+            ? Promise.resolve({ state: Notification.permission } as any)
+            : originalQuery(parameters);
+      }
+    });
+
+    // Navigate to the page with generous timeout
     await page.goto(url, { 
       waitUntil: 'domcontentloaded',
-      timeout: 3000 // ⚡ ULTRA-FAST: Reduced from 8000ms
+      timeout: 20000
     });
+    
+    // Wait for Trendyol JS state to populate (critical for data extraction)
+    try {
+      await page.waitForFunction(
+        '!!(window.__PRODUCT_DETAIL_APP_INITIAL_STATE__?.product?.name || window.__PRODUCT_DETAIL_APP_INITIAL_STATE__?.product?.id)',
+        { timeout: 12000 }
+      );
+      console.log('✅ Trendyol JS state ready');
+    } catch {
+      // Check if the page is a bot-block page
+      const pageTitle = await page.title();
+      const pageContent = await page.content();
+      const isBlocked = pageTitle.toLowerCase().includes('attention') || 
+                        pageTitle.toLowerCase().includes('just a moment') ||
+                        pageContent.includes('cf-browser-verification') ||
+                        pageContent.includes('challenge-running') ||
+                        !pageContent.includes('trendyol');
+      if (isBlocked) {
+        console.log('🚫 Puppeteer: Trendyol is serving a bot-challenge page, returning failure');
+        await browser.close();
+        return { success: false };
+      }
+      console.log('⚠️ JS state not found in time, proceeding with available content');
+    }
     
     // Extract colors from JavaScript State and DOM
     let extractedColors: string[] = [];
@@ -917,7 +965,7 @@ async function tryPuppeteerColorExtraction(url: string): Promise<{success: boole
     let colorVariantUrlsFromPuppeteer: string[] = [];
     try {
       // Wait for color buttons to render
-      await page.waitForSelector('.color-variants, [class*="color"], [class*="renk"], .slctn-item', { timeout: 1000 }).catch(() => {
+      await page.waitForSelector('.color-variants, [class*="color"], [class*="renk"], .slctn-item', { timeout: 3000 }).catch(() => {
         console.log('⚠️ Color buttons not found in DOM');
       });
       
@@ -1191,7 +1239,36 @@ export async function scenarioBasedScrape(url: string): Promise<ScenarioBasedRes
       // ⚡ SPEED OPTIMIZATION: Try direct scraping FIRST (fastest method)
       console.log('⚡ SPEED MODE: Trying direct scraping first...');
       
+      // ── CURL SUBPROCESS: Bypasses TLS fingerprinting / HTTP2 restrictions ──
+      // Node.js HTTP libraries get 403 from Trendyol; curl uses HTTP/2 natively and succeeds.
       try {
+        console.log('🌐 Trying curl subprocess (HTTP/2 bypass)...');
+        const curlCmd = [
+          'curl', '-s', '--max-time', '12',
+          '--http2',
+          '--compressed',  // sends Accept-Encoding AND auto-decompresses response
+          '-H', `"User-Agent: Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/131.0.0.0 Safari/537.36"`,
+          '-H', '"Accept: text/html,application/xhtml+xml,application/xml;q=0.9,image/webp,*/*;q=0.8"',
+          '-H', '"Accept-Language: tr-TR,tr;q=0.9,en-US;q=0.8,en;q=0.7"',
+          '-H', '"Cache-Control: no-cache"',
+          '-H', '"Referer: https://www.google.com/"',
+          '-L',  // follow redirects
+          `"${url.replace(/"/g, '\\"')}"`,
+        ].join(' ');
+        const curlOutput = execSync(curlCmd, { maxBuffer: 10 * 1024 * 1024, timeout: 14000, encoding: 'utf8' });
+        if (curlOutput && curlOutput.length > 5000 && (curlOutput.includes('application/ld+json') || curlOutput.includes('product'))) {
+          htmlContent = curlOutput;
+          console.log(`✅ Curl subprocess succeeded: ${htmlContent.length} bytes`);
+        } else {
+          console.log(`⚠️ Curl response too small or invalid (${curlOutput?.length || 0} bytes), falling through`);
+          throw new Error('Curl returned invalid content');
+        }
+      } catch (curlErr: any) {
+        console.log(`⚠️ Curl subprocess failed: ${curlErr?.message?.slice(0, 100)}, trying axios...`);
+      }
+
+      try {
+        if (!htmlContent || htmlContent.length <= 5000) {
         // ENHANCED USER AGENT ROTATION - Use latest browsers
         const userAgents = [
           'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/131.0.0.0 Safari/537.36',
@@ -1208,7 +1285,6 @@ export async function scenarioBasedScrape(url: string): Promise<ScenarioBasedRes
             'User-Agent': randomUA,
             'Accept': 'text/html,application/xhtml+xml,application/xml;q=0.9,image/webp,image/avif,*/*;q=0.8',
             'Accept-Language': 'tr-TR,tr;q=0.9,en-US;q=0.8,en;q=0.7,de;q=0.6',
-            'Accept-Encoding': 'gzip, deflate, br',
             'Cache-Control': 'no-cache',
             'Pragma': 'no-cache',
             'Sec-Fetch-Dest': 'document',
@@ -1218,12 +1294,18 @@ export async function scenarioBasedScrape(url: string): Promise<ScenarioBasedRes
             'Upgrade-Insecure-Requests': '1',
             'Referer': 'https://www.google.com/'
           },
-          timeout: 2500, // ⚡ ULTRA-FAST: Reduced from 5000ms
-          maxRedirects: 3, // Reduced for speed
+          timeout: 8000,
+          maxRedirects: 3,
+          decompress: true,
           validateStatus: function (status) {
             return status < 500; // Accept 4xx errors but not 5xx
           }
         });
+        
+        // 405 = Trendyol rejected the request (encoding/fingerprint mismatch)
+        if (directResult.status === 405 || directResult.status === 403) {
+          throw new Error(`HTTP ${directResult.status} - triggering fallback`);
+        }
         
         htmlContent = directResult.data;
         
@@ -1246,6 +1328,9 @@ export async function scenarioBasedScrape(url: string): Promise<ScenarioBasedRes
         if (!hasProductIndicators) {
           console.log(`🚫 BLOCKING DETECTED: No product indicators found in response. Triggering fallback.`);
           throw new Error('No product content detected - triggering fallback strategies');
+        }
+        } else {
+          console.log(`✅ SPEED MODE: Using curl HTML directly (${htmlContent.length} bytes) — skipping axios...`);
         }
         
         // 🛡️ SAFE HTML PARSING using centralized cleaning function
@@ -1421,9 +1506,19 @@ export async function scenarioBasedScrape(url: string): Promise<ScenarioBasedRes
             try {
               const puppeteerResult = await tryPuppeteerColorExtraction(url);
               if (puppeteerResult && puppeteerResult.success && puppeteerResult.htmlContent) {
-                htmlContent = puppeteerResult.htmlContent;
-                $ = safeCheerioLoad(htmlContent);
-                console.log('✅ Puppeteer colors injected into HTML');
+                const puppeteerHtmlLength = puppeteerResult.htmlContent.length;
+                const currentHtmlLength = htmlContent ? htmlContent.length : 0;
+                if (puppeteerHtmlLength > currentHtmlLength) {
+                  // Puppeteer got a better page — use it
+                  htmlContent = puppeteerResult.htmlContent;
+                  $ = safeCheerioLoad(htmlContent);
+                  console.log(`✅ Puppeteer HTML better (${puppeteerHtmlLength}B > ${currentHtmlLength}B) — replacing curl HTML`);
+                } else {
+                  // Curl HTML is already better — keep it, only update cheerio context
+                  console.log(`⚠️ Puppeteer HTML (${puppeteerHtmlLength}B) smaller than curl HTML (${currentHtmlLength}B) — keeping curl HTML`);
+                  // Ensure $ is loaded from the kept curl HTML
+                  if (!$) $ = safeCheerioLoad(htmlContent);
+                }
                 if (puppeteerResult.colors && puppeteerResult.colors.length > 0) {
                   console.log(`🎨 Extracted ${puppeteerResult.colors.length} colors:`, puppeteerResult.colors.join(', '));
                 }
@@ -1495,8 +1590,8 @@ export async function scenarioBasedScrape(url: string): Promise<ScenarioBasedRes
           throw new Error(`HTML parsing failed: ${parseError?.message || 'Unknown parsing error'}`);
         }
         
-      } catch (directError) {
-        console.log('⚠️ Direct scraping failed, trying advanced methods...');
+      } catch (directError: any) {
+        console.log(`⚠️ Direct scraping failed (${directError?.message || directError}), trying advanced methods...`);
         
         // ENHANCED FALLBACK STRATEGY - Multiple methods
         console.log('🚀 Using ENHANCED ANTI-BLOCKING STRATEGY...');
@@ -1511,7 +1606,6 @@ export async function scenarioBasedScrape(url: string): Promise<ScenarioBasedRes
               'User-Agent': 'Mozilla/5.0 (iPhone; CPU iPhone OS 17_1 like Mac OS X) AppleWebKit/605.1.15 (KHTML, like Gecko) Version/17.1 Mobile/15E148 Safari/604.1',
               'Accept': 'text/html,application/xhtml+xml,application/xml;q=0.9,*/*;q=0.8',
               'Accept-Language': 'tr-TR,tr;q=0.8,en-US;q=0.5,en;q=0.3',
-              'Accept-Encoding': 'gzip, deflate',
               'DNT': '1',
               'Connection': 'keep-alive',
               'Upgrade-Insecure-Requests': '1',
@@ -1519,9 +1613,13 @@ export async function scenarioBasedScrape(url: string): Promise<ScenarioBasedRes
               'Sec-Fetch-Mode': 'navigate',
               'Sec-Fetch-Site': 'none'
             },
-            timeout: 3000, // ⚡ ULTRA-FAST: Reduced from 8000ms
-            maxRedirects: 2 // Reduced for speed
+            timeout: 8000,
+            maxRedirects: 3,
+            decompress: true
           });
+          if (enhancedResult.status === 405 || enhancedResult.status === 403) {
+            throw new Error(`HTTP ${enhancedResult.status} - triggering next method`);
+          }
           
           htmlContent = enhancedResult.data;
           $ = safeCheerioLoad(htmlContent);
@@ -1536,9 +1634,16 @@ export async function scenarioBasedScrape(url: string): Promise<ScenarioBasedRes
           try {
             const puppeteerResult = await tryPuppeteerColorExtraction(url);
             if (puppeteerResult && puppeteerResult.success) {
-              htmlContent = puppeteerResult.htmlContent;
-              $ = safeCheerioLoad(htmlContent);
-              console.log('✅ Puppeteer color extraction successful!');
+              const puppeteerHtmlLen = puppeteerResult.htmlContent ? puppeteerResult.htmlContent.length : 0;
+              const currentHtmlLen = htmlContent ? htmlContent.length : 0;
+              if (puppeteerHtmlLen > currentHtmlLen) {
+                htmlContent = puppeteerResult.htmlContent;
+                $ = safeCheerioLoad(htmlContent);
+                console.log(`✅ Puppeteer color extraction successful! (${puppeteerHtmlLen}B > ${currentHtmlLen}B — using Puppeteer HTML)`);
+              } else {
+                console.log(`⚠️ Fallback Puppeteer HTML (${puppeteerHtmlLen}B) smaller than existing HTML (${currentHtmlLen}B) — keeping existing HTML`);
+                if (!$) $ = safeCheerioLoad(htmlContent);
+              }
               if (puppeteerResult.colors && puppeteerResult.colors.length > 0) {
                 console.log(`🎨 Colors extracted: ${puppeteerResult.colors.join(', ')}`);
               }
@@ -1840,36 +1945,58 @@ export async function scenarioBasedScrape(url: string): Promise<ScenarioBasedRes
       console.log(`⚠️ Axios failed (${axiosError.message}), trying Puppeteer as fallback...`);
       
       try {
-        browser = await puppeteer.launch({
-          headless: true,
-          protocolTimeout: 120000,
-          timeout: 120000,
-          args: [
-            '--no-sandbox',
-            '--disable-setuid-sandbox',
-            '--disable-dev-shm-usage',
-            '--disable-accelerated-2d-canvas',
-            '--no-first-run',
-            '--no-zygote',
-            '--single-process',
-            '--disable-gpu'
-          ]
-        });
+        browser = await puppeteerExtra.launch(buildLaunchOptions({}));
       
       const page = await browser.newPage();
-      await page.setUserAgent('Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36');
-      
-      // Navigate to the page - MAXIMUM PERFORMANCE
-      await page.goto(url, { 
-        waitUntil: 'domcontentloaded', // Much faster than 'networkidle2' 
-        timeout: 3000 // ⚡ ULTRA-FAST: Reduced from 5000ms for MAXIMUM SPEED
+      await page.setUserAgent('Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/131.0.0.0 Safari/537.36');
+      await page.setExtraHTTPHeaders({
+        'Accept-Language': 'tr-TR,tr;q=0.9,en-US;q=0.8,en;q=0.7',
+        'Accept': 'text/html,application/xhtml+xml,application/xml;q=0.9,image/avif,image/webp,*/*;q=0.8'
       });
+
+      // Stealth: hide webdriver fingerprint before navigation
+      await page.evaluateOnNewDocument(() => {
+        Object.defineProperty(navigator, 'webdriver', { get: () => undefined });
+        Object.defineProperty(navigator, 'languages', { get: () => ['tr-TR', 'tr', 'en-US', 'en'] });
+        Object.defineProperty(navigator, 'plugins', { get: () => [1, 2, 3, 4, 5] });
+        // @ts-ignore
+        window.chrome = { runtime: {} };
+      });
+      
+      // Navigate to the page with generous timeout
+      await page.goto(url, { 
+        waitUntil: 'domcontentloaded',
+        timeout: 20000
+      });
+      
+      // Wait for Trendyol JS state to populate
+      try {
+        await page.waitForFunction(
+          '!!(window.__PRODUCT_DETAIL_APP_INITIAL_STATE__?.product?.name || window.__PRODUCT_DETAIL_APP_INITIAL_STATE__?.product?.id)',
+          { timeout: 12000 }
+        );
+        console.log('✅ Trendyol JS state ready (block2)');
+      } catch {
+        const pageTitle = await page.title();
+        const pageContent = await page.content();
+        const isBlocked = pageTitle.toLowerCase().includes('attention') || 
+                          pageTitle.toLowerCase().includes('just a moment') ||
+                          pageContent.includes('cf-browser-verification') ||
+                          pageContent.includes('challenge-running') ||
+                          !pageContent.includes('trendyol');
+        if (isBlocked) {
+          console.log('🚫 Puppeteer block2: bot-challenge page detected, using axios fallback');
+          await browser.close();
+          throw new Error('Bot challenge page detected');
+        }
+        console.log('⚠️ JS state not found (block2), proceeding with available content');
+      }
       
       // 🎨 EXTRACT COLOR VARIANTS from JavaScript State and DOM
       let extractedColors: string[] = [];
       try {
-        // Wait for color buttons to render (max 2 seconds)
-        await page.waitForSelector('.color-variants, [class*="color"], [class*="renk"]', { timeout: 1000 }).catch(() => {
+        // Wait for color buttons to render
+        await page.waitForSelector('.color-variants, [class*="color"], [class*="renk"]', { timeout: 3000 }).catch(() => {
           console.log('⚠️ Color buttons not found in DOM');
         });
         
@@ -2026,12 +2153,8 @@ export async function scenarioBasedScrape(url: string): Promise<ScenarioBasedRes
           'User-Agent': randomUserAgent,
           'Accept': 'text/html,application/xhtml+xml,application/xml;q=0.9,image/avif,image/webp,image/apng,*/*;q=0.8',
           'Accept-Language': 'tr-TR,tr;q=0.9,en-US;q=0.8,en;q=0.7',
-          'Accept-Encoding': 'gzip, deflate, br',
           'Cache-Control': 'no-cache',
           'Pragma': 'no-cache',
-          'Sec-Ch-Ua': '"Not_A Brand";v="8", "Chromium";v="120", "Google Chrome";v="120"',
-          'Sec-Ch-Ua-Mobile': '?0',
-          'Sec-Ch-Ua-Platform': '"Windows"',
           'Sec-Fetch-Dest': 'document',
           'Sec-Fetch-Mode': 'navigate',
           'Sec-Fetch-Site': 'none',
@@ -2041,12 +2164,16 @@ export async function scenarioBasedScrape(url: string): Promise<ScenarioBasedRes
           'Connection': 'keep-alive',
           'Referer': 'https://www.google.com/'
         },
-        timeout: 2000, // ⚡ ULTRA-FAST: Reduced from 3000ms for MAXIMUM SPEED
-        maxRedirects: 2, // Reduced for speed
+        timeout: 8000,
+        maxRedirects: 3,
+        decompress: true,
         validateStatus: function (status) {
-          return status >= 200 && status < 500; // Accept more statuses to avoid retries
+          return status >= 200 && status < 500;
         }
       });
+      if (response.status === 405 || response.status === 403) {
+        throw new Error(`HTTP ${response.status} in Puppeteer axios fallback`);
+      }
       
       htmlContent = response.data;
       $ = bulletProofCheerioLoad(htmlContent);

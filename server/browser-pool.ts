@@ -4,7 +4,11 @@
  * Prevents expensive browser creation/destruction overhead
  */
 
-import puppeteer, { Browser, Page } from 'puppeteer';
+import puppeteerExtra from 'puppeteer-extra';
+import StealthPlugin from 'puppeteer-extra-plugin-stealth';
+import type { Browser, Page } from 'puppeteer';
+
+puppeteerExtra.use(StealthPlugin());
 
 interface PooledBrowser {
   browser: Browser;
@@ -81,7 +85,7 @@ class BrowserPool {
    * Create a new browser with optimal settings
    */
   private async createBrowser(): Promise<Browser> {
-    return await puppeteer.launch({
+    return await puppeteerExtra.launch({
       headless: true,
       protocolTimeout: 120000,
       timeout: 120000,
