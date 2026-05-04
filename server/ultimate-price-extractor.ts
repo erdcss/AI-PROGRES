@@ -407,33 +407,43 @@ export class UltimatePriceExtractor {
     const scripts = this.$('script:not([src])');
     console.log(`📜 Found ${scripts.length} inline scripts`);
     
+    // Trendyol JS state: "sellingPrice":{"value":6249,"...} — highest priority
+    // Also handles: "sellingPrice":6249, "price":"488.48", "currentPrice":511
+    const pricePatterns: Array<{ pattern: RegExp; label: string }> = [
+      { pattern: /["'](?:sellingPrice|discountedPrice)["']\s*:\s*\{\s*["']value["']\s*:\s*(\d+(?:\.\d+)?)/gi, label: 'sellingPrice.value (Trendyol)' },
+      { pattern: /["'](?:sellingPrice|currentPrice|salePrice|finalPrice)["']\s*:\s*(\d+(?:[.,]\d{2})?)/gi, label: 'sellingPrice direct' },
+      { pattern: /["']price["']\s*:\s*["'](\d+(?:[.,]\d{2}))["']/gi, label: 'price string' },
+      { pattern: /["']price["']\s*:\s*(\d+(?:\.\d+)?)/gi, label: 'price number' },
+    ];
+    
+    // Collect all script contents first
+    const scriptContents: string[] = [];
     for (let i = 0; i < scripts.length; i++) {
       try {
-        const scriptContent = this.$(scripts[i]).html() || '';
-        
-        // Look for price patterns in JavaScript data
-        const pricePatterns = [
-          /price['"]\s*:\s*['"]*(\d+[.,]\d{2})['"]*|price['"]\s*:\s*(\d+)/gi,
-          /currentPrice['"]\s*:\s*['"]*(\d+[.,]\d{2})['"]*|currentPrice['"]\s*:\s*(\d+)/gi,
-          /sellingPrice['"]\s*:\s*['"]*(\d+[.,]\d{2})['"]*|sellingPrice['"]\s*:\s*(\d+)/gi,
-          /finalPrice['"]\s*:\s*['"]*(\d+[.,]\d{2})['"]*|finalPrice['"]\s*:\s*(\d+)/gi
-        ];
-        
-        for (const pattern of pricePatterns) {
-          const matches = scriptContent.match(pattern);
-          if (matches) {
-            console.log(`📜 Script pattern found:`, matches[0]);
-            const priceStr = matches[1] || matches[2];
-            if (priceStr) {
-              const extracted = this.parsePrice(priceStr, 'Script Data');
-              if (extracted && extracted.original > 0) {
-                return extracted;
-              }
+        const content = this.$(scripts[i]).html() || '';
+        if (content && content.length >= 10) scriptContents.push(content);
+      } catch (_) {}
+    }
+    
+    // Try patterns in priority order across ALL scripts
+    // (outer loop = pattern priority, inner loop = scripts)
+    // This ensures sellingPrice.value is found before generic "price" keys
+    for (const { pattern, label } of pricePatterns) {
+      for (const scriptContent of scriptContents) {
+        try {
+          pattern.lastIndex = 0;
+          const match = pattern.exec(scriptContent);
+          if (match && match[1]) {
+            const priceStr = match[1];
+            console.log(`📜 Script pattern [${label}] found: ${match[0].substring(0, 60)}, captured: ${priceStr}`);
+            const extracted = this.parsePrice(priceStr, 'Script Data');
+            if (extracted && extracted.original > 0) {
+              return extracted;
             }
           }
+        } catch (error) {
+          console.log(`❌ Script parsing error:`, error);
         }
-      } catch (error) {
-        console.log(`❌ Script parsing error:`, error);
       }
     }
     
@@ -546,10 +556,31 @@ export class UltimatePriceExtractor {
       
       console.log(`🔍 Parsed valid prices:`, parsedPrices);
       
-      // Return the highest reasonable price (most likely to be accurate main price)
+      // Use most-frequent price: product price repeats many times on page,
+      // recommendation/sidebar prices appear fewer times — avoids picking wrong high price
       if (parsedPrices.length > 0) {
-        const bestPrice = parsedPrices[0]; // Highest price
-        console.log(`🎯 Selected highest price: ${bestPrice.original} (${bestPrice.parsed} TL)`);
+        const frequencyMap = new Map<number, { count: number; original: string }>();
+        for (const match of allPriceMatches) {
+          // re-parse to get numeric value for frequency counting
+          let val = 0;
+          if (match.includes(',')) {
+            const parts = match.replace(/[TL₺\s]/g, '').split(',');
+            if (parts.length === 2 && parts[1].length === 2) val = parseFloat(parts[0].replace(/\./g, '') + '.' + parts[1]);
+          } else {
+            const m = match.match(/(\d+)[.](\d{2})/);
+            if (m) val = parseFloat(m[1] + '.' + m[2]);
+          }
+          if (val > 10 && val < 500000) {
+            const existing = frequencyMap.get(val);
+            frequencyMap.set(val, { count: (existing?.count || 0) + 1, original: match });
+          }
+        }
+        // Sort by frequency desc, then by value desc as tiebreaker
+        const byFrequency = [...frequencyMap.entries()].sort((a, b) => b[1].count - a[1].count || b[0] - a[0]);
+        console.log(`🔢 Price frequency map (top 5):`, byFrequency.slice(0, 5).map(([v, d]) => `${v} TL x${d.count}`));
+        const bestEntry = byFrequency[0];
+        const bestPrice = { original: bestEntry[1].original, parsed: bestEntry[0] };
+        console.log(`🎯 Selected most-frequent price: ${bestPrice.original} (${bestPrice.parsed} TL) — appeared ${bestEntry[1].count} times`);
         
         const extracted = this.parsePrice(bestPrice.original, 'Regex Pattern - Highest Price (Turkish Format)');
         if (extracted && extracted.original > 0) {
@@ -784,6 +815,27 @@ export class UltimatePriceExtractor {
           withProfit: parseFloat(withProfit.toFixed(2)),
           profitFormatted: `${withProfit.toFixed(2)} TL`,
           method: method + ' (Fallback Turkish)',
+          raw: priceStr
+        };
+      }
+    }
+    
+    // Step 7: Bare numeric string (no currency symbol) — from JS state like sellingPrice.value
+    // Handles integers like "6249" and decimals like "6199.00"
+    const bareNumericPattern = /^(\d+(?:\.\d+)?)$/;
+    const bareMatch = cleanStr.match(bareNumericPattern);
+    if (bareMatch) {
+      const price = parseFloat(bareMatch[1]);
+      console.log(`💰 BARE NUMERIC: "${cleanStr}" -> ${price} TL`);
+      if (price >= 10 && price <= 500000) {
+        const withProfit = Math.round(price * PROFIT_MARGIN * 100) / 100;
+        return {
+          original: parseFloat(price.toFixed(2)),
+          currency: 'TL',
+          formatted: `${price.toFixed(2)} TL`,
+          withProfit: parseFloat(withProfit.toFixed(2)),
+          profitFormatted: `${withProfit.toFixed(2)} TL`,
+          method: method + ' (Numeric)',
           raw: priceStr
         };
       }
