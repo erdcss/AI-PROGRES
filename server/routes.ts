@@ -2011,6 +2011,31 @@ setTimeout(check, 1000);
     }
   });
 
+  // Async job store for background scraping (avoids 60s proxy timeout in deployed app)
+  const scrapeJobs = new Map<string, {
+    status: 'processing' | 'done' | 'error';
+    result?: any;
+    error?: string;
+    startedAt: number;
+  }>();
+  setInterval(() => {
+    const cutoff = Date.now() - 30 * 60 * 1000;
+    for (const [id, job] of scrapeJobs.entries()) {
+      if (job.startedAt < cutoff) scrapeJobs.delete(id);
+    }
+  }, 5 * 60 * 1000);
+
+  // Job status polling endpoint
+  app.get('/api/scrape-job/:jobId', (req, res) => {
+    const job = scrapeJobs.get(req.params.jobId);
+    if (!job) return res.status(404).json({ status: 'not_found' });
+    if (job.status === 'processing') return res.json({ status: 'processing' });
+    if (job.status === 'error') return res.json({ status: 'error', error: job.error });
+    const result = job.result;
+    scrapeJobs.delete(req.params.jobId);
+    return res.json({ status: 'done', result });
+  });
+
   // Dedicated scenario-based scraping endpoint
   app.post('/api/scenario-scrape', async (req, res) => {
     console.log("🎯 Scenario-based scrape isteği alındı");
@@ -2047,6 +2072,11 @@ setTimeout(check, 1000);
       
       // Scenario-based extraction for Trendyol products
       if (url.includes('trendyol.com')) {
+        // Create async job to avoid proxy timeout in production deployment
+        const jobId = `${Date.now().toString(36)}-${Math.random().toString(36).slice(2, 7)}`;
+        scrapeJobs.set(jobId, { status: 'processing' as const, startedAt: Date.now() });
+        (async () => {
+          try {
         const scrapeStartTime = Date.now();
         console.log("⚡ FAST EXTRACTION başlıyor...");
         
@@ -2578,34 +2608,52 @@ ${result.title || 'Product'},${fb2Handle},${result.description || ''},${result.b
             console.warn('⚠️ CSV generation failed, continuing without CSV:', csvError);
           }
           
-          return res.json({
-            success: true,
-            extractionMethod: 'scenario-based-scraper',
-            scenario: result.scenario,
-            confidence: result.confidence,
-            brand: result.brand,
-            title: result.title,
-            price: result.price,
-            images: result.images,
-            features: result.features,
-            variants: normalizedVariants,
-            tags: result.tags,
-            csvContent: csvContent,
-            trackingActive: false, // Tracking sadece Shopify transfer sonrası aktif
-            extractionDetails: result.extractionDetails
+          scrapeJobs.set(jobId, {
+            status: 'done' as const,
+            startedAt: scrapeJobs.get(jobId)!.startedAt,
+            result: {
+              success: true,
+              extractionMethod: 'scenario-based-scraper',
+              scenario: result.scenario,
+              confidence: result.confidence,
+              brand: result.brand,
+              title: result.title,
+              price: result.price,
+              images: result.images,
+              features: result.features,
+              variants: normalizedVariants,
+              tags: result.tags,
+              csvContent: csvContent,
+              trackingActive: false,
+              extractionDetails: result.extractionDetails
+            }
           });
+          return;
         } else {
           console.log("❌ Scenario-based extraction failed");
-          // Return 503 Service Unavailable when blocked
           const statusCode = result.extractionDetails?.scenario === 'blocked' ? 503 : 500;
-          return res.status(statusCode).json({
-            success: false,
-            message: result.extractionDetails?.scenario === 'blocked' 
-              ? 'Trendyol tarafından engellendiniz. Lütfen birkaç dakika bekleyin.'
-              : 'Scenario-based extraction failed',
-            details: result.extractionDetails
+          scrapeJobs.set(jobId, {
+            status: 'done' as const,
+            startedAt: scrapeJobs.get(jobId)!.startedAt,
+            result: {
+              success: false,
+              statusCode,
+              message: result.extractionDetails?.scenario === 'blocked'
+                ? 'Trendyol tarafından engellendiniz. Lütfen birkaç dakika bekleyin.'
+                : 'Scenario-based extraction failed',
+              details: result.extractionDetails
+            }
           });
+          return;
         }
+          } catch (bgErr: any) {
+            console.error('❌ Background scrape error:', bgErr);
+            const _entry = scrapeJobs.get(jobId);
+            if (_entry) scrapeJobs.set(jobId, { ..._entry, status: 'error' as const, error: bgErr.message });
+          }
+        })();
+        // Return immediately — client polls /api/scrape-job/:jobId
+        return res.json({ jobId, status: 'processing' });
       } else {
         return res.status(400).json({
           success: false,

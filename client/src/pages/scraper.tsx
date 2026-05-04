@@ -136,25 +136,44 @@ function ScraperPage() {
         return { ...result, originalUrl: data.url };
       }
       
-      // Normal Trendyol/Arçelik URL'leri için scenario-scrape
-      const response = await fetch("/api/scenario-scrape", {
+      // Normal Trendyol/Arçelik URL'leri için scenario-scrape (async job pattern)
+      const startResp = await fetch("/api/scenario-scrape", {
         method: "POST",
-        headers: {
-          "Content-Type": "application/json",
-        },
+        headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ 
           url: data.url, 
           mode: 'single', 
           onlyExtractData: data.onlyExtractData || false
         }),
       });
-      
-      if (!response.ok) {
-        const errorData = await response.json().catch(() => ({}));
-        throw new Error(errorData.message || `HTTP ${response.status}`);
+      if (!startResp.ok) {
+        const errorData = await startResp.json().catch(() => ({}));
+        throw new Error(errorData.message || `HTTP ${startResp.status}`);
       }
-      const result = await response.json();
-      return { ...result, originalUrl: data.url };
+      const startData = await startResp.json();
+      // If server returned synchronous result (non-async path), use it directly
+      if (!startData.jobId) {
+        return { ...startData, originalUrl: data.url };
+      }
+      // Poll for job completion
+      const { jobId } = startData;
+      const maxWait = 180000; // 3 minutes
+      const pollInterval = 2500;
+      const deadline = Date.now() + maxWait;
+      while (Date.now() < deadline) {
+        await new Promise(r => setTimeout(r, pollInterval));
+        const pollResp = await fetch(`/api/scrape-job/${jobId}`);
+        if (!pollResp.ok) throw new Error(`Polling failed: HTTP ${pollResp.status}`);
+        const pollData = await pollResp.json();
+        if (pollData.status === 'done') {
+          const result = pollData.result;
+          if (result?.success === false) throw new Error(result.message || 'Extraction failed');
+          return { ...result, originalUrl: data.url };
+        }
+        if (pollData.status === 'error') throw new Error(pollData.error || 'Scraping failed');
+        // status === 'processing' → continue polling
+      }
+      throw new Error('Zaman aşımı — lütfen tekrar deneyin.');
     },
     onSuccess: (data) => {
       console.log('🎯 Single scrape mutation onSuccess received:', data);

@@ -83,6 +83,8 @@ class BrowserPool {
   private async createBrowser(): Promise<Browser> {
     return await puppeteer.launch({
       headless: true,
+      protocolTimeout: 120000,
+      timeout: 120000,
       args: [
         '--no-sandbox',
         '--disable-setuid-sandbox',
@@ -91,6 +93,7 @@ class BrowserPool {
         '--no-first-run',
         '--no-zygote',
         '--disable-gpu',
+        '--single-process',
         '--disable-web-security',
         '--disable-features=IsolateOrigins,site-per-process',
         '--window-size=1920,1080'

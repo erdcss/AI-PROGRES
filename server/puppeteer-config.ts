@@ -60,6 +60,8 @@ export function buildLaunchOptions(overrides: Partial<PuppeteerLaunchOptions> = 
   const defaults: PuppeteerLaunchOptions = {
     headless: true,
     executablePath: getChromiumPath(),
+    protocolTimeout: 120000, // 120s — production deployment için yeterli süre
+    timeout: 120000,
     args: [
       '--no-sandbox',
       '--disable-setuid-sandbox',
@@ -67,7 +69,9 @@ export function buildLaunchOptions(overrides: Partial<PuppeteerLaunchOptions> = 
       '--disable-accelerated-2d-canvas',
       '--no-first-run',
       '--no-zygote',
-      '--disable-gpu'
+      '--disable-gpu',
+      '--single-process',
+      '--disable-extensions'
     ]
   };
   

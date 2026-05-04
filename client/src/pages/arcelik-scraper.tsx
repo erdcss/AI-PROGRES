@@ -69,25 +69,39 @@ function ArcelikScraper() {
 
   const singleScrapeMutation = useMutation({
     mutationFn: async (data: ScrapeFormData & { persistentTags?: string[]; onlyExtractData?: boolean }) => {
-      // Arçelik URL'leri için scenario-scrape
-      const response = await fetch("/api/scenario-scrape", {
+      // Arçelik URL'leri için scenario-scrape (async job pattern)
+      const startResp = await fetch("/api/scenario-scrape", {
         method: "POST",
-        headers: {
-          "Content-Type": "application/json",
-        },
+        headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ 
           url: data.url, 
           persistentTags: data.persistentTags || [],
           platform: 'arcelik'
         }),
       });
-
-      if (!response.ok) {
-        const errorData = await response.json().catch(() => ({}));
-        throw new Error(errorData.message || `HTTP ${response.status}`);
+      if (!startResp.ok) {
+        const errorData = await startResp.json().catch(() => ({}));
+        throw new Error(errorData.message || `HTTP ${startResp.status}`);
       }
-      const result = await response.json();
-      return { ...result, originalUrl: data.url };
+      const startData = await startResp.json();
+      if (!startData.jobId) {
+        return { ...startData, originalUrl: data.url };
+      }
+      const { jobId } = startData;
+      const deadline = Date.now() + 180000;
+      while (Date.now() < deadline) {
+        await new Promise(r => setTimeout(r, 2500));
+        const pollResp = await fetch(`/api/scrape-job/${jobId}`);
+        if (!pollResp.ok) throw new Error(`Polling failed: HTTP ${pollResp.status}`);
+        const pollData = await pollResp.json();
+        if (pollData.status === 'done') {
+          const result = pollData.result;
+          if (result?.success === false) throw new Error(result.message || 'Extraction failed');
+          return { ...result, originalUrl: data.url };
+        }
+        if (pollData.status === 'error') throw new Error(pollData.error || 'Scraping failed');
+      }
+      throw new Error('Zaman aşımı — lütfen tekrar deneyin.');
     },
     onSuccess: (data) => {
       if (data.success) {
