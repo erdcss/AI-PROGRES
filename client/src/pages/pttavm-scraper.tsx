@@ -137,22 +137,35 @@ function PttAvmScraperPage() {
         const pollData = await pollResp.json();
         if (pollData.status === 'done') {
           const result = pollData.result;
-          if (result?.success === false) throw new Error(result.message || 'Extraction failed');
+          if (result?.success === false) return { ...result, originalUrl: data.url, _failed: true };
           return { ...result, originalUrl: data.url };
         }
-        if (pollData.status === 'error') throw new Error(pollData.error || 'Scraping failed');
+        if (pollData.status === 'error') return { success: false, _failed: true, originalUrl: data.url, message: pollData.error || 'Scraping failed', extractionMethod: 'failed' };
       }
       throw new Error('Zaman aşımı — lütfen tekrar deneyin.');
     },
     onSuccess: (data) => {
       console.log('🎯 PttAvm scrape mutation onSuccess received:', data);
       
-      if (!data || !data.success) {
-        toast({
-          title: "⚠️ Ürün Verileri Çekilemedi",
-          description: "Sistem hatası veya site engellemesi tespit edildi. Lütfen URL'yi kontrol edin veya tekrar deneyin.",
-          variant: "destructive"
-        });
+      if (!data || !data.success || (data as any)._failed) {
+        const isCloudflare = (data?.message || '').toLowerCase().includes('cloudflare') ||
+                             (data?.message || '').toLowerCase().includes('engel') ||
+                             data?.extractionMethod === 'failed';
+        if (isCloudflare && data?.originalUrl) {
+          setPasteSourceUrl(data.originalUrl);
+          setIsPasteOpen(true);
+          toast({
+            title: "🔒 Cloudflare Engeli",
+            description: "Otomatik çekim engellendi. Sayfa kaynağını yapıştır yöntemi açıldı — aşağıdaki adımları izleyin.",
+            variant: "destructive"
+          });
+        } else {
+          toast({
+            title: "⚠️ Ürün Verileri Çekilemedi",
+            description: data?.message || "Sistem hatası veya site engellemesi tespit edildi.",
+            variant: "destructive"
+          });
+        }
         return;
       }
       
