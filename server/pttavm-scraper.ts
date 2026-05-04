@@ -427,6 +427,89 @@ async function tryStealthPuppeteer(url: string): Promise<Partial<PttAvmProduct> 
   }
 }
 
+// ── Cookie Relay Store ────────────────────────────────────────────────────────
+// User pastes their cf_clearance cookie once → server uses it for all requests
+
+let _cfClearance = '';
+let _cfUserAgent = 'Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/125.0.0.0 Safari/537.36';
+let _cfSetAt = 0;
+
+export function setPttAvmCookie(cfClearance: string, userAgent?: string) {
+  _cfClearance = cfClearance.trim();
+  if (userAgent) _cfUserAgent = userAgent.trim();
+  _cfSetAt = Date.now();
+  console.log(`🍪 [PttAvm Cookie] Stored cf_clearance (${_cfClearance.length} chars)`);
+}
+
+export function getPttAvmCookieStatus() {
+  const ageMin = _cfSetAt ? Math.round((Date.now() - _cfSetAt) / 60000) : null;
+  return {
+    hasCookie: !!_cfClearance,
+    preview: _cfClearance ? `${_cfClearance.slice(0, 24)}...` : '',
+    ageMinutes: ageMin,
+    setAt: _cfSetAt || null,
+  };
+}
+
+// ── Strategy 0: Cookie Relay (user's own Cloudflare session) ──────────────────
+
+async function tryWithCfCookie(url: string): Promise<Partial<PttAvmProduct> | null> {
+  if (!_cfClearance) return null;
+  console.log(`🍪 [PttAvm Cookie] Trying with stored cf_clearance...`);
+
+  const uaList = [
+    _cfUserAgent,
+    'Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/125.0.0.0 Safari/537.36',
+    'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/125.0.0.0 Safari/537.36',
+  ];
+
+  for (const ua of uaList) {
+    try {
+      const resp = await axios.get(url.split('?')[0], {
+        headers: {
+          'User-Agent': ua,
+          'Accept': 'text/html,application/xhtml+xml,application/xml;q=0.9,image/avif,image/webp,*/*;q=0.8',
+          'Accept-Language': 'tr-TR,tr;q=0.9,en-US;q=0.8',
+          'Accept-Encoding': 'gzip, deflate, br',
+          'Cookie': `cf_clearance=${_cfClearance}`,
+          'Connection': 'keep-alive',
+          'Upgrade-Insecure-Requests': '1',
+          'Sec-Fetch-Dest': 'document',
+          'Sec-Fetch-Mode': 'navigate',
+          'Sec-Fetch-Site': 'none',
+          'Sec-Fetch-User': '?1',
+          'Cache-Control': 'max-age=0',
+        },
+        timeout: 20000,
+        maxRedirects: 5,
+        validateStatus: s => s < 500,
+      });
+
+      if (resp.status !== 200) {
+        console.log(`⚠️ [PttAvm Cookie] HTTP ${resp.status}`);
+        continue;
+      }
+
+      const html = String(resp.data);
+      if (
+        html.includes('cf-wrapper') || html.includes('Just a moment') ||
+        html.includes('Sorry, you have been blocked') || html.includes('DDoS protection') ||
+        html.includes('Enable JavaScript')
+      ) {
+        console.log(`⚠️ [PttAvm Cookie] Still blocked — cookie may be IP-bound or expired`);
+        continue;
+      }
+
+      console.log(`✅ [PttAvm Cookie] Success! (${html.length} chars)`);
+      const parsed = parseHtml(html, url);
+      if (parsed.title) return parsed;
+    } catch (e: any) {
+      console.log(`⚠️ [PttAvm Cookie] ${e.message}`);
+    }
+  }
+  return null;
+}
+
 // ── Bookmarklet JSON Import Export ───────────────────────────────────────────
 // Accepts pre-extracted JSON from the browser bookmarklet (no Cloudflare issue)
 
@@ -538,8 +621,16 @@ export async function scrapePttAvm(url: string): Promise<PttAvmProduct> {
 
   let partial: Partial<PttAvmProduct> | null = null;
 
-  // Strategy 1: Fast Axios (no Cloudflare on Googlebot/Facebook)
-  partial = await tryAxios(cleanUrl);
+  // Strategy 0: Cookie relay — user's own cf_clearance cookie (fastest if available)
+  if (_cfClearance) {
+    partial = await tryWithCfCookie(cleanUrl);
+    if (partial?.title) console.log(`✅ [PttAvm] Cookie relay strategy succeeded`);
+  }
+
+  // Strategy 1: Fast Axios (Googlebot/Facebook UA)
+  if (!partial?.title) {
+    partial = await tryAxios(cleanUrl);
+  }
 
   // Strategy 2: Full stealth Puppeteer with puppeteer-extra-plugin-stealth
   if (!partial?.title) {
@@ -548,6 +639,7 @@ export async function scrapePttAvm(url: string): Promise<PttAvmProduct> {
 
   if (!partial?.title) {
     console.error(`❌ [PttAvm] All strategies exhausted`);
+    const hasCookie = !!_cfClearance;
     return {
       success: false,
       title: '',
@@ -562,7 +654,9 @@ export async function scrapePttAvm(url: string): Promise<PttAvmProduct> {
       csvContent: '',
       sourceUrl: cleanUrl,
       extractionMethod: 'failed',
-      message: 'PttAvm Cloudflare koruması tüm yöntemleri engelledi. Lütfen birkaç dakika sonra tekrar deneyin.',
+      message: hasCookie
+        ? 'Cookie ile denendi ancak Cloudflare engeli devam ediyor. Cookie süresi dolmuş olabilir — yeni cf_clearance değeri yapıştırın.'
+        : 'PttAvm Cloudflare koruması tüm yöntemleri engelledi. cf_clearance Cookie yapıştırın veya Bookmarklet kullanın.',
     };
   }
 

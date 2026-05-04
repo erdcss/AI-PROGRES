@@ -88,6 +88,8 @@ function PttAvmScraperPage() {
   const [isPasteOpen, setIsPasteOpen] = useState(false);
   const [pastedHtml, setPastedHtml] = useState('');
   const [pasteSourceUrl, setPasteSourceUrl] = useState('');
+  const [isCookieOpen, setIsCookieOpen] = useState(false);
+  const [cookieInput, setCookieInput] = useState('');
   const isMobile = useIsMobile();
   
   const singleForm = useForm<ScrapeFormData>({
@@ -351,6 +353,35 @@ function PttAvmScraperPage() {
       const failCount = results.length - successCount;
       toast({ title: "Toplu Yükleme Tamamlandı", description: `${successCount} ürün başarıyla yüklendi${failCount > 0 ? `, ${failCount} ürün başarısız` : ''}` });
     }
+  });
+
+  const cookieStatusQuery = useQuery({
+    queryKey: ['/api/pttavm-cookie-status'],
+    refetchInterval: 60000,
+  });
+  const cookieStatus = cookieStatusQuery.data as any;
+
+  const saveCookieMutation = useMutation({
+    mutationFn: async (cfClearance: string) => {
+      const resp = await fetch('/api/pttavm-set-cookie', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ cfClearance }),
+      });
+      if (!resp.ok) {
+        const err = await resp.json().catch(() => ({})) as any;
+        throw new Error(err.message || `HTTP ${resp.status}`);
+      }
+      return resp.json();
+    },
+    onSuccess: () => {
+      toast({ title: '🍪 Cookie Kaydedildi!', description: 'Artık URL girip "Ürün Verisini Çek" tuşuna basmanız yeterli. Otomatik çalışacak.' });
+      setCookieInput('');
+      cookieStatusQuery.refetch();
+    },
+    onError: (err: any) => {
+      toast({ title: '❌ Cookie Kaydedilemedi', description: err.message, variant: 'destructive' });
+    },
   });
 
   const parseHtmlMutation = useMutation({
@@ -1091,8 +1122,90 @@ function PttAvmScraperPage() {
 
         </div>
 
-        {/* Cloudflare Bypass: Bookmarklet + Paste fallback */}
+        {/* Cookie Relay — Automatic Cloudflare Bypass */}
         <div className="mt-6">
+          <Collapsible.Root open={isCookieOpen} onOpenChange={setIsCookieOpen}>
+            <Collapsible.Trigger asChild>
+              <button className="w-full flex items-center justify-between p-4 bg-gradient-to-r from-emerald-900/30 to-teal-900/30 hover:from-emerald-800/40 hover:to-teal-800/40 border border-emerald-500/30 hover:border-emerald-400/50 rounded-xl transition-all">
+                <div className="flex items-center gap-3">
+                  <div className="w-8 h-8 rounded-full bg-emerald-500/20 flex items-center justify-center text-base">
+                    🍪
+                  </div>
+                  <div className="text-left">
+                    <p className="text-emerald-200 font-semibold text-sm">
+                      Otomatik Mod: Cookie ile Tam Bypass
+                      {cookieStatus?.hasCookie && (
+                        <span className="ml-2 px-1.5 py-0.5 bg-emerald-500/20 text-emerald-300 text-[10px] rounded-full border border-emerald-500/30">
+                          ✅ Aktif {cookieStatus.ageMinutes != null ? `· ${cookieStatus.ageMinutes}dk` : ''}
+                        </span>
+                      )}
+                    </p>
+                    <p className="text-emerald-400/70 text-xs">
+                      {cookieStatus?.hasCookie
+                        ? 'Cookie kayıtlı — URL girip Çek tuşuna basın, hepsi otomatik'
+                        : 'cf_clearance cookie yapıştır → URL gir → otomatik çalışır'}
+                    </p>
+                  </div>
+                </div>
+                {isCookieOpen ? <ChevronUp className="w-4 h-4 text-emerald-400" /> : <ChevronDown className="w-4 h-4 text-emerald-400" />}
+              </button>
+            </Collapsible.Trigger>
+            <Collapsible.Content className="overflow-hidden data-[state=open]:animate-in data-[state=closed]:animate-out data-[state=closed]:fade-out-0 data-[state=open]:fade-in-0">
+              <div className="bg-gradient-to-br from-emerald-900/20 to-teal-900/20 border border-emerald-500/20 border-t-0 rounded-b-xl p-5 space-y-4">
+
+                {cookieStatus?.hasCookie && (
+                  <div className="flex items-center gap-3 p-3 bg-emerald-900/30 border border-emerald-500/30 rounded-lg">
+                    <span className="text-emerald-400 text-lg">✅</span>
+                    <div>
+                      <p className="text-emerald-200 text-sm font-semibold">Cookie Aktif</p>
+                      <p className="text-emerald-400/70 text-xs font-mono">{cookieStatus.preview}</p>
+                      {cookieStatus.ageMinutes != null && (
+                        <p className="text-emerald-500/60 text-xs">{cookieStatus.ageMinutes} dakika önce kaydedildi · süresi dolunca yenileyin</p>
+                      )}
+                    </div>
+                  </div>
+                )}
+
+                <div className="space-y-2">
+                  <p className="text-emerald-200 font-semibold text-sm">Nasıl yapılır? (1 dakika)</p>
+                  <ol className="text-slate-300 text-xs space-y-1.5 list-decimal list-inside bg-slate-800/50 rounded-lg p-3 border border-emerald-500/10">
+                    <li>Kendi tarayıcınızda <span className="text-white font-semibold">pttavm.com</span>'a gidin ve herhangi bir sayfayı açın</li>
+                    <li>F12 tuşuna basın → <span className="text-white font-mono bg-slate-700 px-1 rounded">Application</span> sekmesi → <span className="text-white font-mono bg-slate-700 px-1 rounded">Cookies</span> → <span className="text-white font-mono bg-slate-700 px-1 rounded">www.pttavm.com</span></li>
+                    <li><span className="text-emerald-300 font-semibold">cf_clearance</span> satırını bulun → Value sütunundaki uzun metni kopyalayın</li>
+                    <li>Aşağıya yapıştırın ve Kaydet'e basın</li>
+                  </ol>
+                </div>
+
+                <div className="space-y-2">
+                  <label className="text-slate-300 text-xs font-semibold">cf_clearance değeri:</label>
+                  <div className="flex gap-2">
+                    <Input
+                      placeholder="Buraya yapıştırın (uzun bir metin olacak)..."
+                      value={cookieInput}
+                      onChange={e => setCookieInput(e.target.value)}
+                      className="business-input text-xs font-mono flex-1"
+                    />
+                    <Button
+                      type="button"
+                      disabled={cookieInput.trim().length < 20 || saveCookieMutation.isPending}
+                      onClick={() => saveCookieMutation.mutate(cookieInput.trim())}
+                      className="bg-emerald-600 hover:bg-emerald-700 text-white px-4 text-xs font-semibold shrink-0"
+                    >
+                      {saveCookieMutation.isPending
+                        ? <Loader2 className="w-3.5 h-3.5 animate-spin" />
+                        : '💾 Kaydet'}
+                    </Button>
+                  </div>
+                  <p className="text-slate-500 text-xs">Cookie sunucuda bellekte tutulur, yeniden başlatmada sıfırlanır. Engellenirse yeni cookie alın.</p>
+                </div>
+
+              </div>
+            </Collapsible.Content>
+          </Collapsible.Root>
+        </div>
+
+        {/* Cloudflare Bypass: Bookmarklet + Paste fallback */}
+        <div className="mt-4">
           <Collapsible.Root open={isPasteOpen} onOpenChange={setIsPasteOpen}>
             <Collapsible.Trigger asChild>
               <button className="w-full flex items-center justify-between p-4 bg-gradient-to-r from-violet-900/30 to-indigo-900/30 hover:from-violet-800/40 hover:to-indigo-800/40 border border-violet-500/30 hover:border-violet-400/50 rounded-xl transition-all">

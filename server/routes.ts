@@ -8707,6 +8707,30 @@ ${result.title || 'Product'},${fb2Handle},${result.description || ''},${result.b
     }
   });
 
+  // ── PttAvm Cookie Relay ───────────────────────────────────────────────────
+  app.post('/api/pttavm-set-cookie', async (req, res) => {
+    const { cfClearance, userAgent } = req.body || {};
+    if (!cfClearance || cfClearance.trim().length < 20) {
+      return res.status(400).json({ success: false, message: 'cf_clearance değeri gerekli (en az 20 karakter)' });
+    }
+    try {
+      const { setPttAvmCookie } = await import('./pttavm-scraper.js');
+      setPttAvmCookie(cfClearance.trim(), userAgent);
+      res.json({ success: true, message: 'Cookie kaydedildi. Artık otomatik scraping deneyecek.' });
+    } catch (err: any) {
+      res.status(500).json({ success: false, message: err.message });
+    }
+  });
+
+  app.get('/api/pttavm-cookie-status', async (req, res) => {
+    try {
+      const { getPttAvmCookieStatus } = await import('./pttavm-scraper.js');
+      res.json(getPttAvmCookieStatus());
+    } catch (err: any) {
+      res.status(500).json({ hasCookie: false, error: err.message });
+    }
+  });
+
   // ── PttAvm Parse HTML (client-side bypass) ───────────────────────────────
   // ── PttAvm Bookmarklet JSON Import ───────────────────────────────────────
   app.post('/api/pttavm-import-json', async (req, res) => {
