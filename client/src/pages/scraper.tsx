@@ -85,6 +85,8 @@ function ScraperPage() {
   const [individualTags, setIndividualTags] = useState<{[key: string]: string[]}>({});
   const extractAllColors = true; // Always extract all colors automatically
   const [isVariantsOpen, setIsVariantsOpen] = useState(false);
+  const [isBulkProcessing, setIsBulkProcessing] = useState(false);
+  const [bulkProgress, setBulkProgress] = useState<{current: number; total: number} | null>(null);
   const isMobile = useIsMobile();
   
   const singleForm = useForm<ScrapeFormData>({
@@ -834,11 +836,13 @@ ${data.title.toLowerCase().replace(/[^a-z0-9]/g, '-')},${data.title},${data.bran
       return;
     }
 
-    // Arka planda çalıştığını bildir
+    setIsBulkProcessing(true);
+    setBulkProgress({ current: 0, total: draggedUrls.length });
+
     toast({
-      title: "⚙️ Arka Planda Çalışıyor",
-      description: `${draggedUrls.length} ürün verisi çekiliyor. Bu sayfa açık kaldığı sürece işlem devam eder.`,
-      duration: 6000,
+      title: "🚀 Toplu Çekim Başladı",
+      description: `${draggedUrls.length} ürün verisi çekiliyor... Lütfen bekleyin.`,
+      duration: 8000,
     });
 
     try {
@@ -933,6 +937,9 @@ ${data.title.toLowerCase().replace(/[^a-z0-9]/g, '-')},${data.title},${data.bran
         description: error instanceof Error ? error.message : 'Bilinmeyen hata',
         variant: "destructive"
       });
+    } finally {
+      setIsBulkProcessing(false);
+      setBulkProgress(null);
     }
   };
 
@@ -1539,11 +1546,42 @@ ${data.title.toLowerCase().replace(/[^a-z0-9]/g, '-')},${data.title},${data.bran
                     )}
                     
                     <div className="space-y-3">
+                      {/* Toplu çekim yükleme banner'ı */}
+                      {isBulkProcessing && (
+                        <div className="relative overflow-hidden rounded-xl border border-emerald-500/40 bg-gradient-to-r from-emerald-900/60 via-green-900/60 to-emerald-900/60 p-4">
+                          {/* Hareketli arka plan dalgası */}
+                          <span className="absolute inset-0 -translate-x-full animate-shimmer bg-gradient-to-r from-transparent via-emerald-400/10 to-transparent pointer-events-none" />
+                          <div className="flex items-center gap-3">
+                            {/* Dönen ikon */}
+                            <div className="relative w-10 h-10 shrink-0">
+                              <span className="absolute inset-0 rounded-full border-2 border-emerald-400/30 border-t-emerald-400 animate-spin" />
+                              <span className="absolute inset-2 rounded-full bg-emerald-500/20 animate-pulse" />
+                              <Package className="absolute inset-0 m-auto w-4 h-4 text-emerald-300" />
+                            </div>
+                            <div className="flex-1 min-w-0">
+                              <p className="text-emerald-300 font-semibold text-sm">Veriler Çekiliyor...</p>
+                              <p className="text-emerald-400/70 text-xs mt-0.5">
+                                {bulkProgress ? `${draggedUrls.length} ürün işleniyor, lütfen sayfayı kapatmayın` : 'İşlem başlatılıyor...'}
+                              </p>
+                            </div>
+                            {/* Adet göstergesi */}
+                            <div className="shrink-0 text-right">
+                              <span className="text-2xl font-bold text-emerald-300">{draggedUrls.length}</span>
+                              <span className="text-xs text-emerald-400/70 block">ürün</span>
+                            </div>
+                          </div>
+                          {/* Alt ilerleme çubuğu */}
+                          <div className="mt-3 h-1 rounded-full bg-emerald-900/60 overflow-hidden">
+                            <div className="h-full bg-gradient-to-r from-emerald-500 to-green-400 animate-progress" style={{width: '60%'}} />
+                          </div>
+                        </div>
+                      )}
+
                       {draggedUrls.length > 0 ? (
                         <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
                           <div className="relative">
                             {/* Nabız halkası animasyonu */}
-                            {singleScrapeMutation.isPending && (
+                            {isBulkProcessing && (
                               <>
                                 <span className="absolute inset-0 rounded-md animate-ping bg-green-400 opacity-20 pointer-events-none" />
                                 <span className="absolute inset-0 rounded-md animate-pulse bg-green-300 opacity-10 pointer-events-none" />
@@ -1552,21 +1590,21 @@ ${data.title.toLowerCase().replace(/[^a-z0-9]/g, '-')},${data.title},${data.bran
                             <Button 
                               type="button"
                               onClick={processAllUrls}
-                              disabled={singleScrapeMutation.isPending}
-                              className={`relative w-full overflow-hidden bg-gradient-to-r from-green-600 to-emerald-600 hover:from-green-700 hover:to-emerald-700 text-white h-14 text-lg font-medium transition-all duration-300 ${singleScrapeMutation.isPending ? "shadow-lg shadow-green-500/40 scale-[1.01]" : ""}`}
+                              disabled={isBulkProcessing}
+                              className={`relative w-full overflow-hidden bg-gradient-to-r from-green-600 to-emerald-600 hover:from-green-700 hover:to-emerald-700 text-white h-14 text-lg font-medium transition-all duration-300 ${isBulkProcessing ? "shadow-lg shadow-green-500/40 scale-[1.01]" : ""}`}
                             >
                               {/* Hareketli shimmer şeridi */}
-                              {singleScrapeMutation.isPending && (
+                              {isBulkProcessing && (
                                 <span className="absolute inset-0 -translate-x-full animate-shimmer bg-gradient-to-r from-transparent via-white/20 to-transparent pointer-events-none" />
                               )}
-                              {singleScrapeMutation.isPending ? (
+                              {isBulkProcessing ? (
                                 <div className="flex items-center gap-3">
                                   <div className="relative w-5 h-5 shrink-0">
                                     <span className="absolute inset-0 rounded-full border-2 border-white/30 border-t-white animate-spin" />
                                     <span className="absolute inset-1 rounded-full bg-white/20 animate-pulse" />
                                   </div>
                                   <span className="flex flex-col items-start leading-tight">
-                                    <span className="text-sm font-semibold">Ürün Verisi Çekiliyor...</span>
+                                    <span className="text-sm font-semibold">Veriler Çekiliyor...</span>
                                     <span className="text-xs font-normal opacity-75">{draggedUrls.length} ürün işleniyor</span>
                                   </span>
                                 </div>
