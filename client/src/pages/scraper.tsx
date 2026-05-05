@@ -841,106 +841,111 @@ ${data.title.toLowerCase().replace(/[^a-z0-9]/g, '-')},${data.title},${data.bran
 
     toast({
       title: "🚀 Toplu Çekim Başladı",
-      description: `${draggedUrls.length} ürün verisi çekiliyor... Lütfen bekleyin.`,
-      duration: 8000,
+      description: `${draggedUrls.length} ürün teker teker işlenecek...`,
+      duration: 6000,
     });
 
-    try {
-      console.log(`📦 Starting bulk scraping: ${draggedUrls.length} URLs`);
-      console.log(`🎨 Extract all colors: ${extractAllColors}`);
+    let successCount = 0;
+    let failCount = 0;
 
-      const response = await fetch("/api/scrape-bulk-urls", {
-        method: "POST",
-        headers: {
-          "Content-Type": "application/json",
-        },
-        body: JSON.stringify({
-          urls: draggedUrls,
-          extractAllColors: extractAllColors
-        }),
-      });
+    for (let i = 0; i < draggedUrls.length; i++) {
+      const url = draggedUrls[i].trim();
+      if (!url) continue;
 
-      if (!response.ok) {
-        const errorData = await response.json().catch(() => ({}));
-        throw new Error(errorData.error || `HTTP ${response.status}`);
-      }
+      setBulkProgress({ current: i + 1, total: draggedUrls.length });
 
-      const bulkResult = await response.json();
-      
-      console.log('✅ Bulk scraping completed:', bulkResult);
+      try {
+        console.log(`📦 [${i + 1}/${draggedUrls.length}] Processing: ${url}`);
 
-      // Show success toast with statistics
-      toast({
-        title: "Toplu İşlem Tamamlandı",
-        description: `✅ Başarılı: ${bulkResult.successfulUrls}, ❌ Hatalı: ${bulkResult.failedUrls}, 🎨 Toplam Varyant: ${bulkResult.combinedVariants.length}`
-      });
-
-      // Generate CSV from bulk results if we have variants
-      if (bulkResult.combinedVariants && bulkResult.combinedVariants.length > 0) {
-        const csvResponse = await fetch("/api/generate-bulk-csv", {
+        // Start the scrape job (same pattern as singleScrapeMutation)
+        const startResp = await fetch("/api/scenario-scrape", {
           method: "POST",
-          headers: {
-            "Content-Type": "application/json",
-          },
-          body: JSON.stringify(bulkResult),
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ url, mode: 'single', onlyExtractData: true }),
         });
 
-        if (csvResponse.ok) {
-          const csvData = await csvResponse.json();
-          
-          // Extract unique colors and sizes from combined variants
-          const allColors = new Set<string>();
-          const allSizes = new Set<string>();
-          const allImages: string[] = [];
-          
-          bulkResult.combinedVariants.forEach((variant: any) => {
-            if (variant.color) allColors.add(variant.color);
-            if (variant.size) allSizes.add(variant.size);
-            if (variant.images && Array.isArray(variant.images)) {
-              variant.images.forEach((img: any) => {
-                const imgUrl = typeof img === 'string' ? img : img?.url;
-                if (imgUrl && !allImages.includes(imgUrl)) {
-                  allImages.push(imgUrl);
-                }
-              });
-            }
-          });
-          
-          // Add to CSV previews with detailed variant information
-          const newPreview = {
-            id: `bulk-${Date.now()}`,
-            productTitle: `Toplu Ürün (${bulkResult.successfulUrls} adet)`,
-            csvContent: csvData.csvContent,
-            variants: {
-              colors: Array.from(allColors),
-              sizes: Array.from(allSizes),
-              allVariants: bulkResult.combinedVariants
-            },
-            images: allImages,
-            price: bulkResult.combinedVariants[0]?.price || null,
-            createdAt: new Date().toISOString()
-          };
-          
-          setCsvPreviews(prev => [...prev, newPreview]);
-          
-          toast({
-            title: "CSV Hazır",
-            description: `${bulkResult.combinedVariants.length} varyant içeren CSV oluşturuldu`
-          });
+        if (!startResp.ok) {
+          const errData = await startResp.json().catch(() => ({}));
+          throw new Error(errData.message || `HTTP ${startResp.status}`);
         }
-      }
 
-    } catch (error) {
-      console.error('❌ Bulk scraping error:', error);
-      toast({
-        title: "Toplu İşlem Hatası",
-        description: error instanceof Error ? error.message : 'Bilinmeyen hata',
-        variant: "destructive"
-      });
-    } finally {
-      setIsBulkProcessing(false);
-      setBulkProgress(null);
+        const startData = await startResp.json();
+        let data: any;
+
+        if (!startData.jobId) {
+          // Synchronous result
+          data = { ...startData, originalUrl: url };
+        } else {
+          // Poll for job completion
+          const { jobId } = startData;
+          const maxWait = 180000;
+          const pollInterval = 2500;
+          const deadline = Date.now() + maxWait;
+          while (Date.now() < deadline) {
+            await new Promise(r => setTimeout(r, pollInterval));
+            const pollResp = await fetch(`/api/scrape-job/${jobId}`);
+            if (!pollResp.ok) throw new Error(`Polling hatası: HTTP ${pollResp.status}`);
+            const pollData = await pollResp.json();
+            if (pollData.status === 'done') {
+              if (pollData.result?.success === false) throw new Error(pollData.result.message || 'Çekim başarısız');
+              data = { ...pollData.result, originalUrl: url };
+              break;
+            }
+            if (pollData.status === 'error') throw new Error(pollData.error || 'Scraping başarısız');
+          }
+          if (!data) throw new Error('Zaman aşımı — lütfen tekrar deneyin.');
+        }
+
+        if (!data || !data.success || !data.csvContent) {
+          throw new Error('Ürün verisi alınamadı');
+        }
+
+        // Add CSV preview for this URL immediately
+        const urlSlug = url.split('/').pop()?.split('?')[0] || `url-${i}`;
+        const previewId = `bulk-${urlSlug}-${Date.now()}`;
+        const newPreview = {
+          id: previewId,
+          productTitle: data.title || `Ürün ${i + 1}`,
+          csvContent: data.csvContent,
+          sourceUrl: url,
+          variants: {
+            colors: data.variants?.colors || [],
+            sizes: data.variants?.sizes || [],
+          },
+          images: data.images?.map((img: any) => typeof img === 'string' ? img : img?.url).filter(Boolean) || [],
+          price: data.price?.original || null,
+          createdAt: new Date().toISOString()
+        };
+
+        setCsvPreviews(prev => [newPreview, ...prev]);
+        successCount++;
+
+        toast({
+          title: `✅ ${i + 1}/${draggedUrls.length} tamamlandı`,
+          description: data.title || url,
+          duration: 3000,
+        });
+
+      } catch (error) {
+        failCount++;
+        console.error(`❌ [${i + 1}/${draggedUrls.length}] Error:`, error);
+        toast({
+          title: `❌ ${i + 1}/${draggedUrls.length} başarısız`,
+          description: error instanceof Error ? error.message : 'Bilinmeyen hata',
+          variant: "destructive",
+          duration: 4000,
+        });
+      }
     }
+
+    setIsBulkProcessing(false);
+    setBulkProgress(null);
+
+    toast({
+      title: "Toplu İşlem Tamamlandı",
+      description: `✅ Başarılı: ${successCount}, ❌ Hatalı: ${failCount}`,
+      duration: 8000,
+    });
   };
 
   const onMultiSubmit = multiForm.handleSubmit((data) => {
@@ -1559,20 +1564,27 @@ ${data.title.toLowerCase().replace(/[^a-z0-9]/g, '-')},${data.title},${data.bran
                               <Package className="absolute inset-0 m-auto w-4 h-4 text-emerald-300" />
                             </div>
                             <div className="flex-1 min-w-0">
-                              <p className="text-emerald-300 font-semibold text-sm">Veriler Çekiliyor...</p>
+                              <p className="text-emerald-300 font-semibold text-sm">
+                                {bulkProgress ? `${bulkProgress.current}. ürün işleniyor...` : 'Başlatılıyor...'}
+                              </p>
                               <p className="text-emerald-400/70 text-xs mt-0.5">
-                                {bulkProgress ? `${draggedUrls.length} ürün işleniyor, lütfen sayfayı kapatmayın` : 'İşlem başlatılıyor...'}
+                                Lütfen sayfayı kapatmayın
                               </p>
                             </div>
                             {/* Adet göstergesi */}
                             <div className="shrink-0 text-right">
-                              <span className="text-2xl font-bold text-emerald-300">{draggedUrls.length}</span>
-                              <span className="text-xs text-emerald-400/70 block">ürün</span>
+                              <span className="text-2xl font-bold text-emerald-300">
+                                {bulkProgress ? bulkProgress.current : 0}
+                              </span>
+                              <span className="text-xs text-emerald-400/70 block">/ {draggedUrls.length}</span>
                             </div>
                           </div>
                           {/* Alt ilerleme çubuğu */}
-                          <div className="mt-3 h-1 rounded-full bg-emerald-900/60 overflow-hidden">
-                            <div className="h-full bg-gradient-to-r from-emerald-500 to-green-400 animate-progress" style={{width: '60%'}} />
+                          <div className="mt-3 h-1.5 rounded-full bg-emerald-900/60 overflow-hidden">
+                            <div
+                              className="h-full bg-gradient-to-r from-emerald-500 to-green-400 transition-all duration-700"
+                              style={{width: bulkProgress ? `${(bulkProgress.current / bulkProgress.total) * 100}%` : '5%'}}
+                            />
                           </div>
                         </div>
                       )}
