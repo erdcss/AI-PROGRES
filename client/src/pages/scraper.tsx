@@ -87,6 +87,8 @@ function ScraperPage() {
   const [isVariantsOpen, setIsVariantsOpen] = useState(false);
   const [isBulkProcessing, setIsBulkProcessing] = useState(false);
   const [bulkProgress, setBulkProgress] = useState<{current: number; total: number} | null>(null);
+  const [uploadProgress, setUploadProgress] = useState<{current: number; total: number; successCount: number; failCount: number; currentTitle: string} | null>(null);
+  const [uploadingId, setUploadingId] = useState<string | null>(null);
   const isMobile = useIsMobile();
   
   const singleForm = useForm<ScrapeFormData>({
@@ -811,19 +813,95 @@ ${data.title.toLowerCase().replace(/[^a-z0-9]/g, '-')},${data.title},${data.bran
     });
   };
 
+  // CSV tag uygulama yardımcısı — hem tekil hem toplu yüklemede kullanılır
+  const applyTagsToCSV = (csvContent: string, tags: string[]): string => {
+    if (!tags.length) return csvContent;
+    const lines = csvContent.split('\n').filter(l => l.trim());
+    if (lines.length < 2) return csvContent;
+    const parseCSVLine = (line: string) => {
+      const res: string[] = []; let cur = ''; let inQ = false;
+      for (const ch of line) {
+        if (ch === '"') inQ = !inQ;
+        else if (ch === ',' && !inQ) { res.push(cur.trim()); cur = ''; }
+        else cur += ch;
+      }
+      res.push(cur.trim()); return res;
+    };
+    const headers = parseCSVLine(lines[0]).map(h => h.replace(/"/g, '').trim());
+    const tagsIdx = headers.findIndex(h => h.toLowerCase() === 'tags');
+    if (tagsIdx === -1) return csvContent;
+    const updated = [lines[0]];
+    for (let i = 1; i < lines.length; i++) {
+      const cells = parseCSVLine(lines[i]);
+      if (cells[tagsIdx] !== undefined) {
+        const existing = cells[tagsIdx].replace(/"/g, '').trim();
+        cells[tagsIdx] = `"${existing ? `${existing}, ${tags.join(', ')}` : tags.join(', ')}"`;
+      }
+      updated.push(cells.map(c => (c.includes(',') || c.includes('"') || c.includes('\n')) ? `"${c.replace(/"/g, '""')}"` : c).join(','));
+    }
+    return updated.join('\n');
+  };
+
   // Tüm CSV'leri Shopify'a yükleme fonksiyonu
   const uploadAllCSVsToShopify = async () => {
     if (csvPreviews.length === 0) {
-      toast({
-        title: "Hata",
-        description: "Yüklenecek CSV dosyası bulunamadı",
-        variant: "destructive"
-      });
+      toast({ title: "Hata", description: "Yüklenecek CSV dosyası bulunamadı", variant: "destructive" });
       return;
     }
-    
-    console.log('🛒 Starting bulk Shopify upload for', csvPreviews.length, 'products');
-    bulkUploadMutation.mutate();
+    if (uploadProgress) return; // zaten çalışıyor
+
+    const total = csvPreviews.length;
+    setUploadProgress({ current: 0, total, successCount: 0, failCount: 0, currentTitle: '' });
+
+    let successCount = 0;
+    let failCount = 0;
+
+    for (let i = 0; i < csvPreviews.length; i++) {
+      const preview = csvPreviews[i];
+      setUploadProgress({ current: i + 1, total, successCount, failCount, currentTitle: preview.productTitle });
+
+      try {
+        const tags = individualTags[preview.id] || [];
+        const csvToUpload = applyTagsToCSV(preview.csvContent, tags);
+
+        const controller = new AbortController();
+        const tid = setTimeout(() => controller.abort(), 3 * 60 * 1000);
+        let response: Response;
+        try {
+          response = await fetch("/api/shopify/upload-csv-product", {
+            method: "POST",
+            headers: { "Content-Type": "application/json" },
+            signal: controller.signal,
+            body: JSON.stringify({ csvContent: csvToUpload, productTitle: preview.productTitle, sourceUrl: preview.sourceUrl, individualTags: tags }),
+          });
+        } finally { clearTimeout(tid); }
+
+        if (response.ok) {
+          const result = await response.json();
+          if (result.success || result.shopifyId || result.productId || result.error?.includes('yakın zamanda')) {
+            successCount++;
+          } else {
+            failCount++;
+          }
+        } else if (response.status === 409) {
+          successCount++;
+        } else {
+          failCount++;
+        }
+      } catch (err: any) {
+        if (err?.name === 'AbortError') successCount++; // timeout = büyük ihtimalle başardı
+        else failCount++;
+      }
+
+      setUploadProgress(prev => prev ? { ...prev, successCount, failCount } : null);
+    }
+
+    setUploadProgress(null);
+    toast({
+      title: "Toplu Yükleme Tamamlandı",
+      description: `✅ Başarılı: ${successCount}, ❌ Hatalı: ${failCount}`,
+      duration: 8000,
+    });
   };
 
   const processAllUrls = async () => {
@@ -1164,121 +1242,54 @@ ${data.title.toLowerCase().replace(/[^a-z0-9]/g, '-')},${data.title},${data.bran
   // CSV Shopify upload fonksiyonu  
   const handleCSVShopifyUpload = async (id: string, individualTags?: string[]) => {
     const preview = csvPreviews.find(p => p.id === id);
-    if (preview) {
-      console.log('🛒 Starting Shopify upload for:', preview.productTitle);
-      console.log('📋 Individual tags:', individualTags);
-      
-      // Manuel etiketleri CSV'ye ekle
-      let csvToUpload = preview.csvContent;
-      const manualTags = individualTags || [];
-      
-      if (manualTags.length > 0) {
-        const lines = csvToUpload.split('\n').filter(line => line.trim());
-        if (lines.length >= 2) {
-          const parseCSVLine = (line: string) => {
-            const result = [];
-            let current = '';
-            let inQuotes = false;
-            
-            for (let i = 0; i < line.length; i++) {
-              const char = line[i];
-              if (char === '"') {
-                inQuotes = !inQuotes;
-              } else if (char === ',' && !inQuotes) {
-                result.push(current.trim());
-                current = '';
-              } else {
-                current += char;
-              }
-            }
-            result.push(current.trim());
-            return result;
-          };
+    if (!preview) return;
 
-          const headers = parseCSVLine(lines[0]).map(h => h.replace(/"/g, '').trim());
-          const tagsIndex = headers.findIndex(h => h.toLowerCase() === 'tags');
-
-          if (tagsIndex !== -1) {
-            const updatedLines = [lines[0]];
-            
-            for (let i = 1; i < lines.length; i++) {
-              const cells = parseCSVLine(lines[i]);
-              
-              // Etiketleri sadece ilk satıra değil, TÜM satırlara ekle (multi-variant için gerekli)
-              if (cells[tagsIndex] !== undefined) {
-                const existingTags = cells[tagsIndex].replace(/"/g, '').trim();
-                const allTags = existingTags 
-                  ? `${existingTags}, ${manualTags.join(', ')}` 
-                  : manualTags.join(', ');
-                cells[tagsIndex] = `"${allTags}"`;
-              }
-              
-              const newLine = cells.map(cell => {
-                if (cell.includes(',') || cell.includes('"') || cell.includes('\n')) {
-                  return `"${cell.replace(/"/g, '""')}"`;
-                }
-                return cell;
-              }).join(',');
-              
-              updatedLines.push(newLine);
-            }
-            
-            csvToUpload = updatedLines.join('\n');
-            console.log(`✅ Manuel etiketler tüm CSV satırlarına eklendi: ${manualTags.join(', ')}`);
-          }
-        }
-      }
-      
-      const singleController = new AbortController();
-      const singleTimeoutId = setTimeout(() => singleController.abort(), 3 * 60 * 1000);
+    setUploadingId(id);
+    try {
+      const csvToUpload = applyTagsToCSV(preview.csvContent, individualTags || []);
+      const controller = new AbortController();
+      const tid = setTimeout(() => controller.abort(), 3 * 60 * 1000);
+      let response: Response;
       try {
-        const response = await fetch("/api/shopify/upload-csv-product", {
+        response = await fetch("/api/shopify/upload-csv-product", {
           method: "POST",
           headers: { "Content-Type": "application/json" },
-          signal: singleController.signal,
-          body: JSON.stringify({ 
+          signal: controller.signal,
+          body: JSON.stringify({
             csvContent: csvToUpload,
             productTitle: preview.productTitle,
             sourceUrl: preview.sourceUrl,
             individualTags: individualTags || []
           }),
-        }).finally(() => clearTimeout(singleTimeoutId));
-        
-        if (response.ok) {
-          const result = await response.json();
-          if (result.success || result.shopifyId || result.productId) {
-            toast({
-              title: "Shopify'a Yüklendi ✅",
-              description: `${preview.productTitle.substring(0, 40)}... başarıyla yüklendi${individualTags && individualTags.length > 0 ? ` (${individualTags.length} etiket)` : ''}`
-            });
-          } else {
-            throw new Error(result.error || result.message || 'Sunucu başarısız yanıt döndü');
-          }
-        } else {
-          const errorData = await response.json().catch(() => ({}) as any);
-          const errMsg = (errorData as any).error || (errorData as any).message || `HTTP ${response.status}`;
-          if (errMsg.includes('yakın zamanda yüklendi')) {
-            toast({ title: "Zaten Yüklendi", description: `${preview.productTitle.substring(0, 40)}... daha önce yüklendi` });
-          } else {
-            throw new Error(errMsg);
-          }
-        }
-      } catch (error: any) {
-        if (error?.name === 'AbortError') {
-          console.warn('⏱️ Single upload timeout — sunucu tamamlamış olabilir');
+        });
+      } finally { clearTimeout(tid); }
+
+      if (response.ok) {
+        const result = await response.json();
+        if (result.success || result.shopifyId || result.productId) {
           toast({
-            title: "Yükleme Devam Ediyor",
-            description: `${preview.productTitle.substring(0, 30)}... Shopify panelini kontrol edin, yükleme tamamlanmış olabilir`
+            title: "Shopify'a Yüklendi ✅",
+            description: `${preview.productTitle.substring(0, 40)}... başarıyla yüklendi`
           });
+        } else if (result.error?.includes('yakın zamanda')) {
+          toast({ title: "Zaten Yüklendi", description: `${preview.productTitle.substring(0, 40)}... daha önce yüklendi` });
         } else {
-          console.error('❌ Shopify upload failed:', error);
-          toast({
-            title: "Yükleme Hatası",
-            description: `${preview.productTitle.substring(0, 30)}... : ${error instanceof Error ? error.message : 'Bilinmeyen hata'}`,
-            variant: "destructive"
-          });
+          throw new Error(result.error || result.message || 'Sunucu başarısız yanıt döndü');
         }
+      } else if (response.status === 409) {
+        toast({ title: "Zaten Yüklendi", description: `${preview.productTitle.substring(0, 40)}... daha önce yüklendi` });
+      } else {
+        const errData = await response.json().catch(() => ({} as any));
+        throw new Error(errData.error || errData.message || `HTTP ${response.status}`);
       }
+    } catch (error: any) {
+      if (error?.name === 'AbortError') {
+        toast({ title: "Yükleme Devam Ediyor", description: `${preview.productTitle.substring(0, 30)}... Shopify panelini kontrol edin` });
+      } else {
+        toast({ title: "Yükleme Hatası", description: error.message, variant: "destructive" });
+      }
+    } finally {
+      setUploadingId(null);
     }
   };
 
@@ -2503,8 +2514,53 @@ ${data.title.toLowerCase().replace(/[^a-z0-9]/g, '-')},${data.title},${data.bran
               onShopifyUpload={handleCSVShopifyUpload}
               individualTags={individualTags}
               setIndividualTags={setIndividualTags}
+              uploadingId={uploadingId}
             />
             
+            {/* Toplu Yükleme Progress Banner */}
+            {uploadProgress && (
+              <div className="mt-4 relative overflow-hidden rounded-xl border border-blue-500/40 bg-gradient-to-r from-blue-900/60 via-purple-900/60 to-blue-900/60 p-4">
+                <span className="absolute inset-0 -translate-x-full animate-shimmer bg-gradient-to-r from-transparent via-blue-400/10 to-transparent pointer-events-none" />
+                <div className="flex items-center gap-3">
+                  <div className="relative w-10 h-10 shrink-0">
+                    <span className="absolute inset-0 rounded-full border-2 border-blue-400/30 border-t-blue-400 animate-spin" />
+                    <span className="absolute inset-2 rounded-full bg-blue-500/20 animate-pulse" />
+                    <ShoppingCart className="absolute inset-0 m-auto w-4 h-4 text-blue-300" />
+                  </div>
+                  <div className="flex-1 min-w-0">
+                    <p className="text-blue-300 font-semibold text-sm">
+                      {uploadProgress.current}. ürün yükleniyor...
+                    </p>
+                    <p className="text-blue-400/70 text-xs mt-0.5 truncate">
+                      {uploadProgress.currentTitle || 'Shopify\'a aktarılıyor'}
+                    </p>
+                  </div>
+                  <div className="shrink-0 flex gap-3 text-right">
+                    <div>
+                      <span className="text-xl font-bold text-emerald-400">{uploadProgress.successCount}</span>
+                      <span className="text-xs text-emerald-400/70 block">başarılı</span>
+                    </div>
+                    {uploadProgress.failCount > 0 && (
+                      <div>
+                        <span className="text-xl font-bold text-red-400">{uploadProgress.failCount}</span>
+                        <span className="text-xs text-red-400/70 block">hatalı</span>
+                      </div>
+                    )}
+                    <div>
+                      <span className="text-xl font-bold text-blue-300">{uploadProgress.current}</span>
+                      <span className="text-xs text-blue-400/70 block">/ {uploadProgress.total}</span>
+                    </div>
+                  </div>
+                </div>
+                <div className="mt-3 h-1.5 rounded-full bg-blue-900/60 overflow-hidden">
+                  <div
+                    className="h-full bg-gradient-to-r from-blue-500 to-purple-400 transition-all duration-700"
+                    style={{width: `${(uploadProgress.current / uploadProgress.total) * 100}%`}}
+                  />
+                </div>
+              </div>
+            )}
+
             {/* Toplu İşlem Butonları */}
             <div className="mt-4 flex flex-wrap justify-center gap-3">
               <Button
@@ -2518,13 +2574,13 @@ ${data.title.toLowerCase().replace(/[^a-z0-9]/g, '-')},${data.title},${data.bran
               </Button>
               <Button
                 onClick={uploadAllCSVsToShopify}
-                disabled={bulkUploadMutation.isPending}
+                disabled={!!uploadProgress}
                 className="bg-gradient-to-r from-blue-600 to-purple-600 hover:from-blue-700 hover:to-purple-700 text-white font-medium px-8 py-3"
               >
-                {bulkUploadMutation.isPending ? (
+                {uploadProgress ? (
                   <div className="flex items-center gap-2">
                     <Loader2 className="w-5 h-5 animate-spin" />
-                    Tüm Ürünler Shopify'a Yükleniyor... ({csvPreviews.length})
+                    {uploadProgress.current}/{uploadProgress.total} Yükleniyor... (✅{uploadProgress.successCount}{uploadProgress.failCount > 0 ? ` ❌${uploadProgress.failCount}` : ''})
                   </div>
                 ) : (
                   <div className="flex items-center gap-2">

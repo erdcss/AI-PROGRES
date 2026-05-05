@@ -1,5 +1,5 @@
 import { useState } from 'react';
-import { ChevronDown, ChevronUp, Download, Eye, FileText, Package, ShoppingCart, ChevronLeft, ChevronRight, Tag, Plus, X } from 'lucide-react';
+import { ChevronDown, ChevronUp, Download, Eye, FileText, Package, ShoppingCart, ChevronLeft, ChevronRight, Tag, Plus, X, Loader2 } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Badge } from '@/components/ui/badge';
@@ -38,9 +38,10 @@ interface CSVDrawerPreviewProps {
   onShopifyUpload: (id: string, individualTags?: string[]) => void;
   individualTags: {[key: string]: string[]};
   setIndividualTags: React.Dispatch<React.SetStateAction<{[key: string]: string[]}>>;
+  uploadingId?: string | null;
 }
 
-export function CSVDrawerPreview({ csvPreviews, onDownload, onShopifyUpload, individualTags, setIndividualTags }: CSVDrawerPreviewProps) {
+export function CSVDrawerPreview({ csvPreviews, onDownload, onShopifyUpload, individualTags, setIndividualTags, uploadingId }: CSVDrawerPreviewProps) {
   const [expandedItems, setExpandedItems] = useState<Set<string>>(new Set());
   const [selectedImageIndex, setSelectedImageIndex] = useState<{[key: string]: number}>({});
   const [updatedPrices, setUpdatedPrices] = useState<{[key: string]: any}>({});
@@ -851,13 +852,18 @@ export function CSVDrawerPreview({ csvPreviews, onDownload, onShopifyUpload, ind
                     </Button>
                     
                     <Button
-                      onClick={() => onShopifyUpload(preview.id, individualTags[preview.id])}
+                      onClick={() => !uploadingId && onShopifyUpload(preview.id, individualTags[preview.id])}
                       size="sm"
-                      className="bg-gradient-to-r from-blue-600 to-purple-600 hover:from-blue-700 hover:to-purple-700 text-white h-6 w-6 p-0 flex items-center justify-center"
+                      disabled={!!uploadingId}
+                      className="bg-gradient-to-r from-blue-600 to-purple-600 hover:from-blue-700 hover:to-purple-700 text-white h-6 w-6 p-0 flex items-center justify-center disabled:opacity-60"
                       data-testid={`button-shopify-upload-${preview.id}`}
-                      title={`${preview.productTitle} - Shopify'a Aktar`}
+                      title={uploadingId === preview.id ? 'Yükleniyor...' : `${preview.productTitle} - Shopify'a Aktar`}
                     >
-                      <ShoppingCart className="w-3 h-3" />
+                      {uploadingId === preview.id ? (
+                        <Loader2 className="w-3 h-3 animate-spin" />
+                      ) : (
+                        <ShoppingCart className="w-3 h-3" />
+                      )}
                     </Button>
                     
                     <Button
