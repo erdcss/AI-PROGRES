@@ -896,8 +896,18 @@ ${data.title.toLowerCase().replace(/[^a-z0-9]/g, '-')},${data.title},${data.bran
           if (!data) throw new Error('Zaman aşımı — lütfen tekrar deneyin.');
         }
 
-        if (!data || !data.success || !data.csvContent) {
+        if (!data || !data.title) {
           throw new Error('Ürün verisi alınamadı');
+        }
+
+        // If no csvContent returned, generate a minimal one
+        let csvContent = data.csvContent;
+        if (!csvContent && data.title) {
+          const handle = data.title.toLowerCase().replace(/[^a-z0-9]/g, '-').replace(/-+/g, '-');
+          const price = data.price?.original || '';
+          const img = data.images?.[0];
+          const imgUrl = typeof img === 'string' ? img : img?.url || '';
+          csvContent = `Title,URL handle,Description,Vendor,Product category,Type,Tags,Published on online store,Status,SKU,Barcode,Option1 name,Option1 value,Option1 Linked To,Option2 name,Option2 value,Option2 Linked To,Option3 name,Option3 value,Option3 Linked To,Price,Compare-at price,Cost per item,Charge tax,Tax code,Unit price total measure,Unit price total measure unit,Unit price base measure,Unit price base measure unit,Inventory tracker,Inventory quantity,Continue selling when out of stock,Weight value (grams),Weight unit for display,Requires shipping,Fulfillment service,Product image URL,Image position,Image alt text,Variant image URL,Gift card,SEO title,SEO description,Color (product.metafields.shopify.color-pattern),Google Shopping / Google product category,Google Shopping / Gender,Google Shopping / Age group,Google Shopping / Manufacturer part number (MPN),Google Shopping / Ad group name,Google Shopping / Ads labels,Google Shopping / Condition,Google Shopping / Custom product,Google Shopping / Custom label 0,Google Shopping / Custom label 1,Google Shopping / Custom label 2,Google Shopping / Custom label 3,Google Shopping / Custom label 4\n"${data.title}","${handle}",,,"${data.brand || ''}","Kategori","Kategori","","TRUE","active",,,,,,,,,,,,"${price}","","","TRUE","","","","","","shopify","0","CONTINUE","","g","TRUE","manual","${imgUrl}","1","${data.title}","","FALSE","${data.title}","${data.title}","","","","","","","","","","","","","",""`;
         }
 
         // Add CSV preview for this URL immediately
@@ -906,7 +916,7 @@ ${data.title.toLowerCase().replace(/[^a-z0-9]/g, '-')},${data.title},${data.bran
         const newPreview = {
           id: previewId,
           productTitle: data.title || `Ürün ${i + 1}`,
-          csvContent: data.csvContent,
+          csvContent: csvContent,
           sourceUrl: url,
           variants: {
             colors: data.variants?.colors || [],
