@@ -1232,6 +1232,7 @@ export async function scenarioBasedScrape(url: string): Promise<ScenarioBasedRes
     let savedJsonLdVariants: Array<{color: string; size: string; inStock: boolean; image?: string}> = [];
     let savedColorVariantUrls: string[] = [];
     let prebuiltMultiColorVariants: Array<{color: string; colorCode: string; size: string; inStock: boolean}> | null = null;
+    let hasExtractableSizesInHtml = false; // Set in speed mode block; used to skip Puppeteer
     // Size-level stock from Puppeteer rendering (for current URL's color)
     let puppeteerSizeStockForCurrentColor: Map<string, boolean> = new Map();
     
@@ -1497,7 +1498,24 @@ export async function scenarioBasedScrape(url: string): Promise<ScenarioBasedRes
           // FIX: Also run Puppeteer when prebuilt is built from JSON-LD — JSON-LD only has color-level
           // availability, not size-level. Puppeteer renders actual disabled button states for accurate stock.
           const needsPuppeteerForStock = prebuiltMultiColorVariants !== null && jldUniqueColors.length > 1;
-          const needsPuppeteer = !hasColors || incompleteSizes || needsPuppeteerForStock;
+          
+          // SPEED OPTIMIZATION: If HTML already has extractable sizes, skip Puppeteer for single-color products
+          hasExtractableSizesInHtml = (() => {
+            if (!htmlContent) return false;
+            // Age sizes (e.g. "7-8 Yaş", "9-10 Yaş")
+            if (/\"value\"\s*:\s*\"\d+[-–]\d+\s*[Yy]a[şs]\"/.test(htmlContent)) return true;
+            // Standard clothing sizes in JSON/state data
+            if (/\"(?:attributeValue|attributeBeautifiedValue|value)\"\s*:\s*\"(XS|S|M|L|XL|XXL|2XL|3XL|4XL|5XL)\"/.test(htmlContent)) return true;
+            // Numeric sizes (shoes, pants: 36-47)
+            if (/\"(?:attributeValue|attributeBeautifiedValue|value)\"\s*:\s*\"(3[6-9]|4[0-9]|50)\"/.test(htmlContent)) return true;
+            return false;
+          })();
+          
+          // Skip Puppeteer if: single-color product AND HTML already has extractable sizes
+          const needsPuppeteer = (!hasColors && !hasExtractableSizesInHtml) || incompleteSizes || needsPuppeteerForStock;
+          if (!needsPuppeteer && hasExtractableSizesInHtml && !hasColors) {
+            console.log('⚡ SPEED: Sizes found in HTML — skipping Puppeteer (saves ~35s)');
+          }
           
           console.log(`🎨 Initial variant check: ${initialVariants?.length || 0} variants, hasColors: ${hasColors}, sizes: [${Array.from(initialSizeSet).join(',')}], incompleteSizes: ${incompleteSizes}, needsPuppeteer: ${needsPuppeteer}`);
           
@@ -2523,6 +2541,12 @@ export async function scenarioBasedScrape(url: string): Promise<ScenarioBasedRes
       } else {
         console.log('⚠️ JavaScript State extraction failed, trying HYBRID FALLBACK SYSTEM...');
         
+        // SPEED OPTIMIZATION: Skip Puppeteer hybrid if HTML already has extractable sizes
+        // (e.g. age sizes, standard S/M/L, or numeric shoe sizes found via regex)
+        if (hasExtractableSizesInHtml) {
+          console.log('⚡ SPEED: HTML has extractable sizes — skipping Hybrid Puppeteer, going straight to SKU detection');
+          // Jump directly to SKU-level detection below (variants stays empty → falls through)
+        } else {
         // 🎯 NEW: Try Enhanced Puppeteer with Hybrid Fallback
         try {
           console.log('🚀 Activating Hybrid Fallback System (Puppeteer + Google Cache)...');
@@ -2588,6 +2612,7 @@ export async function scenarioBasedScrape(url: string): Promise<ScenarioBasedRes
         } catch (hybridError) {
           console.log(`⚠️ Hybrid extraction failed: ${hybridError.message}, trying SKU-level detection...`);
         }
+        } // closes else { // not hasExtractableSizesInHtml
       }
       
       // Continue with SKU-level detection if hybrid failed
