@@ -884,9 +884,20 @@ ${data.title.toLowerCase().replace(/[^a-z0-9]/g, '-')},${data.title},${data.bran
             failCount++;
           }
         } else if (response.status === 409) {
-          successCount++;
+          successCount++; // zaten yüklendi = başarı
         } else {
-          failCount++;
+          // 400 olsa bile "yakın zamanda yüklendi" mesajı varsa başarı say
+          try {
+            const errData = await response.json();
+            const errMsg = errData.error || errData.message || '';
+            if (errMsg.includes('yakın zamanda') || errMsg.includes('already')) {
+              successCount++;
+            } else {
+              failCount++;
+            }
+          } catch {
+            failCount++;
+          }
         }
       } catch (err: any) {
         if (err?.name === 'AbortError') successCount++; // timeout = büyük ihtimalle başardı
@@ -1280,7 +1291,12 @@ ${data.title.toLowerCase().replace(/[^a-z0-9]/g, '-')},${data.title},${data.bran
         toast({ title: "Zaten Yüklendi", description: `${preview.productTitle.substring(0, 40)}... daha önce yüklendi` });
       } else {
         const errData = await response.json().catch(() => ({} as any));
-        throw new Error(errData.error || errData.message || `HTTP ${response.status}`);
+        const errMsg = errData.error || errData.message || `HTTP ${response.status}`;
+        if (errMsg.includes('yakın zamanda') || errMsg.includes('already')) {
+          toast({ title: "Zaten Yüklendi", description: `${preview.productTitle.substring(0, 40)}... daha önce yüklendi` });
+        } else {
+          throw new Error(errMsg);
+        }
       }
     } catch (error: any) {
       if (error?.name === 'AbortError') {

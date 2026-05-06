@@ -4230,7 +4230,11 @@ ${result.title || 'Product'},${fb2Handle},${result.description || ''},${result.b
           tracking: trackingResult
         });
       } else {
-        return res.status(400).json({
+        // Duplicate detection → 409 Conflict (frontend counts 409 as "already uploaded" = success)
+        const isDuplicate = uploadResult.message?.includes('yakın zamanda yüklendi');
+        const statusCode = isDuplicate ? 409 : 400;
+        console.log(isDuplicate ? '⚠️ Duplicate upload detected → 409' : '❌ Upload failed → 400', uploadResult.message);
+        return res.status(statusCode).json({
           success: false,
           error: uploadResult.message
         });
