@@ -8791,87 +8791,213 @@ ${result.title || 'Product'},${fb2Handle},${result.description || ''},${result.b
   });
 
   // ────────────────────────────────────────────────────────────
-  //  TRENDYOL REVIEWS SCRAPER  (Puppeteer-based — DNS bypass)
+  //  TRENDYOL REVIEWS SCRAPER  (direct axios — apigw.trendyol.com)
   // ────────────────────────────────────────────────────────────
   app.post('/api/reviews/scrape-trendyol', async (req, res) => {
-    let browser: any = null;
     try {
       const { url, shopifyProductId = '', shopifyHandle = '' } = req.body;
       if (!url) return res.status(400).json({ success: false, error: 'URL gerekli' });
 
-      // Extract product ID from URL: p-{id} pattern
       const productIdMatch = url.match(/[/-]p-(\d+)/i);
       if (!productIdMatch) return res.status(400).json({ success: false, error: 'Geçerli bir Trendyol ürün URL\'si girin (p-XXXXXXX formatında ürün ID içermeli)' });
       const productId = productIdMatch[1];
 
-      // Extract merchantId from URL query params
       const parsedUrl = new URL(url.includes('?') ? url : url + '?');
       const merchantId = parsedUrl.searchParams.get('merchantId') || '0';
 
-      // Derive handle for CSV
       const baseUrl = url.split('?')[0].replace('/yorumlar', '');
       const slugMatch = baseUrl.match(/trendyol\.com\/([^/]+\/[^/]+)-p-\d+/) || baseUrl.match(/trendyol\.com\/[^/]+\/([^/]+)-p-\d+/);
       const handleFromUrl = shopifyHandle || (slugMatch ? slugMatch[1] : productId);
 
-      console.log(`📝 Trendyol yorum çekimi (Puppeteer) başlatılıyor: productId=${productId}, merchantId=${merchantId}`);
+      console.log(`📝 Trendyol yorum çekimi başlatılıyor: productId=${productId}, merchantId=${merchantId}`);
 
-      // Launch Puppeteer — use existing config for correct Chrome path
-      const { buildLaunchOptions } = await import('./puppeteer-config.js');
-      const puppeteer = (await import('puppeteer')).default;
-      browser = await puppeteer.launch(buildLaunchOptions());
-      const page = await browser.newPage();
+      // ── Strategy ──────────────────────────────────────────────────────────────
+      // PRIMARY: Axios fetches the /yorumlar HTML page. Trendyol embeds a script:
+      //   window["__review-detail__PROPS"] = { ..., reviewImages: { content: [...30 reviews], totalPages, totalElements } }
+      // This always returns 30 image-reviews without any API or Cloudflare rate-limit.
+      //
+      // SUPPLEMENT: After HTML extraction, try the apigw.trendyol.com REST API via
+      // Puppeteer browser-context fetch (bypasses Cloudflare when IP is not rate-limited).
+      // If that works, we get many more pages. Merge & deduplicate both sources.
+      // ─────────────────────────────────────────────────────────────────────────
 
-      // Set Turkish locale / realistic UA
-      await page.setUserAgent('Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/124.0.0.0 Safari/537.36');
-      await page.setExtraHTTPHeaders({ 'Accept-Language': 'tr-TR,tr;q=0.9' });
-      page.setDefaultTimeout(120000); // Allow up to 2 min for large review sets
+      const axios = (await import('axios')).default;
+      const allReviews: any[] = [];
+      const seenIds = new Set<string>();
+      let productTitle = '';
+      let totalPages = 1;
+      let totalReviewElements = 0;
 
-      // Navigate to trendyol.com so the browser context can resolve public.trendyol.com DNS
-      console.log(`🌐 Navigating browser to trendyol.com for DNS context...`);
-      await page.goto('https://www.trendyol.com/', { waitUntil: 'domcontentloaded', timeout: 30000 });
+      const BROWSER_UA = 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/124.0.0.0 Safari/537.36';
+      const COMMON_HEADERS = {
+        'User-Agent': BROWSER_UA,
+        'Accept-Language': 'tr-TR,tr;q=0.9,en-US;q=0.8,en;q=0.7',
+        'Accept': 'text/html,application/xhtml+xml,application/xml;q=0.9,*/*;q=0.8',
+        'Accept-Encoding': 'gzip, deflate, br',
+        'Cache-Control': 'no-cache',
+      };
 
-      // From within the browser context, fetch all review pages via the Trendyol public API
-      // (works because the browser IS on trendyol.com, no DNS/CORS issue)
-      const pageSize = 50;
-      const maxPages = 20;
-
-      const { allReviews, productTitle } = await page.evaluate(async (pid: string, mid: string, ps: number, mp: number) => {
-        const collected: any[] = [];
-        let title = '';
-        let pageIdx = 0;
-        let keepGoing = true;
-
-        while (keepGoing && pageIdx < mp) {
-          const apiUrl = `https://public.trendyol.com/discovery-web-socialgw-service/api/review/product/${pid}?storefrontId=1&culture=tr-TR&channelId=1&merchantId=${mid}&pageSize=${ps}&pageIndex=${pageIdx}`;
-          try {
-            const resp = await fetch(apiUrl, {
-              headers: {
-                'Accept': 'application/json',
-                'Referer': 'https://www.trendyol.com/'
-              }
-            });
-            if (!resp.ok) break;
-            const data = await resp.json();
-            const content = data?.result?.productReviews?.content || data?.result?.content || [];
-            if (!title && data?.result?.productName) title = data.result.productName;
-            if (!content || content.length === 0) { keepGoing = false; break; }
-            collected.push(...content);
-            const totalPages = data?.result?.productReviews?.totalPages || data?.result?.totalPages || 1;
-            pageIdx++;
-            if (pageIdx >= totalPages) keepGoing = false;
-          } catch {
-            keepGoing = false;
-          }
+      const addReviews = (revs: any[]) => {
+        for (const r of revs) {
+          const key = String(r.id || r.reviewId || r.comment || '').substring(0, 80);
+          if (!seenIds.has(key)) { seenIds.add(key); allReviews.push(r); }
         }
-        return { allReviews: collected, productTitle: title };
-      }, productId, merchantId, pageSize, maxPages);
+      };
 
-      await browser.close();
-      browser = null;
+      // ── Step 1: Axios HTML fetch → extract embedded review JSON ──────────────
+      const fetchPageHtml = async (pageNum: number): Promise<string> => {
+        const url = `${baseUrl}/yorumlar`;
+        try {
+          const resp = await axios.get(url, {
+            headers: COMMON_HEADERS,
+            timeout: 20000,
+            maxRedirects: 5,
+            decompress: true,
+            responseType: 'text',
+          });
+          return typeof resp.data === 'string' ? resp.data : '';
+        } catch (e: any) {
+          console.warn(`⚠️ axios fetch /yorumlar failed: ${e.message}`);
+          return '';
+        }
+      };
 
-      console.log(`✅ Toplam ${allReviews.length} yorum çekildi`);
+      const parseReviewsFromHtml = (html: string): { reviews: any[], totalPages: number, totalElements: number, title: string } => {
+        const MARKER = 'window["__review-detail__PROPS"]=';
+        const idx = html.indexOf(MARKER);
+        if (idx === -1) return { reviews: [], totalPages: 1, totalElements: 0, title: '' };
+        const start = idx + MARKER.length;
+        const end = html.indexOf('</script>', start);
+        if (end === -1) return { reviews: [], totalPages: 1, totalElements: 0, title: '' };
+        try {
+          const data = JSON.parse(html.substring(start, end).trim());
+          const ri = data?.reviewImages;
+          const rawEntries: any[] = ri?.content || [];
+          const tPages = ri?.totalPages || 1;
+          const tElements = ri?.totalElements || rawEntries.length;
+          const title = data?.product?.name || '';
 
-      // Format reviews into CSV-ready structure
+          // reviewImages.content has one entry PER MEDIA FILE — multiple entries share the same reviewId.
+          // Group by reviewId and collect all mediaFiles per review.
+          const byReviewId = new Map<string, any>();
+          for (const entry of rawEntries) {
+            const rid = String(entry.reviewId || entry.id || Math.random());
+            if (!byReviewId.has(rid)) {
+              byReviewId.set(rid, {
+                id: rid,
+                rate: entry.rate,
+                comment: entry.comment || '',
+                userFullName: entry.userFullName || entry.userName || '',
+                sellerName: entry.sellerName || '',
+                trusted: entry.trusted,
+                createdAt: entry.lastModifiedDate || entry.createdAt || 0,
+                mediaFiles: [],
+              });
+            }
+            if (entry.mediaFile) {
+              byReviewId.get(rid).mediaFiles.push(entry.mediaFile);
+            }
+          }
+          const reviews = Array.from(byReviewId.values());
+          return { reviews, totalPages: tPages, totalElements: tElements, title };
+        } catch (e: any) {
+          console.warn(`⚠️ parseReviewsFromHtml JSON parse error: ${e.message}`);
+          return { reviews: [], totalPages: 1, totalElements: 0, title: '' };
+        }
+      };
+
+      console.log(`🌐 Fetching /yorumlar HTML via axios...`);
+      const html1 = await fetchPageHtml(1);
+      if (html1) {
+        const parsed = parseReviewsFromHtml(html1);
+        if (parsed.reviews.length > 0) {
+          addReviews(parsed.reviews);
+          totalPages = parsed.totalPages;
+          totalReviewElements = parsed.totalElements;
+          if (!productTitle && parsed.title) productTitle = parsed.title;
+          console.log(`📥 HTML reviewImages: ${parsed.reviews.length} reviews (${totalReviewElements} total image-reviews across ${totalPages} pages)`);
+        } else {
+          console.warn(`⚠️ No reviewImages found in HTML`);
+        }
+      }
+
+      // ── Step 2: Try API via Puppeteer browser-context fetch ───────────────────
+      // apigw.trendyol.com is Cloudflare-protected. A real browser at www.trendyol.com
+      // can make XHR fetches to apigw with Origin: https://www.trendyol.com — Cloudflare
+      // allows this (different from curl/axios which get 403/429).
+      // We use page.evaluate() with a RAW JS STRING to avoid esbuild __name injection.
+      const API_REVIEW_BASE = `https://apigw.trendyol.com/discovery-storefront-trproductgw-service/api/review-read/product-reviews/detailed`;
+      const MAX_API_PAGES = 50;
+      let apiSucceeded = false;
+
+      try {
+        const puppeteer = await import('puppeteer');
+        const { buildLaunchOptions } = await import('./puppeteer-config');
+        let browser: any = null;
+        let pgBrowser: any = null;
+        try {
+          browser = await puppeteer.default.launch(buildLaunchOptions());
+          pgBrowser = await browser.newPage();
+          await pgBrowser.setUserAgent(BROWSER_UA);
+          await pgBrowser.setExtraHTTPHeaders({ 'Accept-Language': 'tr-TR,tr;q=0.9,en;q=0.8' });
+
+          console.log(`🌐 Puppeteer navigating to /yorumlar for API context...`);
+          await pgBrowser.goto(`${baseUrl}/yorumlar`, { waitUntil: 'domcontentloaded', timeout: 45000 });
+          await new Promise(r => setTimeout(r, 2000));
+
+          // Use raw JS string to avoid esbuild __name() transpilation issue
+          const evalScript = `
+(async function() {
+  var base = ${JSON.stringify(API_REVIEW_BASE)};
+  var pid = ${JSON.stringify(productId)};
+  var maxPg = ${JSON.stringify(MAX_API_PAGES)};
+  var opts = {
+    credentials: 'include',
+    headers: {
+      'Accept': 'application/json, text/plain, */*',
+      'Accept-Language': 'tr-TR,tr;q=0.9',
+      'Referer': 'https://www.trendyol.com/',
+      'Origin': 'https://www.trendyol.com'
+    }
+  };
+  var collected = [];
+  for (var pg = 0; pg < maxPg; pg++) {
+    var url = base + '?contentId=' + pid + '&page=' + pg + '&pageSize=20&order=DESC&orderBy=Score&channelId=1';
+    try {
+      var resp = await fetch(url, opts);
+      if (!resp.ok) break;
+      var data = await resp.json();
+      var revs = data && data.result && data.result.reviews ? data.result.reviews : [];
+      if (revs.length === 0) break;
+      collected = collected.concat(revs);
+      if (pg === 0) { collected._totalPages = data.result.summary && data.result.summary.totalPages || 1; }
+    } catch(e) { break; }
+    if (pg < maxPg - 1) { await new Promise(function(r){ setTimeout(r, 800); }); }
+  }
+  return { reviews: collected, totalPages: collected._totalPages || 1 };
+})()
+`;
+          const evalResult: any = await pgBrowser.evaluate(evalScript);
+          const apiRevs: any[] = evalResult?.reviews || [];
+          if (apiRevs.length > 0) {
+            addReviews(apiRevs);
+            const apiTotalPages = evalResult?.totalPages || 1;
+            if (apiTotalPages > totalPages) totalPages = apiTotalPages;
+            apiSucceeded = true;
+            console.log(`📥 API fetch: ${apiRevs.length} reviews, totalPages=${apiTotalPages}`);
+          } else {
+            console.warn(`⚠️ API fetch returned 0 reviews (likely rate-limited)`);
+          }
+        } finally {
+          if (pgBrowser) { try { await pgBrowser.close(); } catch {} }
+          if (browser) { try { await browser.close(); } catch {} }
+        }
+      } catch (puppeteerErr: any) {
+        console.warn(`⚠️ Puppeteer API fetch failed: ${puppeteerErr.message}`);
+      }
+
+      console.log(`✅ Toplam ${allReviews.length} yorum çekildi (HTML: ${seenIds.size - (apiSucceeded ? 0 : 0)}, API: ${apiSucceeded ? 'evet' : 'hayır'})`);
+
       const formatDate = (ts: number | string) => {
         if (!ts) return '';
         const d = typeof ts === 'number' ? new Date(ts) : new Date(ts);
@@ -8882,21 +9008,20 @@ ${result.title || 'Product'},${fb2Handle},${result.description || ''},${result.b
 
       const reviews = allReviews.map((r: any, idx: number) => ({
         id: String(r.id || idx),
-        title: r.commentTitle || (r.comment ? r.comment.substring(0, 60) : ''),
+        title: r.commentTitle || (r.comment ? r.comment.substring(0, 60).replace(/\n/g, ' ') : ''),
         body: r.comment || r.reviewText || '',
         rating: Number(r.rate || r.starCount || 0),
-        review_date: formatDate(r.createdDate || r.lastModifiedDate || 0),
+        review_date: formatDate(r.createdAt || r.createdDate || r.lastModifiedAt || 0),
         reviewer_name: r.userFullName || r.userName || 'Anonim',
         reviewer_email: '',
         product_id: shopifyProductId,
         product_handle: handleFromUrl,
-        reply: r.sellersAnswerInfo?.comment || '',
+        reply: r.sellersAnswerInfo?.comment || r.sellerReply || '',
         picture_urls: (r.mediaFiles || []).map((m: any) => m.url || m).filter(Boolean).join('|')
       }));
 
-      // Stats
-      const avg = reviews.length ? reviews.reduce((s: number, r: any) => s + r.rating, 0) / reviews.length : 0;
-      const dist = [1,2,3,4,5].map(star => reviews.filter((r: any) => r.rating === star).length);
+      const avg = reviews.length ? reviews.reduce((s: number, rv: any) => s + rv.rating, 0) / reviews.length : 0;
+      const dist = [1,2,3,4,5].map(star => reviews.filter((rv: any) => rv.rating === star).length);
 
       return res.json({
         success: true,
@@ -8906,7 +9031,6 @@ ${result.title || 'Product'},${fb2Handle},${result.description || ''},${result.b
       });
 
     } catch (error: any) {
-      if (browser) { try { await browser.close(); } catch {} }
       console.error('❌ Reviews scrape error:', error.message);
       return res.status(500).json({ success: false, error: error.message || 'Yorumlar çekilemedi' });
     }
