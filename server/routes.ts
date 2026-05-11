@@ -9003,22 +9003,29 @@ ${result.title || 'Product'},${fb2Handle},${result.description || ''},${result.b
         const d = typeof ts === 'number' ? new Date(ts) : new Date(ts);
         if (isNaN(d.getTime())) return String(ts);
         const pad = (n: number) => String(n).padStart(2, '0');
-        return `${d.getFullYear()}-${pad(d.getMonth()+1)}-${pad(d.getDate())} ${pad(d.getHours())}:${pad(d.getMinutes())}:${pad(d.getSeconds())} UTC`;
+        return `${d.getFullYear()}-${pad(d.getMonth()+1)}-${pad(d.getDate())} ${pad(d.getHours())}:${pad(d.getMinutes())}:${pad(d.getSeconds())}`;
       };
 
-      const reviews = allReviews.map((r: any, idx: number) => ({
-        id: String(r.id || idx),
-        title: r.commentTitle || (r.comment ? r.comment.substring(0, 60).replace(/\n/g, ' ') : ''),
-        body: r.comment || r.reviewText || '',
-        rating: Number(r.rate || r.starCount || 0),
-        review_date: formatDate(r.createdAt || r.createdDate || r.lastModifiedAt || 0),
-        reviewer_name: r.userFullName || r.userName || 'Anonim',
-        reviewer_email: '',
-        product_id: shopifyProductId,
-        product_handle: handleFromUrl,
-        reply: r.sellersAnswerInfo?.comment || r.sellerReply || '',
-        picture_urls: (r.mediaFiles || []).map((m: any) => m.url || m).filter(Boolean).join('|')
-      }));
+      const isValidUrl = (u: string) => /^https?:\/\/.+/.test(u.trim());
+
+      const reviews = allReviews.map((r: any, idx: number) => {
+        const rawUrls: string[] = (r.mediaFiles || []).map((m: any) => (m.url || m || '').trim()).filter(isValidUrl);
+        const pictureUrls = rawUrls.join(',');
+        const emailIndex = String(idx + 1).padStart(4, '0');
+        return {
+          id: String(r.id || idx),
+          title: r.commentTitle || (r.comment ? r.comment.substring(0, 60).replace(/\n/g, ' ') : ''),
+          body: r.comment || r.reviewText || '',
+          rating: Number(r.rate || r.starCount || 0),
+          review_date: formatDate(r.createdAt || r.createdDate || r.lastModifiedAt || 0),
+          reviewer_name: r.userFullName || r.userName || 'Anonim',
+          reviewer_email: `review_${emailIndex}@trendyol-import.local`,
+          product_id: shopifyProductId,
+          product_handle: handleFromUrl,
+          reply: r.sellersAnswerInfo?.comment || r.sellerReply || '',
+          picture_urls: pictureUrls,
+        };
+      });
 
       const avg = reviews.length ? reviews.reduce((s: number, rv: any) => s + rv.rating, 0) / reviews.length : 0;
       const dist = [1,2,3,4,5].map(star => reviews.filter((rv: any) => rv.rating === star).length);

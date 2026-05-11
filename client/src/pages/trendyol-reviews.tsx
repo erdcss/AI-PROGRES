@@ -86,16 +86,44 @@ export default function TrendyolReviewsPage() {
 
   const exportCSV = () => {
     if (!reviews.length) return;
-    const header = "title,body,rating,review_date,reviewer_name,reviewer_email,product_id,product_handle,reply,picture_urls";
-    const escape = (v: string) => {
-      const s = String(v ?? "");
-      if (s.includes(",") || s.includes('"') || s.includes("\n")) return `"${s.replace(/"/g, '""')}"`;
+
+    const COLS = ["title","body","rating","review_date","reviewer_name","reviewer_email","reply","picture_urls","product_handle","product_id"] as const;
+    const header = COLS.join(",");
+
+    const escapeCell = (v: unknown): string => {
+      const s = String(v ?? "").replace(/\r\n|\r/g, "\n");
+      if (s.includes(",") || s.includes('"') || s.includes("\n")) {
+        return `"${s.replace(/"/g, '""')}"`;
+      }
       return s;
     };
-    const rows = reviews.map(r =>
-      [r.title, r.body, r.rating, r.review_date, r.reviewer_name, r.reviewer_email,
-        r.product_id, r.product_handle, r.reply, r.picture_urls].map(escape).join(",")
-    );
+
+    const cleanPictureUrls = (raw: string): string => {
+      if (!raw) return "";
+      const urls = raw.split(/[|\n\r]+/).map(u => u.trim()).filter(u => /^https?:\/\/.+/.test(u));
+      return urls.join(",");
+    };
+
+    const rows = reviews.map((r, idx) => {
+      const emailIndex = String(idx + 1).padStart(4, "0");
+      const email = r.reviewer_email && /^[^@]+@[^@]+\.[^@]+$/.test(r.reviewer_email)
+        ? r.reviewer_email
+        : `review_${emailIndex}@trendyol-import.local`;
+
+      const dateClean = (r.review_date || "").replace(/\s*(UTC|GMT)$/i, "").trim();
+
+      const pics = cleanPictureUrls(r.picture_urls || "");
+      const picsCell = pics ? `"${pics.replace(/"/g, '""')}"` : "";
+
+      const cells: string[] = COLS.map(col => {
+        if (col === "reviewer_email") return escapeCell(email);
+        if (col === "review_date") return escapeCell(dateClean);
+        if (col === "picture_urls") return picsCell;
+        return escapeCell((r as any)[col] ?? "");
+      });
+      return cells.join(",");
+    });
+
     const csv = [header, ...rows].join("\n");
     const blob = new Blob(["\uFEFF" + csv], { type: "text/csv;charset=utf-8;" });
     const link = document.createElement("a");
