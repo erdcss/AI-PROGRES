@@ -8844,88 +8844,9 @@ ${result.title || 'Product'},${fb2Handle},${result.description || ''},${result.b
         }
       };
 
-      // ── Step 1: Axios HTML fetch → extract embedded review JSON ──────────────
-      const fetchPageHtml = async (pageNum: number): Promise<string> => {
-        const url = `${baseUrl}/yorumlar`;
-        try {
-          const resp = await axios.get(url, {
-            headers: COMMON_HEADERS,
-            timeout: 20000,
-            maxRedirects: 5,
-            decompress: true,
-            responseType: 'text',
-          });
-          return typeof resp.data === 'string' ? resp.data : '';
-        } catch (e: any) {
-          console.warn(`⚠️ axios fetch /yorumlar failed: ${e.message}`);
-          return '';
-        }
-      };
-
-      const parseReviewsFromHtml = (html: string): { reviews: any[], totalPages: number, totalElements: number, title: string } => {
-        const MARKER = 'window["__review-detail__PROPS"]=';
-        const idx = html.indexOf(MARKER);
-        if (idx === -1) return { reviews: [], totalPages: 1, totalElements: 0, title: '' };
-        const start = idx + MARKER.length;
-        const end = html.indexOf('</script>', start);
-        if (end === -1) return { reviews: [], totalPages: 1, totalElements: 0, title: '' };
-        try {
-          const data = JSON.parse(html.substring(start, end).trim());
-          const ri = data?.reviewImages;
-          const rawEntries: any[] = ri?.content || [];
-          const tPages = ri?.totalPages || 1;
-          const tElements = ri?.totalElements || rawEntries.length;
-          const title = data?.product?.name || '';
-
-          // reviewImages.content has one entry PER MEDIA FILE — multiple entries share the same reviewId.
-          // Group by reviewId and collect all mediaFiles per review.
-          const byReviewId = new Map<string, any>();
-          for (const entry of rawEntries) {
-            const rid = String(entry.reviewId || entry.id || Math.random());
-            if (!byReviewId.has(rid)) {
-              byReviewId.set(rid, {
-                id: rid,
-                rate: entry.rate,
-                comment: entry.comment || '',
-                userFullName: entry.userFullName || entry.userName || '',
-                sellerName: entry.sellerName || '',
-                trusted: entry.trusted,
-                createdAt: entry.lastModifiedDate || entry.createdAt || 0,
-                mediaFiles: [],
-              });
-            }
-            if (entry.mediaFile) {
-              byReviewId.get(rid).mediaFiles.push(entry.mediaFile);
-            }
-          }
-          const reviews = Array.from(byReviewId.values());
-          return { reviews, totalPages: tPages, totalElements: tElements, title };
-        } catch (e: any) {
-          console.warn(`⚠️ parseReviewsFromHtml JSON parse error: ${e.message}`);
-          return { reviews: [], totalPages: 1, totalElements: 0, title: '' };
-        }
-      };
-
-      console.log(`🌐 Fetching /yorumlar HTML via axios...`);
-      const html1 = await fetchPageHtml(1);
-      if (html1) {
-        const parsed = parseReviewsFromHtml(html1);
-        if (parsed.reviews.length > 0) {
-          addReviews(parsed.reviews);
-          totalPages = parsed.totalPages;
-          totalReviewElements = parsed.totalElements;
-          if (!productTitle && parsed.title) productTitle = parsed.title;
-          console.log(`📥 HTML reviewImages: ${parsed.reviews.length} reviews (${totalReviewElements} total image-reviews across ${totalPages} pages)`);
-        } else {
-          console.warn(`⚠️ No reviewImages found in HTML`);
-        }
-      }
-
-      // ── Step 2: Try API via Puppeteer browser-context fetch ───────────────────
-      // apigw.trendyol.com is Cloudflare-protected. A real browser at www.trendyol.com
-      // can make XHR fetches to apigw with Origin: https://www.trendyol.com — Cloudflare
-      // allows this (different from curl/axios which get 403/429).
-      // We use page.evaluate() with a RAW JS STRING to avoid esbuild __name injection.
+      // ── Step 1 + 2: Puppeteer fetches /yorumlar (axios gets 403 from Cloudflare) ──
+      // Step 1: extract embedded window["__review-detail__PROPS"] from page HTML
+      // Step 2: run apigw API fetch via page.evaluate() in the same browser session
       const API_REVIEW_BASE = `https://apigw.trendyol.com/discovery-storefront-trproductgw-service/api/review-read/product-reviews/detailed`;
       const MAX_API_PAGES = 50;
       let apiSucceeded = false;
@@ -8941,9 +8862,25 @@ ${result.title || 'Product'},${fb2Handle},${result.description || ''},${result.b
           await pgBrowser.setUserAgent(BROWSER_UA);
           await pgBrowser.setExtraHTTPHeaders({ 'Accept-Language': 'tr-TR,tr;q=0.9,en;q=0.8' });
 
-          console.log(`🌐 Puppeteer navigating to /yorumlar for API context...`);
+          console.log(`🌐 Puppeteer navigating to /yorumlar...`);
           await pgBrowser.goto(`${baseUrl}/yorumlar`, { waitUntil: 'domcontentloaded', timeout: 45000 });
           await new Promise(r => setTimeout(r, 2000));
+
+          // ── Step 1: parse embedded review JSON from page HTML ──────────────
+          const pageHtml: string = await pgBrowser.content();
+          if (pageHtml) {
+            const parsed = parseReviewsFromHtml(pageHtml);
+            if (parsed.reviews.length > 0) {
+              addReviews(parsed.reviews);
+              totalPages = parsed.totalPages;
+              totalReviewElements = parsed.totalElements;
+              if (!productTitle && parsed.title) productTitle = parsed.title;
+              console.log(`📥 HTML reviewImages: ${parsed.reviews.length} reviews (${totalReviewElements} total image-reviews across ${totalPages} pages)`);
+            } else {
+              console.warn(`⚠️ No reviewImages found in HTML`);
+            }
+          }
+
 
           // Use raw JS string to avoid esbuild __name() transpilation issue
           const evalScript = `
