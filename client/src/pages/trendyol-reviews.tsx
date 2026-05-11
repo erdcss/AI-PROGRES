@@ -281,7 +281,9 @@ export default function TrendyolReviewsPage() {
             >
               {reviews.map((review, i) => {
                 const isExpanded = expandedReview === review.id;
-                const pics = review.picture_urls ? review.picture_urls.split("|").filter(Boolean) : [];
+                const pics = review.picture_urls
+                  ? review.picture_urls.split(/[|,]/).map((u: string) => u.trim()).filter(Boolean)
+                  : [];
                 return (
                   <motion.div
                     key={review.id}
@@ -302,9 +304,24 @@ export default function TrendyolReviewsPage() {
                             {review.rating}/5
                           </span>
                           {pics.length > 0 && (
-                            <Badge className="bg-blue-600/20 text-blue-300 border-blue-500/20 text-xs px-1.5 py-0">
-                              <ImageIcon className="w-3 h-3 mr-1" />{pics.length} foto
-                            </Badge>
+                            <div className="relative group/fotobadge">
+                              <Badge className="bg-blue-600/20 text-blue-300 border-blue-500/20 text-xs px-1.5 py-0 cursor-pointer">
+                                <ImageIcon className="w-3 h-3 mr-1" />{pics.length} foto
+                              </Badge>
+                              {/* Hover popup — tüm fotoğrafları göster */}
+                              <div className="absolute left-0 top-6 z-50 hidden group-hover/fotobadge:flex flex-col gap-1.5 p-2 bg-gray-900/95 border border-white/10 rounded-xl shadow-2xl backdrop-blur-sm">
+                                {pics.map((pic, pi) => (
+                                  <a key={pi} href={pic} target="_blank" rel="noopener noreferrer" onClick={e => e.stopPropagation()}>
+                                    <img
+                                      src={pic}
+                                      alt={`foto ${pi + 1}`}
+                                      className="w-44 h-44 object-cover rounded-lg border border-white/10 hover:opacity-90 transition-opacity"
+                                      onError={e => { (e.target as HTMLImageElement).style.display = "none"; }}
+                                    />
+                                  </a>
+                                ))}
+                              </div>
+                            </div>
                           )}
                         </div>
                         {review.title && (
