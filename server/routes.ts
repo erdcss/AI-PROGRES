@@ -8790,6 +8790,109 @@ ${result.title || 'Product'},${fb2Handle},${result.description || ''},${result.b
     })();
   });
 
+  // ────────────────────────────────────────────────────────────
+  //  TRENDYOL REVIEWS SCRAPER
+  // ────────────────────────────────────────────────────────────
+  app.post('/api/reviews/scrape-trendyol', async (req, res) => {
+    try {
+      const { url, shopifyProductId = '', shopifyHandle = '' } = req.body;
+      if (!url) return res.status(400).json({ success: false, error: 'URL gerekli' });
+
+      // Extract product ID from URL: p-{id} pattern
+      const productIdMatch = url.match(/[/-]p-(\d+)/i);
+      if (!productIdMatch) return res.status(400).json({ success: false, error: 'Geçerli bir Trendyol ürün URL\'si girin (p-XXXXXXX formatında ürün ID içermeli)' });
+      const productId = productIdMatch[1];
+
+      // Extract merchantId from URL query params
+      const urlObj = new URL(url.includes('?') ? url : url + '?');
+      const merchantId = urlObj.searchParams.get('merchantId') || '0';
+
+      // Extract product handle from URL path for CSV
+      const pathParts = url.split('?')[0].split('/').filter(Boolean);
+      const handleFromUrl = shopifyHandle || pathParts.find(p => p.startsWith('p-') || p.includes('-p-'))?.replace(/^p-/, '') || productId;
+
+      console.log(`📝 Trendyol yorum çekimi başlatılıyor: productId=${productId}, merchantId=${merchantId}`);
+
+      const allReviews: any[] = [];
+      let pageIndex = 0;
+      const pageSize = 50;
+      let productTitle = '';
+      let hasMore = true;
+
+      const axios = (await import('axios')).default;
+
+      while (hasMore && pageIndex < 20) { // max 1000 reviews (20 pages × 50)
+        const apiUrl = `https://public.trendyol.com/discovery-web-socialgw-service/api/review/product/${productId}?storefrontId=1&culture=tr-TR&channelId=1&merchantId=${merchantId}&pageSize=${pageSize}&pageIndex=${pageIndex}`;
+        
+        try {
+          const response = await axios.get(apiUrl, {
+            headers: {
+              'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 Chrome/124 Safari/537.36',
+              'Accept': 'application/json',
+              'Referer': 'https://www.trendyol.com/',
+              'Origin': 'https://www.trendyol.com'
+            },
+            timeout: 15000
+          });
+
+          const data = response.data;
+          const content = data?.result?.productReviews?.content || data?.result?.content || [];
+          if (pageIndex === 0 && data?.result?.productName) productTitle = data.result.productName;
+
+          if (!content || content.length === 0) { hasMore = false; break; }
+          allReviews.push(...content);
+          
+          const totalPages = data?.result?.productReviews?.totalPages || data?.result?.totalPages || 1;
+          pageIndex++;
+          if (pageIndex >= totalPages) hasMore = false;
+        } catch (pageErr: any) {
+          console.warn(`⚠️ Page ${pageIndex} failed:`, pageErr.message);
+          hasMore = false;
+        }
+      }
+
+      console.log(`✅ Toplam ${allReviews.length} yorum çekildi`);
+
+      // Format reviews into CSV-ready structure
+      const formatDate = (ts: number | string) => {
+        if (!ts) return '';
+        const d = typeof ts === 'number' ? new Date(ts) : new Date(ts);
+        if (isNaN(d.getTime())) return String(ts);
+        const pad = (n: number) => String(n).padStart(2, '0');
+        return `${d.getFullYear()}-${pad(d.getMonth()+1)}-${pad(d.getDate())} ${pad(d.getHours())}:${pad(d.getMinutes())}:${pad(d.getSeconds())} UTC`;
+      };
+
+      const reviews = allReviews.map((r: any, idx: number) => ({
+        id: String(r.id || idx),
+        title: r.commentTitle || (r.comment ? r.comment.substring(0, 60) : ''),
+        body: r.comment || r.reviewText || '',
+        rating: Number(r.rate || r.starCount || 0),
+        review_date: formatDate(r.createdDate || r.lastModifiedDate || 0),
+        reviewer_name: r.userFullName || r.userName || 'Anonim',
+        reviewer_email: '',
+        product_id: shopifyProductId,
+        product_handle: handleFromUrl,
+        reply: r.sellerName ? (r.sellersAnswerInfo?.comment || '') : '',
+        picture_urls: (r.mediaFiles || []).map((m: any) => m.url || m).filter(Boolean).join('|')
+      }));
+
+      // Stats
+      const avg = reviews.length ? reviews.reduce((s, r) => s + r.rating, 0) / reviews.length : 0;
+      const dist = [1,2,3,4,5].map(star => reviews.filter(r => r.rating === star).length);
+
+      return res.json({
+        success: true,
+        productTitle,
+        reviews,
+        stats: { total: reviews.length, avg: Math.round(avg * 10) / 10, dist }
+      });
+
+    } catch (error: any) {
+      console.error('❌ Reviews scrape error:', error.message);
+      return res.status(500).json({ success: false, error: error.message || 'Yorumlar çekilemedi' });
+    }
+  });
+
   // Clear existing product memory cache on startup
   console.log('🗑️ Clearing existing product memory cache...');
   memoryManager.purgeAll();

@@ -1,0 +1,2 @@
+title,body,rating,review_date,reviewer_name,reviewer_email,product_id,product_handle,reply,picture_urls
+Great Product!,"This review body has a comma in it, so it is wrapped in quotes to avoid messing up the CSV.",5,2026-05-04 14:39:21 UTC,John Smith,john@example.com,,not-a-real-product-handle-so-this-review-wont-import,This is a reply by the admin

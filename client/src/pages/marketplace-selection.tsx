@@ -3,7 +3,7 @@ import { useLocation } from "wouter";
 import { 
   Store, ShoppingCart, Package, Truck, ArrowLeft, ArrowRight,
   BarChart3, MessageSquare, Database, Shield, Bot, 
-  ExternalLink, TrendingUp, Activity, Zap, Settings, Bell
+  ExternalLink, TrendingUp, Activity, Zap, Settings, Bell, Star
 } from "lucide-react";
 import { RealTimeClock } from "@/components/RealTimeClock";
 import { useIsMobile } from "@/hooks/use-mobile";
@@ -48,6 +48,17 @@ const MarketplaceSelection = () => {
       description: "Ürün çıkarma ve Shopify aktarım",
       available: true,
       path: "/pttavm"
+    }
+  ];
+
+  // Yorum Çıkarma Araçları
+  const reviewTools = [
+    {
+      name: "Trendyol Yorum Çıkarıcı",
+      description: "Ürün yorumlarını çek ve CSV olarak dışa aktar",
+      icon: <Star className="w-8 h-8 text-white" />,
+      available: true,
+      path: "/trendyol-reviews"
     }
   ];
 
@@ -201,6 +212,62 @@ const MarketplaceSelection = () => {
                         <ArrowRight className={`text-white group-hover:translate-x-1 transition-all duration-300 flex-shrink-0 ${
                           isMobile ? 'w-5 h-5' : 'w-4 h-4'
                         }`} />
+                      </div>
+                    </div>
+                  </div>
+                </motion.div>
+              ))}
+            </div>
+          </motion.div>
+
+          {/* Column Review: Yorum Çıkarma */}
+          <motion.div
+            initial={{ opacity: 0, y: 20 }}
+            animate={{ opacity: 1, y: 0 }}
+            transition={{ duration: 0.5, delay: 0.15 }}
+            className={`business-card ${isMobile ? 'p-6' : 'p-6'}`}
+          >
+            <div className={`text-center ${isMobile ? 'mb-6' : 'mb-8'}`}>
+              <h2 className={`font-black text-white mb-2 ${isMobile ? 'text-xl' : 'text-2xl'}`}>
+                YORUM ÇIKARMA ALANI
+              </h2>
+              <p className={`text-white font-bold ${isMobile ? 'text-sm' : 'text-sm'}`}>
+                Ürün yorumlarını çekip CSV olarak dışa aktarın
+              </p>
+            </div>
+
+            <div className={`${isMobile ? 'space-y-4' : 'space-y-4'}`}>
+              {reviewTools.map((tool, index) => (
+                <motion.div
+                  key={tool.name}
+                  initial={{ opacity: 0, y: 10 }}
+                  animate={{ opacity: 1, y: 0 }}
+                  transition={{ duration: 0.3, delay: 0.15 + index * 0.05 }}
+                  className={`
+                    business-card cursor-pointer group card-hover
+                    active:scale-95 transition-transform duration-200
+                    ${isMobile ? 'p-4' : 'p-4'}
+                  `}
+                  onClick={() => tool.available && setLocation(tool.path)}
+                >
+                  <div className={`flex items-center ${isMobile ? 'gap-4' : 'gap-4'}`}>
+                    <div className={`rounded-xl flex items-center justify-center group-hover:scale-110 transition-transform duration-300 ${
+                      isMobile ? 'w-14 h-14' : 'w-12 h-12'
+                    } bg-gradient-to-br from-purple-600 to-pink-600`}>
+                      {tool.icon}
+                    </div>
+                    <div className="flex-1 min-w-0">
+                      <h3 className={`font-black text-white mb-1 truncate ${isMobile ? 'text-lg' : 'text-lg'}`}>
+                        {tool.name}
+                      </h3>
+                      <p className={`text-white font-bold mb-2 line-clamp-2 ${isMobile ? 'text-sm' : 'text-xs'}`}>
+                        {tool.description}
+                      </p>
+                      <div className="flex items-center justify-between">
+                        <span className={`text-white bg-green-600 rounded-full font-black ${isMobile ? 'px-3 py-1.5 text-xs' : 'px-2 py-1 text-xs'}`}>
+                          AKTİF
+                        </span>
+                        <ArrowRight className={`text-white group-hover:translate-x-1 transition-all duration-300 flex-shrink-0 ${isMobile ? 'w-5 h-5' : 'w-4 h-4'}`} />
                       </div>
                     </div>
                   </div>

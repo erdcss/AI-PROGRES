@@ -32,6 +32,7 @@ import SystemStatusPage from "@/pages/system-status";
 import ReplitAgent from "@/pages/replit-agent-fixed";
 import SOSControl from "@/pages/sos-control";
 import ProductReviews from "@/pages/product-reviews";
+import TrendyolReviewsPage from "@/pages/trendyol-reviews";
 import MemoryTrackingPage from "@/pages/MemoryTrackingPage";
 import SavedUrlsPage from "@/pages/SavedUrlsPage";
 import ShopifyTrackingPage from "@/pages/ShopifyTrackingPage";
@@ -322,6 +323,11 @@ function Router() {
       <Route path="/product-reviews">
         <PageTransition>
           <ProductReviews />
+        </PageTransition>
+      </Route>
+      <Route path="/trendyol-reviews">
+        <PageTransition>
+          <TrendyolReviewsPage />
         </PageTransition>
       </Route>
       <Route path="/memory-tracking">
