@@ -309,13 +309,13 @@ export default function TrendyolReviewsPage() {
                                 <ImageIcon className="w-3 h-3 mr-1" />{pics.length} foto
                               </Badge>
                               {/* Hover popup — tüm fotoğrafları göster */}
-                              <div className="absolute left-0 top-6 z-50 hidden group-hover/fotobadge:flex flex-col gap-1.5 p-2 bg-gray-900/95 border border-white/10 rounded-xl shadow-2xl backdrop-blur-sm">
+                              <div className="absolute left-0 top-7 z-50 hidden group-hover/fotobadge:flex flex-row gap-2 p-2 bg-gray-900/95 border border-white/10 rounded-xl shadow-2xl backdrop-blur-sm">
                                 {pics.map((pic, pi) => (
                                   <a key={pi} href={pic} target="_blank" rel="noopener noreferrer" onClick={e => e.stopPropagation()}>
                                     <img
                                       src={pic}
                                       alt={`foto ${pi + 1}`}
-                                      className="w-44 h-44 object-cover rounded-lg border border-white/10 hover:opacity-90 transition-opacity"
+                                      className="w-32 h-32 object-cover rounded-lg border border-white/10 hover:opacity-90 transition-opacity"
                                       onError={e => { (e.target as HTMLImageElement).style.display = "none"; }}
                                     />
                                   </a>
