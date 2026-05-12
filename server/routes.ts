@@ -8929,7 +8929,7 @@ ${result.title || 'Product'},${fb2Handle},${result.description || ''},${result.b
         const emailIndex = String(idx + 1).padStart(4, '0');
         return {
           id: String(r.id || idx),
-          title: r.commentTitle || (r.comment ? r.comment.substring(0, 60).replace(/\n/g, ' ') : ''),
+          title: r.commentTitle || (r.comment ? r.comment.replace(/\n/g, ' ') : ''),
           body: r.comment || r.reviewText || '',
           rating: Number(r.rate || r.starCount || 0),
           review_date: formatDate(r.createdAt || r.createdDate || r.lastModifiedAt || 0),
