@@ -88,6 +88,7 @@ function ScraperPage() {
   const [isBulkProcessing, setIsBulkProcessing] = useState(false);
   const [bulkProgress, setBulkProgress] = useState<{current: number; total: number} | null>(null);
   const [uploadProgress, setUploadProgress] = useState<{current: number; total: number; successCount: number; failCount: number; currentTitle: string} | null>(null);
+  const [failedUploads, setFailedUploads] = useState<{title: string; error: string}[]>([]);
   const [uploadingId, setUploadingId] = useState<string | null>(null);
   const isMobile = useIsMobile();
   
@@ -852,9 +853,11 @@ ${data.title.toLowerCase().replace(/[^a-z0-9]/g, '-')},${data.title},${data.bran
 
     const total = csvPreviews.length;
     setUploadProgress({ current: 0, total, successCount: 0, failCount: 0, currentTitle: '' });
+    setFailedUploads([]);
 
     let successCount = 0;
     let failCount = 0;
+    const failedList: {title: string; error: string}[] = [];
 
     for (let i = 0; i < csvPreviews.length; i++) {
       const preview = csvPreviews[i];
@@ -882,11 +885,11 @@ ${data.title.toLowerCase().replace(/[^a-z0-9]/g, '-')},${data.title},${data.bran
             successCount++;
           } else {
             failCount++;
+            failedList.push({ title: preview.productTitle, error: result.error || result.message || 'Bilinmeyen hata' });
           }
         } else if (response.status === 409) {
           successCount++; // zaten yüklendi = başarı
         } else {
-          // 400 olsa bile "yakın zamanda yüklendi" mesajı varsa başarı say
           try {
             const errData = await response.json();
             const errMsg = errData.error || errData.message || '';
@@ -894,20 +897,27 @@ ${data.title.toLowerCase().replace(/[^a-z0-9]/g, '-')},${data.title},${data.bran
               successCount++;
             } else {
               failCount++;
+              failedList.push({ title: preview.productTitle, error: errMsg || `HTTP ${response.status}` });
             }
           } catch {
             failCount++;
+            failedList.push({ title: preview.productTitle, error: `HTTP ${response.status}` });
           }
         }
       } catch (err: any) {
-        if (err?.name === 'AbortError') successCount++; // timeout = büyük ihtimalle başardı
-        else failCount++;
+        if (err?.name === 'AbortError') {
+          successCount++;
+        } else {
+          failCount++;
+          failedList.push({ title: preview.productTitle, error: err?.message || 'Bağlantı hatası' });
+        }
       }
 
       setUploadProgress(prev => prev ? { ...prev, successCount, failCount } : null);
     }
 
     setUploadProgress(null);
+    setFailedUploads(failedList);
     toast({
       title: "Toplu Yükleme Tamamlandı",
       description: `✅ Başarılı: ${successCount}, ❌ Hatalı: ${failCount}`,
@@ -2573,6 +2583,32 @@ ${data.title.toLowerCase().replace(/[^a-z0-9]/g, '-')},${data.title},${data.bran
                     className="h-full bg-gradient-to-r from-blue-500 to-purple-400 transition-all duration-700"
                     style={{width: `${(uploadProgress.current / uploadProgress.total) * 100}%`}}
                   />
+                </div>
+              </div>
+            )}
+
+            {/* Hatalı Yüklemeler Listesi */}
+            {failedUploads.length > 0 && (
+              <div className="mt-4 rounded-xl border border-red-500/30 bg-red-900/10 p-4">
+                <div className="flex items-center justify-between mb-2">
+                  <span className="text-red-400 font-bold text-sm flex items-center gap-1.5">
+                    <span>❌</span> {failedUploads.length} Ürün Yüklenemedi
+                  </span>
+                  <button
+                    onClick={() => setFailedUploads([])}
+                    className="text-red-400/50 hover:text-red-400 text-xs"
+                  >kapat</button>
+                </div>
+                <div className="space-y-1.5 max-h-40 overflow-y-auto">
+                  {failedUploads.map((f, i) => (
+                    <div key={i} className="flex items-start gap-2 text-xs bg-red-900/20 rounded-lg px-3 py-2">
+                      <span className="text-red-400 shrink-0 mt-0.5">•</span>
+                      <div className="min-w-0">
+                        <p className="text-red-300 font-medium truncate">{f.title}</p>
+                        <p className="text-red-400/70 mt-0.5 break-words">{f.error}</p>
+                      </div>
+                    </div>
+                  ))}
                 </div>
               </div>
             )}
