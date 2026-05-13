@@ -58,7 +58,8 @@ interface ShopifyProductData {
 
 export async function uploadProductToShopify(csvContent: string, productTitle: string): Promise<{ 
   success: boolean; 
-  productId?: string; 
+  productId?: string;
+  handle?: string;
   variants?: Array<{
     shopifyVariantId: string;
     color: string;
@@ -147,6 +148,14 @@ export async function uploadProductToShopify(csvContent: string, productTitle: s
     }
     const shopifyStore = shopifyConfig.shopDomain;
     const accessToken = shopifyConfig.accessToken;
+
+    // ✅ 100+ varyant için GraphQL API'ye yönlendir
+    if (productData.variants.length > 100) {
+      console.log(`🔀 ${productData.variants.length} varyant > 100 — GraphQL API kullanılıyor`);
+      const gqlResult = await uploadProductViaGraphQL(productData, shopifyStore, accessToken, trackingId);
+      if (gqlResult.success) recordUpload(productTitle, gqlResult.productId!);
+      return gqlResult;
+    }
 
     // Shopify product create API call - Updated to 2024-01 for better metafield support
     const shopifyResponse = await fetch(`https://${shopifyStore}/admin/api/2024-01/products.json`, {
@@ -468,6 +477,197 @@ export async function uploadProductToShopify(csvContent: string, productTitle: s
       message: `Yükleme hatası: ${error instanceof Error ? error.message : 'Bilinmeyen hata'}` 
     };
   }
+}
+
+async function uploadProductViaGraphQL(
+  productData: ShopifyProductData,
+  shopifyStore: string,
+  accessToken: string,
+  trackingId: string | null
+): Promise<{ success: boolean; productId?: string; handle?: string; variants?: any[]; message: string }> {
+  const graphqlUrl = `https://${shopifyStore}/admin/api/2024-04/graphql.json`;
+  const headers = {
+    'X-Shopify-Access-Token': accessToken,
+    'Content-Type': 'application/json',
+  };
+
+  // Step 1: Collect unique option values
+  const option1Values = Array.from(new Set(productData.variants.map(v => v.option1).filter(v => v && v.trim())));
+  const option2Values = Array.from(new Set(productData.variants.map(v => v.option2).filter(v => v && v.trim())));
+
+  const productOptionsInput: any[] = [];
+  if (option1Values.length > 0 && productData.option1Name) {
+    productOptionsInput.push({ name: productData.option1Name, values: option1Values.map(v => ({ name: v })) });
+  }
+  if (option2Values.length > 0 && productData.option2Name) {
+    productOptionsInput.push({ name: productData.option2Name, values: option2Values.map(v => ({ name: v })) });
+  }
+
+  // Step 2: Create product (no variants yet)
+  const createMutation = `
+    mutation productCreate($input: ProductInput!) {
+      productCreate(input: $input) {
+        product {
+          id
+          handle
+          options { id name values }
+        }
+        userErrors { field message }
+      }
+    }
+  `;
+
+  const productInput: any = {
+    title: productData.title,
+    descriptionHtml: productData.bodyHtml,
+    vendor: productData.vendor,
+    tags: productData.tags ? productData.tags.split(',').map((t: string) => t.trim()).filter(Boolean) : [],
+    handle: productData.handle,
+  };
+  if (productOptionsInput.length > 0) productInput.productOptions = productOptionsInput;
+
+  const createRes = await fetch(graphqlUrl, {
+    method: 'POST',
+    headers,
+    body: JSON.stringify({ query: createMutation, variables: { input: productInput } }),
+  });
+
+  if (!createRes.ok) {
+    return { success: false, message: `GraphQL HTTP hatası: ${createRes.status}` };
+  }
+
+  const createData = await createRes.json();
+  const userErrors = createData.data?.productCreate?.userErrors || [];
+  if (createData.errors || userErrors.length > 0) {
+    const errMsg = createData.errors
+      ? JSON.stringify(createData.errors)
+      : userErrors.map((e: any) => e.message).join(', ');
+    return { success: false, message: `GraphQL ürün oluşturma hatası: ${errMsg}` };
+  }
+
+  const createdProduct = createData.data.productCreate.product;
+  const productGid: string = createdProduct.id;
+  const productId = productGid.split('/').pop()!;
+  console.log(`✅ GraphQL: Ürün oluşturuldu ID=${productId}`);
+
+  // Step 3: Upload images via REST
+  const validImages = productData.images.filter(img => img.src && img.src.startsWith('http'));
+  if (validImages.length > 0) {
+    const IMAGE_BATCH_SIZE = 5;
+    for (let b = 0; b < validImages.length; b += IMAGE_BATCH_SIZE) {
+      const batch = validImages.slice(b, b + IMAGE_BATCH_SIZE);
+      await Promise.all(batch.map(async (image) => {
+        try {
+          await fetch(`https://${shopifyStore}/admin/api/2024-01/products/${productId}/images.json`, {
+            method: 'POST',
+            headers: { 'X-Shopify-Access-Token': accessToken, 'Content-Type': 'application/json' },
+            body: JSON.stringify({ image: { src: image.src, alt: image.alt || productData.title, position: image.position || 1 } }),
+          });
+        } catch (e) {
+          console.log(`⚠️ GraphQL image upload error:`, (e as Error).message);
+        }
+      }));
+    }
+    console.log(`📸 GraphQL: ${validImages.length} görsel yüklendi`);
+  }
+
+  // Step 4: Bulk create variants in batches of 100
+  const bulkVariantMutation = `
+    mutation productVariantsBulkCreate($productId: ID!, $variants: [ProductVariantsBulkInput!]!) {
+      productVariantsBulkCreate(productId: $productId, variants: $variants) {
+        productVariants {
+          id
+          selectedOptions { name value }
+        }
+        userErrors { field message }
+      }
+    }
+  `;
+
+  const VARIANT_BATCH_SIZE = 100;
+  const allCreatedVariants: any[] = [];
+
+  for (let i = 0; i < productData.variants.length; i += VARIANT_BATCH_SIZE) {
+    const batch = productData.variants.slice(i, i + VARIANT_BATCH_SIZE);
+
+    const variantsInput = batch.map(v => {
+      const vi: any = {
+        price: v.price,
+        sku: v.sku || '',
+        inventoryPolicy: 'CONTINUE',
+        inventoryItem: { tracked: false },
+      };
+      if (v.compareAtPrice) vi.compareAtPrice = v.compareAtPrice;
+
+      const selectedOptions: { name: string; value: string }[] = [];
+      if (v.option1 && v.option1.trim() && productData.option1Name) {
+        selectedOptions.push({ name: productData.option1Name, value: v.option1 });
+      }
+      if (v.option2 && v.option2.trim() && productData.option2Name) {
+        selectedOptions.push({ name: productData.option2Name, value: v.option2 });
+      }
+      if (selectedOptions.length > 0) vi.optionValues = selectedOptions;
+
+      return vi;
+    });
+
+    const varRes = await fetch(graphqlUrl, {
+      method: 'POST',
+      headers,
+      body: JSON.stringify({ query: bulkVariantMutation, variables: { productId: productGid, variants: variantsInput } }),
+    });
+
+    if (!varRes.ok) {
+      console.error(`⚠️ GraphQL varyant batch ${i} HTTP hatası: ${varRes.status}`);
+      continue;
+    }
+
+    const varData = await varRes.json();
+    const created = varData.data?.productVariantsBulkCreate?.productVariants || [];
+    allCreatedVariants.push(...created);
+    const vErrors = varData.data?.productVariantsBulkCreate?.userErrors || [];
+    if (vErrors.length > 0) {
+      console.error(`⚠️ GraphQL varyant hataları (batch ${i}):`, vErrors.map((e: any) => e.message).join(', '));
+    }
+    console.log(`✅ GraphQL: Varyant batch ${i}-${i + batch.length} yüklendi (${created.length} varyant)`);
+  }
+
+  // Step 5: Add metafield if needed
+  if (trackingId) {
+    try {
+      await fetch(`https://${shopifyStore}/admin/api/2024-01/products/${productId}/metafields.json`, {
+        method: 'POST',
+        headers: { 'X-Shopify-Access-Token': accessToken, 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          metafield: { namespace: 'custom', key: 'repli_t_id', value: trackingId, type: 'single_line_text_field' },
+        }),
+      });
+    } catch (e) {
+      console.log('⚠️ GraphQL metafield hatası (critical değil):', (e as Error).message);
+    }
+  }
+
+  // Map variants back
+  const variantMappings = allCreatedVariants.map((sv: any, index: number) => {
+    const opts = sv.selectedOptions || [];
+    return {
+      shopifyVariantId: sv.id.split('/').pop(),
+      color: opts.find((o: any) => o.name === productData.option1Name)?.value || productData.variants[index]?.option1 || '',
+      size: opts.find((o: any) => o.name === productData.option2Name)?.value || productData.variants[index]?.option2 || '',
+      sku: productData.variants[index]?.sku || '',
+      price: productData.variants[index]?.price || '0',
+    };
+  });
+
+  console.log(`✅ GraphQL upload tamamlandı: ${productData.variants.length} varyant, ID=${productId}`);
+
+  return {
+    success: true,
+    productId,
+    handle: createdProduct.handle,
+    variants: variantMappings,
+    message: `GraphQL ile yüklendi (${productData.variants.length} varyant). ID: ${productId}`,
+  };
 }
 
 function parseCSVToShopifyProduct(records: any[]): ShopifyProductData {
