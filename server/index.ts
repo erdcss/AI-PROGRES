@@ -764,6 +764,65 @@ app.use(pendingChangesRoutes);
       });
     }, 2500);
 
+    // Auto-reconcile: link existing urlTracking rows to their shopifyProductId
+    // This fixes disabled trackers that were created before shopifyProductId linkage was added
+    setTimeout(async () => {
+      try {
+        const { db } = await import('./db');
+        const { urlTracking, shopifyTransferredProducts } = await import('@shared/schema');
+        const { productEligibilityService } = await import('./product-eligibility-service');
+        const { urlTrackingService } = await import('./url-tracking-service');
+        const { sql, eq } = await import('drizzle-orm');
+
+        const trackersMissingId = await db
+          .select()
+          .from(urlTracking)
+          .where(sql`${urlTracking.shopifyProductId} IS NULL`);
+
+        if (trackersMissingId.length === 0) {
+          console.log('✅ Auto-reconcile: all trackers already have shopifyProductId');
+          return;
+        }
+
+        console.log(`🔗 Auto-reconcile: ${trackersMissingId.length} trackers missing shopifyProductId`);
+
+        const transfers = await db
+          .select({ sourceUrl: shopifyTransferredProducts.sourceUrl, shopifyProductId: shopifyTransferredProducts.shopifyProductId })
+          .from(shopifyTransferredProducts)
+          .where(sql`${shopifyTransferredProducts.shopifyProductId} IS NOT NULL`);
+
+        const transferMap = new Map<string, string>();
+        for (const t of transfers) {
+          if (t.sourceUrl && t.shopifyProductId) transferMap.set(t.sourceUrl, t.shopifyProductId);
+        }
+
+        const activeIds = await productEligibilityService.getActiveShopifyProductIds();
+        let fixed = 0;
+        const toRestart: Array<{ url: string }> = [];
+
+        for (const tracker of trackersMissingId) {
+          const shopifyId = transferMap.get(tracker.url);
+          if (!shopifyId) continue;
+          const isActive = activeIds.has(shopifyId);
+          await db.update(urlTracking)
+            .set({ shopifyProductId: shopifyId, isTracking: isActive, status: isActive ? 'active' : 'paused', updatedAt: new Date() } as any)
+            .where(eq(urlTracking.id, tracker.id));
+          fixed++;
+          if (isActive) toRestart.push({ url: tracker.url });
+        }
+
+        productEligibilityService.invalidateCache();
+
+        for (const t of toRestart) {
+          try { await urlTrackingService.startTracking(t.url, 300); } catch {}
+        }
+
+        console.log(`✅ Auto-reconcile tamamlandı: ${fixed} tracker Shopify ile bağlandı, ${toRestart.length} takip aktifleştirildi`);
+      } catch (err) {
+        console.warn('⚠️ Auto-reconcile hatası (kritik değil):', err);
+      }
+    }, 5000);
+
     setTimeout(() => {
       import('./simple-scheduler').then(({ initializeScheduler }) => {
         initializeScheduler();

@@ -216,9 +216,10 @@ async function registerProductForTracking(
     
     // 5. Add to URL tracking service (WITHOUT starting tracking yet)
     // Tracking will be started AFTER Shopify upload succeeds
+    // shopifyProductId is passed so the entry is immediately eligible for monitoring
     try {
-      await urlTrackingService.addUrlToTracking(sourceUrl, 300, 'shopify-upload-auto', false);
-      console.log('✅ URL added to tracking service (tracking not started yet - waiting for Shopify upload)');
+      await urlTrackingService.addUrlToTracking(sourceUrl, 300, 'shopify-upload-auto', false, shopifyProductId);
+      console.log('✅ URL added to tracking service with shopifyProductId (tracking not started yet - waiting for Shopify upload)');
     } catch (urlError) {
       console.warn('⚠️ URL tracking service error (non-critical):', urlError);
     }
@@ -3863,7 +3864,7 @@ ${result.title || 'Product'},${fb2Handle},${result.description || ''},${result.b
               // ✅ START TRACKING after successful registration
               if (trackingResult.success && trackingResult.sourceUrl) {
                 try {
-                  const enableResult = await urlTrackingService.enableTracking(trackingResult.sourceUrl);
+                  const enableResult = await urlTrackingService.enableTracking(trackingResult.sourceUrl, uploadResult.productId);
                   console.log('🎯 Tracking enabled:', enableResult.success ? 'SUCCESS' : 'FAILED');
                 } catch (enableError) {
                   console.warn('⚠️ Failed to enable tracking (non-critical):', enableError);
@@ -3970,7 +3971,7 @@ ${result.title || 'Product'},${fb2Handle},${result.description || ''},${result.b
               // ✅ START TRACKING after successful registration
               if (trackingResult.success && trackingResult.sourceUrl) {
                 try {
-                  const enableResult = await urlTrackingService.enableTracking(trackingResult.sourceUrl);
+                  const enableResult = await urlTrackingService.enableTracking(trackingResult.sourceUrl, uploadResult.productId);
                   console.log('🎯 Tracking enabled:', enableResult.success ? 'SUCCESS' : 'FAILED');
                 } catch (enableError) {
                   console.warn('⚠️ Failed to enable tracking (non-critical):', enableError);
@@ -4154,7 +4155,7 @@ ${result.title || 'Product'},${fb2Handle},${result.description || ''},${result.b
             // ✅ START TRACKING after successful registration
             if (trackingResult.success && trackingResult.sourceUrl) {
               try {
-                const enableResult = await urlTrackingService.enableTracking(trackingResult.sourceUrl);
+                const enableResult = await urlTrackingService.enableTracking(trackingResult.sourceUrl, uploadResult.productId);
                 console.log('🎯 Tracking enabled:', enableResult.success ? 'SUCCESS' : 'FAILED');
               } catch (enableError) {
                 console.warn('⚠️ Failed to enable tracking (non-critical):', enableError);
@@ -8069,10 +8070,11 @@ ${result.title || 'Product'},${fb2Handle},${result.description || ''},${result.b
           for (const tracker of addedTrackers) {
             try {
               // Use canonical URL from database to avoid encoding mismatch
-              await urlTrackingService.enableTracking(tracker.url);
-              console.log(`✅ Tracking enabled: ${tracker.shopifyId}`);
+              // Pass shopifyProductId so the tracker remains eligible after restart
+              await urlTrackingService.enableTracking(tracker.url, tracker.shopifyProductId);
+              console.log(`✅ Tracking enabled: ${tracker.shopifyProductId}`);
             } catch (err) {
-              console.error(`⚠️ Tracking başlatma hatası: ${tracker.shopifyId}`, err);
+              console.error(`⚠️ Tracking başlatma hatası: ${tracker.shopifyProductId}`, err);
             }
           }
         });
@@ -8093,6 +8095,106 @@ ${result.title || 'Product'},${fb2Handle},${result.description || ''},${result.b
         success: false,
         error: error instanceof Error ? error.message : String(error)
       });
+    }
+  });
+
+  /**
+   * POST /api/tracking/reconcile-shopify-ids
+   * Links existing urlTracking rows (shopifyProductId=null) to their Shopify IDs
+   * by matching urlTracking.url against shopifyTransferredProducts.sourceUrl.
+   * Also re-enables trackers that were disabled only because shopifyProductId was missing.
+   */
+  app.post('/api/tracking/reconcile-shopify-ids', async (req, res) => {
+    try {
+      console.log('🔗 Reconciling urlTracking → shopifyProductId...');
+
+      // Find all trackers that are missing shopifyProductId
+      const trackersMissingId = await db
+        .select()
+        .from(urlTracking)
+        .where(sql`${urlTracking.shopifyProductId} IS NULL`);
+
+      if (trackersMissingId.length === 0) {
+        return res.json({ success: true, fixed: 0, message: 'All trackers already have shopifyProductId' });
+      }
+
+      console.log(`📋 Found ${trackersMissingId.length} trackers missing shopifyProductId`);
+
+      // Build a lookup map: sourceUrl → shopifyProductId from shopifyTransferredProducts
+      const transfers = await db
+        .select({
+          sourceUrl: shopifyTransferredProducts.sourceUrl,
+          shopifyProductId: shopifyTransferredProducts.shopifyProductId
+        })
+        .from(shopifyTransferredProducts)
+        .where(sql`${shopifyTransferredProducts.shopifyProductId} IS NOT NULL`);
+
+      const transferMap = new Map<string, string>();
+      for (const t of transfers) {
+        if (t.sourceUrl && t.shopifyProductId) {
+          transferMap.set(t.sourceUrl, t.shopifyProductId);
+        }
+      }
+
+      // Get active Shopify product IDs for eligibility cross-check
+      const activeIds = await productEligibilityService.getActiveShopifyProductIds();
+
+      let fixed = 0;
+      const reEnabledTrackers: Array<{ url: string; shopifyProductId: string }> = [];
+
+      for (const tracker of trackersMissingId) {
+        const shopifyId = transferMap.get(tracker.url);
+        if (!shopifyId) continue; // No match found
+
+        // Update tracker with shopifyProductId and re-enable if Shopify-active
+        const isActive = activeIds.has(shopifyId);
+        await db
+          .update(urlTracking)
+          .set({
+            shopifyProductId: shopifyId,
+            isTracking: isActive,
+            status: isActive ? 'active' : 'paused',
+            updatedAt: new Date()
+          })
+          .where(eq(urlTracking.id, tracker.id));
+
+        fixed++;
+        if (isActive) {
+          reEnabledTrackers.push({ url: tracker.url, shopifyProductId: shopifyId });
+        }
+        console.log(`✅ Linked tracker ${tracker.url} → ${shopifyId} (active: ${isActive})`);
+      }
+
+      // Invalidate eligibility cache
+      productEligibilityService.invalidateCache();
+
+      // Start tracking in background for re-enabled trackers
+      if (reEnabledTrackers.length > 0) {
+        setImmediate(async () => {
+          for (const t of reEnabledTrackers) {
+            try {
+              urlTrackingService.startTracking(t.url, 300);
+              console.log(`▶️ Tracking started for reconciled tracker: ${t.url}`);
+            } catch (err) {
+              console.warn(`⚠️ Could not start tracking for ${t.url}:`, err);
+            }
+          }
+        });
+      }
+
+      console.log(`✅ Reconciliation complete: ${fixed}/${trackersMissingId.length} trackers linked, ${reEnabledTrackers.length} re-enabled`);
+
+      res.json({
+        success: true,
+        total: trackersMissingId.length,
+        fixed,
+        reEnabled: reEnabledTrackers.length,
+        message: `${fixed} takip Shopify ile eşleştirildi, ${reEnabledTrackers.length} takip yeniden aktif edildi`
+      });
+
+    } catch (error) {
+      console.error('❌ Reconcile error:', error);
+      res.status(500).json({ success: false, error: error instanceof Error ? error.message : String(error) });
     }
   });
 

@@ -40,9 +40,9 @@ export class UrlTrackingService {
     console.log('✅ URL Tracking Service başlatıldı (Shopify-filtered)');
   }
 
-  async addUrlToTracking(url: string, trackingInterval: number = 300, source: string = 'manual', startTracking: boolean = true): Promise<any> {
+  async addUrlToTracking(url: string, trackingInterval: number = 300, source: string = 'manual', startTracking: boolean = true, shopifyProductId?: string | null): Promise<any> {
     try {
-      console.log(`🎯 URL tracking'e ekleniyor: ${url} (source: ${source}, startTracking: ${startTracking})`);
+      console.log(`🎯 URL tracking'e ekleniyor: ${url} (source: ${source}, startTracking: ${startTracking}, shopifyId: ${shopifyProductId || 'none'})`);
       
       // İlk extraction yap
       const extractionResult = await scenarioBasedScrape(url);
@@ -52,9 +52,7 @@ export class UrlTrackingService {
       }
 
       // Database'e kaydet
-      const [trackedUrl] = await db
-        .insert(urlTracking)
-        .values({
+      const insertValues: any = {
           url,
           productTitle: extractionResult.title,
           currentPrice: extractionResult.price.original.toString(),
@@ -67,11 +65,10 @@ export class UrlTrackingService {
           isTracking: startTracking,
           trackingInterval,
           extractedData: extractionResult
-        })
-        .returning()
-        .onConflictDoUpdate({
-          target: urlTracking.url,
-          set: {
+        };
+      if (shopifyProductId) insertValues.shopifyProductId = shopifyProductId;
+
+      const updateSet: any = {
             productTitle: extractionResult.title,
             currentPrice: extractionResult.price.original.toString(),
             lastChecked: new Date(),
@@ -80,8 +77,17 @@ export class UrlTrackingService {
             status: 'active',
             isTracking: startTracking,
             updatedAt: new Date()
-            // ⚠️ CRITICAL: NOT updating shopifyProductId to preserve Shopify linkage from bulk-add
-          }
+          };
+      // Only overwrite shopifyProductId if we have a real value to set
+      if (shopifyProductId) updateSet.shopifyProductId = shopifyProductId;
+
+      const [trackedUrl] = await db
+        .insert(urlTracking)
+        .values(insertValues)
+        .returning()
+        .onConflictDoUpdate({
+          target: urlTracking.url,
+          set: updateSet
         });
 
       // 🔗 Sync products table with url_tracking
@@ -115,17 +121,17 @@ export class UrlTrackingService {
    * Enable tracking for a URL (sets isTracking=true and starts monitoring)
    * Called after Shopify upload succeeds to begin price/stock monitoring
    */
-  async enableTracking(url: string): Promise<{ success: boolean; message: string }> {
+  async enableTracking(url: string, shopifyProductId?: string | null): Promise<{ success: boolean; message: string }> {
     try {
-      console.log(`🎯 Enabling tracking for: ${url}`);
+      console.log(`🎯 Enabling tracking for: ${url} (shopifyId: ${shopifyProductId || 'none'})`);
       
-      // Update isTracking to true in database
+      const updateFields: any = { isTracking: true, updatedAt: new Date() };
+      if (shopifyProductId) updateFields.shopifyProductId = shopifyProductId;
+
+      // Update isTracking to true in database (and shopifyProductId if provided)
       const [updated] = await db
         .update(urlTracking)
-        .set({ 
-          isTracking: true,
-          updatedAt: new Date()
-        })
+        .set(updateFields)
         .where(eq(urlTracking.url, url))
         .returning();
       

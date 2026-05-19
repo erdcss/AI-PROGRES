@@ -412,6 +412,33 @@ export default function MemoryTrackingPage() {
     }
   });
 
+  // Reconcile mutation - links existing trackers to their Shopify IDs
+  const reconcileMutation = useMutation({
+    mutationFn: async () => {
+      const res = await fetch('/api/tracking/reconcile-shopify-ids', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' }
+      });
+      if (!res.ok) throw new Error('Reconcile failed');
+      return res.json();
+    },
+    onSuccess: (data) => {
+      toast({
+        title: "✅ Takip Bağlantısı Tamamlandı",
+        description: data.message || `${data.fixed} takip Shopify ile eşleştirildi`,
+        duration: 8000
+      });
+      queryClient.invalidateQueries({ queryKey: ['/api/tracking/all'] });
+    },
+    onError: (error: any) => {
+      toast({
+        title: "Bağlantı Hatası",
+        description: error.message || "Takip bağlantısı sırasında hata oluştu",
+        variant: "destructive"
+      });
+    }
+  });
+
   const products = productsData?.products || [];
   const pagination = productsData?.pagination || { total: 0, totalPages: 0, currentPage: 1 };
   const categories = categoriesData?.categories || [];
@@ -775,6 +802,17 @@ export default function MemoryTrackingPage() {
               </AlertDialogContent>
             </AlertDialog>
             
+            {/* Reconcile Tracking Button */}
+            <Button
+              onClick={() => reconcileMutation.mutate()}
+              disabled={reconcileMutation.isPending}
+              className="bg-purple-600 hover:bg-purple-700"
+              title="Mevcut takipleri Shopify ile eşleştir"
+            >
+              <Activity className="h-4 w-4 mr-2" />
+              {reconcileMutation.isPending ? 'Bağlanıyor...' : 'Takipleri Bağla'}
+            </Button>
+
             {/* WebSocket Status Indicator */}
             <div className="flex items-center gap-2 px-3 py-2 rounded-lg bg-slate-800/50 border border-slate-700">
               {isConnected ? (
