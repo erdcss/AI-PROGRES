@@ -866,43 +866,83 @@ ${data.title.toLowerCase().replace(/[^a-z0-9]/g, '-')},${data.title},${data.bran
       try {
         const tags = individualTags[preview.id] || [];
         const csvToUpload = applyTagsToCSV(preview.csvContent, tags);
+        const body = JSON.stringify({ csvContent: csvToUpload, productTitle: preview.productTitle, sourceUrl: preview.sourceUrl, individualTags: tags });
 
-        const controller = new AbortController();
-        const tid = setTimeout(() => controller.abort(), 3 * 60 * 1000);
-        let response: Response;
-        try {
-          response = await fetch("/api/shopify/upload-csv-product", {
-            method: "POST",
-            headers: { "Content-Type": "application/json" },
-            signal: controller.signal,
-            body: JSON.stringify({ csvContent: csvToUpload, productTitle: preview.productTitle, sourceUrl: preview.sourceUrl, individualTags: tags }),
-          });
-        } finally { clearTimeout(tid); }
+        // Retry up to 3 attempts total for 502/503/504 gateway errors
+        const MAX_ATTEMPTS = 3;
+        let lastErrMsg = '';
+        let uploaded = false;
 
-        if (response.ok) {
-          const result = await response.json();
-          if (result.success || result.shopifyId || result.productId || result.error?.includes('yakın zamanda')) {
-            successCount++;
-          } else {
-            failCount++;
-            failedList.push({ title: preview.productTitle, error: result.error || result.message || 'Bilinmeyen hata' });
+        for (let attempt = 1; attempt <= MAX_ATTEMPTS; attempt++) {
+          if (attempt > 1) {
+            const retryDelay = attempt * 6000; // 12s, 18s
+            setUploadProgress(prev => prev ? { ...prev, currentTitle: `${preview.productTitle} (deneme ${attempt}/${MAX_ATTEMPTS}...)` } : null);
+            await new Promise(r => setTimeout(r, retryDelay));
           }
-        } else if (response.status === 409) {
-          successCount++; // zaten yüklendi = başarı
-        } else {
+
+          let response: Response;
           try {
-            const errData = await response.json();
-            const errMsg = errData.error || errData.message || '';
-            if (errMsg.includes('yakın zamanda') || errMsg.includes('already')) {
+            const controller = new AbortController();
+            const tid = setTimeout(() => controller.abort(), 3 * 60 * 1000);
+            try {
+              response = await fetch("/api/shopify/upload-csv-product", {
+                method: "POST",
+                headers: { "Content-Type": "application/json" },
+                signal: controller.signal,
+                body,
+              });
+            } finally { clearTimeout(tid); }
+          } catch (fetchErr: any) {
+            if (fetchErr?.name === 'AbortError') { successCount++; uploaded = true; break; }
+            lastErrMsg = fetchErr?.message || 'Bağlantı hatası';
+            continue;
+          }
+
+          lastStatus = response.status;
+
+          if (response.ok) {
+            const result = await response.json();
+            if (result.success || result.shopifyId || result.productId || result.error?.includes('yakın zamanda')) {
               successCount++;
             } else {
+              lastErrMsg = result.error || result.message || 'Bilinmeyen hata';
               failCount++;
-              failedList.push({ title: preview.productTitle, error: errMsg || `HTTP ${response.status}` });
+              failedList.push({ title: preview.productTitle, error: lastErrMsg });
             }
-          } catch {
+            uploaded = true;
+            break;
+          } else if (response.status === 409) {
+            successCount++;
+            uploaded = true;
+            break;
+          } else if (response.status === 502 || response.status === 503 || response.status === 504) {
+            // Gateway errors — worth retrying
+            lastErrMsg = `HTTP ${response.status}`;
+            continue;
+          } else {
+            try {
+              const errData = await response.json();
+              const errMsg = errData.error || errData.message || '';
+              if (errMsg.includes('yakın zamanda') || errMsg.includes('already')) {
+                successCount++;
+                uploaded = true;
+                break;
+              }
+              lastErrMsg = errMsg || `HTTP ${response.status}`;
+            } catch {
+              lastErrMsg = `HTTP ${response.status}`;
+            }
             failCount++;
-            failedList.push({ title: preview.productTitle, error: `HTTP ${response.status}` });
+            failedList.push({ title: preview.productTitle, error: lastErrMsg });
+            uploaded = true;
+            break;
           }
+        }
+
+        // If all retry attempts were gateway errors
+        if (!uploaded) {
+          failCount++;
+          failedList.push({ title: preview.productTitle, error: `${lastErrMsg} (${MAX_ATTEMPTS} denemede başarısız)` });
         }
       } catch (err: any) {
         if (err?.name === 'AbortError') {
