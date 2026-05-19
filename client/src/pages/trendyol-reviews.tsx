@@ -4,7 +4,7 @@ import { useLocation } from "wouter";
 import {
   ArrowLeft, Star, Download, Search, Loader2, MessageSquare,
   User, Calendar, Image as ImageIcon, ChevronDown, ChevronUp,
-  RefreshCw, CheckCircle, AlertCircle, ExternalLink
+  RefreshCw, CheckCircle, AlertCircle, ExternalLink, Trash2
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -133,6 +133,16 @@ export default function TrendyolReviewsPage() {
     toast({ title: "CSV İndirildi ✅", description: `${reviews.length} yorum dışa aktarıldı` });
   };
 
+  const clearPage = () => {
+    setReviews([]);
+    setStats(null);
+    setProductTitle("");
+    setUrl("");
+    setShopifyProductId("");
+    setShopifyHandle("");
+    setExpandedReview(null);
+  };
+
   const ratingColor = (r: number) =>
     r >= 4 ? "text-emerald-400" : r === 3 ? "text-yellow-400" : "text-red-400";
 
@@ -259,13 +269,23 @@ export default function TrendyolReviewsPage() {
                     )}
                   </div>
                 </div>
-                <Button
-                  onClick={exportCSV}
-                  className="bg-gradient-to-r from-emerald-600 to-green-600 hover:from-emerald-700 hover:to-green-700 text-white font-bold px-6 h-10 shrink-0"
-                >
-                  <Download className="w-4 h-4 mr-2" />
-                  CSV OLARAK İNDİR ({reviews.length})
-                </Button>
+                <div className="flex items-center gap-2 shrink-0">
+                  <Button
+                    onClick={exportCSV}
+                    className="bg-gradient-to-r from-emerald-600 to-green-600 hover:from-emerald-700 hover:to-green-700 text-white font-bold px-6 h-10"
+                  >
+                    <Download className="w-4 h-4 mr-2" />
+                    CSV OLARAK İNDİR ({reviews.length})
+                  </Button>
+                  <Button
+                    onClick={clearPage}
+                    variant="outline"
+                    className="border-red-500/40 text-red-400 hover:bg-red-900/20 hover:text-red-300 h-10 px-4"
+                  >
+                    <Trash2 className="w-4 h-4 mr-1.5" />
+                    Temizle
+                  </Button>
+                </div>
               </div>
             </motion.div>
           )}
