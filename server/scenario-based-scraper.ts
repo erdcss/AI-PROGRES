@@ -2671,13 +2671,19 @@ export async function scenarioBasedScrape(url: string): Promise<ScenarioBasedRes
                     });
                     // STOCK FIX: Overlay accurate per-size stock from __PRODUCT_DETAIL_APP_INITIAL_STATE__
                     // extractEnhancedVariants() defaults inStock=true; JS state has real soldOut/inStock per SKU
+                    // Key by color+size to avoid cross-color stock bleed; fall back to size-only if no color match
                     try {
                       const realStockOverlay = detectRealStockStatus($, htmlContent);
                       if (realStockOverlay.length > 0) {
-                        const sizeStockMap = new Map(realStockOverlay.map(rv => [rv.size, rv.inStock]));
+                        const colorSizeMap = new Map(realStockOverlay.map(rv => [`${rv.color}|${rv.size}`, rv.inStock]));
+                        const sizeOnlyMap = new Map(realStockOverlay.map(rv => [rv.size, rv.inStock]));
                         directVariants = directVariants.map(v => {
-                          if (v.size && sizeStockMap.has(v.size)) {
-                            return { ...v, inStock: sizeStockMap.get(v.size)! };
+                          const colorSizeKey = `${v.color || ''}|${v.size}`;
+                          if (v.size && colorSizeMap.has(colorSizeKey)) {
+                            return { ...v, inStock: colorSizeMap.get(colorSizeKey)! };
+                          }
+                          if (v.size && sizeOnlyMap.has(v.size)) {
+                            return { ...v, inStock: sizeOnlyMap.get(v.size)! };
                           }
                           return v;
                         });
