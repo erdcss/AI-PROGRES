@@ -898,8 +898,6 @@ ${data.title.toLowerCase().replace(/[^a-z0-9]/g, '-')},${data.title},${data.bran
             continue;
           }
 
-          lastStatus = response.status;
-
           if (response.ok) {
             const result = await response.json();
             if (result.success || result.shopifyId || result.productId || result.error?.includes('yakın zamanda')) {
