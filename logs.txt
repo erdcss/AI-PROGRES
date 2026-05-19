@@ -115848,3 +115848,115 @@ Details:
   - Variants Removed: 0
   - Product Archived: false
 ---
+
+[2026-05-19T17:46:21.950Z] SYNC AUDIT
+Product ID: 45047
+Product: Monte Sehpa Alis Dresuar
+Success: true
+Changes: 0
+Errors: 3
+Details:
+  - Price Updates: 0
+  - Stock Updates: 0
+  - Variants Added: 0
+  - Variants Removed: 0
+  - Product Archived: false
+---
+
+[2026-05-19T17:47:03.833Z] SYNC AUDIT
+Product ID: 52079
+Product: Darya DD283 Işıltılı Hair Tinsel Saç Simi Açık pembe HT09
+Success: true
+Changes: 1
+Errors: 0
+Details:
+  - Price Updates: 0
+  - Stock Updates: 0
+  - Variants Added: 0
+  - Variants Removed: 0
+  - Product Archived: false
+---
+
+[2026-05-19T17:47:12.919Z] SYNC AUDIT
+Product ID: 52079
+Product: Darya DD283 Işıltılı Hair Tinsel Saç Simi Açık pembe HT09
+Success: true
+Changes: 0
+Errors: 1
+Details:
+  - Price Updates: 0
+  - Stock Updates: 0
+  - Variants Added: 0
+  - Variants Removed: 0
+  - Product Archived: false
+---
+
+[2026-05-19T17:47:54.019Z] SYNC AUDIT
+Product ID: 38964
+Product: CARRY Me Case Kırmızı Katlanabilir Silikon Gözlük Kılıfı
+Success: true
+Changes: 1
+Errors: 0
+Details:
+  - Price Updates: 0
+  - Stock Updates: 0
+  - Variants Added: 0
+  - Variants Removed: 0
+  - Product Archived: false
+---
+
+[2026-05-19T17:49:27.085Z] SYNC AUDIT
+Product ID: 45047
+Product: Monte Sehpa Alis Dresuar
+Success: true
+Changes: 0
+Errors: 0
+Details:
+  - Price Updates: 0
+  - Stock Updates: 0
+  - Variants Added: 0
+  - Variants Removed: 0
+  - Product Archived: false
+---
+
+[2026-05-19T17:50:02.117Z] SYNC AUDIT
+Product ID: 45075
+Product: Metallica Concept Oval Telli Siyah Butik Elbise Askısı Ayaklı Askılık Konfeksiyon Askılık
+Success: true
+Changes: 1
+Errors: 0
+Details:
+  - Price Updates: 0
+  - Stock Updates: 0
+  - Variants Added: 0
+  - Variants Removed: 0
+  - Product Archived: false
+---
+
+[2026-05-19T17:50:02.663Z] SYNC AUDIT
+Product ID: 45075
+Product: Metallica Concept Oval Telli Siyah Butik Elbise Askısı Ayaklı Askılık Konfeksiyon Askılık
+Success: true
+Changes: 0
+Errors: 0
+Details:
+  - Price Updates: 0
+  - Stock Updates: 0
+  - Variants Added: 0
+  - Variants Removed: 0
+  - Product Archived: false
+---
+
+[2026-05-19T17:50:29.461Z] SYNC AUDIT
+Product ID: 51545
+Product: ego home Kaçış Önleyici Küçük ve Orta Irk Kedi Köpek Göğüs Tasması Yumuşak,Nefes Alabilir, Dayanıklı
+Success: true
+Changes: 1
+Errors: 0
+Details:
+  - Price Updates: 0
+  - Stock Updates: 0
+  - Variants Added: 0
+  - Variants Removed: 0
+  - Product Archived: false
+---

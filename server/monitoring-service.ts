@@ -444,9 +444,9 @@ export class MonitoringService {
             sku: v.sku || undefined,
             trendyolPrice: v.trendyolPrice ?? newPrice,
             shopifyPrice: v.shopifyPrice ?? Math.round(newPrice * 1.10 * 100) / 100,
-            // inStock true ise en az 1 adet var demektir (Trendyol stockCount bilgisi her zaman doğru olmayabilir)
+            // inStock false ise tükendi; undefined ise scraper'dan veri gelmedi → tükendi kabul et (güvenli taraf)
             stockCount: v.stockCount ?? (v.inStock ? 1 : 0),
-            inStock: v.inStock ?? true
+            inStock: v.inStock !== undefined ? v.inStock : false
           }));
 
           // Track variant changes using products table ID (compares with database, records changes, sends Telegram)

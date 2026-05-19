@@ -1544,38 +1544,52 @@ export async function scenarioBasedScrape(url: string): Promise<ScenarioBasedRes
                   detectedColorVariantUrls = (puppeteerResult as any).colorVariantUrls;
                   console.log(`🌈 Captured ${detectedColorVariantUrls.length} color variant URLs from Puppeteer`);
                 }
-                // FIX: Extract size-level stock from Puppeteer-rendered HTML for the current color
-                // Puppeteer renders disabled button states accurately (unlike JSON-LD which is color-level only)
+                // FIX: Extract size-level stock from Puppeteer-rendered HTML using __PRODUCT_DETAIL_APP_INITIAL_STATE__
+                // DOM button parsing is unreliable (Trendyol uses CSS opacity, not disabled attr).
+                // detectRealStockStatus() reads the JS state which has per-SKU inStock/soldOut fields.
                 if (needsPuppeteerForStock && prebuiltMultiColorVariants) {
                   try {
-                    const sizeStockSelectors = [
-                      '[data-size-type]', '.slicing-attribute-btn', 'button[class*="slicing"]',
-                      'div[class*="size-variant"]', 'button[data-size]', '.sp-itm',
-                      '[class*="size-btn"]', '[class*="size-variant"]', 'button[class*="size"]',
-                    ];
-                    const sizePattern = /^(XXS|XS|S|M|L|XL|XXL|XXXL|2XL|3XL|4XL|\d+(\.\d+)?|Tek\s*Beden|One\s*Size|\d+[-–]\d+\s*[Yy]a[şs]|\d+\s*[Yy]a[şs])$/i;
-                    let stockFound = false;
-                    for (const sel of sizeStockSelectors) {
-                      $(sel).each((_, el) => {
-                        const $el = $(el);
-                        const sizeName = ($el.text().trim() || $el.attr('data-size') || $el.attr('aria-label') || '').trim();
-                        if (!sizeName || sizeName.length > 25 || !sizePattern.test(sizeName)) return;
-                        const isOutOfStock = $el.is('[disabled]') || $el.hasClass('disabled') ||
-                          $el.hasClass('out-of-stock') || $el.hasClass('sold-out') ||
-                          $el.hasClass('tukendi') || $el.attr('aria-disabled') === 'true';
-                        if (!puppeteerSizeStockForCurrentColor.has(sizeName)) {
-                          puppeteerSizeStockForCurrentColor.set(sizeName, !isOutOfStock);
-                          stockFound = true;
+                    const puppHtml = puppeteerResult.htmlContent;
+                    const $pupp = safeCheerioLoad(puppHtml);
+                    const realStockData = detectRealStockStatus($pupp, puppHtml);
+                    if (realStockData.length > 0) {
+                      realStockData.forEach(rv => {
+                        if (rv.size && !puppeteerSizeStockForCurrentColor.has(rv.size)) {
+                          puppeteerSizeStockForCurrentColor.set(rv.size, rv.inStock);
                         }
                       });
-                      if (puppeteerSizeStockForCurrentColor.size > 0) break;
-                    }
-                    if (puppeteerSizeStockForCurrentColor.size > 0) {
                       const inStk = [...puppeteerSizeStockForCurrentColor.values()].filter(Boolean).length;
                       const outStk = puppeteerSizeStockForCurrentColor.size - inStk;
-                      console.log(`🌈 PUPPETEER SIZE STOCK: ${puppeteerSizeStockForCurrentColor.size} sizes — ${inStk} in-stock, ${outStk} out-of-stock`);
+                      console.log(`🌈 PUPPETEER REAL STOCK (JS state): ${puppeteerSizeStockForCurrentColor.size} sizes — ${inStk} in-stock, ${outStk} out-of-stock`);
                     } else {
-                      console.log('🌈 PUPPETEER SIZE STOCK: No size stock data found in Puppeteer HTML');
+                      // Fallback: DOM button parsing (less reliable but last resort)
+                      const sizeStockSelectors = [
+                        '[data-size-type]', '.slicing-attribute-btn', 'button[class*="slicing"]',
+                        'div[class*="size-variant"]', 'button[data-size]', '.sp-itm',
+                        '[class*="size-btn"]', '[class*="size-variant"]', 'button[class*="size"]',
+                      ];
+                      const sizePattern = /^(XXS|XS|S|M|L|XL|XXL|XXXL|2XL|3XL|4XL|\d+(\.\d+)?|Tek\s*Beden|One\s*Size|\d+[-–]\d+\s*[Yy]a[şs]|\d+\s*[Yy]a[şs])$/i;
+                      for (const sel of sizeStockSelectors) {
+                        $pupp(sel).each((_, el) => {
+                          const $el = $pupp(el);
+                          const sizeName = ($el.text().trim() || $el.attr('data-size') || $el.attr('aria-label') || '').trim();
+                          if (!sizeName || sizeName.length > 25 || !sizePattern.test(sizeName)) return;
+                          const isOutOfStock = $el.is('[disabled]') || $el.hasClass('disabled') ||
+                            $el.hasClass('out-of-stock') || $el.hasClass('sold-out') ||
+                            $el.hasClass('tukendi') || $el.attr('aria-disabled') === 'true';
+                          if (!puppeteerSizeStockForCurrentColor.has(sizeName)) {
+                            puppeteerSizeStockForCurrentColor.set(sizeName, !isOutOfStock);
+                          }
+                        });
+                        if (puppeteerSizeStockForCurrentColor.size > 0) break;
+                      }
+                      if (puppeteerSizeStockForCurrentColor.size > 0) {
+                        const inStk = [...puppeteerSizeStockForCurrentColor.values()].filter(Boolean).length;
+                        const outStk = puppeteerSizeStockForCurrentColor.size - inStk;
+                        console.log(`🌈 PUPPETEER DOM STOCK (fallback): ${puppeteerSizeStockForCurrentColor.size} sizes — ${inStk} in-stock, ${outStk} out-of-stock`);
+                      } else {
+                        console.log('🌈 PUPPETEER SIZE STOCK: No size stock data found in Puppeteer HTML');
+                      }
                     }
                   } catch (stockErr: any) {
                     console.log(`⚠️ Puppeteer size stock extraction failed: ${stockErr.message}`);
@@ -2655,6 +2669,24 @@ export async function scenarioBasedScrape(url: string): Promise<ScenarioBasedRes
                     directVariants.slice(0, 5).forEach((v, i) => {
                       console.log(`🎯 Variant ${i + 1}: ${v.color} / ${v.size} (${v.inStock ? 'In Stock' : 'Out'})`);
                     });
+                    // STOCK FIX: Overlay accurate per-size stock from __PRODUCT_DETAIL_APP_INITIAL_STATE__
+                    // extractEnhancedVariants() defaults inStock=true; JS state has real soldOut/inStock per SKU
+                    try {
+                      const realStockOverlay = detectRealStockStatus($, htmlContent);
+                      if (realStockOverlay.length > 0) {
+                        const sizeStockMap = new Map(realStockOverlay.map(rv => [rv.size, rv.inStock]));
+                        directVariants = directVariants.map(v => {
+                          if (v.size && sizeStockMap.has(v.size)) {
+                            return { ...v, inStock: sizeStockMap.get(v.size)! };
+                          }
+                          return v;
+                        });
+                        const oos = directVariants.filter(v => !v.inStock).length;
+                        console.log(`🔍 STOCK OVERLAY: ${oos} OOS sizes from JS state (${realStockOverlay.length} sizes found)`);
+                      }
+                    } catch (stockOverlayErr: any) {
+                      console.log(`⚠️ Stock overlay failed (non-fatal): ${stockOverlayErr.message}`);
+                    }
                   }
                 } catch (err) {
                   console.log(`❌ Enhanced extraction failed: ${err.message}`);
@@ -5613,9 +5645,10 @@ function checkVariantStock($: any, htmlContent: string, color: string, size: str
     return true;
   }
   
-  // 3. DEFAULT: If size exists in extraction, assume in stock
-  console.log(`⚠️ VARSAYILAN: ${size} - STOKTA VAR kabul edildi`);
-  return true;
+  // 3. DEFAULT: Could not determine stock — treat as out-of-stock (safe default)
+  // This prevents "always in-stock" false positives when DOM/script data is missing
+  console.log(`⚠️ VARSAYILAN: ${size} - stok bilgisi bulunamadı, TÜKENMİŞ kabul edildi`);
+  return false;
 }
 
 /**
