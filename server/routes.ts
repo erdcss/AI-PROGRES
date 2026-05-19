@@ -8621,6 +8621,14 @@ ${result.title || 'Product'},${fb2Handle},${result.description || ''},${result.b
     }
   });
 
+  app.get("/api/shopify/config", (_req, res) => {
+    const shopDomain =
+      process.env.SHOPIFY_SHOP_DOMAIN ||
+      process.env.SHOPIFY_STORE_URL?.replace(/^https?:\/\//, '') ||
+      '';
+    res.json({ shopDomain });
+  });
+
   app.get("/api/shopify/statistics", async (req, res) => {
     try {
       const result = await shopifyProductsSync.getStatistics();
