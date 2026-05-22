@@ -11,4 +11,4 @@ vite.config.ts.*
 .local
 .upm
 *.log
-logs.txt
+logs.txtlogs.txt
