@@ -897,9 +897,32 @@ export interface ScenarioBasedResult {
   };
 }
 
+// Global Puppeteer concurrency limiter — max 1 Chromium instance at a time to prevent OOM
+let puppeteerSlotAvailable = true;
+const puppeteerQueue: Array<() => void> = [];
+function acquirePuppeteerSlot(): Promise<void> {
+  return new Promise(resolve => {
+    if (puppeteerSlotAvailable) {
+      puppeteerSlotAvailable = false;
+      resolve();
+    } else {
+      puppeteerQueue.push(resolve);
+    }
+  });
+}
+function releasePuppeteerSlot(): void {
+  const next = puppeteerQueue.shift();
+  if (next) {
+    next();
+  } else {
+    puppeteerSlotAvailable = true;
+  }
+}
+
 // Puppeteer Color Extraction Function
 async function tryPuppeteerColorExtraction(url: string): Promise<{success: boolean, htmlContent?: string, colors?: string[]}> {
   let browser;
+  await acquirePuppeteerSlot();
   try {
     console.log('🎨 Starting Puppeteer color extraction...');
     
@@ -953,6 +976,7 @@ async function tryPuppeteerColorExtraction(url: string): Promise<{success: boole
       if (isBlocked) {
         console.log('🚫 Puppeteer: Trendyol is serving a bot-challenge page, returning failure');
         await browser.close();
+        releasePuppeteerSlot();
         return { success: false };
       }
       console.log('⚠️ JS state not found in time, proceeding with available content');
@@ -1107,6 +1131,7 @@ async function tryPuppeteerColorExtraction(url: string): Promise<{success: boole
     }
     
     await browser.close();
+    releasePuppeteerSlot();
     console.log('✅ Puppeteer extraction successful');
     if (colorVariantUrlsFromPuppeteer.length > 0) {
       console.log(`🌈 Found ${colorVariantUrlsFromPuppeteer.length} color variant URLs`);
@@ -1122,6 +1147,7 @@ async function tryPuppeteerColorExtraction(url: string): Promise<{success: boole
     console.log('❌ Puppeteer extraction failed:', (error as any).message);
     console.log('❌ Stack:', (error as any).stack?.split('\n').slice(0,3).join(' | '));
     if (browser) await browser.close();
+    releasePuppeteerSlot();
     return { success: false };
   }
 }

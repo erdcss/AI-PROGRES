@@ -15,6 +15,7 @@ import type { VariantInfo } from './variant-tracking-service';
 export class MonitoringService {
   private isRunning = false;
   private intervalId: NodeJS.Timeout | null = null;
+  private cycleRunning = false;
   private shopifyService: ShopifyApiService | null = null;
   private variantTracker: VariantTrackingService;
   private features = {
@@ -47,20 +48,37 @@ export class MonitoringService {
     }
 
     this.isRunning = true;
-    this.intervalId = setInterval(() => {
-      this.checkProducts();
-    }, this.checkInterval);
-
     console.log(`🔄 Monitoring service başlatıldı (${this.checkInterval/1000}s aralıklarla)`);
-    
+
+    // Use recursive setTimeout instead of setInterval so the next cycle only
+    // starts AFTER the previous one fully completes — prevents parallel cycles
+    // that stack up Puppeteer instances and exhaust memory.
+    const scheduleCycle = async () => {
+      if (!this.isRunning) return;
+      if (this.cycleRunning) {
+        console.log('⚠️ Previous monitoring cycle still running — skipping this tick');
+        this.intervalId = setTimeout(scheduleCycle, this.checkInterval);
+        return;
+      }
+      this.cycleRunning = true;
+      try {
+        await this.checkProducts();
+      } finally {
+        this.cycleRunning = false;
+        if (this.isRunning) {
+          this.intervalId = setTimeout(scheduleCycle, this.checkInterval);
+        }
+      }
+    };
+
     // İlk kontrolü hemen başlat
-    this.checkProducts();
+    scheduleCycle();
   }
 
   // Monitoring service durdur
   stop(): void {
     if (this.intervalId) {
-      clearInterval(this.intervalId);
+      clearTimeout(this.intervalId);
       this.intervalId = null;
     }
     this.isRunning = false;
