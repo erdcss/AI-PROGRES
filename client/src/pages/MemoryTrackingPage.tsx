@@ -30,6 +30,11 @@ import {
   BellOff,
   CheckCircle2,
   AlertCircle,
+  History,
+  XCircle,
+  PackageCheck,
+  PackageX,
+  ArrowUpDown,
 } from 'lucide-react';
 import { useLocation } from 'wouter';
 import {
@@ -62,6 +67,13 @@ import {
   AlertDialogTitle,
   AlertDialogTrigger,
 } from '@/components/ui/alert-dialog';
+import {
+  Dialog,
+  DialogContent,
+  DialogHeader,
+  DialogTitle,
+} from '@/components/ui/dialog';
+import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 
 interface ShopifyMemoryProduct {
   id: number;
@@ -111,6 +123,7 @@ export default function MemoryTrackingPage() {
   const [editingUrl, setEditingUrl] = useState<{ [key: number]: boolean }>({});
   const [tempUrls, setTempUrls] = useState<{ [key: number]: string }>({});
   const [selectedProducts, setSelectedProducts] = useState<number[]>([]);
+  const [historyProduct, setHistoryProduct] = useState<ShopifyMemoryProduct | null>(null);
 
   const { isConnected, subscribe, unsubscribe } = useWebSocket({ autoConnect: true });
 
@@ -205,6 +218,34 @@ export default function MemoryTrackingPage() {
   }, [trackingData]);
 
   const trackingStats = trackingData?.stats;
+
+  // Stock history query - only runs when a product is selected
+  const { data: stockHistoryData, isLoading: isLoadingHistory } = useQuery<{
+    success: boolean;
+    changes: Array<{
+      id: number;
+      changeType: string;
+      color: string | null;
+      size: string | null;
+      oldInStock: boolean | null;
+      newInStock: boolean | null;
+      oldStockCount: number | null;
+      newStockCount: number | null;
+      createdAt: string;
+      telegramNotified: boolean;
+    }>;
+    productFound: boolean;
+    productTitle?: string;
+  }>({
+    queryKey: ['/api/shopify/products', historyProduct?.shopifyId, 'stock-history'],
+    queryFn: async () => {
+      const res = await fetch(`/api/shopify/products/${historyProduct!.shopifyId}/stock-history`);
+      if (!res.ok) throw new Error('Failed to fetch stock history');
+      return res.json();
+    },
+    enabled: !!historyProduct,
+    staleTime: 30000,
+  });
 
   // ─── Mutations ────────────────────────────────────────────────────────────
   const syncMutation = useMutation({
@@ -820,6 +861,10 @@ export default function MemoryTrackingPage() {
                             {/* İşlemler */}
                             <TableCell className="text-right pr-4">
                               <div className="flex items-center justify-end gap-1">
+                                <Button size="sm" variant="ghost" onClick={() => setHistoryProduct(product)} className="h-7 px-2 text-purple-400/70 hover:text-purple-300 hover:bg-purple-900/30 text-xs" title="Stok Geçmişi">
+                                  <History className="h-3.5 w-3.5 mr-1" />
+                                  Geçmiş
+                                </Button>
                                 <Button size="sm" variant="ghost" onClick={() => openShopifyAdmin(product.shopifyId)} className="h-7 px-2 text-white/50 hover:text-white hover:bg-blue-900/40 text-xs" title="Shopify Admin">
                                   <ExternalLink className="h-3.5 w-3.5 mr-1" />
                                   Shopify
@@ -887,6 +932,141 @@ export default function MemoryTrackingPage() {
         {/* ── Bekleyen Değişiklikler ── */}
         <PendingChangesPanel />
       </div>
+
+      {/* ── Stok Geçmişi Dialog ── */}
+      <Dialog open={!!historyProduct} onOpenChange={(open) => { if (!open) setHistoryProduct(null); }}>
+        <DialogContent className="bg-slate-900 border-slate-700 text-white max-w-2xl max-h-[80vh] overflow-hidden flex flex-col">
+          <DialogHeader className="shrink-0">
+            <DialogTitle className="text-white flex items-center gap-2 text-base">
+              <History className="h-4 w-4 text-purple-400" />
+              <span className="truncate">{historyProduct?.title}</span>
+            </DialogTitle>
+          </DialogHeader>
+
+          <Tabs defaultValue="stock" className="flex-1 overflow-hidden flex flex-col">
+            <TabsList className="bg-slate-800 border border-slate-700 shrink-0 w-fit">
+              <TabsTrigger value="stock" className="data-[state=active]:bg-purple-700 data-[state=active]:text-white text-white/60 text-xs">
+                <History className="h-3.5 w-3.5 mr-1.5" />
+                Stok Geçmişi
+              </TabsTrigger>
+            </TabsList>
+
+            <TabsContent value="stock" className="flex-1 overflow-y-auto mt-3 pr-1">
+              {isLoadingHistory ? (
+                <div className="flex items-center justify-center py-12 gap-3">
+                  <RefreshCw className="h-5 w-5 text-purple-400 animate-spin" />
+                  <span className="text-white/60 text-sm">Geçmiş yükleniyor...</span>
+                </div>
+              ) : !stockHistoryData?.productFound ? (
+                <div className="flex flex-col items-center justify-center py-12 gap-3 text-center">
+                  <Package className="h-10 w-10 text-white/20" />
+                  <p className="text-white/50 text-sm">Bu ürün için stok takip kaydı bulunamadı.</p>
+                  <p className="text-white/30 text-xs">Ürün izlemeye eklendiğinde geçmiş burada görünür.</p>
+                </div>
+              ) : !stockHistoryData?.changes?.length ? (
+                <div className="flex flex-col items-center justify-center py-12 gap-3 text-center">
+                  <CheckCircle2 className="h-10 w-10 text-emerald-400/40" />
+                  <p className="text-white/50 text-sm">Son 30 günde stok değişikliği yok.</p>
+                </div>
+              ) : (
+                <StockHistoryTimeline changes={stockHistoryData.changes} />
+              )}
+            </TabsContent>
+          </Tabs>
+        </DialogContent>
+      </Dialog>
+    </div>
+  );
+}
+
+interface StockChangeEntry {
+  id: number;
+  changeType: string;
+  color: string | null;
+  size: string | null;
+  oldInStock: boolean | null;
+  newInStock: boolean | null;
+  oldStockCount: number | null;
+  newStockCount: number | null;
+  createdAt: string;
+  telegramNotified: boolean;
+}
+
+function StockHistoryTimeline({ changes }: { changes: StockChangeEntry[] }) {
+  const changeTypeLabel = (type: string) => {
+    switch (type) {
+      case 'variant_oos': return 'Tükendi';
+      case 'variant_back_in_stock': return 'Geri Geldi';
+      case 'variant_stock_changed': return 'Stok Değişti';
+      case 'variant_added': return 'Varyant Eklendi';
+      case 'variant_removed': return 'Varyant Kaldırıldı';
+      default: return type;
+    }
+  };
+
+  const changeTypeStyle = (type: string) => {
+    switch (type) {
+      case 'variant_oos': return { dot: 'bg-red-500', badge: 'bg-red-900/40 text-red-300 border-red-700/50', icon: <PackageX className="h-3.5 w-3.5" /> };
+      case 'variant_back_in_stock': return { dot: 'bg-emerald-500', badge: 'bg-emerald-900/40 text-emerald-300 border-emerald-700/50', icon: <PackageCheck className="h-3.5 w-3.5" /> };
+      case 'variant_stock_changed': return { dot: 'bg-blue-400', badge: 'bg-blue-900/40 text-blue-300 border-blue-700/50', icon: <ArrowUpDown className="h-3.5 w-3.5" /> };
+      case 'variant_added': return { dot: 'bg-purple-400', badge: 'bg-purple-900/40 text-purple-300 border-purple-700/50', icon: <PackageCheck className="h-3.5 w-3.5" /> };
+      case 'variant_removed': return { dot: 'bg-gray-500', badge: 'bg-gray-800/60 text-gray-400 border-gray-600/50', icon: <XCircle className="h-3.5 w-3.5" /> };
+      default: return { dot: 'bg-white/30', badge: 'bg-slate-800 text-white/60 border-slate-600', icon: <Activity className="h-3.5 w-3.5" /> };
+    }
+  };
+
+  const formatDate = (dateStr: string) => {
+    const d = new Date(dateStr);
+    return d.toLocaleString('tr-TR', { day: '2-digit', month: '2-digit', year: 'numeric', hour: '2-digit', minute: '2-digit' });
+  };
+
+  const grouped = changes.reduce<Record<string, StockChangeEntry[]>>((acc, c) => {
+    const key = `${c.color || '—'} / ${c.size || '—'}`;
+    if (!acc[key]) acc[key] = [];
+    acc[key].push(c);
+    return acc;
+  }, {});
+
+  return (
+    <div className="space-y-5">
+      <p className="text-xs text-white/40 mb-1">Son 30 günlük geçmiş · {changes.length} kayıt</p>
+      {Object.entries(grouped).map(([variantKey, entries]) => (
+        <div key={variantKey} className="space-y-1">
+          <div className="flex items-center gap-2 mb-2">
+            <Layers className="h-3.5 w-3.5 text-indigo-400 shrink-0" />
+            <span className="text-sm font-medium text-white/80">{variantKey}</span>
+            <span className="text-xs text-white/30">{entries.length} kayıt</span>
+          </div>
+          <div className="relative ml-3 space-y-0">
+            {entries.map((entry, idx) => {
+              const style = changeTypeStyle(entry.changeType);
+              return (
+                <div key={entry.id} className="flex gap-3 pb-3">
+                  <div className="flex flex-col items-center">
+                    <div className={`h-2.5 w-2.5 rounded-full mt-1 shrink-0 ${style.dot}`} />
+                    {idx < entries.length - 1 && <div className="w-px flex-1 bg-slate-700 mt-1" />}
+                  </div>
+                  <div className="flex-1 min-w-0 pb-1">
+                    <div className="flex items-center gap-2 flex-wrap">
+                      <span className={`inline-flex items-center gap-1 text-xs px-2 py-0.5 rounded border ${style.badge}`}>
+                        {style.icon}
+                        {changeTypeLabel(entry.changeType)}
+                      </span>
+                      {entry.oldStockCount !== null && entry.newStockCount !== null && (
+                        <span className="text-xs text-white/40">{entry.oldStockCount} → {entry.newStockCount}</span>
+                      )}
+                      {entry.telegramNotified && (
+                        <Bell className="h-3 w-3 text-blue-400/60" title="Telegram bildirimi gönderildi" />
+                      )}
+                    </div>
+                    <p className="text-xs text-white/30 mt-1">{formatDate(entry.createdAt)}</p>
+                  </div>
+                </div>
+              );
+            })}
+          </div>
+        </div>
+      ))}
     </div>
   );
 }

@@ -8608,6 +8608,40 @@ ${result.title || 'Product'},${fb2Handle},${result.description || ''},${result.b
     }
   });
 
+  app.get("/api/shopify/products/:shopifyId/stock-history", async (req, res) => {
+    try {
+      const { shopifyId } = req.params;
+      const thirtyDaysAgo = new Date(Date.now() - 30 * 24 * 60 * 60 * 1000);
+
+      const product = await db
+        .select({ id: products.id, title: products.title })
+        .from(products)
+        .where(eq(products.shopifyProductId, shopifyId))
+        .limit(1);
+
+      if (!product.length) {
+        return res.json({ success: true, changes: [], productFound: false });
+      }
+
+      const changes = await db
+        .select()
+        .from(variantChanges)
+        .where(
+          and(
+            eq(variantChanges.productId, product[0].id),
+            gte(variantChanges.createdAt, thirtyDaysAgo)
+          )
+        )
+        .orderBy(desc(variantChanges.createdAt))
+        .limit(200);
+
+      return res.json({ success: true, changes, productFound: true, productTitle: product[0].title });
+    } catch (error) {
+      console.error('❌ Stock history error:', error);
+      return res.status(500).json({ success: false, error: (error as Error).message });
+    }
+  });
+
   app.get("/api/shopify/categories", async (req, res) => {
     try {
       const result = await shopifyProductsSync.getCategories();
