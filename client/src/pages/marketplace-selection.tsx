@@ -72,6 +72,13 @@ const MarketplaceSelection = () => {
       path: "/memory-tracking"
     },
     {
+      name: "Shopify Sistem Analizi",
+      description: "Token yenileme, bağlantı durumu ve kaynak izleme",
+      icon: <Shield className="w-8 h-8 text-white" />,
+      available: true,
+      path: "/shopify-system"
+    },
+    {
       name: "Sistem Durumu",
       description: "Hata izleme ve sistem durumu",
       icon: <Shield className="w-8 h-8 text-white" />,

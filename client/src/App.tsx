@@ -45,6 +45,7 @@ import ProductStatisticsPage from "@/pages/ProductStatisticsPage";
 import { TBotAssistant } from "@/components/TBotAssistant";
 import { MobileNavigation } from "@/components/MobileNavigation";
 import MemoryDashboard from "@/pages/memory-dashboard";
+import ShopifySystemPage from "@/pages/ShopifySystemPage";
 import { MatrixBackground } from "@/components/MatrixBackground";
 
 // Login component with password protection
@@ -392,6 +393,11 @@ function Router() {
       </Route>
       <Route path="/memory-dashboard">
         <MemoryDashboard />
+      </Route>
+      <Route path="/shopify-system">
+        <PageTransition>
+          <ShopifySystemPage />
+        </PageTransition>
       </Route>
       <Route path="/telegram-management">
         <PageTransition>
