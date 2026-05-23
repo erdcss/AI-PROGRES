@@ -2019,7 +2019,13 @@ export async function scenarioBasedScrape(url: string): Promise<ScenarioBasedRes
         }
       }
       
-    } catch (axiosError) {
+    } catch (axiosError: any) {
+      // 🛡️ OOM GUARD: Never launch Puppeteer when Trendyol is system-blocking all requests
+      if (axiosError?.message?.includes('TRENDYOL_BLOCKED') || axiosError?.message?.includes('Blocked page')) {
+        console.log('🚫 OOM GUARD (catch2): TRENDYOL_BLOCKED detected — skipping Puppeteer fallback entirely');
+        throw axiosError;
+      }
+
       // Only use Puppeteer if axios fails with 403/429
       console.log(`⚠️ Axios failed (${axiosError.message}), trying Puppeteer as fallback...`);
       
