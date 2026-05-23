@@ -196,12 +196,10 @@ async function tryGraphQLRotation(
 }
 
 /**
- * SHOPIFY_API_KEY + SHOPIFY_APP_SHARED_SECRET kullanarak
- * Offline Access Token isteği gönderir (Shopify OAuth offline flow).
- *
- * NOT: Bu yöntem yalnızca daha önce OAuth yetkilendirmesi yapılmış ve
- * `code` parametre olmaksızın exchange desteklenen uygulamalarda çalışır.
- * Standart Custom App tokenları (shpat_) bu akışı gerektirmez.
+ * ENV fallback: Mevcut token'ı ENV değişkenlerinden doğrular.
+ * SHOPIFY_API_KEY + SHOPIFY_APP_SHARED_SECRET ile ilk token almak için
+ * Shopify OAuth akışı gereklidir (tarayıcı yönlendirmesi).
+ * Bu yöntem sadece ENV'de kayıtlı geçerli token olup olmadığını kontrol eder.
  */
 async function trySharedSecretExchange(
   shopDomain: string
@@ -216,33 +214,14 @@ async function trySharedSecretExchange(
     };
   }
 
-  try {
-    // Shopify Admin OAuth — client_credentials tarzı token alma
-    // (Shopify Partner apps için offline token exchange)
-    const res = await fetch(`https://${shopDomain}/admin/oauth/access_token`, {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({
-        client_id: apiKey,
-        client_secret: apiSecret,
-        grant_type: 'client_credentials'
-      })
-    });
-
-    if (!res.ok) {
-      const errBody = await res.text();
-      return { success: false, error: `HTTP ${res.status}: ${errBody}` };
-    }
-
-    const data = await res.json();
-    if (data.access_token) {
-      return { success: true, newToken: data.access_token };
-    }
-
-    return { success: false, error: JSON.stringify(data) };
-  } catch (err: any) {
-    return { success: false, error: err.message };
-  }
+  // Shopify, client_credentials grant desteklemez.
+  // İlk token için OAuth akışı (tarayıcı yönlendirmesi) gereklidir.
+  // Token var ve geçerliyse tokenRotate mutasyonu çalışır.
+  // Bu yöntem sadece ENV'e kaydedilmiş token'ı kontrol eder.
+  return {
+    success: false,
+    error: 'Shopify ilk token için OAuth akışı gerektirir — lütfen arayüzdeki "Shopify\'da Yetkilendir" butonuna tıklayın'
+  };
 }
 
 /**

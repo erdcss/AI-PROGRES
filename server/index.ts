@@ -16,6 +16,7 @@ import * as fs from 'fs';
 import { enhancedErrorDetection } from './enhanced-error-detection';
 import { importerRouter, startTokenRefreshScheduler } from './importer-api';
 import { startShopifyTokenAutoRefresh } from './shopify-token-rotator';
+import { syncEnvApiKeyToDB } from './shopify-credentials';
 
 console.error("=========================================");
 console.error("🚀 SERVER INDEX.TS BAŞLADI 🚀");
@@ -315,6 +316,7 @@ app.use(pendingChangesRoutes);
   app.use('/api', importerRouter);
   startTokenRefreshScheduler();
   startShopifyTokenAutoRefresh();
+  syncEnvApiKeyToDB().catch(err => console.error('syncEnvApiKeyToDB error:', err));
   
   // Test enhanced extraction endpoint - Direct registration
   app.post('/api/test-enhanced', async (req, res) => {

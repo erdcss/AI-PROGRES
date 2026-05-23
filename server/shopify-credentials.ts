@@ -55,6 +55,58 @@ export async function getShopifyConfig(): Promise<ShopifyConfig | null> {
 }
 
 /**
+ * Sunucu başlangıcında SHOPIFY_API_KEY + SHOPIFY_APP_SHARED_SECRET ENV değişkenlerini
+ * DB'deki mağaza kaydına otomatik olarak yazar.
+ * Bu sayede OAuth formu önceden dolu gelir ve kullanıcı sadece "Yetkilendir" butonuna basar.
+ */
+export async function syncEnvApiKeyToDB(): Promise<void> {
+  const apiKey    = process.env.SHOPIFY_API_KEY;
+  const apiSecret = process.env.SHOPIFY_APP_SHARED_SECRET;
+  const shopDomain = (
+    process.env.SHOPIFY_SHOP_DOMAIN ||
+    process.env.SHOPIFY_STORE_URL?.replace(/^https?:\/\//, '').replace(/\/$/, '') ||
+    (process.env as any).SHOPIFY_STORE_DOMAIN
+  );
+
+  if (!apiKey || !shopDomain) return;
+
+  try {
+    const rows = await db
+      .select()
+      .from(shopifyCredentials)
+      .where(eq(shopifyCredentials.shopDomain, shopDomain))
+      .limit(1);
+
+    if (rows.length > 0) {
+      const current = rows[0];
+      const needsUpdate = current.apiKey !== apiKey || (apiSecret && current.apiSecret !== apiSecret);
+      if (needsUpdate) {
+        await db
+          .update(shopifyCredentials)
+          .set({
+            apiKey,
+            ...(apiSecret ? { apiSecret } : {}),
+            updatedAt: new Date()
+          })
+          .where(eq(shopifyCredentials.shopDomain, shopDomain));
+        console.log(`✅ ENV API Key DB'ye senkronize edildi: ${shopDomain}`);
+      }
+    } else {
+      await db.insert(shopifyCredentials).values({
+        shopDomain,
+        apiKey,
+        apiSecret: apiSecret || '',
+        accessToken: null as any,
+        isActive: false
+      });
+      console.log(`✅ ENV kimlik bilgileri DB'ye kaydedildi: ${shopDomain}`);
+    }
+  } catch (err) {
+    console.error('syncEnvApiKeyToDB error:', err);
+  }
+}
+
+/**
  * Sunucu başlangıcında SHOPIFY_APP_SECRET_NEW'ı DB'ye otomatik senkronize eder.
  * Bu sayede sistem yeniden başlatılınca yeni token hemen aktif olur.
  */

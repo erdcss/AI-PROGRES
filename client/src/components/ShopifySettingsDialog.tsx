@@ -13,7 +13,7 @@ import { Label } from "@/components/ui/label";
 import { Badge } from "@/components/ui/badge";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { useToast } from "@/hooks/use-toast";
-import { Settings, CheckCircle, XCircle, ExternalLink, Loader2, Key, AlertTriangle, Image } from "lucide-react";
+import { Settings, CheckCircle, XCircle, ExternalLink, Loader2, Key, AlertTriangle, Image, RefreshCw, Clock } from "lucide-react";
 import { apiRequest } from "@/lib/queryClient";
 
 interface CredentialsStatus {
@@ -34,6 +34,21 @@ interface LiveTestResult {
 
 interface CanvaStatus {
   connected: boolean;
+}
+
+interface TokenRefreshStatus {
+  status: {
+    lastRefreshTime: number;
+    nextRefreshTime: number;
+    isRefreshing: boolean;
+    msUntilRefresh: number;
+  };
+  hasActiveToken: boolean;
+  shopDomain: string | null;
+  envVarsConfigured: {
+    SHOPIFY_API_KEY: boolean;
+    SHOPIFY_APP_SHARED_SECRET: boolean;
+  };
 }
 
 export default function ShopifySettingsDialog() {
@@ -64,6 +79,31 @@ export default function ShopifySettingsDialog() {
   const { data: canvaStatus, refetch: refetchCanva } = useQuery<CanvaStatus>({
     queryKey: ["/api/canva/status"],
     refetchInterval: open ? 5000 : false,
+  });
+
+  const { data: tokenRefreshStatus, refetch: refetchTokenStatus } = useQuery<TokenRefreshStatus>({
+    queryKey: ["/api/shopify/token-status"],
+    refetchInterval: open ? 30000 : false,
+    enabled: open,
+  });
+
+  const rotateNowMutation = useMutation({
+    mutationFn: async () => {
+      const res = await fetch("/api/shopify/rotate-token", { method: "POST" });
+      const data = await res.json();
+      if (!res.ok || !data.success) throw new Error(data.error || "Yenileme başarısız");
+      return data;
+    },
+    onSuccess: (data) => {
+      queryClient.invalidateQueries({ queryKey: ["/api/shopify/token-status"] });
+      queryClient.invalidateQueries({ queryKey: ["/api/shopify/credentials"] });
+      toast({ title: "Token Yenilendi ✅", description: data.message || "12 saatlik döngü sıfırlandı." });
+      refetchTokenStatus();
+      runLiveTest();
+    },
+    onError: (err: Error) => {
+      toast({ title: "Yenileme Başarısız ❌", description: err.message, variant: "destructive" });
+    },
   });
 
   // Check for canva_success or canva_error in URL on mount
@@ -354,15 +394,83 @@ export default function ShopifySettingsDialog() {
               )}
             </div>
 
-            {isActuallyFailed && (
-              <div className="rounded-lg bg-amber-50 dark:bg-amber-950/30 border border-amber-200 dark:border-amber-800 p-3 text-xs text-amber-800 dark:text-amber-200">
-                <p className="font-semibold mb-1">Yeni token nasıl alınır?</p>
-                <ol className="list-decimal list-inside space-y-0.5 text-amber-700 dark:text-amber-300">
-                  <li>Shopify Admin'e giriş yapın</li>
-                  <li>Uygulamalar → Uygulamaları ve satış kanallarını geliştirin</li>
-                  <li>Uygulama oluştur → Özel uygulama</li>
-                  <li>Admin API erişimini yapılandır → Kaydet</li>
-                  <li>"Admin API erişim token'ı" kopyalayın (<code>shpat_...</code>)</li>
+            {/* Token Otomatik Yenileme Durumu */}
+            {(() => {
+              const trs = tokenRefreshStatus;
+              const apiKeyOk  = trs?.envVarsConfigured?.SHOPIFY_API_KEY;
+              const secretOk  = trs?.envVarsConfigured?.SHOPIFY_APP_SHARED_SECRET;
+              const lastMs    = trs?.status?.lastRefreshTime || 0;
+              const msLeft    = trs?.status?.msUntilRefresh || 0;
+              const hLeft     = Math.floor(msLeft / 3600000);
+              const mLeft     = Math.floor((msLeft % 3600000) / 60000);
+              const lastStr   = lastMs > 0
+                ? new Date(lastMs).toLocaleString('tr-TR')
+                : 'Henüz yenilenmedi';
+              const isRefreshing = trs?.status?.isRefreshing;
+              return (
+                <div className="rounded-lg border bg-muted/30 p-3 space-y-2">
+                  <div className="flex items-center justify-between">
+                    <p className="text-xs font-semibold flex items-center gap-1">
+                      <Clock className="h-3 w-3" />
+                      Otomatik Token Yenileme (12 saatte bir)
+                    </p>
+                    {(apiKeyOk && secretOk) ? (
+                      <Badge className="bg-green-500 text-white text-xs px-1 py-0">Aktif</Badge>
+                    ) : (
+                      <Badge variant="destructive" className="text-xs px-1 py-0">Eksik ENV</Badge>
+                    )}
+                  </div>
+                  <div className="grid grid-cols-2 gap-2 text-xs text-muted-foreground">
+                    <div>
+                      <span className="block text-foreground/70">Son yenileme</span>
+                      <span className="font-mono">{lastStr}</span>
+                    </div>
+                    <div>
+                      <span className="block text-foreground/70">Sonraki yenileme</span>
+                      <span className="font-mono">
+                        {lastMs > 0 ? `${hLeft}s ${mLeft}dk sonra` : '—'}
+                      </span>
+                    </div>
+                    <div>
+                      <span className="block text-foreground/70">API Key</span>
+                      <span className={apiKeyOk ? 'text-green-600' : 'text-red-500'}>
+                        {apiKeyOk ? '✅ Tanımlı' : '❌ Eksik'}
+                      </span>
+                    </div>
+                    <div>
+                      <span className="block text-foreground/70">Gizli Anahtar</span>
+                      <span className={secretOk ? 'text-green-600' : 'text-red-500'}>
+                        {secretOk ? '✅ Tanımlı' : '❌ Eksik'}
+                      </span>
+                    </div>
+                  </div>
+                  <Button
+                    size="sm"
+                    variant="outline"
+                    className="w-full gap-2 h-7 text-xs"
+                    onClick={() => rotateNowMutation.mutate()}
+                    disabled={rotateNowMutation.isPending || isRefreshing}
+                  >
+                    {(rotateNowMutation.isPending || isRefreshing)
+                      ? <Loader2 className="h-3 w-3 animate-spin" />
+                      : <RefreshCw className="h-3 w-3" />}
+                    {(rotateNowMutation.isPending || isRefreshing) ? 'Yenileniyor...' : 'Şimdi Yenile'}
+                  </Button>
+                </div>
+              );
+            })()}
+
+            {(isActuallyFailed || !status?.hasToken) && (
+              <div className="rounded-lg bg-blue-50 dark:bg-blue-950/30 border border-blue-200 dark:border-blue-800 p-3 text-xs text-blue-800 dark:text-blue-200">
+                <p className="font-semibold mb-1">🔑 Token nasıl alınır?</p>
+                <p className="text-blue-700 dark:text-blue-300 mb-1">
+                  API Key ve Gizli Anahtar zaten tanımlı. OAuth sekmesinden tek tıkla Shopify'ı yetkilendirin:
+                </p>
+                <ol className="list-decimal list-inside space-y-0.5 text-blue-700 dark:text-blue-300">
+                  <li>"OAuth" sekmesine geçin (aşağıda)</li>
+                  <li>"Shopify'da Yetkilendir" butonuna tıklayın</li>
+                  <li>Açılan Shopify sayfasında onaylayın</li>
+                  <li>Token otomatik kaydedilir, 12 saatte bir yenilenir</li>
                 </ol>
               </div>
             )}
