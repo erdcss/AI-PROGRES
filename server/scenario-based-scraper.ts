@@ -2003,6 +2003,7 @@ export async function scenarioBasedScrape(url: string): Promise<ScenarioBasedRes
       console.log(`⚠️ Axios failed (${axiosError.message}), trying Puppeteer as fallback...`);
       
       try {
+        await acquirePuppeteerSlot();
         browser = await puppeteerExtra.launch(buildLaunchOptions({}));
       
       const page = await browser.newPage();
@@ -2193,10 +2194,12 @@ export async function scenarioBasedScrape(url: string): Promise<ScenarioBasedRes
       }
       
       await browser.close();
+      releasePuppeteerSlot();
       console.log('✅ Puppeteer extraction successful');
     } catch (puppeteerError) {
       console.log('⚠️ Puppeteer failed, trying axios fallback...', puppeteerError.message);
       if (browser) await browser.close();
+      releasePuppeteerSlot();
       
       // Fallback to axios if Puppeteer fails
       const userAgents = [
