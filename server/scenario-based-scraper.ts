@@ -1663,6 +1663,14 @@ export async function scenarioBasedScrape(url: string): Promise<ScenarioBasedRes
         
       } catch (directError: any) {
         console.log(`⚠️ Direct scraping failed (${directError?.message || directError}), trying advanced methods...`);
+
+        // 🛡️ OOM GUARD: If this is a blocked-page error, ALL HTTP/Puppeteer methods
+        // will also be blocked by Trendyol. Retrying only wastes RAM. Skip every
+        // anti-blocking strategy and surface a clean monitoring-skip result.
+        if (directError?.message?.includes('Blocked page')) {
+          console.log('🚫 SYSTEM BLOCK DETECTED: Trendyol is blocking all requests — skipping ALL retry methods to prevent OOM');
+          throw new Error('TRENDYOL_BLOCKED: All requests returning captcha/block page — skipping retries');
+        }
         
         // ENHANCED FALLBACK STRATEGY - Multiple methods
         console.log('🚀 Using ENHANCED ANTI-BLOCKING STRATEGY...');
