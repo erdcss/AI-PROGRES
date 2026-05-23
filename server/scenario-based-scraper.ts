@@ -1537,6 +1537,19 @@ export async function scenarioBasedScrape(url: string): Promise<ScenarioBasedRes
             return false;
           })();
           
+          // 🛡️ OOM GUARD: Blocked page detection.
+          // Real Trendyol product pages ALWAYS contain either application/ld+json or
+          // __PRODUCT_DETAIL_APP_INITIAL_STATE__. If neither is present, Trendyol is
+          // returning a captcha/block page — Puppeteer will also be blocked and just
+          // wastes ~300-500 MB of RAM per attempt.
+          const hasRealProductContent = htmlContent
+            ? (htmlContent.includes('application/ld+json') || htmlContent.includes('__PRODUCT_DETAIL_APP_INITIAL_STATE__'))
+            : false;
+          if (!hasRealProductContent) {
+            console.log(`🚫 BLOCKED PAGE DETECTED: No product JSON-LD or state in ${htmlContent?.length || 0}-byte response — skipping Puppeteer (OOM guard)`);
+            throw new Error('Blocked page — no product content, skipping Puppeteer to prevent OOM');
+          }
+
           // Skip Puppeteer if: single-color product AND HTML already has extractable sizes
           const needsPuppeteer = (!hasColors && !hasExtractableSizesInHtml) || incompleteSizes || needsPuppeteerForStock;
           if (!needsPuppeteer && hasExtractableSizesInHtml && !hasColors) {
@@ -2591,6 +2604,16 @@ export async function scenarioBasedScrape(url: string): Promise<ScenarioBasedRes
           // Jump directly to SKU-level detection below (variants stays empty → falls through)
         } else {
         // 🎯 NEW: Try Enhanced Puppeteer with Hybrid Fallback
+        // 🛡️ OOM GUARD: Skip Puppeteer hybrid when Trendyol is blocking.
+        // Real product pages always have application/ld+json or __PRODUCT_DETAIL_APP_INITIAL_STATE__.
+        // A blocked page (e.g. 245803 bytes) has neither — Puppeteer will also be blocked and
+        // just wastes 300-500 MB of RAM.
+        const hybridHasRealContent = htmlContent
+          ? (htmlContent.includes('application/ld+json') || htmlContent.includes('__PRODUCT_DETAIL_APP_INITIAL_STATE__'))
+          : false;
+        if (!hybridHasRealContent) {
+          console.log(`🚫 BLOCKED PAGE: Skipping Hybrid Puppeteer (${htmlContent?.length || 0}-byte response has no product content — OOM guard)`);
+        } else {
         try {
           console.log('🚀 Activating Hybrid Fallback System (Puppeteer + Google Cache)...');
           const hybridResult = await enhancedVariantExtractor.extractVariants(url);
@@ -2655,6 +2678,7 @@ export async function scenarioBasedScrape(url: string): Promise<ScenarioBasedRes
         } catch (hybridError) {
           console.log(`⚠️ Hybrid extraction failed: ${hybridError.message}, trying SKU-level detection...`);
         }
+        } // closes if (hybridHasRealContent) else
         } // closes else { // not hasExtractableSizesInHtml
       }
       
