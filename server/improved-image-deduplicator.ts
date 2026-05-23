@@ -264,9 +264,82 @@ export async function extractEnhancedFeatures($: cheerio.CheerioAPI, htmlContent
     }
   });
 
+  // Method 6: Extract from Trendyol JavaScript State (__PRODUCT_DETAIL_APP_INITIAL_STATE__)
+  // This is the most reliable source for "Öne Çıkan Özellikler" since Trendyol renders it via React
+  try {
+    // Find the JS state blob
+    const stateMatch = htmlContent.match(/__PRODUCT_DETAIL_APP_INITIAL_STATE__\s*=\s*(\{[\s\S]*?\});\s*(?:window|<\/script>)/);
+    const altStateMatch = htmlContent.match(/__PRODUCT_DETAIL_APP_INITIAL_STATE__['"]\s*,\s*(\{[\s\S]{100,200000}\})\s*\)/);
+    
+    const rawState = stateMatch?.[1] || altStateMatch?.[1] || null;
+    
+    if (rawState) {
+      // Strategy A: regex scan for "productFeatures" array (key+value pairs)
+      // Pattern: "productFeatures":[{"key":"Materyal","value":"Polipropilen"}, ...]
+      const pfMatch = rawState.match(/"productFeatures"\s*:\s*(\[[\s\S]*?\])/);
+      if (pfMatch) {
+        try {
+          const pfArray = JSON.parse(pfMatch[1]);
+          if (Array.isArray(pfArray)) {
+            pfArray.forEach((item: any) => {
+              const k = (item.key || item.name || item.attributeName || '').toString().trim();
+              const v = (item.value || item.attributeValue || item.attributeBeautifiedValue || '').toString().trim();
+              if (k && v && !processedKeys.has(k.toLowerCase())) {
+                features.push({ key: k, value: v });
+                processedKeys.add(k.toLowerCase());
+                console.log(`🔧 JS-State productFeatures: ${k} = ${v}`);
+              }
+            });
+          }
+        } catch (_) { /* ignore parse errors */ }
+      }
+
+      // Strategy B: regex scan for "attributes" array (attributeName + attributeValue)
+      const attrMatch = rawState.match(/"attributes"\s*:\s*(\[[\s\S]*?\])/);
+      if (attrMatch && features.length < 3) {
+        try {
+          const attrArray = JSON.parse(attrMatch[1]);
+          if (Array.isArray(attrArray)) {
+            attrArray.forEach((item: any) => {
+              const k = (item.attributeName || item.name || item.key || '').toString().trim();
+              const v = (item.attributeValue || item.attributeBeautifiedValue || item.value || '').toString().trim();
+              const skipKeys = ['renk', 'color', 'beden', 'size', 'numara'];
+              if (k && v && !processedKeys.has(k.toLowerCase()) && !skipKeys.includes(k.toLowerCase())) {
+                features.push({ key: k, value: v });
+                processedKeys.add(k.toLowerCase());
+                console.log(`🔧 JS-State attributes: ${k} = ${v}`);
+              }
+            });
+          }
+        } catch (_) { /* ignore parse errors */ }
+      }
+    } else {
+      // Strategy C: line-by-line regex when full state is too large to match
+      const pfLineMatch = htmlContent.match(/"productFeatures"\s*:\s*(\[[^\]]{0,5000}\])/);
+      if (pfLineMatch) {
+        try {
+          const pfArray = JSON.parse(pfLineMatch[1]);
+          if (Array.isArray(pfArray)) {
+            pfArray.forEach((item: any) => {
+              const k = (item.key || item.name || '').toString().trim();
+              const v = (item.value || item.attributeValue || '').toString().trim();
+              if (k && v && !processedKeys.has(k.toLowerCase())) {
+                features.push({ key: k, value: v });
+                processedKeys.add(k.toLowerCase());
+                console.log(`🔧 JS-State (line scan) productFeatures: ${k} = ${v}`);
+              }
+            });
+          }
+        } catch (_) { /* ignore parse errors */ }
+      }
+    }
+  } catch (stateError) {
+    console.log(`⚠️ JS state feature extraction failed: ${(stateError as any)?.message}`);
+  }
+
   console.log(`✅ Extracted ${features.length} unique product features with category and brand info`);
   
-  return features.slice(0, 20); // Increased to 20 to include category and brand info
+  return features.slice(0, 30); // Up to 30 features
 }
 
 /**

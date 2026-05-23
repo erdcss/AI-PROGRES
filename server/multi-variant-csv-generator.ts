@@ -191,16 +191,34 @@ export async function generateMultiVariantShopifyCSV(product: CombinedProduct): 
   }
 
   if (product.features && Array.isArray(product.features)) {
+    const skipKeys = new Set(['kategori', 'category', 'marka', 'brand']);
     const validFeatures = product.features.filter(f =>
       f?.key && f?.value &&
       typeof f.key === 'string' && typeof f.value === 'string' &&
       f.key.trim() !== '' && f.value.trim() !== '' &&
-      !f.key.toLowerCase().includes('kategori')
+      !skipKeys.has(f.key.toLowerCase().trim())
     );
     if (validFeatures.length > 0) {
-      bodyHtml += '<h3>Teknik Özellikler:</h3><ul>';
-      validFeatures.forEach(f => { bodyHtml += `<li><strong>${f.key}:</strong> ${f.value}</li>`; });
-      bodyHtml += '</ul>';
+      // Grid table styled like Trendyol "Öne Çıkan Özellikler"
+      bodyHtml += `<h3 style="margin:16px 0 8px;font-size:15px;font-weight:700;color:#333;">Öne Çıkan Özellikler</h3>`;
+      bodyHtml += `<table style="width:100%;border-collapse:collapse;font-size:13px;">`;
+      // Render 4 columns per row
+      const chunkSize = 4;
+      for (let i = 0; i < validFeatures.length; i += chunkSize) {
+        const rowItems = validFeatures.slice(i, i + chunkSize);
+        bodyHtml += `<tr>`;
+        rowItems.forEach(f => {
+          bodyHtml += `<td style="padding:8px 12px;border:1px solid #e0e0e0;vertical-align:top;width:25%;">` +
+            `<div style="color:#888;font-size:11px;margin-bottom:3px;">${f.key}</div>` +
+            `<div style="font-weight:600;color:#222;">${f.value}</div></td>`;
+        });
+        // Fill empty cells if row isn't complete
+        for (let j = rowItems.length; j < chunkSize; j++) {
+          bodyHtml += `<td style="padding:8px 12px;border:1px solid #e0e0e0;width:25%;"></td>`;
+        }
+        bodyHtml += `</tr>`;
+      }
+      bodyHtml += `</table>`;
     }
   }
 
