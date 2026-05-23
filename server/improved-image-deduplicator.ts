@@ -264,73 +264,123 @@ export async function extractEnhancedFeatures($: cheerio.CheerioAPI, htmlContent
     }
   });
 
-  // Method 6: Extract from Trendyol JavaScript State (__PRODUCT_DETAIL_APP_INITIAL_STATE__)
-  // This is the most reliable source for "Öne Çıkan Özellikler" since Trendyol renders it via React
+  // Method 6: Direct bracket-counting JSON array extraction from raw HTML
+  // Does NOT try to parse the entire __PRODUCT_DETAIL_APP_INITIAL_STATE__ (too large for regex).
+  // Instead, finds specific array keys directly in the HTML and walks brackets to extract them.
   try {
-    // Find the JS state blob
-    const stateMatch = htmlContent.match(/__PRODUCT_DETAIL_APP_INITIAL_STATE__\s*=\s*(\{[\s\S]*?\});\s*(?:window|<\/script>)/);
-    const altStateMatch = htmlContent.match(/__PRODUCT_DETAIL_APP_INITIAL_STATE__['"]\s*,\s*(\{[\s\S]{100,200000}\})\s*\)/);
-    
-    const rawState = stateMatch?.[1] || altStateMatch?.[1] || null;
-    
-    if (rawState) {
-      // Strategy A: regex scan for "productFeatures" array (key+value pairs)
-      // Pattern: "productFeatures":[{"key":"Materyal","value":"Polipropilen"}, ...]
-      const pfMatch = rawState.match(/"productFeatures"\s*:\s*(\[[\s\S]*?\])/);
-      if (pfMatch) {
-        try {
-          const pfArray = JSON.parse(pfMatch[1]);
-          if (Array.isArray(pfArray)) {
-            pfArray.forEach((item: any) => {
-              const k = (item.key || item.name || item.attributeName || '').toString().trim();
-              const v = (item.value || item.attributeValue || item.attributeBeautifiedValue || '').toString().trim();
-              if (k && v && !processedKeys.has(k.toLowerCase())) {
-                features.push({ key: k, value: v });
-                processedKeys.add(k.toLowerCase());
-                console.log(`🔧 JS-State productFeatures: ${k} = ${v}`);
-              }
-            });
+    // Helper: given raw HTML and a JSON key, extract the first complete JSON array value
+    const extractJsonArray = (html: string, key: string): any[] | null => {
+      const searchStr = `"${key}":`;
+      const idx = html.indexOf(searchStr);
+      if (idx === -1) return null;
+      const arrStart = html.indexOf('[', idx + searchStr.length);
+      if (arrStart === -1 || arrStart > idx + searchStr.length + 20) return null;
+      let depth = 0;
+      let i = arrStart;
+      const limit = Math.min(html.length, arrStart + 150000);
+      while (i < limit) {
+        const ch = html[i];
+        if (ch === '[') depth++;
+        else if (ch === ']') {
+          depth--;
+          if (depth === 0) {
+            try { return JSON.parse(html.slice(arrStart, i + 1)); } catch { return null; }
           }
-        } catch (_) { /* ignore parse errors */ }
+        } else if (ch === '"') {
+          // Skip string literals to avoid counting brackets inside strings
+          i++;
+          while (i < limit) {
+            if (html[i] === '\\') { i += 2; continue; }
+            if (html[i] === '"') break;
+            i++;
+          }
+        }
+        i++;
       }
+      return null;
+    };
 
-      // Strategy B: regex scan for "attributes" array (attributeName + attributeValue)
-      const attrMatch = rawState.match(/"attributes"\s*:\s*(\[[\s\S]*?\])/);
-      if (attrMatch && features.length < 3) {
-        try {
-          const attrArray = JSON.parse(attrMatch[1]);
-          if (Array.isArray(attrArray)) {
-            attrArray.forEach((item: any) => {
-              const k = (item.attributeName || item.name || item.key || '').toString().trim();
-              const v = (item.attributeValue || item.attributeBeautifiedValue || item.value || '').toString().trim();
-              const skipKeys = ['renk', 'color', 'beden', 'size', 'numara'];
-              if (k && v && !processedKeys.has(k.toLowerCase()) && !skipKeys.includes(k.toLowerCase())) {
-                features.push({ key: k, value: v });
-                processedKeys.add(k.toLowerCase());
-                console.log(`🔧 JS-State attributes: ${k} = ${v}`);
-              }
-            });
-          }
-        } catch (_) { /* ignore parse errors */ }
+    const skipAttrKeys = new Set(['renk', 'color', 'beden', 'size', 'numara', 'beden aralığı']);
+
+    // Helper: safely extract string from a value that may be a nested object
+    // Trendyol sometimes stores {"id":123,"name":"Likra"} instead of plain "Likra"
+    const strVal = (raw: any): string => {
+      if (!raw) return '';
+      if (typeof raw === 'string') return raw.trim();
+      if (typeof raw === 'number') return String(raw).trim();
+      if (typeof raw === 'object') {
+        return (raw.name || raw.value || raw.title || raw.text || raw.label || '').toString().trim();
       }
-    } else {
-      // Strategy C: line-by-line regex when full state is too large to match
-      const pfLineMatch = htmlContent.match(/"productFeatures"\s*:\s*(\[[^\]]{0,5000}\])/);
-      if (pfLineMatch) {
-        try {
-          const pfArray = JSON.parse(pfLineMatch[1]);
-          if (Array.isArray(pfArray)) {
-            pfArray.forEach((item: any) => {
-              const k = (item.key || item.name || '').toString().trim();
-              const v = (item.value || item.attributeValue || '').toString().trim();
-              if (k && v && !processedKeys.has(k.toLowerCase())) {
-                features.push({ key: k, value: v });
-                processedKeys.add(k.toLowerCase());
-                console.log(`🔧 JS-State (line scan) productFeatures: ${k} = ${v}`);
-              }
-            });
+      return String(raw).trim();
+    };
+
+    // ── Priority 1: "contentDescriptions" ────────────────────────────────────
+    // Trendyol stores "Öne Çıkan Özellikler" exactly here.
+    // Two known formats:
+    //   A) {"title":"Materyal","value":"Likra",...}
+    //   B) {"bold":true,"description":"Materyal : Likra"}
+    const cdArray = extractJsonArray(htmlContent, 'contentDescriptions');
+    if (cdArray && Array.isArray(cdArray)) {
+      console.log(`🔧 contentDescriptions: found ${cdArray.length} items`);
+      cdArray.forEach((item: any) => {
+        // Format A: {title:"Materyal", value:"Likra"}
+        const k = strVal(item.title || item.key || item.name);
+        const v = strVal(item.value || item.attributeValue);
+        if (k && v && k.toLowerCase() !== v.toLowerCase() && !processedKeys.has(k.toLowerCase()) && !skipAttrKeys.has(k.toLowerCase())) {
+          features.push({ key: k, value: v });
+          processedKeys.add(k.toLowerCase());
+          console.log(`🔧 contentDescriptions A: ${k} = ${v}`);
+          return;
+        }
+        // Format B: {description:"Materyal : Likra"}
+        const desc = strVal(item.description);
+        if (desc && desc.includes(':')) {
+          const colonIdx = desc.indexOf(':');
+          const dk = desc.substring(0, colonIdx).trim();
+          const dv = desc.substring(colonIdx + 1).trim();
+          if (dk && dv && dk.length > 1 && dv.length > 1 && !processedKeys.has(dk.toLowerCase()) && !skipAttrKeys.has(dk.toLowerCase())) {
+            features.push({ key: dk, value: dv });
+            processedKeys.add(dk.toLowerCase());
+            console.log(`🔧 contentDescriptions B: ${dk} = ${dv}`);
           }
-        } catch (_) { /* ignore parse errors */ }
+        }
+      });
+    }
+
+    // ── Priority 2: "attributes" array ───────────────────────────────────────
+    // Contains all product attributes with attributeName / attributeValue
+    // Note: attributeValue can be a nested object {"id":123,"name":"Likra"}
+    if (features.length < 3) {
+      const attrArray = extractJsonArray(htmlContent, 'attributes');
+      if (attrArray && Array.isArray(attrArray)) {
+        console.log(`🔧 attributes: found ${attrArray.length} items`);
+        attrArray.forEach((item: any) => {
+          const k = strVal(item.attributeName || item.name || item.key);
+          const v = strVal(item.attributeBeautifiedValue || item.attributeValue || item.value);
+          if (k && v && k !== '[object Object]' && v !== '[object Object]' &&
+              !processedKeys.has(k.toLowerCase()) && !skipAttrKeys.has(k.toLowerCase())) {
+            features.push({ key: k, value: v });
+            processedKeys.add(k.toLowerCase());
+            console.log(`🔧 attributes: ${k} = ${v}`);
+          }
+        });
+      }
+    }
+
+    // ── Priority 3: "productFeatures" array ──────────────────────────────────
+    if (features.length < 3) {
+      const pfArray = extractJsonArray(htmlContent, 'productFeatures');
+      if (pfArray && Array.isArray(pfArray)) {
+        console.log(`🔧 productFeatures: found ${pfArray.length} items`);
+        pfArray.forEach((item: any) => {
+          const k = strVal(item.key || item.name || item.attributeName);
+          const v = strVal(item.value || item.attributeValue || item.attributeBeautifiedValue);
+          if (k && v && !processedKeys.has(k.toLowerCase()) && !skipAttrKeys.has(k.toLowerCase())) {
+            features.push({ key: k, value: v });
+            processedKeys.add(k.toLowerCase());
+            console.log(`🔧 productFeatures: ${k} = ${v}`);
+          }
+        });
       }
     }
   } catch (stateError) {
