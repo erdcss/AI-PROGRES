@@ -173,9 +173,11 @@ export async function uploadProductToShopify(csvContent: string, productTitle: s
           handle: productData.handle,
           // Metafield will be added separately after product creation
           variants: productData.variants.map(variant => {
-            // FIX: Eğer option1 ve option2 boşsa, varyant olmayan ürün olarak işle
-            const hasOption1 = variant.option1 && variant.option1.trim() !== '';
-            const hasOption2 = variant.option2 && variant.option2.trim() !== '';
+            // "Default Title" is Shopify's internal default — treat as no real option
+            const opt1 = (variant.option1 && variant.option1 !== 'Default Title') ? variant.option1.trim() : '';
+            const opt2 = (variant.option2 && variant.option2 !== 'Default Title') ? variant.option2.trim() : '';
+            const hasOption1 = opt1 !== '';
+            const hasOption2 = opt2 !== '';
             
             if (!hasOption1 && !hasOption2) {
               // Tek varyant ürün - Envanter takibi YOK
@@ -203,8 +205,8 @@ export async function uploadProductToShopify(csvContent: string, productTitle: s
               };
               
               if (variant.compareAtPrice) variantData.compare_at_price = variant.compareAtPrice;
-              if (hasOption1) variantData.option1 = variant.option1;
-              if (hasOption2) variantData.option2 = variant.option2;
+              if (hasOption1) variantData.option1 = opt1;
+              if (hasOption2) variantData.option2 = opt2;
               
               return variantData;
             }
@@ -216,21 +218,31 @@ export async function uploadProductToShopify(csvContent: string, productTitle: s
           })),
           // 🚨 CRITICAL FIX: Use Option Names from CSV (not hardcoded)
           // CSV'de sadece size varsa, Option1 Name = "Beden" olur, Option2 Name boş olur
+          // NOTE: "Title"/"Default Title" is Shopify's internal default — NEVER send it explicitly
           ...((() => {
-            const validOption1Values = Array.from(new Set(productData.variants.map(v => v.option1).filter(v => v && v.trim())));
-            const validOption2Values = Array.from(new Set(productData.variants.map(v => v.option2).filter(v => v && v.trim())));
+            const isDefaultTitleOption = (name: string, values: string[]) =>
+              name.toLowerCase() === 'title' && values.every(v => v === 'Default Title');
+
+            const validOption1Values = Array.from(new Set(
+              productData.variants.map(v => v.option1).filter(v => v && v.trim() && v !== 'Default Title')
+            ));
+            const validOption2Values = Array.from(new Set(
+              productData.variants.map(v => v.option2).filter(v => v && v.trim() && v !== 'Default Title')
+            ));
             
             const options = [];
-            // Use option names from CSV instead of hardcoded values
-            if (validOption1Values.length > 0 && productData.option1Name) {
+            if (validOption1Values.length > 0 && productData.option1Name && !isDefaultTitleOption(productData.option1Name, validOption1Values)) {
               options.push({ name: productData.option1Name, values: validOption1Values });
               console.log(`🏷️ Shopify API: Using Option1 name="${productData.option1Name}" with values:`, validOption1Values);
             }
-            if (validOption2Values.length > 0 && productData.option2Name) {
+            if (validOption2Values.length > 0 && productData.option2Name && !isDefaultTitleOption(productData.option2Name, validOption2Values)) {
               options.push({ name: productData.option2Name, values: validOption2Values });
               console.log(`🏷️ Shopify API: Using Option2 name="${productData.option2Name}" with values:`, validOption2Values);
             }
             
+            if (options.length === 0) {
+              console.log(`🏷️ Shopify API: No real options → single-variant product (no options array sent)`);
+            }
             return options.length > 0 ? { options } : {};
           })())
         }

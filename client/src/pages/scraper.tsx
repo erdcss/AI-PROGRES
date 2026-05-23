@@ -366,57 +366,87 @@ ${data.title.toLowerCase().replace(/[^a-z0-9]/g, '-')},${data.title},${data.bran
           const manualTags = allTags;
           
           if (manualTags.length > 0) {
-            const lines = csvToUpload.split('\n').filter(line => line.trim());
-            if (lines.length >= 2) {
-              const parseCSVLine = (line: string) => {
-                const result = [];
-                let current = '';
-                let inQuotes = false;
-                
-                for (let i = 0; i < line.length; i++) {
-                  const char = line[i];
-                  if (char === '"') {
-                    inQuotes = !inQuotes;
-                  } else if (char === ',' && !inQuotes) {
-                    result.push(current.trim());
-                    current = '';
+            // RFC 4180 uyumlu CSV satır ayırıcı — çok satırlı quoted alanları korur
+            const splitCSVRows = (csv: string): string[] => {
+              const rows: string[] = [];
+              let current = '';
+              let inQuotes = false;
+              for (let i = 0; i < csv.length; i++) {
+                const ch = csv[i];
+                if (ch === '"') {
+                  // "" → escaped quote içinde, ikisini de ekle
+                  if (inQuotes && csv[i + 1] === '"') {
+                    current += '""';
+                    i++;
                   } else {
-                    current += char;
+                    inQuotes = !inQuotes;
+                    current += ch;
                   }
+                } else if (ch === '\n' && !inQuotes) {
+                  if (current.trim()) rows.push(current);
+                  current = '';
+                } else {
+                  current += ch;
                 }
-                result.push(current.trim());
-                return result;
-              };
+              }
+              if (current.trim()) rows.push(current);
+              return rows;
+            };
 
-              const headers = parseCSVLine(lines[0]).map(h => h.replace(/"/g, '').trim());
+            const parseCSVLine = (line: string) => {
+              const result: string[] = [];
+              let current = '';
+              let inQuotes = false;
+              for (let i = 0; i < line.length; i++) {
+                const char = line[i];
+                if (char === '"') {
+                  if (inQuotes && line[i + 1] === '"') {
+                    current += '"';
+                    i++;
+                  } else {
+                    inQuotes = !inQuotes;
+                  }
+                } else if (char === ',' && !inQuotes) {
+                  result.push(current);
+                  current = '';
+                } else {
+                  current += char;
+                }
+              }
+              result.push(current);
+              return result;
+            };
+
+            const rows = splitCSVRows(csvToUpload);
+            if (rows.length >= 2) {
+              const headers = parseCSVLine(rows[0]).map(h => h.trim());
               const tagsIndex = headers.findIndex(h => h.toLowerCase() === 'tags');
 
               if (tagsIndex !== -1) {
-                const updatedLines = [lines[0]];
-                
-                for (let i = 1; i < lines.length; i++) {
-                  const cells = parseCSVLine(lines[i]);
-                  
-                  // Etiketleri sadece ilk satıra değil, TÜM satırlara ekle (multi-variant için gerekli)
+                const updatedRows = [rows[0]];
+
+                for (let i = 1; i < rows.length; i++) {
+                  const cells = parseCSVLine(rows[i]);
+
                   if (cells[tagsIndex] !== undefined) {
-                    const existingTags = cells[tagsIndex].replace(/"/g, '').trim();
-                    const allTagsStr = existingTags 
-                      ? `${existingTags}, ${manualTags.join(', ')}` 
+                    const existingTags = cells[tagsIndex].trim();
+                    const allTagsStr = existingTags
+                      ? `${existingTags}, ${manualTags.join(', ')}`
                       : manualTags.join(', ');
-                    cells[tagsIndex] = `"${allTagsStr}"`;
+                    cells[tagsIndex] = allTagsStr;
                   }
-                  
+
                   const newLine = cells.map(cell => {
                     if (cell.includes(',') || cell.includes('"') || cell.includes('\n')) {
                       return `"${cell.replace(/"/g, '""')}"`;
                     }
                     return cell;
                   }).join(',');
-                  
-                  updatedLines.push(newLine);
+
+                  updatedRows.push(newLine);
                 }
-                
-                csvToUpload = updatedLines.join('\n');
+
+                csvToUpload = updatedRows.join('\n');
                 console.log(`✅ BULK UPLOAD: Manuel etiketler tüm CSV satırlarına eklendi: ${manualTags.join(', ')}`);
               }
             }
