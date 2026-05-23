@@ -11,6 +11,7 @@ import { Request, Response, NextFunction, Router } from 'express';
 import { parse } from 'csv-parse/sync';
 import { getShopifyConfig, saveShopifyAccessToken } from './shopify-credentials';
 import { uploadProductToShopify } from './shopify-api-uploader';
+import { rotateShopifyToken } from './shopify-token-rotator';
 
 const router = Router();
 
@@ -65,7 +66,15 @@ async function validateShopifyToken(): Promise<boolean> {
     if (isValid) {
       console.log(`✅ [Importer] Shopify token geçerli: ${config.shopDomain}`);
     } else {
-      console.warn(`⚠️ [Importer] Shopify token geçersiz (${res.status}): ${config.shopDomain}`);
+      console.warn(`⚠️ [Importer] Shopify token geçersiz (${res.status}): ${config.shopDomain} — token yenileme tetikleniyor...`);
+      rotateShopifyToken().then(result => {
+        if (result.success) {
+          console.log(`✅ [Importer] Token yenilendi (${result.method})`);
+          tokenStatus.valid = true;
+        } else {
+          console.error(`❌ [Importer] Token yenileme başarısız: ${result.error}`);
+        }
+      }).catch(err => console.error('[Importer] Token yenileme hatası:', err));
     }
     return isValid;
   } catch (err) {

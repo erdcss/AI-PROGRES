@@ -15,6 +15,7 @@ import { fileURLToPath} from 'url';
 import * as fs from 'fs';
 import { enhancedErrorDetection } from './enhanced-error-detection';
 import { importerRouter, startTokenRefreshScheduler } from './importer-api';
+import { startShopifyTokenAutoRefresh } from './shopify-token-rotator';
 
 console.error("=========================================");
 console.error("🚀 SERVER INDEX.TS BAŞLADI 🚀");
@@ -313,6 +314,7 @@ app.use(pendingChangesRoutes);
   // ── Replit Importer API (/api/health, /api/import) ──────────────────────────
   app.use('/api', importerRouter);
   startTokenRefreshScheduler();
+  startShopifyTokenAutoRefresh();
   
   // Test enhanced extraction endpoint - Direct registration
   app.post('/api/test-enhanced', async (req, res) => {

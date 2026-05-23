@@ -13,10 +13,11 @@ import { getShopifyConfig, saveDirectAccessToken } from './shopify-credentials';
 
 const TOKEN_LIFETIME_MS = 24 * 60 * 60 * 1000; // Shopify 24 saat verir
 const REFRESH_BEFORE_MS  = 60 * 60 * 1000;      // Süresi dolmadan 1 saat önce yenile
-const REFRESH_INTERVAL_MS = 23 * 60 * 60 * 1000; // Her 23 saatte bir kontrol
+const REFRESH_INTERVAL_MS = 12 * 60 * 60 * 1000; // Her 12 saatte bir yenile
 
 let lastRefreshTime = 0;    // Unix timestamp (ms) — en son başarılı yenileme
 let isRefreshing = false;   // Paralel istekleri engelle
+let autoRefreshTimer: NodeJS.Timeout | null = null;
 
 // ─────────────────────────────────────────────────────────────────────────────
 // PUBLIC API
@@ -33,6 +34,36 @@ export function autoRefreshIfNeeded(force = false): void {
   rotateShopifyToken().catch(err =>
     console.error('❌ SHOPIFY TOKEN: Auto-refresh failed:', err.message)
   );
+}
+
+/**
+ * 12 saatte bir otomatik token yenileme döngüsü başlatır.
+ * Server başlangıcında bir kez çağrılmalı.
+ * Bir önceki yenileme tamamlanmadan yeni döngü başlamaz (recursive setTimeout).
+ */
+export function startShopifyTokenAutoRefresh(): void {
+  if (autoRefreshTimer) {
+    clearTimeout(autoRefreshTimer);
+    autoRefreshTimer = null;
+  }
+
+  console.log(`🔑 SHOPIFY TOKEN: Otomatik yenileme başlatıldı (her ${REFRESH_INTERVAL_MS / 3600000} saatte bir)`);
+
+  const runCycle = async () => {
+    console.log('🔄 SHOPIFY TOKEN: 12 saatlik yenileme döngüsü başlıyor...');
+    const result = await rotateShopifyToken();
+    if (result.success) {
+      console.log(`✅ SHOPIFY TOKEN: Yenilendi (yöntem: ${result.method})`);
+    } else {
+      console.warn(`⚠️ SHOPIFY TOKEN: Yenileme başarısız — ${result.error}`);
+      console.warn('⚠️ SHOPIFY TOKEN: Mevcut token kullanılmaya devam edecek');
+    }
+    // Yenileme tamamlandıktan sonra bir sonraki döngüyü planla
+    autoRefreshTimer = setTimeout(runCycle, REFRESH_INTERVAL_MS);
+  };
+
+  // İlk çalışma: 30 saniye sonra (server tam ayağa kalksın)
+  autoRefreshTimer = setTimeout(runCycle, 30 * 1000);
 }
 
 /**
