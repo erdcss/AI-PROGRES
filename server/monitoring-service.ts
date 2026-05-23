@@ -139,19 +139,25 @@ export class MonitoringService {
    * Fires in background — does not block the main monitoring cycle.
    */
   private async discoverAndRegisterColorVariants(trackedProducts: any[]): Promise<void> {
+    // 🛡️ OOM GUARD: Process at most 2 untracked color variant URLs per cycle.
+    // Fire-and-forget parallel scraping causes heap exhaustion when many products
+    // have untracked color variants. We collect ALL candidates then process sequentially.
+    const MAX_PER_CYCLE = 2;
+
     try {
       const { urlTrackingService } = await import('./url-tracking-service');
-      let discovered = 0;
+
+      // Collect ALL untracked color variant URLs across all products into a flat queue
+      interface ColorCandidate { url: string; shopifyProductId: string | null; interval: number; }
+      const candidates: ColorCandidate[] = [];
 
       for (const product of trackedProducts) {
         const extractedData = (product.extractedData as any) || {};
         const otherColorUrls: string[] = extractedData.otherColorUrls || [];
         if (otherColorUrls.length === 0) continue;
 
-        // Collect URLs that are missing OR not actively monitorable
-        // (isTracking=false, status='error', or missing shopifyProductId when parent has one)
-        const untracked: string[] = [];
         for (const colorUrl of otherColorUrls) {
+          if (candidates.length >= MAX_PER_CYCLE * 10) break; // cap DB queries too
           const cleanUrl = urlTrackingService.cleanTrendyolUrl(colorUrl);
           const [existing] = await db
             .select({
@@ -162,33 +168,48 @@ export class MonitoringService {
             })
             .from(urlTracking)
             .where(eq(urlTracking.url, cleanUrl));
-          if (
+
+          const needsWork =
             !existing ||
             !existing.isTracking ||
             existing.status === 'error' ||
-            (product.shopifyProductId && !existing.shopifyProductId)
-          ) {
-            untracked.push(cleanUrl);
+            (product.shopifyProductId && !existing.shopifyProductId);
+
+          if (needsWork) {
+            candidates.push({
+              url: cleanUrl,
+              shopifyProductId: product.shopifyProductId || null,
+              interval: product.trackingInterval || 300
+            });
           }
         }
+        if (candidates.length >= MAX_PER_CYCLE * 10) break;
+      }
 
-        if (untracked.length > 0) {
-          console.log(`🌈 DISCOVER: ${product.productTitle} has ${untracked.length} untracked color URL(s) — scheduling registration`);
-          discovered += untracked.length;
-          // Fire asynchronously so it doesn't block this cycle
-          urlTrackingService.registerColorVariantUrls(
-            untracked,
-            product.shopifyProductId,
-            product.trackingInterval || 300,
+      if (candidates.length === 0) {
+        console.log('🌈 DISCOVER: All color variants already tracked');
+        return;
+      }
+
+      // Process only the first MAX_PER_CYCLE entries — SEQUENTIALLY, never in parallel
+      const toProcess = candidates.slice(0, MAX_PER_CYCLE);
+      console.log(`🌈 DISCOVER: ${candidates.length} untracked color URL(s) found — processing ${toProcess.length} this cycle`);
+
+      for (const candidate of toProcess) {
+        try {
+          await urlTrackingService.registerColorVariantUrls(
+            [candidate.url],
+            candidate.shopifyProductId,
+            candidate.interval,
             true
-          ).catch(err => console.error('⚠️ Color variant discovery registration error:', err));
+          );
+        } catch (err) {
+          console.error('⚠️ Color variant sequential registration error:', err);
         }
       }
 
-      if (discovered > 0) {
-        console.log(`🌈 DISCOVER: Scheduled registration for ${discovered} untracked color URL(s)`);
-      } else {
-        console.log('🌈 DISCOVER: All color variants already tracked');
+      if (candidates.length > MAX_PER_CYCLE) {
+        console.log(`🌈 DISCOVER: ${candidates.length - MAX_PER_CYCLE} remaining URL(s) will be processed in future cycles`);
       }
     } catch (err) {
       console.error('⚠️ discoverAndRegisterColorVariants error (non-critical):', err);

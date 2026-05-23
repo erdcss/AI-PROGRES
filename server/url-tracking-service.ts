@@ -104,12 +104,14 @@ export class UrlTrackingService {
       // ℹ️ Tracking started notifications are now blocked by gateway to reduce spam
 
       // 🌈 AUTO-REGISTER COLOR VARIANTS: If this product has other color URLs, track them too
+      // 🛡️ OOM GUARD: Cap at 3 URLs per trigger to avoid Puppeteer burst from large color sets
       const otherColorUrls = (extractionResult as any).otherColorUrls as string[] | undefined;
       if (otherColorUrls && otherColorUrls.length > 0) {
-        console.log(`🌈 Multi-color product detected: ${otherColorUrls.length} other color URL(s) — scheduling background registration`);
+        const capped = otherColorUrls.slice(0, 3);
+        console.log(`🌈 Multi-color product detected: ${otherColorUrls.length} other color URL(s) — scheduling ${capped.length} for background registration`);
         const effectiveShopifyId = shopifyProductId ?? trackedUrl.shopifyProductId ?? null;
         setImmediate(() => {
-          this.registerColorVariantUrls(otherColorUrls, effectiveShopifyId, trackingInterval, startTracking)
+          this.registerColorVariantUrls(capped, effectiveShopifyId, trackingInterval, startTracking)
             .catch(err => console.error('⚠️ Background color variant registration error:', err));
         });
       }
