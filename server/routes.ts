@@ -2127,6 +2127,23 @@ setTimeout(check, 1000);
           const scrapeHasValidTitle = scrapeResult?.title && !INVALID_SCRAPE_TITLES.includes(scrapeResult.title) && (scrapeResult.title as string).length > 5;
           const scrapeHasValidData = scrapeHasValidTitle || (scrapeResult?.price?.original > 0) || (scrapeResult?.images?.length > 0);
 
+          // 🛡️ SHORT-CIRCUIT: Trendyol IP block — skip ALL fallbacks immediately
+          if (scrapeResult?.blocked) {
+            console.log('🚫 ROUTES: Trendyol block detected — skipping MultiColor + AlternativeSources fallbacks');
+            scrapeJobs.set(jobId, {
+              status: 'done' as const,
+              startedAt: scrapeJobs.get(jobId)!.startedAt,
+              result: {
+                success: false,
+                blocked: true,
+                statusCode: 503,
+                message: '🚫 Trendyol şu anda bu sunucudan gelen istekleri engelliyor. Lütfen 2-3 dakika bekleyip tekrar deneyin.',
+                details: 'Captcha/block page detected — all HTTP and Puppeteer requests returning 245803-byte block page'
+              }
+            });
+            return;
+          }
+
           if (scrapeResult && scrapeResult.success !== false && scrapeHasValidData) {
             console.log(`⚡ Scenario scrape SUCCESS in ${Date.now() - scrapeStartTime}ms`);
             result = { ...scrapeResult, _source: 'scenario-scrape' };

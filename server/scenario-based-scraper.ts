@@ -3275,15 +3275,21 @@ export async function scenarioBasedScrape(url: string): Promise<ScenarioBasedRes
     
   } catch (error: any) {
     console.error(`❌ Scenario-based scraper error: ${error.message}`);
-    
+
+    const isBlocked = error.message?.includes('TRENDYOL_BLOCKED') || error.message?.includes('Blocked page');
+    if (isBlocked) {
+      console.log('🚫 OUTER CATCH: Returning blocked flag for routes.ts to handle cleanly');
+    }
+
     return {
       success: false,
+      blocked: isBlocked,
       scenario: ExtractionScenario.SINGLE_VARIANT,
       confidence: 0,
       title: 'Product',
       brand: 'Brand',
       category: '',
-      description: '', // Added description to error result
+      description: '',
       price: {
         original: 0,
         currency: 'TL',
@@ -3292,15 +3298,15 @@ export async function scenarioBasedScrape(url: string): Promise<ScenarioBasedRes
         profitFormatted: '0 TL'
       },
       images: [],
-      features: [{ key: 'Error', value: 'Extraction failed' }],
+      features: [{ key: 'Error', value: isBlocked ? 'Trendyol blocked' : 'Extraction failed' }],
       variants: {
         colors: [],
         sizes: [],
         allVariants: []
       },
-      tags: [], // Add missing tags property
+      tags: [],
       extractionDetails: {
-        scenario: 'error',
+        scenario: isBlocked ? 'blocked' : 'error',
         confidence: 0,
         evidence: [error.message],
         strategy: 'Error handling'
