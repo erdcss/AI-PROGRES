@@ -123,8 +123,75 @@ export class MonitoringService {
         await this.sleep(delay);
       }
 
+      // 🌈 COLOR VARIANT DISCOVERY: Find multi-color products whose other color URLs
+      // are not yet in the tracking system and register them automatically.
+      // This catches products that were added before this feature existed.
+      await this.discoverAndRegisterColorVariants(trackedProducts);
+
     } catch (error) {
       console.error('❌ Monitoring kontrol hatası:', error);
+    }
+  }
+
+  /**
+   * 🌈 Discover untracked color variant URLs for already-monitored products.
+   * Reads otherColorUrls from extractedData and registers any that are missing.
+   * Fires in background — does not block the main monitoring cycle.
+   */
+  private async discoverAndRegisterColorVariants(trackedProducts: any[]): Promise<void> {
+    try {
+      const { urlTrackingService } = await import('./url-tracking-service');
+      let discovered = 0;
+
+      for (const product of trackedProducts) {
+        const extractedData = (product.extractedData as any) || {};
+        const otherColorUrls: string[] = extractedData.otherColorUrls || [];
+        if (otherColorUrls.length === 0) continue;
+
+        // Collect URLs that are missing OR not actively monitorable
+        // (isTracking=false, status='error', or missing shopifyProductId when parent has one)
+        const untracked: string[] = [];
+        for (const colorUrl of otherColorUrls) {
+          const cleanUrl = urlTrackingService.cleanTrendyolUrl(colorUrl);
+          const [existing] = await db
+            .select({
+              id: urlTracking.id,
+              isTracking: urlTracking.isTracking,
+              status: urlTracking.status,
+              shopifyProductId: urlTracking.shopifyProductId
+            })
+            .from(urlTracking)
+            .where(eq(urlTracking.url, cleanUrl));
+          if (
+            !existing ||
+            !existing.isTracking ||
+            existing.status === 'error' ||
+            (product.shopifyProductId && !existing.shopifyProductId)
+          ) {
+            untracked.push(cleanUrl);
+          }
+        }
+
+        if (untracked.length > 0) {
+          console.log(`🌈 DISCOVER: ${product.productTitle} has ${untracked.length} untracked color URL(s) — scheduling registration`);
+          discovered += untracked.length;
+          // Fire asynchronously so it doesn't block this cycle
+          urlTrackingService.registerColorVariantUrls(
+            untracked,
+            product.shopifyProductId,
+            product.trackingInterval || 300,
+            true
+          ).catch(err => console.error('⚠️ Color variant discovery registration error:', err));
+        }
+      }
+
+      if (discovered > 0) {
+        console.log(`🌈 DISCOVER: Scheduled registration for ${discovered} untracked color URL(s)`);
+      } else {
+        console.log('🌈 DISCOVER: All color variants already tracked');
+      }
+    } catch (err) {
+      console.error('⚠️ discoverAndRegisterColorVariants error (non-critical):', err);
     }
   }
 

@@ -102,6 +102,17 @@ export class UrlTrackingService {
       }
       
       // ℹ️ Tracking started notifications are now blocked by gateway to reduce spam
+
+      // 🌈 AUTO-REGISTER COLOR VARIANTS: If this product has other color URLs, track them too
+      const otherColorUrls = (extractionResult as any).otherColorUrls as string[] | undefined;
+      if (otherColorUrls && otherColorUrls.length > 0) {
+        console.log(`🌈 Multi-color product detected: ${otherColorUrls.length} other color URL(s) — scheduling background registration`);
+        const effectiveShopifyId = shopifyProductId ?? trackedUrl.shopifyProductId ?? null;
+        setImmediate(() => {
+          this.registerColorVariantUrls(otherColorUrls, effectiveShopifyId, trackingInterval, startTracking)
+            .catch(err => console.error('⚠️ Background color variant registration error:', err));
+        });
+      }
       
       return {
         success: true,
@@ -115,6 +126,145 @@ export class UrlTrackingService {
         error: error instanceof Error ? error.message : String(error)
       };
     }
+  }
+
+  /**
+   * 🌈 Register color variant URLs for multi-color products.
+   * Each color gets its own urlTracking record so the monitoring service
+   * checks each color independently and fires per-color stock change alerts
+   * (e.g., "Pembe / XL tükendi", "Siyah / S tükendi").
+   */
+  async registerColorVariantUrls(
+    colorUrls: string[],
+    shopifyProductId: string | null | undefined,
+    trackingInterval: number = 300,
+    startTracking: boolean = true
+  ): Promise<void> {
+    if (!colorUrls || colorUrls.length === 0) return;
+    console.log(`🌈 registerColorVariantUrls: Processing ${colorUrls.length} color URL(s)`);
+
+    for (const colorUrl of colorUrls) {
+      try {
+        const cleanUrl = this.cleanTrendyolUrl(colorUrl);
+
+        // Check existing record and whether it is actively monitorable
+        const [existing] = await db
+          .select({
+            id: urlTracking.id,
+            isTracking: urlTracking.isTracking,
+            status: urlTracking.status,
+            shopifyProductId: urlTracking.shopifyProductId
+          })
+          .from(urlTracking)
+          .where(eq(urlTracking.url, cleanUrl));
+
+        if (existing) {
+          // Determine if the record needs remediation:
+          // - not actively tracking
+          // - in error state (previous scrape failed)
+          // - missing shopifyProductId when the parent now has one
+          const needsReactivation =
+            !existing.isTracking ||
+            existing.status === 'error' ||
+            (shopifyProductId && !existing.shopifyProductId);
+
+          if (needsReactivation) {
+            console.log(`🌈 Color variant needs reactivation (isTracking=${existing.isTracking}, status=${existing.status}): ${cleanUrl}`);
+            // Re-scrape and update/activate the existing record
+            await this.sleep(2500 + Math.random() * 2500);
+            await this.addColorVariantUrl(cleanUrl, shopifyProductId, trackingInterval, startTracking);
+          } else {
+            console.log(`🌈 Color variant already actively tracked (skip): ${cleanUrl}`);
+          }
+          continue;
+        }
+
+        // Small delay to avoid overwhelming the scraper
+        await this.sleep(2500 + Math.random() * 2500);
+
+        await this.addColorVariantUrl(cleanUrl, shopifyProductId, trackingInterval, startTracking);
+      } catch (err) {
+        console.error(`⚠️ Failed to register color variant ${colorUrl}:`, err);
+      }
+    }
+
+    console.log(`🌈 registerColorVariantUrls: Finished for ${colorUrls.length} URL(s)`);
+  }
+
+  /**
+   * Internal helper: scrape one color-variant URL and insert it into urlTracking.
+   * Does NOT recurse into further color discovery to prevent infinite loops.
+   */
+  private async addColorVariantUrl(
+    url: string,
+    shopifyProductId: string | null | undefined,
+    trackingInterval: number,
+    startTracking: boolean
+  ): Promise<void> {
+    try {
+      console.log(`🌈 Adding color variant to tracking: ${url}`);
+      const extractionResult = await scenarioBasedScrape(url);
+
+      let insertValues: any;
+      let updateSet: any;
+
+      if (!extractionResult.success) {
+        // Do NOT insert a permanent disabled record — it would block future retry attempts
+        // because registerColorVariantUrls skips records that already exist with no error.
+        // Instead just log and return; the next monitoring cycle will retry via
+        // discoverAndRegisterColorVariants or registerColorVariantUrls.
+        console.log(`⚠️ Extraction failed for color variant ${url} — skipping insert, will retry next cycle`);
+        return;
+      }
+
+      insertValues = {
+        url,
+        productTitle: extractionResult.title,
+        currentPrice: extractionResult.price.original.toString(),
+        originalPrice: extractionResult.price.original.toString(),
+        currency: extractionResult.price.currency,
+        status: 'active',
+        lastChecked: new Date(),
+        lastSuccessfulCheck: new Date(),
+        checkCount: 1,
+        isTracking: startTracking,
+        trackingInterval,
+        extractedData: extractionResult
+      };
+      if (shopifyProductId) insertValues.shopifyProductId = shopifyProductId;
+
+      updateSet = {
+        productTitle: extractionResult.title,
+        currentPrice: extractionResult.price.original.toString(),
+        lastChecked: new Date(),
+        lastSuccessfulCheck: new Date(),
+        extractedData: extractionResult,
+        status: 'active',
+        isTracking: startTracking,
+        updatedAt: new Date()
+      };
+      if (shopifyProductId) updateSet.shopifyProductId = shopifyProductId;
+
+      const [trackedUrl] = await db
+        .insert(urlTracking)
+        .values(insertValues)
+        .returning()
+        .onConflictDoUpdate({ target: urlTracking.url, set: updateSet });
+
+      await this.syncProductFromUrlTracking(trackedUrl.id);
+
+      if (startTracking) {
+        this.startTracking(url, trackingInterval);
+      }
+
+      console.log(`🌈 ✅ Color variant registered: ${extractionResult.title} — ${url}`);
+    } catch (error) {
+      console.error(`❌ Error adding color variant URL ${url}:`, error);
+    }
+  }
+
+  private sleep(ms: number): Promise<void> {
+    return new Promise(resolve => setTimeout(resolve, ms));
   }
 
   /**
@@ -146,6 +296,23 @@ export class UrlTrackingService {
       this.startTracking(url, updated.trackingInterval || 300);
       
       console.log(`✅ Tracking enabled and started for: ${url}`);
+
+      // 🌈 SIBLING ACTIVATION: Propagate enablement to all color variant URLs of this product.
+      // When the base URL gets linked to Shopify and enabled, all sibling color URLs should
+      // become active too (same shopifyProductId, same trackingInterval).
+      const extractedData = (updated.extractedData as any) || {};
+      const siblingColorUrls: string[] = extractedData.otherColorUrls || [];
+      if (siblingColorUrls.length > 0) {
+        console.log(`🌈 Propagating enablement to ${siblingColorUrls.length} sibling color URL(s)`);
+        setImmediate(() => {
+          this.registerColorVariantUrls(
+            siblingColorUrls,
+            shopifyProductId ?? updated.shopifyProductId,
+            updated.trackingInterval || 300,
+            true
+          ).catch(err => console.error('⚠️ Sibling color activation error:', err));
+        });
+      }
       
       return {
         success: true,
