@@ -22,6 +22,25 @@ function extractProductId(url: string): string | null {
 
 // Try alternative mobile API approach with multiple endpoints
 export async function tryMobileAPI(url: string): Promise<any> {
+  const { fetchTrendyolProductByUrl } = await import('./trendyol-product-api');
+  const apiProduct = await fetchTrendyolProductByUrl(url);
+  if (apiProduct) {
+    return {
+      success: true,
+      title: apiProduct.title,
+      brand: apiProduct.brand,
+      price: {
+        original: apiProduct.price.original,
+        withProfit: apiProduct.price.withProfit,
+        currency: apiProduct.price.currency,
+      },
+      images: apiProduct.images,
+      description: apiProduct.description,
+      category: apiProduct.category,
+      variants: [],
+    };
+  }
+
   const productId = extractProductId(url);
   if (!productId) return null;
 

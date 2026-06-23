@@ -3,6 +3,12 @@
  */
 import axios from 'axios';
 import * as cheerio from 'cheerio';
+import { fetchTrendyolProductByUrl } from './trendyol-product-api';
+import {
+  brandFromTrendyolUrl,
+  isInvalidTrendyolTitle,
+  titleFromTrendyolUrl,
+} from './trendyol-title-utils';
 
 export interface HttpScrapeResult {
   success: boolean;
@@ -72,6 +78,34 @@ function extractFromJsonLd($: cheerio.CheerioAPI): Partial<HttpScrapeResult['pro
   return out;
 }
 
+function extractFromProductState(html: string): Partial<HttpScrapeResult['product']> {
+  const stateMatch = html.match(/__PRODUCT_DETAIL_APP_INITIAL_STATE__\s*=\s*({[\s\S]*?});/);
+  if (!stateMatch?.[1]) return {};
+  try {
+    const state = JSON.parse(stateMatch[1]);
+    const product = state?.product;
+    if (!product) return {};
+    const original = parsePrice(
+      product.price?.sellingPrice?.value ?? product.price?.discountedPrice?.value
+    );
+    return {
+      title: product.name || product.title,
+      brand: product.brand?.name || product.brand,
+      price:
+        original > 0
+          ? { original, withProfit: Math.round(original * 1.1 * 100) / 100, currency: 'TRY' }
+          : undefined,
+      images: (product.images || [])
+        .map((img: any) => img.url || img.src || (typeof img === 'string' ? img : ''))
+        .filter(Boolean),
+      description: product.description || '',
+      category: product.category?.name || product.categoryName || '',
+    };
+  } catch {
+    return {};
+  }
+}
+
 function extractFromNextData(html: string): Partial<HttpScrapeResult['product']> {
   const match = html.match(/<script[^>]*id="__NEXT_DATA__"[^>]*>([\s\S]*?)<\/script>/i);
   if (!match?.[1]) return {};
@@ -80,6 +114,7 @@ function extractFromNextData(html: string): Partial<HttpScrapeResult['product']>
     const product =
       data?.props?.pageProps?.product ||
       data?.props?.pageProps?.initialState?.product ||
+      data?.props?.pageProps?.initialState?.productDetail?.product ||
       data?.props?.pageProps?.initialData?.product;
     if (!product) return {};
     const original = parsePrice(product.price?.sellingPrice?.value ?? product.price?.discountedPrice?.value);
@@ -110,9 +145,42 @@ function extractFromMeta($: cheerio.CheerioAPI): Partial<HttpScrapeResult['produ
   return { title: title || undefined, images: images.length ? images : undefined };
 }
 
+function apiProductToResult(
+  apiProduct: Awaited<ReturnType<typeof fetchTrendyolProductByUrl>>,
+  step: string
+): HttpScrapeResult {
+  if (!apiProduct) {
+    return { success: false, error: 'API sonucu boş', step };
+  }
+  return {
+    success: true,
+    step,
+    product: {
+      title: apiProduct.title,
+      brand: apiProduct.brand,
+      price: apiProduct.price,
+      images: apiProduct.images,
+      variants: {
+        colors: ['Standart'],
+        sizes: ['Tek Beden'],
+        allVariants: [{ color: 'Standart', size: 'Tek Beden', inStock: true }],
+      },
+      features: [],
+      tags: [],
+      description: apiProduct.description,
+      category: apiProduct.category || 'Genel',
+    },
+  };
+}
+
 export async function scrapeTrendyolHttpFallback(url: string): Promise<HttpScrapeResult> {
   if (!url.includes('trendyol.com')) {
     return { success: false, error: 'URL geçersiz — sadece Trendyol URL desteklenir', step: 'validate_url' };
+  }
+
+  const apiProduct = await fetchTrendyolProductByUrl(url);
+  if (apiProduct) {
+    return apiProductToResult(apiProduct, 'trendyol_api');
   }
 
   try {
@@ -156,20 +224,31 @@ export async function scrapeTrendyolHttpFallback(url: string): Promise<HttpScrap
 
     const $ = cheerio.load(html);
     const fromLd = extractFromJsonLd($);
+    const fromState = extractFromProductState(html);
     const fromNext = extractFromNextData(html);
     const fromMeta = extractFromMeta($);
 
-    const title = fromLd.title || fromNext.title || fromMeta.title || '';
-    const brand = fromLd.brand || fromNext.brand || 'Marka';
-    const price = fromLd.price || fromNext.price || { original: 0, withProfit: 0, currency: 'TRY' };
-    const images = [...new Set([...(fromLd.images || []), ...(fromNext.images || []), ...(fromMeta.images || [])])];
+    let title = fromLd.title || fromState.title || fromNext.title || fromMeta.title || '';
+    if (isInvalidTrendyolTitle(title)) {
+      title = titleFromTrendyolUrl(url) || '';
+    }
+    const brand = fromLd.brand || fromState.brand || fromNext.brand || brandFromTrendyolUrl(url) || 'Marka';
+    const price = fromLd.price || fromState.price || fromNext.price || { original: 0, withProfit: 0, currency: 'TRY' };
+    const images = [
+      ...new Set([
+        ...(fromLd.images || []),
+        ...(fromState.images || []),
+        ...(fromNext.images || []),
+        ...(fromMeta.images || []),
+      ]),
+    ];
 
-    if (!title || title.length < 3) {
+    if (isInvalidTrendyolTitle(title) || !title || title.length < 3) {
       return {
         success: false,
         error: 'Ürün bilgisi bulunamadı — sayfa yapısı tanınmadı',
         step: 'parse_title',
-        details: 'JSON-LD, __NEXT_DATA__ ve meta tag parse başarısız',
+        details: 'JSON-LD, __PRODUCT_DETAIL__, __NEXT_DATA__ ve meta tag parse başarısız',
       };
     }
 

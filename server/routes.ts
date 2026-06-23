@@ -2126,9 +2126,14 @@ setTimeout(check, 1000);
             createTimeout(60000)
           ]) as any;
           
-          const INVALID_SCRAPE_TITLES = ['Yüklenemiyor', 'Ürün Bilgisi Alınamadı', 'Ürün Yüklenemedi', 'Ürün Bilgisi', 'trendyol.com', 'Product', 'Trendyol Ürünü'];
-          const scrapeHasValidTitle = scrapeResult?.title && !INVALID_SCRAPE_TITLES.includes(scrapeResult.title) && (scrapeResult.title as string).length > 5;
-          const scrapeHasValidData = scrapeHasValidTitle || (scrapeResult?.price?.original > 0) || (scrapeResult?.images?.length > 0);
+          const { isValidTrendyolProductTitle } = await import('./trendyol-title-utils');
+          const scrapeHasValidTitle =
+            scrapeResult?.title &&
+            isValidTrendyolProductTitle(scrapeResult.title) &&
+            (scrapeResult.title as string).length > 5;
+          const scrapeHasValidData =
+            scrapeHasValidTitle &&
+            ((scrapeResult?.price?.original > 0) || (scrapeResult?.images?.length > 0));
 
           // 🛡️ SHORT-CIRCUIT: Trendyol IP block — skip ALL fallbacks immediately
           if (scrapeResult?.blocked) {
@@ -2163,6 +2168,38 @@ setTimeout(check, 1000);
           }
         } catch (fastError: any) {
           console.log(`⚠️ Fast path failed (${Date.now() - scrapeStartTime}ms): ${fastError.message}`);
+
+          const convertApiProduct = (apiProduct: any) => ({
+            success: true,
+            title: apiProduct.title,
+            brand: apiProduct.brand,
+            category: apiProduct.category || 'Genel',
+            description: apiProduct.description || '',
+            price: apiProduct.price,
+            images: apiProduct.images,
+            variants: {
+              colors: ['Standart'],
+              sizes: ['Tek Beden'],
+              allVariants: [{ color: 'Standart', size: 'Tek Beden', inStock: true }],
+            },
+            features: [],
+            tags: [],
+            extractionMethod: 'trendyol-api',
+            scenario: 'trendyol-api',
+            confidence: 85,
+          });
+
+          try {
+            const { fetchTrendyolProductByUrl } = await import('./trendyol-product-api');
+            const apiProduct = await fetchTrendyolProductByUrl(url);
+            if (apiProduct) {
+              console.log('✅ Trendyol public API fallback succeeded');
+              result = convertApiProduct(apiProduct);
+            } else {
+              throw new Error('Trendyol API fallback empty');
+            }
+          } catch (apiError: any) {
+            console.log(`⚠️ Trendyol API fallback failed: ${apiError.message}`);
           
           // FALLBACK: Try multi-color scraper directly
           try {
@@ -2272,6 +2309,7 @@ setTimeout(check, 1000);
               };
               }
             }
+          }
           }
         }
         

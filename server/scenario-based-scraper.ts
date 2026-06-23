@@ -2857,11 +2857,10 @@ export async function scenarioBasedScrape(url: string): Promise<ScenarioBasedRes
     });
 
     // CRITICAL BLOCKING DETECTION: Check if we received blocked/invalid data
-    // 🚨 ULTRA LENIENT BLOCKING DETECTION - Focus only on obvious blocking
-    const INVALID_TITLES = ['Yüklenemiyor', 'Ürün Bilgisi Alınamadı', 'Ürün Yüklenemedi', 'Ürün Bilgisi', 'trendyol.com', 'Product', 'Trendyol Ürünü'];
-    const hasValidTitle = title && 
-      !INVALID_TITLES.includes(title) && 
-      !title.toLowerCase().includes('blocked') && 
+    const { isInvalidTrendyolTitle } = await import('./trendyol-title-utils');
+    const hasValidTitle = title &&
+      !isInvalidTrendyolTitle(title) &&
+      !title.toLowerCase().includes('blocked') &&
       !title.toLowerCase().includes('engellendi') &&
       title.length > 5;
     const hasValidPrice = price.original > 0;

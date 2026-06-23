@@ -199,7 +199,14 @@ function ScraperPage() {
     onSuccess: (data) => {
       console.log('🎯 Single scrape mutation onSuccess received:', data);
 
-      const hasTitle = data?.title && data.title !== 'trendyol.com' && data.title.length > 2;
+      const INVALID_TITLE_PATTERNS = [/online alışveriş/i, /trend yolu/i, /^trendyol\s*[|–-]/i];
+      const isBadTitle = (title?: string) =>
+        !title ||
+        title === 'trendyol.com' ||
+        title.length <= 2 ||
+        INVALID_TITLE_PATTERNS.some((p) => p.test(title));
+
+      const hasTitle = data?.title && !isBadTitle(data.title);
       const hasImages = Array.isArray(data?.images) && data.images.length > 0;
       const hasCSVData = data?.csvContent && data.csvContent.length > 50;
       const hasPrice = data?.price && (
@@ -224,11 +231,12 @@ function ScraperPage() {
       setWorkflowStep('Ürün normalize edildi');
       setScrapeError(null);
       
-      // Generate minimal CSV if missing
-      if (!data.csvContent && data.title) {
+      // Generate minimal CSV if missing (no fake default price)
+      if (!data.csvContent && data.title && hasPrice) {
         console.log('📋 Frontend: Creating minimal CSV for preview...');
+        const priceValue = (data.price as any)?.original ?? (typeof data.price === 'number' ? data.price : '');
         data.csvContent = `Handle,Title,Vendor,Price,Image Src,Status
-${data.title.toLowerCase().replace(/[^a-z0-9]/g, '-')},${data.title},${data.brand || ''},${data.price?.original || 100},${data.images?.[0]?.url || data.images?.[0] || ''},active`;
+${data.title.toLowerCase().replace(/[^a-z0-9]/g, '-')},${data.title},${data.brand || ''},${priceValue},${data.images?.[0]?.url || data.images?.[0] || ''},active`;
       }
       
       console.log('✅ Single scrape successful, setting product data');
