@@ -1,7 +1,7 @@
 import axios from 'axios';
 import { db } from './db';
-import { products, productVariants, shopifyTransferredProducts } from '@shared/schema';
-import { eq, or } from 'drizzle-orm';
+import { shopifyTransferredProducts } from '@shared/schema';
+import { getShopifyConfig } from './shopify-credentials';
 
 interface ShopifyProduct {
   id: number;
@@ -39,55 +39,119 @@ interface ShopifyImage {
   position: number;
 }
 
+interface ShopifyCredentials {
+  shopDomain: string;
+  accessToken: string;
+}
+
+export class ShopifyCredentialsError extends Error {
+  constructor(
+    message = 'Shopify API kimlik bilgileri bulunamadı. OAuth bağlantısı yapın veya SHOPIFY_ADMIN_ACCESS_TOKEN / SHOPIFY_ACCESS_TOKEN tanımlayın.'
+  ) {
+    super(message);
+    this.name = 'ShopifyCredentialsError';
+  }
+}
+
 export class ShopifyProductsManager {
-  private shopDomain: string;
-  private accessToken: string;
   private apiVersion: string = '2024-01';
 
   constructor() {
-    this.shopDomain = (process.env.SHOPIFY_SHOP_DOMAIN || process.env.SHOPIFY_STORE_URL || '').replace(/^https?:\/\//, '').replace(/\/$/, '');
-    this.accessToken = process.env.SHOPIFY_ADMIN_ACCESS_TOKEN || process.env.SHOPIFY_ACCESS_TOKEN || '';
-    
-    if (!this.shopDomain || !this.accessToken) {
-      throw new Error('Shopify API bilgileri eksik: SHOPIFY_STORE_URL ve SHOPIFY_ACCESS_TOKEN gerekli');
+    const hasEnvToken = !!(
+      process.env.SHOPIFY_ADMIN_ACCESS_TOKEN || process.env.SHOPIFY_ACCESS_TOKEN
+    );
+    const hasEnvDomain = !!(
+      process.env.SHOPIFY_SHOP_DOMAIN ||
+      process.env.SHOPIFY_STORE_URL ||
+      process.env.SHOPIFY_STORE_DOMAIN
+    );
+
+    if (!hasEnvToken) {
+      console.warn(
+        '⚠️ Shopify Products Manager: SHOPIFY_ACCESS_TOKEN tanımlı değil — runtime\'da DB OAuth tokenı veya ENV kimlik bilgileri kullanılacak.'
+      );
+    }
+    if (!hasEnvDomain) {
+      console.warn(
+        '⚠️ Shopify Products Manager: SHOPIFY_STORE_URL / SHOPIFY_SHOP_DOMAIN tanımlı değil — mağaza adresi DB veya ENV\'den alınacak.'
+      );
     }
   }
 
-  private get baseUrl(): string {
-    return `https://${this.shopDomain}/admin/api/${this.apiVersion}`;
+  private static cleanDomain(domain: string): string {
+    return domain.replace(/^https?:\/\//, '').replace(/\/$/, '');
   }
 
-  private get headers() {
+  /**
+   * Öncelik: DB (getShopifyConfig) → SHOPIFY_ADMIN_ACCESS_TOKEN → SHOPIFY_ACCESS_TOKEN
+   */
+  private async resolveCredentials(): Promise<ShopifyCredentials> {
+    const config = await getShopifyConfig();
+    if (config?.shopDomain && config.accessToken) {
+      return {
+        shopDomain: ShopifyProductsManager.cleanDomain(config.shopDomain),
+        accessToken: config.accessToken,
+      };
+    }
+
+    const shopDomain = ShopifyProductsManager.cleanDomain(
+      process.env.SHOPIFY_SHOP_DOMAIN ||
+        process.env.SHOPIFY_STORE_URL ||
+        process.env.SHOPIFY_STORE_DOMAIN ||
+        ''
+    );
+    const accessToken =
+      process.env.SHOPIFY_ADMIN_ACCESS_TOKEN || process.env.SHOPIFY_ACCESS_TOKEN || '';
+
+    if (shopDomain && accessToken) {
+      return { shopDomain, accessToken };
+    }
+
+    throw new ShopifyCredentialsError();
+  }
+
+  private baseUrl(shopDomain: string): string {
+    return `https://${shopDomain}/admin/api/${this.apiVersion}`;
+  }
+
+  private headers(accessToken: string) {
     return {
-      'X-Shopify-Access-Token': this.accessToken,
-      'Content-Type': 'application/json'
+      'X-Shopify-Access-Token': accessToken,
+      'Content-Type': 'application/json',
     };
   }
 
   // Shopify'dan tüm ürünleri çek
   async fetchAllShopifyProducts(): Promise<ShopifyProduct[]> {
+    let creds: ShopifyCredentials;
+    try {
+      creds = await this.resolveCredentials();
+    } catch (error) {
+      if (error instanceof ShopifyCredentialsError) throw error;
+      throw new ShopifyCredentialsError();
+    }
+
     try {
       console.log('🛍️ Shopify ürünleri çekiliyor...');
-      
+
       let allProducts: ShopifyProduct[] = [];
-      let pageInfo = null;
+      let pageInfo: string | null = null;
       let hasNextPage = true;
       let pageCount = 0;
 
-      while (hasNextPage && pageCount < 50) { // Güvenlik için maksimum 50 sayfa
+      while (hasNextPage && pageCount < 50) {
         pageCount++;
-        
-        let url = `${this.baseUrl}/products.json?limit=250`;
+
+        let url = `${this.baseUrl(creds.shopDomain)}/products.json?limit=250`;
         if (pageInfo) {
           url += `&page_info=${pageInfo}`;
         }
 
-        const response = await axios.get(url, { headers: this.headers });
+        const response = await axios.get(url, { headers: this.headers(creds.accessToken) });
         const products = response.data.products;
-        
+
         allProducts.push(...products);
-        
-        // Pagination kontrolü
+
         const linkHeader = response.headers.link;
         if (linkHeader && linkHeader.includes('rel="next"')) {
           const nextPageMatch = linkHeader.match(/<[^>]*page_info=([^&>]*).*rel="next"/);
@@ -95,13 +159,12 @@ export class ShopifyProductsManager {
         } else {
           hasNextPage = false;
         }
-        
+
         console.log(`📄 Sayfa ${pageCount}: ${products.length} ürün çekildi`);
       }
 
       console.log(`✅ Toplam ${allProducts.length} Shopify ürünü çekildi`);
       return allProducts;
-      
     } catch (error: any) {
       console.error('❌ Shopify ürün çekme hatası:', error.response?.data || error.message);
       throw new Error(`Shopify API hatası: ${error.response?.data?.errors || error.message}`);
@@ -110,13 +173,28 @@ export class ShopifyProductsManager {
 
   // Belirli bir Shopify ürününü ID ile çek
   async fetchShopifyProduct(productId: string): Promise<ShopifyProduct | null> {
+    let creds: ShopifyCredentials;
     try {
-      const response = await axios.get(`${this.baseUrl}/products/${productId}.json`, { 
-        headers: this.headers 
-      });
+      creds = await this.resolveCredentials();
+    } catch (error) {
+      if (error instanceof ShopifyCredentialsError) {
+        console.error(`❌ Shopify ürün çekme hatası (ID: ${productId}):`, error.message);
+        return null;
+      }
+      return null;
+    }
+
+    try {
+      const response = await axios.get(
+        `${this.baseUrl(creds.shopDomain)}/products/${productId}.json`,
+        { headers: this.headers(creds.accessToken) }
+      );
       return response.data.product;
     } catch (error: any) {
-      console.error(`❌ Shopify ürün çekme hatası (ID: ${productId}):`, error.response?.data || error.message);
+      console.error(
+        `❌ Shopify ürün çekme hatası (ID: ${productId}):`,
+        error.response?.data || error.message
+      );
       return null;
     }
   }
@@ -134,76 +212,66 @@ export class ShopifyProductsManager {
       }>;
       unmatchedDb: any[];
       orphanedShopify: ShopifyProduct[];
-    }
+    };
   }> {
     try {
       console.log('🔄 Shopify ürünleri ile veritabanı eşleştirmesi başlatılıyor...');
-      
-      // 1. Shopify ürünlerini çek
+
       const shopifyProducts = await this.fetchAllShopifyProducts();
-      
-      // 2. Veritabanından transferred products listesini çek
+
       const dbTransferredProducts = await db
         .select()
         .from(shopifyTransferredProducts)
         .orderBy(shopifyTransferredProducts.createdAt);
-      
-      // 3. Veritabanından takip edilen URL'leri çek
-      const dbProducts = await db
-        .select()
-        .from(products)
-        .orderBy(products.createdAt);
 
-      console.log(`📊 Karşılaştırma: ${shopifyProducts.length} Shopify ürünü vs ${dbTransferredProducts.length} transfer kaydı`);
+      console.log(
+        `📊 Karşılaştırma: ${shopifyProducts.length} Shopify ürünü vs ${dbTransferredProducts.length} transfer kaydı`
+      );
 
       const matchedProducts: Array<{
         dbProduct: any;
         shopifyProduct: ShopifyProduct;
         matchType: 'exact' | 'fuzzy' | 'sku';
       }> = [];
-      
+
       const unmatchedDb: any[] = [];
       const orphanedShopify: ShopifyProduct[] = [];
 
-      // 4. Eşleştirme algoritması
       for (const dbProduct of dbTransferredProducts) {
         let matched = false;
-        
-        // Exact match: Shopify Product ID ile
+
         if (dbProduct.shopifyProductId) {
-          const shopifyProduct = shopifyProducts.find(sp => 
-            sp.id.toString() === dbProduct.shopifyProductId
+          const shopifyProduct = shopifyProducts.find(
+            (sp) => sp.id.toString() === dbProduct.shopifyProductId
           );
-          
+
           if (shopifyProduct) {
             matchedProducts.push({
               dbProduct,
               shopifyProduct,
-              matchType: 'exact'
+              matchType: 'exact',
             });
             matched = true;
             continue;
           }
         }
 
-        // Fuzzy match: Title benzerliği ile
         if (!matched) {
-          const shopifyProduct = shopifyProducts.find(sp => {
+          const shopifyProduct = shopifyProducts.find((sp) => {
             const dbTitle = dbProduct.title?.toLowerCase() || '';
             const shopifyTitle = sp.title.toLowerCase();
-            
-            // Basit benzerlik kontrolü - kelimelerin %70'i eşleşiyorsa match
-            const dbWords = dbTitle.split(/\s+/).filter(w => w.length > 2);
-            const shopifyWords = shopifyTitle.split(/\s+/).filter(w => w.length > 2);
-            
+
+            const dbWords = dbTitle.split(/\s+/).filter((w) => w.length > 2);
+            const shopifyWords = shopifyTitle.split(/\s+/).filter((w) => w.length > 2);
+
             if (dbWords.length === 0 || shopifyWords.length === 0) return false;
-            
-            const matchedWords = dbWords.filter(dbWord => 
-              shopifyWords.some(shopifyWord => 
-                dbWord.includes(shopifyWord) || shopifyWord.includes(dbWord)
+
+            const matchedWords = dbWords.filter((dbWord) =>
+              shopifyWords.some(
+                (shopifyWord) => dbWord.includes(shopifyWord) || shopifyWord.includes(dbWord)
               )
             );
-            
+
             return matchedWords.length / dbWords.length >= 0.7;
           });
 
@@ -211,7 +279,7 @@ export class ShopifyProductsManager {
             matchedProducts.push({
               dbProduct,
               shopifyProduct,
-              matchType: 'fuzzy'
+              matchType: 'fuzzy',
             });
             matched = true;
           }
@@ -222,15 +290,16 @@ export class ShopifyProductsManager {
         }
       }
 
-      // 5. Orphaned Shopify ürünlerini bul (veritabanında karşılığı olmayan)
-      const matchedShopifyIds = matchedProducts.map(mp => mp.shopifyProduct.id.toString());
+      const matchedShopifyIds = matchedProducts.map((mp) => mp.shopifyProduct.id.toString());
       const allDbShopifyIds = dbTransferredProducts
-        .map(dp => dp.shopifyProductId)
-        .filter(id => id !== null);
+        .map((dp) => dp.shopifyProductId)
+        .filter((id) => id !== null);
 
       for (const shopifyProduct of shopifyProducts) {
-        if (!matchedShopifyIds.includes(shopifyProduct.id.toString()) && 
-            !allDbShopifyIds.includes(shopifyProduct.id.toString())) {
+        if (
+          !matchedShopifyIds.includes(shopifyProduct.id.toString()) &&
+          !allDbShopifyIds.includes(shopifyProduct.id.toString())
+        ) {
           orphanedShopify.push(shopifyProduct);
         }
       }
@@ -247,10 +316,9 @@ export class ShopifyProductsManager {
         details: {
           matchedProducts,
           unmatchedDb,
-          orphanedShopify
-        }
+          orphanedShopify,
+        },
       };
-
     } catch (error: any) {
       console.error('❌ Veritabanı eşleştirme hatası:', error);
       throw error;
@@ -258,11 +326,13 @@ export class ShopifyProductsManager {
   }
 
   // Eşleşen ürünlerin kaynak sitelerinden güncel fiyat/stok bilgisi çek
-  async refreshMatchedProducts(matchedProducts: Array<{
-    dbProduct: any;
-    shopifyProduct: ShopifyProduct;
-    matchType: string;
-  }>): Promise<{
+  async refreshMatchedProducts(
+    matchedProducts: Array<{
+      dbProduct: any;
+      shopifyProduct: ShopifyProduct;
+      matchType: string;
+    }>
+  ): Promise<{
     updated: number;
     errors: number;
     details: Array<{
@@ -273,10 +343,12 @@ export class ShopifyProductsManager {
       priceChange?: number;
       stockStatus?: string;
       error?: string;
-    }>
+    }>;
   }> {
-    console.log(`🔄 ${matchedProducts.length} eşleşen ürün için kaynak sitelerden güncel bilgi çekiliyor...`);
-    
+    console.log(
+      `🔄 ${matchedProducts.length} eşleşen ürün için kaynak sitelerden güncel bilgi çekiliyor...`
+    );
+
     const updateDetails: Array<{
       product: any;
       success: boolean;
@@ -293,20 +365,18 @@ export class ShopifyProductsManager {
     for (const { dbProduct, shopifyProduct } of matchedProducts) {
       try {
         console.log(`🔍 Güncelleniyor: ${dbProduct.productTitle}`);
-        
-        // Kaynak URL'den güncel bilgi çek
+
         const sourceUrl = dbProduct.sourceUrl;
         if (!sourceUrl) {
           updateDetails.push({
             product: dbProduct,
             success: false,
-            error: 'Kaynak URL bulunamadı'
+            error: 'Kaynak URL bulunamadı',
           });
           errors++;
           continue;
         }
 
-        // Ürün extraction işlemi
         const { fixedAuthenticScrape } = await import('./fixed-authentic-scraper');
         const extractionResult = await fixedAuthenticScrape(sourceUrl);
 
@@ -314,20 +384,22 @@ export class ShopifyProductsManager {
           updateDetails.push({
             product: dbProduct,
             success: false,
-            error: 'Ürün bilgisi çekilemedi'
+            error: 'Ürün bilgisi çekilemedi',
           });
           errors++;
           continue;
         }
 
         const oldPrice = parseFloat(dbProduct.originalPrice || '0');
-        const newPrice = typeof extractionResult.price === 'number' 
-          ? extractionResult.price 
-          : (extractionResult.price as any)?.original || 0;
+        const newPrice =
+          typeof extractionResult.price === 'number'
+            ? extractionResult.price
+            : (extractionResult.price as any)?.original || 0;
         const priceChange = oldPrice > 0 ? ((newPrice - oldPrice) / oldPrice) * 100 : 0;
 
-        // Stok durumu kontrolü
-        const stockStatus = extractionResult.variants?.some(v => v.inStock) ? 'in_stock' : 'out_of_stock';
+        const stockStatus = extractionResult.variants?.some((v) => v.inStock)
+          ? 'in_stock'
+          : 'out_of_stock';
 
         updateDetails.push({
           product: dbProduct,
@@ -335,41 +407,49 @@ export class ShopifyProductsManager {
           oldPrice,
           newPrice,
           priceChange,
-          stockStatus
+          stockStatus,
         });
 
         updated++;
-        
-        // Rate limiting
-        await new Promise(resolve => setTimeout(resolve, 1000));
-        
+
+        await new Promise((resolve) => setTimeout(resolve, 1000));
       } catch (error: any) {
         console.error(`❌ Ürün güncelleme hatası (${dbProduct.productTitle}):`, error.message);
         updateDetails.push({
           product: dbProduct,
           success: false,
-          error: error.message
+          error: error.message,
         });
         errors++;
       }
     }
 
     console.log(`✅ Güncelleme tamamlandı: ${updated} başarılı, ${errors} hata`);
-    
+
     return {
       updated,
       errors,
-      details: updateDetails
+      details: updateDetails,
     };
   }
 
   // Test bağlantısı
   async testConnection(): Promise<boolean> {
+    let creds: ShopifyCredentials;
     try {
-      const response = await axios.get(`${this.baseUrl}/shop.json`, { 
-        headers: this.headers 
+      creds = await this.resolveCredentials();
+    } catch (error) {
+      if (error instanceof ShopifyCredentialsError) {
+        console.warn('⚠️ Shopify bağlantı testi atlandı:', error.message);
+      }
+      return false;
+    }
+
+    try {
+      const response = await axios.get(`${this.baseUrl(creds.shopDomain)}/shop.json`, {
+        headers: this.headers(creds.accessToken),
       });
-      
+
       console.log(`✅ Shopify bağlantı testi başarılı: ${response.data.shop.name}`);
       return true;
     } catch (error: any) {
