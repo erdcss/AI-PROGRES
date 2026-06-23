@@ -71,6 +71,8 @@ interface Product {
   success?: boolean;
   extractionMethod?: string;
   csvContent?: string;
+  sourceUrl?: string;
+  originalUrl?: string;
 }
 
 function ScraperPage() {
@@ -181,8 +183,13 @@ function ScraperPage() {
         const pollData = await pollResp.json();
         if (pollData.status === 'done') {
           const result = pollData.result;
-          if (result?.success === false) throw new Error(result.message || 'Extraction failed');
-          return { ...result, originalUrl: data.url };
+          const hasUsable =
+            result?.success !== false &&
+            (result?.title || result?.csvContent || (result?.images?.length ?? 0) > 0);
+          if (!hasUsable) {
+            throw new Error(result?.message || result?.error || 'Extraction failed');
+          }
+          return { ...result, success: true, originalUrl: data.url, sourceUrl: data.url };
         }
         if (pollData.status === 'error') throw new Error(pollData.error || 'Scraping failed');
         // status === 'processing' → continue polling
@@ -191,64 +198,31 @@ function ScraperPage() {
     },
     onSuccess: (data) => {
       console.log('🎯 Single scrape mutation onSuccess received:', data);
-      
-      if (!data || !data.success) {
-        const errMsg = data?.message || data?.error || 'Ürün verileri çekilemedi';
+
+      const hasTitle = data?.title && data.title !== 'trendyol.com' && data.title.length > 2;
+      const hasImages = Array.isArray(data?.images) && data.images.length > 0;
+      const hasCSVData = data?.csvContent && data.csvContent.length > 50;
+      const hasPrice = data?.price && (
+        typeof data.price === 'number' ||
+        (data.price as any).original > 0 ||
+        (data.price as any).withProfit > 0
+      );
+      const hasUsableData = hasTitle || hasImages || hasCSVData || hasPrice;
+
+      if (!data || data.success === false || !hasUsableData) {
+        const errMsg = data?.message || data?.error || data?.details || 'Ürün verileri çekilemedi';
         setScrapeError(errMsg);
         setWorkflowStep(null);
-        console.log('❌ Single scrape failed or blocked:', data);
         toast({
           title: "⚠️ Ürün Verileri Çekilemedi",
           description: errMsg,
-          variant: "destructive"
+          variant: "destructive",
         });
         return;
       }
 
       setWorkflowStep('Ürün normalize edildi');
-      
-      // Check if extraction actually succeeded
-      const hasMinimumData = data.title && data.title !== "trendyol.com" && data.title.length > 5;
-      
-      // Check if we have CSV content even for blocked responses
-      const hasCSVData = data.csvContent && data.csvContent.length > 100;
-      
-      if (!hasMinimumData && !hasCSVData) {
-        const errMsg = data?.message || 'Sistem geçici olarak engellenmiş. Farklı bir URL deneyin.';
-        setScrapeError(errMsg);
-        setWorkflowStep(null);
-        console.log('❌ NO USABLE DATA:', {
-          title: data.title,
-          titleLength: data.title?.length || 0,
-          hasCSV: !!data.csvContent
-        });
-        
-        toast({
-          title: "🚫 Veri Alınamadı",
-          description: errMsg,
-          variant: "destructive"
-        });
-        return;
-      }
-
       setScrapeError(null);
-      
-      // Show warning for blocked responses but still process CSV
-      if (!hasMinimumData && hasCSVData) {
-        console.log('⚠️ BLOCKED RESPONSE with CSV data:', {
-          title: data.title,
-          hasCSV: !!data.csvContent
-        });
-        
-        toast({
-          title: "⚠️ Kısmi Veri",
-          description: "Trendyol engellemesi tespit edildi ancak CSV oluşturuldu",
-          variant: "default"
-        });
-      }
-      
-      // Always proceed if we have basic title data
-      console.log('✅ MINIMUM DATA AVAILABLE - proceeding with preview');
       
       // Generate minimal CSV if missing
       if (!data.csvContent && data.title) {
@@ -275,7 +249,7 @@ ${data.title.toLowerCase().replace(/[^a-z0-9]/g, '-')},${data.title},${data.bran
       // Transform the received data to match our Product interface
       const transformedProduct: Product = {
         id: data.id || `product-${Date.now()}`,
-        title: data.title || 'Ürün Başlığı Bulunamadı',
+        title: data.title || 'Ürün',
         brand: data.brand || '',
         price: data.price || { profitFormatted: 'Fiyat Yok' },
         description: data.description || '',
@@ -283,14 +257,16 @@ ${data.title.toLowerCase().replace(/[^a-z0-9]/g, '-')},${data.title},${data.bran
         variants: {
           colors: data.variants?.colors || [],
           sizes: data.variants?.sizes || [],
-          allVariants: data.variants?.allVariants || []
+          allVariants: data.variants?.allVariants || [],
         },
         features: data.features || [],
         tags: data.tags || [],
         category: data.category || '',
-        success: data.success,
+        success: true,
         extractionMethod: data.extractionMethod,
-        csvContent: data.csvContent
+        csvContent: data.csvContent,
+        sourceUrl: data.sourceUrl || data.originalUrl || data.url || singleForm.getValues('url'),
+        originalUrl: data.originalUrl || data.url,
       };
       
       console.log('📸 FRONTEND: transformedProduct.images:', transformedProduct.images);
@@ -305,6 +281,10 @@ ${data.title.toLowerCase().replace(/[^a-z0-9]/g, '-')},${data.title},${data.bran
       
       setProduct(transformedProduct);
       setWorkflowStep('Ürün hazır — Shopify\'a gönderebilirsiniz');
+
+      requestAnimationFrame(() => {
+        document.getElementById('product-preview-section')?.scrollIntoView({ behavior: 'smooth', block: 'start' });
+      });
       
       // Her başarılı çekme için CSV preview ekle
       if (data.csvContent) {
@@ -760,54 +740,65 @@ ${data.title.toLowerCase().replace(/[^a-z0-9]/g, '-')},${data.title},${data.bran
 
   // Shopify transfer mutation
   const shopifyTransferMutation = useMutation({
-    mutationFn: async (data: ScrapeFormData) => {
-      console.log('🛒 Shopify transfer starting...');
-      console.log('CSV previews available:', csvPreviews.length);
-      const response = await fetch("/api/shopify-upload", {
-        method: "POST",
-        headers: {
-          "Content-Type": "application/json",
-        },
-        body: JSON.stringify({ 
+    mutationFn: async () => {
+      if (!product) throw new Error('Önce ürün verisi çekilmelidir');
+
+      setWorkflowStep('Shopify bağlantısı kontrol ediliyor...');
+      const connRes = await fetch('/api/shopify/connection-test', { method: 'POST' });
+      const connData = await connRes.json().catch(() => ({}));
+      if (!connRes.ok || !connData.connected) {
+        throw new Error(connData.message || 'Shopify bağlantısı kurulamadı');
+      }
+
+      setWorkflowStep('Shopify\'a gönderiliyor...');
+      const response = await fetch('/api/shopify/upload-product', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
           productData: product,
-          productUrl: data.url
+          csvContent: product.csvContent,
+          sourceUrl: product.sourceUrl || product.originalUrl || singleForm.getValues('url'),
+          productTitle: product.title,
         }),
       });
 
-      if (!response.ok) {
-        throw new Error(`HTTP ${response.status}`);
+      const result = await response.json().catch(() => ({}));
+      if (!response.ok || !result.success) {
+        throw new Error(result.error || result.message || `HTTP ${response.status}`);
       }
-
-      return response.json();
+      return result;
     },
     onSuccess: (data) => {
-      console.log('📤 Shopify response:', data);
-      if (data.success) {
-        toast({
-          title: "Başarılı!",
-          description: `Ürün Shopify'a eklendi. ID: ${data.productId}`,
-        });
-      } else {
-        toast({
-          title: "Hata",
-          description: data.message || "Shopify'a aktarım başarısız",
-          variant: "destructive",
-        });
-      }
-    },
-    onError: (error) => {
-      console.error('❌ Shopify transfer error:', error);
+      setLastShopifyResult({
+        adminUrl: data.adminUrl,
+        shopifyId: data.shopifyId || data.shopifyProductId,
+      });
+      setWorkflowStep('Shopify\'a yüklendi ✅');
       toast({
-        title: "Hata",
-        description: `Shopify aktarımı başarısız: ${error.message}`,
-        variant: "destructive",
+        title: 'Başarılı!',
+        description: data.adminUrl
+          ? `Ürün yüklendi. Admin panelinden açabilirsiniz.`
+          : `Ürün Shopify'a eklendi (ID: ${data.shopifyId || data.shopifyProductId})`,
+      });
+    },
+    onError: (error: any) => {
+      setLastShopifyResult({ error: error.message });
+      setWorkflowStep('Shopify aktarım hatası');
+      toast({
+        title: 'Hata',
+        description: error.message,
+        variant: 'destructive',
       });
     },
   });
 
-  const onShopifyTransfer = singleForm.handleSubmit((data) => {
-    shopifyTransferMutation.mutate(data);
-  });
+  const onShopifyTransfer = () => {
+    if (!product) {
+      toast({ title: 'Ürün yok', description: 'Önce ürün verilerini çekin', variant: 'destructive' });
+      return;
+    }
+    shopifyTransferMutation.mutate();
+  };
 
 
   // Sürükle-bırak fonksiyonları
@@ -1565,10 +1556,8 @@ ${data.title.toLowerCase().replace(/[^a-z0-9]/g, '-')},${data.title},${data.bran
                   </CardTitle>
                 </CardHeader>
                 <CardContent className={`${isMobile ? 'p-4' : 'p-6'}`}>
-                  <motion.form 
-                    initial={{ opacity: 0, y: 20 }}
-                    animate={{ opacity: 1, y: 0 }}
-                    onSubmit={onSingleSubmit} 
+                  <form
+                    onSubmit={onSingleSubmit}
                     className={`${isMobile ? 'space-y-6' : 'space-y-4'}`}
                   >
                     {/* Sürükle-Bırak Alanı */}
@@ -1857,7 +1846,7 @@ ${data.title.toLowerCase().replace(/[^a-z0-9]/g, '-')},${data.title},${data.bran
 
 
                     </div>
-                  </motion.form>
+                  </form>
                 </CardContent>
               </Card>
             </div>
@@ -1912,8 +1901,18 @@ ${data.title.toLowerCase().replace(/[^a-z0-9]/g, '-')},${data.title},${data.bran
         )}
 
         {/* Product Preview Section */}
+        {(product || singleScrapeMutation.isPending) && (
+          <div id="product-preview-section" className="mt-8">
+            {singleScrapeMutation.isPending && !product && (
+              <Card className="business-card border border-cyan-800/30">
+                <CardContent className="p-8 flex flex-col items-center gap-3">
+                  <Loader2 className="h-8 w-8 animate-spin text-cyan-400" />
+                  <p className="text-white text-sm">{workflowStep || 'Ürün verisi çekiliyor...'}</p>
+                </CardContent>
+              </Card>
+            )}
         {product && (
-          <div className="mt-8">
+          <div>
 
             <Card className="business-card bg-gradient-to-br from-slate-900/90 via-slate-800/50 to-slate-900/90 backdrop-blur border border-cyan-800/30">
               <CardHeader className="business-header">
@@ -2491,6 +2490,8 @@ ${data.title.toLowerCase().replace(/[^a-z0-9]/g, '-')},${data.title},${data.bran
             </Card>
           </div>
         )}
+          </div>
+        )}
 
         {/* Variant Preview Section */}
         {product && product.variants && (
@@ -2957,10 +2958,10 @@ function UrlPreviewCard({ url, index }: { url: string; index: number }) {
             )}
 
             {/* Fiyat */}
-            {previewData.price && (
+            {previewData.price && typeof previewData.price === 'object' && (
               <div className="flex items-center gap-1">
                 <span className="text-yellow-400 text-xs font-semibold">
-                  {previewData.price.formatted || previewData.price.profitFormatted || ''}
+                  {(previewData.price as any).formatted || (previewData.price as any).profitFormatted || ''}
                 </span>
               </div>
             )}

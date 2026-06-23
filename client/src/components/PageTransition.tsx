@@ -8,10 +8,10 @@ interface PageTransitionProps {
 
 const pageVariants = {
   initial: {
-    opacity: 0,
-    y: 40,
-    scale: 0.95,
-    filter: "blur(8px)",
+    opacity: 1,
+    y: 0,
+    scale: 1,
+    filter: "blur(0px)",
     transformOrigin: "center"
   },
   in: {
