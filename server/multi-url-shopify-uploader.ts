@@ -2,7 +2,8 @@
 // Bu dosya multi-URL product verilerini direkt Shopify API'ye doğru formatta gönderir
 
 import { parse } from 'csv-parse/sync';
-import { getShopifyConfig } from './shopify-credentials';
+import { resolveShopifyCredentials, ShopifyCredentialsError } from './shopify-credentials';
+import { formatShopifyApiError } from './shopify-payload-validator';
 
 interface MultiUrlProductData {
   title: string;
@@ -89,15 +90,20 @@ export async function uploadMultiUrlProductToShopify(
     }
 
     // Shopify credentials
-    const shopifyConfigMu = await getShopifyConfig();
-    if (!shopifyConfigMu) {
-      return { 
-        success: false, 
-        message: 'Shopify kimlik bilgileri bulunamadı. Lütfen Shopify bağlantı ayarlarını yapın.' 
-      };
+    let shopifyConfigMu;
+    try {
+      shopifyConfigMu = await resolveShopifyCredentials();
+    } catch (err) {
+      const msg = err instanceof ShopifyCredentialsError ? err.message : 'Shopify kimlik bilgileri bulunamadı';
+      return { success: false, message: msg };
     }
     const shopifyStore = shopifyConfigMu.shopDomain;
     const accessToken = shopifyConfigMu.accessToken;
+
+    const originalPrice = Number(productData.price?.original) || 0;
+    const withProfitPrice =
+      Number(productData.price?.withProfit) || Math.round(originalPrice * 1.1 * 100) / 100;
+    const pricePair = { original: originalPrice, withProfit: withProfitPrice };
 
     // Extract real variant data
     const allVariants = productData.variants?.allVariants || [];
@@ -118,8 +124,8 @@ export async function uploadMultiUrlProductToShopify(
       variants = allVariants.map((v: any) => ({
         option1: v.color || 'Default',
         option2: v.size || 'Tek Beden',
-        price: productData.price.withProfit.toFixed(2),
-        compare_at_price: productData.price.original.toFixed(2),
+        price: pricePair.withProfit.toFixed(2),
+        compare_at_price: pricePair.original > 0 ? pricePair.original.toFixed(2) : pricePair.withProfit.toFixed(2),
         inventory_quantity: 0,
         inventory_management: null,
         inventory_policy: 'continue',
@@ -133,8 +139,8 @@ export async function uploadMultiUrlProductToShopify(
       variants = [{
         option1: 'Default',
         option2: 'Tek Beden',
-        price: productData.price.withProfit.toFixed(2),
-        compare_at_price: productData.price.original.toFixed(2),
+        price: pricePair.withProfit.toFixed(2),
+        compare_at_price: pricePair.original > 0 ? pricePair.original.toFixed(2) : pricePair.withProfit.toFixed(2),
         inventory_quantity: 0,
         inventory_management: null,
         inventory_policy: 'continue',
@@ -228,10 +234,16 @@ export async function uploadMultiUrlProductToShopify(
     const responseText = await shopifyResponse.text();
     
     if (!shopifyResponse.ok) {
-      console.error('❌ Shopify API Error:', responseText);
-      return { 
-        success: false, 
-        message: `Shopify API hatası: ${responseText}` 
+      let errBody: unknown;
+      try {
+        errBody = JSON.parse(responseText);
+      } catch {
+        errBody = responseText;
+      }
+      console.error(`❌ Shopify API Error status=${shopifyResponse.status}`);
+      return {
+        success: false,
+        message: formatShopifyApiError(shopifyResponse.status, errBody),
       };
     }
 

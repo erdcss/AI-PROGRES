@@ -11,7 +11,13 @@ const NIXOS_CHROMIUM = '/nix/store/zi4f80l169xlmivz8vja8wlphq74qqk0-chromium-125
  * Priority: 0) NixOS system Chromium, 1) System PATH, 2) Puppeteer cache
  */
 export function getChromiumPath(): string | undefined {
-  // Priority 0: NixOS sistem Chromium (libglib ve diğer kütüphaneler tam)
+  const envPath = process.env.PUPPETEER_EXECUTABLE_PATH || process.env.CHROME_PATH;
+  if (envPath && fs.existsSync(envPath)) {
+    console.log(`✅ Using env Chromium: ${envPath}`);
+    return envPath;
+  }
+
+  // NixOS (Replit) — optional, only if path exists
   if (fs.existsSync(NIXOS_CHROMIUM)) {
     console.log(`✅ Using NixOS Chromium: ${NIXOS_CHROMIUM}`);
     return NIXOS_CHROMIUM;
@@ -32,8 +38,11 @@ export function getChromiumPath(): string | undefined {
     // Silently continue
   }
 
-  // Priority 2: Puppeteer cache (son çare — NixOS'ta libglib eksik olabilir)
-  const puppeteerCachePath = path.join(process.env.HOME || '/home/runner', '.cache/puppeteer/chrome');
+  // Priority 3: Puppeteer cache (son çare)
+  const homeDir = process.env.HOME || process.env.USERPROFILE || '';
+  const puppeteerCachePath = homeDir
+    ? path.join(homeDir, '.cache/puppeteer/chrome')
+    : path.join('/home/runner', '.cache/puppeteer/chrome');
   try {
     if (fs.existsSync(puppeteerCachePath)) {
       const versions = fs.readdirSync(puppeteerCachePath).sort().reverse();

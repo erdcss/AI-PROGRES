@@ -9,17 +9,54 @@ export interface ShopifyConfig {
   apiSecret?: string;
 }
 
-/**
- * Aktif Shopify kimlik bilgilerini alır.
- * Öncelik: DB (UI'dan girilmiş) > SHOPIFY_ACCESS_TOKEN > SHOPIFY_ADMIN_ACCESS_TOKEN > SHOPIFY_APP_SECRET_NEW
- */
-export async function getShopifyConfig(): Promise<ShopifyConfig | null> {
-  const shopDomainFromEnv =
-    process.env.SHOPIFY_SHOP_DOMAIN ||
-    process.env.SHOPIFY_STORE_URL?.replace(/^https?:\/\//, '').replace(/\/$/, '') ||
-    process.env.SHOPIFY_STORE_DOMAIN;
+export type ShopifyCredentialSource = 'db' | 'env_admin' | 'env_access' | 'env_legacy';
 
-  // 1. DB'yi önce kontrol et (kullanıcı UI'dan token girmiş olabilir)
+export interface ResolvedShopifyCredentials extends ShopifyConfig {
+  source: ShopifyCredentialSource;
+}
+
+export class ShopifyCredentialsError extends Error {
+  constructor(
+    message = 'Shopify API kimlik bilgileri bulunamadı. OAuth bağlantısı yapın veya SHOPIFY_ADMIN_ACCESS_TOKEN / SHOPIFY_ACCESS_TOKEN tanımlayın.'
+  ) {
+    super(message);
+    this.name = 'ShopifyCredentialsError';
+  }
+}
+
+/** Strip protocol/trailing slash; prefer myshopify.com when SHOPIFY_SHOP_DOMAIN is set. */
+export function normalizeShopDomain(domain: string): string {
+  if (!domain) return '';
+  let d = domain.replace(/^https?:\/\//, '').replace(/\/$/, '').trim();
+
+  const preferredMyshopify =
+    process.env.SHOPIFY_SHOP_DOMAIN?.replace(/^https?:\/\//, '').replace(/\/$/, '') || '';
+  if (preferredMyshopify.includes('.myshopify.com') && !d.includes('.myshopify.com')) {
+    d = preferredMyshopify;
+  }
+
+  return d;
+}
+
+function envShopDomain(): string {
+  return normalizeShopDomain(
+    process.env.SHOPIFY_SHOP_DOMAIN ||
+      process.env.SHOPIFY_STORE_URL ||
+      process.env.SHOPIFY_STORE_DOMAIN ||
+      ''
+  );
+}
+
+function isDeprecatedToken(token: string): boolean {
+  return token.startsWith('shpss_');
+}
+
+/**
+ * Tek credential resolver — tüm Shopify API çağrıları bunu kullanmalı.
+ * Öncelik: DB aktif token → SHOPIFY_ADMIN_ACCESS_TOKEN → SHOPIFY_ACCESS_TOKEN → SHOPIFY_APP_SECRET_NEW
+ */
+export async function resolveShopifyCredentials(): Promise<ResolvedShopifyCredentials> {
+  // 1. DB — aktif OAuth / Admin token
   try {
     const rows = await db
       .select()
@@ -29,44 +66,62 @@ export async function getShopifyConfig(): Promise<ShopifyConfig | null> {
       .limit(1);
 
     const cred = rows[0];
-    if (cred && cred.shopDomain && cred.accessToken) {
+    if (cred?.shopDomain && cred.accessToken && !isDeprecatedToken(cred.accessToken)) {
       return {
-        shopDomain: cred.shopDomain,
+        shopDomain: normalizeShopDomain(cred.shopDomain),
         accessToken: cred.accessToken,
         apiKey: cred.apiKey,
-        apiSecret: cred.apiSecret
+        apiSecret: cred.apiSecret,
+        source: 'db',
       };
     }
   } catch (err) {
-    console.error('getShopifyConfig DB error:', err);
+    console.error('resolveShopifyCredentials DB error:', err);
   }
 
-  // 2. ENV token'larını kontrol et — en son güncellenen önce
-  const envAccessToken =
-    process.env.SHOPIFY_ACCESS_TOKEN ||
-    process.env.SHOPIFY_ADMIN_ACCESS_TOKEN ||
-    process.env.SHOPIFY_APP_SECRET_NEW;
+  const shopDomain = envShopDomain();
+  const adminToken = process.env.SHOPIFY_ADMIN_ACCESS_TOKEN;
+  const accessToken = process.env.SHOPIFY_ACCESS_TOKEN;
+  const legacyToken = process.env.SHOPIFY_APP_SECRET_NEW;
 
-  if (shopDomainFromEnv && envAccessToken) {
-    return { shopDomain: shopDomainFromEnv, accessToken: envAccessToken };
+  if (shopDomain && adminToken && !isDeprecatedToken(adminToken)) {
+    return { shopDomain, accessToken: adminToken, source: 'env_admin' };
+  }
+  if (shopDomain && accessToken && !isDeprecatedToken(accessToken)) {
+    return { shopDomain, accessToken, source: 'env_access' };
+  }
+  if (shopDomain && legacyToken && !isDeprecatedToken(legacyToken)) {
+    return { shopDomain, accessToken: legacyToken, source: 'env_legacy' };
   }
 
-  return null;
+  throw new ShopifyCredentialsError();
+}
+
+/**
+ * Geriye dönük uyumluluk — null döner, crash etmez.
+ */
+export async function getShopifyConfig(): Promise<ShopifyConfig | null> {
+  try {
+    const cred = await resolveShopifyCredentials();
+    return {
+      shopDomain: cred.shopDomain,
+      accessToken: cred.accessToken,
+      apiKey: cred.apiKey,
+      apiSecret: cred.apiSecret,
+    };
+  } catch {
+    return null;
+  }
 }
 
 /**
  * Sunucu başlangıcında SHOPIFY_API_KEY + SHOPIFY_APP_SHARED_SECRET ENV değişkenlerini
  * DB'deki mağaza kaydına otomatik olarak yazar.
- * Bu sayede OAuth formu önceden dolu gelir ve kullanıcı sadece "Yetkilendir" butonuna basar.
  */
 export async function syncEnvApiKeyToDB(): Promise<void> {
-  const apiKey    = process.env.SHOPIFY_API_KEY;
+  const apiKey = process.env.SHOPIFY_API_KEY;
   const apiSecret = process.env.SHOPIFY_APP_SHARED_SECRET;
-  const shopDomain = (
-    process.env.SHOPIFY_SHOP_DOMAIN ||
-    process.env.SHOPIFY_STORE_URL?.replace(/^https?:\/\//, '').replace(/\/$/, '') ||
-    (process.env as any).SHOPIFY_STORE_DOMAIN
-  );
+  const shopDomain = envShopDomain();
 
   if (!apiKey || !shopDomain) return;
 
@@ -86,7 +141,7 @@ export async function syncEnvApiKeyToDB(): Promise<void> {
           .set({
             apiKey,
             ...(apiSecret ? { apiSecret } : {}),
-            updatedAt: new Date()
+            updatedAt: new Date(),
           })
           .where(eq(shopifyCredentials.shopDomain, shopDomain));
         console.log(`✅ ENV API Key DB'ye senkronize edildi: ${shopDomain}`);
@@ -97,7 +152,7 @@ export async function syncEnvApiKeyToDB(): Promise<void> {
         apiKey,
         apiSecret: apiSecret || '',
         accessToken: null as any,
-        isActive: false
+        isActive: false,
       });
       console.log(`✅ ENV kimlik bilgileri DB'ye kaydedildi: ${shopDomain}`);
     }
@@ -106,28 +161,23 @@ export async function syncEnvApiKeyToDB(): Promise<void> {
   }
 }
 
-/**
- * Sunucu başlangıcında SHOPIFY_APP_SECRET_NEW'ı DB'ye otomatik senkronize eder.
- * Bu sayede sistem yeniden başlatılınca yeni token hemen aktif olur.
- */
 export async function syncNewTokenToDB(): Promise<void> {
   const newToken = process.env.SHOPIFY_APP_SECRET_NEW;
-  const shopDomain = (
-    process.env.SHOPIFY_SHOP_DOMAIN ||
-    process.env.SHOPIFY_STORE_URL?.replace(/^https?:\/\//, '').replace(/\/$/, '') ||
-    process.env.SHOPIFY_STORE_DOMAIN
-  );
+  const shopDomain = envShopDomain();
 
   if (!newToken || !shopDomain) return;
 
   try {
-    const rows = await db.select().from(shopifyCredentials)
+    const rows = await db
+      .select()
+      .from(shopifyCredentials)
       .where(eq(shopifyCredentials.shopDomain, shopDomain))
       .limit(1);
 
     if (rows.length > 0) {
-      if (rows[0].accessToken === newToken) return; // Zaten güncel
-      await db.update(shopifyCredentials)
+      if (rows[0].accessToken === newToken) return;
+      await db
+        .update(shopifyCredentials)
         .set({ accessToken: newToken, isActive: true, updatedAt: new Date() })
         .where(eq(shopifyCredentials.shopDomain, shopDomain));
     } else {
@@ -136,7 +186,7 @@ export async function syncNewTokenToDB(): Promise<void> {
         apiKey: '',
         apiSecret: '',
         accessToken: newToken,
-        isActive: true
+        isActive: true,
       });
     }
     console.log(`✅ SHOPIFY_APP_SECRET_NEW DB'ye senkronize edildi: ${shopDomain}`);
@@ -145,19 +195,17 @@ export async function syncNewTokenToDB(): Promise<void> {
   }
 }
 
-/**
- * Kimlik bilgilerini DB'ye kaydeder (upsert benzeri - var olanı günceller)
- */
 export async function saveShopifyCredentials(data: {
   shopDomain: string;
   apiKey: string;
   apiSecret: string;
   accessToken?: string;
 }): Promise<void> {
+  const cleanDomain = normalizeShopDomain(data.shopDomain);
   const existing = await db
     .select()
     .from(shopifyCredentials)
-    .where(eq(shopifyCredentials.shopDomain, data.shopDomain))
+    .where(eq(shopifyCredentials.shopDomain, cleanDomain))
     .limit(1);
 
   if (existing.length > 0) {
@@ -167,86 +215,74 @@ export async function saveShopifyCredentials(data: {
         apiKey: data.apiKey,
         apiSecret: data.apiSecret,
         ...(data.accessToken ? { accessToken: data.accessToken } : {}),
-        updatedAt: new Date()
+        updatedAt: new Date(),
       })
-      .where(eq(shopifyCredentials.shopDomain, data.shopDomain));
+      .where(eq(shopifyCredentials.shopDomain, cleanDomain));
   } else {
     await db.insert(shopifyCredentials).values({
-      shopDomain: data.shopDomain,
+      shopDomain: cleanDomain,
       apiKey: data.apiKey,
       apiSecret: data.apiSecret,
       accessToken: data.accessToken || null,
-      isActive: true
+      isActive: true,
     });
   }
 }
 
-/**
- * Doğrudan Admin API access token'ı kaydeder (OAuth olmadan)
- * UI'dan kullanıcı token'ı paste edebilir.
- */
 export async function saveDirectAccessToken(shopDomain: string, accessToken: string): Promise<void> {
-  // Diğer tüm aktif kayıtları devre dışı bırak (tek aktif mağaza olsun)
-  await db
-    .update(shopifyCredentials)
-    .set({ isActive: false, updatedAt: new Date() });
+  const cleanDomain = normalizeShopDomain(shopDomain);
+  await db.update(shopifyCredentials).set({ isActive: false, updatedAt: new Date() });
 
   const existing = await db
     .select()
     .from(shopifyCredentials)
-    .where(eq(shopifyCredentials.shopDomain, shopDomain))
+    .where(eq(shopifyCredentials.shopDomain, cleanDomain))
     .limit(1);
 
   if (existing.length > 0) {
     await db
       .update(shopifyCredentials)
       .set({ accessToken, isActive: true, updatedAt: new Date() })
-      .where(eq(shopifyCredentials.shopDomain, shopDomain));
+      .where(eq(shopifyCredentials.shopDomain, cleanDomain));
   } else {
     await db.insert(shopifyCredentials).values({
-      shopDomain,
+      shopDomain: cleanDomain,
       apiKey: '',
       apiSecret: '',
       accessToken,
-      isActive: true
+      isActive: true,
     });
   }
 }
 
-/**
- * OAuth access token'ı DB'ye kaydeder ve kaydı aktif yapar.
- * isActive = true yapılmazsa getShopifyConfig() bu kaydı bulamaz!
- */
 export async function saveShopifyAccessToken(shopDomain: string, accessToken: string): Promise<void> {
+  const cleanDomain = normalizeShopDomain(shopDomain);
   const existing = await db
     .select()
     .from(shopifyCredentials)
-    .where(eq(shopifyCredentials.shopDomain, shopDomain))
+    .where(eq(shopifyCredentials.shopDomain, cleanDomain))
     .limit(1);
 
   if (existing.length > 0) {
     await db
       .update(shopifyCredentials)
       .set({ accessToken, isActive: true, updatedAt: new Date() })
-      .where(eq(shopifyCredentials.shopDomain, shopDomain));
+      .where(eq(shopifyCredentials.shopDomain, cleanDomain));
   } else {
-    // Kayıt yoksa oluştur (apiKey/apiSecret olmadan)
     await db.insert(shopifyCredentials).values({
-      shopDomain,
+      shopDomain: cleanDomain,
       apiKey: '',
       apiSecret: '',
       accessToken,
-      isActive: true
+      isActive: true,
     });
   }
 }
 
-/**
- * Tüm aktif kimlik bilgilerini siler
- */
 export async function deleteShopifyCredentials(shopDomain: string): Promise<void> {
+  const cleanDomain = normalizeShopDomain(shopDomain);
   await db
     .update(shopifyCredentials)
     .set({ isActive: false, updatedAt: new Date() })
-    .where(eq(shopifyCredentials.shopDomain, shopDomain));
+    .where(eq(shopifyCredentials.shopDomain, cleanDomain));
 }

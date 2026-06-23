@@ -90,6 +90,13 @@ function ScraperPage() {
   const [uploadProgress, setUploadProgress] = useState<{current: number; total: number; successCount: number; failCount: number; currentTitle: string} | null>(null);
   const [failedUploads, setFailedUploads] = useState<{title: string; error: string}[]>([]);
   const [uploadingId, setUploadingId] = useState<string | null>(null);
+  const [scrapeError, setScrapeError] = useState<string | null>(null);
+  const [workflowStep, setWorkflowStep] = useState<string | null>(null);
+  const [lastShopifyResult, setLastShopifyResult] = useState<{
+    adminUrl?: string;
+    shopifyId?: string;
+    error?: string;
+  } | null>(null);
   const isMobile = useIsMobile();
   
   const singleForm = useForm<ScrapeFormData>({
@@ -108,6 +115,8 @@ function ScraperPage() {
 
   const singleScrapeMutation = useMutation({
     onMutate: () => {
+      setScrapeError(null);
+      setWorkflowStep('URL alındı → Ürün çekiliyor...');
       toast({
         title: "⚙️ Arka Planda Çalışıyor",
         description: "Ürün verisi çekiliyor. Bu sayfa açık kaldığı sürece işlem devam eder.",
@@ -183,24 +192,31 @@ function ScraperPage() {
     onSuccess: (data) => {
       console.log('🎯 Single scrape mutation onSuccess received:', data);
       
-      // Check if extraction actually succeeded
       if (!data || !data.success) {
+        const errMsg = data?.message || data?.error || 'Ürün verileri çekilemedi';
+        setScrapeError(errMsg);
+        setWorkflowStep(null);
         console.log('❌ Single scrape failed or blocked:', data);
         toast({
           title: "⚠️ Ürün Verileri Çekilemedi",
-          description: "Sistem hatası veya site engellemesi tespit edildi. Lütfen URL'yi kontrol edin veya 10-15 dakika sonra tekrar deneyin.",
+          description: errMsg,
           variant: "destructive"
         });
         return;
       }
+
+      setWorkflowStep('Ürün normalize edildi');
       
-      // ULTRA FAST BLOCKING CHECK: Just check if we have minimum data for preview
+      // Check if extraction actually succeeded
       const hasMinimumData = data.title && data.title !== "trendyol.com" && data.title.length > 5;
       
       // Check if we have CSV content even for blocked responses
       const hasCSVData = data.csvContent && data.csvContent.length > 100;
       
       if (!hasMinimumData && !hasCSVData) {
+        const errMsg = data?.message || 'Sistem geçici olarak engellenmiş. Farklı bir URL deneyin.';
+        setScrapeError(errMsg);
+        setWorkflowStep(null);
         console.log('❌ NO USABLE DATA:', {
           title: data.title,
           titleLength: data.title?.length || 0,
@@ -209,11 +225,13 @@ function ScraperPage() {
         
         toast({
           title: "🚫 Veri Alınamadı",
-          description: `Sistem geçici olarak engellenmiş. Farklı bir URL deneyin.`,
+          description: errMsg,
           variant: "destructive"
         });
         return;
       }
+
+      setScrapeError(null);
       
       // Show warning for blocked responses but still process CSV
       if (!hasMinimumData && hasCSVData) {
@@ -286,6 +304,7 @@ ${data.title.toLowerCase().replace(/[^a-z0-9]/g, '-')},${data.title},${data.bran
       });
       
       setProduct(transformedProduct);
+      setWorkflowStep('Ürün hazır — Shopify\'a gönderebilirsiniz');
       
       // Her başarılı çekme için CSV preview ekle
       if (data.csvContent) {
@@ -338,6 +357,8 @@ ${data.title.toLowerCase().replace(/[^a-z0-9]/g, '-')},${data.title},${data.bran
       }
     },
     onError: (error: any) => {
+      setScrapeError(error.message || 'Bilinmeyen hata');
+      setWorkflowStep(null);
       toast({
         title: "Hata",
         description: error.message,
@@ -526,32 +547,55 @@ ${data.title.toLowerCase().replace(/[^a-z0-9]/g, '-')},${data.title},${data.bran
   });
 
   const uploadToShopifyMutation = useMutation({
-    mutationFn: async () => {
+    mutationFn: async (opts?: { dryRun?: boolean }) => {
       if (!product) {
         throw new Error("Önce ürün verisi çekilmelidir");
       }
-      
-      const response = await fetch("/api/shopify/upload-product", {
-        method: "POST",
-        headers: {
-          "Content-Type": "application/json",
-        },
-        body: JSON.stringify({ productData: product }),
-      });
-      
-      if (!response.ok) {
-        const errorData = await response.json().catch(() => ({}));
-        throw new Error(errorData.error || errorData.message || `HTTP ${response.status}`);
+
+      setWorkflowStep('Shopify bağlantısı kontrol ediliyor...');
+      const connRes = await fetch("/api/shopify/connection-test", { method: "POST" });
+      const connData = await connRes.json().catch(() => ({}));
+      if (!connRes.ok || !connData.connected) {
+        throw new Error(connData.message || 'Shopify bağlantısı kurulamadı — Bağlantı Ayarlarından token girin');
       }
-      return response.json();
+
+      setWorkflowStep(opts?.dryRun ? 'Dry-run: payload hazırlanıyor...' : 'Shopify\'a gönderiliyor...');
+      const response = await fetch(
+        opts?.dryRun ? "/api/shopify/upload-product?dryRun=true" : "/api/shopify/upload-product",
+        {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({
+            productData: product,
+            csvContent: product.csvContent,
+            sourceUrl: (product as any).sourceUrl || (product as any).originalUrl,
+            dryRun: opts?.dryRun,
+          }),
+        }
+      );
+
+      const data = await response.json().catch(() => ({}));
+      if (!response.ok || !data.success) {
+        throw new Error(data.error || data.message || `HTTP ${response.status}`);
+      }
+      return data;
     },
     onSuccess: (data) => {
+      setLastShopifyResult({
+        adminUrl: data.adminUrl,
+        shopifyId: data.shopifyId || data.shopifyProductId,
+      });
+      setWorkflowStep(data.dryRun ? 'Dry-run başarılı' : 'Shopify\'a yüklendi ✅');
       toast({
-        title: "Başarılı",
-        description: `Ürün Shopify'a başarıyla yüklendi (ID: ${data.shopifyId})`
+        title: data.dryRun ? "Dry-run Başarılı" : "Başarılı",
+        description: data.dryRun
+          ? `Payload doğrulandı — ${data.payload?.variantCount || 0} varyant, ${data.payload?.imageCount || 0} görsel`
+          : `Ürün Shopify'a yüklendi (ID: ${data.shopifyId || data.shopifyProductId})`,
       });
     },
     onError: (error: any) => {
+      setLastShopifyResult({ error: error.message });
+      setWorkflowStep('Shopify yükleme hatası');
       toast({
         title: "Hata",
         description: error.message,
@@ -1821,6 +1865,51 @@ ${data.title.toLowerCase().replace(/[^a-z0-9]/g, '-')},${data.title},${data.bran
 
 
         </div>
+
+        {/* Workflow / error status — never blank */}
+        {(singleScrapeMutation.isPending || workflowStep || scrapeError || lastShopifyResult) && (
+          <div className="mt-6">
+            <Card className="border border-slate-700/50 bg-slate-900/80">
+              <CardContent className="p-4 space-y-2">
+                {singleScrapeMutation.isPending && (
+                  <div className="flex items-center gap-2 text-cyan-300 text-sm">
+                    <Loader2 className="h-4 w-4 animate-spin" />
+                    <span>{workflowStep || 'İşlem devam ediyor...'}</span>
+                  </div>
+                )}
+                {!singleScrapeMutation.isPending && workflowStep && (
+                  <p className="text-sm text-green-400">✓ {workflowStep}</p>
+                )}
+                {scrapeError && (
+                  <div className="rounded-md bg-red-950/50 border border-red-800/50 p-3 text-sm text-red-200">
+                    <p className="font-medium">Ürün çekme hatası</p>
+                    <p className="mt-1 opacity-90">{scrapeError}</p>
+                    <Button
+                      type="button"
+                      size="sm"
+                      variant="outline"
+                      className="mt-2"
+                      onClick={() => singleForm.handleSubmit((d) => singleScrapeMutation.mutate(d))()}
+                    >
+                      Tekrar Dene
+                    </Button>
+                  </div>
+                )}
+                {lastShopifyResult?.adminUrl && (
+                  <p className="text-sm text-green-400">
+                    Shopify:{' '}
+                    <a href={lastShopifyResult.adminUrl} target="_blank" rel="noreferrer" className="underline">
+                      Admin panelinde aç
+                    </a>
+                  </p>
+                )}
+                {lastShopifyResult?.error && (
+                  <p className="text-sm text-red-300">{lastShopifyResult.error}</p>
+                )}
+              </CardContent>
+            </Card>
+          </div>
+        )}
 
         {/* Product Preview Section */}
         {product && (

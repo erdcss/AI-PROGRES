@@ -1,5 +1,6 @@
 import { parse } from 'csv-parse/sync';
-import { getShopifyConfig } from './shopify-credentials';
+import { resolveShopifyCredentials, ShopifyCredentialsError } from './shopify-credentials';
+import { formatShopifyApiError } from './shopify-payload-validator';
 
 // Duplicate prevention için upload history
 const uploadHistory = new Map<string, { productId: string; timestamp: number }>();
@@ -139,7 +140,7 @@ export async function uploadProductToShopify(csvContent: string, productTitle: s
     }
     
     // Shopify API endpoint
-    const shopifyConfig = await getShopifyConfig();
+    const shopifyConfig = await resolveShopifyCredentials().catch(() => null);
     if (!shopifyConfig) {
       return { 
         success: false, 
@@ -823,7 +824,7 @@ export async function uploadMultiUrlProductToShopify(productData: any, productTi
     }
     
     // Shopify API endpoint
-    const shopifyConfig2 = await getShopifyConfig();
+    const shopifyConfig2 = await resolveShopifyCredentials().catch(() => null);
     if (!shopifyConfig2) {
       return { 
         success: false, 
@@ -1220,7 +1221,7 @@ async function sendTelegramNotification(data: any) {
 // Test connection to Shopify
 export async function testShopifyConnection(): Promise<{ success: boolean; message: string; store?: string }> {
   try {
-    const shopifyConfig = await getShopifyConfig();
+    const shopifyConfig = await resolveShopifyCredentials().catch(() => null);
     if (!shopifyConfig) {
       return { 
         success: false, 

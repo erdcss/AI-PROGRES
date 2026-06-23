@@ -79,7 +79,10 @@ import { productStatisticsService } from './product-statistics-service';
 import { CLOTHING_KEYWORDS, FAKE_CLOTHING_SIZES, isClothingProduct } from './clothing-keywords';
 import { aiProductStatisticsService } from './ai-product-statistics';
 import { shopifyProductsSync } from './shopify-products-sync';
-import { getShopifyConfig, saveShopifyCredentials, saveShopifyAccessToken, deleteShopifyCredentials, saveDirectAccessToken } from './shopify-credentials';
+import { getShopifyConfig, saveShopifyCredentials, saveShopifyAccessToken, deleteShopifyCredentials, saveDirectAccessToken, normalizeShopDomain } from './shopify-credentials';
+import { handleShopifyProductUpload } from './shopify-upload-service';
+import { runShopifyConnectionTest } from './connection-test';
+import { getRequestId } from './request-context';
 import { shopifyCredentials } from '@shared/schema';
 
 // Helper function to register product for automated tracking
@@ -2236,12 +2239,38 @@ setTimeout(check, 1000);
                 throw new Error('All methods exhausted');
               }
             } catch {
+              try {
+                const { scrapeTrendyolHttpFallback } = await import('./http-scraper-fallback');
+                const httpResult = await scrapeTrendyolHttpFallback(url);
+                if (httpResult.success && httpResult.product) {
+                  const p = httpResult.product;
+                  result = {
+                    success: true,
+                    title: p.title,
+                    brand: p.brand,
+                    price: p.price,
+                    images: p.images,
+                    variants: p.variants,
+                    features: p.features,
+                    tags: p.tags,
+                    extractionMethod: 'http-fallback',
+                    scenario: 'http-fallback',
+                    confidence: 70,
+                  };
+                  console.log('✅ HTTP fallback scraper succeeded (no browser)');
+                } else {
+                  throw new Error(httpResult.error || 'HTTP fallback failed');
+                }
+              } catch {
               result = {
                 success: false,
                 error: 'Extraction failed',
+                step: 'all_methods_exhausted',
+                message: 'Ürün bilgisi alınamadı — Trendyol engeli veya tarayıcı bulunamadı',
                 title: 'Ürün Yüklenemedi',
                 brand: 'Bilinmiyor'
               };
+              }
             }
           }
         }
@@ -2697,16 +2726,8 @@ ${result.title || 'Product'},${fb2Handle},${result.description || ''},${result.b
         console.log('🔄 Kısaltılmış URL tespit edildi, çözümleniyor...');
         
         const puppeteer = require('puppeteer');
-        const browser = await puppeteer.launch({
-          headless: true,
-          args: [
-            '--no-sandbox',
-            '--disable-setuid-sandbox',
-            '--disable-dev-shm-usage',
-            '--disable-web-security',
-            '--disable-features=VizDisplayCompositor'
-          ]
-        });
+        const { buildLaunchOptions } = await import('./puppeteer-config');
+        const browser = await puppeteer.launch(buildLaunchOptions());
         
         const page = await browser.newPage();
         await page.setUserAgent('Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36');
@@ -3841,6 +3862,22 @@ ${result.title || 'Product'},${fb2Handle},${result.description || ''},${result.b
   // Shopify upload endpoint
   app.post('/api/shopify-upload', async (req, res) => {
     try {
+      const dryRun = req.query.dryRun === 'true' || req.body?.dryRun === true;
+      const requestId = getRequestId(req);
+
+      if (dryRun && req.body.productData) {
+        const result = await handleShopifyProductUpload({
+          productData: req.body.productData,
+          csvContent: req.body.csvContent,
+          productTitle: req.body.productTitle,
+          sourceUrl: req.body.sourceUrl || req.body.trendyolUrl,
+          customTags: req.body.customTags,
+          dryRun: true,
+          requestId,
+        });
+        return res.json(result);
+      }
+
       const { csvContent, productTitle, productData, customTags } = req.body;
       
       console.log('📥 Shopify upload request received');
@@ -4516,6 +4553,33 @@ ${result.title || 'Product'},${fb2Handle},${result.description || ''},${result.b
       });
     } catch (err: any) {
       res.status(500).json({ error: err.message });
+    }
+  });
+
+  // Shopify bağlantı testi — shop bilgisi, domain, token source (token loglanmaz)
+  app.post('/api/shopify/connection-test', async (req, res) => {
+    const requestId = getRequestId(req);
+    const result = await runShopifyConnectionTest(requestId);
+    return res.status(result.connected ? 200 : 400).json(result);
+  });
+
+  // Ürün yükleme — dryRun destekli (?dryRun=true veya body.dryRun)
+  app.post('/api/shopify/upload-product', async (req, res) => {
+    const requestId = getRequestId(req);
+    const dryRun = req.query.dryRun === 'true' || req.body?.dryRun === true;
+    try {
+      const result = await handleShopifyProductUpload({
+        productData: req.body?.productData || req.body,
+        csvContent: req.body?.csvContent,
+        productTitle: req.body?.productTitle,
+        sourceUrl: req.body?.sourceUrl,
+        customTags: req.body?.customTags,
+        dryRun,
+        requestId,
+      });
+      return res.status(result.success ? 200 : 400).json({ ...result, requestId });
+    } catch (err: any) {
+      return res.status(500).json({ success: false, error: err.message, step: 'server_error', requestId });
     }
   });
 

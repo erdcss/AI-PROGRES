@@ -17,6 +17,7 @@ import { enhancedErrorDetection } from './enhanced-error-detection';
 import { importerRouter, startTokenRefreshScheduler } from './importer-api';
 import { startShopifyTokenAutoRefresh } from './shopify-token-rotator';
 import { syncEnvApiKeyToDB } from './shopify-credentials';
+import { requestIdMiddleware } from './request-context';
 
 console.error("=========================================");
 console.error("🚀 SERVER INDEX.TS BAŞLADI 🚀");
@@ -24,6 +25,7 @@ console.error("=========================================");
 console.log("Uygulama başlatılıyor...");
 
 const app = express();
+app.use(requestIdMiddleware);
 
 // Timeout ve connection handling
 app.use((req, res, next) => {

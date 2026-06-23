@@ -5,7 +5,12 @@
 
 import axios from 'axios';
 import TelegramBot from 'node-telegram-bot-api';
-import { getShopifyConfig } from './shopify-credentials';
+import {
+  resolveShopifyCredentials,
+  ShopifyCredentialsError,
+  normalizeShopDomain,
+  type ShopifyCredentialSource,
+} from './shopify-credentials';
 
 interface ConnectionTestResult {
   service: string;
@@ -64,67 +69,130 @@ export async function testTelegramConnection(): Promise<ConnectionTestResult> {
   }
 }
 
-export async function testShopifyConnection(): Promise<ConnectionTestResult> {
-  const config = await getShopifyConfig();
-  const domain = config?.shopDomain;
-  const accessToken = config?.accessToken;
-  
-  if (!domain || !accessToken) {
+export interface ShopifyConnectionTestResult {
+  success: boolean;
+  connected: boolean;
+  message: string;
+  shopDomain?: string;
+  shopName?: string;
+  tokenSource?: ShopifyCredentialSource | 'none';
+  scopesHint?: string;
+  requestId?: string;
+  details?: Record<string, unknown>;
+  error?: { status?: number; hint?: string };
+}
+
+export async function runShopifyConnectionTest(requestId?: string): Promise<ShopifyConnectionTestResult> {
+  const rid = requestId || 'conn-test';
+  let creds;
+  try {
+    creds = await resolveShopifyCredentials();
+  } catch (err) {
+    const msg = err instanceof ShopifyCredentialsError ? err.message : 'Shopify kimlik bilgileri bulunamadı';
+    console.warn(`[${rid}] Shopify connection test: no credentials`);
     return {
-      service: 'Shopify',
+      success: false,
       connected: false,
-      message: 'Shopify kimlik bilgileri bulunamadı. Lütfen Shopify bağlantı ayarlarını yapın.',
-      timestamp: new Date()
+      message: msg,
+      tokenSource: 'none',
+      requestId: rid,
+      error: { hint: 'OAuth veya Admin Token ile bağlantı kurun' },
     };
   }
+
+  const shopDomain = normalizeShopDomain(creds.shopDomain);
+  console.log(`[${rid}] Shopify test domain=${shopDomain} source=${creds.source}`);
 
   try {
-    console.log('🔍 Testing Shopify connection...');
-    
-    const response = await axios.get(
-      `https://${domain}/admin/api/2023-10/shop.json`,
-      {
-        headers: {
-          'X-Shopify-Access-Token': accessToken,
-          'Content-Type': 'application/json'
-        },
-        timeout: 15000
-      }
-    );
-
-    if (response.data.shop) {
-      console.log('✅ Shopify connection successful');
-      return {
-        service: 'Shopify',
-        connected: true,
-        message: 'Shopify API is active and responding',
-        details: {
-          shopName: response.data.shop.name,
-          domain: response.data.shop.domain,
-          email: response.data.shop.email,
-          currency: response.data.shop.currency,
-          country: response.data.shop.country_name,
-          planName: response.data.shop.plan_name
-        },
-        timestamp: new Date()
-      };
-    } else {
-      throw new Error('Shopify API returned unexpected response');
-    }
-  } catch (error: any) {
-    console.error('❌ Shopify connection failed:', error.message);
-    return {
-      service: 'Shopify',
-      connected: false,
-      message: `Shopify connection failed: ${error.message}`,
-      details: { 
-        error: error.response?.data || error.message,
-        statusCode: error.response?.status,
-        domain: domain
+    const response = await axios.get(`https://${shopDomain}/admin/api/2024-01/shop.json`, {
+      headers: {
+        'X-Shopify-Access-Token': creds.accessToken,
+        'Content-Type': 'application/json',
       },
-      timestamp: new Date()
+      timeout: 15000,
+      validateStatus: () => true,
+    });
+
+    if (response.status === 401) {
+      return {
+        success: false,
+        connected: false,
+        message: 'Token geçersiz veya süresi dolmuş',
+        shopDomain,
+        tokenSource: creds.source,
+        requestId: rid,
+        error: { status: 401, hint: 'Yeni Admin API token oluşturun veya OAuth yenileyin' },
+      };
+    }
+    if (response.status === 403) {
+      return {
+        success: false,
+        connected: false,
+        message: 'Yetki/scope eksik — read_products ve write_products gerekli',
+        shopDomain,
+        tokenSource: creds.source,
+        requestId: rid,
+        error: { status: 403, hint: 'Uygulama izinlerinde ürün okuma/yazma scope ekleyin' },
+      };
+    }
+    if (response.status !== 200 || !response.data?.shop) {
+      return {
+        success: false,
+        connected: false,
+        message: `Shopify API hatası (HTTP ${response.status})`,
+        shopDomain,
+        tokenSource: creds.source,
+        requestId: rid,
+        error: { status: response.status },
+      };
+    }
+
+    const shop = response.data.shop;
+    return {
+      success: true,
+      connected: true,
+      message: 'Shopify bağlantısı başarılı',
+      shopDomain,
+      shopName: shop.name,
+      tokenSource: creds.source,
+      scopesHint: 'read_products, write_products, read_inventory, write_inventory',
+      requestId: rid,
+      details: {
+        email: shop.email,
+        currency: shop.currency,
+        planName: shop.plan_name,
+        myshopifyDomain: shop.myshopify_domain || shop.domain,
+      },
+    };
+  } catch (error: any) {
+    console.error(`[${rid}] Shopify connection failed:`, error.message);
+    return {
+      success: false,
+      connected: false,
+      message: `Bağlantı hatası: ${error.message}`,
+      shopDomain,
+      tokenSource: creds.source,
+      requestId: rid,
     };
   }
+}
+
+export async function testShopifyConnection(): Promise<ConnectionTestResult> {
+  const result = await runShopifyConnectionTest();
+  return {
+    service: 'Shopify',
+    connected: result.connected,
+    message: result.message,
+    details: {
+      shopName: result.shopName,
+      domain: result.shopDomain,
+      tokenSource: result.tokenSource,
+      scopesHint: result.scopesHint,
+      ...(result.details || {}),
+      ...(result.error || {}),
+    },
+    timestamp: new Date(),
+  };
 }
 
 export async function testAllConnections(): Promise<{

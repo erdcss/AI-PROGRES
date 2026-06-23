@@ -1,7 +1,7 @@
 import axios from 'axios';
 import { db } from './db';
 import { shopifyTransferredProducts } from '@shared/schema';
-import { getShopifyConfig } from './shopify-credentials';
+import { resolveShopifyCredentials, ShopifyCredentialsError } from './shopify-credentials';
 
 interface ShopifyProduct {
   id: number;
@@ -44,14 +44,7 @@ interface ShopifyCredentials {
   accessToken: string;
 }
 
-export class ShopifyCredentialsError extends Error {
-  constructor(
-    message = 'Shopify API kimlik bilgileri bulunamadı. OAuth bağlantısı yapın veya SHOPIFY_ADMIN_ACCESS_TOKEN / SHOPIFY_ACCESS_TOKEN tanımlayın.'
-  ) {
-    super(message);
-    this.name = 'ShopifyCredentialsError';
-  }
-}
+export { ShopifyCredentialsError } from './shopify-credentials';
 
 export class ShopifyProductsManager {
   private apiVersion: string = '2024-01';
@@ -82,32 +75,12 @@ export class ShopifyProductsManager {
     return domain.replace(/^https?:\/\//, '').replace(/\/$/, '');
   }
 
-  /**
-   * Öncelik: DB (getShopifyConfig) → SHOPIFY_ADMIN_ACCESS_TOKEN → SHOPIFY_ACCESS_TOKEN
-   */
   private async resolveCredentials(): Promise<ShopifyCredentials> {
-    const config = await getShopifyConfig();
-    if (config?.shopDomain && config.accessToken) {
-      return {
-        shopDomain: ShopifyProductsManager.cleanDomain(config.shopDomain),
-        accessToken: config.accessToken,
-      };
-    }
-
-    const shopDomain = ShopifyProductsManager.cleanDomain(
-      process.env.SHOPIFY_SHOP_DOMAIN ||
-        process.env.SHOPIFY_STORE_URL ||
-        process.env.SHOPIFY_STORE_DOMAIN ||
-        ''
-    );
-    const accessToken =
-      process.env.SHOPIFY_ADMIN_ACCESS_TOKEN || process.env.SHOPIFY_ACCESS_TOKEN || '';
-
-    if (shopDomain && accessToken) {
-      return { shopDomain, accessToken };
-    }
-
-    throw new ShopifyCredentialsError();
+    const cred = await resolveShopifyCredentials();
+    return {
+      shopDomain: ShopifyProductsManager.cleanDomain(cred.shopDomain),
+      accessToken: cred.accessToken,
+    };
   }
 
   private baseUrl(shopDomain: string): string {
