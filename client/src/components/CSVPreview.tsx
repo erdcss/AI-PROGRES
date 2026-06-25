@@ -2,7 +2,6 @@ import { useState, useEffect } from "react";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Download, FileText, Package, Eye, EyeOff } from "lucide-react";
-import { motion, AnimatePresence } from "framer-motion";
 
 interface CSVPreviewProps {
   csvContent: string;
@@ -39,12 +38,7 @@ export function CSVPreview({ csvContent, productTitle, onDownload, onShopifyUplo
   if (!csvContent) return null;
 
   return (
-    <motion.div
-      initial={{ opacity: 0, y: 20 }}
-      animate={{ opacity: 1, y: 0 }}
-      exit={{ opacity: 0, y: 20 }}
-      className="w-full"
-    >
+    <div className="w-full">
       <Card className="business-card">
         <CardHeader className="business-header">
           <div className="flex items-center justify-between">
@@ -84,15 +78,8 @@ export function CSVPreview({ csvContent, productTitle, onDownload, onShopifyUplo
           </div>
         </CardHeader>
         
-        <AnimatePresence>
-          {isExpanded && (
-            <motion.div
-              initial={{ height: 0, opacity: 0 }}
-              animate={{ height: "auto", opacity: 1 }}
-              exit={{ height: 0, opacity: 0 }}
-              transition={{ duration: 0.3 }}
-            >
-              <CardContent className="p-4">
+        {isExpanded && (
+            <CardContent className="p-4">
                 {csvRows.length > 0 ? (
                   <div className="space-y-3">
                     {/* CSV Stats */}
@@ -177,10 +164,8 @@ export function CSVPreview({ csvContent, productTitle, onDownload, onShopifyUplo
                   </div>
                 )}
               </CardContent>
-            </motion.div>
-          )}
-        </AnimatePresence>
+        )}
       </Card>
-    </motion.div>
+    </div>
   );
 }

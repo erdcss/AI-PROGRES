@@ -1,4 +1,4 @@
-import { motion, AnimatePresence } from "framer-motion";
+import { motion } from "framer-motion";
 import { ReactNode } from "react";
 
 interface PageTransitionProps {
@@ -6,99 +6,16 @@ interface PageTransitionProps {
   className?: string;
 }
 
-const pageVariants = {
-  initial: {
-    opacity: 1,
-    y: 0,
-    scale: 1,
-    filter: "blur(0px)",
-    transformOrigin: "center"
-  },
-  in: {
-    opacity: 1,
-    y: 0,
-    scale: 1,
-    filter: "blur(0px)",
-    transformOrigin: "center"
-  },
-  out: {
-    opacity: 0,
-    y: -40,
-    scale: 1.05,
-    filter: "blur(8px)",
-    transformOrigin: "center"
-  }
-};
-
-const pageTransition = {
-  type: "spring",
-  stiffness: 300,
-  damping: 30,
-  mass: 0.8,
-  duration: 0.8
-};
-
-const containerVariants = {
-  initial: {
-    opacity: 0,
-    scale: 0.98
-  },
-  in: {
-    opacity: 1,
-    scale: 1,
-    transition: {
-      duration: 0.5,
-      ease: "easeOut",
-      when: "beforeChildren",
-      staggerChildren: 0.15
-    }
-  },
-  out: {
-    opacity: 0,
-    scale: 1.02,
-    transition: {
-      duration: 0.3,
-      ease: "easeIn"
-    }
-  }
-};
-
+/** Route wrapper — no opacity exit animations (they caused blank screens on navigation). */
 export function PageTransition({ children, className = "" }: PageTransitionProps) {
-  return (
-    <>
-      {/* Loading Overlay */}
-      <motion.div
-        initial={{ opacity: 0.8 }}
-        animate={{ opacity: 0 }}
-        transition={{ duration: 0.4, delay: 0.2 }}
-        className="fixed inset-0 bg-slate-900/80 backdrop-blur-sm z-50 pointer-events-none"
-      />
-      
-      <motion.div
-        initial="initial"
-        animate="in"
-        exit="out"
-        variants={pageVariants}
-        transition={pageTransition}
-        className={`min-h-screen ${className}`}
-        style={{
-          transformStyle: "preserve-3d",
-          backfaceVisibility: "hidden"
-        }}
-      >
-        {children}
-      </motion.div>
-    </>
-  );
+  return <div className={`min-h-screen ${className}`}>{children}</div>;
 }
 
 export function AnimatedContainer({ children, className = "" }: PageTransitionProps) {
   return (
     <motion.div
-      initial="initial"
-      animate="in"
-      exit="out"
-      variants={containerVariants}
+      initial={{ opacity: 1, scale: 1 }}
+      animate={{ opacity: 1, scale: 1 }}
       className={className}
     >
       {children}
@@ -188,9 +105,9 @@ export const loadingVariants = {
 // Smooth page enter animation
 export const smoothEnterVariants = {
   initial: {
-    opacity: 0,
-    y: 20,
-    scale: 0.98
+    opacity: 1,
+    y: 0,
+    scale: 1
   },
   animate: {
     opacity: 1,
@@ -218,19 +135,19 @@ export const floatingVariants = {
 // Slide in from side
 export const slideInVariants = {
   left: {
-    initial: { x: -100, opacity: 0 },
+    initial: { x: 0, opacity: 1 },
     animate: { x: 0, opacity: 1, transition: { duration: 0.5, ease: "easeOut" } }
   },
   right: {
-    initial: { x: 100, opacity: 0 },
+    initial: { x: 0, opacity: 1 },
     animate: { x: 0, opacity: 1, transition: { duration: 0.5, ease: "easeOut" } }
   },
   up: {
-    initial: { y: 100, opacity: 0 },
+    initial: { y: 0, opacity: 1 },
     animate: { y: 0, opacity: 1, transition: { duration: 0.5, ease: "easeOut" } }
   },
   down: {
-    initial: { y: -100, opacity: 0 },
+    initial: { y: 0, opacity: 1 },
     animate: { y: 0, opacity: 1, transition: { duration: 0.5, ease: "easeOut" } }
   }
 };

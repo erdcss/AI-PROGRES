@@ -1,5 +1,4 @@
 import { useState } from 'react';
-import { motion, AnimatePresence } from 'framer-motion';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
@@ -175,17 +174,9 @@ export function TBotAssistant() {
 
   return (
     <>
-      {/* Modern T Bot Float Button */}
-      <AnimatePresence>
-        {!isOpen && (
-          <motion.div
-            initial={{ scale: 0, opacity: 0, rotate: -180 }}
-            animate={{ scale: 1, opacity: 1, rotate: 0 }}
-            exit={{ scale: 0, opacity: 0, rotate: 180 }}
-            className={`fixed z-50 ${isMobile ? 'bottom-4 right-4' : 'bottom-6 right-6'}`}
-            whileHover={{ scale: 1.1 }}
-            whileTap={{ scale: 0.95 }}
-          >
+      {/* T Bot Float Button */}
+      {!isOpen && (
+          <div className={`fixed z-50 ${isMobile ? 'bottom-4 right-4' : 'bottom-6 right-6'}`}>
             <div className="relative">
               <Button
                 onClick={() => setIsOpen(true)}
@@ -200,12 +191,10 @@ export function TBotAssistant() {
                 </div>
               </Button>
               
-              {/* Floating indicators */}
               <div className="absolute -top-1 -left-1 sm:-top-2 sm:-left-2 w-2 h-2 sm:w-3 sm:h-3 bg-blue-400 rounded-full animate-bounce" style={{ animationDelay: '0s' }}></div>
               <div className="absolute -bottom-1 -left-1 sm:-bottom-2 sm:-left-2 w-1.5 h-1.5 sm:w-2 sm:h-2 bg-purple-400 rounded-full animate-bounce" style={{ animationDelay: '0.5s' }}></div>
               <div className="absolute -top-1 right-6 sm:-top-2 sm:right-8 w-1.5 h-1.5 sm:w-2 sm:h-2 bg-yellow-400 rounded-full animate-bounce" style={{ animationDelay: '1s' }}></div>
               
-              {/* T Bot Label */}
               <div className="absolute -left-16 sm:-left-20 top-1/2 transform -translate-y-1/2 bg-blue-900 text-white px-2 py-1 sm:px-3 sm:py-1 rounded-full text-xs font-bold opacity-90 hidden sm:block">
                 T Bot AI
               </div>
@@ -213,19 +202,12 @@ export function TBotAssistant() {
                 T Bot
               </div>
             </div>
-          </motion.div>
-        )}
-      </AnimatePresence>
+          </div>
+      )}
 
-      {/* Advanced T Bot Interface */}
-      <AnimatePresence>
-        {isOpen && (
-          <motion.div
-            initial={{ opacity: 0, scale: 0.3, y: 50, x: 50 }}
-            animate={{ opacity: 1, scale: 1, y: 0, x: 0 }}
-            exit={{ opacity: 0, scale: 0.3, y: 50, x: 50 }}
-            className={`fixed z-50 ${isMobile ? 'inset-4 bottom-4' : 'bottom-6 right-6'}`}
-          >
+      {/* T Bot Interface */}
+      {isOpen && (
+          <div className={`fixed z-50 ${isMobile ? 'inset-4 bottom-4' : 'bottom-6 right-6'}`}>
             <Card className={`business-card shadow-2xl border-2 border-blue-500 ${
               isMobile ? 
                 (isMinimized ? 'h-16 w-72' : 'h-[calc(100vh-8rem)] w-full') : 
@@ -548,9 +530,8 @@ export function TBotAssistant() {
                 </CardContent>
               )}
             </Card>
-          </motion.div>
-        )}
-      </AnimatePresence>
+          </div>
+      )}
     </>
   );
 }

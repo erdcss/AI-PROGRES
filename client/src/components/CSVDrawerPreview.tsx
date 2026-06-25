@@ -4,7 +4,6 @@ import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Badge } from '@/components/ui/badge';
 import { Input } from '@/components/ui/input';
-import { motion, AnimatePresence } from 'framer-motion';
 import { normalizePrice, formatOriginalPrice, formatSalePrice, formatProfitAmount, formatProfitPercentage, isValidPrice } from '@/utils/price-utils';
 import { PriceEditor } from '@/components/PriceEditor';
 
@@ -883,15 +882,8 @@ export function CSVDrawerPreview({ csvPreviews, onDownload, onShopifyUpload, ind
                 </div>
               </CardHeader>
 
-              <AnimatePresence>
-                {isExpanded && (
-                  <motion.div
-                    initial={{ height: 0, opacity: 0 }}
-                    animate={{ height: 'auto', opacity: 1 }}
-                    exit={{ height: 0, opacity: 0 }}
-                    transition={{ duration: 0.3 }}
-                  >
-                    <CardContent className="px-6 pb-6">
+              {isExpanded && (
+                  <CardContent className="px-6 pb-6">
                       <div className="space-y-4">
                         {/* CSV Table Preview */}
                         <div className="overflow-x-auto bg-slate-800/30 rounded-lg border border-cyan-800/20">
@@ -1001,9 +993,7 @@ export function CSVDrawerPreview({ csvPreviews, onDownload, onShopifyUpload, ind
 
                       </div>
                     </CardContent>
-                  </motion.div>
                 )}
-              </AnimatePresence>
             </Card>
             </div>
           );

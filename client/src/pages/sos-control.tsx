@@ -14,7 +14,7 @@ import {
   EyeOff,
   Lock
 } from "lucide-react";
-import { useToast } from "@/hooks/use-toast";
+import { verifyAppPassword } from "@/lib/app-auth";
 import { useIsMobile } from "@/hooks/use-mobile";
 
 const SOSControl = () => {
@@ -28,8 +28,7 @@ const SOSControl = () => {
   const isMobile = useIsMobile();
 
   const handleAuth = () => {
-    // Using the same password as login (turmarkt123)
-    if (password === 'turmarkt123') {
+    if (verifyAppPassword(password)) {
       setIsAuthenticated(true);
       toast({
         title: "Giriş Başarılı",

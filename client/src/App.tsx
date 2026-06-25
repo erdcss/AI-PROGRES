@@ -16,8 +16,7 @@ import AIEnhancedScraper from "@/pages/ai-enhanced-scraper";
 import PriceMovementTest from "@/pages/price-movement-test";
 // Removed auto-csv page import
 // Removed bulk-csv page import
-import { useState, useEffect } from "react";
-import { AnimatePresence } from "framer-motion";
+import { useState, useEffect, Component, type ReactNode } from "react";
 import { UrlHistory } from "@/components/UrlHistory";
 import { Card, CardContent, CardDescription, CardFooter, CardHeader, CardTitle } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
@@ -47,6 +46,12 @@ import { MobileNavigation } from "@/components/MobileNavigation";
 import MemoryDashboard from "@/pages/memory-dashboard";
 import ShopifySystemPage from "@/pages/ShopifySystemPage";
 import { MatrixBackground } from "@/components/MatrixBackground";
+import {
+  clearAppSession,
+  hasValidAppSession,
+  saveAppSession,
+  verifyAppPassword,
+} from "@/lib/app-auth";
 
 // Login component with password protection
 function LoginScreen({ onLogin }: { onLogin: () => void }) {
@@ -57,44 +62,29 @@ function LoginScreen({ onLogin }: { onLogin: () => void }) {
   const [sum, setSum] = useState("");
   const [captchaError, setCaptchaError] = useState(false);
   const [success, setSuccess] = useState(false);
-  const [countdown, setCountdown] = useState(5);
-  
-  // Sabit şifre (4434)
-  const CORRECT_PASSWORD = "4434";
   
   const handleLogin = () => {
-    // Sadece şifre kontrolü yap (Kullanıcı seçimi yok)
-    if (password === CORRECT_PASSWORD) {
-      // Check captcha
-      if (parseInt(sum) === num1 + num2) {
-        setCaptchaError(false);
-        setSuccess(true);
-        
-        // Başlat geri sayım
-        let count = 5;
-        setCountdown(count);
-        
-        const timer = setInterval(() => {
-          count--;
-          setCountdown(count);
-          
-          if (count <= 0) {
-            clearInterval(timer);
-            // Giriş tamamlandı
-            onLogin();
-          }
-        }, 1000);
-      } else {
-        setCaptchaError(true);
-        // Generate new numbers
-        setNum1(Math.floor(Math.random() * 10));
-        setNum2(Math.floor(Math.random() * 10));
-        setSum("");
-      }
-    } else {
+    if (!verifyAppPassword(password)) {
       setError(true);
       setTimeout(() => setError(false), 2000);
+      return;
     }
+
+    const expectedSum = num1 + num2;
+    const userSum = Number(String(sum).trim());
+    if (!Number.isFinite(userSum) || userSum !== expectedSum) {
+      setCaptchaError(true);
+      setNum1(Math.floor(Math.random() * 10));
+      setNum2(Math.floor(Math.random() * 10));
+      setSum("");
+      return;
+    }
+
+    setCaptchaError(false);
+    setError(false);
+    setSuccess(true);
+    saveAppSession();
+    onLogin();
   };
   
   const handleKeyDown = (e: React.KeyboardEvent) => {
@@ -118,9 +108,9 @@ function LoginScreen({ onLogin }: { onLogin: () => void }) {
           </CardDescription>
           {success && (
             <div className="p-4 bg-green-900/30 rounded-xl border border-green-500/30">
-              <span className="text-green-400 font-semibold animate-pulse flex items-center justify-center gap-2">
+              <span className="text-green-400 font-semibold flex items-center justify-center gap-2">
                 <CheckCircle className="h-5 w-5" />
-                Giriş başarılı, sistem aktif ediliyor... ({countdown}s)
+                Giriş başarılı, yönlendiriliyorsunuz...
               </span>
             </div>
           )}
@@ -208,11 +198,36 @@ function LoginScreen({ onLogin }: { onLogin: () => void }) {
   );
 }
 
+class AppErrorBoundary extends Component<
+  { children: ReactNode },
+  { error: Error | null }
+> {
+  state = { error: null as Error | null };
+
+  static getDerivedStateFromError(error: Error) {
+    return { error };
+  }
+
+  render() {
+    if (this.state.error) {
+      return (
+        <div className="min-h-screen flex items-center justify-center bg-slate-900 text-white p-6">
+          <div className="max-w-lg text-center space-y-4">
+            <h1 className="text-xl font-semibold">Sayfa yüklenemedi</h1>
+            <p className="text-slate-400 text-sm">{this.state.error.message}</p>
+            <Button onClick={() => window.location.reload()}>Sayfayı Yenile</Button>
+          </div>
+        </div>
+      );
+    }
+    return this.props.children;
+  }
+}
+
 function Router() {
   const isMobile = useIsMobile();
   
   return (
-    <AnimatePresence mode="wait" initial={false}>
       <Switch>
       <Route path="/">
         <PageTransition>
@@ -412,35 +427,28 @@ function Router() {
         )}
       </Route>
       </Switch>
-    </AnimatePresence>
   );
 }
 
 function App() {
-  const [isLoggedIn, setIsLoggedIn] = useState(true); // Testing: auto-login for enhanced variant extraction
+  const [isLoggedIn, setIsLoggedIn] = useState(() =>
+    typeof window !== 'undefined' && hasValidAppSession()
+  );
   
-  // Uygulama kapanıp açıldığında yeniden giriş istensin
   useEffect(() => {
-    // Oturum durumunu zamanla sıfırla (opsiyonel)
     const checkInterval = setInterval(() => {
-      const lastLogin = localStorage.getItem('lastLogin');
-      if (lastLogin) {
-        // 30 dakika sonra oturumu sonlandır
-        const lastLoginTime = parseInt(lastLogin);
-        const thirtyMinutes = 30 * 60 * 1000;
-        if (Date.now() - lastLoginTime > thirtyMinutes) {
-          setIsLoggedIn(false);
-          localStorage.removeItem('lastLogin');
-        }
+      if (!hasValidAppSession()) {
+        setIsLoggedIn(false);
+        clearAppSession();
       }
-    }, 60000); // Her dakika kontrol et
+    }, 60000);
     
     return () => clearInterval(checkInterval);
   }, []);
   
   const handleLogin = () => {
     setIsLoggedIn(true);
-    localStorage.setItem('lastLogin', Date.now().toString());
+    saveAppSession();
   };
   
   if (!isLoggedIn) {
@@ -457,9 +465,11 @@ function App() {
       <div className="min-h-screen" style={{ position: "relative" }}>
         <MatrixBackground />
         <div style={{ position: "relative", zIndex: 1 }}>
-          <MobileNavigation />
-          <Router />
-          <TBotAssistant />
+          <AppErrorBoundary>
+            <MobileNavigation />
+            <Router />
+            <TBotAssistant />
+          </AppErrorBoundary>
         </div>
       </div>
       <Toaster />

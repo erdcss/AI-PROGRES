@@ -107,18 +107,18 @@ export function MobileNavigation() {
       {/* Navigation Drawer */}
       <AnimatePresence>
         {isOpen && (
-          <>
-            {/* Backdrop */}
             <motion.div
+              key="nav-backdrop"
               initial={{ opacity: 0 }}
               animate={{ opacity: 1 }}
               exit={{ opacity: 0 }}
               className="fixed inset-0 bg-black/60 backdrop-blur-sm z-40"
               onClick={() => setIsOpen(false)}
             />
-
-            {/* Drawer */}
+        )}
+        {isOpen && (
             <motion.div
+              key="nav-drawer"
               initial={{ x: '-100%' }}
               animate={{ x: 0 }}
               exit={{ x: '-100%' }}
@@ -202,7 +202,6 @@ export function MobileNavigation() {
                 ))}
               </div>
             </motion.div>
-          </>
         )}
       </AnimatePresence>
     </>
