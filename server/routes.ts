@@ -2089,7 +2089,112 @@ setTimeout(check, 1000);
         });
         
         let result: any = null;
-        
+
+        const convertApiProduct = (apiProduct: any) => ({
+          success: true,
+          title: apiProduct.title,
+          brand: apiProduct.brand,
+          category: apiProduct.category || 'Genel',
+          description: apiProduct.description || '',
+          price: apiProduct.price,
+          images: apiProduct.images,
+          variants: apiProduct.variants?.length
+            ? {
+                colors: [...new Set(apiProduct.variants.map((v: any) => v.color || v.name).filter(Boolean))],
+                sizes: [...new Set(apiProduct.variants.map((v: any) => v.size).filter(Boolean))],
+                allVariants: apiProduct.variants,
+              }
+            : {
+                colors: ['Standart'],
+                sizes: ['Tek Beden'],
+                allVariants: [{ color: 'Standart', size: 'Tek Beden', inStock: true }],
+              },
+          features: [],
+          tags: [],
+          extractionMethod: 'trendyol-api',
+          scenario: 'trendyol-api',
+          confidence: 90,
+          sourceUrl: url,
+        });
+
+        const { fetchTrendyolProductByUrl } = await import('./trendyol-product-api');
+        const { enrichTrendyolResult, mergeApiWithScrape, resolveProductTitle } = await import(
+          './trendyol-result-normalizer'
+        );
+
+        // ⚡ 1) Trendyol public API — hızlı ve güvenilir başlık/fiyat/görsel
+        console.log('⚡ API PATH: Trying Trendyol product API first...');
+        const apiProduct = await fetchTrendyolProductByUrl(url);
+        if (apiProduct && (apiProduct.price.original > 0 || apiProduct.images.length > 0)) {
+          console.log(`✅ Trendyol API: "${apiProduct.title}" — ${apiProduct.price.original} TL`);
+          result = convertApiProduct(apiProduct);
+        }
+
+        // ⚡ 2) Scenario scrape — varyant/renk için (API başarısızsa veya varyant zenginleştirme)
+        console.log('⚡ SCENARIO PATH: Running scenario-based scraper for variant data...');
+        try {
+          const scrapeResult = await Promise.race([
+            scenarioBasedScrape(url),
+            createTimeout(60000)
+          ]) as any;
+          
+          const { isValidTrendyolProductTitle } = await import('./trendyol-title-utils');
+          const scrapeHasValidTitle =
+            scrapeResult?.title &&
+            isValidTrendyolProductTitle(scrapeResult.title) &&
+            (scrapeResult.title as string).length > 5;
+          const scrapeHasValidData =
+            scrapeHasValidTitle &&
+            ((scrapeResult?.price?.original > 0) || (scrapeResult?.images?.length > 0));
+
+          if (scrapeResult?.blocked) {
+            console.log('🚫 ROUTES: Trendyol block detected — skipping fallbacks');
+            if (!result) {
+              scrapeJobs.set(jobId, {
+                status: 'done' as const,
+                startedAt: scrapeJobs.get(jobId)!.startedAt,
+                result: {
+                  success: false,
+                  blocked: true,
+                  statusCode: 503,
+                  message: '🚫 Trendyol şu anda bu sunucudan gelen istekleri engelliyor. Lütfen 2-3 dakika bekleyip tekrar deneyin.',
+                  details: 'Captcha/block page detected',
+                }
+              });
+              return;
+            }
+          } else if (scrapeResult && scrapeResult.success !== false && scrapeHasValidData) {
+            console.log(`⚡ Scenario scrape SUCCESS in ${Date.now() - scrapeStartTime}ms`);
+            if (result) {
+              result = mergeApiWithScrape(result, scrapeResult);
+            } else {
+              result = {
+                ...scrapeResult,
+                _source: 'scenario-scrape',
+                sourceUrl: url,
+                _priceSource: 'scenario-scrape',
+              };
+            }
+          } else if (!result) {
+            const failReason = !scrapeHasValidData ? `invalid data (title="${scrapeResult?.title}", price=${scrapeResult?.price?.original})` : 'success=false';
+            console.log(`⚠️ Scenario scrape rejected: ${failReason}`);
+            throw new Error('Scenario scrape failed');
+          }
+        } catch (fastError: any) {
+          if (result) {
+            console.log(`⚠️ Scenario enrich skipped (${fastError.message}), keeping API result`);
+          } else {
+          console.log(`⚠️ Fast path failed (${Date.now() - scrapeStartTime}ms): ${fastError.message}`);
+
+          try {
+            if (apiProduct) {
+              result = convertApiProduct(apiProduct);
+            } else {
+              throw new Error('Trendyol API fallback empty');
+            }
+          } catch (apiError: any) {
+            console.log(`⚠️ Trendyol API fallback failed: ${apiError.message}`);
+          
         const convertMultiColorResult = (mcr: any) => ({
             success: true,
             title: mcr.combinedData.title,
@@ -2111,96 +2216,10 @@ setTimeout(check, 1000);
             tags: mcr.combinedData.tags || [],
             extractionMethod: 'multi-color-scraper',
             scenario: mcr.totalColors > 1 ? 'multi-color' : 'single-variant',
-            confidence: 100
+            confidence: 100,
+            sourceUrl: url,
           });
 
-        // ⚡ Scenario-based scrape (authoritative: uses Puppeteer JS-state for correct color/size)
-        console.log('⚡ SCENARIO PATH: Running scenario-based scraper for accurate variant data...');
-        try {
-          // Always use scenario-based scraper — it's the only method that correctly identifies
-          // the URL-specific color (via Puppeteer JS state) and all available sizes.
-          // Direct Trendyol API returns allVariants for the entire product group (all colors),
-          // not the specific color shown at this URL, causing wrong color extraction.
-          const scrapeResult = await Promise.race([
-            scenarioBasedScrape(url),
-            createTimeout(60000)
-          ]) as any;
-          
-          const { isValidTrendyolProductTitle } = await import('./trendyol-title-utils');
-          const scrapeHasValidTitle =
-            scrapeResult?.title &&
-            isValidTrendyolProductTitle(scrapeResult.title) &&
-            (scrapeResult.title as string).length > 5;
-          const scrapeHasValidData =
-            scrapeHasValidTitle &&
-            ((scrapeResult?.price?.original > 0) || (scrapeResult?.images?.length > 0));
-
-          // 🛡️ SHORT-CIRCUIT: Trendyol IP block — skip ALL fallbacks immediately
-          if (scrapeResult?.blocked) {
-            console.log('🚫 ROUTES: Trendyol block detected — skipping MultiColor + AlternativeSources fallbacks');
-            scrapeJobs.set(jobId, {
-              status: 'done' as const,
-              startedAt: scrapeJobs.get(jobId)!.startedAt,
-              result: {
-                success: false,
-                blocked: true,
-                statusCode: 503,
-                message: '🚫 Trendyol şu anda bu sunucudan gelen istekleri engelliyor. Lütfen 2-3 dakika bekleyip tekrar deneyin.',
-                details: 'Captcha/block page detected — all HTTP and Puppeteer requests returning 245803-byte block page'
-              }
-            });
-            return;
-          }
-
-          if (scrapeResult && scrapeResult.success !== false && scrapeHasValidData) {
-            console.log(`⚡ Scenario scrape SUCCESS in ${Date.now() - scrapeStartTime}ms`);
-            result = { ...scrapeResult, _source: 'scenario-scrape' };
-            
-            // 🌈 MULTI-COLOR: Now handled inside scenarioBasedScrape via JSON-LD ProductGroup.hasVariant
-            // (No parallel HTTP scraping needed — all color/size/image data is in the main page JSON-LD)
-            if (scrapeResult.otherColorUrls && scrapeResult.otherColorUrls.length > 0) {
-              console.log(`🌈 MULTI-COLOR: ${scrapeResult.otherColorUrls.length} other color URLs found (handled via JSON-LD inside scraper)`);
-            }
-          } else {
-            const failReason = !scrapeHasValidData ? `invalid data (title="${scrapeResult?.title}", price=${scrapeResult?.price?.original}, images=${scrapeResult?.images?.length})` : 'success=false';
-            console.log(`⚠️ Scenario scrape rejected: ${failReason}`);
-            throw new Error('Scenario scrape failed');
-          }
-        } catch (fastError: any) {
-          console.log(`⚠️ Fast path failed (${Date.now() - scrapeStartTime}ms): ${fastError.message}`);
-
-          const convertApiProduct = (apiProduct: any) => ({
-            success: true,
-            title: apiProduct.title,
-            brand: apiProduct.brand,
-            category: apiProduct.category || 'Genel',
-            description: apiProduct.description || '',
-            price: apiProduct.price,
-            images: apiProduct.images,
-            variants: {
-              colors: ['Standart'],
-              sizes: ['Tek Beden'],
-              allVariants: [{ color: 'Standart', size: 'Tek Beden', inStock: true }],
-            },
-            features: [],
-            tags: [],
-            extractionMethod: 'trendyol-api',
-            scenario: 'trendyol-api',
-            confidence: 85,
-          });
-
-          try {
-            const { fetchTrendyolProductByUrl } = await import('./trendyol-product-api');
-            const apiProduct = await fetchTrendyolProductByUrl(url);
-            if (apiProduct) {
-              console.log('✅ Trendyol public API fallback succeeded');
-              result = convertApiProduct(apiProduct);
-            } else {
-              throw new Error('Trendyol API fallback empty');
-            }
-          } catch (apiError: any) {
-            console.log(`⚠️ Trendyol API fallback failed: ${apiError.message}`);
-          
           // FALLBACK: Try multi-color scraper directly
           try {
             const { MultiColorScraper } = await import('./multi-color-scraper');
@@ -2239,7 +2258,10 @@ setTimeout(check, 1000);
                           if (ld['@type'] === 'Product' && ld.name) result.title = ld.name;
                         } catch {}
                       });
-                      if (!result.title) result.title = $alt('h1.pr-new-br, h1[class*="product"], h1').first().text().trim() || 'Trendyol Ürünü';
+                      if (!result.title) {
+                        const h1Title = $alt('h1.pr-new-br, h1[class*="product"], h1').first().text().trim();
+                        result.title = resolveProductTitle(url, h1Title);
+                      }
                     }
                     // Extract brand from JSON-LD
                     if (!result.brand) {
@@ -2299,18 +2321,23 @@ setTimeout(check, 1000);
                   throw new Error(httpResult.error || 'HTTP fallback failed');
                 }
               } catch {
-              result = {
-                success: false,
-                error: 'Extraction failed',
-                step: 'all_methods_exhausted',
-                message: 'Ürün bilgisi alınamadı — Trendyol engeli veya tarayıcı bulunamadı',
-                title: 'Ürün Yüklenemedi',
-                brand: 'Bilinmiyor'
-              };
+                result = {
+                  success: false,
+                  error: 'Extraction failed',
+                  step: 'all_methods_exhausted',
+                  message: 'Ürün bilgisi alınamadı — Trendyol engeli veya tarayıcı bulunamadı',
+                  title: resolveProductTitle(url, null),
+                  brand: 'Bilinmiyor',
+                };
               }
             }
           }
           }
+          }
+        }
+
+        if (result) {
+          result = await enrichTrendyolResult(url, result);
         }
         
         console.log(`⚡ Total extraction time: ${Date.now() - scrapeStartTime}ms`);
@@ -2324,7 +2351,14 @@ setTimeout(check, 1000);
         });
         
         // 🚨 EMERGENCY: Force manual price extraction for ANY null price (regardless of success)
-        if (result && (result.price === null || result.price === undefined || !result.price)) {
+        if (
+          result &&
+          (result.price === null ||
+            result.price === undefined ||
+            !result.price ||
+            !result.price.original ||
+            result.price.original <= 0)
+        ) {
           console.log('🚨 EMERGENCY: Price is missing/null, FORCING Ultimate Price Extractor regardless of success status');
           
           try {
@@ -2369,12 +2403,29 @@ setTimeout(check, 1000);
             console.warn("⚠️ EMERGENCY: Manual extraction failed:", manualError.message);
           }
         }
+
+        const { hasUsableTrendyolResult } = await import('./trendyol-result-normalizer');
+        result.success = hasUsableTrendyolResult({ ...result, url });
+        result.title = resolveProductTitle(url, result.title);
         
-        console.log('🚨 ROUTES: scenarioBasedScrape returned price:', result.price?.original);
-        console.log('🔍 DEBUG: result.success:', result.success);
-        console.log('🔍 DEBUG: result.htmlContent exists:', !!result.htmlContent);
-        console.log('🔍 DEBUG: htmlContent length:', result.htmlContent?.length || 0);
-        console.log('🔍 DEBUG: Full result keys:', Object.keys(result));
+        console.log('🚨 ROUTES: scenarioBasedScrape returned price:', result?.price?.original);
+        console.log('🔍 DEBUG: result.success:', result?.success);
+        console.log('🔍 DEBUG: result.htmlContent exists:', !!result?.htmlContent);
+        console.log('🔍 DEBUG: htmlContent length:', result?.htmlContent?.length || 0);
+        console.log('🔍 DEBUG: Full result keys:', result ? Object.keys(result) : []);
+        
+        if (!result) {
+          scrapeJobs.set(jobId, {
+            status: 'done' as const,
+            startedAt: scrapeJobs.get(jobId)!.startedAt,
+            result: {
+              success: false,
+              message: 'Ürün bilgisi alınamadı',
+              title: resolveProductTitle(url, null),
+            },
+          });
+          return;
+        }
         
         // 🔍 ENHANCE VARIANTS WITH REAL STOCK DETECTION (only if needed)
         // Check if variants are already in correct format from scenario-based-scraper
@@ -2427,8 +2478,9 @@ setTimeout(check, 1000);
             // For blocked responses, create basic CSV with available data
             if (result.success === false) {
               console.log('⚠️ Creating emergency CSV for blocked response...');
-              const fallbackTitle = result.title && result.title !== "trendyol.com" ? result.title : "Trendyol Ürünü";
+              const fallbackTitle = resolveProductTitle(url, result.title);
               const fbHandle = fallbackTitle.toLowerCase().replace(/[^a-z0-9]/g, '-');
+              const fbPrice = result.price?.withProfit || result.price?.original || '';
               result.csvContent = `Title,URL handle,Description,Vendor,Product category,Type,Tags,Published on online store,Status,SKU,Barcode,Option1 name,Option1 value,Option1 Linked To,Option2 name,Option2 value,Option2 Linked To,Option3 name,Option3 value,Option3 Linked To,Price,Compare-at price,Cost per item,Charge tax,Tax code,Unit price total measure,Unit price total measure unit,Unit price base measure,Unit price base measure unit,Inventory tracker,Inventory quantity,Continue selling when out of stock,Weight value (grams),Weight unit for display,Requires shipping,Fulfillment service,Product image URL,Image position,Image alt text,Variant image URL,Gift card,SEO title,SEO description,Color (product.metafields.shopify.color-pattern),Google Shopping / Google product category,Google Shopping / Gender,Google Shopping / Age group,Google Shopping / Manufacturer part number (MPN),Google Shopping / Ad group name,Google Shopping / Ads labels,Google Shopping / Condition,Google Shopping / Custom product,Google Shopping / Custom label 0,Google Shopping / Custom label 1,Google Shopping / Custom label 2,Google Shopping / Custom label 3,Google Shopping / Custom label 4
 ${fallbackTitle},${fbHandle},,,,,,TRUE,draft,,,,,,,,,,,,,,,,,,,,shopify,0,CONTINUE,,g,TRUE,manual,,,,,FALSE,,,,,,,,,,,,,`;
               result.title = fallbackTitle;
@@ -2487,7 +2539,7 @@ ${fallbackTitle},${fbHandle},,,,,,TRUE,draft,,,,,,,,,,,,,,,,,,,,shopify,0,CONTIN
                 }
                 
                 const fb2Handle = (result.title || 'product').toLowerCase().replace(/[^a-z0-9]/g, '-');
-                const fb2Price = (result.price?.original || 100).toString();
+                const fb2Price = (result.price?.withProfit || result.price?.original || '').toString();
                 const fb2Img = result.images?.[0]?.url || result.images?.[0] || '';
                 result.csvContent = `Title,URL handle,Description,Vendor,Product category,Type,Tags,Published on online store,Status,SKU,Barcode,Option1 name,Option1 value,Option1 Linked To,Option2 name,Option2 value,Option2 Linked To,Option3 name,Option3 value,Option3 Linked To,Price,Compare-at price,Cost per item,Charge tax,Tax code,Unit price total measure,Unit price total measure unit,Unit price base measure,Unit price base measure unit,Inventory tracker,Inventory quantity,Continue selling when out of stock,Weight value (grams),Weight unit for display,Requires shipping,Fulfillment service,Product image URL,Image position,Image alt text,Variant image URL,Gift card,SEO title,SEO description,Color (product.metafields.shopify.color-pattern),Google Shopping / Google product category,Google Shopping / Gender,Google Shopping / Age group,Google Shopping / Manufacturer part number (MPN),Google Shopping / Ad group name,Google Shopping / Ads labels,Google Shopping / Condition,Google Shopping / Custom product,Google Shopping / Custom label 0,Google Shopping / Custom label 1,Google Shopping / Custom label 2,Google Shopping / Custom label 3,Google Shopping / Custom label 4
 ${result.title || 'Product'},${fb2Handle},${result.description || ''},${result.brand || ''},,,${(result.tags || []).join(', ')},TRUE,active,,Renk,${fallbackColor},product.metafields.shopify.color-pattern,,,,,,,${fb2Price},,,,TRUE,,,,,,shopify,0,CONTINUE,,g,TRUE,manual,${fb2Img},1,${result.title || ''},,FALSE,,,,,,,,,,,,,`;
@@ -2495,17 +2547,17 @@ ${result.title || 'Product'},${fb2Handle},${result.description || ''},${result.b
             }
           } catch (csvError) {
             console.error('❌ CSV generation error:', csvError);
-            // Ultimate fallback minimal CSV
-            const safeTitle = (result.title && result.title !== "trendyol.com") ? result.title : "Trendyol Ürünü";
+            const safeTitle = resolveProductTitle(url, result.title);
             const stHandle = safeTitle.toLowerCase().replace(/[^a-z0-9]/g, '-');
-            result.csvContent = `Title,URL handle,Description,Vendor,Product category,Type,Tags,Published on online store,Status,SKU,Barcode,Option1 name,Option1 value,Option1 Linked To,Option2 name,Option2 value,Option2 Linked To,Option3 name,Option3 value,Option3 Linked To,Price,Compare-at price,Cost per item,Charge tax,Tax code,Unit price total measure,Unit price total measure unit,Unit price base measure,Unit price base measure unit,Inventory tracker,Inventory quantity,Continue selling when out of stock,Weight value (grams),Weight unit for display,Requires shipping,Fulfillment service,Product image URL,Image position,Image alt text,Variant image URL,Gift card,SEO title,SEO description,Color (product.metafields.shopify.color-pattern),Google Shopping / Google product category,Google Shopping / Gender,Google Shopping / Age group,Google Shopping / Manufacturer part number (MPN),Google Shopping / Ad group name,Google Shopping / Ads labels,Google Shopping / Condition,Google Shopping / Custom product,Google Shopping / Custom label 0,Google Shopping / Custom label 1,Google Shopping / Custom label 2,Google Shopping / Custom label 3,Google Shopping / Custom label 4\n${safeTitle},${stHandle},,,,,,TRUE,draft,,,,,,,,,,,,,,,,,,,,shopify,0,CONTINUE,,g,TRUE,manual,,,,,FALSE,,,,,,,,,,,,,`;
+            const stPrice = (result.price?.withProfit || result.price?.original || '').toString();
+            result.csvContent = `Title,URL handle,Description,Vendor,Product category,Type,Tags,Published on online store,Status,SKU,Barcode,Option1 name,Option1 value,Option1 Linked To,Option2 name,Option2 value,Option2 Linked To,Option3 name,Option3 value,Option3 Linked To,Price,Compare-at price,Cost per item,Charge tax,Tax code,Unit price total measure,Unit price total measure unit,Unit price base measure,Unit price base measure unit,Inventory tracker,Inventory quantity,Continue selling when out of stock,Weight value (grams),Weight unit for display,Requires shipping,Fulfillment service,Product image URL,Image position,Image alt text,Variant image URL,Gift card,SEO title,SEO description,Color (product.metafields.shopify.color-pattern),Google Shopping / Google product category,Google Shopping / Gender,Google Shopping / Age group,Google Shopping / Manufacturer part number (MPN),Google Shopping / Ad group name,Google Shopping / Ads labels,Google Shopping / Condition,Google Shopping / Custom product,Google Shopping / Custom label 0,Google Shopping / Custom label 1,Google Shopping / Custom label 2,Google Shopping / Custom label 3,Google Shopping / Custom label 4\n${safeTitle},${stHandle},,,,,,TRUE,draft,,,,,,,,,,,${stPrice},,,,,,,,shopify,0,CONTINUE,,g,TRUE,manual,,,,,FALSE,,,,,,,,,,,,,`;
             result.title = safeTitle;
           }
         }
         
         // Ensure result has the proper structure for frontend
-        if (result && !result.csvContent) {
-          const fallbackTitle = "Trendyol Ürünü";
+        if (result && !result.csvContent && result.success) {
+          const fallbackTitle = resolveProductTitle(url, result.title);
           const ftHandle = fallbackTitle.toLowerCase().replace(/[^a-z0-9]/g, '-');
           result.csvContent = `Title,URL handle,Description,Vendor,Product category,Type,Tags,Published on online store,Status,SKU,Barcode,Option1 name,Option1 value,Option1 Linked To,Option2 name,Option2 value,Option2 Linked To,Option3 name,Option3 value,Option3 Linked To,Price,Compare-at price,Cost per item,Charge tax,Tax code,Unit price total measure,Unit price total measure unit,Unit price base measure,Unit price base measure unit,Inventory tracker,Inventory quantity,Continue selling when out of stock,Weight value (grams),Weight unit for display,Requires shipping,Fulfillment service,Product image URL,Image position,Image alt text,Variant image URL,Gift card,SEO title,SEO description,Color (product.metafields.shopify.color-pattern),Google Shopping / Google product category,Google Shopping / Gender,Google Shopping / Age group,Google Shopping / Manufacturer part number (MPN),Google Shopping / Ad group name,Google Shopping / Ads labels,Google Shopping / Condition,Google Shopping / Custom product,Google Shopping / Custom label 0,Google Shopping / Custom label 1,Google Shopping / Custom label 2,Google Shopping / Custom label 3,Google Shopping / Custom label 4\n${fallbackTitle},${ftHandle},,,,,,TRUE,draft,,,,,,,,,,,,,,,,,,,,shopify,0,CONTINUE,,g,TRUE,manual,,,,,FALSE,,,,,,,,,,,,,`;
           if (!result.title) result.title = fallbackTitle;

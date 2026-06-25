@@ -47,6 +47,29 @@ function envShopDomain(): string {
   );
 }
 
+/** ENV'den Shopify Client Credentials (Postman: client_id + client_secret + grant_type) */
+export function getShopifyClientCredentials(): {
+  clientId: string;
+  clientSecret: string;
+  shopDomain: string;
+} | null {
+  const clientId =
+    process.env.SHOPIFY_CLIENT_ID ||
+    process.env.SHOPIFY_client_id ||
+    process.env.SHOPIFY_API_KEY ||
+    '';
+  const clientSecret =
+    process.env.SHOPIFY_CLIENT_SECRET ||
+    process.env.SHOPIFY_CLIENT_SECRET_KEY ||
+    process.env.secret_key ||
+    process.env.SHOPIFY_APP_SHARED_SECRET ||
+    '';
+  const shopDomain = envShopDomain();
+
+  if (!clientId || !clientSecret || !shopDomain) return null;
+  return { clientId, clientSecret, shopDomain };
+}
+
 function isDeprecatedToken(token: string): boolean {
   return token.startsWith('shpss_');
 }
@@ -119,9 +142,10 @@ export async function getShopifyConfig(): Promise<ShopifyConfig | null> {
  * DB'deki mağaza kaydına otomatik olarak yazar.
  */
 export async function syncEnvApiKeyToDB(): Promise<void> {
-  const apiKey = process.env.SHOPIFY_API_KEY;
-  const apiSecret = process.env.SHOPIFY_APP_SHARED_SECRET;
-  const shopDomain = envShopDomain();
+  const creds = getShopifyClientCredentials();
+  const apiKey = creds?.clientId || process.env.SHOPIFY_API_KEY;
+  const apiSecret = creds?.clientSecret || process.env.SHOPIFY_APP_SHARED_SECRET;
+  const shopDomain = creds?.shopDomain || envShopDomain();
 
   if (!apiKey || !shopDomain) return;
 

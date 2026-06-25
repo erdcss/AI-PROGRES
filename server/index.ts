@@ -317,8 +317,21 @@ app.use(pendingChangesRoutes);
   // ── Replit Importer API (/api/health, /api/import) ──────────────────────────
   app.use('/api', importerRouter);
   startTokenRefreshScheduler();
+  syncEnvApiKeyToDB()
+    .then(async () => {
+      const { getShopifyClientCredentials } = await import('./shopify-credentials');
+      if (getShopifyClientCredentials()) {
+        const { rotateShopifyToken } = await import('./shopify-token-rotator');
+        const result = await rotateShopifyToken();
+        if (result.success) {
+          console.log(`✅ SHOPIFY TOKEN: Başlangıç token alındı (${result.method})`);
+        } else {
+          console.warn(`⚠️ SHOPIFY TOKEN: Başlangıç token alınamadı — ${result.error}`);
+        }
+      }
+    })
+    .catch((err) => console.error('syncEnvApiKeyToDB error:', err));
   startShopifyTokenAutoRefresh();
-  syncEnvApiKeyToDB().catch(err => console.error('syncEnvApiKeyToDB error:', err));
   
   // Test enhanced extraction endpoint - Direct registration
   app.post('/api/test-enhanced', async (req, res) => {

@@ -8,13 +8,15 @@ import { fileURLToPath } from "url";
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = dirname(__filename);
 
+const isReplit = process.env.REPL_ID !== undefined;
+
 export default defineConfig({
+  root: path.resolve(__dirname, "client"),
   plugins: [
     react(),
-    runtimeErrorOverlay(),
+    ...(isReplit ? [runtimeErrorOverlay()] : []),
     themePlugin(),
-    ...(process.env.NODE_ENV !== "production" &&
-    process.env.REPL_ID !== undefined
+    ...(process.env.NODE_ENV !== "production" && isReplit
       ? [
           await import("@replit/vite-plugin-cartographer").then((m) =>
             m.cartographer(),
@@ -32,13 +34,30 @@ export default defineConfig({
     host: '0.0.0.0',
     port: 5000,
     strictPort: true,
-    hmr: {
-      clientPort: 443,
-      protocol: 'wss'
-    }
+    watch: {
+      // Sunucu CSV/log yazınca Vite tam sayfa yenilemesin
+      ignored: [
+        path.resolve(__dirname, "server") + "/**",
+        path.resolve(__dirname, "dist") + "/**",
+        path.resolve(__dirname, "temp") + "/**",
+        path.resolve(__dirname, "exports") + "/**",
+        path.resolve(__dirname, "data") + "/**",
+        "**/node_modules/**",
+        "**/.git/**",
+      ],
+    },
+    ...(isReplit
+      ? {
+          hmr: {
+            clientPort: 443,
+            protocol: 'wss',
+          },
+        }
+      : {}),
   },
   build: {
-    outDir: 'dist',
+    outDir: path.resolve(__dirname, "dist"),
+    emptyOutDir: true,
     sourcemap: false,
     minify: 'terser',
     chunkSizeWarningLimit: 1000,

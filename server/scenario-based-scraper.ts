@@ -13,6 +13,14 @@ import * as cheerio from 'cheerio';
 puppeteerExtra.use(StealthPlugin());
 import OpenAI from 'openai';
 import { ScenarioManager, ExtractionScenario } from './scenario-manager';
+
+let _openai: OpenAI | null = null;
+function getOpenAI(): OpenAI | null {
+  const apiKey = process.env.OPENAI_API_KEY_NEW || process.env.OPENAI_API_KEY;
+  if (!apiKey) return null;
+  if (!_openai) _openai = new OpenAI({ apiKey });
+  return _openai;
+}
 import { ScenarioExtractors } from './scenario-extractors';
 import { enhancedVariantExtractor } from './enhanced-variant-extractor';
 import { ImageDeduplicator, extractEnhancedFeatures, extractEnhancedVariants } from './improved-image-deduplicator';
@@ -33,8 +41,6 @@ import { buildLaunchOptions } from './puppeteer-config';
 import { generateAdvancedTags } from './tag-generator';
 import { CLOTHING_KEYWORDS, FAKE_CLOTHING_SIZES, isClothingProduct } from './clothing-keywords';
 import { execSync } from 'child_process';
-
-const openai = new OpenAI({ apiKey: process.env.OPENAI_API_KEY_NEW || process.env.OPENAI_API_KEY });
 
 // ─── COLOR NORMALIZATION ───────────────────────────────────────────────────────
 // Maps slug/ascii color names (from Trendyol JSON-LD) to proper Turkish names
@@ -185,7 +191,13 @@ Sadece gerçek renkleri düzgün Türkçe isimle döndür (normalize et: yesil�
 JSON formatında yanıtla: {"validColors": ["Renk1", "Renk2"]}
 Hiç geçerli renk yoksa: {"validColors": []}`;
 
-    const response = await openai.chat.completions.create({
+    const client = getOpenAI();
+    if (!client) {
+      console.log('⚠️ OpenAI API key missing — skipping AI color validation');
+      return colors;
+    }
+
+    const response = await client.chat.completions.create({
       model: 'gpt-4o',
       max_tokens: 200,
       temperature: 0,

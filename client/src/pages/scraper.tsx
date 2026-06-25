@@ -182,9 +182,16 @@ function ScraperPage() {
         const pollData = await pollResp.json();
         if (pollData.status === 'done') {
           const result = pollData.result;
+          const badTitles = new Set(['Trendyol Ürünü', 'trendyol.com', 'Ürün Yüklenemedi']);
+          const titleOk =
+            result?.title &&
+            result.title.length > 5 &&
+            !badTitles.has(result.title) &&
+            !/online alışveriş|trend yolu/i.test(result.title);
           const hasUsable =
-            result?.success !== false &&
-            (result?.title || result?.csvContent || (result?.images?.length ?? 0) > 0);
+            titleOk ||
+            (result?.success !== false &&
+              (result?.csvContent || (result?.images?.length ?? 0) > 0 || (result?.price?.original ?? 0) > 0));
           if (!hasUsable) {
             throw new Error(result?.message || result?.error || 'Extraction failed');
           }
@@ -202,6 +209,7 @@ function ScraperPage() {
       const isBadTitle = (title?: string) =>
         !title ||
         title === 'trendyol.com' ||
+        title === 'Trendyol Ürünü' ||
         title.length <= 2 ||
         INVALID_TITLE_PATTERNS.some((p) => p.test(title));
 

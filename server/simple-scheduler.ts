@@ -476,11 +476,11 @@ function scheduleHourlyPriceMonitoring(): void {
   activeTimers.set('hourly-price-monitoring', timer);
 }
 
-// Shopify token yenileme görevini zamanla (23 saatte bir)
+// Shopify token yenileme görevini zamanla (22 saatte bir — 24 saatlik token süresinden önce)
 function scheduleShopifyTokenRefresh(): void {
-  const INTERVAL_MS = 23 * 60 * 60 * 1000; // 23 saat
+  const INTERVAL_MS = 22 * 60 * 60 * 1000;
   console.log('🔑 Shopify token yenileme sistemi başlatılıyor...');
-  console.log(`⏰ shopify-token-refresh zamanlandı: her 23 saatte bir`);
+  console.log(`⏰ shopify-token-refresh zamanlandı: her 22 saatte bir`);
 
   const runRefresh = async () => {
     try {
@@ -496,7 +496,7 @@ function scheduleShopifyTokenRefresh(): void {
     }
   };
 
-  // İlk çalıştırma — sunucu başlangıcından 23 saat sonra
+  // İlk çalıştırma — sunucu başlangıcından 22 saat sonra (index.ts'teki startShopifyTokenAutoRefresh ilk token'ı alır)
   const timer = setTimeout(async () => {
     await runRefresh();
     const interval = setInterval(runRefresh, INTERVAL_MS);

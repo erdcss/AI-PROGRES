@@ -114,12 +114,24 @@ export async function tryGoogleCache(url: string): Promise<any> {
     });
 
     if (response.data && response.data.length > 5000) {
-      console.log('✅ Google Cache successful!');
-      return {
-        success: true,
-        html: response.data,
-        source: 'google-cache'
-      };
+      const html = String(response.data);
+      const isGoogleWrapper =
+        html.includes('Google Search') ||
+        (html.includes('window.google') && !html.includes('cdn.dsmcdn.com'));
+      const isProductPage =
+        html.includes('cdn.dsmcdn.com') ||
+        html.includes('application/ld+json') ||
+        html.includes('__PRODUCT_DETAIL_APP_INITIAL_STATE__') ||
+        html.includes('__NEXT_DATA__');
+      if (!isGoogleWrapper && isProductPage) {
+        console.log('✅ Google Cache successful!');
+        return {
+          success: true,
+          html,
+          source: 'google-cache',
+        };
+      }
+      console.log('❌ Google Cache returned non-product page');
     }
   } catch (error) {
     console.log(`❌ Google Cache failed: ${error.message}`);

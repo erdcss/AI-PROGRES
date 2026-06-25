@@ -16,7 +16,19 @@ export interface TrendyolApiProduct {
   images: string[];
   description: string;
   category: string;
+  variants?: any[];
 }
+
+const API_HEADERS = (productId: string, url: string) => ({
+  'User-Agent':
+    'Mozilla/5.0 (iPhone; CPU iPhone OS 17_0 like Mac OS X) AppleWebKit/605.1.15 (KHTML, like Gecko) Mobile/15E148 Trendyol/4.2.1',
+  Accept: 'application/json',
+  'Accept-Language': 'tr-TR,tr;q=0.9',
+  'X-Requested-With': 'XMLHttpRequest',
+  'X-Device-Type': 'mobile',
+  Referer: `https://www.trendyol.com/`,
+  Origin: 'https://www.trendyol.com',
+});
 
 function normalizeApiPrice(raw: unknown): number {
   if (typeof raw === 'number' && raw > 0) {
@@ -86,7 +98,11 @@ function parseProductPayload(data: any, url: string): TrendyolApiProduct | null 
   );
 
   const images = extractImages(root);
-  if (original <= 0 && images.length === 0) return null;
+
+  // Fiyat endpoint'i sadece fiyat dönebilir
+  if (original <= 0 && images.length === 0 && !root.name && !root.title) {
+    return null;
+  }
 
   return {
     title,
@@ -99,14 +115,39 @@ function parseProductPayload(data: any, url: string): TrendyolApiProduct | null 
     images,
     description: String(root.description || root.content || '').trim(),
     category: String(root.category?.name || root.categoryName || root.category || '').trim(),
+    variants: root.variants || root.allVariants || undefined,
+  };
+}
+
+function parsePriceOnlyPayload(data: any, url: string, base: TrendyolApiProduct): TrendyolApiProduct | null {
+  const root = data?.result || data;
+  const original = normalizeApiPrice(
+    root?.discountedPrice?.value ??
+      root?.sellingPrice?.value ??
+      root?.originalPrice?.value ??
+      root?.price ??
+      root
+  );
+  if (original <= 0) return null;
+  return {
+    ...base,
+    price: {
+      original,
+      withProfit: Math.round(original * 1.1 * 100) / 100,
+      currency: 'TRY',
+    },
   };
 }
 
 const API_ENDPOINTS = (productId: string) => [
+  `https://apigw.trendyol.com/discovery-web-productgw-service/api/productDetail/${productId}`,
+  `https://apigw.trendyol.com/discovery-web-productdetailgw-service/api/productDetail/${productId}`,
   `https://public-mdc.trendyol.com/discovery-web-productdetailgw-service/api/productDetail/${productId}`,
+  `https://public-mdc.trendyol.com/discovery-web-productgw-service/api/productDetail/${productId}`,
+  `https://mdc.trendyol.com/discovery-web-productdetailgw-service/api/productDetail/${productId}`,
   `https://public.trendyol.com/discovery-web-productgw-service/api/productDetail/${productId}`,
   `https://api.trendyol.com/webmobileapi/v1/product/${productId}`,
-  `https://cdn.dsmcdn.com/products/${productId}/product.json`,
+  `https://mobile-api.trendyol.com/api/v1/product/${productId}`,
   `https://public.trendyol.com/discovery-web-productgw-service/api/price/${productId}`,
 ];
 
@@ -114,17 +155,18 @@ export async function fetchTrendyolProductByUrl(url: string): Promise<TrendyolAp
   const productId = extractTrendyolProductId(url);
   if (!productId) return null;
 
+  const slugTitle = titleFromTrendyolUrl(url);
+  const slugBrand = brandFromTrendyolUrl(url);
+  let bestPartial: TrendyolApiProduct | null = null;
+
   const endpoints = API_ENDPOINTS(productId);
+  const headers = API_HEADERS(productId, url);
+
   const results = await Promise.allSettled(
     endpoints.map((endpoint) =>
       axios.get(endpoint, {
-        timeout: 8000,
-        headers: {
-          'User-Agent': 'TrendyolMobiOS/4.2.1 (iPhone; iOS 17.0; tr_TR)',
-          Accept: 'application/json',
-          'Accept-Language': 'tr-TR,tr;q=0.9',
-          'X-Requested-With': 'XMLHttpRequest',
-        },
+        timeout: 10000,
+        headers,
         validateStatus: (s) => s < 500,
       })
     )
@@ -132,8 +174,25 @@ export async function fetchTrendyolProductByUrl(url: string): Promise<TrendyolAp
 
   for (const result of results) {
     if (result.status !== 'fulfilled') continue;
+    const status = result.value.status;
+    if (status === 403 || status === 429 || status >= 500) continue;
+
     const parsed = parseProductPayload(result.value.data, url);
-    if (parsed) return parsed;
+    if (parsed && parsed.price.original > 0 && parsed.images.length > 0) {
+      return parsed;
+    }
+    if (parsed && (!bestPartial || parsed.price.original > bestPartial.price.original)) {
+      bestPartial = parsed;
+    }
+
+    if (slugTitle && bestPartial && bestPartial.price.original <= 0) {
+      const priceOnly = parsePriceOnlyPayload(result.value.data, url, bestPartial);
+      if (priceOnly) bestPartial = priceOnly;
+    }
+  }
+
+  if (bestPartial && (bestPartial.price.original > 0 || bestPartial.images.length > 0)) {
+    return bestPartial;
   }
 
   return null;

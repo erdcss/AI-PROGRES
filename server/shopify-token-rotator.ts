@@ -1,45 +1,43 @@
 /**
  * Shopify Token Auto-Rotator
  *
- * Shopify shpat tokenlerini otomatik yeniler.
- * İki yöntem:
- *   1. GraphQL tokenRotate mutasyonu (Partner Dashboard'da etkinleştirilmişse)
- *   2. SHOPIFY_API_KEY + SHOPIFY_APP_SHARED_SECRET ile Offline Access Token isteği
- *
- * Her 23 saatte bir çalışır; 401 alındığında da tetiklenir.
+ * Shopify access token'ı otomatik yeniler (24 saat geçerlilik → 22 saatte bir yenile).
+ * Öncelik sırası:
+ *   1. client_credentials (client_id + client_secret — Postman ile aynı akış)
+ *   2. GraphQL tokenRotate (mevcut token varsa)
+ *   3. ENV yedek token doğrulama
  */
 
-import { getShopifyConfig, saveDirectAccessToken } from './shopify-credentials';
+import {
+  getShopifyClientCredentials,
+  getShopifyConfig,
+  normalizeShopDomain,
+  saveDirectAccessToken,
+} from './shopify-credentials';
 
-const TOKEN_LIFETIME_MS = 24 * 60 * 60 * 1000; // Shopify 24 saat verir
-const REFRESH_BEFORE_MS  = 60 * 60 * 1000;      // Süresi dolmadan 1 saat önce yenile
-const REFRESH_INTERVAL_MS = 12 * 60 * 60 * 1000; // Her 12 saatte bir yenile
+const TOKEN_LIFETIME_MS = 24 * 60 * 60 * 1000;
+const REFRESH_INTERVAL_MS = 22 * 60 * 60 * 1000; // 22 saat (24 saatlik token süresinden önce)
 
-let lastRefreshTime = 0;    // Unix timestamp (ms) — en son başarılı yenileme
-let isRefreshing = false;   // Paralel istekleri engelle
+let lastRefreshTime = 0;
+let isRefreshing = false;
 let autoRefreshTimer: NodeJS.Timeout | null = null;
 
 // ─────────────────────────────────────────────────────────────────────────────
 // PUBLIC API
 // ─────────────────────────────────────────────────────────────────────────────
 
-/**
- * Token süresi dolmak üzereyse veya 401 alındıysa yeniler.
- * Çağrıyı BEKLEMEZ — arka planda çalışır.
- */
 export function autoRefreshIfNeeded(force = false): void {
   const now = Date.now();
-  const needsRefresh = force || (now - lastRefreshTime >= REFRESH_INTERVAL_MS);
+  const needsRefresh = force || lastRefreshTime === 0 || now - lastRefreshTime >= REFRESH_INTERVAL_MS;
   if (!needsRefresh || isRefreshing) return;
-  rotateShopifyToken().catch(err =>
+  rotateShopifyToken().catch((err) =>
     console.error('❌ SHOPIFY TOKEN: Auto-refresh failed:', err.message)
   );
 }
 
 /**
- * 12 saatte bir otomatik token yenileme döngüsü başlatır.
- * Server başlangıcında bir kez çağrılmalı.
- * Bir önceki yenileme tamamlanmadan yeni döngü başlamaz (recursive setTimeout).
+ * 22 saatte bir otomatik token yenileme. Sunucu başlangıcında bir kez çağrılmalı.
+ * İlk çalışma: client credentials varsa hemen token alır.
  */
 export function startShopifyTokenAutoRefresh(): void {
   if (autoRefreshTimer) {
@@ -47,10 +45,11 @@ export function startShopifyTokenAutoRefresh(): void {
     autoRefreshTimer = null;
   }
 
-  console.log(`🔑 SHOPIFY TOKEN: Otomatik yenileme başlatıldı (her ${REFRESH_INTERVAL_MS / 3600000} saatte bir)`);
+  const hours = REFRESH_INTERVAL_MS / 3600000;
+  console.log(`🔑 SHOPIFY TOKEN: Otomatik yenileme başlatıldı (her ${hours} saatte bir)`);
 
   const runCycle = async () => {
-    console.log('🔄 SHOPIFY TOKEN: 12 saatlik yenileme döngüsü başlıyor...');
+    console.log('🔄 SHOPIFY TOKEN: Yenileme döngüsü başlıyor...');
     const result = await rotateShopifyToken();
     if (result.success) {
       console.log(`✅ SHOPIFY TOKEN: Yenilendi (yöntem: ${result.method})`);
@@ -58,17 +57,20 @@ export function startShopifyTokenAutoRefresh(): void {
       console.warn(`⚠️ SHOPIFY TOKEN: Yenileme başarısız — ${result.error}`);
       console.warn('⚠️ SHOPIFY TOKEN: Mevcut token kullanılmaya devam edecek');
     }
-    // Yenileme tamamlandıktan sonra bir sonraki döngüyü planla
     autoRefreshTimer = setTimeout(runCycle, REFRESH_INTERVAL_MS);
   };
 
-  // İlk çalışma: 30 saniye sonra (server tam ayağa kalksın)
-  autoRefreshTimer = setTimeout(runCycle, 30 * 1000);
+  const creds = getShopifyClientCredentials();
+  if (creds) {
+    console.log(`🔑 SHOPIFY TOKEN: Client credentials bulundu (${creds.shopDomain}) — ilk token alınıyor...`);
+    setTimeout(runCycle, 5 * 1000);
+  } else {
+    autoRefreshTimer = setTimeout(runCycle, 30 * 1000);
+  }
 }
 
 /**
  * Token'ı hemen yenile.
- * Önce GraphQL tokenRotate → başarısız olursa SHOPIFY_APP_SHARED_SECRET yöntemi.
  */
 export async function rotateShopifyToken(): Promise<{
   success: boolean;
@@ -84,45 +86,49 @@ export async function rotateShopifyToken(): Promise<{
   console.log('🔄 SHOPIFY TOKEN ROTATOR: Yenileme başlatılıyor...');
 
   try {
+    const creds = getShopifyClientCredentials();
     const config = await getShopifyConfig();
-    if (!config) {
-      return { success: false, error: 'Shopify yapılandırması bulunamadı' };
+    const shopDomain =
+      config?.shopDomain || creds?.shopDomain || normalizeShopDomain('');
+
+    if (!shopDomain) {
+      return { success: false, error: 'Shopify mağaza domain bulunamadı (SHOPIFY_SHOP_DOMAIN)' };
     }
 
-    // ── Yöntem 1: GraphQL tokenRotate mutasyonu ─────────────────────────────
-    const gql = await tryGraphQLRotation(config.shopDomain, config.accessToken);
-    if (gql.success && gql.newToken) {
-      await saveDirectAccessToken(config.shopDomain, gql.newToken);
-      lastRefreshTime = Date.now();
-      console.log('✅ SHOPIFY TOKEN: GraphQL tokenRotate ile yenilendi');
-      return { success: true, newToken: gql.newToken, method: 'graphql-tokenRotate' };
+    // ── Yöntem 1: client_credentials (Postman akışı) ─────────────────────────
+    const clientCred = await tryClientCredentialsExchange(shopDomain);
+    if (clientCred.success && clientCred.newToken) {
+      await persistToken(shopDomain, clientCred.newToken);
+      console.log('✅ SHOPIFY TOKEN: client_credentials ile alındı');
+      return { success: true, newToken: clientCred.newToken, method: 'client_credentials' };
     }
-    console.log(`⚠️ SHOPIFY TOKEN: GraphQL yöntemi başarısız (${gql.error}), kimlik bilgileri deneniyor...`);
-
-    // ── Yöntem 2: API Key + Shared Secret ile Offline Token ──────────────────
-    const cred = await trySharedSecretExchange(config.shopDomain);
-    if (cred.success && cred.newToken) {
-      await saveDirectAccessToken(config.shopDomain, cred.newToken);
-      lastRefreshTime = Date.now();
-      console.log('✅ SHOPIFY TOKEN: Shared Secret yöntemi ile yenilendi');
-      return { success: true, newToken: cred.newToken, method: 'shared-secret-exchange' };
+    if (creds) {
+      console.log(`⚠️ SHOPIFY TOKEN: client_credentials başarısız (${clientCred.error})`);
     }
-    console.log(`⚠️ SHOPIFY TOKEN: Shared Secret yöntemi de başarısız (${cred.error})`);
 
-    // ── Yöntem 3: ENV yedek token doğrulama ──────────────────────────────────
-    const fallback = await tryEnvFallbackToken(config.shopDomain);
+    // ── Yöntem 2: GraphQL tokenRotate ────────────────────────────────────────
+    if (config?.accessToken) {
+      const gql = await tryGraphQLRotation(shopDomain, config.accessToken);
+      if (gql.success && gql.newToken) {
+        await persistToken(shopDomain, gql.newToken);
+        console.log('✅ SHOPIFY TOKEN: GraphQL tokenRotate ile yenilendi');
+        return { success: true, newToken: gql.newToken, method: 'graphql-tokenRotate' };
+      }
+      console.log(`⚠️ SHOPIFY TOKEN: GraphQL yöntemi başarısız (${gql.error})`);
+    }
+
+    // ── Yöntem 3: ENV yedek token ──────────────────────────────────────────
+    const fallback = await tryEnvFallbackToken(shopDomain);
     if (fallback.success && fallback.newToken) {
-      await saveDirectAccessToken(config.shopDomain, fallback.newToken);
-      lastRefreshTime = Date.now();
+      await persistToken(shopDomain, fallback.newToken);
       console.log('✅ SHOPIFY TOKEN: ENV yedek token aktif edildi');
       return { success: true, newToken: fallback.newToken, method: 'env-fallback' };
     }
 
     return {
       success: false,
-      error: `Tüm yöntemler başarısız. GraphQL: ${gql.error} | SharedSecret: ${cred.error} | EnvFallback: ${fallback.error}`
+      error: `Tüm yöntemler başarısız. ClientCredentials: ${clientCred.error} | EnvFallback: ${fallback.error}`,
     };
-
   } catch (err: any) {
     console.error('❌ SHOPIFY TOKEN ROTATOR HATA:', err.message);
     return { success: false, error: err.message };
@@ -136,21 +142,90 @@ export function getTokenStatus(): {
   nextRefreshTime: number;
   isRefreshing: boolean;
   msUntilRefresh: number;
+  refreshIntervalHours: number;
+  hasClientCredentials: boolean;
 } {
-  const next = lastRefreshTime + REFRESH_INTERVAL_MS;
+  const next = lastRefreshTime > 0 ? lastRefreshTime + REFRESH_INTERVAL_MS : 0;
   return {
     lastRefreshTime,
     nextRefreshTime: next,
     isRefreshing,
-    msUntilRefresh: Math.max(0, next - Date.now())
+    msUntilRefresh: next > 0 ? Math.max(0, next - Date.now()) : 0,
+    refreshIntervalHours: REFRESH_INTERVAL_MS / 3600000,
+    hasClientCredentials: !!getShopifyClientCredentials(),
   };
 }
 
 // ─────────────────────────────────────────────────────────────────────────────
-// PRIVATE – token yenileme yöntemleri
+// PRIVATE
 // ─────────────────────────────────────────────────────────────────────────────
 
-/** Shopify GraphQL tokenRotate mutasyonu (Partner Dashboard'da etkinleştirme gerekir) */
+async function persistToken(shopDomain: string, accessToken: string): Promise<void> {
+  process.env.SHOPIFY_ACCESS_TOKEN = accessToken;
+  process.env.SHOPIFY_ADMIN_ACCESS_TOKEN = accessToken;
+  lastRefreshTime = Date.now();
+  try {
+    await saveDirectAccessToken(shopDomain, accessToken);
+  } catch (err: any) {
+    console.warn(`⚠️ SHOPIFY TOKEN: DB kaydı başarısız (${err.message}) — ENV'de token aktif`);
+  }
+}
+
+/**
+ * POST /admin/oauth/access_token
+ * Body: client_id, client_secret, grant_type=client_credentials
+ */
+async function tryClientCredentialsExchange(
+  shopDomain: string
+): Promise<{ success: boolean; newToken?: string; error?: string }> {
+  const creds = getShopifyClientCredentials();
+  if (!creds) {
+    return {
+      success: false,
+      error: 'SHOPIFY_CLIENT_ID / secret_key (veya SHOPIFY_CLIENT_SECRET) ayarlanmamış',
+    };
+  }
+
+  const domain = normalizeShopDomain(shopDomain || creds.shopDomain);
+  if (!domain.includes('.myshopify.com')) {
+    return {
+      success: false,
+      error: `Geçersiz shop domain: "${domain}" — *.myshopify.com olmalı (örn. rmwtdn-dj.myshopify.com)`,
+    };
+  }
+
+  try {
+    const body = new URLSearchParams({
+      client_id: creds.clientId,
+      client_secret: creds.clientSecret,
+      grant_type: 'client_credentials',
+    });
+
+    const res = await fetch(`https://${domain}/admin/oauth/access_token`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
+      body: body.toString(),
+    });
+
+    const data = (await res.json().catch(() => ({}))) as Record<string, string>;
+
+    if (!res.ok) {
+      return {
+        success: false,
+        error: data.error_description || data.error || `HTTP ${res.status}`,
+      };
+    }
+
+    if (data.access_token) {
+      return { success: true, newToken: data.access_token };
+    }
+
+    return { success: false, error: 'access_token yanıtta dönmedi' };
+  } catch (err: any) {
+    return { success: false, error: err.message };
+  }
+}
+
 async function tryGraphQLRotation(
   shopDomain: string,
   currentToken: string
@@ -160,11 +235,11 @@ async function tryGraphQLRotation(
       method: 'POST',
       headers: {
         'Content-Type': 'application/json',
-        'X-Shopify-Access-Token': currentToken
+        'X-Shopify-Access-Token': currentToken,
       },
       body: JSON.stringify({
-        query: `mutation { tokenRotate { userErrors { field message } shopAccessToken } }`
-      })
+        query: `mutation { tokenRotate { userErrors { field message } shopAccessToken } }`,
+      }),
     });
 
     if (!res.ok) {
@@ -181,7 +256,7 @@ async function tryGraphQLRotation(
     if (result.userErrors?.length > 0) {
       return {
         success: false,
-        error: result.userErrors.map((e: any) => e.message).join(', ')
+        error: result.userErrors.map((e: any) => e.message).join(', '),
       };
     }
 
@@ -195,57 +270,26 @@ async function tryGraphQLRotation(
   }
 }
 
-/**
- * ENV fallback: Mevcut token'ı ENV değişkenlerinden doğrular.
- * SHOPIFY_API_KEY + SHOPIFY_APP_SHARED_SECRET ile ilk token almak için
- * Shopify OAuth akışı gereklidir (tarayıcı yönlendirmesi).
- * Bu yöntem sadece ENV'de kayıtlı geçerli token olup olmadığını kontrol eder.
- */
-async function trySharedSecretExchange(
-  shopDomain: string
-): Promise<{ success: boolean; newToken?: string; error?: string }> {
-  const apiKey    = process.env.SHOPIFY_API_KEY;
-  const apiSecret = process.env.SHOPIFY_APP_SHARED_SECRET;
-
-  if (!apiKey || !apiSecret) {
-    return {
-      success: false,
-      error: 'SHOPIFY_API_KEY veya SHOPIFY_APP_SHARED_SECRET ayarlanmamış'
-    };
-  }
-
-  // Shopify, client_credentials grant desteklemez.
-  // İlk token için OAuth akışı (tarayıcı yönlendirmesi) gereklidir.
-  // Token var ve geçerliyse tokenRotate mutasyonu çalışır.
-  // Bu yöntem sadece ENV'e kaydedilmiş token'ı kontrol eder.
-  return {
-    success: false,
-    error: 'Shopify ilk token için OAuth akışı gerektirir — lütfen arayüzdeki "Shopify\'da Yetkilendir" butonuna tıklayın'
-  };
-}
-
-/**
- * ENV değişkenlerindeki yedek token'ları sırayla test eder.
- * Geçerli olan ilkini döndürür.
- */
 async function tryEnvFallbackToken(
   shopDomain: string
 ): Promise<{ success: boolean; newToken?: string; error?: string }> {
   const candidates = [
     process.env.SHOPIFY_ADMIN_ACCESS_TOKEN,
     process.env.SHOPIFY_ACCESS_TOKEN,
-    process.env.SHOPIFY_APP_SECRET_NEW
-  ].filter(Boolean) as string[];
+    process.env.SHOPIFY_APP_SECRET_NEW,
+  ].filter((t) => t && !t.startsWith('shpss_')) as string[];
 
   for (const token of candidates) {
     try {
       const res = await fetch(`https://${shopDomain}/admin/api/2024-10/shop.json`, {
-        headers: { 'X-Shopify-Access-Token': token }
+        headers: { 'X-Shopify-Access-Token': token },
       });
       if (res.ok) {
         return { success: true, newToken: token };
       }
-    } catch {}
+    } catch {
+      /* next */
+    }
   }
 
   return { success: false, error: 'Hiçbir ENV yedek token geçerli değil' };

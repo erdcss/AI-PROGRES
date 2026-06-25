@@ -16,7 +16,7 @@ import AIEnhancedScraper from "@/pages/ai-enhanced-scraper";
 import PriceMovementTest from "@/pages/price-movement-test";
 // Removed auto-csv page import
 // Removed bulk-csv page import
-import { useState, useEffect, Component, type ReactNode } from "react";
+import { useState, useEffect, useSyncExternalStore, Component, type ReactNode } from "react";
 import { UrlHistory } from "@/components/UrlHistory";
 import { Card, CardContent, CardDescription, CardFooter, CardHeader, CardTitle } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
@@ -48,8 +48,12 @@ import ShopifySystemPage from "@/pages/ShopifySystemPage";
 import { MatrixBackground } from "@/components/MatrixBackground";
 import {
   clearAppSession,
+  getAppSessionServerSnapshot,
+  getAppSessionSnapshot,
   hasValidAppSession,
   saveAppSession,
+  subscribeAppSession,
+  touchAppSession,
   verifyAppPassword,
 } from "@/lib/app-auth";
 
@@ -83,7 +87,6 @@ function LoginScreen({ onLogin }: { onLogin: () => void }) {
     setCaptchaError(false);
     setError(false);
     setSuccess(true);
-    saveAppSession();
     onLogin();
   };
   
@@ -205,6 +208,9 @@ class AppErrorBoundary extends Component<
   state = { error: null as Error | null };
 
   static getDerivedStateFromError(error: Error) {
+    if (import.meta.env.DEV) {
+      console.error("[AppErrorBoundary]", error);
+    }
     return { error };
   }
 
@@ -430,48 +436,60 @@ function Router() {
   );
 }
 
-function App() {
-  const [isLoggedIn, setIsLoggedIn] = useState(() =>
-    typeof window !== 'undefined' && hasValidAppSession()
+function AppShell() {
+  return (
+    <div className="min-h-screen" style={{ position: "relative" }}>
+      <MatrixBackground />
+      <div style={{ position: "relative", zIndex: 1 }}>
+        <AppErrorBoundary>
+          <MobileNavigation />
+          <Router />
+          <TBotAssistant />
+        </AppErrorBoundary>
+      </div>
+    </div>
   );
-  
+}
+
+function App() {
+  const isLoggedIn = useSyncExternalStore(
+    subscribeAppSession,
+    getAppSessionSnapshot,
+    getAppSessionServerSnapshot
+  );
+
   useEffect(() => {
-    const checkInterval = setInterval(() => {
+    const refreshSession = () => touchAppSession();
+
+    const onVisibilityChange = () => {
+      if (document.visibilityState === "visible") {
+        refreshSession();
+      }
+    };
+
+    window.addEventListener("focus", refreshSession);
+    document.addEventListener("visibilitychange", onVisibilityChange);
+
+    const expiryCheck = setInterval(() => {
       if (!hasValidAppSession()) {
-        setIsLoggedIn(false);
         clearAppSession();
       }
-    }, 60000);
-    
-    return () => clearInterval(checkInterval);
+    }, 60_000);
+
+    return () => {
+      window.removeEventListener("focus", refreshSession);
+      document.removeEventListener("visibilitychange", onVisibilityChange);
+      clearInterval(expiryCheck);
+    };
   }, []);
-  
+
   const handleLogin = () => {
-    setIsLoggedIn(true);
     saveAppSession();
   };
-  
-  if (!isLoggedIn) {
-    return (
-      <QueryClientProvider client={queryClient}>
-        <LoginScreen onLogin={handleLogin} />
-        <Toaster />
-      </QueryClientProvider>
-    );
-  }
-  
+
   return (
     <QueryClientProvider client={queryClient}>
-      <div className="min-h-screen" style={{ position: "relative" }}>
-        <MatrixBackground />
-        <div style={{ position: "relative", zIndex: 1 }}>
-          <AppErrorBoundary>
-            <MobileNavigation />
-            <Router />
-            <TBotAssistant />
-          </AppErrorBoundary>
-        </div>
-      </div>
+      {!isLoggedIn ? <LoginScreen onLogin={handleLogin} /> : <AppShell />}
       <Toaster />
     </QueryClientProvider>
   );

@@ -7,12 +7,11 @@ const __filename = fileURLToPath(import.meta.url);
 const __dirname = dirname(__filename);
 import { type Server } from "http";
 // TEMPORARY WORKAROUND: Cannot import viteConfig due to top-level await causing parsing errors
-// import viteConfig from "../vite.config";
-import { nanoid } from "nanoid";
 import react from "@vitejs/plugin-react";
 import themePlugin from "@replit/vite-plugin-shadcn-theme-json";
 import runtimeErrorOverlay from "@replit/vite-plugin-runtime-error-modal";
 
+const isReplit = process.env.REPL_ID !== undefined;
 const viteLogger = createLogger();
 
 // Override error handler to prevent process.exit(1)
@@ -39,7 +38,7 @@ function createInlineViteConfig(): UserConfig {
   return {
     plugins: [
       react(),
-      runtimeErrorOverlay(),
+      ...(isReplit ? [runtimeErrorOverlay()] : []),
       themePlugin(),
       // Cartographer plugin intentionally skipped - it uses top-level await which breaks config parsing
     ],
@@ -50,8 +49,19 @@ function createInlineViteConfig(): UserConfig {
       },
     },
     root: path.resolve(__dirname, "..", "client"),
+    server: {
+      watch: {
+        ignored: [
+          path.resolve(__dirname, "..", "server") + "/**",
+          path.resolve(__dirname, "..", "dist") + "/**",
+          path.resolve(__dirname, "..", "temp") + "/**",
+          path.resolve(__dirname, "..", "exports") + "/**",
+          path.resolve(__dirname, "..", "data") + "/**",
+        ],
+      },
+    },
     build: {
-      outDir: path.resolve(__dirname, "..", "dist/public"),
+      outDir: path.resolve(__dirname, "..", "dist"),
       emptyOutDir: true,
     },
   };
@@ -107,11 +117,7 @@ export async function setupViteForReplit(app: Express, server: Server) {
         "index.html",
       );
 
-      let template = await fs.promises.readFile(clientTemplate, "utf-8");
-      template = template.replace(
-        `src="/src/main.tsx"`,
-        `src="/src/main.tsx?v=${nanoid()}"`,
-      );
+      const template = await fs.promises.readFile(clientTemplate, "utf-8");
       const page = await vite.transformIndexHtml(url, template);
       res.status(200).set({ "Content-Type": "text/html" }).end(page);
     } catch (e) {

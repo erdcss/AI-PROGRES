@@ -179,7 +179,9 @@ export async function scrapeTrendyolHttpFallback(url: string): Promise<HttpScrap
   }
 
   const apiProduct = await fetchTrendyolProductByUrl(url);
-  if (apiProduct) {
+  const apiHasUsableData =
+    apiProduct && (apiProduct.price.original > 0 || apiProduct.images.length > 0);
+  if (apiHasUsableData && apiProduct) {
     return apiProductToResult(apiProduct, 'trendyol_api');
   }
 
@@ -190,8 +192,10 @@ export async function scrapeTrendyolHttpFallback(url: string): Promise<HttpScrap
       headers: {
         'User-Agent':
           'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36',
-        Accept: 'text/html,application/xhtml+xml',
-        'Accept-Language': 'tr-TR,tr;q=0.9',
+        Accept: 'text/html,application/xhtml+xml,application/xml;q=0.9,image/avif,image/webp,*/*;q=0.8',
+        'Accept-Language': 'tr-TR,tr;q=0.9,en;q=0.8',
+        Referer: 'https://www.trendyol.com/',
+        'Cache-Control': 'no-cache',
       },
       validateStatus: (s) => s < 500,
     });

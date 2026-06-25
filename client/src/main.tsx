@@ -1,18 +1,25 @@
-import { createRoot } from "react-dom/client";
+import { createRoot, type Root } from "react-dom/client";
 import App from "./App";
 import "./index.css";
 
-// Önizleme sorunları için dayanıklılık artırımı
-const renderApp = () => {
-  const rootElement = document.getElementById("root");
-  if (rootElement) {
-    createRoot(rootElement).render(<App />);
-  } else {
-    console.error("Root element bulunamadı!");
-    // 100ms sonra tekrar dene
-    setTimeout(renderApp, 100);
-  }
-};
+let appRoot: Root | null = null;
 
-// Uygulama başlatma
+function renderApp() {
+  const rootElement = document.getElementById("root");
+  if (!rootElement) {
+    console.error("Root element bulunamadı!");
+    setTimeout(renderApp, 100);
+    return;
+  }
+
+  if (!appRoot) {
+    appRoot = createRoot(rootElement);
+  }
+
+  appRoot.render(<App />);
+}
+
 renderApp();
+
+// React Fast Refresh @vitejs/plugin-react tarafından yönetilir;
+// manuel hot.accept tüm uygulamayı yeniden mount edip reset hissi veriyordu.
