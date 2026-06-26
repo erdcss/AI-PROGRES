@@ -73,7 +73,7 @@ export async function generateShopifyCSV(
     stockMap?: Record<string, boolean>,
     colorSizeMatrix?: Record<string, string[]>
   } = {},
-  outputPath: string = join(tmpdir(), 'shopify_products.csv')
+  outputPath: string = join(process.cwd(), 'temp', 'shopify-urunler.csv')
 ): Promise<{ csvPath: string; filename: string; totalRows: number }> {
 
   // Fix Turkish price format first (2.549.57 -> 2549.57)
@@ -619,7 +619,7 @@ export async function generateShopifyCSV(
       console.log(`SHOPIFY TEMPLATE FORMAT CSV oluşturuldu: ${outputPath} (${csvRows.length} satır)`);
       
       // Dosyayı ./temp klasörüne de kopyala (download için)
-      const tempPath = join('./temp', 'shopify_products.csv');
+      const tempPath = join(process.cwd(), 'temp', 'shopify-urunler.csv');
       const tempDir = './temp';
       
       // temp klasörünü oluştur
@@ -640,7 +640,7 @@ export async function generateShopifyCSV(
       
       resolve({
         csvPath: tempPath,
-        filename: `shopify_products.csv`,
+        filename: `shopify-urunler.csv`,
         totalRows: csvRows.length
       });
 

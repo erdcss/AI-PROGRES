@@ -13,6 +13,7 @@ import { getSystemStatus, sendStatusToTelegram } from './simple-system-status';
 import { ManualColorOverride, generateColorSelectionData, type ManualColorSelection } from './manual-color-override';
 import { enhancedErrorDetection } from './enhanced-error-detection';
 import { shopifyApiService } from './shopify-api-service';
+import { enrichScrapeResponseWithCsv } from './scrape-csv-builder';
 
 // Dynamic product category determination
 function determineProductCategory(productData: any): string {
@@ -277,19 +278,25 @@ router.post('/api/scrape', async (req, res) => {
     const aiTags = generateAITags(scrapedData);
     const category = determineProductCategory(scrapedData);
 
-    res.json({
-      success: true,
-      title: scrapedData.title,
-      brand: scrapedData.brand,
-      price: scrapedData.price,
-      images: scrapedData.images,
-      features: scrapedData.features,
-      variants: scrapedData.variants,
-      tags: [...scrapedData.tags, ...aiTags], // Enhanced tags
-      category: category,
-      extractionDetails: scrapedData.extractionDetails,
-      extractionTime: new Date().toISOString()
-    });
+    const response = await enrichScrapeResponseWithCsv(
+      {
+        success: true,
+        title: scrapedData.title,
+        brand: scrapedData.brand,
+        price: scrapedData.price,
+        images: scrapedData.images,
+        features: scrapedData.features,
+        variants: scrapedData.variants,
+        tags: [...scrapedData.tags, ...aiTags],
+        category,
+        extractionDetails: scrapedData.extractionDetails,
+        extractionTime: new Date().toISOString(),
+      },
+      url,
+      "/api/scrape",
+    );
+
+    res.json(response);
 
   } catch (error: any) {
     console.error('Scraper hatası:', error);

@@ -1,6 +1,4 @@
 import { Switch, Route } from "wouter";
-import { queryClient } from "./lib/queryClient";
-import { QueryClientProvider } from "@tanstack/react-query";
 import { Toaster } from "@/components/ui/toaster";
 import { useIsMobile } from "@/hooks/use-mobile";
 import ScraperPage from "@/pages/scraper";
@@ -47,10 +45,10 @@ import MemoryDashboard from "@/pages/memory-dashboard";
 import ShopifySystemPage from "@/pages/ShopifySystemPage";
 import { MatrixBackground } from "@/components/MatrixBackground";
 import {
-  clearAppSession,
-  getAppSessionServerSnapshot,
+  ensureAppSessionRestored,
   getAppSessionSnapshot,
-  hasValidAppSession,
+  getInitialLoggedInState,
+  pruneExpiredAppSession,
   saveAppSession,
   subscribeAppSession,
   touchAppSession,
@@ -211,8 +209,17 @@ class AppErrorBoundary extends Component<
     if (import.meta.env.DEV) {
       console.error("[AppErrorBoundary]", error);
     }
-    return { error };
+    // UI'ı kilitleme — hatayı logla, çocukları render etmeye devam et
+    return { error: null };
   }
+
+  componentDidCatch(error: Error) {
+    console.error("[AppErrorBoundary] recovered:", error.message);
+  }
+
+  private resetError = () => {
+    this.setState({ error: null });
+  };
 
   render() {
     if (this.state.error) {
@@ -221,7 +228,10 @@ class AppErrorBoundary extends Component<
           <div className="max-w-lg text-center space-y-4">
             <h1 className="text-xl font-semibold">Sayfa yüklenemedi</h1>
             <p className="text-slate-400 text-sm">{this.state.error.message}</p>
-            <Button onClick={() => window.location.reload()}>Sayfayı Yenile</Button>
+            <div className="flex flex-wrap justify-center gap-3">
+              <Button onClick={this.resetError}>Devam Et</Button>
+              <Button variant="outline" onClick={() => window.location.reload()}>Sayfayı Yenile</Button>
+            </div>
           </div>
         </div>
       );
@@ -455,30 +465,26 @@ function App() {
   const isLoggedIn = useSyncExternalStore(
     subscribeAppSession,
     getAppSessionSnapshot,
-    getAppSessionServerSnapshot
+    getInitialLoggedInState,
   );
 
   useEffect(() => {
-    const refreshSession = () => touchAppSession();
+    ensureAppSessionRestored();
+    touchAppSession();
 
-    const onVisibilityChange = () => {
+    const onVisible = () => {
       if (document.visibilityState === "visible") {
-        refreshSession();
+        touchAppSession();
       }
     };
-
-    window.addEventListener("focus", refreshSession);
-    document.addEventListener("visibilitychange", onVisibilityChange);
+    document.addEventListener("visibilitychange", onVisible);
 
     const expiryCheck = setInterval(() => {
-      if (!hasValidAppSession()) {
-        clearAppSession();
-      }
+      pruneExpiredAppSession();
     }, 60_000);
 
     return () => {
-      window.removeEventListener("focus", refreshSession);
-      document.removeEventListener("visibilitychange", onVisibilityChange);
+      document.removeEventListener("visibilitychange", onVisible);
       clearInterval(expiryCheck);
     };
   }, []);
@@ -488,10 +494,15 @@ function App() {
   };
 
   return (
-    <QueryClientProvider client={queryClient}>
-      {!isLoggedIn ? <LoginScreen onLogin={handleLogin} /> : <AppShell />}
+    <>
+      <AppShell />
+      {!isLoggedIn && (
+        <div className="fixed inset-0 z-[10000]">
+          <LoginScreen onLogin={handleLogin} />
+        </div>
+      )}
       <Toaster />
-    </QueryClientProvider>
+    </>
   );
 }
 

@@ -1,7 +1,9 @@
-/**
- * Trendyol public product APIs — no browser required.
- */
 import axios from 'axios';
+import {
+  normalizeTrendyolKurus,
+  parseTurkishPriceText,
+} from './trendyol-price-utils';
+import { normalizeTrendyolImages } from './trendyol-image-utils';
 import {
   brandFromTrendyolUrl,
   extractTrendyolProductId,
@@ -32,8 +34,7 @@ const API_HEADERS = (productId: string, url: string) => ({
 
 function normalizeApiPrice(raw: unknown): number {
   if (typeof raw === 'number' && raw > 0) {
-    if (raw >= 10000) return Math.round((raw / 100) * 100) / 100;
-    return Math.round(raw * 100) / 100;
+    return normalizeTrendyolKurus(raw, 'api');
   }
   if (raw && typeof raw === 'object') {
     const obj = raw as Record<string, unknown>;
@@ -46,27 +47,28 @@ function normalizeApiPrice(raw: unknown): number {
     if (obj.originalPrice) return normalizeApiPrice(obj.originalPrice);
   }
   if (typeof raw === 'string') {
-    const n = parseFloat(raw.replace(/[^\d.,]/g, '').replace(',', '.'));
-    return Number.isFinite(n) && n > 0 ? n : 0;
+    return parseTurkishPriceText(raw);
   }
   return 0;
 }
 
 function extractImages(data: any): string[] {
-  const urls: string[] = [];
-  const push = (u: unknown) => {
-    if (typeof u === 'string' && u.startsWith('http')) urls.push(u);
-    else if (u && typeof u === 'object') {
-      const o = u as Record<string, string>;
-      if (o.url) urls.push(o.url);
-      else if (o.imageUrl) urls.push(o.imageUrl);
-      else if (o.src) urls.push(o.src);
-    }
-  };
-  for (const img of data?.images || data?.productImages || data?.media?.images || []) {
-    push(img);
+  const combined: unknown[] = [];
+  for (const list of [
+    data?.images,
+    data?.productImages,
+    data?.media?.images,
+    data?.galleryImages,
+  ]) {
+    if (Array.isArray(list)) combined.push(...list);
   }
-  return [...new Set(urls)];
+  if (Array.isArray(data?.variants)) {
+    for (const variant of data.variants) {
+      if (Array.isArray(variant?.images)) combined.push(...variant.images);
+      if (variant?.image) combined.push(variant.image);
+    }
+  }
+  return normalizeTrendyolImages(combined);
 }
 
 function parseProductPayload(data: any, url: string): TrendyolApiProduct | null {

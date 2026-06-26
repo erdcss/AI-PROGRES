@@ -89,14 +89,25 @@ export async function runShopifyConnectionTest(requestId?: string): Promise<Shop
     creds = await resolveShopifyCredentials();
   } catch (err) {
     const msg = err instanceof ShopifyCredentialsError ? err.message : 'Shopify kimlik bilgileri bulunamadı';
+    const hasClientCreds = !!(
+      process.env.SHOPIFY_CLIENT_ID ||
+      process.env.SHOPIFY_client_id ||
+      process.env.secret_key
+    );
     console.warn(`[${rid}] Shopify connection test: no credentials`);
     return {
       success: false,
       connected: false,
-      message: msg,
+      message: hasClientCreds
+        ? `${msg} — client_id/secret tanımlı ama token alınamadı; SHOPIFY_SHOP_DOMAIN (*.myshopify.com) kontrol edin`
+        : msg,
       tokenSource: 'none',
       requestId: rid,
-      error: { hint: 'OAuth veya Admin Token ile bağlantı kurun' },
+      error: {
+        hint: hasClientCreds
+          ? 'SHOPIFY_SHOP_DOMAIN=magaza.myshopify.com ve client secret doğru olmalı'
+          : 'OAuth, Admin Token veya client_id + secret_key tanımlayın',
+      },
     };
   }
 
@@ -114,6 +125,28 @@ export async function runShopifyConnectionTest(requestId?: string): Promise<Shop
     });
 
     if (response.status === 401) {
+      const { rotateShopifyToken } = await import('./shopify-token-rotator');
+      const rotated = await rotateShopifyToken();
+      if (rotated.success && rotated.newToken) {
+        const retry = await axios.get(`https://${shopDomain}/admin/api/2024-01/shop.json`, {
+          headers: {
+            'X-Shopify-Access-Token': rotated.newToken,
+            'Content-Type': 'application/json',
+          },
+          timeout: 15000,
+        });
+        if (retry.status === 200 && retry.data?.shop) {
+          return {
+            success: true,
+            connected: true,
+            message: 'Shopify bağlantısı başarılı (token otomatik yenilendi)',
+            shopDomain,
+            shopName: retry.data.shop.name,
+            tokenSource: 'client_credentials',
+            requestId: rid,
+          };
+        }
+      }
       return {
         success: false,
         connected: false,

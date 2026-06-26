@@ -1,4 +1,4 @@
-import { useState, useEffect } from "react";
+import { useState, useEffect, useCallback, startTransition, useRef, useMemo } from "react";
 import { useForm } from "react-hook-form";
 import { zodResolver } from "@hookform/resolvers/zod";
 import { z } from "zod";
@@ -17,6 +17,25 @@ import { useLocation } from "wouter";
 import { useIsMobile } from "@/hooks/use-mobile";
 import ShopifySettingsDialog from "@/components/ShopifySettingsDialog";
 import MiniBrowser from "@/components/MiniBrowser";
+import { fetchShopifyCsvStatus } from "@/lib/shopify-csv-download";
+import {
+  clearScraperState,
+  loadScraperState,
+  saveScraperState,
+} from "@/lib/scraper-state-persist";
+import { resolvePreviewImageUrl, resolvePreviewImageUrls } from "@/lib/product-image-url";
+import {
+  buildCsvPreviewEntry,
+  fetchScenarioScrapeResult,
+  type ScrapedUrlPayload,
+} from "@/lib/scrape-url-client";
+import {
+  hasRealTrendyolVariants,
+  isPlaceholderColor,
+  isPlaceholderSize,
+  sanitizeTrendyolVariants,
+} from "@shared/trendyol-variant-utils";
+import { formatOriginalPrice, formatSalePrice, normalizeTrendyolDisplayPrice } from "@/utils/price-utils";
 
 
 const scrapeSchema = z.object({
@@ -70,6 +89,12 @@ interface Product {
   success?: boolean;
   extractionMethod?: string;
   csvContent?: string;
+  csvInfo?: {
+    filename: string;
+    downloadUrl: string;
+    ready: boolean;
+    productCount: number;
+  };
   sourceUrl?: string;
   originalUrl?: string;
 }
@@ -99,6 +124,7 @@ function ScraperPage() {
     error?: string;
   } | null>(null);
   const isMobile = useIsMobile();
+  const restoredScraperState = useRef(false);
   
   const singleForm = useForm<ScrapeFormData>({
     resolver: zodResolver(scrapeSchema),
@@ -113,6 +139,48 @@ function ScraperPage() {
       urls: [{ url: "" }]
     },
   });
+
+  useEffect(() => {
+    if (restoredScraperState.current) return;
+    restoredScraperState.current = true;
+
+    const saved = loadScraperState();
+    if (!saved) return;
+
+    if (saved.product) {
+      setProduct(saved.product as Product);
+    }
+    if (Array.isArray(saved.csvPreviews) && saved.csvPreviews.length > 0) {
+      setCsvPreviews(saved.csvPreviews);
+    }
+    if (saved.url) {
+      singleForm.setValue("url", saved.url);
+    }
+    if (saved.scrapingMode) {
+      setScrapingMode(saved.scrapingMode);
+    }
+    if (saved.workflowStep) {
+      setWorkflowStep(saved.workflowStep);
+    }
+  }, [singleForm]);
+
+  useEffect(() => {
+    const timer = window.setTimeout(() => {
+      if (!product && csvPreviews.length === 0 && !workflowStep) {
+        return;
+      }
+
+      saveScraperState({
+        product,
+        csvPreviews,
+        url: singleForm.getValues("url") ?? "",
+        scrapingMode,
+        workflowStep,
+      });
+    }, 600);
+
+    return () => window.clearTimeout(timer);
+  }, [product, csvPreviews, scrapingMode, workflowStep, singleForm]);
 
   const singleScrapeMutation = useMutation({
     onMutate: () => {
@@ -151,205 +219,100 @@ function ScraperPage() {
         return { ...result, originalUrl: data.url };
       }
       
-      // Normal Trendyol/Arçelik URL'leri için scenario-scrape (async job pattern)
-      const startResp = await fetch("/api/scenario-scrape", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ 
-          url: data.url, 
-          mode: 'single', 
-          onlyExtractData: data.onlyExtractData || false
-        }),
-      });
-      if (!startResp.ok) {
-        const errorData = await startResp.json().catch(() => ({}));
-        throw new Error(errorData.message || `HTTP ${startResp.status}`);
-      }
-      const startData = await startResp.json();
-      // If server returned synchronous result (non-async path), use it directly
-      if (!startData.jobId) {
-        return { ...startData, originalUrl: data.url };
-      }
-      // Poll for job completion
-      const { jobId } = startData;
-      const maxWait = 180000; // 3 minutes
-      const pollInterval = 2500;
-      const deadline = Date.now() + maxWait;
-      while (Date.now() < deadline) {
-        await new Promise(r => setTimeout(r, pollInterval));
-        const pollResp = await fetch(`/api/scrape-job/${jobId}`);
-        if (!pollResp.ok) throw new Error(`Polling failed: HTTP ${pollResp.status}`);
-        const pollData = await pollResp.json();
-        if (pollData.status === 'done') {
-          const result = pollData.result;
-          const badTitles = new Set(['Trendyol Ürünü', 'trendyol.com', 'Ürün Yüklenemedi']);
-          const titleOk =
-            result?.title &&
-            result.title.length > 5 &&
-            !badTitles.has(result.title) &&
-            !/online alışveriş|trend yolu/i.test(result.title);
-          const hasUsable =
-            titleOk ||
-            (result?.success !== false &&
-              (result?.csvContent || (result?.images?.length ?? 0) > 0 || (result?.price?.original ?? 0) > 0));
-          if (!hasUsable) {
-            throw new Error(result?.message || result?.error || 'Extraction failed');
-          }
-          return { ...result, success: true, originalUrl: data.url, sourceUrl: data.url };
-        }
-        if (pollData.status === 'error') throw new Error(pollData.error || 'Scraping failed');
-        // status === 'processing' → continue polling
-      }
-      throw new Error('Zaman aşımı — lütfen tekrar deneyin.');
+      // Toplu çekim ile aynı normalize + poll mantığı
+      return fetchScenarioScrapeResult(data.url, data.onlyExtractData ?? true);
     },
-    onSuccess: (data) => {
-      console.log('🎯 Single scrape mutation onSuccess received:', data);
-
-      const INVALID_TITLE_PATTERNS = [/online alışveriş/i, /trend yolu/i, /^trendyol\s*[|–-]/i];
-      const isBadTitle = (title?: string) =>
-        !title ||
-        title === 'trendyol.com' ||
-        title === 'Trendyol Ürünü' ||
-        title.length <= 2 ||
-        INVALID_TITLE_PATTERNS.some((p) => p.test(title));
-
-      const hasTitle = data?.title && !isBadTitle(data.title);
-      const hasImages = Array.isArray(data?.images) && data.images.length > 0;
-      const hasCSVData = data?.csvContent && data.csvContent.length > 50;
-      const hasPrice = data?.price && (
-        typeof data.price === 'number' ||
-        (data.price as any).original > 0 ||
-        (data.price as any).withProfit > 0
-      );
-      const hasUsableData = hasTitle || hasImages || hasCSVData || hasPrice;
-
-      if (!data || data.success === false || !hasUsableData) {
-        const errMsg = data?.message || data?.error || data?.details || 'Ürün verileri çekilemedi';
-        setScrapeError(errMsg);
-        setWorkflowStep(null);
-        toast({
-          title: "⚠️ Ürün Verileri Çekilemedi",
-          description: errMsg,
-          variant: "destructive",
-        });
-        return;
+    onSuccess: async (data: ScrapedUrlPayload | Record<string, unknown>) => {
+      // Shopify CSV yolu farklı payload döner
+      if (!("price" in data) || typeof (data as ScrapedUrlPayload).price?.original !== "number") {
+        const legacy = data as Record<string, unknown>;
+        if (legacy.success === false) {
+          const errMsg = String(legacy.message || legacy.error || "Ürün verileri çekilemedi");
+          setScrapeError(errMsg);
+          setWorkflowStep(null);
+          toast({ title: "⚠️ Ürün Verileri Çekilemedi", description: errMsg, variant: "destructive" });
+          return;
+        }
       }
 
-      setWorkflowStep('Ürün normalize edildi');
+      const scraped = data as ScrapedUrlPayload;
+      console.log("🎯 Single scrape successful (normalized):", {
+        title: scraped.title,
+        imagesCount: scraped.images.length,
+        price: scraped.price,
+      });
+
+      setWorkflowStep("Ürün normalize edildi");
       setScrapeError(null);
-      
-      // Generate minimal CSV if missing (no fake default price)
-      if (!data.csvContent && data.title && hasPrice) {
-        console.log('📋 Frontend: Creating minimal CSV for preview...');
-        const priceValue = (data.price as any)?.original ?? (typeof data.price === 'number' ? data.price : '');
-        data.csvContent = `Handle,Title,Vendor,Price,Image Src,Status
-${data.title.toLowerCase().replace(/[^a-z0-9]/g, '-')},${data.title},${data.brand || ''},${priceValue},${data.images?.[0]?.url || data.images?.[0] || ''},active`;
+
+      let csvInfo = scraped.csvInfo as Product["csvInfo"];
+      try {
+        const csvStatus = await fetchShopifyCsvStatus();
+        if (csvStatus.ready) {
+          csvInfo = {
+            filename: csvStatus.filename || "shopify-urunler.csv",
+            downloadUrl: csvStatus.downloadUrl || "/api/download/shopify-urunler.csv",
+            ready: true,
+            productCount: csvStatus.productCount ?? 0,
+          };
+        } else if (!csvInfo) {
+          csvInfo = {
+            filename: "shopify-urunler.csv",
+            downloadUrl: "/api/download/shopify-urunler.csv",
+            ready: false,
+            productCount: 0,
+          };
+        }
+      } catch (statusError) {
+        console.warn("CSV status doğrulaması başarısız:", statusError);
       }
-      
-      console.log('✅ Single scrape successful, setting product data');
-      console.log('🔍 Raw data received:', {
-        title: data.title,
-        brand: data.brand,
-        price: data.price,
-        imagesCount: data.images?.length,
-        variantsColors: data.variants?.colors?.length,
-        csvContent: !!data.csvContent
-      });
-      
-      // ✅ DEBUG: Log images from API response
-      console.log('📸 FRONTEND: Received images from API:', data.images);
-      console.log('📸 FRONTEND: Images length:', data.images?.length);
-      console.log('📸 FRONTEND: First image:', data.images?.[0]);
-      
-      // Transform the received data to match our Product interface
+
+      const csvReady = csvInfo?.ready === true;
+      const sourceUrl =
+        scraped.sourceUrl || scraped.originalUrl || singleForm.getValues("url");
+
       const transformedProduct: Product = {
-        id: data.id || `product-${Date.now()}`,
-        title: data.title || 'Ürün',
-        brand: data.brand || '',
-        price: data.price || { profitFormatted: 'Fiyat Yok' },
-        description: data.description || '',
-        images: data.images || [],
-        variants: {
-          colors: data.variants?.colors || [],
-          sizes: data.variants?.sizes || [],
-          allVariants: data.variants?.allVariants || [],
-        },
-        features: data.features || [],
-        tags: data.tags || [],
-        category: data.category || '',
+        id: `product-${Date.now()}`,
+        title: scraped.title,
+        brand: scraped.brand || "",
+        price: scraped.price,
+        description: scraped.description || "",
+        images: scraped.images,
+        variants: scraped.variants,
+        features: scraped.features || [],
+        tags: scraped.tags || [],
+        category: scraped.category || "",
         success: true,
-        extractionMethod: data.extractionMethod,
-        csvContent: data.csvContent,
-        sourceUrl: data.sourceUrl || data.originalUrl || data.url || singleForm.getValues('url'),
-        originalUrl: data.originalUrl || data.url,
+        extractionMethod: scraped.extractionMethod,
+        csvContent: scraped.csvContent,
+        csvInfo,
+        sourceUrl,
+        originalUrl: scraped.originalUrl,
       };
-      
-      console.log('📸 FRONTEND: transformedProduct.images:', transformedProduct.images);
-      console.log('📸 FRONTEND: transformedProduct.images.length:', transformedProduct.images?.length);
-      
-      console.log('🔄 Setting transformed product:', {
-        id: transformedProduct.id,
-        title: transformedProduct.title,
-        imagesCount: transformedProduct.images?.length,
-        csvContent: !!transformedProduct.csvContent
-      });
-      
+
       setProduct(transformedProduct);
-      setWorkflowStep('Ürün hazır — Shopify\'a gönderebilirsiniz');
+      setWorkflowStep(
+        csvReady
+          ? "Ürün hazır — Shopify'a gönderebilirsiniz"
+          : "Ürün çekildi ama CSV oluşturulamadı",
+      );
 
       requestAnimationFrame(() => {
-        document.getElementById('product-preview-section')?.scrollIntoView({ behavior: 'smooth', block: 'start' });
+        document
+          .getElementById("product-preview-section")
+          ?.scrollIntoView({ behavior: "smooth", block: "start" });
       });
-      
-      // Her başarılı çekme için CSV preview ekle
-      if (data.csvContent) {
-        console.log('🎯 Single URL CSV Content found, adding to previews:', data.title);
-        
-        // URL'e göre unique ID oluştur
-        const urlHash = data.url?.split('?')[0] || Date.now().toString();
-        const uniqueId = `csv-${urlHash.split('/').pop() || Date.now()}`;
-        
-        const newCSVPreview = {
-          id: uniqueId,
-          productTitle: data.title || 'Ürün',
-          csvContent: data.csvContent,
-          sourceUrl: data.sourceUrl || data.originalUrl || data.url || '',
-          variants: {
-            colors: data.variants?.colors || ['Standart'],
-            sizes: data.variants?.sizes || ['Tek Beden']
-          },
-          images: data.images?.map((img: any) => typeof img === 'string' ? img : img.url) || [],
-          createdAt: new Date().toISOString()
-        };
-        
-        console.log('📋 Adding/Updating Single URL CSV preview:', newCSVPreview.id, newCSVPreview.productTitle);
-        
-        // Aynı ID'li preview varsa güncelle, yoksa ekle
-        setCsvPreviews(prev => {
-          const existingIndex = prev.findIndex(p => p.id === uniqueId);
-          if (existingIndex >= 0) {
-            // Mevcut preview'ı güncelle
-            const updated = [...prev];
-            updated[existingIndex] = newCSVPreview;
-            console.log('♻️ Updated existing CSV preview');
-            return updated;
-          } else {
-            // Yeni preview ekle
-            console.log('➕ Added new CSV preview');
-            return [newCSVPreview, ...prev];
-          }
-        });
-        
-        toast({
-          title: "Başarılı", 
-          description: "Ürün verisi çekildi ve CSV önizleme eklendi"
-        });
-      } else {
-        toast({
-          title: "Başarılı",
-          description: "Ürün verisi çekildi"
-        });
-      }
+
+      const newCSVPreview = buildCsvPreviewEntry(scraped, sourceUrl, "csv");
+      setCsvPreviews((prev) => [newCSVPreview, ...prev]);
+
+      toast({
+        title: csvReady ? "Başarılı" : "Uyarı",
+        description: csvReady
+          ? "Ürün hazır — Shopify'a gönderebilirsiniz"
+          : "Ürün çekildi ama CSV oluşturulamadı",
+        variant: csvReady ? "default" : "destructive",
+      });
     },
     onError: (error: any) => {
       setScrapeError(error.message || 'Bilinmeyen hata');
@@ -766,11 +729,14 @@ ${data.title.toLowerCase().replace(/[^a-z0-9]/g, '-')},${data.title},${data.bran
       }
 
       setWorkflowStep('Shopify\'a gönderiliyor...');
+      const cleanVariants = sanitizeTrendyolVariants(product.variants, {
+        productTitle: product.title,
+      });
       const response = await fetch('/api/shopify/upload-product', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
-          productData: product,
+          productData: { ...product, variants: cleanVariants },
           csvContent: product.csvContent,
           sourceUrl: product.sourceUrl || product.originalUrl || singleForm.getValues('url'),
           productTitle: product.title,
@@ -884,6 +850,8 @@ ${data.title.toLowerCase().replace(/[^a-z0-9]/g, '-')},${data.title},${data.bran
     setAllImages([]);
     setProductFeatures([]);
     setDraggedUrls([]);
+    setWorkflowStep(null);
+    clearScraperState();
     
     // Reset mode to single
     setScrapingMode('single');
@@ -895,7 +863,7 @@ ${data.title.toLowerCase().replace(/[^a-z0-9]/g, '-')},${data.title},${data.bran
   };
 
   // CSV tag uygulama yardımcısı — hem tekil hem toplu yüklemede kullanılır
-  const applyTagsToCSV = (csvContent: string, tags: string[]): string => {
+  const applyTagsToCSV = useCallback((csvContent: string, tags: string[]): string => {
     if (!tags.length) return csvContent;
     const lines = csvContent.split('\n').filter(l => l.trim());
     if (lines.length < 2) return csvContent;
@@ -921,7 +889,7 @@ ${data.title.toLowerCase().replace(/[^a-z0-9]/g, '-')},${data.title},${data.bran
       updated.push(cells.map(c => (c.includes(',') || c.includes('"') || c.includes('\n')) ? `"${c.replace(/"/g, '""')}"` : c).join(','));
     }
     return updated.join('\n');
-  };
+  }, []);
 
   // Tüm CSV'leri Shopify'a yükleme fonksiyonu
   const uploadAllCSVsToShopify = async () => {
@@ -939,9 +907,13 @@ ${data.title.toLowerCase().replace(/[^a-z0-9]/g, '-')},${data.title},${data.bran
     let failCount = 0;
     const failedList: {title: string; error: string}[] = [];
 
+    const pushProgress = (next: NonNullable<typeof uploadProgress>) => {
+      startTransition(() => setUploadProgress(next));
+    };
+
     for (let i = 0; i < csvPreviews.length; i++) {
       const preview = csvPreviews[i];
-      setUploadProgress({ current: i + 1, total, successCount, failCount, currentTitle: preview.productTitle });
+      pushProgress({ current: i + 1, total, successCount, failCount, currentTitle: preview.productTitle });
 
       try {
         const tags = individualTags[preview.id] || [];
@@ -956,7 +928,7 @@ ${data.title.toLowerCase().replace(/[^a-z0-9]/g, '-')},${data.title},${data.bran
         for (let attempt = 1; attempt <= MAX_ATTEMPTS; attempt++) {
           if (attempt > 1) {
             const retryDelay = attempt * 6000; // 12s, 18s
-            setUploadProgress(prev => prev ? { ...prev, currentTitle: `${preview.productTitle} (deneme ${attempt}/${MAX_ATTEMPTS}...)` } : null);
+            pushProgress({ current: i + 1, total, successCount, failCount, currentTitle: `${preview.productTitle} (deneme ${attempt}/${MAX_ATTEMPTS}...)` });
             await new Promise(r => setTimeout(r, retryDelay));
           }
 
@@ -1031,16 +1003,18 @@ ${data.title.toLowerCase().replace(/[^a-z0-9]/g, '-')},${data.title},${data.bran
         }
       }
 
-      setUploadProgress(prev => prev ? { ...prev, successCount, failCount } : null);
+      pushProgress({ current: i + 1, total, successCount, failCount, currentTitle: preview.productTitle });
     }
 
-    setUploadProgress(null);
+    startTransition(() => setUploadProgress(null));
     setFailedUploads(failedList);
-    toast({
-      title: "Toplu Yükleme Tamamlandı",
-      description: `✅ Başarılı: ${successCount}, ❌ Hatalı: ${failCount}`,
-      duration: 8000,
-    });
+    window.setTimeout(() => {
+      toast({
+        title: "Toplu Yükleme Tamamlandı",
+        description: `✅ Başarılı: ${successCount}, ❌ Hatalı: ${failCount}`,
+        duration: 8000,
+      });
+    }, 50);
   };
 
   const processAllUrls = async () => {
@@ -1074,82 +1048,15 @@ ${data.title.toLowerCase().replace(/[^a-z0-9]/g, '-')},${data.title},${data.bran
       try {
         console.log(`📦 [${i + 1}/${draggedUrls.length}] Processing: ${url}`);
 
-        // Start the scrape job (same pattern as singleScrapeMutation)
-        const startResp = await fetch("/api/scenario-scrape", {
-          method: "POST",
-          headers: { "Content-Type": "application/json" },
-          body: JSON.stringify({ url, mode: 'single', onlyExtractData: true }),
-        });
+        const scraped = await fetchScenarioScrapeResult(url, true);
+        const newPreview = buildCsvPreviewEntry(scraped, url, "bulk");
 
-        if (!startResp.ok) {
-          const errData = await startResp.json().catch(() => ({}));
-          throw new Error(errData.message || `HTTP ${startResp.status}`);
-        }
-
-        const startData = await startResp.json();
-        let data: any;
-
-        if (!startData.jobId) {
-          // Synchronous result
-          data = { ...startData, originalUrl: url };
-        } else {
-          // Poll for job completion
-          const { jobId } = startData;
-          const maxWait = 180000;
-          const pollInterval = 2500;
-          const deadline = Date.now() + maxWait;
-          while (Date.now() < deadline) {
-            await new Promise(r => setTimeout(r, pollInterval));
-            const pollResp = await fetch(`/api/scrape-job/${jobId}`);
-            if (!pollResp.ok) throw new Error(`Polling hatası: HTTP ${pollResp.status}`);
-            const pollData = await pollResp.json();
-            if (pollData.status === 'done') {
-              if (pollData.result?.success === false) throw new Error(pollData.result.message || 'Çekim başarısız');
-              data = { ...pollData.result, originalUrl: url };
-              break;
-            }
-            if (pollData.status === 'error') throw new Error(pollData.error || 'Scraping başarısız');
-          }
-          if (!data) throw new Error('Zaman aşımı — lütfen tekrar deneyin.');
-        }
-
-        if (!data || !data.title) {
-          throw new Error('Ürün verisi alınamadı');
-        }
-
-        // If no csvContent returned, generate a minimal one
-        let csvContent = data.csvContent;
-        if (!csvContent && data.title) {
-          const handle = data.title.toLowerCase().replace(/[^a-z0-9]/g, '-').replace(/-+/g, '-');
-          const price = data.price?.original || '';
-          const img = data.images?.[0];
-          const imgUrl = typeof img === 'string' ? img : img?.url || '';
-          csvContent = `Title,URL handle,Description,Vendor,Product category,Type,Tags,Published on online store,Status,SKU,Barcode,Option1 name,Option1 value,Option1 Linked To,Option2 name,Option2 value,Option2 Linked To,Option3 name,Option3 value,Option3 Linked To,Price,Compare-at price,Cost per item,Charge tax,Tax code,Unit price total measure,Unit price total measure unit,Unit price base measure,Unit price base measure unit,Inventory tracker,Inventory quantity,Continue selling when out of stock,Weight value (grams),Weight unit for display,Requires shipping,Fulfillment service,Product image URL,Image position,Image alt text,Variant image URL,Gift card,SEO title,SEO description,Color (product.metafields.shopify.color-pattern),Google Shopping / Google product category,Google Shopping / Gender,Google Shopping / Age group,Google Shopping / Manufacturer part number (MPN),Google Shopping / Ad group name,Google Shopping / Ads labels,Google Shopping / Condition,Google Shopping / Custom product,Google Shopping / Custom label 0,Google Shopping / Custom label 1,Google Shopping / Custom label 2,Google Shopping / Custom label 3,Google Shopping / Custom label 4\n"${data.title}","${handle}",,,"${data.brand || ''}","Kategori","Kategori","","TRUE","active",,,,,,,,,,,,"${price}","","","TRUE","","","","","","shopify","0","CONTINUE","","g","TRUE","manual","${imgUrl}","1","${data.title}","","FALSE","${data.title}","${data.title}","","","","","","","","","","","","","",""`;
-        }
-
-        // Add CSV preview for this URL immediately
-        const urlSlug = url.split('/').pop()?.split('?')[0] || `url-${i}`;
-        const previewId = `bulk-${urlSlug}-${Date.now()}`;
-        const newPreview = {
-          id: previewId,
-          productTitle: data.title || `Ürün ${i + 1}`,
-          csvContent: csvContent,
-          sourceUrl: url,
-          variants: {
-            colors: data.variants?.colors || [],
-            sizes: data.variants?.sizes || [],
-          },
-          images: data.images?.map((img: any) => typeof img === 'string' ? img : img?.url).filter(Boolean) || [],
-          price: data.price?.original || null,
-          createdAt: new Date().toISOString()
-        };
-
-        setCsvPreviews(prev => [newPreview, ...prev]);
+        setCsvPreviews((prev) => [newPreview, ...prev]);
         successCount++;
 
         toast({
           title: `✅ ${i + 1}/${draggedUrls.length} tamamlandı`,
-          description: data.title || url,
+          description: scraped.title || url,
           duration: 3000,
         });
 
@@ -1309,7 +1216,7 @@ ${data.title.toLowerCase().replace(/[^a-z0-9]/g, '-')},${data.title},${data.bran
   };
 
   // CSV indirme fonksiyonu - Manuel etiketleri ekleyerek
-  const handleCSVDownload = (id: string, filename: string) => {
+  const handleCSVDownload = useCallback((id: string, filename: string) => {
     const preview = csvPreviews.find(p => p.id === id);
     if (preview) {
       // Manuel etiketleri CSV'ye ekle
@@ -1376,10 +1283,10 @@ ${data.title.toLowerCase().replace(/[^a-z0-9]/g, '-')},${data.title},${data.bran
       
       downloadCSV(csvToDownload, filename);
     }
-  };
+  }, [csvPreviews, individualTags]);
 
   // CSV Shopify upload fonksiyonu  
-  const handleCSVShopifyUpload = async (id: string, individualTags?: string[]) => {
+  const handleCSVShopifyUpload = useCallback(async (id: string, individualTags?: string[]) => {
     const preview = csvPreviews.find(p => p.id === id);
     if (!preview) return;
 
@@ -1435,7 +1342,7 @@ ${data.title.toLowerCase().replace(/[^a-z0-9]/g, '-')},${data.title},${data.bran
     } finally {
       setUploadingId(null);
     }
-  };
+  }, [csvPreviews, applyTagsToCSV]);
 
   // Shopify'a yükleme fonksiyonu
   const uploadToShopify = async (csvContent: string, productTitle: string) => {
@@ -1481,6 +1388,24 @@ ${data.title.toLowerCase().replace(/[^a-z0-9]/g, '-')},${data.title},${data.bran
       });
     }
   };
+
+  const productPreviewImages = useMemo(
+    () => resolvePreviewImageUrls(product?.images ?? []),
+    [product?.images],
+  );
+
+  const displayPrice = useMemo(
+    () => (product?.price ? normalizeTrendyolDisplayPrice(product.price, 0.15) : null),
+    [product?.price],
+  );
+
+  const displayVariants = useMemo(
+    () =>
+      product
+        ? sanitizeTrendyolVariants(product.variants, { productTitle: product.title })
+        : { colors: [], sizes: [], allVariants: [] },
+    [product?.variants, product?.title],
+  );
 
   return (
     <div className="min-h-screen bg-gradient-to-br from-black via-slate-900 to-cyan-900">
@@ -1940,17 +1865,19 @@ ${data.title.toLowerCase().replace(/[^a-z0-9]/g, '-')},${data.title},${data.bran
                 <div className="grid grid-cols-1 lg:grid-cols-2 gap-8">
                   {/* Sol Taraf - Görseller */}
                   <div className="space-y-4">
-                    {product.images && product.images.length > 0 && (
+                    {productPreviewImages.length > 0 && (
                       <>
                         {/* Ana Büyük Görsel */}
                         <div className="relative aspect-square rounded-lg overflow-hidden border-2 border-cyan-800/40 bg-slate-900/50">
-                          {product.images && product.images.length > 0 && product.images[0] ? (
+                          {productPreviewImages[0] ? (
                             <>
                               <img
-                                src={typeof product.images[0] === 'string' ? product.images[0] : product.images[0].url}
+                                src={productPreviewImages[0]}
                                 alt={product.title}
                                 className="w-full h-full object-cover"
                                 data-testid="img-main-product"
+                                loading="lazy"
+                                referrerPolicy="no-referrer"
                                 onError={(e) => {
                                   e.currentTarget.src = 'https://via.placeholder.com/400?text=Görsel+Yüklenemedi';
                                 }}
@@ -1958,7 +1885,7 @@ ${data.title.toLowerCase().replace(/[^a-z0-9]/g, '-')},${data.title},${data.bran
                               <div className="absolute top-2 right-2 bg-black/60 backdrop-blur-sm px-3 py-1 rounded-full">
                                 <span className="text-white text-sm font-medium flex items-center gap-1">
                                   <Image className="w-4 h-4" />
-                                  {product.images.length} Görsel
+                                  {productPreviewImages.length} Görsel
                                 </span>
                               </div>
                             </>
@@ -1973,13 +1900,11 @@ ${data.title.toLowerCase().replace(/[^a-z0-9]/g, '-')},${data.title},${data.bran
                         </div>
 
                         {/* Tüm Resim Galerisi - Grid Layout */}
-                        {product.images.length > 1 && (
+                        {productPreviewImages.length > 1 && (
                           <div className="space-y-2">
-                            <span className="text-white/70 text-xs">Tüm Görseller ({product.images.length}):</span>
+                            <span className="text-white/70 text-xs">Tüm Görseller ({productPreviewImages.length}):</span>
                             <div className="grid grid-cols-4 gap-2 max-h-96 overflow-y-auto p-1 bg-slate-900/30 rounded-lg border border-cyan-800/20">
-                              {product.images.map((image, index) => {
-                                const imageUrl = typeof image === 'string' ? image : image.url;
-                                return (
+                              {productPreviewImages.map((imageUrl, index) => (
                                   <div
                                     key={index}
                                     className="aspect-square rounded-md overflow-hidden border border-cyan-800/30 hover:border-cyan-500/60 transition-all cursor-pointer bg-slate-900/50 group relative"
@@ -1989,16 +1914,17 @@ ${data.title.toLowerCase().replace(/[^a-z0-9]/g, '-')},${data.title},${data.bran
                                       src={imageUrl}
                                       alt={`${product.title} ${index + 1}`}
                                       className="w-full h-full object-cover group-hover:scale-110 transition-transform duration-300"
+                                      loading="lazy"
+                                      referrerPolicy="no-referrer"
                                       onError={(e) => {
-                                        e.currentTarget.style.display = 'none';
+                                        e.currentTarget.src = 'https://via.placeholder.com/120?text=?';
                                       }}
                                     />
                                     <div className="absolute bottom-1 right-1 bg-black/70 px-1.5 py-0.5 rounded text-white text-xs">
                                       {index + 1}
                                     </div>
                                   </div>
-                                );
-                              })}
+                              ))}
                             </div>
                           </div>
                         )}
@@ -2142,55 +2068,41 @@ ${data.title.toLowerCase().replace(/[^a-z0-9]/g, '-')},${data.title},${data.bran
                     </h2>
                     
                     {/* Fiyatlar - Hem Orijinal Hem Karlı */}
-                    {product.price && (
+                    {displayPrice && displayPrice.original > 0 && (
                       <div className="space-y-2 border-t border-b border-cyan-800/30 py-4">
-                        {typeof product.price === 'object' && (
-                          <>
-                            {product.price.formatted && (
-                              <div className="flex items-center justify-between">
-                                <span className="text-white/70 text-sm">Orijinal Fiyat:</span>
-                                <span className="text-white/50 text-lg line-through" data-testid="text-original-price">
-                                  {product.price.formatted}
-                                </span>
-                              </div>
-                            )}
-                            {product.price.profitFormatted && (
-                              <div className="flex items-center justify-between">
-                                <span className="text-white/70 text-sm">Karlı Fiyat:</span>
-                                <span className="text-yellow-400 text-2xl font-bold" data-testid="text-profit-price">
-                                  {product.price.profitFormatted}
-                                </span>
-                              </div>
-                            )}
-                          </>
-                        )}
-                        {typeof product.price !== 'object' && (
-                          <span className="text-yellow-400 text-2xl font-bold">
-                            {product.price} TL
+                        <div className="flex items-center justify-between">
+                          <span className="text-white/70 text-sm">Orijinal Fiyat:</span>
+                          <span className="text-white/50 text-lg line-through" data-testid="text-original-price">
+                            {formatOriginalPrice(displayPrice)}
                           </span>
-                        )}
+                        </div>
+                        <div className="flex items-center justify-between">
+                          <span className="text-white/70 text-sm">Karlı Fiyat:</span>
+                          <span className="text-yellow-400 text-2xl font-bold" data-testid="text-profit-price">
+                            {formatSalePrice(displayPrice)}
+                          </span>
+                        </div>
                       </div>
                     )}
 
                     {/* Enhanced Variant Display - Color Based Size Details */}
-                    {product.variants && (product.variants.colors?.length > 0 || product.variants.sizes?.length > 0) && (
+                    {hasRealTrendyolVariants(displayVariants) && (
                       <div className="bg-gradient-to-br from-indigo-900/30 via-purple-900/20 to-pink-900/30 rounded-xl border-2 border-indigo-500/30 p-4 space-y-4 shadow-lg">
                         <div className="flex items-center gap-2 border-b border-indigo-500/20 pb-2">
                           <Shirt className="w-5 h-5 text-indigo-400" />
                           <span className="text-indigo-300 font-semibold text-base">Detaylı Varyant Bilgileri</span>
-                          {product.variants.allVariants && (
+                          {displayVariants.allVariants.length > 0 && (
                             <span className="ml-auto bg-indigo-500/20 text-indigo-300 px-2 py-1 rounded-md text-xs font-medium">
-                              {product.variants.allVariants.length} Varyant
+                              {displayVariants.allVariants.length} Varyant
                             </span>
                           )}
                         </div>
                         
                         {/* Renk Bazlı Beden Detayları */}
-                        {product.variants.colors && product.variants.colors.length > 0 && product.variants.allVariants && (
+                        {displayVariants.colors.length > 0 && displayVariants.allVariants.length > 0 && (
                           <div className="space-y-3">
-                            {product.variants.colors.map((color, colorIndex) => {
-                              // Bu renkteki tüm varyantları bul
-                              const colorVariants = product.variants.allVariants?.filter(v => v.color === color) || [];
+                            {displayVariants.colors.map((color, colorIndex) => {
+                              const colorVariants = displayVariants.allVariants.filter(v => v.color === color) || [];
                               const inStockSizes = colorVariants.filter(v => v.inStock).map(v => v.size);
                               const outOfStockSizes = colorVariants.filter(v => !v.inStock).map(v => v.size);
                               const hasAnyStock = inStockSizes.length > 0;
@@ -2266,7 +2178,7 @@ ${data.title.toLowerCase().replace(/[^a-z0-9]/g, '-')},${data.title},${data.bran
                         )}
                         
                         {/* Genel Özet - Tüm Renkler ve Bedenler */}
-                        {product.variants.colors && product.variants.sizes && (
+                        {displayVariants.colors.length > 0 && displayVariants.sizes.length > 0 && (
                           <div className="bg-indigo-900/20 rounded-lg border border-indigo-500/20 p-3 space-y-2">
                             <div className="text-indigo-300 text-xs font-semibold mb-2">📊 Genel Özet</div>
                             
@@ -2274,10 +2186,10 @@ ${data.title.toLowerCase().replace(/[^a-z0-9]/g, '-')},${data.title},${data.bran
                             <div className="flex items-start gap-2">
                               <Palette className="w-3 h-3 text-purple-400 mt-0.5" />
                               <div className="flex-1">
-                                <div className="text-white/60 text-xs mb-1">Renkler ({product.variants.colors.length}):</div>
+                                <div className="text-white/60 text-xs mb-1">Renkler ({displayVariants.colors.length}):</div>
                                 <div className="flex flex-wrap gap-1">
-                                  {product.variants.colors.map((color, idx) => {
-                                    const hasStock = product.variants.allVariants?.some(v => v.color === color && v.inStock);
+                                  {displayVariants.colors.map((color, idx) => {
+                                    const hasStock = displayVariants.allVariants.some(v => v.color === color && v.inStock);
                                     return (
                                       <span 
                                         key={idx}
@@ -2299,10 +2211,10 @@ ${data.title.toLowerCase().replace(/[^a-z0-9]/g, '-')},${data.title},${data.bran
                             <div className="flex items-start gap-2">
                               <Shirt className="w-3 h-3 text-green-400 mt-0.5" />
                               <div className="flex-1">
-                                <div className="text-white/60 text-xs mb-1">Bedenler ({product.variants.sizes.length}):</div>
+                                <div className="text-white/60 text-xs mb-1">Bedenler ({displayVariants.sizes.length}):</div>
                                 <div className="flex flex-wrap gap-1">
-                                  {product.variants.sizes.map((size, idx) => {
-                                    const stockCount = product.variants.allVariants?.filter(v => v.size === size && v.inStock).length || 0;
+                                  {displayVariants.sizes.map((size, idx) => {
+                                    const stockCount = displayVariants.allVariants.filter(v => v.size === size && v.inStock).length || 0;
                                     return (
                                       <span 
                                         key={idx}
@@ -2370,8 +2282,8 @@ ${data.title.toLowerCase().replace(/[^a-z0-9]/g, '-')},${data.title},${data.bran
 
                     {/* Varyant Bilgileri - Kompakt Alan */}
                     {(() => {
-                      const colors = product.variants?.colors?.filter(c => c && c !== 'Standart' && c !== 'Tek Renk') || [];
-                      const sizes = product.variants?.sizes?.filter(s => s && s !== 'Tek Beden') || [];
+                      const colors = displayVariants.colors;
+                      const sizes = displayVariants.sizes;
                       const hasRealVariants = colors.length > 0 || sizes.length > 0;
 
                       if (!hasRealVariants) return null;
@@ -2430,13 +2342,13 @@ ${data.title.toLowerCase().replace(/[^a-z0-9]/g, '-')},${data.title},${data.bran
                     
 
                     {/* Renk ve Beden Özeti (varyant detayı yoksa) */}
-                    {(!product.variants?.allVariants || product.variants.allVariants.length === 0) && (
+                    {displayVariants.allVariants.length === 0 && (
                       <>
-                        {product.variants?.colors && product.variants.colors.length > 0 && (
+                        {displayVariants.colors.length > 0 && (
                           <div>
                             <span className="text-white/70 text-sm">Renk Seçenekleri:</span>
                             <div className="flex flex-wrap gap-2 mt-1">
-                              {product.variants.colors.map((color, index) => (
+                              {displayVariants.colors.map((color, index) => (
                                 <span 
                                   key={index}
                                   className="bg-cyan-900/30 text-cyan-300 px-2 py-1 rounded-md text-xs border border-cyan-800/40"
@@ -2448,11 +2360,11 @@ ${data.title.toLowerCase().replace(/[^a-z0-9]/g, '-')},${data.title},${data.bran
                           </div>
                         )}
                         
-                        {product.variants?.sizes && product.variants.sizes.length > 0 && (
+                        {displayVariants.sizes.length > 0 && (
                           <div>
                             <span className="text-white/70 text-sm">Beden Seçenekleri:</span>
                             <div className="flex flex-wrap gap-2 mt-1">
-                              {product.variants.sizes.map((size, index) => (
+                              {displayVariants.sizes.map((size, index) => (
                                 <span 
                                   key={index}
                                   className="bg-green-900/30 text-green-300 px-2 py-1 rounded-md text-xs border border-green-800/40"
@@ -2655,11 +2567,13 @@ ${data.title.toLowerCase().replace(/[^a-z0-9]/g, '-')},${data.title},${data.bran
                   {allImages.slice(0, 24).map((image, index) => (
                     <div key={index} className="relative group">
                       <img
-                        src={image.url || image}
+                        src={resolvePreviewImageUrl(image.url || image) ?? ""}
                         alt={`Ürün görseli ${index + 1}`}
                         className="w-full h-24 object-cover rounded-lg border border-cyan-800/30 group-hover:border-cyan-600 transition-colors"
+                        loading="lazy"
+                        referrerPolicy="no-referrer"
                         onError={(e) => {
-                          e.currentTarget.style.display = 'none';
+                          e.currentTarget.src = 'https://via.placeholder.com/120?text=?';
                         }}
                       />
                       <div className="absolute inset-0 bg-black/50 opacity-0 group-hover:opacity-100 transition-opacity rounded-lg flex items-center justify-center">
@@ -2888,7 +2802,7 @@ function UrlPreviewCard({ url, index }: { url: string; index: number }) {
   }
 
   const primaryImage = previewData.images?.[0];
-  const imageUrl = typeof primaryImage === 'string' ? primaryImage : primaryImage?.url;
+  const imageUrl = resolvePreviewImageUrl(primaryImage);
   const detectedColor = previewData.detectedColor || previewData.extractedColor || 'Renk Tespit Edilmedi';
   const availableSizes = previewData.variants?.availableSizes || previewData.variants?.sizes || [];
   const outOfStockSizes = previewData.variants?.unavailableSizes || [];

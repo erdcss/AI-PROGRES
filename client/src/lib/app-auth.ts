@@ -1,6 +1,9 @@
 ﻿export const SESSION_KEY = "turmarkt_app_session";
 const LEGACY_SESSION_KEY = "lastLogin";
-const SESSION_DURATION_MS = 30 * 60 * 1000;
+export const SESSION_ACTIVE_KEY = "turmarkt_session_active";
+/** Oturum süresi: 24 saat */
+const SESSION_DURATION_MS = 24 * 60 * 60 * 1000;
+const SESSION_TOUCH_INTERVAL_MS = 5 * 60 * 1000;
 
 type SessionData = {
   createdAt: number;
@@ -8,9 +11,18 @@ type SessionData = {
 };
 
 const listeners = new Set<() => void>();
+let lastNotifiedLoggedIn: boolean | undefined;
+let lastSessionTouchAt = 0;
 
 function notifySessionChange() {
   listeners.forEach((listener) => listener());
+}
+
+function notifyLoginStateIfChanged() {
+  const loggedIn = peekValidAppSession();
+  if (lastNotifiedLoggedIn === loggedIn) return;
+  lastNotifiedLoggedIn = loggedIn;
+  notifySessionChange();
 }
 
 function now() {
@@ -26,18 +38,22 @@ function writeSession(session: SessionData) {
 }
 
 function readSession(): SessionData | null {
-  const raw = localStorage.getItem(SESSION_KEY);
-  if (!raw) return null;
+  try {
+    const raw = localStorage.getItem(SESSION_KEY);
+    if (!raw) return null;
 
-  const parsed = JSON.parse(raw) as SessionData;
-  if (
-    typeof parsed?.expiresAt !== "number" ||
-    !Number.isFinite(parsed.expiresAt)
-  ) {
+    const parsed = JSON.parse(raw) as SessionData;
+    if (
+      typeof parsed?.expiresAt !== "number" ||
+      !Number.isFinite(parsed.expiresAt)
+    ) {
+      return null;
+    }
+
+    return parsed;
+  } catch {
     return null;
   }
-
-  return parsed;
 }
 
 function migrateLegacySession(): SessionData | null {
@@ -52,8 +68,80 @@ function migrateLegacySession(): SessionData | null {
 
   const session: SessionData = { createdAt: lastLoginTime, expiresAt };
   writeSession(session);
+  markSessionActive();
   localStorage.removeItem(LEGACY_SESSION_KEY);
   return session;
+}
+
+function peekSession(): SessionData | null {
+  return readSession();
+}
+
+function isSessionValid(session: SessionData | null): boolean {
+  return session !== null && session.expiresAt > now();
+}
+
+/** İlk render için localStorage + sessionStorage (turmarkt_session_active) okuması */
+export function getInitialLoggedInState(): boolean {
+  return getAppSessionSnapshot();
+}
+
+export function getAppSessionSnapshot(): boolean {
+  return peekValidAppSession();
+}
+
+export function getAppSessionServerSnapshot(): boolean {
+  return getAppSessionSnapshot();
+}
+
+function removeSessionStorage() {
+  localStorage.removeItem(SESSION_KEY);
+  localStorage.removeItem(LEGACY_SESSION_KEY);
+  try {
+    sessionStorage.removeItem(SESSION_ACTIVE_KEY);
+  } catch {
+    // ignore
+  }
+}
+
+function markSessionActive() {
+  try {
+    sessionStorage.setItem(SESSION_ACTIVE_KEY, "1");
+  } catch {
+    // ignore
+  }
+}
+
+function hasActiveSessionFlag(): boolean {
+  try {
+    return sessionStorage.getItem(SESSION_ACTIVE_KEY) === "1";
+  } catch {
+    return false;
+  }
+}
+
+/** Render sırasında güvenle çağrılabilir — yan etkisiz okuma */
+export function peekValidAppSession(): boolean {
+  try {
+    if (isSessionValid(peekSession())) {
+      return true;
+    }
+    return hasActiveSessionFlag();
+  } catch {
+    return hasActiveSessionFlag();
+  }
+}
+
+/** localStorage boşalırsa oturumu geri yazar — yalnızca useEffect içinden çağırın */
+export function ensureAppSessionRestored(): void {
+  if (isSessionValid(peekSession())) return;
+  if (!hasActiveSessionFlag()) return;
+  saveAppSession();
+}
+
+if (typeof window !== "undefined") {
+  migrateLegacySession();
+  lastNotifiedLoggedIn = peekValidAppSession();
 }
 
 export function verifyAppPassword(password: string) {
@@ -67,21 +155,29 @@ export function saveAppSession() {
       createdAt: timestamp,
       expiresAt: timestamp + SESSION_DURATION_MS,
     });
-    notifySessionChange();
+    markSessionActive();
+    lastSessionTouchAt = timestamp;
+    notifyLoginStateIfChanged();
   } catch {
     // localStorage unavailable (private mode, quota, etc.)
   }
 }
 
 export function touchAppSession() {
-  if (!hasValidAppSession()) return;
+  if (!peekValidAppSession()) return;
+
+  const timestamp = now();
+  if (timestamp - lastSessionTouchAt < SESSION_TOUCH_INTERVAL_MS) {
+    return;
+  }
+  lastSessionTouchAt = timestamp;
+
   try {
-    const timestamp = now();
     writeSession({
       createdAt: timestamp,
       expiresAt: timestamp + SESSION_DURATION_MS,
     });
-    notifySessionChange();
+    markSessionActive();
   } catch {
     // ignore
   }
@@ -89,32 +185,32 @@ export function touchAppSession() {
 
 export function clearAppSession() {
   try {
-    localStorage.removeItem(SESSION_KEY);
-    localStorage.removeItem(LEGACY_SESSION_KEY);
-    notifySessionChange();
+    removeSessionStorage();
+    notifyLoginStateIfChanged();
   } catch {
     // ignore
   }
 }
 
-export function hasValidAppSession(): boolean {
-  try {
-    let session = readSession();
-    if (!session) {
-      session = migrateLegacySession();
+/** Süresi dolmuş oturumu temizler; yalnızca zamanlayıcıdan çağrılmalı */
+export function pruneExpiredAppSession(): boolean {
+  const session = peekSession();
+  if (!isSessionValid(session)) {
+    if (session || hasActiveSessionFlag()) {
+      try {
+        removeSessionStorage();
+      } catch {
+        // ignore
+      }
+      notifyLoginStateIfChanged();
     }
-    if (!session) return false;
-
-    if (session.expiresAt <= now()) {
-      clearAppSession();
-      return false;
-    }
-
-    return true;
-  } catch {
-    clearAppSession();
     return false;
   }
+  return true;
+}
+
+export function hasValidAppSession(): boolean {
+  return pruneExpiredAppSession();
 }
 
 export function subscribeAppSession(callback: () => void) {
@@ -122,6 +218,7 @@ export function subscribeAppSession(callback: () => void) {
 
   const onStorage = (event: StorageEvent) => {
     if (event.key === SESSION_KEY || event.key === LEGACY_SESSION_KEY) {
+      lastNotifiedLoggedIn = peekValidAppSession();
       callback();
     }
   };
@@ -132,12 +229,4 @@ export function subscribeAppSession(callback: () => void) {
     listeners.delete(callback);
     window.removeEventListener("storage", onStorage);
   };
-}
-
-export function getAppSessionSnapshot(): boolean {
-  return hasValidAppSession();
-}
-
-export function getAppSessionServerSnapshot(): boolean {
-  return false;
 }

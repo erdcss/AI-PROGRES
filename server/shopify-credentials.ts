@@ -9,7 +9,7 @@ export interface ShopifyConfig {
   apiSecret?: string;
 }
 
-export type ShopifyCredentialSource = 'db' | 'env_admin' | 'env_access' | 'env_legacy';
+export type ShopifyCredentialSource = 'db' | 'env_admin' | 'env_access' | 'env_legacy' | 'client_credentials';
 
 export interface ResolvedShopifyCredentials extends ShopifyConfig {
   source: ShopifyCredentialSource;
@@ -98,8 +98,12 @@ export async function resolveShopifyCredentials(): Promise<ResolvedShopifyCreden
         source: 'db',
       };
     }
-  } catch (err) {
-    console.error('resolveShopifyCredentials DB error:', err);
+  } catch (err: any) {
+    if (err?.code === '42P01') {
+      console.warn('resolveShopifyCredentials: shopify_credentials tablosu yok — ENV/client_credentials kullanılacak');
+    } else {
+      console.error('resolveShopifyCredentials DB error:', err);
+    }
   }
 
   const shopDomain = envShopDomain();
@@ -115,6 +119,33 @@ export async function resolveShopifyCredentials(): Promise<ResolvedShopifyCreden
   }
   if (shopDomain && legacyToken && !isDeprecatedToken(legacyToken)) {
     return { shopDomain, accessToken: legacyToken, source: 'env_legacy' };
+  }
+
+  // client_id + secret ile otomatik token al (Postman client_credentials akışı)
+  const clientCreds = getShopifyClientCredentials();
+  if (clientCreds) {
+    try {
+      const { fetchAccessTokenViaClientCredentials } = await import('./shopify-token-rotator');
+      const accessToken = await fetchAccessTokenViaClientCredentials();
+      if (accessToken) {
+        try {
+          const { invalidateShopifyCredentialCache } = await import('./shopify-api-service');
+          invalidateShopifyCredentialCache();
+        } catch {
+          /* optional */
+        }
+        return {
+          shopDomain: normalizeShopDomain(clientCreds.shopDomain),
+          accessToken,
+          apiKey: clientCreds.clientId,
+          apiSecret: clientCreds.clientSecret,
+          source: 'client_credentials',
+        };
+      }
+      console.warn('Shopify client_credentials token alınamadı');
+    } catch (rotateErr) {
+      console.error('Shopify client_credentials error:', rotateErr);
+    }
   }
 
   throw new ShopifyCredentialsError();

@@ -1,8 +1,3 @@
-import { eq, and, or, ilike, desc, asc, gte, lte, sql } from "drizzle-orm";
-import { db } from "./db";
-import { memorySystem } from "./memory-system";
-import { products, productVariants } from "@shared/schema";
-
 // Legacy storage interface for backward compatibility
 interface IStorage {
   addProduct(productData: any): Promise<any>;
@@ -21,81 +16,88 @@ interface IStorage {
   getMemoryStats(): Promise<any>;
 }
 
-// Enhanced Database Storage with Memory System Integration
-class DatabaseStorage implements IStorage {
-    this.products.set(product.url, product);
-    this.products.set(normalizedUrl, product);
-    
-    this.addToHistory(product.url);
-    return product;
+class SimpleStorage implements IStorage {
+  async addProduct(productData: any): Promise<any> {
+    return {
+      id: Date.now(),
+      url: productData.trendyolUrl || productData.url || "",
+      title: productData.title || "",
+      brand: productData.brand || "",
+      description: productData.description || "",
+      category: productData.category || "Genel",
+      images: productData.images || [],
+      features: productData.features || {},
+      colorOptions: productData.colorOptions || [],
+      sizeOptions: productData.sizeOptions || [],
+      createdAt: new Date(),
+      updatedAt: new Date(),
+    };
   }
 
-  // URL'yi normalize et - query parametrelerini temizle
-  private normalizeUrl(url: string): string {
-    try {
-      // Temel URL'yi al (p-XXXX kısmına kadar)
-      const baseUrlMatch = url.match(/^(https?:\/\/[^\/]+\/[^\/]+\/[^\/]+\/[^\/]+-p-\d+)/);
-      if (baseUrlMatch) {
-        return baseUrlMatch[1];
-      }
-      
-      // Eğer match bulunamazsa, merchantId ve boutiqueId'ye kadar al
-      const parsedUrl = new URL(url);
-      const cleanedUrl = parsedUrl.origin + parsedUrl.pathname;
-      return cleanedUrl;
-    } catch (error) {
-      console.error("URL normalize hatası:", error);
-      return url;
-    }
+  async getProduct(_identifier: string): Promise<any> {
+    return null;
   }
 
-  async getProduct(url: string): Promise<Product | undefined> {
-    // İlk önce orijinal URL'yi dene
-    let product = this.products.get(url);
-    
-    // Bulunamazsa normalize edilmiş URL'yi dene
-    if (!product) {
-      const normalizedUrl = this.normalizeUrl(url);
-      product = this.products.get(normalizedUrl);
-      
-      // Debug
-      console.log(`[DEBUG] Orijinal URL ile ürün bulunamadı. Normalize URL: ${normalizedUrl}`);
-    }
-    
-    return product;
+  async getAllProducts(): Promise<any[]> {
+    return [];
   }
 
-  reset(): void {
-    this.products.clear();
-    this.currentId = 1;
+  async updateProduct(_identifier: string, _updates: any): Promise<any> {
+    return null;
   }
 
-  addToHistory(url: string): void {
-    // URL zaten varsa, onu listeden çıkar
-    this.urlHistory = this.urlHistory.filter(u => u !== url);
-    // URL'yi listenin başına ekle
-    this.urlHistory.unshift(url);
-    // Sadece son 3 URL'yi tut
-    if (this.urlHistory.length > 3) {
-      this.urlHistory = this.urlHistory.slice(0, 3);
-    }
+  async deleteProduct(_identifier: string): Promise<boolean> {
+    return false;
+  }
+
+  async getUrlHistory(): Promise<string[]> {
+    return [];
   }
 
   getHistory(): string[] {
-    return this.urlHistory;
+    return [];
   }
-  
-  async updateProductAttributes(id: number, attributes: Record<string, string>): Promise<void> {
-    // Tüm kayıtlı ürünleri kontrol et
-    for (const [url, product] of this.products.entries()) {
-      if (product.id === id) {
-        // Ürün bulunduğunda özelliklerini güncelle
-        product.attributes = attributes;
-        // Güncellenen ürünü depoya geri yaz
-        this.products.set(url, product);
-      }
-    }
+
+  addToHistory(url: string): void {
+    console.log("URL added to history:", url);
+  }
+
+  async getProductCount(): Promise<number> {
+    return 0;
+  }
+
+  async searchProducts(_query: string): Promise<any[]> {
+    return [];
+  }
+
+  async getProductsByCategory(_category: string): Promise<any[]> {
+    return [];
+  }
+
+  async getProductsByBrand(_brand: string): Promise<any[]> {
+    return [];
+  }
+
+  async getProductsByPriceRange(_minPrice: number, _maxPrice: number): Promise<any[]> {
+    return [];
+  }
+
+  async getRecentProducts(_limit: number = 10): Promise<any[]> {
+    return [];
+  }
+
+  async clearMemory(): Promise<void> {
+    console.log("Memory temizlendi");
+  }
+
+  async getMemoryStats(): Promise<any> {
+    return {
+      totalProducts: 0,
+      memoryUsage: "Simple: 0 products",
+      oldestProduct: null,
+      newestProduct: null,
+    };
   }
 }
 
-export const storage = new MemStorage();
+export const storage = new SimpleStorage();

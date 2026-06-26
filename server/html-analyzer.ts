@@ -4,6 +4,7 @@
 
 import * as cheerio from 'cheerio';
 import fs from 'fs';
+import path from 'path';
 
 export function analyzeProductHTML(html: string, productUrl: string) {
   const $ = cheerio.load(html);
@@ -127,8 +128,10 @@ export function analyzeProductHTML(html: string, productUrl: string) {
     }
   });
 
-  // Save analysis to file for inspection
-  const analysisFile = `html_analysis_${Date.now()}.json`;
+  // Save analysis under temp/ so Vite file watcher does not full-reload the app
+  const tempDir = path.join(process.cwd(), "temp");
+  fs.mkdirSync(tempDir, { recursive: true });
+  const analysisFile = path.join(tempDir, `html_analysis_${Date.now()}.json`);
   fs.writeFileSync(analysisFile, JSON.stringify(analysis, null, 2));
   console.log(`💾 Analysis saved to: ${analysisFile}`);
 

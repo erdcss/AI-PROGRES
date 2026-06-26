@@ -220,7 +220,7 @@ export async function extractFocusedData(url: string): Promise<FocusedProductDat
     }
   }
 
-  const priceWithProfit = Math.round(priceNum * 1.1 * 100) / 100;
+  const priceWithProfit = Math.round(priceNum * 1.15 * 100) / 100;
 
   const priceData = {
     original: priceNum,
@@ -230,102 +230,7 @@ export async function extractFocusedData(url: string): Promise<FocusedProductDat
     profitFormatted: formatTurkishPrice(priceWithProfit)
   };
 
-  console.log(`✓ Fiyat: ${priceData.formatted} → %10 kar: ${priceData.profitFormatted}`);
-      originalPrice = originalPrice / 100;
-    }
-    // 50-9999 arası değerler zaten TL cinsinden kabul edilir
-
-    const currency = product.price.sellingPrice.currency || 'TRY';
-    const profitPrice = Math.round(originalPrice * 1.1 * 100) / 100;
-
-    priceData = {
-      original: originalPrice,
-      currency: currency,
-      formatted: formatTurkishPrice(originalPrice),
-      withProfit: profitPrice,
-      profitFormatted: formatTurkishPrice(profitPrice)
-    };
-    foundPrice = true;
-  }
-
-  // 2. Original price kontrolü
-  if (!foundPrice && product.price?.originalPrice?.value) {
-    let originalPrice = product.price.originalPrice.value;
-    
-    // Aynı mantığı uygula
-    if (originalPrice < 50) {
-      originalPrice = originalPrice * 100;
-    } else if (originalPrice >= 10000) {
-      originalPrice = originalPrice / 100;
-    }
-
-    const currency = product.price.originalPrice.currency || 'TRY';
-    const profitPrice = Math.round(originalPrice * 1.1 * 100) / 100;
-
-    priceData = {
-      original: originalPrice,
-      currency: currency,
-      formatted: formatTurkishPrice(originalPrice),
-      withProfit: profitPrice,
-      profitFormatted: formatTurkishPrice(profitPrice)
-    };
-    foundPrice = true;
-  }
-
-  // 3. Direct price field kontrolü
-  if (!foundPrice && product.price && typeof product.price === 'number') {
-    const originalPrice = product.price;
-    const profitPrice = Math.round(originalPrice * 1.1 * 100) / 100;
-
-    priceData = {
-      original: originalPrice,
-      currency: 'TRY',
-      formatted: formatTurkishPrice(originalPrice),
-      withProfit: profitPrice,
-      profitFormatted: formatTurkishPrice(profitPrice)
-    };
-    foundPrice = true;
-  }
-
-  // 4. HTML'den fiyat regex ile çıkarma
-  if (!foundPrice) {
-    // Birden fazla fiyat formatını dene
-    const pricePatterns = [
-      /"price":\s*(\d+(?:\.\d+)?)/,
-      /"sellingPrice"[^}]*"value":\s*(\d+(?:\.\d+)?)/,
-      /"originalPrice"[^}]*"value":\s*(\d+(?:\.\d+)?)/,
-      /(\d{1,4}(?:\.\d{3})*(?:,\d{2})?)\s*TL/,
-      /TL\s*(\d{1,4}(?:\.\d{3})*(?:,\d{2})?)/
-    ];
-
-    for (const pattern of pricePatterns) {
-      const priceMatch = htmlContent.match(pattern);
-      if (priceMatch) {
-        let originalPrice = parseFloat(priceMatch[1].replace(/\./g, '').replace(',', '.'));
-        
-        // Fiyat düzeltme mantığı
-        if (originalPrice < 50) {
-          originalPrice = originalPrice * 100;
-        } else if (originalPrice >= 10000) {
-          originalPrice = originalPrice / 100;
-        }
-
-        const profitPrice = Math.round(originalPrice * 1.1 * 100) / 100;
-
-        priceData = {
-          original: originalPrice,
-          currency: 'TRY',
-          formatted: formatTurkishPrice(originalPrice),
-          withProfit: profitPrice,
-          profitFormatted: formatTurkishPrice(profitPrice)
-        };
-        foundPrice = true;
-        break;
-      }
-    }
-  }
-
-  console.log(`✓ Fiyat: ${priceData.formatted} → %10 kar: ${priceData.profitFormatted} ${foundPrice ? '(Kaynak bulundu)' : '(Varsayılan değer)'}`);
+  console.log(`✓ Fiyat: ${priceData.formatted} → %15 kar: ${priceData.profitFormatted}`);
 
   // 4. GÖRSELLER - Gelişmiş görsel çıkarma
   const images: string[] = [];
@@ -665,17 +570,41 @@ export async function extractFocusedData(url: string): Promise<FocusedProductDat
       organizedVariants.push(variant);
     });
   } else {
-    // Yoksa stok filtreleme sonuçlarından oluştur
-    for (const color of finalColors.length > 0 ? finalColors : ['Varsayılan']) {
-      for (const size of finalSizes.length > 0 ? finalSizes : ['Tek Beden']) {
+    // ✅ SMART VARIANT GENERATION - preserve authentic data, no fake fallbacks
+    if (finalColors.length > 0 && finalSizes.length > 0) {
+      // Both colors AND sizes exist - create full combinations
+      for (const color of finalColors) {
+        for (const size of finalSizes) {
+          organizedVariants.push({
+            color,
+            size,
+            inStock: true,
+            stockCount: 0
+          });
+        }
+      }
+    } else if (finalColors.length > 0) {
+      // Color-only products (no size options) - preserve colors with empty size
+      for (const color of finalColors) {
         organizedVariants.push({
           color,
+          size: '', // Empty string - no fake "Tek Beden"
+          inStock: true,
+          stockCount: 0
+        });
+      }
+    } else if (finalSizes.length > 0) {
+      // Size-only products (no color options) - preserve sizes with empty color
+      for (const size of finalSizes) {
+        organizedVariants.push({
+          color: '', // Empty string - no fake "Standart"
           size,
           inStock: true,
           stockCount: 0
         });
       }
     }
+    // If neither colors nor sizes found, leave variants empty - don't add fake data
   }
   
   // Alternatif varyant kaynakları kontrol et
@@ -732,6 +661,10 @@ export async function extractFocusedData(url: string): Promise<FocusedProductDat
   if (sizeSet.size === 0) {
     console.log('Varyantlardan beden bulunamadı, HTML taranıyor...');
 
+    // ❌ FAKE SIZE SEARCH DISABLED - No longer searching for hardcoded sizes
+    console.log('🚫 Hardcoded size search disabled to prevent fake variant generation');
+    
+    /* DISABLED FAKE SIZE SEARCH:
     // HTML'de yaygın beden formatlarını ara
     const commonSizes = ['XS', 'S', 'M', 'L', 'XL', 'XXL', 'XXXL'];
     for (let i = 34; i <= 54; i += 2) {
@@ -751,6 +684,7 @@ export async function extractFocusedData(url: string): Promise<FocusedProductDat
         console.log(`✓ HTML'den beden: ${size}`);
       }
     });
+    */
   }
 
   // Debug: Ürün durumunu ve bulunan bedenleri detaylı logla
@@ -867,22 +801,16 @@ export async function extractFocusedData(url: string): Promise<FocusedProductDat
     return a.localeCompare(b);
   });
 
-  // Beden sıralaması burada yapılacak
-  const sizeOrderTemp = ['XS', 'S', 'M', 'L', 'XL', 'XXL', 'XXXL'];
+  // ❌ FAKE SIZE ORDER REMOVED - Simple alphabetical/numeric sorting only
   const sortedSizes = sizeOptions.sort((a, b) => {
-    const aIndex = sizeOrderTemp.indexOf(a);
-    const bIndex = sizeOrderTemp.indexOf(b);
-
-    if (aIndex !== -1 && bIndex !== -1) {
-      return aIndex - bIndex;
-    }
-
+    // Try numeric comparison first
     const aNum = parseInt(a);
     const bNum = parseInt(b);
     if (!isNaN(aNum) && !isNaN(bNum)) {
       return aNum - bNum;
     }
-
+    
+    // Otherwise alphabetical
     return a.localeCompare(b);
   });
 
@@ -1062,7 +990,7 @@ export async function extractFocusedData(url: string): Promise<FocusedProductDat
       }
     });
     
-    await page.waitForTimeout(2000); // Scroll için bekle
+    await new Promise(resolve => setTimeout(resolve, 2000)); // Scroll için bekle
     
     // Gelişmiş Trendyol özellik selectors
     const advancedSelectors = [

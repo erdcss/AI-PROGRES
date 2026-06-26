@@ -4,6 +4,16 @@ import {
   isValidTrendyolProductTitle,
   titleFromTrendyolUrl,
 } from './trendyol-title-utils';
+import {
+  buildTrendyolPriceObject,
+  normalizeTrendyolPriceValue,
+  pickPlausibleTrendyolPrice,
+} from './trendyol-price-utils';
+import {
+  mergeTrendyolImageLists,
+  normalizeTrendyolImages,
+} from './trendyol-image-utils';
+import { sanitizeTrendyolVariants } from '@shared/trendyol-variant-utils';
 
 const PLACEHOLDER_TITLES = new Set([
   'Trendyol Ürünü',
@@ -29,14 +39,7 @@ function needsPrice(price: unknown): boolean {
 }
 
 function normalizeImages(images: unknown): string[] {
-  if (!Array.isArray(images)) return [];
-  return images
-    .map((img) => {
-      if (typeof img === 'string') return img;
-      if (img && typeof img === 'object' && 'url' in img) return String((img as { url: string }).url);
-      return '';
-    })
-    .filter((u) => u.startsWith('http'));
+  return normalizeTrendyolImages(images);
 }
 
 export function hasUsableTrendyolResult(result: any): boolean {
@@ -66,11 +69,13 @@ export async function enrichTrendyolResult(url: string, result: any): Promise<an
 
   const missingPrice = needsPrice(result.price);
   const missingImages = normalizeImages(result.images).length === 0;
+  const wasBlocked = result.blocked === true;
 
-  if (missingPrice || missingImages || titleWasPlaceholder) {
+  if (missingPrice || missingImages || titleWasPlaceholder || wasBlocked) {
     const alreadyFromBrowser =
-      String(result.extractionMethod || '').includes('scenario') ||
-      result._priceSource === 'scenario-scrape';
+      !wasBlocked &&
+      (String(result.extractionMethod || '').includes('scenario') ||
+        result._priceSource === 'scenario-scrape');
 
     if (!alreadyFromBrowser) {
       const { scrapeTrendyolHttpFallback } = await import('./http-scraper-fallback');
@@ -144,6 +149,11 @@ export async function enrichTrendyolResult(url: string, result: any): Promise<an
 
   result.images = normalizeImages(result.images);
 
+  const normalizedOriginal = normalizeTrendyolPriceValue(result.price);
+  if (normalizedOriginal > 0) {
+    result.price = buildTrendyolPriceObject(normalizedOriginal);
+  }
+
   const hasTitle = isValidTrendyolProductTitle(result.title) && !PLACEHOLDER_TITLES.has(String(result.title || ''));
   const hasPrice = !needsPrice(result.price);
   const hasImages = normalizeImages(result.images).length > 0;
@@ -160,6 +170,10 @@ export async function enrichTrendyolResult(url: string, result: any): Promise<an
           : 'Ürün verisi eksik';
   }
 
+  result.variants = sanitizeTrendyolVariants(result.variants, {
+    productTitle: result.title,
+  });
+
   return result;
 }
 
@@ -172,10 +186,22 @@ export function mergeApiWithScrape(apiResult: any, scrapeResult: any): any {
     Array.isArray(scrapeVariants.allVariants) &&
     scrapeVariants.allVariants.length > 0
   ) {
-    merged.variants = scrapeVariants;
+    merged.variants = sanitizeTrendyolVariants(scrapeVariants, {
+      productTitle: merged.title || apiResult.title,
+    });
     merged.extractionMethod = `${apiResult.extractionMethod || 'trendyol-api'}+variants`;
   }
   if (scrapeResult?.features?.length) merged.features = scrapeResult.features;
   if (scrapeResult?.tags?.length) merged.tags = scrapeResult.tags;
+
+  merged.images = mergeTrendyolImageLists(apiResult?.images, scrapeResult?.images);
+
+  const apiPrice = normalizeTrendyolPriceValue(apiResult?.price);
+  const scrapePrice = normalizeTrendyolPriceValue(scrapeResult?.price);
+  const bestPrice = pickPlausibleTrendyolPrice(apiPrice, scrapePrice);
+  if (bestPrice > 0) {
+    merged.price = buildTrendyolPriceObject(bestPrice);
+  }
+
   return merged;
 }

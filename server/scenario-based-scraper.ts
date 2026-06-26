@@ -28,6 +28,8 @@ import { colorFilter } from './color-filter';
 import { ultimatePriceExtract } from './ultimate-price-extractor';
 import { proxyRotator } from './advanced-proxy-rotator';
 import { tryAlternativeSources } from './alternative-data-sources';
+import { normalizeTrendyolKurus } from './trendyol-price-utils';
+import { normalizeTrendyolImages } from './trendyol-image-utils';
 import { bulletProofCheerioLoad, extractBasicDataFromDamagedHtml } from './html-parser-fix';
 import { enhancedAntiBlocking } from './enhanced-anti-blocking';
 import { advancedBypassStrategies } from './advanced-bypass-strategies';
@@ -1558,12 +1560,18 @@ export async function scenarioBasedScrape(url: string): Promise<ScenarioBasedRes
             ? (htmlContent.includes('application/ld+json') || htmlContent.includes('__PRODUCT_DETAIL_APP_INITIAL_STATE__'))
             : false;
           if (!hasRealProductContent) {
-            console.log(`🚫 BLOCKED PAGE DETECTED: No product JSON-LD or state in ${htmlContent?.length || 0}-byte response — skipping Puppeteer (OOM guard)`);
-            throw new Error('Blocked page — no product content, skipping Puppeteer to prevent OOM');
+            console.log(
+              `⚠️ HTTP yanıtında ürün verisi yok (${htmlContent?.length || 0} byte) — Puppeteer denenecek`
+            );
+            hasExtractableSizesInHtml = false;
           }
 
-          // Skip Puppeteer if: single-color product AND HTML already has extractable sizes
-          const needsPuppeteer = (!hasColors && !hasExtractableSizesInHtml) || incompleteSizes || needsPuppeteerForStock;
+          // HTTP engellendiyse veya varyant eksikse Puppeteer kullan
+          const needsPuppeteer =
+            !hasRealProductContent ||
+            (!hasColors && !hasExtractableSizesInHtml) ||
+            incompleteSizes ||
+            needsPuppeteerForStock;
           if (!needsPuppeteer && hasExtractableSizesInHtml && !hasColors) {
             console.log('⚡ SPEED: Sizes found in HTML — skipping Puppeteer (saves ~35s)');
           }
@@ -1676,12 +1684,9 @@ export async function scenarioBasedScrape(url: string): Promise<ScenarioBasedRes
       } catch (directError: any) {
         console.log(`⚠️ Direct scraping failed (${directError?.message || directError}), trying advanced methods...`);
 
-        // 🛡️ OOM GUARD: If this is a blocked-page error, ALL HTTP/Puppeteer methods
-        // will also be blocked by Trendyol. Retrying only wastes RAM. Skip every
-        // anti-blocking strategy and surface a clean monitoring-skip result.
+        // HTTP engeli — Puppeteer hâlâ çalışabilir, retry stratejilerine devam et
         if (directError?.message?.includes('Blocked page')) {
-          console.log('🚫 SYSTEM BLOCK DETECTED: Trendyol is blocking all requests — skipping ALL retry methods to prevent OOM');
-          throw new Error('TRENDYOL_BLOCKED: All requests returning captcha/block page — skipping retries');
+          console.log('⚠️ HTTP block page — Puppeteer ve anti-blocking stratejileri deneniyor...');
         }
         
         // ENHANCED FALLBACK STRATEGY - Multiple methods
@@ -2032,13 +2037,7 @@ export async function scenarioBasedScrape(url: string): Promise<ScenarioBasedRes
       }
       
     } catch (axiosError: any) {
-      // 🛡️ OOM GUARD: Never launch Puppeteer when Trendyol is system-blocking all requests
-      if (axiosError?.message?.includes('TRENDYOL_BLOCKED') || axiosError?.message?.includes('Blocked page')) {
-        console.log('🚫 OOM GUARD (catch2): TRENDYOL_BLOCKED detected — skipping Puppeteer fallback entirely');
-        throw axiosError;
-      }
-
-      // Only use Puppeteer if axios fails with 403/429
+      // Axios başarısız — Puppeteer fallback (HTTP 403 olsa bile Chromium çoğu zaman geçer)
       console.log(`⚠️ Axios failed (${axiosError.message}), trying Puppeteer as fallback...`);
       
       try {
@@ -3256,7 +3255,7 @@ export async function scenarioBasedScrape(url: string): Promise<ScenarioBasedRes
       category,
       description, // Added description
       price,
-      images: filterValidImages(csvCompatibleImages.map(img => img.url)), // CSV uyumlu format - strings only
+      images: filterValidImages(normalizeTrendyolImages(csvCompatibleImages.map(img => img.url))),
       features,
       variants: {
         colors: validatedVariants.colors,
@@ -3793,49 +3792,11 @@ function extractBrand(url: string): string {
   return 'Brand';
 }
 
-// ✅ UNIVERSAL KURUŞ/TL CONVERSION WITH USER EXPECTATIONS
+// ✅ UNIVERSAL KURUŞ/TL CONVERSION
 function smartCurrencyConversion(price: number, context: string = ''): number {
-  console.log(`💰 SMART CONVERSION INPUT: ${price} (${context})`);
-  
-  // USER EXPECTATION: 950 kuruş → 950 TL (not 9.5 TL)
-  // USER EXPECTATION: 24960 kuruş → 24960 TL (not 249.6 TL)
-  
-  // CRITICAL FIX: User wants prices AS-IS, no conversion
-  if (price === 950) {
-    console.log(`🎯 USER EXPECTATION: 950 kuruş → 950 TL (no conversion)`);
-    return 950;
-  }
-  
-  if (price === 24960) {
-    console.log(`🎯 USER EXPECTATION: 24960 kuruş → 24960 TL (no conversion)`);
-    return 24960;
-  }
-  
-  // Genel kuruş patterns için daha akıllı conversion
-  if (price >= 100000) {
-    // Çok büyük değerler (100,000+) muhtemelen kuruş
-    const converted = price / 100;
-    console.log(`🚨 VERY HIGH VALUE CONVERSION: ${price} kuruş → ${converted} TL`);
-    return converted;
-  }
-  
-  if (price >= 10000 && price <= 99999) {
-    // 10,000-99,999 arası: muhtemelen kuruş ama kontrol et
-    const converted = price / 100;
-    console.log(`🔍 HIGH VALUE CHECK: ${price} - converting to ${converted} TL (assuming kuruş)`);
-    return converted;
-  }
-  
-  // 1000-9999 arası değerler için user expectation check
-  if (price >= 1000 && price <= 9999) {
-    // Bu aralıktaki değerleri olduğu gibi TL olarak kabul et
-    console.log(`🎯 KEEPING MEDIUM RANGE AS TL: ${price}`);
-    return price;
-  }
-  
-  console.log(`✅ NO CONVERSION NEEDED: ${price} TL`);
-  // Ondalık hassasiyeti koru
-  return Math.round(price * 100) / 100;
+  const converted = normalizeTrendyolKurus(price, 'api');
+  console.log(`💰 SMART CONVERSION: ${price} → ${converted} TL (${context})`);
+  return converted;
 }
 
 /**

@@ -49,6 +49,7 @@ import { generateComprehensiveShopifyCSV, generateFeatureSummary, type Comprehen
 import shopifyTrendyolMatcher from './shopify-trendyol-matcher';
 import { scrapeMultipleUrls } from './multi-url-scraper';
 import { generateMultiVariantShopifyCSV } from './multi-variant-csv-generator';
+import { emptyScrapeCsvInfo, attachCsvToScrapeResult } from './scrape-csv-builder';
 import { uploadProductToShopify, testShopifyConnection } from './shopify-api-uploader';
 import { uploadMultiUrlProductToShopify } from './multi-url-shopify-uploader';
 import { v4 as uuidv4 } from 'uuid';
@@ -1473,6 +1474,11 @@ setTimeout(check, 1000);
           details: `Girilen: ${rawUrl}, Normalize: ${url}`
         });
       }
+
+      const sendScrapeJson = async (payload: Record<string, unknown>) => {
+        const { enrichScrapeResponseWithCsv } = await import('./scrape-csv-builder');
+        return res.json(await enrichScrapeResponseWithCsv(payload, url));
+      };
       
       // Ürün ID'sini URL'den çıkart
       const productIdMatch = url.match(/p-(\d+)/);
@@ -1496,7 +1502,7 @@ setTimeout(check, 1000);
           const priceWithProfit = defenseResult.price > 0 ? 
             Math.round(defenseResult.price * 1.15 * 100) / 100 : 0;
           
-          return res.json({
+          return sendScrapeJson({
             success: true,
             extractionMethod: defenseResult.method,
             brand: defenseResult.brand,
@@ -1530,7 +1536,7 @@ setTimeout(check, 1000);
             const priceWithProfit = proxyParseResult.price > 0 ? 
               Math.round(proxyParseResult.price * 1.15 * 100) / 100 : 0;
             
-            return res.json({
+            return sendScrapeJson({
               success: true,
               extractionMethod: `proxy-${proxyResult.proxy}`,
               brand: proxyParseResult.brand,
@@ -1564,7 +1570,7 @@ setTimeout(check, 1000);
             const priceWithProfit = emergencyParseResult.price > 0 ? 
               Math.round(emergencyParseResult.price * 1.15 * 100) / 100 : 0;
             
-            return res.json({
+            return sendScrapeJson({
               success: true,
               extractionMethod: 'cloudflare-bypass',
               brand: emergencyParseResult.brand,
@@ -1590,7 +1596,7 @@ setTimeout(check, 1000);
           // Apply 15% profit margin
           const priceWithProfit = Math.round(emergencyResult.price * 1.15 * 100) / 100;
           
-          return res.json({
+          return sendScrapeJson({
             success: true,
             extractionMethod: `emergency-${emergencyResult.method}`,
             brand: emergencyResult.brand,
@@ -1613,7 +1619,7 @@ setTimeout(check, 1000);
           // Apply 15% profit margin
           const priceWithProfit = Math.round(bypassResult.price * 1.15 * 100) / 100;
           
-          return res.json({
+          return sendScrapeJson({
             success: true,
             extractionMethod: `bypass-${bypassResult.method}`,
             brand: bypassResult.brand,
@@ -1636,7 +1642,7 @@ setTimeout(check, 1000);
           // Apply 15% profit margin
           const priceWithProfit = Math.round(fastResult.price * 1.15 * 100) / 100;
           
-          return res.json({
+          return sendScrapeJson({
             success: true,
             extractionMethod: 'simple-fast-scraper',
             brand: fastResult.brand,
@@ -1659,7 +1665,7 @@ setTimeout(check, 1000);
           // Apply 15% profit margin
           const priceWithProfit = Math.round(speedResult.data.price * 1.15 * 100) / 100;
           
-          return res.json({
+          return sendScrapeJson({
             success: true,
             extractionMethod: `speed-optimized-${speedResult.method}`,
             responseTime: speedResult.responseTime,
@@ -1690,7 +1696,7 @@ setTimeout(check, 1000);
           // Apply 15% profit margin
           const priceWithProfit = Math.round(enhancedResult.price * 1.15 * 100) / 100;
           
-          return res.json({
+          return sendScrapeJson({
             success: true,
             extractionMethod: 'enhanced-direct',
             brand: enhancedResult.brand,
@@ -1727,7 +1733,7 @@ setTimeout(check, 1000);
               console.log("🎯 MANUAL: Found target price:", targetPrice);
               const priceWithProfit = Math.round(999.90 * 1.10 * 100) / 100; // 10% profit
               
-              return res.json({
+              return sendScrapeJson({
                 success: true,
                 extractionMethod: 'manual-emergency-price-fix',
                 brand: 'CLIPMAN',
@@ -1799,7 +1805,7 @@ setTimeout(check, 1000);
             
             console.log(`🧹 BRAND SANITIZED: ${sanitizedResult.title} by ${sanitizedResult.brand}`);
             
-            return res.json({
+            return sendScrapeJson({
               success: true,
               extractionMethod: 'javascript-state-extractor',
               confidence: sanitizedResult.confidence,
@@ -1838,7 +1844,7 @@ setTimeout(check, 1000);
             }
           }
           
-          return res.json({
+          return sendScrapeJson({
             success: true,
             extractionMethod: 'scenario-based-scraper',
             scenario: scenarioResult.scenario,
@@ -1864,7 +1870,7 @@ setTimeout(check, 1000);
           // Özelliklerden gerçek varyant verisi oluştur - with clothing check
           const processedVariants = processVariantsFromFeatures(fixedResult.features || [], fixedResult.variants || [], fixedResult.title || '');
           
-          return res.json({
+          return sendScrapeJson({
             success: true,
             extractionMethod: 'fixed-authentic-scraper-fallback',
             brand: fixedResult.brand,
@@ -1893,7 +1899,7 @@ setTimeout(check, 1000);
             const basePrice = boutiqueData.variants[0]?.finalPrice || 0;
             const priceWithProfit = Math.round(basePrice * 1.15 * 100) / 100;
             
-            return res.json({
+            return sendScrapeJson({
               success: true,
               extractionMethod: 'boutique-variant-scraper',
               brand: boutiqueData.brand,
@@ -1931,7 +1937,7 @@ setTimeout(check, 1000);
             // Apply 15% profit margin
             const priceWithProfit = Math.round(hyperResult.price * 1.15 * 100) / 100;
             
-            return res.json({
+            return sendScrapeJson({
               success: true,
               extractionMethod: 'hyper-fast-scraper',
               brand: hyperResult.brand,
@@ -1951,7 +1957,7 @@ setTimeout(check, 1000);
             
             const priceWithProfit = Math.round(lightningResult.price * 1.15 * 100) / 100;
             
-            return res.json({
+            return sendScrapeJson({
               success: true,
               extractionMethod: 'lightning-scraper',
               brand: lightningResult.brand,
@@ -1974,7 +1980,7 @@ setTimeout(check, 1000);
             
             console.log(`🎯 Returning enhanced data: ${enhancedResult.price} TL, ${enhancedResult.images.length} images`);
             
-            return res.json({
+            return sendScrapeJson({
               success: true,
               extractionMethod: 'enhanced-scraper-fixed',
               brand: enhancedResult.brand,
@@ -2090,6 +2096,8 @@ setTimeout(check, 1000);
         
         let result: any = null;
 
+        const { sanitizeTrendyolVariants } = await import('@shared/trendyol-variant-utils');
+
         const convertApiProduct = (apiProduct: any) => ({
           success: true,
           title: apiProduct.title,
@@ -2098,17 +2106,9 @@ setTimeout(check, 1000);
           description: apiProduct.description || '',
           price: apiProduct.price,
           images: apiProduct.images,
-          variants: apiProduct.variants?.length
-            ? {
-                colors: [...new Set(apiProduct.variants.map((v: any) => v.color || v.name).filter(Boolean))],
-                sizes: [...new Set(apiProduct.variants.map((v: any) => v.size).filter(Boolean))],
-                allVariants: apiProduct.variants,
-              }
-            : {
-                colors: ['Standart'],
-                sizes: ['Tek Beden'],
-                allVariants: [{ color: 'Standart', size: 'Tek Beden', inStock: true }],
-              },
+          variants: sanitizeTrendyolVariants(
+            apiProduct.variants?.length ? { allVariants: apiProduct.variants } : undefined,
+          ),
           features: [],
           tags: [],
           extractionMethod: 'trendyol-api',
@@ -2148,20 +2148,18 @@ setTimeout(check, 1000);
             ((scrapeResult?.price?.original > 0) || (scrapeResult?.images?.length > 0));
 
           if (scrapeResult?.blocked) {
-            console.log('🚫 ROUTES: Trendyol block detected — skipping fallbacks');
+            console.log('⚠️ ROUTES: Scenario block flag — enrich/fallback deneniyor');
             if (!result) {
-              scrapeJobs.set(jobId, {
-                status: 'done' as const,
-                startedAt: scrapeJobs.get(jobId)!.startedAt,
-                result: {
-                  success: false,
-                  blocked: true,
-                  statusCode: 503,
-                  message: '🚫 Trendyol şu anda bu sunucudan gelen istekleri engelliyor. Lütfen 2-3 dakika bekleyip tekrar deneyin.',
-                  details: 'Captcha/block page detected',
-                }
-              });
-              return;
+              result = {
+                title: scrapeResult.title,
+                brand: scrapeResult.brand,
+                price: scrapeResult.price,
+                images: scrapeResult.images || [],
+                variants: scrapeResult.variants,
+                success: false,
+                blocked: true,
+                sourceUrl: url,
+              };
             }
           } else if (scrapeResult && scrapeResult.success !== false && scrapeHasValidData) {
             console.log(`⚡ Scenario scrape SUCCESS in ${Date.now() - scrapeStartTime}ms`);
@@ -2338,6 +2336,14 @@ setTimeout(check, 1000);
 
         if (result) {
           result = await enrichTrendyolResult(url, result);
+        } else {
+          result = await enrichTrendyolResult(url, {
+            title: '',
+            brand: '',
+            price: { original: 0, withProfit: 0, currency: 'TRY' },
+            images: [],
+            sourceUrl: url,
+          });
         }
         
         console.log(`⚡ Total extraction time: ${Date.now() - scrapeStartTime}ms`);
@@ -2471,96 +2477,12 @@ setTimeout(check, 1000);
           }
         }
         
-        // ALWAYS generate CSV content regardless of success status - EVEN FOR BLOCKED RESPONSES
-        if (result && (result.title || result.success === false)) {
-          console.log('📋 URGENT: Generating CSV content for preview...');
-          try {
-            // For blocked responses, create basic CSV with available data
-            if (result.success === false) {
-              console.log('⚠️ Creating emergency CSV for blocked response...');
-              const fallbackTitle = resolveProductTitle(url, result.title);
-              const fbHandle = fallbackTitle.toLowerCase().replace(/[^a-z0-9]/g, '-');
-              const fbPrice = result.price?.withProfit || result.price?.original || '';
-              result.csvContent = `Title,URL handle,Description,Vendor,Product category,Type,Tags,Published on online store,Status,SKU,Barcode,Option1 name,Option1 value,Option1 Linked To,Option2 name,Option2 value,Option2 Linked To,Option3 name,Option3 value,Option3 Linked To,Price,Compare-at price,Cost per item,Charge tax,Tax code,Unit price total measure,Unit price total measure unit,Unit price base measure,Unit price base measure unit,Inventory tracker,Inventory quantity,Continue selling when out of stock,Weight value (grams),Weight unit for display,Requires shipping,Fulfillment service,Product image URL,Image position,Image alt text,Variant image URL,Gift card,SEO title,SEO description,Color (product.metafields.shopify.color-pattern),Google Shopping / Google product category,Google Shopping / Gender,Google Shopping / Age group,Google Shopping / Manufacturer part number (MPN),Google Shopping / Ad group name,Google Shopping / Ads labels,Google Shopping / Condition,Google Shopping / Custom product,Google Shopping / Custom label 0,Google Shopping / Custom label 1,Google Shopping / Custom label 2,Google Shopping / Custom label 3,Google Shopping / Custom label 4
-${fallbackTitle},${fbHandle},,,,,,TRUE,draft,,,,,,,,,,,,,,,,,,,,shopify,0,CONTINUE,,g,TRUE,manual,,,,,FALSE,,,,,,,,,,,,,`;
-              result.title = fallbackTitle;
-            } else {
-              // ✅ FIX IMAGE FORMAT - Ensure images are in correct format for CSV generation
-              if (result.images && Array.isArray(result.images)) {
-                // Convert all images to proper format
-                result.images = result.images.map((img: any) => {
-                  if (typeof img === 'string') {
-                    return { url: img, colorName: 'none' };
-                  } else if (img && img.url) {
-                    return { url: img.url, colorName: img.colorName || 'none' };
-                  }
-                  return null;
-                }).filter(Boolean); // Remove null values
-                
-                console.log(`📸 CSV-PREP: Fixed ${result.images.length} images format for CSV generation`);
-              }
-              
-              // Enhanced CSV generation using comprehensive system
-              const { generateMultiVariantShopifyCSV } = await import('./multi-variant-csv-generator');
-              const csvResult = { success: true, csvContent: await generateMultiVariantShopifyCSV({
-                id: `product-${Date.now()}`,
-                title: result.title,
-                brand: result.brand,
-                price: result.price,
-                description: result.description || '',
-                category: result.category || '',
-                images: result.images || [],
-                variants: result.variants || { colors: [], sizes: [], allVariants: [] },
-                features: result.features || [],
-                tags: result.tags || []
-              }) };
-              if (csvResult.success && csvResult.csvContent) {
-                result.csvContent = csvResult.csvContent;
-                console.log('✅ CSV content generated successfully for preview');
-              } else {
-                // Create comprehensive CSV as fallback - try URL/title color extraction
-                console.log('⚠️ Creating comprehensive CSV for preview...');
-                const { extractColorFromUrl, extractColorFromTitle } = await import('./color-recognition');
-                let fallbackColor = result.variants?.colors?.[0];
-                
-                // Skip fake colors
-                const fakeColors = ['Default', 'Varsayılan', 'Standart', '', null, undefined];
-                if (!fallbackColor || fakeColors.includes(fallbackColor)) {
-                  // Try to extract from URL
-                  fallbackColor = extractColorFromUrl(url);
-                  
-                  // Try from title if URL failed
-                  if (!fallbackColor && result.title) {
-                    fallbackColor = extractColorFromTitle(result.title);
-                  }
-                  
-                  // No fake fallback - leave empty if no real color found
-                  console.log(`🎨 Fallback color extracted: ${fallbackColor || 'none (empty)'}`);
-                }
-                
-                const fb2Handle = (result.title || 'product').toLowerCase().replace(/[^a-z0-9]/g, '-');
-                const fb2Price = (result.price?.withProfit || result.price?.original || '').toString();
-                const fb2Img = result.images?.[0]?.url || result.images?.[0] || '';
-                result.csvContent = `Title,URL handle,Description,Vendor,Product category,Type,Tags,Published on online store,Status,SKU,Barcode,Option1 name,Option1 value,Option1 Linked To,Option2 name,Option2 value,Option2 Linked To,Option3 name,Option3 value,Option3 Linked To,Price,Compare-at price,Cost per item,Charge tax,Tax code,Unit price total measure,Unit price total measure unit,Unit price base measure,Unit price base measure unit,Inventory tracker,Inventory quantity,Continue selling when out of stock,Weight value (grams),Weight unit for display,Requires shipping,Fulfillment service,Product image URL,Image position,Image alt text,Variant image URL,Gift card,SEO title,SEO description,Color (product.metafields.shopify.color-pattern),Google Shopping / Google product category,Google Shopping / Gender,Google Shopping / Age group,Google Shopping / Manufacturer part number (MPN),Google Shopping / Ad group name,Google Shopping / Ads labels,Google Shopping / Condition,Google Shopping / Custom product,Google Shopping / Custom label 0,Google Shopping / Custom label 1,Google Shopping / Custom label 2,Google Shopping / Custom label 3,Google Shopping / Custom label 4
-${result.title || 'Product'},${fb2Handle},${result.description || ''},${result.brand || ''},,,${(result.tags || []).join(', ')},TRUE,active,,Renk,${fallbackColor},product.metafields.shopify.color-pattern,,,,,,,${fb2Price},,,,TRUE,,,,,,shopify,0,CONTINUE,,g,TRUE,manual,${fb2Img},1,${result.title || ''},,FALSE,,,,,,,,,,,,,`;
-              }
-            }
-          } catch (csvError) {
-            console.error('❌ CSV generation error:', csvError);
-            const safeTitle = resolveProductTitle(url, result.title);
-            const stHandle = safeTitle.toLowerCase().replace(/[^a-z0-9]/g, '-');
-            const stPrice = (result.price?.withProfit || result.price?.original || '').toString();
-            result.csvContent = `Title,URL handle,Description,Vendor,Product category,Type,Tags,Published on online store,Status,SKU,Barcode,Option1 name,Option1 value,Option1 Linked To,Option2 name,Option2 value,Option2 Linked To,Option3 name,Option3 value,Option3 Linked To,Price,Compare-at price,Cost per item,Charge tax,Tax code,Unit price total measure,Unit price total measure unit,Unit price base measure,Unit price base measure unit,Inventory tracker,Inventory quantity,Continue selling when out of stock,Weight value (grams),Weight unit for display,Requires shipping,Fulfillment service,Product image URL,Image position,Image alt text,Variant image URL,Gift card,SEO title,SEO description,Color (product.metafields.shopify.color-pattern),Google Shopping / Google product category,Google Shopping / Gender,Google Shopping / Age group,Google Shopping / Manufacturer part number (MPN),Google Shopping / Ad group name,Google Shopping / Ads labels,Google Shopping / Condition,Google Shopping / Custom product,Google Shopping / Custom label 0,Google Shopping / Custom label 1,Google Shopping / Custom label 2,Google Shopping / Custom label 3,Google Shopping / Custom label 4\n${safeTitle},${stHandle},,,,,,TRUE,draft,,,,,,,,,,,${stPrice},,,,,,,,shopify,0,CONTINUE,,g,TRUE,manual,,,,,FALSE,,,,,,,,,,,,,`;
-            result.title = safeTitle;
-          }
-        }
-        
-        // Ensure result has the proper structure for frontend
-        if (result && !result.csvContent && result.success) {
-          const fallbackTitle = resolveProductTitle(url, result.title);
-          const ftHandle = fallbackTitle.toLowerCase().replace(/[^a-z0-9]/g, '-');
-          result.csvContent = `Title,URL handle,Description,Vendor,Product category,Type,Tags,Published on online store,Status,SKU,Barcode,Option1 name,Option1 value,Option1 Linked To,Option2 name,Option2 value,Option2 Linked To,Option3 name,Option3 value,Option3 Linked To,Price,Compare-at price,Cost per item,Charge tax,Tax code,Unit price total measure,Unit price total measure unit,Unit price base measure,Unit price base measure unit,Inventory tracker,Inventory quantity,Continue selling when out of stock,Weight value (grams),Weight unit for display,Requires shipping,Fulfillment service,Product image URL,Image position,Image alt text,Variant image URL,Gift card,SEO title,SEO description,Color (product.metafields.shopify.color-pattern),Google Shopping / Google product category,Google Shopping / Gender,Google Shopping / Age group,Google Shopping / Manufacturer part number (MPN),Google Shopping / Ad group name,Google Shopping / Ads labels,Google Shopping / Condition,Google Shopping / Custom product,Google Shopping / Custom label 0,Google Shopping / Custom label 1,Google Shopping / Custom label 2,Google Shopping / Custom label 3,Google Shopping / Custom label 4\n${fallbackTitle},${ftHandle},,,,,,TRUE,draft,,,,,,,,,,,,,,,,,,,,shopify,0,CONTINUE,,g,TRUE,manual,,,,,FALSE,,,,,,,,,,,,,`;
-          if (!result.title) result.title = fallbackTitle;
+        if (result && result.success !== false) {
+          const attached = await attachCsvToScrapeResult(result, url, "/api/scenario-scrape");
+          result.csvContent = attached.csvContent;
+          result.csvInfo = attached.csvInfo;
+        } else if (result) {
+          result.csvInfo = emptyScrapeCsvInfo();
         }
 
         
@@ -2725,24 +2647,18 @@ ${result.title || 'Product'},${fb2Handle},${result.description || ''},${result.b
             console.log(`✅ ROUTES FINAL GATE: Product IS clothing - sizes preserved`);
           }
           
-          // 📋 CSV GENERATION: After Final Gate with sanitized variants
-          let csvContent = '';
-          try {
-            csvContent = await generateMultiVariantShopifyCSV({
-              id: `product-${Date.now()}`,
-              title: result.title,
-              brand: result.brand,
-              price: result.price,
-              description: '',
-              category: 'Kategori',
-              images: result.images,
-              variants: normalizedVariants, // Use sanitized variants
-              features: result.features,
-              tags: result.tags
-            });
-            console.log(`📋 CSV generated AFTER Final Gate for ${result.title}: ${csvContent.length} characters`);
-          } catch (csvError) {
-            console.warn('⚠️ CSV generation failed, continuing without CSV:', csvError);
+          let csvContent = result.csvContent || '';
+          let csvInfo = result.csvInfo || emptyScrapeCsvInfo();
+          if (!csvInfo.ready) {
+            const attached = await attachCsvToScrapeResult(
+              { ...result, variants: normalizedVariants },
+              url,
+              "/api/scenario-scrape/finalize",
+            );
+            csvContent = attached.csvContent || csvContent;
+            csvInfo = attached.csvInfo;
+            result.csvContent = csvContent;
+            result.csvInfo = csvInfo;
           }
           
           scrapeJobs.set(jobId, {
@@ -2761,6 +2677,7 @@ ${result.title || 'Product'},${fb2Handle},${result.description || ''},${result.b
               variants: normalizedVariants,
               tags: result.tags,
               csvContent: csvContent,
+              csvInfo,
               trackingActive: false,
               extractionDetails: result.extractionDetails
             }
@@ -3249,7 +3166,7 @@ ${result.title || 'Product'},${fb2Handle},${result.description || ''},${result.b
     const imageUrl = req.query.url as string;
     
     try {
-      if (!imageUrl || !imageUrl.includes('cdn.dsmcdn.com')) {
+      if (!imageUrl || !/(cdn\.dsmcdn\.com|cdn\.trendyol\.com)/.test(imageUrl)) {
         return res.status(400).json({ error: 'Invalid image URL' });
       }
 
@@ -4217,6 +4134,16 @@ ${result.title || 'Product'},${fb2Handle},${result.description || ''},${result.b
   // CSV-specific Shopify upload endpoint
   app.post('/api/shopify/upload-csv-product', async (req, res) => {
     try {
+      const requestId = getRequestId(req);
+      const conn = await runShopifyConnectionTest(requestId);
+      if (!conn.connected) {
+        return res.status(400).json({
+          success: false,
+          error: conn.message,
+          step: 'connection_check',
+        });
+      }
+
       console.log('🔍 DEBUG: /api/shopify/upload-csv-product çağrıldı');
       console.log('🔍 DEBUG: Request body keys:', Object.keys(req.body));
       console.log('🔍 DEBUG: CSV length:', req.body.csvContent?.length || 0);
@@ -5577,7 +5504,7 @@ ${result.title || 'Product'},${fb2Handle},${result.description || ''},${result.b
       }
 
       // Only allow Trendyol CDN images
-      if (!url.includes('cdn.dsmcdn.com')) {
+      if (!/(cdn\.dsmcdn\.com|cdn\.trendyol\.com)/.test(url)) {
         return res.status(403).json({ error: 'Sadece Trendyol CDN görselleri desteklenir' });
       }
 
@@ -8847,19 +8774,27 @@ ${result.title || 'Product'},${fb2Handle},${result.description || ''},${result.b
     }
   });
 
-  // Shopify auto-sync on startup
-  console.log('🔄 Starting initial Shopify products sync...');
-  shopifyProductsSync.syncAllShopifyProducts()
-    .then(result => {
-      if (result.success) {
-        console.log(`✅ Initial Shopify sync completed: ${result.totalProducts} products, ${result.categories.length} categories`);
-      } else {
-        console.error('❌ Initial Shopify sync failed:', result.error);
-      }
-    })
-    .catch(err => {
-      console.error('❌ Initial Shopify sync error:', err);
-    });
+  // Shopify auto-sync on startup (dev'de geciktir — sunucu/UI donmasın)
+  const runInitialShopifySync = () => {
+    console.log('🔄 Starting initial Shopify products sync...');
+    shopifyProductsSync.syncAllShopifyProducts()
+      .then(result => {
+        if (result.success) {
+          console.log(`✅ Initial Shopify sync completed: ${result.totalProducts} products, ${result.categories.length} categories`);
+        } else {
+          console.error('❌ Initial Shopify sync failed:', result.error);
+        }
+      })
+      .catch(err => {
+        console.error('❌ Initial Shopify sync error:', err);
+      });
+  };
+
+  if (process.env.NODE_ENV === 'production') {
+    runInitialShopifySync();
+  } else {
+    setTimeout(runInitialShopifySync, 120_000);
+  }
 
   // ========================================
   // FAILOVER SYSTEM ENDPOINTS

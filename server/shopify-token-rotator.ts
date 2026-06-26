@@ -10,7 +10,6 @@
 
 import {
   getShopifyClientCredentials,
-  getShopifyConfig,
   normalizeShopDomain,
   saveDirectAccessToken,
 } from './shopify-credentials';
@@ -70,6 +69,22 @@ export function startShopifyTokenAutoRefresh(): void {
 }
 
 /**
+ * Postman client_credentials akışı — resolve döngüsü olmadan doğrudan token alır.
+ */
+export async function fetchAccessTokenViaClientCredentials(): Promise<string | null> {
+  const creds = getShopifyClientCredentials();
+  if (!creds) return null;
+  const domain = normalizeShopDomain(creds.shopDomain);
+  const result = await tryClientCredentialsExchange(domain);
+  if (result.success && result.newToken) {
+    await persistToken(domain, result.newToken);
+    return result.newToken;
+  }
+  console.warn('client_credentials başarısız:', result.error);
+  return null;
+}
+
+/**
  * Token'ı hemen yenile.
  */
 export async function rotateShopifyToken(): Promise<{
@@ -87,9 +102,17 @@ export async function rotateShopifyToken(): Promise<{
 
   try {
     const creds = getShopifyClientCredentials();
-    const config = await getShopifyConfig();
+    const envToken =
+      process.env.SHOPIFY_ADMIN_ACCESS_TOKEN || process.env.SHOPIFY_ACCESS_TOKEN;
     const shopDomain =
-      config?.shopDomain || creds?.shopDomain || normalizeShopDomain('');
+      normalizeShopDomain(
+        process.env.SHOPIFY_SHOP_DOMAIN ||
+          process.env.SHOPIFY_STORE_URL ||
+          process.env.SHOPIFY_STORE_DOMAIN ||
+          ''
+      ) ||
+      creds?.shopDomain ||
+      '';
 
     if (!shopDomain) {
       return { success: false, error: 'Shopify mağaza domain bulunamadı (SHOPIFY_SHOP_DOMAIN)' };
@@ -107,8 +130,8 @@ export async function rotateShopifyToken(): Promise<{
     }
 
     // ── Yöntem 2: GraphQL tokenRotate ────────────────────────────────────────
-    if (config?.accessToken) {
-      const gql = await tryGraphQLRotation(shopDomain, config.accessToken);
+    if (envToken && !envToken.startsWith('shpss_')) {
+      const gql = await tryGraphQLRotation(shopDomain, envToken);
       if (gql.success && gql.newToken) {
         await persistToken(shopDomain, gql.newToken);
         console.log('✅ SHOPIFY TOKEN: GraphQL tokenRotate ile yenilendi');
@@ -164,6 +187,12 @@ async function persistToken(shopDomain: string, accessToken: string): Promise<vo
   process.env.SHOPIFY_ACCESS_TOKEN = accessToken;
   process.env.SHOPIFY_ADMIN_ACCESS_TOKEN = accessToken;
   lastRefreshTime = Date.now();
+  try {
+    const { invalidateShopifyCredentialCache } = await import('./shopify-api-service');
+    invalidateShopifyCredentialCache();
+  } catch {
+    /* optional */
+  }
   try {
     await saveDirectAccessToken(shopDomain, accessToken);
   } catch (err: any) {

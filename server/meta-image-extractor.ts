@@ -129,7 +129,8 @@ export async function extractFromMetaAndStructuredData(url: string): Promise<str
           console.log('Manifest dosyası okunamadı, devam ediliyor...');
         }
       }
-    
+    }
+
     // 9. Product mikrodata
     $('[itemtype*="Product"]').each((_, element) => {
       $(element).find('[itemprop="image"]').each((_, imgElement) => {

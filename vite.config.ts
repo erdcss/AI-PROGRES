@@ -9,11 +9,12 @@ const __filename = fileURLToPath(import.meta.url);
 const __dirname = dirname(__filename);
 
 const isReplit = process.env.REPL_ID !== undefined;
+const enableHmr = isReplit || process.env.VITE_HMR === "true";
 
 export default defineConfig({
   root: path.resolve(__dirname, "client"),
   plugins: [
-    react(),
+    react({ fastRefresh: enableHmr }),
     ...(isReplit ? [runtimeErrorOverlay()] : []),
     themePlugin(),
     ...(process.env.NODE_ENV !== "production" && isReplit
@@ -28,32 +29,42 @@ export default defineConfig({
     alias: {
       "@": path.resolve(__dirname, "./client/src"),
       "@db": path.resolve(__dirname, "./db"),
+      "@shared": path.resolve(__dirname, "./shared"),
     },
   },
   server: {
     host: '0.0.0.0',
     port: 5000,
     strictPort: true,
-    watch: {
-      // Sunucu CSV/log yazınca Vite tam sayfa yenilemesin
-      ignored: [
-        path.resolve(__dirname, "server") + "/**",
-        path.resolve(__dirname, "dist") + "/**",
-        path.resolve(__dirname, "temp") + "/**",
-        path.resolve(__dirname, "exports") + "/**",
-        path.resolve(__dirname, "data") + "/**",
-        "**/node_modules/**",
-        "**/.git/**",
-      ],
-    },
-    ...(isReplit
+    watch: enableHmr
       ? {
-          hmr: {
-            clientPort: 443,
-            protocol: 'wss',
-          },
+          ignored: [
+            "**/server/**",
+            "**/dist/**",
+            "**/temp/**",
+            "**/exports/**",
+            "**/data/**",
+            "**/.env",
+            "**/.env.*",
+            "**/.canva-token.json",
+            "**/html_analysis_*.json",
+            "**/*.csv",
+            "**/node_modules/**",
+            "**/.git/**",
+          ],
         }
-      : {}),
+      : null,
+    hmr: enableHmr
+      ? {
+          overlay: false,
+          ...(isReplit
+            ? {
+                clientPort: 443,
+                protocol: "wss",
+              }
+            : {}),
+        }
+      : false,
   },
   build: {
     outDir: path.resolve(__dirname, "dist"),

@@ -13,3 +13,7 @@ vite.config.ts.*
 *.log
 logs.txtlogs.txt
 logs.txt
+
+# Generated CSV/debug files
+temp/
+scrape-result.json

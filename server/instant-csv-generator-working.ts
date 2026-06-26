@@ -48,9 +48,9 @@ class InstantCSVGenerator {
         'Variant SKU', 'Variant Grams', 'Variant Inventory Tracker', 'Variant Inventory Qty',
         'Variant Inventory Policy', 'Variant Fulfillment Service', 'Variant Price', 'Variant Compare At Price',
         'Variant Requires Shipping', 'Variant Taxable', 'Variant Barcode', 'Image Src', 'Image Position',
-        'Image Alt Text', 'Gift Card', 'SEO Title', 'SEO Description', 'Google Shopping Google Product Category',
-        'Google Shopping Gender', 'Google Shopping Age Group', 'Google Shopping MPN', 'Google Shopping Condition',
-        'Google Shopping Custom Product', 'Variant Image', 'Variant Weight Unit', 'Status'
+        'Image Alt Text', 'Gift Card', 'SEO Title', 'SEO Description', 'Google Shopping / Google Product Category',
+        'Google Shopping / Gender', 'Google Shopping / Age Group', 'Google Shopping / MPN', 'Google Shopping / Condition',
+        'Google Shopping / Custom Product', 'Variant Image', 'Variant Weight Unit', 'Status'
       ];
       
       const csvRows = [csvHeaders.join(',')];

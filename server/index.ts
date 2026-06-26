@@ -18,6 +18,13 @@ import { importerRouter, startTokenRefreshScheduler } from './importer-api';
 import { startShopifyTokenAutoRefresh } from './shopify-token-rotator';
 import { syncEnvApiKeyToDB } from './shopify-credentials';
 import { requestIdMiddleware } from './request-context';
+import {
+  SHOPIFY_CSV_FILENAME,
+  resolveShopifyCsvPath,
+  getCsvDownloadInfo,
+  parseShopifyCsvFile,
+  getSanitizedShopifyCsvPayload,
+} from './csv-paths';
 
 console.error("=========================================");
 console.error("🚀 SERVER INDEX.TS BAŞLADI 🚀");
@@ -44,34 +51,51 @@ app.use(express.text({ type: ['text/csv', 'text/plain'], limit: '10mb' }));
 app.get('/api/download/:filename', (req, res) => {
   try {
     const filename = req.params.filename;
-    const filePath = pathModule.join('/home/runner/workspace', filename);
-    
-    console.log('📥 CSV Download isteği:', {
-      filename,
-      filePath,
-      exists: fs.existsSync(filePath)
-    });
-    
-    if (!fs.existsSync(filePath)) {
-      console.log('❌ Dosya bulunamadı:', filePath);
+    let filePath: string | null = null;
+
+    if (filename === SHOPIFY_CSV_FILENAME) {
+      filePath = resolveShopifyCsvPath();
+    } else {
+      for (const candidate of [
+        pathModule.join(process.cwd(), 'temp', filename),
+        pathModule.join(process.cwd(), filename),
+        pathModule.join('/home/runner/workspace', filename),
+      ]) {
+        if (fs.existsSync(candidate)) {
+          filePath = candidate;
+          break;
+        }
+      }
+    }
+
+    console.log('📥 CSV Download isteği:', { filename, filePath, exists: Boolean(filePath) });
+
+    if (!filePath || !fs.existsSync(filePath)) {
       return res.status(404).json({ message: 'Dosya bulunamadı' });
     }
-    
+
+    if (filename === SHOPIFY_CSV_FILENAME) {
+      const bundle = getSanitizedShopifyCsvPayload();
+      if (!bundle) {
+        return res.status(404).json({ message: 'Dosya bulunamadı' });
+      }
+
+      const payloadBytes = Buffer.byteLength(bundle.payload, 'utf8');
+
+      res.setHeader('Content-Type', 'text/csv; charset=utf-8');
+      res.setHeader('Content-Disposition', `attachment; filename="${filename}"`);
+      res.setHeader('Cache-Control', 'no-cache');
+      res.setHeader('Content-Length', payloadBytes);
+      return res.send(bundle.payload);
+    }
+
     const stats = fs.statSync(filePath);
-    console.log('📊 Dosya bilgileri:', {
-      size: stats.size,
-      modified: stats.mtime
-    });
-    
     res.setHeader('Content-Type', 'text/csv; charset=utf-8');
     res.setHeader('Content-Disposition', `attachment; filename="${filename}"`);
     res.setHeader('Cache-Control', 'no-cache');
     res.setHeader('Content-Length', stats.size);
-    
-    const fileStream = fs.createReadStream(filePath);
-    fileStream.pipe(res);
-    
-    console.log('✅ CSV dosyası gönderiliyor');
+
+    fs.createReadStream(filePath).pipe(res);
   } catch (error) {
     console.error('❌ Download error:', error);
     res.status(500).json({ message: "Dosya indirme hatası" });
@@ -79,32 +103,25 @@ app.get('/api/download/:filename', (req, res) => {
 });
 
 // CSV dosya durumu endpoint
-app.get('/api/csv/status', (req, res) => {
+app.get('/api/csv/status', (_req, res) => {
   try {
-    const filePath = pathModule.join('/home/runner/workspace', 'shopify-urunler.csv');
-    const jsonPath = pathModule.join('/home/runner/workspace', 'csv-data.json');
-    
-    const status = {
-      csvExists: fs.existsSync(filePath),
-      csvSize: fs.existsSync(filePath) ? fs.statSync(filePath).size : 0,
-      csvModified: fs.existsSync(filePath) ? fs.statSync(filePath).mtime : null,
-      jsonExists: fs.existsSync(jsonPath),
-      productCount: 0,
-      ready: false
-    };
-    
-    if (fs.existsSync(jsonPath)) {
-      try {
-        const jsonData = JSON.parse(fs.readFileSync(jsonPath, 'utf-8'));
-        status.productCount = jsonData.products?.length || 0;
-      } catch (e) {
-        console.log('JSON parse hatası:', e.message);
-      }
-    }
-    
-    status.ready = status.csvExists && status.csvSize > 1000 && status.productCount > 0;
-    
-    res.json(status);
+    const info = getCsvDownloadInfo();
+    const csvModified =
+      info.filePath && fs.existsSync(info.filePath)
+        ? fs.statSync(info.filePath).mtime
+        : null;
+
+    res.json({
+      csvExists: info.csvExists,
+      csvSize: info.csvSize,
+      csvModified,
+      productCount: info.productCount,
+      ready: info.ready,
+      filename: info.filename,
+      downloadUrl: info.downloadUrl,
+      filePath: info.filePath,
+      headers: info.headers,
+    });
   } catch (error) {
     console.error('CSV status error:', error);
     res.status(500).json({ message: "CSV durumu kontrolü hatası" });
@@ -114,113 +131,49 @@ app.get('/api/csv/status', (req, res) => {
 // Direct CSV endpoints - MUST be before Vite middleware
 app.get('/api/csv/preview', (req, res) => {
   res.setHeader('Content-Type', 'application/json');
-  const filename = 'shopify-urunler.csv';
   try {
-    const workspaceFilePath = pathModule.join('/home/runner/workspace', filename);
-    const tempFilePath = pathModule.join(process.cwd(), 'temp', filename);
-    
-    console.log('🔍 CSV Preview Debug:', {
-      filename,
-      workspaceExists: fs.existsSync(workspaceFilePath),
-      tempExists: fs.existsSync(tempFilePath)
-    });
-    
-    let filePath = workspaceFilePath;
-    if (!fs.existsSync(workspaceFilePath) && fs.existsSync(tempFilePath)) {
-      filePath = tempFilePath;
-    }
-    
-    if (!fs.existsSync(filePath)) {
-      console.log('❌ CSV dosyası bulunamadı:', filePath);
+    const parsed = parseShopifyCsvFile();
+    if (!parsed) {
       return res.status(404).json({ message: 'CSV dosyası bulunamadı' });
     }
-    
-    const csvContent = fs.readFileSync(filePath, 'utf8');
-    const rows = csvContent.split('\n').filter(row => row.trim());
-    
-    console.log('📊 CSV İçerik:', {
-      totalLines: rows.length,
-      firstLinePreview: rows[0]?.substring(0, 100)
-    });
-    
-    if (rows.length === 0) {
+
+    if (parsed.dataRows.length === 0) {
       return res.status(400).json({ message: 'CSV dosyası boş' });
     }
-    
-    // Enhanced CSV parsing with proper quote handling
-    const parseCSVRow = (row) => {
-      const cells = [];
-      let current = '';
-      let inQuotes = false;
-      let i = 0;
-      
-      while (i < row.length) {
-        const char = row[i];
-        
-        if (char === '"') {
-          if (inQuotes && i + 1 < row.length && row[i + 1] === '"') {
-            // Escaped quote
-            current += '"';
-            i += 2;
-          } else {
-            // Toggle quote state
-            inQuotes = !inQuotes;
-            i++;
-          }
-        } else if (char === ',' && !inQuotes) {
-          cells.push(current.trim());
-          current = '';
-          i++;
-        } else {
-          current += char;
-          i++;
-        }
-      }
-      cells.push(current.trim());
-      return cells;
-    };
-    
-    const headers = parseCSVRow(rows[0]);
-    
-    // Extract unique products only - first row of each handle
-    const uniqueProducts = [];
-    const seenHandles = new Set();
-    
-    for (let i = 1; i < rows.length; i++) {
-      const parsedRow = parseCSVRow(rows[i]);
-      const handle = parsedRow[0];
-      
-      if (!seenHandles.has(handle) && handle.trim()) {
-        seenHandles.add(handle);
-        uniqueProducts.push(parsedRow);
-        
-        if (uniqueProducts.length >= 10) break;
-      }
-    }
-    
-    console.log(`📊 Unique products found: ${uniqueProducts.length}`);
-    uniqueProducts.forEach((product, i) => {
-      console.log(`${i + 1}. ${product[1]} (${product[3]})`);
+
+    const handleIndex = parsed.headers.findIndex((header) => {
+      const lower = header.trim().toLowerCase();
+      return lower === 'handle' || lower === 'url handle';
     });
-    
-    console.log(`🔍 CSV contains ${rows.length - 1} total rows with ${uniqueProducts.length} unique products`);
-    
-    const response = {
-      headers: headers.slice(0, 5),
+    const titleIndex = parsed.headers.findIndex(
+      (header) => header.trim().toLowerCase() === 'title',
+    );
+
+    const uniqueProducts: string[][] = [];
+    const seenHandles = new Set<string>();
+
+    for (const row of parsed.dataRows) {
+      const handle = handleIndex >= 0 ? row[handleIndex] : row[1] || row[0];
+      if (!handle?.trim() || seenHandles.has(handle)) continue;
+      seenHandles.add(handle);
+      uniqueProducts.push(row);
+      if (uniqueProducts.length >= 10) break;
+    }
+
+    return res.json({
+      headers: parsed.headers,
       rows: uniqueProducts,
-      totalRows: rows.length - 1,
+      totalRows: parsed.productCount,
       uniqueProducts: uniqueProducts.length,
-      filename,
+      filename: SHOPIFY_CSV_FILENAME,
+      ready: parsed.ready,
+      productCount: parsed.productCount,
       debug: {
-        filePath,
-        contentLength: csvContent.length,
-        rawHeaders: headers.length,
-        rawRows: uniqueProducts.length
-      }
-    };
-    
-    res.setHeader('Content-Type', 'application/json');
-    return res.json(response);
+        filePath: parsed.filePath,
+        rawHeaders: parsed.headers.length,
+        rawRows: parsed.productCount,
+      },
+    });
   } catch (error) {
     console.error('❌ CSV preview error:', error);
     return res.status(500).json({ message: "CSV önizleme hatası", error: String(error) });
@@ -644,6 +597,11 @@ app.use(pendingChangesRoutes);
   process.stderr.write("========================================\n");
   
   if (process.env.NODE_ENV !== "production") {
+    console.log("");
+    console.log("⚠️  UYARI: npm run dev — Vite geliştirme modu (kod geliştirme içindir).");
+    console.log("   Veri çekme / scraper kullanımı için: npm run dev:stable");
+    console.log("   (Vite dev server veri çekme sırasında önerilmez.)");
+    console.log("");
     // Use Replit-optimized Vite setup if running on Replit
     if (process.env.REPL_SLUG && process.env.REPL_OWNER) {
       try {
@@ -714,11 +672,8 @@ app.use(pendingChangesRoutes);
   // Error handling for server
   server.on('error', (err: any) => {
     if (err.code === 'EADDRINUSE') {
-      console.log(`Port ${port} is already in use, attempting to restart...`);
-      setTimeout(() => {
-        server.close();
-        server.listen(port, "0.0.0.0");
-      }, 1000);
+      console.error(`Port ${port} zaten kullanımda. Çalışan süreci kapatın: npx kill-port ${port}`);
+      process.exit(1);
     } else {
       console.error('Server error:', err);
     }
@@ -744,6 +699,11 @@ app.use(pendingChangesRoutes);
     log(`serving on port ${port}`);
     console.log(`✅ Server is running at http://0.0.0.0:${port}`);
     console.log(`✅ Please visit the application at http://0.0.0.0:${port}`);
+    if (process.env.NODE_ENV === "production") {
+      console.log("");
+      console.log("✅ Kararlı mod aktif (Vite kapalı) — veri çekme için önerilen başlatma: npm run dev:stable");
+      console.log("");
+    }
     
     // Initialize error detection system
     enhancedErrorDetection.startMonitoring();
@@ -859,5 +819,7 @@ app.use(pendingChangesRoutes);
   console.log('Error message:', error.message);
   console.log('Error stack:', error.stack);
   console.log('========================================');
-  process.exit(1); // Exit to make error visible
+  if (process.env.NODE_ENV === 'production') {
+    process.exit(1);
+  }
 });

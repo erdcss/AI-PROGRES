@@ -94,11 +94,22 @@ npm run db:push
 ```
 
 3. Uygulamayı başlatın:
+
+**Veri çekme / scraper kullanımı (önerilen — Vite dev server kapalı):**
+```bash
+npm run dev:stable
+```
+
+Bu komut önce projeyi derler (`npm run build`), ardından production modunda sunucuyu başlatır. Kendi kendine sayfa yenilemesi olmaz.
+
+**Kod geliştirme (yalnızca UI/backend geliştirme için):**
 ```bash
 npm run dev
 ```
 
-Uygulama varsayılan olarak 3000 portunda çalışacaktır: http://localhost:3000
+> `npm run dev` Vite geliştirme modunu açar. Scraper veya veri çekme işlemleri için **kullanmayın** — bunun yerine `npm run dev:stable` kullanın.
+
+Uygulama varsayılan olarak **5000** portunda çalışır: http://localhost:5000
 
 ## Kullanım
 

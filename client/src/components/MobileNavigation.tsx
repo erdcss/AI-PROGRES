@@ -1,5 +1,5 @@
 import { useState } from 'react';
-import { motion, AnimatePresence } from 'framer-motion';
+import { motion } from 'framer-motion';
 import { useLocation } from 'wouter';
 import { useIsMobile } from '@/hooks/use-mobile';
 import { 
@@ -104,27 +104,14 @@ export function MobileNavigation() {
         </Button>
       </motion.div>
 
-      {/* Navigation Drawer */}
-      <AnimatePresence>
-        {isOpen && (
-            <motion.div
-              key="nav-backdrop"
-              initial={{ opacity: 0 }}
-              animate={{ opacity: 1 }}
-              exit={{ opacity: 0 }}
-              className="fixed inset-0 bg-black/60 backdrop-blur-sm z-40"
-              onClick={() => setIsOpen(false)}
-            />
-        )}
-        {isOpen && (
-            <motion.div
-              key="nav-drawer"
-              initial={{ x: '-100%' }}
-              animate={{ x: 0 }}
-              exit={{ x: '-100%' }}
-              transition={{ type: 'spring', damping: 25, stiffness: 200 }}
-              className="fixed left-0 top-0 h-full w-80 max-w-[85vw] bg-gradient-to-br from-slate-900 via-blue-900/90 to-slate-900 border-r border-blue-600/30 shadow-2xl z-50"
-            >
+      {/* Navigation Drawer — AnimatePresence kaldırıldı (insertBefore reset) */}
+      {isOpen && (
+        <>
+          <div
+            className="fixed inset-0 bg-black/60 backdrop-blur-sm z-40 animate-in fade-in duration-200"
+            onClick={() => setIsOpen(false)}
+          />
+          <div className="fixed left-0 top-0 h-full w-80 max-w-[85vw] bg-gradient-to-br from-slate-900 via-blue-900/90 to-slate-900 border-r border-blue-600/30 shadow-2xl z-50 animate-in slide-in-from-left duration-200">
               {/* Header */}
               <div className="flex items-center justify-between p-4 border-b border-blue-600/30">
                 <div className="flex items-center gap-3">
@@ -201,9 +188,9 @@ export function MobileNavigation() {
                   </div>
                 ))}
               </div>
-            </motion.div>
-        )}
-      </AnimatePresence>
+          </div>
+        </>
+      )}
     </>
   );
 }

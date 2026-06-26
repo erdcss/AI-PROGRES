@@ -73,11 +73,13 @@ export default function ShopifySettingsDialog() {
 
   const { data: status, isLoading } = useQuery<CredentialsStatus>({
     queryKey: ["/api/shopify/credentials"],
+    enabled: open,
     refetchInterval: open ? 8000 : false,
   });
 
   const { data: canvaStatus, refetch: refetchCanva } = useQuery<CanvaStatus>({
     queryKey: ["/api/canva/status"],
+    enabled: open,
     refetchInterval: open ? 5000 : false,
   });
 

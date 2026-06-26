@@ -1,4 +1,10 @@
-import { CLOTHING_KEYWORDS, FAKE_CLOTHING_SIZES, isClothingProduct } from './clothing-keywords';
+import { isClothingProduct } from './clothing-keywords';
+import { sanitizeTrendyolVariants } from '@shared/trendyol-variant-utils';
+import {
+  SHOPIFY_NEW_TEMPLATE_HEADERS,
+  SHOPIFY_NEW_TEMPLATE_COLUMN_COUNT,
+  sanitizeShopifyCsvHeaders,
+} from "./shopify-csv-headers";
 
 interface CombinedProduct {
   id: string;
@@ -83,7 +89,7 @@ const COL = {
   GOOGLE_CUSTOM_LABEL_4: 56,
 };
 
-const TOTAL_COLUMNS = 57;
+const TOTAL_COLUMNS = SHOPIFY_NEW_TEMPLATE_COLUMN_COUNT;
 const COLOR_LINKED_TO = 'product.metafields.shopify.color-pattern';
 
 export async function generateMultiVariantShopifyCSV(product: CombinedProduct): Promise<string> {
@@ -91,6 +97,10 @@ export async function generateMultiVariantShopifyCSV(product: CombinedProduct): 
   const brandSanitizer = await import('./brand-sanitizer');
   const sanitizedProduct = brandSanitizer.sanitizeProduct(product);
   console.log('🧹 CSV: Trendyol branding removed from product data');
+
+  sanitizedProduct.variants = sanitizeTrendyolVariants(sanitizedProduct.variants, {
+    productTitle: sanitizedProduct.title,
+  }) as CombinedProduct["variants"];
 
   if (!sanitizedProduct || !sanitizedProduct.title) {
     console.log('⚠️ Invalid product data, skipping CSV generation');
@@ -125,14 +135,13 @@ export async function generateMultiVariantShopifyCSV(product: CombinedProduct): 
     return '';
   }
 
-  // Strip fake clothing sizes for non-clothing products
+  // Strip fake clothing sizes for non-clothing products (ek güvenlik)
   const isConfirmedClothingProduct = isClothingProduct(sanitizedProduct.title);
   if (!isConfirmedClothingProduct && sanitizedProduct.variants) {
     console.log(`🚫 CSV GATE: "${sanitizedProduct.title.substring(0, 40)}..." is NOT clothing - stripping sizes`);
-    if (sanitizedProduct.variants.sizes) sanitizedProduct.variants.sizes = [];
-    if (sanitizedProduct.variants.allVariants) {
-      sanitizedProduct.variants.allVariants = sanitizedProduct.variants.allVariants.map(v => ({ ...v, size: '' }));
-    }
+    sanitizedProduct.variants = sanitizeTrendyolVariants(sanitizedProduct.variants, {
+      productTitle: sanitizedProduct.title,
+    }) as CombinedProduct["variants"];
   }
 
   // Price calculation
@@ -280,7 +289,9 @@ export async function generateMultiVariantShopifyCSV(product: CombinedProduct): 
   });
 
   // Variants
-  const inputVariants = Array.isArray(product.variants) ? product.variants : (product.variants?.allVariants || []);
+  const inputVariants = Array.isArray(sanitizedProduct.variants)
+    ? sanitizedProduct.variants
+    : sanitizedProduct.variants?.allVariants || [];
 
   // 🚫 TITLE-AS-COLOR FILTER: Reject colors that are actually the product title
   // Real color names are short (e.g. "Siyah", "Kırmızı"). Titles are long sentences.
@@ -336,30 +347,7 @@ export async function generateMultiVariantShopifyCSV(product: CombinedProduct): 
   const uniqueTrackingId = (product as any).uniqueTrackingId ||
     `trendyol_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`;
 
-  // Build headers
-  const headers = [
-    'Title', 'URL handle', 'Description', 'Vendor', 'Product category', 'Type', 'Tags',
-    'Published on online store', 'Status', 'SKU', 'Barcode',
-    'Option1 name', 'Option1 value', 'Option1 Linked To',
-    'Option2 name', 'Option2 value', 'Option2 Linked To',
-    'Option3 name', 'Option3 value', 'Option3 Linked To',
-    'Price', 'Compare-at price', 'Cost per item', 'Charge tax', 'Tax code',
-    'Unit price total measure', 'Unit price total measure unit',
-    'Unit price base measure', 'Unit price base measure unit',
-    'Inventory tracker', 'Inventory quantity', 'Continue selling when out of stock',
-    'Weight value (grams)', 'Weight unit for display', 'Requires shipping', 'Fulfillment service',
-    'Product image URL', 'Image position', 'Image alt text', 'Variant image URL',
-    'Gift card', 'SEO title', 'SEO description',
-    'Color (product.metafields.shopify.color-pattern)',
-    'Google Shopping / Google product category', 'Google Shopping / Gender',
-    'Google Shopping / Age group', 'Google Shopping / Manufacturer part number (MPN)',
-    'Google Shopping / Ad group name', 'Google Shopping / Ads labels',
-    'Google Shopping / Condition', 'Google Shopping / Custom product',
-    'Google Shopping / Custom label 0', 'Google Shopping / Custom label 1',
-    'Google Shopping / Custom label 2', 'Google Shopping / Custom label 3',
-    'Google Shopping / Custom label 4'
-  ];
-
+  const headers = [...SHOPIFY_NEW_TEMPLATE_HEADERS];
   const rows: string[][] = [];
   rows.push(headers);
 
@@ -511,7 +499,7 @@ export async function generateMultiVariantShopifyCSV(product: CombinedProduct): 
   console.log(`📊 CSV: Total rows: ${rows.length} (1 header + ${rows.length - 1} data rows)`);
 
   // Convert to CSV string
-  return rows.map(row =>
+  const csvBody = rows.map(row =>
     row.map(cell => {
       const s = cell !== null && cell !== undefined ? String(cell) : '';
       if (s.includes(',') || s.includes('"') || s.includes('\n')) {
@@ -520,4 +508,6 @@ export async function generateMultiVariantShopifyCSV(product: CombinedProduct): 
       return s;
     }).join(',')
   ).join('\n');
+
+  return sanitizeShopifyCsvHeaders(csvBody);
 }

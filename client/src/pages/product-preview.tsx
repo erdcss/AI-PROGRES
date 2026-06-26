@@ -9,6 +9,7 @@ import { Badge } from "@/components/ui/badge";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 import { Loader2, Package, Download, Upload, CheckCircle, XCircle, ExternalLink } from "lucide-react";
 import { useToast } from "@/hooks/use-toast";
+import { downloadShopifyCsvFromServer } from "@/lib/shopify-csv-download";
 
 interface Variant {
   color: string;
@@ -130,22 +131,22 @@ export default function ProductPreview() {
 
   const downloadCSVMutation = useMutation({
     mutationFn: async () => {
-      const response = await fetch("/api/csv/download", {
-        method: "POST",
-        body: JSON.stringify({ url: currentUrl }),
-        headers: { "Content-Type": "application/json" },
-      });
-      const blob = await response.blob();
-      const downloadUrl = window.URL.createObjectURL(blob);
-      const link = document.createElement("a");
-      link.href = downloadUrl;
-      link.download = `trendyol-product-${Date.now()}.csv`;
-      link.click();
+      const result = await downloadShopifyCsvFromServer();
+      if (!result.ok) {
+        throw new Error(result.message);
+      }
     },
     onSuccess: () => {
       toast({
         title: "İndirildi!",
         description: "CSV dosyası indirildi",
+      });
+    },
+    onError: (error: Error) => {
+      toast({
+        title: "CSV hazır değil",
+        description: error.message,
+        variant: "destructive",
       });
     },
   });

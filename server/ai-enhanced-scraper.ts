@@ -1519,11 +1519,10 @@ function extractColorVariantsWithImages(htmlContent: string, $: cheerio.CheerioA
   }
   
   // Eğer renk bulunamazsa, tüm görselleri tek renk olarak kabul et
-  if (colors.size === 0) {
-    // REMOVED fake placeholder color
-    // colors.set('', {
-      // name: '',
-      images: allImages // İlk 10 görsel
+  if (colors.size === 0 && allImages.length > 0) {
+    colors.set("Standart", {
+      name: "Standart",
+      images: allImages,
     });
   }
   

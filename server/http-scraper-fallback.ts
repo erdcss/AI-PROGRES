@@ -5,6 +5,16 @@ import axios from 'axios';
 import * as cheerio from 'cheerio';
 import { fetchTrendyolProductByUrl } from './trendyol-product-api';
 import {
+  buildTrendyolPriceObject,
+  normalizeTrendyolPriceValue,
+  parseTurkishPriceText,
+} from './trendyol-price-utils';
+import { normalizeTrendyolImages } from './trendyol-image-utils';
+import {
+  EMPTY_TRENDYOL_VARIANTS,
+  sanitizeTrendyolVariants,
+} from '@shared/trendyol-variant-utils';
+import {
   brandFromTrendyolUrl,
   isInvalidTrendyolTitle,
   titleFromTrendyolUrl,
@@ -33,10 +43,11 @@ export interface HttpScrapeResult {
 }
 
 function parsePrice(raw: unknown): number {
-  if (typeof raw === 'number' && raw > 0) return raw;
+  if (typeof raw === 'number' && raw > 0) {
+    return normalizeTrendyolPriceValue(raw);
+  }
   if (typeof raw === 'string') {
-    const n = parseFloat(raw.replace(/[^\d.,]/g, '').replace(',', '.'));
-    return Number.isFinite(n) ? n : 0;
+    return parseTurkishPriceText(raw);
   }
   return 0;
 }
@@ -160,11 +171,9 @@ function apiProductToResult(
       brand: apiProduct.brand,
       price: apiProduct.price,
       images: apiProduct.images,
-      variants: {
-        colors: ['Standart'],
-        sizes: ['Tek Beden'],
-        allVariants: [{ color: 'Standart', size: 'Tek Beden', inStock: true }],
-      },
+      variants: sanitizeTrendyolVariants(
+        apiProduct.variants?.length ? { allVariants: apiProduct.variants } : undefined,
+      ),
       features: [],
       tags: [],
       description: apiProduct.description,
@@ -238,14 +247,12 @@ export async function scrapeTrendyolHttpFallback(url: string): Promise<HttpScrap
     }
     const brand = fromLd.brand || fromState.brand || fromNext.brand || brandFromTrendyolUrl(url) || 'Marka';
     const price = fromLd.price || fromState.price || fromNext.price || { original: 0, withProfit: 0, currency: 'TRY' };
-    const images = [
-      ...new Set([
-        ...(fromLd.images || []),
-        ...(fromState.images || []),
-        ...(fromNext.images || []),
-        ...(fromMeta.images || []),
-      ]),
-    ];
+    const images = normalizeTrendyolImages([
+      ...(fromLd.images || []),
+      ...(fromState.images || []),
+      ...(fromNext.images || []),
+      ...(fromMeta.images || []),
+    ]);
 
     if (isInvalidTrendyolTitle(title) || !title || title.length < 3) {
       return {
@@ -266,11 +273,17 @@ export async function scrapeTrendyolHttpFallback(url: string): Promise<HttpScrap
 
     if (price.original <= 0) {
       const priceText = $('.prc-dsc, [class*="price"], .product-price').first().text();
-      const parsed = parsePrice(priceText);
+      const parsed = parseTurkishPriceText(priceText);
       if (parsed > 0) {
         price.original = parsed;
         price.withProfit = Math.round(parsed * 1.1 * 100) / 100;
       }
+    }
+
+    if (price.original > 0) {
+      const normalized = buildTrendyolPriceObject(price.original, 0.1);
+      price.original = normalized.original;
+      price.withProfit = normalized.withProfit;
     }
 
     return {
@@ -281,11 +294,7 @@ export async function scrapeTrendyolHttpFallback(url: string): Promise<HttpScrap
         brand,
         price,
         images,
-        variants: {
-          colors: ['Standart'],
-          sizes: ['Tek Beden'],
-          allVariants: [{ color: 'Standart', size: 'Tek Beden', inStock: true }],
-        },
+        variants: EMPTY_TRENDYOL_VARIANTS,
         features: [],
         tags: [],
         description: fromLd.description || fromNext.description || '',

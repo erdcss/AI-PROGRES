@@ -33,19 +33,8 @@ function optimizeImageUrl(url: string): string | null {
   
   // Maksimum çözünürlük ayarla
   optimized = optimized.replace(/mnresize\/\d+\/\d+\//, 'mnresize/1200/1800/');
-  
-  // Thumbnail'i orijinal kaliteye çevir
-  optimized = optimized.replace(/_thumb\.(jpg|jpeg|png|webp)/i, '_org.$1');
-  optimized = optimized.replace(/_small\.(jpg|jpeg|png|webp)/i, '_org.$1');
-  optimized = optimized.replace(/_medium\.(jpg|jpeg|png|webp)/i, '_org.$1');
-  
-  // Zoom kalitesi ekle
-  if (!optimized.includes('_org') && !optimized.includes('_zoom')) {
-    optimized = optimized.replace(/\.(jpg|jpeg|png|webp)/i, '_org_zoom.$1');
-  }
-  
-  // HTTPS garantisi
   optimized = optimized.replace(/^http:/, 'https:');
+  if (optimized.startsWith('//')) optimized = `https:${optimized}`;
   
   return optimized;
 }

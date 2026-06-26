@@ -795,8 +795,7 @@ export async function authenticTrendyolScrape(url: string): Promise<AuthenticPro
           if (originalPrice) break;
         }
       }
-      }
-      
+
       // Fallback: Standard format scanning
       if (!originalPrice) {
         const allText = $('*').text();

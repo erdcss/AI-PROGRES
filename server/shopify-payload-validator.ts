@@ -1,3 +1,5 @@
+import { sanitizeTrendyolVariants } from '@shared/trendyol-variant-utils';
+
 export interface NormalizedShopifyProductInput {
   title: string;
   brand: string;
@@ -68,20 +70,15 @@ export function normalizeTrendyolProductForShopify(productData: any): Normalized
   const brand = String(productData?.brand || productData?.vendor || 'Marka').trim();
   const price = extractPrice(productData?.price);
   const images = normalizeImages(productData?.images);
-  const variants = productData?.variants || {};
-  const allVariants = Array.isArray(variants.allVariants) ? variants.allVariants : [];
-  const colors = Array.isArray(variants.colors) ? variants.colors : [];
-  const sizes = Array.isArray(variants.sizes) ? variants.sizes : [];
-
-  const normalizedVariants =
-    allVariants.length > 0
-      ? allVariants.map((v: any) => ({
-          color: String(v.color || 'Standart').trim() || 'Standart',
-          size: String(v.size || 'Tek Beden').trim() || 'Tek Beden',
-          inStock: v.inStock !== false,
-          price: v.price,
-        }))
-      : [{ color: colors[0] || 'Standart', size: sizes[0] || 'Tek Beden', inStock: true }];
+  const sanitizedVariants = sanitizeTrendyolVariants(productData?.variants, {
+    productTitle: title,
+  });
+  const normalizedVariants = sanitizedVariants.allVariants.map((v) => ({
+    color: v.color,
+    size: v.size,
+    inStock: v.inStock,
+    price: undefined as number | undefined,
+  }));
 
   const tagsRaw = productData?.tags;
   const tags = Array.isArray(tagsRaw)
@@ -105,8 +102,8 @@ export function normalizeTrendyolProductForShopify(productData: any): Normalized
     },
     images,
     variants: {
-      colors: colors.length ? colors : [normalizedVariants[0].color],
-      sizes: sizes.length ? sizes : [normalizedVariants[0].size],
+      colors: sanitizedVariants.colors,
+      sizes: sanitizedVariants.sizes,
       allVariants: normalizedVariants,
     },
     sourceUrl: productData?.sourceUrl || productData?.originalUrl || productData?.url,
@@ -119,7 +116,10 @@ export function validateShopifyPayload(input: NormalizedShopifyProductInput): Pa
   if (!input.title || input.title.length < 2) errors.push('title zorunlu (min 2 karakter)');
   if (!input.price.withProfit || input.price.withProfit <= 0) errors.push('price geçersiz — fiyat bulunamadı');
   if (!input.variants.allVariants.length) errors.push('en az 1 variant gerekli');
-  if (!input.images.length) errors.push('en az 1 geçerli görsel URL gerekli');
+  // Görsel zorunluluğu CSV yükleme yolunda ayrı kontrol edilir
+  if (!input.images.length) {
+    errors.push('en az 1 geçerli görsel URL gerekli (CSV ile yüklemede görsel sütunu kullanılabilir)');
+  }
 
   for (const v of input.variants.allVariants) {
     if (!toDecimalString(input.price.withProfit)) errors.push('variant fiyat formatı hatalı');
