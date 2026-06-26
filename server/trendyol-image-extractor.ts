@@ -16,26 +16,22 @@ export interface ImageExtractionResult {
  */
 function optimizeImageUrl(url: string): string | null {
   if (!url || typeof url !== 'string') return null;
-  
-  // Sadece Trendyol CDN görsellerini işle
-  if (!url.includes('cdn.dsmcdn.com')) return null;
-  
-  // Ürün dışı görselleri filtrele
+
+  let optimized = url.trim();
+  if (optimized.startsWith('//')) optimized = `https:${optimized}`;
+  else if (optimized.startsWith('/')) optimized = `https://cdn.dsmcdn.com${optimized}`;
+
+  if (!optimized.includes('cdn.dsmcdn.com') && !optimized.includes('cdn.trendyol.com')) return null;
+
   const excludePatterns = ['/ui/', '/icon', '/logo', '/footer', '/brand/', '/web/', '.svg'];
-  if (excludePatterns.some(pattern => url.includes(pattern))) {
+  if (excludePatterns.some((pattern) => optimized.includes(pattern))) {
     return null;
   }
-  
-  let optimized = url;
-  
-  // En yüksek kalite resolution path
+
   optimized = optimized.replace(/\/ty\d+\//, '/ty1660/');
-  
-  // Maksimum çözünürlük ayarla
   optimized = optimized.replace(/mnresize\/\d+\/\d+\//, 'mnresize/1200/1800/');
   optimized = optimized.replace(/^http:/, 'https:');
-  if (optimized.startsWith('//')) optimized = `https:${optimized}`;
-  
+
   return optimized;
 }
 

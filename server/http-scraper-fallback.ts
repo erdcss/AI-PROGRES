@@ -10,6 +10,8 @@ import {
   parseTurkishPriceText,
 } from './trendyol-price-utils';
 import { normalizeTrendyolImages } from './trendyol-image-utils';
+import { extractProductImages } from './trendyol-image-extractor';
+import { tryGoogleCache, tryWaybackMachine } from './alternative-data-sources';
 import {
   EMPTY_TRENDYOL_VARIANTS,
   sanitizeTrendyolVariants,
@@ -106,9 +108,11 @@ function extractFromProductState(html: string): Partial<HttpScrapeResult['produc
         original > 0
           ? { original, withProfit: Math.round(original * 1.1 * 100) / 100, currency: 'TRY' }
           : undefined,
-      images: (product.images || [])
-        .map((img: any) => img.url || img.src || (typeof img === 'string' ? img : ''))
-        .filter(Boolean),
+      images: normalizeTrendyolImages(
+        (product.images || [])
+          .map((img: any) => img.url || img.src || img.path || img.link || (typeof img === 'string' ? img : ''))
+          .filter(Boolean),
+      ),
       description: product.description || '',
       category: product.category?.name || product.categoryName || '',
     };
@@ -135,9 +139,11 @@ function extractFromNextData(html: string): Partial<HttpScrapeResult['product']>
       price: original > 0
         ? { original, withProfit: Math.round(original * 1.1 * 100) / 100, currency: 'TRY' }
         : undefined,
-      images: (product.images || product.media?.images || [])
-        .map((img: any) => img.url || img.src || (typeof img === 'string' ? img : ''))
-        .filter(Boolean),
+      images: normalizeTrendyolImages(
+        (product.images || product.media?.images || [])
+          .map((img: any) => img.url || img.src || img.path || img.link || (typeof img === 'string' ? img : ''))
+          .filter(Boolean),
+      ),
       description: product.description || '',
       category: product.category?.name || product.categoryName || '',
     };
@@ -182,18 +188,38 @@ function apiProductToResult(
   };
 }
 
-export async function scrapeTrendyolHttpFallback(url: string): Promise<HttpScrapeResult> {
-  if (!url.includes('trendyol.com')) {
-    return { success: false, error: 'URL geçersiz — sadece Trendyol URL desteklenir', step: 'validate_url' };
-  }
+function parseHtmlProduct(html: string, url: string, $: cheerio.CheerioAPI) {
+  const fromLd = extractFromJsonLd($);
+  const fromState = extractFromProductState(html);
+  const fromNext = extractFromNextData(html);
+  const fromMeta = extractFromMeta($);
+  const fromExtractor = extractProductImages(html, $).images;
 
-  const apiProduct = await fetchTrendyolProductByUrl(url);
-  const apiHasUsableData =
-    apiProduct && (apiProduct.price.original > 0 || apiProduct.images.length > 0);
-  if (apiHasUsableData && apiProduct) {
-    return apiProductToResult(apiProduct, 'trendyol_api');
+  let title = fromLd.title || fromState.title || fromNext.title || fromMeta.title || '';
+  if (isInvalidTrendyolTitle(title)) {
+    title = titleFromTrendyolUrl(url) || '';
   }
+  const brand = fromLd.brand || fromState.brand || fromNext.brand || brandFromTrendyolUrl(url) || 'Marka';
+  const price = fromLd.price || fromState.price || fromNext.price || { original: 0, withProfit: 0, currency: 'TRY' };
+  const images = normalizeTrendyolImages([
+    ...(fromLd.images || []),
+    ...(fromState.images || []),
+    ...(fromNext.images || []),
+    ...(fromMeta.images || []),
+    ...fromExtractor,
+  ]);
 
+  return {
+    title,
+    brand,
+    price,
+    images,
+    description: fromLd.description || fromNext.description || '',
+    category: fromNext.category || 'Genel',
+  };
+}
+
+async function fetchTrendyolHtml(url: string): Promise<{ html: string; source: string } | null> {
   try {
     const response = await axios.get(url, {
       timeout: 25000,
@@ -209,16 +235,50 @@ export async function scrapeTrendyolHttpFallback(url: string): Promise<HttpScrap
       validateStatus: (s) => s < 500,
     });
 
-    if (response.status === 403 || response.status === 429) {
+    const html = String(response.data || '');
+    if (response.status !== 403 && response.status !== 429 && html.length >= 500) {
+      return { html, source: 'direct' };
+    }
+  } catch {
+    /* try alternatives */
+  }
+
+  const cache = await tryGoogleCache(url);
+  if (cache?.html && cache.html.length >= 500) {
+    return { html: cache.html, source: 'google-cache' };
+  }
+
+  const wayback = await tryWaybackMachine(url);
+  if (wayback?.html && wayback.html.length >= 500) {
+    return { html: wayback.html, source: 'wayback' };
+  }
+
+  return null;
+}
+
+export async function scrapeTrendyolHttpFallback(url: string): Promise<HttpScrapeResult> {
+  if (!url.includes('trendyol.com')) {
+    return { success: false, error: 'URL geçersiz — sadece Trendyol URL desteklenir', step: 'validate_url' };
+  }
+
+  const apiProduct = await fetchTrendyolProductByUrl(url);
+  const apiHasUsableData =
+    apiProduct && (apiProduct.price.original > 0 || apiProduct.images.length > 0);
+  if (apiHasUsableData && apiProduct) {
+    return apiProductToResult(apiProduct, 'trendyol_api');
+  }
+
+  try {
+    const fetched = await fetchTrendyolHtml(url);
+    if (!fetched) {
       return {
         success: false,
         error: 'Trendyol sayfası engelledi — lütfen birkaç dakika sonra tekrar deneyin',
         step: 'fetch_blocked',
-        details: `HTTP ${response.status}`,
       };
     }
 
-    const html = String(response.data || '');
+    const { html, source } = fetched;
     if (html.length < 500) {
       return { success: false, error: 'Trendyol yanıtı boş', step: 'fetch_empty' };
     }
@@ -236,30 +296,15 @@ export async function scrapeTrendyolHttpFallback(url: string): Promise<HttpScrap
     }
 
     const $ = cheerio.load(html);
-    const fromLd = extractFromJsonLd($);
-    const fromState = extractFromProductState(html);
-    const fromNext = extractFromNextData(html);
-    const fromMeta = extractFromMeta($);
-
-    let title = fromLd.title || fromState.title || fromNext.title || fromMeta.title || '';
-    if (isInvalidTrendyolTitle(title)) {
-      title = titleFromTrendyolUrl(url) || '';
-    }
-    const brand = fromLd.brand || fromState.brand || fromNext.brand || brandFromTrendyolUrl(url) || 'Marka';
-    const price = fromLd.price || fromState.price || fromNext.price || { original: 0, withProfit: 0, currency: 'TRY' };
-    const images = normalizeTrendyolImages([
-      ...(fromLd.images || []),
-      ...(fromState.images || []),
-      ...(fromNext.images || []),
-      ...(fromMeta.images || []),
-    ]);
+    const parsed = parseHtmlProduct(html, url, $);
+    let { title, brand, price, images, description, category } = parsed;
 
     if (isInvalidTrendyolTitle(title) || !title || title.length < 3) {
       return {
         success: false,
         error: 'Ürün bilgisi bulunamadı — sayfa yapısı tanınmadı',
         step: 'parse_title',
-        details: 'JSON-LD, __PRODUCT_DETAIL__, __NEXT_DATA__ ve meta tag parse başarısız',
+        details: `Kaynak: ${source}`,
       };
     }
 
@@ -268,15 +313,16 @@ export async function scrapeTrendyolHttpFallback(url: string): Promise<HttpScrap
         success: false,
         error: 'Görsel ve fiyat parse edilemedi',
         step: 'parse_price_images',
+        details: `Kaynak: ${source}`,
       };
     }
 
     if (price.original <= 0) {
       const priceText = $('.prc-dsc, [class*="price"], .product-price').first().text();
-      const parsed = parseTurkishPriceText(priceText);
-      if (parsed > 0) {
-        price.original = parsed;
-        price.withProfit = Math.round(parsed * 1.1 * 100) / 100;
+      const parsedPrice = parseTurkishPriceText(priceText);
+      if (parsedPrice > 0) {
+        price.original = parsedPrice;
+        price.withProfit = Math.round(parsedPrice * 1.1 * 100) / 100;
       }
     }
 
@@ -288,7 +334,7 @@ export async function scrapeTrendyolHttpFallback(url: string): Promise<HttpScrap
 
     return {
       success: true,
-      step: 'http_fallback_complete',
+      step: source === 'direct' ? 'http_fallback_complete' : `http_fallback_${source}`,
       product: {
         title,
         brand,
@@ -297,8 +343,8 @@ export async function scrapeTrendyolHttpFallback(url: string): Promise<HttpScrap
         variants: EMPTY_TRENDYOL_VARIANTS,
         features: [],
         tags: [],
-        description: fromLd.description || fromNext.description || '',
-        category: fromNext.category || 'Genel',
+        description,
+        category,
       },
     };
   } catch (err: any) {

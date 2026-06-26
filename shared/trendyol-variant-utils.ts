@@ -184,3 +184,11 @@ export const EMPTY_TRENDYOL_VARIANTS: SanitizedVariants = {
 export function hasRealTrendyolVariants(variants: SanitizedVariants): boolean {
   return variants.colors.length > 0 || variants.sizes.length > 0;
 }
+
+/** CSV/Shopify export — yalnızca stokta olan varyantlar */
+export function filterInStockVariantsForCsv(
+  variants: SanitizedVariants,
+): SanitizedVariants {
+  const allVariants = variants.allVariants.filter((v) => v.inStock !== false);
+  return finalizeVariants(allVariants, undefined);
+}

@@ -231,15 +231,6 @@ export async function generateMultiVariantShopifyCSV(product: CombinedProduct): 
     }
   }
 
-  const htmlVariants = product.variants?.allVariants?.filter(v => v.color && v.color.trim() !== '') || [];
-  if (htmlVariants.length > 0) {
-    const realColors = [...new Set(htmlVariants.map(v => v.color).filter(Boolean))];
-    const realSizes = [...new Set(htmlVariants.map(v => v.size).filter(Boolean))];
-    if (realColors.length > 0) bodyHtml += `<p><strong>Mevcut Renkler:</strong> ${realColors.join(', ')}</p>`;
-    if (realSizes.length > 0) bodyHtml += `<p><strong>Mevcut Bedenler:</strong> ${realSizes.join(', ')}</p>`;
-  }
-  bodyHtml += `</div>`;
-
   // Tags
   const filteredTags = (product.tags && Array.isArray(product.tags))
     ? product.tags.filter(t => t.toLowerCase() !== 'trendyol' && t.toLowerCase() !== '#trendyol')
@@ -338,6 +329,15 @@ export async function generateMultiVariantShopifyCSV(product: CombinedProduct): 
   // In-stock only
   const inStockVariants = deduped.filter(v => v.inStock !== false);
   console.log(`✅ STOCK FILTER: ${deduped.length} total → ${inStockVariants.length} in-stock`);
+
+  const htmlVariantsInStock = inStockVariants.filter(v => v.color && v.color.trim() !== '');
+  if (htmlVariantsInStock.length > 0) {
+    const realColors = [...new Set(htmlVariantsInStock.map(v => v.color).filter(Boolean))];
+    const realSizes = [...new Set(htmlVariantsInStock.map(v => v.size).filter(Boolean))];
+    if (realColors.length > 0) bodyHtml += `<p><strong>Mevcut Renkler:</strong> ${realColors.join(', ')}</p>`;
+    if (realSizes.length > 0) bodyHtml += `<p><strong>Mevcut Bedenler:</strong> ${realSizes.join(', ')}</p>`;
+  }
+  bodyHtml += `</div>`;
 
   // All unique colors for metafield
   const allColors = [...new Set(inStockVariants.map(v => v.color).filter(c => c && c.trim() !== '' && c !== 'Tek Renk'))];

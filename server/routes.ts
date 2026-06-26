@@ -2137,12 +2137,17 @@ setTimeout(check, 1000);
           (result.price?.original > 0 || (result.images?.length ?? 0) > 0) &&
           Boolean(result.title);
 
-        // ☁️ Deploy: API yeterliyse Puppeteer varyant zenginleştirmesini atla (sahte S/M/L riski)
-        if (shouldPreferApiOnlyScrape() && apiHasCoreData) {
+        const apiHasImages = (result?.images?.length ?? 0) > 0;
+
+        // ☁️ Deploy: API fiyat+başlık yeterliyse Puppeteer atla — ama görsel yoksa scenario scrape çalıştır
+        if (shouldPreferApiOnlyScrape() && apiHasCoreData && apiHasImages) {
           console.log(
             `☁️ Cloud runtime (${isCloudRuntime() ? 'detected' : 'skip flag'}): API verisi yeterli — scenario scrape atlandı`,
           );
         } else {
+        if (shouldPreferApiOnlyScrape() && apiHasCoreData && !apiHasImages) {
+          console.log('☁️ Cloud runtime: API görsel döndürmedi — scenario scrape ile görsel alınacak');
+        }
         // ⚡ 2) Scenario scrape — varyant/renk için (API başarısızsa veya varyant zenginleştirme)
         console.log('⚡ SCENARIO PATH: Running scenario-based scraper for variant data...');
         try {
@@ -3204,8 +3209,12 @@ setTimeout(check, 1000);
         },
         timeout: 10000,
         maxRedirects: 5,
-        validateStatus: (status) => status < 500
+        validateStatus: (status) => status >= 200 && status < 300
       });
+
+      if (!response.data || response.data.byteLength === 0) {
+        return res.status(502).json({ error: 'Empty image response' });
+      }
 
       // Get content type from response
       const contentType = response.headers['content-type'] || 'image/jpeg';

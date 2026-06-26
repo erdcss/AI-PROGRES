@@ -11,7 +11,7 @@ export function extractImageUrlFromUnknown(raw: unknown): string | null {
 
   if (typeof raw === "object") {
     const record = raw as Record<string, unknown>;
-    for (const key of ["url", "src", "imageUrl", "image", "href"]) {
+    for (const key of ["url", "src", "imageUrl", "image", "href", "link", "path"]) {
       const value = record[key];
       if (typeof value === "string" && value.trim().length > 0) {
         return value.trim();
@@ -28,6 +28,10 @@ function normalizeHttpUrl(url: string): string | null {
 
   if (normalized.startsWith("//")) {
     normalized = `https:${normalized}`;
+  } else if (normalized.startsWith("/ty") || normalized.startsWith("/mnresize/")) {
+    normalized = `https://cdn.dsmcdn.com${normalized}`;
+  } else if (normalized.startsWith("/")) {
+    normalized = `https://cdn.dsmcdn.com${normalized}`;
   }
 
   if (normalized.startsWith("http://")) {

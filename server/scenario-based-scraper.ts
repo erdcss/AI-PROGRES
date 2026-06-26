@@ -42,6 +42,15 @@ import { getPerformanceConfig, getTimeout, shouldRetryWithSlowTimeout } from './
 import { buildLaunchOptions } from './puppeteer-config';
 import { generateAdvancedTags } from './tag-generator';
 import { CLOTHING_KEYWORDS, FAKE_CLOTHING_SIZES, isClothingProduct } from './clothing-keywords';
+import {
+  buildVariantsFromSlicing,
+  extractColorsFromSlicingDom,
+  extractSizesWithStockFromDom,
+  mergeColorNames,
+  parseSlicingAttributesFromHtml,
+  parseSlicingAttributesFromProduct,
+  isDomElementOutOfStock,
+} from './trendyol-slicing-parser';
 import { execSync } from 'child_process';
 
 // ─── COLOR NORMALIZATION ───────────────────────────────────────────────────────
@@ -49,7 +58,7 @@ import { execSync } from 'child_process';
 const SLUG_COLOR_MAP: Record<string, string> = {
   // Single colors
   siyah:'Siyah', beyaz:'Beyaz', mavi:'Mavi', kirmizi:'Kırmızı', yesil:'Yeşil',
-  sari:'Sarı', mor:'Mor', pembe:'Pembe', gri:'Gri', kahverengi:'Kahverengi',
+  sari:'Sarı', mor:'Mor', pembe:'Pembe', gri:'Gri', kahverengi:'Kahverengi', kahve:'Kahve',
   turuncu:'Turuncu', lacivert:'Lacivert', krem:'Krem', bej:'Bej', bordo:'Bordo',
   haki:'Haki', fume:'Füme', füme:'Füme', ekru:'Ekru', pudra:'Pudra',
   antrasit:'Antrasit', lila:'Lila', turkuaz:'Turkuaz', vizon:'Vizon',
@@ -1046,11 +1055,32 @@ async function tryPuppeteerColorExtraction(url: string): Promise<{success: boole
                 (attr.attributes || []).forEach((item: any) => {
                   const sizeVal = item.attributeValue || item.value || item.attributeBeautifiedValue || '';
                   if (sizeVal && sizeVal.length > 0 && sizeVal.length < 30) {
-                    sizesWithStock.push(`${sizeVal}:in`);
+                    const stockState = item.stockState || item.stock || '';
+                    const inStock =
+                      stockState !== 'OutOfStock' &&
+                      stockState !== 'SoldOut' &&
+                      item.inStock !== false &&
+                      item.available !== false;
+                    sizesWithStock.push(`${sizeVal}:${inStock ? 'in' : 'out'}`);
+                  }
+                });
+              }
+              // Tüm renk seçeneklerini slicedAttributes'tan al
+              if (attrName === 'renk' || attrName === 'color') {
+                (attr.attributes || []).forEach((item: any) => {
+                  const colorVal = item.attributeValue || item.value || item.attributeBeautifiedValue || '';
+                  if (colorVal && colorVal.length > 0 && colorVal.length < 40) {
+                    colors.push(colorVal);
                   }
                 });
               }
             });
+          }
+
+          // slicedAttributes — renkler (allVariants dolu olsa bile)
+          if (colors.length === 0 && state.product?.slicedAttributes) {
+            const parsed = parseSlicingAttributesFromProduct(state.product);
+            parsed.colors.forEach((c) => colors.push(c.name));
           }
           
           // Fallback: read color variants from state.product.variants (renk attribute)
@@ -1063,7 +1093,27 @@ async function tryPuppeteerColorExtraction(url: string): Promise<{success: boole
           }
         }
         
-        // Method 2: DOM Color Buttons - get OTHER available colors
+        // Method 2: DOM Color Buttons - get ALL available colors from swatches
+        const domColorSelectors = [
+          'a.slicing-attributes__item img[alt]',
+          '.slicing-attributes img[alt]',
+          '[data-testid="slicing-attribute-section"] img[alt]',
+          '[class*="slicing-attribute"] img[alt]',
+          '[data-testid*="color"] img[alt]',
+          '[class*="color-variant"] img[alt]',
+          '[class*="color"] img[alt]',
+          '[class*="renk"] img[alt]',
+          '.slctn-item img[alt]',
+        ];
+        for (const sel of domColorSelectors) {
+          document.querySelectorAll(sel).forEach((img) => {
+            const alt = (img as HTMLImageElement).alt?.trim();
+            if (alt && alt.length > 0 && alt.length < 40 && !/^\d+$/.test(alt)) {
+              colors.push(alt);
+            }
+          });
+        }
+
         const colorButtons = document.querySelectorAll('[class*="color"], [class*="renk"], .slctn-item');
         colorButtons.forEach((btn) => {
           const colorName = (btn as any).getAttribute('title') || (btn as any).getAttribute('data-color') || (btn as any).textContent?.trim();
@@ -2543,6 +2593,18 @@ export async function scenarioBasedScrape(url: string): Promise<ScenarioBasedRes
       try {
         enhancedVariants = extractEnhancedVariants($, htmlContent);
         console.log(`✅ Enhanced extraction: ${enhancedVariants.length} variants found`);
+
+        // slicing-attributes + puppeteer meta (terlik/ayakkabı renk×beden)
+        const slicingVariants = buildVariantsFromSlicing($, htmlContent);
+        if (slicingVariants.length > enhancedVariants.length) {
+          console.log(
+            `✅ Slicing extraction: ${slicingVariants.length} variants (enhanced had ${enhancedVariants.length})`,
+          );
+          enhancedVariants = slicingVariants;
+        } else if (enhancedVariants.length === 0 && slicingVariants.length > 0) {
+          console.log(`✅ Slicing extraction fallback: ${slicingVariants.length} variants`);
+          enhancedVariants = slicingVariants;
+        }
         
         if (enhancedVariants.length > 0) {
           enhancedVariants.slice(0, 5).forEach((v, i) => {
@@ -2742,6 +2804,14 @@ export async function scenarioBasedScrape(url: string): Promise<ScenarioBasedRes
                 try {
                   directVariants = extractEnhancedVariants($, htmlContent);
                   console.log(`✅ Enhanced extraction: ${directVariants.length} variants found`);
+
+                  const slicingFallback = buildVariantsFromSlicing($, htmlContent);
+                  if (slicingFallback.length > directVariants.length) {
+                    directVariants = slicingFallback;
+                    console.log(`✅ Slicing fallback: ${directVariants.length} variants`);
+                  } else if (directVariants.length === 0 && slicingFallback.length > 0) {
+                    directVariants = slicingFallback;
+                  }
                   
                   if (directVariants.length > 0) {
                     directVariants.slice(0, 5).forEach((v, i) => {
@@ -3191,39 +3261,11 @@ export async function scenarioBasedScrape(url: string): Promise<ScenarioBasedRes
       }
     }
 
-    // 🎨 SINGLE-COLOR STRIP: If there is only ONE unique color across all variants,
-    // that color is not a real user-selectable option → strip it so CSV has no Renk option.
-    // Exception: keep the color ONLY when Puppeteer confirmed real color selector buttons exist on the page.
-    const uniqueColorSet = new Set(
-      validatedVariants.allVariants.map(v => v.color).filter(c => c && c.trim() !== '')
-    );
+    // 🎨 SINGLE-COLOR: CSV tarafında Renk sütunu zaten bastırılıyor (multi-variant-csv-generator).
+    // Önizleme için renk/beden verisini koruyoruz — burada silme.
     if (uniqueColorSet.size === 1) {
       const onlyColor = [...uniqueColorSet][0];
-      const hasSizes = validatedVariants.allVariants.some(v => v.size && v.size.trim() !== '');
-
-      // Check if Puppeteer found real color selector buttons on the page
-      const puppeteerColorsMeta2 = $ ? $('meta[name="puppeteer-colors"]').attr('content') : null;
-      const puppeteerCurrentMeta2 = $ ? $('meta[name="puppeteer-current-color"]').attr('content') : null;
-      const puppeteerFoundColorSelectors = !!(
-        (puppeteerColorsMeta2 && puppeteerColorsMeta2.trim().length > 0) ||
-        (puppeteerCurrentMeta2 && puppeteerCurrentMeta2.trim().length > 0)
-      );
-
-      if (hasSizes) {
-        // Has sizes → color option is redundant (only 1 choice) → remove color
-        console.log(`🚫 SINGLE-COLOR STRIP: Only 1 color "${onlyColor}" with size variants → removing color`);
-        validatedVariants.allVariants = validatedVariants.allVariants.map(v => ({ ...v, color: '', colorCode: '' }));
-        validatedVariants.colors = [];
-      } else if (!puppeteerFoundColorSelectors) {
-        // No sizes AND no real color selector buttons → true single-variant product
-        // "Siyah" came from the URL/title/JSON-LD, NOT from a real user-selectable color option
-        console.log(`🚫 SINGLE-COLOR STRIP (no selector): "${onlyColor}" has no Puppeteer color buttons → single-variant product, clearing color`);
-        validatedVariants.allVariants = validatedVariants.allVariants.map(v => ({ ...v, color: '', colorCode: '' }));
-        validatedVariants.colors = [];
-      } else {
-        // Puppeteer DID find color selector buttons → this is a genuine color-selectable product
-        console.log(`✅ SINGLE-COLOR kept: "${onlyColor}" — Puppeteer confirmed real color selector on page`);
-      }
+      console.log(`ℹ️ SINGLE-COLOR: "${onlyColor}" — önizlemede korunuyor, CSV'de Renk sütunu bastırılacak`);
     }
 
     // ✅ NO FAKE FALLBACK: Do not create fake variants when none are found
@@ -3532,33 +3574,25 @@ function validateAndSanitizeVariants(
     };
   }
   
-  // Filter authentic variants - allow empty color for size-only products
-  const authenticVariants = rawVariants.filter(variant => {
-    console.log(`🔍 VARIANT CHECK: Color: "${variant.color}", Size: "${variant.size}", InStock: ${variant.inStock}`);
-    
-    // ✅ FLEXIBLE COLOR VALIDATION: Allow empty color for size-only products
-    const colorIsEmpty = !variant.color || variant.color.trim() === '';
-    if (colorIsEmpty && !isSizeOnlyProduct) {
-      // Only reject empty colors if this is NOT a size-only product
-      console.log(`❌ Variant rejected - empty color in non-size-only product: "${variant.color}"`);
-      return false;
-    }
-    
-    // ✅ STRICT FAKE COLOR REJECTION: Reject placeholder colors
-    if (variant.color && fakeColorValues.includes(variant.color)) {
-      console.log(`❌ Variant rejected - fake/placeholder color: "${variant.color}"`);
-      return false;
-    }
-    
-    // ✅ FLEXIBLE SIZE VALIDATION: Allow empty size for color-only products
-    const sizeIsEmpty = !variant.size || variant.size.trim() === '';
-    if (sizeIsEmpty && !isColorOnlyProduct) {
-      // Only reject empty sizes if this is NOT a color-only product
-      console.log(`❌ Variant rejected - empty size in non-color-only product: "${variant.size}"`);
-      return false;
-    }
-    
-    // ✅ SMART "Tek Beden" HANDLING:
+    // Filter authentic variants - allow empty color for size-only OR empty size for color-only
+    const authenticVariants = rawVariants.filter(variant => {
+      console.log(`🔍 VARIANT CHECK: Color: "${variant.color}", Size: "${variant.size}", InStock: ${variant.inStock}`);
+      
+      const colorIsEmpty = !variant.color || variant.color.trim() === '';
+      const sizeIsEmpty = !variant.size || variant.size.trim() === '';
+
+      if (colorIsEmpty && sizeIsEmpty) {
+        console.log(`❌ Variant rejected - both color and size empty`);
+        return false;
+      }
+      
+      // ✅ STRICT FAKE COLOR REJECTION: Reject placeholder colors
+      if (variant.color && fakeColorValues.includes(variant.color)) {
+        console.log(`❌ Variant rejected - fake/placeholder color: "${variant.color}"`);
+        return false;
+      }
+      
+      // ✅ SMART "Tek Beden" HANDLING:
     // - Allow if it's a genuine single-size product (all variants are "Tek Beden")
     // - Allow if it's the only variant (single-variant product)
     // - Reject if mixed with other sizes (indicates fake variants)
@@ -3593,8 +3627,8 @@ function validateAndSanitizeVariants(
   }
   
   // Extract unique authentic sizes and colors
-  const uniqueColors = [...new Set(authenticVariants.map(v => v.color))];
-  const uniqueSizes = [...new Set(authenticVariants.map(v => v.size))];
+  const uniqueColors = [...new Set(authenticVariants.map(v => v.color).filter(c => c && c.trim() !== ''))];
+  const uniqueSizes = [...new Set(authenticVariants.map(v => v.size).filter(s => s && s.trim() !== ''))];
   
   // Build stock map
   const stockMap: Record<string, boolean> = {};
@@ -5164,16 +5198,42 @@ async function extractVariantsDirect($: cheerio.CheerioAPI, htmlContent: string,
   console.log(`🔍 JS extracted sizes: [${jsonExtractedSizes.join(', ')}]`);
   
   // Combine all authentic colors and sizes from all sources
-  const allRawColors = Array.from(new Set([...colors, ...jsonExtractedColors, ...jsonLdVariants.colors]));
+  const slicingFromHtml = parseSlicingAttributesFromHtml(htmlContent);
+  const domSlicingColors = extractColorsFromSlicingDom($);
+  const allRawColors = mergeColorNames(
+    colors,
+    jsonExtractedColors,
+    jsonLdVariants.colors,
+    slicingFromHtml.colors.map((c) => c.name),
+    domSlicingColors,
+  );
   
   // ✅ ENABLE SIZE FILTERING - Combine authentic sizes from DOM, JS and JSON-LD
   // 🚫 Skip size combination for non-clothing products
   const jsonLdSizes = skipSizeExtraction ? [] : jsonLdVariants.sizes;
   let allSizes = Array.from(new Set([...sizes, ...jsonExtractedSizes, ...jsonLdSizes]));
+  let puppeteerSizeStock: Map<string, boolean> = new Map();
+
+  // DOM'dan beden + stok (Trendyol slicing UI — terlik/ayakkabı 37-40 vb.)
+  const domSizesWithStock = skipSizeExtraction ? [] : extractSizesWithStockFromDom($);
+  if (domSizesWithStock.length > 0) {
+    domSizesWithStock.forEach((s) => {
+      if (!allSizes.includes(s.name)) allSizes.push(s.name);
+      puppeteerSizeStock.set(s.name, s.inStock);
+    });
+    console.log(`👕 DOM slicing sizes: ${domSizesWithStock.map((s) => `${s.name}:${s.inStock ? 'in' : 'out'}`).join(', ')}`);
+  }
+
+  // slicedAttributes HTML state — beden stok
+  if (!skipSizeExtraction && slicingFromHtml.sizes.length > 0) {
+    slicingFromHtml.sizes.forEach((s) => {
+      if (!allSizes.includes(s.name)) allSizes.push(s.name);
+      puppeteerSizeStock.set(s.name, s.inStock);
+    });
+  }
 
   // 🎯 HIGHEST PRIORITY: Read puppeteer-injected sizes (from JS state allVariants)
   // This gives us ALL sizes with real stock status, not just DOM-visible ones
-  let puppeteerSizeStock: Map<string, boolean> = new Map();
   if (!skipSizeExtraction) {
     const puppeteerSizesMeta = $('meta[name="puppeteer-sizes"]').attr('content');
     if (puppeteerSizesMeta && puppeteerSizesMeta.trim()) {
@@ -5271,8 +5331,13 @@ async function extractVariantsDirect($: cheerio.CheerioAPI, htmlContent: string,
   }
   
   if (puppeteerCurrentColor) {
-    detectedColors = [puppeteerCurrentColor];
-    console.log(`🎯 FINAL: puppeteer-current-color (ABSOLUTE PRIORITY): [${puppeteerCurrentColor}]`);
+    detectedColors = mergeColorNames(
+      puppeteerColors.length > 0 ? puppeteerColors : [],
+      [puppeteerCurrentColor],
+      slicingFromHtml.colors.map((c) => c.name),
+      domSlicingColors,
+    );
+    console.log(`🎯 FINAL: puppeteer colors merged (current + all swatches): [${detectedColors.join(', ')}]`);
   } else if (puppeteerColors.length > 0) {
     detectedColors = puppeteerColors;
     console.log(`🎯 FINAL: Puppeteer-extracted colors (HIGHEST PRIORITY): [${puppeteerColors.join(', ')}]`);
@@ -5293,40 +5358,8 @@ async function extractVariantsDirect($: cheerio.CheerioAPI, htmlContent: string,
     detectedColors = jsonLdVariants.colors;
     console.log(`🎯 FINAL: JSON-LD single authoritative color: ${jsonLdVariants.colors[0]}`);
   } else if (allRawColors.length > 0) {
-    // CRITICAL FIX: Use frequency-based selection instead of hardcoded logic
-    const colorCounts = new Map<string, number>();
-    allRawColors.forEach(color => {
-      colorCounts.set(color, (colorCounts.get(color) || 0) + 1);
-    });
-    
-    // Get the most frequent color
-    const sortedColors = Array.from(colorCounts.entries()).sort((a, b) => b[1] - a[1]);
-    if (sortedColors.length > 0) {
-      detectedColors = [sortedColors[0][0]];
-      console.log(`🎯 FINAL: Most frequent color selected: ${sortedColors[0][0]} (found ${sortedColors[0][1]} times)`);
-      console.log(`📊 All color frequencies: ${sortedColors.map(([c, count]) => `${c}:${count}`).join(', ')}`);
-    } else {
-      // Enhanced fallback with additional color detection
-      let titleColor = null;
-      let descriptionColor = null;
-      try {
-        titleColor = extractColorFromTitle(title);
-        descriptionColor = extractColorFromDescription(htmlContent);
-      } catch (error) {
-        console.log(`⚠️ DEBUG: Fallback color extraction error: ${error.message}`);
-      }
-      
-      if (titleColor) {
-        detectedColors = [titleColor];
-        console.log(`🎯 FINAL: Fallback to title color: ${titleColor}`);
-      } else if (descriptionColor) {
-        detectedColors = [descriptionColor];
-        console.log(`🎯 FINAL: Fallback to description color: ${descriptionColor}`);
-      } else {
-        detectedColors = []; // NO FAKE "Tek Renk" - leave empty if no real color found
-        console.log(`🚫 FINAL: No real color found - leaving empty (no fake placeholder)`);
-      }
-    }
+    detectedColors = allRawColors;
+    console.log(`🎯 FINAL: All raw colors preserved: [${detectedColors.join(', ')}]`);
   } else {
     // Enhanced color detection before defaulting
     let titleColor = null;
@@ -5361,6 +5394,8 @@ async function extractVariantsDirect($: cheerio.CheerioAPI, htmlContent: string,
   }
   
   const filteredColors = detectedColors;
+  const colorStockMap = new Map<string, boolean>();
+  slicingFromHtml.colors.forEach((c) => colorStockMap.set(c.name.toLowerCase(), c.inStock));
   
   console.log(`✅ AKILLI TESPİT: Renk tespiti tamamlandı - Renk sayısı: ${filteredColors.length}, Beden sayısı: ${allSizes.length}`);
   console.log(`🎨 Tespit edilen renkler: [${filteredColors.join(', ')}]`);
@@ -5393,6 +5428,10 @@ async function extractVariantsDirect($: cheerio.CheerioAPI, htmlContent: string,
               inStock = checkVariantStock($, htmlContent, color, size, url);
               console.log(`🔥 STOK SONUCU: ${color} - ${size} = ${inStock ? 'STOKTA VAR' : 'STOKTA YOK'}`);
             }
+            const colorKey = color.toLowerCase();
+            if (colorStockMap.has(colorKey) && !colorStockMap.get(colorKey)) {
+              inStock = false;
+            }
             variants.push({
               color: color,
               colorCode: getColorCode(color),
@@ -5405,7 +5444,10 @@ async function extractVariantsDirect($: cheerio.CheerioAPI, htmlContent: string,
     } else {
       // Only colors, no real sizes
       filteredColors.forEach(color => {
-        const inStock = checkVariantStock($, htmlContent, color, '', url);
+        const colorKey = color.toLowerCase();
+        let inStock = colorStockMap.has(colorKey)
+          ? (colorStockMap.get(colorKey) as boolean)
+          : checkVariantStock($, htmlContent, color, '', url);
         variants.push({
           color: color,
           colorCode: getColorCode(color),
@@ -5672,13 +5714,36 @@ function extractColorFromURL(htmlContent: string): string | null {
  */
 function checkVariantStock($: any, htmlContent: string, color: string, size: string, url: string): boolean {
   console.log(`🔍 GERÇEK STOK KONTROLÜ: ${color} - ${size} için stok analizi başlatılıyor...`);
+
+  if (size) {
+    const domSizes = extractSizesWithStockFromDom($);
+    const match = domSizes.find((s) => s.name === size);
+    if (match) {
+      console.log(`✅ DOM SLICING STOK: ${size} = ${match.inStock ? 'STOKTA' : 'TÜKENDİ'}`);
+      return match.inStock;
+    }
+  }
+
+  const slicing = parseSlicingAttributesFromHtml(htmlContent);
+  if (size) {
+    const sizeOpt = slicing.sizes.find((s) => s.name === size);
+    if (sizeOpt) {
+      console.log(`✅ STATE SLICING STOK: ${size} = ${sizeOpt.inStock ? 'STOKTA' : 'TÜKENDİ'}`);
+      return sizeOpt.inStock;
+    }
+  }
+  if (color && !size) {
+    const colorOpt = slicing.colors.find((c) => c.name.toLowerCase() === color.toLowerCase());
+    if (colorOpt) {
+      return colorOpt.inStock;
+    }
+  }
   
   // 1. CHECK SCRIPT DATA: Look for inStock field in variant JSON
   const scriptTags = $('script').toArray();
   for (const script of scriptTags) {
     const scriptContent = $(script).html() || '';
     
-    // Modern Trendyol variant stock pattern
     const sizePattern = new RegExp(`"size"\\s*:\\s*"${size}"[^}]*"inStock"\\s*:\\s*(true|false)`, 'gi');
     const match = scriptContent.match(sizePattern);
     
@@ -5689,15 +5754,28 @@ function checkVariantStock($: any, htmlContent: string, color: string, size: str
     }
   }
   
-  // 2. CHECK DOM: Look for active size buttons
-  const sizeButton = $(`button:contains("${size}"):not([disabled]):not(.disabled)`);
-  if (sizeButton.length > 0) {
-    console.log(`✅ DOM STOK KONTROLÜ: ${size} - STOKTA VAR (aktif buton)`);
-    return true;
+  // 2. CHECK DOM: size buttons with OOS classes
+  const sizeSelectors = [
+    '[data-testid*="size"] button',
+    '.slicing-attribute-section-value button',
+    '.pr-in-sz button',
+  ];
+  for (const sel of sizeSelectors) {
+    let found: boolean | null = null;
+    $(sel).each((_, el) => {
+      const $el = $(el);
+      const text = ($el.text() || '').trim();
+      if (text === size) {
+        found = !isDomElementOutOfStock($el);
+        return false;
+      }
+    });
+    if (found !== null) {
+      console.log(`✅ DOM STOK: ${size} = ${found ? 'STOKTA' : 'TÜKENDİ'}`);
+      return found;
+    }
   }
   
-  // 3. DEFAULT: Could not determine stock — treat as out-of-stock (safe default)
-  // This prevents "always in-stock" false positives when DOM/script data is missing
   console.log(`⚠️ VARSAYILAN: ${size} - stok bilgisi bulunamadı, TÜKENMİŞ kabul edildi`);
   return false;
 }
@@ -6167,7 +6245,7 @@ function extractColorsFromJS($: any, htmlContent: string): string[] {
           }
           
           // Extract general color names from the match
-          const colorMatch = match.match(/["'](beyaz|siyah|gri|mavi|kırmızı|yeşil|sarı|mor|pembe|kahverengi|turuncu|lacivert|krem|white|black|gray|blue|red|green|yellow|purple|pink|brown|orange|navy|cream|beige|şeffaf|taupe|transparent|clear)["']/gi);
+          const colorMatch = match.match(/["'](beyaz|siyah|gri|mavi|kırmızı|yeşil|sarı|mor|pembe|kahve|kahverengi|turuncu|lacivert|krem|white|black|gray|blue|red|green|yellow|purple|pink|brown|orange|navy|cream|beige|şeffaf|taupe|transparent|clear)["']/gi);
           if (colorMatch) {
             colorMatch.forEach(color => {
               const cleanColor = color.replace(/["']/g, '').trim();

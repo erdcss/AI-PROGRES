@@ -8,7 +8,7 @@ function extractRawImageUrl(raw: unknown): string | null {
   }
   if (typeof raw === "object") {
     const record = raw as Record<string, unknown>;
-    for (const key of ["url", "src", "imageUrl", "image", "href"]) {
+    for (const key of ["url", "src", "imageUrl", "image", "href", "link", "path"]) {
       const value = record[key];
       if (typeof value === "string" && value.trim().length > 0) {
         return value.trim();
@@ -18,24 +18,40 @@ function extractRawImageUrl(raw: unknown): string | null {
   return null;
 }
 
+function toAbsoluteCdnUrl(url: string): string | null {
+  const trimmed = url.trim();
+  if (!trimmed) return null;
+
+  if (trimmed.startsWith("//")) {
+    return `https:${trimmed}`;
+  }
+
+  if (trimmed.startsWith("/ty") || trimmed.startsWith("/mnresize/")) {
+    return `https://cdn.dsmcdn.com${trimmed}`;
+  }
+
+  if (trimmed.startsWith("/") && !trimmed.startsWith("//")) {
+    return `https://cdn.dsmcdn.com${trimmed}`;
+  }
+
+  if (trimmed.startsWith("http://") || trimmed.startsWith("https://")) {
+    return trimmed.replace(/^http:/, "https:");
+  }
+
+  return null;
+}
+
 export function optimizeTrendyolImageUrl(url: string): string | null {
   if (!url) return null;
 
-  let optimized = url.trim();
-  if (optimized.startsWith("//")) {
-    optimized = `https:${optimized}`;
-  }
-
-  if (!optimized.startsWith("http")) return null;
+  const optimized = toAbsoluteCdnUrl(url);
+  if (!optimized) return null;
   if (!CDN_HOSTS.some((host) => optimized.includes(host))) return null;
 
   const exclude = ["/ui/", "/icon", "/logo", "/footer", "/brand/", "/web/", ".svg"];
   if (exclude.some((pattern) => optimized.includes(pattern))) return null;
 
-  optimized = optimized.replace(/^http:/, "https:");
-  optimized = optimized.replace(/mnresize\/\d+\/\d+\//, "mnresize/1200/1800/");
-
-  return optimized;
+  return optimized.replace(/mnresize\/\d+\/\d+\//, "mnresize/1200/1800/");
 }
 
 export function normalizeTrendyolImages(images: unknown): string[] {
