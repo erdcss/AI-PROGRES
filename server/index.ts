@@ -634,17 +634,20 @@ app.use(pendingChangesRoutes);
     }
   } else {
     process.stderr.write("🔧 Production mode - serving static files...\n");
-    // serveStatic() looks for dist/public but Vite builds to dist/ — serve directly
-    const distPath = pathModule.resolve('./dist');
-    process.stderr.write(`📁 Static files path: ${distPath}\n`);
-    if (fs.existsSync(pathModule.join(distPath, 'index.html'))) {
-      app.use(express.static(distPath));
-      app.use('*', (_req, res) => {
-        res.sendFile(pathModule.resolve(distPath, 'index.html'));
+    const distRoot = pathModule.resolve("./dist");
+    const distPublic = pathModule.join(distRoot, "public");
+    const staticRoot = fs.existsSync(pathModule.join(distPublic, "index.html"))
+      ? distPublic
+      : distRoot;
+    process.stderr.write(`📁 Static files path: ${staticRoot}\n`);
+    if (fs.existsSync(pathModule.join(staticRoot, "index.html"))) {
+      app.use(express.static(staticRoot));
+      app.use("*", (_req, res) => {
+        res.sendFile(pathModule.resolve(staticRoot, "index.html"));
       });
-      process.stderr.write("✅ Static serving configured from dist/\n");
+      process.stderr.write(`✅ Static serving configured from ${staticRoot}\n`);
     } else {
-      process.stderr.write("⚠️ dist/index.html not found, falling back to serveStatic\n");
+      process.stderr.write("⚠️ index.html not found, falling back to serveStatic\n");
       serveStatic(app);
     }
   }

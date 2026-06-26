@@ -2108,6 +2108,7 @@ setTimeout(check, 1000);
           images: apiProduct.images,
           variants: sanitizeTrendyolVariants(
             apiProduct.variants?.length ? { allVariants: apiProduct.variants } : undefined,
+            { productTitle: apiProduct.title },
           ),
           features: [],
           tags: [],
@@ -2121,6 +2122,7 @@ setTimeout(check, 1000);
         const { enrichTrendyolResult, mergeApiWithScrape, resolveProductTitle } = await import(
           './trendyol-result-normalizer'
         );
+        const { shouldPreferApiOnlyScrape, isCloudRuntime } = await import('@shared/deploy-runtime');
 
         // ⚡ 1) Trendyol public API — hızlı ve güvenilir başlık/fiyat/görsel
         console.log('⚡ API PATH: Trying Trendyol product API first...');
@@ -2130,6 +2132,17 @@ setTimeout(check, 1000);
           result = convertApiProduct(apiProduct);
         }
 
+        const apiHasCoreData =
+          Boolean(result) &&
+          (result.price?.original > 0 || (result.images?.length ?? 0) > 0) &&
+          Boolean(result.title);
+
+        // ☁️ Deploy: API yeterliyse Puppeteer varyant zenginleştirmesini atla (sahte S/M/L riski)
+        if (shouldPreferApiOnlyScrape() && apiHasCoreData) {
+          console.log(
+            `☁️ Cloud runtime (${isCloudRuntime() ? 'detected' : 'skip flag'}): API verisi yeterli — scenario scrape atlandı`,
+          );
+        } else {
         // ⚡ 2) Scenario scrape — varyant/renk için (API başarısızsa veya varyant zenginleştirme)
         console.log('⚡ SCENARIO PATH: Running scenario-based scraper for variant data...');
         try {
@@ -2332,6 +2345,7 @@ setTimeout(check, 1000);
           }
           }
           }
+        }
         }
 
         if (result) {

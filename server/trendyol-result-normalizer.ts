@@ -13,7 +13,10 @@ import {
   mergeTrendyolImageLists,
   normalizeTrendyolImages,
 } from './trendyol-image-utils';
-import { sanitizeTrendyolVariants } from '@shared/trendyol-variant-utils';
+import {
+  hasRealTrendyolVariants,
+  sanitizeTrendyolVariants,
+} from '@shared/trendyol-variant-utils';
 
 const PLACEHOLDER_TITLES = new Set([
   'Trendyol Ürünü',
@@ -186,10 +189,13 @@ export function mergeApiWithScrape(apiResult: any, scrapeResult: any): any {
     Array.isArray(scrapeVariants.allVariants) &&
     scrapeVariants.allVariants.length > 0
   ) {
-    merged.variants = sanitizeTrendyolVariants(scrapeVariants, {
+    const sanitized = sanitizeTrendyolVariants(scrapeVariants, {
       productTitle: merged.title || apiResult.title,
     });
-    merged.extractionMethod = `${apiResult.extractionMethod || 'trendyol-api'}+variants`;
+    if (hasRealTrendyolVariants(sanitized)) {
+      merged.variants = sanitized;
+      merged.extractionMethod = `${apiResult.extractionMethod || 'trendyol-api'}+variants`;
+    }
   }
   if (scrapeResult?.features?.length) merged.features = scrapeResult.features;
   if (scrapeResult?.tags?.length) merged.tags = scrapeResult.tags;

@@ -5,20 +5,41 @@ import * as schema from "@shared/schema";
 
 const { Pool } = pg;
 
-if (!process.env.DATABASE_URL) {
-  throw new Error("DATABASE_URL must be set. Did you forget to provision a database?");
+const connectionString = process.env.DATABASE_URL;
+
+export const pool = connectionString
+  ? new Pool({
+      connectionString,
+      ssl: connectionString.includes("proxy.rlwy.net")
+        ? { rejectUnauthorized: false }
+        : undefined,
+    })
+  : null;
+
+if (!connectionString) {
+  console.warn(
+    "⚠️ DATABASE_URL tanımlı değil — veritabanı özellikleri devre dışı (scrape/Shopify yine çalışabilir)",
+  );
 }
 
-export const pool = new Pool({
-  connectionString: process.env.DATABASE_URL,
-  ssl: process.env.DATABASE_URL.includes("proxy.rlwy.net")
-    ? { rejectUnauthorized: false }
-    : undefined,
-});
+const noopDb = new Proxy(
+  {},
+  {
+    get() {
+      throw new Error(
+        "DATABASE_URL tanımlı değil. Replit/Railway Secrets veya .env dosyasına ekleyin.",
+      );
+    },
+  },
+) as ReturnType<typeof drizzle>;
 
-export const db = drizzle(pool, { schema });
+export const db = pool ? drizzle(pool, { schema }) : noopDb;
 
 export async function testConnection() {
+  if (!pool) {
+    console.warn("⚠️ DATABASE_URL yok — bağlantı testi atlandı");
+    return false;
+  }
   try {
     const result = await pool.query("SELECT NOW()");
     console.log("✅ Database connection successful", result.rows[0]);
