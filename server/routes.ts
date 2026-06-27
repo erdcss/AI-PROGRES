@@ -2090,6 +2090,20 @@ setTimeout(check, 1000);
         // Create async job to avoid proxy timeout in production deployment
         const jobId = `${Date.now().toString(36)}-${Math.random().toString(36).slice(2, 7)}`;
         scrapeJobs.set(jobId, { status: 'processing' as const, startedAt: Date.now() });
+        const jobStartedAt = Date.now();
+        const JOB_MAX_MS = 65_000;
+        const jobWatchdog = setTimeout(() => {
+          const entry = scrapeJobs.get(jobId);
+          if (!entry || entry.status !== 'processing') return;
+          console.warn(`⚠️ Scrape job ${jobId} watchdog timeout (${JOB_MAX_MS}ms)`);
+          scrapeJobs.set(jobId, {
+            ...entry,
+            status: 'error',
+            error: 'extraction-failed',
+            code: 'extraction-failed',
+          });
+        }, JOB_MAX_MS);
+
         (async () => {
           try {
         const scrapeStartTime = Date.now();
@@ -2148,7 +2162,19 @@ setTimeout(check, 1000);
         console.log(`⚡ Pipeline completed in ${Date.now() - scrapeStartTime}ms`);
 
         if (result) {
-          result = await enrichTrendyolResult(url, result);
+          const { withStageTimeout } = await import("@shared/scrape-runtime");
+          try {
+            result = await withStageTimeout(
+              () => enrichTrendyolResult(url, result),
+              Math.max(5_000, JOB_MAX_MS - (Date.now() - jobStartedAt) - 2_000),
+              "pipeline-global-timeout",
+            );
+          } catch (enrichErr) {
+            console.warn(
+              "⚠️ enrichTrendyolResult timeout/error — pipeline verisi korunuyor:",
+              enrichErr instanceof Error ? enrichErr.message : enrichErr,
+            );
+          }
         } else {
           result = await enrichTrendyolResult(url, {
             title: '',
@@ -2526,7 +2552,11 @@ setTimeout(check, 1000);
           } catch (bgErr: any) {
             console.error('❌ Background scrape error:', bgErr);
             const _entry = scrapeJobs.get(jobId);
-            if (_entry) scrapeJobs.set(jobId, { ..._entry, status: 'error' as const, error: bgErr.message });
+            if (_entry && _entry.status === 'processing') {
+              scrapeJobs.set(jobId, { ..._entry, status: 'error' as const, error: bgErr.message });
+            }
+          } finally {
+            clearTimeout(jobWatchdog);
           }
         })();
         // Return immediately — client polls /api/scrape-job/:jobId

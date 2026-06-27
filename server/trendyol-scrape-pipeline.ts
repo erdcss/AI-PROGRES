@@ -1,15 +1,17 @@
 /**
  * Trendyol cloud-safe scrape pipeline.
- * Stage hataları pipeline'ı durdurmaz; yalnızca hiç veri yoksa fail.
+ * Stage hataları pipeline'ı durdurmaz; global deadline sonrası partial döner.
  */
 import { puppeteerAllowed, isCloudRuntime } from "@shared/deploy-runtime";
 import {
+  computeFinalSuccessReason,
   hasMinimumScrapeData,
   isCompleteScrapeData,
   logScrapeDiagnostics,
   resolveEffectiveScrapeMode,
   ScrapeStageTimeoutError,
   withStageTimeout,
+  type FinalSuccessReason,
   type PipelineOutcome,
   type ScrapeDiagnostics,
   type ScrapeStageErrorCode,
@@ -25,9 +27,16 @@ import { filterValidProductImages } from "./trendyol-image-utils";
 import { mergeApiWithScrape, resolveProductTitle } from "./trendyol-result-normalizer";
 import { scenarioBasedScrape } from "./scenario-based-scraper";
 
-const DIRECT_HTML_TIMEOUT_MS = 20_000;
-const IMAGE_FETCH_TIMEOUT_MS = 25_000;
-const SCENARIO_TIMEOUT_MS = 90_000;
+const STAGE_TIMEOUT = {
+  api: 10_000,
+  directHtml: 18_000,
+  htmlParse: 4_000,
+  imageFetcher: 18_000,
+  imageFallback: 12_000,
+  scenario: 75_000,
+} as const;
+
+const GLOBAL_TIMEOUT_MS = () => (isCloudRuntime() ? 55_000 : 90_000);
 
 function evaluateFields(result: any, url: string) {
   const title = resolveProductTitle(url, result?.title);
@@ -37,29 +46,10 @@ function evaluateFields(result: any, url: string) {
   return { hasTitle, hasPrice, hasImages, title };
 }
 
-function pushStageError(
-  diagnostics: ScrapeDiagnostics,
-  code: ScrapeStageErrorCode,
-): void {
+function pushStageError(diagnostics: ScrapeDiagnostics, code: ScrapeStageErrorCode): void {
   if (!diagnostics.stageErrors.includes(code)) {
     diagnostics.stageErrors.push(code);
   }
-}
-
-function recordStageFailure(
-  diagnostics: ScrapeDiagnostics,
-  code: ScrapeStageErrorCode,
-  field: "directHtmlError" | "imageFetcherError",
-): void {
-  pushStageError(diagnostics, code);
-  diagnostics[field] = code;
-}
-
-function needsScenarioEnrichment(result: any, url: string): boolean {
-  const fields = evaluateFields(result, url);
-  if (!hasMinimumScrapeData(fields)) return true;
-  if (!isCompleteScrapeData(fields)) return true;
-  return !hasRealTrendyolVariants(result?.variants);
 }
 
 function emptyResult(url: string) {
@@ -73,12 +63,8 @@ function emptyResult(url: string) {
   };
 }
 
-export async function runTrendyolScrapePipeline(
-  url: string,
-  selectedScrapeMode?: SelectedScrapeMode,
-): Promise<PipelineOutcome> {
-  const modes = resolveEffectiveScrapeMode(selectedScrapeMode);
-  const diagnostics: ScrapeDiagnostics = {
+function createDiagnostics(modes: { selected: string; effective: string }): ScrapeDiagnostics {
+  return {
     selectedScrapeMode: modes.selected,
     effectiveScrapeMode: modes.effective,
     isCloudRuntime: isCloudRuntime(),
@@ -87,16 +73,96 @@ export async function runTrendyolScrapePipeline(
     apiSuccess: false,
     directHtmlStarted: false,
     directHtmlSuccess: false,
+    htmlParseStarted: false,
+    htmlParseSuccess: false,
     imageFetcherStarted: false,
     imageFetcherSuccess: false,
     imageFallbackStarted: false,
     imageFallbackSuccess: false,
     stageErrors: [],
   };
+}
+
+function finalizeOutcome(
+  result: any,
+  url: string,
+  diagnostics: ScrapeDiagnostics,
+  pipelineStart: number,
+  forcedGlobalTimeout = false,
+): PipelineOutcome {
+  result.title = resolveProductTitle(url, result.title);
+  const fields = evaluateFields(result, url);
+  const minimum = hasMinimumScrapeData(fields);
+  const complete = isCompleteScrapeData(fields);
+
+  if (forcedGlobalTimeout) {
+    pushStageError(diagnostics, "pipeline-global-timeout");
+    diagnostics.scenarioSkippedReason =
+      diagnostics.scenarioSkippedReason || "global-timeout";
+  }
+
+  diagnostics.pipelineDurationMs = Date.now() - pipelineStart;
+  diagnostics.finalSuccessReason = computeFinalSuccessReason({
+    fields,
+    apiSuccess: diagnostics.apiSuccess,
+    stageErrors: diagnostics.stageErrors,
+    minimum,
+    complete,
+  }) as FinalSuccessReason;
+
+  const partialSuccess =
+    minimum && (!complete || diagnostics.stageErrors.length > 0 || forcedGlobalTimeout);
+  diagnostics.partialSuccess = partialSuccess;
+
+  if (!minimum) {
+    logScrapeDiagnostics(diagnostics);
+    return {
+      result: {
+        ...result,
+        success: false,
+        partialSuccess: false,
+        stageErrors: diagnostics.stageErrors,
+        scrapeDiagnostics: diagnostics,
+      },
+      diagnostics,
+      success: false,
+      partialSuccess: false,
+    };
+  }
+
+  logScrapeDiagnostics(diagnostics);
+  return {
+    result: {
+      ...result,
+      success: true,
+      partialSuccess,
+      stageErrors: diagnostics.stageErrors,
+      scrapeDiagnostics: diagnostics,
+    },
+    diagnostics,
+    success: true,
+    partialSuccess,
+  };
+}
+
+export async function runTrendyolScrapePipeline(
+  url: string,
+  selectedScrapeMode?: SelectedScrapeMode,
+): Promise<PipelineOutcome> {
+  const pipelineStart = Date.now();
+  const globalDeadline = pipelineStart + GLOBAL_TIMEOUT_MS();
+  const modes = resolveEffectiveScrapeMode(selectedScrapeMode);
+  const diagnostics = createDiagnostics(modes);
+
+  const isPastDeadline = () => Date.now() >= globalDeadline;
+  const remainingMs = () => Math.max(500, globalDeadline - Date.now());
+
   logScrapeDiagnostics(diagnostics);
 
   let result: any = emptyResult(url);
   let apiProduct: Awaited<ReturnType<typeof fetchTrendyolProductByUrl>> = null;
+  let directHtml: string | null = null;
+  let forcedGlobalTimeout = false;
 
   const convertApiProduct = (api: NonNullable<typeof apiProduct>) => ({
     success: true,
@@ -115,80 +181,132 @@ export async function runTrendyolScrapePipeline(
     sourceUrl: url,
   });
 
-  // 1) Trendyol API
-  diagnostics.apiStarted = true;
-  console.log("⚡ [1/6] Trendyol API...");
-  try {
-    apiProduct = await fetchTrendyolProductByUrl(url);
-    if (apiProduct && (apiProduct.price.original > 0 || apiProduct.images.length > 0)) {
-      result = convertApiProduct(apiProduct);
-      diagnostics.apiSuccess = true;
-      console.log(`✅ Trendyol API: "${apiProduct.title}" — ${apiProduct.price.original} TL`);
+  const applyHtmlProduct = (htmlProduct: NonNullable<Awaited<ReturnType<typeof import("./trendyol-html-extractor").parseTrendyolProductFromHtmlContent>>>) => {
+    result.title = resolveProductTitle(url, htmlProduct.title || result.title);
+    if (filterValidProductImages(result.images).length === 0 && htmlProduct.images.length > 0) {
+      result.images = htmlProduct.images;
     }
-  } catch (err) {
-    console.log(`⚠️ [1/6] API failed: ${err instanceof Error ? err.message : err}`);
-  }
-
-  // 2) Direct HTML — Safari UA (soft fail)
-  diagnostics.directHtmlStarted = true;
-  let directHtml: string | null = null;
-  console.log("⚡ [2/6] Direct HTML (Safari UA)...");
-  try {
-    const { fetchTrendyolDirectHtmlRaw } = await import("./trendyol-direct-html");
-    const directRaw = await withStageTimeout(
-      () => fetchTrendyolDirectHtmlRaw(url),
-      DIRECT_HTML_TIMEOUT_MS,
-      "direct-html-timeout",
-    );
-    directHtml = directRaw?.html ?? null;
-    diagnostics.directHtmlSuccess = Boolean(directHtml && directHtml.length > 5000);
-    if (diagnostics.directHtmlSuccess) {
-      console.log(`✅ [2/6] Direct HTML: ${directHtml!.length} bytes`);
+    if (hasRealTrendyolVariants(htmlProduct.variants)) {
+      result.variants = htmlProduct.variants;
     }
-  } catch (err) {
-    const code: ScrapeStageErrorCode =
-      err instanceof ScrapeStageTimeoutError ? err.code : "direct-html-error";
-    recordStageFailure(diagnostics, code, "directHtmlError");
-    console.warn(`⚠️ [2/6] Direct HTML soft-fail (${code}), devam ediliyor`);
-  }
+    if ((!result.price?.original || result.price.original <= 0) && htmlProduct.price.original > 0) {
+      result.price = htmlProduct.price;
+    }
+    if (htmlProduct.description && !result.description) {
+      result.description = htmlProduct.description;
+    }
+  };
 
-  // 3) HTML / JSON-LD / productState parse
-  console.log("⚡ [3/6] HTML/JSON-LD parse...");
-  try {
-    const { extractTrendyolProductFromHtml } = await import("./trendyol-html-extractor");
-    const htmlProduct = await extractTrendyolProductFromHtml(url);
-    if (htmlProduct) {
-      result.title = resolveProductTitle(url, htmlProduct.title || result.title);
-      if (filterValidProductImages(result.images).length === 0 && htmlProduct.images.length > 0) {
-        result.images = htmlProduct.images;
-      }
-      if (hasRealTrendyolVariants(htmlProduct.variants)) {
-        result.variants = htmlProduct.variants;
-      }
-      if ((!result.price?.original || result.price.original <= 0) && htmlProduct.price.original > 0) {
-        result.price = htmlProduct.price;
-      }
-      if (htmlProduct.description && !result.description) {
-        result.description = htmlProduct.description;
-      }
-      console.log(
-        `✅ [3/6] HTML extractor (${htmlProduct.htmlSource}): ${htmlProduct.images.length} görsel, fiyat=${htmlProduct.price.original}`,
+  // ── 1) Trendyol API ──
+  if (!isPastDeadline()) {
+    diagnostics.apiStarted = true;
+    console.log("⚡ [1/6] Trendyol API...");
+    try {
+      apiProduct = await withStageTimeout(
+        () => fetchTrendyolProductByUrl(url),
+        Math.min(STAGE_TIMEOUT.api, remainingMs()),
+        "api-timeout",
       );
+      if (apiProduct && (apiProduct.price.original > 0 || apiProduct.images.length > 0)) {
+        result = convertApiProduct(apiProduct);
+        diagnostics.apiSuccess = true;
+        console.log(`✅ [1/6] Trendyol API: "${apiProduct.title}" — ${apiProduct.price.original} TL`);
+      }
+    } catch (err) {
+      const code: ScrapeStageErrorCode =
+        err instanceof ScrapeStageTimeoutError ? err.code : "api-error";
+      pushStageError(diagnostics, code);
+      console.warn(`⚠️ [1/6] API soft-fail (${code})`);
     }
-  } catch (err) {
-    console.warn(`⚠️ [3/6] HTML parse failed: ${err instanceof Error ? err.message : err}`);
   }
 
-  // 4) fetchTrendyolProductImages
+  if (isPastDeadline()) forcedGlobalTimeout = true;
+
+  // ── 2) Direct HTML — Safari UA ──
+  if (!isPastDeadline() && !forcedGlobalTimeout) {
+    diagnostics.directHtmlStarted = true;
+    console.log("⚡ [2/6] Direct HTML (Safari UA)...");
+    try {
+      const { fetchTrendyolDirectHtmlRaw } = await import("./trendyol-direct-html");
+      const directRaw = await withStageTimeout(
+        () => fetchTrendyolDirectHtmlRaw(url),
+        Math.min(STAGE_TIMEOUT.directHtml, remainingMs()),
+        "direct-html-timeout",
+      );
+      directHtml = directRaw?.html ?? null;
+      diagnostics.directHtmlSuccess = Boolean(directHtml && directHtml.length > 5000);
+      if (diagnostics.directHtmlSuccess) {
+        console.log(`✅ [2/6] Direct HTML: ${directHtml!.length} bytes`);
+      }
+    } catch (err) {
+      const code: ScrapeStageErrorCode =
+        err instanceof ScrapeStageTimeoutError ? err.code : "direct-html-error";
+      pushStageError(diagnostics, code);
+      diagnostics.directHtmlError = code;
+      console.warn(`⚠️ [2/6] Direct HTML soft-fail (${code}), devam ediliyor`);
+    }
+  }
+
+  if (isPastDeadline()) forcedGlobalTimeout = true;
+
+  // ── 3) HTML parse — yalnızca mevcut HTML, ağ yok ──
+  if (!isPastDeadline() && !forcedGlobalTimeout) {
+    const htmlReady = Boolean(directHtml && directHtml.length >= 500);
+    if (!htmlReady) {
+      diagnostics.htmlParseSkippedReason = directHtml
+        ? "html-too-short"
+        : diagnostics.directHtmlError
+          ? "direct-html-unavailable"
+          : "no-html-available";
+      console.log(`⚡ [3/6] HTML parse skipped: ${diagnostics.htmlParseSkippedReason}`);
+    } else {
+      diagnostics.htmlParseStarted = true;
+      const parseStart = Date.now();
+      console.log("⚡ [3/6] HTML/JSON-LD parse (local only)...");
+      try {
+        const { parseTrendyolProductFromHtmlContent } = await import("./trendyol-html-extractor");
+        const htmlProduct = await withStageTimeout(
+          async () =>
+            parseTrendyolProductFromHtmlContent(directHtml!, url, "direct-html"),
+          Math.min(STAGE_TIMEOUT.htmlParse, remainingMs()),
+          "html-parse-timeout",
+        );
+        diagnostics.htmlParseDurationMs = Date.now() - parseStart;
+        if (htmlProduct) {
+          applyHtmlProduct(htmlProduct);
+          diagnostics.htmlParseSuccess = true;
+          console.log(
+            `✅ [3/6] HTML parse (${htmlProduct.htmlSource}): ${htmlProduct.images.length} görsel, fiyat=${htmlProduct.price.original} (${diagnostics.htmlParseDurationMs}ms)`,
+          );
+        } else {
+          diagnostics.htmlParseError = "html-parse-empty";
+          console.warn("⚠️ [3/6] HTML parse: veri çıkarılamadı");
+        }
+      } catch (err) {
+        diagnostics.htmlParseDurationMs = Date.now() - parseStart;
+        const code: ScrapeStageErrorCode =
+          err instanceof ScrapeStageTimeoutError ? err.code : "html-parse-error";
+        pushStageError(diagnostics, code);
+        diagnostics.htmlParseError = code;
+        console.warn(`⚠️ [3/6] HTML parse soft-fail (${code})`);
+      }
+    }
+  } else if (forcedGlobalTimeout) {
+    diagnostics.htmlParseSkippedReason = "global-deadline";
+  }
+
+  if (isPastDeadline()) forcedGlobalTimeout = true;
+
+  // ── 4) fetchTrendyolProductImages ──
   const hasImagesBeforeFetch = filterValidProductImages(result?.images || []).length > 0;
-  if (!hasImagesBeforeFetch) {
+  if (!hasImagesBeforeFetch && !isPastDeadline() && !forcedGlobalTimeout) {
     diagnostics.imageFetcherStarted = true;
     console.log("⚡ [4/6] fetchTrendyolProductImages...");
     try {
       const { fetchTrendyolProductImages } = await import("./trendyol-image-fetcher");
       const directImages = await withStageTimeout(
         () => fetchTrendyolProductImages(url),
-        IMAGE_FETCH_TIMEOUT_MS,
+        Math.min(STAGE_TIMEOUT.imageFetcher, remainingMs()),
         "image-proxy-timeout",
       );
       if (directImages.length > 0) {
@@ -199,64 +317,83 @@ export async function runTrendyolScrapePipeline(
     } catch (err) {
       const code: ScrapeStageErrorCode =
         err instanceof ScrapeStageTimeoutError ? err.code : "image-proxy-error";
-      recordStageFailure(diagnostics, code, "imageFetcherError");
-      console.warn(`⚠️ [4/6] Image fetch soft-fail (${code}), devam ediliyor`);
+      pushStageError(diagnostics, code);
+      diagnostics.imageFetcherError = code;
+      console.warn(`⚠️ [4/6] Image fetch soft-fail (${code})`);
     }
-  } else {
+  } else if (hasImagesBeforeFetch) {
     console.log("⚡ [4/6] Görseller mevcut — image fetch atlandı");
   }
 
-  // 5) Cache / alternatif görsel fallback
+  if (isPastDeadline()) forcedGlobalTimeout = true;
+
+  // ── 5) Alternatif görsel fallback ──
   const stillNoImages = filterValidProductImages(result?.images || []).length === 0;
-  if (stillNoImages) {
+  if (stillNoImages && !isPastDeadline() && !forcedGlobalTimeout) {
     diagnostics.imageFallbackStarted = true;
     console.log("⚡ [5/6] Alternatif görsel fallback...");
     try {
-      const { fetchTrendyolImagesFromApi } = await import("./trendyol-product-api");
-      const apiImages = await fetchTrendyolImagesFromApi(url);
-      if (apiImages.length > 0) {
-        result.images = apiImages;
-        diagnostics.imageFallbackSuccess = true;
-        console.log(`✅ [5/6] API deep scan: ${apiImages.length} görsel`);
-      } else {
-        const { scrapeTrendyolHttpFallback } = await import("./http-scraper-fallback");
-        const http = await scrapeTrendyolHttpFallback(url);
-        if (http.success && http.product?.images?.length) {
-          result.images = http.product.images;
-          diagnostics.imageFallbackSuccess = true;
-          console.log(`✅ [5/6] HTTP fallback görsel: ${http.product.images.length} adet`);
-        }
-      }
+      await withStageTimeout(
+        async () => {
+          const { fetchTrendyolImagesFromApi } = await import("./trendyol-product-api");
+          const apiImages = await fetchTrendyolImagesFromApi(url);
+          if (apiImages.length > 0) {
+            result.images = apiImages;
+            diagnostics.imageFallbackSuccess = true;
+            console.log(`✅ [5/6] API deep scan: ${apiImages.length} görsel`);
+            return;
+          }
+          const { scrapeTrendyolHttpFallback } = await import("./http-scraper-fallback");
+          const http = await scrapeTrendyolHttpFallback(url);
+          if (http.success && http.product?.images?.length) {
+            result.images = http.product.images;
+            diagnostics.imageFallbackSuccess = true;
+            console.log(`✅ [5/6] HTTP fallback görsel: ${http.product.images.length} adet`);
+          }
+        },
+        Math.min(STAGE_TIMEOUT.imageFallback, remainingMs()),
+        "image-fallback-timeout",
+      );
     } catch (err) {
-      pushStageError(diagnostics, "image-fallback-error");
-      console.warn(`⚠️ [5/6] Image fallback failed: ${err instanceof Error ? err.message : err}`);
+      const code: ScrapeStageErrorCode =
+        err instanceof ScrapeStageTimeoutError ? err.code : "image-fallback-error";
+      pushStageError(diagnostics, code);
+      console.warn(`⚠️ [5/6] Image fallback soft-fail (${code})`);
     }
-  } else {
+  } else if (!stillNoImages) {
     console.log("⚡ [5/6] Görsel fallback atlandı");
   }
 
-  result.title = resolveProductTitle(url, result.title);
-  let fields = evaluateFields(result, url);
+  if (isPastDeadline()) forcedGlobalTimeout = true;
 
-  // 6) Scenario — cloud'da yalnızca ENABLE_PUPPETEER_IN_CLOUD=true ise
-  const scenarioNeeded = needsScenarioEnrichment(result, url);
+  // ── 6) Scenario — yalnızca Puppeteer izinliyse ──
+  const fieldsBeforeScenario = evaluateFields(result, url);
+  const scenarioNeeded =
+    !forcedGlobalTimeout &&
+    !isPastDeadline() &&
+    (!hasMinimumScrapeData(fieldsBeforeScenario) ||
+      !isCompleteScrapeData(fieldsBeforeScenario) ||
+      !hasRealTrendyolVariants(result?.variants));
+
   if (!scenarioNeeded) {
-    diagnostics.scenarioSkippedReason = "sufficient-data";
+    diagnostics.scenarioSkippedReason = forcedGlobalTimeout
+      ? "global-timeout"
+      : "sufficient-data";
   } else if (!puppeteerAllowed()) {
     diagnostics.scenarioSkippedReason = "puppeteer-disabled-in-cloud";
-    console.info("ℹ️ Scenario atlandı (cloud): puppeteer-disabled-in-cloud");
+    console.info("ℹ️ [6/6] Scenario atlandı (cloud): puppeteer-disabled-in-cloud");
   } else if (
     modes.effective === "auto-fast" &&
-    hasMinimumScrapeData(fields) &&
-    hasRealTrendyolVariants(result.variants)
+    hasMinimumScrapeData(fieldsBeforeScenario) &&
+    hasRealTrendyolVariants(result?.variants)
   ) {
     diagnostics.scenarioSkippedReason = "auto-fast-core-data-present";
-  } else {
+  } else if (!isPastDeadline() && !forcedGlobalTimeout) {
     console.log("⚡ [6/6] Scenario scrape (eksik veri)...");
     try {
       const scrapeResult = await withStageTimeout(
         () => scenarioBasedScrape(url, { allowPuppeteer: true }),
-        SCENARIO_TIMEOUT_MS,
+        Math.min(STAGE_TIMEOUT.scenario, remainingMs()),
         "scenario-timeout",
       );
 
@@ -271,7 +408,7 @@ export async function runTrendyolScrapePipeline(
       if (scrapeResult && scrapeResult.success !== false && scrapeHasValidData) {
         result = mergeApiWithScrape(result, scrapeResult);
         console.log("✅ [6/6] Scenario scrape merged");
-      } else if (!hasMinimumScrapeData(fields)) {
+      } else {
         pushStageError(diagnostics, "scenario-error");
         diagnostics.scenarioSkippedReason = "scenario-insufficient-data";
         console.warn("⚠️ [6/6] Scenario returned insufficient data");
@@ -282,56 +419,13 @@ export async function runTrendyolScrapePipeline(
       pushStageError(diagnostics, code);
       diagnostics.scenarioSkippedReason = "scenario-failed-keeping-partial";
       console.warn(`⚠️ [6/6] Scenario soft-fail (${code})`);
-      if (apiProduct && !hasMinimumScrapeData(fields)) {
+      if (apiProduct && !hasMinimumScrapeData(fieldsBeforeScenario)) {
         result = convertApiProduct(apiProduct);
       }
     }
   }
 
-  result.title = resolveProductTitle(url, result.title);
-  fields = evaluateFields(result, url);
+  if (isPastDeadline()) forcedGlobalTimeout = true;
 
-  const minimum = hasMinimumScrapeData(fields);
-  const complete = isCompleteScrapeData(fields);
-  const partialSuccess = minimum && (!complete || diagnostics.stageErrors.length > 0);
-
-  if (!minimum) {
-    diagnostics.finalSuccessReason = "no-data";
-    diagnostics.partialSuccess = false;
-    logScrapeDiagnostics(diagnostics);
-    return {
-      result: {
-        ...result,
-        success: false,
-        partialSuccess: false,
-        stageErrors: diagnostics.stageErrors,
-      },
-      diagnostics,
-      success: false,
-      partialSuccess: false,
-    };
-  }
-
-  diagnostics.finalSuccessReason = complete
-    ? diagnostics.stageErrors.length > 0
-      ? "complete-with-stage-warnings"
-      : "complete"
-    : "partial-data";
-  diagnostics.partialSuccess = partialSuccess;
-
-  const finalResult = {
-    ...result,
-    success: true,
-    partialSuccess,
-    stageErrors: diagnostics.stageErrors,
-    scrapeDiagnostics: diagnostics,
-  };
-
-  logScrapeDiagnostics(diagnostics);
-  return {
-    result: finalResult,
-    diagnostics,
-    success: true,
-    partialSuccess,
-  };
+  return finalizeOutcome(result, url, diagnostics, pipelineStart, forcedGlobalTimeout);
 }

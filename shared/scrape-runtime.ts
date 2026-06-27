@@ -1,15 +1,27 @@
 import { isCloudRuntime, puppeteerAllowed } from "./deploy-runtime";
 
 export type ScrapeStageErrorCode =
+  | "api-timeout"
+  | "api-error"
   | "direct-html-timeout"
   | "direct-html-error"
+  | "html-parse-timeout"
+  | "html-parse-error"
   | "puppeteer-disabled-in-cloud"
   | "scenario-timeout"
   | "scenario-error"
   | "image-proxy-timeout"
   | "image-proxy-error"
+  | "image-fallback-timeout"
   | "image-fallback-error"
+  | "pipeline-global-timeout"
   | "extraction-failed";
+
+export type FinalSuccessReason =
+  | "api-only"
+  | "api-plus-images"
+  | "partial-timeout"
+  | "no-data-extraction-failed";
 
 export type SelectedScrapeMode =
   | "auto-fast"
@@ -32,6 +44,11 @@ export type ScrapeDiagnostics = {
   directHtmlStarted: boolean;
   directHtmlSuccess: boolean;
   directHtmlError?: string;
+  htmlParseStarted: boolean;
+  htmlParseSkippedReason?: string;
+  htmlParseSuccess: boolean;
+  htmlParseError?: string;
+  htmlParseDurationMs?: number;
   imageFetcherStarted: boolean;
   imageFetcherSuccess: boolean;
   imageFetcherError?: string;
@@ -39,8 +56,9 @@ export type ScrapeDiagnostics = {
   imageFallbackSuccess: boolean;
   scenarioSkippedReason?: string;
   stageErrors: ScrapeStageErrorCode[];
-  finalSuccessReason?: string;
+  finalSuccessReason?: FinalSuccessReason | string;
   partialSuccess?: boolean;
+  pipelineDurationMs?: number;
 };
 
 export type PipelineOutcome = {
@@ -109,6 +127,11 @@ export function logScrapeDiagnostics(diagnostics: ScrapeDiagnostics): void {
       directHtmlStarted: diagnostics.directHtmlStarted,
       directHtmlSuccess: diagnostics.directHtmlSuccess,
       directHtmlError: diagnostics.directHtmlError ?? null,
+      htmlParseStarted: diagnostics.htmlParseStarted,
+      htmlParseSkippedReason: diagnostics.htmlParseSkippedReason ?? null,
+      htmlParseSuccess: diagnostics.htmlParseSuccess,
+      htmlParseError: diagnostics.htmlParseError ?? null,
+      htmlParseDurationMs: diagnostics.htmlParseDurationMs ?? null,
       imageFetcherStarted: diagnostics.imageFetcherStarted,
       imageFetcherSuccess: diagnostics.imageFetcherSuccess,
       imageFetcherError: diagnostics.imageFetcherError ?? null,
@@ -118,6 +141,7 @@ export function logScrapeDiagnostics(diagnostics: ScrapeDiagnostics): void {
       stageErrors: diagnostics.stageErrors,
       finalSuccessReason: diagnostics.finalSuccessReason ?? null,
       partialSuccess: diagnostics.partialSuccess ?? false,
+      pipelineDurationMs: diagnostics.pipelineDurationMs ?? null,
     }),
   );
 }
@@ -166,7 +190,6 @@ export function formatScrapeError(error: unknown): {
   };
 }
 
-/** Başlık, fiyat veya görselden en az biri var mı */
 export function hasMinimumScrapeData(fields: {
   hasTitle: boolean;
   hasPrice: boolean;
@@ -181,4 +204,37 @@ export function isCompleteScrapeData(fields: {
   hasImages: boolean;
 }): boolean {
   return fields.hasTitle && fields.hasPrice && fields.hasImages;
+}
+
+export function computeFinalSuccessReason(input: {
+  fields: { hasTitle: boolean; hasPrice: boolean; hasImages: boolean };
+  apiSuccess: boolean;
+  stageErrors: ScrapeStageErrorCode[];
+  minimum: boolean;
+  complete: boolean;
+}): FinalSuccessReason {
+  const { fields, apiSuccess, stageErrors, minimum, complete } = input;
+  if (!minimum) return "no-data-extraction-failed";
+
+  const hadTimeout = stageErrors.some(
+    (e) => e.includes("timeout") || e === "pipeline-global-timeout",
+  );
+
+  if (hadTimeout || (!complete && minimum)) {
+    return "partial-timeout";
+  }
+
+  if (apiSuccess && fields.hasImages) {
+    return "api-plus-images";
+  }
+
+  if (apiSuccess) {
+    return "api-only";
+  }
+
+  if (fields.hasImages) {
+    return "api-plus-images";
+  }
+
+  return complete ? "api-plus-images" : "partial-timeout";
 }

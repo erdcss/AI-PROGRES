@@ -144,12 +144,14 @@ function buildVariantsFromHtml(html: string, $: cheerio.CheerioAPI, title: strin
   );
 }
 
-/** HTML + cache kaynaklarından tam ürün verisi çıkarır */
-export async function extractTrendyolProductFromHtml(url: string): Promise<HtmlExtractedProduct | null> {
-  const fetched = await fetchTrendyolHtml(url);
-  if (!fetched?.html || fetched.html.length < 500) return null;
+/** Mevcut HTML string'inden parse — ağ isteği yapmaz */
+export function parseTrendyolProductFromHtmlContent(
+  html: string,
+  url: string,
+  source = "inline-html",
+): HtmlExtractedProduct | null {
+  if (!html || html.length < 500) return null;
 
-  const { html, source } = fetched;
   const $ = cheerio.load(html);
   const fromState = parseFromProductState(html);
   const fromNext = parseFromNextData(html);
@@ -210,4 +212,11 @@ export async function extractTrendyolProductFromHtml(url: string): Promise<HtmlE
     variants,
     htmlSource: source,
   };
+}
+
+/** HTML + cache kaynaklarından tam ürün verisi çıkarır (ağ isteği yapar) */
+export async function extractTrendyolProductFromHtml(url: string): Promise<HtmlExtractedProduct | null> {
+  const fetched = await fetchTrendyolHtml(url);
+  if (!fetched?.html || fetched.html.length < 500) return null;
+  return parseTrendyolProductFromHtmlContent(fetched.html, url, fetched.source);
 }
